@@ -1,0 +1,96 @@
+"""
+Phase 5.1 — CHECK (firmware v2, `processing_modes.md` mode 4): "looking for something and possibly
+not finding it." A bounded, demand-driven completion that returns one of FOUR statuses under the
+CWA-default query model (`decision-cwa-default`), with a renderable "where I looked" trace.
+
+CHECK runs CHAIN (`chain_sip`, the bounded demand-driven prover) for the goal, then reads the outcome:
+
+  - POSITIVE     — the goal is derivable (`yes`).
+  - ENTAILED_NEG — the goal is NOT derivable but its NEGATIVE (`pred_not`) IS: a HARD `no`, as
+                   trustworthy as a `yes` (e.g. from disjointness — `universal.entailed_negation`).
+  - ASSUMED_NO   — neither is derivable and the concept is CLOSED-WORLD (the default): a DEFEASIBLE
+                   "no, to the best of current knowledge" (CWA). Revisable; NOTHING is materialized
+                   or retracted for it (§5-safe), it is a verdict computed from the demand closure.
+  - UNKNOWN      — neither is derivable and the concept is OPEN-WORLD (the per-predicate opt-in,
+                   `open_preds`): absence is not taken as false — gather evidence instead.
+
+This is the firmware realization of `query.ask_goal`'s verdict (which uses `GoalSolver` and COLLAPSES
+the three negatives to `no`/`no`/`unknown`); CHECK keeps the KIND distinct — the signal the
+metareasoning/escalation layer needs — and renders the completion's "where I looked" from the visible
+`<demand>` magic set (`chain.render_demands`), which is exactly what makes an assumed-no explainable
+in a way exhaustive systems cannot (`processing_modes.md` §3).
+
+v1 SCOPE (positive core + copula negation): the negative predicate is `pred + "_not"` (`is`->`is_not`,
+the established `decide.NEG_COPULA` convention; general `R_not` mirrors it); ENTAILED_NEG fires only
+where the bank actually has negative-producing rules/facts (in a purely-positive bank, goals resolve
+POSITIVE or ASSUMED_NO). Bounded by `chain_sip`'s fuel/round budget.
+"""
+from __future__ import annotations
+
+from .attrgraph import AttrGraph
+from .chain import chain_sip, _facts_matching, render_demands
+
+# The four CHECK statuses (decision-cwa-default's 4-status model).
+POSITIVE = "positive"          # derivable -> yes
+ENTAILED_NEG = "entailed-no"   # the negative is derivable -> a HARD no
+ASSUMED_NO = "assumed-no"      # CWA default: closed-world, unprovable -> a DEFEASIBLE no
+UNKNOWN = "unknown"            # open-world, unprovable -> gather
+
+COPULA = "is"                  # the copula predicate; openness of `is S C` is a property of C
+
+
+def _neg_pred(pred: str) -> str:
+    """The negative predicate paired with `pred` (`is`->`is_not`; `R`->`R_not`), the established
+    `decide.NEG_COPULA` convention generalized to an arbitrary binary relation."""
+    return f"{pred}_not"
+
+
+def _present(fact_g: AttrGraph, goal: tuple[str, str | None, str | None]) -> bool:
+    """Is any fact matching the (possibly wildcarded) `goal` present? (∃ for a free endpoint.)"""
+    pred, subj, obj = goal
+    return bool(_facts_matching(fact_g, pred, subj, obj))
+
+
+def _concept_key(pred: str, obj: str | None) -> str:
+    """Openness is a property of the CONCEPT: for a copula goal `is(S, C)` it is the object concept C
+    (`C is open world`), not the shared copula; for a relational goal it is the predicate. Mirrors
+    `query.ask_goal`'s `concept_key` so the firmware verdict matches the reference exactly."""
+    return obj if (pred == COPULA and obj is not None) else pred
+
+
+def check(fact_g: AttrGraph, rule_g: AttrGraph,
+          goal: tuple[str, str | None, str | None], *,
+          open_preds: frozenset[str] = frozenset(), provenance: bool = False) -> str:
+    """CHECK `goal` and return one of POSITIVE / ENTAILED_NEG / ASSUMED_NO / UNKNOWN. Runs CHAIN for
+    the positive (bounded); if absent, runs CHAIN for the negative; if that too is absent, the CWA
+    default (`assumed-no`) holds unless the concept is declared OPEN (`unknown`). Only the derivable
+    facts are materialized (monotone, §5-safe); the assumed-no is a computed verdict, not a write."""
+    pred, subj, obj = goal
+    chain_sip(fact_g, rule_g, goal, provenance=provenance)          # demand-driven positive
+    if _present(fact_g, goal):
+        return POSITIVE
+    neg = (_neg_pred(pred), subj, obj)
+    chain_sip(fact_g, rule_g, neg, provenance=provenance)           # is the HARD negative entailed?
+    if _present(fact_g, neg):
+        return ENTAILED_NEG
+    return UNKNOWN if _concept_key(pred, obj) in open_preds else ASSUMED_NO
+
+
+def collapse(status: str) -> str:
+    """The yes/no/unknown an actor acts on — `query.ask_goal`'s verdict. The KIND (hard ENTAILED_NEG
+    vs defeasible ASSUMED_NO) is the finer signal the metareasoning/escalation layer reads; both are
+    `no` to a caller that only needs the decision."""
+    return {POSITIVE: "yes", ENTAILED_NEG: "no", ASSUMED_NO: "no", UNKNOWN: "unknown"}[status]
+
+
+def explain_check(status: str, rule_g: AttrGraph) -> list[str]:
+    """RECORD the CHECK as CNL: the verdict plus 'where I looked' (the visible `<demand>` magic set the
+    completion explored). This is what makes a NEGATIVE answer honest and renderable — "assumed no: I
+    looked for X and Y within budget and found nothing" — not a claim about the universe."""
+    head = {
+        POSITIVE: "yes — derivable",
+        ENTAILED_NEG: "no — the negative is entailed (a hard no)",
+        ASSUMED_NO: "assumed no — closed-world default, and the goal was not derivable",
+        UNKNOWN: "unknown — open-world, and neither the goal nor its negative was derivable",
+    }[status]
+    return [head, "  looked for:"] + [f"    {ln}" for ln in render_demands(rule_g)]

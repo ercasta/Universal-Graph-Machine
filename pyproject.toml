@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "universal-graph-machine"
+version = "0.1.0"
+description = "Universal Graph Machine — label-less attribute graph substrate with ISA engine and CNL surface"
+readme = { text = "Universal Graph Machine", content-type = "text/markdown" }
+requires-python = ">=3.8"
+license = { text = "MIT" }
+keywords = ["graph", "reasoning", "knowledge-representation", "cnl", "datalog"]
+dependencies = []
+
+[project.optional-dependencies]
+asp = ["clingo>=5.8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not slow'"
+norecursedirs = [".venv", "__pycache__", ".git", "*.egg-info"]
+markers = ["slow: marks tests as slow"]
+
+[tool.setuptools]
+packages = ["ugm", "ugm.cnl"]
