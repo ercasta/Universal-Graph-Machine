@@ -33,7 +33,8 @@ from ..world_model import Graph
 EXISTENTIAL_SUBJECTS: frozenset[str] = frozenset(
     {"someone", "somebody", "anyone", "anybody", "something", "anything"})
 
-COPULA = "is"     # the copula predicate; a copula query's closedness is on its OBJECT concept
+# Substrate copula vocabulary — single source of truth in `ugm.vocabulary` (Phase 2.5).
+from ..vocabulary import COPULA
 
 
 # ---------------------------------------------------------------------------

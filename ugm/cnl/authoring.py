@@ -33,9 +33,10 @@ from .. import decide
 from .forms import (
     FORM_RULES, _predicate_literals, declared_auxiliaries, declared_prepositions,
     declared_relations, declared_rule_variables, declared_univ_nouns, load_text, normalize_lexical,
-    propagate_embeddings, rule_var_name, tokenize, wire_same_as,
+    propagate_embeddings, relation_predicates, rule_var_name, tokenize, wire_same_as,
 )
 from .universal import same_as_rules
+from ..vocabulary import SUBSTRATE_COREF_PREDS
 from ..production_rule import (
     GradedCondition, Pat, Rule, binder as _binder, is_var as _is_var, literal_name,
 )
@@ -212,17 +213,18 @@ def graded_rules(graph: Graph) -> list[Rule]:
 GRADED_RULES: list[Rule] = graded_rules(Graph())
 
 
-# Content predicates whose facts must COMPOSE across `same_as` coreference links (mirrors
-# `session.CONTENT_PREDS`; kept here to avoid a session -> authoring import cycle). Domains
-# extend it with their declared relations/prepositions at load time.
-_COREF_PREDS = {"is_a", "is", "wants", "in", "has", "before", "target", "type",
-                "disjoint_from", "every_is_a", "is_unique", "rel_property", "closes"}
-
-
+# Content predicates whose facts must COMPOSE across `same_as` coreference. Phase 2.5 removes the old
+# hardcoded DOMAIN string list (`wants`/`in`/`has`/`before`/… — the leak). The set is now derived,
+# content-blind, from three sources: the fixed SUBSTRATE primitives (`vocabulary.SUBSTRATE_COREF_PREDS`
+# — copula/subsumption/congruence, composing in EVERY KB), every relation PREDICATE actually present
+# in the graph (`relation_predicates` — the faithful additive-coref analog: the destructive merge
+# shared ALL of a mention's relations, so coref must too), and the KB's declared relations/prepositions
+# (for a predicate declared but not yet materialized). No domain vocabulary is named in the engine.
 def _coref_propagation(graph: Graph) -> list[Rule]:
     """`same_as` propagation rules over the content predicates present, so facts on one mention
     reach its coreferent siblings (what the destructive `canonicalize` merge gave for free)."""
-    preds = _COREF_PREDS | declared_relations(graph) | declared_prepositions(graph)
+    preds = (SUBSTRATE_COREF_PREDS | set(relation_predicates(graph))
+             | declared_relations(graph) | declared_prepositions(graph))
     return same_as_rules(sorted(preds))
 
 

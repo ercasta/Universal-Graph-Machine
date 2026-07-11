@@ -35,7 +35,7 @@ from .world_model import Graph
 
 Resolver = Callable[[Graph, str, str, str], str]
 
-SAME_AS = "same_as"
+from .vocabulary import SAME_AS, IS_A, DISJOINT   # substrate vocabulary (Phase 2.5)
 NOT_SAME_AS = ret.NOT_SAME_AS          # the recorded rejection (re-use retraction's vocabulary)
 
 # Vocabulary — all ordinary nodes/relations; `<coref>`/`<coref-pair>`/`<coref-settled>` are
@@ -54,8 +54,6 @@ SETTLED_MARK = "<coref-settled>"
 CHECKED = "coref_checked"        # <pair> --coref_checked--> <coref-checked> (one-step delay after settled)
 CHECKED_MARK = "<coref-checked>"
 SETTLE = "settle"                # the barrier tool name
-IS_A = "is_a"
-DISJOINT = "disjoint_from"
 
 
 def _ensure(graph: Graph, name: str, *, control: bool = False) -> str:
@@ -338,7 +336,7 @@ def resolve_coref(graph: Graph, name: str, *, resolver: Resolver | None = None,
     if len(mentions) < 2:
         return
     preds = (sorted(set(base_predicates)) if base_predicates is not None
-             else sorted(set(_incident_predicates(graph, mentions)) | {"is_a"}))
+             else sorted(set(_incident_predicates(graph, mentions)) | {IS_A}))
     skip = lambda a, b: ret.is_rejected(graph, a, b) or _same_as_live(graph, a, b)
     if materialize_cursor(graph, name, skip=skip) is None:
         return

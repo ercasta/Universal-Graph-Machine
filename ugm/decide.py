@@ -42,10 +42,9 @@ from . import retraction as ret
 from .production_rule import Pat, Rule
 from .world_model import Graph
 
-CWA = "<closed_world>"       # marker: P --closes--> <closed_world>  (P is closed-world DATA)
-CLOSES = "closes"
-COPULA = "is"                # the positive predicate: P(c) == c is P
-NEG_COPULA = "is_not"        # the materialized negative: c is_not P
+# Substrate copula/CWA vocabulary — single source of truth in `ugm.vocabulary` (Phase 2.5);
+# re-exported here so existing `decide.COPULA`/`decide.CWA`/… references stay valid.
+from .vocabulary import CWA, CLOSES, COPULA, NEG_COPULA
 
 
 def _ensure(graph: Graph, name: str) -> str:

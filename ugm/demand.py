@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from .production_rule import Pat, Rule
 from .world_model import Graph
+from .vocabulary import IS_A
 
 DEMAND = "<demand>"
 
@@ -47,17 +48,17 @@ DEMAND_TRANSITIVITY: list[Rule] = [
     # SPAWN: demand(a,c) + a is_a b  =>  demand(b,c)   (no duplicate demand)
     Rule(
         key="demand.is_a.spawn",
-        lhs=[Pat("?d", "d_subj", "?a"), Pat("?d", "d_obj", "?c"), Pat("?a", "is_a", "?b")],
+        lhs=[Pat("?d", "d_subj", "?a"), Pat("?d", "d_obj", "?c"), Pat("?a", IS_A, "?b")],
         nac=[Pat("?d2", "d_subj", "?b"), Pat("?d2", "d_obj", "?c")],
         rhs=[Pat("<demand>?", "d_subj", "?b"), Pat("<demand>?", "d_obj", "?c")],
     ),
     # DERIVE (gated on the demand): a is_a b, b is_a c, demand(a,c)  =>  a is_a c
     Rule(
         key="demand.is_a.derive",
-        lhs=[Pat("?a", "is_a", "?b"), Pat("?b", "is_a", "?c"),
+        lhs=[Pat("?a", IS_A, "?b"), Pat("?b", IS_A, "?c"),
              Pat("?d", "d_subj", "?a"), Pat("?d", "d_obj", "?c")],
-        nac=[Pat("?a", "is_a", "?c")],
-        rhs=[Pat("?a", "is_a", "?c")],
+        nac=[Pat("?a", IS_A, "?c")],
+        rhs=[Pat("?a", IS_A, "?c")],
     ),
 ]
 

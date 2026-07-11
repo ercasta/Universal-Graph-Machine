@@ -8,6 +8,7 @@ they too would be loaded from CNL.
 from __future__ import annotations
 
 from ..production_rule import Pat, Rule
+from ..vocabulary import COPULA, NEG_COPULA, IS_A, IS_A_NOT, SAME_AS, DISJOINT, TARGET, TYPE
 
 
 UNIVERSAL_RULES: list[Rule] = [
@@ -15,16 +16,16 @@ UNIVERSAL_RULES: list[Rule] = [
     # NAC keeps it idempotent and bounds the loop to the transitive closure.
     Rule(
         key="is_a.transitive",
-        lhs=[Pat("?a", "is_a", "?b"), Pat("?b", "is_a", "?c")],
-        nac=[Pat("?a", "is_a", "?c")],
-        rhs=[Pat("?a", "is_a", "?c")],
+        lhs=[Pat("?a", IS_A, "?b"), Pat("?b", IS_A, "?c")],
+        nac=[Pat("?a", IS_A, "?c")],
+        rhs=[Pat("?a", IS_A, "?c")],
     ),
     # Goal satisfaction: a goal wanting (target is_a type) is satisfied once that holds.
     Rule(
         key="goal.satisfied",
-        lhs=[Pat("?g", "target", "?x"), Pat("?g", "type", "?y"), Pat("?x", "is_a", "?y")],
-        nac=[Pat("?g", "is", "satisfied")],
-        rhs=[Pat("?g", "is", "satisfied")],
+        lhs=[Pat("?g", TARGET, "?x"), Pat("?g", TYPE, "?y"), Pat("?x", IS_A, "?y")],
+        nac=[Pat("?g", COPULA, "satisfied")],
+        rhs=[Pat("?g", COPULA, "satisfied")],
     ),
 ]
 
@@ -56,19 +57,19 @@ def same_as_rules(predicates) -> list[Rule]:
     # turn coref-following ON and drop these rules as subsumed by its union-find, replacing the old
     # `_is_same_as_prop` key-prefix sniffing. The role is data ON the rule, set where it's defined.
     rules = [Rule(key="same_as.symmetric", coref_prop=True,
-                  lhs=[Pat("?a", "same_as", "?b")], rhs=[Pat("?b", "same_as", "?a")])]
-    for p in sorted(set(predicates) | {"same_as"}):
+                  lhs=[Pat("?a", SAME_AS, "?b")], rhs=[Pat("?b", SAME_AS, "?a")])]
+    for p in sorted(set(predicates) | {SAME_AS}):
         rules.append(Rule(key=f"same_as.subj.{p}", coref_prop=True,
-                          lhs=[Pat("?a", "same_as", "?b"), Pat("?a", p, "?o")],
+                          lhs=[Pat("?a", SAME_AS, "?b"), Pat("?a", p, "?o")],
                           rhs=[Pat("?b", p, "?o")]))
         rules.append(Rule(key=f"same_as.obj.{p}", coref_prop=True,
-                          lhs=[Pat("?a", "same_as", "?b"), Pat("?s", p, "?a")],
+                          lhs=[Pat("?a", SAME_AS, "?b"), Pat("?s", p, "?a")],
                           rhs=[Pat("?s", p, "?b")]))
     return rules
 
 
 # A reusable default over the universal predicates (domains add their own via `same_as_rules`).
-SAME_AS_RULES: list[Rule] = same_as_rules(["is_a", "is", "target", "type"])
+SAME_AS_RULES: list[Rule] = same_as_rules([IS_A, COPULA, TARGET, TYPE])
 
 
 # ENTAILED NEGATION (decision-cwa-default): disjointness ENTAILS a negation — if `A disjoint_from B`
@@ -93,7 +94,7 @@ def entailed_negation_rules(graph) -> list[Rule]:
         if graph.is_inert(n) or a.startswith("<"):   # Phase 2.2: inert FLAG (proves/uses); `<…>` catches token names
             continue
         for r in graph.out(n):
-            if not graph.has_key(r, "disjoint_from"):
+            if not graph.has_key(r, DISJOINT):
                 continue
             for o in graph.out(r):
                 b = graph.name(o)
@@ -104,7 +105,7 @@ def entailed_negation_rules(graph) -> list[Rule]:
         a, b = sorted(pair)
         for x, y in ((a, b), (b, a)):
             rules.append(Rule(key=f"disjoint.is_not.{x}.{y}",
-                              lhs=[Pat("?z", "is", x)], rhs=[Pat("?z", "is_not", y)]))
+                              lhs=[Pat("?z", COPULA, x)], rhs=[Pat("?z", NEG_COPULA, y)]))
             rules.append(Rule(key=f"disjoint.is_a_not.{x}.{y}",
-                              lhs=[Pat("?z", "is_a", x)], rhs=[Pat("?z", "is_a_not", y)]))
+                              lhs=[Pat("?z", IS_A, x)], rhs=[Pat("?z", IS_A_NOT, y)]))
     return rules

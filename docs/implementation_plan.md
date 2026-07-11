@@ -106,20 +106,20 @@ Python driver becomes dead weight once the declared composition subsumes it, at 
 retires like `rewriter.py` did — not before.
 
 **PICK UP NEXT — recommended order:**
-1. **Phase 2.5** — `COPULA`/`NEG_SUFFIX` and the coref/predicate VOCABULARY → KB declarations. Slice 4
-   did the plan control-flow half; this is the vocabulary half. The 2026-07-11 exit-gate audit pinpoints
-   the sites: `check`/`decide`/`goal`'s `COPULA="is"`/`NEG_COPULA="is_not"`/`NEG_SUFFIX="_not"`;
-   `authoring._COREF_PREDS` (the moved `session.CONTENT_PREDS`, 5.4b residual B);
-   `universal.SAME_AS_RULES = same_as_rules([...])`. ⚠Opus for "what's KB vs engine".
-2. **Phase 5 exit gate — bench-sensibility half (harness-side)** — run card-trader + coref + full
+1. **Phase 5 exit gate — bench-sensibility half (harness-side)** — run card-trader + coref + full
    ProofWriter-coverage in `harneskills`. The engine-half is MET in-repo (audited 2026-07-11); this half
-   is not verifiable from this repo.
-3. **Phase 7(a)** — now that 2.3 settled the name/key/value model, intern keys/values to ints + CSR
+   is not verifiable from this repo. NOTE for that run: Phase 2.5 (2026-07-11) de-hardcoded the domain
+   coref predicate list — coref now composes over `relation_predicates(graph)` (relations in play) +
+   declared relations/prepositions, NOT a fixed engine list. A harness bench relying on a domain predicate
+   composing across coref should Just Work if the predicate is present as a relation (default-grammar
+   `in`/`has`/`before` included); if one regresses, DECLARE the relation in the harness KB, do NOT re-add
+   an engine string.
+2. **Phase 7(a)** — now that 2.3 settled the name/key/value model, intern keys/values to ints + CSR
    adjacency + bitsets on a CLEAN representation (no bridge). The plan's stated long-pole.
-4. **Optional follow-on** — prose `suppose … predict …` sugar folding to slice 3c's reified encoding
+3. **Optional follow-on** — prose `suppose … predict …` sugar folding to slice 3c's reified encoding
    (new surface → SLM debt; deferred like `to NAME`, pick up if the SLM ledger is being retrained).
 
-**Slices 4/3c and Phase 2.3/2.4 are DONE, and the 5.5 exit-gate ENGINE half is MET — do NOT re-do them.**
+**Slices 4/3c and Phase 2.3/2.4/2.5 are DONE, and the 5.5 exit-gate ENGINE half is MET — do NOT re-do them.**
 
 **Model routing** — ⚠Opus = needs vision-judgment; ✓S = Sonnet-safe where a gate/spec catches deviation.
 - Slice 4 (plan→act→check→replan): **DONE** (was ⚠Opus)
@@ -129,7 +129,7 @@ retires like `rewriter.py` did — not before.
   wire `chosen` as declared CHOOSE **~✓S** (gated)
 - Phase 2.3 (name→valued attr, KB-declared discriminating-key indexes): **⚠Opus** — real design work,
   NOT mechanical (see correction above); 2.4 (name-free identity tokens) still **✓S** once 2.3 lands
-- Phase 2.5 (COPULA/NEG_SUFFIX / `solve.py` preds → KB declarations): **⚠Opus** for "what's KB vs engine"
+- Phase 2.5 (COPULA/NEG_SUFFIX / coref predicate VOCABULARY → consolidate/de-hardcode): **DONE** (was ⚠Opus)
 - Phase 3.1 step 2 (one-graph fold): **⚠Opus** — control/fact segregation. 3.2/3.4: **⚠Opus**
 - Phase 6.1 demotion decisions **⚠Opus**; `architecture.md` rewrite **✓S**
 - Phase 7 perf: **✓S** with benchmarks for mechanical rungs; **⚠Opus** for design + AOT codegen
@@ -224,10 +224,18 @@ All items DONE (2026-07-08, 470 tests).
   likewise references its fresh node id. Contained entirely to `goal.py` (SEP never escaped it); gated
   by the coref/adversarial suite + a new name-free pin (`test_duplicated_name_identity_token_is_name_free`).
 
-- **2.5** `COPULA`/`NEG_SUFFIX` and the (now-retired) planner's predicate VOCABULARY (`want`/`add`/
-  `chosen`/`done`/`best`/… — formerly hardcoded in `solve.py`, now in the harness banks) → KB
-  declarations. Slice 4 did the control-flow half; this is the vocabulary half.
-  Exit gate: engine code grep-clean for predicate/key strings; benches green.
+- **2.5 DONE (2026-07-11, 342 green).** Crux §7 ratified "**consolidate**". Tier-1 substrate vocabulary
+  (`COPULA`/`NEG_COPULA`/`NEG_SUFFIX`/`IS_A`/`SAME_AS`/`DISJOINT`/`CLOSES`/`CWA`/… + `neg_pred`) centralized
+  in a new leaf module `ugm/vocabulary.py` (single source of truth; the 4× `COPULA` dup + both `_neg_pred`
+  bodies now import from it). Tier-2 domain coref leak removed: `authoring._COREF_PREDS`'s hardcoded
+  `wants`/`in`/`has`/`before`/… gone; `_coref_propagation` derives the set content-blind via
+  `SUBSTRATE_COREF_PREDS | relation_predicates(graph) | declared_relations | declared_prepositions` (the
+  faithful additive-coref analog, handles default-grammar `in`/`has`/`before` that a declared-only set
+  would drop). Tier-3 CNL surface English lexicon stays literal by design. Reasoning modules
+  (`goal`/`decide`/`check`/`demand`/`coref_walk`) grep-clean of vocab literals; no substrate constant
+  defined outside `vocabulary.py`. Design as-built: `docs/vocabulary_declaration_design.md`, CHANGELOG.
+  (The planner's `want`/`add`/`chosen`/… vocabulary is harness-side now — Slice 4 retired `solve.py`, so
+  those live in the harness banks as APPLICATION vocabulary, not engine constants.)
 
 ---
 
@@ -349,10 +357,11 @@ All items DONE (2026-07-09/10). Gate met.
   SUBSTRATE (`next`/`at` cursor, `<qevent>`) or CNL SURFACE RECOGNITION grammar (`body`/`first`/`same_as`/
   `relation`/`about`/`violates`/`yes`) — recognition, not reasoning-strategy; (5) `goal.py:127 == "transitive"`
   READS the declared `R is transitive` → `rel_property` map (content-blind, Phase 5.4's `_closure_declarations`),
-  not sniffing. The ONLY Python-hardcoded predicate STRINGS left are the copula/negation/coref VOCABULARY
-  convention (`check`/`decide`/`goal`'s `COPULA="is"`/`NEG_SUFFIX="_not"`; `authoring._COREF_PREDS`;
-  `universal.SAME_AS_RULES`) — that is **Phase 2.5's explicit scope** (+ the 5.4b tracked residual B),
-  NOT strategy selection, so it does not gate 5.5. The firmware-semantics gate (`chain_sip == GoalSolver`,
+  not sniffing. The Python-hardcoded predicate STRINGS that remained at the audit — the copula/negation/coref
+  VOCABULARY convention (`check`/`decide`/`goal`'s `COPULA="is"`/`NEG_SUFFIX="_not"`; `authoring._COREF_PREDS`;
+  `universal.SAME_AS_RULES`) — were **Phase 2.5's explicit scope** (+ the 5.4b tracked residual B), NOT
+  strategy selection, so they did not gate 5.5; **Phase 2.5 has since consolidated them into
+  `ugm/vocabulary.py` and de-hardcoded the domain coref list (2026-07-11, DONE).** The firmware-semantics gate (`chain_sip == GoalSolver`,
   Phase 4.4) and the riddles bench are GREEN in the in-repo suite.
   **BENCH-SENSIBILITY HALF is harness-side:** card-trader + coref + full ProofWriter-coverage benches
   live in `harneskills` (ProofWriter-coverage also needs external data), so that half must be run there —

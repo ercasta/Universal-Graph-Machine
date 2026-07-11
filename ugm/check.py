@@ -36,13 +36,10 @@ ENTAILED_NEG = "entailed-no"   # the negative is derivable -> a HARD no
 ASSUMED_NO = "assumed-no"      # CWA default: closed-world, unprovable -> a DEFEASIBLE no
 UNKNOWN = "unknown"            # open-world, unprovable -> gather
 
-COPULA = "is"                  # the copula predicate; openness of `is S C` is a property of C
-
-
-def _neg_pred(pred: str) -> str:
-    """The negative predicate paired with `pred` (`is`->`is_not`; `R`->`R_not`), the established
-    `decide.NEG_COPULA` convention generalized to an arbitrary binary relation."""
-    return f"{pred}_not"
+# Substrate copula/negation vocabulary — single source of truth in `ugm.vocabulary` (Phase 2.5).
+# `_neg_pred` (the `is`->`is_not`; `R`->`R_not` convention) is re-exported here so `suppose.py`'s
+# `from .check import _neg_pred` stays valid.
+from .vocabulary import COPULA, neg_pred as _neg_pred
 
 
 def _present(fact_g: AttrGraph, goal: tuple[str, str | None, str | None]) -> bool:

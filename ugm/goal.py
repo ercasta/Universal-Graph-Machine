@@ -73,16 +73,8 @@ from .lowering import derived_triples
 from .walker import Walker
 
 
-COPULA = "is"            # positive copula predicate: P(c) == c is P
-NEG_COPULA = "is_not"    # the materialized negative copula, matched positively (the decide line)
-NEG_SUFFIX = "_not"      # a NAC on `?s R o` materializes the negative predicate `R_not`
-
-
-def _neg_pred(pos: str) -> str:
-    """The materialized-negative predicate name for a positive relation `pos`. The copula
-    `is` -> `is_not` is just this convention with `R = is`, so the general scheme subsumes the
-    copula one; the reverse (strip the suffix) is the positive it completes against."""
-    return pos + NEG_SUFFIX
+# Substrate copula/negation vocabulary — single source of truth in `ugm.vocabulary` (Phase 2.5).
+from .vocabulary import COPULA, NEG_COPULA, NEG_SUFFIX, SAME_AS, neg_pred as _neg_pred
 
 
 class NonStratifiable(Exception):
@@ -326,7 +318,7 @@ class GoalSolver:
                 nm = ag.name(nid)                 # VALUED entity name only (Phase 2.3: skips a graded
                 if nm:                            # `name`-predicate rel node, which reports "")
                     self._name_ids.setdefault(nm, nid)
-            for r in ag.nodes_with_key("same_as"):  # Phase 2.1: predicate key, not name
+            for r in ag.nodes_with_key(SAME_AS):  # Phase 2.1: predicate key, not name
                 subs, objs = list(ag.pred(r)), list(ag.succ(r))
                 for s in subs:
                     for o in objs:
@@ -1035,7 +1027,7 @@ class GoalSolver:
         existence check is LOCAL (a rel-node named `rel` from s to o) — same seed-from-ground
         reason as `_facts_matching`: avoid an O(graph) `derived_triples` scan per materialize."""
         s_id, o_id = self._ensure_node(s), self._ensure_node(o)
-        if rel == "same_as":
+        if rel == SAME_AS:
             # A rule head can derive `same_as` MID-SOLVE (not just the `universal.same_as_rules`
             # propagation set, which is filtered entirely out of `self.rules` -- see the
             # `_follow_coref` split in `__init__`). Join the union-find the moment the endpoints

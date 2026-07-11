@@ -14,6 +14,45 @@ this log is itself a historical record.
 
 ## 2026-07-11
 
+### Phase 2.5 — substrate vocabulary consolidated, domain coref de-hardcoded (342 passed, 1 skipped, 0 failed)
+The logic-fragment predicate strings that were scattered/duplicated across the reasoning modules are now a
+single source of truth, and the hardcoded DOMAIN predicate list is gone. Design doc:
+`docs/vocabulary_declaration_design.md`; **crux §7 ratified by the user: "consolidate"** (Tier 1 is fixed
+substrate vocabulary to centralize, NOT genuinely KB-declared — a KB no more declares its copula than its
+`same_as`). Three-tier boundary from the design, executed:
+
+- **Tier 1 — new leaf module `ugm/vocabulary.py`** holds the fixed substrate tokens ONCE: `COPULA`/
+  `NEG_COPULA`/`NEG_SUFFIX`/`IS_A`/`IS_A_NOT`/`SAME_AS`/`DISJOINT`/`CLOSES`/`CWA`/`REL_PROPERTY`/
+  `TRANSITIVE`/`EVERY_IS_A`/`IS_UNIQUE`/`TARGET`/`TYPE`, plus `neg_pred()` (the single `R`→`R_not`
+  convention) and `SUBSTRATE_COREF_PREDS`. Stdlib-only leaf (no intra-package imports → no cycle). The
+  duplicate `COPULA="is"` (was defined 4×: `decide`/`goal`/`check`/`query`), `NEG_COPULA`/`NEG_SUFFIX`,
+  `CWA`/`CLOSES`, and the two independent `_neg_pred` bodies now all import from `vocabulary`; `decide`
+  re-exports them so `decide.COPULA`/… stay valid. Reasoning-side literals folded too (`goal`'s
+  `nodes_with_key("same_as")` + mid-solve `rel == "same_as"`; `demand`'s `is_a` transitivity rules;
+  `coref_walk`'s `SAME_AS`/`IS_A`/`DISJOINT`; `universal`'s `same_as_rules`/`entailed_negation_rules`/
+  `UNIVERSAL_RULES`). Exit-gate check: no substrate constant is DEFINED outside `vocabulary.py`, and the
+  reasoning modules (`goal`/`decide`/`check`/`demand`/`coref_walk`) are grep-clean of the vocab literals.
+
+- **Tier 2 — domain coref predicates de-hardcoded (the real leak).** `authoring._COREF_PREDS` (the moved
+  `session.CONTENT_PREDS`, 5.4b residual **B**) hardcoded `wants`/`in`/`has`/`before`/`target`/`type`
+  alongside the substrate ones. `_coref_propagation` now derives its predicate set content-blind from
+  three sources — `SUBSTRATE_COREF_PREDS | relation_predicates(graph) | declared_relations | declared_
+  prepositions` — naming NO domain vocabulary. Using the pre-existing `relation_predicates(graph)`
+  ("every relation predicate in play") is the faithful additive-coref analog: the destructive merge
+  shared ALL of a mention's relations, so coref must too. This also correctly handles the default-grammar
+  predicates (`in`/`has`/`before` come from built-in surface forms `form.of`/`form.has`/`form.then`, not
+  a KB declaration — so a "declared-relations-only" set would have dropped them). Verified: dropping the
+  hardcoded list first regressed exactly two tests (`test_isa_ask` CWA elimination, `test_new_core`
+  defeasible placement — both needing `in` to compose across coref, the "one or two surfacings" the
+  design predicted); the `relation_predicates` union fixes both because `in` is materialized before
+  `_coref_propagation` reads the graph.
+
+- **Tier 3 — CNL surface English lexicon (`forms.py` `form.*`, `DEFAULT_COPULA_SYNONYMS`) STAYS** literal
+  by design (recognizing English is the surface's job); untouched.
+
+Pairs with Phase 5.5 slice 4 (which did the plan-control-flow half of the `solve.py` predicate leak);
+this is the vocabulary half. `docs/vocabulary_declaration_design.md` updated to as-built.
+
 ### Phase 2.4 — name-free identity tokens (342 passed, 1 skipped, 0 failed)
 `GoalSolver`'s coref-class identity token was `name + SEP + classrep` (SEP = `\x00`) — the surface name
 baked into the internal identity string. Phase 2.4 drops the redundant name prefix: an identity token is

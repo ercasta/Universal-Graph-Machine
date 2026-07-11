@@ -2,6 +2,11 @@
 from importlib import import_module
 import sys
 
+from .vocabulary import (
+    COPULA, NEG_COPULA, NEG_SUFFIX, IS_A, IS_A_NOT, SAME_AS, DISJOINT,
+    CLOSES, CWA, REL_PROPERTY, TRANSITIVE, EVERY_IS_A, IS_UNIQUE, TARGET, TYPE,
+    SUBSTRATE_COREF_PREDS, neg_pred,
+)
 from .world_model import Graph, Node, WorldModel
 from .production_rule import Pat, Rule, GradedCondition
 from .attrgraph import AttrGraph, AttrNode, Attr, GRADED, VALUED
@@ -154,7 +159,10 @@ __all__ = [
     "RETRACT", "TARGETS", "RETRACTED", "RETRACT_RULES", "seed_retract", "retract",
     "record_rejection", "is_rejected",
     "DEMAND", "seed_demand", "DEMAND_TRANSITIVITY", "DEMAND_COREF",
-    "CWA", "COPULA", "NEG_COPULA", "declare_closed_world", "is_closed_world", "closed_predicates",
+    "CWA", "COPULA", "NEG_COPULA", "NEG_SUFFIX", "IS_A", "IS_A_NOT", "SAME_AS", "DISJOINT",
+    "CLOSES", "REL_PROPERTY", "TRANSITIVE", "EVERY_IS_A", "IS_UNIQUE", "TARGET", "TYPE",
+    "SUBSTRATE_COREF_PREDS", "neg_pred",
+    "declare_closed_world", "is_closed_world", "closed_predicates",
     "positive_holds", "negative_holds", "completion_rule", "DEFEAT_SEED",
     "CALL", "TOOL", "Tool", "emit_call", "call_tool", "call_arg", "call_args", "pending_calls",
     "consume_call", "service_calls",
