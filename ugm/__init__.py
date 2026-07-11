@@ -57,8 +57,10 @@ from .dispatch import (
 )
 from .coref_walk import resolve_coref, coref_request_handler
 from .mode_calls import (
-    check_tool, choose_tool, mode_registry, service_modes, check_results, choice_results,
-    CHECK_TOOL, CHOOSE_TOOL, CHECK_RESULT, STATUS,
+    check_tool, choose_tool, suppose_tool, mode_registry, service_modes,
+    check_results, choice_results, suppose_results,
+    CHECK_TOOL, CHOOSE_TOOL, SUPPOSE_TOOL, CHECK_RESULT, SUPPOSE_RESULT, STATUS,
+    ASSUME, PREDICT, LABEL, K_SUBJ, K_PRED, K_OBJ,
 )
 from .cnl.forms import (
     tokenize, load_text, canonicalize, FORM_RULES, relation_forms, declared_relations,
@@ -157,8 +159,10 @@ __all__ = [
     "CALL", "TOOL", "Tool", "emit_call", "call_tool", "call_arg", "call_args", "pending_calls",
     "consume_call", "service_calls",
     "resolve_coref", "coref_request_handler",
-    "check_tool", "choose_tool", "mode_registry", "service_modes", "check_results", "choice_results",
-    "CHECK_TOOL", "CHOOSE_TOOL", "CHECK_RESULT", "STATUS",
+    "check_tool", "choose_tool", "suppose_tool", "mode_registry", "service_modes",
+    "check_results", "choice_results", "suppose_results",
+    "CHECK_TOOL", "CHOOSE_TOOL", "SUPPOSE_TOOL", "CHECK_RESULT", "SUPPOSE_RESULT", "STATUS",
+    "ASSUME", "PREDICT", "LABEL", "K_SUBJ", "K_PRED", "K_OBJ",
     "tokenize", "load_text", "canonicalize", "FORM_RULES", "relation_forms", "declared_relations",
     "expand_universals", "wire_same_as", "coref_in_context", "relation_predicates", "propagate_embeddings",
     "nary_forms", "declared_verbs", "declared_prepositions", "nary_question_forms", "WH",

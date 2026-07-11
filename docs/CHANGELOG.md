@@ -14,6 +14,32 @@ this log is itself a historical record.
 
 ## 2026-07-11
 
+### Phase 5.5 slice 3c — SUPPOSE authored as a `<call>` mode (variable-length args) (341 passed, 1 skipped, 0 failed)
+CHECK/CHOOSE (slices 1–2) are fixed-slot `<call>`s; SUPPOSE could not be — a hypothesis carries a
+VARIABLE-LENGTH list of assumptions and predictions, so slice 2 deliberately left it out of the registry.
+Slice 3c supplies the list-argument encoding and closes the mode-call trio.
+
+- **`mode_calls.suppose_tool`** (registered in `mode_registry` now): a `<call> --tool--> suppose` carries
+  any number of `assume`/`predict` REIFIED TRIPLES (`<t> -[k_subj/k_pred/k_obj]-> …`, the machine-rule
+  clause vocabulary). The tool decodes them, runs the firmware `suppose` (mint `<hypothesis>` scope →
+  pencil the assumptions → CHAIN+CHECK the predictions in-scope → CONFIRM→ink / REFUTE|INCONCLUSIVE→drop),
+  and folds a `<suppose>` verdict node back — same two-view shape as `<check>` (VALUED `status`/`of` for
+  the Python reader `suppose_results`; a control `status` relation + optional `of -> LABEL` for a
+  downstream rule to react). `suppose` leaves NO live scope, so it composes into the `<call>` loop exactly
+  like CHECK: CONFIRM's committed ink is re-matched by `run_bank`'s next round. The (subj,pred,obj) vs
+  (pred,subj,obj) ordering quirk between `suppose`'s assumption/prediction args is hidden in the tool —
+  the author writes `k_subj/k_pred/k_obj` uniformly.
+- **Authored via the EXISTING machine-rule grammar** (the 3a/3b ratification: reuse the `<call>` grammar,
+  no new prose forms, zero SLM debt). A prose `suppose … predict …` sugar that folds to this reified
+  encoding is a tracked follow-on, deferred like the `to NAME` header.
+- **`tests/test_isa_suppose_calls.py` (6):** all three verdicts reproduce the direct `suppose(...)` (incl.
+  CONFIRM's ink commit surviving teardown and REFUTE/INCONCLUSIVE leaving ink untouched), the verdict is a
+  control token, a single call carries MULTIPLE assumptions + predictions, and a CNL-authored rule emits
+  the call whose fed-back verdict drives a downstream rule. Test-authoring note logged: a reified-triple
+  slot must mint FRESH name-carrying nodes (not `nodes_named`, which aliases a live predicate rel node —
+  the same interning hazard the machine-rule path avoids via the 3b key-aware INTERN fix); the tool reads
+  only names and `suppose` re-resolves entities, so fresh is sound.
+
 ### Phase 5.5 slice 4 — plan→act→check→replan as declared data; `solve.py` retired (335 passed, 1 skipped, 0 failed)
 `solve.py`'s `run_to_goal` held the plan-execution control flow in a Python `for _ in range(max_cycles)`
 loop that hardcoded predicate NAMES straight into the branches (`graph.name(r) == "want"/"add"/"chosen"/

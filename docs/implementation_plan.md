@@ -22,14 +22,23 @@
 
 ## NEXT STEP (pick this up FIRST)
 
-**Suite: 335 passed, 1 skipped, 0 failed** (post Phase 5.5 slice 4, 2026-07-11, `python -m pytest -q`).
+**Suite: 341 passed, 1 skipped, 0 failed** (post Phase 5.5 slices 4 + 3c, 2026-07-11, `python -m pytest -q`).
 The 460-passed figure logged at the repo split was inflated by ~123 tests that exercised harness-only
 content (`SOLVE_RULES`/`PLANNING_RULES`/`Session`/CPG-mechanism banks) mistakenly carried over by the
 carveout instead of staying in `harneskills`; those were trimmed/deleted (2 whole files, 99 functions
 across 7 mixed files) before Phase 6.0 started. See CHANGELOG for both cleanups.
 
-**Phase 5.5 slices 1–2 (CHECK+CHOOSE as `<call>` calculators), 3a, 3b, 4 DONE. Phase 6.0 DONE
-(rewriter retirement + reader flips — narrow scope, see correction below).** See CHANGELOG.
+**Phase 5.5 slices 1–4 DONE (CHECK+CHOOSE as `<call>` calculators; rules-emit; SUPPOSE-call scope
+authoring; plan→act→check→replan). Phase 6.0 DONE (rewriter retirement + reader flips — narrow scope,
+see correction below).** See CHANGELOG.
+
+**Phase 5.5 slice 3c DONE (2026-07-11) — SUPPOSE authored as a `<call>` mode.** A hypothesis carries
+VARIABLE-LENGTH assumptions/predictions (why it couldn't be a fixed-slot call like CHECK/CHOOSE), so
+`mode_calls.suppose_tool` takes N `assume`/`predict` REIFIED TRIPLES (`<t> -[k_subj/k_pred/k_obj]-> …`),
+runs the firmware `suppose`, and folds a `<suppose>` verdict back — the 3a/3b shape extended to
+list-valued args. Authored via the EXISTING machine-rule grammar (zero new prose forms, zero SLM debt);
+prose `suppose … predict …` sugar is a tracked follow-on (like `to NAME`). `tests/test_isa_suppose_calls.py`
+(6 tests). See CHANGELOG.
 
 **Phase 5.5 slice 4 DONE (2026-07-11) — `solve.py` retired.** The plan→act→check→replan CONTROL FLOW is
 now a KB-declared composition of ITERATE×CHECK over `<check>` verdicts, serviced by the EXISTING `<call>`
@@ -94,20 +103,21 @@ Python driver becomes dead weight once the declared composition subsumes it, at 
 retires like `rewriter.py` did — not before.
 
 **PICK UP NEXT — recommended order:**
-1. **Phase 5.5 slice 3c** — SUPPOSE scope authoring in CNL (deferred from 3b). ⚠Opus.
-2. **Phase 5 exit gate** — benches produce sensible, self-consistent answers on firmware semantics.
-3. **Phase 2.5** — `COPULA`/`NEG_SUFFIX` and the (now-retired) `solve.py`'s predicate VOCABULARY → KB
+1. **Phase 5 exit gate** — benches produce sensible, self-consistent answers on firmware semantics.
+2. **Phase 2.5** — `COPULA`/`NEG_SUFFIX` and the (now-retired) `solve.py`'s predicate VOCABULARY → KB
    declarations. Slice 4 did the control-flow half; this is the vocabulary half (`want`/`add`/`chosen`/
    `done`/… as declared KB, not literal strings in banks). ⚠Opus for "what's KB vs engine."
-4. **Phase 2.3** (name demotion) — now correctly scoped as its OWN phase, not a 6.0 sub-item. Needs
+3. **Phase 2.3** (name demotion) — now correctly scoped as its OWN phase, not a 6.0 sub-item. Needs
    an Opus-level design call on the KB-declared discriminating-key-index mechanism before any code
    moves; blocks nothing else on the firmware path, so it's not urgent.
+4. **Optional follow-on** — prose `suppose … predict …` sugar folding to slice 3c's reified encoding
+   (new surface → SLM debt; deferred like `to NAME`, pick up if the SLM ledger is being retrained).
 
-**Slice 4 is DONE — do NOT re-do it.** (Was item 1 here; see the DONE note in NEXT STEP above.)
+**Slices 4 and 3c are DONE — do NOT re-do them.** (Both were in this list; see the DONE notes above.)
 
 **Model routing** — ⚠Opus = needs vision-judgment; ✓S = Sonnet-safe where a gate/spec catches deviation.
 - Slice 4 (plan→act→check→replan): **DONE** (was ⚠Opus)
-- Slice 3c (SUPPOSE CNL scope authoring): **⚠Opus**
+- Slice 3c (SUPPOSE CNL scope authoring): **DONE** (was ⚠Opus)
 - 5.5 exit gate (classify divergences): **⚠Opus**
 - Companion: graded α-cut DURING matching **⚠Opus**; aggressive `is_not` completion **⚠Opus**;
   wire `chosen` as declared CHOOSE **~✓S** (gated)
@@ -128,10 +138,12 @@ retires like `rewriter.py` did — not before.
 
 ## Where the system is (2026-07-11, post repo-split)
 
-**335 tests green, 1 skipped.** All ISA engine files are in `ugm/ugm/`; CNL surface in `ugm/ugm/cnl/`.
+**341 tests green, 1 skipped.** All ISA engine files are in `ugm/ugm/`; CNL surface in `ugm/ugm/cnl/`.
 The planning rule banks (`PLANNING_RULES`, `SOLVE_RULES`, etc.) and harness benches live in `harneskills`.
 `solve.py` is DELETED (Phase 5.5 slice 4) — the plan→act→check→replan control flow is now a KB-declared
-composition over the existing `<call>` loop (`tests/test_isa_plan_act_check.py`).
+composition over the existing `<call>` loop (`tests/test_isa_plan_act_check.py`). SUPPOSE is now a
+`<call>` mode too (slice 3c, `tests/test_isa_suppose_calls.py`) — CHECK/CHOOSE/SUPPOSE all serviced by
+the one loop.
 
 **PRODUCTION RUNTIME IS 100% THE ISA ENGINE, AND SO IS EVERY TEST.** `rewriter.py` is DELETED
 (Phase 6.0) — there is no second engine anywhere in this repo anymore. `run_rules` no longer has an
@@ -287,8 +299,15 @@ All items DONE (2026-07-09/10). Gate met.
     feeds back. Key-aware INTERN fix (MINT skips reified domain-relation candidates, retires the
     predicate-literal aliasing sharp edge). Zero new CNL surface, zero SLM debt.
 
-  - **Slice 3c (OPEN)** — SUPPOSE scope authoring in CNL (deferred from 3b; variable-length
-    assumptions/predictions). ⚠Opus.
+  - **Slice 3c DONE (2026-07-11).** SUPPOSE authored as a `<call>` mode with VARIABLE-LENGTH
+    assumptions/predictions (the reason it couldn't be a fixed-slot call): `mode_calls.suppose_tool`
+    reads N `assume`/`predict` reified triples (`<t> -[k_subj/k_pred/k_obj]-> …`), runs the firmware
+    `suppose`, folds a `<suppose>` verdict back (CONFIRMED/REFUTED/INCONCLUSIVE) — the 3a/3b shape
+    (rules emit calls, the existing loop services them, effect feeds back) extended to list args.
+    Authored via the EXISTING machine-rule grammar; zero new prose forms, zero SLM debt. Prose
+    `suppose … predict …` sugar (folds to this) deferred like `to NAME`. `tests/test_isa_suppose_calls.py`
+    (6 tests): all 3 verdicts vs. direct `suppose`, control-token verdict, multi-assumption/prediction
+    call, and a CNL-authored rule emitting the call whose verdict drives a downstream rule.
 
   - **Slice 4 DONE (2026-07-11).** Retired `solve.py`'s Python-hardcoded plan→act→check→replan CONTROL
     FLOW (the `graph.name(r) == "want"/"add"/"chosen"/"done"` shape-sniffing) by expressing it as a

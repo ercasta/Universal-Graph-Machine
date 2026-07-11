@@ -28,20 +28,30 @@ surface that emits them are the next slices.
 """
 from __future__ import annotations
 
-from .dispatch import call_arg, service_calls, Tool
+from .dispatch import call_arg, call_args, service_calls, Tool
 from .attrgraph import AttrGraph, valued
 from .check import check, COPULA
 from .choose import choose, winners_of, SATISFIED_BY
+from .suppose import suppose, CONFIRMED, REFUTED, INCONCLUSIVE
 
 # Tool names (the `<call> --tool--> NAME` object). One per firmware mode.
 CHECK_TOOL = "check"
 CHOOSE_TOOL = "choose"
+SUPPOSE_TOOL = "suppose"
 
 # Argument slots a mode-call carries (slot -> a name node). A CHECK goal is (pred, subj, obj); subj/obj
 # may be omitted for a wildcard endpoint. A CHOOSE call names a GOAL node (its candidates already
 # registered via `set_candidate`) and an optional ALPHA cut.
 PRED, SUBJ, OBJ = "pred", "subj", "obj"
 GOAL, ALPHA = "goal", "alpha"
+
+# A SUPPOSE call carries VARIABLE-LENGTH lists — the reason it cannot be a single fixed-slot call like
+# CHECK/CHOOSE (`mode_registry` note, slice 2). Each `assume`/`predict` slot points at a REIFIED TRIPLE
+# node carrying `k_subj`/`k_pred`/`k_obj` (the machine-rule clause-reification vocabulary), so a call may
+# carry any number of assumptions and predictions; an optional `label` correlates the verdict. This is
+# the list-argument encoding — the author lays down N `assume`/`predict` reified triples and one call.
+ASSUME, PREDICT, LABEL = "assume", "predict", "label"
+K_SUBJ, K_PRED, K_OBJ = "k_subj", "k_pred", "k_obj"
 
 # The verdict node a CHECK call emits: a CONTROL `<check>` token carrying the goal + status. Two
 # VIEWS, one node: (a) VALUED attrs (`pred`/`subj`/`obj`/`status`) for the Python reader
@@ -51,6 +61,11 @@ GOAL, ALPHA = "goal", "alpha"
 CHECK_RESULT = "<check>"
 STATUS = "status"
 OF = "of"
+
+# The verdict node a SUPPOSE call emits: a CONTROL `<suppose>` token carrying the hypothesis outcome
+# (CONFIRMED / REFUTED / INCONCLUSIVE) — same two-view shape as `<check>` (VALUED `status` for the
+# Python reader; a control `status` relation + optional `of -> LABEL` for a downstream rule to react).
+SUPPOSE_RESULT = "<suppose>"
 
 
 def _slot_name(g: AttrGraph, call_id: str, slot: str) -> str | None:
@@ -121,16 +136,59 @@ def choose_tool(*, default_alpha: float = 0.0) -> Tool:
     return handler
 
 
+def _reified_triple(g: AttrGraph, node: str) -> tuple[str, str, str] | None:
+    """Decode a reified `(k_subj, k_pred, k_obj)` triple node -> (subj, pred, obj) NAMES, or None if it
+    is not a complete triple. The list-argument encoding: a variable-length assumption/prediction is one
+    such node per element, so a call carries any number without fixed slots."""
+    def one(rel: str) -> str | None:
+        objs = [o for r, o in g.relations_from(node) if g.name(r) == rel]
+        return g.name(objs[0]) if objs else None
+    s, p, o = one(K_SUBJ), one(K_PRED), one(K_OBJ)
+    return (s, p, o) if s is not None and p is not None and o is not None else None
+
+
+def suppose_tool(rule_g: AttrGraph, *, provenance: bool = False) -> Tool:
+    """A `<call>`-serviceable SUPPOSE calculator over the fixed rule bank `rule_g` — the firmware mode
+    whose args are VARIABLE-LENGTH (why it is a scope-layer, not a fixed-slot call). Reads every `assume`
+    and `predict` reified triple from the call, runs the firmware `suppose` (mint a `<hypothesis>` scope,
+    pencil the assumptions, CHAIN + CHECK the predictions in-scope, CONFIRM→ink / REFUTE|INCONCLUSIVE→
+    drop), and EMITS a `<suppose>` verdict node carrying the outcome. `suppose` handles all the pencil/ink
+    mechanics and leaves NO live scope, so it composes into the `<call>` loop exactly like CHECK: the
+    committed ink (on CONFIRM) is re-matched by `run_bank`'s next round. Returns the emitted node ids."""
+    def handler(g: AttrGraph, call_id: str) -> set[str]:
+        assumptions: list[tuple[str, str, str]] = []
+        predictions: list[tuple[str, str, str]] = []
+        for nid in call_args(g, call_id, ASSUME):
+            t = _reified_triple(g, nid)
+            if t is not None:
+                assumptions.append(t)                       # (subj, pred, obj) — `suppose`'s assumption order
+        for nid in call_args(g, call_id, PREDICT):
+            t = _reified_triple(g, nid)
+            if t is not None:
+                predictions.append((t[1], t[0], t[2]))      # -> (pred, subj, obj) — `suppose`'s prediction order
+        result = suppose(g, rule_g, assumptions, predictions, provenance=provenance)
+        res = g.add_node(SUPPOSE_RESULT)                     # reserved `<…>` -> a CONTROL token
+        g.set_attr(res, STATUS, valued(result.status))      # VALUED view (the Python reader)
+        touched = {res, _control_rel(g, res, STATUS, _ensure(g, result.status))}   # matchable verdict relation
+        label = _slot_name(g, call_id, LABEL)
+        if label is not None:                               # correlate the verdict to the caller's label
+            g.set_attr(res, OF, valued(label))              # VALUED view (the Python reader)
+            touched.add(_control_rel(g, res, OF, _ensure(g, label)))   # matchable correlation relation
+        return touched
+    return handler
+
+
 def mode_registry(rule_g: AttrGraph, *, open_preds: frozenset[str] = frozenset(),
                   provenance: bool = False) -> dict[str, Tool]:
-    """The firmware-mode tool registry for `dispatch.service_calls` — the modes a control-token
-    program may invoke, over the fixed rule bank `rule_g`. CHECK (goal→verdict) + CHOOSE (goal→winner).
-    SUPPOSE is a PROCEDURE construct, not a single call (its assumptions/predictions are variable-length
-    lists — a scope the CNL surface lays down, slice 3), so it is deliberately not registered here. The
-    dispatcher routes a `<call>` to the named mode and consumes it (content-blind)."""
+    """The firmware-mode tool registry for `dispatch.service_calls` — the modes a control-token program
+    may invoke, over the fixed rule bank `rule_g`. CHECK (goal→verdict) + CHOOSE (goal→winner) + SUPPOSE
+    (assumptions→hypothesis verdict). SUPPOSE differs in that its args are VARIABLE-LENGTH: the call
+    carries N `assume`/`predict` reified triples (slice 3c) rather than fixed slots. The dispatcher
+    routes a `<call>` to the named mode and consumes it (content-blind)."""
     return {
         CHECK_TOOL: check_tool(rule_g, open_preds=open_preds, provenance=provenance),
         CHOOSE_TOOL: choose_tool(),
+        SUPPOSE_TOOL: suppose_tool(rule_g, provenance=provenance),
     }
 
 
@@ -160,6 +218,22 @@ def choice_results(g: AttrGraph) -> dict[str, list[str]]:
         if goal is not None and winner is not None:
             out.setdefault(g.name(goal), []).append(g.name(winner))
     return {k: sorted(v) for k, v in out.items()}
+
+
+def suppose_results(g: AttrGraph) -> list[dict[str, str]]:
+    """Read every `<suppose>` verdict currently in `g` as `{status, of?}` dicts — the 'what the program
+    hypothesized and how it resolved' view, the SUPPOSE analog of `check_results`."""
+    out: list[dict[str, str]] = []
+    for res in g.nodes_named(SUPPOSE_RESULT):
+        a = g.get_attr(res, STATUS)
+        if a is None:
+            continue
+        rec = {STATUS: str(a.value)}
+        of = g.get_attr(res, OF)
+        if of is not None:
+            rec[OF] = str(of.value)
+        out.append(rec)
+    return out
 
 
 def service_modes(fact_g: AttrGraph, rule_g: AttrGraph, *,
