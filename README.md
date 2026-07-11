@@ -42,7 +42,15 @@ value at a time and loop where it needs to branch; each step runs over a whole *
 in-flight candidate matches at once, and an instruction that has multiple valid
 continuations (e.g. a node with several outgoing edges) expands that set — one candidate
 in, several out — for free. There is no separate loop construct for "for each match": it
-falls out of every step operating on a set instead of a single candidate. See below.
+falls out of every step operating on a set instead of a single candidate. This isn't
+primarily a performance trick: a rule's meaning IS "every binding that satisfies the
+body," so enumerating the full set is what correct matching means, independent of speed —
+and it does so without mutating anything mid-search (no backtrack-and-undo), which is
+what lets semi-naive fixpoint iteration, demand-driven CHAIN, and per-derivation RECORD
+provenance all build on it directly. That every candidate in the set is independent does
+make the fold embarrassingly parallel, but parallel execution is deliberately kept a
+semantics-invisible *accelerator*, never a semantics of its own (`processing_modes.md`
+§6's forbidden-concurrent-actors line). See below.
 
 ---
 
