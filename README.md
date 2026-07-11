@@ -39,9 +39,39 @@ never fact deletion. The fact layer is **monotone**: nothing is ever deleted fro
 
 ---
 
-## The ISA — nine processing modes
+## The ISA — the opcode set
 
-UGM exposes a closed inventory of nine computation modes, each corresponding to a
+Every rule and mode compiles down to a small, closed instruction set: a WAM-style register
+machine over the label-less attribute substrate (`ugm/machine.py`). A program is always
+**match-then-apply** — matching opcodes (purely positive, non-mutating) followed by effect
+opcodes (mutating); a matching opcode after an effect opcode is a `ProgramError`.
+
+| Opcode | Phase | What it does |
+|--------|-------|--------------|
+| **SEED** | match | bind a register to every node carrying a key (the rarest anchor); optional valued filter |
+| **FUZZY** | match | graded SEED: bind to every node whose key's degree clears a threshold, scaling `score` |
+| **FOLLOW** | match | pointer-register cursor: bind to an out/in-neighbour across a bare edge |
+| **TEST** | match | crisp filter on an already-bound register (key presence, optional valued comparison) |
+| **JOIN** | match | sugar for FOLLOW + TEST in one step |
+| **GRADE** | match | filter a bound register on a graded (α-cut, scales `score`) or valued attribute |
+| **SET** | match | bind a register directly to a known ground identity |
+| **DUP** | match | copy one register into another |
+| **SAME** | match | keep the state iff two registers are bound to the same node (join consistency) |
+| **MINT** | effect | create a fresh node (Skolem / reified relation / chunk head), write attrs, wire edges |
+| **EMIT** | effect | assert a fact attribute on a bound node (graded: monotone raise; valued: set) |
+| **DROP_CTRL** | effect | delete a bare edge — refuses and raises if the edge is a FACT edge |
+| **INTERPOSE** | effect | reversibly hide an edge by splicing in a control marker (the sole fact-edge mutation) |
+| **RESTORE** | effect | the exact inverse of INTERPOSE |
+
+There is no NAC/`CHECK-ABSENT` opcode — the matching core is purely positive; negation is
+materialized as a positive `is_not` attribute and matched like any other (`ugm/decide.py`).
+There is also no opcode that deletes or lowers a fact: the invariant is a property of the
+opcode set itself, not a lint pass.
+
+## Processing modes — nine KB-level operations built on the ISA
+
+Rules, goals, and control flow lower to opcode programs; on top of that substrate UGM
+exposes a closed inventory of nine composed computation modes, each corresponding to a
 recognisable step in deliberate reasoning:
 
 | Mode | What it computes | Analogue |
@@ -66,7 +96,10 @@ walks the rule body, emitting derivations into the graph. CHAIN is demand-driven
 
 **CHECK** answers a yes/no/unknown question with four statuses: `POSITIVE` (proved),
 `ENTAILED_NEG` (negation proved), `ASSUMED_NO` (CWA: no evidence), `UNKNOWN` (open
-world). The CWA is opt-in per predicate.
+world). **CWA is the default**: an underivable goal is a defeasible `no`. **OWA is
+opt-in per predicate** (`open_preds`) — for concepts where absence should not be taken
+as false ("no sighting" ≠ "no mice"), so the verdict stays `UNKNOWN` and defers to
+evidence-gathering instead.
 
 **CHOOSE** selects the best option from a candidate set using graded α-cut: an option
 wins if it satisfies the goal at a level no other option does. Ties are retained.
@@ -99,7 +132,50 @@ Key CNL concepts:
 - **Rules**: `HEAD when BODY` with `and`, `not`, graded conditions (`is very urgent`)
 - **Universals**: `if BODY then HEAD` and `ADJ things are PRED` laws
 - **Gradable dimensions**: declared with `X is gradable`; used in rules as `?x is very X`
-- **Closed-world declarations**: `P is closed world` opts a predicate into CWA
+- **Closed-world declarations**: `P is closed world` opts a predicate into aggressive
+  `is_not` completion (`ugm/decide.py`) — distinct from CHECK's query-time CWA-default/OWA-opt-in
+  split, which is a Python-level `open_preds` set (no CNL surface form yet)
+
+### Lowering: CNL rule → ISA program
+
+CNL never reaches the engine as text at reasoning time — it authors a `Rule` (an LHS/RHS
+list of `Pat`s), and `lowering.lower_rule` compiles that `Rule` into the opcode program
+CHAIN/SATURATE actually run. Given the rule behind the last line of the CNL snippet above:
+
+```python
+from ugm.production_rule import Pat, Rule
+from ugm.lowering import lower_rule
+
+rule = Rule(
+    key="gets_when_wants_and_stocked",
+    lhs=[Pat("?x", "wants", "?y"), Pat("?y", "is", "in_stock")],
+    rhs=[Pat("?x", "gets", "?y")],
+)
+for ins in lower_rule(rule):
+    print(ins)
+```
+
+produces (register names elided to their role):
+
+```
+SEED   _rel0 key=wants                       # anchor: every "wants" relation node
+FOLLOW ?x   <- _rel0 (in)                    # its subject
+FOLLOW ?y   <- _rel0 (out)                   # its object
+FOLLOW _rel1 <- ?y (out)                     # ?y's outgoing relations
+TEST   _rel1 key=is                          # ... that are an "is" relation
+FOLLOW _ts1 <- _rel1 (in)                    # that relation's subject
+SAME   _ts1 == ?y                            # join-consistency: must be ?y itself
+FOLLOW _to1 <- _rel1 (out)                   # that relation's object
+TEST   _to1 name = "in_stock"                # ... must be named in_stock
+MINT   _head0 name=gets, gets=1.0            #   |
+       edges=[?y] in_edges=[?x]              #   } effect: reify "?x gets ?y"
+       dedup=True                            #   (reuse if this relation already exists)
+```
+
+The first nine instructions are the **match phase** (purely positive, no mutation); `MINT`
+is the sole **effect**, run only for surviving states. This is the whole story: no separate
+rule interpreter, no AST walk at runtime — a rule IS this program, and running it to
+fixpoint (`run_bank` / `apply_to_fixpoint` / `chain_sip`) is what SATURATE/CHAIN mean above.
 
 ---
 
