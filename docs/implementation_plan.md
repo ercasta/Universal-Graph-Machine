@@ -48,10 +48,45 @@ ones per the no-equivalence ratification), and did the `nodes_named`→`nodes_wi
 `run_bank` ignored `Rule.meta` (every firing minted provenance regardless of the flag, unlike the
 oracle's `emit_prov = provenance and not rule.meta` guard) — now fixed in `lowering.py`.
 
+**SLICE 4 SCOPE CLARIFICATION (2026-07-11, user-confirmed diagnosis).** Before starting slice 4, we
+checked whether `solve.py` (the goal-directed planning driver) is genuinely `ugm`-scope firmware or
+harness-only planning-application content that leaked into this repo's plan during the carveout — the
+same class of bug Phase 6.0's own test-suite cleanup found for `PLANNING_RULES`/`SOLVE_RULES`. First
+pass (vocabulary + test-coverage evidence: `solve.py` hardcodes `pre`/`add`/`del`/`cost`/`want`/
+`chosen`/`before`/`ready`/`done`, duplicates `harneskills/planning.py`+`harneskills/isa/solve.py`
+which ARE tested there, and has ZERO tests in `ugm/tests/`) argued for moving it to `harneskills`
+wholesale. **That read was incomplete.** Reading `solve.py` directly: its actual solving MECHANISM is
+`GoalSolver(ag, plan_rules, tools=tools).solve(Goal(...))` — the same ISA-native demand-forward
+backward reasoner every legitimate `ugm` capability uses (`check.py`, `choose.py`), not a from-scratch
+engine like the retired `rewriter.py`. So it is NOT pre-ISA legacy code, and NOT simply
+misplaced-repo content.
+
+**The real defect: `solve.py` violates the plan's own standing rule** ("domain logic ONLY in banks;
+strategies are DECLARED data, never engine sniffing," line 13) — its driver hardcodes fixed predicate
+NAMES straight into Python control flow (`graph.name(r) == "want"`/`"add"`/`"del"`/`"chosen"`/`"cost"`/
+`"ready"`/`"done"`), exactly the shape-sniffing anti-pattern Phase 5.4 already eliminated for the
+walker/coref strategies (`_is_transitive_closure_rule`, `_is_same_as_prop` → declared `rel_property`/
+`coref_prop` flags). `solve.py` never got that treatment. This also matches the ALREADY-TRACKED
+**Phase 2.5** item ("`solve.py`'s predicate list → KB declarations," line 150) and 5.5's own exit gate
+("engine grep-clean — no strategy selection in Python," line 244) — slice 4 isn't a new direction,
+it's the mechanism half of a fix Phase 2.5 already named the vocabulary half of.
+
+**So slice 4 IS genuinely `ugm`-scope firmware work, reframed:** not "extend `solve.py` as-is with
+mode-calls" (the original phrasing's ambiguity), but "retire `solve.py`'s Python-hardcoded
+plan→act→check→replan CONTROL FLOW by expressing it as a KB-declared composition of ITERATE×CHECK
+over `<check>` verdicts (`mode_calls.py`'s existing `<call>` loop — reuse, don't rebuild), the same
+way Phase 5.4 retired the walker/coref sniffers." The planning-specific predicate VOCABULARY
+(`pre`/`add`/`del`/`cost`/`want`) stays whatever a bank declares it to be — those banks (and any
+STRIPS-flavored demo content) can legitimately live in `harneskills` as an APPLICATION of the generic
+mechanism, same as `harneskills/planning_kb.py` already is for the forward planner. `solve.py`'s
+Python driver becomes dead weight once the declared composition subsumes it, at which point it
+retires like `rewriter.py` did — not before.
+
 **PICK UP NEXT — recommended order:**
-1. **Phase 5.5 slice 4** — plan→act→check→replan as ITERATE×CHECK over `<check>` verdicts. ⚠Opus —
-   "reuse the existing execution loop in `solve.py`, don't rebuild" is exactly the judgment Sonnet
-   tends to violate.
+1. **Phase 5.5 slice 4** — migrate `solve.py`'s hardcoded plan→act→check→replan driver onto a
+   KB-DECLARED composition of ITERATE×CHECK over `<check>` verdicts (`mode_calls.py`'s existing
+   `<call>` loop). ⚠Opus — see the 2026-07-11 SCOPE CLARIFICATION above; "reuse the loop, generalize
+   the policy, don't rebuild the driver" is exactly the judgment Sonnet tends to violate.
 2. **Phase 5.5 slice 3c** — SUPPOSE scope authoring in CNL (deferred from 3b). ⚠Opus.
 3. **Phase 5 exit gate** — benches produce sensible, self-consistent answers on firmware semantics.
 4. **Phase 2.3** (name demotion) — now correctly scoped as its OWN phase, not a 6.0 sub-item. Needs
@@ -237,9 +272,15 @@ All items DONE (2026-07-09/10). Gate met.
   - **Slice 3c (OPEN)** — SUPPOSE scope authoring in CNL (deferred from 3b; variable-length
     assumptions/predictions). ⚠Opus.
 
-  - **Slice 4 (OPEN — NEXT FIRMWARE TASK)** — plan→act→check→replan expressed as ITERATE×CHECK
-    over `<check>` verdicts. Compose the EXISTING execution loop in `solve.py` with mode-calls.
-    Do NOT rebuild the driver. ⚠Opus.
+  - **Slice 4 (OPEN — NEXT FIRMWARE TASK).** Retire `solve.py`'s Python-hardcoded plan→act→check→
+    replan CONTROL FLOW (`graph.name(r) == "want"/"add"/"del"/"chosen"/"cost"/"ready"/"done"` —
+    a standing-rule violation, the same shape-sniffing anti-pattern Phase 5.4 eliminated for
+    walker/coref) by expressing it as a KB-DECLARED composition of ITERATE×CHECK over `<check>`
+    verdicts, reusing the EXISTING `<call>` loop (`mode_calls.py`) — do NOT rebuild the driver.
+    Pairs with **Phase 2.5**'s already-tracked "`solve.py`'s predicate list → KB declarations"
+    (same fix, vocabulary half vs. control-flow half). See the 2026-07-11 SCOPE CLARIFICATION
+    above: `solve.py`'s solving MECHANISM (`GoalSolver`) is genuinely ISA-native — this is not a
+    harness/ugm boundary issue, it's an undeclared-strategy issue. ⚠Opus.
 
   **Exit gate (DOWNGRADED per 2026-07-10 ratification):** engine grep-clean (no strategy selection
   in Python); benches (card-trader + coref + riddles, now in `harneskills`) produce SENSIBLE,
@@ -282,8 +323,10 @@ In leverage order:
 
 ## Risks
 
-- **Slice 4 judgment** — "reuse the loop, don't rebuild" is a vision call, not a mechanical task.
-  Use Opus; gate the result on sensible plan→act→check→replan behavior on the benches.
+- **Slice 4 judgment** — "reuse the `<call>` loop, declare the strategy, don't rebuild the driver"
+  is a vision call, not a mechanical task. Use Opus; gate the result on sensible plan→act→check→
+  replan behavior on the benches AND on `solve.py` becoming grep-clean of hardcoded predicate
+  strings (the 5.5 exit gate + Phase 2.5, both already named this).
 - **Performance (Phase 7) is the real long-pole** for a usable system post the no-equivalence
   ratification. Correctness risk is < 5% impossible-blocker; performance is the open question.
 - **Meta-debugging** — the Phase 4 trace renderer is the mitigation; it is complete.
