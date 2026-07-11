@@ -22,14 +22,23 @@
 
 ## NEXT STEP (pick this up FIRST)
 
-**Suite: 331 passed, 1 skipped, 0 failed** (post Phase 6.0, 2026-07-11, `python -m pytest -q`). The
-460-passed figure logged at the repo split was inflated by ~123 tests that exercised harness-only
+**Suite: 335 passed, 1 skipped, 0 failed** (post Phase 5.5 slice 4, 2026-07-11, `python -m pytest -q`).
+The 460-passed figure logged at the repo split was inflated by ~123 tests that exercised harness-only
 content (`SOLVE_RULES`/`PLANNING_RULES`/`Session`/CPG-mechanism banks) mistakenly carried over by the
 carveout instead of staying in `harneskills`; those were trimmed/deleted (2 whole files, 99 functions
 across 7 mixed files) before Phase 6.0 started. See CHANGELOG for both cleanups.
 
-**Phase 5.5 slices 1–2 (CHECK+CHOOSE as `<call>` calculators), 3a, 3b DONE. Phase 6.0 DONE
+**Phase 5.5 slices 1–2 (CHECK+CHOOSE as `<call>` calculators), 3a, 3b, 4 DONE. Phase 6.0 DONE
 (rewriter retirement + reader flips — narrow scope, see correction below).** See CHANGELOG.
+
+**Phase 5.5 slice 4 DONE (2026-07-11) — `solve.py` retired.** The plan→act→check→replan CONTROL FLOW is
+now a KB-declared composition of ITERATE×CHECK over `<check>` verdicts, serviced by the EXISTING `<call>`
+loop (`run_bank(..., tools=mode_registry(rule_g))`) — no new driver, no Python control flow, no predicate
+name in engine code (`tests/test_isa_plan_act_check.py`, 4 tests). `solve.py` DELETED (it was export-only
+inside `ugm`); its harness-side consumers migrate onto the declared composition cross-repo. KEY RESULT:
+the monotone substrate needs NO driver-state reset — each op's CHECK is fired-suppressed per (op, want),
+so an alternative op's positive verdict is independent of the diverged op's stale assumed-no, the same
+teardown-subsumption Phase 2/3 found for `DROP_CTRL`. See CHANGELOG.
 
 **PHASE 6.0 CORRECTION (2026-07-11) — the `TEMPORARY BRIDGE` dual-write is NOT rewriter-only.**
 Before executing 6.0, tracing actual readers found the three "TEMPORARY BRIDGE" comments
@@ -48,7 +57,9 @@ ones per the no-equivalence ratification), and did the `nodes_named`→`nodes_wi
 `run_bank` ignored `Rule.meta` (every firing minted provenance regardless of the flag, unlike the
 oracle's `emit_prov = provenance and not rule.meta` guard) — now fixed in `lowering.py`.
 
-**SLICE 4 SCOPE CLARIFICATION (2026-07-11, user-confirmed diagnosis).** Before starting slice 4, we
+**SLICE 4 SCOPE CLARIFICATION (2026-07-11, user-confirmed diagnosis) — RESOLVED, slice 4 now DONE (see
+NEXT STEP). The diagnosis below stands as the rationale trail; the fix landed exactly as scoped here.**
+Before starting slice 4, we
 checked whether `solve.py` (the goal-directed planning driver) is genuinely `ugm`-scope firmware or
 harness-only planning-application content that leaked into this repo's plan during the carveout — the
 same class of bug Phase 6.0's own test-suite cleanup found for `PLANNING_RULES`/`SOLVE_RULES`. First
@@ -83,18 +94,19 @@ Python driver becomes dead weight once the declared composition subsumes it, at 
 retires like `rewriter.py` did — not before.
 
 **PICK UP NEXT — recommended order:**
-1. **Phase 5.5 slice 4** — migrate `solve.py`'s hardcoded plan→act→check→replan driver onto a
-   KB-DECLARED composition of ITERATE×CHECK over `<check>` verdicts (`mode_calls.py`'s existing
-   `<call>` loop). ⚠Opus — see the 2026-07-11 SCOPE CLARIFICATION above; "reuse the loop, generalize
-   the policy, don't rebuild the driver" is exactly the judgment Sonnet tends to violate.
-2. **Phase 5.5 slice 3c** — SUPPOSE scope authoring in CNL (deferred from 3b). ⚠Opus.
-3. **Phase 5 exit gate** — benches produce sensible, self-consistent answers on firmware semantics.
+1. **Phase 5.5 slice 3c** — SUPPOSE scope authoring in CNL (deferred from 3b). ⚠Opus.
+2. **Phase 5 exit gate** — benches produce sensible, self-consistent answers on firmware semantics.
+3. **Phase 2.5** — `COPULA`/`NEG_SUFFIX` and the (now-retired) `solve.py`'s predicate VOCABULARY → KB
+   declarations. Slice 4 did the control-flow half; this is the vocabulary half (`want`/`add`/`chosen`/
+   `done`/… as declared KB, not literal strings in banks). ⚠Opus for "what's KB vs engine."
 4. **Phase 2.3** (name demotion) — now correctly scoped as its OWN phase, not a 6.0 sub-item. Needs
    an Opus-level design call on the KB-declared discriminating-key-index mechanism before any code
    moves; blocks nothing else on the firmware path, so it's not urgent.
 
+**Slice 4 is DONE — do NOT re-do it.** (Was item 1 here; see the DONE note in NEXT STEP above.)
+
 **Model routing** — ⚠Opus = needs vision-judgment; ✓S = Sonnet-safe where a gate/spec catches deviation.
-- Slice 4 (plan→act→check→replan): **⚠Opus**
+- Slice 4 (plan→act→check→replan): **DONE** (was ⚠Opus)
 - Slice 3c (SUPPOSE CNL scope authoring): **⚠Opus**
 - 5.5 exit gate (classify divergences): **⚠Opus**
 - Companion: graded α-cut DURING matching **⚠Opus**; aggressive `is_not` completion **⚠Opus**;
@@ -116,8 +128,10 @@ retires like `rewriter.py` did — not before.
 
 ## Where the system is (2026-07-11, post repo-split)
 
-**331 tests green, 1 skipped.** All ISA engine files are in `ugm/ugm/`; CNL surface in `ugm/ugm/cnl/`.
+**335 tests green, 1 skipped.** All ISA engine files are in `ugm/ugm/`; CNL surface in `ugm/ugm/cnl/`.
 The planning rule banks (`PLANNING_RULES`, `SOLVE_RULES`, etc.) and harness benches live in `harneskills`.
+`solve.py` is DELETED (Phase 5.5 slice 4) — the plan→act→check→replan control flow is now a KB-declared
+composition over the existing `<call>` loop (`tests/test_isa_plan_act_check.py`).
 
 **PRODUCTION RUNTIME IS 100% THE ISA ENGINE, AND SO IS EVERY TEST.** `rewriter.py` is DELETED
 (Phase 6.0) — there is no second engine anywhere in this repo anymore. `run_rules` no longer has an
@@ -126,11 +140,12 @@ attr on relation nodes) is RETAINED — it is load-bearing for `machine.py`'s ow
 for the many `g.name(rel)` predicate reads across the engine, not rewriter-only as its comments once
 claimed (see the Phase 6.0 correction note above); it retires only once Phase 2.3 lands.
 
-Phases 0–5.5 slices 1–3b, Phase 6.0 are DONE. See CHANGELOG.md for the full trail.
+Phases 0–5.5 slices 1–3b, slice 4, Phase 6.0 are DONE. See CHANGELOG.md for the full trail.
 
-Companion slices still open (not blocking 5.5 slice 4): graded α-cut DURING matching in APPLY/CHAIN;
-aggressive `is_not` completion (`decide.solve`'s write-side elimination); wire the planner's `chosen`
-pick (`solve._mint_chosen`) as a declared CHOOSE.
+Companion slices still open: graded α-cut DURING matching in APPLY/CHAIN; aggressive `is_not`
+completion (`decide.solve`'s write-side elimination). (The "wire the planner's `chosen` pick as a
+declared CHOOSE" companion is subsumed by slice 4 — `solve._mint_chosen` is gone with `solve.py`; the
+declared composition commits `chosen` as a rule.)
 
 Also still open (NOT on firmware path): Phase 3.1 step 2 (one-graph fold); Phase 2.3 name demotion
 (now correctly an Opus-level design task, not oracle-blocked — the oracle is gone); `tests/test_joern_corpus.py`
@@ -182,7 +197,9 @@ All items DONE (2026-07-08, 470 tests).
 - **2.4** Identity tokens name-free (coref-class representative nid, not `name\x00rep`);
   rendering to surface at the output boundary only.
 
-- **2.5** `COPULA`/`NEG_SUFFIX` and `solve.py`'s predicate list → KB declarations.
+- **2.5** `COPULA`/`NEG_SUFFIX` and the (now-retired) planner's predicate VOCABULARY (`want`/`add`/
+  `chosen`/`done`/`best`/… — formerly hardcoded in `solve.py`, now in the harness banks) → KB
+  declarations. Slice 4 did the control-flow half; this is the vocabulary half.
   Exit gate: engine code grep-clean for predicate/key strings; benches green.
 
 ---
@@ -248,7 +265,8 @@ All items DONE (2026-07-09/10). Gate met.
   MONOTONE, ties→all win). `ugm/choose.py`, `tests/test_isa_choose.py`. Gated on design fixtures +
   200-seed randomized argmax differential.
   COMPANION (open): graded α-cut DURING matching (APPLY/CHAIN body — lifts off positive-only on graded
-  axis); wire `solve._mint_chosen` as a declared CHOOSE.
+  axis). (The "wire `solve._mint_chosen` as a declared CHOOSE" companion is closed by slice 4 — `solve.py`
+  is retired; the declared plan→act→check→replan composition commits `chosen` as a rule.)
 
 - **5.3 DONE (2026-07-10).** SUPPOSE: `<hypothesis>` scopes — pencil writes, `chain_sip` in-scope,
   CONFIRM→ink / REFUTE→drop_scope, ink monotone. `ugm/suppose.py`, `tests/test_isa_suppose.py`.
@@ -272,15 +290,17 @@ All items DONE (2026-07-09/10). Gate met.
   - **Slice 3c (OPEN)** — SUPPOSE scope authoring in CNL (deferred from 3b; variable-length
     assumptions/predictions). ⚠Opus.
 
-  - **Slice 4 (OPEN — NEXT FIRMWARE TASK).** Retire `solve.py`'s Python-hardcoded plan→act→check→
-    replan CONTROL FLOW (`graph.name(r) == "want"/"add"/"del"/"chosen"/"cost"/"ready"/"done"` —
-    a standing-rule violation, the same shape-sniffing anti-pattern Phase 5.4 eliminated for
-    walker/coref) by expressing it as a KB-DECLARED composition of ITERATE×CHECK over `<check>`
-    verdicts, reusing the EXISTING `<call>` loop (`mode_calls.py`) — do NOT rebuild the driver.
-    Pairs with **Phase 2.5**'s already-tracked "`solve.py`'s predicate list → KB declarations"
-    (same fix, vocabulary half vs. control-flow half). See the 2026-07-11 SCOPE CLARIFICATION
-    above: `solve.py`'s solving MECHANISM (`GoalSolver`) is genuinely ISA-native — this is not a
-    harness/ugm boundary issue, it's an undeclared-strategy issue. ⚠Opus.
+  - **Slice 4 DONE (2026-07-11).** Retired `solve.py`'s Python-hardcoded plan→act→check→replan CONTROL
+    FLOW (the `graph.name(r) == "want"/"add"/"chosen"/"done"` shape-sniffing) by expressing it as a
+    KB-DECLARED composition of ITERATE×CHECK over `<check>` verdicts, serviced by the EXISTING `<call>`
+    loop (`run_bank(..., tools=mode_registry(rule_g))`) — no new driver. `tests/test_isa_plan_act_check.py`
+    (4 tests): ACT → an `act` CALL, CHECK → a CHECK CALL per want (verdict feeds back as matchable
+    control relations), REPLAN → a rule committing an alternative op on a divergence; plus the
+    derived-effect bridge (CHECK resolving a want observed only via a rule-bank derivation). `solve.py`
+    DELETED (export-only inside `ugm`; harness consumers migrate cross-repo). KEY RESULT: the monotone
+    substrate needs NO driver-state reset — per-(op,want) CHECK suppression makes an alternative op's
+    positive verdict independent of the diverged op's stale assumed-no, the `DROP_CTRL` teardown-
+    subsumption again. Pairs with **Phase 2.5** (the vocabulary half: `want`/`add`/… → KB declarations).
 
   **Exit gate (DOWNGRADED per 2026-07-10 ratification):** engine grep-clean (no strategy selection
   in Python); benches (card-trader + coref + riddles, now in `harneskills`) produce SENSIBLE,
@@ -323,10 +343,9 @@ In leverage order:
 
 ## Risks
 
-- **Slice 4 judgment** — "reuse the `<call>` loop, declare the strategy, don't rebuild the driver"
-  is a vision call, not a mechanical task. Use Opus; gate the result on sensible plan→act→check→
-  replan behavior on the benches AND on `solve.py` becoming grep-clean of hardcoded predicate
-  strings (the 5.5 exit gate + Phase 2.5, both already named this).
+- **Slice 4 judgment** — RESOLVED (DONE 2026-07-11): reused the `<call>` loop, declared the strategy
+  as forward rules, did NOT rebuild the driver; `solve.py` deleted. The remaining grep-clean of hardcoded
+  predicate STRINGS in the (harness-side) banks is Phase 2.5's vocabulary half.
 - **Performance (Phase 7) is the real long-pole** for a usable system post the no-equivalence
   ratification. Correctness risk is < 5% impossible-blocker; performance is the open question.
 - **Meta-debugging** — the Phase 4 trace renderer is the mitigation; it is complete.

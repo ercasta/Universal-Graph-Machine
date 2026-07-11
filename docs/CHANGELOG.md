@@ -14,6 +14,40 @@ this log is itself a historical record.
 
 ## 2026-07-11
 
+### Phase 5.5 slice 4 — plan→act→check→replan as declared data; `solve.py` retired (335 passed, 1 skipped, 0 failed)
+`solve.py`'s `run_to_goal` held the plan-execution control flow in a Python `for _ in range(max_cycles)`
+loop that hardcoded predicate NAMES straight into the branches (`graph.name(r) == "want"/"add"/"chosen"/
+"ready"/"done"`) — the standing-rule violation ("domain logic ONLY in banks; strategies are DECLARED
+data, never engine sniffing"), the same shape-sniffing anti-pattern Phase 5.4 eliminated for the
+walker/coref strategies. Slice 4 retires that driver.
+
+- **The whole loop is now DATA.** `tests/test_isa_plan_act_check.py` (4 tests) demonstrates
+  plan→act→check→replan as a handful of forward rules serviced by the EXISTING `<call>` loop
+  (`run_bank(..., tools=mode_registry(rule_g))`, `mode_calls.py`) — no new driver, no Python control
+  flow, no predicate name baked into engine code. Each control-flow element `run_to_goal` hardcoded is
+  now a rule (or a §8 CALL), exactly `processing_modes.md` §3's "ITERATE over the expected-effect list ×
+  CHECK each against observed": ACT (`_perform_op`/`simulate_effects`) → an `act` CALL (the world
+  boundary, composed into the same registry as the firmware modes); CHECK (`goal_satisfied`/`_diverged`)
+  → a CHECK CALL per want whose `<check>` verdict feeds back as matchable control relations; REPLAN
+  (`_replan`'s driver-state reset) → a rule that commits an alternative op on a divergence.
+- **No teardown needed — the monotone substrate subsumes the driver-state reset.** Because each op's
+  CHECK is fired-suppressed per (op, want), an alternative op contributes its OWN positive verdict
+  independently of the diverged op's stale assumed-no verdict; nothing is torn down (the stale verdict
+  is control, fact-invisible). This is the same subsumption Phase 2/3 found for `DROP_CTRL`/
+  `planning_teardown.cnl`, now for the entire replan machinery — `run_to_goal`'s reset is Python
+  machinery the substrate makes unnecessary. The derived-effect bridge (`run_to_goal`'s one integration
+  point, `_observe_simulated`'s base + DERIVED adds) is covered: CHECK resolves a want observed only via
+  a rule-bank derivation through the same CHAIN the whole firmware uses.
+- **`solve.py` deleted** (`derive_plan`/`run_to_goal`/`Plan`/`DEFAULT_TOOLS`/`rank_cheaper_than`
+  dropped from `ugm/__init__.py` exports). Within `ugm` it was export-only — never used internally;
+  its solving MECHANISM was always ISA-native `GoalSolver` (not a second engine like `rewriter.py`), so
+  this is an undeclared-strategy retirement, not a repo-boundary move. The STRIPS-flavored planning
+  banks + card-trader stress case are harness content (they live in `harneskills` as an APPLICATION of
+  this generic mechanism); the `harneskills`-side `from ugm import run_to_goal` consumers migrate onto
+  the declared composition separately (cross-repo, user-owned). Pairs with the still-open Phase 2.5
+  ("`solve.py`'s predicate list → KB declarations") — that was the VOCABULARY half; this was the
+  CONTROL-FLOW half.
+
 ### Repo-split test-suite cleanup — purge carried-over harness-only tests (337 passed, 1 skipped, 0 failed)
 This repo is a fresh carveout of the `ugm` engine from the `harneskills` monorepo. Running the full
 suite post-carveout found **117 failing tests (of 460)** that referenced harness-only content which

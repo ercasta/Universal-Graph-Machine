@@ -19,7 +19,6 @@ from .lowering import (
     derived_triples, Unlowerable, rule_touches_provenance,
 )
 from .goal import Goal, GoalSolver, solve_goal, solve_all, NonStratifiable
-from .solve import derive_plan, Plan, run_to_goal, DEFAULT_TOOLS
 from .apply import apply_rule, apply_to_fixpoint, build_head_index, rules_producing
 from .chain import (
     chain, demand_closure, relevant_rules, demanded_preds,
@@ -139,7 +138,6 @@ __all__ = [
     "run_bank", "match_pats", "run_to_fixpoint", "derived_triples", "Unlowerable",
     "rule_touches_provenance",
     "Goal", "GoalSolver", "solve_goal", "solve_all", "NonStratifiable",
-    "derive_plan", "Plan", "run_to_goal", "DEFAULT_TOOLS",
     "apply_rule", "apply_to_fixpoint", "build_head_index", "rules_producing",
     "chain", "demand_closure", "relevant_rules", "demanded_preds", "chain_sip", "bound_demands",
     "render_demands",

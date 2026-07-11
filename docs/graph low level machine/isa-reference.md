@@ -445,6 +445,13 @@ scope: operational choice for `chosen`, nothing else.
 
 ### The goal-directed planner — plan → act → replan, demand-forward (Phase 3 CORE, DONE 2026-07-07)
 
+> **RETIRED 2026-07-11 (Phase 5.5 slice 4).** `ugm/solve.py` is DELETED. Its Python-hardcoded
+> plan→act→check→replan control flow (hardcoded predicate NAMES in the branches — a standing-rule
+> violation) is now a KB-DECLARED composition of ITERATE×CHECK over `<check>` verdicts, serviced by the
+> EXISTING `<call>` loop (`run_bank(..., tools=mode_registry(rule_g))`); see `tests/test_isa_plan_act_check.py`
+> and the CHANGELOG. The section below describes the retired driver — kept as the rationale trail for
+> WHAT the declared composition reproduces (the plan-execution semantics), not as as-built code.
+
 `ugm/solve.py` (`derive_plan` + `run_to_goal`; `tests/test_isa_solve.py`, 9 tests). The
 forward `plan()`/`solve()` loop SATURATES; this drives the SAME `PLANNING_RULES`/`SOLVE_RULES` through
 `GoalSolver` demand-forward — a goal PULLS only its AND-OR chain (MEASURED: goal-directed `reachable` is

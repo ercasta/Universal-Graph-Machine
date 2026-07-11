@@ -127,8 +127,11 @@ emptiness check — `_exist_nac_blocks`/`_group_satisfiable`); a fully-bound cla
   predicate). Loading the WHOLE `corpus/planning.cnl` bank raises on exactly this one rule — every
   other rule lowers — so Phase 3's remaining scope is precisely operational choice for `chosen`.
 
-**Phase 3 CORE (DONE 2026-07-07) — the goal-directed planner.** `harneskills/isa/solve.py`
-(`derive_plan` + `run_to_goal`; `tests/test_isa_solve.py`). The forward-fixpoint loop is replaced by
+**Phase 3 CORE (DONE 2026-07-07; the `solve.py` DRIVER RETIRED 2026-07-11, Phase 5.5 slice 4) — the
+goal-directed planner.** `harneskills/isa/solve.py` (`derive_plan` + `run_to_goal`; `tests/test_isa_solve.py`).
+NOTE: the `solve.py` Python driver is DELETED from `ugm` — its plan→act→check→replan control flow is now a
+KB-declared composition over the existing `<call>` loop (`ugm/tests/test_isa_plan_act_check.py`); the
+harness-side card-trader consumers migrate onto it cross-repo. The forward-fixpoint loop is replaced by
 `GoalSolver` demand-forward: a goal PULLS only its AND-OR chain (measured — goal-directed `reachable` is
 a STRICT SUBSET of forward's; it never saturates the goal fact). The `chosen` SELECTION is the ratified
 resolution CHAIN — preferences (the `dominated`/`best` CNL) resolve a unique best DETERMINISTICALLY (the
