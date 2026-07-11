@@ -22,7 +22,8 @@
 
 ## NEXT STEP (pick this up FIRST)
 
-**Suite: 341 passed, 1 skipped, 0 failed** (post Phase 5.5 slices 4 + 3c, 2026-07-11, `python -m pytest -q`).
+**Suite: 341 passed, 1 skipped, 0 failed** (post Phase 5.5 slices 4 + 3c AND Phase 2.3 name-demotion /
+bridge-retirement, 2026-07-11, `python -m pytest -q`).
 The 460-passed figure logged at the repo split was inflated by ~123 tests that exercised harness-only
 content (`SOLVE_RULES`/`PLANNING_RULES`/`Session`/CPG-mechanism banks) mistakenly carried over by the
 carveout instead of staying in `harneskills`; those were trimmed/deleted (2 whole files, 99 functions
@@ -50,6 +51,8 @@ so an alternative op's positive verdict is independent of the diverged op's stal
 teardown-subsumption Phase 2/3 found for `DROP_CTRL`. See CHANGELOG.
 
 **PHASE 6.0 CORRECTION (2026-07-11) — the `TEMPORARY BRIDGE` dual-write is NOT rewriter-only.**
+[RESOLVED: the bridge was retired in Phase 2.3, 2026-07-11 — see that entry. This correction stands as
+the rationale trail for WHY 6.0 correctly left it in place at the time.]
 Before executing 6.0, tracing actual readers found the three "TEMPORARY BRIDGE" comments
 (`attrgraph.py`'s `add_relation`, `lowering.py`'s `to_attrgraph` and `lower_rhs`) are wrong about
 what blocks their removal: `machine.py`'s own `MINT` intern/dedup logic reads `attrs[NAME]`/
@@ -103,23 +106,22 @@ Python driver becomes dead weight once the declared composition subsumes it, at 
 retires like `rewriter.py` did — not before.
 
 **PICK UP NEXT — recommended order:**
-1. **Phase 2.5** (top in-repo item) — `COPULA`/`NEG_SUFFIX` and the coref/predicate VOCABULARY → KB
-   declarations. Slice 4 did the plan control-flow half; this is the vocabulary half. The 2026-07-11
-   exit-gate audit (see the 5.5 exit-gate note) pinpoints the exact sites: `check`/`decide`/`goal`'s
-   `COPULA="is"`/`NEG_COPULA="is_not"`/`NEG_SUFFIX="_not"`; `authoring._COREF_PREDS` (the moved
-   `session.CONTENT_PREDS`, 5.4b residual B); `universal.SAME_AS_RULES = same_as_rules([...])`. ⚠Opus
-   for "what's KB vs engine" — likely warrants a design steer before code.
-2. **Phase 5 exit gate — bench-sensibility half (harness-side)** — run card-trader + coref + full
+1. **Phase 2.4** (name-free identity tokens) — NOW UNBLOCKED by 2.3. Coref-class representative nid
+   instead of `name\x00rep`; render to surface only at the output boundary. ✓S (gated).
+2. **Phase 2.5** — `COPULA`/`NEG_SUFFIX` and the coref/predicate VOCABULARY → KB declarations. Slice 4
+   did the plan control-flow half; this is the vocabulary half. The 2026-07-11 exit-gate audit pinpoints
+   the sites: `check`/`decide`/`goal`'s `COPULA="is"`/`NEG_COPULA="is_not"`/`NEG_SUFFIX="_not"`;
+   `authoring._COREF_PREDS` (the moved `session.CONTENT_PREDS`, 5.4b residual B);
+   `universal.SAME_AS_RULES = same_as_rules([...])`. ⚠Opus for "what's KB vs engine".
+3. **Phase 5 exit gate — bench-sensibility half (harness-side)** — run card-trader + coref + full
    ProofWriter-coverage in `harneskills`. The engine-half is MET in-repo (audited 2026-07-11); this half
    is not verifiable from this repo.
-3. **Phase 2.3** (name demotion) — its OWN phase, not a 6.0 sub-item. Needs an Opus-level design call on
-   the KB-declared discriminating-key-index mechanism before any code moves; blocks nothing on the
-   firmware path, so it's not urgent.
-4. **Optional follow-on** — prose `suppose … predict …` sugar folding to slice 3c's reified encoding
+4. **Phase 7(a)** — now that 2.3 settled the name/key/value model, intern keys/values to ints + CSR
+   adjacency + bitsets on a CLEAN representation (no bridge). The plan's stated long-pole.
+5. **Optional follow-on** — prose `suppose … predict …` sugar folding to slice 3c's reified encoding
    (new surface → SLM debt; deferred like `to NAME`, pick up if the SLM ledger is being retrained).
 
-**Slices 4 and 3c are DONE, and the 5.5 exit-gate ENGINE half is MET — do NOT re-do them.** (See the
-DONE notes and the exit-gate audit note above.)
+**Slices 4 and 3c and Phase 2.3 are DONE, and the 5.5 exit-gate ENGINE half is MET — do NOT re-do them.**
 
 **Model routing** — ⚠Opus = needs vision-judgment; ✓S = Sonnet-safe where a gate/spec catches deviation.
 - Slice 4 (plan→act→check→replan): **DONE** (was ⚠Opus)
@@ -135,8 +137,8 @@ DONE notes and the exit-gate audit note above.)
 - Phase 7 perf: **✓S** with benchmarks for mechanical rungs; **⚠Opus** for design + AOT codegen
 
 **EQUIVALENCE NOT REQUIRED (2026-07-10 ratification) — consequences in force:**
-- `rewriter` oracle + its `isa=False` branch retired (Phase 6.0, done) — `TEMPORARY BRIDGE` dual-write
-  stays (see correction above; it's load-bearing for the ISA engine itself, not just the oracle)
+- `rewriter` oracle + its `isa=False` branch retired (Phase 6.0, done); the `TEMPORARY BRIDGE` dual-write
+  (which outlived the oracle as load-bearing for the ISA engine itself) is now also RETIRED (Phase 2.3, done)
 - 5.5 exit gate COLLAPSES: "classify every divergence" → "firmware sensible + self-consistent on benches"
 - Keep GoalSolver as DEVELOPMENT oracle only; demote/delete on firmware coverage alone
 - Real long-pole for a *usable* system = **performance (Phase 7)**, not correctness
@@ -154,9 +156,10 @@ the one loop.
 **PRODUCTION RUNTIME IS 100% THE ISA ENGINE, AND SO IS EVERY TEST.** `rewriter.py` is DELETED
 (Phase 6.0) — there is no second engine anywhere in this repo anymore. `run_rules` no longer has an
 `isa` parameter; it always runs `run_bank`. The `TEMPORARY BRIDGE` dual-write (legacy `name` VALUED
-attr on relation nodes) is RETAINED — it is load-bearing for `machine.py`'s own MINT intern/dedup and
-for the many `g.name(rel)` predicate reads across the engine, not rewriter-only as its comments once
-claimed (see the Phase 6.0 correction note above); it retires only once Phase 2.3 lands.
+attr on relation nodes) is now RETIRED (Phase 2.3, 2026-07-11): a relation's predicate is SOLELY its
+graded key, read via `AttrGraph.predicate(rid)`/`has_key`; the ~85 `g.name(rel)` predicate readers (plus
+the `nodes_named(PREDICATE)` / `walker.get_attr(r,"name")` classes the plain grep missed) were migrated.
+See `docs/name_demotion_design.md` + CHANGELOG.
 
 Phases 0–5.5 slices 1–3b, slice 4, Phase 6.0 are DONE. See CHANGELOG.md for the full trail.
 
@@ -165,9 +168,9 @@ completion (`decide.solve`'s write-side elimination). (The "wire the planner's `
 declared CHOOSE" companion is subsumed by slice 4 — `solve._mint_chosen` is gone with `solve.py`; the
 declared composition commits `chosen` as a rule.)
 
-Also still open (NOT on firmware path): Phase 3.1 step 2 (one-graph fold); Phase 2.3 name demotion
-(now correctly an Opus-level design task, not oracle-blocked — the oracle is gone); `tests/test_joern_corpus.py`
-(legitimately slow, live-Joern, candidate for `slow` marker).
+Also still open (NOT on firmware path): Phase 3.1 step 2 (one-graph fold); `tests/test_joern_corpus.py`
+(legitimately slow, live-Joern, candidate for `slow` marker). (Phase 2.3 name demotion + bridge
+retirement is DONE — 2026-07-11.)
 
 ---
 
@@ -209,11 +212,16 @@ All items DONE (2026-07-08, 470 tests).
   - **REMAINING = Phase-6 reader flip only** (blocked on oracle): `nodes_named("<tok>")`→
     `nodes_with_key`, `startswith("<")`→`is_control` in `forms.py:473/507/548`, `universal.py:90`
 
-- **2.3** `name` demoted to ordinary VALUED attr; value-accelerator indexes for KB-declared
-  discriminating keys only. BLOCKED on oracle retirement (Phase 6.0).
+- **2.3 DONE (2026-07-11, 341 green).** `name` demoted to an ordinary VALUED attr; the value-accelerator
+  generalized to KB-declared discriminating-key indexes (`_by_value`/`declare_index`/`nodes_with_value`,
+  default `{"name"}`); the `TEMPORARY BRIDGE` dual-write RETIRED (a relation's predicate is solely its
+  graded key; new `AttrGraph.predicate(rid)`; `name()` requires VALUED so a `name`-predicate relation is
+  sound). ~85 predicate readers swept + the `nodes_named(PREDICATE)`/`walker.get_attr(r,"name")` classes
+  the plain grep missed. Bonus: `derived_triples` no longer emits garbage triples (entity-as-relation).
+  Design + as-built: `docs/name_demotion_design.md`, CHANGELOG.
 
 - **2.4** Identity tokens name-free (coref-class representative nid, not `name\x00rep`);
-  rendering to surface at the output boundary only.
+  rendering to surface at the output boundary only. NOW UNBLOCKED (2.3 landed) — ✓S per the routing table.
 
 - **2.5** `COPULA`/`NEG_SUFFIX` and the (now-retired) planner's predicate VOCABULARY (`want`/`add`/
   `chosen`/`done`/`best`/… — formerly hardcoded in `solve.py`, now in the harness banks) → KB
@@ -355,13 +363,11 @@ All items DONE (2026-07-09/10). Gate met.
 
 - **6.0 DONE (2026-07-11, 331 passed/1 skipped).** Retired `rewriter.py` entirely (deleted; `run_rules`'s
   `isa`/`seeds` params removed, always runs `run_bank`); did the `nodes_named("<tok>")`→`nodes_with_key`
-  and `startswith("<")`→`is_control` reader flips in `ugm/cnl/forms.py`/`ugm/cnl/universal.py`. **NOT
-  done, and correctly rescoped out of 6.0** (see the correction note under NEXT STEP): the
-  `TEMPORARY BRIDGE` dual-write (load-bearing for MINT intern/dedup + `g.name(rel)` reads, not
-  oracle-only) and Phase 2.3 name demotion — these are now their own item, gated on an Opus design
-  call, not a mechanical sweep. `_INERT_NAMES`/`_is_inert` mostly stays by design (pattern/literal-side
-  guards over string tokens, not node instances); the one ambiguous site (`lowering.py`'s `to_attrgraph`
-  bridge) is tied to that bridge's own eventual fate, left untouched.
+  and `startswith("<")`→`is_control` reader flips in `ugm/cnl/forms.py`/`ugm/cnl/universal.py`. The
+  `TEMPORARY BRIDGE` dual-write + Phase 2.3 name demotion were correctly rescoped OUT of 6.0 (their own
+  item, gated on a design call, not a mechanical sweep) — and have since LANDED as Phase 2.3 (2026-07-11,
+  the bridge is retired; `lowering.to_attrgraph`'s name-write is gone). `_INERT_NAMES`/`_is_inert` mostly
+  stays by design (pattern/literal-side guards over string tokens, not node instances).
 
 - **6.1** GoalSolver (or its remains) = ACCELERATOR only where profiling justifies; deleted where
   firmware subsumes it (coverage alone — NOT old-answer equivalence).

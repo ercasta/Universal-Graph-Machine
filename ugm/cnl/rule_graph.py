@@ -78,7 +78,7 @@ def _read_pat(graph: Graph, pred: str, role_node: str) -> Pat:
     """Reconstruct a Pat from its predicate node (pred's single non-role in/out edges)."""
     ins = [n for n in graph.into(pred) if n != role_node]
     outs = list(graph.out(pred))
-    return Pat(graph.name(ins[0]), graph.name(pred), graph.name(outs[0]))
+    return Pat(graph.name(ins[0]), graph.predicate(pred), graph.name(outs[0]))
 
 
 def _pat_key(p: Pat) -> tuple[str, str, str]:
@@ -94,7 +94,7 @@ def rules_in_graph(graph: Graph) -> list[Rule]:
     by_rule: dict[str, dict[str, list[Pat]]] = {}
     for nid in graph.nodes():
         for role_node, pred in graph.relations_from(nid):
-            role = graph.name(role_node)
+            role = graph.predicate(role_node)
             if role not in ROLE_NAMES:
                 continue
             by_rule.setdefault(nid, {}).setdefault(role, []).append(
@@ -261,7 +261,7 @@ def expand_relation_properties(graph: Graph, rule_graph: Graph | None = None) ->
     seen: set[tuple[str, ...]] = set()
     for nid in graph.nodes():
         for rel_node, obj in graph.relations_from(nid):
-            rname = graph.name(rel_node)
+            rname = graph.predicate(rel_node)
             if rname == PROPERTY_REL:
                 key = (rname, graph.name(nid), graph.name(obj))
                 if key in seen:
@@ -295,9 +295,9 @@ def contradictions(graph: Graph) -> list[dict]:
     for c in graph.nodes_named(CONTRADICTION):
         about, violates = [], []
         for r, o in graph.relations_from(c):
-            if graph.name(r) == "about":
+            if graph.has_key(r, "about"):
                 about.append(graph.name(o))
-            elif graph.name(r) == "violates":
+            elif graph.has_key(r, "violates"):
                 violates.append(graph.name(o))
         key = (frozenset(about), frozenset(violates))
         if key in seen:

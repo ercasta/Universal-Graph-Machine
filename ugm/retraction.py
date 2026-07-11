@@ -119,11 +119,11 @@ def retract(graph: Graph, rel: str) -> list:
 def record_rejection(graph: Graph, a: str, b: str) -> None:
     """Stash the rejection so the same wrong link is not re-hypothesized (the resurrection
     lean: remember only the rejection, re-derive the rest on demand)."""
-    if not any(graph.name(r) == NOT_SAME_AS and b in graph.out(r)
+    if not any(graph.has_key(r, NOT_SAME_AS) and b in graph.out(r)
                for r in graph.out(a)):
         graph.add_relation(a, NOT_SAME_AS, b)
 
 
 def is_rejected(graph: Graph, a: str, b: str) -> bool:
-    return (any(graph.name(r) == NOT_SAME_AS and b in graph.out(r) for r in graph.out(a))
-            or any(graph.name(r) == NOT_SAME_AS and a in graph.out(r) for r in graph.out(b)))
+    return (any(graph.has_key(r, NOT_SAME_AS) and b in graph.out(r) for r in graph.out(a))
+            or any(graph.has_key(r, NOT_SAME_AS) and a in graph.out(r) for r in graph.out(b)))

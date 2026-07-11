@@ -74,7 +74,7 @@ def test_meta_pattern_reaches_j_through_uses():
     mu = match(g, [h.Pat("?j", "uses", "?f")])
     assert mu and all(prov.is_justification(g.name(b["?j"])) for b in mu)
     # the used fact is the real premise `a r b` (a domain relation node, not inert).
-    used = {g.name(b["?f"]) for b in mu}
+    used = {g.predicate(b["?f"]) for b in mu}        # Phase 2.3: relation predicate is the key
     assert "r" in used
 
 
@@ -93,7 +93,7 @@ def test_ordinary_free_predicate_still_excludes_provenance():
     # from `a`, the outgoing predicates are the domain `r`/`s` relations, never `proves`/`uses`.
     g = _derive()
     ms = match(g, [h.Pat("a?", "?p", "?o")])
-    preds = {g.name(b["?p"]) for b in ms}
+    preds = {g.predicate(b["?p"]) for b in ms}       # Phase 2.3: ?p binds the predicate rel node
     assert preds and not any(_is_inert(p) for p in preds)   # r, s — no proves/uses
 
 

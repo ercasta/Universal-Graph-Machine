@@ -38,7 +38,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Iterator
 
-from .attrgraph import AttrGraph, Attr, GRADED, VALUED, NAME
+from .attrgraph import AttrGraph, Attr, GRADED, VALUED, NAME, CONF
+
+
+def _pred_key(attrs: dict) -> str | None:
+    """The domain predicate carried in a MINT's attrs — its single non-reserved, non-CONF GRADED key
+    (Phase 2.3: the relation's predicate is the graded key, no longer the VALUED `name` bridge)."""
+    for k, a in attrs.items():
+        if a.kind == GRADED and k != CONF and not (k.startswith("<") and k.endswith(">")):
+            return k
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -427,25 +436,25 @@ class Machine:
                     for cand in g.nodes_named(nm):        # insertion-first, like nodes_named(nm)[0]
                         # KEY-AWARE INTERN (finding-interning-aliases-predicate-literals): a value-literal
                         # must canonicalize to another VALUE-literal / control token, NEVER to a reified
-                        # DOMAIN-RELATION node. A relation node carries a graded key == its own name (the
-                        # add_relation dual-write); interning e.g. the literal `is` to the `is` PREDICATE
-                        # rel node wires the minted node into the fact graph and corrupts matching (a rule
-                        # emitting `<call> -[pred]-> is` then re-matched `?x is bird` forever). A control
-                        # token (`<yes>`) also carries a graded key == its name but IS a legit intern
-                        # target, so exclude only NON-reserved (domain-predicate) names.
+                        # DOMAIN-RELATION node. Post Phase 2.3 a domain relation carries NO valued name
+                        # (its predicate is only a graded key), so `nodes_named(nm)` cannot return one —
+                        # the aliasing hazard is now structurally impossible. This graded-key guard is kept
+                        # as defence in depth (and still excludes a would-be domain-rel candidate should one
+                        # ever carry both a valued name and a same-named graded key); a control token
+                        # (`<yes>`) carries a graded key == its name but IS a legit intern target, so
+                        # exclude only NON-reserved (domain-predicate) names.
                         ka = g.get_attr(cand, nm)
                         is_domain_rel = (ka is not None and ka.kind == GRADED
                                          and not (nm.startswith("<") and nm.endswith(">")))
                         if not is_domain_rel:
                             new = cand
                             break
-            if ins.dedup and new is None:        # reuse an existing subject -[name]-> object
-                name_attr = ins.attrs.get(NAME)  # (rewriter._relation_exists: no duplicate rel node)
-                if name_attr is not None and ins.in_edges and ins.edges:
+            if ins.dedup and new is None:        # reuse an existing subject -[pred]-> object
+                pred = _pred_key(ins.attrs)      # Phase 2.3: match on the predicate KEY, not VALUED name
+                if pred is not None and ins.in_edges and ins.edges:
                     subj, obj = st.regs[ins.in_edges[0]], st.regs[ins.edges[0]]
-                    nm = str(name_attr.value)
                     for r in g.succ(subj):
-                        if g.name(r) == nm and obj in g.succ(r):
+                        if g.has_key(r, pred) and obj in g.succ(r):
                             return st.bind(ins.out, r)   # relation already present -> no new edges
             if new is None:
                 new = g.add_node(control=ins.control)

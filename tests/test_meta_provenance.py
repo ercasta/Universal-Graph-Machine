@@ -17,13 +17,13 @@ META = h.Rule(key="meta.r1.m1", lhs=[h.Pat("?a", "r1", "?b")], rhs=[h.Pat("?a", 
 
 
 def _rel(g, name):
-    return next(n for n in g.nodes() if g.name(n) == name)
+    return next(n for n in g.nodes() if g.predicate(n) == name)   # Phase 2.3: predicate is the key
 
 
 def _vis(g, s, p, o):
     """Does the raw 2-hop path  s -[p]-> o  exist? (s/p/o are all ground names in this file's
     uses — interposed hiding breaks this 2-hop, so a hidden fact reads as not-visible directly.)"""
-    return any(g.name(r) == p and o_id in g.out(r)
+    return any(g.has_key(r, p) and o_id in g.out(r)
                for s_id in g.nodes_named(s) for r in g.out(s_id) for o_id in g.nodes_named(o))
 
 
@@ -86,7 +86,7 @@ def _is_prov_flagged_kind(name: str) -> bool:
 
 def _assert_flag_matches_prov_kind(g):
     for n in g.nodes():
-        nm = g.name(n)
+        nm = g.name(n) or g.predicate(n)
         assert g.is_inert(n) == _is_prov_flagged_kind(nm), (
             f"inert flag ({g.is_inert(n)}) disagrees with provenance kind for node {nm!r}")
 
@@ -98,7 +98,7 @@ def test_inert_flag_covers_every_provenance_mint_path():
     g.add_relation(g.add_node("x"), "r0", g.add_node("y"))
     prov.axiomatize(g, ["r0"])
     run_rules(g, [NORM])
-    names = {g.name(n) for n in g.nodes()}
+    names = {g.name(n) or g.predicate(n) for n in g.nodes()}
     assert prov.PROVES in names and any(prov.is_justification(nm) for nm in names)
     _assert_flag_matches_prov_kind(g)
 

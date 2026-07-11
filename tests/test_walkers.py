@@ -21,7 +21,7 @@ def _rel(g, s, p, o):
 def _relation_exists(g, s_id, pname, o_id):
     """Does the raw edge  s_id -[pname]-> o_id  exist? (ported from the retired rewriter.py)."""
     for r in g.succ(s_id):
-        if g.name(r) == pname and o_id in g.succ(r):
+        if g.has_key(r, pname) and o_id in g.succ(r):
             return True
     return False
 
@@ -76,7 +76,7 @@ def test_walker_fuel_counter_is_decremented_per_advance():
     h.walk_on_demand(g, "a", "e", fuel=10)
     assert _has(g, "a", "is_a", "e")                 # reached
     w = g.nodes_named(h.WALKER)[0]
-    left = [g.name(o) for r, o in g.relations_from(w) if g.name(r) == h.FUEL]
+    left = [g.name(o) for r, o in g.relations_from(w) if g.has_key(r, h.FUEL)]
     assert left == ["6"]                             # 10 - 4 advances = 6 remaining
     # ASYNC-DEC LIMITATION (documented in walker.py): `service_calls` runs only when the
     # rules quiesce, so on a FINITE relation the visited (reached) NAC closes the reachable
@@ -102,7 +102,7 @@ def test_walker_terminates_on_cyclic_relation():
     assert _has(g, "a", "r", "d")                      # shortcut found despite the cycle
     # the reached set is exactly the reachable nodes (a, b, c, d), each reached once
     w = g.nodes_named(h.WALKER)[0]
-    reached = {g.name(o) for r, o in g.relations_from(w) if g.name(r) == h.REACHED}
+    reached = {g.name(o) for r, o in g.relations_from(w) if g.has_key(r, h.REACHED)}
     assert reached == {"a", "b", "c", "d"}
 
 
@@ -116,7 +116,7 @@ def test_walker_shortcut_has_provenance():
     h.walk_on_demand(g, "a", "d")
     # the shortcut a is_a d has an in-graph justification (it was DERIVED, not asserted)
     rel = next(r for r in g.out(g.nodes_named("a")[0])
-               if g.name(r) == "is_a" and g.nodes_named("d")[0] in g.out(r))
+               if g.has_key(r, "is_a") and g.nodes_named("d")[0] in g.out(r))
     assert h.support_js(g, rel)                        # some J proves it
     assert h.rule_support_j(g, rel) is not None        # a rule justification, not just an axiom
 
@@ -168,8 +168,8 @@ def test_matching_is_unbounded():
     for i in range(30):
         g.add_relation(ids[i], "is_a", ids[i + 1])
     h.run_rules(g, h.UNIVERSAL_RULES, max_steps=400)
-    assert any(g.name(r) == "is_a" and ids[30] in g.out(r) for r in g.out(ids[0]))  # 30-hop
-    facts = sum(1 for n in g.nodes() for rr, _ in g.relations_from(n) if g.name(rr) == "is_a")
+    assert any(g.has_key(r, "is_a") and ids[30] in g.out(r) for r in g.out(ids[0]))  # 30-hop
+    facts = sum(1 for n in g.nodes() for rr, _ in g.relations_from(n) if g.has_key(rr, "is_a"))
     assert facts == 30 * 31 // 2                                    # the FULL closure (465)
 
 
@@ -179,7 +179,7 @@ def test_matching_is_unbounded():
 
 def _reached(g, token):
     w = g.nodes_named(token)[0]
-    return {g.name(o) for r, o in g.relations_from(w) if g.name(r) == h.REACHED}
+    return {g.name(o) for r, o in g.relations_from(w) if g.has_key(r, h.REACHED)}
 
 
 def test_two_concurrent_walkers_on_different_relations():
@@ -309,6 +309,6 @@ def test_refuel_tool_sets_single_fuel_counter():
     w = g.add_node(h.WALKER)
     h.emit_call(g, h.REFUEL, {h.TARGET: w, "amount": g.add_node("3")})
     touched = h.service_calls(g, h.WALK_TOOLS)
-    fuel = [g.name(o) for r, o in g.relations_from(w) if g.name(r) == h.FUEL]
+    fuel = [g.name(o) for r, o in g.relations_from(w) if g.has_key(r, h.FUEL)]
     assert fuel == ["3"]                               # ONE counter node, count in its name
     assert w in touched and not h.pending_calls(g)     # call consumed, frontier reported

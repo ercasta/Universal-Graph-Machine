@@ -126,7 +126,7 @@ def test_backward_engine_subsumes_decide_defeat_without_retraction():
 
     def served(name):
         return sorted({g.name(o) for s in g.nodes_named(name)
-                       for r, o in g.relations_from(s) if g.name(r) == "served"})
+                       for r, o in g.relations_from(s) if g.has_key(r, "served")})
 
     # bob: `is urgent` NOT derivable -> demand-completion yields `is_not urgent` -> consumer fires
     # (decide's "completion materializes the negative, consumer matches positively" — no over-assertion).

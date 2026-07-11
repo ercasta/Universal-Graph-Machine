@@ -89,7 +89,7 @@ def node_is_closed_world(graph: Graph, node: str) -> bool:
     What the CNL reflection reads to decide whether a rule's `is not P` clause is a closed-world
     negation (→ a completion rule) or ordinary NAF (a stratified NAC)."""
     for r in graph.out(node):
-        if graph.name(r) == CLOSES:
+        if graph.has_key(r, CLOSES):
             if any(graph.name(o) == CWA for o in graph.out(r)):
                 return True
     return False
@@ -101,7 +101,7 @@ def node_is_closed_world(graph: Graph, node: str) -> bool:
 
 def _rel_exists(graph: Graph, s: str, pred: str, o: str) -> bool:
     for r in graph.succ(s):
-        if graph.name(r) == pred and o in graph.succ(r):
+        if graph.has_key(r, pred) and o in graph.succ(r):
             return True
     return False
 
@@ -109,7 +109,7 @@ def _rel_exists(graph: Graph, s: str, pred: str, o: str) -> bool:
 def _holds(graph: Graph, subj: str, pred: str, prop_name: str) -> bool:
     """Does `subj --[pred]--> (some live node named prop_name)` exist?"""
     for r in graph.succ(subj):
-        if graph.name(r) == pred:
+        if graph.has_key(r, pred):
             for o in graph.succ(r):
                 if graph.name(o) == prop_name:
                     return True

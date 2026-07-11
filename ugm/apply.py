@@ -49,7 +49,7 @@ def rule_nodes(rule_g: AttrGraph) -> list[str]:
     (lhs/rhs/nac/drop) — the same identification `rule_graph.rules_in_graph` uses."""
     out: list[str] = []
     for nid in rule_g.nodes():
-        if any(rule_g.name(rel) in ROLES for rel, _ in rule_g.relations_from(nid)):
+        if any(rule_g.predicate(rel) in ROLES for rel, _ in rule_g.relations_from(nid)):
             out.append(nid)
     return out
 
@@ -64,7 +64,7 @@ def build_head_index(rule_g: AttrGraph) -> str:
     duplicated. Returns the hub id."""
     hubs = rule_g.nodes_named(HEAD_INDEX)
     hub = hubs[0] if hubs else rule_g.add_node(HEAD_INDEX, control=True)
-    existing = {(rule_g.name(rel), obj) for rel, obj in rule_g.relations_from(hub)}
+    existing = {(rule_g.predicate(rel), obj) for rel, obj in rule_g.relations_from(hub)}
     for rn in rule_nodes(rule_g):
         for _hs, hp, _ho in _read_atoms(rule_g, rn, "rhs"):
             if (hp, rn) not in existing:
@@ -79,7 +79,7 @@ def rules_producing(rule_g: AttrGraph, pred: str) -> list[str]:
     out: list[str] = []
     for hub in rule_g.nodes_named(HEAD_INDEX):
         for rel, obj in rule_g.relations_from(hub):
-            if rule_g.name(rel) == pred and obj not in out:
+            if rule_g.has_key(rel, pred) and obj not in out:
                 out.append(obj)
     return out
 
@@ -92,11 +92,11 @@ def _read_atoms(rule_g: AttrGraph, rule_node: str, role: str) -> list[tuple[str,
     the subject slot as its (non-role) predecessor and the object slot as its successor."""
     atoms: list[tuple[str, str, str]] = []
     for role_rel, patom in rule_g.relations_from(rule_node):
-        if rule_g.name(role_rel) != role:
+        if not rule_g.has_key(role_rel, role):
             continue
         subj_slots = [n for n in rule_g.pred(patom) if n != role_rel]
         obj_slots = list(rule_g.succ(patom))
-        atoms.append((rule_g.name(subj_slots[0]), rule_g.name(patom), rule_g.name(obj_slots[0])))
+        atoms.append((rule_g.name(subj_slots[0]), rule_g.predicate(patom), rule_g.name(obj_slots[0])))
     return atoms
 
 
@@ -105,7 +105,7 @@ def _read_atoms(rule_g: AttrGraph, rule_node: str, role: str) -> list[tuple[str,
 def _bindings(g: AttrGraph, frame: str) -> dict[str, str]:
     """Read a frame's bindings — `<frame> -[?var]-> node` — back into a dict for local decisions.
     The authoritative, inspectable state is the graph relations; this is just a read of them."""
-    return {g.name(rel): obj for rel, obj in g.relations_from(frame)}
+    return {g.predicate(rel): obj for rel, obj in g.relations_from(frame)}
 
 
 def _extend_frame(g: AttrGraph, frame: str | None, new: dict[str, str], created: list[str]) -> str:
@@ -119,7 +119,7 @@ def _extend_frame(g: AttrGraph, frame: str | None, new: dict[str, str], created:
     created.append(nf)
     if frame is not None:
         for rel, obj in g.relations_from(frame):
-            created.append(g.add_relation(nf, g.name(rel), obj, control=True))
+            created.append(g.add_relation(nf, g.predicate(rel), obj, control=True))
     for var, node in new.items():
         created.append(g.add_relation(nf, var, node, control=True))
     return nf
@@ -179,7 +179,7 @@ def _build_itinerary(g: AttrGraph, body: list[tuple[str, str, str]], created: li
 def _cursor_step(g: AttrGraph, cur: str) -> tuple[str, str] | None:
     """The cursor's current `(at_relnode, step)`, or None once the itinerary is exhausted."""
     for rel, step in g.relations_from(cur):
-        if g.name(rel) == "at":
+        if g.has_key(rel, "at"):
             return rel, step
     return None
 
@@ -209,7 +209,7 @@ def _advance_cursor(g: AttrGraph, cur: str, created: list[str]) -> tuple[str, st
     if at is None:
         return None
     at_rel, step = at
-    nxt = next((obj for rel, obj in g.relations_from(step) if g.name(rel) == "next"), None)
+    nxt = next((obj for rel, obj in g.relations_from(step) if g.has_key(rel, "next")), None)
     g.remove_node(at_rel)
     if nxt is not None:
         created.append(g.add_relation(cur, "at", nxt, control=True))

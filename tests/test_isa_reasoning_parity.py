@@ -73,7 +73,7 @@ def test_relation_dedup_reaches_an_edge_fixpoint_across_reruns():
     for _ in range(3):
         run_bank(g, rule)                             # re-fire from scratch, as an outer cycle would
     assert set(g.edges()) == edges_after_first        # no new duplicate rel nodes
-    assert len([n for n in g.nodes() if g.name(n) == "flag"]) == 1
+    assert len([n for n in g.nodes() if g.predicate(n) == "flag"]) == 1   # Phase 2.3: predicate is the key
 
 
 def test_runbank_derives_the_two_clause_value_bridge():
@@ -93,8 +93,12 @@ def test_runbank_derives_the_two_clause_value_bridge():
         "?o candidate have_valuable when <need> for have_valuable and ?o add have_valuable")
     g_isa = build()
     run_bank(g_isa, rules)
+    # Phase 2.3: `derived_triples` now identifies a relation by its domain PREDICATE (graded key), not
+    # by "has a VALUED name + in/out edges". So the old spurious triple `("acts_on", "card", "is")` — an
+    # artifact of mis-reading the ENTITY `card` (object of `acts_on`, subject of `is`) as a relation — is
+    # gone. The set is now exactly the real relations.
     assert _triples(g_isa) == {
-        ("<need>", "for", "have_valuable"), ("acts_on", "card", "is"),
+        ("<need>", "for", "have_valuable"),
         ("card", "is", "in_demand"), ("card", "is", "rare"), ("card", "is", "valuable"),
         ("op", "acts_on", "card"), ("op", "add", "have_valuable"),
         ("op", "candidate", "have_valuable"),
@@ -156,15 +160,15 @@ def _prov_structure(g):
     (provenance.py: J -[proves]-> fact, J -[uses]-> premise)."""
     import ugm.provenance as pv
     from ugm.world_model import _is_inert
-    live = lambda ns: tuple(sorted(g.name(n) for n in ns if not _is_inert(g.name(n))))
+    live = lambda ns: tuple(sorted(g.name(n) for n in ns if not g.is_inert(n)))
     proven = set()
-    for pn in g.nodes_named(pv.PROVES):
+    for pn in g.nodes_with_key(pv.PROVES):
         for j in g.into(pn):
             for rel in g.out(pn):
                 # skip the `proves`/`uses` provenance nodes wired onto this fact (inert predecessors
                 # of `rel`) so subj/obj are the true fact endpoints
-                proven.add((g.name(j), g.name(rel), live(g.into(rel)), live(g.out(rel))))
-    used = sorted((g.name(un) for un in g.nodes_named(pv.USES)))
+                proven.add((g.name(j), g.predicate(rel), live(g.into(rel)), live(g.out(rel))))
+    used = sorted((g.predicate(un) for un in g.nodes_with_key(pv.USES)))
     return proven, used
 
 
@@ -199,6 +203,6 @@ def test_runbank_does_not_reprove_a_deduped_fact():
     a = g.add_node("a"); g.add_relation(a, "is", g.add_node("rare"))
     rules = load_rules("?x flag yes when ?x is rare")
     run_bank(g, rules, provenance=True)
-    j_after_first = len(g.nodes_named(pv.PROVES))
+    j_after_first = len(g.nodes_with_key(pv.PROVES))
     run_bank(g, rules, provenance=True)               # re-fire: the `flag` already exists -> no new J
-    assert len(g.nodes_named(pv.PROVES)) == j_after_first
+    assert len(g.nodes_with_key(pv.PROVES)) == j_after_first

@@ -121,12 +121,12 @@ def _closure_declarations(ag: AttrGraph) -> dict[str, str]:
     about the relation), so the engine stays content-blind — it only reads the map."""
     from .cnl.rule_graph import PROPERTY_REL                   # late import: avoid a load-time cycle
     out: dict[str, str] = {}
-    for r in ag.nodes_named(PROPERTY_REL):                      # `R is transitive` -> {R: R}
+    for r in ag.nodes_with_key(PROPERTY_REL):                   # `R is transitive` -> {R: R}
         subj = next((n for n in ag.into(r) if not ag.is_inert(n)), None)
         obj = next((n for n in ag.out(r) if not ag.is_inert(n)), None)
         if subj is not None and obj is not None and ag.name(obj) == "transitive":
             out[ag.name(subj)] = ag.name(subj)
-    for r in ag.nodes_named("transitive_closure_of"):          # `D is the transitive closure of B` -> {D: B}
+    for r in ag.nodes_with_key("transitive_closure_of"):       # `D is the transitive closure of B` -> {D: B}
         subj = next((n for n in ag.into(r) if not ag.is_inert(n)), None)
         obj = next((n for n in ag.out(r) if not ag.is_inert(n)), None)
         if subj is not None and obj is not None:
@@ -323,9 +323,9 @@ class GoalSolver:
         self._token_class: dict[str, list[str]] = {} if _token_class is None else _token_class
         if fresh_identity:
             for nid in ag.nodes():
-                a = ag.get_attr(nid, "name")
-                if a is not None:
-                    self._name_ids.setdefault(str(a.value), nid)
+                nm = ag.name(nid)                 # VALUED entity name only (Phase 2.3: skips a graded
+                if nm:                            # `name`-predicate rel node, which reports "")
+                    self._name_ids.setdefault(nm, nid)
             for r in ag.nodes_with_key("same_as"):  # Phase 2.1: predicate key, not name
                 subs, objs = list(ag.pred(r)), list(ag.succ(r))
                 for s in subs:
@@ -525,8 +525,8 @@ class GoalSolver:
     # ------------------------------------------------------------------
 
     def _node_name(self, nid: str) -> str | None:
-        a = self.ag.get_attr(nid, "name")
-        return str(a.value) if a is not None else None
+        nm = self.ag.name(nid)                    # VALUED entity name only (Phase 2.3)
+        return nm if nm else None
 
     # ---- node-level identity: tokens, same_as classes, name<->token at the boundary ----
     SEP = "\x00"                                              # token = name + SEP + class-rep
@@ -1036,7 +1036,7 @@ class GoalSolver:
                     existing = r                         # present (perhaps via a nested solver)
                     break
             if existing is None:
-                # Phase 2.1: mint via add_relation (dual-write bridge + reserved-key guard live there).
+                # Phase 2.1/2.3: mint via add_relation (predicate rides the graded key; no name bridge).
                 existing = self.ag.add_relation(s_id, rel, o_id)
                 self.derived += 1
             self._rel_node[(s, rel, o)] = existing

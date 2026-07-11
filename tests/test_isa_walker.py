@@ -35,10 +35,10 @@ def test_walker_reaches_within_fuel_and_materializes_shortcut():
     # the discovered shortcut is a NEW derived fact, marked as a walker discovery
     new = derived_triples(ag) - before
     assert ("x", "isa", "w") in new
-    # the shortcut rel node carries the `shortcut` provenance marker
+    # the shortcut rel node carries the `shortcut` provenance marker (Phase 2.3: a relation's
+    # predicate is its graded KEY, so find the `isa` rel node by `has_key`, not a VALUED name)
     shortcut_nodes = [r for r in ag.nodes()
-                      if (a := ag.get_attr(r, "name")) is not None and a.value == "isa"
-                      and ag.has_key(r, "shortcut")]
+                      if ag.has_key(r, "isa") and ag.has_key(r, "shortcut")]
     assert shortcut_nodes, "no shortcut-marked relation was materialized"
 
 

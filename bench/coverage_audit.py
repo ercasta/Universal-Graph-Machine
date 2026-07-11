@@ -53,7 +53,7 @@ from ugm.cnl.machine_rules import load_machine_rules
 def _relation_exists(g, s_id, pname, o_id):
     """Does the raw edge  s_id -[pname]-> o_id  exist? (ported from the retired rewriter.py)."""
     for r in g.succ(s_id):
-        if g.name(r) == pname and o_id in g.succ(r):
+        if g.has_key(r, pname) and o_id in g.succ(r):     # Phase 2.3: predicate is the graded key
             return True
     return False
 
@@ -513,8 +513,11 @@ def _hazards(g):
     if not haz:
         return set()
     hz = haz[0]
-    return {g.name(n) for n in g.nodes()
-            if g.name(n) not in _PROVENANCE_NAMES and _relation_exists(g, n, "is_a", hz)}
+    # A DOMAIN hazard is a named entity: skip inert provenance and skip the empty-named relation nodes
+    # (Phase 2.3: a relation carries no VALUED name), so justification structure is never miscounted.
+    return {nm for n in g.nodes()
+            if not g.is_inert(n) and (nm := g.name(n)) and nm not in _PROVENANCE_NAMES
+            and _relation_exists(g, n, "is_a", hz)}
 
 
 def run_scenario(scn):

@@ -48,7 +48,7 @@ def _forward_marks(triples: list[tuple[str, str, str]], rules, pred: str) -> set
     g = _graph(triples)
     run_rules(g, rules, provenance=False)
     return {(g.name(s), g.name(o))
-            for s in g.nodes() for r, o in g.relations_from(s) if g.name(r) == pred}
+            for s in g.nodes() for r, o in g.relations_from(s) if g.has_key(r, pred)}
 
 
 def _goal_marks(triples, rules, pred: str, subjects: list[str], obj: str | None = None,

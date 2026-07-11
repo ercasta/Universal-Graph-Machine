@@ -121,7 +121,9 @@ class AttrNode:
     @property
     def name(self) -> str:
         a = self.attrs.get(NAME)
-        return str(a.value) if a is not None else ""
+        # VALUED only: a relation whose PREDICATE is literally `name` carries a GRADED `{name: 1.0}`
+        # key (Phase 2.3) — that is a predicate, not an entity name, so it reports no name.
+        return str(a.value) if (a is not None and a.kind == VALUED) else ""
 
     @property
     def embedding(self) -> dict[str, float]:
@@ -151,7 +153,8 @@ class AttrGraph:
     are never constrained (open constants).
     """
 
-    def __init__(self, schema: set[str] | None = None) -> None:
+    def __init__(self, schema: set[str] | None = None,
+                 indexed_keys: set[str] | None = None) -> None:
         self._nodes: dict[str, AttrNode] = {}
         self._out: dict[str, set[str]] = {}
         self._in: dict[str, set[str]] = {}
@@ -159,12 +162,15 @@ class AttrGraph:
         # this is the structural guard that keeps valued attributes from resurrecting labels
         # (see module docstring). Seeding is over keys; values are filtered per-candidate.
         self._by_key: dict[str, set[str]] = {}
-        # Lexical MATCHING-ACCELERATOR index: name-value -> {nid}, over the reserved NAME attr only.
-        # Semantically transparent (like world_model's `_by_name`, vision §11): it returns a
-        # CANDIDATE SET to test, NEVER a single node and never a merge, so identity stays opaque —
-        # two nodes both named "Paul" are two nids both under "Paul". This is the ONE value index,
-        # and only over NAME; it does not resurrect value-as-identity (decision-attrgraph-rehost).
-        self._by_name: dict[str, set[str]] = {}
+        # DISCRIMINATING-KEY value-accelerator (Phase 2.3, `docs/name_demotion_design.md`): key ->
+        # {value -> {nid}}, maintained for DECLARED keys only. Semantically transparent (vision §11):
+        # it returns a CANDIDATE SET to test, NEVER a single node and never a merge, so identity stays
+        # opaque — two nodes both named "Paul" are two nids both under "Paul", never resurrecting
+        # value-as-identity. The default declared set is `{"name"}` — the production CONVENTION (seed-
+        # from-ground anchors entities by name), now expressed through this general facility instead of
+        # a hardcoded `if key == NAME`. `name` is thus an ORDINARY declared index, not a privileged one.
+        self._indexed_keys: set[str] = {NAME} if indexed_keys is None else set(indexed_keys)
+        self._by_value: dict[str, dict[object, set[str]]] = {k: {} for k in self._indexed_keys}
         self._schema = set(schema) if schema is not None else None
         self._counter = itertools.count()
         # Monotonic mutation counter: bumped on every structural change (attr write / edge add /
@@ -277,19 +283,58 @@ class AttrGraph:
         if self._schema is not None and key not in self._schema:
             raise KeyError(f"attribute key {key!r} not in closed schema {sorted(self._schema)}")
         node = self._nodes[nid]
-        if key == NAME:                                   # keep the lexical accelerator in sync
-            old = node.attrs.get(NAME)
-            if old is not None and old.value != attr.value:
-                bucket = self._by_name.get(str(old.value))
+        if key in self._indexed_keys:                     # keep the value-accelerator in sync
+            old = node.attrs.get(key)
+            # remove the stale value-index entry when the VALUED value changes OR the attr becomes GRADED
+            # (a GRADED key under an indexed name — e.g. a `name`-predicate rel node — is never value-
+            # indexed; only VALUED data is a discriminating value).
+            if old is not None and old.kind == VALUED and (attr.kind != VALUED or old.value != attr.value):
+                bucket = self._by_value[key].get(old.value)
                 if bucket is not None:
                     bucket.discard(nid)
                     if not bucket:
-                        del self._by_name[str(old.value)]
-            self._by_name.setdefault(str(attr.value), set()).add(nid)
+                        del self._by_value[key][old.value]
+            if attr.kind == VALUED:
+                self._by_value[key].setdefault(attr.value, set()).add(nid)
         if key not in node.attrs:
             self._by_key.setdefault(key, set()).add(nid)
         node.attrs[key] = attr
         self._version += 1
+
+    def declare_index(self, key: str) -> None:
+        """Declare `key` a DISCRIMINATING value-index — the KB-declared value-accelerator (Phase 2.3).
+        Idempotent; back-fills existing nodes carrying a VALUED `key`. Candidates only (`nodes_with_value`
+        never resolves), so declaring an index never resurrects value-as-identity."""
+        if key in self._indexed_keys:
+            return
+        self._indexed_keys.add(key)
+        idx = self._by_value.setdefault(key, {})
+        for nid in self._by_key.get(key, ()):
+            a = self._nodes[nid].attrs.get(key)
+            if a is not None and a.kind == VALUED:
+                idx.setdefault(a.value, set()).add(nid)
+
+    def nodes_with_value(self, key: str, value: object) -> list[str]:
+        """Candidate nodes whose DECLARED discriminating key `key` has VALUED `value` — O(1) via the
+        value-accelerator. A CANDIDATE SET (many nodes may share a value), never a resolution to THE
+        node (identity stays opaque). `[]` for an undeclared key (declare it via `declare_index`)."""
+        return list(self._by_value.get(key, {}).get(value, ()))
+
+    def value_count(self, key: str, value: object) -> int:
+        """Document frequency of `key = value` (how many nodes carry it), O(1) — the selectivity the
+        matcher seeds from without materializing the candidate list (seed-from-ground, §11/§14)."""
+        return len(self._by_value.get(key, {}).get(value, ()))
+
+    def predicate(self, nid: str) -> str:
+        """A RELATION node's predicate: its single domain GRADED key (non-reserved — not a `<…>` control
+        token — and not `confidence`). The Phase-2.3 replacement for reading a relation's predicate via
+        the (now-retired) VALUED `name` bridge. Returns `""` if the node carries no domain graded key
+        (i.e. it is not a relation). Relies on the mint-time invariant that a rel node carries exactly
+        one domain graded key = its predicate (`add_relation` / `lower_rhs`)."""
+        for k, a in self._nodes[nid].attrs.items():
+            if a.kind == GRADED and k != CONF and not (k.startswith("<") and k.endswith(">")):
+                return k
+        return ""
 
     def raise_graded(self, nid: str, key: str, degree: float) -> None:
         """Monotone raise of a GRADED attribute: `key` becomes max(old, degree). The monotone
@@ -356,19 +401,22 @@ class AttrGraph:
     # ------------------------------------------------------------------
 
     def name(self, nid: str) -> str:
-        """The node's NAME (the reserved VALUED `name` attr), or "" if unnamed."""
+        """The node's NAME (the reserved VALUED `name` attr), or "" if unnamed. A relation node whose
+        PREDICATE is literally `name` carries a GRADED `{name: 1.0}` key (Phase 2.3), NOT a VALUED name,
+        so it reports "" here — read its predicate via `predicate(nid)`."""
         a = self._nodes[nid].attrs.get(NAME)
-        return str(a.value) if a is not None else ""
+        return str(a.value) if (a is not None and a.kind == VALUED) else ""
 
     def nodes_named(self, name: str) -> list[str]:
-        """All node ids whose NAME is `name` — O(1) via the lexical accelerator. A CANDIDATE
-        SET (many nodes may share a name), never a resolution to THE node (identity stays opaque)."""
-        return list(self._by_name.get(name, ()))
+        """All node ids whose NAME is `name` — a thin wrapper over the general value-accelerator for the
+        `name` discriminating key (declared by the production convention). A CANDIDATE SET (many nodes
+        may share a name), never a resolution to THE node (identity stays opaque)."""
+        return self.nodes_with_value(NAME, name)
 
     def name_count(self, name: str) -> int:
         """Document frequency of NAME `name` (how many nodes wear it), O(1) — the selectivity the
         matcher seeds from without materializing the candidate list (seed-from-ground, §11/§14)."""
-        return len(self._by_name.get(name, ()))
+        return self.value_count(NAME, name)
 
     def remove_node(self, nid: str) -> None:
         """Remove a node and every edge touching it, keeping the key/name indices in sync.
@@ -380,17 +428,16 @@ class AttrGraph:
             self.remove_edge(f, nid)
         node = self._nodes.pop(nid, None)
         if node is not None:
-            for key in node.attrs:
+            for key, a in node.attrs.items():
                 bucket = self._by_key.get(key)
                 if bucket is not None:
                     bucket.discard(nid)
-            nm = node.attrs.get(NAME)
-            if nm is not None:
-                b = self._by_name.get(str(nm.value))
-                if b is not None:
-                    b.discard(nid)
-                    if not b:
-                        del self._by_name[str(nm.value)]
+                if key in self._indexed_keys and a.kind == VALUED:   # value-accelerator cleanup
+                    vb = self._by_value.get(key, {}).get(a.value)
+                    if vb is not None:
+                        vb.discard(nid)
+                        if not vb:
+                            del self._by_value[key][a.value]
         self._out.pop(nid, None)
         self._in.pop(nid, None)
         self._version += 1
@@ -411,25 +458,26 @@ class AttrGraph:
         control-layer — for ephemeral scaffolding (the surface `next`/`first` token chain) whose
         edges a control rule may rewrite (`DROP_CTRL` permits a control edge, refuses a fact one).
 
-        Phase 2.1 (decision_attrgraph_rehost, "predicates become graded keys"): the predicate is
-        the GRADED key `rel_name: 1.0` on the rel node — the canonical representation the ISA
-        engine seeds/tests through (`nodes_with_key`/`key_count`).
-        # TEMPORARY BRIDGE (Phase 2.1->6): ALSO writes the legacy VALUED `name` attr, so
-        # rewriter.py (kept as the differential-test oracle; reads relations via `graph.name`/
-        # `nodes_named` uniformly for entities and predicates) keeps working unchanged. Drop the
-        # `name` write here once rewriter.py is retired (Phase 6) — grep "TEMPORARY BRIDGE".
+        Phase 2.1/2.3 (decision_attrgraph_rehost, "predicates become graded keys"): the predicate is
+        the GRADED key `rel_name: 1.0` on the rel node — the SOLE representation the ISA engine seeds/
+        tests/reads through (`nodes_with_key`/`key_count`/`has_key`/`predicate`). The legacy VALUED
+        `name` dual-write (the retired `TEMPORARY BRIDGE`) is GONE (Phase 2.3, `name_demotion_design.md`):
+        a rel node carries only its predicate key, never a VALUED name. A predicate literally named
+        `name` is now sound — it is the GRADED key `{name: 1.0}`, distinct in KIND from an entity's
+        VALUED `{name: "Paul"}`, so the old reserved-key-collision special case is gone too.
 
-        # RESERVED-KEY COLLISION: a domain predicate literally named `name` (e.g. a CPG `name`
-        # property) IS the reserved NAME key — writing a GRADED `name` too would clobber the just-
-        # written VALUED name (same key, last write wins), corrupting `graph.name(rid)`. The
-        # bridge's VALUED write already makes such a relation findable via `nodes_named`/`name`,
-        # so skip the graded dual-write in this one degenerate case.
         `inert=True` marks the REL node provenance-INERT (see `AttrNode.inert`) — for `proves`/
         `uses` justification relations, invisible to ordinary fact matching.
-        """
-        rid = self.add_node(rel_name, confidence=confidence, control=control, inert=inert)
-        if rel_name != NAME:
-            self.set_attr(rid, rel_name, graded(1.0))
+
+        CONTROL-NESS AT MINT (Phase 2.2, preserved through the 2.3 dict-mint): a relation whose
+        PREDICATE is a reserved `<…>` control token (e.g. a `<goal> -[<next>]-> …` scaffolding edge) is
+        control-flagged automatically — the same content-blind criterion `add_node` applies to a `<…>`
+        NODE. The dict form of `add_node` does NOT auto-flag (only the string-name form did), so it is
+        applied here explicitly; inert provenance is excluded (inert, not control)."""
+        is_ctrl_token = rel_name.startswith("<") and rel_name.endswith(">") and not inert
+        rid = self.add_node({rel_name: graded(1.0)}, control=control or is_ctrl_token, inert=inert)
+        if confidence != 1.0:
+            self.set_attr(rid, CONF, valued(float(confidence)))
         self.add_edge(subject_id, rid)
         self.add_edge(rid, object_id)
         return rid
@@ -494,17 +542,17 @@ class AttrGraph:
 
     def copy(self) -> "AttrGraph":
         """Deep copy (used when applying a rewrite to a trial graph)."""
-        g = type(self)(schema=set(self._schema) if self._schema is not None else None)
+        g = type(self)(schema=set(self._schema) if self._schema is not None else None,
+                       indexed_keys=set(self._indexed_keys))
         maxn = -1
         for nid, n in self._nodes.items():
-            g._nodes[nid] = AttrNode(nid=nid, attrs=dict(n.attrs), control=n.control)
+            g._nodes[nid] = AttrNode(nid=nid, attrs=dict(n.attrs), control=n.control, inert=n.inert)
             g._out[nid] = set(self._out.get(nid, ()))
             g._in[nid] = set(self._in.get(nid, ()))
-            for key in n.attrs:
+            for key, a in n.attrs.items():
                 g._by_key.setdefault(key, set()).add(nid)
-            nm = n.attrs.get(NAME)
-            if nm is not None:
-                g._by_name.setdefault(str(nm.value), set()).add(nid)
+                if key in g._indexed_keys and a.kind == VALUED:
+                    g._by_value[key].setdefault(a.value, set()).add(nid)
             if nid.startswith("n") and nid[1:].isdigit():
                 maxn = max(maxn, int(nid[1:]))
         g._counter = itertools.count(maxn + 1)

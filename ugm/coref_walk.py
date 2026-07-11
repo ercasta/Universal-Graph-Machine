@@ -191,7 +191,7 @@ def clash_rules(graph: Graph) -> list[Rule]:
     rules: list[Rule] = []
     for n in graph.nodes():
         for r, o in graph.relations_from(n):
-            if graph.name(r) != DISJOINT:
+            if not graph.has_key(r, DISJOINT):
                 continue
             a, b = graph.name(n), graph.name(o)
             for x, y in ((a, b), (b, a)):
@@ -299,16 +299,16 @@ def _incident_predicates(graph: Graph, mentions: list[str]) -> list[str]:
     preds: set[str] = set()
     for m in mentions:
         for r, _o in graph.relations_from(m):
-            preds.add(graph.name(r))
+            preds.add(graph.predicate(r))
         for r in graph.into(m):
-            preds.add(graph.name(r))
+            preds.add(graph.predicate(r))
     preds.discard(SAME_AS)
     return sorted(p for p in preds if not p.startswith("<") and p not in ("next", "first"))
 
 
 def _same_as_live(graph: Graph, a: str, b: str) -> bool:
-    return (any(graph.name(r) == SAME_AS and b in graph.out(r) for r in graph.out(a))
-            or any(graph.name(r) == SAME_AS and a in graph.out(r) for r in graph.out(b)))
+    return (any(graph.has_key(r, SAME_AS) and b in graph.out(r) for r in graph.out(a))
+            or any(graph.has_key(r, SAME_AS) and a in graph.out(r) for r in graph.out(b)))
 
 
 # The scaffolding names a completed walk leaves behind (token, pairs, cursor edges, barrier marks).

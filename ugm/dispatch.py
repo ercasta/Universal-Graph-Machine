@@ -46,7 +46,7 @@ def _ensure(graph: Graph, name: str) -> str:
 
 
 def _objs(graph: Graph, subj: str, rel: str) -> list[str]:
-    return [o for r, o in graph.relations_from(subj) if graph.name(r) == rel]
+    return [o for r, o in graph.relations_from(subj) if graph.has_key(r, rel)]
 
 
 def emit_call(graph: Graph, tool_name: str, slots: dict[str, str]) -> str:

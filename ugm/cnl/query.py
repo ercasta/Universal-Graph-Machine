@@ -131,7 +131,7 @@ QUESTION_FORMS: list[Rule] = [
 
 def _slot(graph: Graph, q: str, role: str) -> str | None:
     for r, o in graph.relations_from(q):
-        if graph.name(r) == role:
+        if graph.has_key(r, role):
             return graph.name(o)
     return None
 
@@ -143,7 +143,7 @@ def _parse_qevent(graph: Graph, qid: str) -> dict:
     value is the `<wh>` marker, recorded in `unknown`."""
     pred, roles, unknown = None, {}, None
     for r, o in graph.relations_from(qid):
-        role, val = graph.name(r), graph.name(o)
+        role, val = graph.predicate(r), graph.name(o)
         if role == "pred":
             pred = val
         else:

@@ -14,6 +14,41 @@ this log is itself a historical record.
 
 ## 2026-07-11
 
+### Phase 2.3 — `name` demoted, discriminating-key indexes, `TEMPORARY BRIDGE` retired (341 passed, 1 skipped, 0 failed)
+The load-bearing `TEMPORARY BRIDGE` (a relation node's predicate stored BOTH as its graded key `{chase:1.0}`
+AND as a legacy VALUED `name="chase"`) is gone. Design doc: `docs/name_demotion_design.md` (ratified +
+implemented same day). Two halves, both landed:
+
+- **(A) Predicate decoupling.** A relation's predicate is now SOLELY its graded key. New accessor
+  `AttrGraph.predicate(rid)` = the rel node's single non-reserved, non-`confidence` graded key. Migrated
+  the central reader `derived_triples` (identify a relation by its predicate key, not "has a VALUED name")
+  and `MINT.dedup` (match on the key, not `attrs[NAME]`); dropped the three bridge writes (`add_relation`,
+  `lowering.lower_rhs`, `lowering.to_attrgraph`). `AttrGraph.name()` / `AttrNode.name` now require the
+  attr be VALUED, so a relation whose predicate is literally `name` (`{name:1.0}` graded) reports no
+  entity name — which also **retires the old reserved-key-collision special case** (a `name` predicate is
+  now sound, distinct in KIND from an entity's VALUED `{name:"Paul"}`). Control-ness-at-mint for a `<…>`
+  relation predicate is preserved explicitly in `add_relation` (the dict form of `add_node` doesn't
+  auto-flag). ~85 `g.name(rel)` predicate readers swept to `predicate()`/`has_key()` across the engine +
+  CNL surface; plus reader classes the plain `.name(` grep missed and the design flagged as risks:
+  `walker._successors`' `get_attr(r,"name")==rel`, and the `nodes_named(PREDICATE)` relation-finders in
+  `goal._closure_declarations`, `mode_calls.choice_results`, `provenance.derived_facts`/`axiomatize`
+  (→ `nodes_with_key`). `bench/coverage_audit._relation_exists`/`_hazards` migrated too.
+- **(B) Discriminating-key indexes.** The single hardcoded `_by_name` value-accelerator is generalized to
+  `_by_value[key]` maintained for DECLARED keys only (`indexed_keys`, default `{"name"}`); `name` is now
+  an ORDINARY declared index, not a privileged `if key == NAME` path. New API: `declare_index(key)`
+  (back-fills), `nodes_with_value(key, val)`, `value_count(key, val)` — all candidate-set, never
+  resolving (the label-less guarantee holds). `nodes_named`/`name_count` are thin wrappers over the `name`
+  key. A KB may now declare additional discriminating keys.
+- **Bonus correctness — garbage triples gone.** `derived_triples`' old "has a VALUED name + in/out edges"
+  test mis-identified ENTITY nodes that happened to sit between two relations as relations, emitting
+  spurious triples (e.g. `("fast","vanilla","in_stock")` from the entity `vanilla`). The predicate-key
+  test is exact, so those artifacts vanish; several test expectations were corrected to the true relation
+  sets (`test_isa_lowering`, `test_isa_reasoning_parity`).
+- **Sequencing note.** This was the keystone: it unblocks 2.4 (name-free identity), and settles the
+  name/key/value model so Phase 7(a) interns a clean representation rather than the bridged one. The
+  interning hazard behind the key-aware INTERN guard (`machine.py`) is now structurally impossible — a
+  domain relation carries no valued name, so `nodes_named` can never return one.
+
 ### Phase 5.5 slice 3c — SUPPOSE authored as a `<call>` mode (variable-length args) (341 passed, 1 skipped, 0 failed)
 CHECK/CHOOSE (slices 1–2) are fixed-slot `<call>`s; SUPPOSE could not be — a hypothesis carries a
 VARIABLE-LENGTH list of assumptions and predictions, so slice 2 deliberately left it out of the registry.

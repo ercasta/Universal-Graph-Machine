@@ -141,7 +141,7 @@ def _reified_triple(g: AttrGraph, node: str) -> tuple[str, str, str] | None:
     is not a complete triple. The list-argument encoding: a variable-length assumption/prediction is one
     such node per element, so a call carries any number without fixed slots."""
     def one(rel: str) -> str | None:
-        objs = [o for r, o in g.relations_from(node) if g.name(r) == rel]
+        objs = [o for r, o in g.relations_from(node) if g.has_key(r, rel)]
         return g.name(objs[0]) if objs else None
     s, p, o = one(K_SUBJ), one(K_PRED), one(K_OBJ)
     return (s, p, o) if s is not None and p is not None and o is not None else None
@@ -212,7 +212,7 @@ def choice_results(g: AttrGraph) -> dict[str, list[str]]:
     the 'what the program chose' view, the CHOOSE analog of `check_results`. Winners are sorted for a
     stable read (a tie yields several)."""
     out: dict[str, list[str]] = {}
-    for rel in g.nodes_named(SATISFIED_BY):
+    for rel in g.nodes_with_key(SATISFIED_BY):        # Phase 2.3: a relation is found by its predicate KEY
         goal = next((n for n in g.into(rel) if not g.is_inert(n)), None)
         winner = next((n for n in g.out(rel) if not g.is_inert(n)), None)
         if goal is not None and winner is not None:

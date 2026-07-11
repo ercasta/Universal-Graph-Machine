@@ -52,16 +52,15 @@ class Walker:
         self.mint_rel = mint_rel or rel          # shortcut materialized as
         self._name_ids: dict[str, str] = {}      # name -> node id (KB: distinct entity names)
         for nid in ag.nodes():
-            a = ag.get_attr(nid, "name")
-            if a is not None:
-                self._name_ids.setdefault(str(a.value), nid)
+            nm = ag.name(nid)                     # VALUED entity name only (Phase 2.3)
+            if nm:
+                self._name_ids.setdefault(nm, nid)
 
     def _successors(self, node: str, rel: str) -> set[str]:
         """Nodes reached from `node` across one reified `rel` hop: node -> [rel] -> succ."""
         out: set[str] = set()
         for r in self.ag.succ(node):
-            a = self.ag.get_attr(r, "name")
-            if a is not None and a.value == rel:
+            if self.ag.has_key(r, rel):          # Phase 2.3: a relation's predicate is its graded KEY
                 out |= self.ag.succ(r)
         return out
 
@@ -121,7 +120,7 @@ class Walker:
         walker's provenance), unless that relation already exists. Monotone — only ever added."""
         if o_id in self._successors(s_id, self.mint_rel):
             return
-        r = self.ag.add_relation(s_id, self.mint_rel, o_id)  # Phase 2.1: dual-write bridge
+        r = self.ag.add_relation(s_id, self.mint_rel, o_id)  # predicate is the graded key (Phase 2.3)
         self.ag.set_attr(r, "shortcut", graded(1.0))
 
 

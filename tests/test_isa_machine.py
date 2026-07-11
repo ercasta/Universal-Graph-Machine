@@ -13,7 +13,7 @@ import pytest
 from ugm import (
     AttrGraph, Attr, GRADED, VALUED,
     SEED, FOLLOW, JOIN, TEST, GRADE, FUZZY, MINT, EMIT, DROP_CTRL, SET, DUP,
-    run_program, Machine, ControlEdgeError,
+    run_program, Machine, ControlEdgeError, derived_triples,
 )
 from ugm.attrgraph import graded, valued
 from ugm.machine import T_PROD, ProgramError
@@ -80,14 +80,20 @@ def test_add_relation_predicate_is_a_graded_key_not_just_a_name():
     assert attr is not None and attr.kind == GRADED and attr.value == 1.0
 
 
-def test_add_relation_name_predicate_does_not_clobber_the_reserved_key():
-    # RESERVED-KEY COLLISION: a domain predicate literally named "name" (e.g. a CPG `name`
-    # property) IS the reserved NAME key — the graded dual-write must be skipped for this one
-    # degenerate case, or it clobbers the VALUED name `add_relation` just wrote.
+def test_add_relation_name_predicate_is_a_graded_key_not_an_entity_name():
+    # Phase 2.3 (name_demotion_design.md): a domain predicate literally named "name" (e.g. a CPG
+    # `name` property) is now sound. It rides the GRADED key `{name: 1.0}`, distinct in KIND from an
+    # entity's VALUED `{name: "Paul"}` — so there is no reserved-key collision (the old bridge's
+    # dual-write is gone). The relation reports its predicate via `predicate`, carries no entity name,
+    # and is found by KEY, never by `nodes_named`.
     g = AttrGraph()
     a, b = g.add_node("cpg_8"), g.add_node("remove")
     rid = g.add_relation(a, "name", b)
-    assert g.name(rid) == "name"
+    assert g.predicate(rid) == "name"                 # the predicate rides the graded key
+    assert g.name(rid) == ""                           # NOT an entity name (graded, not valued)
+    assert rid in g.nodes_with_key("name")             # found by predicate key
+    assert g.nodes_named("name") == []                 # never by name — no VALUED `name` on the rel node
+    assert ("cpg_8", "name", "remove") in derived_triples(g)
 
 
 # ---------------------------------------------------------------------------

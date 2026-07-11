@@ -41,7 +41,7 @@ def test_control_relation_is_dropped():
     g.add_relation(a, "seen", go)
     run_bank(g, [produce])
     assert ("a", "picked", "<yes>") in _triples(g)        # control relation derived
-    picked = next(n for n in g.nodes() if g.name(n) == "picked")
+    picked = next(n for n in g.nodes() if g.predicate(n) == "picked")
     assert g.is_control(picked)                            # stamped control at MINT
 
     # drop it: drop ?x picked <yes> when ?x picked <yes> and ?x seen <go>
@@ -49,7 +49,7 @@ def test_control_relation_is_dropped():
                 rhs=[], drop=[Pat("?x", "picked", "<yes>")])
     run_bank(g, [drop])
     assert ("a", "picked", "<yes>") not in _triples(g)    # gone
-    assert not any(g.name(n) == "picked" for n in g.nodes())   # orphan rel node gc'd
+    assert not any(g.predicate(n) == "picked" for n in g.nodes())   # orphan rel node gc'd
 
 
 def test_drop_of_a_fact_is_refused():

@@ -67,7 +67,7 @@ def support_js(graph: Graph, rel: str) -> list[str]:
     """
     js: list[str] = []
     for pn in graph.into(rel):
-        if graph.name(pn) == PROVES:
+        if graph.has_key(pn, PROVES):
             js.extend(graph.into(pn))
     return js
 
@@ -86,7 +86,7 @@ def _objects_via(graph: Graph, subj: str, pred: str) -> list[str]:
     `relations_from`, which deliberately hides provenance — this READS provenance)."""
     out: list[str] = []
     for rn in graph.out(subj):
-        if graph.name(rn) == pred:
+        if graph.has_key(rn, pred):
             out.extend(graph.out(rn))
     return out
 
@@ -105,7 +105,7 @@ def justifications_using(graph: Graph, node: str) -> list[str]:
     """Every justification node that `uses` `node` as a premise."""
     js: list[str] = []
     for un in graph.into(node):
-        if graph.name(un) == USES:
+        if graph.has_key(un, USES):
             js.extend(graph.into(un))
     return js
 
@@ -115,7 +115,7 @@ def derived_facts(graph: Graph) -> set[str]:
     DERIVED, or axiomatized). Asserted base facts with no proof are NOT included — they
     are never cascade candidates."""
     out: set[str] = set()
-    for pn in graph.nodes_named(PROVES):
+    for pn in graph.nodes_with_key(PROVES):           # Phase 2.3: a proves-relation is found by its key
         out.update(graph.out(pn))
     return out
 
@@ -135,7 +135,7 @@ def axiomatize(graph: Graph, predicates: list[str]) -> str:
     live proof). Returns the `<axiom>` node id."""
     axiom = ensure_axiom(graph)
     for pname in predicates:
-        for rel in list(graph.nodes_named(pname)):
+        for rel in list(graph.nodes_with_key(pname)):     # Phase 2.3: relation instances by predicate key
             # a real relation instance has a subject and an object
             if not graph.out(rel) or not graph.into(rel):
                 continue

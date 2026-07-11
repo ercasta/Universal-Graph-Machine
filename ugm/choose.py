@@ -51,12 +51,12 @@ def fit_of(g: AttrGraph, option: str) -> float:
 
 def candidates(g: AttrGraph, goal: str) -> list[str]:
     """The option nodes registered as candidates for `goal` (`goal -[candidate]-> option`)."""
-    return [opt for rel, opt in g.relations_from(goal) if g.name(rel) == CANDIDATE]
+    return [opt for rel, opt in g.relations_from(goal) if g.has_key(rel, CANDIDATE)]
 
 
 def _rel_exists(g: AttrGraph, s: str, pred: str, o: str) -> bool:
     for rel, obj in g.relations_from(s):
-        if g.name(rel) == pred and obj == o:
+        if g.has_key(rel, pred) and obj == o:
             return True
     return False
 
@@ -84,7 +84,7 @@ def choose(g: AttrGraph, goal: str, *, alpha: float = 0.0) -> list[str]:
 
 def winners_of(g: AttrGraph, goal: str) -> list[str]:
     """The chosen candidate(s) for `goal` read back from the `satisfied_by` markers."""
-    return [opt for rel, opt in g.relations_from(goal) if g.name(rel) == SATISFIED_BY]
+    return [opt for rel, opt in g.relations_from(goal) if g.has_key(rel, SATISFIED_BY)]
 
 
 def explain_choice(g: AttrGraph, goal: str) -> list[str]:

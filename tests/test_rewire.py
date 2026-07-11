@@ -28,13 +28,13 @@ def _visible(g, s, p, o):
     s_ids = g.nodes() if s_free else g.nodes_named(s)
     o_ids = None if o_free else set(g.nodes_named(o))
     for s_id in s_ids:
-        if s_free and _is_inert(g.name(s_id)):
+        if s_free and _is_inert(g.name(s_id)):        # marker/provenance nodes are inert BY NAME
             continue
         for rel in g.out(s_id):
-            if g.name(rel) != p:
+            if not g.has_key(rel, p):                 # Phase 2.3: predicate is the graded key
                 continue
             for o_id in g.out(rel):
-                if o_free and _is_inert(g.name(o_id)):
+                if o_free and _is_inert(g.name(o_id)):   # `<retracted>` etc. skipped by name
                     continue
                 if o_free or o_id in o_ids:
                     return True
@@ -51,8 +51,8 @@ def test_rewire_cut_and_link_raw_edges():
     # through a Rule — cut+link, just not via the rule/matcher surface.
     from ugm.machine import Machine, INTERPOSE, State
     g = h.Graph()
-    a, r, b = g.add_node("a"), g.add_node("r"), g.add_node("b")
-    g.add_edge(a, r); g.add_edge(r, b)
+    a, b = g.add_node("a"), g.add_node("b")
+    r = g.add_relation(a, "r", b)                    # Phase 2.3: a proper 2-hop (rel node carries key `r`)
     assert _visible(g, "?x", "r", "b")
     Machine().apply(g, [INTERPOSE(rel="r", obj="b", marker_name="<retracted>", out="mk")],
                      State({"r": r, "b": b}))
@@ -91,7 +91,7 @@ def test_interpose_preserves_the_relation_node_identity():
                          rewire=[("cut", "is_not?", "?o"),
                                  ("link", "is_not?", "<retracted>?"),
                                  ("link", "<retracted>?", "?o")])], provenance=False)
-    assert g.has(rel) and g.name(rel) == "is_not"      # same node, same identity
+    assert g.has(rel) and g.predicate(rel) == "is_not"      # same node, same identity
 
 
 def test_interpose_then_resurrect_restores_the_fact():
@@ -110,7 +110,7 @@ def test_interpose_then_resurrect_restores_the_fact():
     # Machine (as test_isa_interpose.py's opcode-identity test does), not via a Rule/CNL surface.
     # Invoke it directly to prove the identity/provenance-preserving reversal the ISA supports.
     from ugm.machine import Machine, RESTORE, State
-    rel = next(r for r in g.out(g.nodes_named("alice")[0]) if g.name(r) == "is_not")
+    rel = next(r for r in g.out(g.nodes_named("alice")[0]) if g.has_key(r, "is_not"))
     marker = next(m for m in g.out(rel) if g.name(m) == "<retracted>")
     urgent = g.nodes_named("urgent")[0]
     Machine().apply(g, [RESTORE(rel="rel", marker="mk", obj="obj")],

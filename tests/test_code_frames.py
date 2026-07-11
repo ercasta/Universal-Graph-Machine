@@ -47,7 +47,7 @@ def _rel(g, s, p, o):
 def _relation_exists(g, s_id, pname, o_id):
     """Does the raw edge  s_id -[pname]-> o_id  exist? (ported from the retired rewriter.py)."""
     for r in g.succ(s_id):
-        if g.name(r) == pname and o_id in g.succ(r):
+        if g.has_key(r, pname) and o_id in g.succ(r):
             return True
     return False
 
@@ -144,7 +144,7 @@ def test_near_miss_read_only_iteration_is_safe():
 
     assert _has(g, "loop1", "consumes", "qs")
     assert not any(g.name(o) == "hazard"
-                   for n in g.nodes() for r in g.out(n) if g.name(r) == "is_a"
+                   for n in g.nodes() for r in g.out(n) if g.has_key(r, "is_a")
                    for o in g.out(r))
 
 

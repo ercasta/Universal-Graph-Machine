@@ -111,7 +111,7 @@ def _ensure(graph: Graph, name: str) -> str:
 def _fuel_edge(graph: Graph, w: str) -> tuple[str, str] | None:
     """The walker's single `(fuel_rel_node, count_node)` pair, or None if it has no fuel."""
     for r, o in graph.relations_from(w):
-        if graph.name(r) == FUEL:
+        if graph.has_key(r, FUEL):
             return r, o
     return None
 

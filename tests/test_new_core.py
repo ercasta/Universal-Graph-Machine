@@ -24,7 +24,7 @@ def test_nodes_carry_no_value_datum_is_a_node():
     val = g.add_node("0.2")
     g.add_relation(cfg, "value", val)
     # the datum 0.2 is reached by traversal, as a node named "0.2"
-    rels = [(g.name(r), g.name(o)) for r, o in g.relations_from(cfg)]
+    rels = [(g.predicate(r), g.name(o)) for r, o in g.relations_from(cfg)]
     assert rels == [("value", "0.2")]
 
 
@@ -33,7 +33,7 @@ def test_edges_are_untyped_relation_is_a_node():
     s, o = g.add_node("paul"), g.add_node("person")
     rid = g.add_relation(s, "is_a", o)
     # the relation is a node on a 2-hop path; both edges are bare
-    assert g.name(rid) == "is_a"
+    assert g.predicate(rid) == "is_a"
     assert g.has_edge(s, rid) and g.has_edge(rid, o)
 
 
@@ -83,7 +83,7 @@ def _rel(g, s, p, o):
 def _relation_exists(g, s_id, pname, o_id):
     """Does the raw edge  s_id -[pname]-> o_id  exist? (ported from the retired rewriter.py)."""
     for r in g.succ(s_id):
-        if g.name(r) == pname and o_id in g.succ(r):
+        if g.has_key(r, pname) and o_id in g.succ(r):
             return True
     return False
 
@@ -132,8 +132,8 @@ def test_homomorphic_token_passing_loop():
     # justifies, so a raw all-nodes scan would see it as a subject of 'is' (vision §9).
     _prov = lambda n: n in ("proves", "uses") or n.startswith("<j:")
     marked = {g.name(s) for s in g.nodes()
-              if not _prov(g.name(s)) and any(g.name(r) == "is" for r in g.out(s))}
-    token_on = {g.name(o) for r in g.nodes() if g.name(r) == "<current>" for o in g.out(r)}
+              if not _prov(g.name(s) or g.predicate(s)) and any(g.has_key(r, "is") for r in g.out(s))}
+    token_on = {g.name(o) for r in g.nodes() if g.has_key(r, "<current>") for o in g.out(r)}
     assert marked == {"a", "b"}
     assert token_on == {"c"}
 
@@ -158,14 +158,14 @@ def test_graded_firing_alpha_cut():
         graded=[h.GradedCondition(var="?c", embedding={"urgency": 1.0}, threshold=0.5)],
     )
     h.run_rules(g, [rule])
-    assert any(g.name(r) == "priority" for r in g.out(cust))       # high urgency fires
+    assert any(g.has_key(r, "priority") for r in g.out(cust))       # high urgency fires
 
     # low urgency is alpha-cut (no fire)
     g2 = h.Graph()
     c2 = g2.add_node("c2", embedding={"urgency": 0.2})
     g2.add_relation(c2, "is_a", g2.add_node("customer"))
     h.run_rules(g2, [rule])
-    assert not any(g2.name(r) == "priority" for r in g2.out(c2))  # alpha-cut: no fire
+    assert not any(g2.has_key(r, "priority") for r in g2.out(c2))  # alpha-cut: no fire
 
 
 def test_propagate_set_writes_embedding_on_fire():
@@ -197,7 +197,7 @@ def test_tokenize_builds_next_chain():
         assert g.nodes_named(w)
     # adjacency exists as 'next' relations
     paul = g.nodes_named("paul")[0]
-    assert any(g.name(r) == "next" for r in g.out(paul))
+    assert any(g.has_key(r, "next") for r in g.out(paul))
 
 
 def test_no_seam_pipeline_cnl_to_reasoning():
@@ -294,7 +294,7 @@ def test_surface_forms_decompose_np_into_head_plus_attribute():
     words = [g.name(t) for t in h.forms._chain_tokens(g, anchor)]
     assert words == ["eagle", "is", "a", "bird"]
     attrs = {(g.name(x), g.name(o)) for x in g.nodes()
-             for r, o in g.relations_from(x) if g.name(r) == "is"}
+             for r, o in g.relations_from(x) if g.has_key(r, "is")}
     assert ("eagle", "bald") in attrs
 
 
@@ -337,7 +337,7 @@ def test_cnl_authored_ice_cream_end_to_end():
         # mentions (no destructive merge), so collect the SET of outcomes, not each mention's copy.
         return sorted({g.name(o) for s in g.nodes_named(name)
                        for r, o in g.relations_from(s)
-                       if g.name(r) in ("served", "offered")})
+                       if g.predicate(r) in ("served", "offered")})
 
     assert outcome("alice") == ["express"]      # urgent + in stock
     assert outcome("bob") == ["regular"]        # calm + in stock (NAC sees derived 'is urgent')
@@ -378,7 +378,7 @@ def test_run_rules_degrades_on_negation_cycle():
         assert w and "not stratifiable" in str(w[0].message)
     # the monotone chain still fired despite the cycle
     assert "mortal" in [g.name(o) for si in g.nodes_named("socrates")
-                        for rn, o in g.relations_from(si) if g.name(rn) == "is_a"]
+                        for rn, o in g.relations_from(si) if g.has_key(rn, "is_a")]
     with pytest.raises(ValueError):
         h.run_rules(h.Graph(), [a, b], strict=True)
 
@@ -410,7 +410,7 @@ def test_loose_rule_drops_into_full_routing():
 
     def outcome(name):                               # dedupe across coreferent mentions (see above)
         return sorted({g.name(o) for s in g.nodes_named(name)
-                       for r, o in g.relations_from(s) if g.name(r) == "served"})
+                       for r, o in g.relations_from(s) if g.has_key(r, "served")})
     assert outcome("alice") == ["express"]
     assert outcome("bob") == ["regular"]
 
@@ -505,7 +505,7 @@ def test_load_corpus_emergent_recognition():
     def outcome(name):                               # dedupe across coreferent mentions (additive coref)
         return sorted({kb.name(o) for s in kb.nodes_named(name)
                        for r, o in kb.relations_from(s)
-                       if kb.name(r) in ("served", "offered")})
+                       if kb.predicate(r) in ("served", "offered")})
     assert outcome("alice") == ["express"]
     assert outcome("bob") == ["regular"]
     assert outcome("carol") == ["alternative"]
@@ -535,7 +535,7 @@ def test_one_graph_context_isolation():
 
     # facts AND rule-source share the one graph
     rule_nodes = [n for n in kb.nodes()
-                  if any(kb.name(r) == "rl_pred" for r, _ in kb.relations_from(n))]
+                  if any(kb.predicate(r) == "rl_pred" for r, _ in kb.relations_from(n))]
     assert len(rule_nodes) >= 4
     assert _has(kb, "alice", "is_a", "customer")          # a fact, same graph
 
@@ -545,14 +545,14 @@ def test_one_graph_context_isolation():
     assert _has(kb, "alice", "in", "shop1")
     # reasoning is isolated + correct; nothing but real customers is is_a customer
     custs = sorted({kb.name(c) for c in kb.nodes()      # dedupe coreferent mentions (additive coref)
-                    if not (kb.name(c) in ("proves", "uses") or kb.name(c).startswith("<j:"))
+                    if not kb.is_inert(c)               # Phase 2.3: exclude provenance by the inert FLAG
                     for r in kb.out(c)
-                    if kb.name(r) == "is_a" and any(kb.name(o) == "customer" for o in kb.out(r))})
+                    if kb.predicate(r) == "is_a" and any(kb.name(o) == "customer" for o in kb.out(r))})
     assert custs == ["alice", "bob"]
 
     def served(name):
         return sorted({kb.name(o) for s in kb.nodes_named(name)
-                       for r, o in kb.relations_from(s) if kb.name(r) == "served"})
+                       for r, o in kb.relations_from(s) if kb.predicate(r) == "served"})
     assert served("alice") == ["express"]
     assert served("bob") == ["regular"]
 
@@ -580,7 +580,7 @@ def test_defeasible_context_default_defeated_by_explicit_placement():
 
     def placed(name):                                # dedupe across coreferent mentions (additive coref)
         return sorted({kb.name(o) for s in kb.nodes_named(name)
-                       for r, o in kb.relations_from(s) if kb.name(r) == "in"})
+                       for r, o in kb.relations_from(s) if kb.predicate(r) == "in"})
 
     # bob is explicitly placed -> the default is DEFEATED (NOT also placed in shop1)
     assert placed("bob") == ["shop2"]
@@ -664,7 +664,7 @@ def test_shared_variable_is_one_node_in_fragment():
     rg = h.Graph()
     h.write_rule(rg, rule)
     assert len(rg.nodes_named("?b")) == 1           # join structure is graph structure
-    assert len(rg.nodes_named("is_a")) == 3         # predicate nodes are fresh per Pat
+    assert len(rg.nodes_with_key("is_a")) == 3      # predicate nodes (graded key, Phase 2.3) fresh per Pat
 
 
 def test_reified_rule_is_control_layer_and_pattern_predicates_are_keyed():
@@ -681,7 +681,7 @@ def test_reified_rule_is_control_layer_and_pattern_predicates_are_keyed():
     # every rule-structure node (rule / var / pattern-predicate / role) is control-flagged
     assert all(rg.is_control(n) for n in rg.nodes())
     # the four `is_a` pattern-predicate nodes each carry `is_a` as a key, reachable via the key index
-    isa_preds = rg.nodes_named("is_a")
+    isa_preds = rg.nodes_with_key("is_a")            # Phase 2.3: predicate is a graded key, not a name
     assert len(isa_preds) == 4                       # 2 lhs + 1 nac + 1 rhs
     assert all(rg.has_key(p, "is_a") for p in isa_preds)
     assert set(rg.nodes_with_key("is_a")) == set(isa_preds)
@@ -814,7 +814,7 @@ def test_two_phase_declaration_then_reasoning_in_one_graph():
 
 
 def _mark(g, s, rel, o="<yes>"):
-    return any(g.name(r) == rel and g.name(ob) == o
+    return any(g.predicate(r) == rel and g.name(ob) == o
                for si in g.nodes_named(s) for r, ob in g.relations_from(si))
 
 
@@ -933,7 +933,7 @@ def test_constraint_cnl_declarations_parse_and_detect():
     g = h.Graph()
     h.tokenize(g, "liquid is disjoint from solid")
     h.run_rules(g, h.FORM_RULES + h.CONSTRAINT_FORMS)
-    assert any(g.name(r) == "disjoint_from" for n in g.nodes() for r, _ in g.relations_from(n))
+    assert any(g.predicate(r) == "disjoint_from" for n in g.nodes() for r, _ in g.relations_from(n))
     ice = g.add_node("ice")
     g.add_relation(ice, "is_a", g.add_node("liquid"))
     g.add_relation(ice, "is_a", g.add_node("solid"))
@@ -1003,7 +1003,7 @@ def test_same_as_coreference_composes_without_merge():
     h.wire_same_as(g, h.FORM_RULES)                      # ADDITIVE: p1 same_as p2 (no merge)
     h.run_rules(g, h.same_as_rules(["is_a"]) + h.UNIVERSAL_RULES)
     # reasoning composes ACROSS the link, yet the two mentions stay distinct (not merged)
-    assert any(g.name(r) == "is_a" and g.name(o) == "mortal"
+    assert any(g.predicate(r) == "is_a" and g.name(o) == "mortal"
                for s in g.nodes_named("socrates") for r, o in g.relations_from(s))
     assert len(g.nodes_named("person")) == 2
 
@@ -1019,14 +1019,14 @@ def test_firing_emits_in_graph_justification():
     _rel(g, "ordering_customer", "is_a", "customer")
     h.run_rules(g, h.UNIVERSAL_RULES)
     rel = next(r for r in g.out(g.nodes_named("alice")[0])
-               if g.name(r) == "is_a" and any(g.name(o) == "customer" for o in g.out(r)))
+               if g.predicate(r) == "is_a" and any(g.name(o) == "customer" for o in g.out(r)))
     js = h.support_js(g, rel)
     assert js and any(h.is_justification(g.name(j)) for j in js)
     j = h.rule_support_j(g, rel)
     assert h.rule_of_j(g, j) == "is_a.transitive"
     assert len(h.premises_of(g, j)) == 2                 # the two is_a premises
     # provenance is invisible to facts/locality: a base fact has no rule-justification
-    base = next(r for r in g.out(g.nodes_named("ordering_customer")[0]) if g.name(r) == "is_a")
+    base = next(r for r in g.out(g.nodes_named("ordering_customer")[0]) if g.predicate(r) == "is_a")
     assert h.rule_support_j(g, base) is None             # asserted -> '(given)'
 
 
@@ -1069,7 +1069,7 @@ def test_retract_withdraws_derived_consequences():
     chain = h.Rule(key="chain", lhs=[h.Pat("?x", "r", "?y")], rhs=[h.Pat("?y", "r2", "?x")])
     h.run_rules(g, [chain])
     assert _has(g, "b", "r2", "a")                       # derived, justified in-graph
-    premise = next(r for r in g.out(g.nodes_named("a")[0]) if g.name(r) == "r")
+    premise = next(r for r in g.out(g.nodes_named("a")[0]) if g.predicate(r) == "r")
     h.retract(g, premise)                                # rule-based cascade (RETRACT_RULES)
     assert not _has(g, "a", "r", "b")                    # premise hidden by interposition
     assert not _has(g, "b", "r2", "a")                   # its consequence lost support -> hidden
@@ -1097,7 +1097,7 @@ def test_coreference_on_demand_keeps_two_pauls_separate():
     assert h.is_rejected(g, p1, p2)                      # the rejection is recorded
 
     def cats(n):
-        return sorted(g.name(o) for r, o in g.relations_from(n) if g.name(r) == "is_a")
+        return sorted(g.name(o) for r, o in g.relations_from(n) if g.predicate(r) == "is_a")
     assert cats(p1) == ["teacher"] and cats(p2) == ["student"]   # each keeps only its own
 
 

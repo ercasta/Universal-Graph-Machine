@@ -93,7 +93,7 @@ def entailed_negation_rules(graph) -> list[Rule]:
         if graph.is_inert(n) or a.startswith("<"):   # Phase 2.2: inert FLAG (proves/uses); `<…>` catches token names
             continue
         for r in graph.out(n):
-            if graph.name(r) != "disjoint_from":
+            if not graph.has_key(r, "disjoint_from"):
                 continue
             for o in graph.out(r):
                 b = graph.name(o)

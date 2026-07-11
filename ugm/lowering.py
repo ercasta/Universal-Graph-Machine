@@ -70,35 +70,30 @@ def _rule_touches_control(rule: Rule) -> bool:
 # ---------------------------------------------------------------------------
 
 def to_attrgraph(graph: AttrGraph) -> tuple[AttrGraph, dict[str, str]]:
-    """Bridge a name-based `Graph` to an `AttrGraph`: each node -> a node carrying the valued
-    attribute `name`, each bare edge copied. Provenance/withdrawal nodes are skipped (inert —
-    they are not domain facts). Returns (attrgraph, old_id -> new_id).
+    """Bridge a `Graph`/`AttrGraph` into a FRESH `AttrGraph` under new identities: each non-inert node
+    -> a node carrying its VALUED `name` (entities) and its GRADED keys — a relation's PREDICATE plus
+    any embedding dims (both surfaced by `get_embedding`) — with each bare edge copied. Provenance/
+    withdrawal nodes (inert) are skipped — they are not domain facts. Returns (attrgraph, old->new).
 
-    # TEMPORARY BRIDGE (Phase 2.1->6): a copied node that turns out to be a RELATION (has both a
-    # predecessor and a successor once edges are copied — `derived_triples`'s own definition of a
-    # rel node) also gets its `name` written as a graded predicate key, so ISA reads that seed via
-    # `nodes_with_key`/`has_key` (goal.py/lowering.py) see it exactly like an `add_relation` mint.
-    # Drop this post-pass once rewriter.py is retired and `name` stops being written for predicates
-    # (Phase 6) — grep "TEMPORARY BRIDGE"."""
+    Phase 2.3: a relation's predicate rides its graded key, NOT a VALUED `name`, so the retired
+    `TEMPORARY BRIDGE`'s name-write + predicate-key post-pass are both gone (`name_demotion_design.md`).
+    A rel node's graded predicate key comes across in the `get_embedding` copy exactly like an
+    `add_relation` mint, so ISA reads (`nodes_with_key`/`has_key`/`predicate`) see it identically."""
     ag = AttrGraph()
     idmap: dict[str, str] = {}
     for old in graph.nodes():
-        if _is_inert(graph.name(old)):
+        if graph.is_inert(old):                            # Phase 2.2 inert FLAG (was name-string based)
             continue
-        attrs = {"name": valued(graph.name(old))}
-        for dim, v in graph.get_embedding(old).items():   # embedding dim -> graded attribute
+        attrs: dict = {}
+        nm = graph.name(old)
+        if nm:
+            attrs["name"] = valued(nm)
+        for dim, v in graph.get_embedding(old).items():    # predicate key (rels) + embedding dims (entities)
             attrs[dim] = graded_attr(v)
         idmap[old] = ag.add_node(attrs)
     for a, b in graph.edges():
         if a in idmap and b in idmap:
             ag.add_edge(idmap[a], idmap[b])
-    for new in idmap.values():                            # post-pass: predicate-key the rel nodes
-        if ag.pred(new) and ag.succ(new):
-            nm = ag.name(new)
-            # RESERVED-KEY COLLISION: skip when the predicate literally IS "name" (see
-            # attrgraph.add_relation's identical guard) — it would clobber the just-written NAME.
-            if nm and nm != "name":
-                ag.set_attr(new, nm, graded_attr(1.0))
     return ag, idmap
 
 
@@ -163,10 +158,10 @@ def lower_conj(pats: list[Pat], prebound: set[str] = frozenset(),
             # neighbours instead of every `p`-keyed node — this kills the `next`-chain cross-product
             # blowup (a literal `next` pattern whose subject an earlier pattern already bound was
             # seeding all ~200 `next` nodes).
-            # Phase 2.1 (decision_attrgraph_rehost, "predicates become graded keys"): predicate
+            # Phase 2.1/2.3 (decision_attrgraph_rehost, "predicates become graded keys"): predicate
             # identity is a KEY-PRESENCE test/seed (`nodes_with_key`), not a `name` equality —
-            # `add_relation` mints the graded key `p: 1.0` on every rel node (dual-write bridge
-            # keeps `name` around too, for rewriter.py; see attrgraph.add_relation).
+            # `add_relation` mints the graded key `p: 1.0` as the SOLE predicate representation on a rel
+            # node (the legacy `name` dual-write is retired; see attrgraph.add_relation / name_demotion_design).
             if s_key is not None and s_key in bound:
                 prog.append(FOLLOW(rel_reg, s_key, "out"))
                 prog.append(TEST(rel_reg, literal_name(pat.p)))
@@ -273,15 +268,11 @@ def lower_rhs(rule: Rule, control_preds: frozenset[str] = frozenset(),
         # control (a later strip's `DROP_CTRL` then permits deleting it).
         head_ctrl = ctrl or literal_name(pat.p) in control_preds
         pred = literal_name(pat.p)
-        # Phase 2.1: the head rel node's predicate is the graded key `pred: 1.0` (canonical).
-        # TEMPORARY BRIDGE (Phase 2.1->6): also write `name` — MINT's dedup/intern logic
-        # (machine.py) and rewriter.py's oracle both key off `attrs[NAME]`; drop once rewriter.py
-        # is retired (Phase 6) — grep "TEMPORARY BRIDGE".
-        # RESERVED-KEY COLLISION: a predicate literally named `name` IS the reserved NAME key —
-        # skip the graded dual-write (see attrgraph.add_relation's identical guard).
-        head_attrs = {"name": valued(pred)}
-        if pred != "name":
-            head_attrs[pred] = graded_attr(1.0)
+        # Phase 2.1/2.3: the head rel node's predicate is the SOLE graded key `pred: 1.0` (canonical).
+        # The TEMPORARY BRIDGE's VALUED `name` dual-write is retired (`name_demotion_design.md`):
+        # MINT.dedup now matches on the predicate KEY (`_pred_key`/`has_key`), not `attrs[NAME]`, so a
+        # predicate literally named `name` is sound as `{name: 1.0}` (no reserved-key collision).
+        head_attrs = {pred: graded_attr(1.0)}
         prog.append(MINT(f"_head{k}", attrs=head_attrs,
                          in_edges=[s_reg], edges=[o_reg], control=head_ctrl, dedup=True))
         if head_out is not None:
@@ -624,8 +615,9 @@ def run_to_fixpoint(
 
 def derived_triples(ag: AttrGraph) -> set[tuple[str, str, str]]:
     """Every relation in `ag` as a `(subject_name, rel_name, object_name)` triple: a rel node
-    is a node with a `name`, at least one predecessor (subject) and one successor (object).
-    Diff two snapshots (final - initial) to get the DERIVED relations.
+    is a node with a domain PREDICATE (its graded key, Phase 2.3 — no longer the VALUED `name`
+    bridge), at least one predecessor (subject) and one successor (object). Subject/object are read
+    by their VALUED `name` (they are entities). Diff two snapshots (final - initial) to get DERIVED.
 
     Memoized on `ag.version` (a monotonic mutation counter): the goal solver takes this snapshot
     on every subgoal evaluation across many nested solvers, so an uncached full-graph scan per
@@ -637,13 +629,13 @@ def derived_triples(ag: AttrGraph) -> set[tuple[str, str, str]]:
         return cached[1]
 
     def nm(nid: str) -> str | None:
-        a = ag.get_attr(nid, "name")
-        return str(a.value) if a is not None else None
+        n = ag.name(nid)                          # VALUED entity name only (Phase 2.3: a `name`-predicate
+        return n if n else None                   # rel node reports "", so it is not read as an endpoint name)
 
     out: set[tuple[str, str, str]] = set()
     for r in ag.nodes():
-        rn = nm(r)
-        if rn is None:
+        rn = ag.predicate(r)                   # Phase 2.3: the predicate is the domain graded key
+        if not rn:
             continue
         preds, succs = ag.pred(r), ag.succ(r)
         if not preds or not succs:

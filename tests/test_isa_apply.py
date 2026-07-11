@@ -111,7 +111,7 @@ def test_apply_binding_is_a_visible_frame_relation():
     assert g.is_control(fr)                                 # the frame is control-layer scaffolding
     assert _bindings(g, fr) == {"?x": paul}                # ... and the binding is a real relation
     # the binding is a genuine reified edge `<frame> -[?x]-> paul`, visible to any reader
-    assert any(g.name(rel) == "?x" and obj == paul for rel, obj in g.relations_from(fr))
+    assert any(g.has_key(rel, "?x") and obj == paul for rel, obj in g.relations_from(fr))
 
 
 def test_body_atom_cursor_is_a_visible_itinerary_that_advances():

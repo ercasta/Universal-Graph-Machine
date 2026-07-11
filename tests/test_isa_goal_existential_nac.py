@@ -51,7 +51,7 @@ def _graph(triples: list[tuple[str, str, str]]) -> h.Graph:
 
 
 def _fingerprint(g: h.Graph) -> frozenset:
-    return frozenset((g.name(s), g.name(r), g.name(o))
+    return frozenset((g.name(s), g.predicate(r), g.name(o))
                      for s in g.nodes() for r, o in g.relations_from(s))
 
 
@@ -68,7 +68,7 @@ def _forward_loop_marks(triples, rules, pred, *, max_sweeps: int = 30) -> set[tu
             if _fingerprint(g) == before:
                 break
     return {(g.name(s), g.name(o))
-            for s in g.nodes() for r, o in g.relations_from(s) if g.name(r) == pred}
+            for s in g.nodes() for r, o in g.relations_from(s) if g.has_key(r, pred)}
 
 
 def _goal_marks(triples, rules, pred, subjects, obj="<yes>") -> set[tuple[str, str]]:

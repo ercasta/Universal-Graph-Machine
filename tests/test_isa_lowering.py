@@ -66,7 +66,9 @@ def test_conjunction_with_literal_object_agrees():
         ("bob", "wants", "kale"),                       # kale not in stock -> no derivation
     ]
     derived = _machine_derived(_build(facts), CAN_GET)
-    assert derived == {("alice", "can_get", "vanilla"), ("can_get", "vanilla", "in_stock")}
+    # Phase 2.3: the spurious `("can_get", "vanilla", "in_stock")` (entity `vanilla` mis-read as a
+    # relation by the old name-based `derived_triples`) is gone — a relation is now its predicate key.
+    assert derived == {("alice", "can_get", "vanilla")}
     assert ("alice", "can_get", "vanilla") in derived
     assert not any(t[1] == "can_get" and t[0] == "bob" for t in derived)
 
@@ -117,8 +119,10 @@ _HAZARD_FACTS = [
 def test_four_clause_join_with_same_fires_and_agrees():
     facts = _HAZARD_FACTS + [("del", "mutate", "qs")]   # mutates the consumed collection
     derived = _machine_derived(_build(facts), HAZARD)
-    assert derived == {("hazard", "del", "kind"), ("hazard", "del", "mutate"),
-                        ("loop", "hazard", "del")}
+    # Phase 2.3: the spurious `("hazard", "del", "kind")`/`("hazard", "del", "mutate")` (the entity
+    # `del` mis-read as a relation by the old name-based `derived_triples`) are gone — only the real
+    # HAZARD head remains, a relation identified by its predicate key.
+    assert derived == {("loop", "hazard", "del")}
     assert ("loop", "hazard", "del") in derived
 
 
@@ -174,7 +178,10 @@ def test_graded_alpha_cut_gate_and_degree_match_engine():
 def test_graded_rule_derivation_agrees():
     # end-to-end: the derived relation SET, pinned directly (the α-cut gates which fire)
     derived = _machine_derived(_graded_graph(), FAST)
-    assert derived == {("alice", "fast", "vanilla"), ("fast", "vanilla", "in_stock")}
+    # Phase 2.3: `derived_triples` identifies a relation by its domain predicate KEY, so the old
+    # spurious `("fast", "vanilla", "in_stock")` — an artifact of mis-reading the ENTITY `vanilla`
+    # (which gained the `fast` rel node as a predecessor) as a relation — is gone.
+    assert derived == {("alice", "fast", "vanilla")}
     assert ("alice", "fast", "vanilla") in derived
     assert not any(t[0] == "bob" for t in derived)
 

@@ -19,7 +19,7 @@ def _vis(g, s, p, o):
     """Does the raw 2-hop path  s -[p]-> o  exist? (s/p/o are all ground names here — interposed
     hiding breaks this 2-hop into a 3-hop through the `<retracted>` marker, so a hidden fact reads
     as not-visible directly, no matcher needed.)"""
-    return any(g.name(r) == p and o_id in g.out(r)
+    return any(g.has_key(r, p) and o_id in g.out(r)
                for s_id in g.nodes_named(s) for r in g.out(s_id) for o_id in g.nodes_named(o))
 
 
@@ -63,9 +63,9 @@ def test_interposition_preserves_relation_identity():
     # hiding is by interposition, so the derived relation nodes SURVIVE (only their object edge is
     # rerouted) — the reversibility a sever-based cascade cannot offer.
     g, r0_xy = _build()
-    r1_xy = next(r for r in g.nodes() if g.name(r) == "r1")   # the derived x r1 y relation node
+    r1_xy = next(r for r in g.nodes() if g.predicate(r) == "r1")   # the derived x r1 y relation node
     ret.retract(g, r0_xy)
-    assert g.has(r1_xy) and g.name(r1_xy) == "r1"             # same node, still present, just hidden
+    assert g.has(r1_xy) and g.predicate(r1_xy) == "r1"             # same node, still present, just hidden
 
 
 def test_no_retract_no_effect():

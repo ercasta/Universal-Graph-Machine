@@ -202,14 +202,14 @@ def form_keywords(rules: list[Rule]) -> set[str]:
 def _chain_tokens(graph: Graph, anchor: str) -> list[str]:
     """The token node ids of a sentence, in order, following `first` then the `next` chain."""
     first = next((o for r, o in graph.relations_from(anchor)
-                  if graph.name(r) == "first"), None)
+                  if graph.has_key(r, "first")), None)
     toks: list[str] = []
     cur, seen = first, set()
     while cur is not None and cur not in seen:
         seen.add(cur)
         toks.append(cur)
         cur = next((o for r, o in graph.relations_from(cur)
-                    if graph.name(r) == "next"), None)
+                    if graph.has_key(r, "next")), None)
     return toks
 
 
@@ -511,7 +511,7 @@ def wire_same_as(graph: Graph, rules: list[Rule]) -> Graph:
     for ids in groups.values():
         rep = ids[0]
         for other in ids[1:]:
-            if not any(graph.name(r) == "same_as" and other in graph.out(r)
+            if not any(graph.has_key(r, "same_as") and other in graph.out(r)
                        for r in graph.out(rep)):
                 graph.add_relation(rep, "same_as", other)
     return graph
@@ -521,7 +521,7 @@ def _contexts_of(graph: Graph, node: str, context_rel: str) -> frozenset[str]:
     """The set of context names a mention is explicitly placed in (via `context_rel`).
     Empty = unspecified = the default (gap-filled) context."""
     return frozenset(graph.name(o) for r, o in graph.relations_from(node)
-                     if graph.name(r) == context_rel)
+                     if graph.has_key(r, context_rel))
 
 
 def coref_in_context(graph: Graph, rules: list[Rule], *, context_rel: str = "in") -> Graph:
@@ -552,7 +552,7 @@ def coref_in_context(graph: Graph, rules: list[Rule], *, context_rel: str = "in"
     for ids in groups.values():
         rep = ids[0]
         for other in ids[1:]:
-            if not any(graph.name(r) == "same_as" and other in graph.out(r)
+            if not any(graph.has_key(r, "same_as") and other in graph.out(r)
                        for r in graph.out(rep)):
                 graph.add_relation(rep, "same_as", other)
     return graph
@@ -583,7 +583,7 @@ def propagate_embeddings(graph: Graph) -> Graph:
     # INTO it, so reading raw `into(link)` would pick a justification node, not the true subject.
     for nid in graph.nodes():
         for rid, obj in graph.relations_from(nid):
-            if graph.name(rid) == "same_as":
+            if graph.has_key(rid, "same_as"):
                 parent[find(nid)] = find(obj)
 
     classes: dict[str, list[str]] = {}
@@ -612,7 +612,7 @@ def relation_predicates(graph: Graph) -> list[str]:
     skip = {"same_as", "next", "first", "proves", "uses"}
     preds: set[str] = set()
     for r in graph.nodes():
-        nm = graph.name(r)
+        nm = graph.predicate(r)
         if nm in skip or nm.startswith("?") or not nm:
             continue
         subj = next((n for n in graph.into(r) if not graph.is_inert(n)), None)
@@ -724,7 +724,7 @@ def declared_relations(graph: Graph) -> set[str]:
     """Relation words declared via `R is a relation` (i.e. `R --is_a--> relation`)."""
     rels: set[str] = set()
     for r in graph.nodes():
-        if graph.name(r) != "is_a":
+        if not graph.has_key(r, "is_a"):
             continue
         # skip provenance in-edges (a `proves` node points into this relation, vision §9)
         subj = next((n for n in graph.into(r) if not graph.is_inert(n)), None)
@@ -753,7 +753,7 @@ def expand_universals(graph: Graph) -> list[Rule]:
     seen: set[tuple[str, str]] = set()
     for n in graph.nodes():
         for r, o in graph.relations_from(n):
-            if graph.name(r) != "every_is_a":
+            if not graph.has_key(r, "every_is_a"):
                 continue
             X, Y = graph.name(n), graph.name(o)
             if (X, Y) in seen:
@@ -817,7 +817,7 @@ def _declared_as(graph: Graph, kind: str) -> set[str]:
     lexicon is graph DATA, never a hardcoded list (the engine/grammar stays content-blind)."""
     out: set[str] = set()
     for r in graph.nodes():
-        if graph.name(r) != "is_a":
+        if not graph.has_key(r, "is_a"):
             continue
         subj = next((n for n in graph.into(r) if not graph.is_inert(n)), None)
         obj = next(iter(graph.out(r)), None)

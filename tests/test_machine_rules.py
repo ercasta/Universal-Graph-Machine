@@ -39,7 +39,7 @@ def test_walker_cnl_drives_an_on_demand_walk():
                        "is_a",
                        g.add_node(b) if not g.nodes_named(b) else g.nodes_named(b)[0])
     h.walk_on_demand(g, "a", "d")
-    assert any(g.name(r) == "is_a" and g.nodes_named("d")[0] in g.out(r)
+    assert any(g.has_key(r, "is_a") and g.nodes_named("d")[0] in g.out(r)
                for r in g.out(g.nodes_named("a")[0]))             # a is_a d materialized
 
 

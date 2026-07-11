@@ -68,7 +68,7 @@ def _hub(graph: Graph, name: str) -> str:
 
 
 def _objs(graph: Graph, subj: str, rel: str) -> list[str]:
-    return [o for r, o in graph.relations_from(subj) if graph.name(r) == rel]
+    return [o for r, o in graph.relations_from(subj) if graph.has_key(r, rel)]
 
 
 def request_hub(kind: str) -> str:
@@ -89,7 +89,7 @@ def is_superseded(graph: Graph, result_id: str) -> bool:
     A relation `Rnew --supersedes--> result_id` is the 2-hop path Rnew -> [supersedes
     node] -> result_id, so `result_id`'s direct predecessor IS the `supersedes` rel node.
     """
-    return any(graph.name(pred) == SUPERSEDES for pred in graph.into(result_id))
+    return any(graph.has_key(pred, SUPERSEDES) for pred in graph.into(result_id))
 
 
 def results_for(graph: Graph, kind: str, arg_id: str, *, current_only: bool = True) -> list[str]:

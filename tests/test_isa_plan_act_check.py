@@ -105,7 +105,7 @@ def act_tool(withheld: frozenset[str]):
         touched: set[str] = set()
         if g.name(op_id) not in withheld:
             for r, e in g.relations_from(op_id):
-                if g.name(r) == "add":                          # the op's declared effect (a fact)
+                if g.has_key(r, "add"):                          # the op's declared effect (a fact)
                     touched.add(g.add_relation(e, "is", _ensure(g, "observed")))
         touched.add(g.add_relation(op_id, "done", _ensure(g, PLAN)))   # the op acted
         return touched

@@ -31,22 +31,22 @@ def _pairs(g):
 
 
 def _settled(g, p):
-    return any(g.name(r) == cw.SETTLED for r in g.out(p))
+    return any(g.has_key(r, cw.SETTLED) for r in g.out(p))
 
 
 def _cursor(g, tok):
-    return next((o for r, o in g.relations_from(tok) if g.name(r) == cw.CURSOR), None)
+    return next((o for r, o in g.relations_from(tok) if g.has_key(r, cw.CURSOR)), None)
 
 
 def _has(g, s, p, o):
     """True if the edge  s --[p]--> o  exists, matched by NODE ID (the mentions share a name,
     so `match` by name can't tell them apart)."""
-    return any(g.name(r) == p and o in g.out(r) for r in g.out(s))
+    return any(g.has_key(r, p) and o in g.out(r) for r in g.out(s))
 
 
 def _pair_ab(g, p):
-    a = next(o for rr, o in g.relations_from(p) if g.name(rr) == cw.PA)
-    b = next(o for rr, o in g.relations_from(p) if g.name(rr) == cw.PB)
+    a = next(o for rr, o in g.relations_from(p) if g.has_key(rr, cw.PA))
+    b = next(o for rr, o in g.relations_from(p) if g.has_key(rr, cw.PB))
     return (a, b)
 
 
@@ -81,7 +81,7 @@ def test_cursor_visits_every_pair_in_one_run_no_loop():
     # the cursor came to rest on the last pair of the chain (no `pnext` to advance past)
     last = _cursor(g, tok)
     assert last is not None
-    assert not any(g.name(r) == cw.PNEXT for r in g.out(last))
+    assert not any(g.has_key(r, cw.PNEXT) for r in g.out(last))
 
 
 def test_single_mention_no_cursor():
@@ -128,7 +128,7 @@ def test_two_pauls_stay_separate_no_retraction():
     assert h.is_rejected(g, p1, p2)                      # rejection recorded
 
     def cats(n):
-        return sorted(g.name(o) for r, o in g.relations_from(n) if g.name(r) == "is_a")
+        return sorted(g.name(o) for r, o in g.relations_from(n) if g.has_key(r, "is_a"))
     assert cats(p1) == ["teacher"] and cats(p2) == ["student"]   # each keeps only its own
 
 

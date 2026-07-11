@@ -52,7 +52,7 @@ def _ink(g) -> set:
     for r in g.nodes():
         if g.is_control(r) or g.is_inert(r):
             continue
-        rn = g.name(r)
+        rn = g.predicate(r)
         if not rn:
             continue
         preds = [s for s in g.pred(r) if not (g.is_control(s) or g.is_inert(s))]

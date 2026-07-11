@@ -21,7 +21,7 @@ def _subject_of(graph: Graph, rel_id: str) -> str | None:
     """The subject of a relation node, skipping provenance in-edges (`proves`/`uses`
     point INTO a fact relation, so a naive `into` would pick one of them)."""
     for n in graph.into(rel_id):
-        if graph.name(n) not in prov.PROVENANCE_PREDS:
+        if graph.predicate(n) not in prov.PROVENANCE_PREDS:
             return n
     return None
 
@@ -36,7 +36,7 @@ def render_relation(graph: Graph, rel_id: str) -> str | None:
     obj = next(iter(graph.out(rel_id)), None)
     if subj is None or obj is None:
         return None
-    return f"{graph.name(subj)} {graph.name(rel_id)} {graph.name(obj)}"
+    return f"{graph.name(subj)} {graph.predicate(rel_id)} {graph.name(obj)}"
 
 
 def narrate(graph: Graph, journal: list[Firing]) -> list[str]:
@@ -62,7 +62,7 @@ def narrate(graph: Graph, journal: list[Firing]) -> list[str]:
 
 def _find_rel(graph: Graph, s_id: str, pname: str, o_id: str) -> str | None:
     for r in graph.out(s_id):
-        if graph.name(r) == pname and o_id in graph.out(r):
+        if graph.has_key(r, pname) and o_id in graph.out(r):
             return r
     return None
 

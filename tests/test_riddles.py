@@ -61,7 +61,7 @@ def _clean(g: h.Graph) -> None:
     not run yet, so nothing depends on these nodes; the CWA marker (`closes <closed_world>`) and
     the recognized facts/rules survive."""
     for n in [n for n in g.nodes()
-              if prov.is_justification(g.name(n)) or g.name(n) in prov.PROVENANCE_PREDS]:
+              if prov.is_justification(g.name(n)) or g.predicate(n) in prov.PROVENANCE_PREDS]:
         g.remove_node(n)
     for nm in ("next", "first", "<sentence>", *SURFACE_TAGS):
         for n in list(g.nodes_named(nm)):

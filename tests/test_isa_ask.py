@@ -204,7 +204,7 @@ def test_goalsolver_composes_across_same_as_linked_mentions():
     from ugm import Goal, GoalSolver
     fg = _two_mentions(link=True)
     h.run_rules(fg, _COREF_BANK)                          # forward: same_as propagation
-    fwd = any(fg.name(r) == "is_a" and fg.name(o) == "respected"
+    fwd = any(fg.has_key(r, "is_a") and fg.name(o) == "respected"
               for p in fg.nodes_named("paul") for r in fg.out(p) for o in fg.out(r))
     backward = bool(GoalSolver(_two_mentions(link=True), _COREF_BANK)
                     .solve(Goal("is_a", "paul", "respected")))

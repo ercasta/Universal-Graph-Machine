@@ -19,7 +19,7 @@ from ugm.lowering import lower_rewire, rule_touches_provenance, Unlowerable
 
 def _has(g, s, r, o):
     sn, on = g.nodes_named(s), g.nodes_named(o)
-    return bool(sn and on and any(g.name(rel) == r and on[0] in g.out(rel)
+    return bool(sn and on and any(g.has_key(rel, r) and on[0] in g.out(rel)
                                   for rel in g.out(sn[0])))
 
 
@@ -94,7 +94,7 @@ def test_runbank_retraction_hides_the_derived_fact_and_its_dependents():
     g = _derived_chain()
     assert _has(g, "a", "is_a", "c")                  # the derived shortcut is present
     rel = next(r for r in g.out(g.nodes_named("b")[0])
-               if g.name(r) == "is_a" and g.nodes_named("c")[0] in g.out(r))
+               if g.has_key(r, "is_a") and g.nodes_named("c")[0] in g.out(r))
     ret.seed_retract(g, rel)
     run_rules(g, ret.RETRACT_RULES, provenance=False)
     assert not _has(g, "b", "is_a", "c") and not _has(g, "a", "is_a", "c")

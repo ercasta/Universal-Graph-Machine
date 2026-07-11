@@ -70,14 +70,14 @@ def _ink(g: AttrGraph) -> set:
     assumption must be read out of ink (`derived_triples` includes control/pencil rels)."""
     out: set = set()
     for r in g.nodes():
-        if g.is_control(r) or g.is_inert(r) or not g.name(r):
+        if g.is_control(r) or g.is_inert(r) or not g.predicate(r):
             continue
         preds = [s for s in g.pred(r) if not (g.is_control(s) or g.is_inert(s))]
         succs = [o for o in g.succ(r) if not (g.is_control(o) or g.is_inert(o))]
         for s in preds:
             for o in succs:
                 if g.name(s) and g.name(o):
-                    out.add((g.name(s), g.name(r), g.name(o)))
+                    out.add((g.name(s), g.predicate(r), g.name(o)))
     return out
 
 

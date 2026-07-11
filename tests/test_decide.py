@@ -28,12 +28,12 @@ RULES = [PRODUCER, CONSUMER, COMPLETION]
 
 def _any_relation(g, pred):
     """Does a fully-instantiated  ?x -[pred]-> ?y  relation exist anywhere in the graph?"""
-    return any(g.name(r) == pred and g.pred(r) and g.succ(r) for r in g.nodes())
+    return any(g.has_key(r, pred) and g.pred(r) and g.succ(r) for r in g.nodes())
 
 
 def _objs(g, subj_name, pred):
     return [g.name(o) for s in g.nodes_named(subj_name)
-            for r, o in g.relations_from(s) if g.name(r) == pred]
+            for r, o in g.relations_from(s) if g.has_key(r, pred)]
 
 
 def _setup(closed=True):

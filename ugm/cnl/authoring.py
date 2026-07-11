@@ -147,7 +147,7 @@ def degree_thresholds(graph: Graph) -> dict[str, float]:
     parses as a number in (0, 1] is a degree declaration; anything else is an ordinary fact."""
     out: dict[str, float] = {}
     for r in graph.nodes():
-        if graph.name(r) != "is":
+        if not graph.has_key(r, "is"):
             continue
         subj = next((n for n in graph.into(r) if not graph.is_inert(n)), None)
         obj = next(iter(graph.out(r)), None)
@@ -593,13 +593,13 @@ PLURAL_UNIVERSAL_FORMS: list[Rule] = plural_universal_forms(Graph())
 
 def _obj(graph: Graph, node: str, rel: str) -> str | None:
     for r, o in graph.relations_from(node):
-        if graph.name(r) == rel:
+        if graph.has_key(r, rel):
             return o
     return None
 
 
 def _objs(graph: Graph, node: str, rel: str) -> list[str]:
-    return [o for r, o in graph.relations_from(node) if graph.name(r) == rel]
+    return [o for r, o in graph.relations_from(node) if graph.has_key(r, rel)]
 
 
 def _cond_pat(graph: Graph, cond: str, declared: set[str] = frozenset()) -> Pat:
@@ -709,7 +709,7 @@ def _frame_body_tokens(graph: Graph) -> set[str]:
     """Head-subject tokens of lexicon frame bodies (their rule nodes are templates,
     not standalone rules — they must be skipped by `expand_rules`)."""
     return {o for n in graph.nodes() for r, o in graph.relations_from(n)
-            if graph.name(r) == "body"}
+            if graph.has_key(r, "body")}
 
 
 def expand_rules(rule_graph: Graph, *, decided_negation: bool = True) -> list[Rule]:
