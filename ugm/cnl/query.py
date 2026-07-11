@@ -17,7 +17,6 @@ graph and executed against the KB by NAME, so asking never mutates the KB.
 from __future__ import annotations
 
 from .forms import WH, normalize_surface, tokenize
-from .. import decide       # Phase 6.1: ask on the forward firmware (decided negation), not GoalSolver
 from ..production_rule import Pat, Rule
 from ..lowering import match_pats as match, run_bank
 from .surface import explain
@@ -258,6 +257,17 @@ def ask(graph: Graph, question: str, *, journal: list | None = None,
 # decision-cwa-default). Recognition stays forward; ANSWERING demands only the question-goal.
 # ---------------------------------------------------------------------------
 
+def _reify_rules(rules: list[Rule]) -> Graph:
+    """A reified rule graph (`<rule> -[lhs/rhs/nac/drop]-> patom`) the demand-driven firmware reads —
+    `write_rule` for each executable `Rule`. Built per `ask_goal` call; the head index is (re)built
+    lazily by `chain_sip`/`check`. (A caller answering many questions can reify once and reuse it.)"""
+    from .rule_graph import write_rule
+    rg = Graph()
+    for r in rules:
+        write_rule(rg, r)
+    return rg
+
+
 def _materialize_fact(graph: Graph, s: str, p: str, o: str) -> None:
     """Assert the domain relation `s p o` into the KB (monotone — the ask-user acquisition path),
     reusing existing same-named nodes or minting them. Never deletes (§5)."""
@@ -293,7 +303,20 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     is already decided `no`); this is where the deontic-triggered "better check" escalation will hook.
 
     Note: reasoning materializes the demanded facts into `graph` (monotone — never deletes; §5). Pass
-    a `graph.copy()` if the KB must stay untouched. why/n-ary fall back to the forward `ask`."""
+    a `graph.copy()` if the KB must stay untouched. why/n-ary demand-materialize then render via `ask`.
+
+    FIRMWARE v3 (demand-driven NEGATION) — answering is the DEMAND-DRIVEN chain (`check`/`chain_sip`),
+    not a forward materialize-then-read. A NAC clause `not L` is decided ON DEMAND by negation-as-failure
+    (nested negative demand -> positive closure -> absence decides); NOTHING is completed or retracted for
+    a negation. This RETIRES the forward `decide.solve` (aggressive `is_not` completion + INTERPOSE
+    defeat): a human decides a negation by ASKING the positive when the question comes up, absence-decides
+    — the agent-not-theorem-prover model, restoring locality (only the goal's own closure is materialized)
+    for the RIGHT reason (the model), and making fuel-exhaustion an honest `unknown` the forward model
+    cannot express. Same yes/no/who answers as the forward path on every stratifiable bank (the step-4
+    differential gate); a NON-stratifiable bank RAISES `NonStratifiable` rather than mis-answering."""
+    from ..check import check, collapse
+    from ..chain import chain_sip
+
     q = _parse_question(question, extra_forms, strata=strata)
     if q is None or q.get("qtype") is None:
         return ["(no question form recognized this)"]
@@ -303,26 +326,21 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         # concept C (`C is open world`), not the shared copula; for a relational query it is R.
         return o if (p == COPULA and o is not None) else p
 
-    # FIRMWARE (Phase 6.1) — reason with DECIDED NEGATION on the forward ISA engine, then READ. One
-    # `decide.solve` = a single stratified `run_bank` pass (domain rules + completion + `DEFEAT_SEED` +
-    # the INTERPOSE `RETRACT_RULES`). This RETIRES GoalSolver's demand-driven backward solve: decided
-    # negation is inherently forward (aggressive completion + defeat, the defeat an INTERPOSE retraction
-    # the monotone demand-driven chain cannot do), and `run_bank` already handles NAC (stratified) AND
-    # decided completion — so it answers closed-world banks correctly in EITHER rule form. Monotone (§5):
-    # materializes into `graph` (the same contract GoalSolver had — pass a copy to keep the KB untouched).
-    decide.solve(graph, rules)
+    rule_g = _reify_rules(rules)
 
     if q["qtype"] == "yesno":
-        # An existential subject (`is anyone happy`) is ∃ — a VARIABLE matching any witness.
-        subj = "?w" if q["s"] in EXISTENTIAL_SUBJECTS else q["s"]
-        if match(graph, [Pat(subj, q["p"], q["o"])]):
-            return ["yes"]
-        # CWA-DEFAULT: an underivable goal is a defeasible `no`, UNLESS the concept is declared OPEN,
-        # where absence is not taken as false (`unknown` -> gather evidence). (decision-cwa-default)
-        v = "unknown" if concept_key(q["p"], q["o"]) in open_preds else "no"
-        # OWA evidence-gatherer: an open UNKNOWN the goal needs -> gather (never a CWA-default one).
-        if (v == "unknown" and ask_user is not None
-                and q["s"] not in EXISTENTIAL_SUBJECTS and q["o"] is not None):
+        if q["s"] in EXISTENTIAL_SUBJECTS:
+            # `is anyone happy` is ∃ — demand the WILDCARD-subject goal, then match any witness.
+            chain_sip(graph, rule_g, (q["p"], None, q["o"]))
+            if match(graph, [Pat("?w", q["p"], q["o"])]):
+                return ["yes"]
+            return ["unknown"] if concept_key(q["p"], q["o"]) in open_preds else ["no"]
+        # a bound goal: the demand-driven 4-status CHECK, collapsed to yes/no/unknown. CHECK runs the
+        # positive closure (POSITIVE), the negative closure (ENTAILED_NEG), else CWA-default ASSUMED_NO
+        # unless the concept is OPEN (UNKNOWN) or fuel ran out before closure (also UNKNOWN).
+        v = collapse(check(graph, rule_g, (q["p"], q["s"], q["o"]), open_preds=open_preds))
+        # OWA evidence-gatherer: an open UNKNOWN the goal needs -> gather (never a CWA-default `no`).
+        if v == "unknown" and ask_user is not None and q["o"] is not None:
             held = ask_user(q["s"], q["p"], q["o"])
             if held is True:
                 _materialize_fact(graph, q["s"], q["p"], q["o"])   # persist the acquired fact
@@ -332,11 +350,20 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         return [v]
 
     if q["qtype"] == "who":
+        chain_sip(graph, rule_g, (q["p"], None, q["o"]))           # demand the wildcard-subject goal
         names = sorted({graph.name(b["?x"])
                         for b in match(graph, [Pat("?x", q["p"], q["o"])])})
         if names:
             return [f"{n} {q['p']} {q['o']}" for n in names]
         return ["(no answer)"] if concept_key(q["p"], q["o"]) not in open_preds else ["unknown"]
 
-    # n-ary / why: reasoning shape not yet on the goal path -> the forward answerer (with journal).
+    if q["qtype"] == "why":
+        # demand the goal WITH provenance (RECORD, mode 9) so the in-graph support is present, then
+        # render the derivation trace via the existing reader.
+        chain_sip(graph, rule_g, (q["p"], q["s"], q["o"]), provenance=True)
+        return ask(graph, question, journal=journal, rules=rules, extra_forms=extra_forms, strata=strata)
+
+    # n-ary: demand the event predicate, then render via the reader (event-role reads stay in `ask`).
+    if q.get("pred") is not None:
+        chain_sip(graph, rule_g, (q["pred"], None, None))
     return ask(graph, question, journal=journal, rules=rules, extra_forms=extra_forms, strata=strata)

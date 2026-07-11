@@ -28,7 +28,7 @@ POSITIVE or ASSUMED_NO). Bounded by `chain_sip`'s fuel/round budget.
 from __future__ import annotations
 
 from .attrgraph import AttrGraph
-from .chain import chain_sip, _facts_matching, render_demands
+from .chain import chain_sip, _facts_matching, render_demands, _Exhaustion
 
 # The four CHECK statuses (decision-cwa-default's 4-status model).
 POSITIVE = "positive"          # derivable -> yes
@@ -57,19 +57,33 @@ def _concept_key(pred: str, obj: str | None) -> str:
 
 def check(fact_g: AttrGraph, rule_g: AttrGraph,
           goal: tuple[str, str | None, str | None], *,
-          open_preds: frozenset[str] = frozenset(), provenance: bool = False) -> str:
+          open_preds: frozenset[str] = frozenset(), provenance: bool = False,
+          max_rounds: int = 1000) -> str:
     """CHECK `goal` and return one of POSITIVE / ENTAILED_NEG / ASSUMED_NO / UNKNOWN. Runs CHAIN for
     the positive (bounded); if absent, runs CHAIN for the negative; if that too is absent, the CWA
     default (`assumed-no`) holds unless the concept is declared OPEN (`unknown`). Only the derivable
-    facts are materialized (monotone, §5-safe); the assumed-no is a computed verdict, not a write."""
+    facts are materialized (monotone, §5-safe); the assumed-no is a computed verdict, not a write.
+
+    FUEL → UNKNOWN (firmware v3): the closures are bounded by `max_rounds`. If the POSITIVE closure did
+    not reach fixpoint within budget (or a NAC's nested negative demand didn't — the `_Exhaustion` flag
+    bubbles up), absence is NOT trustworthy, so the honest verdict is UNKNOWN ("I did not finish
+    looking"), NOT a decided no. This is the distinction the forward exhaustive model cannot make; it
+    is why demand-driven NAF is the agent-not-theorem-prover model, not merely an optimization."""
     pred, subj, obj = goal
-    chain_sip(fact_g, rule_g, goal, provenance=provenance)          # demand-driven positive
+    fuel = _Exhaustion()
+    chain_sip(fact_g, rule_g, goal, provenance=provenance,          # demand-driven positive
+              max_rounds=max_rounds, _fuel=fuel)
     if _present(fact_g, goal):
         return POSITIVE
+    if fuel.exhausted:                                              # ran out of fuel before closure ->
+        return UNKNOWN                                             # honest "didn't finish", not a no
     neg = (_neg_pred(pred), subj, obj)
-    chain_sip(fact_g, rule_g, neg, provenance=provenance)           # is the HARD negative entailed?
+    chain_sip(fact_g, rule_g, neg, provenance=provenance,          # is the HARD negative entailed?
+              max_rounds=max_rounds, _fuel=fuel)
     if _present(fact_g, neg):
         return ENTAILED_NEG
+    if fuel.exhausted:
+        return UNKNOWN
     return UNKNOWN if _concept_key(pred, obj) in open_preds else ASSUMED_NO
 
 

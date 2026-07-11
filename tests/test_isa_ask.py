@@ -14,7 +14,6 @@ prior forward pass materialized. These tests pin:
      absence != false and the ask-user evidence-gatherer fires.
 """
 import ugm as h
-from ugm import decide
 from ugm import derived_triples
 
 
@@ -75,8 +74,9 @@ def test_cwa_default_no_vs_owa_optin_unknown():
     assert h.ask_goal(kb3, "is alice served express", rules3, open_preds=frozenset({"served"})) == ["yes"]
 
 
-# The thief elimination WITH `cleared is closed world` — today this drives decide.solve's
-# aggressive-completion + RETRACTION (deletion). Goal-directed, it is subsumed by demand-completion.
+# The thief elimination WITH `cleared is closed world`. Under DEMAND-DRIVEN NEGATION (firmware v3) the
+# `cleared is closed world` marker is VESTIGIAL for reasoning — the `is not cleared` clause is a NAC
+# decided on demand by negation-as-failure (nested negative demand -> positive closure -> absence).
 THIEF_CW = """
     ada is a suspect
     bo is a suspect
@@ -91,16 +91,15 @@ THIEF_CW = """
 """
 
 
-def test_closed_world_elimination_via_decided_negation():
-    # Closed-world elimination on the firmware: `cleared is closed world` + `thief when suspect and
-    # not cleared`. Under DECIDED NEGATION (load_corpus default) the `is not cleared` is a POSITIVE
-    # `is_not` match, materialized by completion and defeated (INTERPOSE) where `cleared` holds — so
-    # only cy (uncleared) is a thief. `ask_goal` runs the forward firmware (`decide.solve`) and reads.
+def test_closed_world_elimination_via_demand_driven_naf():
+    # Closed-world elimination on the firmware, DEMAND-DRIVEN: `thief when suspect and not cleared`. To
+    # decide `thief(cy)`, bind cy from `suspect(cy)`, demand the positive `cleared(cy)` to closure (it
+    # comes back empty), absence decides `not cleared` -> `thief(cy)`. bo/ada ARE cleared (library ->
+    # innocent -> cleared; alibi -> cleared), so their NAC fails. No `is_not` is materialized.
     kb, rules = h.load_corpus(THIEF_CW)
     answers = [h.ask_goal(kb, q, rules)
                for q in ("is cy thief", "is ada thief", "is bo thief", "who is thief")]
     assert answers == [["yes"], ["no"], ["no"], ["cy is thief"]]
-    assert h.closed_predicates(kb) == frozenset({"cleared"})   # the reasoning-side CWA DATA is intact
 
 
 ASK_USER_KB = """

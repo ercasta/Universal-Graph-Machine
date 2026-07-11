@@ -26,7 +26,7 @@ from .lowering import (
 from .apply import apply_rule, apply_to_fixpoint, build_head_index, rules_producing
 from .chain import (
     chain, demand_closure, relevant_rules, demanded_preds,
-    chain_sip, bound_demands, render_demands,
+    chain_sip, bound_demands, render_demands, NonStratifiable,
 )
 from .check import (
     check, collapse, explain_check,
@@ -49,11 +49,6 @@ from .retraction import (
     record_rejection, is_rejected,
 )
 from .demand import DEMAND, seed_demand, DEMAND_TRANSITIVITY, DEMAND_COREF
-from .decide import (
-    CWA, COPULA, NEG_COPULA,
-    declare_closed_world, is_closed_world, closed_predicates,
-    positive_holds, negative_holds, completion_rule, DEFEAT_SEED,
-)
 from .dispatch import (
     CALL, TOOL, Tool, emit_call, call_tool, call_arg, call_args, pending_calls, consume_call,
     service_calls,
@@ -98,7 +93,7 @@ from .cnl.walker import (
     spawn_walker, walk_rules, DEMAND_WALK, SPAWN_RULES, walk_on_demand,
     refuel_tool, WALK_TOOLS, load_walker_rules,
 )
-from . import external, provenance, retraction, decide, dispatch, coref_walk, asp
+from . import external, provenance, retraction, dispatch, coref_walk, asp
 from .cnl import forms, surface, authoring, universal, machine_rules, query, rule_graph
 from .external import (
     ARG, request, pending, consume_request,
@@ -144,6 +139,7 @@ __all__ = [
     "rule_touches_provenance",
     "apply_rule", "apply_to_fixpoint", "build_head_index", "rules_producing",
     "chain", "demand_closure", "relevant_rules", "demanded_preds", "chain_sip", "bound_demands",
+    "NonStratifiable",
     "render_demands",
     "check", "collapse", "explain_check", "POSITIVE", "ENTAILED_NEG", "ASSUMED_NO", "UNKNOWN",
     "choose", "set_candidate", "candidates", "winners_of", "fit_of", "explain_choice", "SATISFIED_BY",
@@ -158,8 +154,6 @@ __all__ = [
     "CWA", "COPULA", "NEG_COPULA", "NEG_SUFFIX", "IS_A", "IS_A_NOT", "SAME_AS", "DISJOINT",
     "CLOSES", "REL_PROPERTY", "TRANSITIVE", "EVERY_IS_A", "IS_UNIQUE", "TARGET", "TYPE",
     "SUBSTRATE_COREF_PREDS", "neg_pred",
-    "declare_closed_world", "is_closed_world", "closed_predicates",
-    "positive_holds", "negative_holds", "completion_rule", "DEFEAT_SEED",
     "CALL", "TOOL", "Tool", "emit_call", "call_tool", "call_arg", "call_args", "pending_calls",
     "consume_call", "service_calls",
     "resolve_coref", "coref_request_handler",

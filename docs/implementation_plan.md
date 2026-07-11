@@ -105,6 +105,17 @@ Python driver becomes dead weight once the declared composition subsumes it, at 
 retires like `rewriter.py` did — not before.
 
 **PICK UP NEXT — recommended order:**
+0. **DEMAND-DRIVEN NEGATION (firmware v3) — the user's chosen next build, start FRESH.** After Phase 6.1
+   left `ask_goal` on the FORWARD decided-negation path (`decide.solve`: aggressive completion + defeat +
+   INTERPOSE-retract), the user reframed: **we are a bounded reasoning AGENT, not a theorem prover** — a
+   human decides negation by ASKING the positive on demand, absence-decides (CWA), never by eagerly
+   completing every `is_not` then retracting. **DESIGN WRITTEN:** `docs/demand_driven_negation_design.md`
+   — stratified NAF evaluated on demand inside `chain_sip` (nested negative demand → positive closure →
+   absence decides), which RETIRES the completion/defeat/retract-for-negation apparatus (net
+   simplification, not new machinery) and makes `ask_goal` demand-driven again for the RIGHT reason (the
+   model). Hard part = stratification + cycle detection (port `GoalSolver._completing`/`NonStratifiable`
+   from git into the chain). Fuel→UNKNOWN falls out of `check.py`'s 4-status model. Two §Crux questions to
+   answer first. ⚠Opus. **Read the design, answer §Crux, run its Migration steps.**
 1. **Phase 5 exit gate — bench-sensibility half (harness-side)** — run card-trader + coref + full
    ProofWriter-coverage in `harneskills`. The engine-half is MET in-repo (audited 2026-07-11); this half
    is not verifiable from this repo. NOTE for that run: Phase 2.5 (2026-07-11) de-hardcoded the domain

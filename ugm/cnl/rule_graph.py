@@ -37,9 +37,16 @@ from __future__ import annotations
 
 from ..production_rule import Pat, Rule
 from ..world_model import Graph
+from ..attrgraph import valued
 
 # The role relations that wire a rule node to the predicate node of each Pat.
 ROLE_NAMES: tuple[str, ...] = ("lhs", "rhs", "nac", "drop")
+
+# A reified graded condition: `<rule> -[graded]-> <graded>` where the `<graded>` node carries the
+# α-cut as VALUED attrs (`gc_var`/`gc_dim`/`gc_threshold`), one per (var, dim) — the reified form of a
+# `GradedCondition`, so the demand-driven firmware (`chain._read_graded`) can apply the α-cut DURING
+# matching exactly as the forward `GRADE` op does (Phase 5.2's graded-α-cut companion, on the chain).
+GRADED_ROLE = "graded"
 
 
 def write_rule(graph: Graph, rule: Rule) -> str:
@@ -71,6 +78,18 @@ def write_rule(graph: Graph, rule: Rule) -> str:
             o = so_node(pat.o)
             p = graph.add_relation(s, pat.p, o, control=True)   # pattern atom in fact shape (keyed pred)
             graph.add_relation(rule_node, role, p, control=True)  # rule --[role]--> pred
+    # Graded conditions (the α-cut match filter). Reified as `<graded>` nodes so the demand-driven
+    # firmware can apply them; one per (var, dim) — mirroring `lowering.lower_graded`'s one-GRADE-per-dim.
+    # An INVERTED α-cut ('not at all') is a later slice (as in `lower_graded`), so it is skipped here.
+    for gc in rule.graded:
+        if gc.inverted:
+            continue
+        for dim in gc.embedding:
+            g = graph.add_node("<graded>", control=True)
+            graph.set_attr(g, "gc_var", valued(gc.var))
+            graph.set_attr(g, "gc_dim", valued(dim))
+            graph.set_attr(g, "gc_threshold", valued(gc.threshold))
+            graph.add_relation(rule_node, GRADED_ROLE, g, control=True)
     return rule_node
 
 

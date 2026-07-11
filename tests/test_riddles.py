@@ -1,10 +1,11 @@
 """
 Riddles — small logic puzzles as an INTEGRATION probe over the whole stack at once
-(reasoning + question-answering + explanation), and the forcing-function for the negation
-work (`decide.py`). Unlike ProofWriter (which loads a formal theory), a riddle is authored as
-a domain and SOLVED by elimination: the answer is the entity for which a closed-world property
-CANNOT be derived — so it exercises `decide.complete` (materialize the explicit negative) end
-to end, then answers with the real `ask` surface and explains with the real `explain` traversal.
+(reasoning + question-answering + explanation), and the forcing-function for the negation work
+(firmware v3, demand-driven NAF). Unlike ProofWriter (which loads a formal theory), a riddle is
+authored as a domain and SOLVED by elimination: the answer is the entity for which a closed-world
+property CANNOT be derived — so it exercises DEMAND-DRIVEN NEGATION-AS-FAILURE end to end (`chain_sip`
+deciding a NAC by nested negative demand, absence-decides), then answers with the real `ask_goal`
+surface and explains from the in-graph provenance a demand-with-RECORD pass minted.
 
 First riddle — "the thief":
   - suspects ada, bo, cy; exactly one is the thief.
@@ -12,44 +13,37 @@ First riddle — "the thief":
   - ada has an alibi; anyone with an alibi is cleared.
   - the thief is the suspect who is NOT cleared.
 Solving it needs (a) multi-step deduction (in library -> innocent -> cleared), (b) closed-world
-elimination (cy is cleared by nothing, so `cy is_not cleared` is COMPLETED), (c) a wh-answer
-(who is the thief -> cy), and (d) a why-trace bottoming out at the completion.
+elimination BY DEMAND (to decide `thief(cy)`, demand the positive `cleared(cy)` to closure; it comes
+back empty, so `not cleared` holds — NOTHING is materialized for the negative), (c) a wh-answer
+(who is the thief -> cy), and (d) a why-trace grounding `cy is thief` on the given suspect premise.
 
-AUTHORED ENTIRELY IN CNL (handoff step 1, DONE). The whole riddle — facts, the per-predicate
-CWA declaration (`cleared is closed world`), the producer rules, AND the decide-consumer
-(`?x is thief when ?x is a suspect and ?x is not cleared`) — is one corpus loaded by
-`load_corpus`. The consumer's closed-world `is not cleared` clause is no longer a NAC: the
-reflection (`authoring.expand_rules`) UPGRADES it into a positive `?x is_not cleared` match and
-emits a companion `<decide>` demand rule that seeds the decision from the positive residual
-(`?x is a suspect`) — so the suspects-to-decide are DISCOVERED, not hand-listed. `decide.solve`
-interleaves the monotone deduction with `complete`/`recheck` to a combined fixpoint. Nothing is
-hand-built; the two former gaps are triangulated below.
+AUTHORED ENTIRELY IN CNL. The whole riddle — facts, the (now-vestigial) `cleared is closed world`
+declaration, the producer rules, AND the consumer (`?x is thief when ?x is a suspect and ?x is not
+cleared`) — is one corpus loaded by `load_corpus`. The consumer's `is not cleared` clause is a NAC,
+decided ON DEMAND by negation-as-failure — NO closed-world upgrade to a positive `is_not` match, NO
+generated completion rule (the retired forward `decide.solve` apparatus, firmware v3). The
+suspects-to-decide are DISCOVERED by the positive residual (`?x is a suspect`), not hand-listed.
 
-WHAT THESE RIDDLES SURFACE (the point of running them now — triangulated over both):
-  CONFIRMED working, composed for the first time in one problem, all in CNL:
-   - multi-step forward deduction feeds a closed-world decision (`in library -> innocent ->
-     cleared`, then the residual is completed);
-   - completion + wh-answer + yes/no-answer + why-trace all compose (the `explain` traversal
-     renders the completion `<- complete` as the elimination step);
-   - the real `ask` surface answers over a DERIVED predicate (`who is thief`, `is rex culprit`).
-   - [CLOSED, was gap #1] THE GRAMMAR AUTHORS THE DECIDE-CONSUMER. A closed-world `is not P`
-     clause reflects to a positive `is_not` match + a `<decide>` demand, so the whole riddle is
-     CNL — no hand-built consumer rule, no Python `seed_decide`/`declare_closed_world` per tuple.
+WHAT THESE RIDDLES SURFACE:
+  CONFIRMED working, composed in one problem, all in CNL:
+   - multi-step deduction feeds a closed-world decision on demand (`in library -> innocent -> cleared`,
+     then `not cleared` decided by the empty demand closure);
+   - wh-answer + yes/no-answer + why-trace all compose over a DERIVED predicate (`who is thief`);
+   - the elimination is HONEST: `cleared(cy)` is an ASSUMED_NO with a renderable "where I looked", not
+     a materialized negative — the agent-not-theorem-prover reading.
   GAP the riddles still pin (the "what to build next" signal):
-   - NO CONSTRUCTIVE DISJUNCTION / EXHAUSTION. These riddles are framed so the answer is "the
-     one we cannot clear" — which completion gives directly. A puzzle whose answer must be
-     derived POSITIVELY by ruling out alternatives ("not red and not blue, so GREEN holds the
-     prize"), or that needs "EXACTLY ONE holds", is NOT expressible: decide gives the negative,
-     not existence-from-exhaustion, and there is no "exactly one" quantifier yet. This is the
-     deferred indefinite-existentials / uniqueness axis — the boundary to keep riddles clear of
-     until it is built.
+   - NO CONSTRUCTIVE DISJUNCTION / EXHAUSTION. These riddles are framed so the answer is "the one we
+     cannot clear" — which NAF gives directly. A puzzle whose answer must be derived POSITIVELY by
+     ruling out alternatives ("not red and not blue, so GREEN holds the prize"), or that needs
+     "EXACTLY ONE holds", is NOT expressible: NAF gives the negative, not existence-from-exhaustion,
+     and there is no "exactly one" quantifier yet. The deferred indefinite-existentials / uniqueness
+     axis — the boundary to keep riddles clear of until it is built.
 """
 import ugm as h
-from ugm import decide, provenance as prov
+from ugm import provenance as prov
 from ugm.cnl.authoring import load_corpus
 from ugm.cnl.forms import SURFACE_TAGS
-from ugm.cnl.query import ask
-from ugm.cnl.surface import explain
+from ugm.cnl.query import ask_goal
 
 
 def _clean(g: h.Graph) -> None:
@@ -117,80 +111,86 @@ VASE_RIDDLE = dict(
 
 
 def _solve(riddle: dict):
-    """Author the riddle in CNL and solve it on the forward firmware, returning (graph, [], rules).
-
-    DECIDED NEGATION (Phase 6.1, the only negation model): `load_corpus` (decided_negation default)
-    UPGRADES the closed-world `is not P` clause into a positive `?x is_not P` match + a `decide.complete.*`
-    completion rule; `decide.solve` runs one stratified `run_bank` pass — domain rules derive, completion
-    materializes the negatives, DEFEAT_SEED + INTERPOSE `RETRACT_RULES` withdraw any over-completed one.
-    Provenance is ON (run_rules default), so the `complete.REL` justification for a completed negative is
-    minted and the real `explain` traversal renders the elimination step (`X is_not cleared ... complete`)."""
+    """Author the riddle in CNL, returning (graph, rules). Reasoning is DEMAND-DRIVEN (firmware v3) at
+    QUERY time — each `ask_goal` demands just its goal, deciding the closed-world `is not cleared` clause
+    on demand by negation-as-failure (nested negative demand -> positive closure -> absence decides).
+    Nothing is materialized up front; `_clean` only strips recognition scaffolding."""
     g, rules = load_corpus(riddle["corpus"])
     _clean(g)
-    decide.solve(g, rules)
-    return g, [], rules
+    return g, rules
+
+
+def _holds(g, name, pred, obj):
+    """Does any mention of `name` carry `--pred--> (a node named obj)`? (node-agnostic under additive
+    coref — a derived fact may land on the same_as-class canonical mention)."""
+    return any(g.has_key(r, pred) and any(g.name(o) == obj for o in g.out(r))
+               for n in g.nodes_named(name) for r in g.out(n))
 
 
 def test_thief_riddle_solved_by_elimination():
-    g, journal, rules = _solve(THIEF_RIDDLE)
-    # node-agnostic: the backward engine (node-level identity) materializes a derived fact on the
-    # same_as-class canonical mention, so check ANY mention of the entity (additive coref, no merge).
-    def pos(name, prop): return any(decide.positive_holds(g, n, prop) for n in g.nodes_named(name))
-    def neg(name, prop): return any(decide.negative_holds(g, n, prop) for n in g.nodes_named(name))
-    # the deduction chain ran: bo cleared via library->innocent->cleared; ada cleared via alibi
-    assert pos("bo", "cleared")
-    assert pos("ada", "cleared")
-    # cy could not be cleared -> the negative was COMPLETED (the elimination step)
-    assert neg("cy", "cleared")
+    g, rules = _solve(THIEF_RIDDLE)
+    ask_goal(g, "who is thief", rules)                # demand-drive the elimination into the graph
+    # the deduction chain ran on demand: bo cleared via library->innocent->cleared; ada via alibi
+    assert _holds(g, "bo", "is", "cleared")
+    assert _holds(g, "ada", "is", "cleared")
+    # cy could NOT be cleared -> `not cleared(cy)` holds by ABSENCE (NAF); NOTHING is materialized for
+    # the negative — there is no `is_not` fact (the whole point vs. forward completion).
+    assert not _holds(g, "cy", "is", "cleared")
+    assert not any(t[1] == "is_not" for t in h.derived_triples(g))
+    assert _holds(g, "cy", "is", "thief")             # ... so cy is the thief
 
 
 def test_thief_riddle_answers_the_question():
-    g, journal, rules = _solve(THIEF_RIDDLE)
-    answer = ask(g, THIEF_RIDDLE["question"], journal=journal, rules=rules)
-    assert answer == THIEF_RIDDLE["answer"]           # cy is thief
+    g, rules = _solve(THIEF_RIDDLE)
+    assert ask_goal(g, THIEF_RIDDLE["question"], rules) == THIEF_RIDDLE["answer"]   # cy is thief
     # and it is the UNIQUE answer (no other suspect is the thief)
-    assert ask(g, "is ada thief", journal=journal, rules=rules) == ["no"]
-    assert ask(g, "is cy thief", journal=journal, rules=rules) == ["yes"]
+    assert ask_goal(g, "is ada thief", rules) == ["no"]
+    assert ask_goal(g, "is cy thief", rules) == ["yes"]
 
 
 def test_thief_riddle_explains_the_answer():
-    g, journal, rules = _solve(THIEF_RIDDLE)
-    why = ask(g, "why cy is thief", journal=journal, rules=rules)
-    text = "\n".join(why)
-    # the trace names the (CNL-authored) thief rule, the given suspect premise, and bottoms out at
-    # the completion of the closed-world negative (the "we could not clear cy" step).
+    g, rules = _solve(THIEF_RIDDLE)
+    text = "\n".join(ask_goal(g, "why cy is thief", rules))
+    # the trace names the (CNL-authored) thief rule and grounds `cy is thief` on the given suspect
+    # premise. Under NAF there is NO `is_not`/`complete` step — the elimination is the ABSENCE of a
+    # `cleared(cy)` derivation, not a materialized negative.
     assert "cy is thief" in text and "rule.?x.is.thief" in text
-    assert "cy is_not cleared" in text
-    assert "complete" in text                          # <j:complete> — the elimination is explained
+    assert "is_not" not in text and "complete" not in text
 
 
-def test_thief_riddle_why_cy_not_cleared_is_a_completion():
-    # Directly ask the engine to explain the decided negative: it is a completion (no positive
-    # premises — it holds by the ABSENCE of a derivation), which is exactly closed-world negation.
-    g, journal, rules = _solve(THIEF_RIDDLE)
-    trace = explain(g, journal, rules, "cy", "is_not", "cleared")
-    assert trace and "cy is_not cleared" in trace[0] and "complete" in trace[0]
+def test_thief_riddle_cy_is_not_cleared_is_an_assumed_no():
+    # The elimination as the demand-driven firmware sees it: CHECK `cleared(cy)` -> ASSUMED_NO (closed-
+    # world default, and the positive was not derivable), with a renderable "where I looked". No
+    # negative is materialized; the verdict is computed from the (empty) demand closure.
+    g, rules = _solve(THIEF_RIDDLE)
+    rg = h.AttrGraph()
+    for r in rules:
+        h.write_rule(rg, r)
+    status = h.check(g, rg, ("is", "cy", "cleared"))
+    assert status == h.ASSUMED_NO
+    assert h.collapse(status) == "no"
+    assert any("cy is cleared" in ln for ln in h.explain_check(status, rg))   # the demand it explored
 
 
 def test_vase_riddle_yesno_and_why_not():
     # A second, independent riddle: yes/no answers over a derived predicate + a why-not.
-    g, journal, rules = _solve(VASE_RIDDLE)
-    assert ask(g, VASE_RIDDLE["question"], journal=journal, rules=rules) == VASE_RIDDLE["answer"]
-    assert ask(g, "is tia culprit", journal=journal, rules=rules) == ["yes"]
-    assert ask(g, "is rex culprit", journal=journal, rules=rules) == ["no"]
+    g, rules = _solve(VASE_RIDDLE)
+    assert ask_goal(g, VASE_RIDDLE["question"], rules) == VASE_RIDDLE["answer"]
+    assert ask_goal(g, "is tia culprit", rules) == ["yes"]
+    assert ask_goal(g, "is rex culprit", rules) == ["no"]
     # "rex is NOT the culprit" bottoms out at a real derivation: rex was cleared (in the yard).
-    assert ask(g, "is rex cleared", journal=journal, rules=rules) == ["yes"]
-    why = "\n".join(ask(g, "why tia is culprit", journal=journal, rules=rules))
-    assert "tia is_not cleared" in why and "complete" in why
+    assert ask_goal(g, "is rex cleared", rules) == ["yes"]
+    why = "\n".join(ask_goal(g, "why tia is culprit", rules))
+    assert "tia is culprit" in why and "is_not" not in why   # elimination by absence, no materialized negative
 
 
 def test_riddles_author_entirely_in_cnl():
     # The point of handoff step 1: no hand-built decide-consumer, no Python seeding — the consumer is a
-    # real CNL rule (`?x is thief when ...`). Under DECIDED NEGATION (Phase 6.1, the only model), its
-    # closed-world `is not cleared` clause is UPGRADED from a NAC into a POSITIVE `?x is_not cleared`
-    # match, and a `decide.complete.*` completion rule is generated to materialize the negative.
-    _g, _journal, rules = _solve(THIEF_RIDDLE)
+    # real CNL rule (`?x is thief when ...`). Under DEMAND-DRIVEN NEGATION (firmware v3) its closed-world
+    # `is not cleared` clause stays a NAC, decided on demand — NO upgrade to a positive `is_not` match,
+    # NO generated completion rule (the retired forward apparatus).
+    _g, rules = _solve(THIEF_RIDDLE)
     thief = next(r for r in rules if r.key == "rule.?x.is.thief")
-    assert not thief.nac                                                     # the NAC was UPGRADED away
-    assert ("?x", "is_not", "cleared") in {p.tokens() for p in thief.lhs}    # ...to a positive is_not match
-    assert any(r.key.startswith("decide.complete") for r in rules)          # completion rule generated
+    assert ("?x", "is", "cleared") in {p.tokens() for p in thief.nac}        # the clause stays a NAC
+    assert not any(p.p == "is_not" for p in thief.lhs)                       # NOT upgraded to a positive
+    assert not any(r.key.startswith("decide.complete") for r in rules)      # NO completion rule

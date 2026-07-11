@@ -93,23 +93,22 @@ THIEF = """
 
 
 def test_contract_closed_world_elimination():
-    # Engine swap (the whole point of this suite): the closed-world elimination runs on the BACKWARD
-    # ISA engine (demand-completion, NO aggressive over-assertion, NO retraction / fact-edge cut), with
-    # `why` read from in-graph provenance the solver MINTs. Same public contract as the retired
-    # forward `decide.solve` path (decision-attrgraph-rehost).
+    # Engine swap (the whole point of this suite): the closed-world elimination runs DEMAND-DRIVEN
+    # (firmware v3 — the `is not cleared` clause is a NAC decided on demand by negation-as-failure; NO
+    # aggressive `is_not` completion, NO retraction / fact-edge cut), with `why` read from the in-graph
+    # provenance the demand pass MINTs. Same public contract as the retired forward `decide.solve` path.
     kb, rules = h.load_corpus(THIEF)
-    h.decide.solve(kb, rules)                             # DECIDED NEGATION (Phase 6.1): completion + defeat
 
-    # solved by elimination, and UNIQUELY
-    assert h.ask(kb, "who is thief") == ["cy is thief"]
-    assert h.ask(kb, "is cy thief") == ["yes"]
-    assert h.ask(kb, "is ada thief") == ["no"]
-    assert h.ask(kb, "is bo thief") == ["no"]
+    # solved by elimination, and UNIQUELY — one demand-driven `ask_goal` per question.
+    assert h.ask_goal(kb, "who is thief", rules) == ["cy is thief"]
+    assert h.ask_goal(kb, "is cy thief", rules) == ["yes"]
+    assert h.ask_goal(kb, "is ada thief", rules) == ["no"]
+    assert h.ask_goal(kb, "is bo thief", rules) == ["no"]
 
     # the explanation is legible and grounds the elimination (string contract, not journal shape):
-    # it names the answer and the closed-world "could not clear cy" step. (`journal=[]` is vestigial —
-    # `explain` reads the in-graph proves/uses support, not a journal.)
-    why = "\n".join(h.ask(kb, "why cy is thief", journal=[], rules=rules))
+    # it names the answer and (having demanded `thief` with provenance) the `cleared` deduction it
+    # bottoms out on. (`explain` reads the in-graph proves/uses support the demand pass minted.)
+    why = "\n".join(h.ask_goal(kb, "why cy is thief", rules))
     assert "cy is thief" in why
     assert "cleared" in why
 
