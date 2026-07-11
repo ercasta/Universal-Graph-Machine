@@ -10,14 +10,17 @@ would be over-retracted and is recovered by re-derivation (deferred — not exer
 import ugm as h
 from ugm import provenance as prov, retraction as ret
 from ugm.cnl.authoring import run_rules
-from ugm.cnl.rewriter import match
 
 R1 = h.Rule(key="r0.r1", lhs=[h.Pat("?a", "r0", "?b")], rhs=[h.Pat("?a", "r1", "?b")])
 R2 = h.Rule(key="r1.r2", lhs=[h.Pat("?a", "r1", "?b")], rhs=[h.Pat("?a", "r2", "?b")])
 
 
 def _vis(g, s, p, o):
-    return bool(match(g, [h.Pat(s, p, o)]))
+    """Does the raw 2-hop path  s -[p]-> o  exist? (s/p/o are all ground names here — interposed
+    hiding breaks this 2-hop into a 3-hop through the `<retracted>` marker, so a hidden fact reads
+    as not-visible directly, no matcher needed.)"""
+    return any(g.name(r) == p and o_id in g.out(r)
+               for s_id in g.nodes_named(s) for r in g.out(s_id) for o_id in g.nodes_named(o))
 
 
 def _n_justifications(g):

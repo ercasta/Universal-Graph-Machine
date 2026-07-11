@@ -95,12 +95,8 @@ def test_prose_grammar_still_single_head_and_unaffected():
 
 
 # ---------------------------------------------------------------------------
-# Planning bank now lives in CNL — the no-Python-rule-literals end state
+# Grammar-gap coverage — G6, a drop-only rule (empty create head)
 # ---------------------------------------------------------------------------
-
-
-
-
 
 def test_planning_drop_only_rule_round_trips_through_cnl():
     # G6 — a rule with an empty create head and only a `drop` (the unblock shape) survives

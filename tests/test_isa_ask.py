@@ -200,10 +200,10 @@ _COREF_BANK = [_RESPECT] + h.same_as_rules(["is_a"]) + h.UNIVERSAL_RULES   # DEC
 def test_goalsolver_composes_across_same_as_linked_mentions():
     # respected needs is_a teacher AND is_a mortal — facts on DIFFERENT mentions. The bank DECLARES
     # coref (`same_as_rules`), so the solver follows the class (via the union-find fast path) and
-    # composes them — matching the forward rewriter, which reaches the same answer via propagation.
+    # composes them — matching the forward ISA engine, which reaches the same answer via propagation.
     from ugm import Goal, GoalSolver
     fg = _two_mentions(link=True)
-    h.run(fg, _COREF_BANK)                                # forward: same_as propagation
+    h.run_rules(fg, _COREF_BANK)                          # forward: same_as propagation
     fwd = any(fg.name(r) == "is_a" and fg.name(o) == "respected"
               for p in fg.nodes_named("paul") for r in fg.out(p) for o in fg.out(r))
     backward = bool(GoalSolver(_two_mentions(link=True), _COREF_BANK)
@@ -229,17 +229,6 @@ def test_goalsolver_is_coref_blind_without_the_propagation_rules():
     ans = GoalSolver(_two_mentions(link=True),
                      [_RESPECT] + h.UNIVERSAL_RULES).solve(Goal("is_a", "paul", "respected"))
     assert ans == set()                                  # linked, but not declared -> not composed
-
-
-# ---- ENTAILED NEGATION: disjointness derives a HARD `is_not` (decision-cwa-default) ----------
-# CWA-default answers an underivable goal `no` (defeasible/assumed). Entailed negation is the OTHER
-# `no` — provably-false, as trustworthy as a `yes`: `A disjoint_from B` + `x is A` |= `x is_not B`.
-# `entailed_negation_rules` reads the disjoint declarations and emits per-pair LITERAL rules (matched
-# by name, so robust to concept-mention duplication under additive coref).
-
-def _entail_bank(g):
-    return (h.expand_rules(g, decided_negation=False) + h.expand_loose_from_graph(g)
-            + h.expand_universals(g) + h.entailed_negation_rules(g) + h.UNIVERSAL_RULES)
 
 
 

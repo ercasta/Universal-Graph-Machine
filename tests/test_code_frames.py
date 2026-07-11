@@ -44,9 +44,16 @@ def _rel(g, s, p, o):
     g.add_relation(si, p, oi)
 
 
+def _relation_exists(g, s_id, pname, o_id):
+    """Does the raw edge  s_id -[pname]-> o_id  exist? (ported from the retired rewriter.py)."""
+    for r in g.succ(s_id):
+        if g.name(r) == pname and o_id in g.succ(r):
+            return True
+    return False
+
+
 def _has(g, s, p, o):
-    from ugm.cnl import rewriter
-    return any(rewriter._relation_exists(g, si, p, oi)
+    return any(_relation_exists(g, si, p, oi)
                for si in g.nodes_named(s) for oi in g.nodes_named(o))
 
 

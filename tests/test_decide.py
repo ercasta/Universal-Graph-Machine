@@ -10,7 +10,6 @@ fed. `decide.solve` runs derivation+completion (provenance on) then the retracti
 """
 import ugm as h
 from ugm import decide, retraction as ret
-from ugm.cnl.rewriter import match
 
 # The domain (the spike's shape), now with completion + consumer as ordinary rules:
 #   producer:  urgent(?c)         when ?c wants rush
@@ -25,6 +24,11 @@ CONSUMER = h.Rule(key="serve.regular",
 COMPLETION = decide.completion_rule("?c", "urgent",
                                     [h.Pat("?c", "is_a", "customer")], "decide.complete.urgent.t")
 RULES = [PRODUCER, CONSUMER, COMPLETION]
+
+
+def _any_relation(g, pred):
+    """Does a fully-instantiated  ?x -[pred]-> ?y  relation exist anywhere in the graph?"""
+    return any(g.name(r) == pred and g.pred(r) and g.succ(r) for r in g.nodes())
 
 
 def _objs(g, subj_name, pred):
@@ -93,5 +97,5 @@ def test_solve_is_a_noop_without_decisions():
     g = h.Graph()
     g.add_relation(g.add_node("a"), "r", g.add_node("b"))
     decide.solve(g, [h.Rule(key="r.s", lhs=[h.Pat("?x", "r", "?y")], rhs=[h.Pat("?x", "s", "?y")])])
-    assert bool(match(g, [h.Pat("?x", "s", "?y")]))
+    assert _any_relation(g, "s")
     assert not g.nodes_named(ret.RETRACT)              # no retraction seeded

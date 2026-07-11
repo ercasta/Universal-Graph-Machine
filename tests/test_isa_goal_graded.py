@@ -11,7 +11,6 @@ import pytest
 
 import ugm as h
 from ugm import Pat, Rule, GradedCondition
-from ugm.cnl.rewriter import match as engine_match, graded_degree
 from ugm import to_attrgraph, derived_triples, Goal, GoalSolver
 
 
@@ -63,22 +62,15 @@ def test_free_goal_returns_only_those_above_the_cut():
     assert "bob" not in {s for (s, o) in ans}
 
 
-def test_goal_path_degree_matches_engine_graded_degree():
+def test_goal_path_degree_matches_the_alpha_cut_formula():
+    # the graded condition has ONE clause ({"urgency": 1.0}, threshold 0.5, not inverted), so the
+    # degree is just alice's raw "urgency" embedding score (0.9) — pinned directly (no second
+    # engine needed to recompute it).
     g = _graded_graph()
-    # the engine's degree for the passing binding
-    engine_deg = {
-        b["?c"]: graded_degree(g, FAST, b)
-        for b in engine_match(g, FAST.lhs)
-        if graded_degree(g, FAST, b) is not None
-    }
-    engine_by_name = {g.name(nid): d for nid, d in engine_deg.items()}
-
     ag, _ = to_attrgraph(g)
     solver = GoalSolver(ag, [FAST])
     solver.solve(Goal("fast", None, None))
     goal_by_name = {s: solver.degree[("fast", s, o)] for (s, o) in solver.tables[Goal("fast", None, None)]}
 
-    assert set(engine_by_name) == {"alice"}
-    assert set(goal_by_name) == set(engine_by_name)
-    for name, d in engine_by_name.items():
-        assert goal_by_name[name] == pytest.approx(d)
+    assert set(goal_by_name) == {"alice"}
+    assert goal_by_name["alice"] == pytest.approx(0.9)

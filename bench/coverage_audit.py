@@ -47,8 +47,15 @@ Run:  python bench/coverage_audit.py
 from __future__ import annotations
 
 import ugm as h
-from ugm import rewriter
 from ugm.cnl.machine_rules import load_machine_rules
+
+
+def _relation_exists(g, s_id, pname, o_id):
+    """Does the raw edge  s_id -[pname]-> o_id  exist? (ported from the retired rewriter.py)."""
+    for r in g.succ(s_id):
+        if g.name(r) == pname and o_id in g.succ(r):
+            return True
+    return False
 
 # ---------------------------------------------------------------------------
 # The rule bank. Two groups: structural CLOSURE (machinery — transitivity, like
@@ -507,7 +514,7 @@ def _hazards(g):
         return set()
     hz = haz[0]
     return {g.name(n) for n in g.nodes()
-            if g.name(n) not in _PROVENANCE_NAMES and rewriter._relation_exists(g, n, "is_a", hz)}
+            if g.name(n) not in _PROVENANCE_NAMES and _relation_exists(g, n, "is_a", hz)}
 
 
 def run_scenario(scn):

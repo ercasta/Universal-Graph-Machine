@@ -32,6 +32,92 @@ live in `harneskills/tests/`).
 
 Result: full suite green — **337 passed, 1 skipped, 0 failed**.
 
+### Test-suite hygiene follow-up — orphaned helpers/section-headers from the trim above
+The bulk removal above left dead code behind in the surviving files: helper functions only called by
+the deleted tests, and section-comment banners with nothing left under them. Swept by hand: 8 orphaned
+helpers deleted from `test_new_core.py` (`_coffee`, `_coffee_ext`, `_coffee_two_water`, `_current_prices`,
+`_edges`, `_event_roles`, `_record`, `_teardown_replan`), plus one from `test_isa_ask.py` (`_entail_bank`);
+9 now-empty section headers removed/retitled across `test_new_core.py`, `test_isa_ask.py`,
+`test_universals.py`, `test_machine_rules.py`; blank-line runs (up to 21 consecutive in one spot)
+collapsed to a max of 2. No test count change (mechanical cleanup only).
+
+### Phase 6.0 — retire `rewriter.py`; the ISA engine is now the ONLY engine anywhere in the repo (331 passed, 1 skipped)
+Deleted `ugm/cnl/rewriter.py` (807 lines) and every reference to it, migrating ~15 dependent test files
+onto `run_bank`/`run_rules` or direct ISA-opcode assertions. Unblocked by the 2026-07-10 no-equivalence
+ratification.
+
+**A real scope correction found BEFORE touching code (tracing actual readers, not trusting the code's
+own comments):** the three `TEMPORARY BRIDGE` dual-write sites (`attrgraph.add_relation`,
+`lowering.to_attrgraph`, `lowering.lower_rhs`) all claim "drop once `rewriter.py` retires" — that's
+wrong. `machine.py`'s own `MINT` intern/dedup logic reads `attrs[NAME]`/`g.name(rel)` directly (nothing
+to do with the oracle), and dozens of production sites (`apply.py`, `walker.py`, `choose.py`, ...) read
+a relation's predicate back via `g.name(rel)` — the primary way the ISA engine itself reads predicates
+today. Removing the bridge now would break MINT dedup and predicate reads throughout the LIVE engine,
+not just retire oracle support. So **the bridge stays** — it's entangled with Phase 2.3 ("name demoted
+to ordinary VALUED attr, KB-declared discriminating-key indexes"), which is real, undesigned work (a
+new indexing-declaration concept), not the mechanical sweep the plan doc assumed. Rescoped 2.3 out of
+6.0 and back to its own phase, gated on an Opus design call. `implementation_plan.md` updated to record
+this correction inline so it isn't rediscovered.
+
+**What 6.0 actually did:**
+- `ugm/cnl/authoring.py`: removed `from .rewriter import run`; `run_rules` lost its `isa`/`seeds`
+  params (both dead — `run_bank` has neither an oracle branch nor a `seeds` frontier), now always
+  drives `run_bank` per stratum.
+- `ugm/__init__.py`: dropped the `rewriter` re-export block, `__all__` entries, and module alias.
+- `ugm/decide.py`/`ugm/retraction.py`: dropped the now-nonexistent `isa=True` kwarg from `run_rules`
+  callers.
+- `ugm/production_rule.py`: relocated `near_rules`/a new `_anchor_names` helper here (engine-neutral,
+  reads only `Rule.lhs` anchors) so walker "near-rules" introspection survives independent of any one
+  matching engine.
+- **Real pre-existing bug fixed in `ugm/lowering.py`**: `run_bank` ignored `Rule.meta` entirely — every
+  firing minted provenance under `provenance=True` regardless of the flag, unlike the oracle's
+  `emit_prov = provenance and not rule.meta` regress guard (a meta/TMS rule naming `proves`/`uses`
+  would otherwise re-match the `<j:>` it just minted). No production caller was exposed (they all
+  sidestep it with `provenance=False`), but `test_meta_provenance.py` exercised the documented
+  "meta + ordinary rules share one run" guarantee directly — fixed rather than weakening the test.
+- **Test migrations, by shape:**
+  - `test_rewire.py` — rewrote all 5 tests off `rewriter.match`/`rewriter.run` onto `run_rules`/direct
+    `Machine.apply` calls. Two tests (bare `cut`, and `RESTORE`-as-resurrect) have no rule-level ISA
+    lowering (`lower_rewire` only recognizes the one sanctioned 3-op interposition shape by design), so
+    those now exercise `INTERPOSE`/`RESTORE` directly on the `Machine`, matching how
+    `test_isa_interpose.py`'s opcode-identity test already does it.
+  - `test_isa_interpose.py` — its one rewriter-vs-run_bank differential test rebuilt its fixture via
+    `run_rules` and now asserts the ISA engine's own before/after retraction behavior directly.
+  - `test_isa_goal_graded.py`, `test_isa_lowering.py`, `test_isa_runbank.py`, `test_isa_reasoning_parity.py`
+    — differential-vs-rewriter assertions converted to direct ISA-pinned expected values (computed by
+    hand from the rule bank, not re-derived from a second engine), per the no-equivalence ratification.
+  - `test_coref_walk.py`, `test_walkers.py` — discovered `run_rules`'s per-stratum-fixpoint stratification
+    changes firing order/outcome relative to calling `run_bank` directly on the whole rule list — and
+    production's `resolve_coref`/`walk_on_demand` already call `run_bank` directly, never `run_rules`.
+    Fixed both test files to match production's real call shape (this also fixed a
+    stratification-triggered wrong-answer in one fixture, not just a style choice).
+  - `test_new_core.py`, `test_walkers.py`, `test_asp_calc.py`, `test_code_frames.py` — reimplemented
+    `rewriter._relation_exists` as a local `_relation_exists` helper (plain `AttrGraph` inspection, no
+    matcher), and swapped bare `h.run(...)` calls to `h.run_rules(...)`.
+  - Journal-count assertions (`len(h.run(...))`) converted to before/after edge-set diffs, since
+    `run_rules`/`run_bank` return no per-firing journal (an int firing count only) — that was already
+    true for every production caller, just not for these oracle-era tests.
+- **Tests deleted, not migrated** (no ISA equivalent exists, confirmed before deleting rather than
+  assumed): `test_narrate_and_explain` (`narrate()` renders a `Firing` journal `run_rules` never
+  populates; its `explain()` half duplicated an existing pinned test); `test_rule_anchors_and_wildcards`,
+  `test_optimized_engine_matches_naive_engine_identical_results`,
+  `test_activation_skips_irrelevant_rules_on_a_change` (tested the retired `Rewriter` class's own
+  internal anchor-delta/semi-naive optimization toggles — an implementation detail of that one engine,
+  no ISA analog since `run_bank` isn't a dual-mode engine). One assertion narrowed rather than deleted:
+  `test_graded_firing_alpha_cut` (renamed from `..._confidence_and_alpha_cut`) — the oracle stamped a
+  computed `confidence` value on created nodes that `run_bank`/`lowering.py` never implemented (GRADE
+  is an α-cut filter only); the α-cut gate/fire behavior stays pinned, the confidence-VALUE assertion
+  (`0.72`) is dropped as testing a feature that was never ported (out of scope for 6.0 to add).
+- Bench scripts (`bench/coverage_audit.py`, `bench/wordnet_messy.py`, `bench/wordnet_scaling.py`) fixed
+  too, though not required by the file-deletion gate — they lose the oracle's `seeds=` semi-naive
+  frontier param (`run_bank` always matches from scratch), a real but out-of-scope (Phase 7) perf
+  regression for these specific benchmarks, honestly noted inline.
+
+`grep -rn "rewriter" ugm/ tests/` now matches only historical prose/docstrings, zero imports.
+Result: **331 passed, 1 skipped, 0 failed** (down from 337/1/0 — every one of the 6 fewer accounted
+for above: 4 deleted oracle-internals tests + 1 merged meta-provenance variant + 1 redundant
+post-de-differentiation duplicate in `test_isa_runbank.py`).
+
 ## 2026-07-10
 
 ### Phase 5.5 (slices 1–3b) — firmware MODES as §8 `<call>` calculators, driven by RULES in the loop

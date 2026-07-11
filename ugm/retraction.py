@@ -107,13 +107,13 @@ def retract(graph: Graph, rel: str) -> list:
     pass `provenance=False` since a standalone retraction needs none. Returns the firing journal.
     Hiding is by interposition, so it is reversible (a resurrect rule can splice the fact back).
 
-    Runs on the ISA forward driver (`isa=True`): the CASCADE rule (`proves`/`uses` meta-match, seen
+    Runs on the ISA forward driver: the CASCADE rule (`proves`/`uses` meta-match, seen
     via run_bank's per-rule inert-visibility) propagates the marker, and the INTERPOSE rule's `rewire`
-    lowers to the `INTERPOSE` opcode (implementation_plan.md Phase 0.5 — the ISA-native replacement for
-    `rewriter`'s `rewire cut`, isa-reference.md "Reserved: INTERPOSE / RESTORE")."""
+    lowers to the `INTERPOSE` opcode (implementation_plan.md Phase 0.5, isa-reference.md
+    "Reserved: INTERPOSE / RESTORE")."""
     from .cnl.authoring import run_rules
     seed_retract(graph, rel)
-    return run_rules(graph, RETRACT_RULES, provenance=False, isa=True)
+    return run_rules(graph, RETRACT_RULES, provenance=False)
 
 
 def record_rejection(graph: Graph, a: str, b: str) -> None:

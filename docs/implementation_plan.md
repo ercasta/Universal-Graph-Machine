@@ -22,19 +22,41 @@
 
 ## NEXT STEP (pick this up FIRST)
 
-**Suite: 460 passed, 0 failed** (post repo-split, 2026-07-11, `python -m pytest -q`).
+**Suite: 331 passed, 1 skipped, 0 failed** (post Phase 6.0, 2026-07-11, `python -m pytest -q`). The
+460-passed figure logged at the repo split was inflated by ~123 tests that exercised harness-only
+content (`SOLVE_RULES`/`PLANNING_RULES`/`Session`/CPG-mechanism banks) mistakenly carried over by the
+carveout instead of staying in `harneskills`; those were trimmed/deleted (2 whole files, 99 functions
+across 7 mixed files) before Phase 6.0 started. See CHANGELOG for both cleanups.
 
-**Phase 5.5 slices 1–2 (CHECK+CHOOSE as `<call>` calculators), 3a, 3b DONE.** See Phase 5.5 details.
+**Phase 5.5 slices 1–2 (CHECK+CHOOSE as `<call>` calculators), 3a, 3b DONE. Phase 6.0 DONE
+(rewriter retirement + reader flips — narrow scope, see correction below).** See CHANGELOG.
+
+**PHASE 6.0 CORRECTION (2026-07-11) — the `TEMPORARY BRIDGE` dual-write is NOT rewriter-only.**
+Before executing 6.0, tracing actual readers found the three "TEMPORARY BRIDGE" comments
+(`attrgraph.py`'s `add_relation`, `lowering.py`'s `to_attrgraph` and `lower_rhs`) are wrong about
+what blocks their removal: `machine.py`'s own `MINT` intern/dedup logic reads `attrs[NAME]`/
+`g.name(rel)` directly, and dozens of production call sites (`apply.py`, `walker.py`, `choose.py`,
+...) read a relation's predicate back via `g.name(rel)`. Dropping the legacy `name` write now would
+break the live ISA engine, not just retire oracle support. **So the bridges were deliberately left
+in place** — they're entangled with **Phase 2.3** ("name demoted to ordinary VALUED attr... KB-
+declared discriminating-key indexes"), which is real design work (a new indexing-declaration
+concept), not a mechanical sweep, despite its "✓S mechanical" routing below. What Phase 6.0 actually
+did: deleted `rewriter.py` + its `isa=False` branch/re-exports (migrating ~15 dependent test files
+onto `run_bank`/`run_rules`, converting differential-vs-rewriter assertions to direct ISA-pinned
+ones per the no-equivalence ratification), and did the `nodes_named`→`nodes_with_key` /
+`startswith("<")`→`is_control` reader flips. Also fixed a real pre-existing bug found along the way:
+`run_bank` ignored `Rule.meta` (every firing minted provenance regardless of the flag, unlike the
+oracle's `emit_prov = provenance and not rule.meta` guard) — now fixed in `lowering.py`.
 
 **PICK UP NEXT — recommended order:**
-1. **Phase 6.0** — retire `rewriter.py` + `TEMPORARY BRIDGE` dual-write + reader flips. ✓Sonnet,
-   mechanical, unblocked by the no-equivalence ratification. Do this FIRST — it shrinks the codebase
-   and clears the oracle debt before the judgment-heavy firmware work.
-2. **Phase 5.5 slice 4** — plan→act→check→replan as ITERATE×CHECK over `<check>` verdicts. ⚠Opus —
+1. **Phase 5.5 slice 4** — plan→act→check→replan as ITERATE×CHECK over `<check>` verdicts. ⚠Opus —
    "reuse the existing execution loop in `solve.py`, don't rebuild" is exactly the judgment Sonnet
    tends to violate.
-3. **Phase 5.5 slice 3c** — SUPPOSE scope authoring in CNL (deferred from 3b). ⚠Opus.
-4. **Phase 5 exit gate** — benches produce sensible, self-consistent answers on firmware semantics.
+2. **Phase 5.5 slice 3c** — SUPPOSE scope authoring in CNL (deferred from 3b). ⚠Opus.
+3. **Phase 5 exit gate** — benches produce sensible, self-consistent answers on firmware semantics.
+4. **Phase 2.3** (name demotion) — now correctly scoped as its OWN phase, not a 6.0 sub-item. Needs
+   an Opus-level design call on the KB-declared discriminating-key-index mechanism before any code
+   moves; blocks nothing else on the firmware path, so it's not urgent.
 
 **Model routing** — ⚠Opus = needs vision-judgment; ✓S = Sonnet-safe where a gate/spec catches deviation.
 - Slice 4 (plan→act→check→replan): **⚠Opus**
@@ -42,15 +64,16 @@
 - 5.5 exit gate (classify divergences): **⚠Opus**
 - Companion: graded α-cut DURING matching **⚠Opus**; aggressive `is_not` completion **⚠Opus**;
   wire `chosen` as declared CHOOSE **~✓S** (gated)
-- Phase 2.3 / 2.4 (name→valued attr; name-free identity tokens): **✓S** — mechanical, differentially gated
+- Phase 2.3 (name→valued attr, KB-declared discriminating-key indexes): **⚠Opus** — real design work,
+  NOT mechanical (see correction above); 2.4 (name-free identity tokens) still **✓S** once 2.3 lands
 - Phase 2.5 (COPULA/NEG_SUFFIX / `solve.py` preds → KB declarations): **⚠Opus** for "what's KB vs engine"
-- Dual-write bridge removal + rewriter retirement: **✓S** sweep (decision to retire is Opus/user)
 - Phase 3.1 step 2 (one-graph fold): **⚠Opus** — control/fact segregation. 3.2/3.4: **⚠Opus**
-- Phase 6 demotion decisions **⚠Opus**; `architecture.md` rewrite **✓S**
+- Phase 6.1 demotion decisions **⚠Opus**; `architecture.md` rewrite **✓S**
 - Phase 7 perf: **✓S** with benchmarks for mechanical rungs; **⚠Opus** for design + AOT codegen
 
 **EQUIVALENCE NOT REQUIRED (2026-07-10 ratification) — consequences in force:**
-- Retire `rewriter` oracle + `TEMPORARY BRIDGE` dual-write NOW (unblocks 2.2/2.3 reader flips)
+- `rewriter` oracle + its `isa=False` branch retired (Phase 6.0, done) — `TEMPORARY BRIDGE` dual-write
+  stays (see correction above; it's load-bearing for the ISA engine itself, not just the oracle)
 - 5.5 exit gate COLLAPSES: "classify every divergence" → "firmware sensible + self-consistent on benches"
 - Keep GoalSolver as DEVELOPMENT oracle only; demote/delete on firmware coverage alone
 - Real long-pole for a *usable* system = **performance (Phase 7)**, not correctness
@@ -58,21 +81,25 @@
 
 ## Where the system is (2026-07-11, post repo-split)
 
-**460 tests green.** All ISA engine files are in `ugm/ugm/`; CNL surface in `ugm/ugm/cnl/`.
+**331 tests green, 1 skipped.** All ISA engine files are in `ugm/ugm/`; CNL surface in `ugm/ugm/cnl/`.
 The planning rule banks (`PLANNING_RULES`, `SOLVE_RULES`, etc.) and harness benches live in `harneskills`.
 
-**PRODUCTION RUNTIME IS 100% THE ISA ENGINE.** No production path calls the reference `rewriter` at
-runtime. `rewriter.py` is RETAINED as a differential-test oracle only. Every `run_rules` caller in
-production passes `isa=True`; the `isa=False` branch is dead in production.
+**PRODUCTION RUNTIME IS 100% THE ISA ENGINE, AND SO IS EVERY TEST.** `rewriter.py` is DELETED
+(Phase 6.0) — there is no second engine anywhere in this repo anymore. `run_rules` no longer has an
+`isa` parameter; it always runs `run_bank`. The `TEMPORARY BRIDGE` dual-write (legacy `name` VALUED
+attr on relation nodes) is RETAINED — it is load-bearing for `machine.py`'s own MINT intern/dedup and
+for the many `g.name(rel)` predicate reads across the engine, not rewriter-only as its comments once
+claimed (see the Phase 6.0 correction note above); it retires only once Phase 2.3 lands.
 
-Phases 0–5.5 slices 1–3b are DONE. See CHANGELOG.md for the full trail.
+Phases 0–5.5 slices 1–3b, Phase 6.0 are DONE. See CHANGELOG.md for the full trail.
 
 Companion slices still open (not blocking 5.5 slice 4): graded α-cut DURING matching in APPLY/CHAIN;
 aggressive `is_not` completion (`decide.solve`'s write-side elimination); wire the planner's `chosen`
 pick (`solve._mint_chosen`) as a declared CHOOSE.
 
 Also still open (NOT on firmware path): Phase 3.1 step 2 (one-graph fold); Phase 2.3 name demotion
-(oracle-blocked); `tests/test_joern_corpus.py` (legitimately slow, live-Joern, candidate for `slow` marker).
+(now correctly an Opus-level design task, not oracle-blocked — the oracle is gone); `tests/test_joern_corpus.py`
+(legitimately slow, live-Joern, candidate for `slow` marker).
 
 ---
 
@@ -223,11 +250,15 @@ All items DONE (2026-07-09/10). Gate met.
 
 ## Phase 6 — DEMOTE the Python solver; docs converge
 
-- **6.0 NOW-UNBLOCKED — pull FORWARD (✓Sonnet).** Retire `rewriter.py` + `TEMPORARY BRIDGE`
-  dual-write. Then sweep the reader flips they blocked: `nodes_named("<tok>")`→`nodes_with_key`;
-  `startswith("<")`→`is_control` (`ugm/cnl/forms.py:473/507/548`, `ugm/cnl/universal.py:90`);
-  2.3 name demotion; delete `_INERT_NAMES`/`_is_inert`. All differentially gate-able against a
-  KEPT GoalSolver (dev oracle). Do this BEFORE judgment-heavy firmware work.
+- **6.0 DONE (2026-07-11, 331 passed/1 skipped).** Retired `rewriter.py` entirely (deleted; `run_rules`'s
+  `isa`/`seeds` params removed, always runs `run_bank`); did the `nodes_named("<tok>")`→`nodes_with_key`
+  and `startswith("<")`→`is_control` reader flips in `ugm/cnl/forms.py`/`ugm/cnl/universal.py`. **NOT
+  done, and correctly rescoped out of 6.0** (see the correction note under NEXT STEP): the
+  `TEMPORARY BRIDGE` dual-write (load-bearing for MINT intern/dedup + `g.name(rel)` reads, not
+  oracle-only) and Phase 2.3 name demotion — these are now their own item, gated on an Opus design
+  call, not a mechanical sweep. `_INERT_NAMES`/`_is_inert` mostly stays by design (pattern/literal-side
+  guards over string tokens, not node instances); the one ambiguous site (`lowering.py`'s `to_attrgraph`
+  bridge) is tied to that bridge's own eventual fate, left untouched.
 
 - **6.1** GoalSolver (or its remains) = ACCELERATOR only where profiling justifies; deleted where
   firmware subsumes it (coverage alone — NOT old-answer equivalence).

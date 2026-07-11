@@ -189,9 +189,9 @@ def solve(graph: Graph, rules: list, *, tools: dict | None = None, strict: bool 
     phase 2 is a no-op and this behaves as a single `run_rules`. Returns the firing journal."""
     from .cnl.authoring import run_rules
 
-    journal = run_rules(graph, [*rules, DEFEAT_SEED], tools=tools, strict=strict, isa=True)
+    journal = run_rules(graph, [*rules, DEFEAT_SEED], tools=tools, strict=strict)
     if graph.nodes_named(ret.RETRACT):                      # a defeat was seeded -> retract
-        # Phase 2 on the ISA forward driver (INTERPOSE opcode); phase 1's `rewriter`-minted provenance
+        # Phase 2 on the ISA forward driver (INTERPOSE opcode); phase 1's provenance
         # is read by run_bank's per-rule inert-visible CASCADE match (Phase 0.5).
-        journal += run_rules(graph, ret.RETRACT_RULES, provenance=False, isa=True)
+        journal += run_rules(graph, ret.RETRACT_RULES, provenance=False)
     return journal

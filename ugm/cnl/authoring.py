@@ -39,7 +39,6 @@ from .universal import same_as_rules
 from ..production_rule import (
     GradedCondition, Pat, Rule, binder as _binder, is_var as _is_var, literal_name,
 )
-from .rewriter import run   # the reference engine — RETAINED as the differential-test ORACLE only
 from ..lowering import run_bank
 from ..world_model import Graph
 
@@ -973,19 +972,15 @@ def _strata_or_degrade(rules: list[Rule], *, strict: bool) -> tuple[list[list[Ru
 
 def run_rules(graph: Graph, rules: list[Rule], *,
               max_steps: int = 200, provenance: bool = True,
-              seeds: list[str] | None = None, tools: dict | None = None,
-              strict: bool = False, isa: bool = False) -> list:
+              tools: dict | None = None, strict: bool = False) -> list:
     """Run `rules` over `graph` stratum by stratum (stratified negation), each layer
-    to fixpoint. Returns the concatenated firing journal. `provenance` (default True)
-    is forwarded to `run`; the planning control loop passes False (see rewriter.run).
-    `seeds` is the initial change frontier for semi-naive matching; each stratum is seeded the
-    same, so a later stratum sees the earlier strata's derivations (matching is unbounded —
-    the hop-radius neighbourhood is retired, walkers doc §6).
-
-    `tools` (a {tool-name -> handler} registry, dispatch.py) is forwarded to each stratum's
-    `run`, so materialized `<call>`s are serviced AT the stratum that emits them and the
-    results are visible to later strata — the engine manages the dispatch, no separate
-    `service_calls` pass needed.
+    to fixpoint via the ISA forward Machine (`run_bank`) — the ONE production engine
+    (recognition, planner control/teardown, decide's completion/defeat, TMS retraction
+    via the INTERPOSE opcode, graded/coref passes). run_bank mints provenance when
+    asked, services `<call>` tools at fixpoint, DROP_CTRL/INTERPOSE handle control
+    deletion + reversible retraction; stratification is still done here (per layer).
+    Returns the (always-empty) journal for back-compat with callers that still
+    unpack a return value.
 
     GRACEFUL DEGRADATION (handoff 2a): if negation is cyclic (not stratifiable), the monotone
     (no-NAC) subset is run so positive derivations still answer, and a WARNING names the dropped
@@ -998,19 +993,7 @@ def run_rules(graph: Graph, rules: list[Rule], *,
             + ", ".join(r.key for r in dropped), stacklevel=2)
     journal: list = []
     for layer in strata:
-        if isa:
-            # The ISA forward Machine (`run_bank`) — the ONE production engine. Every PRODUCTION
-            # caller passes `isa=True` (recognition, planner control/teardown, decide's completion/
-            # defeat, TMS retraction via the INTERPOSE opcode, graded/coref passes). run_bank mints
-            # provenance when asked, services `<call>` tools at fixpoint, DROP_CTRL/INTERPOSE handle
-            # control deletion + reversible retraction; stratification is still done here (per layer).
-            run_bank(graph, layer, max_rounds=max_steps, tools=tools, provenance=provenance)
-        else:
-            # `isa=False` is the reference `rewriter` — RETAINED ONLY as the differential-test ORACLE
-            # (no PRODUCTION caller reaches it; every production `run_rules` passes `isa=True`).
-            # `test_isa_interpose` etc. compare the two engines through this branch.
-            journal += run(graph, layer, max_steps=max_steps,
-                           provenance=provenance, seeds=seeds, tools=tools)
+        run_bank(graph, layer, max_rounds=max_steps, tools=tools, provenance=provenance)
     return journal
 
 

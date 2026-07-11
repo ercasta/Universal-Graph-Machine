@@ -22,7 +22,6 @@ pytest.importorskip("clingo")   # the ASP calculator is the opt-in `asp` extra (
 
 import ugm as h
 from ugm import asp
-from ugm.cnl import rewriter
 from ugm.dispatch import _ensure, service_calls
 
 
@@ -32,8 +31,16 @@ def _rel(g, s, p, o):
     g.add_relation(si, p, oi)
 
 
+def _relation_exists(g, s_id, pname, o_id):
+    """Does the raw edge  s_id -[pname]-> o_id  exist? (ported from the retired rewriter.py)."""
+    for r in g.succ(s_id):
+        if g.name(r) == pname and o_id in g.succ(r):
+            return True
+    return False
+
+
 def _has(g, s, p, o):
-    return any(rewriter._relation_exists(g, si, p, oi)
+    return any(_relation_exists(g, si, p, oi)
                for si in g.nodes_named(s) for oi in g.nodes_named(o))
 
 
@@ -84,7 +91,7 @@ def test_engine_services_call_and_result_feeds_reasoning():
     consumer = h.Rule(key="prize",
                       lhs=[h.Pat("?d", "holds", "<yes>")],
                       rhs=[h.Pat("?d", "is_a", "prize")])
-    h.run(g, [consumer], tools=asp.TOOLS)
+    h.run_rules(g, [consumer], tools=asp.TOOLS)
     assert _has(g, "door3", "holds", "<yes>")     # calculator fired in the loop
     assert _has(g, "door3", "is_a", "prize")      # and its output drove further deduction
 
@@ -110,7 +117,7 @@ def test_rules_build_the_call_and_force_winner():
     # atom and the ruled-out ones as `out`, and the calculator folds the winner back — the disjunction
     # calculator composed into pure rule-driven reasoning.
     g = _decision(ruled_out=["door1", "door2"])
-    h.run(g, asp.DISJUNCTION_RULES, tools=asp.TOOLS)
+    h.run_rules(g, asp.DISJUNCTION_RULES, tools=asp.TOOLS)
     assert _has(g, "door3", "holds", "<yes>")
     assert not _has(g, "door1", "holds", "<yes>")
     assert not _has(g, "door2", "holds", "<yes>")
@@ -120,5 +127,5 @@ def test_rules_driven_ambiguous_forces_nothing():
     # two doors still live -> no unique winner entailed -> nothing forced, same soundness as the
     # driver-seeded path, now through rule-built aggregation.
     g = _decision(ruled_out=["door1"])
-    h.run(g, asp.DISJUNCTION_RULES, tools=asp.TOOLS)
+    h.run_rules(g, asp.DISJUNCTION_RULES, tools=asp.TOOLS)
     assert not any(_has(g, d, "holds", "<yes>") for d in ("door1", "door2", "door3"))

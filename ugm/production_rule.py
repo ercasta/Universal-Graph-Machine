@@ -210,3 +210,24 @@ class Firing:
     bindings: dict[str, str]
     created: set[str] = field(default_factory=set)
     degree: float = 1.0
+
+
+# ---------------------------------------------------------------------------
+# near_rules — the rules a ground locus would seed (walkers doc §7). Lives here (engine-neutral,
+# reads only Rule.lhs anchors) so it survives independent of any one matching engine.
+# ---------------------------------------------------------------------------
+
+def _anchor_names(rule: Rule) -> set[str]:
+    """Every GROUND anchor NAME in `rule`'s LHS — the names the lexical index can seed this
+    rule from (literal predicates/subjects/objects and bound-literals; free variables are not
+    anchors)."""
+    return {literal_name(t) for pat in rule.lhs for t in pat.tokens() if not is_var(t)}
+
+
+def near_rules(graph, rules: list["Rule"], locus: str) -> list["Rule"]:
+    """The rules NEAR a ground locus (vision §11 / walkers doc §7): those the lexical index
+    would seed from this node — i.e. whose LHS has a ground anchor matching the node's NAME. A
+    walker is a persistent, moving ground locus (its token); calling this on the token gives its
+    near-rule set, so two walkers with different tokens get DIFFERENT near-rules automatically."""
+    nm = graph.name(locus)
+    return [r for r in rules if nm in _anchor_names(r)]

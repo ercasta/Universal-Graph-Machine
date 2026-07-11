@@ -10,7 +10,6 @@ share ONE `run()` — the enabler for coref-as-rules and a clean-up for `retract
 import ugm as h
 from ugm import provenance as prov, retraction as ret
 from ugm.cnl.authoring import run_rules
-from ugm.cnl.rewriter import match, run
 
 NORM = h.Rule(key="norm.r0.r1", lhs=[h.Pat("?a", "r0", "?b")], rhs=[h.Pat("?a", "r1", "?b")])
 META = h.Rule(key="meta.r1.m1", lhs=[h.Pat("?a", "r1", "?b")], rhs=[h.Pat("?a", "m1", "?b")],
@@ -21,13 +20,20 @@ def _rel(g, name):
     return next(n for n in g.nodes() if g.name(n) == name)
 
 
+def _vis(g, s, p, o):
+    """Does the raw 2-hop path  s -[p]-> o  exist? (s/p/o are all ground names in this file's
+    uses — interposed hiding breaks this 2-hop, so a hidden fact reads as not-visible directly.)"""
+    return any(g.name(r) == p and o_id in g.out(r)
+               for s_id in g.nodes_named(s) for r in g.out(s_id) for o_id in g.nodes_named(o))
+
+
 def test_meta_rule_is_provenance_silent_in_a_prov_on_run():
     g = h.Graph()
     g.add_relation(g.add_node("x"), "r0", g.add_node("y"))
     run_rules(g, [NORM, META])                        # provenance=True (the default)
 
     # both facts derived and visible ...
-    assert match(g, [h.Pat("x", "r1", "y")]) and match(g, [h.Pat("x", "m1", "y")])
+    assert _vis(g, "x", "r1", "y") and _vis(g, "x", "m1", "y")
     # ... but only the ORDINARY rule left a justification; the meta rule left none.
     assert prov.support_js(g, _rel(g, "r1")) != []    # NORM emitted a <j:>
     assert prov.support_js(g, _rel(g, "m1")) == []    # META did not
@@ -54,10 +60,10 @@ def test_retract_rules_are_meta_and_run_clean_inside_a_prov_on_run():
     # seed a retract and run RETRACT_RULES with provenance ON — the meta rules must stay silent
     # (no separate prov-off pass needed). Only meta rules here, so any new <j:> would be a bug.
     ret.seed_retract(g, r0)
-    run(g, ret.RETRACT_RULES, provenance=True)
+    run_rules(g, ret.RETRACT_RULES, provenance=True)
 
-    assert not match(g, [h.Pat("x", "r0", "y")])      # base hidden by interposition
-    assert not match(g, [h.Pat("x", "r1", "y")])      # cascade hid the derived fact too
+    assert not _vis(g, "x", "r0", "y")      # base hidden by interposition
+    assert not _vis(g, "x", "r1", "y")      # cascade hid the derived fact too
     # the retraction rules minted no new justifications despite the prov-on run.
     js_after = len([n for n in g.nodes() if prov.is_justification(g.name(n))])
     assert js_after == js_before
@@ -85,25 +91,13 @@ def _assert_flag_matches_prov_kind(g):
             f"inert flag ({g.is_inert(n)}) disagrees with provenance kind for node {nm!r}")
 
 
-def test_inert_flag_covers_every_provenance_mint_oracle_path():
-    # run_rules default (isa=False): the rewriter ORACLE mint path.
-    g = h.Graph()
-    g.add_relation(g.add_node("x"), "r0", g.add_node("y"))
-    prov.axiomatize(g, ["r0"])                         # <axiom> + proves
-    run_rules(g, [NORM])                               # <j:> + proves + uses
-    # sanity: the run actually minted each provenance kind we mean to check.
-    names = {g.name(n) for n in g.nodes()}
-    assert prov.AXIOM in names and prov.PROVES in names and prov.USES in names
-    assert any(prov.is_justification(nm) for nm in names)
-    _assert_flag_matches_prov_kind(g)
-
-
-def test_inert_flag_covers_every_provenance_mint_isa_path():
-    # isa=True: the PRODUCTION run_bank/lowering mint path.
+def test_inert_flag_covers_every_provenance_mint_path():
+    # the PRODUCTION run_bank/lowering mint path (the only engine now — the retired rewriter
+    # oracle's mint path is no longer exercised).
     g = h.Graph()
     g.add_relation(g.add_node("x"), "r0", g.add_node("y"))
     prov.axiomatize(g, ["r0"])
-    run_rules(g, [NORM], isa=True)
+    run_rules(g, [NORM])
     names = {g.name(n) for n in g.nodes()}
     assert prov.PROVES in names and any(prov.is_justification(nm) for nm in names)
     _assert_flag_matches_prov_kind(g)
@@ -115,8 +109,6 @@ def test_retracted_marker_is_not_inert_flagged():
     # minted `inert=True`. A retracted fact hides because the spliced marker's NAME fails
     # `_endpoint_matches` (goal.py:736 sees it as a non-inert successor), NOT because it is
     # inert-skipped — so the flag-reader flip stays sound even though the marker is name-inert.
-    # (Its `control` state is path-dependent — control via the ISA INTERPOSE mint, unflagged via the
-    #  rewriter-oracle rewrite path — and irrelevant to the subject-finder flip, so not asserted.)
     from ugm.world_model import _is_inert
     assert _is_inert(ret.RETRACTED)                    # name-inert ...
     g = h.Graph()
@@ -124,7 +116,7 @@ def test_retracted_marker_is_not_inert_flagged():
     prov.axiomatize(g, ["r0"])
     run_rules(g, [NORM])
     ret.seed_retract(g, r0)
-    run(g, ret.RETRACT_RULES, provenance=True)
+    run_rules(g, ret.RETRACT_RULES, provenance=True)
     marker = next((n for n in g.nodes() if g.name(n) == ret.RETRACTED), None)
     assert marker is not None                          # the interposition happened ...
     assert not g.is_inert(marker)                      # ... but is NOT inert-flagged

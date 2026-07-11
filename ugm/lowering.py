@@ -534,11 +534,12 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
                     continue
             break
         for i, effect_ops, st in pending:
-            before = set(ag.nodes()) if provenance else None
-            out = machine.apply(ag, effect_ops, st)
-            total += 1
-            if provenance:                            # mint the in-graph justification (rewriter._apply)
-                from .provenance import j_name, PROVES, USES   # lazy (provenance -> world_model cycle)
+            emit_prov = provenance and not rules[i].meta   # META rules stay PROVENANCE-SILENT even
+            before = set(ag.nodes()) if emit_prov else None  # in a provenance=True run (the regress
+            out = machine.apply(ag, effect_ops, st)          # guard — a meta rule naming proves/uses
+            total += 1                                       # would else re-match the <j:> it just
+            if emit_prov:                              # minted), so reasoning + TMS/retraction rules
+                from .provenance import j_name, PROVES, USES   # can share ONE run (coref-as-rules).
                 *_, prem_regs, head_regs = lowered[i][1]
                 # made_facts = head rel nodes this firing NEWLY created (a deduped/existing rel is not
                 # re-proven — `before` excludes it), the analog of rewriter's `if not _relation_exists`.

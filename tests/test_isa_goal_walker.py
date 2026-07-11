@@ -105,7 +105,7 @@ def test_closure_declarations_reads_the_canonical_rel_property_fact():
     # declaration that generates the transitivity rule); the walker reads it as its base map.
     decl = h.Graph()
     h.load_text(decl, "is_a is transitive")
-    h.run(decl, h.RELATION_PROPERTY_FORMS)                 # declaration -> rel_property fact
+    h.run_rules(decl, h.RELATION_PROPERTY_FORMS)                 # declaration -> rel_property fact
     ag, _ = to_attrgraph(decl)
     assert _closure_declarations(ag) == {"is_a": "is_a"}   # {R: R}, read as DATA
 
@@ -119,7 +119,7 @@ def test_walker_fires_end_to_end_from_the_cnl_declaration():
     # reachability goal is then carried by the walker over `is_a` and agrees with tabling.
     g = h.Graph()
     h.load_text(g, "is_a is transitive")
-    h.run(g, h.RELATION_PROPERTY_FORMS)
+    h.run_rules(g, h.RELATION_PROPERTY_FORMS)
     rules = h.rules_in_graph(h.expand_relation_properties(g))
     ids = {n: g.add_node(n) for n in ("p", "q", "r")}
     for s, o in [("p", "q"), ("q", "r")]:

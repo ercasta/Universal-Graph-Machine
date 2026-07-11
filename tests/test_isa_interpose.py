@@ -7,12 +7,11 @@ reframes from "no opcode mutates a fact edge" to "the sole fact-edge op preserve
 
 Coverage: (1) the opcode identity `INTERPOSE ∘ RESTORE = id`; (2) the `rewire`-triple lowers to one
 INTERPOSE; (3) the CASCADE meta-rule matches inert `<j:…>` provenance under run_bank's per-rule
-inert-visibility; (4) run_bank retraction == `rewriter` retraction (the differential gate).
+inert-visibility; (4) run_bank's retraction hides the derived fact and its dependents.
 """
 import ugm as h
 from ugm import retraction as ret
 from ugm.cnl.authoring import run_rules
-from ugm.cnl.rewriter import run as rw_run
 from ugm.attrgraph import AttrGraph
 from ugm.machine import Machine, INTERPOSE, RESTORE, State
 from ugm.lowering import lower_rewire, rule_touches_provenance, Unlowerable
@@ -81,23 +80,21 @@ def test_cascade_is_provenance_aware_but_interpose_is_not():
     assert rule_touches_provenance(ret.INTERPOSE_RULE) is False
 
 
-# --- 4. run_bank retraction == rewriter retraction (the differential gate) -------------------
+# --- 4. run_bank retraction hides the derived fact and its dependents -------------------------
 
 def _derived_chain():
     g = h.Graph()
     g.add_relation(g.add_node("a"), "is_a", g.add_node("b"))
     b = g.nodes_named("b")[0]; g.add_relation(b, "is_a", g.add_node("c"))
-    rw_run(g, h.load_rules("?x is_a ?z when ?x is_a ?y and ?y is_a ?z"), provenance=True)
+    run_rules(g, h.load_rules("?x is_a ?z when ?x is_a ?y and ?y is_a ?z"), provenance=True)
     return g
 
 
-def test_runbank_retraction_matches_rewriter_cascade_and_hide():
-    def retract_via(isa):
-        g = _derived_chain()
-        assert _has(g, "a", "is_a", "c")                  # the derived shortcut is present
-        rel = next(r for r in g.out(g.nodes_named("b")[0])
-                   if g.name(r) == "is_a" and g.nodes_named("c")[0] in g.out(r))
-        ret.seed_retract(g, rel)
-        run_rules(g, ret.RETRACT_RULES, provenance=False, isa=isa)
-        return _has(g, "b", "is_a", "c"), _has(g, "a", "is_a", "c")
-    assert retract_via(False) == retract_via(True) == (False, False)
+def test_runbank_retraction_hides_the_derived_fact_and_its_dependents():
+    g = _derived_chain()
+    assert _has(g, "a", "is_a", "c")                  # the derived shortcut is present
+    rel = next(r for r in g.out(g.nodes_named("b")[0])
+               if g.name(r) == "is_a" and g.nodes_named("c")[0] in g.out(r))
+    ret.seed_retract(g, rel)
+    run_rules(g, ret.RETRACT_RULES, provenance=False)
+    assert not _has(g, "b", "is_a", "c") and not _has(g, "a", "is_a", "c")

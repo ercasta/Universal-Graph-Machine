@@ -8,17 +8,22 @@ cycle — no Python loop, no cascade, no retraction.
 """
 import ugm as h
 from ugm import coref_walk as cw
-from ugm.cnl.rewriter import run
+from ugm import run_bank
 from ugm.cnl.universal import same_as_rules, UNIVERSAL_RULES
 
 
 def _walk(g, name, preds):
     """Assemble and run the full one-pass check-before-commit walk over `name`: cursor rules +
     propagation + is_a transitivity, provenance ON, the settle barrier as a tool. No Python loop,
-    no retraction."""
+    no retraction. Uses `run_bank` DIRECTLY (not `run_rules`, which stratifies rules into layers
+    run to fixpoint one at a time) — `resolve_coref` (coref_walk.py) also calls `run_bank` on the
+    whole rule list in one pass, and stratifying this particular bank changes the firing order
+    enough to flip WHICH of two symmetric compatible links the greedy walk keeps (still exactly
+    one, still consistent — see test_transitive_clash_keeps_a_consistent_partition — but this
+    test fixture must match production's actual call shape to pin the real behavior)."""
     cw.materialize_cursor(g, name)
     rules = cw.CURSOR_RULES + cw.clash_rules(g) + same_as_rules(preds) + UNIVERSAL_RULES
-    run(g, rules, tools=cw.SETTLE_TOOLS, provenance=True)
+    run_bank(g, rules, tools=cw.SETTLE_TOOLS, provenance=True)
 
 
 def _pairs(g):
@@ -69,7 +74,7 @@ def test_cursor_visits_every_pair_in_one_run_no_loop():
         g.add_node("paul")
     tok = cw.materialize_cursor(g, "paul")
 
-    run(g, cw.CURSOR_WALK_STUB, tools=cw.SETTLE_TOOLS)
+    run_bank(g, cw.CURSOR_WALK_STUB, tools=cw.SETTLE_TOOLS, provenance=True)
 
     # every pair got settled — the walk reached all of them via emergent rule+tool firing
     assert all(_settled(g, p) for p in _pairs(g))

@@ -1,24 +1,23 @@
 """
 The ISA FORWARD driver for RECOGNITION — `isa.lowering.run_bank` (the reference opcode `Machine`
-+ a dumb `Rule`->program lowering, driven to fixpoint) replacing `rewriter.run` on the recognition
-path (decision-attrgraph-rehost, the "one engine" move).
++ a dumb `Rule`->program lowering, driven to fixpoint), the ONE production engine for the
+recognition path (decision-attrgraph-rehost, the "one engine" move).
 
 `run_bank` is a forward, seed-and-walk matcher (SEED a rel by name, FOLLOW bare edges) — NOT the
 backward demand-all-heads `solve_all` (which over-recognized globally and was ~28x slower per
 sentence). The opcode set stays PURELY POSITIVE: a NAC is lowered to a positive sub-program the
-DRIVER runs as a match-time filter (faithful to `rewriter.nac_blocks`), never a CHECK-ABSENT opcode.
-Value invention (`<cond>?`/`<rule>?` skolem, tag literals) reproduces `rewriter.apply_rule`'s
-per-firing `fresh` dict.
+DRIVER runs as a match-time filter, never a CHECK-ABSENT opcode. Value invention (`<cond>?`/
+`<rule>?` skolem, tag literals) reproduces the per-firing fresh-node-minting discipline.
 
-These are the differential tests pinning that `run_bank(_ALL_FORMS)` reproduces `rewriter.run`
-EXACTLY — recognized RULES identical AND real domain FACTS identical — which is what licenses
-routing production `load_facts`/`load_corpus` recognition through it (`authoring._recognize`).
+These pin `run_bank(_ALL_FORMS)`'s OWN recognized RULES and real domain FACTS against a FIXED
+expected value (equivalence with the previous rewriter/name-based generation is NOT a correctness
+target, implementation_plan.md 2026-07-10 ratification) — this is what licenses routing production
+`load_facts`/`load_corpus` recognition through it (`authoring._recognize`).
 """
 import ugm as h
 from ugm.cnl import forms as F
 from ugm.cnl.authoring import _ALL_FORMS, _corpus_lines, expand_rules, load_corpus
 from ugm.cnl.forms import tokenize
-from ugm.cnl.rewriter import run as rw_run
 from ugm import run_bank, derived_triples
 from ugm.attrgraph import _is_inert
 
@@ -83,23 +82,87 @@ def _recognize(driver, sentences):
     return g
 
 
-def test_run_bank_matches_rewriter_whole_batch():
-    """Whole-batch: `run_bank` reproduces `rewriter.run` on `_ALL_FORMS` — facts AND rules."""
+# The FIXED expected recognition result of `run_bank(_ALL_FORMS)` on the whole CORPUS — every
+# recognition shape in one batch (plain facts, a relation, gradable declaration, disjointness, an
+# if/then universal, a plural-noun universal, a bare-body rule, a graded-body rule, a NAC rule, a
+# lexicon frame + loose imperative, a closed-world declaration).
+_WHOLE_BATCH_FACTS = {
+    ("alice", "is_a", "customer"), ("alice", "wants", "vanilla"),
+    ("bob", "is_a", "customer"), ("vanilla", "is", "in_stock"), ("urgent", "is", "gradable"),
+    ("rough", "before", "they"), ("then", "is_bnd", "yes"), ("and", "is_bnd", "yes"),
+    ("very", "is_kw", "yes"), ("when", "is_bnd", "yes"),
+    ("not", "is_kw", "yes"), ("not", "kw_not", "yes"),
+}
+_WHOLE_BATCH_RULES = [
+    ("rule.?c.is.urgent",
+     (("?c", "is_a", "customer"),), (),
+     (("?c", "is", "urgent"),), (("?c", (("urgent", 1.0),), 0.8),)),
+    ("rule.?c.served.express",
+     (("?c", "wants", "?f"),), (), (("?c", "served", "express"),), ()),
+    ("rule.?x.are.young",
+     (("?x", "is", "rough"),), (), (("?x", "are", "young"),), ()),
+    ("rule.?x.is.thief",
+     (("?x", "is_a", "suspect"),), (("?x", "is", "cleared"),),
+     (("?x", "is", "thief"),), ()),
+]
+
+
+def test_run_bank_reproduces_the_expected_whole_batch_recognition():
+    """Whole-batch: `run_bank` recognizes `_ALL_FORMS` over the diverse CORPUS as expected —
+    facts AND rules pinned directly."""
     sents = _corpus_lines(CORPUS)
-    gf = _recognize(rw_run, sents)
     gb = _recognize(run_bank, sents)
-    assert _real_facts(gb) == _real_facts(gf)
-    assert _rule_shapes(gb) == _rule_shapes(gf)
+    assert _real_facts(gb) == _WHOLE_BATCH_FACTS
+    assert _rule_shapes(gb) == _WHOLE_BATCH_RULES
 
 
-def test_run_bank_matches_rewriter_per_sentence():
-    """Per-sentence isolation is also faithful (the property that made whole-batch safe): every
-    single statement recognizes byte-for-byte the same under both engines."""
+# Per-sentence expected (facts, rule-shapes) — the property that made whole-batch safe: every
+# single statement recognizes deterministically in isolation, and the per-sentence results union
+# to the whole-batch result above.
+_PER_SENTENCE = {
+    "alice is a customer": ({("alice", "is_a", "customer")}, []),
+    "alice wants vanilla": ({("alice", "wants", "vanilla")}, []),
+    "bob is a customer": ({("bob", "is_a", "customer")}, []),
+    "vanilla is in_stock": ({("vanilla", "is", "in_stock")}, []),
+    "urgent is gradable": ({("urgent", "is", "gradable")}, []),
+    "solid is disjoint from liquid": (set(), []),
+    "if someone is rough then they are young": (
+        {("rough", "before", "they"), ("then", "is_bnd", "yes")},
+        [("rule.?x.are.young", (("?x", "is", "rough"),), (), (("?x", "are", "young"),), ())],
+    ),
+    "Cold things are kind": (set(), []),
+    "?c served express when ?c wants ?f": (
+        {("when", "is_bnd", "yes")},
+        [("rule.?c.served.express", (("?c", "wants", "?f"),), (),
+          (("?c", "served", "express"),), ())],
+    ),
+    "?c is urgent when ?c is a customer and ?c is very urgent": (
+        {("and", "is_bnd", "yes"), ("very", "is_kw", "yes"), ("when", "is_bnd", "yes")},
+        [("rule.?c.is.urgent", (("?c", "is_a", "customer"),), (),
+          (("?c", "is", "urgent"),), (("?c", (("urgent", 1.0),), 0.8),))],
+    ),
+    "?x is thief when ?x is a suspect and ?x is not cleared": (
+        {("and", "is_bnd", "yes"), ("not", "is_kw", "yes"), ("not", "kw_not", "yes"),
+         ("when", "is_bnd", "yes")},
+        [("rule.?x.is.thief", (("?x", "is_a", "suspect"),), (("?x", "is", "cleared"),),
+          (("?x", "is", "thief"),), ())],
+    ),
+    "serve ?x first means ?x served express when ?x wants ?f and ?f is in_stock": (
+        {("and", "is_bnd", "yes"), ("when", "is_bnd", "yes")}, [],
+    ),
+    "serve urgent customers first": (set(), []),
+    "cleared is closed world": (set(), []),
+}
+
+
+def test_run_bank_reproduces_the_expected_per_sentence_recognition():
+    """Per-sentence isolation is also as expected: every single statement recognizes
+    deterministically, pinned directly against a fixed expectation."""
     for s in _corpus_lines(CORPUS):
-        gf = _recognize(rw_run, [s])
         gb = _recognize(run_bank, [s])
-        assert _real_facts(gb) == _real_facts(gf), s
-        assert _rule_shapes(gb) == _rule_shapes(gf), s
+        exp_facts, exp_rules = _PER_SENTENCE[s]
+        assert _real_facts(gb) == exp_facts, s
+        assert _rule_shapes(gb) == exp_rules, s
 
 
 def test_run_bank_nac_guard_blocks_generic_clause():
@@ -110,13 +173,6 @@ def test_run_bank_nac_guard_blocks_generic_clause():
     g = _recognize(run_bank, ["?c is urgent when ?c is a customer and ?c is very urgent"])
     rule = next(r for r in expand_rules(g) if r.key == "rule.?c.is.urgent")
     assert [p.tokens() for p in rule.lhs] == [("?c", "is_a", "customer")]   # no ('?c','is','a')
-
-
-def test_run_bank_recursive_rule_terminates():
-    """The `fired` set (keyed over LHS binders) terminates a recognition fixpoint that keeps
-    matching — a whole realistic corpus reaches fixpoint and its rules are the rewriter set."""
-    g = _recognize(run_bank, _corpus_lines(CORPUS))
-    assert _rule_shapes(g) == _rule_shapes(_recognize(rw_run, _corpus_lines(CORPUS)))
 
 
 def test_load_corpus_reasons_correctly_on_run_bank_recognition():

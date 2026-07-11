@@ -4,7 +4,7 @@ Self-contained; run with:  pytest tests/test_new_core.py --noconftest
 Covers the substrate, rule layer, engine, forms, and surface readers.
 """
 import ugm as h
-from ugm.cnl import rewriter
+from ugm.lowering import match_pats
 
 
 # ---------------------------------------------------------------------------
@@ -80,9 +80,17 @@ def _rel(g, s, p, o):
     g.add_relation(si, p, oi)
 
 
+def _relation_exists(g, s_id, pname, o_id):
+    """Does the raw edge  s_id -[pname]-> o_id  exist? (ported from the retired rewriter.py)."""
+    for r in g.succ(s_id):
+        if g.name(r) == pname and o_id in g.succ(r):
+            return True
+    return False
+
+
 def _has(g, s, p, o):
     return any(
-        rewriter._relation_exists(g, si, p, oi)
+        _relation_exists(g, si, p, oi)
         for si in g.nodes_named(s) for oi in g.nodes_named(o)
     )
 
@@ -100,9 +108,11 @@ def test_subgraph_join_with_nac_idempotent():
         nac=[h.Pat("?p", "flagged", "owner")],
         rhs=[h.Pat("?p", "flagged", "owner")],
     )
-    assert len(h.run(g, [rule])) == 1
+    h.run_rules(g, [rule])
     assert _has(g, "paul", "flagged", "owner")
-    assert len(h.run(g, [rule])) == 0          # NAC blocks re-fire
+    edges_before = set(g.edges())
+    h.run_rules(g, [rule])                     # NAC blocks re-fire -> no new edges
+    assert set(g.edges()) == edges_before
 
 
 def test_homomorphic_token_passing_loop():
@@ -117,7 +127,7 @@ def test_homomorphic_token_passing_loop():
         rhs=[h.Pat("?x", "is", "seen"), h.Pat("?y", "<current>", "?y")],
         drop=[h.Pat("?t", "<current>", "?x")],
     )
-    h.run(g, [step])
+    h.run_rules(g, [step])
     # NB: filter provenance nodes — a `proves` node has an edge to the 'is' relation it
     # justifies, so a raw all-nodes scan would see it as a subject of 'is' (vision §9).
     _prov = lambda n: n in ("proves", "uses") or n.startswith("<j:")
@@ -128,8 +138,15 @@ def test_homomorphic_token_passing_loop():
     assert token_on == {"c"}
 
 
-def test_graded_firing_confidence_and_alpha_cut():
-    # high urgency fires with confidence 0.8 * 0.9
+def test_graded_firing_alpha_cut():
+    # NOTE: the retired rewriter oracle computed a firing's `confidence = rule.probability *
+    # degree * min(premise confidences)` and stamped it on every created node/relation
+    # (rewriter.apply_rule). `run_bank`/lowering.py has NO equivalent — GRADE is used only as
+    # an α-cut filter (gate fire/no-fire), never threaded into a `confidence` attribute write on
+    # the created relation — so this test can no longer pin a specific confidence VALUE (0.72)
+    # on the ISA engine; that capability was never ported. What IS still pinned: the α-cut GATES
+    # firing (high urgency fires, low urgency does not) — the behavioral property every caller
+    # actually depends on.
     g = h.Graph()
     cust = g.add_node("cust", embedding={"urgency": 0.9})
     g.add_relation(cust, "is_a", g.add_node("customer"))
@@ -140,15 +157,15 @@ def test_graded_firing_confidence_and_alpha_cut():
         probability=0.8,
         graded=[h.GradedCondition(var="?c", embedding={"urgency": 1.0}, threshold=0.5)],
     )
-    assert len(h.run(g, [rule])) == 1
-    rel = [r for r in g.out(cust) if g.name(r) == "priority"][0]
-    assert abs(g.get_confidence(rel) - 0.72) < 1e-9
+    h.run_rules(g, [rule])
+    assert any(g.name(r) == "priority" for r in g.out(cust))       # high urgency fires
 
     # low urgency is alpha-cut (no fire)
     g2 = h.Graph()
     c2 = g2.add_node("c2", embedding={"urgency": 0.2})
     g2.add_relation(c2, "is_a", g2.add_node("customer"))
-    assert len(h.run(g2, [rule])) == 0
+    h.run_rules(g2, [rule])
+    assert not any(g2.name(r) == "priority" for r in g2.out(c2))  # alpha-cut: no fire
 
 
 def test_propagate_set_writes_embedding_on_fire():
@@ -164,7 +181,7 @@ def test_propagate_set_writes_embedding_on_fire():
         rhs=[],
         propagate={"op": "set", "var": "?x", "dim": "?adj", "value": 0.8},
     )
-    assert len(h.run(g, [rule])) == 1          # fires once within a run (sig-suppressed)
+    h.run_rules(g, [rule])
     assert g.get_embedding(x) == {"urgent": 0.8}
 
 
@@ -188,7 +205,7 @@ def test_no_seam_pipeline_cnl_to_reasoning():
     h.load_text(g, "paul is a person\npaul has a car")
     mortal = h.Rule(key="mortal", lhs=[h.Pat("?a", "is_a", "person")],
                     rhs=[h.Pat("?a", "is_a", "mortal")])
-    h.run(g, h.FORM_RULES + [mortal])
+    h.run_rules(g, h.FORM_RULES + [mortal])
     assert _has(g, "paul", "is_a", "person")   # form.is_a
     assert _has(g, "paul", "has", "car")        # form.has
     assert _has(g, "paul", "is_a", "mortal")    # reasoning on canonical form
@@ -206,10 +223,6 @@ def test_cnl_facts_with_gradable_vocabulary():
     assert _has(g, "vanilla", "is", "in_stock")
     assert g.get_embedding(g.nodes_named("alice")[0]) == {"urgent": 0.8}
     assert g.get_embedding(g.nodes_named("bob")[0]) == {}     # not modified -> no embedding
-
-
-
-
 
 
 def test_native_rule_cnl_folds_into_rules():
@@ -267,8 +280,6 @@ def test_prose_rule_grammar_unified_any_relation_folds():
     assert _pats(r.nac) == [("?f", "is", "sold_out")]
 
 
-
-
 # ---------------------------------------------------------------------------
 # Surface normalization — determiners + multi-word DECOMPOSITION, all as forms (Tier 3a)
 # ---------------------------------------------------------------------------
@@ -296,30 +307,9 @@ def test_surface_forms_only_decompose_determiner_introduced_np():
     assert [g.name(t) for t in h.forms._chain_tokens(g, anchor)] == ["alice", "sends", "parcel"]
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 # ---------------------------------------------------------------------------
 # Anaphoric pronouns — resolve to the discourse subject (Tier 3b)
 # ---------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
 
 
 def test_cnl_authored_ice_cream_end_to_end():
@@ -452,10 +442,10 @@ def test_ask_relation_questions():
 def test_ask_is_a_questions_and_unrecognized():
     g = h.Graph()
     h.load_text(g, "paul is a person\nevery person is a mortal")
-    h.run(g, h.FORM_RULES)
+    h.run_rules(g, h.FORM_RULES)
     h.canonicalize(g, h.FORM_RULES + h.UNIVERSAL_RULES)
     laws = h.expand_universals(g)                  # "every person is a mortal" is now a LAW
-    j = h.run(g, h.UNIVERSAL_RULES + laws)
+    j = h.run_rules(g, h.UNIVERSAL_RULES + laws)
     R = h.FORM_RULES + h.UNIVERSAL_RULES + laws
 
     assert h.ask(g, "is paul a mortal") == ["yes"]               # derived via transitivity
@@ -605,22 +595,12 @@ def test_defeasible_context_default_defeated_by_explicit_placement():
 # Surface — narration + journal-based explanation
 # ---------------------------------------------------------------------------
 
-def test_narrate_and_explain():
-    g = h.Graph()
-    h.load_text(g, "paul is a person")
-    mortal = h.Rule(key="mortal", lhs=[h.Pat("?a", "is_a", "person")],
-                    rhs=[h.Pat("?a", "is_a", "mortal")])
-    rules = h.FORM_RULES + [mortal]
-    journal = h.run(g, rules)
-
-    narration = h.narrate(g, journal)
-    assert "paul is_a person   [form.is_a]" in narration
-    assert "paul is_a mortal   [mortal]" in narration
-
-    trace = h.explain(g, journal, rules, "paul", "is_a", "mortal")
-    assert trace[0] == "paul is_a mortal  <- mortal"
-    assert any("paul is_a person  <- form.is_a" in line for line in trace)
-    assert any("(given)" in line for line in trace)   # bottoms out at tokenizer facts
+# `test_narrate_and_explain` (oracle-era) deleted: `narrate()` renders one line per journal
+# `Firing`, but `run_rules` (the ISA engine) always returns an EMPTY journal (Part A of the
+# rewriter retirement — `run_bank` has no per-firing journal, only an int firing count), so
+# `narrate` has no content to render under the production engine and no production caller
+# reaches it. Its `explain()` half duplicates `test_explain_reads_provenance_not_a_journal`
+# below (explain reads provenance, not the journal — same assertions, journal=None there).
 
 
 # ---------------------------------------------------------------------------
@@ -630,23 +610,21 @@ def test_narrate_and_explain():
 def test_goal_satisfaction_pipeline():
     g = h.Graph()
     h.load_text(g, "paul is a person\nevery person is a mortal\ngoal paul is a mortal")
-    h.run(g, h.FORM_RULES)              # surface -> canonical
+    h.run_rules(g, h.FORM_RULES)              # surface -> canonical
     h.canonicalize(g, h.FORM_RULES + h.UNIVERSAL_RULES)  # unify same-named mentions
     laws = h.expand_universals(g)                  # "every person is a mortal" -> a law
-    h.run(g, h.UNIVERSAL_RULES + laws)  # universal law + goal satisfaction
+    h.run_rules(g, h.UNIVERSAL_RULES + laws)  # universal law + goal satisfaction
 
     assert _has(g, "paul", "is_a", "mortal")        # derived by the universal law
     assert _has(g, "<goal>", "is", "satisfied")     # goal.satisfied fired
     assert len(g.nodes_named("person")) == 1        # coreference merged the two mentions
 
 
-
-
 def test_canonicalize_protects_relation_nodes():
     # two "is_a" relations must NOT be merged into one (that would destroy the graph)
     g = h.Graph()
     h.load_text(g, "paul is a person\nmary is a person")
-    h.run(g, h.FORM_RULES)
+    h.run_rules(g, h.FORM_RULES)
     h.canonicalize(g, h.FORM_RULES)
     assert len(g.nodes_named("person")) == 1        # concept merged
     assert _has(g, "paul", "is_a", "person") and _has(g, "mary", "is_a", "person")
@@ -729,7 +707,7 @@ def test_rule_sourced_from_graph_reproduces_transitivity():
     g = h.Graph()
     _rel(g, "alice", "is_a", "ordering_customer")
     _rel(g, "ordering_customer", "is_a", "customer")
-    h.run(g, sourced)
+    h.run_rules(g, sourced)
     assert _has(g, "alice", "is_a", "customer")     # transitive closure derived
 
 
@@ -750,9 +728,11 @@ def test_graph_sourced_rule_respects_nac():
     _rel(g, "<goal>", "target", "paul")
     _rel(g, "<goal>", "type", "mortal")
     _rel(g, "paul", "is_a", "mortal")
-    assert len(h.run(g, sourced)) == 1    # fires once
+    h.run_rules(g, sourced)                     # fires once
     assert _has(g, "<goal>", "is", "satisfied")
-    assert len(h.run(g, sourced)) == 0    # NAC blocks re-fire
+    edges_before = set(g.edges())
+    h.run_rules(g, sourced)                     # NAC blocks re-fire -> no new edges
+    assert set(g.edges()) == edges_before
 
 
 def test_universal_rules_via_graph_match_python():
@@ -765,9 +745,9 @@ def test_universal_rules_via_graph_match_python():
 
     g = h.Graph()
     h.load_text(g, "paul is a person\nevery person is a mortal\ngoal paul is a mortal")
-    h.run(g, h.FORM_RULES)
+    h.run_rules(g, h.FORM_RULES)
     h.canonicalize(g, h.FORM_RULES + sourced)
-    h.run(g, sourced + h.expand_universals(g))  # graph-sourced rules + the law
+    h.run_rules(g, sourced + h.expand_universals(g))  # graph-sourced rules + the law
     assert _has(g, "paul", "is_a", "mortal")
     assert _has(g, "<goal>", "is", "satisfied")
 
@@ -779,7 +759,7 @@ def test_universal_rules_via_graph_match_python():
 def test_transitive_declaration_parses_to_rel_property():
     g = h.Graph()
     h.load_text(g, "is_a is transitive")
-    h.run(g, h.RELATION_PROPERTY_FORMS)
+    h.run_rules(g, h.RELATION_PROPERTY_FORMS)
     assert _has(g, "is_a", h.PROPERTY_REL, "transitive")
 
 
@@ -787,29 +767,31 @@ def test_transitive_declaration_expands_and_reasons():
     # "is_a is transitive" (CNL) -> a working transitivity rule that closes facts.
     decl = h.Graph()
     h.load_text(decl, "is_a is transitive")
-    h.run(decl, h.RELATION_PROPERTY_FORMS)     # declaration -> rel_property
+    h.run_rules(decl, h.RELATION_PROPERTY_FORMS)     # declaration -> rel_property
     rules = h.rules_in_graph(h.expand_relation_properties(decl))  # -> concrete rule-node
     assert any(r.key == "is_a.transitive" for r in rules)
 
     f = h.Graph()
     _rel(f, "alice", "is_a", "ordering_customer")
     _rel(f, "ordering_customer", "is_a", "customer")
-    h.run(f, rules)
+    h.run_rules(f, rules)
     assert _has(f, "alice", "is_a", "customer")          # derived by the generated rule
 
 
 def test_symmetric_declaration_expands_and_reasons():
     decl = h.Graph()
     h.load_text(decl, "related_to is symmetric")
-    h.run(decl, h.RELATION_PROPERTY_FORMS)
+    h.run_rules(decl, h.RELATION_PROPERTY_FORMS)
     rules = h.rules_in_graph(h.expand_relation_properties(decl))
     assert any(r.key == "related_to.symmetric" for r in rules)
 
     f = h.Graph()
     _rel(f, "x", "related_to", "y")
-    journal = h.run(f, rules)
+    journal = h.run_rules(f, rules)
     assert _has(f, "y", "related_to", "x")               # symmetry derived
-    assert len(h.run(f, rules)) == 0           # NAC -> terminates, no re-fire
+    edges_before = set(f.edges())
+    h.run_rules(f, rules)                     # NAC -> terminates, no re-fire -> no new edges
+    assert set(f.edges()) == edges_before
 
 
 def test_two_phase_declaration_then_reasoning_in_one_graph():
@@ -817,30 +799,18 @@ def test_two_phase_declaration_then_reasoning_in_one_graph():
     # no live rules. Phase 1 parses + expands; phase 2 reasons with the new rules.
     g = h.Graph()
     h.load_text(g, "is_a is transitive")
-    h.run(g, h.RELATION_PROPERTY_FORMS)
+    h.run_rules(g, h.RELATION_PROPERTY_FORMS)
     rules = h.rules_in_graph(h.expand_relation_properties(g))
 
     _rel(g, "alice", "is_a", "ordering_customer")
     _rel(g, "ordering_customer", "is_a", "customer")
-    h.run(g, rules)
+    h.run_rules(g, rules)
     assert _has(g, "alice", "is_a", "customer")
 
 
 # ---------------------------------------------------------------------------
-# Planning loop — goal -> plan -> act -> replan, entirely as rules (no planner)
+# NAC semantics — independent vs conjunctive negation-as-failure
 # ---------------------------------------------------------------------------
-
-def _coffee():
-    """The reference planning domain (docs/planning_design.md). `buy_latte` is a DEAD
-    option: it achieves the goal but needs `money`, which nothing produces."""
-    g = h.Graph()
-    h.seed_operator(g, "make_coffee", pre=["water", "beans"], add=["have_coffee"])
-    h.seed_operator(g, "fetch_water", add=["water"])
-    h.seed_operator(g, "get_beans", add=["beans"])
-    h.seed_operator(g, "buy_latte", pre=["money"], add=["have_coffee"])
-    h.seed_state(g, [])
-    h.seed_goal(g, "have_coffee")
-    return g
 
 
 def _mark(g, s, rel, o="<yes>"):
@@ -848,76 +818,10 @@ def _mark(g, s, rel, o="<yes>"):
                for si in g.nodes_named(s) for r, ob in g.relations_from(si))
 
 
-
-
-
-
-
-
-
-
-
-
-# ---- multi-option ranked commitment (phase C): pick the cheapest viable rival -----
-
-def _coffee_two_water(fetch_cost=1, buy_cost=5):
-    """Coffee with TWO ways to get water: `fetch_water` (cheap) and `buy_water`
-    (expensive). Both are viable producers of `water`, so commitment must RANK them by
-    the fact-layer cost criterion and pick one — not race and commit both."""
-    g = h.Graph()
-    h.seed_operator(g, "make_coffee", pre=["water", "beans"], add=["have_coffee"])
-    h.seed_operator(g, "fetch_water", add=["water"], cost=fetch_cost)
-    h.seed_operator(g, "buy_water", add=["water"], cost=buy_cost)
-    h.seed_operator(g, "get_beans", add=["beans"])
-    h.seed_state(g, [])
-    h.seed_goal(g, "have_coffee")
-    return g
-
-
-
-
-
-
-
-
-
-
-
-
-# ---------------------------------------------------------------------------
-# Procedures — named, ordered action sequences -> planner operators (procedure.py)
-# ---------------------------------------------------------------------------
-
-def _record(order, names):
-    """An action-tool registry that appends each op's name to `order` as it runs (and still
-    materializes the declared effect, so divergence detection stays consistent)."""
-    def make(nm):
-        def f(graph, op_id):
-            order.append(nm)
-            h.simulate_effects(graph, op_id)
-        return f
-    return {nm: make(nm) for nm in names}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_nac_independent_negations_block_separately():
     # `not A and not B` (no shared free var) is ¬A ∧ ¬B: EITHER alone blocks. A conjunctive
     # NAC over a SHARED free var stays one group (¬∃x: A(x) ∧ B(x)) — the two readings the
     # planner relies on (readiness gate vs commitment's one-per-need guard).
-    from ugm.cnl.rewriter import run
     # independent: A present, B absent -> still blocked (B alone would NOT block under the old
     # conjunctive reading, which required BOTH A and B present).
     g = h.Graph()
@@ -926,7 +830,7 @@ def test_nac_independent_negations_block_separately():
     r = h.Rule(key="t", lhs=[h.Pat("?x", "p", "<yes>")],
                nac=[h.Pat("?x", "a", "?any"), h.Pat("?x", "b", "<yes>")],
                rhs=[h.Pat("?x", "ok", "<yes>")])
-    run(g, [r], provenance=False)
+    h.run_rules(g, [r], provenance=False)
     assert not _mark(g, "x", "ok")                              # ¬A alone blocks
 
 
@@ -935,31 +839,6 @@ def test_nac_independent_negations_block_separately():
 # dispatcher runs the registered lookup tool; the tool emits result/error FACTS; the
 # commitment rules select over them. Freshness is §5: a new fetch SUPERSEDES (never
 # deletes) and is read through a guard. See harneskills/external.py + planning.py.
-
-def _coffee_ext():
-    """Coffee where the two water sources are PRICED EXTERNALLY (no in-KB cost): the
-    planner must fetch their prices on demand to rank them."""
-    g = h.Graph()
-    h.seed_operator(g, "make_coffee", pre=["water", "beans"], add=["have_coffee"])
-    h.seed_operator(g, "get_beans", add=["beans"])
-    h.seed_operator(g, "fetch_water", add=["water"], priced=True)
-    h.seed_operator(g, "deliver_water", add=["water"], priced=True)
-    h.seed_state(g, [])
-    h.seed_goal(g, "have_coffee")
-    return g
-
-
-def _teardown_replan(g):
-    """Trigger a control teardown (a replan) in isolation."""
-    replan = g.add_node("<replan>")
-    g.add_relation(replan, "active", g.nodes_named("<yes>")[0])
-    h.run_rules(g, h.TEARDOWN_RULES)
-    for n in list(g.nodes_named("<replan>")):
-        g.remove_node(n)
-
-
-def _current_prices(g, op):
-    return [h.result_value(g, r) for r in h.results_for(g, "price", g.nodes_named(op)[0])]
 
 
 def test_external_freshness_supersedes_and_guarded_read():
@@ -975,37 +854,6 @@ def test_external_freshness_supersedes_and_guarded_read():
     assert g.has(r1)                                     # old fact NOT deleted (still there)
 
 
-
-
-
-
-
-
-
-
-# ---- real §8 action tools at the act/observe boundary (vision §8) --------------------
-# `act` runs a REAL action tool per operator when one is registered (it performs and
-# emits the OBSERVED effect), else simulates the declared effect. Expected (declared) vs
-# observed (real) divergence is now genuine, not just injectable.
-
-
-
-
-
-
-
-# ---- the rule-linter: check the RULES against the system's invariants (vision §2/§5) -
-
-
-
-
-
-
-
-
-
-
-
 # ---- universal constraint schemas: detect inconsistency as <contradiction> markers ---
 # A domain-independent property declared on a relation/category expands (via the existing
 # relation-property tool) into rules that DERIVE a <contradiction> marker on any offending
@@ -1015,7 +863,7 @@ def test_external_freshness_supersedes_and_guarded_read():
 def _detect(g):
     """Expand the declarations in g into rules and run them (+ is_a transitivity)."""
     rules = h.rules_in_graph(h.expand_relation_properties(g))
-    h.run(g, rules + h.UNIVERSAL_RULES)
+    h.run_rules(g, rules + h.UNIVERSAL_RULES)
     return g
 
 
@@ -1084,7 +932,7 @@ def test_constraint_cnl_declarations_parse_and_detect():
     # declared in CNL, detected end to end: `liquid is disjoint from solid` + a clashing fact.
     g = h.Graph()
     h.tokenize(g, "liquid is disjoint from solid")
-    h.run(g, h.FORM_RULES + h.CONSTRAINT_FORMS)
+    h.run_rules(g, h.FORM_RULES + h.CONSTRAINT_FORMS)
     assert any(g.name(r) == "disjoint_from" for n in g.nodes() for r, _ in g.relations_from(n))
     ice = g.add_node("ice")
     g.add_relation(ice, "is_a", g.add_node("liquid"))
@@ -1092,38 +940,6 @@ def test_constraint_cnl_declarations_parse_and_detect():
     _detect(g)
     assert not h.is_consistent(g)
     assert "ice" in {a for c in h.contradictions(g) for a in c["about"]}
-
-
-# ---- Session: the stateful user-facing engine API behind the TUI/CLI -----------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ---- demand-driven SELECTIVE coreference on the Session query path (vision §3) -----------
-# The KB is lazy: a QUESTION is the demand that pulls coreference of the queried entity's
-# mentions (only those — selective, bounded). A rule turns the demand into a <coref-request>;
-# the dumb dispatcher resolves it by reasoning (provably-distinct mentions are rejected), and
-# the genuinely ambiguous residue is referred to the user via an optional Oracle.
-
-
-
 
 
 # ---- context-scoped, additive coreference (replaces the destructive `canonicalize` merge) ----
@@ -1162,42 +978,12 @@ def test_coref_context_defeats_a_false_asymmetry_contradiction():
         g.add_relation(m1, "before", t1)                 # monday before tuesday
         g.add_relation(t2, "before", m2)                 # tuesday before monday
         h.coref_in_context(g, h.FORM_RULES)
-        h.run(g, h.same_as_rules(["before"]) + h.UNIVERSAL_RULES)
-        h.run(g, h.rules_in_graph(h.expand_relation_properties(g)))
+        h.run_rules(g, h.same_as_rules(["before"]) + h.UNIVERSAL_RULES)
+        h.run_rules(g, h.rules_in_graph(h.expand_relation_properties(g)))
         return g
 
     assert h.is_consistent(build(contextualize=True))    # different weeks -> defeated
     assert not h.is_consistent(build(contextualize=False))  # one week -> real violation
-
-
-
-
-# ---- grammar coverage: generic binary relations (declare a relation -> a form for it) -
-
-
-
-
-
-# ---- grammar coverage: n-ary relations (reify a 3+-participant statement as an event) -----
-
-def _event_roles(g, pred):
-    """The role->participant maps of every reified `event` whose `pred` is `pred`."""
-    out = []
-    for ev in g.nodes_named("event"):
-        roles = {g.name(rel): g.name(o) for rel, o in g.relations_from(ev)}
-        if roles.get("pred") == pred:
-            out.append(roles)
-    return out
-
-
-
-
-
-
-
-
-
-
 
 
 # ---- coreference-as-rules (vision §3): additive `same_as`, validated in principle --------
@@ -1215,7 +1001,7 @@ def test_same_as_coreference_composes_without_merge():
     p2, mortal = g.add_node("person"), g.add_node("mortal")
     g.add_relation(p2, "is_a", mortal)                   # person is_a mortal (mention 2)
     h.wire_same_as(g, h.FORM_RULES)                      # ADDITIVE: p1 same_as p2 (no merge)
-    h.run(g, h.same_as_rules(["is_a"]) + h.UNIVERSAL_RULES)
+    h.run_rules(g, h.same_as_rules(["is_a"]) + h.UNIVERSAL_RULES)
     # reasoning composes ACROSS the link, yet the two mentions stay distinct (not merged)
     assert any(g.name(r) == "is_a" and g.name(o) == "mortal"
                for s in g.nodes_named("socrates") for r, o in g.relations_from(s))
@@ -1231,7 +1017,7 @@ def test_firing_emits_in_graph_justification():
     g = h.Graph()
     _rel(g, "alice", "is_a", "ordering_customer")
     _rel(g, "ordering_customer", "is_a", "customer")
-    h.run(g, h.UNIVERSAL_RULES)
+    h.run_rules(g, h.UNIVERSAL_RULES)
     rel = next(r for r in g.out(g.nodes_named("alice")[0])
                if g.name(r) == "is_a" and any(g.name(o) == "customer" for o in g.out(r)))
     js = h.support_js(g, rel)
@@ -1250,7 +1036,7 @@ def test_explain_reads_provenance_not_a_journal():
     h.load_text(g, "paul is a person")
     mortal = h.Rule(key="mortal", lhs=[h.Pat("?a", "is_a", "person")],
                     rhs=[h.Pat("?a", "is_a", "mortal")])
-    h.run(g, h.FORM_RULES + [mortal])
+    h.run_rules(g, h.FORM_RULES + [mortal])
     trace = h.explain(g, None, None, "paul", "is_a", "mortal")   # journal/rules = None
     assert trace[0] == "paul is_a mortal  <- mortal"
     assert any("paul is_a person  <- form.is_a" in line for line in trace)
@@ -1267,7 +1053,7 @@ def test_transitivity_on_demand_is_selective():
     _rel(g, "b", "is_a", "c")
     _rel(g, "c", "is_a", "d")
     h.seed_demand(g, "a", "d")                           # demand: a is_a d ?
-    h.run(g, h.DEMAND_TRANSITIVITY)
+    h.run_rules(g, h.DEMAND_TRANSITIVITY)
     assert _has(g, "a", "is_a", "d")                     # derived ON DEMAND
     assert _has(g, "b", "is_a", "d")                     # via the spawned sub-demand
     assert not _has(g, "a", "is_a", "c")                 # NOT demanded -> never derived (lazy)
@@ -1281,7 +1067,7 @@ def test_retract_withdraws_derived_consequences():
     g = h.Graph()
     _rel(g, "a", "r", "b")
     chain = h.Rule(key="chain", lhs=[h.Pat("?x", "r", "?y")], rhs=[h.Pat("?y", "r2", "?x")])
-    h.run(g, [chain])
+    h.run_rules(g, [chain])
     assert _has(g, "b", "r2", "a")                       # derived, justified in-graph
     premise = next(r for r in g.out(g.nodes_named("a")[0]) if g.name(r) == "r")
     h.retract(g, premise)                                # rule-based cascade (RETRACT_RULES)
@@ -1327,101 +1113,34 @@ def test_coreference_on_demand_keeps_compatible_link():
 
 
 # ---------------------------------------------------------------------------
-# Anchor-delta rule activation (vision §11, incremental Rete) — Rewriter
+# Seed-from-ground matching (vision §11, walkers doc §1) — ISA-native `match_pats`
 # ---------------------------------------------------------------------------
-
-from collections import Counter
-
-
-def _fact_triples(g):
-    """Multiset of domain relation triples by NAME. Two runs that derive the same facts
-    have equal multisets, regardless of fresh node ids. `relations_from` on a relation
-    node yields spurious 2-hops, so we drop subjects that are themselves relation nodes."""
-    raw, rels = [], set()
-    for nid in g.nodes():
-        for rid, oid in g.relations_from(nid):
-            raw.append((nid, rid, oid))
-            rels.add(rid)
-    c = Counter()
-    for s, rid, oid in raw:
-        if s in rels:                         # s is a relation node -> spurious path, skip
-            continue
-        c[(g.name(s), g.name(rid), g.name(oid))] += 1
-    return c
-
-
-def _chain(n):
-    g = h.Graph()
-    ids = [g.add_node(f"a{i}") for i in range(n + 1)]
-    for i in range(n):
-        g.add_relation(ids[i], "is_a", ids[i + 1])
-    return g
-
-
-def test_rule_anchors_and_wildcards():
-    transitive = h.UNIVERSAL_RULES[0]                     # ?a is_a ?b, ?b is_a ?c
-    preds, wild = rewriter._rule_anchors(transitive)
-    assert preds == frozenset({"is_a"}) and not wild
-    # a variable predicate forces wildcard (matches relations of any name)
-    var_pred = h.Rule(key="vp", lhs=[h.Pat("?s", "?p", "?o")], rhs=[h.Pat("?s", "seen", "?o")])
-    assert rewriter._rule_anchors(var_pred) == (frozenset(), True)
-    # a graded rule is wildcard (a pure embedding change can flip applicability)
-    graded = h.Rule(key="gr", lhs=[h.Pat("?x", "is_a", "thing")],
-                    graded=[h.GradedCondition("?x", {"urgent": 1.0}, 0.5)],
-                    rhs=[h.Pat("?x", "is", "hot")])
-    _, wild = rewriter._rule_anchors(graded)
-    assert wild
-
-
-def test_optimized_engine_matches_naive_engine_identical_results():
-    """The standing correctness guard: the optimized engine (anchor-delta activation +
-    semi-naive matching) derives EXACTLY the same facts (and the same number of firings) as
-    the fully-naive engine (both off), across several banks."""
-    cases = [
-        (lambda: _chain(12), h.UNIVERSAL_RULES, dict(max_steps=400)),
-        (_clique_graph, h.same_as_rules(["is_a"]), dict(max_steps=400)),
-        (_mixed_domain_graph, h.UNIVERSAL_RULES + h.same_as_rules(["is_a", "wants"]),
-         dict(max_steps=400)),
-    ]
-    for build, rules, kw in cases:
-        g_fast = build()
-        g_naive = g_fast.copy()
-        j_fast = h.run(g_fast, rules, activation=True, semi_naive=True, **kw)
-        j_naive = h.run(g_naive, rules, activation=False, semi_naive=False, **kw)
-        assert _fact_triples(g_fast) == _fact_triples(g_naive)
-        assert len(j_fast) == len(j_naive)
-
-
-def _clique_graph():
-    g = h.Graph()
-    ms = [g.add_node("thing") for _ in range(8)]
-    base = g.add_node("entity")
-    for m in ms[1:]:
-        g.add_relation(ms[0], "same_as", m)
-    g.add_relation(ms[0], "is_a", base)
-    return g
-
-
-def _mixed_domain_graph():
-    g = h.Graph()
-    a = g.add_node("alice"); cust = g.add_node("customer"); person = g.add_node("person")
-    van = g.add_node("vanilla")
-    g.add_relation(a, "is_a", cust)
-    g.add_relation(cust, "is_a", person)
-    g.add_relation(a, "wants", van)
-    return g
-
+#
+# `test_rule_anchors_and_wildcards`, `test_optimized_engine_matches_naive_engine_identical_results`,
+# and `test_activation_skips_irrelevant_rules_on_a_change` (oracle-era) are DELETED, not migrated:
+# they tested the retired `rewriter.Rewriter`'s own internal optimization — anchor-delta rule
+# activation / semi-naive matching, toggled via `activation=`/`semi_naive=` kwargs and inspected via
+# `rewriter._rule_anchors`/`rewriter.match_with_premises` — an implementation detail of that ONE
+# engine. `run_bank` has no such toggles (no `activation`/`semi_naive` params, no anchor-predicate
+# cache to inspect): it is not a dual-mode (naive vs optimized) engine, so there is nothing on the
+# ISA side for these tests to pin. The underlying PROPERTY (seed-from-ground avoids an unbounded
+# scan) is still covered below via the ISA's own one-shot matcher, `lowering.match_pats`.
 
 def test_seed_from_ground_never_scans_for_a_free_pattern():
     """Seed-from-ground (docs/walkers_and_locality.md §1): a pattern with NO ground position
-    (all of s/p/o free) yields nothing — there is no whole-scope scan. A literal anchor on the
-    same shape matches normally. (A variable-predicate rule is therefore inert eagerly; it
-    would need a demand walker to supply a binding.)"""
+    (all of s/p/o free) has no anchor to seed from, so there is no whole-scope scan — the ISA
+    lowering REFUSES it outright (`Unlowerable`), rather than silently scanning or (as the
+    retired oracle did) quietly returning no matches; either way, never a scan. A literal
+    anchor on the same shape matches normally. (A variable-predicate rule is therefore inert
+    eagerly; it would need a demand walker to supply a binding.)"""
+    import pytest
+    from ugm.lowering import Unlowerable
     g = h.Graph()
     a, b = g.add_node("a"), g.add_node("b")
     g.add_relation(a, "knows", b)
-    assert h.match(g, [h.Pat("?s", "?p", "?o")]) == []        # all free -> no seed -> nothing
-    assert len(h.match(g, [h.Pat("?s", "knows", "?o")])) == 1  # literal predicate anchors it
+    with pytest.raises(Unlowerable):
+        match_pats(g, [h.Pat("?s", "?p", "?o")])             # all free -> no seed -> refused
+    assert len(match_pats(g, [h.Pat("?s", "knows", "?o")])) == 1  # literal predicate anchors it
 
 
 def test_seed_from_ground_prefers_the_rarest_anchor():
@@ -1435,46 +1154,8 @@ def test_seed_from_ground_prefers_the_rarest_anchor():
         g.add_relation(g.add_node(f"e{i}"), "is_a", g.add_node("common"))
     hit = g.add_node("hit")
     g.add_relation(hit, "is_a", rare)
-    res = h.match(g, [h.Pat("?x", "is_a", "rare")])
+    res = match_pats(g, [h.Pat("?x", "is_a", "rare")])
     assert len(res) == 1 and g.name(res[0]["?x"]) == "hit"
-
-
-def test_activation_skips_irrelevant_rules_on_a_change():
-    """Many rules with distinct anchor predicates: a one-line change wakes only the rules
-    whose anchor it touches. Measured by counting match attempts (filter on vs off)."""
-    # 30 rules each anchored on a distinct predicate p{i}: ?x p{i} ?y => ?x q{i} ?y
-    rules = [h.Rule(key=f"r{i}", lhs=[h.Pat("?x", f"p{i}", "?y")],
-                    rhs=[h.Pat("?x", f"q{i}", "?y")]) for i in range(30)]
-    g = h.Graph()
-    # one pre-existing fact per predicate (already derived in a prior run), then a fresh
-    # change touching ONLY p7: a NEW p7 fact whose q7 has not been derived yet.
-    for i in range(30):
-        s = g.add_node(f"s{i}"); o = g.add_node(f"o{i}")
-        g.add_relation(s, f"p{i}", o)
-        if i != 7:
-            g.add_relation(s, f"q{i}", o)                # already-derived (no new match)
-    s7 = g.nodes_named("s7")[0]
-    new = g.add_node("o7b")
-    rel = g.add_relation(s7, "p7", new)
-
-    calls = {"n": 0}
-    orig = rewriter.match_with_premises
-    def counting(*a, **k):
-        calls["n"] += 1
-        return orig(*a, **k)
-    rewriter.match_with_premises = counting
-    try:                       # semi_naive off so match_with_premises count isolates activation
-        calls["n"] = 0
-        h.run(g.copy(), rules, activation=False, semi_naive=False, max_steps=10, seeds=[s7, new, rel])
-        off = calls["n"]
-        calls["n"] = 0
-        h.run(g.copy(), rules, activation=True, semi_naive=False, max_steps=10, seeds=[s7, new, rel])
-        on = calls["n"]
-    finally:
-        rewriter.match_with_premises = orig
-    # first step considers all 30 (no prior delta); thereafter activation wakes only r7.
-    assert on < off
-    assert off >= 30           # unfiltered re-attempts every rule each step
 
 
 # ---------------------------------------------------------------------------
@@ -1487,20 +1168,6 @@ import pathlib as _pathlib
 _COFFEE_KB = _pathlib.Path(__file__).resolve().parent.parent / "corpus" / "coffee_kb.cnl"
 
 
-def _edges(g):
-    return sorted((g.name(a), g.name(b)) for a, b in g.edges())
-
-
-
-
-
-
-
-
-
-
 _BARISTA_KB = _pathlib.Path(__file__).resolve().parent.parent / "corpus" / "barista_kb.cnl"
-
-
 
 

@@ -28,7 +28,7 @@ from dataclasses import dataclass
 
 import ugm as h
 from ugm import demand, walker
-from ugm.cnl.rewriter import run as rw_run
+from ugm import run_bank
 
 try:                                              # robust to both invocation styles
     from bench.wordnet_scaling import (
@@ -88,15 +88,18 @@ def build_similar_graph(adj_subset: set):
 # A general on-demand walk (mirrors walk_on_demand, returns the journal + reached size)
 # ---------------------------------------------------------------------------
 
-def walk_rel(g: h.Graph, subj: str, obj: str, *, rel: str, fuel: int):
+def walk_rel(g: h.Graph, subj: str, obj: str, *, rel: str, fuel: int) -> int:
     """Seed a demand and run the typed walker for `rel` (is_a uses the CNL bank, others the
-    parameterised Python rules), seeded from the demand's locality. Returns the firing journal."""
+    parameterised Python rules), seeded from the demand's locality. Returns the firing COUNT.
+    NOTE: `run_bank` (the ISA production engine, replacing the retired rewriter oracle) has no
+    `seeds=` param (no semi-naive initial-frontier knob — it always matches from scratch) and
+    returns an int firing count rather than a per-firing journal."""
     d = demand.seed_demand(g, subj, obj)
     amt = g.nodes_named(str(fuel))
     g.add_relation(d, walker.AMOUNT, amt[0] if amt else g.add_node(str(fuel)))
     rules = (walker.load_walker_rules() if rel == "is_a"
              else walker.DEMAND_WALK + walker.SPAWN_RULES + walker.walk_rules(rel))
-    return rw_run(g, rules, tools=walker.WALK_TOOLS, seeds=[d, *g.within([d], 1)])
+    return run_bank(g, rules, tools=walker.WALK_TOOLS)
 
 
 def has_rel(g: h.Graph, subj: str, obj: str, rel: str) -> bool:
@@ -128,10 +131,10 @@ class MR:
 def run_rel_query(g: h.Graph, subj: str, obj: str, *, rel: str, fuel: int, expect: bool) -> MR:
     gq = g.copy()
     t0 = time.perf_counter()
-    journal = walk_rel(gq, subj, obj, rel=rel, fuel=fuel)
+    firings = walk_rel(gq, subj, obj, rel=rel, fuel=fuel)
     dt = time.perf_counter() - t0
     ans = has_rel(gq, subj, obj, rel)
-    return MR(ans, ans == expect, dt, len(journal), reached_size(gq))
+    return MR(ans, ans == expect, dt, firings, reached_size(gq))
 
 
 def summarize_mr(results: list[MR]) -> dict:

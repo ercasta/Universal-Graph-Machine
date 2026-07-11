@@ -37,10 +37,6 @@ from .suppose import (
     CONFIRMED, REFUTED, INCONCLUSIVE, HYPOTHESIS,
 )
 from .walker import Walker, WalkResult, walk_to_goal
-from .cnl.rewriter import (
-    run, match, match_with_premises, delta_matches,
-    nac_blocks, graded_degree, Firing, Rewriter, near_rules,
-)
 from .provenance import (
     PROVES, USES, AXIOM, j_name, is_justification, rule_of_j,
     support_js, rule_support_j, premises_of, proven_of, justifications_using,
@@ -99,7 +95,7 @@ from .cnl.walker import (
     refuel_tool, WALK_TOOLS, load_walker_rules,
 )
 from . import external, provenance, retraction, decide, dispatch, coref_walk, asp
-from .cnl import rewriter, forms, surface, authoring, universal, machine_rules, query, rule_graph
+from .cnl import forms, surface, authoring, universal, machine_rules, query, rule_graph
 from .external import (
     ARG, request, pending, consume_request,
     emit_result, emit_error, results_for, result_value, is_superseded,
@@ -114,7 +110,6 @@ def _alias(name: str, target: str) -> None:
 
 
 for _name, _target in {
-    "rewriter": "ugm.cnl.rewriter",
     "forms": "ugm.cnl.forms",
     "surface": "ugm.cnl.surface",
     "authoring": "ugm.cnl.authoring",
@@ -153,8 +148,6 @@ __all__ = [
     "suppose", "explain_suppose", "scope_members", "SupposeResult",
     "CONFIRMED", "REFUTED", "INCONCLUSIVE", "HYPOTHESIS",
     "Walker", "WalkResult", "walk_to_goal",
-    "run", "match", "match_with_premises", "delta_matches", "nac_blocks", "graded_degree",
-    "Firing", "Rewriter", "near_rules",
     "PROVES", "USES", "AXIOM", "j_name", "is_justification", "rule_of_j",
     "support_js", "rule_support_j", "premises_of", "proven_of", "justifications_using",
     "derived_facts", "axiomatize",
@@ -192,7 +185,7 @@ __all__ = [
     "spawn_walker", "walk_rules", "DEMAND_WALK", "SPAWN_RULES", "walk_on_demand",
     "refuel_tool", "WALK_TOOLS", "load_walker_rules",
     "external", "provenance", "retraction", "decide", "dispatch", "coref_walk", "asp",
-    "rewriter", "forms", "surface", "authoring", "universal", "machine_rules", "query", "rule_graph",
+    "forms", "surface", "authoring", "universal", "machine_rules", "query", "rule_graph",
     "ARG", "request", "pending", "consume_request",
     "emit_result", "emit_error", "results_for", "result_value", "is_superseded",
     "lookup_handler", "request_hub",

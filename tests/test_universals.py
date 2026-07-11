@@ -79,8 +79,6 @@ def test_elliptical_conjunction_in_the_prose_when_grammar():
     assert _shape(n) == ([("?x", "is", "young")], [("?x", "is", "calm")], [("?x", "is", "rough")])
 
 
-
-
 def test_literal_subject_reflects_a_ground_rule():
     # No quantifier word -> the subject stays a literal, so the law is a GROUND conditional over
     # that named entity (correct for ProofWriter's `if the lion ... then the lion ...` rules).
@@ -105,10 +103,6 @@ def test_plural_noun_universal():
     assert _shape(p) == ([("?x", "is", "cold")], [("?x", "is", "green")], [])
 
 
-
-
-
-
 def test_negation_universal_parses_to_a_nac():
     # `is not` in a body folds to a NAC (the copula sugar), just like the native `when` grammar.
     # (Its RUNTIME is limited by the coarse copula stratification — all `is X` share predicate
@@ -116,25 +110,3 @@ def test_negation_universal_parses_to_a_nac():
     # tracked object-aware copula stratification. Parsing is correct regardless.)
     [r] = load_universal_rules("if someone is young and they are not rough then they are calm")
     assert _shape(r) == ([("?x", "is", "young")], [("?x", "is", "calm")], [("?x", "is", "rough")])
-
-
-# ---------------------------------------------------------------------------
-# End-to-end through the Session — the raw-NL surface actually carries
-# ---------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

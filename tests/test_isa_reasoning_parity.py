@@ -1,21 +1,24 @@
 """
-`run_bank` REASONING parity with `rewriter.run` (implementation_plan.md Phase 0.3): the forward ISA
-Machine now drives the planner's REASONING + control, not just recognition. Recognition compared
-graphs as SETS of triples, which hid two node-IDENTITY properties reasoning depends on — a downstream
-rule joins by NODE, and the fixpoint loop witnesses on the EDGE set:
+`run_bank` REASONING properties (implementation_plan.md Phase 0.3): the forward ISA Machine drives
+the planner's REASONING + control, not just recognition. Recognition compared graphs as SETS of
+triples, which hid two node-IDENTITY properties reasoning depends on — a downstream rule joins by
+NODE, and the fixpoint loop witnesses on the EDGE set:
 
   1. INTERN — a head endpoint that is a PLAIN LITERAL canonicalizes to its graph-wide node
-     (`rewriter.resolve_so`), so two head-derived literals join. A fresh node per firing splits the
+     (`apply_rule.resolve_so`), so two head-derived literals join. A fresh node per firing splits the
      join (`<need> for ?c` and `?o add ?c` sharing `have_valuable`) and the derivation silently stalls
      — the exact `test_cards_frontier` value->plan divergence that gated the planner routing.
   2. DEDUP — a reified relation reuses an existing `subject -[rel]-> object`
-     (`rewriter._relation_exists`), so a rule re-fired across outer control cycles does not accrete
+     (`apply_rule._relation_exists`), so a rule re-fired across outer control cycles does not accrete
      duplicate rel nodes and the graph's EDGE set reaches a fixpoint (the planner's `_fingerprint`
      witness settles instead of growing forever).
+
+Equivalence with the previous (rewriter / name-based) generation is NOT a correctness target
+(implementation_plan.md, 2026-07-10 ratification) — assertions below pin run_bank's OWN behavior.
 """
 import ugm as h
 from ugm.production_rule import Pat, Rule
-from ugm.cnl.authoring import load_rules, run
+from ugm.cnl.authoring import load_rules
 from ugm import run_bank, derived_triples
 
 
@@ -73,9 +76,9 @@ def test_relation_dedup_reaches_an_edge_fixpoint_across_reruns():
     assert len([n for n in g.nodes() if g.name(n) == "flag"]) == 1
 
 
-def test_runbank_matches_rewriter_on_a_two_clause_value_bridge():
-    # the differential the docs named: run_bank == rewriter on the value->plan bridge SHAPE (a rule
-    # whose head extends a subject's relation from a derived property, then a join on that head).
+def test_runbank_derives_the_two_clause_value_bridge():
+    # the value->plan bridge SHAPE (a rule whose head extends a subject's relation from a derived
+    # property, then a join on that head) — pins run_bank's own derived-triple set directly.
     def build():
         g = h.Graph()
         op, card, need = g.add_node("op"), g.add_node("card"), g.add_node("<need>")
@@ -88,10 +91,14 @@ def test_runbank_matches_rewriter_on_a_two_clause_value_bridge():
         "?c is valuable when ?c is rare and ?c is in_demand\n"
         "?o add have_valuable when ?o acts_on ?c and ?c is valuable\n"
         "?o candidate have_valuable when <need> for have_valuable and ?o add have_valuable")
-    g_rw, g_isa = build(), build()
-    run(g_rw, rules, provenance=False)
+    g_isa = build()
     run_bank(g_isa, rules)
-    assert _triples(g_rw) == _triples(g_isa)
+    assert _triples(g_isa) == {
+        ("<need>", "for", "have_valuable"), ("acts_on", "card", "is"),
+        ("card", "is", "in_demand"), ("card", "is", "rare"), ("card", "is", "valuable"),
+        ("op", "acts_on", "card"), ("op", "add", "have_valuable"),
+        ("op", "candidate", "have_valuable"),
+    }
     assert ("op", "candidate", "have_valuable") in _triples(g_isa)
 
 
@@ -121,35 +128,32 @@ def test_propagate_with_a_literal_dimension():
     assert g.get_embedding(alice) == {"urgent": 0.5}
 
 
-def test_graded_pass_matches_rewriter_end_to_end():
-    # the real graded pass (load_facts: recognize -> coref -> graded) on both engines writes the
-    # SAME embedding — the differential gate for routing graded_rules onto run_bank.
+def test_graded_pass_writes_the_expected_embedding_end_to_end():
+    # the real graded pass (load_facts: recognize -> coref -> graded) on run_bank writes the
+    # expected embedding — pins the value directly (routing graded_rules onto run_bank).
     def emb(g):
         return {g.name(n): g.get_embedding(n) for n in g.nodes() if g.get_embedding(n)}
     text = "urgent is gradable\nalice is very urgent"
-    g_rw, g_isa = h.Graph(), h.Graph()
-    # load_facts now routes the reasoning passes to run_bank; compare against a rewriter reference
     from ugm.cnl.authoring import (
         _recognize, FORM_RULES, FACT_FORMS, wire_same_as, _coref_propagation, graded_rules,
         propagate_embeddings,
     )
-    for g, grade in ((g_rw, run), (g_isa, run_bank)):
-        rules = FORM_RULES + FACT_FORMS
-        _recognize(g, text.splitlines(), rules)
-        wire_same_as(g, rules)
-        grade(g, _coref_propagation(g))
-        grade(g, graded_rules(g))
-        propagate_embeddings(g)
-    assert emb(g_rw) == emb(g_isa)
-    assert emb(g_isa).get("alice") == {"urgent": 0.8}
+    g = h.Graph()
+    rules = FORM_RULES + FACT_FORMS
+    _recognize(g, text.splitlines(), rules)
+    wire_same_as(g, rules)
+    run_bank(g, _coref_propagation(g))
+    run_bank(g, graded_rules(g))
+    propagate_embeddings(g)
+    assert emb(g).get("alice") == {"urgent": 0.8}
 
 
 # --- Phase 0.5: provenance minting (walker/coref/fact-reasoning path) ------------------------
 
 def _prov_structure(g):
     """Every (rule-key, rel-name, sorted subj-names, sorted obj-names) a J proves, plus each J's
-    `uses` premises — the comparable justification structure `rewriter._apply` and `run_bank`
-    (provenance=True) both build (provenance.py: J -[proves]-> fact, J -[uses]-> premise)."""
+    `uses` premises — the justification structure `run_bank` (provenance=True) builds
+    (provenance.py: J -[proves]-> fact, J -[uses]-> premise)."""
     import ugm.provenance as pv
     from ugm.world_model import _is_inert
     live = lambda ns: tuple(sorted(g.name(n) for n in ns if not _is_inert(g.name(n))))
@@ -164,9 +168,9 @@ def _prov_structure(g):
     return proven, used
 
 
-def test_runbank_provenance_matches_rewriter_on_transitivity():
-    # run_bank(provenance=True) mints the SAME in-graph justifications as rewriter.run: one
-    # `<j:rule>` per firing that CREATED facts, `proves` each new fact, `uses` each LHS premise.
+def test_runbank_provenance_on_transitivity():
+    # run_bank(provenance=True) mints one `<j:rule>` per firing that CREATED facts, `proves`
+    # each new fact, `uses` each LHS premise — pinned directly on run_bank's own output.
     def build():
         g = h.Graph()
         g.add_relation(g.add_node("a"), "is_a", g.add_node("b"))
@@ -174,13 +178,17 @@ def test_runbank_provenance_matches_rewriter_on_transitivity():
         c = g.nodes_named("c")[0]; g.add_relation(c, "is_a", g.add_node("d"))
         return g
     rules = load_rules("?x is_a ?z when ?x is_a ?y and ?y is_a ?z")
-    g_rw, g_isa = build(), build()
-    run(g_rw, rules, provenance=True)
+    g_isa = build()
     run_bank(g_isa, list(rules), provenance=True)
-    assert _triples(g_rw) == _triples(g_isa)
-    assert _prov_structure(g_rw) == _prov_structure(g_isa)
+    proven, used = _prov_structure(g_isa)
+    assert proven == {
+        ("<j:rule.?x.is_a.?z>", "is_a", ("b",), ("d",)),
+        ("<j:rule.?x.is_a.?z>", "is_a", ("a",), ("d",)),
+        ("<j:rule.?x.is_a.?z>", "is_a", ("a",), ("c",)),
+    }
+    assert used == ["uses"] * 6
     # sanity: a real justification was minted (not the empty degenerate case)
-    assert _prov_structure(g_isa)[0]
+    assert proven
 
 
 def test_runbank_does_not_reprove_a_deduped_fact():

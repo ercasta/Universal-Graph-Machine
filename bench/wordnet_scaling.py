@@ -158,24 +158,24 @@ def run_query(g: h.Graph, p: Probe, *, fuel: int) -> Result:
     ONLY the on-demand walk. The copy + correctness check are outside the timer."""
     gq = g.copy()
     t0 = time.perf_counter()
-    journal = _walk(gq, p.subj, p.obj, fuel=fuel)
+    firings = _walk(gq, p.subj, p.obj, fuel=fuel)
     dt = time.perf_counter() - t0
     ans = has_is_a(gq, p.subj, p.obj)
-    return Result(ans, ans == p.positive, dt, len(journal))
+    return Result(ans, ans == p.positive, dt, firings)
 
 
-def _walk(g: h.Graph, subj: str, obj: str, *, fuel: int):
-    """walk_on_demand, but return the firing journal for accounting. Mirrors the library call
-    (seed demand + budget, SEED THE RUN FROM THE DEMAND'S LOCALITY, run walker rules with the
-    tools) so we can count firings. The `seeds` matters: without it `run`'s first frontier is
-    `set(graph.nodes())` (O(graph) per query) — exactly what walk_on_demand passes."""
+def _walk(g: h.Graph, subj: str, obj: str, *, fuel: int) -> int:
+    """walk_on_demand, mirroring the library call (seed demand + budget, run walker rules with
+    the tools), returning the firing COUNT for accounting. NOTE: `run_bank` (the ISA production
+    engine, replacing the retired rewriter oracle) has no `seeds=` param (no semi-naive initial-
+    frontier knob — it always matches from scratch) and returns an int firing count rather than
+    a per-firing journal."""
     from ugm import demand, walker
-    from ugm.cnl.rewriter import run as rw_run
+    from ugm import run_bank
     d = demand.seed_demand(g, subj, obj)
     amt = g.nodes_named(str(fuel))
     g.add_relation(d, walker.AMOUNT, amt[0] if amt else g.add_node(str(fuel)))
-    return rw_run(g, walker.load_walker_rules(), tools=walker.WALK_TOOLS,
-                  seeds=[d, *g.within([d], 1)])
+    return run_bank(g, walker.load_walker_rules(), tools=walker.WALK_TOOLS)
 
 
 # ---------------------------------------------------------------------------

@@ -11,8 +11,35 @@ expressed as RULES rather than a Python cascade driver.
 """
 import ugm as h
 from ugm import provenance as prov
-from ugm.cnl.rewriter import match, match_with_premises, run
+from ugm.cnl.authoring import run_rules
+from ugm.lowering import match_pats, lower_conj
+from ugm.machine import Machine
+from ugm.production_rule import is_var, literal_name, binder
 from ugm.world_model import _is_inert
+
+
+def match(g, pats):
+    """The ISA face of the one-shot matcher (`lowering.match_pats`) — auto-detects provenance-
+    aware patterns the same way the retired rewriter's `match` did (`skip_inert` off iff `pats`
+    names a provenance literal)."""
+    return match_pats(g, pats)
+
+
+def match_with_premises(g, pats):
+    """Like `match`, but pairs each binding with the matched RELATION node per Pat (the premises
+    a provenance-minting driver `uses`) — the ISA face of the retired rewriter's
+    `match_with_premises`, built from the same `lower_conj(rel_out=...)` run_bank itself uses."""
+    prem_regs: list[str] = []
+    prog = lower_conj(list(pats), rel_out=prem_regs)
+    skip_inert = not any(not is_var(t) and _is_inert(literal_name(t))
+                         for pat in pats for t in pat.tokens())
+    keys = [k for pat in pats for t in pat.tokens() if (k := binder(t)) is not None]
+    out = []
+    for st in Machine(skip_inert=skip_inert).match(g, prog):
+        b = {k: st.regs[k] for k in keys if k in st.regs}
+        prem = [st.regs[r] for r in prem_regs]
+        out.append((b, prem))
+    return out
 
 
 def _derive():
@@ -20,7 +47,7 @@ def _derive():
     `<j:r.to.s> --proves--> (a s b)` and `<j:r.to.s> --uses--> (a r b)`."""
     g = h.Graph()
     g.add_relation(g.add_node("a"), "r", g.add_node("b"))
-    run(g, [h.Rule(key="r.to.s", lhs=[h.Pat("?x", "r", "?y")], rhs=[h.Pat("?x", "s", "?y")])])
+    run_rules(g, [h.Rule(key="r.to.s", lhs=[h.Pat("?x", "r", "?y")], rhs=[h.Pat("?x", "s", "?y")])])
     return g
 
 
