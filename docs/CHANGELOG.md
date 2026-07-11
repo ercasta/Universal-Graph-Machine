@@ -14,6 +14,24 @@ this log is itself a historical record.
 
 ## 2026-07-11
 
+### Phase 2.4 — name-free identity tokens (342 passed, 1 skipped, 0 failed)
+`GoalSolver`'s coref-class identity token was `name + SEP + classrep` (SEP = `\x00`) — the surface name
+baked into the internal identity string. Phase 2.4 drops the redundant name prefix: an identity token is
+now `SEP + classrep-nid`, keyed ONLY by the class-representative node id; the name is recovered from that
+node via `ag.name(rep)` in `_render` (the output-boundary rendering the plan asks for), not carried in
+the token. The Skolem/value-invention token likewise becomes `SEP + fresh-nid` (was `name + SEP + skN`),
+which also makes it naturally consistent with `_token(nid)`'s recomputation instead of relying on the
+cache. SEP stays the discriminator between an IDENTITY token (entity, exact match) and a plain NAME
+(concept/literal, name match) — a control char never in a surface name, so the split is robust.
+
+Entirely contained to `goal.py` (SEP/`_token`/`_render` never escaped it — verified across the package).
+Changed: `_token`, `_render`, `_invalidate_class` (class token IS `SEP+rep` now, so exact-match not
+endswith), the Skolem mint. The unique-name case (token == name, a 1:1 stable identity) and the
+concept/literal name-matching path are unchanged — a unique name legitimately IS its identity. Gated by
+the coref/adversarial suite (two-Pauls-stay-separate, same_as-composes, mid-solve union visibility) plus
+a new pin `test_duplicated_name_identity_token_is_name_free` (asserts the token equals `SEP + rep`,
+contains no surface name, and still renders + denotes the whole class). Unblocked by Phase 2.3.
+
 ### Phase 2.3 — `name` demoted, discriminating-key indexes, `TEMPORARY BRIDGE` retired (341 passed, 1 skipped, 0 failed)
 The load-bearing `TEMPORARY BRIDGE` (a relation node's predicate stored BOTH as its graded key `{chase:1.0}`
 AND as a legacy VALUED `name="chase"`) is gone. Design doc: `docs/name_demotion_design.md` (ratified +

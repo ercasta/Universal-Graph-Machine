@@ -529,7 +529,11 @@ class GoalSolver:
         return nm if nm else None
 
     # ---- node-level identity: tokens, same_as classes, name<->token at the boundary ----
-    SEP = "\x00"                                              # token = name + SEP + class-rep
+    # Phase 2.4 (name-free identity): an identity token is `SEP + class-rep-nid` — the class rep is a
+    # NODE ID, never the name; the name is recovered by looking up the rep's `name` at the render
+    # boundary (`_render`), not baked into the token. SEP (a control char, never in a surface name)
+    # stays the discriminator between an IDENTITY token and a plain NAME (concept/literal reference).
+    SEP = "\x00"                                              # identity token = SEP + class-rep nid
 
     def _sa_union(self, a: str, b: str) -> None:
         ra, rb = self._sa_find(a), self._sa_find(b)
@@ -549,7 +553,7 @@ class GoalSolver:
         MID-SOLVE (e.g. a domain rule whose head is `same_as`, not just the `universal.same_as_rules`
         propagation set filtered out of `self.rules`) visible immediately, from EITHER side of the
         union, rather than only to whichever node happens to be queried again first."""
-        stale = [tok for tok in self._token_class if tok.endswith(self.SEP + rep)]
+        stale = [tok for tok in self._token_class if tok == self.SEP + rep]  # class token IS SEP+rep now
         for tok in stale:
             for nid in self._token_class.pop(tok):
                 self._tok_cache.pop(nid, None)
@@ -563,10 +567,12 @@ class GoalSolver:
         return r
 
     def _token(self, nid: str) -> str:
-        """The identity TOKEN of node `nid`: the name if it is unique-noded (backward-compatible —
-        token == name), else `name\x00classrep` so each `same_as` class of a duplicated name is a
-        distinct identity. Pure per-node computation — `_token_class` (the CLASS's full membership)
-        is a separate cache `_nodes_of_token` owns; see there for why this must not also write it."""
+        """The identity TOKEN of node `nid`: the name if it is unique-noded (a unique name IS a stable
+        1:1 identity, so token == name — the concept/entity coincide), else the NAME-FREE `SEP + classrep`
+        (Phase 2.4) so each `same_as` class of a DUPLICATED name is a distinct identity keyed only by its
+        class-rep node id (the name is recovered at render, not stored). Pure per-node computation —
+        `_token_class` (the CLASS's full membership) is a separate cache `_nodes_of_token` owns; see there
+        for why this must not also write it."""
         t = self._tok_cache.get(nid)
         if t is not None:
             return t
@@ -580,7 +586,7 @@ class GoalSolver:
             # (recognition/graded): the token is the NODE itself (a singleton class) — non-unique
             # surface tokens stay STRUCTURALLY distinct. Gated by the bank (`_follow_coref`).
             rep = self._sa_find(nid) if self._follow_coref else nid
-            t = nm + self.SEP + rep                          # per-class (or per-node) token
+            t = self.SEP + rep                               # name-free per-class (or per-node) token
         self._tok_cache[nid] = t
         return t
 
@@ -632,11 +638,16 @@ class GoalSolver:
         return min(nodes) if nodes else None
 
     def _render(self, token: str | None) -> str | None:
-        """The user-facing NAME of a token (strip the class-rep suffix). token == name for every
-        unique-named entity, so this is the identity map on name-canonicalized KBs."""
+        """The user-facing NAME of a token — the OUTPUT-BOUNDARY rendering (Phase 2.4). A NAME-FREE
+        identity token (`SEP + classrep-nid`) has its name looked up from the rep node HERE, at the
+        boundary, rather than carried in the token. A plain name (concept/unique entity) or a bare nid
+        (unnamed node) renders to itself. token == name for every unique-named entity, so this stays the
+        identity map on name-canonicalized KBs."""
         if token is None:
             return None
-        return token.split(self.SEP, 1)[0]
+        if token.startswith(self.SEP):                       # identity token: recover the rep's name
+            return self.ag.name(token[len(self.SEP):])
+        return token
 
     def _entry_tokens(self, endpoint: str | None) -> list[str] | None:
         """Top-level name resolution: map a goal endpoint NAME to the token(s) to solve. Returns
@@ -978,7 +989,8 @@ class GoalSolver:
         tok = self._skolem.get(key)
         if tok is None:
             nid = self.ag.add_node({"name": valued(literal_name(slot))})   # fresh `<cond>`/`<rule>`/…
-            tok = f"{literal_name(slot)}{self.SEP}sk{len(self._skolem)}"    # unique identity token
+            tok = self.SEP + nid                             # Phase 2.4: name-free identity token = the
+            #                                                  fresh node id (unique; render recovers name)
             self._token_class[tok] = [nid]
             self._tok_cache[nid] = tok
             self._skolem[key] = tok

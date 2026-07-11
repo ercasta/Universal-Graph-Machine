@@ -22,8 +22,8 @@
 
 ## NEXT STEP (pick this up FIRST)
 
-**Suite: 341 passed, 1 skipped, 0 failed** (post Phase 5.5 slices 4 + 3c AND Phase 2.3 name-demotion /
-bridge-retirement, 2026-07-11, `python -m pytest -q`).
+**Suite: 342 passed, 1 skipped, 0 failed** (post Phase 5.5 slices 4 + 3c AND Phase 2.3 name-demotion /
+bridge-retirement AND Phase 2.4 name-free identity tokens, 2026-07-11, `python -m pytest -q`).
 The 460-passed figure logged at the repo split was inflated by ~123 tests that exercised harness-only
 content (`SOLVE_RULES`/`PLANNING_RULES`/`Session`/CPG-mechanism banks) mistakenly carried over by the
 carveout instead of staying in `harneskills`; those were trimmed/deleted (2 whole files, 99 functions
@@ -106,22 +106,20 @@ Python driver becomes dead weight once the declared composition subsumes it, at 
 retires like `rewriter.py` did — not before.
 
 **PICK UP NEXT — recommended order:**
-1. **Phase 2.4** (name-free identity tokens) — NOW UNBLOCKED by 2.3. Coref-class representative nid
-   instead of `name\x00rep`; render to surface only at the output boundary. ✓S (gated).
-2. **Phase 2.5** — `COPULA`/`NEG_SUFFIX` and the coref/predicate VOCABULARY → KB declarations. Slice 4
+1. **Phase 2.5** — `COPULA`/`NEG_SUFFIX` and the coref/predicate VOCABULARY → KB declarations. Slice 4
    did the plan control-flow half; this is the vocabulary half. The 2026-07-11 exit-gate audit pinpoints
    the sites: `check`/`decide`/`goal`'s `COPULA="is"`/`NEG_COPULA="is_not"`/`NEG_SUFFIX="_not"`;
    `authoring._COREF_PREDS` (the moved `session.CONTENT_PREDS`, 5.4b residual B);
    `universal.SAME_AS_RULES = same_as_rules([...])`. ⚠Opus for "what's KB vs engine".
-3. **Phase 5 exit gate — bench-sensibility half (harness-side)** — run card-trader + coref + full
+2. **Phase 5 exit gate — bench-sensibility half (harness-side)** — run card-trader + coref + full
    ProofWriter-coverage in `harneskills`. The engine-half is MET in-repo (audited 2026-07-11); this half
    is not verifiable from this repo.
-4. **Phase 7(a)** — now that 2.3 settled the name/key/value model, intern keys/values to ints + CSR
+3. **Phase 7(a)** — now that 2.3 settled the name/key/value model, intern keys/values to ints + CSR
    adjacency + bitsets on a CLEAN representation (no bridge). The plan's stated long-pole.
-5. **Optional follow-on** — prose `suppose … predict …` sugar folding to slice 3c's reified encoding
+4. **Optional follow-on** — prose `suppose … predict …` sugar folding to slice 3c's reified encoding
    (new surface → SLM debt; deferred like `to NAME`, pick up if the SLM ledger is being retrained).
 
-**Slices 4 and 3c and Phase 2.3 are DONE, and the 5.5 exit-gate ENGINE half is MET — do NOT re-do them.**
+**Slices 4/3c and Phase 2.3/2.4 are DONE, and the 5.5 exit-gate ENGINE half is MET — do NOT re-do them.**
 
 **Model routing** — ⚠Opus = needs vision-judgment; ✓S = Sonnet-safe where a gate/spec catches deviation.
 - Slice 4 (plan→act→check→replan): **DONE** (was ⚠Opus)
@@ -146,7 +144,7 @@ retires like `rewriter.py` did — not before.
 
 ## Where the system is (2026-07-11, post repo-split)
 
-**341 tests green, 1 skipped.** All ISA engine files are in `ugm/ugm/`; CNL surface in `ugm/ugm/cnl/`.
+**342 tests green, 1 skipped.** All ISA engine files are in `ugm/ugm/`; CNL surface in `ugm/ugm/cnl/`.
 The planning rule banks (`PLANNING_RULES`, `SOLVE_RULES`, etc.) and harness benches live in `harneskills`.
 `solve.py` is DELETED (Phase 5.5 slice 4) — the plan→act→check→replan control flow is now a KB-declared
 composition over the existing `<call>` loop (`tests/test_isa_plan_act_check.py`). SUPPOSE is now a
@@ -220,8 +218,11 @@ All items DONE (2026-07-08, 470 tests).
   the plain grep missed. Bonus: `derived_triples` no longer emits garbage triples (entity-as-relation).
   Design + as-built: `docs/name_demotion_design.md`, CHANGELOG.
 
-- **2.4** Identity tokens name-free (coref-class representative nid, not `name\x00rep`);
-  rendering to surface at the output boundary only. NOW UNBLOCKED (2.3 landed) — ✓S per the routing table.
+- **2.4 DONE (2026-07-11, 342 green).** Identity tokens name-free: a coref-class token is now
+  `SEP + class-rep-nid` (was `name + SEP + rep`) — the redundant name prefix is dropped, the name is
+  recovered from the rep node via `ag.name(rep)` in `_render` (the output boundary). The Skolem token
+  likewise references its fresh node id. Contained entirely to `goal.py` (SEP never escaped it); gated
+  by the coref/adversarial suite + a new name-free pin (`test_duplicated_name_identity_token_is_name_free`).
 
 - **2.5** `COPULA`/`NEG_SUFFIX` and the (now-retired) planner's predicate VOCABULARY (`want`/`add`/
   `chosen`/`done`/`best`/… — formerly hardcoded in `solve.py`, now in the harness banks) → KB

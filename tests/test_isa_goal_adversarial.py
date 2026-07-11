@@ -46,6 +46,26 @@ def test_materialize_same_as_mid_solve_updates_identity_live():
     assert set(solver._nodes_of_token(solver._token(p2))) == {p1, p2}
 
 
+# ---- 1b: identity tokens are NAME-FREE (Phase 2.4) ------------------------------------------
+
+def test_duplicated_name_identity_token_is_name_free():
+    # Phase 2.4: a coref class token carries only its class-rep NODE ID, never the surface name — the
+    # name lives on the graph and is recovered at the render boundary (`_render`). A regression that
+    # re-baked `name + SEP + rep` would put "paul" back into the token; this pins that it does not.
+    g = h.Graph()
+    p1 = g.add_node("paul")
+    p2 = g.add_node("paul")
+    solver = GoalSolver(g, _FOLLOW_COREF_BANK)
+    solver._materialize("same_as", solver._token(p1), solver._token(p2))
+    tok = solver._token(p1)
+    assert tok == solver.SEP + solver._sa_find(p1)        # SEP + class-rep nid, nothing more
+    assert "paul" not in tok                              # the NAME is not encoded in the identity
+    assert solver._render(tok) == "paul"                  # ...it is recovered at the boundary
+    # both mentions share ONE name-free identity, and it still denotes the whole class
+    assert solver._token(p2) == tok
+    assert set(solver._nodes_of_token(tok)) == {p1, p2}
+
+
 # ---- 2: a NESTED solver's derived `same_as` is visible to the OUTER solver ------------------
 
 def test_nested_solver_same_as_union_is_visible_to_the_outer_solver():

@@ -108,6 +108,20 @@ do not have.
    not with total KB size (the Rete/RDFox-incremental/DDlog comparison, not the Soufflé one).
    But it also softens the bar: the engine must beat "a human reads the answer" on a
    session-sized KB, not a batch engine on a billion triples.
+   **Scoping constraint (user, 2026-07-11):** the system is NOT a giant know-everything KB —
+   a runtime session combines 2–3 domain banks and works to produce results combining them.
+   This **downgrades the risk from existential to engineering**: at hundreds-to-low-thousands
+   of rules/facts, interning and index hygiene (Phase 7a) are plausibly sufficient, and the
+   AOT-compiler-takeover scenario loses most of its force. The risk RELOCATES to three
+   specific places rather than vanishing: (a) **session-length accretion** — the no-seam
+   commitment keeps every utterance's tokens as nodes and the fact layer never deletes, so
+   the graph grows monotonically with the transcript even when the domains are tiny; the
+   per-utterance cost must track the utterance's consequences, not the accumulated session;
+   (b) **cross-bank join selectivity** — combining banks requires bridging/normalization
+   rules whose shared predicates are high-frequency (stopword anchors in the vision's §14
+   sense), so seed-from-ground degrades exactly at the moment of combination, the system's
+   core use case; (c) **per-query combinatorics** (elimination walks, SUPPOSE cascades) —
+   already fenced by fuel and the clingo seam, a constant-factor concern, not a cliff.
 2. **Convention fragility.** Vision §7 admits conventions must hold *everywhere*, enforced by
    discipline and lint rather than types. The Phase 6.0 correction — the `TEMPORARY BRIDGE`
    comments being wrong about their own removability, with load-bearing `g.name(rel)` reads
