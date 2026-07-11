@@ -42,9 +42,14 @@ never fact deletion. The fact layer is **monotone**: nothing is ever deleted fro
 ## The ISA — the opcode set
 
 Every rule and mode compiles down to a small, closed instruction set: a WAM-style register
-machine over the label-less attribute substrate (`ugm/machine.py`). A program is always
-**match-then-apply** — matching opcodes (purely positive, non-mutating) followed by effect
-opcodes (mutating); a matching opcode after an effect opcode is a `ProgramError`.
+machine over the label-less attribute substrate (`ugm/machine.py`). Like any register machine
+it has a register file — but a register here is not a scalar or a memory cell, it is a
+**pointer to a node in the graph**: `State.regs` is a `name -> node identity` map, and every
+opcode either binds a register to a node (SEED/FOLLOW/MINT/...), reads the node a register
+already points to (TEST/EMIT/...), or compares two registers for pointer equality (SAME). The
+graph *is* the machine's addressable memory; there is no separate data space. A program is
+always **match-then-apply** — matching opcodes (purely positive, non-mutating) followed by
+effect opcodes (mutating); a matching opcode after an effect opcode is a `ProgramError`.
 
 | Opcode | Phase | What it does |
 |--------|-------|--------------|

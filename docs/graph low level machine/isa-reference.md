@@ -1,9 +1,10 @@
 # The Rule ISA — reference semantics (the cheap experiment, built)
 
-> **Status: BUILT as a reference interpreter (2026-07-05).** This is the small-step
+> **Status: BUILT as a reference interpreter (2026-07-05; opcode set and conformance suite grown
+> since — 14 opcodes, `tests/test_isa_machine.py` now 22 programs).** This is the small-step
 > operational semantics of the label-less attribute ISA, with a runnable reference machine
-> (`harneskills/isa/`) and a hand-written conformance suite (`tests/test_isa_machine.py`,
-> 14 programs, no rules involved). It realizes "the cheap experiment" of
+> (`ugm/`) and a hand-written conformance suite (`tests/test_isa_machine.py`,
+> no rules involved). It realizes "the cheap experiment" of
 > `rule-isa-design.md`: write the opcodes as a spec + reference interpreter *before* any
 > rule→opcode compiler, and see whether the set enumerates cleanly. Read `rule-isa-design.md`
 > (the design + the label-less-substrate revision) and `memory/decision_labelless_substrate`
@@ -13,20 +14,20 @@
 
 ## What is built
 
-- **`harneskills/isa/attrgraph.py`** — the label-less attribute substrate. Nodes have an
+- **`ugm/attrgraph.py`** — the label-less attribute substrate. Nodes have an
   opaque identity and a bundle of attributes over a *closed key* vocabulary; edges are
   directed and unlabeled. Attributes are `GRADED` (degree in [0,1]) or `VALUED` (data under a
   key, open domain). The one index is `key → {nid}` — **never** by value, which is the
   structural guard that keeps a valued attribute from resurrecting a node label.
-- **`harneskills/isa/machine.py`** — the reference interpreter: the opcode dataclasses and a
+- **`ugm/machine.py`** — the reference interpreter: the opcode dataclasses and a
   naive, correctness-first `Machine`.
-- **`tests/test_isa_machine.py`** — the conformance suite: 14 hand-written instruction
+- **`tests/test_isa_machine.py`** — the conformance suite: hand-written instruction
   sequences exercising the substrate and every opcode, with no rules and no compiler.
 
-This is built ISOLATED from the as-built engine (`rewriter.py` over the name-based
-`world_model.Graph`) and imports none of it. The bridge — lowering a `Rule` to a program and
-differential-testing the two machines on `tests/test_contract.py` — is the deliberately
-deferred next slice.
+This started ISOLATED from the as-built engine (`rewriter.py` over the name-based
+`world_model.Graph`) and imported none of it. The bridge — lowering a `Rule` to a program and
+differential-testing the two machines — is no longer deferred: see "The lowering + differential
+test" below (`ugm/lowering.py`, BUILT) and the goal-directed sections that follow it.
 
 ---
 
@@ -97,6 +98,8 @@ GRADE reg key (threshold | cmp value)                  -- filter a BOUND reg (du
 
 SET reg nid          yield (r[reg ↦ nid], s)           -- bind a known ground identity
 DUP dst src          yield (r[dst ↦ r[src]], s)        -- copy a register
+
+SAME a b             if r[a] = r[b]:  yield (r, s)      -- register unification / join consistency
 ```
 
 There is **no `CHECK-ABSENT` / NAC** opcode. Negation is materialized as a positive
@@ -127,17 +130,18 @@ a fact edge (an edge is control iff either endpoint is a control-layer node). Th
 **"delete a fact edge" is not expressible** — the vision.md §5 invariant is a property of the
 opcode set, not a lint pass (design payoff #1, `test_drop_ctrl_refuses_a_fact_edge`).
 
-### Reserved: INTERPOSE / RESTORE — reversible retraction (DESIGNED, NOT BUILT)
+### INTERPOSE / RESTORE — reversible retraction (BUILT — `tests/test_isa_interpose.py`)
 
-> **Ratified 2026-07-07 (user), captured for when TMS/belief-revision moves onto the ISA. Not yet
-> implemented — `retraction.py` today does this via the OLD forward `rewriter`'s `rewire cut`, which
-> `lowering.py` refuses (`Unlowerable`). This is the ISA-native replacement.**
+> **Ratified 2026-07-07 (user); implemented as the ISA-native replacement for `retraction.py`'s old
+> forward-`rewriter` `rewire cut` (which `lowering.py` refuses as `Unlowerable`).** Originally
+> designed here as a reserved, not-yet-built pair; both opcodes are now live in `ugm/machine.py`
+> and match the semantics below exactly (`out` optionally binds the minted marker for `INTERPOSE`).
 
 Truth-maintenance (retract a fact + cascade-hide its consequents) needs to *hide* a fact reversibly.
-Today `retraction.INTERPOSE_RULE` does it with a `rewire cut` — a fact-edge deletion the opcode set
-above **cannot** express, so retraction is stranded in the forward `rewriter`. The ISA-native form is
-a dedicated **reversible** opcode, not a `DROP_CTRL` relaxation and not a matcher-side "skip if marked"
-(which would leak retraction-awareness into the pure positive reader):
+The old `retraction.INTERPOSE_RULE` did it with a `rewire cut` — a fact-edge deletion the opcode set
+above **cannot** express, which is why retraction used to be stranded in the forward `rewriter`. The
+ISA-native form is a dedicated **reversible** opcode, not a `DROP_CTRL` relaxation and not a
+matcher-side "skip if marked" (which would leak retraction-awareness into the pure positive reader):
 
 ```
 INTERPOSE rel obj marker            -- hide fact  s -[rel]-> obj  by splicing a control `marker`
@@ -225,7 +229,7 @@ the concrete thing the cheap experiment was meant to decide.
 
 ## The lowering + differential test (BUILT, positive fragment)
 
-`harneskills/isa/lowering.py` + `tests/test_isa_lowering.py` (5 tests) close the first "next
+`ugm/lowering.py` + `tests/test_isa_lowering.py` (5 tests) close the first "next
 slice": a **dumb `Rule` → program lowering**, a name-`Graph` ⇄ `AttrGraph` **bridge**, and a
 **fixpoint driver**, differential-tested against `rewriter.run`.
 
@@ -274,7 +278,7 @@ is the swap-safety correspondence the design asked for, on the fragment lowered.
 > here as the differential-test harness and the contrast. The *direction* the substrate commits
 > to (`decision_labelless_substrate`, `vision.md` §6a) is **demand-forward**: a goal is a partial
 > attribute-node / partial relation — the same shape as a fact — and answering it materializes
-> ONLY what the goal demands. `harneskills/isa/goal.py` (`GoalSolver`, `tests/test_isa_goal.py`)
+> ONLY what the goal demands. `ugm/goal.py` (`GoalSolver`, `tests/test_isa_goal.py`)
 > is the first slice of that driver.
 
 `GoalSolver` is a demand-driven, **tabled** evaluator over the same positive opcode core (no
@@ -317,7 +321,7 @@ returns only the entities that clear the cut; and the recorded degree equals the
 
 The tabled solver expands a demanded goal to a least-fixpoint; for a **long-range reachability**
 goal ("is `w` reachable from `x` along `isa`?") that expands the whole reachable chain. A
-**walker** (`harneskills/isa/walker.py`, `tests/test_isa_walker.py`, `decision_walkers_locality`,
+**walker** (`ugm/walker.py`, `tests/test_isa_walker.py`, `decision_walkers_locality`,
 vision §6a/§11) is the bounded alternative: a demand token that carries the goal across the graph
 hop by hop, spending **fuel**, and stops on arrival or when it runs dry. Fuel is the content-blind
 effort budget (§14) — *"think harder" is literally more fuel*, never a cleverer search. A BFS
@@ -331,7 +335,7 @@ Pinned (`test_isa_walker.py`): reaching `w` from `x` needs 3 traversals, so fuel
 an unreachable target in a cycle terminates instead of hanging; and after a well-fuelled
 discovery, a small-fuel repeat query succeeds on the direct shortcut. (In a full in-graph
 realization the walker is a CONTROL token with a `fuel` attribute serviced by rules — the main
-engine's `harneskills/walker.py`; this reference driver models that semantics, matching `goal.py`'s
+engine's `ugm/walker.py`; this reference driver models that semantics, matching `goal.py`'s
 Python-driver style, and stays positive/monotone — it only ever ADDS a shortcut.)
 
 **Wired into `GoalSolver`** (`tests/test_isa_goal_walker.py`). `GoalSolver(…, walk_fuel=N)` now
@@ -350,7 +354,7 @@ different base relation) is the follow-up.
 ### NAC → materialized-positive completion — the last reasoning piece
 
 `tests/test_isa_goal_nac.py`. Negation on the goal path is the `decide` line
-(`memory/decision_forcing_a_decision`, `harneskills/decide.py`), **not** a `CHECK-ABSENT` filter —
+(`memory/decision_forcing_a_decision`, `ugm/decide.py`), **not** a `CHECK-ABSENT` filter —
 the matching core stays purely positive. A rule's copula NAC `H :- BODY, not ?c is P` is rewritten
 (`_lower_nac`) into a **positive body clause** `?c is_not P`, appended after the positive LHS so the
 residual has already ground the subject by the time the `is_not` subgoal is demanded. The negative
@@ -441,7 +445,7 @@ scope: operational choice for `chosen`, nothing else.
 
 ### The goal-directed planner — plan → act → replan, demand-forward (Phase 3 CORE, DONE 2026-07-07)
 
-`harneskills/isa/solve.py` (`derive_plan` + `run_to_goal`; `tests/test_isa_solve.py`, 9 tests). The
+`ugm/solve.py` (`derive_plan` + `run_to_goal`; `tests/test_isa_solve.py`, 9 tests). The
 forward `plan()`/`solve()` loop SATURATES; this drives the SAME `PLANNING_RULES`/`SOLVE_RULES` through
 `GoalSolver` demand-forward — a goal PULLS only its AND-OR chain (MEASURED: goal-directed `reachable` is
 a STRICT SUBSET of forward's; it never derives the goal fact it doesn't need). Everything but `chosen`
@@ -538,7 +542,7 @@ With both parity wins in, the reference `GoalSolver` is now much closer to produ
    for — no longer blocked on the goal-solver's asymptotics, now a re-hosting + deletion pass. The
    standing alternative is to keep `GoalSolver` as the reference and `rewriter.run` as production.
 1. **Deeper walker integration — DONE (2026-07-07).** Both shapes the slice named landed
-   (`harneskills/isa/{walker,goal}.py`; `tests/test_isa_goal_walker_linear.py`, 8 tests):
+   (`ugm/{walker,goal}.py`; `tests/test_isa_goal_walker_linear.py`, 8 tests):
    (a) **linear recursion over a DIFFERENT base** — `_closure_bases` maps a derived relation that
    is the transitive closure of a base (`anc(a,b):-parent(a,b)`, `anc(a,c):-parent(a,b),anc(b,c)`,
    left- OR right-recursive) to that base, and the walker gained `mint_rel` so it WALKS `parent`
