@@ -37,6 +37,13 @@ working state the engine creates and destroys. Ordinary nodes are the persistent
 layer. A rule that creates a control token leaves facts untouched; teardown is DROP_CTRL,
 never fact deletion. The fact layer is **monotone**: nothing is ever deleted from it.
 
+**Matching is set-at-a-time, not single-token.** A program doesn't walk the graph one
+value at a time and loop where it needs to branch; each step runs over a whole *set* of
+in-flight candidate matches at once, and an instruction that has multiple valid
+continuations (e.g. a node with several outgoing edges) expands that set — one candidate
+in, several out — for free. There is no separate loop construct for "for each match": it
+falls out of every step operating on a set instead of a single candidate. See below.
+
 ---
 
 ## The ISA — the opcode set
@@ -50,6 +57,13 @@ already points to (TEST/EMIT/...), or compares two registers for pointer equalit
 graph *is* the machine's addressable memory; there is no separate data space. A program is
 always **match-then-apply** — matching opcodes (purely positive, non-mutating) followed by
 effect opcodes (mutating); a matching opcode after an effect opcode is a `ProgramError`.
+
+One more thing the register-file framing can obscure: `State` is a *single* binding, but
+the interpreter never runs just one `State` through a program — it runs a **list** of
+them, threaded through instruction-by-instruction, where a match opcode maps one input
+state to zero-or-more output states (e.g. `FOLLOW` yields one state per matching edge).
+So a register is single-valued *within one state*, but a program step routinely turns one
+state into many. There's a full worked example after the opcode table.
 
 | Opcode | Phase | What it does |
 |--------|-------|--------------|
@@ -181,6 +195,20 @@ The first nine instructions are the **match phase** (purely positive, no mutatio
 is the sole **effect**, run only for surviving states. This is the whole story: no separate
 rule interpreter, no AST walk at runtime — a rule IS this program, and running it to
 fixpoint (`run_bank` / `apply_to_fixpoint` / `chain_sip`) is what SATURATE/CHAIN mean above.
+
+**A register holds a set of bindings, not one value — this is where "iterate over every
+matching edge" comes from.** It's tempting to read `FOLLOW _rel1 <- ?y (out)` as "follow
+the one edge out of `?y`" and the `TEST` after it as a single check on that one result. That's
+not what happens. `Machine.match` (`ugm/machine.py`) runs the program as a fold over a
+**list of states**: `states = [State()]` to start, then for every instruction it computes
+`states = [st2 for st in states for st2 in _match_step(ins, st)]`. `FOLLOW`'s step is a
+generator that yields one new state per matching edge — `for nid in g.succ(src): yield
+st.bind(dst, nid)` — so one `?y` with three outgoing relations turns one input state into
+three output states, each with `_rel1` bound to a different edge. The next instruction
+(`TEST`) then runs once per state independently, so "`FOLLOW` then `TEST`" reads as *for
+every outgoing edge of `?y`, keep it iff it's an `is` relation* — with no explicit loop in
+the program text, because the iteration is the fold in `match`, not something a rule author
+writes.
 
 ---
 
