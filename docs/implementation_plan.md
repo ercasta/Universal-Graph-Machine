@@ -103,17 +103,23 @@ Python driver becomes dead weight once the declared composition subsumes it, at 
 retires like `rewriter.py` did — not before.
 
 **PICK UP NEXT — recommended order:**
-1. **Phase 5 exit gate** — benches produce sensible, self-consistent answers on firmware semantics.
-2. **Phase 2.5** — `COPULA`/`NEG_SUFFIX` and the (now-retired) `solve.py`'s predicate VOCABULARY → KB
-   declarations. Slice 4 did the control-flow half; this is the vocabulary half (`want`/`add`/`chosen`/
-   `done`/… as declared KB, not literal strings in banks). ⚠Opus for "what's KB vs engine."
-3. **Phase 2.3** (name demotion) — now correctly scoped as its OWN phase, not a 6.0 sub-item. Needs
-   an Opus-level design call on the KB-declared discriminating-key-index mechanism before any code
-   moves; blocks nothing else on the firmware path, so it's not urgent.
+1. **Phase 2.5** (top in-repo item) — `COPULA`/`NEG_SUFFIX` and the coref/predicate VOCABULARY → KB
+   declarations. Slice 4 did the plan control-flow half; this is the vocabulary half. The 2026-07-11
+   exit-gate audit (see the 5.5 exit-gate note) pinpoints the exact sites: `check`/`decide`/`goal`'s
+   `COPULA="is"`/`NEG_COPULA="is_not"`/`NEG_SUFFIX="_not"`; `authoring._COREF_PREDS` (the moved
+   `session.CONTENT_PREDS`, 5.4b residual B); `universal.SAME_AS_RULES = same_as_rules([...])`. ⚠Opus
+   for "what's KB vs engine" — likely warrants a design steer before code.
+2. **Phase 5 exit gate — bench-sensibility half (harness-side)** — run card-trader + coref + full
+   ProofWriter-coverage in `harneskills`. The engine-half is MET in-repo (audited 2026-07-11); this half
+   is not verifiable from this repo.
+3. **Phase 2.3** (name demotion) — its OWN phase, not a 6.0 sub-item. Needs an Opus-level design call on
+   the KB-declared discriminating-key-index mechanism before any code moves; blocks nothing on the
+   firmware path, so it's not urgent.
 4. **Optional follow-on** — prose `suppose … predict …` sugar folding to slice 3c's reified encoding
    (new surface → SLM debt; deferred like `to NAME`, pick up if the SLM ledger is being retrained).
 
-**Slices 4 and 3c are DONE — do NOT re-do them.** (Both were in this list; see the DONE notes above.)
+**Slices 4 and 3c are DONE, and the 5.5 exit-gate ENGINE half is MET — do NOT re-do them.** (See the
+DONE notes and the exit-gate audit note above.)
 
 **Model routing** — ⚠Opus = needs vision-judgment; ✓S = Sonnet-safe where a gate/spec catches deviation.
 - Slice 4 (plan→act→check→replan): **DONE** (was ⚠Opus)
@@ -325,6 +331,23 @@ All items DONE (2026-07-09/10). Gate met.
   in Python); benches (card-trader + coref + riddles, now in `harneskills`) produce SENSIBLE,
   SELF-CONSISTENT answers on firmware semantics. No longer requires divergence-from-old-exhaustive
   classification.
+
+  **ENGINE-HALF MET — audited 2026-07-11 (in-repo).** Systematic sweep of `ugm/` for strategy-selection-
+  in-Python: (1) the three shape-sniffers are gone (Phase 5.4); (2) `solve.py`'s hardcoded plan control
+  flow is gone (slice 4); (3) NO rule-key sniffing (`r.key`/`rule.key` uses are all provenance journaling,
+  `Unlowerable` error text, fired-suppression keying, exist-NAC bookkeeping, or determinism sorting —
+  never strategy selection); (4) every remaining `g.name(...) == "literal"` is either firmware CONTROL
+  SUBSTRATE (`next`/`at` cursor, `<qevent>`) or CNL SURFACE RECOGNITION grammar (`body`/`first`/`same_as`/
+  `relation`/`about`/`violates`/`yes`) — recognition, not reasoning-strategy; (5) `goal.py:127 == "transitive"`
+  READS the declared `R is transitive` → `rel_property` map (content-blind, Phase 5.4's `_closure_declarations`),
+  not sniffing. The ONLY Python-hardcoded predicate STRINGS left are the copula/negation/coref VOCABULARY
+  convention (`check`/`decide`/`goal`'s `COPULA="is"`/`NEG_SUFFIX="_not"`; `authoring._COREF_PREDS`;
+  `universal.SAME_AS_RULES`) — that is **Phase 2.5's explicit scope** (+ the 5.4b tracked residual B),
+  NOT strategy selection, so it does not gate 5.5. The firmware-semantics gate (`chain_sip == GoalSolver`,
+  Phase 4.4) and the riddles bench are GREEN in the in-repo suite.
+  **BENCH-SENSIBILITY HALF is harness-side:** card-trader + coref + full ProofWriter-coverage benches
+  live in `harneskills` (ProofWriter-coverage also needs external data), so that half must be run there —
+  it is not verifiable from this repo.
 
 ---
 
