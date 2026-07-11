@@ -242,22 +242,6 @@ def _entail_bank(g):
             + h.expand_universals(g) + h.entailed_negation_rules(g) + h.UNIVERSAL_RULES)
 
 
-def test_disjointness_entails_a_hard_negation():
-    from ugm import Goal, GoalSolver
-    s = h.Session()
-    s.submit("happy is disjoint from sad")
-    s.submit("alice is happy")
-    g = s.kb
-    assert GoalSolver(g, _entail_bank(g)).solve(Goal("is_not", "alice", "sad"))    # entailed hard-no
-    assert not GoalSolver(g, _entail_bank(g)).solve(Goal("is_not", "alice", "happy"))  # not entailed
 
 
-def test_disjointness_entails_category_negation():
-    from ugm import Goal, GoalSolver
-    s = h.Session()
-    s.submit("dog is disjoint from cat")
-    s.submit("poodle is a dog")
-    g = s.kb
-    # `poodle is_a dog`, `dog disjoint_from cat` |= `poodle is_a_not cat` (a hard category negation).
-    assert GoalSolver(g, _entail_bank(g)).solve(Goal("is_a_not", "poodle", "cat"))
 

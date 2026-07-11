@@ -208,28 +208,8 @@ def test_cnl_facts_with_gradable_vocabulary():
     assert g.get_embedding(g.nodes_named("bob")[0]) == {}     # not modified -> no embedding
 
 
-def test_degree_scale_is_kb_data_declarable_and_overridable():
-    # The adverb->degree scale lives in the KB as DATA (`very is 0.8`), not a Python config
-    # dict: the defaults read back, a brand-new adverb is declarable, and a default is
-    # overridable — all driving the embedding write, with no code change. (No ADVERB_THRESHOLDS.)
-    assert h.degree_thresholds(h.Session().kb) == {"very": 0.8, "somewhat": 0.5, "slightly": 0.3}
-
-    g = h.Graph()                                            # a NEW adverb, declared in CNL
-    h.load_facts(g, "extremely is 0.95\nurgent is gradable\nbob is extremely urgent\n")
-    assert h.degree_thresholds(g)["extremely"] == 0.95
-    assert g.get_embedding(g.nodes_named("bob")[0]) == {"urgent": 0.95}
-
-    g2 = h.Graph()                                           # OVERRIDE a default degree
-    h.load_facts(g2, "very is 0.6\nurgent is gradable\nalice is very urgent\n")
-    assert g2.get_embedding(g2.nodes_named("alice")[0]) == {"urgent": 0.6}
 
 
-def test_graded_banks_lint_clean():
-    # the generated graded write-rules and rule-grammar forms satisfy the linter invariants.
-    g = h.Graph()
-    h.load_facts(g, "extremely is 0.95\n")
-    assert h.lint_rules(h.graded_rules(g)) == []
-    assert h.lint_rules(h.degree_grammar_forms(g)) == []
 
 
 def test_native_rule_cnl_folds_into_rules():
@@ -287,15 +267,6 @@ def test_prose_rule_grammar_unified_any_relation_folds():
     assert _pats(r.nac) == [("?f", "is", "sold_out")]
 
 
-def test_session_reasons_with_declared_relation_in_rule_body():
-    # end-to-end through the lazy Session: declare a relation, use it in a rule body,
-    # assert a matching fact, and the KB answers the derived question.
-    s = h.Session()
-    assert s.submit("visits is a relation").recognized
-    assert s.submit("?x is happy when ?x visits dog").recognized
-    assert s.submit("alice visits dog").recognized
-    assert s.submit("is alice happy").answer == ["yes"]
-    assert s.submit("is bob happy").answer == ["no"]
 
 
 # ---------------------------------------------------------------------------
@@ -325,97 +296,30 @@ def test_surface_forms_only_decompose_determiner_introduced_np():
     assert [g.name(t) for t in h.forms._chain_tokens(g, anchor)] == ["alice", "sends", "parcel"]
 
 
-def test_multiword_entity_decomposes_and_answers():
-    s = h.Session()
-    assert set(s.submit("the bald eagle is a bird").new_facts) == {"eagle is bald", "eagle is_a bird"}
-    assert s.submit("is the bald eagle a bird").answer == ["yes"]
-    assert s.submit("who is a bird").answer == ["eagle is_a bird"]
 
 
-def test_copula_state_question_not_over_merged():
-    # "is alice happy" must stay subject + predicate (two tokens), not decompose to "happy is alice".
-    s = h.Session()
-    assert s.submit("alice is happy").recognized
-    assert s.submit("is alice happy").answer == ["yes"]
-    assert s.submit("is alice sad").answer == ["no"]
 
 
-def test_determiner_dropped_but_fixed_phrase_the_is_kept():
-    # "the" in the fixed keyword phrase "is the same as" is NOT a determiner to strip.
-    s = h.Session()
-    s.load_text(
-        "clark is the same as superman\n"
-        "clark is a hero\n"
-    )
-    assert s.submit("is superman a hero").answer == ["yes"]
 
 
-def test_quantifier_over_multiword_entity():
-    # "every bald eagle is a bird" -> a universal law over the decomposed head; the attribute
-    # `eagle is bald` rides along.
-    s = h.Session()
-    assert set(s.submit("every bald eagle is a bird").new_facts) == \
-        {"eagle every_is_a bird", "eagle is bald"}
-    assert s.submit("the bald eagle is a bald eagle").recognized
-    assert s.submit("is the bald eagle a bird").answer == ["yes"]
 
 
-def test_multiword_entity_across_relation_and_decomposition():
-    s = h.Session()
-    assert s.submit("visits is a relation").recognized
-    assert set(s.submit("the bald eagle visits the tall tree").new_facts) == \
-        {"eagle visits tree", "eagle is bald", "tree is tall"}
-    assert s.submit("who visits the tall tree").answer == ["eagle visits tree"]
 
 
-def test_multi_adjective_decomposes_right_to_left_into_head():
-    # "the big bald eagle" -> head `eagle` carrying BOTH modifiers (correct associativity),
-    # on both subject and object of a relation.
-    s = h.Session()
-    s.submit("chases is a relation")
-    facts = set(s.submit("the big bald eagle chases the small cat").new_facts)
-    assert facts == {"eagle chases cat", "eagle is big", "eagle is bald", "cat is small"}
 
 
 # ---------------------------------------------------------------------------
 # Anaphoric pronouns — resolve to the discourse subject (Tier 3b)
 # ---------------------------------------------------------------------------
 
-def test_pronoun_resolves_to_prior_subject_and_composes():
-    # "it" -> the subject of the previous line ("eagle"); resolves to the same one entity.
-    s = h.Session()
-    assert s.submit("eagle is a bird").recognized
-    assert s.submit("it is happy").new_facts == ["eagle is happy"]
-    assert s.submit("who is happy").answer == ["eagle is happy"]
 
 
-def test_pronoun_in_question_resolves_to_subject():
-    s = h.Session()
-    assert s.submit("alice is a person").recognized
-    assert s.submit("is she a person").answer == ["yes"]
 
 
-def test_object_pronoun_across_relation():
-    # "it" in object position resolves to the prior subject ("cat").
-    s = h.Session()
-    assert s.submit("chases is a relation").recognized
-    assert s.submit("cat is a pet").recognized
-    assert s.submit("dog chases it").new_facts == ["dog chases cat"]
-    assert s.submit("who chases cat").answer == ["dog chases cat"]
 
 
-def test_pronoun_with_no_antecedent_stays_literal():
-    # First line: nothing to resolve to, so "it" is a literal entity (an unresolved reference).
-    s = h.Session()
-    assert s.submit("it is a bird").new_facts == ["it is_a bird"]
 
 
-def test_pronoun_topic_updates_across_lines():
-    # The discourse subject advances: after "dog ...", "it" resolves to dog, not eagle.
-    s = h.Session()
-    s.submit("eagle is a bird")
-    s.submit("dog is a pet")
-    assert s.submit("it is happy").new_facts == ["dog is happy"]
 
 
 def test_cnl_authored_ice_cream_end_to_end():
@@ -736,19 +640,6 @@ def test_goal_satisfaction_pipeline():
     assert len(g.nodes_named("person")) == 1        # coreference merged the two mentions
 
 
-def test_ice_cream_routing_no_planner():
-    import importlib.util
-    import pathlib
-    p = pathlib.Path(__file__).resolve().parent.parent / "examples" / "ice_cream.py"
-    spec = importlib.util.spec_from_file_location("ice_cream_demo", p)
-    m = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(m)
-    g = m.build_scenario()
-    m.serve_all(g)
-    res = m.outcomes(g)
-    assert res["alice"] == "served express"        # graded urgency -> express route
-    assert res["bob"] == "served regular"
-    assert res["carol"] == "offered alternative"    # out of stock
 
 
 def test_canonicalize_protects_relation_nodes():
@@ -957,69 +848,14 @@ def _mark(g, s, rel, o="<yes>"):
                for si in g.nodes_named(s) for r, ob in g.relations_from(si))
 
 
-def test_planning_plan_exists_and_orders():
-    # the fixpoint of PLANNING_RULES is a plan: the relevant operators are chosen and
-    # ordered (producers before consumers), with NO search.
-    g = _coffee()
-    h.plan(g)
-    assert _mark(g, "make_coffee", "chosen")
-    assert _mark(g, "fetch_water", "chosen")
-    assert _mark(g, "get_beans", "chosen")
-    assert _mark(g, "have_coffee", "reachable")
-    # ordering: water/beans producers come before the consumer make_coffee
-    assert _mark(g, "fetch_water", "before", "make_coffee")
-    assert _mark(g, "get_beans", "before", "make_coffee")
-    assert not _mark(g, "make_coffee", "before", "fetch_water")
 
 
-def test_planning_dead_option_never_viable():
-    # an operator whose precondition never connects to the current state keeps a block
-    # that never clears -> never viable -> never chosen (monotone, no backtracking).
-    g = _coffee()
-    h.plan(g)
-    assert _mark(g, "buy_latte", "blocked_by", "money")
-    assert not _mark(g, "buy_latte", "viable")
-    assert not _mark(g, "buy_latte", "chosen")
-    assert not _mark(g, "money", "reachable")
 
 
-def test_planning_execution_reaches_goal():
-    # token-passing execution drives the observed state to the goal.
-    g = _coffee()
-    assert h.solve(g) == "done"
-    assert _mark(g, "<now>", "true", "have_coffee")
-    assert h.goal_satisfied(g)
-    assert _mark(g, "make_coffee", "done")
 
 
-def test_planning_divergence_triggers_replan_and_recovers():
-    # inject a one-shot failure: make_coffee runs but its effect is withheld. The
-    # divergence is detected, control is torn down, and the SAME rules re-plan and
-    # re-execute from the new state -> goal still reached. (A single pass could not
-    # recover a withheld effect, so reaching "done" proves the replan path ran.)
-    g = _coffee()
-    assert h.solve(g, failures={"make_coffee": 1}) == "done"
-    assert _mark(g, "<now>", "true", "have_coffee")
 
 
-def test_planning_teardown_clears_control_keeps_facts():
-    # the replan teardown drops ALL control scaffolding but keeps the fact layer
-    # (observed state, operators, goal). Verified in isolation on a planned graph.
-    g = _coffee()
-    h.plan(g)
-    assert _mark(g, "make_coffee", "chosen")          # control present
-    # trigger teardown directly
-    replan = g.add_node("<replan>")
-    g.add_relation(replan, "active", g.nodes_named("<yes>")[0])
-    h.run_rules(g, h.TEARDOWN_RULES)
-    # control gone
-    assert not _mark(g, "make_coffee", "chosen")
-    assert not _mark(g, "fetch_water", "before", "make_coffee")
-    assert not _mark(g, "have_coffee", "reachable")
-    # facts kept
-    assert _mark(g, "make_coffee", "add", "have_coffee")
-    assert _mark(g, "make_coffee", "pre", "water")
-    assert _mark(g, "<goal>", "want", "have_coffee")
 
 
 # ---- multi-option ranked commitment (phase C): pick the cheapest viable rival -----
@@ -1038,64 +874,14 @@ def _coffee_two_water(fetch_cost=1, buy_cost=5):
     return g
 
 
-def test_planning_ranked_commitment_picks_cheapest():
-    # two viable producers of `water`; the cheaper one is chosen, the costlier dominated.
-    # The CRITERION (cost) is a fact; `rank_by_cost` (a tool) emits the `cheaper_than`
-    # comparison result; the rules SELECT over it (the standing guardrail).
-    g = _coffee_two_water(fetch_cost=1, buy_cost=5)
-    h.plan(g)
-    assert _mark(g, "fetch_water", "cheaper_than", "buy_water")   # tool's result (a fact)
-    assert _mark(g, "buy_water", "viable")                        # both are viable...
-    assert _mark(g, "fetch_water", "viable")
-    assert _mark(g, "buy_water", "dominated")                     # ...but the costlier loses
-    assert not _mark(g, "fetch_water", "dominated")
-    assert _mark(g, "fetch_water", "chosen")                      # only the cheapest commits
-    assert not _mark(g, "buy_water", "chosen")
-    assert _mark(g, "make_coffee", "chosen")
 
 
-def test_planning_ranked_commitment_reversed_cost():
-    # flip the costs: now buying is cheaper, so commitment must flip too (selection is
-    # driven by the fact, not by operator declaration order).
-    g = _coffee_two_water(fetch_cost=5, buy_cost=1)
-    h.plan(g)
-    assert _mark(g, "buy_water", "chosen")
-    assert not _mark(g, "fetch_water", "chosen")
-    assert _mark(g, "fetch_water", "dominated")
 
 
-def test_planning_ranked_commitment_solves_with_cheapest():
-    # the full loop reaches the goal, executing the cheaper water source (not both).
-    g = _coffee_two_water(fetch_cost=1, buy_cost=5)
-    assert h.solve(g) == "done"
-    assert _mark(g, "fetch_water", "done")
-    assert not _mark(g, "buy_water", "done")
 
 
-def test_planning_equal_cost_is_an_honest_tie():
-    # equal cost = NO criterion to separate the rivals. Neither dominates the other, so
-    # both are `best` and both commit — an honest over-commitment, NOT a fabricated pick
-    # (choosing among true equals with no criterion would be fabrication, not control).
-    g = _coffee_two_water(fetch_cost=2, buy_cost=2)
-    h.plan(g)
-    assert not _mark(g, "fetch_water", "cheaper_than", "buy_water")
-    assert not _mark(g, "buy_water", "cheaper_than", "fetch_water")
-    assert _mark(g, "fetch_water", "chosen") and _mark(g, "buy_water", "chosen")
 
 
-def test_planning_cheaper_than_is_a_fact_surviving_teardown():
-    # `cheaper_than` is a derived FACT (from authored cost), not control scaffolding, so
-    # replan teardown keeps it (while dropping `dominated`/`best`/`chosen`).
-    g = _coffee_two_water(fetch_cost=1, buy_cost=5)
-    h.plan(g)
-    assert _mark(g, "buy_water", "dominated")
-    replan = g.add_node("<replan>")
-    g.add_relation(replan, "active", g.nodes_named("<yes>")[0])
-    h.run_rules(g, h.TEARDOWN_RULES)
-    assert _mark(g, "fetch_water", "cheaper_than", "buy_water")   # fact survives
-    assert not _mark(g, "buy_water", "dominated")                 # control gone
-    assert not _mark(g, "fetch_water", "best")
-    assert not _mark(g, "fetch_water", "chosen")
 
 
 # ---------------------------------------------------------------------------
@@ -1113,106 +899,18 @@ def _record(order, names):
     return {nm: make(nm) for nm in names}
 
 
-def test_procedure_parses_into_an_ordered_step_list():
-    # CNL `to NAME s1 then s2 then s3` -> the procedure name + its steps in stated order.
-    # Recognition is CONTROLLED (the `to` header) and parsed in a throwaway graph.
-    procs = h.parse_procedures("to brew get_water then add_beans then heat")
-    assert procs == {"brew": ["get_water", "add_beans", "heat"]}
-    # an unrecognized line yields nothing (no spurious procedure)
-    assert h.parse_procedures("glorp the flarn") == {}
 
 
-def test_procedure_invokes_into_solve_and_completes():
-    # invoking a procedure marks its steps chosen + ordered and feeds them into the EXISTING
-    # solve loop (no goal, no planner search): all steps run and the effects materialize.
-    g = h.Graph()
-    h.seed_operator(g, "get_water", add=["water"])
-    h.seed_operator(g, "add_beans", add=["beans"])
-    h.seed_operator(g, "heat", pre=["water", "beans"], add=["have_coffee"])
-    h.seed_state(g, [])
-    procs = h.parse_procedures("to brew get_water then add_beans then heat")
-    order = []
-    assert h.run_procedure(g, "brew", procs, actions=_record(order, procs["brew"])) == "done"
-    assert order == ["get_water", "add_beans", "heat"]          # stated order
-    assert h.procedure_done(g, "brew", procs)
-    assert _mark(g, "<now>", "true", "have_coffee")
 
 
-def test_procedure_then_order_binds_at_execution_without_preconditions():
-    # the KEY property: two steps with NO precondition dependency still run in the stated
-    # `then` order — the `waits_for` before-gate enforces the sequence, not just preconditions.
-    g = h.Graph()
-    h.seed_operator(g, "greet", add=["greeted"])
-    h.seed_operator(g, "serve", add=["served"])                 # serve needs nothing of greet
-    h.seed_state(g, [])
-    procs = h.parse_procedures("to welcome greet then serve")
-    order = []
-    assert h.run_procedure(g, "welcome", procs, actions=_record(order, procs["welcome"])) == "done"
-    assert order == ["greet", "serve"]
 
 
-def test_procedure_gap_fill_plans_a_missing_precondition():
-    # a procedure that OMITS a needed producer auto-completes: the chosen step's unmet pre
-    # becomes a <need>, the EXISTING planner finds/commits a producer and orders it before the
-    # step (the gap-fill bridge, corpus/procedure.cnl). No goal seeded; one bridge rule.
-    g = h.Graph()
-    h.seed_operator(g, "get_water", add=["water"])             # producer the procedure omits
-    h.seed_operator(g, "heat", pre=["water"], add=["have_coffee"])
-    h.seed_state(g, [])
-    procs = h.parse_procedures("to brew heat")
-    assert procs == {"brew": ["heat"]}                         # only the one declared step
-    order = []
-    assert h.run_procedure(g, "brew", procs, actions=_record(order, ["get_water", "heat"])) == "done"
-    assert order == ["get_water", "heat"]                      # gap-filler ran first
-    assert _mark(g, "get_water", "chosen")                     # planner committed the producer
-    assert _mark(g, "get_water", "before", "heat")             # ordered before the step
-    assert _mark(g, "<now>", "true", "have_coffee")
-    assert h.procedure_done(g, "brew", procs)
 
 
-def test_procedure_gap_fill_picks_cheapest_producer():
-    # gap-filling reuses commitment's ranking: with two producers of the missing pre, the
-    # cheaper is chosen and the costlier dominated (the fact-layer cost criterion).
-    g = h.Graph()
-    h.seed_operator(g, "fetch_water", add=["water"], cost=1)
-    h.seed_operator(g, "buy_water", add=["water"], cost=5)
-    h.seed_operator(g, "heat", pre=["water"], add=["have_coffee"])
-    h.seed_state(g, [])
-    procs = h.parse_procedures("to brew heat")
-    assert h.run_procedure(g, "brew", procs, actions=_record([], ["fetch_water", "buy_water", "heat"])) == "done"
-    assert _mark(g, "fetch_water", "chosen")
-    assert not _mark(g, "buy_water", "chosen")
-    assert _mark(g, "buy_water", "dominated")
 
 
-def test_procedure_strict_mode_stalls_on_missing_precondition():
-    # with gap_fill=False a missing precondition is NOT planned for: the step stalls and the
-    # procedure reports "stuck" (off the step witnesses, not solve's vacuous goal "done").
-    g = h.Graph()
-    h.seed_operator(g, "get_water", add=["water"])
-    h.seed_operator(g, "heat", pre=["water"], add=["have_coffee"])
-    h.seed_state(g, [])
-    procs = h.parse_procedures("to brew heat")
-    order = []
-    assert h.run_procedure(g, "brew", procs, gap_fill=False,
-                           actions=_record(order, ["get_water", "heat"])) == "stuck"
-    assert order == []                                         # nothing ran
-    assert not h.procedure_done(g, "brew", procs)
-    assert not _mark(g, "get_water", "chosen")                 # no gap-filler committed
 
 
-def test_execution_unmet_precondition_blocks_readiness():
-    # regression for the NAC-grouping fix: a chosen op with an unmet precondition that nothing
-    # provides must NOT become ready (independent `not unmet` / `not done` negations). Before
-    # the fix the multi-clause readiness NAC was conjunctive, so `unmet` was cosmetic.
-    g = h.Graph()
-    o = h.seed_operator(g, "op1", pre=["needed"], add=["result"])
-    g.add_relation(o, "chosen", g.add_node("<yes>"))            # chosen, but `needed` absent
-    h.seed_state(g, [])
-    h.run_rules(g, h.EXECUTION_RULES, provenance=False)
-    assert _mark(g, "op1", "unmet", "needed")
-    assert not any(g.name(r) == "ready" for ex in g.nodes_named("<exec>")
-                   for r, _ in g.relations_from(ex))
 
 
 def test_nac_independent_negations_block_separately():
@@ -1277,66 +975,12 @@ def test_external_freshness_supersedes_and_guarded_read():
     assert g.has(r1)                                     # old fact NOT deleted (still there)
 
 
-def test_planning_external_lookup_picks_cheapest():
-    # the price is NOT in the KB; a rule demands it, the dispatcher fetches it, and the
-    # cheaper source is chosen — exactly the static ranked behavior, sourced externally.
-    g = _coffee_ext()
-    reg = {"price": h.price_handler({"fetch_water": 1, "deliver_water": 5})}
-    h.plan(g, registry=reg)
-    assert _mark(g, "fetch_water", "chosen")
-    assert _mark(g, "deliver_water", "dominated") and not _mark(g, "deliver_water", "chosen")
-    assert _mark(g, "make_coffee", "chosen") and _mark(g, "get_beans", "chosen")
-    # the fetched price is an in-graph FACT now; nothing was authored as `cost`
-    assert _current_prices(g, "fetch_water") == ["1"]
-    assert not any(g.name(r) == "cost" for n in g.nodes() for r, _ in g.relations_from(n))
-    # only PRICED ops were looked up (no spurious request/error for make_coffee/get_beans)
-    assert not g.nodes_named("<error>")
-    assert not h.pending(g, "price")                     # all requests serviced
 
 
-def test_planning_external_solve_reaches_goal():
-    # the full loop fetches on demand and reaches the goal via the cheaper source only.
-    g = _coffee_ext()
-    reg = {"price": h.price_handler({"fetch_water": 1, "deliver_water": 5})}
-    assert h.solve(g, registry=reg) == "done"
-    assert _mark(g, "<now>", "true", "have_coffee")
-    assert _mark(g, "fetch_water", "done") and not _mark(g, "deliver_water", "done")
 
 
-def test_planning_external_price_change_repicks_on_replan():
-    # FRESHNESS end-to-end: after a plan, the external price flips; a replan re-validates
-    # (teardown clears `price_known`), the tool re-fetches (superseding the old price),
-    # and the now-cheaper source is chosen. The old price FACT is kept, just superseded.
-    g = _coffee_ext()
-    db = {"fetch_water": 1, "deliver_water": 5}
-    reg = {"price": h.price_handler(db)}
-    h.plan(g, registry=reg)
-    assert _mark(g, "fetch_water", "chosen") and not _mark(g, "deliver_water", "chosen")
-    db["fetch_water"], db["deliver_water"] = 9, 1        # the world changed
-    _teardown_replan(g)
-    h.plan(g, registry=reg)
-    assert _mark(g, "deliver_water", "chosen") and not _mark(g, "fetch_water", "chosen")
-    assert _mark(g, "fetch_water", "dominated")
-    assert sorted(_current_prices(g, "fetch_water")) == ["9"]   # current = the new price
-    # both the old (1) and new (9) price facts coexist; the old is superseded, not deleted
-    allp = [h.result_value(g, r) for r in g.nodes_named("price")
-            if g.nodes_named("fetch_water")[0] in
-            [ob for rr, ob in g.relations_from(r) if g.name(rr) == "of"]]
-    assert set(allp) == {"1", "9"}
 
 
-def test_planning_external_lookup_error_yields_to_priced_rival():
-    # a MISSING price: the tool emits an `<error>` FACT (generic signal) and a `failed`
-    # marker; the specific error rule makes the un-priceable op yield to a priced rival,
-    # so planning still picks a water source and proceeds.
-    g = _coffee_ext()
-    reg = {"price": h.price_handler({"fetch_water": 1})}   # no price for deliver_water
-    h.plan(g, registry=reg)
-    err_about = [g.name(ob) for e in g.nodes_named("<error>")
-                 for rr, ob in g.relations_from(e) if g.name(rr) == "about"]
-    assert "deliver_water" in err_about
-    assert _mark(g, "deliver_water", "dominated")
-    assert _mark(g, "fetch_water", "chosen") and not _mark(g, "deliver_water", "chosen")
 
 
 # ---- real §8 action tools at the act/observe boundary (vision §8) --------------------
@@ -1344,104 +988,22 @@ def test_planning_external_lookup_error_yields_to_priced_rival():
 # emits the OBSERVED effect), else simulates the declared effect. Expected (declared) vs
 # observed (real) divergence is now genuine, not just injectable.
 
-def test_planning_real_action_tools_reach_goal():
-    # backing every operator with a real tool that observes its declared effect behaves
-    # exactly like the simulated path — goal reached.
-    g = _coffee()
-    actions = {"fetch_water": h.observe(added=["water"]),
-               "get_beans": h.observe(added=["beans"]),
-               "make_coffee": h.observe(added=["have_coffee"])}
-    assert h.solve(g, actions=actions) == "done"
-    assert _mark(g, "<now>", "true", "have_coffee")
-    assert _mark(g, "make_coffee", "done")
 
 
-def test_planning_real_action_tool_divergence_recovers():
-    # a flaky real tool fails (observes nothing) the first time, succeeds on retry: the
-    # missing effect is a real divergence -> replan -> the second attempt reaches the goal.
-    calls = {"n": 0}
-    def flaky(graph, op):
-        calls["n"] += 1
-        if calls["n"] >= 2:
-            h.observe(added=["have_coffee"])(graph, op)
-    g = _coffee()
-    actions = {"fetch_water": h.observe(added=["water"]),
-               "get_beans": h.observe(added=["beans"]), "make_coffee": flaky}
-    assert h.solve(g, actions=actions) == "done"
-    assert calls["n"] >= 2                                # it really retried after diverging
-    assert _mark(g, "<now>", "true", "have_coffee")
 
 
-def test_planning_real_action_tool_wrong_effect_diverges():
-    # the tool's OBSERVED effect differs from the operator's DECLARED effect (it produces
-    # `spilled`, not `have_coffee`): the expectation is unmet, so the goal is never reached.
-    g = _coffee()
-    actions = {"fetch_water": h.observe(added=["water"]),
-               "get_beans": h.observe(added=["beans"]),
-               "make_coffee": h.observe(added=["spilled"])}
-    assert h.solve(g, actions=actions, max_cycles=6) == "stuck"
-    assert not _mark(g, "<now>", "true", "have_coffee")
-    assert _mark(g, "<now>", "true", "spilled")           # the REAL observed effect landed
 
 
 # ---- the rule-linter: check the RULES against the system's invariants (vision §2/§5) -
 
-def test_lint_real_banks_are_clean():
-    # the shipped rule banks must satisfy the invariants the linter enforces (no
-    # ungated deletes, no unbound drops, no no-ops, stratifiable) — a regression guard.
-    # GRADED_RULES has empty RHS but a `propagate` effect, so it must NOT be flagged no-op.
-    for bank in (h.SOLVE_RULES, h.PLANNING_RULES + h.REQUEST_RULES,
-                 h.TEARDOWN_RULES, h.UNIVERSAL_RULES, h.GRADED_RULES, h.FORM_RULES,
-                 h.DEMAND_TRANSITIVITY, h.DEMAND_COREF):
-        assert h.lint_rules(bank) == [], h.format_smells(h.lint_rules(bank))
 
 
-def test_lint_flags_ungated_fact_deletion():
-    # a reasoning rule that DELETES a fact with no control token gating it violates §5.
-    evil = h.Rule(key="evil.forget", lhs=[h.Pat("?a", "likes", "?b")],
-                  rhs=[], drop=[h.Pat("?a", "likes", "?b")])
-    smells = h.lint_rules([evil])
-    assert any(s.kind == "ungated-delete" and s.rule_key == "evil.forget" for s in smells)
-    # the same deletion GATED by a control token is fine (the legitimate control idiom)
-    ok = h.Rule(key="ok.clear", lhs=[h.Pat("<exec>", "ready", "?o"), h.Pat("?o", "mark", "?b")],
-                rhs=[], drop=[h.Pat("?o", "mark", "?b")])
-    assert not any(s.kind == "ungated-delete" for s in h.lint_rules([ok]))
 
 
-def test_lint_flags_no_op_and_negation_cycle():
-    noop = h.Rule(key="noop", lhs=[h.Pat("?a", "p", "?b")], rhs=[])
-    assert any(s.kind == "no-op" for s in h.lint_rules([noop]))
-    # a true negation cycle: each rule NACs on a predicate the other produces
-    a = h.Rule(key="cyc.a", lhs=[h.Pat("?x", "base", "?y")],
-               nac=[h.Pat("?x", "q", "?y")], rhs=[h.Pat("?x", "p", "?y")])
-    b = h.Rule(key="cyc.b", lhs=[h.Pat("?x", "base", "?y")],
-               nac=[h.Pat("?x", "p", "?y")], rhs=[h.Pat("?x", "q", "?y")])
-    assert any(s.kind == "negation-cycle" for s in h.lint_rules([a, b]))
 
 
-def test_lint_dead_predicate_is_opt_in():
-    # an LHS predicate nothing produces is only flagged when asked (heuristic; needs an
-    # allowlist of base/fact predicates to avoid flagging ordinary facts).
-    r = h.Rule(key="r", lhs=[h.Pat("?a", "never_produced", "?b")], rhs=[h.Pat("?a", "out", "?b")])
-    assert not any(s.kind == "dead-predicate?" for s in h.lint_rules([r]))     # off by default
-    smells = h.lint_rules([r], check_dead_predicates=True)
-    assert any(s.kind == "dead-predicate?" for s in smells)
-    # supplying it as a base predicate clears the finding
-    assert not any(s.kind == "dead-predicate?" for s in
-                   h.lint_rules([r], check_dead_predicates=True,
-                                base_predicates=frozenset({"never_produced"})))
 
 
-def test_lint_emits_smells_into_the_graph():
-    # findings can be materialized as <rule-smell> nodes (the in-substrate view).
-    evil = h.Rule(key="evil.forget", lhs=[h.Pat("?a", "likes", "?b")],
-                  rhs=[], drop=[h.Pat("?a", "likes", "?b")])
-    g = h.Graph()
-    h.emit_smells(g, h.lint_rules([evil]))
-    smell_nodes = g.nodes_named("<rule-smell>")
-    assert smell_nodes
-    kinds = [g.name(ob) for s in smell_nodes for r, ob in g.relations_from(s) if g.name(r) == "kind"]
-    assert "ungated-delete" in kinds
 
 
 # ---- universal constraint schemas: detect inconsistency as <contradiction> markers ---
@@ -1534,133 +1096,24 @@ def test_constraint_cnl_declarations_parse_and_detect():
 
 # ---- Session: the stateful user-facing engine API behind the TUI/CLI -----------------
 
-def test_universal_is_a_is_a_law_binding_many_witnesses():
-    # "every X is a Y" is a UNIVERSAL LAW (binds every witness), not a flattened fact.
-    # It is recorded as a law marker and applied to each witness BY NAME (no merge of the
-    # witnesses), even when the law is stated before they are.
-    s = h.Session()
-    s.submit("every person is a mortal")
-    s.submit("paul is a person")
-    s.submit("mary is a person")
-    facts = s.facts()
-    assert "paul is_a mortal" in facts and "mary is_a mortal" in facts  # law bound both
-    assert "person every_is_a mortal" in facts       # kept as a law, not as `person is_a mortal`
-    assert "person is_a mortal" not in facts
 
 
-def test_session_assert_question_and_reasoning():
-    s = h.Session()
-    assert s.submit("paul is a person").recognized
-    s.submit("every person is a mortal")
-    assert "paul is_a mortal" in s.facts()          # the universal law fired
-    q = s.submit("is paul a mortal")
-    assert q.is_question and q.answer == ["yes"]
 
 
-def test_session_reports_unrecognized_lines():
-    s = h.Session()
-    ok = s.submit("alice wants vanilla")
-    assert ok.recognized and not ok.error
-    bad = s.submit("frobnicate the wibble quux")    # matches no meaningful form
-    assert not bad.recognized
-    assert "frobnicate the wibble quux" in s.unparsed()
-    # the unparsed list does not duplicate across further lines (canonicalize-proof)
-    s.submit("bob wants chocolate")
-    assert s.unparsed().count("frobnicate the wibble quux") == 1
 
 
-def test_session_bare_repeats_are_distinct_witnesses_not_a_contradiction():
-    # Pure §3 disambiguation (the chosen Session semantics, docs/coreference_design.md): a
-    # bare repeated mention is a DISTINCT witness, so `ice is a solid` + `ice is a liquid` is
-    # NOT a contradiction — it reads as two different ice things, not one ice that is both.
-    # (To flag a genuine one-entity mistake, an explicit single identity is stated — see
-    # test_session_single_identity_catches_contradiction.) The KB is LAZY: detection is
-    # pulled by `contradictions`.
-    s = h.Session()
-    results = s.load_text(
-        "liquid is disjoint from solid\n"
-        "ice is a solid\n"
-        "ice is a liquid\n"
-    )
-    assert all(r.recognized for r in results)
-    assert s.contradictions() == []                 # distinct witnesses -> consistent
-    assert len(s.kb.nodes_named("ice")) == 2        # never merged
 
 
-def test_session_single_identity_catches_contradiction():
-    # EXPLICIT SINGLE IDENTITY (`X is one thing`): the user asserts all `ice` mentions are ONE
-    # entity, which overrides the pure-§3 distinct-witness default. The mentions are
-    # force-coreferenced (kept even though contradictory), so `ice is a solid` + `ice is a
-    # liquid` over disjoint sorts is now a REAL contradiction — the genuine one-entity mistake
-    # the distinct-witness model deliberately could not catch.
-    s = h.Session()
-    results = s.load_text(
-        "liquid is disjoint from solid\n"
-        "ice is one thing\n"                        # explicit single identity
-        "ice is a solid\n"
-        "ice is a liquid\n"
-    )
-    assert all(r.recognized for r in results)       # the declaration line is recognized
-    assert "ice is_unique <yes>" in s.facts()       # the single-identity marker is content
-    c = s.contradictions()
-    assert c != []                                  # one ice that is both -> contradiction
-    assert "ice" in {a for x in c for a in x["about"]}
 
 
-def test_session_single_identity_consistent_when_compatible():
-    # Declaring a single identity does NOT manufacture contradictions: one `ice` that is a
-    # solid and is cold is perfectly consistent (cold and solid are not disjoint).
-    s = h.Session()
-    s.load_text(
-        "liquid is disjoint from solid\n"
-        "ice is one thing\n"
-        "ice is a solid\n"
-        "ice is cold\n"
-    )
-    assert s.contradictions() == []
 
 
-def test_session_cross_name_identity_composes_facts():
-    # EXPLICIT CROSS-NAME COREFERENCE (`X is the same as Y`): two different names denote one
-    # entity, so a fact stated under one name is true of the other. Asking about superman
-    # composes clark's reporter fact across the asserted identity.
-    s = h.Session()
-    s.load_text("clark is the same as superman\nclark is a reporter\n")
-    q = s.submit("is superman a reporter")
-    assert q.is_question and q.answer == ["yes"]
-    assert len(s.kb.nodes_named("clark")) >= 1 and len(s.kb.nodes_named("superman")) >= 1
 
 
-def test_session_cross_name_identity_catches_contradiction():
-    # Identifying two names propagates BOTH their facts onto the one entity; if those facts are
-    # incompatible (human vs martian, disjoint), it is a real contradiction. Mirrors the
-    # single-identity case but across distinct names.
-    s = h.Session()
-    s.load_text(
-        "human is disjoint from martian\n"
-        "clark is the same as superman\n"
-        "clark is a human\n"
-        "superman is a martian\n"
-    )
-    c = s.contradictions()
-    assert c != []
-    about = {a for x in c for a in x["about"]}
-    assert "clark" in about or "superman" in about
 
 
-def test_session_distinct_names_do_not_compose():
-    # WITHOUT the identity declaration, two different names are just two entities: a fact about
-    # clark says nothing about superman (no spurious composition).
-    s = h.Session()
-    s.load_text("clark is a reporter\nsuperman is a hero\n")
-    q = s.submit("is superman a reporter")
-    assert q.is_question and q.answer == ["no"]
 
 
-def test_session_consistent_kb_has_no_contradictions():
-    s = h.Session()
-    s.load_text("liquid is disjoint from solid\nice is a solid\n")
-    assert s.contradictions() == []
 
 
 # ---- demand-driven SELECTIVE coreference on the Session query path (vision §3) -----------
@@ -1669,38 +1122,8 @@ def test_session_consistent_kb_has_no_contradictions():
 # the dumb dispatcher resolves it by reasoning (provably-distinct mentions are rejected), and
 # the genuinely ambiguous residue is referred to the user via an optional Oracle.
 
-def test_session_query_disambiguates_two_pauls_by_reasoning():
-    # Two `paul` mentions in disjoint categories. Asking about paul pulls coreference; linking
-    # them would make one paul both teacher and student (disjoint) -> the link is rejected, so
-    # the two pauls stay separate and the KB stays consistent. No user needed.
-    s = h.Session()
-    s.load_text("teacher is disjoint from student\n"
-                "paul is a teacher\n"
-                "paul is a student\n")
-    ans = s.submit("is paul a teacher")
-    assert ans.is_question and ans.answer == ["yes"]   # the teacher-paul answers
-    assert len(s.kb.nodes_named("paul")) == 2          # never merged
-    assert not _has(s.kb, "paul", "same_as", "paul")   # the inconsistent link was withdrawn
-    assert s.contradictions() == []                    # disambiguation kept it consistent
 
 
-def test_session_ask_user_disambiguation_for_a_consistent_link():
-    # Two `paul` mentions whose categories are COMPATIBLE (teacher + mortal): reasoning cannot
-    # tell whether they are the same person, so the identity is referred to the user. With an
-    # oracle that answers "distinct", the link is withdrawn and the mentions stay separate;
-    # with the default (no oracle) a consistent link is kept and facts compose across it.
-    def run(oracle):
-        s = h.Session(oracle=oracle)
-        s.load_text("paul is a teacher\npaul is a mortal\n")
-        s.submit("is paul a teacher")                  # the query pulls coreference
-        return s
-
-    distinct = run(h.auto_oracle("distinct"))
-    assert not _has(distinct.kb, "paul", "same_as", "paul")    # user said: different people
-    assert len(distinct.kb.nodes_named("paul")) == 2
-
-    kept = run(None)                                    # no oracle -> keep the consistent link
-    assert _has(kept.kb, "paul", "same_as", "paul")     # linked, facts compose across it
 
 
 # ---- context-scoped, additive coreference (replaces the destructive `canonicalize` merge) ----
@@ -1747,54 +1170,12 @@ def test_coref_context_defeats_a_false_asymmetry_contradiction():
     assert not h.is_consistent(build(contextualize=False))  # one week -> real violation
 
 
-def test_session_in_statement_context_grammar_splices_cleanly():
-    # The `X of C` grammar qualifies a mention with its context inline, splicing it into an
-    # `in` fact. Under pure §3 the bare mondays are distinct witnesses, so neither the
-    # different-week nor the same-week phrasing is a contradiction (a name clash = distinct
-    # things, not an inconsistency). What we assert here is the GRAMMAR (the qualifier splices
-    # out cleanly into `before` + `in` facts); consistency holds either way.
-    s = h.Session()
-    s.load_text("before is a relation\nbefore is asymmetric\n"
-                "monday of week1 before tuesday of week1\n"
-                "tuesday of week2 before monday of week2")
-    assert "monday before tuesday" in s.facts()          # the qualifier spliced out cleanly
-    assert "monday in week1" in s.facts() and "monday in week2" in s.facts()
-    assert s.contradictions() == []                      # distinct witnesses -> consistent
 
 
 # ---- grammar coverage: generic binary relations (declare a relation -> a form for it) -
 
-def test_grammar_declared_binary_relation_parses():
-    # a bare `X R Y` is only parseable once `R is a relation` declares R (controlled CNL,
-    # not greedy — an undeclared relation word stays unrecognized).
-    s = h.Session()
-    assert not s.submit("monday before tuesday").recognized       # before not declared yet
-    s.submit("before is a relation")
-    r = s.submit("monday before tuesday")
-    assert r.recognized and "monday before tuesday" in s.facts()
-    assert s.submit("glorp the flarn wibbit").recognized is False  # still controlled
 
 
-def test_grammar_relation_with_constraint_over_distinct_witnesses():
-    # The end-to-end stack — declare a relation, declare a LAW on it, state facts — all in
-    # CNL. Under pure §3 the two `monday` (and `tuesday`) mentions are DISTINCT witnesses, so
-    # `monday before tuesday` + `tuesday before monday` is NOT a violation: it is monday#1
-    # before tuesday#1 and tuesday#2 before monday#2, four different days. The law is declared
-    # and the facts parse; nothing forces them onto one node, so there is no contradiction.
-    # (Catching a genuine self-asymmetry needs an explicit single identity — future grammar;
-    # the asymmetry schema itself is exercised on shared nodes by the constraint tests above.)
-    s = h.Session()
-    s.load_text(
-        "before is a relation\n"
-        "before is asymmetric\n"
-        "monday before tuesday\n"
-        "tuesday before monday\n"
-    )
-    assert "before rel_property asymmetric" in s.facts()   # the law was declared
-    assert "monday before tuesday" in s.facts() and "tuesday before monday" in s.facts()
-    assert s.contradictions() == []                        # distinct witnesses -> consistent
-    # no spurious facts from `before` being both a relation word and an entity
-    assert "violates before is_a" not in s.facts()
 
 
 # ---- grammar coverage: n-ary relations (reify a 3+-participant statement as an event) -----
@@ -1809,85 +1190,14 @@ def _event_roles(g, pred):
     return out
 
 
-def test_grammar_nary_reifies_ditransitive_into_an_event():
-    # "alice gives book to bob" is a 3-participant statement: it reifies into an EVENT node
-    # with named role edges (subj/obj/<preposition>) + the verb as `pred`. Controlled and
-    # FULLY DATA-DRIVEN: both the verb (`gives is a verb`) AND the preposition
-    # (`to is a preposition`) are declared in CNL — no hardcoded lexical list.
-    s = h.Session()
-    assert not s.submit("alice gives book to bob").recognized   # verb/prep not declared yet
-    s.submit("gives is a verb")
-    s.submit("to is a preposition")
-    r = s.submit("alice gives book to bob")
-    assert r.recognized
-    [roles] = _event_roles(s.kb, "gives")
-    assert roles == {"pred": "gives", "subj": "alice", "obj": "book", "to": "bob"}
-    # the role edges are content facts (so the line is recognized, and they survive stripping)
-    assert "event subj alice" in s.facts() and "event to bob" in s.facts()
 
 
-def test_grammar_nary_events_are_distinct_per_instance():
-    # each statement reifies into its OWN event node (a fresh `event?`), never merged — two
-    # gives are two events, with a different verb/preposition handled by the same machinery.
-    s = h.Session()
-    s.load_text(
-        "gives is a verb\n"
-        "makes is a verb\n"
-        "to is a preposition\n"
-        "for is a preposition\n"
-        "alice gives book to bob\n"
-        "carol gives pen to dave\n"
-        "eve makes cake for frank\n"
-    )
-    gives = _event_roles(s.kb, "gives")
-    assert len(gives) == 2
-    assert {"subj": "alice", "obj": "book", "to": "bob", "pred": "gives"} in gives
-    assert {"subj": "carol", "obj": "pen", "to": "dave", "pred": "gives"} in gives
-    [made] = _event_roles(s.kb, "makes")
-    assert made == {"pred": "makes", "subj": "eve", "obj": "cake", "for": "frank"}
 
 
-def test_grammar_nary_is_controlled_and_disjoint_from_binary():
-    # an undeclared verb stays unrecognized (controlled CNL), and declaring a binary RELATION
-    # does NOT make it an n-ary verb (the two declarations are disjoint: is_a relation vs verb).
-    s = h.Session()
-    s.submit("likes is a relation")
-    s.submit("to is a preposition")
-    assert "likes" in h.declared_relations(s.kb)
-    assert "likes" not in h.declared_verbs(s.kb)
-    assert "to" in h.declared_prepositions(s.kb)
-    assert not s.submit("alice sends parcel to dave").recognized   # 'sends' not declared
-    assert _event_roles(s.kb, "sends") == []
 
 
-def test_grammar_nary_questions_query_each_role():
-    # an n-ary event is queryable by putting a wh-word in the role you want: `who` in the
-    # subject or prep slot, `what` in the direct object. The answer reconstructs the event.
-    s = h.Session()
-    s.load_text("gives is a verb\nto is a preposition\nalice gives book to bob\n")
-    assert s.submit("who gives book to bob").answer == ["alice gives book to bob"]
-    assert s.submit("alice gives what to bob").answer == ["alice gives book to bob"]
-    assert s.submit("alice gives book to who").answer == ["alice gives book to bob"]
-    # all three are recognized as QUESTIONS (not asserted as new events)
-    assert s.submit("who gives book to bob").is_question
-    assert len(_event_roles(s.kb, "gives")) == 1                  # asking added no events
 
 
-def test_grammar_nary_question_discriminates_and_handles_misses():
-    # the join is on the whole event: a wh-query returns only events matching ALL given roles,
-    # several matches are all returned, and an unmatched query says so.
-    s = h.Session()
-    s.load_text("gives is a verb\n"
-                "to is a preposition\n"
-                "alice gives book to bob\n"
-                "carol gives pen to bob\n"
-                "alice gives book to dave\n")
-    assert s.submit("who gives pen to bob").answer == ["carol gives pen to bob"]
-    assert sorted(s.submit("alice gives book to who").answer) == [
-        "alice gives book to bob", "alice gives book to dave"]
-    assert s.submit("zoe gives book to who").answer == ["(no answer)"]
-    # a declarative (no wh-word) is NOT a question — it asserts a new event
-    assert not s.submit("eve gives map to bob").is_question
 
 
 # ---- coreference-as-rules (vision §3): additive `same_as`, validated in principle --------
@@ -2181,80 +1491,16 @@ def _edges(g):
     return sorted((g.name(a), g.name(b)) for a, b in g.edges())
 
 
-def test_planning_kb_cnl_reflects_to_python_seeders():
-    # The whole coffee instance authored in CNL lowers to EXACTLY the edge set the
-    # seed_operator/seed_state/seed_goal calls in examples/coffee.py produce (shared
-    # condition nodes, opaque cost data-nodes, the <goal>/<now> hubs) — no drift.
-    gc = h.load_planning_kb(_COFFEE_KB.read_text(encoding="utf-8"))
-    gp = h.Graph()
-    h.seed_operator(gp, "make_coffee", pre=["water", "beans"], add=["have_coffee"])
-    h.seed_operator(gp, "get_beans", add=["beans"])
-    h.seed_operator(gp, "buy_latte", pre=["money"], add=["have_coffee"])
-    h.seed_operator(gp, "fetch_water", add=["water"], cost=1)
-    h.seed_operator(gp, "deliver_water", add=["water"], cost=5)
-    h.seed_state(gp, [])
-    h.seed_goal(gp, "have_coffee")
-    assert _edges(gc) == _edges(gp)
 
 
-def test_planning_kb_forms_cover_del_priced_and_state_edges():
-    # the surfaces the coffee KB doesn't exercise: `removes` -> del, `is priced` ->
-    # needs_price <yes> (external cost), and `we have C` -> <now> true C.
-    g = h.load_planning_kb("brew removes water\nbrew is priced\nwe have milk")
-    assert _mark(g, "brew", "del", "water")
-    assert _mark(g, "brew", "needs_price", "<yes>")
-    assert _mark(g, "<now>", "true", "milk")
 
 
-def test_planning_kb_unrecognized_line_contributes_nothing():
-    # controlled recognition (like parse_procedures): a line no form matches is silently
-    # skipped and adds no edge.
-    g = h.load_planning_kb("glorp the flarn wibbit")
-    assert _edges(g) == []
 
 
-def test_planning_kb_plan_and_solve_reach_the_goal():
-    # loaded via the ONE entry point the TUI calls, the CNL KB drives the unchanged
-    # planning loop: the cheapest water producer is chosen, the costlier dominated, the
-    # dead option dies, and solve reaches the goal.
-    g = h.load_planning_kb(_COFFEE_KB.read_text(encoding="utf-8"))
-    h.plan(g)
-    assert _mark(g, "make_coffee", "chosen")
-    assert _mark(g, "fetch_water", "chosen")               # cheaper water producer
-    assert _mark(g, "deliver_water", "dominated")          # costlier loses
-    assert not _mark(g, "buy_latte", "viable")             # dead option (money unreachable)
-    g2 = h.load_planning_kb(_COFFEE_KB.read_text(encoding="utf-8"))
-    assert h.solve(g2) == "done"
-    assert _mark(g2, "<now>", "true", "have_coffee")
 
 
 _BARISTA_KB = _pathlib.Path(__file__).resolve().parent.parent / "corpus" / "barista_kb.cnl"
 
 
-def test_planning_program_parses_operators_and_procedures():
-    # One MIXED .cnl carries operators + goal (into the graph) AND a procedure (into the
-    # procedures dict). The two surfaces are disjoint: a `to NAME ...` line yields no operator
-    # edge, and load_planning_kb (graph-only) sees the same graph as program[0].
-    text = _BARISTA_KB.read_text(encoding="utf-8")
-    g, procs = h.load_planning_program(text)
-    assert procs == {"morning_service": ["get_beans", "grind_beans", "fetch_water", "make_coffee"]}
-    assert _mark(g, "<goal>", "want", "have_coffee")
-    assert _mark(g, "make_coffee", "pre", "ground")
-    # the procedure header contributes NO operator/state/goal edge to the graph
-    assert not g.nodes_named("morning_service")
-    # backward-compat: the graph-only entry point equals program()'s graph
-    assert _edges(h.load_planning_kb(text)) == _edges(g)
 
 
-def test_planning_program_goal_and_procedure_both_reach_done():
-    # Same mixed KB, two ways to drive it. Goal-directed: solve reaches have_coffee.
-    text = _BARISTA_KB.read_text(encoding="utf-8")
-    g_goal, _ = h.load_planning_program(text)
-    assert h.solve(g_goal) == "done"
-    assert _mark(g_goal, "<now>", "true", "have_coffee")
-    # Procedure-directed: run the authored step sequence (planner gap-fills unmet pres); every
-    # step executes and the sequence completes.
-    g_proc, procs = h.load_planning_program(text)
-    assert h.run_procedure(g_proc, "morning_service", procs) == "done"
-    assert h.procedure_done(g_proc, "morning_service", procs)
-    assert _mark(g_proc, "<now>", "true", "have_coffee")

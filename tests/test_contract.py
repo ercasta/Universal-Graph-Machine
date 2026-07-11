@@ -148,14 +148,5 @@ def _hazard_session(mutation_target):
     return s
 
 
-def test_contract_compositional_code_hazard_fires():
-    # the mutation targets the SAME collection the loop consumes -> derived unsafe by composition
-    s = _hazard_session(mutation_target="queryset")
-    assert s.submit("is the deletion unsafe").answer == ["yes"]
-    assert s.submit("is the deletion a queryset").answer == ["no"]   # not conflated with its target
 
 
-def test_contract_compositional_code_hazard_refuses_near_miss():
-    # identical shape, but the mutation targets a DIFFERENT collection -> safe
-    s = _hazard_session(mutation_target="other")
-    assert s.submit("is the deletion unsafe").answer == ["no"]

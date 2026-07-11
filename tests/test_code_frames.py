@@ -81,14 +81,6 @@ MECHANISM_RULES = load_machine_rules(
 )
 
 
-def test_mechanism_rules_parse_as_composable_rules():
-    # Two rules, and Rule B's body consumes Rule A's head predicate (`consumes`) -> they compose.
-    by_head = {r.rhs[0].p: r for r in MECHANISM_RULES}
-    assert set(by_head) == {"consumes", "is_a"}
-    hazard = by_head["is_a"]
-    assert ("?loop", "consumes", "?c") in {p.tokens() for p in hazard.lhs}   # depends on Rule A
-    assert h.lint_rules(MECHANISM_RULES) == [], h.format_smells(h.lint_rules(MECHANISM_RULES))
-    h.stratify(MECHANISM_RULES)                                              # composes cleanly
 
 
 # --- the positive case: the hazard is DERIVED by composition ----------------

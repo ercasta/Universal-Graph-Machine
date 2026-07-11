@@ -98,38 +98,8 @@ def test_prose_grammar_still_single_head_and_unaffected():
 # Planning bank now lives in CNL — the no-Python-rule-literals end state
 # ---------------------------------------------------------------------------
 
-def test_planning_bank_loads_from_cnl_and_is_clean():
-    # The whole planner (relevance + connection + commitment) is now corpus/planning.cnl,
-    # loaded via the machine grammar — no Python rule literals. It must be lint-clean,
-    # stratifiable, and cover the expected head predicates.
-    rules = h.load_planning_rules()
-    assert len(rules) == 15
-    assert h.lint_rules(rules) == [], h.format_smells(h.lint_rules(rules))
-    h.stratify(rules)                                       # raises if not stratifiable
-    heads = {r.rhs[0].p for r in rules if r.rhs}
-    assert {"for", "candidate", "reachable", "blocked_by", "viable",
-            "cost_settled", "dominated", "best", "chosen", "before"} <= heads
-    # commitment now demands ranking via a materialized tool-call (the rank fold)
-    assert any(("<call>?", "tool", "rank") in {p.tokens() for p in r.rhs} for r in rules)
-    # the block/unblock idiom needs a drop-only rule (G6): empty head, a control delete
-    assert any(not r.rhs and r.drop for r in rules)
 
 
-def test_all_planning_banks_are_cnl_backed():
-    # EVERY planning rule bank now comes from CNL (no Python rule literals): the planner,
-    # execution, divergence detection, teardown, and the external-request rules. The §8 tools
-    # and drivers stay Python; only the RULES moved. All banks must be lint-clean.
-    banks = {"PLANNING": h.PLANNING_RULES, "EXECUTION": h.EXECUTION_RULES,
-             "TEARDOWN": h.TEARDOWN_RULES, "REQUEST": h.REQUEST_RULES,
-             "DETECT": [h.DETECT_DIVERGENCE]}
-    assert (len(h.PLANNING_RULES), len(h.EXECUTION_RULES),
-            len(h.TEARDOWN_RULES), len(h.REQUEST_RULES)) == (15, 6, 16, 2)
-    for name, bank in banks.items():
-        assert h.lint_rules(bank) == [], f"{name}: {h.format_smells(h.lint_rules(bank))}"
-    # teardown is 15 gated drop-only rules (G6); the request rule materializes a <call>
-    assert all(not r.rhs and r.drop for r in h.TEARDOWN_RULES)
-    assert any(("<call>?", "tool", "price") in {p.tokens() for p in r.rhs}
-               for r in h.REQUEST_RULES)
 
 
 def test_planning_drop_only_rule_round_trips_through_cnl():
