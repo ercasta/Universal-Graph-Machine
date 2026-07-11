@@ -23,7 +23,6 @@ from .lowering import (
     lower_rule, lower_nac_programs, run_bank, match_pats, run_to_fixpoint,
     derived_triples, Unlowerable, rule_touches_provenance,
 )
-from .goal import Goal, GoalSolver, solve_goal, solve_all, NonStratifiable
 from .apply import apply_rule, apply_to_fixpoint, build_head_index, rules_producing
 from .chain import (
     chain, demand_closure, relevant_rules, demanded_preds,
@@ -40,7 +39,6 @@ from .suppose import (
     suppose, explain_suppose, scope_members, SupposeResult,
     CONFIRMED, REFUTED, INCONCLUSIVE, HYPOTHESIS,
 )
-from .walker import Walker, WalkResult, walk_to_goal
 from .provenance import (
     PROVES, USES, AXIOM, j_name, is_justification, rule_of_j,
     support_js, rule_support_j, premises_of, proven_of, justifications_using,
@@ -144,7 +142,6 @@ __all__ = [
     "lower_propagate", "lower_drop", "lower_rewire", "lower_rule", "lower_nac_programs",
     "run_bank", "match_pats", "run_to_fixpoint", "derived_triples", "Unlowerable",
     "rule_touches_provenance",
-    "Goal", "GoalSolver", "solve_goal", "solve_all", "NonStratifiable",
     "apply_rule", "apply_to_fixpoint", "build_head_index", "rules_producing",
     "chain", "demand_closure", "relevant_rules", "demanded_preds", "chain_sip", "bound_demands",
     "render_demands",
@@ -152,7 +149,6 @@ __all__ = [
     "choose", "set_candidate", "candidates", "winners_of", "fit_of", "explain_choice", "SATISFIED_BY",
     "suppose", "explain_suppose", "scope_members", "SupposeResult",
     "CONFIRMED", "REFUTED", "INCONCLUSIVE", "HYPOTHESIS",
-    "Walker", "WalkResult", "walk_to_goal",
     "PROVES", "USES", "AXIOM", "j_name", "is_justification", "rule_of_j",
     "support_js", "rule_support_j", "premises_of", "proven_of", "justifications_using",
     "derived_facts", "axiomatize",

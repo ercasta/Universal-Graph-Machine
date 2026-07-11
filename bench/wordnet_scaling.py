@@ -140,7 +140,7 @@ def has_is_a(g: h.Graph, subj: str, obj: str) -> bool:
     objs = set(g.nodes_named(obj))
     for s in g.nodes_named(subj):
         for r, o in g.relations_from(s):
-            if g.name(r) == "is_a" and o in objs:
+            if g.has_key(r, "is_a") and o in objs:   # Phase 2.3: predicate is the graded KEY, not name()
                 return True
     return False
 
@@ -165,17 +165,16 @@ def run_query(g: h.Graph, p: Probe, *, fuel: int) -> Result:
 
 
 def _walk(g: h.Graph, subj: str, obj: str, *, fuel: int) -> int:
-    """walk_on_demand, mirroring the library call (seed demand + budget, run walker rules with
-    the tools), returning the firing COUNT for accounting. NOTE: `run_bank` (the ISA production
-    engine, replacing the retired rewriter oracle) has no `seeds=` param (no semi-naive initial-
-    frontier knob — it always matches from scratch) and returns an int firing count rather than
-    a per-firing journal."""
-    from ugm import demand, walker
-    from ugm import run_bank
-    d = demand.seed_demand(g, subj, obj)
-    amt = g.nodes_named(str(fuel))
-    g.add_relation(d, walker.AMOUNT, amt[0] if amt else g.add_node(str(fuel)))
-    return run_bank(g, walker.load_walker_rules(), tools=walker.WALK_TOOLS)
+    """The on-demand reachability walk over `is_a`, using the CURRENT `Walker` API
+    (`walk_to_goal` — a fuel-bounded, goal-directed BFS that climbs only what is reachable from
+    the source, materializing the `subj is_a obj` shortcut on arrival). Returns `fuel_spent` —
+    the edge-traversals consumed — the work-accounting the sweeps read (the analog of the old
+    rules-path's firing count). This replaces the retired rules-based walker (`walker.AMOUNT` /
+    `load_walker_rules` / `WALK_TOOLS` + `run_bank`), whose per-hop firing overhead was itself the
+    thing being measured; `Walker.walk`'s `fuel_spent` is the same per-edge accounting directly."""
+    from ugm.walker import walk_to_goal
+    from ugm.vocabulary import IS_A
+    return walk_to_goal(g, IS_A, subj, obj, fuel).fuel_spent
 
 
 # ---------------------------------------------------------------------------

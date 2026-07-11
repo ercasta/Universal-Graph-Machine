@@ -27,7 +27,6 @@ NOT build the adapter indirection before the second engine is real (YAGNI, per t
 "don't build machinery before the risk is").
 """
 import ugm as h
-from ugm import solve_all
 
 
 # ===========================================================================
@@ -98,8 +97,8 @@ def test_contract_closed_world_elimination():
     # ISA engine (demand-completion, NO aggressive over-assertion, NO retraction / fact-edge cut), with
     # `why` read from in-graph provenance the solver MINTs. Same public contract as the retired
     # forward `decide.solve` path (decision-attrgraph-rehost).
-    kb, rules = h.load_corpus(THIEF, decided_negation=False)
-    solve_all(kb, rules, provenance=True)
+    kb, rules = h.load_corpus(THIEF)
+    h.decide.solve(kb, rules)                             # DECIDED NEGATION (Phase 6.1): completion + defeat
 
     # solved by elimination, and UNIQUELY
     assert h.ask(kb, "who is thief") == ["cy is thief"]

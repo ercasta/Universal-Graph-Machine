@@ -188,9 +188,10 @@ def solve(graph: Graph, rules: list, *, tools: dict | None = None, strict: bool 
     phase 2 is a no-op and this behaves as a single `run_rules`. Returns the firing journal."""
     from .cnl.authoring import run_rules
 
-    journal = run_rules(graph, [*rules, DEFEAT_SEED], tools=tools, strict=strict)
-    if graph.nodes_named(ret.RETRACT):                      # a defeat was seeded -> retract
-        # Phase 2 on the ISA forward driver (INTERPOSE opcode); phase 1's provenance
-        # is read by run_bank's per-rule inert-visible CASCADE match (Phase 0.5).
-        journal += run_rules(graph, ret.RETRACT_RULES, provenance=False)
-    return journal
+    # ONE firmware pass (Phase 6.1 de-Python-ing): domain + completion + DEFEAT_SEED + the INTERPOSE
+    # RETRACT_RULES run as a SINGLE stratified `run_rules`, NOT a Python two-phase `if`. `run_rules`
+    # already stratifies (completion derives, defeat seeds, retraction INTERPOSE-hides — each in its
+    # own layer to fixpoint), so the ordering the old phase-split enforced by hand is emergent from the
+    # data dependencies. RETRACT_RULES are no-ops when no `<retract>` is seeded (a consistent theory),
+    # so running them unconditionally replaces the `if` at a negligible cost. No Python control flow.
+    return run_rules(graph, [*rules, DEFEAT_SEED, *ret.RETRACT_RULES], tools=tools, strict=strict)

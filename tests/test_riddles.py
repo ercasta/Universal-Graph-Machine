@@ -47,7 +47,6 @@ WHAT THESE RIDDLES SURFACE (the point of running them now — triangulated over 
 import ugm as h
 from ugm import decide, provenance as prov
 from ugm.cnl.authoring import load_corpus
-from ugm import solve_all
 from ugm.cnl.forms import SURFACE_TAGS
 from ugm.cnl.query import ask
 from ugm.cnl.surface import explain
@@ -118,17 +117,17 @@ VASE_RIDDLE = dict(
 
 
 def _solve(riddle: dict):
-    """Author the riddle in CNL and solve it on the BACKWARD ISA engine, returning (graph, [], rules).
+    """Author the riddle in CNL and solve it on the forward firmware, returning (graph, [], rules).
 
-    `load_corpus(..., decided_negation=False)` keeps the closed-world `is not P` a plain NAC; `solve_all`
-    (the goal-directed engine forward-driven) materializes the closure — deducing forward AND completing
-    the closed-world negative on demand (`_complete_negative`), with NO aggressive over-assertion and NO
-    retraction. `provenance=True` MINTs the in-graph proves/uses support (incl. a `complete.REL` J for a
-    completed negative) so the real `explain` traversal renders the elimination step. The retired forward
-    `decide.solve` did the same at the answer level via aggressive-completion + retract (decision-attrgraph-rehost)."""
-    g, rules = load_corpus(riddle["corpus"], decided_negation=False)
+    DECIDED NEGATION (Phase 6.1, the only negation model): `load_corpus` (decided_negation default)
+    UPGRADES the closed-world `is not P` clause into a positive `?x is_not P` match + a `decide.complete.*`
+    completion rule; `decide.solve` runs one stratified `run_bank` pass — domain rules derive, completion
+    materializes the negatives, DEFEAT_SEED + INTERPOSE `RETRACT_RULES` withdraw any over-completed one.
+    Provenance is ON (run_rules default), so the `complete.REL` justification for a completed negative is
+    minted and the real `explain` traversal renders the elimination step (`X is_not cleared ... complete`)."""
+    g, rules = load_corpus(riddle["corpus"])
     _clean(g)
-    solve_all(g, rules, provenance=True)
+    decide.solve(g, rules)
     return g, [], rules
 
 
@@ -186,11 +185,12 @@ def test_vase_riddle_yesno_and_why_not():
 
 
 def test_riddles_author_entirely_in_cnl():
-    # The point of handoff step 1: no hand-built decide-consumer, no Python seeding. The consumer is a
-    # real CNL rule (`?x is thief when ...`). On the BACKWARD engine (decided_negation=False) its
-    # closed-world `is not cleared` stays a plain NAC that the engine COMPLETES on demand — no generated
-    # aggressive-completion rule, no <decide> token (the demand-completion subsumes them).
+    # The point of handoff step 1: no hand-built decide-consumer, no Python seeding — the consumer is a
+    # real CNL rule (`?x is thief when ...`). Under DECIDED NEGATION (Phase 6.1, the only model), its
+    # closed-world `is not cleared` clause is UPGRADED from a NAC into a POSITIVE `?x is_not cleared`
+    # match, and a `decide.complete.*` completion rule is generated to materialize the negative.
     _g, _journal, rules = _solve(THIEF_RIDDLE)
     thief = next(r for r in rules if r.key == "rule.?x.is.thief")
-    assert ("?x", "is", "cleared") in {p.tokens() for p in thief.nac}       # the closed-world NAC is KEPT
-    assert not any(r.key.startswith("decide.complete") for r in rules)      # no aggressive completion rule
+    assert not thief.nac                                                     # the NAC was UPGRADED away
+    assert ("?x", "is_not", "cleared") in {p.tokens() for p in thief.lhs}    # ...to a positive is_not match
+    assert any(r.key.startswith("decide.complete") for r in rules)          # completion rule generated

@@ -12,7 +12,7 @@ import random
 import ugm as h
 from ugm import Pat, Rule
 from ugm import (
-    AttrGraph, to_attrgraph, Goal, GoalSolver,
+    AttrGraph, to_attrgraph,
     check, collapse, explain_check,
     POSITIVE, ENTAILED_NEG, ASSUMED_NO, UNKNOWN,
 )
@@ -121,16 +121,20 @@ def _random_graph(rng):
 
 
 def _oracle_verdict(g0, goal):
+    # Reference = the firmware FORWARD path (`run_rules` materializes the whole bank, then read),
+    # cross-checking the demand-driven CHECK against forward materialization (Phase 6.1: GoalSolver,
+    # the old backward reference, is retired — the two firmware paths gate each other now).
     rel, subj, obj = goal
     ag, _ = to_attrgraph(g0)
-    found = bool(GoalSolver(ag, RULES).solve(Goal(rel, subj, obj)))
+    h.run_rules(ag, RULES)
+    found = bool(h.match_pats(ag, [Pat(subj, rel, obj)]))
     if found:
         return "yes"
     key = obj if (rel == "is" and obj is not None) else rel     # concept_key
     return "unknown" if key in OPEN else "no"
 
 
-def test_collapsed_check_matches_goalsolver_verdict_on_positive_banks():
+def test_collapsed_check_matches_forward_materialization_verdict():
     checked = 0
     for seed in range(12):
         rng = random.Random(seed)

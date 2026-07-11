@@ -17,7 +17,7 @@ graph and executed against the KB by NAME, so asking never mutates the KB.
 from __future__ import annotations
 
 from .forms import WH, normalize_surface, tokenize
-from ..goal import Goal, GoalSolver
+from .. import decide       # Phase 6.1: ask on the forward firmware (decided negation), not GoalSolver
 from ..production_rule import Pat, Rule
 from ..lowering import match_pats as match, run_bank
 from .surface import explain
@@ -303,21 +303,26 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         # concept C (`C is open world`), not the shared copula; for a relational query it is R.
         return o if (p == COPULA and o is not None) else p
 
-    def verdict(found: bool, p: str, o: str | None) -> str:
-        if found:
-            return "yes"
-        # CWA-DEFAULT: an underivable goal is a defeasible `no`, UNLESS the concept is declared OPEN,
-        # where absence is not taken as false (`unknown` -> gather evidence). (decision-cwa-default)
-        return "unknown" if concept_key(p, o) in open_preds else "no"
+    # FIRMWARE (Phase 6.1) — reason with DECIDED NEGATION on the forward ISA engine, then READ. One
+    # `decide.solve` = a single stratified `run_bank` pass (domain rules + completion + `DEFEAT_SEED` +
+    # the INTERPOSE `RETRACT_RULES`). This RETIRES GoalSolver's demand-driven backward solve: decided
+    # negation is inherently forward (aggressive completion + defeat, the defeat an INTERPOSE retraction
+    # the monotone demand-driven chain cannot do), and `run_bank` already handles NAC (stratified) AND
+    # decided completion — so it answers closed-world banks correctly in EITHER rule form. Monotone (§5):
+    # materializes into `graph` (the same contract GoalSolver had — pass a copy to keep the KB untouched).
+    decide.solve(graph, rules)
 
     if q["qtype"] == "yesno":
-        solver = GoalSolver(graph, rules)
-        # An existential subject (`is anyone happy`) is ∃ — a free subject over any witness.
-        subj = None if q["s"] in EXISTENTIAL_SUBJECTS else q["s"]
-        answers = solver.solve(Goal(q["p"], subj, q["o"]))
-        v = verdict(bool(answers), q["p"], q["o"])
+        # An existential subject (`is anyone happy`) is ∃ — a VARIABLE matching any witness.
+        subj = "?w" if q["s"] in EXISTENTIAL_SUBJECTS else q["s"]
+        if match(graph, [Pat(subj, q["p"], q["o"])]):
+            return ["yes"]
+        # CWA-DEFAULT: an underivable goal is a defeasible `no`, UNLESS the concept is declared OPEN,
+        # where absence is not taken as false (`unknown` -> gather evidence). (decision-cwa-default)
+        v = "unknown" if concept_key(q["p"], q["o"]) in open_preds else "no"
         # OWA evidence-gatherer: an open UNKNOWN the goal needs -> gather (never a CWA-default one).
-        if v == "unknown" and ask_user is not None and subj is not None and q["o"] is not None:
+        if (v == "unknown" and ask_user is not None
+                and q["s"] not in EXISTENTIAL_SUBJECTS and q["o"] is not None):
             held = ask_user(q["s"], q["p"], q["o"])
             if held is True:
                 _materialize_fact(graph, q["s"], q["p"], q["o"])   # persist the acquired fact
@@ -327,9 +332,8 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         return [v]
 
     if q["qtype"] == "who":
-        solver = GoalSolver(graph, rules)
-        answers = solver.solve(Goal(q["p"], None, q["o"]))
-        names = sorted({s for (s, _o) in answers})
+        names = sorted({graph.name(b["?x"])
+                        for b in match(graph, [Pat("?x", q["p"], q["o"])])})
         if names:
             return [f"{n} {q['p']} {q['o']}" for n in names]
         return ["(no answer)"] if concept_key(q["p"], q["o"]) not in open_preds else ["unknown"]

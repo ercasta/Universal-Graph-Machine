@@ -15,7 +15,7 @@ prior forward pass materialized. These tests pin:
 """
 import ugm as h
 from ugm import decide
-from ugm import derived_triples, solve_all
+from ugm import derived_triples
 
 
 ICE_CREAM = """
@@ -52,20 +52,11 @@ def test_ask_goal_matches_forward_ask_on_the_defeasible_graded_bank():
     assert backward[3] == ["no"]                          # alice NOT regular (NAC-completed defeat)
 
 
-def test_ask_goal_is_goal_directed_materializes_less_than_the_full_closure():
-    # answering one question pulls only its chain; the forward closure derives strictly more.
-    kb_one, rules = h.load_corpus(ICE_CREAM)
-    base = len(derived_triples(kb_one))
-    h.ask_goal(kb_one, "is alice served express", rules)
-    one_goal_new = len(derived_triples(kb_one)) - base
-
-    kb_all, rules2 = h.load_corpus(ICE_CREAM)
-    base_all = len(derived_triples(kb_all))
-    solve_all(kb_all, rules2)
-    full_new = len(derived_triples(kb_all)) - base_all
-
-    assert one_goal_new >= 1                              # it did derive alice's answer
-    assert one_goal_new < full_new                        # ...but strictly less than the whole closure
+# RETIRED (Phase 6.1): `test_ask_goal_is_goal_directed_materializes_less_than_the_full_closure` —
+# it pinned GoalSolver's demand-driven selectivity (materialize only the goal's chain). Decided
+# negation is inherently FORWARD (aggressive completion + defeat), so `ask_goal` now materializes via
+# the forward firmware (`decide.solve`) like any other bank; the selectivity property was GoalSolver's
+# and is deliberately gone. The remaining ask tests pin the ANSWERS, which is what matters.
 
 
 def test_cwa_default_no_vs_owa_optin_unknown():
@@ -100,22 +91,15 @@ THIEF_CW = """
 """
 
 
-def test_closed_world_elimination_goal_directed_without_decide_retraction():
-    # Forward: decide.solve (aggressive completion defeated by RETRACT/interpose — DELETES).
-    kb_fwd, rules_fwd = h.load_corpus(THIEF_CW)
-    decide.solve(kb_fwd, rules_fwd)
-    forward = [h.ask(kb_fwd, q) for q in ("is cy thief", "is ada thief", "is bo thief", "who is thief")]
-
-    # Backward: closed-world `is not P` kept as a NAC (decided_negation=False) -> GoalSolver's
-    # demand-completion. Under CWA-DEFAULT the underivable `thief` goals answer `no` without any
-    # `closed` set (closed-world is the default now). NO retraction anywhere.
-    kb, _ = h.load_corpus(THIEF_CW)
-    goal_rules = h.expand_rules(kb, decided_negation=False)
-    backward = [h.ask_goal(kb, q, goal_rules)
-                for q in ("is cy thief", "is ada thief", "is bo thief", "who is thief")]
-
-    assert backward == forward
-    assert backward == [["yes"], ["no"], ["no"], ["cy is thief"]]
+def test_closed_world_elimination_via_decided_negation():
+    # Closed-world elimination on the firmware: `cleared is closed world` + `thief when suspect and
+    # not cleared`. Under DECIDED NEGATION (load_corpus default) the `is not cleared` is a POSITIVE
+    # `is_not` match, materialized by completion and defeated (INTERPOSE) where `cleared` holds — so
+    # only cy (uncleared) is a thief. `ask_goal` runs the forward firmware (`decide.solve`) and reads.
+    kb, rules = h.load_corpus(THIEF_CW)
+    answers = [h.ask_goal(kb, q, rules)
+               for q in ("is cy thief", "is ada thief", "is bo thief", "who is thief")]
+    assert answers == [["yes"], ["no"], ["no"], ["cy is thief"]]
     assert h.closed_predicates(kb) == frozenset({"cleared"})   # the reasoning-side CWA DATA is intact
 
 
@@ -156,14 +140,10 @@ def test_ask_user_is_never_consulted_for_a_cwa_default_predicate():
     assert h.ask_goal(kb, "is alice likes bob", rules, ask_user=boom) == ["no"]
 
 
-def test_expand_rules_goal_form_keeps_closed_world_negation_as_a_nac():
-    # decided_negation=False leaves the closed-world `is not cleared` a NAC (no aggressive
-    # `decide.complete.*` rule, no positive is_not upgrade) — the form GoalSolver completes.
-    kb, _ = h.load_corpus(THIEF_CW)
-    goal_rules = h.expand_rules(kb, decided_negation=False)
-    assert not any(r.key.startswith("decide.complete") for r in goal_rules)
-    thief = next(r for r in goal_rules if r.rhs and r.rhs[0].tokens()[1:] == ("is", "thief"))
-    assert [p.tokens() for p in thief.nac] == [("?x", "is", "cleared")]   # stayed a NAC
+# RETIRED (Phase 6.1): `test_expand_rules_goal_form_keeps_closed_world_negation_as_a_nac` pinned the
+# `decided_negation=False` NAF path (keep `is not P` a NAC for GoalSolver to complete). That path is the
+# old negation-as-failure model; the vision is DECIDED-NEGATION-ONLY, so it is retired along with
+# GoalSolver. `test_closed_world_elimination_via_decided_negation` above pins the decided form's answers.
 
 
 # ---- GATED coref-following: GoalSolver carries selective coreference WHEN THE BANK DECLARES IT
@@ -197,38 +177,39 @@ def _two_mentions(link: bool):
 _COREF_BANK = [_RESPECT] + h.same_as_rules(["is_a"]) + h.UNIVERSAL_RULES   # DECLARES coref-following
 
 
-def test_goalsolver_composes_across_same_as_linked_mentions():
+def _respected(fg) -> bool:
+    """Did `paul is_a respected` derive on any mention? (read the forward-materialized graph)."""
+    return any(fg.has_key(r, "is_a") and fg.name(o) == "respected"
+               for p in fg.nodes_named("paul") for r in fg.out(p) for o in fg.out(r))
+
+
+# Coref-following is DATA (the `same_as_rules` in the bank), not a hardcoded engine policy — on the
+# forward firmware (`run_rules`) exactly as it was on the retired GoalSolver. These pin the declared
+# case (linked mentions compose, unlinked stay distinct — selectivity) AND the blind case.
+
+def test_coref_composes_across_same_as_linked_mentions():
     # respected needs is_a teacher AND is_a mortal — facts on DIFFERENT mentions. The bank DECLARES
-    # coref (`same_as_rules`), so the solver follows the class (via the union-find fast path) and
-    # composes them — matching the forward ISA engine, which reaches the same answer via propagation.
-    from ugm import Goal, GoalSolver
+    # coref (`same_as_rules`), so propagation composes them across the link.
     fg = _two_mentions(link=True)
-    h.run_rules(fg, _COREF_BANK)                          # forward: same_as propagation
-    fwd = any(fg.has_key(r, "is_a") and fg.name(o) == "respected"
-              for p in fg.nodes_named("paul") for r in fg.out(p) for o in fg.out(r))
-    backward = bool(GoalSolver(_two_mentions(link=True), _COREF_BANK)
-                    .solve(Goal("is_a", "paul", "respected")))
-    assert fwd is True and backward is True              # both compose across the link, agreeing
+    h.run_rules(fg, _COREF_BANK)
+    assert _respected(fg) is True
 
 
-def test_goalsolver_keeps_unlinked_same_named_mentions_distinct():
-    # Coref DECLARED (`same_as_rules` in the bank) but the two `paul`s are NOT linked — so they are
-    # DISTINCT witnesses (label-less default): no single paul is both teacher AND mortal, so respected
-    # does NOT derive. Selectivity holds even with following ON — it follows LINKS, not names.
-    from ugm import Goal, GoalSolver
-    ans = GoalSolver(_two_mentions(link=False), _COREF_BANK).solve(Goal("is_a", "paul", "respected"))
-    assert ans == set()                                  # not composed — distinct entities
+def test_coref_keeps_unlinked_same_named_mentions_distinct():
+    # Coref DECLARED but the two `paul`s are NOT linked — DISTINCT witnesses (label-less default): no
+    # single paul is both teacher AND mortal, so respected does NOT derive. Selectivity: follow LINKS,
+    # not names.
+    fg = _two_mentions(link=False)
+    h.run_rules(fg, _COREF_BANK)
+    assert _respected(fg) is False
 
 
-def test_goalsolver_is_coref_blind_without_the_propagation_rules():
-    # The GATE: the SAME linked graph, but a bank WITHOUT `same_as_rules`, is coref-BLIND — the engine
-    # does NOT follow the link, so the two mentions stay distinct and respected does not derive. Coref-
-    # following is DATA (the rules), not a hardcoded engine policy. (This is what makes recognition /
-    # the graded surface-chain pass structural — they carry no propagation rules.)
-    from ugm import Goal, GoalSolver
-    ans = GoalSolver(_two_mentions(link=True),
-                     [_RESPECT] + h.UNIVERSAL_RULES).solve(Goal("is_a", "paul", "respected"))
-    assert ans == set()                                  # linked, but not declared -> not composed
+def test_coref_blind_without_the_propagation_rules():
+    # The GATE: the SAME linked graph, but a bank WITHOUT `same_as_rules`, is coref-BLIND — no
+    # propagation, so the two mentions stay distinct and respected does not derive. Following is DATA.
+    fg = _two_mentions(link=True)
+    h.run_rules(fg, [_RESPECT] + h.UNIVERSAL_RULES)
+    assert _respected(fg) is False
 
 
 

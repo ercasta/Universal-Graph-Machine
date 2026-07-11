@@ -22,12 +22,11 @@
 
 ## NEXT STEP (pick this up FIRST)
 
-**Suite: 342 passed, 1 skipped, 0 failed** (post Phase 5.5 slices 4 + 3c AND Phase 2.3 name-demotion /
-bridge-retirement AND Phase 2.4 name-free identity tokens, 2026-07-11, `python -m pytest -q`).
-The 460-passed figure logged at the repo split was inflated by ~123 tests that exercised harness-only
-content (`SOLVE_RULES`/`PLANNING_RULES`/`Session`/CPG-mechanism banks) mistakenly carried over by the
-carveout instead of staying in `harneskills`; those were trimmed/deleted (2 whole files, 99 functions
-across 7 mixed files) before Phase 6.0 started. See CHANGELOG for both cleanups.
+**Suite: 264 passed, 1 skipped, 0 failed** (post Phase 6.1 GoalSolver + reference-Walker deletion +
+decided-negation-only, 2026-07-11, `python -m pytest -q`). The drop from 342 is the ~79 tests removed with
+the retired GoalSolver/Walker/solve_all engines (12 files — see the Phase 6.1 CHANGELOG entry), NOT lost
+firmware coverage. Earlier milestones (Phase 2.3/2.4/2.5, 5.5) landed at 341–343; the 460-passed figure at
+the repo split was inflated by ~123 harness-only tests trimmed before Phase 6.0.
 
 **Phase 5.5 slices 1–4 DONE (CHECK+CHOOSE as `<call>` calculators; rules-emit; SUPPOSE-call scope
 authoring; plan→act→check→replan). Phase 6.0 DONE (rewriter retirement + reader flips — narrow scope,
@@ -379,8 +378,17 @@ All items DONE (2026-07-09/10). Gate met.
   the bridge is retired; `lowering.to_attrgraph`'s name-write is gone). `_INERT_NAMES`/`_is_inert` mostly
   stays by design (pattern/literal-side guards over string tokens, not node instances).
 
-- **6.1** GoalSolver (or its remains) = ACCELERATOR only where profiling justifies; deleted where
-  firmware subsumes it (coverage alone — NOT old-answer equivalence).
+- **6.1 DONE (2026-07-11, 264 passed/1 skipped) — THE TWO-ENGINE RETIREMENT.** `ugm/goal.py` (GoalSolver,
+  Goal, solve_goal, solve_all, NonStratifiable) and `ugm/walker.py` (the Python reference `Walker`/
+  `walk_to_goal`) are DELETED. `ask_goal` — GoalSolver's last production consumer — now runs the FORWARD
+  firmware (`decide.solve` decided-negation + read via `match_pats`). `decide.solve` de-Python-ed to a
+  single stratified `run_rules` pass (the two-phase `if` dissolved). `decided_negation=False` (the NAF
+  path) retired — decided negation is unconditional. ~79 GoalSolver/Walker/solve_all tests removed (12
+  files); survivors re-targeted onto the firmware. KEY REALIZATION: the monotone demand-driven chain
+  (`chain`/`check`) CANNOT do decided negation (aggressive completion re-fires without the INTERPOSE
+  defeat) — decided negation is inherently FORWARD, and `run_bank` already stratifies + services INTERPOSE.
+  The in-graph `cnl/walker.walk_on_demand` is the real walker and STAYS. As-built:
+  `docs/goalsolver_retirement_design.md`, CHANGELOG. Ratified [[delete-old-code-aggressively]].
 
 - **6.2** Rewrite `architecture.md` as the as-built description of THIS system; `reference.md`
   doc-map refreshed; finished phases summarized into `CHANGELOG.md`.

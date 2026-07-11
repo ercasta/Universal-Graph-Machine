@@ -14,6 +14,37 @@ this log is itself a historical record.
 
 ## 2026-07-11
 
+### Phase 6.1 — GoalSolver + reference Walker DELETED; ONE firmware engine; decided-negation-only (264 passed, 1 skipped, 0 failed)
+The second reasoning engine is gone. Design + as-built: `docs/goalsolver_retirement_design.md`. Ratified
+by the user ("nuke the old code — it caused at least 3 refactors from things we forgot"; keep GoalSolver
+only as a throwaway differential oracle, delete the moment it hinders, "I don't care about reds"). See
+[[delete-old-code-aggressively]]. What landed:
+
+- **`ask_goal` flipped onto the FORWARD firmware.** `cnl/query.ask_goal` was the last production consumer
+  of `GoalSolver`; it now runs `decide.solve(graph, rules)` (decided negation) + reads the materialized
+  graph via `match_pats` — the same forward ISA engine (`run_bank`) everything else uses. KEY REALIZATION
+  (from a hazard test): the monotone demand-driven chain (`chain`/`check`) CANNOT do decided negation —
+  its aggressive completion re-fires without the defeat (which is an INTERPOSE retraction, non-monotone).
+  Decided negation is inherently FORWARD (complete-for-all, then defeat), and `run_bank` already stratifies
+  + services INTERPOSE, so the forward path is correct where the demand-driven one isn't. The demand-driven
+  selectivity was GoalSolver's and is deliberately given up (session-scale, forward is ~ms).
+- **`decide.solve` de-Python-ed.** Its two-phase Python `if` (run domain+completion; if a `<retract>` was
+  seeded, run RETRACT_RULES with provenance off) collapsed to a SINGLE stratified `run_rules` pass over
+  `[*rules, DEFEAT_SEED, *RETRACT_RULES]` — the ordering the phase-split enforced by hand is emergent from
+  stratification; RETRACT_RULES are no-ops when nothing is seeded. No Python control flow left.
+- **DELETED:** `ugm/goal.py` (GoalSolver, Goal, solve_goal, solve_all, NonStratifiable) and `ugm/walker.py`
+  (the Python reference `Walker` / `walk_to_goal` — its only consumer was GoalSolver; the in-graph
+  `cnl/walker.walk_on_demand` is the real walker and STAYS). ~79 tests removed with them (12 test files:
+  `test_isa_walker`, 9×`test_isa_goal_*`, `test_isa_firmware_gate` [the firmware==GoalSolver differential],
+  `test_isa_forward` [the `solve_all` tests]); the surviving mixed files re-targeted onto the firmware
+  (`solve_all`→`run_rules`/`decide.solve`; the coref-composition and check-verdict differentials now gate
+  the demand-driven firmware against forward materialization instead of against GoalSolver).
+- **Decided-negation-only.** The `decided_negation=False` NAF path (keep `is not P` a NAC for GoalSolver to
+  complete) is RETIRED — the parameter is removed from `expand_rules`/`load_corpus`/`_expand_rule_node`;
+  a closed-world `is not P` is ALWAYS upgraded to a positive `is_not` match + completion rule. Ordinary
+  (non-closed-world) structural NAC guards (e.g. `is_a.transitive`'s idempotency NAC) are unaffected —
+  those are not epistemic negation.
+
 ### Phase 2.5 — substrate vocabulary consolidated, domain coref de-hardcoded (342 passed, 1 skipped, 0 failed)
 The logic-fragment predicate strings that were scattered/duplicated across the reasoning modules are now a
 single source of truth, and the hardcoded DOMAIN predicate list is gone. Design doc:
