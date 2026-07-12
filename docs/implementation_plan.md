@@ -53,15 +53,37 @@ These were TODOs embedded in now-done phases; they live in the open work below:
 > rule edits) is ABSORBED here** (§8.6). The perf priority shifts from Phase 7a (total-KB size, wrong
 > axis for this client) to **session accretion** (`docs/critique.md` §4.1a), answered by seed-from-focus.
 
+**INTAKE-SPINE DISCIPLINE (anti-hardcoding — any session on Phase 8 MUST obey; reviewers reject diffs that
+break one).** The spine is where the seamlessness claim is easiest to betray with a Python shortcut. Full
+list: `docs/cnl_intake_design.md` §D. In brief: (1) route by which FORMS fired, never by sniffing the
+utterance string; (2) focus moves (`focus on`/`forget that`/`back to`) are CNL forms, not `if "forget" in
+text`; (3) pronoun ranking is DECLARED defeasible-priority data (content-blind defaults, domain-overridable),
+not engine-baked; (4) rejection/"nearest forms" computed from recognition structure, not a hardcoded table;
+(5) `<focus>`/`<query>`/`<goal>` are control tokens via the `<…>`→control chokepoint; (6) no predicate/
+English-word STRINGS as control signals in intake code (vocab from `ugm/vocabulary.py`, domain preds from
+the KB); (7) metareasoning owns only effort/margins, not answers. Litmus: grep intake code for a domain or
+function word used as a control signal — if one is load-bearing, it belongs in a bank, not the engine.
+
 Build slices, in dependency order (each with tests; the probe first to validate the premise):
 
-- **8.0 — accretion + suspend/resume PROBE (first, diagnostic).** Measure per-utterance latency across a
-  growing transcript; confirm (1) seed-from-focus keeps it flat (not tracking accumulated session), and
-  (2) suspend/resume on `chain_sip` preserves the demand frontier. Run BEFORE building the spine on the
-  premise. Design §7.
-- **8.1 — unified intake entry + routing.** One entry: tokenize into the LIVE substrate (control-flagged)
-  → `normalize_surface` → recognize → route fact / rule / `<query>` / `<goal>` / rejection by fired form.
-  Eliminates the caller-side question-vs-assert fork. Design §1.
+- **8.0 — accretion + suspend/resume PROBE (first, diagnostic). PARTLY DONE 2026-07-12.**
+  `bench/session_accretion.py` written. KEY FINDING (changed the picture): the near-term blocker is NOT
+  accretion but PER-UTTERANCE NAF cost — a *bound* query on a bank with one `not …` rule was super-linear
+  in the bank's entity count (`is s0 thief` over 6 suspects = 13.8s). Root cause: the NAC existence check
+  `apply._find_fact_relnode` did a whole-predicate scan (lever-(a) never applied there). **FIXED** →
+  endpoint-driven, 40× (m=6 13.8s→0.34s), suite 258 green + 54s→35s (CHANGELOG 2026-07-12). RESIDUAL
+  super-linearity (m=12=5.5s) = levers (b) agenda re-servicing + (c) coref `same_as` fan-out; the profile
+  is now flat. Seed-from-focus (8.3) bounds the coref fan-out by scoping — so the residual is addressed by
+  the spine build, not a separate perf push. STILL TODO in 8.0: re-run the probe AFTER 8.3 to confirm
+  focus-scoping isolates+flattens accretion, and that suspend/resume on `chain_sip` preserves the frontier.
+- **8.1 — unified intake entry + routing. FIRST INCREMENT DONE 2026-07-12.** `ugm/intake.py`
+  `ingest(kb, rules, utterance) -> Outcome`: routes fact / rule / question / unrecognized by which FORMS
+  fire (not a string sniff), reusing `recognize`/`ask_goal`/`load_rules`/`load_facts`/`expand_rules`.
+  Rule route appends + re-lints so a mid-session rule reasons immediately (Phase 8.6 seed). Gibberish/empty
+  → the habitability rejection outcome (§4a). `tests/test_isa_intake.py` (6 tests, 264 suite green).
+  STAGING: the caller-side fork is closed at the ENTRY; the QUESTION *parse* still runs off-graph
+  (`recognize` throwaway) — collapsing it into a live control-flagged `<query>` node is 8.2. GOAL/command
+  route + focus control-CNL are 8.3. Design §1, §D discipline obeyed (content-blind, no string sniff).
 - **8.2 — `<query>` as a live control node.** Retire the throwaway-graph question path; a `<query>` lands
   control-flagged in the KB and raises its demand over the live graph. Monotonicity kept by the
   control/fact split. Design §2.

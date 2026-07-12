@@ -25,6 +25,35 @@ brittle chatbot wizards, and it is structural, not cosmetic:
 - **One substrate** holds the utterance, the reasoning, *and* the explanation — so "explain why X" is not
   an EXPLAIN handler; it is CNL whose `why …` form fires and renders a trace faithful by construction.
 
+## D. Intake-spine discipline — the anti-hardcoding rules (hold the implementer to these)
+
+The intake spine is where the seamlessness claim is easiest to betray: a Python shortcut that "just checks
+for a question word" or "special-cases the focus verbs" silently re-installs the intent dispatcher the
+whole design exists to remove. These rules make the standing "domain logic ONLY in banks; strategies are
+DECLARED data, never engine sniffing" rule concrete for this build. Any session picking up Phase 8 must
+obey them; a reviewer should reject a diff that breaks one.
+
+1. **Route by which FORMS fired, never by sniffing the utterance string.** Assertion / rule / question /
+   goal / rejection is decided by the graph structure recognition produced (a minted `<query>` / `<goal>`
+   / rule fragment / content relation), NOT by a Python word list or substring test on the utterance.
+2. **Focus moves are CNL forms.** `focus on X`, `forget that`, `back to X`, `also consider Y` are rules
+   that recognize the surface and mint control ops — not Python `if "forget" in utterance`.
+3. **The pronoun/anaphora ranking is DECLARED defeasible-priority data.** Recency + grammatical role are
+   content-blind DEFAULTS (shipped as a default bank / firmware defaults), OVERRIDABLE by a domain's
+   declared preference. No ranking hardcoded in engine Python.
+4. **The rejection / "nearest forms" is computed from recognition structure** (which forms almost fired),
+   not a hardcoded suggestion table.
+5. **`<focus>` / `<query>` / `<goal>` are control tokens** minted through the reserved `<…>` → `control=True`
+   chokepoint, like every other control node — never ad-hoc flags or side tables.
+6. **No predicate/vocabulary STRINGS in the intake reasoning.** Copula/negation/coref vocabulary comes from
+   `ugm/vocabulary.py`; domain predicates come from the KB (`relation_predicates` / declarations). The
+   intake code stays content-blind — the same audit Phase 5.5/2.5 passed.
+7. **Metareasoning owns only effort/margins**, not answers: the ask-vs-guess threshold is a content-blind
+   α-cut, not a per-case Python rule (§4).
+
+Litmus test for any intake code: grep it for a domain word or an English function word used as a control
+signal. If one is load-bearing, it belongs in a bank or a declared default, not in the engine.
+
 ## 1. The one seam, and the fix
 
 Today the engine *almost* delivers seamlessness. Assertions and goals already land in the live substrate

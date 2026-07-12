@@ -257,9 +257,21 @@ def _fact_exists(g: AttrGraph, s: str, pred: str, o: str, *, scope: str | None =
 
 def _find_fact_relnode(g: AttrGraph, s: str, pred: str, o: str, *, scope: str | None = None) -> str | None:
     """The fact rel node for `s -[pred]-> o` (the memo entry / the premise node RECORD `uses`); within a
-    SUPPOSE scope, also the scope's matching pencil rel node."""
-    for rel in _fact_relnodes(g, pred, scope=scope):
-        if s in g.pred(rel) and o in g.succ(rel):
+    SUPPOSE scope, also the scope's matching pencil rel node.
+
+    ENDPOINT-DRIVEN (Phase-7-adjacent perf, the same lever `chain._facts_matching` got). Both endpoints
+    are BOUND node ids here (it is a specific-fact existence check), and `rel in g.succ(s)` is exactly
+    `s in g.pred(rel)` — so reach the candidate rels THROUGH the subject's local topology (bounded by the
+    subject's degree) instead of scanning every `pred` fact (`nodes_with_key(pred)`, which grows with the
+    whole bank for a high-frequency predicate like the copula `is` — the NAC-path hot spot the profile
+    named). The per-rel filter is `_fact_relnodes`' exactly (keyed by `pred`, not inert, not control
+    unless this scope's pencil), so it stays behaviour-identical to the whole-predicate scan."""
+    for rel in g.succ(s):                                  # rels where s is the SUBJECT (s in g.pred(rel))
+        if not g.has_key(rel, pred) or g.is_inert(rel):
+            continue
+        if g.is_control(rel) and not (scope is not None and _rel_in_scope(g, rel, scope)):
+            continue
+        if o in g.succ(rel):                               # o is the OBJECT
             return rel
     return None
 

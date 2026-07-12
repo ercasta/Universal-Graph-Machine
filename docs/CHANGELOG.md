@@ -14,6 +14,21 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### NAC existence check made ENDPOINT-DRIVEN — 40× on the NAF hot path (258 passed, suite 54s→35s)
+Phase 8.0 probe (`bench/session_accretion.py`, `docs/cnl_intake_design.md` §7) found the agent-loop client's
+real near-term blocker is NOT session accretion but PER-UTTERANCE NAF cost: a *bound* query on a bank with
+one `not …` rule was super-linear in the bank's entity count — `is s0 thief` over 6 suspects took 13.8s.
+cProfile named it: the NAC check `_nac_blocks -> _fact_exists -> apply._find_fact_relnode` did a
+WHOLE-PREDICATE scan (`_fact_relnodes` / `nodes_with_key(pred)`, 8.7M calls), which grows with the whole
+bank for a high-frequency predicate like the copula `is`. Perf-lever-(a) had made `chain._facts_matching`
+endpoint-driven but never touched this NAC-path reader. FIX: `_find_fact_relnode` now walks the SUBJECT's
+local topology (`rel in g.succ(s)` == `s in g.pred(rel)`; both endpoints are bound node ids in an
+existence check), O(degree(s)) instead of O(#pred-facts), with the exact `_fact_relnodes` per-rel filter —
+behaviour-identical. Result: m=6 13.8s→0.34s (40×); whole suite 258 green (no change) and 54s→35s.
+RESIDUAL super-linearity (m=12 still 5.5s) is levers (b) agenda re-servicing + (c) coref `same_as` demand
+fan-out — the profile is now flat (breadth, no hot spot); seed-from-focus (Phase 8.3) will bound the coref
+fan-out by scoping, so it is addressed by the client build rather than a separate perf push.
+
 ### Pre-firmware-v3 leftovers RETIRED — demand/coref/walk/asp deleted (258 passed, 0 failed)
 The superseded demand/coref/walk Python subsystems the audit flagged are gone (user-directed; harneskills,
 the only cross-repo consumer, is being adapted onto the new engine docs). DELETED: `ugm/demand.py`
