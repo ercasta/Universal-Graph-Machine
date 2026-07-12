@@ -1,0 +1,158 @@
+# =============================================================================
+# DEMO 5 — PLAYGROUND: a collectible-card trading agent that decides
+# =============================================================================
+#
+# Run:   python demos/run.py demos/05_card_trader_playground.cnl
+#
+# This one is a sandbox, not a lecture. It puts together everything from demos
+# 1-4 — chaining, recursion-free multi-step deduction, negation-as-failure, the
+# closed-world default — into a small AGENT that looks at its inventory and the
+# market and DECIDES what to buy and what to sell. Then it hands you a big menu of
+# knobs to turn (§ PLAYGROUND at the bottom).
+#
+# The "decision" is not a special mechanism: it is just two derived predicates,
+# `buyworthy` and `sellworthy`. Asking `who is buyworthy` runs the whole chain of
+# reasoning backward on demand and returns the agent's picks; `why …` shows the
+# case it made for each one. Change a fact or a rule, re-run, and watch the agent
+# change its mind — with the reasoning always auditable.
+#
+# The card names below are invented. Swap in your own.
+#
+# The KB is built in LAYERS. Each layer is independent knowledge that composes with
+# the rest through shared predicates (`rare`, `valuable`, `market is hot`, …).
+
+#-- LAYER 1: market conditions
+
+# The day's market, as facts, and a rule that reads the market's mood off them.
+# `market is hot` is DERIVED, not asserted — the agent reasons its way to it.
+demand is high
+supply is low
+market is hot when demand is high and supply is low
+
+#-- LAYER 2: rarity tiers
+
+# Rarity is a small ladder. Declaring `legendary` a kind of `rare` means every rule
+# keyed on `rare` automatically also covers legendary cards — add a tier here and
+# the value rules downstream pick it up for free.
+?c is rare when ?c is legendary
+
+#-- LAYER 3: the inventory and the market
+
+# Cards WE OWN (`is owned`), with their qualities (rarity, demand, condition).
+emberdrake is legendary
+emberdrake is in_demand
+emberdrake is mint
+emberdrake is owned
+
+# frostwyrm: rare + wanted, but not mint
+frostwyrm is rare
+frostwyrm is in_demand
+frostwyrm is owned
+
+# stonegolem: a common card just taking up space
+stonegolem is common
+stonegolem is owned
+
+# Cards FOR SALE on the market (`is on_market`), that we might buy.
+# mistfox: underpriced means listed below what it's worth
+mistfox is rare
+mistfox is in_demand
+mistfox is underpriced
+mistfox is on_market
+
+# sunhawk: `coveted` = a specific card we especially want (see LAYER 5)
+sunhawk is common
+sunhawk is coveted
+sunhawk is on_market
+
+#-- LAYER 4: what a card is worth (multi-step deduction)
+
+# rare AND wanted -> valuable; valuable AND mint -> premium; premium -> a keeper we
+# should never let go. This is the same chaining pattern as demo 2, over card facts.
+?c is valuable when ?c is rare and ?c is in_demand
+?c is premium when ?c is valuable and ?c is mint
+?c is keeper when ?c is premium
+
+#-- LAYER 5: the decisions (buy / sell)
+
+# SELL: offload a card we own when the market is hot — UNLESS it is a keeper. The
+# `?c is not keeper` guard is negation-as-failure (demo 3): a premium card is
+# protected from being sold even on the hottest day.
+?c is sellworthy when ?c is owned and market is hot and ?c is not keeper
+
+# BUY (value play): a card on the market that is valuable AND underpriced, and that
+# we don't already own, is a bargain worth grabbing.
+?c is buyworthy when ?c is on_market and ?c is valuable and ?c is underpriced and ?c is not owned
+
+# BUY (named target): a SPECIFIC-card rule. A card we flagged `coveted` is worth
+# buying just for being on the market, price and rarity aside. This is how a
+# named, one-off want overrides the generic value logic — sunhawk is common and not
+# underpriced, so only this rule buys it.
+?c is buyworthy when ?c is on_market and ?c is coveted and ?c is not owned
+
+#-- The agent's decisions
+
+# What's genuinely valuable in play right now (value reasoning alone).
+#? who is valuable
+
+# The cards the agent will NOT part with.
+#? who is keeper
+
+# The SELL list: what the agent decides to sell today.
+#? who is sellworthy
+
+# The keeper is protected even though the market is hot — verify it stays off the list.
+#? is emberdrake sellworthy
+
+# The BUY list: what the agent decides to buy today.
+#? who is buyworthy
+
+# Two buys, two DIFFERENT reasons. The value play (mistfox: valuable + underpriced)...
+#? why mistfox is buyworthy
+
+# ...and the named target (sunhawk: coveted). Same conclusion, different case.
+#? why sunhawk is buyworthy
+
+# Why the agent holds its best card.
+#? why emberdrake is keeper
+
+# =============================================================================
+# § PLAYGROUND — turn the knobs (edit, re-run, watch the agent re-decide)
+# =============================================================================
+#
+# MARKET ---------------------------------------------------------------------
+# A) Cool the market. Change `demand is high` to `demand is low`. Re-run
+#    `who is sellworthy`: now empty — `market is hot` no longer derives, so the
+#    sell rule never fires. The agent holds everything on a soft day.
+# B) A new signal. Add `hype is rising` and a richer rule
+#    `market is hot when demand is high and supply is low` stays, but add
+#    `market is hot when hype is rising`. Two independent ways to a hot market.
+#
+# RARITY ---------------------------------------------------------------------
+# C) A new top tier. Add a fact `emberdrake is mythic` and a rule
+#    `?c is legendary when ?c is mythic`. The rarity ladder now climbs
+#    mythic -> legendary -> rare, and value flows up it unchanged.
+# D) Demote a card. Delete `frostwyrm is rare`. Re-run `who is valuable`:
+#    frostwyrm drops off, and with it any decision that stood on its value.
+#
+# NAMING SPECIFIC CARDS ------------------------------------------------------
+# E) Flag another target. Add `frostwyrm is coveted`. But frostwyrm `is owned`,
+#    so the `not owned` guard keeps it off the BUY list — the agent won't buy what
+#    it already has. Now add a brand-new card `voidling is common`,
+#    `voidling is coveted`, `voidling is on_market` and re-run `who is buyworthy`.
+# F) A do-not-buy list. Add `sunhawk is blacklisted` and tighten the coveted buy
+#    rule with `and ?c is not blacklisted`. The named override now respects a veto.
+#
+# MARKET CONDITIONS x DECISIONS ----------------------------------------------
+# G) Budget guard. Add a fact `we is cash_poor`, and EDIT the value-play buy rule to
+#    end with `… and ?c is not owned and not we is cash_poor`. Re-run
+#    `who is buyworthy`: the value buys stop while cash is short. (Editing the rule
+#    matters — adding a second rule wouldn't remove the original, unguarded one.)
+# H) Panic sell. Delete the `?c is not keeper` guard from the sell rule. Re-run
+#    `who is sellworthy`: even emberdrake is now up for sale. The guard was the only
+#    thing protecting the keeper.
+#
+# ASK YOUR OWN ---------------------------------------------------------------
+# I) Add your own questions anywhere with a `#?` line, e.g.
+#    `#? is mistfox valuable`  or  `#? who is premium`  or
+#    `#? why stonegolem is sellworthy`  (note the `is` for a copula-state `why`).

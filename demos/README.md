@@ -1,6 +1,6 @@
 # UGM demos
 
-Four runnable, self-contained walkthroughs of increasing complexity. Each demo is a
+Five runnable, self-contained walkthroughs of increasing complexity. Each demo is a
 single `.cnl` file: an ordinary CNL corpus (facts + rules) with the questions and a
 guided walkthrough written inline as comments. Nothing to install — the runner adds the
 repo root to the path itself.
@@ -16,6 +16,7 @@ python demos/run.py demos/01_basics.cnl      # run just one
 | 2 | [`02_chains_and_recursion.cnl`](02_chains_and_recursion.cnl) | Rules feeding rules: chaining and self-feeding **recursion** (transitive closure), nested `why` proofs. |
 | 3 | [`03_negation_and_worlds.cnl`](03_negation_and_worlds.cnl) | **Negation-as-failure**, and the **closed- vs open-world** reading of "no" (CWA default, OWA opt-in). |
 | 4 | [`04_graded_and_defeasible.cnl`](04_graded_and_defeasible.cnl) | **Graded attributes** (`very` / `somewhat`, the α-cut) and **defeasible defaults** that fill the unsaid unless overridden. |
+| 5 | [`05_card_trader_playground.cnl`](05_card_trader_playground.cnl) | **Playground.** A collectible-card trading agent that DECIDES what to buy/sell — market conditions, rarity tiers, named cards, all layered — with a big menu of knobs to turn. |
 
 Start at demo 1 and read top to bottom — the comments explain what the engine does
 (which reasoning mode runs, how the rule lowers to opcodes, what `why` is replaying).
