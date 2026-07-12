@@ -23,14 +23,12 @@ predicate/domain strings here (§D).
 from __future__ import annotations
 
 from .production_rule import Pat, Rule
-from .attrgraph import valued
+from .vocabulary import SAME_AS
 
 FOCUS = "<focus>"
 CENTER = "center"
 BELOW = "below"
 FOCUS_OP = "<focus-op>"
-RECENCY = "recency"       # a monotonic stamp on each center edge — salience order (relations_from is
-                          # NOT insertion-ordered, so recency must be explicit, not positional)
 
 
 # ---------------------------------------------------------------------------
@@ -76,15 +74,9 @@ def _center_names(kb, frame: str) -> set[str]:
 
 
 def _add_center(kb, frame: str, name: str) -> None:
-    """Add (or BUMP, on re-mention) `name` as a center of `frame` with a fresh recency stamp — so the
-    most-recently-mentioned entity is the most salient (the anaphora antecedent, §4)."""
-    for rel, o in _center_edges(kb, frame):
-        if kb.name(o) == name:
-            kb.remove_node(rel)                          # bump: drop the stale edge, re-add fresher
-    nextr = 1.0 + max((float(a.value) for rel, _o in _center_edges(kb, frame)
-                       if (a := kb.get_attr(rel, RECENCY)) is not None), default=0.0)
-    rel = kb.add_relation(frame, CENTER, _entity_node(kb, name), control=True)
-    kb.set_attr(rel, RECENCY, valued(nextr))
+    """Add `name` as a center of `frame` (idempotent) — an entity now in play."""
+    if name not in _center_names(kb, frame):
+        kb.add_relation(frame, CENTER, _entity_node(kb, name), control=True)
 
 
 def push_focus(kb, center_names=()) -> str:
@@ -115,22 +107,10 @@ def top_centers(kb) -> list[str]:
     return sorted(_center_names(kb, frame)) if frame is not None else []
 
 
-def salient_center(kb) -> str | None:
-    """The most SALIENT center of the top frame — the bare-pronoun antecedent (8.4, §4). v1 ranking is
-    RECENCY: the highest recency-stamped center (the Grosz-Sidner backward-looking center Cb, approximated;
-    grammatical-role weighting + the ask-vs-guess margin on a near-tie are the tracked refinements). The
-    ranking is a content-blind DEFAULT (a domain may override with declared preference — §D.3), never a
-    hardcoded per-case rule. None if the focus is empty."""
-    frame = top_frame(kb)
-    if frame is None:
-        return None
-    best, best_r = None, -1.0
-    for rel, o in _center_edges(kb, frame):
-        a = kb.get_attr(rel, RECENCY)
-        r = float(a.value) if a is not None else 0.0
-        if r >= best_r:
-            best, best_r = kb.name(o), r
-    return best
+# ANAPHORA is a BOUNDARY concern, not the substrate's (decision 2026-07-12): resolving "she" -> "ada" is
+# pragmatics the external SLM owns on the NL->CNL side, using the discourse state the substrate EXPOSES
+# (`top_centers`). The substrate reasons over already-resolved CNL and never sees a pronoun. So there is no
+# in-substrate salience ranking / pronoun resolver here — only the exposed centers. See `cnl_intake_design.md` §4.
 
 
 def _drop_top(kb) -> None:
@@ -268,6 +248,8 @@ def utterance_subjects(kb, anchor: str) -> set[str]:
                 continue
             if kb.has_key(rel, "first") or kb.has_key(rel, "next"):
                 continue
-            names.add(kb.name(t))                 # t is the subject of a content relation
+            if kb.has_key(rel, SAME_AS):          # a coref link is not a domain fact ABOUT t — skip it,
+                continue                          # else a TYPE ("suspect") coref'd across mentions would
+            names.add(kb.name(t))                 # leak into the centers as a stopword-anchor
             break
     return names

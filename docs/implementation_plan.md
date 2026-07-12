@@ -22,13 +22,23 @@
 
 ## Current state
 
-**Suite: 258 passed, 0 failed** (`python -m pytest -q`, ~54s post perf-lever-(a)). Production runtime is
-100% the ISA engine, and so is every test — no second engine anywhere in the repo. `ask_goal` is
-demand-driven; `rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are all deleted.
+**Suite: 287 passed, 0 failed** (`python -m pytest -q`, ~40s). Production runtime is 100% the ISA engine,
+and so is every test — no second engine anywhere in the repo. `ask_goal` is demand-driven;
+`rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are all deleted.
 
 Phases 0–2, 3.1-step1, 3.3, 4, 5, 6.0/6.1, firmware v3 (demand-driven negation), stance-as-data, and
 perf lever (a) are **DONE** — see `implementation_plan_done.md` and `CHANGELOG.md`. **Do NOT re-do them;
 do NOT resurrect `decide.solve`, `solve.py`, or the demand/coref/walk/asp leftovers.**
+
+**Phase 8 (CLIENT: agent loop + TUI) IN PROGRESS — the active track.** DONE: NAC endpoint-driven perf fix
+(40×); 8.1 unified intake (`ugm/intake.py`); 8.3a `<focus>` stack + widen + explicit focus-CNL + scaffolding
+GC (`ugm/focus.py`); 8.3b seed-from-focus BOUNDED ATTENTION (`ingest(attention=…)`/`ask_goal(focus_scope=…)`,
+probe-validated: bound query flat under focus vs a 0.5s→112s global cliff); 8.5a live event stream
+(`ingest(on_event=…)`, ask-bracketed). ANAPHORA resolution was tried (8.4a) and BACKED OUT — it is a
+boundary concern the SLM owns via the exposed `focus.top_centers` (2026-07-12; see §4). New modules:
+`ugm/intake.py`, `ugm/focus.py`; new tests: `test_isa_intake`/`_focus`/`_stream`;
+`bench/session_accretion.py`. Spec: `docs/cnl_intake_design.md` (+ §D anti-hardcoding discipline). REMAINING:
+8.4b, 8.5b, 8.6 — see Phase 8 below.
 
 ## Residuals carried out of done sections (don't lose these)
 
@@ -115,17 +125,15 @@ Build slices, in dependency order (each with tests; the probe first to validate 
     (super-linear cliff); focus 23→29→65→83ms (FLAT); ratio 23×→1361× and climbing. Bounded attention makes
     per-utterance cost track the focus, not the session — the accretion fix, validated. `tests/test_isa_focus.py`
     (16). SEMANTIC: off-focus facts leave attention (agent-not-theorem-prover); that is the point.
-- **8.4 — anaphora as reasoning.** Design §4.
-  - **8.4a DONE 2026-07-12** — BARE PRONOUNS resolve against the focus SALIENT CENTER. `focus.salient_center`
-    = highest recency-stamped center of the top frame (recency is an explicit `recency` attr — `relations_from`
-    is NOT insertion-ordered; `_add_center` bumps on re-mention). `ingest` expands pronouns
-    (`declared_pronouns` — data, domain-extensible) with that antecedent BEFORE routing (after the focus-op
-    check so `forget that` is safe). Topic switch changes the antecedent (the stack governs it). ASK-VS-GUESS
-    margin's degenerate case: a pronoun with NO antecedent → `Outcome("clarify")`, not a silent guess about a
-    literal `she`. `tests/test_isa_focus.py` (24), 283 suite green.
-  - **8.4b REMAINING** — DESCRIPTIVE anaphora ("the alibied one") → CHOOSE over centers by the description
-    (folds into reasoning); graded recency/role ranking + type/number agreement; the full ask-vs-guess MARGIN
-    on a near-tie (not just the empty case) → escalate via `ask_user`, the same channel as OWA gathering.
+- **8.4 — anaphora: OFF THE ROADMAP (boundary concern).** Ratified 2026-07-12: anaphora resolution is NL
+  pragmatics the external SLM owns on the NL→CNL side, using the substrate's EXPOSED discourse state
+  (`focus.top_centers`); the substrate reasons over already-resolved CNL and never sees a pronoun. A landed
+  8.4a (in-substrate bare-pronoun resolution via a recency-ranked `salient_center` + `clarify` escalation)
+  was BACKED OUT — it bought nothing structural (reasoning is byte-identical for "she" vs "ada"); the test
+  is "does a feature buy anything besides nicer language?" (focus/streaming/dispatch pass; anaphora fails).
+  8.4b (descriptive anaphora + substrate ask-margin) is dropped for the same reason. Design §4; a bonus
+  from the back-out: `focus.utterance_subjects` now skips coref `same_as` edges so a TYPE can't leak into
+  the centers as a stopword-anchor. 283 suite green.
 - **8.5 — event-emitting + resumable driver; suspend/resume `ask_user`.** Design §5.
   - **8.5a DONE 2026-07-12** — LIVE EVENT STREAM: `ingest(on_event=…)` emits `Event(kind, data)` at the
     route boundaries (focus / clarify / question / **ask** / answer / fact / rule / unrecognized), so a TUI

@@ -38,9 +38,11 @@ obey them; a reviewer should reject a diff that breaks one.
    / rule fragment / content relation), NOT by a Python word list or substring test on the utterance.
 2. **Focus moves are CNL forms.** `focus on X`, `forget that`, `back to X`, `also consider Y` are rules
    that recognize the surface and mint control ops — not Python `if "forget" in utterance`.
-3. **The pronoun/anaphora ranking is DECLARED defeasible-priority data.** Recency + grammatical role are
-   content-blind DEFAULTS (shipped as a default bank / firmware defaults), OVERRIDABLE by a domain's
-   declared preference. No ranking hardcoded in engine Python.
+3. **No anaphora resolution in the substrate at all** (ratified 2026-07-12 — §4). Pronoun/descriptive
+   reference resolution is a BOUNDARY concern the external SLM owns, using the exposed `focus.top_centers`.
+   The substrate reasons over already-resolved CNL; it holds no discourse ranking (recency/centering) — that
+   is NL pragmatics, off-mission. (The test: a feature belongs in the substrate only if it buys something
+   besides nicer language.)
 4. **The rejection / "nearest forms" is computed from recognition structure** (which forms almost fired),
    not a hardcoded suggestion table.
 5. **`<focus>` / `<query>` / `<goal>` are control tokens** minted through the reserved `<…>` → `control=True`
@@ -68,8 +70,8 @@ normalized, and recognized; the fired forms decide what happens. No caller branc
 ```
 CNL utterance
   1. tokenize into the LIVE substrate, control-flagged      → <sentence> anchor + token chain
-  2. normalize_surface                                      → determiners, multi-word NPs,
-                                                               pronoun/anaphora vs. retained centers
+  2. normalize_surface                                      → determiners, multi-word NPs
+                                                               (anaphora already resolved by the SLM, §4)
   3. recognize (forms fire) → route by what fired:
        fact form        → promote content into the FACT layer (monotone, persists)
        rule form        → add a reified rule (runtime authoring, §6)
@@ -136,24 +138,28 @@ threshold in v1 for the same reason we rejected last-N-turns.
 frames, old token chains no focus reaches. **Facts are never collected** (monotone, §5); a cold fact simply
 leaves the seed scope. So the graph still grows with facts, but the *working set* stays bounded.
 
-## 4. Anaphora is reasoning, not a resolver
+## 4. Anaphora is a BOUNDARY concern — the substrate exposes centers, the SLM resolves
 
-The top frame's centers are the referents. Resolution splits:
+> **Ratified 2026-07-12 (user).** An earlier draft (and a landed 8.4a) put pronoun resolution *inside*
+> intake, resolving "she" against a recency-ranked salient center. **Backed out.** The test for whether
+> something belongs in the substrate is *does it buy anything besides nicer language?* — streaming (control/
+> UX), form→action dispatch (the seamless core), and focus/bounded-attention (the agent's attention + the
+> accretion perf win) all pass. **Anaphora resolution fails it:** reasoning is byte-identical whether the
+> CNL says "she" or "ada", so a resolver bought *nothing structural*. It is pure NL pragmatics — exactly
+> what the external SLM exists to absorb on the NL→CNL side.
 
-- **Descriptive anaphora** ("the cheaper one", "the alibied suspect") → **CHOOSE over the centers**: which
-  center satisfies the description. No resolver — it folds into ordinary reasoning.
-- **Bare pronouns** ("it", "that") → **CHOOSE over graded defeasible preferences**. The ranking is
-  recency + grammatical role as **content-blind defaults**, **overridable by declared domain preference**
-  (a legal domain may declare "the defendant" as the default referent). The ranking is *defeasible
-  priority data*, not engine-baked.
+The clean split:
+- **Substrate:** owns the **focus** (structural — the working set / bounded attention) and **exposes** its
+  centers read-only (`focus.top_centers`). It reasons over already-resolved CNL and **never sees a pronoun**.
+- **SLM (external):** reads the exposed centers and resolves "she" → "ada" (and descriptive "the cheaper
+  one" → "ada") *with full NL context* — which it does better than an in-substrate recency heuristic anyway
+  — emitting clean CNL.
+- **Intake:** receives resolved CNL. No pronoun handling, no `salient_center`, no in-substrate discourse
+  ranking (that was Grosz-Sidner centering — discourse linguistics, off the substrate's mission).
 
-**Where metareasoning enters — and where it does not.** The *ranking* is **not** metareasoning
-(metareasoning = content-blind *effort/resource* policy: fuel, α-cut, radius; a preference over answers is
-not effort). Metareasoning owns **only the ask-vs-guess margin** — the α-cut on the resolution: a clear
-winner resolves silently; a near-tie **does not guess** but **asks** ("did you mean the knife or the
-rope?"), escalating through the **same `ask_user` channel** as OWA evidence-gathering and the deontic
-"better check." An ambiguous "it" produces a clarifying question through the existing path, not a special
-anaphora dialogue. One mechanism (CHOOSE), one layer boundary.
+If the SLM cannot resolve a reference, *it* asks the user (the ask-vs-guess escalation lives at the
+boundary too, with the SLM's NL context — not as a substrate `clarify` outcome). Consequence: descriptive
+anaphora and a substrate-side ask-margin are **off the roadmap** (was 8.4b) — same reasoning.
 
 ### 4a. Habitability — the rejection outcome
 
@@ -248,7 +254,7 @@ tightening; if (2) fails, the demand frontier needs explicit persistence before 
 | **`<query>` as live control node** | **new** | (§2) |
 | **`<focus>` stack + centers + seed-from-focus** | **new** | (§3) |
 | **explicit focus CNL** (`focus on`/`forget`/`back to`) | **new** | (§3) |
-| **bare-pronoun ranking + ask-margin escalation** | **new** | (§4) |
+| anaphora resolution | **NOT in substrate** — SLM does it via exposed `focus.top_centers` | (§4) |
 | **scaffolding GC (reachability from focus)** | **new** | (§3) |
 | **event-emitting + resumable driver** | **new** | (§5) |
 | **suspend/resume `ask_user`** | **new** | (§5) |

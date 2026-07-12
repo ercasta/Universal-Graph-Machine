@@ -42,7 +42,7 @@ def test_stream_ask_brackets_the_human_gather():
     assert out.answer == ["yes"]
 
 
-def test_stream_fact_and_focus_and_clarify():
+def test_stream_fact_and_focus():
     kb, rules = load_corpus("")
     ev = []
     ingest(kb, rules, "ada is happy", on_event=ev.append)
@@ -51,8 +51,3 @@ def test_stream_fact_and_focus_and_clarify():
     ev = []
     ingest(kb, rules, "focus on bo", on_event=ev.append)
     assert [e.kind for e in ev] == ["focus"]
-
-    kb2, rules2 = load_corpus("")
-    ev = []
-    ingest(kb2, rules2, "is she happy", on_event=ev.append)   # empty focus -> unresolved pronoun
-    assert [e.kind for e in ev] == ["clarify"]

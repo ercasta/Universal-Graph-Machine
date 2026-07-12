@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer" | "fact" | "rule" | "focus" | "clarify" | "unrecognized"
+    kind: str                # "answer" | "fact" | "rule" | "focus" | "unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
@@ -42,7 +42,7 @@ class Event:
     fire — same discipline as routing (no string sniff). An `"ask"` event brackets the human-in-the-loop
     `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). Per-EMIT reasoning
     trace (reuse the RECORD/`<j:>` substrate) and generator-based suspend/resume are 8.5b."""
-    kind: str                # "focus"|"clarify"|"question"|"ask"|"answer"|"fact"|"rule"|"unrecognized"
+    kind: str                # "focus"|"question"|"ask"|"answer"|"fact"|"rule"|"unrecognized"
     data: dict = field(default_factory=dict)
 
 
@@ -102,7 +102,6 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
         choice, the agent-not-theorem-prover reading), so answers can differ from "global"."""
     from .cnl.query import recognize, ask_goal
     from .cnl.authoring import load_rules, load_facts, _on_cycle
-    from .cnl.forms import declared_pronouns, expand_pronouns_text
     from . import focus as focus_mod
 
     emit = on_event if on_event is not None else (lambda e: None)   # §5 stream; no-op when unwired
@@ -120,19 +119,11 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
         emit(Event("focus", {"op": fop[0], "target": fop[1]}))
         return Outcome("focus", utterance, focus_op=fop)
 
-    # ANAPHORA (§4): resolve bare pronouns against the focus's salient center BEFORE routing, so
-    # "is she cleared?" reasons about the entity in play. The pronoun set and the antecedent are DATA
-    # (`declared_pronouns` + focus salience), never engine-baked (§D.3). Runs AFTER the focus-op check so
-    # `forget that` is untouched. ASK-VS-GUESS MARGIN (metareasoning, §4): a pronoun with NO antecedent in
-    # focus is maximal ambiguity — CLARIFY rather than silently answer about a literal `she`. (Graded
-    # recency margins + type/number agreement + descriptive anaphora are 8.4b.)
-    prons = declared_pronouns(kb)
-    if any(w in prons for w in text.lower().split()):
-        ante = focus_mod.salient_center(kb)
-        if ante is None:
-            emit(Event("clarify"))
-            return Outcome("clarify", utterance)
-        text = expand_pronouns_text(text, prons, ante)
+    # ANAPHORA is a BOUNDARY concern, resolved by the external SLM on the NL->CNL side using the exposed
+    # discourse state (`focus.top_centers`), NOT here (decision 2026-07-12, `cnl_intake_design.md` §4). The
+    # substrate receives already-resolved CNL and never sees a pronoun — reasoning is byte-identical whether
+    # the CNL says "she" or "ada", so a pronoun resolver bought nothing structural. Intake stays reasoning-
+    # facing; NLP stays on the SLM side of the boundary where the vision puts it.
 
     # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
     q = recognize(text)

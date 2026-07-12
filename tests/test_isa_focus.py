@@ -139,38 +139,12 @@ def test_focus_still_answers_a_bound_question_about_the_subject():
     assert ingest(kb, rules, "is ada thief", attention="focus").answer == ["yes"]
 
 
-# --- 8.4 anaphora: bare pronouns resolve against the focus salient center ------------------------
+# --- anaphora is a BOUNDARY concern (2026-07-12): the substrate EXPOSES centers, the SLM resolves ----
 
-def test_pronoun_resolves_to_focus_center():
-    kb, rules = _corpus()
-    ingest(kb, rules, "ada is happy")
-    assert ingest(kb, rules, "is she happy").answer == ["yes"]          # she -> ada
-
-
-def test_pronoun_resolves_to_most_recent_center():
-    kb, rules = _corpus()
-    ingest(kb, rules, "ada is happy")
-    ingest(kb, rules, "bo is sad")
-    assert ingest(kb, rules, "is she happy").answer == ["no"]           # she -> bo (recent), bo is sad
-
-
-def test_anaphoric_assertion_resolves_pronoun():
+def test_top_centers_exposes_the_working_set_for_boundary_resolution():
     kb, rules = _corpus()
     ingest(kb, rules, "ada is a suspect")
-    ingest(kb, rules, "she is cleared")                                 # she -> ada
-    assert ingest(kb, rules, "is ada cleared").answer == ["yes"]
-
-
-def test_topic_switch_changes_the_antecedent():
-    kb, rules = _corpus()
-    ingest(kb, rules, "ada is happy")
-    ingest(kb, rules, "bo is happy")
-    ingest(kb, rules, "focus on ada")                                   # new top frame, salient = ada
-    ingest(kb, rules, "she is calm")                                    # 'she' -> ada, not bo
-    assert ingest(kb, rules, "is ada calm").answer == ["yes"]
-
-
-def test_unresolved_pronoun_clarifies_instead_of_guessing():
-    kb, rules = _corpus()
-    out = ingest(kb, rules, "is she happy")            # empty focus -> no antecedent
-    assert out.kind == "clarify"                       # ask, don't silently answer about a literal 'she'
+    ingest(kb, rules, "bo is a suspect")
+    # the external SLM reads these to resolve 'she' / 'the suspect' on the NL->CNL side; the substrate
+    # never sees a pronoun and reasons over already-resolved CNL (no in-substrate anaphora resolver).
+    assert set(focus.top_centers(kb)) == {"ada", "bo"}

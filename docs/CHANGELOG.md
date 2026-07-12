@@ -37,16 +37,20 @@ Kicked off the first UGM CLIENT (agent loop + TUI) per `docs/cnl_intake_design.m
   accretion cliff, the coref fan-out over the whole KB); FOCUS 23→29→65→83ms (FLAT); ratio 23×→1361×.
   Per-utterance cost now tracks the focus, not the session — the accretion fix validated. SEMANTIC: off-
   focus facts leave attention (agent-not-theorem-prover), so answers can differ from global by design.
-- **8.4a anaphora** — bare pronouns resolve against the focus SALIENT CENTER (`focus.salient_center`,
-  recency-stamped, bumped on re-mention); `ingest` expands pronouns (`declared_pronouns` = data) with that
-  antecedent before routing; a topic switch changes the antecedent; an unresolvable pronoun →
-  `Outcome("clarify")` (the ask-vs-guess margin's degenerate case — don't guess about a literal `she`).
+- **8.4a anaphora — tried then BACKED OUT (2026-07-12).** An in-substrate bare-pronoun resolver (resolve
+  "she" against a recency-ranked `focus.salient_center`, `clarify` on no antecedent) was landed, then removed
+  by ratified decision: anaphora is a BOUNDARY concern the external SLM owns via the exposed `focus.top_centers`
+  — it buys nothing structural (reasoning is byte-identical for "she" vs "ada"), it is NL pragmatics off the
+  substrate's mission. `salient_center`/recency-ranking/`clarify` deleted; `focus`/`top_centers` stay. Bonus:
+  `focus.utterance_subjects` now skips coref `same_as` edges so a TYPE can't leak into the centers as a
+  stopword-anchor. Descriptive anaphora + substrate ask-margin (was 8.4b) dropped for the same reason. See
+  `docs/cnl_intake_design.md` §4.
 - **8.5a live event stream** — `ingest(on_event=…)` emits `Event(kind, data)` at route boundaries (focus/
   clarify/question/ask/answer/fact/rule/unrecognized) so a TUI renders a turn live; the `ask` event brackets
   the human-in-the-loop `ask_user` gather. Additive (`on_event=None` = no-op). `tests/test_isa_stream.py` (4).
 Discipline: `docs/cnl_intake_design.md` §D (7 anti-hardcoding rules) documented + mirrored in the plan's
-Phase 8 header. `tests/test_isa_intake.py` (6) + `tests/test_isa_focus.py` (24) + `tests/test_isa_stream.py`
-(4). 287 suite green.
+Phase 8 header. `tests/test_isa_intake.py` (6) + `tests/test_isa_focus.py` (20) + `tests/test_isa_stream.py`
+(4). 283 suite green (after the 8.4a back-out).
 
 ### NAC existence check made ENDPOINT-DRIVEN — 40× on the NAF hot path (258 passed, suite 54s→35s)
 Phase 8.0 probe (`bench/session_accretion.py`, `docs/cnl_intake_design.md` §7) found the agent-loop client's
