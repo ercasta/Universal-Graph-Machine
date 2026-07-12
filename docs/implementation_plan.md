@@ -22,7 +22,7 @@
 
 ## Current state
 
-**Suite: 296 passed, 0 failed** (`python -m pytest -q`, ~55s). Production runtime is 100% the ISA engine,
+**Suite: 301 passed, 0 failed** (`python -m pytest -q`, ~50s). Production runtime is 100% the ISA engine,
 and so is every test — no second engine anywhere in the repo. `ask_goal` is demand-driven;
 `rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are all deleted.
 
@@ -39,12 +39,14 @@ suspend/resume of the ask via `_ingest_gen` core + exception-unwind/re-enter); 8
 CONVERSATION (a mid-session rule that loops with the theory is asked about via the ask channel, not
 raised); 8.6 DISABLE (`forget that rule` marks the last rule `<disabled>` — additive, no deletion §5);
 8.5b TRACE (`trace=True` streams an `Event("derive", …)` per rule firing, read from the provenance
-substrate). **8.6 is functionally COMPLETE.** ANAPHORA resolution was tried (8.4a) and BACKED OUT — it is a boundary
+substrate); 8.5b MID-CHAIN ask (gather the OPEN premises a derivation demands, not just the top goal —
+closes a silent-wrong-`no` hole). **8.5b and 8.6 are functionally COMPLETE.** ANAPHORA resolution was tried (8.4a) and BACKED OUT — it is a boundary
 concern the SLM owns via the exposed `focus.top_centers` (2026-07-12; see §4). New modules:
 `ugm/intake.py`, `ugm/focus.py`, `ugm/rule_control.py`; new tests:
 `test_isa_intake`/`_focus`/`_stream`; `bench/session_accretion.py`. Spec: `docs/cnl_intake_design.md`
-(+ §D anti-hardcoding discipline). REMAINING: 8.5b tail (true wall-clock trace interleaving + mid-chain
-ask — both engine-deep), 8.6 incremental head-index (perf follow-on) — see Phase 8 below.
+(+ §D anti-hardcoding discipline). REMAINING: 8.5b tail (true wall-clock trace interleaving; extend
+mid-chain gather to who/∃/n-ary + lazy asking), 8.6 incremental head-index (perf follow-on) — see Phase 8
+below.
 
 ## Residuals carried out of done sections (don't lose these)
 
@@ -164,11 +166,24 @@ Build slices, in dependency order (each with tests; the probe first to validate 
     renderer IS the event stream, §5). `ask_goal` gained a `provenance` param threaded to its check/chain_sip
     calls. Additive: `trace=False` default = behaviour-identical (296 suite green). `tests/test_isa_stream.py`
     (+3: blocking trace order / trace-off neutral / converse trace). BUFFERED per turn (the derivations are
-    yielded after the closure returns, ordered but not wall-clock-interleaved). REMAINING in 8.5b: TRUE
-    wall-clock interleaving (a live `_record` callback would need coroutine reasoning — the generator can't
-    yield from inside the synchronous chain; deferred) + mid-CHAIN ask (today the ask fires only for the TOP
-    goal's open-predicate UNKNOWN — v1 wait-set `{ask_user}` at `query.py`; a sub-goal the reasoning needs
-    does not yet suspend, and the re-entry resume model doesn't cleanly extend to multiple ask points).
+    yielded after the closure returns, ordered but not wall-clock-interleaved).
+  - **8.5b MID-CHAIN ASK DONE 2026-07-12** — the ask now fires for OPEN PREMISES a derivation demands, not
+    just the top goal, closing a SILENT-WRONG-answer hole: a rule blocked only by a gatherable open premise
+    (`safe when cleared`, `cleared` open) used to return a confident ASSUMED_NO without ever asking; now
+    `ask_goal.gather_open_premises` asks the premise, materializes it, and the rule fires. WHICH premises
+    is DERIVED, not hardcoded (§D): the candidates are the visible bound `<demand>` magic-set the backward
+    closure itself produced (`chain.bound_demands`), filtered by the FIRMWARE openness STANCE
+    (`policy.is_open`) and skipping NAF neg-predicate demands via the substrate convention
+    (`vocabulary.is_neg_pred`, added) — no predicate/word list in Python decides it. MULTIPLE distinct asks
+    per turn work through a MEMOIZING handler in `_answer_with_ask` (raise `_NeedVerdict` on each new tuple
+    → yield → record verdict → re-enter `ask_goal`; converges monotonically — the graph is the
+    continuation). Only fires when the goal wasn't already derivable (a derivable goal pays no extra
+    closure) and never asks the negative/goal tuples. `tests/test_isa_stream.py` (+5: premise→derive /
+    denied→no / already-derivable→no-ask / two-premise gather / converse per-premise suspend). 301 suite
+    green. REMAINING in 8.5b: TRUE wall-clock trace interleaving (a live `_record` callback needs coroutine
+    reasoning — the generator can't yield from inside the synchronous chain; deferred) + extending
+    mid-chain gather to who/∃/n-ary questions (v1 covers the yes/no-bound path, the common case) and lazy
+    (relevance-ordered) instead of eager frontier asking.
 - **8.6 — runtime rule authoring (Phase 3.2, global KB concern).** `HEAD when …` lands via the same
   intake, reifies, reasons immediately; incremental head-index extend; RE-LINT stratification per add
   (`on_cycle` stance); conflict-lint AS CONVERSATION (a contradictory rule is rejected by ASKING, via the

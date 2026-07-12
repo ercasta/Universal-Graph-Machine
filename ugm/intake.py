@@ -142,24 +142,32 @@ def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace):
     no handler, so we answer straight (no suspension). When `trace`, the demand chain runs with provenance
     on and each derivation is yielded as an `Event("derive", …)` before the answer (buffered per turn —
     true wall-clock interleaving would need coroutine reasoning, the deferred refinement). Returns the CNL
-    answer list."""
+    answer list.
+
+    ASK is MID-CHAIN capable (§8.5b): `ask_goal` consults the handler not only for the top goal but for
+    every OPEN premise the derivation demands. A memoizing handler drives it: it RAISES `_NeedVerdict` on
+    each NEW (subj, rel, obj), we yield the ask, record the caller's verdict, and RE-ENTER `ask_goal` —
+    which now answers that tuple from the memo and raises on the next unmet premise, converging when the
+    closure needs no more evidence (the graph is the continuation, so each re-entry continues the gather)."""
     from .cnl.query import ask_goal
     before = _j_nodes(kb) if trace else set()
 
-    def _ask_goal(ask_user):
-        return ask_goal(kb, text, rules, policy=policy, ask_user=ask_user,
-                        focus_scope=fscope, provenance=trace)
+    memo: dict = {}                       # (subj, rel, obj) -> verdict, filled as each ask is answered
 
-    if not can_ask:
-        answer = _ask_goal(None)
-    else:
-        def _raise(s, r, o):
-            raise _NeedVerdict(s, r, o)
+    def handler(s, r, o):
+        if (s, r, o) in memo:             # already answered this turn -> reuse, don't re-ask
+            return memo[(s, r, o)]
+        raise _NeedVerdict(s, r, o)       # a NEW open goal/premise -> suspend for the caller's verdict
+
+    while True:
         try:
-            answer = _ask_goal(_raise)
+            answer = ask_goal(kb, text, rules, policy=policy,
+                              ask_user=(handler if can_ask else None),
+                              focus_scope=fscope, provenance=trace)
+            break
         except _NeedVerdict as nv:
             verdict = yield Event("ask", {"subj": nv.subj, "rel": nv.rel, "obj": nv.obj})
-            answer = _ask_goal(lambda s, r, o: verdict)
+            memo[(nv.subj, nv.rel, nv.obj)] = verdict
     if trace:
         for rec in _derivations_since(kb, before):
             yield Event("derive", rec)

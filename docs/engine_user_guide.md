@@ -87,9 +87,9 @@ closed-world policy with those OWA exceptions.
 
 ## 4. Gather evidence for open questions (`ask_user`)
 
-When a yes/no goal on an *open* concept is `unknown`, `ask_goal` can call a handler to gather evidence
-(a human, a sensor, a tool). `True` materializes the fact (monotone — it persists) → `yes`; `False` →
-`no`; `None` → stays `unknown`.
+When a yes/no goal needs a fact on an *open* concept that is `unknown`, `ask_goal` can call a handler to
+gather evidence (a human, a sensor, a tool). `True` materializes the fact (monotone — it persists) →
+`yes`; `False` → `no`; `None` → stays `unknown`.
 
 ```python
 def gather(subj, rel, obj):
@@ -99,7 +99,86 @@ open_pol = FirmwarePolicy(negation_default="open")
 h.ask_goal(kb, "is cellar has mice", rules, policy=open_pol, ask_user=gather)
 ```
 
-## 5. Plug in your own tools
+`ask_user` also gathers **mid-chain**: not only the top goal, but any *open premise a rule needs* to reach
+the conclusion. If `safe when cleared` and `cleared` is open, then `is bo safe` (with `bo` not yet known
+cleared) asks `("bo", "is", "cleared")` — the reasoner requests the premise it is missing, materializes
+your answer, and fires the rule, instead of silently assuming `no`. Which premises get asked is *derived*
+from the demand frontier the reasoning raises (never a fixed predicate list): the open, unmet, fully-bound
+sub-goals the closure needed. Several distinct premises in one derivation are each asked in turn.
+
+## 5. Drive an interactive session (`ingest` / `converse`)
+
+For a multi-turn agent or TUI, `ingest` is the ONE entry: hand it an utterance and it routes *itself* by
+which CNL forms fire (no caller-side classifier) — a fact lands, a question is answered, a `HEAD when …`
+line adds a rule, `focus on X` moves attention. It returns an `Outcome(kind, …)`; `rules` is mutated in
+place when a rule is added, so later turns reason with it.
+
+```python
+kb, rules = h.load_corpus("")
+h.ingest(kb, rules, "ada is a suspect")                       # Outcome(kind="fact")
+h.ingest(kb, rules, "?x is watched when ?x is a suspect")     # kind="rule" — effective immediately
+h.ingest(kb, rules, "is ada watched").answer                 # ["yes"]
+```
+
+`Outcome.kind` is one of `fact | answer | rule | rule-disable | focus | unrecognized`. An unrecognized
+utterance is a clean rejection (`kind="unrecognized"`), not a crash — the habitability signal.
+
+**Stream a turn (`on_event`, `trace`).** Pass `on_event` to watch a turn unfold live (a TUI renders each
+event as it happens); `trace=True` adds one `derive` event per rule firing — the reasoning trace, read from
+the provenance substrate. (A `derive` fires when a fact is *newly* derived; a conclusion already
+materialized by an earlier query is not re-derived — reasoning is monotone.)
+
+```python
+h.ingest(kb, rules, "bo is a suspect")
+h.ingest(kb, rules, "is bo watched", on_event=print, trace=True)
+# Event("question", …) -> Event("derive", {"rule":…, "fact":"bo is watched"}) -> Event("answer", {"answer":["yes"]})
+```
+
+Event kinds: `focus, question, ask, derive, answer, fact, rule, rule-conflict, rule-disable, unrecognized`.
+
+**Non-blocking, human-in-the-loop (`converse`).** `ingest` *blocks* (it calls `ask_user` / `on_conflict`
+synchronously). For a UI that cannot block, `converse` is a generator you pump: it yields events and you
+`.send()` the verdict at an `ask` (or `rule-conflict`). Suspend/resume is threadless — the graph is the
+continuation, so the reasoner pauses at an ask and resumes when you send the answer, whether it is the top
+goal or a mid-chain premise (§4).
+
+```python
+gen, send = h.converse(kb, rules, "is cellar has mice", policy=owa), None
+try:
+    while True:
+        ev = gen.send(send); send = None
+        if ev.kind == "ask":
+            send = my_ui_yes_no(ev.data)        # {"subj","rel","obj"} -> True / False / None
+except StopIteration as done:
+    outcome = done.value
+```
+
+**Author rules at runtime.** A `HEAD when …` utterance adds a rule that reasons immediately. If it forms a
+negation cycle with the live theory, `ingest` does not crash — it ASKS: supply `on_conflict(detail) -> bool`
+(blocking) or handle the `rule-conflict` event (converse). Accept → the engine degrades the NAF rules;
+reject → the rule is discarded. `forget that rule` disables the last-added rule via an additive `<disabled>`
+marker (never a deletion — the rule object stays; only the marker excludes it from reasoning).
+
+```python
+h.ingest(kb, rules, "?x is q when ?x is not p")
+h.ingest(kb, rules, "?x is p when ?x is not q", on_conflict=lambda detail: False)   # cycle -> rejected
+h.ingest(kb, rules, "forget that rule")                                             # kind="rule-disable"
+```
+
+**Bound attention to the working set (focus).** A long session's graph grows with the transcript. A focus
+stack tracks what the conversation is about (`focus on X`, `forget that`, `back to X`); `attention="focus"`
+scopes reasoning to that set, so per-utterance cost tracks the focus, not the whole accreted session.
+
+```python
+h.ingest(kb, rules, "focus on bo")                        # explicit topic move (a recognized form)
+h.ingest(kb, rules, "is bo thief", attention="focus")     # reason within the focus closure only
+h.focus.top_centers(kb)                                   # the entities currently in play
+```
+
+Off-focus facts are outside attention *by design* (an agent reasons about what is in play), so a `"focus"`
+answer can differ from the whole-KB `"global"` default — you choose the mode per call.
+
+## 6. Plug in your own tools
 
 A tool is a calculator the rules invoke by materializing a `<call>` node — this is how you extend the
 engine with domain computation (arithmetic, an external lookup, a service). A tool is
@@ -125,7 +204,7 @@ Rules decide *when* a tool fires by emitting its call at the point a value is ne
 pending calls at each fixpoint and folds the results back into reasoning. Use `merge_tools` to combine
 registries — it raises on a name collision so two subsystems never silently clash.
 
-## 6. Forward materialization (when you need a full snapshot)
+## 7. Forward materialization (when you need a full snapshot)
 
 Demand-driven answering only derives what a goal needs. If you need a *complete* forward snapshot — for
 inspection, export, or a bulk pass — run the rules forward:
@@ -147,6 +226,9 @@ and warns, rather than raising).
 | Load CNL facts + rules | `load_corpus(text, policy=…) -> (kb, rules)` |
 | Load only rules / only facts | `load_rules(text, policy=…)` / `load_facts(graph, text)` |
 | Ask (demand-driven) | `ask_goal(kb, question, rules, policy=…, ask_user=…)` |
+| Drive one session turn (any utterance) | `ingest(kb, rules, utterance, on_event=…, ask_user=…, on_conflict=…, attention=…, trace=…) -> Outcome` |
+| Non-blocking session turn (generator) | `converse(kb, rules, utterance, …)` — yield events, `.send()` the ask verdict |
+| Disable / re-focus mid-session | `"forget that rule"` / `"focus on X"` / `"forget that"` / `"back to X"` (utterances to `ingest`) |
 | Get the 4-status verdict | `check(kb, reified_rules, (pred, subj, obj), policy=…)` |
 | Pick a maximal option (graded) | `choose(graph, goal, alpha=…)` |
 | Reason under an assumption | `suppose(...)` |

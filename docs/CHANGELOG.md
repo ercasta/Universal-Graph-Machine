@@ -14,6 +14,24 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### Phase 8.5b: MID-CHAIN ask — gather the open premises a derivation needs (301 passed)
+Closed a SILENT-WRONG-answer hole: a rule blocked only by an OPEN premise (`safe when cleared`, with
+`cleared` open) used to return a confident `ASSUMED_NO` and NEVER ask, because `ask_goal` only gathered
+evidence for the TOP goal's own open predicate, not for open predicates sitting in a rule BODY. Now
+`ask_goal.gather_open_premises` asks the human/tool for those premises, materializes the confirmed ones,
+and re-decides — so the reasoner gathers what it needs to reach a conclusion (`docs/cnl_intake_design.md`
+§5). WHICH premises to ask is DERIVED, never hardcoded (§D): the candidates are the visible bound
+`<demand>` magic-set the backward closure itself produced (`chain.bound_demands`), filtered by the FIRMWARE
+openness STANCE (`policy.is_open`) and skipping internal NAF neg-predicate demands via the substrate naming
+convention (`vocabulary.is_neg_pred`, added) — no predicate/English-word list in Python decides it.
+MULTIPLE distinct asks per turn work through a MEMOIZING handler in `intake._answer_with_ask`: it raises
+`_NeedVerdict` on each new (subj, rel, obj), we yield the ask, record the verdict, and re-enter `ask_goal`,
+which now answers that tuple from the memo and raises on the next unmet premise — converging monotonically
+(the graph is the continuation). Only fires when the goal was NOT already derivable (a derivable goal pays
+no extra closure); never asks the goal or negative tuples (those stay the existing top-level OWA gather).
+`tests/test_isa_stream.py` (+5). REMAINING: extend the gather to who/∃/n-ary questions (v1 = the yes/no-bound
+path, the common case) and lazy relevance-ordered asking instead of the eager frontier.
+
 ### Phase 8.5b: per-emit reasoning-trace streaming (`trace=True`) (296 passed)
 `ingest`/`converse(trace=True)` now stream an `Event("derive", {rule, fact})` per rule firing before the
 answer — the reasoning trace as a live event stream (`docs/cnl_intake_design.md` §5: "the meta-debug trace

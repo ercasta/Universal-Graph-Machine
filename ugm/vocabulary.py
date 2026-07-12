@@ -50,6 +50,13 @@ def neg_pred(pred: str) -> str:
     return pred + NEG_SUFFIX
 
 
+def is_neg_pred(pred: str) -> bool:
+    """Whether `pred` is a NEGATIVE predicate under the `R -> R_not` convention (the inverse test of
+    `neg_pred`). It names internal NAF / entailed-negation machinery, not a human-gatherable positive
+    premise — so evidence-gathering skips it (§8.5b)."""
+    return pred.endswith(NEG_SUFFIX)
+
+
 # Substrate predicates that ALWAYS compose across `same_as` coreference — the fixed part of the coref
 # predicate set. A KB's DOMAIN relations extend this at load time (via `declared_relations` /
 # `declared_prepositions`); they are NOT enumerated here (that was the Phase-2.5 leak). `target`/`type`

@@ -13,6 +13,8 @@ firmware without forking the engine.
 
 ```
   ┌─────────────────────────────────────────────────────────────────────┐
+  │  SESSION            ingest · converse · focus · streaming events     │   ← multi-turn driver
+  ├─────────────────────────────────────────────────────────────────────┤
   │  CNL surface        forms (rules) · load_corpus · ask_goal · render  │   surface
   ├─────────────────────────────────────────────────────────────────────┤
   │  STANCE             FirmwarePolicy  (CWA/OWA default, on_cycle)       │   ← opinion, as DATA
@@ -157,8 +159,39 @@ The natural-language skin, all in-graph (vision §3): **recognition** is forms (
 rules) run by `run_bank` — a sentence that matches no form stays raw tokens. **Loading** (`load_corpus`,
 `load_facts`, `load_rules`) tokenizes, recognizes, wires additive coreference (`same_as`), and reflects
 rule-source into reified rules. **Asking** (`ask_goal`) recognizes the question, then answers it
-demand-driven via CHECK/CHAIN. **Rendering** (`surface`) reads the graph back as CNL — explanation is
-faithful because the graph *is* CNL. Exactly one thing stays outside the graph: the tokenizer tool.
+demand-driven via CHECK/CHAIN — and where a derivation needs an *open* premise it cannot derive, it gathers
+it via `ask_user` (mid-chain, reading the open sub-goals off the demand frontier, not a hardcoded list).
+**Rendering** (`surface`) reads the graph back as CNL — explanation is faithful because the graph *is*
+CNL. Exactly one thing stays outside the graph: the tokenizer tool.
+
+## 8. Session — the multi-turn driver (`ugm/intake.py`, `ugm/focus.py`, `ugm/rule_control.py`)
+
+The topmost layer, and the one an interactive consumer (an agent loop, a TUI) actually calls. It is a
+THIN client over the CNL surface — it adds no reasoning, only orchestration — so it stays above the STANCE
+line as *another* consumer, not a new opinion.
+
+- **`ingest(kb, rules, utterance) -> Outcome`** is the single entry: one utterance routes *itself* to
+  fact / question / rule / focus / rule-disable / unrecognized by which recognition forms fire (never a
+  caller-side classifier — the same discipline as recognition itself). It composes `load_facts` /
+  `recognize`+`ask_goal` / `load_rules` / the focus and rule-control forms beneath it.
+- **`converse(...)`** is the non-blocking twin: the same routing core as a GENERATOR the caller pumps,
+  yielding an `Event` per step boundary and taking the human/tool verdict via `.send()`. Suspend/resume is
+  threadless — the graph is the continuation, so an `ask` (top goal or a mid-chain premise) pauses the turn
+  and resuming re-enters the demand chain. `ingest` is just the blocking driver over that same core.
+- **Streaming** — both drivers emit `Event`s (`question` / `ask` / `derive` / `answer` / `fact` / `rule` /
+  `rule-conflict` / `rule-disable` / `focus`); `trace=True` surfaces each rule firing off the provenance
+  substrate, so the meta-debug trace renderer *is* the event stream.
+- **Focus (`focus.py`)** is the discourse working set — a `<focus>` stack of control nodes pointing at the
+  in-play entities; `attention="focus"` scopes reasoning to that set so per-utterance cost tracks the
+  focus, not the accreted transcript (session-accretion is the client's real perf axis, not KB size).
+- **Runtime rule authoring + disable (`rule_control.py`)** — a `HEAD when …` utterance reifies and reasons
+  immediately; a negation cycle with the live theory is negotiated by ASKING (via the same event channel),
+  not a crash; `forget that rule` is an additive `<disabled>` marker (no deletion). All control moves
+  (`focus on` / `forget that` / `back to` / `forget that rule`) are recognized as FORMS, never string-sniffed.
+
+Everything this layer routes on is DERIVED — which forms fired, the demand frontier, the focus centers —
+never a hardcoded predicate or English word used as a control signal (a discipline the module docstrings
+hold themselves to explicitly).
 
 ---
 
@@ -171,6 +204,9 @@ faithful because the graph *is* CNL. Exactly one thing stays outside the graph: 
   → rule-schema generators).
 - **Opinionated, swappable:** the firmware capabilities (§5) and the stance (§6). Today there is ONE
   firmware; the layering is what makes a second one a bank-and-policy swap rather than an engine fork.
+- **Orchestration, above the stance line:** the session driver (§8) is a thin CLIENT — it composes the
+  CNL surface across turns (routing, streaming, focus, runtime authoring) but adds no reasoning and no
+  domain opinion, so it reuses everything below unchanged, like any other consumer.
 - **The consumer's to fill:** domain rule banks, domain tools, and (optionally) a chosen policy — all
   data passed into the generic layers. See the user guide.
 
@@ -187,6 +223,7 @@ faithful because the graph *is* CNL. Exactly one thing stays outside the graph: 
 | Firmware — modes | `ugm/check.py`, `ugm/choose.py`, `ugm/suppose.py`, `ugm/mode_calls.py` |
 | Stance | `ugm/policy.py` |
 | CNL surface | `ugm/cnl/forms.py`, `authoring.py`, `query.py`, `surface.py`, `machine_rules.py` |
+| Session — multi-turn driver | `ugm/intake.py`, `ugm/focus.py`, `ugm/rule_control.py` |
 | Provenance / retraction | `ugm/provenance.py`, `ugm/retraction.py` |
 
 The pre-firmware-v3 demand/coref/walk subsystems (`ugm/demand.py`, `ugm/coref_walk.py`,

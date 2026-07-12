@@ -5,7 +5,7 @@ import sys
 from .vocabulary import (
     COPULA, NEG_COPULA, NEG_SUFFIX, IS_A, IS_A_NOT, SAME_AS, DISJOINT,
     CLOSES, CWA, REL_PROPERTY, TRANSITIVE, EVERY_IS_A, IS_UNIQUE, TARGET, TYPE,
-    SUBSTRATE_COREF_PREDS, neg_pred,
+    SUBSTRATE_COREF_PREDS, neg_pred, is_neg_pred,
 )
 from .world_model import Graph, Node, WorldModel
 from .production_rule import Pat, Rule, GradedCondition
@@ -87,7 +87,9 @@ from .cnl.authoring import (
 from .cnl.surface import render_relation, narrate, explain
 from .cnl.query import QUESTION_FORMS, ask, ask_goal, recognize
 from .cnl.machine_rules import MACHINE_RULE_FORMS, load_machine_rules
+from .intake import ingest, converse, Outcome, Event
 from . import external, provenance, retraction, dispatch
+from . import intake, focus, rule_control
 from .cnl import forms, surface, authoring, universal, machine_rules, query, rule_graph
 from .external import (
     ARG, request, pending, consume_request,
@@ -146,10 +148,11 @@ __all__ = [
     "record_rejection", "is_rejected",
     "CWA", "COPULA", "NEG_COPULA", "NEG_SUFFIX", "IS_A", "IS_A_NOT", "SAME_AS", "DISJOINT",
     "CLOSES", "REL_PROPERTY", "TRANSITIVE", "EVERY_IS_A", "IS_UNIQUE", "TARGET", "TYPE",
-    "SUBSTRATE_COREF_PREDS", "neg_pred",
+    "SUBSTRATE_COREF_PREDS", "neg_pred", "is_neg_pred",
     "CALL", "TOOL", "Tool", "emit_call", "call_tool", "call_arg", "call_args", "pending_calls",
     "consume_call", "service_calls", "merge_tools",
     "FirmwarePolicy", "DEFAULT_POLICY",
+    "ingest", "converse", "Outcome", "Event", "intake", "focus", "rule_control",
     "check_tool", "choose_tool", "suppose_tool", "mode_registry", "service_modes",
     "check_results", "choice_results", "suppose_results",
     "CHECK_TOOL", "CHOOSE_TOOL", "SUPPOSE_TOOL", "CHECK_RESULT", "SUPPOSE_RESULT", "STATUS",

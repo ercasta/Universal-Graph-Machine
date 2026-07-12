@@ -123,7 +123,12 @@ alternative one, you compose (or replace) the pieces in `chain.py`/`check.py`/`c
   different negation reading (do this via `FirmwarePolicy` if it fits the two knobs), a different
   composition of modes.
 - **A new answering entry** (your analog of `ask_goal`) consumes `chain_sip` + `check`, applies your
-  stance, and renders. It is a thin module — `check.py` is ~110 lines — not an engine fork.
+  stance, and renders. It is a thin module — `check.py` is ~110 lines — not an engine fork. The
+  demand magic-set is *readable*: after a closure, `chain.bound_demands(rule_g)` returns the bound sub-goals
+  the reasoning raised. `ask_goal` uses this for **mid-chain evidence gathering** — it asks `ask_user` for
+  the open, unmet premises on that frontier (filtered by `policy.is_open`, skipping neg-predicate demands
+  via `vocabulary.is_neg_pred`), materializes the confirmed ones, and re-decides. That is the pattern for
+  any firmware that must gather what a derivation needs: read the frontier, don't hardcode which facts to ask for.
 - **Do NOT** re-derive a second matching engine or scheduler. The lesson of Phase 6.1 (two engines were
   deleted) and the standing rule: one engine, opinions on top. If you find yourself sniffing a
   predicate name in Python to pick a strategy, stop — declare it as data and read the declaration.

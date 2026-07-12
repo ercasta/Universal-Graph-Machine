@@ -33,7 +33,7 @@ EXISTENTIAL_SUBJECTS: frozenset[str] = frozenset(
     {"someone", "somebody", "anyone", "anybody", "something", "anything"})
 
 # Substrate copula vocabulary — single source of truth in `ugm.vocabulary` (Phase 2.5).
-from ..vocabulary import COPULA
+from ..vocabulary import COPULA, is_neg_pred
 
 
 # ---------------------------------------------------------------------------
@@ -317,7 +317,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     differential gate); a genuinely NON-stratifiable bank is rejected at LOAD by
     `authoring.lint_stratifiable` (object-aware), so the chain never mis-answers one."""
     from ..check import check, collapse
-    from ..chain import chain_sip
+    from ..chain import chain_sip, bound_demands, _facts_matching
     from ..policy import DEFAULT_POLICY
     from dataclasses import replace
 
@@ -338,6 +338,43 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
 
     rule_g = _reify_rules(rules)
 
+    def gather_open_premises(goal: tuple[str, str | None, str | None]) -> bool:
+        """MID-CHAIN evidence gathering (firmware v3 / §8.5b): a rule blocked ONLY by an OPEN premise the
+        derivation DEMANDS can fire once that premise is gathered — so ask the human/tool for the open
+        premises on the demand frontier and materialize the confirmed ones. Returns whether anything was
+        materialized (so the caller re-decides). Only called when the goal was NOT already derivable.
+
+        WHICH premises to ask is DERIVED, never hardcoded (§D): the candidates are the visible bound
+        `<demand>` magic-set the backward closure itself produced (`bound_demands`), filtered by the
+        FIRMWARE openness STANCE (`policy.is_open`, data on `policy`) — no predicate/English-word list in
+        Python decides it. Only fully-bound premises OTHER than the goal are asked (the goal itself is the
+        existing top-level OWA gather below); each is asked at most once; the loop re-runs the closure
+        after materializing and stops when nothing new is gathered (monotone → converges)."""
+        if ask_user is None:
+            return False
+        asked: dict = {}
+        materialized = False
+        while True:
+            chain_sip(graph, rule_g, goal, provenance=provenance, focus_scope=focus_scope)
+            if _facts_matching(graph, goal[0], goal[1], goal[2], focus_scope=focus_scope):
+                return materialized                            # goal now derivable — done gathering
+            frontier = [(p, s, o) for (p, s, o) in bound_demands(rule_g)
+                        if s is not None and o is not None and (p, s, o) != goal
+                        and (p, s, o) not in asked and not is_neg_pred(p)   # skip NAF neg-pred demands
+                        and policy_.is_open(concept_key(p, o))
+                        and not _facts_matching(graph, p, s, o, focus_scope=focus_scope)]
+            if not frontier:
+                return materialized
+            progressed = False
+            for (p, s, o) in frontier:
+                held = ask_user(s, p, o)                        # the caller's human/tool handler
+                asked[(p, s, o)] = held
+                if held is True:
+                    _materialize_fact(graph, s, p, o)          # persist the acquired premise (monotone)
+                    progressed = materialized = True
+            if not progressed:
+                return materialized                            # no new evidence — re-running won't change
+
     if q["qtype"] == "yesno":
         if q["s"] in EXISTENTIAL_SUBJECTS:
             # `is anyone happy` is ∃ — demand the WILDCARD-subject goal, then match any witness.
@@ -348,8 +385,15 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         # a bound goal: the demand-driven 4-status CHECK, collapsed to yes/no/unknown. CHECK runs the
         # positive closure (POSITIVE), the negative closure (ENTAILED_NEG), else CWA-default ASSUMED_NO
         # unless the concept is OPEN (UNKNOWN) or fuel ran out before closure (also UNKNOWN).
-        v = collapse(check(graph, rule_g, (q["p"], q["s"], q["o"]), policy=policy_,
+        goal = (q["p"], q["s"], q["o"])
+        v = collapse(check(graph, rule_g, goal, policy=policy_,
                            provenance=provenance, focus_scope=focus_scope))
+        # MID-CHAIN gather (§8.5b): only when the goal was NOT derivable — ask for the OPEN premises the
+        # derivation demands, materialize the confirmed ones, and re-decide (so a rule blocked solely by a
+        # gatherable fact fires instead of being wrongly assumed-no). A derivable goal pays no extra work.
+        if v != "yes" and ask_user is not None and gather_open_premises(goal):
+            v = collapse(check(graph, rule_g, goal, policy=policy_,
+                               provenance=provenance, focus_scope=focus_scope))
         # OWA evidence-gatherer: an open UNKNOWN the goal needs -> gather (never a CWA-default `no`).
         if v == "unknown" and ask_user is not None and q["o"] is not None:
             held = ask_user(q["s"], q["p"], q["o"])

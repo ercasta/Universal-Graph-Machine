@@ -92,6 +92,61 @@ def test_converse_suspends_at_ask_and_resumes_on_send():
     assert out2.answer == ["yes"]
 
 
+# --- 8.5b: MID-CHAIN ask — gather OPEN premises a derivation needs, not just the top goal ----------
+
+SAFE = "?x is safe when ?x is cleared"                # 'safe' derived; 'cleared' is a gatherable premise
+
+
+def test_midchain_asks_open_premise_then_derives():
+    kb, rules = load_corpus(SAFE)
+    ingest(kb, rules, "bo is a suspect")
+    asked = []
+    pol = FirmwarePolicy(open_preds=frozenset({"cleared"}))     # 'cleared' open, 'safe' still closed
+    out = ingest(kb, rules, "is bo safe", policy=pol,
+                 ask_user=lambda s, r, o: (asked.append((s, r, o)) or True))
+    assert asked == [("bo", "is", "cleared")]                   # asked the PREMISE, not the goal 'safe'
+    assert out.answer == ["yes"]                                # gathered premise -> rule fires
+
+
+def test_midchain_denied_premise_is_not_derivable():
+    kb, rules = load_corpus(SAFE)
+    ingest(kb, rules, "bo is a suspect")
+    pol = FirmwarePolicy(open_preds=frozenset({"cleared"}))
+    out = ingest(kb, rules, "is bo safe", policy=pol, ask_user=lambda s, r, o: False)
+    assert out.answer == ["no"]                                 # premise denied -> goal not derivable
+
+
+def test_midchain_no_ask_when_already_derivable():
+    kb, rules = load_corpus(SAFE)
+    ingest(kb, rules, "bo is a suspect")
+    ingest(kb, rules, "bo is cleared")                          # premise already a fact
+    pol = FirmwarePolicy(open_preds=frozenset({"cleared"}))
+    asked = []
+    out = ingest(kb, rules, "is bo safe", policy=pol,
+                 ask_user=lambda s, r, o: (asked.append(1) or True))
+    assert out.answer == ["yes"] and asked == []               # derivable -> no gather, no extra ask
+
+
+def test_midchain_gathers_multiple_premises():
+    kb, rules = load_corpus("?x is ok when ?x is cleared and ?x is funded")
+    ingest(kb, rules, "bo is a suspect")
+    pol = FirmwarePolicy(open_preds=frozenset({"cleared", "funded"}))
+    asked = []
+    out = ingest(kb, rules, "is bo ok", policy=pol,
+                 ask_user=lambda s, r, o: (asked.append((s, r, o)) or True))
+    assert set(asked) == {("bo", "is", "cleared"), ("bo", "is", "funded")}
+    assert out.answer == ["yes"]
+
+
+def test_converse_midchain_ask_suspends_per_premise():
+    kb, rules = load_corpus(SAFE)
+    ingest(kb, rules, "bo is a suspect")
+    pol = FirmwarePolicy(open_preds=frozenset({"cleared"}))
+    kinds, out = _drive(converse(kb, rules, "is bo safe", policy=pol), verdicts=[True])
+    assert kinds == ["question", "ask", "answer"]              # the premise ask is a real suspension point
+    assert out.answer == ["yes"]
+
+
 def test_trace_streams_derivations_before_answer():
     # trace=True surfaces one `derive` event per rule firing, in order, before the answer.
     kb, rules = load_corpus(THIEF)
