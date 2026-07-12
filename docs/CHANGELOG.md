@@ -41,8 +41,12 @@ Kicked off the first UGM CLIENT (agent loop + TUI) per `docs/cnl_intake_design.m
   recency-stamped, bumped on re-mention); `ingest` expands pronouns (`declared_pronouns` = data) with that
   antecedent before routing; a topic switch changes the antecedent; an unresolvable pronoun →
   `Outcome("clarify")` (the ask-vs-guess margin's degenerate case — don't guess about a literal `she`).
+- **8.5a live event stream** — `ingest(on_event=…)` emits `Event(kind, data)` at route boundaries (focus/
+  clarify/question/ask/answer/fact/rule/unrecognized) so a TUI renders a turn live; the `ask` event brackets
+  the human-in-the-loop `ask_user` gather. Additive (`on_event=None` = no-op). `tests/test_isa_stream.py` (4).
 Discipline: `docs/cnl_intake_design.md` §D (7 anti-hardcoding rules) documented + mirrored in the plan's
-Phase 8 header. `tests/test_isa_intake.py` (6) + `tests/test_isa_focus.py` (24). 283 suite green.
+Phase 8 header. `tests/test_isa_intake.py` (6) + `tests/test_isa_focus.py` (24) + `tests/test_isa_stream.py`
+(4). 287 suite green.
 
 ### NAC existence check made ENDPOINT-DRIVEN — 40× on the NAF hot path (258 passed, suite 54s→35s)
 Phase 8.0 probe (`bench/session_accretion.py`, `docs/cnl_intake_design.md` §7) found the agent-loop client's

@@ -126,9 +126,17 @@ Build slices, in dependency order (each with tests; the probe first to validate 
   - **8.4b REMAINING** — DESCRIPTIVE anaphora ("the alibied one") → CHOOSE over centers by the description
     (folds into reasoning); graded recency/role ranking + type/number agreement; the full ask-vs-guess MARGIN
     on a near-tie (not just the empty case) → escalate via `ask_user`, the same channel as OWA gathering.
-- **8.5 — event-emitting + resumable driver; suspend/resume `ask_user`.** Event sink at existing step
-  boundaries (reuse RECORD/`<j:>` provenance as the substrate); generalize the blocking `ask_user` into
-  suspend→return→resume with the pending question as a graph node. Wait-set v1 = `{ask_user}`. Design §5.
+- **8.5 — event-emitting + resumable driver; suspend/resume `ask_user`.** Design §5.
+  - **8.5a DONE 2026-07-12** — LIVE EVENT STREAM: `ingest(on_event=…)` emits `Event(kind, data)` at the
+    route boundaries (focus / clarify / question / **ask** / answer / fact / rule / unrecognized), so a TUI
+    renders a turn as it happens. The `"ask"` event brackets the human-in-the-loop `ask_user` gather (the
+    §4 ask-vs-guess escalation). Additive: `on_event=None` (default) = no-op, behaviour-identical (287
+    suite green). `tests/test_isa_stream.py` (4): `question→answer`, `question→ask→answer` (the gather),
+    fact/focus/clarify. Works for a BLOCKING TUI (`ask_user` is a top-level suspension point already).
+  - **8.5b REMAINING** — generator-based `converse` (yield events, `.send()` the ask answer) for a
+    NON-BLOCKING UI: the "graph is the continuation" so suspend/resume needs no threads; PER-EMIT reasoning
+    trace streaming reusing the RECORD/`<j:>` substrate (show each derivation as it fires); mid-CHAIN ask
+    (currently `ask_user` is consulted only for the TOP goal, not a sub-goal the reasoning needs).
 - **8.6 — runtime rule authoring (Phase 3.2, global KB concern).** `HEAD when …` lands via the same
   intake, reifies, reasons immediately; incremental head-index extend; RE-LINT stratification per add
   (`on_cycle` stance); conflict-lint AS CONVERSATION (a contradictory rule is rejected by ASKING, via the

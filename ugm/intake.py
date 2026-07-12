@@ -35,6 +35,17 @@ class Outcome:
     focus_op: tuple | None = None                # FOCUS: the (op, target) move applied
 
 
+@dataclass
+class Event:
+    """A live progress event streamed DURING `ingest` (Phase 8.5, docs/cnl_intake_design.md §5) so a TUI
+    renders the turn as it happens instead of one final blob. Emitted at step boundaries by which FORMS
+    fire — same discipline as routing (no string sniff). An `"ask"` event brackets the human-in-the-loop
+    `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). Per-EMIT reasoning
+    trace (reuse the RECORD/`<j:>` substrate) and generator-based suspend/resume are 8.5b."""
+    kind: str                # "focus"|"clarify"|"question"|"ask"|"answer"|"fact"|"rule"|"unrecognized"
+    data: dict = field(default_factory=dict)
+
+
 def _anchor_has_content_fact(kb, anchor: str) -> bool:
     """Did recognition give this utterance's token chain a CONTENT relation (a real fact), as opposed
     to only the control `first`/`next` scaffolding of an unrecognized line? Content-blind: a fact is a
@@ -77,7 +88,8 @@ def _question_entities(q: dict) -> set[str]:
     return {s} if (s and s not in EXISTENTIAL_SUBJECTS) else set()
 
 
-def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str = "global") -> Outcome:
+def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str = "global",
+           on_event=None) -> Outcome:
     """Route ONE CNL `utterance` against the live session KB `kb` (+ accumulated `rules`) by which
     recognition forms fire, and act on it. Returns an `Outcome`. `rules` is mutated in place when the
     utterance adds a rule (so subsequent turns reason with it immediately — Phase 8.6).
@@ -93,8 +105,11 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
     from .cnl.forms import declared_pronouns, expand_pronouns_text
     from . import focus as focus_mod
 
+    emit = on_event if on_event is not None else (lambda e: None)   # §5 stream; no-op when unwired
+
     text = utterance.strip()
     if not text:
+        emit(Event("unrecognized"))
         return Outcome("unrecognized", utterance)
 
     # FOCUS — an explicit focus move (`focus on X` / `forget that` / `back to X`), recognized as a FORM
@@ -102,6 +117,7 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
     fop = focus_mod.recognize_focus_op(text)
     if fop is not None and fop[0] is not None:
         focus_mod.apply_focus_op(kb, fop[0], fop[1])
+        emit(Event("focus", {"op": fop[0], "target": fop[1]}))
         return Outcome("focus", utterance, focus_op=fop)
 
     # ANAPHORA (§4): resolve bare pronouns against the focus's salient center BEFORE routing, so
@@ -114,16 +130,24 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
     if any(w in prons for w in text.lower().split()):
         ante = focus_mod.salient_center(kb)
         if ante is None:
+            emit(Event("clarify"))
             return Outcome("clarify", utterance)
         text = expand_pronouns_text(text, prons, ante)
 
     # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
     q = recognize(text)
     if q is not None:
+        emit(Event("question", {"s": q.get("s"), "p": q.get("p"), "o": q.get("o")}))
         # widen BEFORE answering so bounded attention includes what this question is about.
         focus_mod.widen(kb, _question_entities(q))
         fscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
-        answer = ask_goal(kb, text, rules, policy=policy, ask_user=ask_user, focus_scope=fscope)
+
+        def _ask(s, r, o):                    # bracket the human-in-the-loop gather with an event (§5/§4)
+            emit(Event("ask", {"subj": s, "rel": r, "obj": o}))
+            return ask_user(s, r, o)
+        answer = ask_goal(kb, text, rules, policy=policy,
+                          ask_user=(_ask if ask_user is not None else None), focus_scope=fscope)
+        emit(Event("answer", {"answer": answer}))
         return Outcome("answer", utterance, answer=answer)
 
     # RULE — a `HEAD when …` line reflects to executable rule(s); none => not a rule line.
@@ -133,6 +157,7 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
         if _on_cycle(policy) == "raise":                     # re-lint per add (firmware STANCE); a
             from .cnl.authoring import lint_stratifiable     # negation cycle rejects here (Phase 8.6:
             lint_stratifiable(rules, source="ingest")        # conflict-lint-as-conversation replaces raise)
+        emit(Event("rule", {"added": len(new_rules)}))
         return Outcome("rule", utterance, added_rules=list(new_rules))
 
     # FACT vs UNRECOGNIZED — recognize into the live KB; a content relation means a fact landed.
@@ -145,4 +170,5 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
         focus_mod.widen(kb, focus_mod.utterance_subjects(kb, anchor))
     if anchor is not None:
         focus_mod.gc_utterance_scaffolding(kb, anchor)   # sweep the spent token chain (accretion control)
+    emit(Event("fact" if is_fact else "unrecognized"))
     return Outcome("fact", utterance) if is_fact else Outcome("unrecognized", utterance)
