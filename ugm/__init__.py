@@ -76,7 +76,7 @@ from .cnl.rule_graph import (
     contradictions, is_consistent,
 )
 from .cnl.authoring import (
-    FACT_FORMS, GRADED_RULES, load_facts,
+    FACT_FORMS, GRADED_RULES, load_facts, anchor_has_content_fact,
     DEGREE_CNL, degree_thresholds, graded_rules, degree_grammar_forms,
     RULE_FORMS, IF_THEN_FORMS, PLURAL_UNIVERSAL_FORMS, plural_universal_forms, verb_neg_forms,
     expand_rules, load_rules, load_universal_rules, stratify, run_rules,
@@ -168,7 +168,8 @@ __all__ = [
     "write_rule", "rules_in_graph", "ROLE_NAMES", "expand_relation_properties",
     "RELATION_PROPERTY_FORMS", "PROPERTY_REL", "DISJOINT_FORMS", "CONSTRAINT_FORMS",
     "DISJOINT_REL", "CONTRADICTION", "contradictions", "is_consistent",
-    "FACT_FORMS", "GRADED_RULES", "load_facts", "DEGREE_CNL", "degree_thresholds", "graded_rules",
+    "FACT_FORMS", "GRADED_RULES", "load_facts", "anchor_has_content_fact",
+    "DEGREE_CNL", "degree_thresholds", "graded_rules",
     "degree_grammar_forms", "RULE_FORMS", "IF_THEN_FORMS", "PLURAL_UNIVERSAL_FORMS",
     "plural_universal_forms", "verb_neg_forms", "expand_rules", "load_rules", "load_universal_rules",
     "stratify", "run_rules", "TRANSLATION_FORMS", "parse_lexicon", "expand_loose", "load_loose_rules",

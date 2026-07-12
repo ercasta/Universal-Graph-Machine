@@ -224,7 +224,7 @@ and warns, rather than raising).
 | You want to… | Call |
 |---|---|
 | Load CNL facts + rules | `load_corpus(text, policy=…) -> (kb, rules)` |
-| Load only rules / only facts | `load_rules(text, policy=…)` / `load_facts(graph, text)` |
+| Load only rules / only facts | `load_rules(text, policy=…)` / `load_facts(graph, text, strict=…)` — `strict=True` raises on an unrecognized line |
 | Ask (demand-driven) | `ask_goal(kb, question, rules, policy=…, ask_user=…)` |
 | Drive one session turn (any utterance) | `ingest(kb, rules, utterance, on_event=…, ask_user=…, on_conflict=…, attention=…, trace=…) -> Outcome` |
 | Non-blocking session turn (generator) | `converse(kb, rules, utterance, …)` — yield events, `.send()` the ask verdict |

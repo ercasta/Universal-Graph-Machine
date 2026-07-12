@@ -47,34 +47,6 @@ class Event:
     data: dict = field(default_factory=dict)
 
 
-def _anchor_has_content_fact(kb, anchor: str) -> bool:
-    """Did recognition give this utterance's token chain a CONTENT relation (a real fact), as opposed
-    to only the control `first`/`next` scaffolding of an unrecognized line? Content-blind: a fact is a
-    non-control, non-inert relation between the utterance's own (content) token nodes."""
-    seen, frontier = set(), [anchor]
-    toks: list[str] = []
-    while frontier:                                          # walk the first/next token chain
-        n = frontier.pop()
-        if n in seen:
-            continue
-        seen.add(n)
-        if not (kb.is_control(n) or kb.is_inert(n)):
-            toks.append(n)
-        for rel, nxt in kb.relations_from(n):
-            if kb.has_key(rel, "first") or kb.has_key(rel, "next"):
-                frontier.append(nxt)
-    tokset = set(toks)
-    for t in toks:
-        for rel, obj in kb.relations_from(t):
-            if kb.is_control(rel) or kb.is_inert(rel):
-                continue                                     # scaffolding / provenance, not a fact
-            if kb.has_key(rel, "first") or kb.has_key(rel, "next"):
-                continue                                     # the token chain itself
-            if obj in tokset:                                # a content edge between the line's tokens
-                return True
-    return False
-
-
 def _stratify_conflict(rules) -> str | None:
     """The negation-cycle detail if `rules` is NOT stratifiable, else None (§6/Phase 8.6). The
     content-blind `authoring.stratify` decides — no relation name is special-cased. Used to turn a
@@ -181,7 +153,7 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     routing/streaming discipline lives in a single place. The only wait-point is the ask yield inside
     `_answer_with_ask`; every other yield is fire-and-forget (its sent value is ignored)."""
     from .cnl.query import recognize
-    from .cnl.authoring import load_rules, load_facts, _on_cycle
+    from .cnl.authoring import load_rules, load_facts, _on_cycle, anchor_has_content_fact
     from . import focus as focus_mod
     from . import rule_control
 
@@ -254,7 +226,7 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # FACT vs UNRECOGNIZED — recognize into the live KB; a content relation means a fact landed.
     anchors = load_facts(kb, text)
     anchor = anchors[0] if anchors else None
-    is_fact = anchor is not None and _anchor_has_content_fact(kb, anchor)
+    is_fact = anchor is not None and anchor_has_content_fact(kb, anchor)
     if is_fact:
         # IMPLICIT widen (§3): the entities the utterance is about enter the top focus frame. Never a
         # push — a topic switch is explicit. Content-blind subject extraction (`focus.utterance_subjects`).

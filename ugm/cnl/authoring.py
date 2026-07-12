@@ -37,7 +37,7 @@ from .forms import (
 from .universal import same_as_rules
 from ..vocabulary import SUBSTRATE_COREF_PREDS, CLOSES, CWA
 from ..production_rule import (
-    GradedCondition, Pat, Rule, is_var as _is_var, literal_name,
+    GradedCondition, Pat, Rule, is_var as _is_var, literal_name, rhs_only_head_vars,
 )
 from ..lowering import run_bank
 from ..world_model import Graph
@@ -251,7 +251,36 @@ def _recognize(graph: Graph, sentences: list[str], forms: list[Rule]) -> list[st
     return anchors
 
 
-def load_facts(graph: Graph, text: str) -> list[str]:
+def anchor_has_content_fact(graph: Graph, anchor: str) -> bool:
+    """Did recognition give this utterance's token chain a CONTENT relation (a real fact), as opposed to
+    only the control `first`/`next` scaffolding of an unrecognized line? Content-blind: a fact is a
+    non-control, non-inert relation between the utterance's own (content) token nodes. Shared by
+    `load_facts(strict=…)` (feedback #5) and `intake.ingest`'s fact-vs-unrecognized routing."""
+    seen, frontier = set(), [anchor]
+    toks: list[str] = []
+    while frontier:                                          # walk the first/next token chain
+        n = frontier.pop()
+        if n in seen:
+            continue
+        seen.add(n)
+        if not (graph.is_control(n) or graph.is_inert(n)):
+            toks.append(n)
+        for rel, nxt in graph.relations_from(n):
+            if graph.has_key(rel, "first") or graph.has_key(rel, "next"):
+                frontier.append(nxt)
+    tokset = set(toks)
+    for t in toks:
+        for rel, obj in graph.relations_from(t):
+            if graph.is_control(rel) or graph.is_inert(rel):
+                continue                                     # scaffolding / provenance, not a fact
+            if graph.has_key(rel, "first") or graph.has_key(rel, "next"):
+                continue                                     # the token chain itself
+            if obj in tokset:                                # a content edge between the line's tokens
+                return True
+    return False
+
+
+def load_facts(graph: Graph, text: str, *, strict: bool = False) -> list[str]:
     """Load CNL facts into `graph`: recognize -> additive coref -> graded rules.
 
     Recognition runs on the ISA forward driver (`_recognize` -> `run_bank`) — the "one engine" move
@@ -262,13 +291,26 @@ def load_facts(graph: Graph, text: str) -> list[str]:
     reaches the surface `urgent` token of its use (`alice is very urgent`) before the graded rule
     fires, and `propagate_embeddings` spreads the resulting degree to every coreferent mention.
     Returns the sentence-anchor ids. The scenario half of a CNL demo.
+
+    `strict=True` (feedback #5): a line that produced NO content fact — an unrecognized `S P O` whose
+    verb is not lexicon-known/declared, which otherwise stays raw tokens with no signal — RAISES,
+    listing the dropped line(s). Default `False` keeps the lenient "unrecognized stays raw" behaviour, so
+    a data-loading caller can opt in to detect silent loss without every consumer changing.
     """
     rules = FORM_RULES + FACT_FORMS
-    anchors = _recognize(graph, [ln for ln in text.splitlines() if ln.strip()], rules)
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    anchors = _recognize(graph, lines, rules)
     wire_same_as(graph, rules)                       # additive coref (was: canonicalize merge)
     run_bank(graph, _coref_propagation(graph))       # compose facts across the same_as links (ISA)
     run_bank(graph, graded_rules(graph))  # gradable word -> embedding (propagate EMIT); degrees from KB
     propagate_embeddings(graph)                      # spread degrees to coreferent mentions
+    if strict:
+        dropped = [ln for ln, a in zip(lines, anchors) if not anchor_has_content_fact(graph, a)]
+        if dropped:
+            raise ValueError(
+                "load_facts did not recognize these line(s) as facts (no relation folded — an unknown/"
+                "undeclared verb stays raw tokens): " + "; ".join(f"'{ln}'" for ln in dropped)
+                + ". Declare the relation, use a known verb, or drop `strict=True` to load leniently.")
     return anchors
 
 
@@ -710,6 +752,22 @@ def expand_rules(rule_graph: Graph) -> list[Rule]:
     return sorted(rules, key=lambda r: r.key)
 
 
+def reject_rhs_only_head_vars(rules: list[Rule], *, source: str = "<rule>") -> None:
+    """Raise if any rule has an existential / skolem RHS-only head var (feedback #2): unsupported by the
+    drivers (forward mints a fresh unnamed node per firing; the demand chain collapses it onto the query
+    goal). Called by the loaders AFTER their malformed-clause checks — a dropped body clause would leave a
+    head var spuriously body-less, and that more specific defect must be reported first."""
+    for r in rules:
+        bad = rhs_only_head_vars(r)
+        if bad:
+            raise ValueError(
+                f"{source}: rule '{r.key}' has RHS-only head variable(s) {bad} — a head variable that "
+                "never appears in the body. Existential / skolem head vars are not supported by the "
+                "drivers (forward chaining mints a fresh unnamed node every firing; the demand chain "
+                "collapses the var onto the query goal). Bind the head variable in the body, or MINT the "
+                "new node explicitly via a tool / a pre-materialized node pool.")
+
+
 def _dropped_conditions(graph: Graph, R: str) -> list[str]:
     """Body clauses of prose rule `R` that folded into NO condition (`<cond>`).
 
@@ -755,6 +813,45 @@ def _clause_text(graph: Graph, cs: str) -> str:
             break
         t = nxt
     return " ".join(toks)
+
+
+_MACHINE_SEPARATORS = ("when", "and")     # structural keywords — never a clause endpoint
+
+
+def machine_rule_defects(graph: Graph) -> list[str]:
+    """Surface text of machine-rule clauses that did NOT fold to a full `S P O` triple (feedback #1):
+    a short clause that ABSORBED a `when`/`and` separator as its object (e.g. a boolean-shaped
+    `?g guard_open` with no object), or a clause that DROPPED entirely. Read from the FOLD result — the
+    machine-surface analog of `_dropped_conditions`, over BOTH the head (`rl_head`/`rl_drop`) and the
+    shared body (`rl_lhs`/`rl_nac`/`rl_graded`). Report, never silently mangle."""
+    rule_nodes = [R for R in graph.nodes()
+                  if _objs(graph, R, "rl_head") or _objs(graph, R, "rl_drop")
+                  or _objs(graph, R, "rl_pred")]
+    roles = ("rl_head", "rl_drop", "rl_lhs", "rl_nac", "rl_graded")
+
+    def _tagged(t: str, rel: str) -> bool:
+        o = _obj(graph, t, rel)
+        return o is not None and graph.name(o) == "yes"
+
+    defects: list[str] = []
+    folded: set[str] = set()
+    for R in rule_nodes:
+        for role in roles:
+            for c in _objs(graph, R, role):
+                ks, kp, ko = (_obj(graph, c, s) for s in ("k_subj", "k_pred", "k_obj"))
+                for tok in (ks, ko):
+                    if tok is not None:
+                        folded.add(tok)                       # a consumed clause endpoint
+                if ks is not None and any(t is not None and graph.name(t) in _MACHINE_SEPARATORS
+                                          for t in (kp, ko)):
+                    defects.append(_clause_text(graph, ks))   # (A) separator swallowed as pred/obj
+    targets = set(rule_nodes)
+    for t in graph.nodes():                                   # (B) a clause subject that folded nowhere
+        marker = _obj(graph, t, "head_subj") or _obj(graph, t, "body_subj")
+        if (marker in targets and t not in folded
+                and not _tagged(t, "kw_not") and not _tagged(t, "kw_drop")):
+            defects.append(_clause_text(graph, t))
+    return defects
 
 
 def load_universal_rules(text: str) -> list[Rule]:
@@ -808,6 +905,7 @@ def load_rules(text: str, *, policy=None, lint: bool = True) -> list[Rule]:
             + "; ".join(f"'{c}'" for c in dropped)
             + ". A body clause must be `S P O` (any relation), `not S P O`, or a copula "
             "form (`is a` / `is not` / `is <adverb>` / `not in`).")
+    reject_rhs_only_head_vars(rules, source="load_rules")   # feedback #2 (after the malformed-clause check)
     if lint and _on_cycle(policy) == "raise":          # firmware STANCE: reject a negation cycle at
         lint_stratifiable(rules, source="load_rules")  # load (default), or leave it for run_rules to
     return rules                                       # degrade (drop NAF rules) — see `policy.py`.

@@ -9,6 +9,11 @@ Environment: `ugm` editable install, Python 3.13, Windows.
 
 ---
 
+> **FIXED (2026-07-12).** `load_machine_rules` now raises `ValueError` naming the offending clause(s)
+> when a head/body clause doesn't fold to a full `S P O` triple — a swallowed `when`/`and` separator or a
+> dropped short clause — with the hint to write `?g guard_open yes`. Detected from the FOLD result
+> (`authoring.machine_rule_defects`), not a Python re-parse. Tests in `tests/test_feedback_fixes.py`.
+
 ## 1. Machine-rule CNL silently mis-parses a non-3-token clause  (footgun — cost the most time)
 
 A head or body clause that is not a 3-token `S P O` triple is **silently corrupted** instead
@@ -89,6 +94,11 @@ bites the CNL query path — which makes it *inconsistent* within the library an
 lower-case for CNL queries, or fold names on intake, or match case-insensitively — but make
 the two paths agree.
 
+> **FIXED (2026-07-12).** `apply_rule`/`apply_to_fixpoint` now validate `rule_node` at the call boundary
+> (`apply._require_rule_node`): a `Rule` object raises a clear `TypeError` ("expect a rule-NODE id … got a
+> Rule object; `rules_in_graph` returns Rules for inspection — pass `write_rule`'s return value") instead
+> of the deep `unhashable type: 'Rule'`. Docstrings note `rule_node` is `write_rule`'s return.
+
 ## 4. `apply_rule` / `apply_to_fixpoint` want a rule-node id, but `rules_in_graph` hands back `Rule` objects → cryptic `TypeError`
 
 ```python
@@ -103,6 +113,11 @@ The failure surfaces deep in `attrgraph.relations_from` (`self._nodes[Rule(...)]
 call boundary. **Ask:** either have `apply_*` accept a `Rule`/reified node uniformly, or raise
 a clear error ("expected a rule-node id; got a Rule — did you mean `write_rule`'s return
 value?"). Also worth documenting that `write_rule` returns the id you feed to `apply_*`.
+
+> **FIXED (2026-07-12).** `load_facts(graph, text, strict=True)` raises `ValueError` listing the line(s)
+> that folded to no content fact (unknown/undeclared verb → raw tokens). Default `strict=False` keeps the
+> lenient "unrecognized stays raw" behaviour. The detector `authoring.anchor_has_content_fact` is now
+> shared with `intake.ingest`'s fact-vs-unrecognized routing (one implementation).
 
 ## 5. `load_facts` silently drops `S P O` lines whose verb isn't lexicon-known/declared
 

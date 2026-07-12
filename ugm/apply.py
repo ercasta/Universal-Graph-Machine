@@ -399,10 +399,29 @@ def _apply_pass(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str, *, fuel: i
     return emitted
 
 
+def _require_rule_node(rule_node) -> str:
+    """Validate `rule_node` is a reified rule-NODE id (a string), not a `Rule` object (feedback #4). The
+    footgun is passing `rules_in_graph(rg)[i]` — which returns `Rule`s for INSPECTION — where the node id
+    from `write_rule` is expected; without this guard it fails with a cryptic `unhashable type: 'Rule'`
+    deep inside `relations_from`. Fail at the call boundary with guidance instead."""
+    from .production_rule import Rule
+    if isinstance(rule_node, Rule):
+        raise TypeError(
+            "apply_rule/apply_to_fixpoint expect a rule-NODE id (the string that `write_rule(rule_g, rule)` "
+            "returns), but got a `Rule` object. `rules_in_graph` returns `Rule`s for inspection, not for "
+            "application — pass `write_rule`'s return value instead.")
+    if not isinstance(rule_node, str):
+        raise TypeError(f"apply_rule/apply_to_fixpoint expect a rule-node id (str); got "
+                        f"{type(rule_node).__name__}.")
+    return rule_node
+
+
 def apply_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str, *, fuel: int = 100_000,
                provenance: bool = False) -> int:
     """One FULL APPLY pass of the reified rule at `rule_node` over the facts; returns #facts derived
-    (see `_apply_pass` for the mechanics). `provenance=True` journals each firing (RECORD, mode 9)."""
+    (see `_apply_pass` for the mechanics). `provenance=True` journals each firing (RECORD, mode 9).
+    `rule_node` is the id from `write_rule` (NOT a `Rule` object — see `_require_rule_node`)."""
+    _require_rule_node(rule_node)
     return len(_apply_pass(fact_g, rule_g, rule_node, fuel=fuel, provenance=provenance))
 
 
@@ -414,7 +433,9 @@ def apply_to_fixpoint(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     atom draws from the delta while the others stay full. Check-before-derive makes a recursive (e.g.
     transitive) rule terminate: a round that derives nothing new empties the delta and stops. Returns
     the total #facts derived — identical to the naive full-re-join fixpoint (differentially gated),
-    only the per-round work drops from re-joining the whole closure to joining against the frontier."""
+    only the per-round work drops from re-joining the whole closure to joining against the frontier.
+    `rule_node` is the id from `write_rule` (NOT a `Rule` object — see `_require_rule_node`)."""
+    _require_rule_node(rule_node)
     def sorted_body() -> list[tuple[str, str, str]]:
         b = _read_atoms(rule_g, rule_node, "lhs")
         b.sort(key=lambda a: fact_g.key_count(a[1]))              # df seed, refreshed per round

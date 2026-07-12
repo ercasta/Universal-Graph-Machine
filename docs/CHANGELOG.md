@@ -14,6 +14,29 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### Consumer feedback: three silent failures made LOUD (309 passed)
+From the pystrider spike (`docs/feedback_from_pystrider.md`) — the recurring pain was ugm quietly doing
+LESS rather than erroring when a consumer authors rules/facts programmatically. Fixed the three unambiguous
+ones (silent → signal):
+- **#1 machine-rule mis-parse (the footgun).** `load_machine_rules` silently mangled a clause that wasn't
+  a full `S P O` triple — a 2-token clause swallowed the following `when`/`and` as its object, or a short
+  body clause dropped, quietly weakening the rule. Now `authoring.machine_rule_defects` reads the FOLD
+  result (not a Python re-parse of the grammar) and `load_machine_rules` RAISES `ValueError` naming the
+  clause(s), with the hint to write a boolean-shaped predicate as `?g guard_open yes`. Mirrors the prose
+  `load_rules` `_dropped_conditions` check, over both the machine head (`rl_head`/`rl_drop`) and shared body.
+- **#4 `apply_*` cryptic `TypeError`.** Passing a `Rule` object (e.g. `rules_in_graph(rg)[0]`) where a
+  rule-NODE id was expected failed with `unhashable type: 'Rule'` deep in `relations_from`. `apply_rule`/
+  `apply_to_fixpoint` now validate at the boundary (`_require_rule_node`) with a clear message pointing at
+  `write_rule`'s return value.
+- **#5 `load_facts` silent drop.** An `S P O` line with an unknown/undeclared verb stayed raw tokens with
+  no signal. `load_facts(…, strict=True)` now RAISES listing the dropped line(s); default `False` keeps
+  the lenient behaviour. The content-fact detector `anchor_has_content_fact` moved to `authoring.py` and is
+  now SHARED with `intake.ingest`'s fact-vs-unrecognized routing (was duplicated).
+
+New exports: `ingest`/`converse`/`Outcome`/`Event`/`intake`/`focus`/`rule_control`/`is_neg_pred`/
+`anchor_has_content_fact`. `tests/test_feedback_fixes.py` (8). Still open from the report: #2 (skolem/
+RHS-only head vars — needs a design decision), #3 (CNL case-folding), #6 (`suppose(commit=False)`).
+
 ### Phase 8.5b: MID-CHAIN ask — gather the open premises a derivation needs (301 passed)
 Closed a SILENT-WRONG-answer hole: a rule blocked only by an OPEN premise (`safe when cleared`, with
 `cleared` open) used to return a confident `ASSUMED_NO` and NEVER ask, because `ask_goal` only gathered

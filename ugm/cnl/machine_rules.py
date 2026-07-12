@@ -34,7 +34,7 @@ expressible (a known limit shared with the prose grammar).
 """
 from __future__ import annotations
 
-from .authoring import BODY_SPINE_FORMS, expand_rules
+from .authoring import BODY_SPINE_FORMS, expand_rules, machine_rule_defects, reject_rhs_only_head_vars
 from .forms import load_text
 from ..lowering import run_bank
 from ..production_rule import Pat, Rule
@@ -138,4 +138,14 @@ def load_machine_rules(text: str) -> list[Rule]:
     rg = Graph()
     load_text(rg, body)
     run_bank(rg, MACHINE_RULE_FORMS)   # recognition on the ISA forward driver (Phase 0.2)
-    return expand_rules(rg)
+    defects = machine_rule_defects(rg)  # feedback #1: a non-triple clause is REPORTED, not silently mangled
+    if defects:
+        raise ValueError(
+            "machine rule grammar could not fold these clause(s) to a full `S P O` triple: "
+            + "; ".join(f"'{c}'" for c in defects)
+            + ". Every head and body clause must be exactly `S P O` (or `drop S P O` / `not S P O`) — a "
+            "shorter clause absorbs the following `when`/`and` or drops out. A boolean-shaped predicate "
+            "needs an explicit object: write `?g guard_open yes`, not `?g guard_open`.")
+    rules = expand_rules(rg)
+    reject_rhs_only_head_vars(rules, source="load_machine_rules")   # feedback #2 (after the clause check)
+    return rules

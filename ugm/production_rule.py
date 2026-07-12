@@ -91,6 +91,26 @@ def is_bound_literal(tok: str) -> bool:
     return tok.endswith("?") and not tok.startswith("?")
 
 
+def rhs_only_head_vars(rule) -> list[str]:
+    """Head (RHS) VARIABLES that never appear in the body (LHS) — an existential / skolem head var
+    (feedback #2). These are NOT usably supported by the drivers: the forward path mints a fresh UNNAMED
+    node per firing (never suppressed by check-before-derive, so the rule re-fires and the result is
+    invisible to `derived_triples`); the demand chain collapses the var onto the query's goal endpoint.
+    Reported so a loader can REJECT the rule with guidance rather than silently misbehave. Bound-LITERAL
+    skolem binders (`<rule>?`/`<cond>?`) are excluded — they are `is_bound_literal`, not `is_var` — so a
+    reified rule fragment is untouched. When genuine minting lands (the deferred `MINT`-tool route), this
+    hook is where support is added instead of the raise."""
+    body = {t for pats in (rule.lhs, rule.nac) for pat in pats
+            for t in (pat.s, pat.p, pat.o) if is_var(t)}
+    body |= {g.var for g in rule.graded if is_var(g.var)}   # a graded condition binds its var too
+    out: list[str] = []
+    for pat in rule.rhs:
+        for t in (pat.s, pat.p, pat.o):
+            if is_var(t) and t not in body and t not in out:
+                out.append(t)
+    return out
+
+
 def literal_name(tok: str) -> str:
     """The node name a literal/bound-literal token refers to ('paul?' -> 'paul')."""
     return tok[:-1] if is_bound_literal(tok) else tok
