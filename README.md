@@ -2,6 +2,10 @@
 
 **A substrate for performing computation over graphs.**
 
+UGM doesn't *break* the wall between (controlled) language and computation — it **dissolves**
+it. Parsing, reasoning, and explanation are one process (graph rewriting over one substrate),
+so language isn't a layer bolted onto an engine — it's made of the same thing. ([see how](#the-cnl-layer-ugmcnl))
+
 UGM is a self-contained Python library: a label-less attribute graph substrate, a
 declarative instruction set architecture (ISA) for graph computation, a demand-driven
 reasoning **firmware** on top, and an optional Controlled Natural Language (CNL) surface
@@ -215,12 +219,15 @@ forward engine over the form-recognition grammar. There is no separate parser; p
 IS graph rewriting. Explanations render back to CNL via `explain(graph, fact_id)`.
 
 **There is no wall between language and computation — it isn't broken, it's dissolved.**
-Parsing runs through the *same* forward driver (`run_bank`) that inference runs through;
-there is no AST handed from a parser to a distinct engine. A fact, a rule, a question, and
-the control tokens of computation are all nodes in one graph, and *what a line is* emerges
-from which form rewrites it, not from a classifier that routes before reasoning begins.
-`why` closes the loop: an explanation is the RECORD journal rendered back *to* CNL, so
-language-out is the inverse of language-in over the same structure. Language and inference
+Parsing and reasoning are *both* graph rewriting: each lowers to the same opcode ISA over
+the same label-less graph, so there is no AST handed from a parser to a distinct engine.
+They differ only in *driver* — recognition is a whole-batch forward pass (`run_bank` over
+the form grammar), reasoning is demand-first (`chain_sip` / CHAIN), because recognizing all
+of the input is a closure while answering a question is goal-scoped. A fact, a rule, a
+question, and the control tokens of computation are all nodes in one graph, and *what a line
+is* emerges from which form rewrites it, not from a classifier that routes before reasoning
+begins. `why` closes the loop: an explanation is the RECORD journal rendered back *to* CNL,
+so language-out is the inverse of language-in over the same structure. Language and inference
 are one rewriting process at different points on a continuum — not two systems with glue
 between them. The one boundary UGM draws **on purpose** is at CNL itself: free English is
 translated in by an external model ("CNL as surface, not engine input," the Attempto
@@ -338,13 +345,13 @@ lower-level demand-driven API (`chain_sip`, `check`, `choose`, `suppose`) — se
 
 ## Try it out
 
-The **`demos/`** folder has four runnable, self-contained walkthroughs of increasing
+The **`demos/`** folder has five runnable, self-contained walkthroughs of increasing
 complexity. Each is a single `.cnl` file — facts, rules, questions, and an inline
 walkthrough (as comments) explaining what the engine does at each step — and each ends
 with a **NOW TRY CHANGING IT** section: concrete edits to make, with the outcome to expect.
 
 ```bash
-python demos/run.py                          # run all four, in order
+python demos/run.py                          # run all five, in order
 python demos/run.py demos/01_basics.cnl      # run just one
 ```
 
@@ -354,6 +361,7 @@ python demos/run.py demos/01_basics.cnl      # run just one
 | 2 | `demos/02_chains_and_recursion.cnl` | Rules feeding rules: chaining and self-feeding **recursion** (transitive closure) |
 | 3 | `demos/03_negation_and_worlds.cnl` | **Negation-as-failure** and the **closed- vs open-world** reading of "no" |
 | 4 | `demos/04_graded_and_defeasible.cnl` | **Graded attributes** (the α-cut) and **defeasible defaults** |
+| 5 | `demos/05_card_trader_playground.cnl` | **Playground** — a card-trading agent that *decides* what to buy/sell (market, rarity, named cards), with many knobs to turn |
 
 See **`demos/README.md`** for the index and the CNL surface rules the demos rely on.
 
