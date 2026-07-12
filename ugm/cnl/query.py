@@ -313,7 +313,8 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     — the agent-not-theorem-prover model, restoring locality (only the goal's own closure is materialized)
     for the RIGHT reason (the model), and making fuel-exhaustion an honest `unknown` the forward model
     cannot express. Same yes/no/who answers as the forward path on every stratifiable bank (the step-4
-    differential gate); a NON-stratifiable bank RAISES `NonStratifiable` rather than mis-answering."""
+    differential gate); a genuinely NON-stratifiable bank is rejected at LOAD by
+    `authoring.lint_stratifiable` (object-aware), so the chain never mis-answers one."""
     from ..check import check, collapse
     from ..chain import chain_sip
 
@@ -359,9 +360,11 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
 
     if q["qtype"] == "why":
         # demand the goal WITH provenance (RECORD, mode 9) so the in-graph support is present, then
-        # render the derivation trace via the existing reader.
+        # render the derivation trace via the existing reader. `explain` reads the in-graph proves/uses
+        # support (not the journal), so an empty journal is enough to pass the reader's guard.
         chain_sip(graph, rule_g, (q["p"], q["s"], q["o"]), provenance=True)
-        return ask(graph, question, journal=journal, rules=rules, extra_forms=extra_forms, strata=strata)
+        return ask(graph, question, journal=journal if journal is not None else [],
+                   rules=rules, extra_forms=extra_forms, strata=strata)
 
     # n-ary: demand the event predicate, then render via the reader (event-role reads stay in `ask`).
     if q.get("pred") is not None:

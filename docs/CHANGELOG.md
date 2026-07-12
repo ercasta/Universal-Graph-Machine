@@ -14,6 +14,42 @@ this log is itself a historical record.
 
 ## 2026-07-11
 
+### Firmware v3 — DEMAND-DRIVEN NEGATION; forward `decide.solve` DELETED (274 passed, 1 skipped, 0 failed)
+Negation is now decided ON DEMAND by negation-as-failure, not by eager forward completion + defeat. The
+model (ratified): we are a bounded reasoning AGENT, not a theorem prover — a human decides a negation by
+ASKING the positive when the question comes up and taking absence as the answer (CWA), never by
+completing every `is_not` then retracting. Design + as-built (with the deviations that matter):
+`docs/demand_driven_negation_design.md`. Both §Crux ratified the aggressive way ([[demand-negation-crux]]):
+drop `decide.solve` ENTIRELY (no `materialize` helper), fold `ask` into `ask_goal`. What landed:
+
+- **NAF in `chain_sip` (`_nac_blocks`).** A rule-body NAC `not L` is serviced by a NESTED NEGATIVE
+  DEMAND: bind it, demand the positive `L` to CLOSURE (a self-contained nested `chain_sip`), read
+  ABSENCE. Nothing is materialized for the negative — the verdict is computed from the empty demand
+  closure, the same move CHECK makes at top level, pushed inside the rule body. `tests/test_isa_naf.py`.
+- **Fuel → UNKNOWN.** A shared `_Exhaustion` flag bubbles up when any closure hits its round budget
+  short of fixpoint; `check.py` reads it to return UNKNOWN ("didn't finish looking") vs a decided
+  ASSUMED_NO. The agent-not-theorem-prover payoff the forward exhaustive model cannot express.
+- **Stratification at LOAD, prune-and-continue at runtime.** The object-aware `authoring.lint_stratifiable`
+  is the arbiter (accepts THIEF, rejects `p:-¬q, q:-¬p`). A runtime ground-goal cycle guard fires
+  SPURIOUSLY on stratifiable banks (a coref rule's wildcard `is(x,?)` demand pulls in a higher-stratum
+  `is`-producer whose NAC re-demands the negative), so the chain PRUNES the re-entered higher-stratum
+  rule and continues — sound under the load-time guarantee. See design AS-BUILT §1.
+- **`ask_goal` flipped to demand-driven; `ask` is now pure rendering.** yes/no via `check`, who via
+  `chain_sip`, why via a provenance demand + `explain`. No forward materialize-then-read.
+- **`expand_rules` stops upgrading closed-world NACs.** Every `not P` clause reflects to a plain NAC
+  decided on demand; NO `is_not` upgrade, NO generated completion rule. The `cleared is closed world`
+  marker is now vestigial for reasoning (open/closed is a query-time concern via `open_preds`).
+- **DELETED `ugm/decide.py`** (completion_rule / DEFEAT_SEED / solve / closed_predicates / …) and
+  `tests/test_decide.py`. The step-4 differential (demand-driven == forward `decide.solve` on THIEF +
+  serve-regular) was green BEFORE deletion — that earned the retirement; it now pins the demand-driven
+  answers (`tests/test_isa_naf_differential.py`). Migrated `test_riddles`/`test_contract`/`test_isa_ask`
+  onto `ask_goal` and the NAF trace shape (no `is_not`/`complete` premise; the elimination is absence).
+- **Graded α-cut reified into the chain** (`rule_graph.write_rule` + `chain._graded_ok`) — forced so
+  graded banks (ICE_CREAM's `is very urgent`) don't regress; the graded filter was otherwise dropped.
+- **Perf: NAC-closure MEMO (~17×)** + local-agenda drive (no `bound_demands` scan in the hot path). A
+  wildcard "who is thief" went 129s→7.5s; the suite 26min→90s. Deeper perf (coref-demand fan-out,
+  linear fact scans → indexing/semi-naive) is Phase 7. See design AS-BUILT §2.
+
 ### Phase 6.1 — GoalSolver + reference Walker DELETED; ONE firmware engine; decided-negation-only (264 passed, 1 skipped, 0 failed)
 The second reasoning engine is gone. Design + as-built: `docs/goalsolver_retirement_design.md`. Ratified
 by the user ("nuke the old code — it caused at least 3 refactors from things we forgot"; keep GoalSolver

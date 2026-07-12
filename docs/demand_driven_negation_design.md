@@ -1,5 +1,9 @@
 # Demand-driven negation — design (Phase 6.2 / firmware v3)
 
+> **Status: BUILT (2026-07-11).** All six migration steps landed; `ask_goal` is demand-driven; the
+> forward `decide.solve` apparatus is deleted. See the AS-BUILT section at the end for the deviations
+> the implementation forced (they matter). The prose below is the original proposal, kept as rationale.
+
 > **Status: PROPOSAL (2026-07-11) — written to be EXECUTED by a fresh session.** Motivation ratified by
 > the user: **we are building a bounded reasoning AGENT, not a theorem prover.** A human decides a
 > negation by ASKING the positive when the question comes up and taking absence-of-evidence as the
@@ -135,3 +139,44 @@ completeness. This is the agent-not-theorem-prover payoff made concrete.
 
 Rationale: no second negation model, no two-engine debt — consistent with [[agent-not-theorem-prover]]
 and [[delete-old-code-aggressively]]. So step 6 is a full DELETION, not a demotion.
+
+## AS-BUILT (2026-07-11) — what the implementation forced
+
+The mechanism landed as designed (NAF in `chain_sip._nac_blocks`: nested negative demand → positive
+closure → absence decides; fuel→UNKNOWN via a shared `_Exhaustion` flag → `check.py`'s 4-status). Five
+deviations/additions that the design under-specified and that a future reader must know:
+
+1. **Stratification lives at LOAD, not as a runtime raise.** The design said "port `_completing`/
+   `NonStratifiable` into the chain, raise on a negative cycle." A runtime ground-goal cycle guard
+   FIRES SPURIOUSLY on stratifiable banks: closing a negative's positive can transiently re-demand that
+   same negative through a HIGHER-stratum, non-productive rule — e.g. the coref rule `?s is ?b when ?a
+   same_as ?b and ?s is ?a` raises a wildcard `is(bo, ?)` demand that pulls in the `is`-producing
+   `thief` rule, whose NAC re-demands `not cleared(bo)`. That is not a real cycle (object-aware analysis
+   puts `thief` strictly above `cleared`). The correct arbiter is the EXISTING object-aware
+   `authoring.lint_stratifiable` (run at `load_corpus`/`load_rules`): it accepts THIEF and rejects
+   `p:-¬q, q:-¬p`. So the chain PRUNES-and-CONTINUES on re-entry (block the higher-stratum rule, don't
+   recurse) — sound under the load-time guarantee. `NonStratifiable` is retained as a type but the chain
+   does not raise it. This is a genuine improvement over the proposal, not a shortcut.
+
+2. **NAC-closure MEMO (perf, load-bearing).** Without it a wildcard query is ~17× slower: the round loop
+   re-services each demand every round, re-running each NAC's full nested closure per env per round. A
+   shared `_closed` set (threaded `chain_sip`→`_solve_demand_rule`→`_nac_blocks`) closes each negative's
+   positive ONCE per session (sound: facts are monotone + stratified, so the closure is stable). Also:
+   `chain_sip` drives from a LOCAL agenda, never `bound_demands(rule_g)` (that scan-in-the-hot-path was
+   itself quadratic); visible `<demand>` trace nodes are minted only at the top level.
+
+3. **Graded α-cut is reified into the chain.** `write_rule` now reifies `GradedCondition`s
+   (`<rule> -graded-> <graded>` with `gc_var`/`gc_dim`/`gc_threshold`); `chain._graded_ok` applies the
+   α-cut DURING matching (the Phase-5.2 companion, forced because ICE_CREAM's `?c is urgent when … ?c is
+   very urgent` otherwise fires for every customer — the graded filter was silently dropped). Inverted
+   α-cut ('not at all') is still deferred, as in `lowering.lower_graded`.
+
+4. **A NAC identical to a head atom is an IDEMPOTENCY memo, not negation.** `?a rel ?c when … and not
+   ?a rel ?c` (the transitive check-before-derive guard) is dropped from the NAC set — the monotone
+   chain already refuses to re-derive an existing fact, and treating it as NAF would flag a self-cycle.
+
+5. **`why` provenance is order-sensitive (follow-on).** A fact derived by an earlier non-provenance
+   query (e.g. `who is thief`) has no in-graph justification, so a later `why` on the SAME graph renders
+   `(given)`. Workaround in use: ask `why` on a fresh `load_corpus` (the demand then re-derives WITH
+   provenance). A robust fix (always-provenance, or re-derive-on-fresh-copy for `why`) is deferred —
+   it trades perf for order-independence.

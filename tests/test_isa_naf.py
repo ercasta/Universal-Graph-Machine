@@ -8,7 +8,8 @@ This is the agent-not-theorem-prover model: ask the positive on demand, absence 
 
   - Step 1: single-stratum NAC (the THIEF elimination) + existential (wildcard-endpoint) NAC.
   - Step 2: nested negation (a NAC over a NAC-derived predicate) and the STRATIFICATION guard —
-    a negative cycle raises `NonStratifiable`, never a silent wrong answer.
+    a genuine negative cycle is rejected at LOAD by the object-aware `lint_stratifiable`, and the chain
+    prunes-and-continues on a spurious re-entry (never a silent wrong answer, never a hang).
 
 The intended answers are asserted directly: plain `run_bank` is NOT a valid closed-world-NAC oracle
 (see the note below), and the differential-vs-`decide.solve` gate runs on the real banks (step 4).

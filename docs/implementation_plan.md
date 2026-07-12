@@ -22,11 +22,30 @@
 
 ## NEXT STEP (pick this up FIRST)
 
-**Suite: 264 passed, 1 skipped, 0 failed** (post Phase 6.1 GoalSolver + reference-Walker deletion +
-decided-negation-only, 2026-07-11, `python -m pytest -q`). The drop from 342 is the ~79 tests removed with
-the retired GoalSolver/Walker/solve_all engines (12 files — see the Phase 6.1 CHANGELOG entry), NOT lost
-firmware coverage. Earlier milestones (Phase 2.3/2.4/2.5, 5.5) landed at 341–343; the 460-passed figure at
-the repo split was inflated by ~123 harness-only tests trimmed before Phase 6.0.
+**Suite: 274 passed, 1 skipped, 0 failed** (post firmware-v3 DEMAND-DRIVEN NEGATION + `decide.solve`
+deletion, 2026-07-11, `python -m pytest -q`, ~90s). Up from 264 (Phase 6.1): +16 NAF tests
+(`test_isa_naf.py` ×13, `test_isa_naf_differential.py` ×2, and net migrations), −`test_decide.py`.
+
+**FIRMWARE v3 (demand-driven negation) DONE (2026-07-11).** Negation is decided ON DEMAND by NAF in
+`chain_sip._nac_blocks` (nested negative demand → positive closure → absence decides); fuel→UNKNOWN;
+stratification enforced at LOAD by the object-aware `lint_stratifiable`, chain prune-and-continues on
+re-entry (a runtime raise fired spuriously on coref banks — see design AS-BUILT §1). `ask_goal` is
+demand-driven (`ask` is now pure rendering). `expand_rules` no longer upgrades closed-world NACs / emits
+completion rules. `ugm/decide.py` + `test_decide.py` DELETED (the step-4 differential earned it). Graded
+α-cut reified into the chain (`write_rule`/`chain._graded_ok`). Perf: NAC-closure memo + local-agenda
+drive took a wildcard query 129s→7.5s, the suite 26min→90s. As-built + deviations:
+`docs/demand_driven_negation_design.md` AS-BUILT §§1–5; CHANGELOG. **Do NOT re-do; do NOT resurrect
+`decide.solve`.**
+
+**PICK UP NEXT — recommended order:**
+0'. **Demand-driven-negation PERF follow-on (Phase 7-adjacent, the honest weak spot).** A wildcard
+   `ask_goal` is still ~7.5s at 3-entity scale. Profile hotspots: `_facts_matching`/`_fact_relnodes`
+   linear fact scans (no (pred,subj) index) and the round loop re-servicing the whole agenda each round.
+   Levers: (a) index facts by (pred, subj) in the substrate [Phase 7(a) intern/CSR]; (b) semi-naive
+   worklist so a demand re-services only when a relevant fact appeared; (c) demand-driving the domain
+   coref rules (`same_as.*.is`) is a big fan-out — the meta-predicate coref rules are inert (never
+   demanded) so they cost nothing, but the domain ones do. ALSO: `why` provenance is order-sensitive
+   (a fact pre-derived without provenance renders `(given)`) — design AS-BUILT §5.
 
 **Phase 5.5 slices 1–4 DONE (CHECK+CHOOSE as `<call>` calculators; rules-emit; SUPPOSE-call scope
 authoring; plan→act→check→replan). Phase 6.0 DONE (rewriter retirement + reader flips — narrow scope,
@@ -105,17 +124,8 @@ Python driver becomes dead weight once the declared composition subsumes it, at 
 retires like `rewriter.py` did — not before.
 
 **PICK UP NEXT — recommended order:**
-0. **DEMAND-DRIVEN NEGATION (firmware v3) — the user's chosen next build, start FRESH.** After Phase 6.1
-   left `ask_goal` on the FORWARD decided-negation path (`decide.solve`: aggressive completion + defeat +
-   INTERPOSE-retract), the user reframed: **we are a bounded reasoning AGENT, not a theorem prover** — a
-   human decides negation by ASKING the positive on demand, absence-decides (CWA), never by eagerly
-   completing every `is_not` then retracting. **DESIGN WRITTEN:** `docs/demand_driven_negation_design.md`
-   — stratified NAF evaluated on demand inside `chain_sip` (nested negative demand → positive closure →
-   absence decides), which RETIRES the completion/defeat/retract-for-negation apparatus (net
-   simplification, not new machinery) and makes `ask_goal` demand-driven again for the RIGHT reason (the
-   model). Hard part = stratification + cycle detection (port `GoalSolver._completing`/`NonStratifiable`
-   from git into the chain). Fuel→UNKNOWN falls out of `check.py`'s 4-status model. Two §Crux questions to
-   answer first. ⚠Opus. **Read the design, answer §Crux, run its Migration steps.**
+0. **DEMAND-DRIVEN NEGATION (firmware v3) — DONE 2026-07-11.** See the NEXT STEP block at the top and
+   `docs/demand_driven_negation_design.md` AS-BUILT. The perf follow-on is item 0' up top.
 1. **Phase 5 exit gate — bench-sensibility half (harness-side)** — run card-trader + coref + full
    ProofWriter-coverage in `harneskills`. The engine-half is MET in-repo (audited 2026-07-11); this half
    is not verifiable from this repo. NOTE for that run: Phase 2.5 (2026-07-11) de-hardcoded the domain
@@ -135,8 +145,9 @@ retires like `rewriter.py` did — not before.
 - Slice 4 (plan→act→check→replan): **DONE** (was ⚠Opus)
 - Slice 3c (SUPPOSE CNL scope authoring): **DONE** (was ⚠Opus)
 - 5.5 exit gate (classify divergences): **⚠Opus**
-- Companion: graded α-cut DURING matching **⚠Opus**; aggressive `is_not` completion **⚠Opus**;
-  wire `chosen` as declared CHOOSE **~✓S** (gated)
+- Companion: graded α-cut DURING matching — **DONE for CHAIN** (firmware v3, `chain._graded_ok`); the
+  APPLY-body α-cut + inverted ('not at all') cut remain **⚠Opus**. Aggressive `is_not` completion is
+  **RETIRED** (demand-driven NAF replaced it; `decide.solve` deleted). `chosen` as declared CHOOSE **~✓S**
 - Phase 2.3 (name→valued attr, KB-declared discriminating-key indexes): **⚠Opus** — real design work,
   NOT mechanical (see correction above); 2.4 (name-free identity tokens) still **✓S** once 2.3 lands
 - Phase 2.5 (COPULA/NEG_SUFFIX / coref predicate VOCABULARY → consolidate/de-hardcode): **DONE** (was ⚠Opus)
@@ -154,7 +165,7 @@ retires like `rewriter.py` did — not before.
 
 ## Where the system is (2026-07-11, post repo-split)
 
-**342 tests green, 1 skipped.** All ISA engine files are in `ugm/ugm/`; CNL surface in `ugm/ugm/cnl/`.
+**274 tests green, 1 skipped** (firmware v3 demand-driven negation, 2026-07-11). All ISA engine files are in `ugm/ugm/`; CNL surface in `ugm/ugm/cnl/`.
 The planning rule banks (`PLANNING_RULES`, `SOLVE_RULES`, etc.) and harness benches live in `harneskills`.
 `solve.py` is DELETED (Phase 5.5 slice 4) — the plan→act→check→replan control flow is now a KB-declared
 composition over the existing `<call>` loop (`tests/test_isa_plan_act_check.py`). SUPPOSE is now a
@@ -169,12 +180,14 @@ graded key, read via `AttrGraph.predicate(rid)`/`has_key`; the ~85 `g.name(rel)`
 the `nodes_named(PREDICATE)` / `walker.get_attr(r,"name")` classes the plain grep missed) were migrated.
 See `docs/name_demotion_design.md` + CHANGELOG.
 
-Phases 0–5.5 slices 1–3b, slice 4, Phase 6.0 are DONE. See CHANGELOG.md for the full trail.
+Phases 0–5.5 slices 1–3b, slice 4, Phase 6.0/6.1, and firmware v3 (demand-driven negation) are DONE.
+See CHANGELOG.md for the full trail. `ask_goal` is demand-driven; `decide.py` is deleted.
 
-Companion slices still open: graded α-cut DURING matching in APPLY/CHAIN; aggressive `is_not`
-completion (`decide.solve`'s write-side elimination). (The "wire the planner's `chosen` pick as a
-declared CHOOSE" companion is subsumed by slice 4 — `solve._mint_chosen` is gone with `solve.py`; the
-declared composition commits `chosen` as a rule.)
+Companion slices still open: graded α-cut DURING matching in APPLY (the CHAIN half is DONE — firmware
+v3 `chain._graded_ok`) + the inverted ('not at all') cut. Aggressive `is_not` completion is RETIRED
+(demand-driven NAF replaced it). (The "wire the planner's `chosen` pick as a declared CHOOSE" companion
+is subsumed by slice 4 — `solve._mint_chosen` is gone with `solve.py`; the declared composition commits
+`chosen` as a rule.)
 
 Also still open (NOT on firmware path): Phase 3.1 step 2 (one-graph fold); `tests/test_joern_corpus.py`
 (legitimately slow, live-Joern, candidate for `slow` marker). (Phase 2.3 name demotion + bridge

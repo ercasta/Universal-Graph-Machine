@@ -300,7 +300,7 @@ def _graded_ok(fact_g: AttrGraph, graded: list[tuple[str, str, float]], env: dic
 def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str, str, str]],
                 env: dict[str, str], *, scope: str | None, provenance: bool,
                 neg_stack: frozenset[tuple[str, str | None, str | None]],
-                fuel: "_Exhaustion | None", max_rounds: int) -> bool:
+                fuel: "_Exhaustion | None", max_rounds: int, closed: set) -> bool:
     """Decide the rule's NAC clauses under `env` by DEMAND-DRIVEN NEGATION-AS-FAILURE (firmware v3):
     return True iff some `not L(bound)` clause's POSITIVE holds — i.e. the rule must NOT fire for this
     env. Each NAC `L` is a NESTED NEGATIVE DEMAND: bind it by `env`, demand the positive `L` and run
@@ -321,8 +321,11 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
         neg_goal = (np, _tok_name(env, ns), _tok_name(env, no))
         if neg_goal in neg_stack:
             return True                        # re-entry: prune the higher-stratum rule (block env)
-        chain_sip(fact_g, rule_g, neg_goal, provenance=provenance, scope=scope,   # close the positive
-                  _neg_stack=neg_stack | {neg_goal}, _fuel=fuel, max_rounds=max_rounds)
+        if neg_goal not in closed:             # MEMO: a negative's positive is closed ONCE per session.
+            chain_sip(fact_g, rule_g, neg_goal, provenance=provenance, scope=scope,   # close the positive
+                      _neg_stack=neg_stack | {neg_goal}, _fuel=fuel, max_rounds=max_rounds, _closed=closed)
+            closed.add(neg_goal)               # facts are monotone + stratified -> the closure is stable,
+        # so re-demands (the round loop re-services this env each round) just READ absence, never re-close.
         if _facts_matching(fact_g, np, neg_goal[1], neg_goal[2], scope=scope):
             return True                                    # L holds -> the NAC fails -> block this env
         if fuel is not None and fuel.exhausted:
@@ -334,7 +337,8 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                        demand: tuple[str, str | None, str | None], mint,
                        *, provenance: bool = False, scope: str | None = None,
                        neg_stack: frozenset[tuple[str, str | None, str | None]] = frozenset(),
-                       fuel: "_Exhaustion | None" = None, max_rounds: int = 1000) -> int:
+                       fuel: "_Exhaustion | None" = None, max_rounds: int = 1000,
+                       closed: set = frozenset()) -> int:
     """Serve `demand` with the reified rule at `rule_node` (SIP): seed the env from the demand via
     head-unification, walk the body in SIDEWAYS-SAFE order raising a BOUND sub-demand per atom (bound
     by the env so far), read facts matching each sub-demand, DECIDE any NAC clauses by nested negative
@@ -381,7 +385,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                 continue
             if nac and _nac_blocks(fact_g, rule_g, nac, env, scope=scope,   # NAF: absence decides
                                    provenance=provenance, neg_stack=neg_stack,
-                                   fuel=fuel, max_rounds=max_rounds):
+                                   fuel=fuel, max_rounds=max_rounds, closed=closed):
                 continue
             for hs, hp, ho in heads:
                 s_name, o_name = _tok_name(env, hs), _tok_name(env, ho)
@@ -407,7 +411,7 @@ def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
               goal: tuple[str, str | None, str | None], *, max_rounds: int = 1000,
               provenance: bool = False, scope: str | None = None,
               _neg_stack: frozenset[tuple[str, str | None, str | None]] = frozenset(),
-              _fuel: "_Exhaustion | None" = None) -> int:
+              _fuel: "_Exhaustion | None" = None, _closed: set | None = None) -> int:
     """Answer a BOUND-TUPLE goal `(pred, subj|None, obj|None)` demand-driven with SIP: raise the goal
     as a bound `<demand>`, then repeatedly serve every standing demand with the rules that produce it
     (each service raises the bound sub-demands its body needs and EMITs), to a fixpoint. Returns
@@ -425,27 +429,39 @@ def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
     consumer whose NAC is being decided — the demand-driven analog of the reference's self-contained
     nested completion solve, and what keeps NAF's "the positive failed" read from L's COMPLETE extension."""
     build_head_index(rule_g)                               # idempotent
-    if goal not in bound_demands(rule_g):
-        _mint_bound_demand(rule_g, goal)
+    if _closed is None:
+        _closed = set()                                    # NAC-closure MEMO, shared with nested demands
+    # Drive from a LOCAL agenda (a Python set), NOT `bound_demands(rule_g)`: reading the demand nodes
+    # back out of the graph on every sub-demand is O(#demands), and demand nodes accumulate across a
+    # call's nested negative closures — that scan-in-the-hot-path was quadratic. The VISIBLE `<demand>`
+    # trace nodes are minted lazily and ONLY at the top level (`_neg_stack` empty), deduped by a local
+    # set; a nested negative closure needs no trace, so it mints none (and never re-scans the graph).
+    minted: set[tuple[str, str | None, str | None]] = set()
 
+    def _visible(d):
+        if not _neg_stack and d not in minted:             # top-level magic set only (trace)
+            minted.add(d)
+            _mint_bound_demand(rule_g, d)
+
+    _visible(goal)
     agenda: set[tuple[str, str | None, str | None]] = {goal}   # this call's own demand sub-tree
     total = 0
     converged = False
     for _ in range(max_rounds):
         newly: set[tuple[str, str | None, str | None]] = set()
 
-        def mint(d, _agenda=agenda, _new=newly):
+        def mint(d, _agenda=agenda, _new=newly, _vis=_visible):
             if d not in _agenda and d not in _new:
                 _new.add(d)
-                if d not in bound_demands(rule_g):
-                    _mint_bound_demand(rule_g, d)          # visible magic-set node (trace), minted once
+                _vis(d)                                    # visible magic-set node (trace), minted once
 
         fired = 0
         for demand in agenda:
             for rn in rules_producing(rule_g, demand[0]):
                 fired += _solve_demand_rule(fact_g, rule_g, rn, demand, mint,
                                             provenance=provenance, scope=scope,
-                                            neg_stack=_neg_stack, fuel=_fuel, max_rounds=max_rounds)
+                                            neg_stack=_neg_stack, fuel=_fuel, max_rounds=max_rounds,
+                                            closed=_closed)
         agenda |= newly
         total += fired
         if fired == 0 and not newly:                       # no new fact AND no new demand -> fixpoint

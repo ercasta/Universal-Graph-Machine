@@ -105,12 +105,14 @@ def test_contract_closed_world_elimination():
     assert h.ask_goal(kb, "is ada thief", rules) == ["no"]
     assert h.ask_goal(kb, "is bo thief", rules) == ["no"]
 
-    # the explanation is legible and grounds the elimination (string contract, not journal shape):
-    # it names the answer and (having demanded `thief` with provenance) the `cleared` deduction it
-    # bottoms out on. (`explain` reads the in-graph proves/uses support the demand pass minted.)
-    why = "\n".join(h.ask_goal(kb, "why cy is thief", rules))
-    assert "cy is thief" in why
-    assert "cleared" in why
+    # the explanation grounds `cy is thief` on the given suspect premise. Under demand-driven NAF the
+    # trace has NO `is_not`/completion step — the elimination is the ABSENCE of a `cleared(cy)`
+    # derivation, not a materialized negative. Reload fresh so the `why` demand DERIVES thief(cy) WITH
+    # provenance (the prior queries derived it without) — `explain` reads the in-graph proves/uses support.
+    kb2, rules2 = h.load_corpus(THIEF)
+    why = "\n".join(h.ask_goal(kb2, "why cy is thief", rules2))
+    assert "cy is thief" in why and "rule.?x.is.thief" in why
+    assert "is_not" not in why and "complete" not in why
 
 
 # ===========================================================================
