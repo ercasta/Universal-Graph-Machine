@@ -214,6 +214,18 @@ CNL is parsed into graph structure by `load_facts` / `load_rules`, which run the
 forward engine over the form-recognition grammar. There is no separate parser; parsing
 IS graph rewriting. Explanations render back to CNL via `explain(graph, fact_id)`.
 
+**There is no wall between language and computation — it isn't broken, it's dissolved.**
+Parsing runs through the *same* forward driver (`run_bank`) that inference runs through;
+there is no AST handed from a parser to a distinct engine. A fact, a rule, a question, and
+the control tokens of computation are all nodes in one graph, and *what a line is* emerges
+from which form rewrites it, not from a classifier that routes before reasoning begins.
+`why` closes the loop: an explanation is the RECORD journal rendered back *to* CNL, so
+language-out is the inverse of language-in over the same structure. Language and inference
+are one rewriting process at different points on a continuum — not two systems with glue
+between them. The one boundary UGM draws **on purpose** is at CNL itself: free English is
+translated in by an external model ("CNL as surface, not engine input," the Attempto
+stance); from CNL inward, language and computation are made of the same thing.
+
 Key CNL concepts:
 - **Facts**: subject–predicate–object triples (`alice wants vanilla`)
 - **Rules**: `HEAD when BODY` with `and`, `not`, graded conditions (`is very urgent`)
