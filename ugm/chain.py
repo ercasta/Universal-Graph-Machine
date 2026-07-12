@@ -20,7 +20,7 @@ import warnings
 from dataclasses import dataclass
 
 from .attrgraph import AttrGraph
-from .attrgraph import valued, GRADED
+from .attrgraph import valued, GRADED, VALUED
 from .apply import (
     _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
     _rel_in_scope, apply_rule, build_head_index, rules_producing, SCOPE,
@@ -488,6 +488,65 @@ def _graded_ok(fact_g: AttrGraph, graded: list[tuple[str, str, float]], env: dic
     return True
 
 
+def _read_value_matches(rule_g: AttrGraph, rule_node: str) -> list[tuple[str, str, str, float | None]]:
+    """The reified value-match conditions of `rule_node` as `(var_a, var_b, dim, threshold|None)` — the
+    declared value-JOINs `rule_graph.write_rule` accreted (`<rule> -[value_match]-> <value_match>`), read
+    back for match-time use (mirrors `_read_graded`)."""
+    out: list[tuple[str, str, str, float | None]] = []
+    for rel, vn in rule_g.relations_from(rule_node):
+        if not rule_g.has_key(rel, "value_match"):
+            continue
+        a, b, d = (rule_g.get_attr(vn, "vm_a"), rule_g.get_attr(vn, "vm_b"), rule_g.get_attr(vn, "vm_dim"))
+        t = rule_g.get_attr(vn, "vm_threshold")
+        if a is not None and b is not None and d is not None:
+            out.append((str(a.value), str(b.value), str(d.value),
+                        None if t is None else float(t.value)))
+    return out
+
+
+def _bound_entity_nodes(fact_g: AttrGraph, bound) -> list[str]:
+    """The fact-layer node(s) a bound env value denotes: a `ById` -> exactly its node; a name -> the
+    same-named fact-layer nodes (control/inert scaffolding skipped). Used to read an ENDPOINT's attribute
+    value for a value-match."""
+    if isinstance(bound, ById):
+        return [bound.node_id] if fact_g.has(bound.node_id) else []
+    return [n for n in fact_g.nodes_named(bound)
+            if not (fact_g.is_control(n) or fact_g.is_inert(n))]
+
+
+def _value_matches_ok(fact_g: AttrGraph, vms: list[tuple[str, str, str, float | None]],
+                      env: dict[str, str]) -> bool:
+    """True iff every value-match passes under `env` — the DECLARED value-JOIN applied DURING matching
+    (`ValueMatch`). Both vars must be bound; then, on `dim`:
+      * EXACT (threshold None): the two bound nodes carry EQUAL VALUED values (e.g. the same `name`).
+      * GRADED ('close enough'): both carry a GRADED degree on `dim` and `1 - |deg_a - deg_b| >= threshold`.
+    An unbound var, or a missing value on either side, fails (never fire on an unevaluable join)."""
+    def valued_of(bound, dim):
+        for n in _bound_entity_nodes(fact_g, bound):
+            a = fact_g.get_attr(n, dim)
+            if a is not None and a.kind == VALUED:
+                return a.value
+        return None
+
+    def graded_of(bound, dim):
+        return max((float(a.value) for n in _bound_entity_nodes(fact_g, bound)
+                    if (a := fact_g.get_attr(n, dim)) is not None and a.kind == GRADED), default=None)
+
+    for va, vb, dim, thr in vms:
+        ba, bb = env.get(va), env.get(vb)
+        if ba is None or bb is None:
+            return False
+        if thr is None:                                   # exact VALUED equality
+            xa, xb = valued_of(ba, dim), valued_of(bb, dim)
+            if xa is None or xb is None or xa != xb:
+                return False
+        else:                                             # graded 'close enough'
+            da, db = graded_of(ba, dim), graded_of(bb, dim)
+            if da is None or db is None or (1.0 - abs(da - db)) < thr:
+                return False
+    return True
+
+
 def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str, str, str]],
                 env: dict[str, str], *, scope: str | None, provenance: bool,
                 focus_scope: frozenset[str] | None = None,
@@ -550,6 +609,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     # negatively on itself. Drop it; only GENUINE NACs (on another tuple) get the nested-negative-demand.
     nac = [n for n in _read_atoms(rule_g, rule_node, "nac") if n not in heads]
     graded = _read_graded(rule_g, rule_node)
+    value_matches = _read_value_matches(rule_g, rule_node)
     rule_key = rule_g.name(rule_node) if provenance else ""
 
     seeds: list[dict[str, str]] = []
@@ -577,6 +637,8 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
             envs = nxt
         for env in envs:                                   # EMIT every head atom per full match
             if graded and not _graded_ok(fact_g, graded, env):             # α-cut DURING matching
+                continue
+            if value_matches and not _value_matches_ok(fact_g, value_matches, env):   # declared value-JOIN
                 continue
             if nac and _nac_blocks(fact_g, rule_g, nac, env, scope=scope,   # NAF: absence decides
                                    focus_scope=focus_scope,

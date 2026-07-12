@@ -37,7 +37,7 @@ from .forms import (
 from .universal import same_as_rules
 from ..vocabulary import SUBSTRATE_COREF_PREDS, CLOSES, CWA
 from ..production_rule import (
-    GradedCondition, Pat, Rule, is_var as _is_var, literal_name, rhs_only_head_vars,
+    GradedCondition, ValueMatch, Pat, Rule, is_var as _is_var, literal_name, rhs_only_head_vars,
 )
 from ..lowering import run_bank
 from ..world_model import Graph
@@ -482,6 +482,33 @@ def _graded_cond_form(adverb: str) -> Rule:
     return _sugar_cond(f"rule.cond.{adverb}", f"{adverb}?", "rl_graded", None)
 
 
+# ---- value-match SUGAR — the coreference-as-rules value-JOIN (Stage 2) ----
+#
+# `?x same DIM as ?y` (EXACT) / `?x close DIM as ?y` (graded 'close enough') folds a `ValueMatch` on the
+# rule — the DECLARED value-JOIN (`docs/coreference_as_rules_design.md`). `same`/`close` are is_kw-tagged
+# so the generic body clause defers (like the copula/degree sugar). `DIM` binds `vm_dim`; the graded form
+# uses a default closeness threshold (declarable-degree refinement is a later slice). Expanded by
+# `_expand_rule_node` into `Rule.value_matches`, checked in the demand chain (`chain._value_matches_ok`).
+DEFAULT_CLOSENESS: float = 0.8
+
+
+def _value_match_form(key: str, keyword: str, role: str) -> Rule:
+    """`?cs <keyword> ?dim as ?o` -> a value-match condition folded under `role` (`rl_value_match` exact /
+    `rl_value_close` graded). `?dim` is the attribute token (bound to `vm_dim`); `?o` is marked `body_end`
+    so the `and` domino continues past all five tokens."""
+    return Rule(key=key,
+                lhs=[Pat("?cs", "body_subj", "?r"), Pat("?cs", "next", f"{keyword}?"),
+                     Pat(f"{keyword}?", "next", "?dim"), Pat("?dim", "next", "as?"),
+                     Pat("as?", "next", "?o")],
+                rhs=[Pat("?r", role, "<cond>?"), Pat("<cond>?", "k_subj", "?cs"),
+                     Pat("<cond>?", "k_obj", "?o"), Pat("<cond>?", "vm_dim", "?dim"),
+                     Pat("?o", "body_end", "?r")])
+
+
+_VALUE_SAME = _value_match_form("rule.cond.same_value", "same", "rl_value_match")
+_VALUE_CLOSE = _value_match_form("rule.cond.close_value", "close", "rl_value_close")
+
+
 # `?cs is a O` -> is_a; `?cs is not O` -> NAC on `is`.
 _SUGAR_IS_A = _sugar_cond("rule.cond.is_a", "a?", "rl_lhs", "is_a?")
 _SUGAR_IS_NOT = _sugar_cond("rule.cond.is_not", "not?", "rl_nac", "is?")
@@ -545,8 +572,10 @@ RULE_FORMS: list[Rule] = [
     # The shared body/condition grammar (generic `S P O`, `not S P O`, `and` domino) — the SAME
     # forms the machine grammar uses; NO fixed condition menu (any relation folds).
     *BODY_SPINE_FORMS,
-    # Structural is_kw tags (a/not) so the generic clause defers to the copula sugar below.
-    _is_kw_tag("a"), _is_kw_tag("not"),
+    # Structural is_kw tags (a/not/same/close) so the generic clause defers to the copula/value-match sugar.
+    _is_kw_tag("a"), _is_kw_tag("not"), _is_kw_tag("same"), _is_kw_tag("close"),
+    # The value-match value-JOIN sugar (`?x same DIM as ?y` / `?x close DIM as ?y`) — coref-as-rules.
+    _VALUE_SAME, _VALUE_CLOSE,
     # Prose copula sugar + verb negation (`does not V O`) + the DEFAULT graded conditions. A live
     # Session also adds `verb_neg_forms(self.kb)` / `degree_grammar_forms(self.kb)` so KB-declared
     # auxiliaries/adverbs parse; the static banks below carry the DEFAULT auxiliaries + degrees.
@@ -699,9 +728,20 @@ def _expand_rule_node(graph: Graph, R: str, declared: set[str] = frozenset()) ->
         )
         for k in _objs(graph, R, "rl_graded")
     ]
+
+    def _value_match(k: str, threshold: float | None) -> ValueMatch:
+        return ValueMatch(
+            var_a=rule_var_name(graph.name(_obj(graph, k, "k_subj")), declared),
+            var_b=rule_var_name(graph.name(_obj(graph, k, "k_obj")), declared),
+            dim=graph.name(_obj(graph, k, "vm_dim")),
+            threshold=threshold)
+    value_matches = (
+        [_value_match(k, None) for k in _objs(graph, R, "rl_value_match")] +
+        [_value_match(k, DEFAULT_CLOSENESS) for k in _objs(graph, R, "rl_value_close")])
+
     prose = legacy_subj is not None and not head_conds
     return Rule(key=_rule_key(rhs, lhs, nac, drop, prose=prose),
-                lhs=lhs, rhs=rhs, nac=nac, drop=drop, graded=graded)
+                lhs=lhs, rhs=rhs, nac=nac, drop=drop, graded=graded, value_matches=value_matches)
 
 
 def _rule_key(rhs: list[Pat], lhs: list[Pat], nac: list[Pat], drop: list[Pat],
@@ -783,7 +823,7 @@ def _dropped_conditions(graph: Graph, R: str) -> list[str]:
     inert `_BODY_AND` domino) that folded as a clause OBJECT, not subject — so folded `k_obj` tokens
     count as consumed too, or the modifier would be mis-reported as a dropped clause."""
     folded: set[str] = set()
-    for role in ("rl_lhs", "rl_nac", "rl_graded"):
+    for role in ("rl_lhs", "rl_nac", "rl_graded", "rl_value_match", "rl_value_close"):
         for c in _objs(graph, R, role):
             for slot in ("k_subj", "k_obj"):
                 tok = _obj(graph, c, slot)

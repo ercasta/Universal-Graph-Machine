@@ -14,6 +14,51 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### Coreference-as-rules Stage 2 — CNL surface + coref as a declared rule (335 passed)
+The value-match primitive (Stage 1) becomes AUTHORABLE and coreference becomes DECLARED bank data.
+- **CNL surface** (user-chosen): `?x same DIM as ?y` (EXACT) / `?x close DIM as ?y` (graded 'close
+  enough'). New rule-body forms `_VALUE_SAME`/`_VALUE_CLOSE` (`authoring.py`, `_value_match_form`), with
+  `same`/`close` is_kw-tagged so the generic body clause defers (like the copula/degree sugar); `DIM`
+  binds `vm_dim`. Folds `<rule> -[rl_value_match|rl_value_close]-> <cond>`; `_expand_rule_node` reflects
+  it into `Rule.value_matches` (exact → `threshold=None`; close → `DEFAULT_CLOSENESS=0.8`, a declarable-
+  degree refinement deferred). `_dropped_conditions` learns the two new roles so a folded value-match
+  clause isn't mis-reported as malformed.
+- **Coref as a declared rule, end to end.** `?x same_as ?y when ?x is a body and ?y is a body and ?x
+  close bright as ?y`, loaded via `load_rules`, run through `ask_goal`: two entities with close `bright`
+  embeddings derive `same_as`, and `same_as_rules` carry one's `visible` onto the other — `is eveningstar
+  visible` → yes; a far entity (`pluto`) → no; and WITHOUT the rule → no (coref-following is DATA, not
+  baked in). Validates the whole coref-as-rules direction on today's core with NO engine rewrite.
+- Additive; `tests/test_isa_value_match.py` (+4: exact/graded folding, the coref composition + gate).
+  NEXT: **Stage 3** — the id-addressed core (env binds ids), which unlocks same-NAME value-coref.
+
+### Coreference-as-rules Stage 1 — the value-match primitive (331 passed)
+D was reframed with the user (`docs/coreference_as_rules_design.md`): a mechanical "same name ⇒ same
+node" ingest merge bakes an NLP judgment into the engine, against the "logic lives in banks" discipline.
+New direction — **every mention stays a separate node; coreference becomes DECLARED rules** — enabled by a
+new match primitive. Stage 1 lands that primitive.
+- **`ValueMatch` (`production_rule.py`)** — a match-time condition joining TWO LHS-bound variables by an
+  ATTRIBUTE VALUE (`var_a`, `var_b`, `dim`, `threshold?`): the substrate's first DECLARED value-JOIN,
+  beside the default topological join (the path language has no "these two nodes share a value" predicate —
+  the reason coref was a §8 tool). `Rule.value_matches` carries them. EXACT equality of a VALUED `dim`
+  (threshold None); graded 'close enough' on a GRADED `dim` (`1 - |Δ| >= threshold`) when set.
+- **Reified + checked like the graded α-cut.** `rule_graph.write_rule` reifies `<rule> -[value_match]->
+  <value_match>` (`vm_a`/`vm_b`/`vm_dim`/`vm_threshold`); the demand chain reads them
+  (`chain._read_value_matches`) and applies the join DURING matching (`_value_matches_ok`, beside
+  `_graded_ok`) — reading each endpoint's attribute off its bound node(s). Additive: no value_matches =
+  identical behaviour.
+- **Forward path refuses LOUDLY.** `lowering._reject_unsupported` + `_lower_bank_rule` raise `Unlowerable`
+  on a value_match rule (mirroring the inverted-graded guard) rather than fire the join unconstrained — a
+  value_match rule runs via `chain_sip`, not `run_bank`. The forward-APPLY value-JOIN op is a later companion.
+- **Validated on today's (name-keyed) core** for the cases it supports: EXACT equality across DIFFERENT
+  names (alice/bob share `dept` → coworker; carol excluded) and GRADED closeness (morningstar≈eveningstar
+  by `warmth`; pluto excluded). Exact same-NAME coref needs the id-addressed core (Stage 3): the name-keyed
+  env collapses two same-named nodes to one binding, so `?x same_value ?y name` can't distinguish them yet.
+  Reflexive self-pairs are inherent (a distinctness constraint also awaits the id-core). `ValueMatch`
+  exported. `tests/test_isa_value_match.py` (6): exact join/exclusion, missing-attr no-fire, graded
+  close/far + threshold boundary, reification round-trip, forward refusal. NEXT: **Stage 2** — a CNL
+  authoring form for the condition + a declared coref bank demo (cross-name/graded), composing via
+  `same_as_rules`.
+
 ### Phase 8 NEXT STEP C — id-addressed goal path (`ById`) (325 passed)
 The last of the seven pystrider feedback items: the tuple-goal APIs addressed entities by NAME, and on a
 DUPLICATE name the write/seed side silently took `nodes_named(...)[0]`, forcing a consumer with

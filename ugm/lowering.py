@@ -108,6 +108,9 @@ def _reject_unsupported(rule: Rule) -> None:
         raise Unlowerable(f"{rule.key}: NAC (materialized-positive lowering is a later slice)")
     if rule.drop or rule.rewire:
         raise Unlowerable(f"{rule.key}: drop/rewire (control layer) is out of this slice")
+    if rule.value_matches:
+        raise Unlowerable(f"{rule.key}: value-match condition is a demand-chain-only slice "
+                          f"(the forward-APPLY value-JOIN op is a later companion) — run it via chain_sip")
 
 
 def _reach_endpoint(
@@ -454,6 +457,9 @@ def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset()):
     `control_preds` marks heads whose predicate is a scaffolding predicate as control-layer."""
     if any(c.inverted for c in rule.graded):
         raise Unlowerable(f"{rule.key}: inverted graded condition is a later slice")
+    if rule.value_matches:
+        raise Unlowerable(f"{rule.key}: value-match condition is a demand-chain-only slice "
+                          f"(the forward-APPLY value-JOIN op is a later companion) — run it via chain_sip")
     prem_regs: list[str] = []             # LHS body rel nodes a firing `uses` (provenance)
     head_regs: list[str] = []             # RHS head rel nodes a firing `proves` (provenance)
     match_ops, effect_ops = Machine.split(

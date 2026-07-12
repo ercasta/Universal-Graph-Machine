@@ -55,7 +55,18 @@ concern the SLM owns via the exposed `focus.top_centers` (2026-07-12; see §4). 
 mid-chain gather to who/∃/n-ary + lazy asking), 8.6 incremental head-index (perf follow-on) — see Phase 8
 below.
 
-## NEXT STEP — id-addressed goal API (~~C now~~ → **D next**) — name-vs-id addressing
+## NEXT STEP — id-addressed goal API (~~C now~~ → **D reshaped: coreference-as-rules**) — name-vs-id addressing
+
+> **⚠ D WAS RESHAPED 2026-07-12 (user) → see `docs/coreference_as_rules_design.md`.** D's original
+> "mechanical same-name binding at ingest" was rejected: it bakes an NLP judgment into the engine. New
+> direction — **every mention stays a separate node; coreference becomes DECLARED rules**, enabled by a new
+> value-equality / graded-closeness match primitive (`ValueMatch`). Approved sequence **1→2→3→4→5**:
+> (1) the primitive ✅ DONE; (2) coref-as-rules (CNL form `?x same/close DIM as ?y` + declared-bank demo)
+> ✅ DONE; (3) id-addressed core (env binds ids — the original D "id core", now a Stage, needed for
+> same-NAME coref) **NEXT**; (4) same-name coref + retire mechanical `wire_same_as`; (5) boundary migration
+> + docs. The C→D name-vs-id analysis below is SUBSUMED: id-addressing is Stage 3, and the same-named-
+> collapse it works around is exactly why Stage 3 is needed. **Stages 1–2 DONE**
+> (`ValueMatch` + CNL surface, `tests/test_isa_value_match.py` 10 tests, 335 suite green).
 
 > **C DONE 2026-07-12** (`chain.ById`, `tests/test_isa_byid.py`, 11 tests, 325 suite green; CHANGELOG +
 > `engine_user_guide.md` §2). The tuple-goal APIs (`chain_sip`/`check`/`suppose`) now accept a

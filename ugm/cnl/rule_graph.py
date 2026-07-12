@@ -48,6 +48,12 @@ ROLE_NAMES: tuple[str, ...] = ("lhs", "rhs", "nac", "drop")
 # matching exactly as the forward `GRADE` op does (Phase 5.2's graded-α-cut companion, on the chain).
 GRADED_ROLE = "graded"
 
+# A reified value-match condition: `<rule> -[value_match]-> <value_match>` where the node carries the
+# join as VALUED attrs (`vm_a`/`vm_b`/`vm_dim`, plus `vm_threshold` for the graded 'close-enough'
+# variant) — the reified form of a `ValueMatch`, so the demand-driven firmware
+# (`chain._read_value_matches`/`_value_matches_ok`) can apply the DECLARED value-JOIN during matching.
+VALUE_MATCH_ROLE = "value_match"
+
 
 def write_rule(graph: Graph, rule: Rule) -> str:
     """Materialize `rule` into `graph` as a literal-subgraph fragment.
@@ -90,6 +96,16 @@ def write_rule(graph: Graph, rule: Rule) -> str:
             graph.set_attr(g, "gc_dim", valued(dim))
             graph.set_attr(g, "gc_threshold", valued(gc.threshold))
             graph.add_relation(rule_node, GRADED_ROLE, g, control=True)
+    # Value-match conditions (the declared value-JOIN). Reified as `<value_match>` nodes so the
+    # demand-driven firmware can apply them, exactly like the graded α-cut above.
+    for vm in rule.value_matches:
+        v = graph.add_node("<value_match>", control=True)
+        graph.set_attr(v, "vm_a", valued(vm.var_a))
+        graph.set_attr(v, "vm_b", valued(vm.var_b))
+        graph.set_attr(v, "vm_dim", valued(vm.dim))
+        if vm.threshold is not None:
+            graph.set_attr(v, "vm_threshold", valued(float(vm.threshold)))
+        graph.add_relation(rule_node, VALUE_MATCH_ROLE, v, control=True)
     return rule_node
 
 

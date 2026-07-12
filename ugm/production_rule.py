@@ -103,6 +103,8 @@ def rhs_only_head_vars(rule) -> list[str]:
     body = {t for pats in (rule.lhs, rule.nac) for pat in pats
             for t in (pat.s, pat.p, pat.o) if is_var(t)}
     body |= {g.var for g in rule.graded if is_var(g.var)}   # a graded condition binds its var too
+    body |= {v for vm in rule.value_matches                 # a value-match references LHS-bound vars
+             for v in (vm.var_a, vm.var_b) if is_var(v)}
     out: list[str] = []
     for pat in rule.rhs:
         for t in (pat.s, pat.p, pat.o):
@@ -153,6 +155,29 @@ class GradedCondition:
     inverted: bool = False
 
 
+@dataclass
+class ValueMatch:
+    """A value-EQUALITY (or graded 'close-enough') LHS condition joining TWO bound variables by an
+    ATTRIBUTE VALUE — the substrate's first DECLARED value-join, added deliberately beside the default
+    topological join (`docs/coreference_as_rules_design.md`).
+
+    The path match language binds variables to NODES and joins on shared TOPOLOGY; it has no "these two
+    nodes carry the same value" predicate, which is why coreference was a §8 tool (`wire_same_as`), never
+    a rule. `ValueMatch` is that missing predicate, as DATA: the condition holds iff `var_a` and `var_b`
+    (both LHS-bound) carry the same value on `dim`.
+      * `threshold is None` — EXACT equality of the VALUED attribute `dim` (e.g. `name`).
+      * `threshold` set     — graded 'close enough' on the GRADED attribute `dim`: their degrees are
+                              within the threshold (see `chain._value_matches_ok`).
+    The enabler for coreference-as-RULES: `?x same_as ?y when ?x is a person and ?y is a person and
+    <same-value ?x ?y name>`, so identity is defeasible bank data, not a mechanical ingest merge. NOTE:
+    exact same-NAME coref needs the id-addressed core (env binds ids), since today's name-keyed env
+    collapses two same-named nodes to one binding; graded/cross-name value-coref already works."""
+    var_a: str
+    var_b: str
+    dim: str = "name"                 # the reserved NAME attr (attrgraph.NAME); a graded dim when threshold set
+    threshold: float | None = None
+
+
 # ---------------------------------------------------------------------------
 # Rule
 # ---------------------------------------------------------------------------
@@ -168,6 +193,8 @@ class Rule:
     rewire: list[tuple[str, str, str]] = field(default_factory=list)
     probability: float = 1.0                            # prior; flows into derived confidence
     graded: list[GradedCondition] = field(default_factory=list)
+    value_matches: list[ValueMatch] = field(default_factory=list)   # declared value-JOIN conditions
+                                                        # (`ValueMatch`): the coreference-as-rules enabler.
     propagate: dict | None = None                       # e.g. {"op": "weighted_sum", "weights": [...]}
     priority: float = 0.0                               # provisional scheduling tie-break
     max_steps: int = 5
