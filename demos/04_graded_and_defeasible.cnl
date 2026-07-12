@@ -1,0 +1,115 @@
+# =============================================================================
+# DEMO 4 — Graded attributes and defeasible defaults
+# =============================================================================
+#
+# Run:   python demos/run.py demos/04_graded_and_defeasible.cnl
+#
+# Two features that make UGM more than plain Datalog, in one small ice-cream shop:
+#
+#   GRADED ATTRIBUTES  — a character can hold a degree in [0,1] (`alice is very
+#     urgent` -> urgent 0.8). "very"/"somewhat"/"slightly" are just declared degrees
+#     (0.8 / 0.5 / 0.3), KB data, not engine magic. A rule that asks for `very
+#     urgent` applies an ALPHA-CUT: it fires only when the degree clears "very"'s
+#     threshold. So "somewhat urgent" does NOT count as "very urgent".
+#
+#   DEFEASIBLE DEFAULT  — a rule can fill in what a human leaves unsaid, UNLESS more
+#     specific knowledge overrides it. Here: a customer is assumed to be in the shop
+#     UNLESS they are already known to be somewhere else (`?c not in ?other`). An
+#     explicit placement DEFEATS the default. Nothing is retracted; the default just
+#     never fires when its guard sees the more-specific fact.
+#
+# The whole shop is authored in CNL — there is no Python domain logic anywhere.
+
+#-- Setup: the graded vocabulary and the shop
+
+# `urgent is gradable` turns `X is very urgent` into a graded attribute rather than
+# a plain fact. `shop1 is a shop` is the context the serving rules bind to.
+urgent is gradable
+shop1 is a shop
+
+# Stock. strawberry is deliberately NOT stocked.
+vanilla is in_stock
+chocolate is in_stock
+
+#-- The customers
+
+alice is a customer
+alice wants vanilla
+alice is very urgent          # degree 0.8
+
+bob is a customer
+bob wants chocolate
+bob is somewhat urgent        # degree 0.5 — below the "very" cut
+
+carol is a customer
+carol wants strawberry        # wants something out of stock
+
+#-- The defeasible context default
+
+# Customers are IN the shop unless already placed elsewhere. `?c not in ?other`
+# is the defeat guard: with no explicit placement it fills the gap; an explicit
+# `X in Y` fact would satisfy the guard's negation and switch this off for that X.
+?c in ?shop when ?c is a customer and ?shop is a shop and ?c not in ?other
+
+#-- The serving rules (graded + contextual)
+
+# The ALPHA-CUT: only a "very" urgent customer counts as priority. bob (somewhat)
+# does not clear it.
+?c is priority when ?c is a customer and ?c is very urgent
+
+# Priority customers whose flavour is in stock are served express — but only WITHIN
+# a shop (`?c in ?shop and ?shop is a shop`), which the defeasible default supplies.
+?c served express when ?c is priority and ?c wants ?f and ?f is in_stock and ?c in ?shop and ?shop is a shop
+
+# Everyone else in stock gets regular service. `?c is not priority` keeps express
+# and regular from both firing (negation-as-failure again, from demo 3).
+?c served regular when ?c wants ?f and ?f is in_stock and ?c is not priority and ?c in ?shop and ?shop is a shop
+
+# Out of stock -> offered an alternative instead.
+?c offered alternative when ?c is a customer and ?c wants ?f and ?f is not in_stock and ?c in ?shop and ?shop is a shop
+
+#-- Ask it questions
+
+# alice is very urgent (0.8, clears the cut) and vanilla is stocked -> express.
+#? is alice served express
+
+# bob is only SOMEWHAT urgent (0.5) — the alpha-cut denies him priority, so he is
+# not express...
+#? is bob served express
+
+# ...he gets regular service instead.
+#? is bob served regular
+
+# carol wants strawberry, which is out of stock -> an alternative.
+#? is carol offered alternative
+
+# Who ends up on express (just the one who clears the graded cut).
+#? who served express
+
+# The full proof for alice — note the defeasible `alice in shop1` appears as a
+# DERIVED sub-proof (the default fired, since nothing placed her elsewhere), and
+# `alice is priority` rests on her graded urgency.
+#? why alice served express
+
+# =============================================================================
+# NOW TRY CHANGING IT
+# =============================================================================
+#
+# EXPERIMENT A — turn the dial past the cut.
+#   Change `bob is somewhat urgent` to `bob is very urgent`. Re-run: bob now clears
+#   the alpha-cut, becomes priority, and `is bob served express` flips to yes (his
+#   chocolate is in stock). The rule text never changed — only the DEGREE did.
+#
+# EXPERIMENT B — defeat the defeasible default.
+#   Add two facts:   lobby is a place
+#                     alice in lobby
+#   Re-run `is alice served express`: now `no`. The explicit placement satisfies the
+#   default's `?c not in ?other` guard, so the "customers are in shop1" default no
+#   longer fires for alice — and the lobby is not a shop, so the serving rules
+#   (which need `?c in ?shop and ?shop is a shop`) lose their footing. She vanishes
+#   from `who served express` too. More-specific knowledge beats the default.
+#
+# EXPERIMENT C — restock and watch carol move.
+#   Add:   strawberry is in_stock
+#   Re-run. carol stops being `offered alternative` and — since she has no urgency
+#   at all — becomes `served regular`. Add `#? is carol served regular` to see it.

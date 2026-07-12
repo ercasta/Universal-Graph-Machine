@@ -1,0 +1,77 @@
+# =============================================================================
+# DEMO 1 — Facts, one rule, and asking questions
+# =============================================================================
+#
+# Run:   python demos/run.py demos/01_basics.cnl
+#
+# The smallest interesting UGM program: a handful of facts, ONE rule, and some
+# questions. Everything below (facts, the rule, and — in the other demos —
+# questions) lives in the SAME graph. There is no classifier deciding "this line
+# is a fact, that one is a rule": what each line *is* emerges from which CNL form
+# recognises it. `wants`, the copula `is`, and `is a` are built-in forms.
+#
+# WHAT THE ENGINE DOES when you ask a question here:
+#   - `ask_goal` is DEMAND-DRIVEN (the CHAIN mode). It does not compute every fact
+#     that COULD follow; it pulls only the rules whose head could answer *this*
+#     question, backward from the goal.
+#   - A rule like the one below is compiled ("lowered") to a tiny opcode program:
+#     SEED a relation node by name, FOLLOW its bare edges to the subject/object,
+#     TEST the conditions, then MINT the conclusion. See README "Lowering: CNL
+#     rule -> ISA program" for the exact opcodes this rule becomes.
+#   - Every MINT/EMIT is journalled (the RECORD mode), so `why …` is a REPLAY of
+#     that journal rendered back to CNL — a real proof object, not templated text.
+
+#-- The scenario: a juice bar
+
+# Facts. `X is in_stock` is the copula form; `X wants Y` and `X is a Y` are forms too.
+mango is in_stock
+guava is in_stock
+alice is a customer
+alice wants mango
+bob is a customer
+bob wants durian          # durian is NOT in_stock — deliberately
+
+# The rule. Read: "?c gets ?d  WHEN  ?c wants ?d AND ?d is in_stock."
+# ?c and ?d are variables (they start with '?'); every other word is literal.
+# The two conditions after `when` are the body; the single triple before it is
+# the head that gets asserted for every binding that satisfies the body.
+?c gets ?d when ?c wants ?d and ?d is in_stock
+
+#-- Ask it questions
+
+# Yes/no. alice wants mango, and mango is in stock -> she gets it.
+#? is alice gets mango
+
+# bob wants durian, which is not in stock, so the body is never satisfied.
+# Note the answer is `no`, not `unknown`: the shipped default is CLOSED-world
+# (an underivable goal is a defeasible "no"). Demo 3 shows how to change that.
+#? is bob gets mango
+
+# A wh-question. `who P O` leaves the subject open and returns every match.
+#? who gets mango
+
+# `why` replays the derivation journal as an indented proof tree. `(given)`
+# marks a base fact; the `<- rule…` line names the rule that fired.
+#? why alice gets mango
+
+# =============================================================================
+# NOW TRY CHANGING IT (edit the lines above, then re-run)
+# =============================================================================
+#
+# EXPERIMENT A — satisfy bob.
+#   Add a new fact line up in the scenario:   durian is in_stock
+#   Re-run. `is bob gets mango` is still no (he wants durian, not mango), but add
+#   a question `#? who gets durian` and bob now appears. One new fact, no rule
+#   change: the same rule fires for the new binding.
+#
+# EXPERIMENT B — weaken the rule.
+#   Delete `and ?d is in_stock` from the rule, leaving `?c gets ?d when ?c wants ?d`.
+#   Re-run: now `is bob gets mango`… still no (he wants durian). But `#? who gets
+#   durian` returns bob even though durian is out of stock — you removed the
+#   stock check. Watch the `why alice gets mango` trace get one line shorter too.
+#
+# EXPERIMENT C — a second rule that builds on the first.
+#   Add:   ?c is happy when ?c gets ?d
+#   and a question:  #? is alice happy
+#   `gets` is itself derived by a rule, and `happy` is derived from `gets`: rules
+#   chain. Demo 2 is all about these chains.

@@ -1,0 +1,93 @@
+# =============================================================================
+# DEMO 2 — Rules that feed rules: chaining and recursion
+# =============================================================================
+#
+# Run:   python demos/run.py demos/02_chains_and_recursion.cnl
+#
+# Demo 1 had one rule. Real reasoning is rules feeding rules. Two shapes matter:
+#
+#   CHAINING   — rule B reads a fact that rule A derived (a multi-step proof).
+#   RECURSION  — a rule feeds ITSELF: `X in Z when X in Y and Y in Z` derives new
+#                `in` facts, which the same rule then consumes again, to a fixpoint.
+#
+# WHAT THE ENGINE DOES:
+#   - `in` is a built-in relation, so `seattle in washington` is a plain fact.
+#   - The transitive rule is RECURSIVE. Under the demand-driven CHAIN mode, asking
+#     "is seattle in usa" pulls the rule backward: to prove `seattle in usa` it
+#     demands a midpoint Y with `seattle in Y` and `Y in usa`, recursively. It only
+#     derives the links the QUESTION needs — it never blindly closes the whole graph.
+#   - Matching is set-at-a-time: one `FOLLOW` over a node's edges expands the whole
+#     set of candidate midpoints at once. The recursion is a fixpoint over that set,
+#     not a hand-written loop (README, "Matching is set-at-a-time").
+#   - `why` shows the recursion literally — a nested proof tree where the same rule
+#     (`rule.?x.in.?z`) appears at several depths.
+
+#-- Facts: places nested in bigger places
+
+seattle in washington
+washington in usa
+usa in north_america
+tokyo in japan
+japan in asia
+
+# Two of those big places are continents ('is a' is the is_a form).
+north_america is a continent
+asia is a continent
+
+#-- Rule 1 (RECURSIVE): containment is transitive
+
+# If x is in y and y is in z, then x is in z. This rule's OWN output (`?x in ?z`)
+# is shaped exactly like its OWN input (`?x in ?y`), so it feeds itself.
+?x in ?z when ?x in ?y and ?y in ?z
+
+#-- Rule 2 (CHAINS on rule 1): being inside a continent
+
+# `well_traveled` consumes an `in` fact — including the TRANSITIVE ones rule 1
+# derived. seattle is only *directly* in washington, but transitively in
+# north_america (a continent), so this rule fires for it.
+?p is well_traveled when ?p in ?c and ?c is a continent
+
+#-- Ask it questions
+
+# A direct link — one hop, no recursion needed.
+#? is seattle in washington
+
+# Recursion at work: seattle -> washington -> usa -> north_america.
+#? is seattle in north_america
+
+# Kept honest: tokyo's chain reaches asia, never north_america.
+#? is tokyo in north_america
+
+# Every place transitively inside north_america. The transitive closure, computed
+# on demand for just this query.
+#? who in north_america
+
+# The CHAIN across both rules: recursive `in` -> `well_traveled`.
+#? is seattle well_traveled
+
+# The whole proof, nested. Note `rule.?x.in.?z` (rule 1) appears at TWO depths —
+# that is the recursion made visible — and `rule.?p.is.well_traveled` (rule 2)
+# sits on top, consuming what rule 1 proved.
+#? why seattle is well_traveled
+
+# =============================================================================
+# NOW TRY CHANGING IT
+# =============================================================================
+#
+# EXPERIMENT A — extend a chain by one hop.
+#   Add a fact:   north_america in the_americas
+#   (then add:    the_americas is a continent    to make it count)
+#   Re-run `why seattle is well_traveled` and watch the `in` recursion grow a level.
+#
+# EXPERIMENT B — break transitivity, see recursion stop.
+#   Comment out rule 1 (put a '#' in front of `?x in ?z when …`). Re-run:
+#   `is seattle in north_america` becomes `no` — with only direct `in` facts,
+#   seattle is *in washington* and nothing else. `well_traveled` collapses too,
+#   because rule 2 was standing on rule 1's derived facts.
+#
+# EXPERIMENT C — a third link in the chain.
+#   Add:   ?p is well_networked when ?p is well_traveled and ?p in ?country and ?country in ?continent
+#   plus:  #? who is well_networked
+#   Now three rules stack: transitive `in` -> `well_traveled` -> `well_networked`.
+#   (Rule heads are always a triple: `S P O` or the copula `S is O`, like
+#   `?p is well_traveled`. A bare two-word head has no object to assert.)

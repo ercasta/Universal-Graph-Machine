@@ -324,6 +324,29 @@ lower-level demand-driven API (`chain_sip`, `check`, `choose`, `suppose`) — se
 
 ---
 
+## Try it out
+
+The **`demos/`** folder has four runnable, self-contained walkthroughs of increasing
+complexity. Each is a single `.cnl` file — facts, rules, questions, and an inline
+walkthrough (as comments) explaining what the engine does at each step — and each ends
+with a **NOW TRY CHANGING IT** section: concrete edits to make, with the outcome to expect.
+
+```bash
+python demos/run.py                          # run all four, in order
+python demos/run.py demos/01_basics.cnl      # run just one
+```
+
+| # | Demo | Teaches |
+|---|------|---------|
+| 1 | `demos/01_basics.cnl` | Facts, one rule, forward chaining, `who` / `why` |
+| 2 | `demos/02_chains_and_recursion.cnl` | Rules feeding rules: chaining and self-feeding **recursion** (transitive closure) |
+| 3 | `demos/03_negation_and_worlds.cnl` | **Negation-as-failure** and the **closed- vs open-world** reading of "no" |
+| 4 | `demos/04_graded_and_defeasible.cnl` | **Graded attributes** (the α-cut) and **defeasible defaults** |
+
+See **`demos/README.md`** for the index and the CNL surface rules the demos rely on.
+
+---
+
 ## Installation
 
 ```bash
