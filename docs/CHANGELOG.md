@@ -37,8 +37,12 @@ Kicked off the first UGM CLIENT (agent loop + TUI) per `docs/cnl_intake_design.m
   accretion cliff, the coref fan-out over the whole KB); FOCUS 23→29→65→83ms (FLAT); ratio 23×→1361×.
   Per-utterance cost now tracks the focus, not the session — the accretion fix validated. SEMANTIC: off-
   focus facts leave attention (agent-not-theorem-prover), so answers can differ from global by design.
+- **8.4a anaphora** — bare pronouns resolve against the focus SALIENT CENTER (`focus.salient_center`,
+  recency-stamped, bumped on re-mention); `ingest` expands pronouns (`declared_pronouns` = data) with that
+  antecedent before routing; a topic switch changes the antecedent; an unresolvable pronoun →
+  `Outcome("clarify")` (the ask-vs-guess margin's degenerate case — don't guess about a literal `she`).
 Discipline: `docs/cnl_intake_design.md` §D (7 anti-hardcoding rules) documented + mirrored in the plan's
-Phase 8 header. `tests/test_isa_intake.py` (6) + `tests/test_isa_focus.py` (16).
+Phase 8 header. `tests/test_isa_intake.py` (6) + `tests/test_isa_focus.py` (24). 283 suite green.
 
 ### NAC existence check made ENDPOINT-DRIVEN — 40× on the NAF hot path (258 passed, suite 54s→35s)
 Phase 8.0 probe (`bench/session_accretion.py`, `docs/cnl_intake_design.md` §7) found the agent-loop client's

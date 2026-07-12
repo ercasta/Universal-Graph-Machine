@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                          # "answer" | "fact" | "rule" | "focus" | "unrecognized"
+    kind: str                # "answer" | "fact" | "rule" | "focus" | "clarify" | "unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
@@ -90,6 +90,7 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
         choice, the agent-not-theorem-prover reading), so answers can differ from "global"."""
     from .cnl.query import recognize, ask_goal
     from .cnl.authoring import load_rules, load_facts, _on_cycle
+    from .cnl.forms import declared_pronouns, expand_pronouns_text
     from . import focus as focus_mod
 
     text = utterance.strip()
@@ -102,6 +103,19 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
     if fop is not None and fop[0] is not None:
         focus_mod.apply_focus_op(kb, fop[0], fop[1])
         return Outcome("focus", utterance, focus_op=fop)
+
+    # ANAPHORA (§4): resolve bare pronouns against the focus's salient center BEFORE routing, so
+    # "is she cleared?" reasons about the entity in play. The pronoun set and the antecedent are DATA
+    # (`declared_pronouns` + focus salience), never engine-baked (§D.3). Runs AFTER the focus-op check so
+    # `forget that` is untouched. ASK-VS-GUESS MARGIN (metareasoning, §4): a pronoun with NO antecedent in
+    # focus is maximal ambiguity — CLARIFY rather than silently answer about a literal `she`. (Graded
+    # recency margins + type/number agreement + descriptive anaphora are 8.4b.)
+    prons = declared_pronouns(kb)
+    if any(w in prons for w in text.lower().split()):
+        ante = focus_mod.salient_center(kb)
+        if ante is None:
+            return Outcome("clarify", utterance)
+        text = expand_pronouns_text(text, prons, ante)
 
     # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
     q = recognize(text)

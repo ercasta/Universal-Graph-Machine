@@ -115,10 +115,17 @@ Build slices, in dependency order (each with tests; the probe first to validate 
     (super-linear cliff); focus 23→29→65→83ms (FLAT); ratio 23×→1361× and climbing. Bounded attention makes
     per-utterance cost track the focus, not the session — the accretion fix, validated. `tests/test_isa_focus.py`
     (16). SEMANTIC: off-focus facts leave attention (agent-not-theorem-prover); that is the point.
-- **8.4 — anaphora as reasoning.** Descriptive → CHOOSE over centers; bare pronouns → CHOOSE over graded
-  defeasible preferences (recency+role default, domain-overridable); metareasoning owns only the
-  ask-vs-guess margin → near-tie escalates via the existing `ask_user`. Design §4. Habitability rejection
-  outcome (§4a) lands with 8.1.
+- **8.4 — anaphora as reasoning.** Design §4.
+  - **8.4a DONE 2026-07-12** — BARE PRONOUNS resolve against the focus SALIENT CENTER. `focus.salient_center`
+    = highest recency-stamped center of the top frame (recency is an explicit `recency` attr — `relations_from`
+    is NOT insertion-ordered; `_add_center` bumps on re-mention). `ingest` expands pronouns
+    (`declared_pronouns` — data, domain-extensible) with that antecedent BEFORE routing (after the focus-op
+    check so `forget that` is safe). Topic switch changes the antecedent (the stack governs it). ASK-VS-GUESS
+    margin's degenerate case: a pronoun with NO antecedent → `Outcome("clarify")`, not a silent guess about a
+    literal `she`. `tests/test_isa_focus.py` (24), 283 suite green.
+  - **8.4b REMAINING** — DESCRIPTIVE anaphora ("the alibied one") → CHOOSE over centers by the description
+    (folds into reasoning); graded recency/role ranking + type/number agreement; the full ask-vs-guess MARGIN
+    on a near-tie (not just the empty case) → escalate via `ask_user`, the same channel as OWA gathering.
 - **8.5 — event-emitting + resumable driver; suspend/resume `ask_user`.** Event sink at existing step
   boundaries (reuse RECORD/`<j:>` provenance as the substrate); generalize the blocking `ask_user` into
   suspend→return→resume with the pending question as a graph node. Wait-set v1 = `{ask_user}`. Design §5.
