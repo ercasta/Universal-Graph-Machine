@@ -39,6 +39,16 @@ This produced a rule that fired when it shouldn't and took real debugging to loc
 absorbing a keyword. A boolean-shaped predicate should be a hard error with a hint ("write
 `?g guard_open yes`"), not a silent mangle.
 
+> **PARTLY ADDRESSED (2026-07-12) — option A (reject loudly); genuine minting (C) deferred.** The behavior
+> was worse than "optimistic docstring": forward chaining mints a fresh UNNAMED node every firing and never
+> suppresses it (the rule re-fires, `derived_triples` hides the results), and the demand chain collapses the
+> var onto the query goal. So the loaders now REJECT an RHS-only head var at authoring
+> (`production_rule.rhs_only_head_vars` + `authoring.reject_rhs_only_head_vars`, run AFTER the malformed-
+> clause check) with guidance toward the MINT-tool / pre-materialized-pool workaround; the `lowering.py`
+> docstring is corrected. Bound-literal skolem binders (`<rule>?`/`<cond>?`) and NAC-bound head vars are
+> untouched. Genuine per-match fresh minting (C) is deferred — pystrider's pre-materialized-pool workaround
+> does not need it. Tests in `tests/test_feedback_fixes.py`.
+
 ## 2. Existential / Skolem head variables are not fresh-minted by the public drivers (and drivers disagree)
 
 An RHS-only variable (a head var absent from the body) is documented in `lowering.py:226` as
@@ -145,6 +155,28 @@ result the in-scope derivations are gone, so you can't inspect *why* it was inco
 are consistent with the pencil/ink contract, but for a consumer a **non-committing "verdict +
 in-scope trace only"** entry point would fit hypothesis-driven tools much better. **Ask:**
 consider a `suppose(..., commit=False)` returning the in-scope derivations for inspection.
+
+## 7. `suppose()` does not accept `focus_scope` (unlike `ask_goal`) — the outcome path can't be attention-bounded
+
+`ask_goal(..., focus_scope=frozenset(...))` threads bounded attention into its internal
+`chain_sip` (query.py). `suppose(...)` has no such parameter, yet it *also* calls `chain_sip`
+internally (suppose.py) to propagate the hypothesis and check predictions. So a consumer whose
+primary reasoning is hypothesis-driven (`suppose` = "does this outcome arise under this
+assumption?") cannot bound reasoning to the working set the way a question can.
+
+```python
+import inspect
+from ugm import ask_goal, suppose
+print("focus_scope" in inspect.signature(ask_goal).parameters)   # True
+print("focus_scope" in inspect.signature(suppose).parameters)    # False
+```
+
+For pystrider (a code analyzer whose graph accretes multiple functions across a session), focus
+is the mechanism that keeps per-hypothesis cost tracking the function under analysis rather than
+the whole accreted graph — but it only reaches the *trace* path (`ask_goal "why"`), not the
+*outcome* path (`suppose`). **Ask:** thread `focus_scope` through `suppose` to its `chain_sip`
+calls, exactly as `ask_goal` already does — a small, mechanical addition that makes the Session
+focus story usable for hypothesis-driven consumers.
 
 ---
 

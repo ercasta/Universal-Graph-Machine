@@ -118,14 +118,20 @@ def _record_confirmed(g: AttrGraph, ink_node: str) -> None:
 
 def suppose(fact_g: AttrGraph, rule_g: AttrGraph,
             assumptions: list[Triple], predictions: list[Triple], *,
-            provenance: bool = False) -> SupposeResult:
+            provenance: bool = False,
+            focus_scope: frozenset[str] | None = None) -> SupposeResult:
     """Entertain `assumptions` in a `<hypothesis>` scope, CHAIN their consequences in pencil, and CHECK
     the `predictions` in-scope. Returns a `SupposeResult`. Side effect on the graph: CONFIRM commits the
     assumptions to ink (monotone, with optional provenance) and sweeps the pencil; REFUTE / INCONCLUSIVE
     sweep the scope and leave ink untouched.
 
     Contradiction = the supposition entails the NEGATION of a prediction (in-scope). Confirmation = every
-    prediction is derivable in-scope and none contradicted."""
+    prediction is derivable in-scope and none contradicted.
+
+    `focus_scope` (feedback #7) BOUNDS attention exactly as `ask_goal` does — threaded into the in-scope
+    `chain_sip`/`_facts_matching` so the hypothesis reasons only within the working set (an endpoint in
+    `focus_scope`), keeping per-hypothesis cost tracking the focus, not the accreted graph. `None` =
+    whole-graph (behaviour-identical). Orthogonal to the pencil `scope` (which segregates the hypothesis)."""
     scope = fact_g.add_node(HYPOTHESIS, control=True)
     for s, p, o in assumptions:
         _pencil(fact_g, scope, _resolve(fact_g, s), p, _resolve(fact_g, o))
@@ -135,13 +141,13 @@ def suppose(fact_g: AttrGraph, rule_g: AttrGraph,
     for pred, subj, obj in predictions:
         # CHAIN the prediction and its negation inside the scope (pencil reasoning; provenance is
         # ephemeral here, so it is never journaled — only the confirmed ink commit records provenance).
-        chain_sip(fact_g, rule_g, (pred, subj, obj), scope=scope)
+        chain_sip(fact_g, rule_g, (pred, subj, obj), scope=scope, focus_scope=focus_scope)
         neg_pred = _neg_pred(pred)
-        chain_sip(fact_g, rule_g, (neg_pred, subj, obj), scope=scope)
-        if _facts_matching(fact_g, neg_pred, subj, obj, scope=scope):
+        chain_sip(fact_g, rule_g, (neg_pred, subj, obj), scope=scope, focus_scope=focus_scope)
+        if _facts_matching(fact_g, neg_pred, subj, obj, scope=scope, focus_scope=focus_scope):
             contradiction = (pred, subj, obj)          # entails the opposite of the prediction -> refute
             break
-        if not _facts_matching(fact_g, pred, subj, obj, scope=scope):
+        if not _facts_matching(fact_g, pred, subj, obj, scope=scope, focus_scope=focus_scope):
             all_hold = False
 
     looked_for = render_demands(rule_g)

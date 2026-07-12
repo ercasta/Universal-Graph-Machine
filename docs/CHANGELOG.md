@@ -14,10 +14,10 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
-### Consumer feedback: three silent failures made LOUD (309 passed)
+### Consumer feedback: six items hardened (silent → LOUD) + suppose focus-scope (314 passed)
 From the pystrider spike (`docs/feedback_from_pystrider.md`) — the recurring pain was ugm quietly doing
-LESS rather than erroring when a consumer authors rules/facts programmatically. Fixed the three unambiguous
-ones (silent → signal):
+LESS rather than erroring when a consumer authors rules/facts programmatically. Fixed six of the seven
+items (the 7th, name-vs-id addressing, is the C→D NEXT STEP in the plan):
 - **#1 machine-rule mis-parse (the footgun).** `load_machine_rules` silently mangled a clause that wasn't
   a full `S P O` triple — a 2-token clause swallowed the following `when`/`and` as its object, or a short
   body clause dropped, quietly weakening the rule. Now `authoring.machine_rule_defects` reads the FOLD
@@ -32,10 +32,30 @@ ones (silent → signal):
   no signal. `load_facts(…, strict=True)` now RAISES listing the dropped line(s); default `False` keeps
   the lenient behaviour. The content-fact detector `anchor_has_content_fact` moved to `authoring.py` and is
   now SHARED with `intake.ingest`'s fact-vs-unrecognized routing (was duplicated).
+- **#2 existential / skolem RHS-only head var (option A — reject; genuine minting deferred).** Worse than a
+  lying docstring: forward chaining minted a fresh UNNAMED node every firing (never suppressed by
+  check-before-derive → the rule re-fires, results invisible to `derived_triples`); the demand chain
+  collapsed the var onto the query goal. The loaders now REJECT a rule with a head var absent from the body
+  (`production_rule.rhs_only_head_vars` + `authoring.reject_rhs_only_head_vars`), run AFTER the
+  malformed-clause check so the more specific defect wins, pointing at the MINT-tool / pre-materialized-pool
+  workaround. Bound-literal skolem binders (`<rule>?`/`<cond>?`) and NAC-bound head vars are excluded (no
+  false positives across the banks). The `lowering.py` docstring is corrected. Genuine per-match minting
+  (option C) deferred — the pre-materialized-pool workaround does not need it.
+
+- **#3 CNL case-fold false negative.** A CNL question lowercases identifiers, so a query about a
+  case-PRESERVED node (`eB`, made via the tuple API) folded to `eb` and returned a SILENT `no`. `ask_goal`
+  now WARNS (`query._warn_case_folded_mismatch`) when a folded query name matches no node but a case-variant
+  node exists — the folding stays (CNL and tuple paths documented to differ), the silence goes. Precise: no
+  noise on all-lowercase or genuinely-absent names.
+- **#7 `suppose` bounded attention.** `suppose(…, focus_scope=…)` now threads into its in-scope
+  `chain_sip`/`_facts_matching` exactly as `ask_goal` does, so a hypothesis-driven consumer can bound the
+  OUTCOME path (not just the trace path) to the working set. `None` = whole-graph (behaviour-identical).
 
 New exports: `ingest`/`converse`/`Outcome`/`Event`/`intake`/`focus`/`rule_control`/`is_neg_pred`/
-`anchor_has_content_fact`. `tests/test_feedback_fixes.py` (8). Still open from the report: #2 (skolem/
-RHS-only head vars — needs a design decision), #3 (CNL case-folding), #6 (`suppose(commit=False)`).
+`anchor_has_content_fact`. `tests/test_feedback_fixes.py` (13). Still OPEN: #6 (`suppose(commit=False)` — a
+self-contained feature) and the #2-genuine-minting (option C, behind the `reject_rhs_only_head_vars` hook).
+The one architectural item — pystrider's name-vs-id addressing (`nodes_named(...)[0]` on duplicates) — is
+the plan's NEXT STEP as C (id-addressed goal path, unblocks pystrider) → D (id-core, names at the CNL edge).
 
 ### Phase 8.5b: MID-CHAIN ask — gather the open premises a derivation needs (301 passed)
 Closed a SILENT-WRONG-answer hole: a rule blocked only by an OPEN premise (`safe when cleared`, with

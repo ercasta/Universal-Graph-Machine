@@ -22,9 +22,16 @@
 
 ## Current state
 
-**Suite: 301 passed, 0 failed** (`python -m pytest -q`, ~50s). Production runtime is 100% the ISA engine,
+**Suite: 314 passed, 0 failed** (`python -m pytest -q`, ~50s). Production runtime is 100% the ISA engine,
 and so is every test — no second engine anywhere in the repo. `ask_goal` is demand-driven;
 `rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are all deleted.
+
+**Consumer-feedback hardening DONE 2026-07-12** (`docs/feedback_from_pystrider.md`, `tests/test_feedback_fixes.py`):
+the recurring theme was SILENT failures — six made LOUD or fixed: #1 machine-rule non-triple clause raises;
+#2 skolem/RHS-only head var rejected at load (option A; genuine minting = deferred, see NEXT); #3 CNL
+case-fold false-negative warns; #4 `apply_*` clear error on a `Rule` vs node-id; #5 `load_facts(strict=True)`;
+#7 `suppose(focus_scope=…)`. Session API also promoted to top-level exports (`ingest`/`converse`/…). See the
+NEXT STEP below for the one OPEN architectural item (name-vs-id addressing, C→D).
 
 Phases 0–2, 3.1-step1, 3.3, 4, 5, 6.0/6.1, firmware v3 (demand-driven negation), stance-as-data, and
 perf lever (a) are **DONE** — see `implementation_plan_done.md` and `CHANGELOG.md`. **Do NOT re-do them;
@@ -47,6 +54,55 @@ concern the SLM owns via the exposed `focus.top_centers` (2026-07-12; see §4). 
 (+ §D anti-hardcoding discipline). REMAINING: 8.5b tail (true wall-clock trace interleaving; extend
 mid-chain gather to who/∃/n-ary + lazy asking), 8.6 incremental head-index (perf follow-on) — see Phase 8
 below.
+
+## NEXT STEP — id-addressed goal API (C now → D next) — name-vs-id addressing
+
+> **The immediate next step (ratified with the user 2026-07-12).** From the pystrider offline feedback:
+> the firmware's tuple-goal APIs (`chain_sip`/`check`/`ask_goal`/`suppose`) address entities by NAME and,
+> on a duplicate name, the WRITE/seed side silently takes `nodes_named(...)[0]` — so a consumer with
+> legitimately DISTINCT same-named nodes (created directly, not via CNL) can't hand the firmware a node id
+> and is forced into global name-uniqueness. **This is NOT a nameless-substrate regression:** the MATCHER
+> (`chain._facts_matching`) already uses name as a value-ACCELERATOR (iterates ALL same-named candidate
+> nodes, reasons by topology — "never identity, the label-less discipline holds"). The `[0]`-pick is
+> confined to THREE write/seed points: `chain._node_for_name` (EMIT), `query._materialize_fact`
+> (ask-user gather + top-goal materialize), `suppose._resolve` (pencil assumptions).
+
+**C — id-addressed goal path (do FIRST; additive, low-risk; UNBLOCKS pystrider).** Let the tuple-goal APIs
+accept a node ID at an endpoint (a `_by_id` variant, or an id-or-name endpoint), seeding the demand from
+that specific node and using it directly at the write/seed points instead of `nodes_named(...)[0]`. The
+matcher already walks FROM a node, so seeding from an id is natural. The name-based path is UNTOUCHED (CNL
+consumers unaffected). Also (silent→loud, same theme): the three write points WARN when a name resolves to
+>1 node before taking `[0]`. Deliverable: a consumer can keep readable duplicate names and manage identity
+itself via ids. Ships with tests + a user-guide note.
+
+**D — id-addressed CORE, names resolved at the CNL boundary (the "real" solution; do AFTER C).** Migrate
+the CNL entry points (`ask_goal`/`check`/`suppose`/`choose`) to resolve names→ids at their surface and sit
+on top of the id primitives from C, so the reasoning core becomes purely id/structural — the nameless-core
+purity the vision wants (name-resolution becomes a boundary concern, not a core one). **C is a strict
+prerequisite and contains no wasted work; D = C + this migration + a deprecation of the name-first core
+path.** ⚠Opus.
+
+**Design key — SPLIT what "coreference" currently lumps together (ratified with the user 2026-07-12).** The
+matcher's "iterate-ALL-same-named" is NOT one primitive; it conflates two concerns, and separating them is
+what makes D clean rather than a core crux:
+- **(1) automatic same-NAME linking** (`wire_same_as` on identical surface tokens: "ada" in one sentence =
+  "ada" in another) is a NAMING CONVENTION, structurally the SAME boundary concern as ANAPHORA (§4, which we
+  kicked to the SLM). It RELOCATES to ingest: bind a mention's name to the existing node id at load time (a
+  deterministic policy — no SLM needed, unlike anaphora; a direct-API consumer like pystrider supplies the
+  id itself). Do this and facts land on ONE node, composition is automatic, and the "iterate-all-same-named"
+  dance DISAPPEARS from the core.
+- **(2) asserted / derived identity** (`X same_as Y` declared or reasoned — "the morning star is the evening
+  star") is GENUINE COMPUTATION — an identity FACT reasoning follows — and STAYS in the core. It is NOT
+  anaphora-like (reasoning is not byte-identical: learning `X same_as Y` changes what composes).
+- **Why ugm went additive-`same_as` originally:** identity can be REVEALED LATER (mention "ada", then later
+  assert "ada is the detective") — you can't bind that at ingest, hence the additive link. That wrinkle IS
+  the (1)/(2) line: name-known-at-ingest → bind to id at the boundary; identity-asserted-later → a core
+  `same_as` fact.
+
+So D is: **core id-addressed, knowing only asserted `same_as` (2); same-name binding becomes an ingest-side
+naming policy (1)** — the anaphora principle applied to identity. There is NO "resolve to a coreferent
+node-SET" crux in the core; that requirement was an artifact of NOT doing (1) at ingest. Model routing:
+**C ✓S with tests; D ⚠Opus** (control/identity/coref semantics + the ingest same-name-binding policy).
 
 ## Residuals carried out of done sections (don't lose these)
 

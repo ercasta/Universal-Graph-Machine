@@ -223,9 +223,14 @@ def lower_rhs(rule: Rule, control_preds: frozenset[str] = frozenset(),
     reified `subject -> [rel] -> object` (additive; the monotone fact write).
 
     A RHS endpoint that is NOT LHS-bound is a VALUE INVENTION, reproducing `rewriter.apply_rule`'s
-    per-firing `fresh` dict: a skolem `<cond>?`/`<rule>?` (bound-literal binder) or an RHS-only var
-    mints ONE fresh node per firing (named its literal, or "" for a bare var), SHARED across the RHS
-    clauses that reference it (so a rule fragment's `<rule>` is a single node). A PLAIN LITERAL
+    per-firing `fresh` dict: a skolem `<cond>?`/`<rule>?` (bound-literal binder) mints ONE fresh node per
+    firing, SHARED across the RHS clauses that reference it (so a rule fragment's `<rule>` is a single
+    node). This lowering STILL emits a bare RHS-only VARIABLE (`?x` in the head, absent from the body) as a
+    fresh-per-firing `""` node — but that is NOT usable end-to-end (check-before-derive never suppresses a
+    fresh object, so the rule re-fires and mints garbage; the demand chain collapses the var onto the query
+    goal), so the loaders now REJECT such a rule at authoring (`authoring.reject_rhs_only_head_vars`,
+    feedback #2). Genuine per-match minting would be wired HERE (or via an explicit MINT tool) if it lands.
+    A PLAIN LITERAL
     (`yes`, `have_valuable`, `<yes>`) instead CANONICALIZES to its graph-wide node (`MINT(intern=)`),
     reproducing `rewriter.resolve_so`'s `nodes_named(nm)[0]`: cross-firing sharing is REQUIRED for
     reasoning (not just recognition), because a downstream rule joins two head-derived literals by

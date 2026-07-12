@@ -16,6 +16,8 @@ graph and executed against the KB by NAME, so asking never mutates the KB.
 """
 from __future__ import annotations
 
+import warnings
+
 from .forms import WH, normalize_surface, tokenize
 from ..production_rule import Pat, Rule
 from ..lowering import match_pats as match, run_bank
@@ -276,6 +278,26 @@ def _materialize_fact(graph: Graph, s: str, p: str, o: str) -> None:
         return existing[0] if existing else graph.add_node(name)
     graph.add_relation(node(s), p, node(o))
 
+def _warn_case_folded_mismatch(graph: Graph, q: dict) -> None:
+    """Feedback #3: CNL question parsing lowercases identifiers, so a query about a case-PRESERVED node
+    (e.g. `eB`, created via the tuple API rather than CNL) silently folds to `eb` and returns a FALSE
+    negative. The folding stays (the CNL and tuple paths are documented to differ), but the SILENT
+    mismatch is removed: warn when a folded query identifier matches NO node yet a case-variant node
+    exists — the actionable signal ("use lowercase for CNL, or the case-preserving tuple APIs")."""
+    names = {v for k in ("s", "o") if isinstance((v := q.get(k)), str)}
+    names |= {v for v in (q.get("roles") or {}).values() if isinstance(v, str)}
+    for nm in names:
+        if not nm or nm in EXISTENTIAL_SUBJECTS or nm == WH or graph.nodes_named(nm):
+            continue                                     # wildcard, or an exact node match exists — fine
+        variants = sorted({graph.name(n) for n in graph.nodes() if graph.name(n).lower() == nm})
+        if variants:
+            warnings.warn(
+                f"CNL query folded a name to '{nm}', which matches no node, but case-variant node(s) "
+                f"{variants} exist. CNL questions lowercase identifiers — use lowercase node names for "
+                f"CNL queries, or the case-preserving tuple APIs (check / chain_sip / suppose).",
+                stacklevel=3)
+
+
 def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
              policy=None, open_preds: frozenset[str] | None = None, ask_user=None,
              extra_forms: list[Rule] = (), strata=None, journal: list | None = None,
@@ -330,6 +352,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     q = _parse_question(question, extra_forms, strata=strata)
     if q is None or q.get("qtype") is None:
         return ["(no question form recognized this)"]
+    _warn_case_folded_mismatch(graph, q)             # feedback #3: no silent case-fold false negative
 
     def concept_key(p: str, o: str | None) -> str:
         # Openness is a property of the CONCEPT: for a copula query (`is S C`) it is the object
