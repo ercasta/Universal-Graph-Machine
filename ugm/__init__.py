@@ -61,8 +61,8 @@ from .mode_calls import (
     ASSUME, PREDICT, LABEL, K_SUBJ, K_PRED, K_OBJ,
 )
 from .cnl.forms import (
-    tokenize, load_text, canonicalize, FORM_RULES, relation_forms, declared_relations,
-    expand_universals, wire_same_as, coref_in_context, relation_predicates, propagate_embeddings,
+    tokenize, load_text, FORM_RULES, relation_forms, declared_relations,
+    expand_universals, mark_mentions, relation_predicates, propagate_embeddings,
     nary_forms, declared_verbs, declared_prepositions, nary_question_forms, WH,
     form_keywords, declared_determiners, DEFAULT_DETERMINERS, DEFAULT_ARTICLES,
     declared_pronouns, declared_definites, DEFAULT_PRONOUNS, subject_name, surface_forms, normalize_surface,
@@ -159,8 +159,8 @@ __all__ = [
     "check_results", "choice_results", "suppose_results",
     "CHECK_TOOL", "CHOOSE_TOOL", "SUPPOSE_TOOL", "CHECK_RESULT", "SUPPOSE_RESULT", "STATUS",
     "ASSUME", "PREDICT", "LABEL", "K_SUBJ", "K_PRED", "K_OBJ",
-    "tokenize", "load_text", "canonicalize", "FORM_RULES", "relation_forms", "declared_relations",
-    "expand_universals", "wire_same_as", "coref_in_context", "relation_predicates", "propagate_embeddings",
+    "tokenize", "load_text", "FORM_RULES", "relation_forms", "declared_relations",
+    "expand_universals", "mark_mentions", "relation_predicates", "propagate_embeddings",
     "nary_forms", "declared_verbs", "declared_prepositions", "nary_question_forms", "WH",
     "form_keywords", "declared_determiners", "DEFAULT_DETERMINERS", "DEFAULT_ARTICLES",
     "declared_pronouns", "declared_definites", "DEFAULT_PRONOUNS", "subject_name", "surface_forms",

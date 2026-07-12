@@ -443,7 +443,6 @@ def test_ask_is_a_questions_and_unrecognized():
     g = h.Graph()
     h.load_text(g, "paul is a person\nevery person is a mortal")
     h.run_rules(g, h.FORM_RULES)
-    h.canonicalize(g, h.FORM_RULES + h.UNIVERSAL_RULES)
     laws = h.expand_universals(g)                  # "every person is a mortal" is now a LAW
     j = h.run_rules(g, h.UNIVERSAL_RULES + laws)
     R = h.FORM_RULES + h.UNIVERSAL_RULES + laws
@@ -605,33 +604,6 @@ def test_defeasible_context_default_defeated_by_explicit_placement():
 
 
 # ---------------------------------------------------------------------------
-# Goals + universal rules + canonicalize (coreference)
-# ---------------------------------------------------------------------------
-
-def test_goal_satisfaction_pipeline():
-    g = h.Graph()
-    h.load_text(g, "paul is a person\nevery person is a mortal\ngoal paul is a mortal")
-    h.run_rules(g, h.FORM_RULES)              # surface -> canonical
-    h.canonicalize(g, h.FORM_RULES + h.UNIVERSAL_RULES)  # unify same-named mentions
-    laws = h.expand_universals(g)                  # "every person is a mortal" -> a law
-    h.run_rules(g, h.UNIVERSAL_RULES + laws)  # universal law + goal satisfaction
-
-    assert _has(g, "paul", "is_a", "mortal")        # derived by the universal law
-    assert _has(g, "<goal>", "is", "satisfied")     # goal.satisfied fired
-    assert len(g.nodes_named("person")) == 1        # coreference merged the two mentions
-
-
-def test_canonicalize_protects_relation_nodes():
-    # two "is_a" relations must NOT be merged into one (that would destroy the graph)
-    g = h.Graph()
-    h.load_text(g, "paul is a person\nmary is a person")
-    h.run_rules(g, h.FORM_RULES)
-    h.canonicalize(g, h.FORM_RULES)
-    assert len(g.nodes_named("person")) == 1        # concept merged
-    assert _has(g, "paul", "is_a", "person") and _has(g, "mary", "is_a", "person")
-
-
-# ---------------------------------------------------------------------------
 # Rules as graph nodes (homoiconic rule representation — Prong B / b1)
 # ---------------------------------------------------------------------------
 
@@ -747,7 +719,8 @@ def test_universal_rules_via_graph_match_python():
     g = h.Graph()
     h.load_text(g, "paul is a person\nevery person is a mortal\ngoal paul is a mortal")
     h.run_rules(g, h.FORM_RULES)
-    h.canonicalize(g, h.FORM_RULES + sourced)
+    h.mark_mentions(g, h.FORM_RULES)                              # coref-as-rules: mark entities,
+    h.run_rules(g, h.same_name_coref_rules() + h.SAME_AS_RULES)   # link same-name + propagate
     h.run_rules(g, sourced + h.expand_universals(g))  # graph-sourced rules + the law
     assert _has(g, "paul", "is_a", "mortal")
     assert _has(g, "<goal>", "is", "satisfied")
@@ -941,72 +914,6 @@ def test_constraint_cnl_declarations_parse_and_detect():
     _detect(g)
     assert not h.is_consistent(g)
     assert "ice" in {a for c in h.contradictions(g) for a in c["about"]}
-
-
-# ---- context-scoped, additive coreference (replaces the destructive `canonicalize` merge) ----
-# A bare reference is underspecified ("monday" means monday-of-some-week); same name denotes the
-# same thing only WITHIN a shared context. `coref_in_context` links same-named mentions with an
-# additive `same_as` (never a merge) in the DEFAULT (gap-filled) context, but keeps mentions in
-# DIFFERENT contexts separate — so a name coincidence across contexts is no longer a contradiction.
-
-def test_coref_in_context_links_default_but_separates_by_context():
-    g = h.Graph()
-    g.add_node("monday"); g.add_node("monday")           # no context -> default shared
-    h.coref_in_context(g, h.FORM_RULES)
-    assert _has(g, "monday", "same_as", "monday")        # the gap-fill links them
-
-    g2 = h.Graph()
-    m1, m2 = g2.add_node("monday"), g2.add_node("monday")
-    g2.add_relation(m1, "in", g2.add_node("week1"))
-    g2.add_relation(m2, "in", g2.add_node("week2"))
-    h.coref_in_context(g2, h.FORM_RULES)
-    assert not _has(g2, "monday", "same_as", "monday")   # different weeks -> NOT linked
-
-
-def test_coref_context_defeats_a_false_asymmetry_contradiction():
-    # "monday before tuesday" + "tuesday before monday" is an asymmetry violation ONLY if the two
-    # mondays (and tuesdays) are the same day. In different weeks they are not coreferred, so there
-    # is NO contradiction; with no context (the default gap-fill = one week) there IS one.
-    def build(contextualize):
-        g = h.Graph()
-        g.add_relation(g.add_node("before"), "rel_property", g.add_node("asymmetric"))
-        m1, t1, m2, t2 = (g.add_node("monday"), g.add_node("tuesday"),
-                          g.add_node("monday"), g.add_node("tuesday"))
-        if contextualize:
-            w1, w2 = g.add_node("week1"), g.add_node("week2")
-            for n in (m1, t1): g.add_relation(n, "in", w1)
-            for n in (m2, t2): g.add_relation(n, "in", w2)
-        g.add_relation(m1, "before", t1)                 # monday before tuesday
-        g.add_relation(t2, "before", m2)                 # tuesday before monday
-        h.coref_in_context(g, h.FORM_RULES)
-        h.run_rules(g, h.same_as_rules(["before"]) + h.UNIVERSAL_RULES)
-        h.run_rules(g, h.rules_in_graph(h.expand_relation_properties(g)))
-        return g
-
-    assert h.is_consistent(build(contextualize=True))    # different weeks -> defeated
-    assert not h.is_consistent(build(contextualize=False))  # one week -> real violation
-
-
-# ---- coreference-as-rules (vision §3): additive `same_as`, validated in principle --------
-# The principled alternative to the destructive `canonicalize` merge: link same-named
-# mentions with an ADDITIVE `same_as` relation and PROPAGATE facts across it. Monotone, so it
-# never corrupts (unlike merge), and `same_as` can later be wired SELECTIVELY. NOTE: not yet
-# used in `Session` — propagation re-run per line over a densely-linked graph is too slow
-# under the engine's un-indexed matching (needs vision §11 locality-Rete). Proven here for
-# the simple case so the mechanism is ready when the engine supports it.
-
-def test_same_as_coreference_composes_without_merge():
-    g = h.Graph()
-    soc, p1 = g.add_node("socrates"), g.add_node("person")
-    g.add_relation(soc, "is_a", p1)                      # socrates is_a person (mention 1)
-    p2, mortal = g.add_node("person"), g.add_node("mortal")
-    g.add_relation(p2, "is_a", mortal)                   # person is_a mortal (mention 2)
-    h.wire_same_as(g, h.FORM_RULES)                      # ADDITIVE: p1 same_as p2 (no merge)
-    h.run_rules(g, h.same_as_rules(["is_a"]) + h.UNIVERSAL_RULES)
-    # reasoning composes ACROSS the link, yet the two mentions stay distinct (not merged)
-    assert any(g.predicate(r) == "is_a" and g.name(o) == "mortal"
-               for s in g.nodes_named("socrates") for r, o in g.relations_from(s))
-    assert len(g.nodes_named("person")) == 2
 
 
 # ---------------------------------------------------------------------------

@@ -459,81 +459,17 @@ def _predicate_literals(rules: list[Rule]) -> set[str]:
     return names
 
 
-def canonicalize(graph: Graph, rules: list[Rule]) -> Graph:
-    """Merge content nodes sharing a name into one canonical instance (coreference).
-
-    A TOOL (vision §8): it reads node *names* — which the path-based rule language
-    cannot join on — and rewires same-named content mentions onto one representative
-    so cross-sentence reasoning composes. Protected from merging: relation nodes
-    (literal predicate names in `rules`), the surface scaffolding ('next'/'first'),
-    and keyword nodes ('<...>'). Run it between the form phase and the reasoning
-    phase. (Crude: it assumes same name ⇒ same thing; selective coreference — two
-    genuinely distinct `Paul`s — is future work.)
-    """
-    protect = {"next", "first", "proves", "uses"} | _predicate_literals(rules)
-    groups: dict[str, list[str]] = {}
-    for nid in graph.nodes():
-        nm = graph.name(nid)
-        # Skip empty, keyword (<...>), VARIABLE (?x — a rule's pattern token, never a
-        # coreferable entity), and protected predicate/structural names.
-        if nm == "" or nm.startswith("<") or nm.startswith("?") or nm in protect:
-            continue
-        groups.setdefault(nm, []).append(nid)
-
-    for ids in groups.values():
-        if len(ids) < 2:
-            continue
-        rep = ids[0]
-        for other in ids[1:]:
-            for f in list(graph.into(other)):
-                if f not in (other, rep):
-                    graph.add_edge(f, rep)
-            for t in list(graph.out(other)):
-                if t not in (other, rep):
-                    graph.add_edge(rep, t)
-            graph.remove_node(other)
-    return graph
-
-
-def wire_same_as(graph: Graph, rules: list[Rule]) -> Graph:
-    """Coreference the ADDITIVE way (vision §3): wire `same_as` between same-named mentions
-    instead of MERGING them. A non-destructive sibling of `canonicalize` — it only adds
-    edges, so it can never corrupt relation/marker nodes (the merge's recurring failure),
-    and reasoning composes via `universal.SAME_AS_RULES` (propagation across the link).
-
-    Uses the same content filter as `canonicalize` (skip empty, `<...>`, `?vars`, and
-    protected predicate/structural names), so it links only ENTITY mentions, never the
-    relation predicates. Stars each name group from a representative (symmetry + transitivity
-    rules complete the equivalence). Crude by name for now (same name => same thing); the
-    point is the additive REPRESENTATION, on which SELECTIVE coreference can later be built."""
-    protect = {"next", "first", "proves", "uses"} | _predicate_literals(rules)
-    groups: dict[str, list[str]] = {}
-    for nid in graph.nodes():
-        nm = graph.name(nid)
-        if nm == "" or nm.startswith("<") or nm.startswith("?") or nm in protect:
-            continue
-        groups.setdefault(nm, []).append(nid)
-
-    for ids in groups.values():
-        rep = ids[0]
-        for other in ids[1:]:
-            if not any(graph.has_key(r, "same_as") and other in graph.out(r)
-                       for r in graph.out(rep)):
-                graph.add_relation(rep, "same_as", other)
-    return graph
-
-
 def mark_mentions(graph: Graph, rules: list[Rule]) -> Graph:
     """Tag every surface ENTITY mention with `is_a <mention>` — the universal coreference handle the
     declared same-name coref rule (`universal.same_name_coref_rules`) seeds BOTH variables from
-    (coreference-as-rules Stage 4). This REPLACES the mechanical `wire_same_as` ingest link: instead of
-    the loader DECIDING coreference (same name ⇒ same node), it only marks WHAT COUNTS AS AN ENTITY, and
-    the coreference DECISION becomes a declared value-match rule over the marker — a rule the author can
-    keep, replace, or drop. The handle is position-agnostic (an entity is `is_a <mention>` whether it
-    appeared as a path's subject or object), so untyped entities corefer without a per-domain type.
+    (coreference-as-rules Stage 4). The loader does not DECIDE coreference (same name ⇒ same node); it
+    only marks WHAT COUNTS AS AN ENTITY, and the coreference DECISION becomes a declared value-match rule
+    over the marker — a rule the author can keep, replace, or drop. The handle is position-agnostic (an
+    entity is `is_a <mention>` whether it appeared as a path's subject or object), so untyped entities
+    corefer without a per-domain type.
 
-    Same content filter as `wire_same_as` (skip empty, `<…>`, `?vars`, predicate/structural names), so
-    only real entity mentions are marked — never predicates or scaffolding. Additive + idempotent."""
+    Content filter: skip empty, `<…>`, `?vars`, predicate/structural names, so only real entity mentions
+    are marked — never predicates or scaffolding. Additive + idempotent."""
     protect = {"next", "first", "proves", "uses"} | _predicate_literals(rules)
     marker: str | None = None
     for nid in list(graph.nodes()):
@@ -548,56 +484,15 @@ def mark_mentions(graph: Graph, rules: list[Rule]) -> Graph:
     return graph
 
 
-def _contexts_of(graph: Graph, node: str, context_rel: str) -> frozenset[str]:
-    """The set of context names a mention is explicitly placed in (via `context_rel`).
-    Empty = unspecified = the default (gap-filled) context."""
-    return frozenset(graph.name(o) for r, o in graph.relations_from(node)
-                     if graph.has_key(r, context_rel))
-
-
-def coref_in_context(graph: Graph, rules: list[Rule], *, context_rel: str = "in") -> Graph:
-    """Context-scoped, ADDITIVE coreference — the principled replacement for `canonicalize`.
-
-    Two same-named mentions are the SAME thing only if they share a CONTEXT (vision §3; the
-    user's "monday before tuesday" really means "monday of week W₁..." — a bare reference
-    carries an implicit context our brain gap-fills). So we partition each name's mentions by
-    their explicit `context_rel` placement and link (`same_as`, never MERGE — additive and
-    reversible) only WITHIN a partition. Mentions with no explicit context share the DEFAULT
-    partition, so by default same-named mentions still corefer (the defeasible gap-fill that
-    keeps the demos working); placing two mentions in DIFFERENT contexts (e.g. different weeks)
-    defeats that default and keeps them separate — no false contradiction.
-
-    Same content filter and protect-set as `canonicalize`/`wire_same_as` (skip empty, `<...>`,
-    `?vars`, predicate/structural names) PLUS `same_as` itself — the prior lines' coreference
-    leaves `same_as` relation NODES in the graph, and coreferencing those (linking `same_as` to
-    `same_as`) makes the propagation blow up. Reasoning composes across the links via
-    `universal.same_as_rules` (run in the reasoning phase)."""
-    protect = {"next", "first", "proves", "uses", "same_as"} | _predicate_literals(rules)
-    groups: dict[tuple[str, frozenset[str]], list[str]] = {}
-    for nid in graph.nodes():
-        nm = graph.name(nid)
-        if nm == "" or nm.startswith("<") or nm.startswith("?") or nm in protect:
-            continue
-        groups.setdefault((nm, _contexts_of(graph, nid, context_rel)), []).append(nid)
-
-    for ids in groups.values():
-        rep = ids[0]
-        for other in ids[1:]:
-            if not any(graph.has_key(r, "same_as") and other in graph.out(r)
-                       for r in graph.out(rep)):
-                graph.add_relation(rep, "same_as", other)
-    return graph
-
-
 def propagate_embeddings(graph: Graph) -> Graph:
     """Union graded (embedding) attrs across each `same_as` equivalence class — the GRADED-layer
     counterpart of `universal.same_as_rules` for additive coreference. Embeddings are node ATTRS the
     path-based rule language cannot join on, so this is a §8 TOOL (same category as `graded_rules`'s
-    write / `wire_same_as`), run in the reasoning phase after the degree writes.
+    write), run in the reasoning phase after the degree writes.
 
-    After `wire_same_as`, a degree written by a graded rule lands on the ONE surface mention it fired
-    for (`alice is very urgent`); without this, a sibling mention (`alice is a customer`) carries no
-    degree — the merge used to give that for free. This spreads each class's degrees to every linked
+    A degree written by a graded rule lands on the ONE surface mention it fired for (`alice is very
+    urgent`); without this, a sibling mention (`alice is a customer`) carries no degree. This spreads
+    each class's degrees to every linked
     mention (crude union: on a dim clash, later wins), so any mention of the entity reads its degrees.
     Additive (only writes attrs, never deletes edges), so §5-safe."""
     parent: dict[str, str] = {}

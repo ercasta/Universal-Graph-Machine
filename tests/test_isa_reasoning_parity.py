@@ -139,14 +139,16 @@ def test_graded_pass_writes_the_expected_embedding_end_to_end():
         return {g.name(n): g.get_embedding(n) for n in g.nodes() if g.get_embedding(n)}
     text = "urgent is gradable\nalice is very urgent"
     from ugm.cnl.authoring import (
-        _recognize, FORM_RULES, FACT_FORMS, wire_same_as, _coref_propagation, graded_rules,
+        _recognize, FORM_RULES, FACT_FORMS, _coref_propagation, graded_rules,
         propagate_embeddings,
     )
+    from ugm.cnl.forms import mark_mentions
+    from ugm.cnl.universal import same_name_coref_rules
     g = h.Graph()
     rules = FORM_RULES + FACT_FORMS
     _recognize(g, text.splitlines(), rules)
-    wire_same_as(g, rules)
-    run_bank(g, _coref_propagation(g))
+    mark_mentions(g, rules)
+    run_bank(g, same_name_coref_rules() + _coref_propagation(g))
     run_bank(g, graded_rules(g))
     propagate_embeddings(g)
     assert emb(g).get("alice") == {"urgent": 0.8}

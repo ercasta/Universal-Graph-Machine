@@ -32,7 +32,7 @@ import zlib
 from .forms import (
     FORM_RULES, _predicate_literals, declared_auxiliaries, declared_prepositions,
     declared_relations, declared_rule_variables, declared_univ_nouns, load_text, normalize_lexical,
-    propagate_embeddings, relation_predicates, rule_var_name, tokenize, wire_same_as, mark_mentions,
+    propagate_embeddings, relation_predicates, rule_var_name, tokenize, mark_mentions,
 )
 from .universal import same_as_rules, same_name_coref_rules
 from ..vocabulary import SUBSTRATE_COREF_PREDS, CLOSES, CWA
