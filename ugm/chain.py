@@ -20,7 +20,7 @@ from .attrgraph import AttrGraph
 from .attrgraph import valued, GRADED
 from .apply import (
     _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
-    apply_rule, build_head_index, rules_producing, SCOPE,
+    _rel_in_scope, apply_rule, build_head_index, rules_producing, SCOPE,
 )
 from .production_rule import is_var, literal_name
 
@@ -221,18 +221,62 @@ def _unify_head_with_demand(demand: tuple[str, str | None, str | None],
     return env
 
 
+def _rel_matches_pred(g: AttrGraph, rel: str, pred: str, scope: str | None) -> bool:
+    """The per-rel half of `_fact_relnodes`, applied to a rel reached by TOPOLOGY (from a bound
+    endpoint) rather than by the predicate index: `rel` is a VISIBLE fact relation for `pred` iff it
+    carries the `pred` key, is not inert, and is not control — UNLESS it is the active SUPPOSE scope's
+    pencil. Keeps the endpoint-driven paths behaviour-identical to the whole-predicate scan."""
+    if not g.has_key(rel, pred) or g.is_inert(rel):
+        return False
+    if g.is_control(rel):
+        return scope is not None and _rel_in_scope(g, rel, scope)
+    return True
+
+
 def _facts_matching(fact_g: AttrGraph, pred: str,
                     subj_name: str | None, obj_name: str | None,
                     *, scope: str | None = None) -> list[tuple[str, str]]:
     """The `(subj_name, obj_name)` of every FACT `pred` whose bound endpoints match the demand (a
     None endpoint is a wildcard). The bound-tuple analog of APPLY's whole-predicate scan — SIP
-    prunes to the demanded subject/object. Within a SUPPOSE `scope`, this scope's pencil is visible too."""
+    prunes to the demanded subject/object. Within a SUPPOSE `scope`, this scope's pencil is visible too.
+
+    ENDPOINT-DRIVEN (Phase-7-adjacent perf, the demand-driven-negation weak spot): when an endpoint is
+    BOUND, reach the matching facts THROUGH that endpoint's node — the bound name resolves to candidate
+    nodes via the `name` value-accelerator (a candidate SET to test, never identity — the label-less
+    discipline holds), then local topology gives the (pred,subj)/(pred,obj) facts directly. SIP makes a
+    bound endpoint almost always available, so the whole-predicate scan (which recomputed every `pred`
+    fact's endpoint names to discard all but one subject) is the fallback ONLY for a fully-unbound demand.
+    Behaviour-identical to the old scan; it just stops touching off-goal tuples."""
     out: list[tuple[str, str]] = []
-    for rel in _fact_relnodes(fact_g, pred, scope=scope):
+    if subj_name is not None:                              # (pred, subj, ?) — walk OUT of the subject
+        for s in fact_g.nodes_named(subj_name):
+            if fact_g.is_control(s) or fact_g.is_inert(s):
+                continue
+            for rel in fact_g.succ(s):
+                if not _rel_matches_pred(fact_g, rel, pred, scope):
+                    continue
+                for o in fact_g.succ(rel):
+                    if fact_g.is_control(o) or fact_g.is_inert(o):
+                        continue
+                    on = fact_g.name(o)
+                    if obj_name is None or on == obj_name:
+                        out.append((subj_name, on))
+        return out
+    if obj_name is not None:                               # (pred, ?, obj) — walk INTO the object
+        for o in fact_g.nodes_named(obj_name):
+            if fact_g.is_control(o) or fact_g.is_inert(o):
+                continue
+            for rel in fact_g.pred(o):
+                if not _rel_matches_pred(fact_g, rel, pred, scope):
+                    continue
+                for s in fact_g.pred(rel):
+                    if fact_g.is_control(s) or fact_g.is_inert(s):
+                        continue
+                    out.append((fact_g.name(s), obj_name))
+        return out
+    for rel in _fact_relnodes(fact_g, pred, scope=scope):  # (pred, ?, ?) — the whole-predicate scan
         for s, o in _endpoints(fact_g, rel):
-            sn, on = fact_g.name(s), fact_g.name(o)
-            if (subj_name is None or sn == subj_name) and (obj_name is None or on == obj_name):
-                out.append((sn, on))
+            out.append((fact_g.name(s), fact_g.name(o)))
     return out
 
 

@@ -27,8 +27,11 @@ POSITIVE or ASSUMED_NO). Bounded by `chain_sip`'s fuel/round budget.
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
 from .attrgraph import AttrGraph
 from .chain import chain_sip, _facts_matching, render_demands, _Exhaustion
+from .policy import FirmwarePolicy, DEFAULT_POLICY
 
 # The four CHECK statuses (decision-cwa-default's 4-status model).
 POSITIVE = "positive"          # derivable -> yes
@@ -57,18 +60,26 @@ def _concept_key(pred: str, obj: str | None) -> str:
 
 def check(fact_g: AttrGraph, rule_g: AttrGraph,
           goal: tuple[str, str | None, str | None], *,
-          open_preds: frozenset[str] = frozenset(), provenance: bool = False,
-          max_rounds: int = 1000) -> str:
+          policy: FirmwarePolicy = DEFAULT_POLICY, open_preds: frozenset[str] | None = None,
+          provenance: bool = False, max_rounds: int = 1000) -> str:
     """CHECK `goal` and return one of POSITIVE / ENTAILED_NEG / ASSUMED_NO / UNKNOWN. Runs CHAIN for
-    the positive (bounded); if absent, runs CHAIN for the negative; if that too is absent, the CWA
-    default (`assumed-no`) holds unless the concept is declared OPEN (`unknown`). Only the derivable
-    facts are materialized (monotone, §5-safe); the assumed-no is a computed verdict, not a write.
+    the positive (bounded); if absent, runs CHAIN for the negative; if that too is absent, the
+    `policy`'s negation default holds — ASSUMED_NO (closed-world) unless the concept is OPEN under the
+    policy (`unknown`). Only the derivable facts are materialized (monotone, §5-safe); the assumed-no
+    is a computed verdict, not a write.
+
+    STANCE AS DATA (`policy.py`): the closed-vs-open reading of absence is the firmware's OPINION, not
+    the engine's — carried on `policy` (`FirmwarePolicy`), swappable for an alternative firmware.
+    `open_preds=` is kept as a convenience: it folds into the default closed-world policy as the OWA
+    exception set (so every existing caller behaves identically).
 
     FUEL → UNKNOWN (firmware v3): the closures are bounded by `max_rounds`. If the POSITIVE closure did
     not reach fixpoint within budget (or a NAC's nested negative demand didn't — the `_Exhaustion` flag
     bubbles up), absence is NOT trustworthy, so the honest verdict is UNKNOWN ("I did not finish
     looking"), NOT a decided no. This is the distinction the forward exhaustive model cannot make; it
     is why demand-driven NAF is the agent-not-theorem-prover model, not merely an optimization."""
+    if open_preds is not None:
+        policy = replace(policy, open_preds=frozenset(open_preds))
     pred, subj, obj = goal
     fuel = _Exhaustion()
     chain_sip(fact_g, rule_g, goal, provenance=provenance,          # demand-driven positive
@@ -84,7 +95,7 @@ def check(fact_g: AttrGraph, rule_g: AttrGraph,
         return ENTAILED_NEG
     if fuel.exhausted:
         return UNKNOWN
-    return UNKNOWN if _concept_key(pred, obj) in open_preds else ASSUMED_NO
+    return UNKNOWN if policy.is_open(_concept_key(pred, obj)) else ASSUMED_NO
 
 
 def collapse(status: str) -> str:

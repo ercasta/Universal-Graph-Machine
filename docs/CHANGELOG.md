@@ -12,6 +12,50 @@ this log is itself a historical record.
 
 ---
 
+## 2026-07-12
+
+### Firmware STANCE as declared data + pluggable tools + the three engine docs (283 passed, 1 skipped)
+The firmware's OPINIONATED stances are now SELECTABLE DATA, not forked Python — the substrate + engine
+stay generic, a different firmware activates by swapping a policy object (user-directed). What landed:
+
+- **`ugm/policy.py` — `FirmwarePolicy`.** Two stances as one immutable declared object: `negation_default`
+  (`"closed"` CWA — the shipped default, `open_preds` are OWA exceptions / `"open"` OWA, `closed_preds`
+  are CWA exceptions; `is_open(concept)` reads it) and `on_cycle` (`"raise"` reject a non-stratifiable
+  bank at load / `"degrade"` defer to `run_rules`, which drops the NAF rules). `DEFAULT_POLICY` == today's
+  behaviour, so passing nothing is behaviour-neutral. Wired through `check` / `query.ask_goal` /
+  `mode_calls` (negation stance) and `load_rules` / `load_corpus` (on_cycle). The legacy `open_preds=`
+  kwarg still works (folds into a closed-world policy). `tests/test_isa_policy.py` (9 tests: the OWA flip,
+  per-concept exceptions, on_cycle raise-vs-degrade, `merge_tools` collision).
+- **`dispatch.merge_tools(*registries)`** — collision-safe tool-registry composition (raises on a name
+  clash) so a consumer (harneskills) layers its own tools onto the firmware's without silent shadowing.
+  The tool mechanism itself was already pluggable (`dict[str, Tool]` → `run_bank`/`service_calls`); this
+  is the ergonomics + the documented contract, NOT a redesign (the §8 discipline was already correct).
+- **Three engine docs.** `docs/architecture.md` (the as-built generic→opinionated layering: substrate →
+  engine/ISA → tools → reified rules → firmware → stance → CNL; the generic/opinionated seam; module
+  map — this is Phase 6.2's architecture half), `docs/engine_developer_guide.md` (the extension points:
+  a bank, a tool, the stance, a whole firmware, a new ISA instruction — each with a worked example + the
+  discipline), `docs/engine_user_guide.md` (consuming UGM: load, ask, stance, ask_user, tools, forward
+  snapshot). README reread + de-staled (removed dead `decide.py`/`rewriter.py`/`is_not`-completion
+  references, fixed the `ask`/`check` signatures and the "No embeddings" contradiction, added an
+  Architecture section + layer diagram + doc links). All doc examples smoke-tested.
+
+### Demand-driven-negation perf — ENDPOINT-DRIVEN `_facts_matching` (274 passed, 1 skipped, 0 failed)
+Plan item 0' (the honest weak spot named after firmware v3), lever (a). The bound-tuple fact reader
+`chain._facts_matching` no longer scans every fact for the predicate: when a demand carries a bound
+endpoint (which SIP makes almost always true), it reaches the matching facts THROUGH that endpoint's
+node — the bound name resolves to candidate nodes via the `name` value-accelerator (`nodes_named`, a
+candidate SET to test, never identity, so the label-less discipline holds), then local `succ`/`pred`
+topology over the 2-hop reification gives the `(pred,subj)`/`(pred,obj)` facts directly. A new
+`_rel_matches_pred` helper carries the per-rel visibility half of `_fact_relnodes` (keyed, non-inert,
+control only as the active SUPPOSE-scope pencil), so the endpoint-driven paths are BEHAVIOUR-IDENTICAL
+to the old whole-predicate scan; that scan stays only as the fallback for a fully-unbound demand.
+No new index structure — the existing `name` index + topology. Result (identical answers, gated by the
+whole suite + the NAF differential): under cProfile at 12 suspects/6 aliases (wildcard `who is thief`)
+6.18s→0.565s, call count 9.9M→0.98M; the full suite ~90s→~54s; the old top-of-profile `_endpoints`/`name`
+linear scans are gone. As-built: `docs/demand_driven_negation_design.md` AS-BUILT §6. The other item-0'
+levers (semi-naive worklist; coref demand fan-out) are un-started — at session scale the query is now
+sub-second, so they stay Phase 7.
+
 ## 2026-07-11
 
 ### Firmware v3 — DEMAND-DRIVEN NEGATION; forward `decide.solve` DELETED (274 passed, 1 skipped, 0 failed)

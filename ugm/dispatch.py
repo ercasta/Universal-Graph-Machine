@@ -40,6 +40,21 @@ TOOL = "tool"
 Tool = Callable[[Graph, str], "set[str]"]
 
 
+def merge_tools(*registries: dict[str, Tool]) -> dict[str, Tool]:
+    """Compose several tool registries into one, RAISING on a name collision. The extension point for
+    a consumer (e.g. harneskills) that layers its own tools onto the firmware's: instead of the silent
+    `{**a, **b}` dict merge — where a later registry shadows an earlier tool of the same name — this
+    fails loudly, so two subsystems can never quietly claim the same `<call> --tool--> NAME`. Order-
+    independent (collision is symmetric). See the engine developer guide, 'Extension point: a tool'."""
+    out: dict[str, Tool] = {}
+    for reg in registries:
+        for name, tool in reg.items():
+            if name in out:
+                raise ValueError(f"tool name collision: {name!r} is registered by two registries")
+            out[name] = tool
+    return out
+
+
 def _ensure(graph: Graph, name: str) -> str:
     found = graph.nodes_named(name)
     return found[0] if found else graph.add_node(name)

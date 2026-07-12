@@ -1,8 +1,10 @@
 # Demand-driven negation — design (Phase 6.2 / firmware v3)
 
-> **Status: BUILT (2026-07-11).** All six migration steps landed; `ask_goal` is demand-driven; the
-> forward `decide.solve` apparatus is deleted. See the AS-BUILT section at the end for the deviations
-> the implementation forced (they matter). The prose below is the original proposal, kept as rationale.
+> **Status: BUILT (2026-07-11); perf follow-on landed 2026-07-12.** All six migration steps landed;
+> `ask_goal` is demand-driven; the forward `decide.solve` apparatus is deleted. The 2026-07-12
+> endpoint-driven `_facts_matching` perf fix (plan item 0', lever (a)) is AS-BUILT §6. See the AS-BUILT
+> section at the end for the deviations the implementation forced (they matter) — §§1–5 are firmware v3
+> itself, §6 is the perf follow-on. The prose below is the original proposal, kept as rationale.
 
 > **Status: PROPOSAL (2026-07-11) — written to be EXECUTED by a fresh session.** Motivation ratified by
 > the user: **we are building a bounded reasoning AGENT, not a theorem prover.** A human decides a
@@ -180,3 +182,20 @@ deviations/additions that the design under-specified and that a future reader mu
    `(given)`. Workaround in use: ask `why` on a fresh `load_corpus` (the demand then re-derives WITH
    provenance). A robust fix (always-provenance, or re-derive-on-fresh-copy for `why`) is deferred —
    it trades perf for order-independence.
+
+6. **ENDPOINT-DRIVEN `_facts_matching` (2026-07-12 perf follow-on — plan item 0', lever (a)).** The
+   original `_facts_matching(pred, subj, obj)` scanned EVERY `pred` fact and recomputed each one's
+   endpoint names to discard all but the one bound subject/object — a linear per-predicate scan on the
+   hottest inner loop, and the top of the profile (`_endpoints`/`name` at ~850k/911k calls for a
+   12-suspect wildcard `who is thief`). Because SIP means a demand almost always carries a bound
+   endpoint, the fix reaches the matching facts THROUGH that endpoint's node: the bound name resolves to
+   candidate nodes via the `name` value-accelerator (`nodes_named`, a candidate SET to test — never
+   identity, so the label-less discipline of `attrgraph.py` holds), then local topology
+   (`succ`/`pred` over the 2-hop reification) yields the `(pred,subj)` / `(pred,obj)` facts directly. A
+   `_rel_matches_pred` helper carries the per-rel visibility half of `_fact_relnodes` (keyed, non-inert,
+   control only as the active SUPPOSE-scope pencil) so the endpoint-driven paths are behaviour-identical
+   to the scan; the whole-predicate scan remains the fallback ONLY for a fully-unbound demand. Result
+   (identical answers, verified on the suite + the differential): under cProfile at 12 suspects/6
+   aliases 6.18s→0.565s (call count 9.9M→0.98M); the full suite ~90s→~54s. The remaining levers named in
+   item 0' — semi-naive worklist (re-service a demand only when a relevant fact appeared) and the coref
+   demand fan-out — are un-started; at session scale the query is now sub-second, so they stay Phase 7.

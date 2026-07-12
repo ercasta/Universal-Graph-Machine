@@ -31,6 +31,7 @@ from __future__ import annotations
 from .dispatch import call_arg, call_args, service_calls, Tool
 from .attrgraph import AttrGraph, valued
 from .check import check, COPULA
+from .policy import FirmwarePolicy, DEFAULT_POLICY
 from .choose import choose, winners_of, SATISFIED_BY
 from .suppose import suppose, CONFIRMED, REFUTED, INCONCLUSIVE
 
@@ -87,8 +88,8 @@ def _control_rel(g: AttrGraph, subj: str, pred: str, obj: str) -> str:
     return rid
 
 
-def check_tool(rule_g: AttrGraph, *, open_preds: frozenset[str] = frozenset(),
-               provenance: bool = False) -> Tool:
+def check_tool(rule_g: AttrGraph, *, policy: FirmwarePolicy = DEFAULT_POLICY,
+               open_preds: frozenset[str] | None = None, provenance: bool = False) -> Tool:
     """A `<call>`-serviceable CHECK calculator over the fixed rule bank `rule_g`. Reads the goal
     (`pred`/`subj`/`obj` slots) from the call, runs the firmware `check`, and EMITS a `<check>`
     verdict node carrying the goal + status. Returns the emitted node id so the engine re-seeds."""
@@ -102,7 +103,8 @@ def check_tool(rule_g: AttrGraph, *, open_preds: frozenset[str] = frozenset(),
         pred = _slot_name(g, call_id, PRED) or COPULA
         obj = _slot_name(g, call_id, OBJ)
         subj = g.name(subj_id) if subj_id is not None else None
-        status = check(g, rule_g, (pred, subj, obj), open_preds=open_preds, provenance=provenance)
+        status = check(g, rule_g, (pred, subj, obj), policy=policy,
+                       open_preds=open_preds, provenance=provenance)
         res = g.add_node(CHECK_RESULT)                     # reserved `<…>` -> a CONTROL token
         g.set_attr(res, PRED, valued(pred))                # VALUED view (the Python reader)
         if subj is not None:
@@ -178,7 +180,8 @@ def suppose_tool(rule_g: AttrGraph, *, provenance: bool = False) -> Tool:
     return handler
 
 
-def mode_registry(rule_g: AttrGraph, *, open_preds: frozenset[str] = frozenset(),
+def mode_registry(rule_g: AttrGraph, *, policy: FirmwarePolicy = DEFAULT_POLICY,
+                  open_preds: frozenset[str] | None = None,
                   provenance: bool = False) -> dict[str, Tool]:
     """The firmware-mode tool registry for `dispatch.service_calls` — the modes a control-token program
     may invoke, over the fixed rule bank `rule_g`. CHECK (goal→verdict) + CHOOSE (goal→winner) + SUPPOSE
@@ -186,7 +189,7 @@ def mode_registry(rule_g: AttrGraph, *, open_preds: frozenset[str] = frozenset()
     carries N `assume`/`predict` reified triples (slice 3c) rather than fixed slots. The dispatcher
     routes a `<call>` to the named mode and consumes it (content-blind)."""
     return {
-        CHECK_TOOL: check_tool(rule_g, open_preds=open_preds, provenance=provenance),
+        CHECK_TOOL: check_tool(rule_g, policy=policy, open_preds=open_preds, provenance=provenance),
         CHOOSE_TOOL: choose_tool(),
         SUPPOSE_TOOL: suppose_tool(rule_g, provenance=provenance),
     }
@@ -237,7 +240,9 @@ def suppose_results(g: AttrGraph) -> list[dict[str, str]]:
 
 
 def service_modes(fact_g: AttrGraph, rule_g: AttrGraph, *,
-                  open_preds: frozenset[str] = frozenset(), provenance: bool = False) -> set[str]:
+                  policy: FirmwarePolicy = DEFAULT_POLICY,
+                  open_preds: frozenset[str] | None = None, provenance: bool = False) -> set[str]:
     """Service every pending mode `<call>` in `fact_g` over `rule_g` (convenience wrapper around
     `dispatch.service_calls` with the mode registry). Returns the touched node ids."""
-    return service_calls(fact_g, mode_registry(rule_g, open_preds=open_preds, provenance=provenance))
+    return service_calls(fact_g, mode_registry(rule_g, policy=policy,
+                                               open_preds=open_preds, provenance=provenance))

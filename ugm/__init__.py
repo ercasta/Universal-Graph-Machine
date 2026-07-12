@@ -51,8 +51,9 @@ from .retraction import (
 from .demand import DEMAND, seed_demand, DEMAND_TRANSITIVITY, DEMAND_COREF
 from .dispatch import (
     CALL, TOOL, Tool, emit_call, call_tool, call_arg, call_args, pending_calls, consume_call,
-    service_calls,
+    service_calls, merge_tools,
 )
+from .policy import FirmwarePolicy, DEFAULT_POLICY
 from .coref_walk import resolve_coref, coref_request_handler
 from .mode_calls import (
     check_tool, choose_tool, suppose_tool, mode_registry, service_modes,
@@ -155,7 +156,8 @@ __all__ = [
     "CLOSES", "REL_PROPERTY", "TRANSITIVE", "EVERY_IS_A", "IS_UNIQUE", "TARGET", "TYPE",
     "SUBSTRATE_COREF_PREDS", "neg_pred",
     "CALL", "TOOL", "Tool", "emit_call", "call_tool", "call_arg", "call_args", "pending_calls",
-    "consume_call", "service_calls",
+    "consume_call", "service_calls", "merge_tools",
+    "FirmwarePolicy", "DEFAULT_POLICY",
     "resolve_coref", "coref_request_handler",
     "check_tool", "choose_tool", "suppose_tool", "mode_registry", "service_modes",
     "check_results", "choice_results", "suppose_results",

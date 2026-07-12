@@ -2,11 +2,16 @@
 
 **A substrate for performing computation over graphs.**
 
-UGM is a self-contained Python library that provides a label-less attribute graph
-substrate, a declarative instruction set architecture (ISA) for graph computation,
-and an optional Controlled Natural Language (CNL) surface for authoring and rendering.
-No external reasoning engines. No embeddings. No LLMs. Pure symbolic graph
-computation.
+UGM is a self-contained Python library: a label-less attribute graph substrate, a
+declarative instruction set architecture (ISA) for graph computation, a demand-driven
+reasoning **firmware** on top, and an optional Controlled Natural Language (CNL) surface
+for authoring and rendering. The core is pure symbolic graph computation — no neural nets,
+no LLMs, no mandatory external solvers (the graded layer is *sparse named* attributes in
+`[0,1]`, not dense/neural embeddings; an optional clingo calculator is available for model
+enumeration).
+
+New here? Read **`docs/architecture.md`** for the layering, then the **`docs/engine_user_guide.md`**
+(build on UGM) or **`docs/engine_developer_guide.md`** (extend/fork it).
 
 ---
 
@@ -54,6 +59,31 @@ semantics-invisible *accelerator*, never a semantics of its own (`processing_mod
 
 ---
 
+## Architecture — the layers
+
+UGM is built in layers, from the most **generic** (knows no domain, takes no position) to the
+most **opinionated** (a reasoning stance). The bottom layers are reusable by any firmware; the
+opinions live at the top, as data — so you can swap the reasoning firmware without forking the
+engine.
+
+```
+  CNL surface     forms · load_corpus · ask_goal · render
+  ─────────────────────────────────────────────────────────────────────────
+  STANCE          FirmwarePolicy (CWA/OWA default, on_cycle)     ← opinion, as DATA
+  FIRMWARE        CHAIN · CHECK · CHOOSE · SUPPOSE · mode-calls   ← the reasoning "psychology"
+  reified rules   write_rule · head index                        ← homoiconic: rules are graph too
+  TOOLS (§8)      <call> nodes · Tool registry · service_calls    ← generic calculator boundary
+  ENGINE (ISA)    Machine (opcodes) · run_bank · run_rules        ← the stupid scheduler
+  SUBSTRATE       AttrGraph (label-less attribute graph)          ← one kind of thing: a node
+```
+
+Everything below the STANCE line is generic and reused unchanged by any firmware; a different
+reasoning firmware is a bank-and-policy swap, not an engine fork. Full detail —
+**`docs/architecture.md`**. The opcode set and processing modes below are the ENGINE and
+FIRMWARE rows expanded.
+
+---
+
 ## The ISA — the opcode set
 
 Every rule and mode compiles down to a small, closed instruction set: a WAM-style register
@@ -90,10 +120,13 @@ state into many. There's a full worked example after the opcode table.
 | **INTERPOSE** | effect | reversibly hide an edge by splicing in a control marker (the sole fact-edge mutation) |
 | **RESTORE** | effect | the exact inverse of INTERPOSE |
 
-There is no NAC/`CHECK-ABSENT` opcode — the matching core is purely positive; negation is
-materialized as a positive `is_not` attribute and matched like any other (`ugm/decide.py`).
-There is also no opcode that deletes or lowers a fact: the invariant is a property of the
-opcode set itself, not a lint pass.
+There is no NAC/`CHECK-ABSENT` opcode — the matching core is purely positive. Negation is
+not an ISA primitive but a FIRMWARE decision: in the forward driver a rule's NAC is a
+match-time filter, and in the demand-driven firmware a `not L` clause is resolved on demand by
+stratified **negation-as-failure** — `chain_sip` demands the positive to closure and reads
+absence, never an exhaustive-search opcode (`docs/demand_driven_negation_design.md`). Nothing
+is materialized or retracted for a negation. There is also no opcode that deletes or lowers a
+fact: the invariant is a property of the opcode set itself, not a lint pass.
 
 ## Processing modes — nine KB-level operations built on the ISA
 
@@ -117,16 +150,19 @@ Every computation the system performs is one of these, or a KB-authored composit
 them (a *procedure*). There are no other moving parts.
 
 **SATURATE / CHAIN** are the forward and backward engines respectively. Rules are
-reified as graph structure (a `<rule>` node with `rl_lhs`, `rl_rhs` relations). APPLY
-walks the rule body, emitting derivations into the graph. CHAIN is demand-driven
-(magic-sets), so it never over-derives.
+reified as graph structure (a `<rule>` node with `rl_lhs`, `rl_rhs` relations). SATURATE
+walks the rule body forward, emitting derivations into the graph; CHAIN pulls the same
+reified rules backward from a demand (magic-sets), so it never over-derives.
 
 **CHECK** answers a yes/no/unknown question with four statuses: `POSITIVE` (proved),
 `ENTAILED_NEG` (negation proved), `ASSUMED_NO` (CWA: no evidence), `UNKNOWN` (open
-world). **CWA is the default**: an underivable goal is a defeasible `no`. **OWA is
-opt-in per predicate** (`open_preds`) — for concepts where absence should not be taken
-as false ("no sighting" ≠ "no mice"), so the verdict stays `UNKNOWN` and defers to
-evidence-gathering instead.
+world). This closed-vs-open reading of absence is the firmware **stance**, carried as
+declared data on a `FirmwarePolicy` (`ugm/policy.py`), not baked into the engine.
+**CWA is the shipped default**: an underivable goal is a defeasible `no`. **OWA is opt-in**
+— per predicate (`FirmwarePolicy(open_preds=…)`) or as the default (`negation_default="open"`)
+— for concepts where absence should not be taken as false ("no sighting" ≠ "no mice"), so the
+verdict stays `UNKNOWN` and defers to evidence-gathering. A different firmware activates a
+different stance by swapping the policy object.
 
 **CHOOSE** selects the best option from a candidate set using graded α-cut: an option
 wins if it satisfies the goal at a level no other option does. Ties are retained.
@@ -159,9 +195,11 @@ Key CNL concepts:
 - **Rules**: `HEAD when BODY` with `and`, `not`, graded conditions (`is very urgent`)
 - **Universals**: `if BODY then HEAD` and `ADJ things are PRED` laws
 - **Gradable dimensions**: declared with `X is gradable`; used in rules as `?x is very X`
-- **Closed-world declarations**: `P is closed world` opts a predicate into aggressive
-  `is_not` completion (`ugm/decide.py`) — distinct from CHECK's query-time CWA-default/OWA-opt-in
-  split, which is a Python-level `open_preds` set (no CNL surface form yet)
+- **Closed/open world**: CWA is the query-time default (an underivable goal is a defeasible
+  `no`); a concept is opted into OWA through the firmware **stance**
+  (`FirmwarePolicy(open_preds=…)` / `negation_default`), so absence stays `UNKNOWN` and defers
+  to evidence. Negation itself is demand-driven negation-as-failure — nothing is completed or
+  retracted (`docs/demand_driven_negation_design.md`)
 
 ### Lowering: CNL rule → ISA program
 
@@ -225,7 +263,7 @@ writes.
 UGM targets a deliberately small, well-understood logic fragment:
 
 - **Definite Horn rules** with conjunctive bodies (Datalog; least-fixpoint semantics)
-- **Stratified negation-as-completion** with CWA-default bounded enumeration
+- **Stratified negation** decided on demand (negation-as-failure) with a CWA-default stance
 - **Defeasible rules with priorities** — defaults, exceptions, overrides (no contraposition)
 - **Deontic statuses** as reified ranked predicates (`forbidden` … `obligatory`)
 - **Declared congruence** (`same_as`) propagated over KB-declared predicates only
@@ -238,46 +276,27 @@ Formal anchors are kept for correctness; general theorem proving is not the goal
 
 ## Usage
 
+Load a knowledge base and ask it questions — answering is demand-driven (it derives only
+what the goal needs), so there is no forward `run_rules` pass required first:
+
 ```python
 import ugm as h
 
-g = h.Graph()
-h.load_facts(g, """
+kb, rules = h.load_corpus("""
 alice wants vanilla
 vanilla is in_stock
-""")
-h.load_rules(g, """
 alice gets vanilla when alice wants vanilla and vanilla is in_stock
 """)
-h.run_rules(g)
 
-# Query
-answer, status = h.ask(g, "alice gets vanilla")
-print(answer)   # True
-
-# Explanation
-print(h.explain(g, next(iter(g.nodes_named("gets")))))
+h.ask_goal(kb, "who gets vanilla", rules)      # ['alice gets vanilla']
+h.ask_goal(kb, "is vanilla in_stock", rules)   # ['yes']
+h.ask_goal(kb, "why alice gets vanilla", rules)  # a CNL derivation trace
 ```
 
-The ISA engine is available directly:
-
-```python
-from ugm import chain_sip, check, choose, suppose, Graph
-
-g = Graph()
-# ... populate g ...
-
-result = chain_sip(g, rules, goal_pattern)
-verdict = check(g, rules, "alice", "gets", "vanilla")
-```
-
----
-
-## The rewriter oracle (temporary)
-
-`ugm.cnl.rewriter` is the reference engine from the previous generation of the system.
-It is retained as a differential-test oracle during the ISA build and will be deleted in
-Phase 6 once the firmware is fully self-consistent. Do not use it in new code.
+Pick a reasoning stance with a `FirmwarePolicy`, register your own tools, or drop to the
+lower-level demand-driven API (`chain_sip`, `check`, `choose`, `suppose`) — see
+**`docs/engine_user_guide.md`** (consuming UGM) and **`docs/engine_developer_guide.md`**
+(extending it). For a full forward snapshot when you need one, `h.run_rules(kb, rules)`.
 
 ---
 
@@ -308,4 +327,6 @@ The design is informed by:
 - Provenance / truth-maintenance traditions
 
 See `docs/vision.md`, `docs/logic_fragment.md`, and `docs/processing_modes.md` for the
-canonical design rationale.
+canonical design rationale; `docs/architecture.md` for the as-built layering; and
+`docs/engine_user_guide.md` / `docs/engine_developer_guide.md` for building on and extending
+the engine.

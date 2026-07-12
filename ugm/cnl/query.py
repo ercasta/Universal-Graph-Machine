@@ -277,7 +277,7 @@ def _materialize_fact(graph: Graph, s: str, p: str, o: str) -> None:
     graph.add_relation(node(s), p, node(o))
 
 def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
-             open_preds: frozenset[str] = frozenset(), ask_user=None,
+             policy=None, open_preds: frozenset[str] | None = None, ask_user=None,
              extra_forms: list[Rule] = (), strata=None, journal: list | None = None) -> list[str]:
     """Answer a CNL `question` GOAL-DIRECTED: demand just the question's goal through the ISA
     machine (`GoalSolver`), materializing only the facts that goal needs — NOT a forward pass over
@@ -317,6 +317,14 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     `authoring.lint_stratifiable` (object-aware), so the chain never mis-answers one."""
     from ..check import check, collapse
     from ..chain import chain_sip
+    from ..policy import DEFAULT_POLICY
+    from dataclasses import replace
+
+    # The closed-vs-open reading of absence is the firmware STANCE (`policy.py`), not the engine's.
+    # `open_preds=` folds into the default closed-world policy as the OWA exception set (back-compat).
+    policy_ = policy if policy is not None else DEFAULT_POLICY
+    if open_preds is not None:
+        policy_ = replace(policy_, open_preds=frozenset(open_preds))
 
     q = _parse_question(question, extra_forms, strata=strata)
     if q is None or q.get("qtype") is None:
@@ -335,11 +343,11 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             chain_sip(graph, rule_g, (q["p"], None, q["o"]))
             if match(graph, [Pat("?w", q["p"], q["o"])]):
                 return ["yes"]
-            return ["unknown"] if concept_key(q["p"], q["o"]) in open_preds else ["no"]
+            return ["unknown"] if policy_.is_open(concept_key(q["p"], q["o"])) else ["no"]
         # a bound goal: the demand-driven 4-status CHECK, collapsed to yes/no/unknown. CHECK runs the
         # positive closure (POSITIVE), the negative closure (ENTAILED_NEG), else CWA-default ASSUMED_NO
         # unless the concept is OPEN (UNKNOWN) or fuel ran out before closure (also UNKNOWN).
-        v = collapse(check(graph, rule_g, (q["p"], q["s"], q["o"]), open_preds=open_preds))
+        v = collapse(check(graph, rule_g, (q["p"], q["s"], q["o"]), policy=policy_))
         # OWA evidence-gatherer: an open UNKNOWN the goal needs -> gather (never a CWA-default `no`).
         if v == "unknown" and ask_user is not None and q["o"] is not None:
             held = ask_user(q["s"], q["p"], q["o"])
@@ -356,7 +364,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
                         for b in match(graph, [Pat("?x", q["p"], q["o"])])})
         if names:
             return [f"{n} {q['p']} {q['o']}" for n in names]
-        return ["(no answer)"] if concept_key(q["p"], q["o"]) not in open_preds else ["unknown"]
+        return ["unknown"] if policy_.is_open(concept_key(q["p"], q["o"])) else ["(no answer)"]
 
     if q["qtype"] == "why":
         # demand the goal WITH provenance (RECORD, mode 9) so the in-graph support is present, then

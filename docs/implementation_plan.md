@@ -22,9 +22,22 @@
 
 ## NEXT STEP (pick this up FIRST)
 
-**Suite: 274 passed, 1 skipped, 0 failed** (post firmware-v3 DEMAND-DRIVEN NEGATION + `decide.solve`
-deletion, 2026-07-11, `python -m pytest -q`, ~90s). Up from 264 (Phase 6.1): +16 NAF tests
-(`test_isa_naf.py` ×13, `test_isa_naf_differential.py` ×2, and net migrations), −`test_decide.py`.
+**Suite: 283 passed, 1 skipped, 0 failed** (`python -m pytest -q`, ~66s). 274 (firmware v3 + the
+2026-07-12 endpoint-driven `_facts_matching` perf fix, was ~90s→~54s) + 9 new `test_isa_policy.py`
+(firmware STANCE as data). Prior baseline 264 (Phase 6.1).
+
+**FIRMWARE STANCE AS DATA + PLUGGABLE TOOLS + ENGINE DOCS DONE (2026-07-12, user-directed).** The
+firmware's opinions are now selectable data (`ugm/policy.py` `FirmwarePolicy`: `negation_default`
+closed/open + `open_preds`/`closed_preds`; `on_cycle` raise/degrade), wired through
+`check`/`ask_goal`/`mode_calls`/loaders, `DEFAULT_POLICY` behaviour-neutral. `dispatch.merge_tools`
+= collision-safe tool composition (the mechanism was already pluggable). Three docs written:
+`docs/architecture.md` (the generic→opinionated layering — Phase 6.2 architecture half),
+`docs/engine_developer_guide.md`, `docs/engine_user_guide.md`; README de-staled + Architecture section.
+See CHANGELOG (2026-07-12). **Still OPEN (user is driving):** (1) the FirmwarePolicy landed the two
+knobs the audit named; a broader stance surface is future. (2) Pre-Phase-7 LEFTOVER-LIVENESS sweep —
+`ugm/demand.py`, `ugm/coref_walk.py`, `ugm/cnl/walker.py`, `ugm/asp.py` are pre-firmware-v3
+demand/coref/walk subsystems; the user is adapting harneskills (the only consumer) to make them safe to
+DELETE. Do NOT delete blind — they are exported public API; delete only once harneskills is migrated.
 
 **FIRMWARE v3 (demand-driven negation) DONE (2026-07-11).** Negation is decided ON DEMAND by NAF in
 `chain_sip._nac_blocks` (nested negative demand → positive closure → absence decides); fuel→UNKNOWN;
@@ -38,14 +51,19 @@ drive took a wildcard query 129s→7.5s, the suite 26min→90s. As-built + devia
 `decide.solve`.**
 
 **PICK UP NEXT — recommended order:**
-0'. **Demand-driven-negation PERF follow-on (Phase 7-adjacent, the honest weak spot).** A wildcard
-   `ask_goal` is still ~7.5s at 3-entity scale. Profile hotspots: `_facts_matching`/`_fact_relnodes`
-   linear fact scans (no (pred,subj) index) and the round loop re-servicing the whole agenda each round.
-   Levers: (a) index facts by (pred, subj) in the substrate [Phase 7(a) intern/CSR]; (b) semi-naive
-   worklist so a demand re-services only when a relevant fact appeared; (c) demand-driving the domain
-   coref rules (`same_as.*.is`) is a big fan-out — the meta-predicate coref rules are inert (never
-   demanded) so they cost nothing, but the domain ones do. ALSO: `why` provenance is order-sensitive
-   (a fact pre-derived without provenance renders `(given)`) — design AS-BUILT §5.
+0'. **Demand-driven-negation PERF follow-on (Phase 7-adjacent, the honest weak spot). LEVER (a) DONE
+   (2026-07-12).** The linear per-predicate fact scan is gone: `chain._facts_matching` is now
+   ENDPOINT-DRIVEN — a bound endpoint (SIP makes one almost always available) reaches its facts through
+   the endpoint's node via the `name` value-accelerator + local topology, not a whole-predicate scan
+   (`_endpoints`/`name` left the top of the profile). Behaviour-identical (whole suite + NAF differential
+   green); under cProfile at 12 suspects/6 aliases 6.18s→0.565s (call count 9.9M→0.98M), full suite
+   ~90s→~54s. As-built: `docs/demand_driven_negation_design.md` AS-BUILT §6; CHANGELOG (2026-07-12).
+   **REMAINING levers (un-started, now Phase 7 — the query is sub-second at session scale):** (b) semi-
+   naive worklist so a demand re-services only when a relevant fact appeared (the round loop still
+   re-services the whole local agenda each round; the profile's new top is `relations_from`/`_read_atoms`
+   re-reading static reified-rule structure per service); (c) the domain coref `same_as.*.is` demand
+   fan-out. ALSO still open: `why` provenance is order-sensitive (a fact pre-derived without provenance
+   renders `(given)`) — design AS-BUILT §5.
 
 **Phase 5.5 slices 1–4 DONE (CHECK+CHOOSE as `<call>` calculators; rules-emit; SUPPOSE-call scope
 authoring; plan→act→check→replan). Phase 6.0 DONE (rewriter retirement + reader flips — narrow scope,

@@ -785,7 +785,7 @@ def load_universal_rules(text: str) -> list[Rule]:
     return expand_rules(rg)
 
 
-def load_rules(text: str) -> list[Rule]:
+def load_rules(text: str, *, policy=None) -> list[Rule]:
     """Parse native rule CNL into executable `Rule`s (tokenize -> fold -> expand).
 
     Runs in a private rule-source graph that is NOT canonicalized (a rule's repeated `?c` must
@@ -808,8 +808,9 @@ def load_rules(text: str) -> list[Rule]:
             + "; ".join(f"'{c}'" for c in dropped)
             + ". A body clause must be `S P O` (any relation), `not S P O`, or a copula "
             "form (`is a` / `is not` / `is <adverb>` / `not in`).")
-    lint_stratifiable(rules, source="load_rules")
-    return rules
+    if _on_cycle(policy) == "raise":                   # firmware STANCE: reject a negation cycle at
+        lint_stratifiable(rules, source="load_rules")  # load (default), or leave it for run_rules to
+    return rules                                       # degrade (drop NAF rules) — see `policy.py`
 
 
 # ---- stratified execution: NAC over a derived fact must run in a later stratum --
@@ -892,6 +893,13 @@ def lint_stratifiable(rules: list[Rule], *, source: str = "<bank>") -> None:
         stratify(rules)
     except ValueError as e:
         raise ValueError(f"{source}: not stratifiable - {e}") from e
+
+
+def _on_cycle(policy) -> str:
+    """The `on_cycle` stance of `policy` (`policy.py`), defaulting to the shipped `"raise"` when a
+    loader was called with no policy. Kept a tiny local reader so `authoring` needn't import the
+    policy module at top level (it is a leaf-ward dependency; a None policy means the default stance)."""
+    return getattr(policy, "on_cycle", "raise") if policy is not None else "raise"
 
 
 def _strata_or_degrade(rules: list[Rule], *, strict: bool) -> tuple[list[list[Rule]], list[Rule]]:
@@ -1099,7 +1107,7 @@ def _corpus_lines(text: str) -> list[str]:
 _ALL_FORMS: list[Rule] = FORM_RULES + FACT_FORMS + RULE_SOURCE_FORMS
 
 
-def load_corpus(text: str) -> tuple[Graph, list[Rule]]:
+def load_corpus(text: str, *, policy=None) -> tuple[Graph, list[Rule]]:
     """Load a whole mixed CNL corpus into ONE graph; what each statement IS emerges
     from the forms (no Python classifier — the keywords route it).
 
@@ -1130,5 +1138,6 @@ def load_corpus(text: str) -> tuple[Graph, list[Rule]]:
     # Reflect to executable Rules; APPEND the propagation so `run_rules(kb, rules)` composes derived
     # facts across the same_as links too (the merge gave that permanently; additivity needs it live).
     rules = expand_rules(kb) + expand_loose_from_graph(kb) + prop
-    lint_stratifiable(rules, source="load_corpus")
+    if _on_cycle(policy) == "raise":                     # firmware STANCE (see `policy.py`)
+        lint_stratifiable(rules, source="load_corpus")
     return kb, rules
