@@ -93,28 +93,28 @@ sunhawk is on_market
 #-- The agent's decisions
 
 # What's genuinely valuable in play right now (value reasoning alone).
-#? who is valuable
+who is valuable
 
 # The cards the agent will NOT part with.
-#? who is keeper
+who is keeper
 
 # The SELL list: what the agent decides to sell today.
-#? who is sellworthy
+who is sellworthy
 
 # The keeper is protected even though the market is hot — verify it stays off the list.
-#? is emberdrake sellworthy
+is emberdrake sellworthy
 
 # The BUY list: what the agent decides to buy today.
-#? who is buyworthy
+who is buyworthy
 
 # Two buys, two DIFFERENT reasons. The value play (mistfox: valuable + underpriced)...
-#? why mistfox is buyworthy
+why mistfox is buyworthy
 
 # ...and the named target (sunhawk: coveted). Same conclusion, different case.
-#? why sunhawk is buyworthy
+why sunhawk is buyworthy
 
 # Why the agent holds its best card.
-#? why emberdrake is keeper
+why emberdrake is keeper
 
 # =============================================================================
 # § PLAYGROUND — turn the knobs (edit, re-run, watch the agent re-decide)
@@ -153,6 +153,6 @@ sunhawk is on_market
 #    thing protecting the keeper.
 #
 # ASK YOUR OWN ---------------------------------------------------------------
-# I) Add your own questions anywhere with a `#?` line, e.g.
-#    `#? is mistfox valuable`  or  `#? who is premium`  or
-#    `#? why stonegolem is sellworthy`  (note the `is` for a copula-state `why`).
+# I) Add your own questions anywhere as a BARE line (no marker needed — a question
+#    is recognized by word order, like `is mistfox valuable` or `who is premium` or
+#    `why stonegolem is sellworthy` (note the `is` for a copula-state `why`)).

@@ -40,21 +40,21 @@ ada is alibied
 ?x is thief when ?x is a suspect and ?x is not cleared
 
 # cy: a suspect, and `cleared(cy)` cannot be derived -> `not cleared` holds -> thief.
-#? is cy thief
+is cy thief
 
 # bo is cleared (library -> innocent -> cleared), so `not cleared` FAILS -> not the thief.
 # Note: the answer is a flat "no", not "unknown" — that is the CLOSED-world default.
-#? is bo thief
+is bo thief
 
 # ada is cleared by her alibi.
-#? is ada thief
+is ada thief
 
 # The single accused, found on demand.
-#? who is thief
+who is thief
 
 # The proof of cy. The `not cleared` premise leaves NO line in the tree — absence
 # has no positive witness to show. What you see is the positive support only.
-#? why cy is thief
+why cy is thief
 
 #-- Scenario 2: a guest list (where "no" should be "unknown")
 
@@ -67,19 +67,21 @@ alice is on_the_list
 ?g is admitted when ?g is a guest and ?g is on_the_list
 
 # alice is on the list -> admitted. Positive proof, decisive under any stance.
-#? is alice admitted
+is alice admitted
 
 # bob is NOT derivably on the list. Under the CLOSED-world default that is a "no"...
-#? is bob admitted
+is bob admitted
 
 # ...but is our list even COMPLETE? If absence of a list entry doesn't mean "not
 # invited", closed-world is unsafe here. Opt `admitted` into OPEN world and the
 # same unprovable question becomes an honest "unknown" instead of a false "no".
-# (This is the `[open: …]` annotation the runner passes as `open_preds`.)
-#? [open: admitted] is bob admitted
+# `[open: admitted]` is NOT CNL — which predicates are open is caller POLICY
+# (`FirmwarePolicy`), not domain content, so the runner reads it as a directive
+# and hands the question underneath it to `ingest` with that policy attached.
+[open: admitted] is bob admitted
 
 # A positive fact is decisive whatever the stance — alice is still yes when open.
-#? [open: admitted] is alice admitted
+[open: admitted] is alice admitted
 
 # =============================================================================
 # NOW TRY CHANGING IT

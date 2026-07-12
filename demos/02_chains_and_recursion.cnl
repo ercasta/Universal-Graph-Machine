@@ -50,25 +50,25 @@ asia is a continent
 #-- Ask it questions
 
 # A direct link — one hop, no recursion needed.
-#? is seattle in washington
+is seattle in washington
 
 # Recursion at work: seattle -> washington -> usa -> north_america.
-#? is seattle in north_america
+is seattle in north_america
 
 # Kept honest: tokyo's chain reaches asia, never north_america.
-#? is tokyo in north_america
+is tokyo in north_america
 
 # Every place transitively inside north_america. The transitive closure, computed
 # on demand for just this query.
-#? who in north_america
+who in north_america
 
 # The CHAIN across both rules: recursive `in` -> `well_traveled`.
-#? is seattle well_traveled
+is seattle well_traveled
 
 # The whole proof, nested. Note `rule.?x.in.?z` (rule 1) appears at TWO depths —
 # that is the recursion made visible — and `rule.?p.is.well_traveled` (rule 2)
 # sits on top, consuming what rule 1 proved.
-#? why seattle is well_traveled
+why seattle is well_traveled
 
 # =============================================================================
 # NOW TRY CHANGING IT
@@ -87,7 +87,7 @@ asia is a continent
 #
 # EXPERIMENT C — a third link in the chain.
 #   Add:   ?p is well_networked when ?p is well_traveled and ?p in ?country and ?country in ?continent
-#   plus:  #? who is well_networked
+#   plus a bare question line:  who is well_networked
 #   Now three rules stack: transitive `in` -> `well_traveled` -> `well_networked`.
 #   (Rule heads are always a triple: `S P O` or the copula `S is O`, like
 #   `?p is well_traveled`. A bare two-word head has no object to assert.)

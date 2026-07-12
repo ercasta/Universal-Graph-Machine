@@ -39,20 +39,22 @@ bob wants durian          # durian is NOT in_stock — deliberately
 
 #-- Ask it questions
 
-# Yes/no. alice wants mango, and mango is in stock -> she gets it.
-#? is alice gets mango
+# Yes/no. alice wants mango, and mango is in stock -> she gets it. A question is a BARE
+# line, no marker: `is alice gets mango` is recognized as a question (not a fact) purely
+# because `is` leads — the same word-order test `ingest` runs, never a runner keyword.
+is alice gets mango
 
 # bob wants durian, which is not in stock, so the body is never satisfied.
 # Note the answer is `no`, not `unknown`: the shipped default is CLOSED-world
 # (an underivable goal is a defeasible "no"). Demo 3 shows how to change that.
-#? is bob gets mango
+is bob gets mango
 
 # A wh-question. `who P O` leaves the subject open and returns every match.
-#? who gets mango
+who gets mango
 
 # `why` replays the derivation journal as an indented proof tree. `(given)`
 # marks a base fact; the `<- rule…` line names the rule that fired.
-#? why alice gets mango
+why alice gets mango
 
 # =============================================================================
 # NOW TRY CHANGING IT (edit the lines above, then re-run)
@@ -61,17 +63,17 @@ bob wants durian          # durian is NOT in_stock — deliberately
 # EXPERIMENT A — satisfy bob.
 #   Add a new fact line up in the scenario:   durian is in_stock
 #   Re-run. `is bob gets mango` is still no (he wants durian, not mango), but add
-#   a question `#? who gets durian` and bob now appears. One new fact, no rule
-#   change: the same rule fires for the new binding.
+#   a bare question line `who gets durian` and bob now appears. One new fact, no
+#   rule change: the same rule fires for the new binding.
 #
 # EXPERIMENT B — weaken the rule.
 #   Delete `and ?d is in_stock` from the rule, leaving `?c gets ?d when ?c wants ?d`.
-#   Re-run: now `is bob gets mango`… still no (he wants durian). But `#? who gets
+#   Re-run: now `is bob gets mango`… still no (he wants durian). But `who gets
 #   durian` returns bob even though durian is out of stock — you removed the
 #   stock check. Watch the `why alice gets mango` trace get one line shorter too.
 #
 # EXPERIMENT C — a second rule that builds on the first.
 #   Add:   ?c is happy when ?c gets ?d
-#   and a question:  #? is alice happy
+#   and a bare question line:  is alice happy
 #   `gets` is itself derived by a rule, and `happy` is derived from `gets`: rules
 #   chain. Demo 2 is all about these chains.

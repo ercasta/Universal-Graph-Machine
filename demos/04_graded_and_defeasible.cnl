@@ -71,25 +71,25 @@ carol wants strawberry        # wants something out of stock
 #-- Ask it questions
 
 # alice is very urgent (0.8, clears the cut) and vanilla is stocked -> express.
-#? is alice served express
+is alice served express
 
 # bob is only SOMEWHAT urgent (0.5) — the alpha-cut denies him priority, so he is
 # not express...
-#? is bob served express
+is bob served express
 
 # ...he gets regular service instead.
-#? is bob served regular
+is bob served regular
 
 # carol wants strawberry, which is out of stock -> an alternative.
-#? is carol offered alternative
+is carol offered alternative
 
 # Who ends up on express (just the one who clears the graded cut).
-#? who served express
+who served express
 
 # The full proof for alice — note the defeasible `alice in shop1` appears as a
 # DERIVED sub-proof (the default fired, since nothing placed her elsewhere), and
 # `alice is priority` rests on her graded urgency.
-#? why alice served express
+why alice served express
 
 # =============================================================================
 # NOW TRY CHANGING IT
@@ -112,4 +112,5 @@ carol wants strawberry        # wants something out of stock
 # EXPERIMENT C — restock and watch carol move.
 #   Add:   strawberry is in_stock
 #   Re-run. carol stops being `offered alternative` and — since she has no urgency
-#   at all — becomes `served regular`. Add `#? is carol served regular` to see it.
+#   at all — becomes `served regular`. Add a bare question line `is carol served
+#   regular` to see it.
