@@ -14,6 +14,56 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### Phase 8.5b: per-emit reasoning-trace streaming (`trace=True`) (296 passed)
+`ingest`/`converse(trace=True)` now stream an `Event("derive", {rule, fact})` per rule firing before the
+answer — the reasoning trace as a live event stream (`docs/cnl_intake_design.md` §5: "the meta-debug trace
+renderer IS the event stream"). Implementation reads the RECORD/provenance substrate rather than hooking
+the reasoning control flow: the demand chain runs with `provenance=True` (which already mints `<j:RULEKEY>`
+justification nodes with proves/uses), and intake snapshots the `<j:>` node set before/after the closure
+(`_derivations_since`), rendering each NEW justification's proven fact + rule via `provenance.py` +
+`surface.render_relation`. So it is a pure OBSERVER — no `chain_sip`/`check` control-flow change, no
+perturbation of reasoning. `ask_goal` gained a `provenance` param threaded to its check/chain_sip calls.
+Additive: `trace=False` default = behaviour-identical. `tests/test_isa_stream.py` (+3: blocking trace order
+/ trace-off neutral / converse trace). Trace is BUFFERED per turn (derivations yielded after the closure
+returns — ordered, not wall-clock-interleaved). REMAINING in 8.5b: true wall-clock interleaving (a live
+`_record` callback needs coroutine reasoning — the generator can't yield from inside the synchronous
+chain) + mid-CHAIN ask (v1 wait-set is the TOP goal only; the re-entry resume model doesn't cleanly extend
+to multiple ask points). Both are engine-deep and deferred.
+
+### Phase 8.6: runtime-rule DISABLE via `<disabled>` marker — 8.6 functionally complete (293 passed)
+`forget that rule` / `disable that rule` marks the LAST-AUTHORED rule `<disabled>` (`docs/cnl_intake_design.md`
+§6), completing the rule-authoring lifecycle: add / conflict-negotiate / disable. It is an additive
+control-layer MARKER, never a deletion (§5) — the `Rule` object stays in the theory list; only which rules
+are ACTIVE changes. New module `ugm/rule_control.py` mirrors `focus.py`: `<disabled>`/`<last-rule>` control
+hubs pointing at nodes named by rule key; `RULE_FORMS` recognized as a FORM (§D.2, not string-sniffed) and
+checked BEFORE the focus forms — `forget that rule` is a MORE SPECIFIC form than the focus `forget that`
+(the trailing `rule` token disambiguates, grammar precedence). `active_rules(kb, rules)` = theory minus
+disabled, applied at BOTH question-answering and the conflict trial, so a disabled rule neither fires nor
+cycles. "that rule" = the last add — the discourse referent, the parallel of focus's `forget that` = the
+current frame. SEMANTIC (a test surfaces it): disable stops FUTURE derivations; a conclusion an earlier
+query already MATERIALIZED persists (monotone, §5 no retraction) — disabling is not retraction. Intake:
+`recognize_rule_op` route (before focus), `mark_last_added` on rule commit, `active_rules` at answer/lint,
+`Outcome.disabled_keys` + `Event("rule-disable")`. `tests/test_isa_intake.py` (+3). REMAINING in 8.6:
+incremental head-index extend only (a PERF follow-on — `_reify_rules` rebuilds per `ask_goal`, so a
+new/disabled rule already takes effect immediately). **8.6 is functionally complete.**
+
+### Phase 8.6: runtime-rule conflict-lint AS CONVERSATION (290 passed)
+A mid-session `HEAD when …` that forms a NEGATION CYCLE with the live theory is now a conversation, not a
+crash (`docs/cnl_intake_design.md` §6 — critique §3.3's "the reasoner negotiates its own repair"). Intake
+parses the rule with `load_rules(lint=False)` (runtime authoring OWNS the stratification check now, instead
+of `load_rules` raising), tests a TRIAL `rules + new` with `_stratify_conflict` (the content-blind
+`authoring.stratify`, no relation name special-cased), and on a cycle YIELDS `Event("rule-conflict",
+{detail})` through the same §5 ask channel as `ask_user`. A falsey verdict REJECTS the rule (discarded —
+the trial list means `rules` is never mutated on reject, which also fixes the old rule-route bug where
+`rules.extend` ran BEFORE the lint and left a rejected rule in the list); a truthy verdict ACCEPTS it
+(committed; `run_rules` degrades the NAF rules per the `on_cycle` stance). Blocking `ingest` grows an
+`on_conflict(detail)->bool` handler defaulting to a SAFE REJECT when unwired (never silently admit a cycle,
+never crash); `converse` yields the event for the caller to `.send()`. Per-add re-lint now rides this one
+check (the separate `lint_stratifiable` raise in the rule route is gone). `tests/test_isa_intake.py` (+3)
++ `tests/test_isa_stream.py` (+1). REMAINING in 8.6: the DISABLE `<disabled>` marker + its "forget that
+rule" control-CNL (reification skips a disabled rule, no deletion §5), and incremental head-index extend
+(a PERF follow-on — a new rule already reasons immediately since `_reify_rules` rebuilds per `ask_goal`).
+
 ### Phase 8.5b: `converse` — threadless generator driver with ask suspend/resume (286 passed)
 The non-blocking driver for the TUI (`docs/cnl_intake_design.md` §5). `ingest`'s body was refactored into a
 generator routing CORE `_ingest_gen` that yields an `Event` per step boundary and returns the `Outcome`;

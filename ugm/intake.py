@@ -28,10 +28,11 @@ from dataclasses import dataclass, field
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer" | "fact" | "rule" | "focus" | "unrecognized"
+    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
+    disabled_keys: list = field(default_factory=list) # RULE-DISABLE: the rule keys marked `<disabled>`
     focus_op: tuple | None = None                # FOCUS: the (op, target) move applied
 
 
@@ -42,7 +43,7 @@ class Event:
     fire — same discipline as routing (no string sniff). An `"ask"` event brackets the human-in-the-loop
     `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). Per-EMIT reasoning
     trace (reuse the RECORD/`<j:>` substrate) and generator-based suspend/resume are 8.5b."""
-    kind: str                # "focus"|"question"|"ask"|"answer"|"fact"|"rule"|"unrecognized"
+    kind: str                # focus|question|ask|derive|answer|fact|rule|rule-conflict|rule-disable|unrecognized
     data: dict = field(default_factory=dict)
 
 
@@ -74,6 +75,18 @@ def _anchor_has_content_fact(kb, anchor: str) -> bool:
     return False
 
 
+def _stratify_conflict(rules) -> str | None:
+    """The negation-cycle detail if `rules` is NOT stratifiable, else None (§6/Phase 8.6). The
+    content-blind `authoring.stratify` decides — no relation name is special-cased. Used to turn a
+    mid-session rule that loops with the existing theory into a CONVERSATION instead of a raise."""
+    from .cnl.authoring import stratify
+    try:
+        stratify(list(rules))
+        return None
+    except ValueError as e:
+        return str(e)
+
+
 def _question_entities(q: dict) -> set[str]:
     """The concrete entities a recognized question is ABOUT — its bound SUBJECT (skipping the `who`/
     `someone` unknowns), or an n-ary question's filled roles. These enter the focus so a follow-up
@@ -97,27 +110,63 @@ class _NeedVerdict(Exception):
         self.subj, self.rel, self.obj = subj, rel, obj
 
 
-def _answer_with_ask(kb, text, rules, policy, fscope, can_ask):
+def _j_nodes(kb) -> set[str]:
+    """The justification node ids currently in the KB (provenance RECORDs). Snapshotted before/after a
+    demand closure to isolate the derivations of ONE question — the per-emit trace (§5/8.5b)."""
+    from . import provenance as prov
+    return {n for n in kb.nodes() if prov.is_justification(kb.name(n))}
+
+
+def _derivations_since(kb, before: set[str]) -> list[dict]:
+    """One `{rule, fact}` record per derivation the demand chain minted SINCE the `before` snapshot. Reads
+    the in-graph proves/uses support the chain wrote under `provenance=True` (`provenance.py`) — an
+    OBSERVER of the substrate, not a control-flow hook, so it never perturbs reasoning (the trace renderer
+    IS the event stream, §5)."""
+    from . import provenance as prov
+    from .cnl.surface import render_relation
+    out: list[dict] = []
+    for j in _j_nodes(kb) - before:
+        rule = prov.rule_of_j(kb, j)
+        for fact in prov.proven_of(kb, j):
+            rendered = render_relation(kb, fact)
+            if rendered is not None:
+                out.append({"rule": rule, "fact": rendered})
+    return out
+
+
+def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace):
     """Answer the recognized question. This is a GENERATOR so the ask wait-point can SUSPEND: if the
     chain hits an open-predicate UNKNOWN and `can_ask`, it yields an `Event("ask", …)` and pauses; the
     driver `.send()`s back the verdict (True/False/None), and we RESUME by re-entering `ask_goal` with
     that verdict as a one-shot handler (the graph is the continuation, §5). With `can_ask` false there is
-    no handler, so we answer straight (no suspension). Returns the CNL answer list."""
+    no handler, so we answer straight (no suspension). When `trace`, the demand chain runs with provenance
+    on and each derivation is yielded as an `Event("derive", …)` before the answer (buffered per turn —
+    true wall-clock interleaving would need coroutine reasoning, the deferred refinement). Returns the CNL
+    answer list."""
     from .cnl.query import ask_goal
+    before = _j_nodes(kb) if trace else set()
+
+    def _ask_goal(ask_user):
+        return ask_goal(kb, text, rules, policy=policy, ask_user=ask_user,
+                        focus_scope=fscope, provenance=trace)
+
     if not can_ask:
-        return ask_goal(kb, text, rules, policy=policy, ask_user=None, focus_scope=fscope)
+        answer = _ask_goal(None)
+    else:
+        def _raise(s, r, o):
+            raise _NeedVerdict(s, r, o)
+        try:
+            answer = _ask_goal(_raise)
+        except _NeedVerdict as nv:
+            verdict = yield Event("ask", {"subj": nv.subj, "rel": nv.rel, "obj": nv.obj})
+            answer = _ask_goal(lambda s, r, o: verdict)
+    if trace:
+        for rec in _derivations_since(kb, before):
+            yield Event("derive", rec)
+    return answer
 
-    def _raise(s, r, o):
-        raise _NeedVerdict(s, r, o)
-    try:
-        return ask_goal(kb, text, rules, policy=policy, ask_user=_raise, focus_scope=fscope)
-    except _NeedVerdict as nv:
-        verdict = yield Event("ask", {"subj": nv.subj, "rel": nv.rel, "obj": nv.obj})
-        return ask_goal(kb, text, rules, policy=policy,
-                        ask_user=lambda s, r, o: verdict, focus_scope=fscope)
 
-
-def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_ask=False):
+def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_ask=False, trace=False):
     """The routing CORE as a generator (§5/8.5b): route ONE CNL `utterance` by which recognition forms
     fire and act on it, YIELDING an `Event` at each step boundary and RETURNING the `Outcome` (via
     `StopIteration.value`). Both `ingest` (blocking) and `converse` (non-blocking) drive this ONE core, so
@@ -126,11 +175,28 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     from .cnl.query import recognize
     from .cnl.authoring import load_rules, load_facts, _on_cycle
     from . import focus as focus_mod
+    from . import rule_control
+
+    def _fresh_conflict(new):
+        # None unless ADDING `new` to the ACTIVE theory forms a negation cycle (a fresh trial list, so a
+        # rejected rule never touches `rules`; disabled rules are excluded — they neither fire nor cycle).
+        # Only the "raise" stance conflict-asks; "degrade" accepts.
+        if _on_cycle(policy) != "raise":
+            return None
+        return _stratify_conflict(rule_control.active_rules(kb, rules) + new)
 
     text = utterance.strip()
     if not text:
         yield Event("unrecognized")
         return Outcome("unrecognized", utterance)
+
+    # RULE DISABLE — `forget that rule` / `disable that rule` marks the last-authored rule `<disabled>`
+    # (additive, no deletion §5). Recognized as a FORM (§D.2) and checked BEFORE the focus forms: it is a
+    # MORE SPECIFIC form than the focus `forget that` (the trailing `rule` token disambiguates).
+    if rule_control.recognize_rule_op(text) == "disable":
+        disabled = rule_control.disable_last(kb)
+        yield Event("rule-disable", {"disabled": disabled})
+        return Outcome("rule-disable", utterance, disabled_keys=disabled)
 
     # FOCUS — an explicit focus move (`focus on X` / `forget that` / `back to X`), recognized as a FORM
     # (not a string sniff, §D.2). Checked first: these are control-CNL, never facts/questions.
@@ -153,17 +219,27 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         # widen BEFORE answering so bounded attention includes what this question is about.
         focus_mod.widen(kb, _question_entities(q))
         fscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
-        answer = yield from _answer_with_ask(kb, text, rules, policy, fscope, can_ask)
+        active = rule_control.active_rules(kb, rules)     # a `<disabled>` rule neither fires nor decides
+        answer = yield from _answer_with_ask(kb, text, active, policy, fscope, can_ask, trace)
         yield Event("answer", {"answer": answer})
         return Outcome("answer", utterance, answer=answer)
 
-    # RULE — a `HEAD when …` line reflects to executable rule(s); none => not a rule line.
-    new_rules = load_rules(text, policy=policy)
+    # RULE — a `HEAD when …` line reflects to executable rule(s); none => not a rule line. Parse WITHOUT
+    # linting (`lint=False`): runtime authoring owns the stratification check so a mid-session negation
+    # cycle becomes a CONVERSATION, not a raise (§6/Phase 8.6).
+    new_rules = load_rules(text, policy=policy, lint=False)
     if new_rules:
-        rules.extend(new_rules)
-        if _on_cycle(policy) == "raise":                     # re-lint per add (firmware STANCE); a
-            from .cnl.authoring import lint_stratifiable     # negation cycle rejects here (Phase 8.6:
-            lint_stratifiable(rules, source="ingest")        # conflict-lint-as-conversation replaces raise)
+        conflict = _fresh_conflict(new_rules)
+        if conflict is not None:
+            # CONFLICT-LINT AS CONVERSATION (§6): the new rule loops with the existing theory. Don't
+            # silently drop and don't raise — ASK (via the §5 channel) whether to accept it anyway
+            # (run_rules will then degrade the NAF rules) or reject it. A falsey verdict => reject.
+            verdict = yield Event("rule-conflict", {"detail": conflict, "added": len(new_rules)})
+            if not verdict:
+                yield Event("rule", {"added": 0, "rejected": True})
+                return Outcome("rule", utterance, added_rules=[])
+        rules.extend(new_rules)                              # commit only after the accept decision
+        rule_control.mark_last_added(kb, [r.key for r in new_rules])   # 'that rule' referent (§6 disable)
         yield Event("rule", {"added": len(new_rules)})
         return Outcome("rule", utterance, added_rules=list(new_rules))
 
@@ -181,15 +257,19 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     return Outcome("fact", utterance) if is_fact else Outcome("unrecognized", utterance)
 
 
-def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str = "global",
-           on_event=None) -> Outcome:
+def ingest(kb, rules, utterance, *, policy=None, ask_user=None, on_conflict=None,
+           attention: str = "global", on_event=None, trace: bool = False) -> Outcome:
     """Route ONE CNL `utterance` against the live session KB `kb` (+ accumulated `rules`) by which
     recognition forms fire, and act on it. Returns an `Outcome`. `rules` is mutated in place when the
     utterance adds a rule (so subsequent turns reason with it immediately — Phase 8.6).
 
     This is the BLOCKING driver (8.5a): it runs the `_ingest_gen` core to completion, forwarding every
-    `Event` to `on_event` and calling `ask_user` synchronously at the ask wait-point (a TUI that can
-    block on the prompt). The non-blocking generator driver is `converse` (8.5b).
+    `Event` to `on_event` and answering the two wait-points synchronously — `ask_user(subj, rel, obj)`
+    at an open-predicate ask (§4), and `on_conflict(detail) -> bool` at a runtime-rule negation cycle
+    (§6). Both default to a SAFE non-crashing answer when unwired: no ask handler => `unknown`; no
+    conflict handler => REJECT the cycle-forming rule (never silently admit a cycle). The non-blocking
+    generator driver is `converse` (8.5b). `trace=True` streams an `Event("derive", {rule, fact})` per
+    rule firing (the reasoning trace) before the answer — additive, off by default.
 
     `attention` (EXPOSED so the consuming system picks the reasoning mode, docs/cnl_intake_design.md §3):
       - "global" (default) — reason over the whole KB (behaviour-identical to a bare `ask_goal`).
@@ -199,26 +279,29 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
         choice, the agent-not-theorem-prover reading), so answers can differ from "global"."""
     emit = on_event if on_event is not None else (lambda e: None)   # §5 stream; no-op when unwired
     gen = _ingest_gen(kb, rules, utterance, policy=policy, attention=attention,
-                      can_ask=ask_user is not None)
+                      can_ask=ask_user is not None, trace=trace)
     send_val = None
     try:
         while True:
             ev = gen.send(send_val)
             send_val = None
-            emit(ev)                                     # stream every event, "ask" included (brackets §4)
+            emit(ev)                                     # stream every event (ask/rule-conflict included)
             if ev.kind == "ask":
                 send_val = ask_user(ev.data["subj"], ev.data["rel"], ev.data["obj"])
+            elif ev.kind == "rule-conflict":             # §6: no handler => reject the cycle-forming rule
+                send_val = on_conflict(ev.data["detail"]) if on_conflict is not None else False
     except StopIteration as stop:
         return stop.value
 
 
-def converse(kb, rules, utterance, *, policy=None, attention: str = "global"):
+def converse(kb, rules, utterance, *, policy=None, attention: str = "global", trace: bool = False):
     """Non-blocking generator driver (8.5b, docs/cnl_intake_design.md §5): the same routing as `ingest`,
     but as a GENERATOR the caller pumps. It YIELDS an `Event` per step boundary; the caller renders each
     and, for the single `"ask"` event, `.send()`s the human/tool verdict (True/False/None) — every other
     event's send is ignored (send `None` / call `next`). SUSPEND/RESUME is threadless: the ask unwinds the
-    chain, and resuming re-enters the demand-driven chain over the graph (the continuation). The final
-    `Outcome` is the generator's `StopIteration.value`.
+    chain, and resuming re-enters the demand-driven chain over the graph (the continuation). `trace=True`
+    interleaves an `Event("derive", …)` per rule firing before the answer. The final `Outcome` is the
+    generator's `StopIteration.value`.
 
         gen, send = converse(kb, rules, utt), None
         try:
@@ -228,4 +311,4 @@ def converse(kb, rules, utterance, *, policy=None, attention: str = "global"):
         except StopIteration as stop:
             outcome = stop.value
     """
-    return _ingest_gen(kb, rules, utterance, policy=policy, attention=attention, can_ask=True)
+    return _ingest_gen(kb, rules, utterance, policy=policy, attention=attention, can_ask=True, trace=trace)

@@ -92,6 +92,63 @@ def test_converse_suspends_at_ask_and_resumes_on_send():
     assert out2.answer == ["yes"]
 
 
+def test_trace_streams_derivations_before_answer():
+    # trace=True surfaces one `derive` event per rule firing, in order, before the answer.
+    kb, rules = load_corpus(THIEF)
+    ingest(kb, rules, "ada is a suspect")
+    ev = []
+    out = ingest(kb, rules, "is ada thief", on_event=ev.append, trace=True)
+    kinds = [e.kind for e in ev]
+    assert kinds == ["question", "derive", "answer"]
+    d = ev[kinds.index("derive")].data
+    assert d["fact"] == "ada is thief" and d["rule"]      # the firing names its fact and rule
+    assert out.answer == ["yes"]
+
+
+def test_trace_off_is_neutral():
+    kb, rules = load_corpus(THIEF)
+    ingest(kb, rules, "ada is a suspect")
+    ev = []
+    ingest(kb, rules, "is ada thief", on_event=ev.append)   # trace defaults off
+    assert [e.kind for e in ev] == ["question", "answer"]   # no derive events
+
+
+def test_converse_trace_interleaves_derivations():
+    kb, rules = load_corpus(THIEF)
+    ingest(kb, rules, "ada is a suspect")
+    kinds, out = _drive(converse(kb, rules, "is ada thief", trace=True))
+    assert kinds == ["question", "derive", "answer"]
+    assert out.answer == ["yes"]
+
+
+def test_converse_rule_conflict_yields_and_resumes():
+    # A mid-session rule that loops with the theory yields a "rule-conflict" event; the caller decides.
+    from ugm.cnl.authoring import load_corpus
+    base, new = "?x is q when ?x is not p", "?x is p when ?x is not q"
+
+    kb, rules = load_corpus(base)
+    kinds, out = _drive_conflict(converse(kb, rules, new), verdict=False)
+    assert "rule-conflict" in kinds and out.added_rules == []      # rejected
+
+    kb, rules = load_corpus(base)
+    kinds, out = _drive_conflict(converse(kb, rules, new), verdict=True)
+    assert "rule-conflict" in kinds and out.added_rules            # accepted
+
+
+def _drive_conflict(gen, *, verdict):
+    """Pump a `converse` generator, answering a `"rule-conflict"` event with `verdict`."""
+    kinds, send = [], None
+    try:
+        while True:
+            ev = gen.send(send)
+            send = None
+            kinds.append(ev.kind)
+            if ev.kind == "rule-conflict":
+                send = verdict
+    except StopIteration as stop:
+        return kinds, stop.value
+
+
 def test_converse_ask_verdict_no_and_unknown():
     pol = FirmwarePolicy(negation_default="open")
     kb, rules = load_corpus("")

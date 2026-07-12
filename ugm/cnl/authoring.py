@@ -785,7 +785,7 @@ def load_universal_rules(text: str) -> list[Rule]:
     return expand_rules(rg)
 
 
-def load_rules(text: str, *, policy=None) -> list[Rule]:
+def load_rules(text: str, *, policy=None, lint: bool = True) -> list[Rule]:
     """Parse native rule CNL into executable `Rule`s (tokenize -> fold -> expand).
 
     Runs in a private rule-source graph that is NOT canonicalized (a rule's repeated `?c` must
@@ -808,9 +808,11 @@ def load_rules(text: str, *, policy=None) -> list[Rule]:
             + "; ".join(f"'{c}'" for c in dropped)
             + ". A body clause must be `S P O` (any relation), `not S P O`, or a copula "
             "form (`is a` / `is not` / `is <adverb>` / `not in`).")
-    if _on_cycle(policy) == "raise":                   # firmware STANCE: reject a negation cycle at
+    if lint and _on_cycle(policy) == "raise":          # firmware STANCE: reject a negation cycle at
         lint_stratifiable(rules, source="load_rules")  # load (default), or leave it for run_rules to
-    return rules                                       # degrade (drop NAF rules) — see `policy.py`
+    return rules                                       # degrade (drop NAF rules) — see `policy.py`.
+    # `lint=False` defers the check to the caller — the runtime-authoring path (`intake.ingest`) owns it
+    # so a mid-session cycle becomes a CONVERSATION (accept-degrade / reject), not a raise (§6/Phase 8.6).
 
 
 # ---- stratified execution: NAC over a derived fact must run in a later stratum --

@@ -22,7 +22,7 @@
 
 ## Current state
 
-**Suite: 286 passed, 0 failed** (`python -m pytest -q`, ~48s). Production runtime is 100% the ISA engine,
+**Suite: 296 passed, 0 failed** (`python -m pytest -q`, ~55s). Production runtime is 100% the ISA engine,
 and so is every test — no second engine anywhere in the repo. `ask_goal` is demand-driven;
 `rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are all deleted.
 
@@ -35,12 +35,16 @@ do NOT resurrect `decide.solve`, `solve.py`, or the demand/coref/walk/asp leftov
 GC (`ugm/focus.py`); 8.3b seed-from-focus BOUNDED ATTENTION (`ingest(attention=…)`/`ask_goal(focus_scope=…)`,
 probe-validated: bound query flat under focus vs a 0.5s→112s global cliff); 8.5a live event stream
 (`ingest(on_event=…)`, ask-bracketed); 8.5b non-blocking generator driver `converse` (threadless
-suspend/resume of the ask via `_ingest_gen` core + exception-unwind/re-enter). ANAPHORA resolution was
-tried (8.4a) and BACKED OUT — it is a boundary concern the SLM owns via the exposed `focus.top_centers`
-(2026-07-12; see §4). New modules: `ugm/intake.py`, `ugm/focus.py`; new tests:
+suspend/resume of the ask via `_ingest_gen` core + exception-unwind/re-enter); 8.6 conflict-lint AS
+CONVERSATION (a mid-session rule that loops with the theory is asked about via the ask channel, not
+raised); 8.6 DISABLE (`forget that rule` marks the last rule `<disabled>` — additive, no deletion §5);
+8.5b TRACE (`trace=True` streams an `Event("derive", …)` per rule firing, read from the provenance
+substrate). **8.6 is functionally COMPLETE.** ANAPHORA resolution was tried (8.4a) and BACKED OUT — it is a boundary
+concern the SLM owns via the exposed `focus.top_centers` (2026-07-12; see §4). New modules:
+`ugm/intake.py`, `ugm/focus.py`, `ugm/rule_control.py`; new tests:
 `test_isa_intake`/`_focus`/`_stream`; `bench/session_accretion.py`. Spec: `docs/cnl_intake_design.md`
-(+ §D anti-hardcoding discipline). REMAINING: 8.5b tail (per-emit trace + mid-chain ask), 8.6 — see
-Phase 8 below.
+(+ §D anti-hardcoding discipline). REMAINING: 8.5b tail (true wall-clock trace interleaving + mid-chain
+ask — both engine-deep), 8.6 incremental head-index (perf follow-on) — see Phase 8 below.
 
 ## Residuals carried out of done sections (don't lose these)
 
@@ -152,14 +156,47 @@ Build slices, in dependency order (each with tests; the probe first to validate 
     follow-on). Refactor: ONE routing core `_ingest_gen` (generator), TWO drivers — `ingest` (blocking,
     8.5a, byte-identical) and `converse` (non-blocking). `tests/test_isa_stream.py` (+3: question→answer,
     suspend-at-ask→send-True→materialize→re-ask-needs-no-gather, verdict no/unknown). 286 suite green.
-    REMAINING in 8.5b: PER-EMIT reasoning-trace streaming (surface `run_bank(provenance=True)`'s `<j:>`
-    firings as they mint, not only route boundaries) + mid-CHAIN ask (today the ask fires only for the TOP
+  - **8.5b TRACE DONE 2026-07-12** — PER-EMIT reasoning-trace streaming: `ingest`/`converse(trace=True)`
+    runs the demand chain with `provenance=True` and yields an `Event("derive", {rule, fact})` per rule
+    firing before the answer. Reads the in-graph proves/uses support the chain mints (`provenance.py`) by
+    snapshotting `<j:>` justification nodes before/after the closure (`_derivations_since`) — an OBSERVER of
+    the RECORD substrate, NOT a control-flow hook, so it never perturbs reasoning (the meta-debug trace
+    renderer IS the event stream, §5). `ask_goal` gained a `provenance` param threaded to its check/chain_sip
+    calls. Additive: `trace=False` default = behaviour-identical (296 suite green). `tests/test_isa_stream.py`
+    (+3: blocking trace order / trace-off neutral / converse trace). BUFFERED per turn (the derivations are
+    yielded after the closure returns, ordered but not wall-clock-interleaved). REMAINING in 8.5b: TRUE
+    wall-clock interleaving (a live `_record` callback would need coroutine reasoning — the generator can't
+    yield from inside the synchronous chain; deferred) + mid-CHAIN ask (today the ask fires only for the TOP
     goal's open-predicate UNKNOWN — v1 wait-set `{ask_user}` at `query.py`; a sub-goal the reasoning needs
-    does not yet suspend).
+    does not yet suspend, and the re-entry resume model doesn't cleanly extend to multiple ask points).
 - **8.6 — runtime rule authoring (Phase 3.2, global KB concern).** `HEAD when …` lands via the same
   intake, reifies, reasons immediately; incremental head-index extend; RE-LINT stratification per add
   (`on_cycle` stance); conflict-lint AS CONVERSATION (a contradictory rule is rejected by ASKING, via the
   8.5 channel); disable = `<disabled>` marker (no deletion §5). Design §6.
+  - **8.6 CONFLICT-AS-CONVERSATION DONE 2026-07-12** — a mid-session `HEAD when …` that forms a NEGATION
+    CYCLE with the live theory is now a CONVERSATION, not a raise: intake parses with `load_rules(lint=
+    False)` (runtime authoring OWNS the lint), tests a TRIAL `rules + new` via `_stratify_conflict`
+    (content-blind `authoring.stratify`), and on a cycle YIELDS `Event("rule-conflict", {detail})` through
+    the §5 ask channel. A falsey verdict REJECTS (discarded — the trial list means `rules` never mutated on
+    reject, fixing the old extend-before-lint bug); a truthy verdict ACCEPTS (committed; `run_rules`
+    degrades the NAF rules). Blocking `ingest` gets `on_conflict(detail)->bool`, defaulting to a SAFE
+    REJECT when unwired (never silently admit a cycle, never crash); `converse` yields the event for the
+    caller to `.send()`. Per-add re-lint now rides this same check (the old `lint_stratifiable` raise in
+    the rule route is gone). `tests/test_isa_intake.py` (+3: reject-by-default / accept-on-verdict /
+    clean-rule-no-ask) + `tests/test_isa_stream.py` (+1: converse reject+accept). 290 suite green.
+  - **8.6 DISABLE DONE 2026-07-12** — `forget that rule` / `disable that rule` marks the LAST-AUTHORED rule
+    `<disabled>` — an additive control-layer marker, NEVER a deletion (§5). New module `ugm/rule_control.py`
+    (mirrors `focus.py`): `<disabled>`/`<last-rule>` control hubs pointing at nodes named by rule key;
+    `RULE_FORMS` recognized as a FORM (§D.2, not string-sniffed), checked BEFORE the focus forms since
+    `forget that rule` is a MORE SPECIFIC form than the focus `forget that` (trailing `rule` token
+    disambiguates — grammar precedence). `active_rules(kb, rules)` = the theory minus disabled, used at
+    BOTH question-answering and the conflict trial (a disabled rule neither fires nor cycles). "that rule"
+    = the last add (the discourse referent, parallel to focus's `forget that`). SEMANTIC (surfaced by the
+    test): disable stops FUTURE derivations; a conclusion already MATERIALIZED by an earlier query persists
+    (monotone, §5 no retraction). `tests/test_isa_intake.py` (+3: disable-a-fresh-subject / not-focus-drop /
+    no-op-when-nothing-authored). 293 suite green. REMAINING in 8.6: INCREMENTAL head-index extend only
+    (today `_reify_rules` rebuilds per `ask_goal`, so a new/disabled rule already takes effect immediately
+    — this is a PERF follow-on, not a correctness gap). **8.6 is functionally COMPLETE.**
 
 **Model routing for Phase 8:** ⚠Opus for 8.1/8.2/8.3/8.5 (control/fact segregation, discourse model,
 driver resumability — vision judgment); ✓S for 8.0 (probe/benchmark) and mechanical parts of 8.4/8.6
