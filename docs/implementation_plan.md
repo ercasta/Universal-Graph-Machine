@@ -22,7 +22,7 @@
 
 ## Current state
 
-**Suite: 287 passed, 0 failed** (`python -m pytest -q`, ~40s). Production runtime is 100% the ISA engine,
+**Suite: 286 passed, 0 failed** (`python -m pytest -q`, ~48s). Production runtime is 100% the ISA engine,
 and so is every test — no second engine anywhere in the repo. `ask_goal` is demand-driven;
 `rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are all deleted.
 
@@ -34,11 +34,13 @@ do NOT resurrect `decide.solve`, `solve.py`, or the demand/coref/walk/asp leftov
 (40×); 8.1 unified intake (`ugm/intake.py`); 8.3a `<focus>` stack + widen + explicit focus-CNL + scaffolding
 GC (`ugm/focus.py`); 8.3b seed-from-focus BOUNDED ATTENTION (`ingest(attention=…)`/`ask_goal(focus_scope=…)`,
 probe-validated: bound query flat under focus vs a 0.5s→112s global cliff); 8.5a live event stream
-(`ingest(on_event=…)`, ask-bracketed). ANAPHORA resolution was tried (8.4a) and BACKED OUT — it is a
-boundary concern the SLM owns via the exposed `focus.top_centers` (2026-07-12; see §4). New modules:
-`ugm/intake.py`, `ugm/focus.py`; new tests: `test_isa_intake`/`_focus`/`_stream`;
-`bench/session_accretion.py`. Spec: `docs/cnl_intake_design.md` (+ §D anti-hardcoding discipline). REMAINING:
-8.4b, 8.5b, 8.6 — see Phase 8 below.
+(`ingest(on_event=…)`, ask-bracketed); 8.5b non-blocking generator driver `converse` (threadless
+suspend/resume of the ask via `_ingest_gen` core + exception-unwind/re-enter). ANAPHORA resolution was
+tried (8.4a) and BACKED OUT — it is a boundary concern the SLM owns via the exposed `focus.top_centers`
+(2026-07-12; see §4). New modules: `ugm/intake.py`, `ugm/focus.py`; new tests:
+`test_isa_intake`/`_focus`/`_stream`; `bench/session_accretion.py`. Spec: `docs/cnl_intake_design.md`
+(+ §D anti-hardcoding discipline). REMAINING: 8.5b tail (per-emit trace + mid-chain ask), 8.6 — see
+Phase 8 below.
 
 ## Residuals carried out of done sections (don't lose these)
 
@@ -141,10 +143,19 @@ Build slices, in dependency order (each with tests; the probe first to validate 
     §4 ask-vs-guess escalation). Additive: `on_event=None` (default) = no-op, behaviour-identical (287
     suite green). `tests/test_isa_stream.py` (4): `question→answer`, `question→ask→answer` (the gather),
     fact/focus/clarify. Works for a BLOCKING TUI (`ask_user` is a top-level suspension point already).
-  - **8.5b REMAINING** — generator-based `converse` (yield events, `.send()` the ask answer) for a
-    NON-BLOCKING UI: the "graph is the continuation" so suspend/resume needs no threads; PER-EMIT reasoning
-    trace streaming reusing the RECORD/`<j:>` substrate (show each derivation as it fires); mid-CHAIN ask
-    (currently `ask_user` is consulted only for the TOP goal, not a sub-goal the reasoning needs).
+  - **8.5b DRIVER DONE 2026-07-12** — generator-based `converse(kb, rules, utt)` for a NON-BLOCKING UI:
+    the caller pumps it (`gen.send(...)`), it yields an `Event` per step boundary and `.send()`s take the
+    ask verdict. Threadless suspend/resume — the ask wait-point RAISES `_NeedVerdict` (an internal
+    suspension that unwinds the chain cleanly, graph state persisting monotone), the driver yields
+    `Event("ask")`, and RESUME re-enters `ask_goal` with the verdict as a one-shot handler ("the graph is
+    the continuation" — the demand chain prunes-and-continues; the re-entry `check` is the accepted §5 perf
+    follow-on). Refactor: ONE routing core `_ingest_gen` (generator), TWO drivers — `ingest` (blocking,
+    8.5a, byte-identical) and `converse` (non-blocking). `tests/test_isa_stream.py` (+3: question→answer,
+    suspend-at-ask→send-True→materialize→re-ask-needs-no-gather, verdict no/unknown). 286 suite green.
+    REMAINING in 8.5b: PER-EMIT reasoning-trace streaming (surface `run_bank(provenance=True)`'s `<j:>`
+    firings as they mint, not only route boundaries) + mid-CHAIN ask (today the ask fires only for the TOP
+    goal's open-predicate UNKNOWN — v1 wait-set `{ask_user}` at `query.py`; a sub-goal the reasoning needs
+    does not yet suspend).
 - **8.6 — runtime rule authoring (Phase 3.2, global KB concern).** `HEAD when …` lands via the same
   intake, reifies, reasons immediately; incremental head-index extend; RE-LINT stratification per add
   (`on_cycle` stance); conflict-lint AS CONVERSATION (a contradictory rule is rejected by ASKING, via the

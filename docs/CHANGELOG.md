@@ -14,6 +14,21 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### Phase 8.5b: `converse` — threadless generator driver with ask suspend/resume (286 passed)
+The non-blocking driver for the TUI (`docs/cnl_intake_design.md` §5). `ingest`'s body was refactored into a
+generator routing CORE `_ingest_gen` that yields an `Event` per step boundary and returns the `Outcome`;
+TWO thin drivers ride it — `ingest` (blocking, 8.5a, byte-identical: forwards events to `on_event`, calls
+`ask_user` synchronously) and the new `converse(kb, rules, utt)` (non-blocking generator the caller pumps
+with `.send()`). Suspend/resume needs NO threads and NO async rewrite of the engine: the ask wait-point
+raises an internal `_NeedVerdict` that unwinds the demand chain cleanly (graph state persists, monotone
+§5-safe); the driver yields `Event("ask", …)`, the caller `.send()`s the verdict (True/False/None), and
+RESUME re-enters `ask_goal` with that verdict as a one-shot handler — "the graph is the continuation," so
+the demand chain prunes-and-continues (the one extra re-entry `check` is the accepted §5 perf follow-on).
+ZERO engine changes — `query.py`/`check.py`/`chain.py` untouched; the whole mechanism lives in intake.
+`tests/test_isa_stream.py` +3 (question→answer; suspend-at-ask→send-True→materialize→re-ask-needs-no-gather;
+verdict no/unknown). REMAINING in 8.5b: PER-EMIT reasoning-trace streaming (surface `run_bank(provenance=
+True)`'s `<j:>` firings live) + mid-CHAIN ask (v1 wait-set is `{ask_user}` at the TOP goal only).
+
 ### Phase 8 client build: unified intake + discourse focus stack (273 passed)
 Kicked off the first UGM CLIENT (agent loop + TUI) per `docs/cnl_intake_design.md`. Landed:
 - **8.1 unified intake** (`ugm/intake.py`) — `ingest(kb, rules, utterance) -> Outcome` routes fact / rule /

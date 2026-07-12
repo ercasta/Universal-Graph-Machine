@@ -88,27 +88,48 @@ def _question_entities(q: dict) -> set[str]:
     return {s} if (s and s not in EXISTENTIAL_SUBJECTS) else set()
 
 
-def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str = "global",
-           on_event=None) -> Outcome:
-    """Route ONE CNL `utterance` against the live session KB `kb` (+ accumulated `rules`) by which
-    recognition forms fire, and act on it. Returns an `Outcome`. `rules` is mutated in place when the
-    utterance adds a rule (so subsequent turns reason with it immediately — Phase 8.6).
+class _NeedVerdict(Exception):
+    """Internal suspension signal (§5/8.5b): the demand-driven chain hit an open-predicate UNKNOWN it
+    needs a human/tool verdict for. Raised from inside `ask_goal` (via a throwaway `ask_user`), it
+    UNWINDS the chain cleanly — a threadless suspend. The graph state persists (monotone, §5-safe), so
+    re-entering `ask_goal` with the supplied verdict RESUMES: the demand chain prunes-and-continues."""
+    def __init__(self, subj, rel, obj):
+        self.subj, self.rel, self.obj = subj, rel, obj
 
-    `attention` (EXPOSED so the consuming system picks the reasoning mode, docs/cnl_intake_design.md §3):
-      - "global" (default) — reason over the whole KB (behaviour-identical to a bare `ask_goal`).
-      - "focus"  — BOUNDED ATTENTION: a question reasons only within the current focus working set (the
-        top frame's centers + their closure). Per-utterance cost then tracks the focus, not the accreted
-        session, and the coref fan-out is bounded — but off-focus facts are outside attention (a SEMANTIC
-        choice, the agent-not-theorem-prover reading), so answers can differ from "global"."""
-    from .cnl.query import recognize, ask_goal
+
+def _answer_with_ask(kb, text, rules, policy, fscope, can_ask):
+    """Answer the recognized question. This is a GENERATOR so the ask wait-point can SUSPEND: if the
+    chain hits an open-predicate UNKNOWN and `can_ask`, it yields an `Event("ask", …)` and pauses; the
+    driver `.send()`s back the verdict (True/False/None), and we RESUME by re-entering `ask_goal` with
+    that verdict as a one-shot handler (the graph is the continuation, §5). With `can_ask` false there is
+    no handler, so we answer straight (no suspension). Returns the CNL answer list."""
+    from .cnl.query import ask_goal
+    if not can_ask:
+        return ask_goal(kb, text, rules, policy=policy, ask_user=None, focus_scope=fscope)
+
+    def _raise(s, r, o):
+        raise _NeedVerdict(s, r, o)
+    try:
+        return ask_goal(kb, text, rules, policy=policy, ask_user=_raise, focus_scope=fscope)
+    except _NeedVerdict as nv:
+        verdict = yield Event("ask", {"subj": nv.subj, "rel": nv.rel, "obj": nv.obj})
+        return ask_goal(kb, text, rules, policy=policy,
+                        ask_user=lambda s, r, o: verdict, focus_scope=fscope)
+
+
+def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_ask=False):
+    """The routing CORE as a generator (§5/8.5b): route ONE CNL `utterance` by which recognition forms
+    fire and act on it, YIELDING an `Event` at each step boundary and RETURNING the `Outcome` (via
+    `StopIteration.value`). Both `ingest` (blocking) and `converse` (non-blocking) drive this ONE core, so
+    routing/streaming discipline lives in a single place. The only wait-point is the ask yield inside
+    `_answer_with_ask`; every other yield is fire-and-forget (its sent value is ignored)."""
+    from .cnl.query import recognize
     from .cnl.authoring import load_rules, load_facts, _on_cycle
     from . import focus as focus_mod
 
-    emit = on_event if on_event is not None else (lambda e: None)   # §5 stream; no-op when unwired
-
     text = utterance.strip()
     if not text:
-        emit(Event("unrecognized"))
+        yield Event("unrecognized")
         return Outcome("unrecognized", utterance)
 
     # FOCUS — an explicit focus move (`focus on X` / `forget that` / `back to X`), recognized as a FORM
@@ -116,7 +137,7 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
     fop = focus_mod.recognize_focus_op(text)
     if fop is not None and fop[0] is not None:
         focus_mod.apply_focus_op(kb, fop[0], fop[1])
-        emit(Event("focus", {"op": fop[0], "target": fop[1]}))
+        yield Event("focus", {"op": fop[0], "target": fop[1]})
         return Outcome("focus", utterance, focus_op=fop)
 
     # ANAPHORA is a BOUNDARY concern, resolved by the external SLM on the NL->CNL side using the exposed
@@ -128,17 +149,12 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
     # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
     q = recognize(text)
     if q is not None:
-        emit(Event("question", {"s": q.get("s"), "p": q.get("p"), "o": q.get("o")}))
+        yield Event("question", {"s": q.get("s"), "p": q.get("p"), "o": q.get("o")})
         # widen BEFORE answering so bounded attention includes what this question is about.
         focus_mod.widen(kb, _question_entities(q))
         fscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
-
-        def _ask(s, r, o):                    # bracket the human-in-the-loop gather with an event (§5/§4)
-            emit(Event("ask", {"subj": s, "rel": r, "obj": o}))
-            return ask_user(s, r, o)
-        answer = ask_goal(kb, text, rules, policy=policy,
-                          ask_user=(_ask if ask_user is not None else None), focus_scope=fscope)
-        emit(Event("answer", {"answer": answer}))
+        answer = yield from _answer_with_ask(kb, text, rules, policy, fscope, can_ask)
+        yield Event("answer", {"answer": answer})
         return Outcome("answer", utterance, answer=answer)
 
     # RULE — a `HEAD when …` line reflects to executable rule(s); none => not a rule line.
@@ -148,7 +164,7 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
         if _on_cycle(policy) == "raise":                     # re-lint per add (firmware STANCE); a
             from .cnl.authoring import lint_stratifiable     # negation cycle rejects here (Phase 8.6:
             lint_stratifiable(rules, source="ingest")        # conflict-lint-as-conversation replaces raise)
-        emit(Event("rule", {"added": len(new_rules)}))
+        yield Event("rule", {"added": len(new_rules)})
         return Outcome("rule", utterance, added_rules=list(new_rules))
 
     # FACT vs UNRECOGNIZED — recognize into the live KB; a content relation means a fact landed.
@@ -161,5 +177,55 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str =
         focus_mod.widen(kb, focus_mod.utterance_subjects(kb, anchor))
     if anchor is not None:
         focus_mod.gc_utterance_scaffolding(kb, anchor)   # sweep the spent token chain (accretion control)
-    emit(Event("fact" if is_fact else "unrecognized"))
+    yield Event("fact" if is_fact else "unrecognized")
     return Outcome("fact", utterance) if is_fact else Outcome("unrecognized", utterance)
+
+
+def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str = "global",
+           on_event=None) -> Outcome:
+    """Route ONE CNL `utterance` against the live session KB `kb` (+ accumulated `rules`) by which
+    recognition forms fire, and act on it. Returns an `Outcome`. `rules` is mutated in place when the
+    utterance adds a rule (so subsequent turns reason with it immediately — Phase 8.6).
+
+    This is the BLOCKING driver (8.5a): it runs the `_ingest_gen` core to completion, forwarding every
+    `Event` to `on_event` and calling `ask_user` synchronously at the ask wait-point (a TUI that can
+    block on the prompt). The non-blocking generator driver is `converse` (8.5b).
+
+    `attention` (EXPOSED so the consuming system picks the reasoning mode, docs/cnl_intake_design.md §3):
+      - "global" (default) — reason over the whole KB (behaviour-identical to a bare `ask_goal`).
+      - "focus"  — BOUNDED ATTENTION: a question reasons only within the current focus working set (the
+        top frame's centers + their closure). Per-utterance cost then tracks the focus, not the accreted
+        session, and the coref fan-out is bounded — but off-focus facts are outside attention (a SEMANTIC
+        choice, the agent-not-theorem-prover reading), so answers can differ from "global"."""
+    emit = on_event if on_event is not None else (lambda e: None)   # §5 stream; no-op when unwired
+    gen = _ingest_gen(kb, rules, utterance, policy=policy, attention=attention,
+                      can_ask=ask_user is not None)
+    send_val = None
+    try:
+        while True:
+            ev = gen.send(send_val)
+            send_val = None
+            emit(ev)                                     # stream every event, "ask" included (brackets §4)
+            if ev.kind == "ask":
+                send_val = ask_user(ev.data["subj"], ev.data["rel"], ev.data["obj"])
+    except StopIteration as stop:
+        return stop.value
+
+
+def converse(kb, rules, utterance, *, policy=None, attention: str = "global"):
+    """Non-blocking generator driver (8.5b, docs/cnl_intake_design.md §5): the same routing as `ingest`,
+    but as a GENERATOR the caller pumps. It YIELDS an `Event` per step boundary; the caller renders each
+    and, for the single `"ask"` event, `.send()`s the human/tool verdict (True/False/None) — every other
+    event's send is ignored (send `None` / call `next`). SUSPEND/RESUME is threadless: the ask unwinds the
+    chain, and resuming re-enters the demand-driven chain over the graph (the continuation). The final
+    `Outcome` is the generator's `StopIteration.value`.
+
+        gen, send = converse(kb, rules, utt), None
+        try:
+            while True:
+                ev = gen.send(send); send = None
+                if ev.kind == "ask": send = decide(ev.data)   # else: render(ev)
+        except StopIteration as stop:
+            outcome = stop.value
+    """
+    return _ingest_gen(kb, rules, utterance, policy=policy, attention=attention, can_ask=True)
