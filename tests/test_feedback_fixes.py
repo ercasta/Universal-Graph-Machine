@@ -124,3 +124,43 @@ def test_suppose_accepts_focus_scope():
     res = suppose(kb, rg, [("ada", "is", "rained_on")], [("is", "ada", "wet")],
                   focus_scope=frozenset({"ada"}))
     assert res.status == "confirmed"
+
+
+# --- #6: suppose(commit=False) is READ-ONLY — verdict + in-scope derivations, no ink -----------------
+
+def _wet_world():
+    kb, rules = h.load_corpus("?x is wet when ?x is rained_on")
+    rg = AttrGraph()
+    for r in rules:
+        write_rule(rg, r)
+    return kb, rules, rg
+
+
+def test_suppose_commit_false_is_read_only_and_returns_derivations():
+    assert "commit" in inspect.signature(suppose).parameters
+    kb, rules, rg = _wet_world()
+    res = suppose(kb, rg, [("ada", "is", "rained_on")], [("is", "ada", "wet")], commit=False)
+    assert res.status == "confirmed"
+    assert res.committed == []                               # a READ-ONLY run inks NOTHING
+    assert ("ada", "is", "wet") in res.derived              # the in-scope consequence, for inspection
+    # the KB is unmutated: the assumption never entered ink, so the conclusion does not re-derive
+    assert h.ask_goal(kb, "is ada wet", rules) == ["no"]
+
+
+def test_suppose_default_still_commits_to_ink():
+    kb, rules, rg = _wet_world()
+    res = suppose(kb, rg, [("ada", "is", "rained_on")], [("is", "ada", "wet")])   # commit=True default
+    assert res.status == "confirmed" and ("ada", "is", "rained_on") in res.committed
+    assert res.derived == []                                # default run: no read-only snapshot
+    assert h.ask_goal(kb, "is ada wet", rules) == ["yes"]   # inked -> re-derives from ink
+
+
+def test_suppose_commit_false_exposes_partial_derivations_on_inconclusive():
+    # a prediction that does NOT derive makes the run inconclusive — but the partial consequence that
+    # DID derive (and used to be swept unseen) is now inspectable, answering 'why inconclusive?'.
+    kb, rules, rg = _wet_world()
+    res = suppose(kb, rg, [("ada", "is", "rained_on")],
+                  [("is", "ada", "wet"), ("is", "ada", "happy")], commit=False)
+    assert res.status == "inconclusive"
+    assert ("ada", "is", "wet") in res.derived
+    assert h.ask_goal(kb, "is ada wet", rules) == ["no"]     # still read-only

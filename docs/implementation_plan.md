@@ -43,11 +43,12 @@ position → no shared type), resolved by the universal marker. S-P-O is just a 
 role semantics baked in — direction carries it); role-labeled edges were REJECTED by the user.
 
 **Consumer-feedback hardening DONE 2026-07-12** (`docs/feedback_from_pystrider.md`, `tests/test_feedback_fixes.py`):
-the recurring theme was SILENT failures — six made LOUD or fixed: #1 machine-rule non-triple clause raises;
-#2 skolem/RHS-only head var rejected at load (option A; genuine minting = deferred, see NEXT); #3 CNL
-case-fold false-negative warns; #4 `apply_*` clear error on a `Rule` vs node-id; #5 `load_facts(strict=True)`;
-#7 `suppose(focus_scope=…)`. Session API also promoted to top-level exports (`ingest`/`converse`/…). See the
-NEXT STEP below for the one OPEN architectural item (name-vs-id addressing, C→D).
+the recurring theme was SILENT failures — SEVEN made LOUD or fixed: #1 machine-rule non-triple clause raises;
+#2 skolem/RHS-only head var rejected at load (option A; genuine minting = STILL DEFERRED, the one remaining
+pystrider item); #3 CNL case-fold false-negative warns; #4 `apply_*` clear error on a `Rule` vs node-id;
+#5 `load_facts(strict=True)`; #6 read-only `suppose(commit=False)` returns in-scope derivations (2026-07-12);
+#7 `suppose(focus_scope=…)`. Session API also promoted to top-level exports (`ingest`/`converse`/…). The
+name-vs-id addressing item (C→D) is now RESOLVED (coreference-as-rules, all stages done).
 
 Phases 0–2, 3.1-step1, 3.3, 4, 5, 6.0/6.1, firmware v3 (demand-driven negation), stance-as-data, and
 perf lever (a) are **DONE** — see `implementation_plan_done.md` and `CHANGELOG.md`. **Do NOT re-do them;

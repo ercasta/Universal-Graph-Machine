@@ -14,6 +14,17 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### pystrider feedback #6 — read-only `suppose(commit=False)` (343 passed)
+Closes the last ergonomics gap from the pystrider spike (`docs/feedback_from_pystrider.md` #6). `suppose`
+committed assumptions to ink on CONFIRM and swept everything otherwise, so a hypothesis-driven analyzer had
+to copy/rebuild the KB per query and could not inspect WHY a run was inconclusive. `suppose(..., commit=
+False)` is now READ-ONLY: it inks nothing (a CONFIRMED run only reports the verdict), returns the in-scope
+DERIVED consequences in `SupposeResult.derived` (seed assumptions excluded) for inspection — including the
+partial derivations of an INCONCLUSIVE run — then sweeps the pencil, leaving the KB's committed facts
+unchanged. `explain_suppose` renders the derivations. Default `commit=True` is behaviour-identical
+(`derived` empty). `suppose.py` `_scope_derivations`; `tests/test_feedback_fixes.py` (+3). A brand-new
+entity NAME in an assumption still mints its node — pass `ById` for a fully pure call.
+
 ### Coreference-as-rules Stage 4 — forward value-JOIN + same-name coref as a declared rule (340 passed)
 The mechanical `wire_same_as` ingest default is retired: coreference becomes a DECLARED rule the author
 controls, and it now fires in BOTH engines. Two parts.

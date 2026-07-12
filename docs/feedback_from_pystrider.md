@@ -146,7 +146,16 @@ returned list of unrecognized lines from `load_facts`, so a data-loading caller 
 silent loss. (Workaround: the design already reserves intake as a "§8 tool, not CNL", so we
 materialize facts directly — but the silent drop surprised us first.)
 
-## 6. (minor) `suppose()` mutates the KB (commits assumptions to ink on CONFIRM); no read-only verdict
+## 6. (minor) `suppose()` mutates the KB (commits assumptions to ink on CONFIRM); no read-only verdict — ✅ FIXED 2026-07-12
+
+**FIXED:** `suppose(..., commit=False)` is a READ-ONLY entry point — it inks NOTHING (even a CONFIRMED run
+only reports the verdict) and returns the in-scope DERIVED consequences in `SupposeResult.derived` for
+inspection, including after an INCONCLUSIVE run (the partial derivations that used to be swept unseen). So a
+hypothesis-driven analyzer no longer copies/rebuilds the KB per query. Default `commit=True` is unchanged.
+(`suppose.py` `_scope_derivations`; `tests/test_feedback_fixes.py`.) Note: a brand-new entity NAME in an
+assumption still mints its node — pass `ById` for a fully pure call.
+
+
 
 `suppose(fact_g, rule_g, ...)` commits the assumptions into the fact layer on CONFIRM and
 sweeps everything on REFUTE/INCONCLUSIVE — so (a) an analyzer that asks "does X hold under this

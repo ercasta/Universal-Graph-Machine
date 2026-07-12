@@ -62,12 +62,16 @@ class SupposeResult:
     """The verdict of a SUPPOSE run. `committed` is the ink written on CONFIRM (empty otherwise);
     `contradiction` is the predicted tuple whose negation was entailed (set only on REFUTE);
     `looked_for` is the rendered magic set the in-scope CHAIN explored (the 'what I reasoned about'
-    trace). The scope has already been resolved — committed to ink (CONFIRM) or swept (else) — so no
-    live `<hypothesis>` id is returned."""
+    trace). `derived` is the in-scope DERIVED consequences (the hypothesis's pencil derivations, seed
+    assumptions excluded) — populated only on a READ-ONLY run (`commit=False`, feedback #6), so a
+    hypothesis-driven analyzer can inspect what held under the supposition (incl. after INCONCLUSIVE)
+    without the KB being mutated. The scope has already been resolved — committed to ink (CONFIRM) or
+    swept (else) — so no live `<hypothesis>` id is returned."""
     status: str
     committed: list[Triple] = field(default_factory=list)
     contradiction: Triple | None = None
     looked_for: list[str] = field(default_factory=list)
+    derived: list[Triple] = field(default_factory=list)
 
 
 def _resolve(g: AttrGraph, name) -> str:
@@ -97,6 +101,25 @@ def scope_members(g: AttrGraph, scope: str) -> list[str]:
     return out
 
 
+def _scope_derivations(g: AttrGraph, scope: str, seed_rels: set[str]) -> list[Triple]:
+    """The in-scope DERIVED consequences as `(subj, pred, obj)` name-triples — every scope-tagged pencil
+    fact that is NOT one of the seed assumption rels (feedback #6: inspect what the hypothesis ENTAILED,
+    e.g. to see WHY a run was inconclusive). Read before the scope is swept; endpoints as their names."""
+    out: list[Triple] = []
+    for rel in scope_members(g, scope):
+        if rel in seed_rels or not g.has(rel):
+            continue
+        p = g.predicate(rel)
+        if not p:
+            continue
+        for s in g.pred(rel):
+            for o in g.succ(rel):
+                sn, on = g.name(s), g.name(o)
+                if sn and on:
+                    out.append((sn, p, on))
+    return out
+
+
 def _drop_scope(g: AttrGraph, scope: str) -> None:
     """DROP the whole scope: remove every rel node tagged `scope` (the pencil assumptions + every
     in-scope pencil derivation) and the `<hypothesis>` node itself. All are CONTROL, so this cuts only
@@ -118,7 +141,7 @@ def _record_confirmed(g: AttrGraph, ink_node: str) -> None:
 
 def suppose(fact_g: AttrGraph, rule_g: AttrGraph,
             assumptions: list[Triple], predictions: list[Triple], *,
-            provenance: bool = False,
+            provenance: bool = False, commit: bool = True,
             focus_scope: frozenset[str] | None = None) -> SupposeResult:
     """Entertain `assumptions` in a `<hypothesis>` scope, CHAIN their consequences in pencil, and CHECK
     the `predictions` in-scope. Returns a `SupposeResult`. Side effect on the graph: CONFIRM commits the
@@ -128,6 +151,14 @@ def suppose(fact_g: AttrGraph, rule_g: AttrGraph,
     Contradiction = the supposition entails the NEGATION of a prediction (in-scope). Confirmation = every
     prediction is derivable in-scope and none contradicted.
 
+    `commit=False` (feedback #6) makes it READ-ONLY: nothing is ever inked — even a CONFIRMED run only
+    reports the verdict and returns the in-scope DERIVED consequences (`result.derived`) for inspection,
+    then sweeps the pencil, so the KB's committed facts are unchanged. This fits a hypothesis-driven
+    analyzer ('does X hold under this assumption?') that would otherwise copy/rebuild the KB per query,
+    and it lets you inspect WHY a run was INCONCLUSIVE (the partial derivations that used to be swept
+    unseen). (A brand-new entity NAME in an assumption still mints its node — pass `ById` to stay fully
+    pure.) Default `commit=True` is behaviour-identical to before (`derived` stays empty).
+
     `focus_scope` (feedback #7) BOUNDS attention exactly as `ask_goal` does — threaded into the in-scope
     `chain_sip`/`_facts_matching` so the hypothesis reasons only within the working set (an endpoint in
     `focus_scope`), keeping per-hypothesis cost tracking the focus, not the accreted graph. `None` =
@@ -136,8 +167,9 @@ def suppose(fact_g: AttrGraph, rule_g: AttrGraph,
     for s, _p, o in (*assumptions, *predictions):          # id-addressed pins must exist (silent->loud)
         validate_ids(fact_g, s, o)
     scope = fact_g.add_node(HYPOTHESIS, control=True)
+    seed_rels: set[str] = set()
     for s, p, o in assumptions:
-        _pencil(fact_g, scope, _resolve(fact_g, s), p, _resolve(fact_g, o))
+        seed_rels.add(_pencil(fact_g, scope, _resolve(fact_g, s), p, _resolve(fact_g, o)))
 
     contradiction: Triple | None = None
     all_hold = True
@@ -154,15 +186,21 @@ def suppose(fact_g: AttrGraph, rule_g: AttrGraph,
             all_hold = False
 
     looked_for = render_demands(rule_g)
+    # READ-ONLY (commit=False): snapshot the in-scope derivations BEFORE the sweep, for inspection.
+    derived = _scope_derivations(fact_g, scope, seed_rels) if not commit else []
 
     if contradiction is not None:
         _drop_scope(fact_g, scope)
-        return SupposeResult(REFUTED, [], contradiction, looked_for)
+        return SupposeResult(REFUTED, [], contradiction, looked_for, derived)
     if not all_hold:
         _drop_scope(fact_g, scope)
-        return SupposeResult(INCONCLUSIVE, [], None, looked_for)
+        return SupposeResult(INCONCLUSIVE, [], None, looked_for, derived)
 
-    # CONFIRMED: EMIT the assumptions to INK (real facts), then sweep the pencil scaffolding.
+    # CONFIRMED. READ-ONLY: report the verdict + derivations, ink NOTHING, sweep the pencil.
+    if not commit:
+        _drop_scope(fact_g, scope)
+        return SupposeResult(CONFIRMED, [], None, looked_for, derived)
+    # COMMIT: EMIT the assumptions to INK (real facts), then sweep the pencil scaffolding.
     committed: list[Triple] = []
     for s, p, o in assumptions:
         s_id, o_id = _resolve(fact_g, s), _resolve(fact_g, o)
@@ -188,6 +226,9 @@ def explain_suppose(result: SupposeResult) -> list[str]:
     if result.committed:
         lines.append("  committed to ink:")
         lines += [f"    {s} {p} {o}" for s, p, o in result.committed]
+    if result.derived:                                     # read-only run (feedback #6): what held in-scope
+        lines.append("  in-scope consequences (not committed):")
+        lines += [f"    {s} {p} {o}" for s, p, o in result.derived]
     lines.append("  reasoned about:")
     lines += [f"    {ln}" for ln in result.looked_for]
     return lines

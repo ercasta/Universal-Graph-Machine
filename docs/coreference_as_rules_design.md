@@ -1,7 +1,9 @@
 # Coreference as declared rules — a reassessment of Phase 8 "D"
 
-> **Status: ACTIVE. Sequence 1→2→3→4→5 approved by the user (2026-07-12); Stages 1–4 DONE (Stage 4 core;
-> `canonicalize` deletion is optional follow-up), Stage 5 (docs/boundary) next.**
+> **Status: COMPLETE. Sequence 1→2→3→4→5 approved by the user (2026-07-12); ALL STAGES DONE.** Stage 4 core
+> landed (declared coref + forward `VMATCH`); Stage 5 finalized (boundary migration OBVIATED by the redesign
+> — see below — + docs). Optional carried follow-up: delete the retired `canonicalize` merge + rewrite its
+> `test_new_core` users. Open with the user: `load_corpus` auto-injects the universal coref rule vs silent.
 > This supersedes
 > the mechanical-rebind framing of "D" in `implementation_plan.md`. Written after C (id-addressed goal path,
 > `ById`) landed and a design conversation redirected D away from a mechanical ingest merge toward
@@ -114,9 +116,18 @@ write points route through one site. The boundary primitives the id-core needs a
   `wire_same_as` as the default. **Was: medium/medium — the VMATCH prerequisite made it heavier.** FOLLOW-UP
   (optional): delete the retired `canonicalize` merge + rewrite its `test_new_core` users; `wire_same_as`/
   `coref_in_context` kept as opt-in tools. OPEN: auto-inject the universal rule (current) vs silent default.
-- **Stage 5 — finalize boundary migration + docs.** `ask_goal`/`check`/`suppose` resolve names→ids at the
-  surface (Half A); update `CHANGELOG`, `engine_user_guide`, `implementation_plan` (D done; coref rewritten
-  as data). **Effort: low–medium. Risk: low.**
+- **Stage 5 — finalize boundary + docs. ✅ DONE 2026-07-12.** The original "Half A — `ask_goal`/`check`/
+  `suppose` resolve names→ids at the surface" is **OBVIATED by the coref redesign**, not implemented: post
+  Stage 3, the core already binds and relates node ids where it computes (free-slot bindings, EMIT, value-
+  match), and a **name at the goal is deliberately a value-ACCELERATOR** — it selects the candidate *mention*
+  set, exactly what CNL wants. Forcing a name→single-id resolution at the boundary would REGRESS multi-mention
+  / coref reasoning (which id, when a name legitimately spans several mentions?). So the "nameless-core
+  purity" is achieved in the sense that matters — the core reasons on ids/structure; names are a surface
+  value-accelerator + a guarded write-resolution (`resolve_write_node`, warns on genuine ambiguity, `ById`
+  overrides). Docs: `CHANGELOG`, `implementation_plan`, and `engine_user_guide` (§2 "Coreference is a declared
+  rule") updated; the identity model documented (id-core + name-as-accelerator + coref-as-data). FOLLOW-UP
+  (optional, carried): delete the retired `canonicalize` merge + rewrite its `test_new_core` users;
+  `wire_same_as`/`coref_in_context` remain as opt-in author tools.
 
 ## Recommendation
 

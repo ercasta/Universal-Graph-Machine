@@ -84,6 +84,47 @@ names and ids is fine. And the reverse signal: writing through a **name** that r
 *genuinely distinct* entity (not repeated `same_as`-linked mentions of one) now **warns** — take the hint
 and pass `ById`.
 
+### Coreference is a declared rule, not a baked-in default
+
+Every mention stays a **separate node** — `ada` in one sentence and `ada` in another are two nodes. Whether
+they are the *same thing* is a decision, and decisions live in **rules (data)**, not in the loader. So the
+substrate does two independent things:
+
+- **Marking (policy-neutral).** `load_corpus`/`load_facts` tag every entity `is_a <mention>` (via
+  `mark_mentions`) — this only says "this is an entity," it makes no coreference claim. `<mention>` is a
+  universal, position-agnostic handle (an entity carries it whether it appeared as a subject or an object),
+  hidden from `derived_triples` and the discourse view.
+- **Deciding (a rule you control).** A value-match rule relates entities that agree on a value. `load_corpus`
+  injects one default — `same_name_coref_rules()`, i.e. *"corefer any two mentions with the same name"* —
+  then `same_as` propagation composes facts across the derived link.
+
+Because the decision is a rule, you steer it in CNL:
+
+```python
+# default: same-name coref over any entity (what load_corpus injects)
+#   ?x same_as ?y  when  ?x is_a <mention> and ?y is_a <mention> and <same-value ?x ?y name>
+
+# scope it to a type — corefer only people by name:
+h.load_rules("?x same_as ?y when ?x is a person and ?y is a person and ?x same name as ?y")
+
+# use a different criterion — corefer bodies by EMBEDDING closeness, not name:
+h.load_rules("?x same_as ?y when ?x is a star and ?y is a star and ?x close bright as ?y")
+
+# assert identity directly (not name-based at all):
+#   the morning star is the evening star        ->  a same_as fact
+
+# or drop coref entirely: omit the rule and same-named mentions stay distinct.
+```
+
+The primitive under all of these is `ValueMatch(var_a, var_b, dim, threshold?)` — a match-time **value-JOIN**
+comparing an attribute across two bound variables (exact equality, or graded `1-|Δ| ≥ threshold`). It fires in
+both engines: the demand chain (`ask_goal`/`check`) and the forward pass (`run_bank`/`run_rules`). CNL surface:
+`?x same DIM as ?y` (exact) / `?x close DIM as ?y` (graded).
+
+> **Identity model, in one line:** the reasoning core is **id-addressed** (it binds and relates node ids, so
+> two distinct same-named nodes never collapse); a **name** at the surface is a *value-accelerator* that
+> selects candidate mentions, and *coreference* is declared data over those mentions — never an engine default.
+
 ## 3. Choose a reasoning stance (`FirmwarePolicy`)
 
 The default is closed-world (absence of proof reads as `no`). Override per call — or once, threaded
@@ -255,7 +296,7 @@ and warns, rather than raising).
 | Get the 4-status verdict | `check(kb, reified_rules, (pred, subj, obj), policy=…)` |
 | Address a specific node (dup names) | pass `ById(node_id)` as a `check`/`chain_sip`/`suppose` endpoint |
 | Pick a maximal option (graded) | `choose(graph, goal, alpha=…)` |
-| Reason under an assumption | `suppose(...)` |
+| Reason under an assumption | `suppose(...)`; `commit=False` = read-only (verdict + `result.derived`, inks nothing) |
 | Register domain tools | `merge_tools(mode_registry(rr), {name: tool})`, pass `tools=` to `run_bank`/`run_rules` |
 | Full forward snapshot | `run_rules(kb, rules, tools=…)` |
 | Render the graph as CNL | `ask(kb, question)`, `surface.render_relation`, `narrate`, `explain` |
