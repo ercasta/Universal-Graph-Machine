@@ -189,6 +189,8 @@ faithful because the graph *is* CNL. Exactly one thing stays outside the graph: 
 | CNL surface | `ugm/cnl/forms.py`, `authoring.py`, `query.py`, `surface.py`, `machine_rules.py` |
 | Provenance / retraction | `ugm/provenance.py`, `ugm/retraction.py` |
 
-Older demand/coref/walk subsystems (`ugm/demand.py`, `ugm/coref_walk.py`, `ugm/cnl/walker.py`,
-`ugm/asp.py`) predate the firmware-v3 chain and are candidates for retirement once their cross-repo
-consumers are migrated — see the plan's pre-Phase-7 debt note.
+The pre-firmware-v3 demand/coref/walk subsystems (`ugm/demand.py`, `ugm/coref_walk.py`,
+`ugm/cnl/walker.py`) and the optional `ugm/asp.py` calculator were RETIRED (2026-07-12): the
+firmware-v3 chain subsumes on-demand transitivity and coref (via reified `same_as`/declared-transitive
+rules), so those modules were superseded. Coreference at load time is `authoring._coref_propagation`
+(`same_as_rules` over the content predicates), which stays.

@@ -48,13 +48,11 @@ from .retraction import (
     RETRACT, TARGETS, RETRACTED, RETRACT_RULES, seed_retract, retract,
     record_rejection, is_rejected,
 )
-from .demand import DEMAND, seed_demand, DEMAND_TRANSITIVITY, DEMAND_COREF
 from .dispatch import (
     CALL, TOOL, Tool, emit_call, call_tool, call_arg, call_args, pending_calls, consume_call,
     service_calls, merge_tools,
 )
 from .policy import FirmwarePolicy, DEFAULT_POLICY
-from .coref_walk import resolve_coref, coref_request_handler
 from .mode_calls import (
     check_tool, choose_tool, suppose_tool, mode_registry, service_modes,
     check_results, choice_results, suppose_results,
@@ -89,12 +87,7 @@ from .cnl.authoring import (
 from .cnl.surface import render_relation, narrate, explain
 from .cnl.query import QUESTION_FORMS, ask, ask_goal, recognize
 from .cnl.machine_rules import MACHINE_RULE_FORMS, load_machine_rules
-from .cnl.walker import (
-    WALKER, WALK_REQUEST, REACHED, FUEL, ORIGIN, TARGET, REFUEL, AMOUNT,
-    spawn_walker, walk_rules, DEMAND_WALK, SPAWN_RULES, walk_on_demand,
-    refuel_tool, WALK_TOOLS, load_walker_rules,
-)
-from . import external, provenance, retraction, dispatch, coref_walk, asp
+from . import external, provenance, retraction, dispatch
 from .cnl import forms, surface, authoring, universal, machine_rules, query, rule_graph
 from .external import (
     ARG, request, pending, consume_request,
@@ -151,14 +144,12 @@ __all__ = [
     "derived_facts", "axiomatize",
     "RETRACT", "TARGETS", "RETRACTED", "RETRACT_RULES", "seed_retract", "retract",
     "record_rejection", "is_rejected",
-    "DEMAND", "seed_demand", "DEMAND_TRANSITIVITY", "DEMAND_COREF",
     "CWA", "COPULA", "NEG_COPULA", "NEG_SUFFIX", "IS_A", "IS_A_NOT", "SAME_AS", "DISJOINT",
     "CLOSES", "REL_PROPERTY", "TRANSITIVE", "EVERY_IS_A", "IS_UNIQUE", "TARGET", "TYPE",
     "SUBSTRATE_COREF_PREDS", "neg_pred",
     "CALL", "TOOL", "Tool", "emit_call", "call_tool", "call_arg", "call_args", "pending_calls",
     "consume_call", "service_calls", "merge_tools",
     "FirmwarePolicy", "DEFAULT_POLICY",
-    "resolve_coref", "coref_request_handler",
     "check_tool", "choose_tool", "suppose_tool", "mode_registry", "service_modes",
     "check_results", "choice_results", "suppose_results",
     "CHECK_TOOL", "CHOOSE_TOOL", "SUPPOSE_TOOL", "CHECK_RESULT", "SUPPOSE_RESULT", "STATUS",
@@ -183,10 +174,7 @@ __all__ = [
     "render_relation", "narrate", "explain",
     "QUESTION_FORMS", "ask", "ask_goal", "recognize",
     "MACHINE_RULE_FORMS", "load_machine_rules",
-    "WALKER", "WALK_REQUEST", "REACHED", "FUEL", "ORIGIN", "TARGET", "REFUEL", "AMOUNT",
-    "spawn_walker", "walk_rules", "DEMAND_WALK", "SPAWN_RULES", "walk_on_demand",
-    "refuel_tool", "WALK_TOOLS", "load_walker_rules",
-    "external", "provenance", "retraction", "decide", "dispatch", "coref_walk", "asp",
+    "external", "provenance", "retraction", "dispatch",
     "forms", "surface", "authoring", "universal", "machine_rules", "query", "rule_graph",
     "ARG", "request", "pending", "consume_request",
     "emit_result", "emit_error", "results_for", "result_value", "is_superseded",

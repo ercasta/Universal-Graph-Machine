@@ -12,9 +12,6 @@ license = { text = "MIT" }
 keywords = ["graph", "reasoning", "knowledge-representation", "cnl", "datalog"]
 dependencies = []
 
-[project.optional-dependencies]
-asp = ["clingo>=5.8"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not slow'"

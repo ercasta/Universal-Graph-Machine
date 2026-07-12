@@ -1044,22 +1044,6 @@ def test_explain_reads_provenance_not_a_journal():
 
 
 # ---------------------------------------------------------------------------
-# On-demand evaluation — transitivity is derived only where demanded (selective)
-# ---------------------------------------------------------------------------
-
-def test_transitivity_on_demand_is_selective():
-    g = h.Graph()
-    _rel(g, "a", "is_a", "b")
-    _rel(g, "b", "is_a", "c")
-    _rel(g, "c", "is_a", "d")
-    h.seed_demand(g, "a", "d")                           # demand: a is_a d ?
-    h.run_rules(g, h.DEMAND_TRANSITIVITY)
-    assert _has(g, "a", "is_a", "d")                     # derived ON DEMAND
-    assert _has(g, "b", "is_a", "d")                     # via the spawned sub-demand
-    assert not _has(g, "a", "is_a", "c")                 # NOT demanded -> never derived (lazy)
-
-
-# ---------------------------------------------------------------------------
 # Reversible retraction — quarantine + cascade (the truth-maintenance layer)
 # ---------------------------------------------------------------------------
 
@@ -1073,43 +1057,6 @@ def test_retract_withdraws_derived_consequences():
     h.retract(g, premise)                                # rule-based cascade (RETRACT_RULES)
     assert not _has(g, "a", "r", "b")                    # premise hidden by interposition
     assert not _has(g, "b", "r2", "a")                   # its consequence lost support -> hidden
-
-
-# ---------------------------------------------------------------------------
-# Selective coreference ON DEMAND — two genuinely distinct Pauls stay separate
-# ---------------------------------------------------------------------------
-
-def test_coreference_on_demand_keeps_two_pauls_separate():
-    # Two distinct `paul` mentions in incompatible categories. Hypothesizing they corefer
-    # makes one paul both teacher and student (disjoint) -> contradiction -> the link is
-    # RETRACTED with its consequences, and the two pauls stay separate. Disambiguation by
-    # reasoning (vision §3), not a same-name heuristic.
-    g = h.Graph()
-    p1, p2 = g.add_node("paul"), g.add_node("paul")
-    g.add_relation(p1, "is_a", g.add_node("teacher"))
-    g.add_relation(p2, "is_a", g.add_node("student"))
-    g.add_relation(g.nodes_named("teacher")[0], "disjoint_from", g.nodes_named("student")[0])
-
-    h.resolve_coref(g, "paul")
-    assert len(g.nodes_named("paul")) == 2               # NEVER merged (additive)
-    assert not _has(g, "paul", "same_as", "paul")        # clash caught BEFORE linking
-    assert h.is_consistent(g)                            # no contradiction ever produced
-    assert h.is_rejected(g, p1, p2)                      # the rejection is recorded
-
-    def cats(n):
-        return sorted(g.name(o) for r, o in g.relations_from(n) if g.predicate(r) == "is_a")
-    assert cats(p1) == ["teacher"] and cats(p2) == ["student"]   # each keeps only its own
-
-
-def test_coreference_on_demand_keeps_compatible_link():
-    # No contradiction -> the hypothesised link STANDS and reasoning composes across it.
-    g = h.Graph()
-    p1, p2 = g.add_node("paul"), g.add_node("paul")
-    g.add_relation(p1, "is_a", g.add_node("teacher"))
-    g.add_relation(p2, "is_a", g.add_node("mortal"))
-    h.resolve_coref(g, "paul")
-    assert _has(g, "paul", "same_as", "paul")            # link committed (compatible)
-    assert not h.is_rejected(g, p1, p2)
 
 
 # ---------------------------------------------------------------------------

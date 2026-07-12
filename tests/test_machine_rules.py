@@ -22,28 +22,6 @@ def _shapes(rules):
 
 
 # ---------------------------------------------------------------------------
-# Conversion fidelity — the CNL bank == the Python walker rules
-# ---------------------------------------------------------------------------
-
-def test_walker_cnl_reflects_to_the_python_walker_rules():
-    cnl = h.load_walker_rules()                                   # from corpus/walker.cnl
-    python = h.DEMAND_WALK + h.SPAWN_RULES + h.walk_rules("is_a")
-    assert _shapes(cnl) == _shapes(python)                        # identical, modulo keys
-
-
-def test_walker_cnl_drives_an_on_demand_walk():
-    # End-to-end through the CNL rules: walk_on_demand uses corpus/walker.cnl for is_a.
-    g = h.Graph()
-    for a, b in [("a", "b"), ("b", "c"), ("c", "d")]:
-        g.add_relation(g.add_node(a) if not g.nodes_named(a) else g.nodes_named(a)[0],
-                       "is_a",
-                       g.add_node(b) if not g.nodes_named(b) else g.nodes_named(b)[0])
-    h.walk_on_demand(g, "a", "d")
-    assert any(g.has_key(r, "is_a") and g.nodes_named("d")[0] in g.out(r)
-               for r in g.out(g.nodes_named("a")[0]))             # a is_a d materialized
-
-
-# ---------------------------------------------------------------------------
 # Grammar-gap coverage — each gap, on a minimal rule
 # ---------------------------------------------------------------------------
 

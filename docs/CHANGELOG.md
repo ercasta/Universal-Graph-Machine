@@ -14,6 +14,22 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### Pre-firmware-v3 leftovers RETIRED — demand/coref/walk/asp deleted (258 passed, 0 failed)
+The superseded demand/coref/walk Python subsystems the audit flagged are gone (user-directed; harneskills,
+the only cross-repo consumer, is being adapted onto the new engine docs). DELETED: `ugm/demand.py`
+(`DEMAND_TRANSITIVITY`/`DEMAND_COREF`/`seed_demand` — the pre-v3 magic-set transitivity/coref rules, now
+done by `chain_sip` + reified `R is transitive`), `ugm/coref_walk.py` (`resolve_coref` cursor walk —
+firmware-v3 coref is `same_as_rules` demanded by the chain; load-time `authoring._coref_propagation`
+stays), `ugm/cnl/walker.py` (`walk_on_demand` + the WALK mode's fuelled traversal — subsumed by
+demand-driven CHAIN over declared-transitive relations), `ugm/asp.py` + the `[asp]`/clingo optional
+extra. Plus `corpus/walker.cnl`, the three dedicated test files (`test_asp_calc`, `test_coref_walk`,
+`test_walkers`), the walker/demand benches (`bench/wordnet_messy.py`, `bench/wordnet_scaling.py`), and
+the walker/demand/coref test functions in `test_machine_rules`/`test_new_core`. `ugm/__init__.py` unwired
+(imports + `__all__`, including a stale `"decide"` entry left from the Phase-6.1 deletion). Import +
+`from ugm import *` clean; suite 283→258 (−25 tests, all for deleted code), 0 failed. No LIVE firmware
+path depended on any of them (verified: only `__init__` re-exports + tests/benches). As-built:
+`docs/architecture.md` module-map note.
+
 ### Firmware STANCE as declared data + pluggable tools + the three engine docs (283 passed, 1 skipped)
 The firmware's OPINIONATED stances are now SELECTABLE DATA, not forked Python — the substrate + engine
 stay generic, a different firmware activates by swapping a policy object (user-directed). What landed:

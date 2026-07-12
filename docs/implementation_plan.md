@@ -22,9 +22,9 @@
 
 ## NEXT STEP (pick this up FIRST)
 
-**Suite: 283 passed, 1 skipped, 0 failed** (`python -m pytest -q`, ~66s). 274 (firmware v3 + the
-2026-07-12 endpoint-driven `_facts_matching` perf fix, was ~90s→~54s) + 9 new `test_isa_policy.py`
-(firmware STANCE as data). Prior baseline 264 (Phase 6.1).
+**Suite: 258 passed, 0 failed** (`python -m pytest -q`, ~95s). Was 283 (firmware v3 + endpoint-driven
+perf + 9 `test_isa_policy.py`); −25 after the 2026-07-12 leftover retirement (deleted demand/coref/walk/
+asp modules + their dedicated tests). Prior baseline 264 (Phase 6.1).
 
 **FIRMWARE STANCE AS DATA + PLUGGABLE TOOLS + ENGINE DOCS DONE (2026-07-12, user-directed).** The
 firmware's opinions are now selectable data (`ugm/policy.py` `FirmwarePolicy`: `negation_default`
@@ -33,11 +33,13 @@ closed/open + `open_preds`/`closed_preds`; `on_cycle` raise/degrade), wired thro
 = collision-safe tool composition (the mechanism was already pluggable). Three docs written:
 `docs/architecture.md` (the generic→opinionated layering — Phase 6.2 architecture half),
 `docs/engine_developer_guide.md`, `docs/engine_user_guide.md`; README de-staled + Architecture section.
-See CHANGELOG (2026-07-12). **Still OPEN (user is driving):** (1) the FirmwarePolicy landed the two
-knobs the audit named; a broader stance surface is future. (2) Pre-Phase-7 LEFTOVER-LIVENESS sweep —
-`ugm/demand.py`, `ugm/coref_walk.py`, `ugm/cnl/walker.py`, `ugm/asp.py` are pre-firmware-v3
-demand/coref/walk subsystems; the user is adapting harneskills (the only consumer) to make them safe to
-DELETE. Do NOT delete blind — they are exported public API; delete only once harneskills is migrated.
+See CHANGELOG (2026-07-12). **Follow-ons:** (1) the FirmwarePolicy landed the two knobs the audit named;
+a broader stance surface is a PLACEHOLDER, not a concrete task (no third opinion is pending — CHOOSE
+tie-break / always-provenance `why` / default α-cut are candidates only if a workload needs them).
+(2) Pre-Phase-7 LEFTOVER RETIREMENT — **DONE 2026-07-12**: `demand.py`/`coref_walk.py`/`cnl/walker.py`/
+`asp.py` DELETED (superseded by the firmware-v3 chain; no live path depended on them). harneskills (the
+only cross-repo consumer) is being adapted onto the engine docs — if it referenced any deleted export,
+migrate it to `chain_sip`/`ask_goal`/`same_as_rules` per `docs/engine_user_guide.md`.
 
 **FIRMWARE v3 (demand-driven negation) DONE (2026-07-11).** Negation is decided ON DEMAND by NAF in
 `chain_sip._nac_blocks` (nested negative demand → positive closure → absence decides); fuel→UNKNOWN;
