@@ -1,6 +1,6 @@
 # Coreference as declared rules — a reassessment of Phase 8 "D"
 
-> **Status: ACTIVE. Sequence 1→2→3→4→5 approved by the user (2026-07-12); Stages 1–2 DONE, Stage 3 next.**
+> **Status: ACTIVE. Sequence 1→2→3→4→5 approved by the user (2026-07-12); Stages 1–3 DONE, Stage 4 next.**
 > This supersedes
 > the mechanical-rebind framing of "D" in `implementation_plan.md`. Written after C (id-addressed goal path,
 > `ById`) landed and a design conversation redirected D away from a mechanical ingest merge toward
@@ -87,11 +87,17 @@ write points route through one site. The boundary primitives the id-core needs a
   embeddings derive `same_as` via the rule, and `same_as_rules` compose a fact across it (`is eveningstar
   visible` → yes; far `pluto` → no; no-rule → no). *Proved the direction with no engine rewrite.* **Was:
   medium effort, low risk — held.**
-- **Stage 3 — id-addressed core (env binds ids).** Make the matcher bind node ids in all slots; names
-  resolved at the boundary via C's `ById`; literals (`person`, `thief`) resolve to their canonical node;
-  EMIT uses the bound id. The nameless-core purity. **Effort: high. Risk: high** (touches every reasoning
-  path; whole suite is the regression gate). *Unlocks same-name value-coref.* C de-risks it (bound-slot id
-  handling exists).
+- **Stage 3 — id-addressed core (env binds ids). ✅ DONE 2026-07-12** (339 passed;
+  `tests/test_isa_idcore.py`). The matcher binds node ids in FREE slots (`chain._facts_matching` returns a
+  `ById` for a discovered node, not its name); a head LITERAL meeting a `ById` demand endpoint is matched
+  against the id's NAME (`_unify_head_with_demand`/`_endpoint_name`); `_graded_ok` reads a `ById`-bound var
+  through `_bound_entity_nodes`; EMIT already used the bound id (via `resolve_write_node`, C). The predicted
+  "high effort / high risk touching every reasoning path" was OVER-estimated: because C had made every
+  downstream consumer `ById`-aware, the change reduced to "free slots return `ById`" + two small
+  read-side fixes. One user-boundary fix followed: `gather_open_premises` resolves demand endpoints id→NAME
+  (the ask speaks names) and dedups the id/name form of a premise. Bonus: full suite ~161s→~74s (pinning one
+  id beats iterating same-named candidates). *Unlocks same-name value-coref* — two distinct nodes both named
+  "ada" now relate via a same-name `ValueMatch`. **Was: high effort, high risk — came in far lighter.**
 - **Stage 4 — same-name coref as rules + retire mechanical coref.** On the id-core, `same_value ?x ?y name`
   relates distinct same-named nodes. Drop `wire_same_as`/`coref_in_context` as the *default*; same-name
   coref becomes a declared standard bank an author opts into (or writes their own, or none). Delete the

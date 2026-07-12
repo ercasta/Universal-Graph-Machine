@@ -307,37 +307,51 @@ def bound_demands(rule_g: AttrGraph) -> set[tuple[str, str | None, str | None]]:
     return out
 
 
-def _tok_name(env: dict[str, str], tok: str) -> str | None:
-    """The NAME a rule token resolves to under `env`: a bound var -> its name; a literal -> its name;
-    an UNBOUND var -> None (a wildcard endpoint — an open slot in a demand, to be bound by a fact)."""
+def _tok_name(env: dict[str, str], tok: str):
+    """The ENDPOINT a rule token resolves to under `env` — a NAME or, since the id-addressed core
+    (Stage 3), a `ById`: a bound var -> its env value (a name it was seeded with, or a `ById` a free
+    slot bound it to — see `_facts_matching`); a literal -> its name; an UNBOUND var -> None (a wildcard
+    demand endpoint, an open slot to be bound by a fact). Consumers (`_facts_matching`, `_node_for_name`,
+    `_bound_entity_nodes`) are `ById`-aware, so a var can carry a node id through the whole chain."""
     return env.get(tok) if is_var(tok) else literal_name(tok)
 
 
-def _bind(env: dict[str, str], tok: str, name: str) -> dict[str, str] | None:
-    """Extend `env` binding `tok` to `name`: a var binds (or must already agree), a literal must
-    equal `name`. Returns the extended env, or None on conflict."""
+def _endpoint_name(fact_g: AttrGraph, endpoint) -> str:
+    """The NAME an endpoint denotes: a `ById` -> its node's name; a name -> itself. Used where a rule
+    LITERAL (matched by name) meets a `ById` env/demand endpoint (matched by id)."""
+    return fact_g.name(endpoint.node_id) if isinstance(endpoint, ById) else endpoint
+
+
+def _bind(env: dict[str, str], tok: str, val) -> dict[str, str] | None:
+    """Extend `env` binding `tok` to `val` (a name or a `ById`): a var binds (or must already agree by
+    equality — a `ById` is agreement-safe, a distinct same-named node has a DIFFERENT id and correctly
+    fails to unify), a literal must equal `val` (a literal only ever meets a name here — a free slot,
+    which alone yields a `ById`, is by construction a var, never a literal). Returns the extended env,
+    or None on conflict."""
     if is_var(tok):
         if tok in env:
-            return env if env[tok] == name else None
+            return env if env[tok] == val else None
         e = dict(env)
-        e[tok] = name
+        e[tok] = val
         return e
-    return env if literal_name(tok) == name else None
+    return env if literal_name(tok) == val else None
 
 
-def _unify_head_with_demand(demand: tuple[str, str | None, str | None],
+def _unify_head_with_demand(fact_g: AttrGraph, demand: tuple[str, str | None, str | None],
                             hs: str, hp: str, ho: str) -> dict[str, str] | None:
     """The env binding a head atom `(hs, hp, ho)` inherits from a demand it can serve: the predicates
     must match, and the demand's bound endpoints seed the head's slots (a wildcard demand endpoint
-    leaves the head slot open). None if the head can't produce the demanded tuple."""
+    leaves the head slot open). None if the head can't produce the demanded tuple. A demand endpoint may
+    be a `ById` (an id-addressed goal, or a sub-demand raised from a free var the body bound to a node);
+    a head VAR takes it verbatim (id-addressed seed), a head LITERAL is matched against the id's NAME."""
     pred, dsubj, dobj = demand
     if hp != pred:
         return None
     env: dict[str, str] = {}
-    for slot, name in ((hs, dsubj), (ho, dobj)):
-        if name is None:
+    for slot, ep in ((hs, dsubj), (ho, dobj)):
+        if ep is None:
             continue
-        nxt = _bind(env, slot, name)
+        nxt = _bind(env, slot, ep if is_var(slot) else _endpoint_name(fact_g, ep))
         if nxt is None:
             return None
         env = nxt
@@ -385,8 +399,10 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
         return focus_scope is None or s in focus_scope or o in focus_scope   # touches the working set
 
     # A BOUND slot returns its GIVEN endpoint (a name, or a `ById` — so a var bound to an id stays
-    # pinned through `_bind`/EMIT); a FREE slot returns the discovered node's NAME. The focus-scope test
-    # always uses names (`_scope_key` unwraps a `ById`).
+    # pinned through `_bind`/EMIT); a FREE slot returns the discovered node's `ById` (the id-addressed
+    # core, Stage 3 — so two DISTINCT same-named nodes bind to DISTINCT vars, which is what lets a
+    # same-name value-match relate them instead of collapsing to one binding). The focus-scope test
+    # always uses names (`_scope_key` unwraps a `ById`; free nodes read `fact_g.name` for the keep()).
     if subj_name is not None:                              # (pred, subj, ?) — walk OUT of the subject
         subj_key = _scope_key(fact_g, subj_name)
         for s in _candidate_nodes(fact_g, subj_name):
@@ -402,7 +418,7 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
                         continue
                     on = fact_g.name(o)
                     if keep(subj_key, on):
-                        out.append((subj_name, obj_name if obj_name is not None else on))
+                        out.append((subj_name, obj_name if obj_name is not None else ById(o)))
         return out
     if obj_name is not None:                               # (pred, ?, obj) — walk INTO the object
         obj_key = _scope_key(fact_g, obj_name)
@@ -417,13 +433,13 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
                         continue
                     sn = fact_g.name(s)
                     if keep(sn, obj_key):
-                        out.append((sn, obj_name))
+                        out.append((ById(s), obj_name))
         return out
     for rel in _fact_relnodes(fact_g, pred, scope=scope):  # (pred, ?, ?) — the whole-predicate scan
         for s, o in _endpoints(fact_g, rel):
             sn, on = fact_g.name(s), fact_g.name(o)
             if keep(sn, on):
-                out.append((sn, on))
+                out.append((ById(s), ById(o)))
     return out
 
 
@@ -476,12 +492,14 @@ def _graded_ok(fact_g: AttrGraph, graded: list[tuple[str, str, float]], env: dic
     """True iff every graded condition passes under `env` — the α-cut DURING matching (the CHAIN analog
     of the forward `GRADE` op): the bound var's node must carry the dimension as a GRADED membership
     `>= threshold` (and `> 0`). Node-agnostic (any coreferent mention may carry the propagated degree).
-    An unbound graded var is out of slice -> fail (never fire on an unevaluable α-cut)."""
+    An unbound graded var is out of slice -> fail (never fire on an unevaluable α-cut). The bound value
+    may be a name OR (id-addressed core, Stage 3) a `ById`, so resolve it through `_bound_entity_nodes`
+    (id -> its node; name -> the same-named entities — any coreferent mention may carry the degree)."""
     for var, dim, thr in graded:
-        name = env.get(var)
-        if name is None:
+        bound = env.get(var)
+        if bound is None:
             return False
-        deg = max((float(a.value) for n in fact_g.nodes_named(name)
+        deg = max((float(a.value) for n in _bound_entity_nodes(fact_g, bound)
                    if (a := fact_g.get_attr(n, dim)) is not None and a.kind == GRADED), default=0.0)
         if not (deg >= thr and deg > 0.0):
             return False
@@ -614,7 +632,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
 
     seeds: list[dict[str, str]] = []
     for hs, hp, ho in heads:
-        env0 = _unify_head_with_demand(demand, hs, hp, ho)
+        env0 = _unify_head_with_demand(fact_g, demand, hs, hp, ho)
         if env0 is not None and env0 not in seeds:
             seeds.append(env0)
 

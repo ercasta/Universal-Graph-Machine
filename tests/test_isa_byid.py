@@ -61,12 +61,14 @@ def test_by_id_emit_lands_the_derived_fact_on_the_pinned_node():
 
 
 def test_by_id_object_endpoint_is_pinned():
-    # walk INTO a pinned object: two 'book' nodes, only book1 was stolen.
+    # walk INTO a pinned object: two 'book' nodes, only book1 was stolen. The FREE subject slot binds
+    # to a `ById` now (the id-addressed core, Stage 3 — a discovered node is returned by id, not name);
+    # the pinned object endpoint returns verbatim.
     from ugm.chain import _facts_matching
     g = AttrGraph()
     ada = g.add_node("ada"); b1, b2 = g.add_node("book"), g.add_node("book")
     g.add_relation(ada, "stole", b1)
-    assert _facts_matching(g, "stole", None, ById(b1)) == [("ada", ById(b1))]
+    assert _facts_matching(g, "stole", None, ById(b1)) == [(ById(ada), ById(b1))]
     assert _facts_matching(g, "stole", None, ById(b2)) == []          # b2 was never stolen
 
 

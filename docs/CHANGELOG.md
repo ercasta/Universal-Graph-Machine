@@ -14,6 +14,31 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### Coreference-as-rules Stage 3 — the id-addressed core (339 passed)
+The demand chain's env now binds node **ids** in free slots, not names — the change the "load-bearing
+finding" flagged as the prerequisite for same-NAME coref. The headline payoff: two DISTINCT nodes that
+happen to share a name bind to DISTINCT variables, so a same-name value-match RELATES them
+(`same_as(a1,a2)`) instead of collapsing to one binding that could only emit a self-loop.
+- **`chain._facts_matching` returns a `ById` for a FREE slot** (the discovered node by id), where it used
+  to return the node's name. BOUND slots and LITERALS are untouched (they still pass a name/`ById`
+  verbatim). This is the whole conceptual change; C had already made every downstream consumer
+  (`resolve_write_node`/EMIT, `_bound_entity_nodes`/value-matches, `ById`-aware `_facts_matching`, the
+  demand-mint via `_demand_endpoint`) id-aware, so the blast radius was tiny.
+- **`_unify_head_with_demand(fact_g, …)`** — a demand endpoint may now be a `ById` (an id-addressed goal,
+  or a sub-demand raised from a free var the body bound to a node); a head VAR takes it verbatim (the
+  id-addressed seed), a head LITERAL is matched against the id's NAME (new `_endpoint_name` helper).
+- **`_graded_ok`** reads a `ById`-bound var through `_bound_entity_nodes` (was `nodes_named`, which a
+  `ById` would break). `_tok_name`/`_bind` doc'd to carry names OR `ById`s; var agreement stays plain
+  equality (a distinct same-named node has a DIFFERENT id and correctly fails to unify).
+- **`gather_open_premises` (query.py)** resolves demand endpoints id→NAME at the USER boundary (the ask
+  speaks names) and dedups the id/name form of one premise — the id-core made the mid-chain gather
+  sometimes raise a premise by id, exposing a latent hash-seed-flaky test; now deterministic.
+- Side effect: the full suite dropped ~161s→~74s (pinning one id beats iterating same-named candidates).
+- `tests/test_isa_idcore.py` (+4: same-name coref relates two distinct nodes / id-seeded goal /
+  composition across the derived link / no-rule gate); `test_isa_byid.py` updated (free subject now a
+  `ById`). NEXT: **Stage 4** — same-name coref as a standard declared bank; retire mechanical
+  `wire_same_as` as the default.
+
 ### Coreference-as-rules Stage 2 — CNL surface + coref as a declared rule (335 passed)
 The value-match primitive (Stage 1) becomes AUTHORABLE and coreference becomes DECLARED bank data.
 - **CNL surface** (user-chosen): `?x same DIM as ?y` (EXACT) / `?x close DIM as ?y` (graded 'close

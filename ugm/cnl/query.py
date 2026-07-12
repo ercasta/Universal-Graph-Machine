@@ -378,15 +378,22 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             return False
         asked: dict = {}
         materialized = False
+
+        def as_name(x):
+            # A demand endpoint is a NAME, or (id-addressed core, Stage 3) a node id when a free var was
+            # bound to a node — the ask is a USER boundary, which speaks names, so resolve id -> name.
+            # This also DEDUPS the id/name forms of one premise (e.g. `n49 is funded` == `bo is funded`).
+            return graph.name(x) if x is not None and graph.has(x) else x
+
         while True:
             chain_sip(graph, rule_g, goal, provenance=provenance, focus_scope=focus_scope)
             if _facts_matching(graph, goal[0], goal[1], goal[2], focus_scope=focus_scope):
                 return materialized                            # goal now derivable — done gathering
-            frontier = [(p, s, o) for (p, s, o) in bound_demands(rule_g)
-                        if s is not None and o is not None and (p, s, o) != goal
-                        and (p, s, o) not in asked and not is_neg_pred(p)   # skip NAF neg-pred demands
+            frontier = {(p, as_name(s), as_name(o)) for (p, s, o) in bound_demands(rule_g)
+                        if s is not None and o is not None and (p, as_name(s), as_name(o)) != goal
+                        and (p, as_name(s), as_name(o)) not in asked and not is_neg_pred(p)
                         and policy_.is_open(concept_key(p, o))
-                        and not _facts_matching(graph, p, s, o, focus_scope=focus_scope)]
+                        and not _facts_matching(graph, p, s, o, focus_scope=focus_scope)}
             if not frontier:
                 return materialized
             progressed = False
