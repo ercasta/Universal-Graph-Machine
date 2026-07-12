@@ -22,7 +22,7 @@
 
 ## Current state
 
-**Suite: 314 passed, 0 failed** (`python -m pytest -q`, ~50s). Production runtime is 100% the ISA engine,
+**Suite: 325 passed, 0 failed** (`python -m pytest -q`, ~100s). Production runtime is 100% the ISA engine,
 and so is every test — no second engine anywhere in the repo. `ask_goal` is demand-driven;
 `rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are all deleted.
 
@@ -55,7 +55,16 @@ concern the SLM owns via the exposed `focus.top_centers` (2026-07-12; see §4). 
 mid-chain gather to who/∃/n-ary + lazy asking), 8.6 incremental head-index (perf follow-on) — see Phase 8
 below.
 
-## NEXT STEP — id-addressed goal API (C now → D next) — name-vs-id addressing
+## NEXT STEP — id-addressed goal API (~~C now~~ → **D next**) — name-vs-id addressing
+
+> **C DONE 2026-07-12** (`chain.ById`, `tests/test_isa_byid.py`, 11 tests, 325 suite green; CHANGELOG +
+> `engine_user_guide.md` §2). The tuple-goal APIs (`chain_sip`/`check`/`suppose`) now accept a
+> `ById(node_id)` endpoint that PINS the demand seed + the EMIT/pencil write to that node (additive; the
+> name path untouched); a stale pin raises (`validate_ids`); a name resolving to >1 GENUINELY DISTINCT
+> entity warns before the `[0]`-pick (coref-aware via `_one_identity`, scaffolding-aware via
+> `_is_fact_entity`). New helpers `resolve_write_node` (single write-target site) / `_candidate_nodes` /
+> `_endpoint_matches`. The three write points (`chain._node_for_name`, `suppose._resolve`,
+> `query._materialize_fact`) all route through `resolve_write_node`. **D is now the active next step.**
 
 > **The immediate next step (ratified with the user 2026-07-12).** From the pystrider offline feedback:
 > the firmware's tuple-goal APIs (`chain_sip`/`check`/`ask_goal`/`suppose`) address entities by NAME and,
@@ -67,13 +76,14 @@ below.
 > confined to THREE write/seed points: `chain._node_for_name` (EMIT), `query._materialize_fact`
 > (ask-user gather + top-goal materialize), `suppose._resolve` (pencil assumptions).
 
-**C — id-addressed goal path (do FIRST; additive, low-risk; UNBLOCKS pystrider).** Let the tuple-goal APIs
-accept a node ID at an endpoint (a `_by_id` variant, or an id-or-name endpoint), seeding the demand from
-that specific node and using it directly at the write/seed points instead of `nodes_named(...)[0]`. The
-matcher already walks FROM a node, so seeding from an id is natural. The name-based path is UNTOUCHED (CNL
-consumers unaffected). Also (silent→loud, same theme): the three write points WARN when a name resolves to
->1 node before taking `[0]`. Deliverable: a consumer can keep readable duplicate names and manage identity
-itself via ids. Ships with tests + a user-guide note.
+**C — id-addressed goal path — ✅ DONE 2026-07-12.** The tuple-goal APIs accept a `ById(node_id)` endpoint
+(an id-or-name endpoint, not a separate `_by_id` variant), seeding the demand from that specific node and
+using it directly at the write/seed points instead of `nodes_named(...)[0]`. The matcher walks FROM the
+pinned node (`_candidate_nodes`); the name-based path is UNTOUCHED (CNL consumers unaffected). Silent→loud
+(same theme): a stale pin RAISES (`validate_ids`), and the three write points WARN when a name resolves to
+>1 GENUINELY DISTINCT entity before taking `[0]` (coref/scaffolding excluded so the value-accelerator's
+normal multi-mention state stays quiet). Delivered: a consumer keeps readable duplicate names and manages
+identity itself via ids. Shipped with `tests/test_isa_byid.py` (11) + a user-guide note (§2).
 
 **D — id-addressed CORE, names resolved at the CNL boundary (the "real" solution; do AFTER C).** Migrate
 the CNL entry points (`ask_goal`/`check`/`suppose`/`choose`) to resolve names→ids at their surface and sit

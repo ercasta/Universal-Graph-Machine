@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 
 from .attrgraph import AttrGraph, valued, NAME
 from .apply import SCOPE, _fact_exists
-from .chain import chain_sip, _facts_matching, render_demands
+from .chain import chain_sip, _facts_matching, render_demands, resolve_write_node, ById
 from .check import _neg_pred
 
 HYPOTHESIS = "<hypothesis>"
@@ -70,11 +70,11 @@ class SupposeResult:
     looked_for: list[str] = field(default_factory=list)
 
 
-def _resolve(g: AttrGraph, name: str) -> str:
-    """The node for `name` (first if several share it), minting a real one if absent — the entity the
-    hypothesis is about. Mirrors `chain._node_for_name`."""
-    ex = g.nodes_named(name)
-    return ex[0] if ex else g.add_node(name)
+def _resolve(g: AttrGraph, name) -> str:
+    """The node a hypothesis assumption is about. A `ById` endpoint (Phase 8 C, id-addressed suppose)
+    pins to its node; a name reuses an existing same-named node or mints one — WARNING on an ambiguous
+    name (the shared silent->loud [0]-pick discipline in `chain.resolve_write_node`)."""
+    return resolve_write_node(g, name, where="suppose assumption")
 
 
 def _pencil(g: AttrGraph, scope: str, s_id: str, pred: str, o_id: str) -> str:
@@ -132,6 +132,9 @@ def suppose(fact_g: AttrGraph, rule_g: AttrGraph,
     `chain_sip`/`_facts_matching` so the hypothesis reasons only within the working set (an endpoint in
     `focus_scope`), keeping per-hypothesis cost tracking the focus, not the accreted graph. `None` =
     whole-graph (behaviour-identical). Orthogonal to the pencil `scope` (which segregates the hypothesis)."""
+    from .chain import validate_ids
+    for s, _p, o in (*assumptions, *predictions):          # id-addressed pins must exist (silent->loud)
+        validate_ids(fact_g, s, o)
     scope = fact_g.add_node(HYPOTHESIS, control=True)
     for s, p, o in assumptions:
         _pencil(fact_g, scope, _resolve(fact_g, s), p, _resolve(fact_g, o))

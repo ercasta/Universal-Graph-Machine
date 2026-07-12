@@ -16,6 +16,9 @@ v0 SCOPE (differentially gated against `run_bank` over the full bank):
 """
 from __future__ import annotations
 
+import warnings
+from dataclasses import dataclass
+
 from .attrgraph import AttrGraph
 from .attrgraph import valued, GRADED
 from .apply import (
@@ -23,8 +26,128 @@ from .apply import (
     _rel_in_scope, apply_rule, build_head_index, rules_producing, SCOPE,
 )
 from .production_rule import is_var, literal_name
+from .vocabulary import SAME_AS
 
 DEMAND = "<demand>"
+
+
+@dataclass(frozen=True)
+class ById:
+    """An explicit node-ID endpoint for a bound-tuple goal (Phase 8 NEXT STEP C — id-addressed goal path).
+
+    A goal endpoint is normally a NAME: a VALUE the matcher resolves to candidate nodes via the
+    label-less value-accelerator (`nodes_named` — iterate ALL same-named candidates, reason by topology,
+    NEVER identity). That is the right default for CNL, but it forces a consumer holding legitimately
+    DISTINCT same-named nodes (created directly, not via CNL) into global name-uniqueness, because the
+    WRITE/seed side silently takes `nodes_named(...)[0]`. Wrapping a raw node id in `ById` PINS the
+    endpoint to exactly that node: the demand seeds from it, matches walk out of it, and derived/assumed
+    facts land on it — so identity is the consumer's to manage. Additive: only the id-addressed path
+    constructs these; the name path is untouched (CNL consumers unaffected)."""
+    node_id: str
+
+
+def validate_ids(fact_g: AttrGraph, *endpoints) -> None:
+    """Silent->loud (Phase 8 C): a `ById` endpoint pinning a node that is NOT in the graph is a caller
+    bug (a stale/typo'd id), so raise at the boundary rather than seed an empty demand or write a phantom
+    node. Names are untouched (a name may legitimately be new — it mints)."""
+    for ep in endpoints:
+        if isinstance(ep, ById) and not fact_g.has(ep.node_id):
+            raise ValueError(f"ById({ep.node_id!r}) addresses a node that is not in the graph.")
+
+
+def _candidate_nodes(fact_g: AttrGraph, endpoint) -> list[str]:
+    """The candidate node ids for a BOUND endpoint (read side): a `ById` PINS to exactly its node (empty
+    if that node is absent — the pin is honest, never a silent fall-through to a same-named other); a
+    name resolves via the value-accelerator to every same-named node."""
+    if isinstance(endpoint, ById):
+        return [endpoint.node_id] if fact_g.has(endpoint.node_id) else []
+    return fact_g.nodes_named(endpoint)
+
+
+def _endpoint_matches(fact_g: AttrGraph, node: str, endpoint) -> bool:
+    """Does `node` satisfy a bound endpoint — id-identity for a `ById`, name-equality for a name?"""
+    if isinstance(endpoint, ById):
+        return node == endpoint.node_id
+    return fact_g.name(node) == endpoint
+
+
+def _scope_key(fact_g: AttrGraph, endpoint) -> str:
+    """The NAME used for a focus-scope membership test on an endpoint (focus frames hold names): a
+    `ById` contributes its node's name, a name contributes itself."""
+    return fact_g.name(endpoint.node_id) if isinstance(endpoint, ById) else endpoint
+
+
+def _demand_endpoint(endpoint):
+    """The plain string a `<demand>` trace node records for an endpoint (a `ById` shows its id)."""
+    return endpoint.node_id if isinstance(endpoint, ById) else endpoint
+
+
+def _same_as_neighbors(fact_g: AttrGraph, n: str) -> set[str]:
+    """The nodes directly `same_as`-linked to `n`, either edge direction (the link is a declared
+    congruence and its symmetric closure may not have fired yet — treat it undirected)."""
+    out: set[str] = set()
+    for rel in fact_g.succ(n):
+        if fact_g.has_key(rel, SAME_AS):
+            out |= fact_g.succ(rel)
+    for rel in fact_g.pred(n):
+        if fact_g.has_key(rel, SAME_AS):
+            out |= fact_g.pred(rel)
+    out.discard(n)
+    return out
+
+
+def _is_fact_entity(fact_g: AttrGraph, n: str) -> bool:
+    """True iff `n` participates as a real fact-layer entity — it has at least one relation whose OTHER
+    endpoint is non-control. This excludes a node that exists ONLY as reified rule/call-clause vocabulary
+    (its sole attachment is a control `<t>`/`<call>`/pattern node): such a node carries a NAME but is not
+    an entity a write competes for, so it must not inflate the same-named ambiguity count."""
+    for rel in (*fact_g.succ(n), *fact_g.pred(n)):
+        for other in (*fact_g.succ(rel), *fact_g.pred(rel)):
+            if other != n and not fact_g.is_control(other) and not fact_g.is_inert(other):
+                return True
+    return False
+
+
+def _one_identity(fact_g: AttrGraph, nodes: list[str]) -> bool:
+    """True iff every node in `nodes` is `same_as`-connected to the first — ONE coref identity (repeated
+    mentions of the same name, the value-accelerator's intended case), where an EMIT `[0]`-pick composes
+    across the link and is correct. False = GENUINELY DISTINCT same-named identities (the case a consumer
+    should be warned about, and pin with `ById`). Undirected BFS over `same_as`, bounded to the small
+    same-named candidate set."""
+    if len(nodes) <= 1:
+        return True
+    seen = {nodes[0]}
+    frontier = [nodes[0]]
+    while frontier:
+        for nb in _same_as_neighbors(fact_g, frontier.pop()):
+            if nb not in seen:
+                seen.add(nb)
+                frontier.append(nb)
+    return set(nodes) <= seen
+
+
+def resolve_write_node(fact_g: AttrGraph, endpoint, *, where: str) -> str:
+    """Resolve a WRITE/seed endpoint to a node id — the SINGLE discipline for turning a goal endpoint
+    into a write target (EMIT, ask-user materialize, SUPPOSE pencil). A `ById` PINS to its node; a name
+    reuses an existing same-named node or mints one. SILENT->LOUD (Phase 8 C): when a name resolves to
+    GENUINELY DISTINCT same-named nodes (>1 identity, NOT merely coref mentions of one — `_one_identity`),
+    the `[0]`-pick is now a WARNING naming `where`, with the fix (pass `ById`). Coref duplicates (same
+    entity, multiple mentions, `same_as`-linked) do NOT warn — there the `[0]`-pick composes correctly."""
+    if isinstance(endpoint, ById):
+        return endpoint.node_id
+    # FACT-LAYER only: `nodes_named` also returns control/inert scaffolding (reified rule/call args,
+    # provenance) that the matcher already skips — a write must land on a real entity node.
+    ex = [n for n in fact_g.nodes_named(endpoint)
+          if not (fact_g.is_control(n) or fact_g.is_inert(n))]
+    # AMBIGUITY is judged over genuine fact-layer ENTITIES (a node only reachable through control clause
+    # vocabulary carries the name but is not an entity a write competes for), and only when they are not
+    # one coref identity — so repeated mentions (`same_as`-linked) and reified call args stay quiet.
+    entities = [n for n in ex if _is_fact_entity(fact_g, n)]
+    if len(entities) > 1 and not _one_identity(fact_g, entities):
+        warnings.warn(
+            f"{where}: name {endpoint!r} resolves to {len(entities)} distinct nodes; writing to the "
+            f"first ({ex[0]}). Pass ById(node_id) to target a specific node.", stacklevel=2)
+    return ex[0] if ex else fact_g.add_node(endpoint)
 
 
 class _Exhaustion:
@@ -163,9 +286,9 @@ def _mint_bound_demand(rule_g: AttrGraph, demand: tuple[str, str | None, str | N
     d = rule_g.add_node(DEMAND, control=True)
     rule_g.set_attr(d, "for", valued(pred))
     if subj is not None:
-        rule_g.set_attr(d, "subj", valued(subj))
+        rule_g.set_attr(d, "subj", valued(_demand_endpoint(subj)))
     if obj is not None:
-        rule_g.set_attr(d, "obj", valued(obj))
+        rule_g.set_attr(d, "obj", valued(_demand_endpoint(obj)))
     return d
 
 
@@ -261,8 +384,12 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
     def keep(s: str, o: str) -> bool:                     # bounded-attention: a fact is in scope iff it
         return focus_scope is None or s in focus_scope or o in focus_scope   # touches the working set
 
+    # A BOUND slot returns its GIVEN endpoint (a name, or a `ById` — so a var bound to an id stays
+    # pinned through `_bind`/EMIT); a FREE slot returns the discovered node's NAME. The focus-scope test
+    # always uses names (`_scope_key` unwraps a `ById`).
     if subj_name is not None:                              # (pred, subj, ?) — walk OUT of the subject
-        for s in fact_g.nodes_named(subj_name):
+        subj_key = _scope_key(fact_g, subj_name)
+        for s in _candidate_nodes(fact_g, subj_name):
             if fact_g.is_control(s) or fact_g.is_inert(s):
                 continue
             for rel in fact_g.succ(s):
@@ -271,12 +398,15 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
                 for o in fact_g.succ(rel):
                     if fact_g.is_control(o) or fact_g.is_inert(o):
                         continue
+                    if obj_name is not None and not _endpoint_matches(fact_g, o, obj_name):
+                        continue
                     on = fact_g.name(o)
-                    if (obj_name is None or on == obj_name) and keep(subj_name, on):
-                        out.append((subj_name, on))
+                    if keep(subj_key, on):
+                        out.append((subj_name, obj_name if obj_name is not None else on))
         return out
     if obj_name is not None:                               # (pred, ?, obj) — walk INTO the object
-        for o in fact_g.nodes_named(obj_name):
+        obj_key = _scope_key(fact_g, obj_name)
+        for o in _candidate_nodes(fact_g, obj_name):
             if fact_g.is_control(o) or fact_g.is_inert(o):
                 continue
             for rel in fact_g.pred(o):
@@ -286,7 +416,7 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
                     if fact_g.is_control(s) or fact_g.is_inert(s):
                         continue
                     sn = fact_g.name(s)
-                    if keep(sn, obj_name):
+                    if keep(sn, obj_key):
                         out.append((sn, obj_name))
         return out
     for rel in _fact_relnodes(fact_g, pred, scope=scope):  # (pred, ?, ?) — the whole-predicate scan
@@ -297,11 +427,11 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
     return out
 
 
-def _node_for_name(fact_g: AttrGraph, name: str) -> str:
-    """The node for `name` (first if several share it — v1 unique-noded), minting if absent. Mirrors
-    APPLY's `_resolve_head`."""
-    ex = fact_g.nodes_named(name)
-    return ex[0] if ex else fact_g.add_node(name)
+def _node_for_name(fact_g: AttrGraph, name) -> str:
+    """The node an EMIT writes to for a head endpoint. A `ById` head endpoint (an id-addressed goal that
+    threaded a pin into the head var) pins to its node; a name reuses an existing same-named node or
+    mints one — WARNING on an ambiguous name (`resolve_write_node`, the silent->loud [0]-pick)."""
+    return resolve_write_node(fact_g, name, where="chain EMIT")
 
 
 def _sideways_order(body: list[tuple[str, str, str]], bound: set[str]) -> list[tuple[str, str, str]]:
@@ -495,6 +625,7 @@ def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
     NEGATIVE demand (`_nac_blocks`) close ONLY its negated positive `L` without re-entering the very
     consumer whose NAC is being decided — the demand-driven analog of the reference's self-contained
     nested completion solve, and what keeps NAF's "the positive failed" read from L's COMPLETE extension."""
+    validate_ids(fact_g, goal[1], goal[2])                 # id-addressed pins must exist (silent->loud)
     build_head_index(rule_g)                               # idempotent
     if _closed is None:
         _closed = set()                                    # NAC-closure MEMO, shared with nested demands

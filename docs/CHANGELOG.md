@@ -14,6 +14,37 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### Phase 8 NEXT STEP C — id-addressed goal path (`ById`) (325 passed)
+The last of the seven pystrider feedback items: the tuple-goal APIs addressed entities by NAME, and on a
+DUPLICATE name the write/seed side silently took `nodes_named(...)[0]`, forcing a consumer with
+legitimately DISTINCT same-named nodes (built directly, not via CNL) into global name-uniqueness. C makes
+the endpoints accept a `ById(node_id)` pin — **additive; the name path is untouched** (CNL consumers
+unaffected). Design in `implementation_plan.md` NEXT STEP; deep rationale there and in the design-key
+(split coreference into ingest-side same-name binding vs core `same_as`).
+- **`chain.ById`** — a frozen node-id endpoint. New helpers: `_candidate_nodes` (pin vs value-accelerator
+  on the READ side), `_endpoint_matches` (id-identity vs name-equality), `resolve_write_node` (the SINGLE
+  write-target discipline), `validate_ids` (boundary check). Exported from the package.
+- **Seed + EMIT.** `_facts_matching` walks out of the pinned node (bound slot returns the given endpoint
+  so a var stays pinned through `_bind`/EMIT; free slot returns the discovered name); `_node_for_name`
+  (EMIT), `suppose._resolve` (pencil), `query._materialize_fact` (ask-user) all route through
+  `resolve_write_node`, so a `ById` head/assumption lands on exactly that node. Probe-verified: `check`
+  over two distinct `ada`s returns POSITIVE for the thief and ASSUMED_NO for the other, and the derived
+  `is thief` fact lands on the pinned node only.
+- **Silent → LOUD (same theme).** A stale `ById` (node absent) RAISES at the boundary
+  (`chain_sip`/`suppose` call `validate_ids`) instead of seeding empty / writing a phantom. And writing
+  through a NAME that resolves to >1 GENUINELY DISTINCT entity WARNS before the `[0]`-pick, naming the
+  site and pointing at `ById`. The warn is coref-aware and entity-aware: repeated `same_as`-linked
+  mentions of ONE identity (`_one_identity`, undirected `same_as` BFS) and reified rule/call-clause
+  scaffolding (`_is_fact_entity` — a node reachable only through control clause vocabulary is not an
+  entity a write competes for) stay quiet, so the value-accelerator's normal multi-mention state does not
+  flood. Residual: 5 benign warnings in `test_isa_suppose_calls.py`, where the mode-call CNL authoring
+  path genuinely leaves 2 unlinked same-named nodes (coref isn't run there) — an honest signal, not noise.
+- Tests: `tests/test_isa_byid.py` (11) — pinned query/EMIT/object-endpoint, suppose pinning + inconclusive
+  when the wrong node is pinned, stale-pin raises (check + suppose), warn on distinct / no-warn on
+  single/coref/`ById`. User-guide note added (`engine_user_guide.md` §2 "Addressing a specific node by id"
+  + cheat-sheet row). NEXT: **D** — migrate the CNL entry points to resolve names→ids at the boundary and
+  sit on these id primitives (id-addressed core; same-name binding relocates to ingest). ⚠Opus.
+
 ### Consumer feedback: six items hardened (silent → LOUD) + suppose focus-scope (314 passed)
 From the pystrider spike (`docs/feedback_from_pystrider.md`) — the recurring pain was ugm quietly doing
 LESS rather than erroring when a consumer authors rules/facts programmatically. Fixed six of the seven

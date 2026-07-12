@@ -36,6 +36,7 @@ EXISTENTIAL_SUBJECTS: frozenset[str] = frozenset(
 
 # Substrate copula vocabulary — single source of truth in `ugm.vocabulary` (Phase 2.5).
 from ..vocabulary import COPULA, is_neg_pred
+from ..chain import resolve_write_node, ById
 
 
 # ---------------------------------------------------------------------------
@@ -270,13 +271,13 @@ def _reify_rules(rules: list[Rule]) -> Graph:
     return rg
 
 
-def _materialize_fact(graph: Graph, s: str, p: str, o: str) -> None:
+def _materialize_fact(graph: Graph, s, p: str, o) -> None:
     """Assert the domain relation `s p o` into the KB (monotone — the ask-user acquisition path),
-    reusing existing same-named nodes or minting them. Never deletes (§5)."""
-    def node(name: str) -> str:
-        existing = graph.nodes_named(name)
-        return existing[0] if existing else graph.add_node(name)
-    graph.add_relation(node(s), p, node(o))
+    reusing existing same-named nodes or minting them. An endpoint may be a `ById` (Phase 8 C, an
+    id-addressed goal materializing onto a specific node); an ambiguous name WARNS before the [0]-pick
+    (the shared `chain.resolve_write_node` discipline). Never deletes (§5)."""
+    graph.add_relation(resolve_write_node(graph, s, where="ask_goal materialize"), p,
+                       resolve_write_node(graph, o, where="ask_goal materialize"))
 
 def _warn_case_folded_mismatch(graph: Graph, q: dict) -> None:
     """Feedback #3: CNL question parsing lowercases identifiers, so a query about a case-PRESERVED node

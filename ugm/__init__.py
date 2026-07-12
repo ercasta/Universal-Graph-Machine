@@ -27,6 +27,7 @@ from .apply import apply_rule, apply_to_fixpoint, build_head_index, rules_produc
 from .chain import (
     chain, demand_closure, relevant_rules, demanded_preds,
     chain_sip, bound_demands, render_demands, NonStratifiable,
+    ById, resolve_write_node, validate_ids,
 )
 from .check import (
     check, collapse, explain_check,
@@ -136,7 +137,7 @@ __all__ = [
     "apply_rule", "apply_to_fixpoint", "build_head_index", "rules_producing",
     "chain", "demand_closure", "relevant_rules", "demanded_preds", "chain_sip", "bound_demands",
     "NonStratifiable",
-    "render_demands",
+    "render_demands", "ById", "resolve_write_node", "validate_ids",
     "check", "collapse", "explain_check", "POSITIVE", "ENTAILED_NEG", "ASSUMED_NO", "UNKNOWN",
     "choose", "set_candidate", "candidates", "winners_of", "fit_of", "explain_choice", "SATISFIED_BY",
     "suppose", "explain_suppose", "scope_members", "SupposeResult",

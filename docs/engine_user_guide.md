@@ -61,6 +61,29 @@ derivable *negative* is a hard `no`; an unprovable goal on a closed-world concep
 (hard-no vs assumed-no) for an escalation policy, call `check(...)` directly — it returns the 4-status
 verdict (`POSITIVE` / `ENTAILED_NEG` / `ASSUMED_NO` / `UNKNOWN`) instead of collapsing to yes/no/unknown.
 
+### Addressing a specific node by id (`ById`)
+
+The tuple-goal APIs — `check`, `chain_sip`, `suppose` — address entities by **name**. A name is a
+value-*accelerator*: the matcher resolves it to every same-named node and reasons by topology (never by
+identity — the label-less discipline). That is the right default for CNL, but if you build the graph
+directly (not via CNL) you may hold **legitimately distinct nodes that share a name**, and a name can't
+tell them apart. Wrap a node id in `ById` to **pin** an endpoint to exactly that node:
+
+```python
+from ugm import ById, check
+a1, a2 = kb.add_node("ada"), kb.add_node("ada")   # two DISTINCT 'ada's you manage yourself
+kb.add_relation(a1, "stole", kb.add_node("book")) # only a1 stole
+check(kb, rules, ("is", ById(a1), "thief"))       # POSITIVE  — seeds from, and derives onto, a1
+check(kb, rules, ("is", ById(a2), "thief"))       # ASSUMED_NO — a2 is untouched
+```
+
+The demand seeds from that node, matches walk out of it, and any derived/assumed fact lands on it — so
+identity is yours to manage without global name-uniqueness. A `ById` pointing at a node that is not in
+the graph **raises** (a stale id is a bug, not a silent empty result). The name path is unchanged; mixing
+names and ids is fine. And the reverse signal: writing through a **name** that resolves to more than one
+*genuinely distinct* entity (not repeated `same_as`-linked mentions of one) now **warns** — take the hint
+and pass `ById`.
+
 ## 3. Choose a reasoning stance (`FirmwarePolicy`)
 
 The default is closed-world (absence of proof reads as `no`). Override per call — or once, threaded
@@ -230,6 +253,7 @@ and warns, rather than raising).
 | Non-blocking session turn (generator) | `converse(kb, rules, utterance, …)` — yield events, `.send()` the ask verdict |
 | Disable / re-focus mid-session | `"forget that rule"` / `"focus on X"` / `"forget that"` / `"back to X"` (utterances to `ingest`) |
 | Get the 4-status verdict | `check(kb, reified_rules, (pred, subj, obj), policy=…)` |
+| Address a specific node (dup names) | pass `ById(node_id)` as a `check`/`chain_sip`/`suppose` endpoint |
 | Pick a maximal option (graded) | `choose(graph, goal, alpha=…)` |
 | Reason under an assumption | `suppose(...)` |
 | Register domain tools | `merge_tools(mode_registry(rr), {name: tool})`, pass `tools=` to `run_bank`/`run_rules` |
