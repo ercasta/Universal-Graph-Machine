@@ -117,15 +117,31 @@ def test_write_rule_reifies_value_match_read_back():
     assert ("?x", "?y", "warmth", 0.7) in vms
 
 
-# --- forward path refuses (loud), never fires unconstrained ----------------------------------------
+# --- forward path fires the value-JOIN (Stage 4: the forward-APPLY residual now lands) -------------
 
-def test_forward_lowering_refuses_a_value_match_rule():
+def test_forward_lowering_fires_the_value_join():
+    # the forward engine now LOWERS a value-match to the `VMATCH` op (was `Unlowerable`, Stage 1): two
+    # distinct same-named nodes relate, a third-named one does not — the CONSTRAINED join, not a rush.
+    g = AttrGraph()
+    for nm in ("k", "k", "j"):
+        n = g.add_node(nm); g.add_relation(n, "is_a", g.add_node("t"))
     rule = Rule(key="vm", lhs=[Pat("?x", "is_a", "t"), Pat("?y", "is_a", "t")],
                 rhs=[Pat("?x", "same_as", "?y")],
                 value_matches=[ValueMatch("?x", "?y", "name")])
+    run_bank(g, [rule])
+    pairs = _pairs(g, "same_as")
+    assert ("k", "k") in pairs                        # the two 'k' mentions relate by equal name
+    assert ("k", "j") not in pairs and ("j", "k") not in pairs   # different name -> no join
+
+
+def test_forward_value_match_var_not_lhs_bound_is_unlowerable():
+    # a value-match var absent from the LHS cannot be filtered (VMATCH needs a bound register) -> loud.
+    rule = Rule(key="vm", lhs=[Pat("?x", "is_a", "t")],
+                rhs=[Pat("?x", "same_as", "?y")],
+                value_matches=[ValueMatch("?x", "?y", "name")])
     g = AttrGraph(); n = g.add_node("k"); g.add_relation(n, "is_a", g.add_node("t"))
-    with pytest.raises(Unlowerable, match="value-match"):
-        run_bank(g, [rule])                          # would else fire the join UNCONSTRAINED
+    with pytest.raises(Unlowerable, match="not LHS-bound"):
+        run_bank(g, [rule])
 
 
 # --- Stage 2: the CNL authoring surface `?x same DIM as ?y` / `?x close DIM as ?y` -----------------

@@ -14,6 +14,34 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### Coreference-as-rules Stage 4 — forward value-JOIN + same-name coref as a declared rule (340 passed)
+The mechanical `wire_same_as` ingest default is retired: coreference becomes a DECLARED rule the author
+controls, and it now fires in BOTH engines. Two parts.
+- **Forward value-JOIN op (`machine.VMATCH`).** The Stage-1 residual ("forward-APPLY value-JOIN is a later
+  companion") lands: a two-register value-match filter, the sibling of `GRADE` (one register) — exact
+  VALUED equality or graded `1-|Δ|>=threshold` across two ALREADY-bound vars. `lowering.lower_value_matches`
+  emits it (var must be LHS-bound, else `Unlowerable`), wired into `lower_rule` + `_lower_bank_rule`; the two
+  `Unlowerable` refusals are gone. So value-match rules run under `run_bank`/`run_rules`, not just the demand
+  chain.
+- **Same-name coref as ONE declared rule over a universal marker.** `forms.mark_mentions` tags every surface
+  ENTITY `is_a <mention>` (same content filter as `wire_same_as` — skip predicates/structural/`<…>`/`?`);
+  `universal.same_name_coref_rules()` is the single rule `?x same_as ?y when ?x is_a <mention> and ?y is_a
+  <mention> and <same-value ?x ?y name>`. This SEPARATES marking (policy-neutral "this is an entity") from
+  the coref DECISION (the rule) — `wire_same_as` fused them. The marker is a POSITION-AGNOSTIC handle, so an
+  untyped entity that appears as a subject in one line and an object in another (`vanilla is in_stock` /
+  `alice wants vanilla`) corefs without any per-domain type — the wall that sank the per-type approach.
+  `load_corpus`/`load_facts` call `mark_mentions` + the universal rule in place of `wire_same_as`.
+  DECIDABLE via CNL: an author scopes coref by conditioning the body (`when ?x is a person …`), swaps the
+  criterion (`?x close bright as ?y` for embedding coref), asserts identity directly, or drops it — the
+  marker never forces a policy.
+- Marker filtered from entity-facing reads it would leak into as a pseudo-fact: `derived_triples` and
+  `focus.utterance_subjects` (like the existing `same_as` skip).
+- MENTION const in `vocabulary.py`. `tests/test_isa_value_match.py` (forward fires + unbound-var loud);
+  `test_isa_byid`/`test_isa_idcore` unchanged (id-core intact). REMAINING (optional): delete the retired
+  `canonicalize` merge + rewrite its 4 `test_new_core` users; `wire_same_as`/`coref_in_context` kept as
+  opt-in tools (no longer the default). OPEN: `load_corpus` auto-injects the universal rule (demos green) vs
+  silent-by-default.
+
 ### Coreference-as-rules Stage 3 — the id-addressed core (339 passed)
 The demand chain's env now binds node **ids** in free slots, not names — the change the "load-bearing
 finding" flagged as the prerequisite for same-NAME coref. The headline payoff: two DISTINCT nodes that

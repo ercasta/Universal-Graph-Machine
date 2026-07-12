@@ -488,9 +488,10 @@ def test_load_corpus_emergent_recognition():
     kb, rules = h.load_corpus(corpus)
 
     # rules were recognized (3 native + 1 lexicon-translated loose); the frame body
-    # template is NOT emitted as a standalone rule. (`load_corpus` also appends `same_as`
-    # coreference-propagation rules — infrastructure, not recognized domain rules — filtered here.)
-    keys = sorted(r.key for r in rules if not r.key.startswith("same_as"))
+    # template is NOT emitted as a standalone rule. (`load_corpus` also appends the `coref.same_name`
+    # rule + `same_as` propagation rules — infrastructure, not recognized domain rules — filtered here.)
+    keys = sorted(r.key for r in rules
+                  if not (r.key.startswith("same_as") or r.key.startswith("coref")))
     assert keys == ["loose.serve.urgent.first", "rule.?c.is.urgent",
                     "rule.?c.offered.alternative", "rule.?c.served.regular"]
 

@@ -69,7 +69,8 @@ from .cnl.forms import (
     expand_pronouns_text, SURFACE_TAGS,
     declared_rule_variables, declared_auxiliaries, declared_univ_nouns, rule_var_name,
 )
-from .cnl.universal import UNIVERSAL_RULES, SAME_AS_RULES, entailed_negation_rules, same_as_rules
+from .cnl.universal import (UNIVERSAL_RULES, SAME_AS_RULES, entailed_negation_rules, same_as_rules,
+                            same_name_coref_rules)
 from .cnl.rule_graph import (
     write_rule, rules_in_graph, ROLE_NAMES,
     expand_relation_properties, RELATION_PROPERTY_FORMS, PROPERTY_REL,
@@ -166,6 +167,7 @@ __all__ = [
     "normalize_surface", "expand_pronouns_text", "SURFACE_TAGS",
     "declared_rule_variables", "declared_auxiliaries", "declared_univ_nouns", "rule_var_name",
     "UNIVERSAL_RULES", "SAME_AS_RULES", "entailed_negation_rules", "same_as_rules",
+    "same_name_coref_rules",
     "write_rule", "rules_in_graph", "ROLE_NAMES", "expand_relation_properties",
     "RELATION_PROPERTY_FORMS", "PROPERTY_REL", "DISJOINT_FORMS", "CONSTRAINT_FORMS",
     "DISJOINT_REL", "CONTRADICTION", "contradictions", "is_consistent",

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from ..production_rule import Pat, Rule, binder, is_bound_literal, literal_name
 from ..lowering import run_bank
+from ..vocabulary import IS_A, MENTION
 from ..world_model import Graph
 
 
@@ -519,6 +520,31 @@ def wire_same_as(graph: Graph, rules: list[Rule]) -> Graph:
             if not any(graph.has_key(r, "same_as") and other in graph.out(r)
                        for r in graph.out(rep)):
                 graph.add_relation(rep, "same_as", other)
+    return graph
+
+
+def mark_mentions(graph: Graph, rules: list[Rule]) -> Graph:
+    """Tag every surface ENTITY mention with `is_a <mention>` — the universal coreference handle the
+    declared same-name coref rule (`universal.same_name_coref_rules`) seeds BOTH variables from
+    (coreference-as-rules Stage 4). This REPLACES the mechanical `wire_same_as` ingest link: instead of
+    the loader DECIDING coreference (same name ⇒ same node), it only marks WHAT COUNTS AS AN ENTITY, and
+    the coreference DECISION becomes a declared value-match rule over the marker — a rule the author can
+    keep, replace, or drop. The handle is position-agnostic (an entity is `is_a <mention>` whether it
+    appeared as a path's subject or object), so untyped entities corefer without a per-domain type.
+
+    Same content filter as `wire_same_as` (skip empty, `<…>`, `?vars`, predicate/structural names), so
+    only real entity mentions are marked — never predicates or scaffolding. Additive + idempotent."""
+    protect = {"next", "first", "proves", "uses"} | _predicate_literals(rules)
+    marker: str | None = None
+    for nid in list(graph.nodes()):
+        nm = graph.name(nid)
+        if nm == "" or nm.startswith("<") or nm.startswith("?") or nm in protect:
+            continue
+        if marker is None:
+            named = graph.nodes_named(MENTION)
+            marker = named[0] if named else graph.add_node(MENTION)
+        if not any(graph.has_key(r, IS_A) and marker in graph.out(r) for r in graph.out(nid)):
+            graph.add_relation(nid, IS_A, marker)
     return graph
 
 

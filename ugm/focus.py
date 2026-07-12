@@ -23,7 +23,7 @@ predicate/domain strings here (§D).
 from __future__ import annotations
 
 from .production_rule import Pat, Rule
-from .vocabulary import SAME_AS
+from .vocabulary import SAME_AS, MENTION
 
 FOCUS = "<focus>"
 CENTER = "center"
@@ -243,13 +243,15 @@ def utterance_subjects(kb, anchor: str) -> set[str]:
                     toks.append(nxt)
     names: set[str] = set()
     for t in toks:
-        for rel, _obj in kb.relations_from(t):
+        for rel, obj in kb.relations_from(t):
             if kb.is_control(rel) or kb.is_inert(rel):
                 continue
             if kb.has_key(rel, "first") or kb.has_key(rel, "next"):
                 continue
             if kb.has_key(rel, SAME_AS):          # a coref link is not a domain fact ABOUT t — skip it,
                 continue                          # else a TYPE ("suspect") coref'd across mentions would
-            names.add(kb.name(t))                 # leak into the centers as a stopword-anchor
+            if kb.name(obj) == MENTION:           # the universal `is_a <mention>` coref handle is
+                continue                          # infrastructure, not a fact ABOUT t (like same_as) —
+            names.add(kb.name(t))                 # else EVERY token (incl. stopwords) leaks as a center
             break
     return names

@@ -7,8 +7,9 @@ they too would be loaded from CNL.
 """
 from __future__ import annotations
 
-from ..production_rule import Pat, Rule
-from ..vocabulary import COPULA, NEG_COPULA, IS_A, IS_A_NOT, SAME_AS, DISJOINT, TARGET, TYPE
+from ..production_rule import Pat, Rule, ValueMatch
+from ..attrgraph import NAME
+from ..vocabulary import COPULA, NEG_COPULA, IS_A, IS_A_NOT, SAME_AS, DISJOINT, TARGET, TYPE, MENTION
 
 
 UNIVERSAL_RULES: list[Rule] = [
@@ -70,6 +71,28 @@ def same_as_rules(predicates) -> list[Rule]:
 
 # A reusable default over the universal predicates (domains add their own via `same_as_rules`).
 SAME_AS_RULES: list[Rule] = same_as_rules([IS_A, COPULA, TARGET, TYPE])
+
+
+# SAME-NAME coreference as ONE DECLARED value-match RULE (coreference-as-rules Stage 4) — the principled
+# replacement for the mechanical `wire_same_as` ingest default. `wire_same_as` baked a "same name ⇒ same
+# thing" NLP judgment into the loader; here coreference is bank DATA a rule expresses, which the
+# id-addressed core (env binds ids, so two same-named mentions are DISTINCT vars) + the value-JOIN op
+# (`chain._value_matches_ok` / forward `machine.VMATCH`) can fire. The binding is the UNIVERSAL surface
+# mention marker `is_a <mention>` that `forms.mark_mentions` tags every entity with — so BOTH vars seed
+# over any entity, POSITION-AGNOSTICALLY (an entity carries the marker whether it appeared as a subject or
+# an object), and untyped entities corefer without a per-domain type. `same_as_rules` then propagate facts
+# across the derived `same_as` link, exactly as for asserted identity. An author who wants narrower/graded/
+# no coref keeps, replaces, or drops this rule (or writes a typed/embedding one — coref is DATA).
+
+def same_name_coref_rules(graph=None) -> list[Rule]:
+    """The universal same-NAME coreference rule: `?x same_as ?y when ?x is_a <mention> and ?y is_a
+    <mention> and <same-value ?x ?y name>` — distinct nodes marked as mentions that share a `name` derive
+    `same_as` (the reflexive self-pair is a harmless self-loop). `graph` is accepted for call-site symmetry
+    with the graph-reading generators and ignored (the rule is graph-independent — the marker is the handle)."""
+    return [Rule(key="coref.same_name",
+                 lhs=[Pat("?x", IS_A, MENTION), Pat("?y", IS_A, MENTION)],
+                 rhs=[Pat("?x", SAME_AS, "?y")],
+                 value_matches=[ValueMatch("?x", "?y", NAME)])]
 
 
 # ENTAILED NEGATION (decision-cwa-default): disjointness ENTAILS a negation — if `A disjoint_from B`

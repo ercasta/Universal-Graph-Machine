@@ -32,9 +32,9 @@ import zlib
 from .forms import (
     FORM_RULES, _predicate_literals, declared_auxiliaries, declared_prepositions,
     declared_relations, declared_rule_variables, declared_univ_nouns, load_text, normalize_lexical,
-    propagate_embeddings, relation_predicates, rule_var_name, tokenize, wire_same_as,
+    propagate_embeddings, relation_predicates, rule_var_name, tokenize, wire_same_as, mark_mentions,
 )
-from .universal import same_as_rules
+from .universal import same_as_rules, same_name_coref_rules
 from ..vocabulary import SUBSTRATE_COREF_PREDS, CLOSES, CWA
 from ..production_rule import (
     GradedCondition, ValueMatch, Pat, Rule, is_var as _is_var, literal_name, rhs_only_head_vars,
@@ -300,8 +300,12 @@ def load_facts(graph: Graph, text: str, *, strict: bool = False) -> list[str]:
     rules = FORM_RULES + FACT_FORMS
     lines = [ln for ln in text.splitlines() if ln.strip()]
     anchors = _recognize(graph, lines, rules)
-    wire_same_as(graph, rules)                       # additive coref (was: canonicalize merge)
-    run_bank(graph, _coref_propagation(graph))       # compose facts across the same_as links (ISA)
+    # DECLARED same-name coreference (coreference-as-rules Stage 4): tag entities `is_a <mention>`
+    # (`mark_mentions`), then the universal value-match rule derives `same_as` between same-named mentions
+    # and `_coref_propagation` composes facts across the link — the principled replacement for the
+    # mechanical `wire_same_as` ingest merge (the loader marks what an entity is; a RULE decides coref).
+    mark_mentions(graph, rules)
+    run_bank(graph, same_name_coref_rules() + _coref_propagation(graph))
     run_bank(graph, graded_rules(graph))  # gradable word -> embedding (propagate EMIT); degrees from KB
     propagate_embeddings(graph)                      # spread degrees to coreferent mentions
     if strict:
@@ -1269,15 +1273,17 @@ def load_corpus(text: str, *, policy=None) -> tuple[Graph, list[Rule]]:
     # facts and rule-source COEXIST because rule fragments are built with bound-literals (recognition
     # never grabs a fact node), exactly as under `rewriter`.
     _recognize(kb, _corpus_lines(text), _ALL_FORMS)
-    wire_same_as(kb, _ALL_FORMS)         # ADDITIVE coreference (was: destructive canonicalize merge)
+    mark_mentions(kb, _ALL_FORMS)        # tag entities `is_a <mention>` — the universal coref handle
+    coref = same_name_coref_rules()      # DECLARED same-name coreference (was: mechanical wire_same_as) —
+                                         # the universal value-match rule deriving `same_as` (Stage 4)
     prop = _coref_propagation(kb)        # `same_as` propagation over the content predicates present
-    run_bank(kb, prop)                   # compose facts across links (ISA): closed-world markers
-                                         # (`closes`) reach a rule's `is not P` clause, etc.
+    run_bank(kb, coref + prop)           # derive same_as + compose facts across links (ISA): closed-world
+                                         # markers (`closes`) reach a rule's `is not P` clause, etc.
     run_bank(kb, graded_rules(kb))       # gradable word -> embedding (propagate EMIT); degrees from KB
     propagate_embeddings(kb)             # spread degrees to coreferent mentions
-    # Reflect to executable Rules; APPEND the propagation so `run_rules(kb, rules)` composes derived
-    # facts across the same_as links too (the merge gave that permanently; additivity needs it live).
-    rules = expand_rules(kb) + expand_loose_from_graph(kb) + prop
+    # Reflect to executable Rules; APPEND coref + propagation so `run_rules(kb, rules)` re-derives the
+    # same_as links and composes facts across them too (the merge gave that permanently; declared needs it live).
+    rules = expand_rules(kb) + expand_loose_from_graph(kb) + coref + prop
     if _on_cycle(policy) == "raise":                     # firmware STANCE (see `policy.py`)
         lint_stratifiable(rules, source="load_corpus")
     return kb, rules

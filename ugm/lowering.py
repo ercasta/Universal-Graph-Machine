@@ -29,8 +29,9 @@ from __future__ import annotations
 
 from .production_rule import Pat, Rule, binder, is_var, is_bound_literal, literal_name
 from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert
+from .vocabulary import MENTION
 from .machine import (
-    Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, MINT, EMIT, DROP_CTRL,
+    Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, MINT, EMIT, DROP_CTRL,
     INTERPOSE, RESTORE, State,
 )
 
@@ -108,9 +109,6 @@ def _reject_unsupported(rule: Rule) -> None:
         raise Unlowerable(f"{rule.key}: NAC (materialized-positive lowering is a later slice)")
     if rule.drop or rule.rewire:
         raise Unlowerable(f"{rule.key}: drop/rewire (control layer) is out of this slice")
-    if rule.value_matches:
-        raise Unlowerable(f"{rule.key}: value-match condition is a demand-chain-only slice "
-                          f"(the forward-APPLY value-JOIN op is a later companion) — run it via chain_sip")
 
 
 def _reach_endpoint(
@@ -216,6 +214,22 @@ def lower_graded(rule: Rule) -> list[Instr]:
     for c in rule.graded:
         for dim in c.embedding:
             ops.append(GRADE(c.var, dim, threshold=c.threshold))
+    return ops
+
+
+def lower_value_matches(rule: Rule) -> list[Instr]:
+    """Lower each declared value-match to a `VMATCH` filter (the forward-engine counterpart of the
+    demand chain's `_value_matches_ok`, coreference-as-rules Stage 4). Both vars must be LHS-bound —
+    VMATCH filters two ALREADY-bound registers — so an unbound value-match var is `Unlowerable` (loud,
+    never a silent KeyError at run time). Exact -> equality on the VALUED dim; graded -> closeness on
+    the GRADED dim. A MATCH op (filter), appended after the structural LHS match, like `lower_graded`."""
+    bound = {t for pat in rule.lhs for t in pat.tokens() if is_var(t)}
+    ops: list[Instr] = []
+    for vm in rule.value_matches:
+        for v in (vm.var_a, vm.var_b):
+            if v not in bound:
+                raise Unlowerable(f"{rule.key}: value-match var {v!r} is not LHS-bound")
+        ops.append(VMATCH(vm.var_a, vm.var_b, vm.dim, threshold=vm.threshold))
     return ops
 
 
@@ -401,10 +415,11 @@ def rule_touches_provenance(rule: Rule) -> bool:
 
 
 def lower_rule(rule: Rule) -> list[Instr]:
-    """The dumb `Rule` -> program lowering (LHS match ops, graded α-cut, then RHS/propagate effects).
-    Single-program form (no NAC — a NAC needs the driver's match-time filter, `run_bank`)."""
+    """The dumb `Rule` -> program lowering (LHS match ops, graded α-cut, value-JOIN, then RHS/propagate
+    effects). Single-program form (no NAC — a NAC needs the driver's match-time filter, `run_bank`)."""
     _reject_unsupported(rule)
-    return lower_lhs(rule) + lower_graded(rule) + lower_rhs(rule) + lower_propagate(rule)
+    return (lower_lhs(rule) + lower_graded(rule) + lower_value_matches(rule)
+            + lower_rhs(rule) + lower_propagate(rule))
 
 
 # ---------------------------------------------------------------------------
@@ -457,13 +472,10 @@ def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset()):
     `control_preds` marks heads whose predicate is a scaffolding predicate as control-layer."""
     if any(c.inverted for c in rule.graded):
         raise Unlowerable(f"{rule.key}: inverted graded condition is a later slice")
-    if rule.value_matches:
-        raise Unlowerable(f"{rule.key}: value-match condition is a demand-chain-only slice "
-                          f"(the forward-APPLY value-JOIN op is a later companion) — run it via chain_sip")
     prem_regs: list[str] = []             # LHS body rel nodes a firing `uses` (provenance)
     head_regs: list[str] = []             # RHS head rel nodes a firing `proves` (provenance)
     match_ops, effect_ops = Machine.split(
-        lower_lhs(rule, rel_out=prem_regs) + lower_graded(rule)
+        lower_lhs(rule, rel_out=prem_regs) + lower_graded(rule) + lower_value_matches(rule)
         + lower_rhs(rule, control_preds, head_out=head_regs) + lower_propagate(rule))
     drop_match, drop_effect = lower_drop(rule)
     rewire_effect = lower_rewire(rule) if rule.rewire else []
@@ -654,8 +666,8 @@ def derived_triples(ag: AttrGraph) -> set[tuple[str, str, str]]:
         for s in preds:
             for o in succs:
                 sn, on = nm(s), nm(o)
-                if sn is not None and on is not None:
-                    out.add((sn, rn, on))
+                if sn is not None and on is not None and on != MENTION:
+                    out.add((sn, rn, on))     # hide the universal `is_a <mention>` coref handle (Stage 4)
     frozen = frozenset(out)
     ag._dt_cache = (ag.version, frozen)
     return frozen

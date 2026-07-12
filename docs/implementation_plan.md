@@ -22,21 +22,25 @@
 
 ## Current state
 
-**Suite: 339 passed, 0 failed** (`python -m pytest -q`, ~74s; run via `.venv/Scripts/python.exe -m
+**Suite: 340 passed, 0 failed** (`python -m pytest -q`, ~50s; run via `.venv/Scripts/python.exe -m
 pytest -q`). Production runtime is 100% the ISA engine, and so is every test — no second engine anywhere
 in the repo. `ask_goal` is demand-driven; `rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are
 all deleted.
 
 **▶ RESUME HERE (2026-07-12):** the active track is **coreference-as-rules** (`docs/coreference_as_rules_
-design.md`), the reshaped "D". Stages **1–3 DONE** (value-match primitive `ValueMatch` + CNL surface `?x
-same/close DIM as ?y` + a declared-bank coref demo + **the id-addressed core**: the demand-chain env binds
-node ids in FREE slots, so two DISTINCT same-named nodes bind to distinct vars and a same-name value-match
-relates them; `ugm/chain.py` `_facts_matching`/`_unify_head_with_demand`/`_endpoint_name`/`_graded_ok`,
-`ugm/cnl/query.py` gather; `tests/test_isa_idcore.py`). Stage 3 came in FAR lighter than the "high
-effort/high risk" estimate because C had already made every downstream consumer `ById`-aware (bonus: suite
-~161s→~74s). **NEXT = Stage 4: same-name coref as a standard declared bank** + retire mechanical
-`wire_same_as` as the default (`same_value ?x ?y name` now relates distinct same-named nodes on the id-core;
-rewrite the representation-asserting coref tests in `test_new_core.py`, asserted-`same_as` tests untouched).
+design.md`), the reshaped "D". Stages **1–4 DONE** (value-match primitive + CNL surface + **id-addressed
+core** (Stage 3: demand-chain env binds node ids in FREE slots, so distinct same-named nodes bind to
+distinct vars) + **Stage 4**: the FORWARD value-JOIN op `machine.VMATCH` (value-match rules now fire under
+`run_bank`/`run_rules`, not just the demand chain) AND same-name coref as ONE declared rule over a universal
+`is_a <mention>` marker (`forms.mark_mentions` + `universal.same_name_coref_rules()`), retiring mechanical
+`wire_same_as` as the `load_corpus`/`load_facts` default — marking ("what is an entity") separated from the
+coref DECISION (a CNL rule); position-agnostic, so untyped entities corefer). **NEXT = Stage 5** (boundary
+migration + docs) and, optional, delete the retired `canonicalize` merge + rewrite its `test_new_core`
+users. OPEN with the user: `load_corpus` auto-injects the universal coref rule (current, demos green) vs
+silent-by-default. Key finding trail: the user chose declared-value-match-bank over an ingest naming policy,
+which forced the forward VMATCH first; per-type coref then hit the untyped-entity wall (subject-vs-object
+position → no shared type), resolved by the universal marker. S-P-O is just a directed 2-hop path (no
+role semantics baked in — direction carries it); role-labeled edges were REJECTED by the user.
 
 **Consumer-feedback hardening DONE 2026-07-12** (`docs/feedback_from_pystrider.md`, `tests/test_feedback_fixes.py`):
 the recurring theme was SILENT failures — six made LOUD or fixed: #1 machine-rule non-triple clause raises;
@@ -75,11 +79,12 @@ below.
 > value-equality / graded-closeness match primitive (`ValueMatch`). Approved sequence **1→2→3→4→5**:
 > (1) the primitive ✅ DONE; (2) coref-as-rules (CNL form `?x same/close DIM as ?y` + declared-bank demo)
 > ✅ DONE; (3) id-addressed core (env binds ids in FREE slots — `_facts_matching` returns `ById`) ✅ DONE;
-> (4) same-name coref as a declared bank + retire mechanical `wire_same_as` as the default **NEXT**;
-> (5) boundary migration + docs. The C→D name-vs-id analysis below is SUBSUMED: id-addressing is Stage 3,
-> and the same-named-collapse it works around is exactly why Stage 3 was needed. **Stages 1–3 DONE**
-> (`ValueMatch` + CNL surface + id-core; `tests/test_isa_value_match.py`, `tests/test_isa_idcore.py`;
-> 339 suite green).
+> (4) same-name coref as a declared rule + retire mechanical `wire_same_as` as the default ✅ DONE (forward
+> `VMATCH` op + universal `is_a <mention>` marker; `canonicalize` deletion is optional follow-up);
+> (5) boundary migration + docs **NEXT**. The C→D name-vs-id analysis below is SUBSUMED: id-addressing is
+> Stage 3, and the same-named-collapse it works around is exactly why Stage 3 was needed. **Stages 1–4 DONE**
+> (`ValueMatch` + CNL surface + id-core + forward value-JOIN + declared same-name coref;
+> `tests/test_isa_value_match.py`, `tests/test_isa_idcore.py`; 340 suite green).
 
 > **C DONE 2026-07-12** (`chain.ById`, `tests/test_isa_byid.py`, 11 tests, 325 suite green; CHANGELOG +
 > `engine_user_guide.md` §2). The tuple-goal APIs (`chain_sip`/`check`/`suppose`) now accept a

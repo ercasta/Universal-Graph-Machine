@@ -1,6 +1,7 @@
 # Coreference as declared rules — a reassessment of Phase 8 "D"
 
-> **Status: ACTIVE. Sequence 1→2→3→4→5 approved by the user (2026-07-12); Stages 1–3 DONE, Stage 4 next.**
+> **Status: ACTIVE. Sequence 1→2→3→4→5 approved by the user (2026-07-12); Stages 1–4 DONE (Stage 4 core;
+> `canonicalize` deletion is optional follow-up), Stage 5 (docs/boundary) next.**
 > This supersedes
 > the mechanical-rebind framing of "D" in `implementation_plan.md`. Written after C (id-addressed goal path,
 > `ById`) landed and a design conversation redirected D away from a mechanical ingest merge toward
@@ -98,11 +99,21 @@ write points route through one site. The boundary primitives the id-core needs a
   (the ask speaks names) and dedups the id/name form of a premise. Bonus: full suite ~161s→~74s (pinning one
   id beats iterating same-named candidates). *Unlocks same-name value-coref* — two distinct nodes both named
   "ada" now relate via a same-name `ValueMatch`. **Was: high effort, high risk — came in far lighter.**
-- **Stage 4 — same-name coref as rules + retire mechanical coref.** On the id-core, `same_value ?x ?y name`
-  relates distinct same-named nodes. Drop `wire_same_as`/`coref_in_context` as the *default*; same-name
-  coref becomes a declared standard bank an author opts into (or writes their own, or none). Delete the
-  retired `canonicalize` merge. **Effort: medium. Risk: medium** (rewrite the representation-asserting coref
-  tests in `test_new_core.py`; asserted-`same_as` tests untouched).
+- **Stage 4 — same-name coref as rules + retire mechanical coref. ✅ DONE 2026-07-12 (core; 340 passed).**
+  Two decisions settled it. (a) **User chose the declared-value-match-bank direction** over the ingest
+  naming policy — which surfaced a HARD dependency: value-match rules refused in the FORWARD engine (Stage 1
+  residual), but `load_corpus` composes coref forward, so the residual had to land first → **forward
+  value-JOIN op `machine.VMATCH`** (mirrors `GRADE`; `lowering.lower_value_matches`). (b) **Per-type coref
+  hit the untyped-entity wall** (an entity in subject vs object position has no shared type handle — broke 16
+  tests). Resolved with a **universal surface-mention marker**: `forms.mark_mentions` tags every entity
+  `is_a <mention>`, and `same_name_coref_rules()` is ONE rule binding both vars from that marker + a `name`
+  value-match. This SEPARATES marking ("what is an entity", policy-neutral) from the coref DECISION (a
+  CNL-authorable rule) — the clean win over `wire_same_as`, which fused them. Position-agnostic, so untyped
+  entities corefer; decidable via CNL (scope the body, swap the criterion, assert identity, or drop). Marker
+  filtered from `derived_triples`/`focus.utterance_subjects`. `load_corpus`/`load_facts` retired
+  `wire_same_as` as the default. **Was: medium/medium — the VMATCH prerequisite made it heavier.** FOLLOW-UP
+  (optional): delete the retired `canonicalize` merge + rewrite its `test_new_core` users; `wire_same_as`/
+  `coref_in_context` kept as opt-in tools. OPEN: auto-inject the universal rule (current) vs silent default.
 - **Stage 5 — finalize boundary migration + docs.** `ask_goal`/`check`/`suppose` resolve names→ids at the
   surface (Half A); update `CHANGELOG`, `engine_user_guide`, `implementation_plan` (D done; coref rewritten
   as data). **Effort: low–medium. Risk: low.**

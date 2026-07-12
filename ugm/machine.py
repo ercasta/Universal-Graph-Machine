@@ -212,6 +212,23 @@ class SAME(Instr):
     b: str
 
 
+@dataclass
+class VMATCH(Instr):
+    """Value-JOIN filter: keep the state iff two ALREADY-bound registers carry MATCHING values on
+    `key` — the TWO-register sibling of GRADE (which tests one register), and the forward-engine
+    counterpart of the demand chain's `chain._value_matches_ok` (the DECLARED value-JOIN of a
+    `ValueMatch`, coreference-as-rules Stage 1/4). Unlike SAME (which needs the same NODE), VMATCH
+    relates DISTINCT nodes that agree on a value — the join the path language cannot otherwise express.
+    Exact mode (`threshold` None): both carry EQUAL VALUED `key` values (e.g. the same `name`). Graded
+    mode (`threshold` given): both carry a GRADED `key` degree and `1 - |da - db| >= threshold`. A
+    missing/wrong-kind value on either side fails (never fire on an unevaluable join). Positive,
+    monotone (a filter, never a bind)."""
+    a: str
+    b: str
+    key: str
+    threshold: float | None = None
+
+
 # --- Effects (monotone facts + gated control) ------------------------------
 
 @dataclass
@@ -411,6 +428,18 @@ class Machine:
                     yield st
             else:
                 raise ProgramError("GRADE needs either a graded threshold or a valued cmp")
+        elif isinstance(ins, VMATCH):
+            aa = g.get_attr(st.regs[ins.a], ins.key)
+            bb = g.get_attr(st.regs[ins.b], ins.key)
+            if aa is None or bb is None:
+                return
+            if ins.threshold is None:                    # exact VALUED equality
+                if aa.kind == VALUED and bb.kind == VALUED and aa.value == bb.value:
+                    yield st
+            else:                                        # graded 'close enough'
+                if (aa.kind == GRADED and bb.kind == GRADED
+                        and (1.0 - abs(float(aa.value) - float(bb.value))) >= ins.threshold):
+                    yield st
         else:
             raise ProgramError(f"{type(ins).__name__} is an effect opcode in the match phase")
 

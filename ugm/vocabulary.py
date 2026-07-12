@@ -30,6 +30,10 @@ IS_A_NOT = "is_a_not"         # negated subsumption (entailed from disjointness)
 # --- congruence / disjointness ----------------------------------------------
 SAME_AS = "same_as"           # declared congruence (logic_fragment.md §5)
 DISJOINT = "disjoint_from"    # disjointness -> entailed negation
+MENTION = "<mention>"         # universal surface-mention marker (coreference-as-rules Stage 4): every
+                              # ingested ENTITY is `is_a <mention>`, the handle the declared same-name
+                              # coref rule seeds BOTH vars from — so coref binds any entity regardless of
+                              # its structural position, without a per-domain type. Filtered from output.
 
 # --- closed-world policy ----------------------------------------------------
 CLOSES = "closes"             # P closes <closed_world>  (P is closed-world DATA)
