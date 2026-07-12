@@ -6,9 +6,8 @@ UGM is a self-contained Python library: a label-less attribute graph substrate, 
 declarative instruction set architecture (ISA) for graph computation, a demand-driven
 reasoning **firmware** on top, and an optional Controlled Natural Language (CNL) surface
 for authoring and rendering. The core is pure symbolic graph computation — no neural nets,
-no LLMs, no mandatory external solvers (the graded layer is *sparse named* attributes in
-`[0,1]`, not dense/neural embeddings; an optional clingo calculator is available for model
-enumeration).
+no LLMs, no external solvers (the graded layer is *sparse named* attributes in `[0,1]`, not
+dense/neural embeddings).
 
 New here? Read **`docs/architecture.md`** for the layering, then the **`docs/engine_user_guide.md`**
 (build on UGM) or **`docs/engine_developer_guide.md`** (extend/fork it).
@@ -149,6 +148,13 @@ recognisable step in deliberate reasoning:
 Every computation the system performs is one of these, or a KB-authored composition of
 them (a *procedure*). There are no other moving parts.
 
+> **Note (WALK).** WALK's standalone fuelled-traversal implementation was retired as
+> superseded: long-range reachability over a declared-transitive relation is now handled by
+> demand-driven CHAIN (fuel-bounded), so the current firmware realizes the other eight modes
+> directly. WALK is kept as a design mode in `processing_modes.md`; a dedicated walker would be
+> re-added only if a workload needs traversal that CHAIN over declared transitivity can't
+> express.
+
 **SATURATE / CHAIN** are the forward and backward engines respectively. Rules are
 reified as graph structure (a `<rule>` node with `rl_lhs`, `rl_rhs` relations). SATURATE
 walks the rule body forward, emitting derivations into the graph; CHAIN pulls the same
@@ -172,6 +178,24 @@ Graded attributes (`urgent: 0.9`) feed directly into the selection.
 written as control-scoped (`pencil`) nodes; derivations run inside the scope. On
 confirmation the assumptions are committed to the fact layer (`ink`); on refutation the
 entire scope is dropped. The fact layer is never tentatively modified.
+
+**ITERATE** walks a reified collection one member at a time via a `<current>` cursor
+token advancing a `next`-chain — the domino/forall pattern. There is no hidden Python
+`for` loop or recursion: the list is graph structure, and stepping the cursor is the
+only iteration primitive. Counting/totaling over the walked members is delegated to CALL,
+keeping the rule layer itself arithmetic-free.
+
+**CALL** folds tool use back into the graph: a reified `<call>` node holds argument
+slots, is serviced at fixpoint by the tool registry (arithmetic, aggregation, temporal,
+external solvers, an SLM), and its result is written back as an ordinary fact. This is
+the generic calculator boundary (`§8` in the architecture diagram) — arithmetic and
+aggregation are never smuggled in as hidden rule-layer helpers.
+
+**RECORD** is provenance journaling woven through every other mode, not a bolt-on debug
+flag: every MINT/EMIT carries a `<j:…>` journal entry recording which rule fired, over
+which bindings, from which facts. It is free (no fuel cost) and mandatory. Explanations
+(`why …`) are a replay of this journal rendered back to CNL, not post-hoc template text
+— in the Horn fragment the journal *is* the proof object.
 
 ---
 
@@ -303,8 +327,7 @@ lower-level demand-driven API (`chain_sip`, `check`, `choose`, `suppose`) — se
 ## Installation
 
 ```bash
-pip install ugm              # core (no mandatory deps)
-pip install "ugm[asp]"       # + clingo for disjunction/model-enumeration calculators
+pip install ugm              # core (no dependencies)
 ```
 
 Pure Python, requires Python ≥ 3.8.
