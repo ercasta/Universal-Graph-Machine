@@ -98,11 +98,23 @@ Build slices, in dependency order (each with tests; the probe first to validate 
     `utterance_subjects`); explicit `FOCUS_FORMS` (`focus on`/`forget that`/`back to`) recognized as forms,
     wired into `ingest` (route "focus"); drop/reenter are control-layer ops (§5-safe). Answer-neutral.
     `tests/test_isa_focus.py` (9), 273 suite green.
-  - **8.3a REMAINING** — `<query>`/`<goal>` land as control nodes tied to the top frame; scaffolding GC by
-    reachability from focus roots (drop spent `<query>`/token chains); widen on QUESTION subjects too.
-  - **8.3b NEXT** — seed-from-focus: the demand chain seeds from the top frame's centers. A SEMANTIC scope
-    change (off-focus facts leave the working set — bounded attention, not a neutral perf tweak); re-run the
-    8.0 probe to confirm it flattens accretion + bounds the coref fan-out.
+  - **8.3a remainder DONE 2026-07-12** — QUESTIONS widen focus too (`_question_entities`: bound subject/
+    object, skipping who/someone unknowns); spent token-chain scaffolding GC'd per utterance
+    (`focus.gc_utterance_scaffolding` — surgical to the utterance's own `<sentence>` chain, answer-neutral:
+    facts live on entity nodes, grammar tokens swept). `tests/test_isa_focus.py` now 13, 276 suite green.
+    DEFERRED to 8.5 (streaming): a PERSISTENT `<query>`/`<goal>` control node (needs the streaming consumer
+    + focus-reachability GC of it, vs today's per-utterance chain sweep).
+  - **8.3b DONE 2026-07-12** — seed-from-focus as BOUNDED ATTENTION, EXPOSED + caller-selected (user
+    directive: "code using the system decides which mode"). `focus_scope: frozenset[str] | None` threaded
+    through `chain_sip`/`_solve_demand_rule`/`_nac_blocks`/`_facts_matching` (the reader filters: a fact is
+    visible iff an endpoint is in scope) + `check` + `ask_goal`; `ingest(attention="global"|"focus")` maps
+    "focus" → the top frame's centers (widen-before-answer so a bound question's subject is in scope).
+    Default None/"global" = whole-graph, behaviour-identical (278 suite green). Focus holds INDIVIDUALS not
+    types (`_question_entities` excludes the copula object — a shared type would be a stopword-anchor).
+    PROBE (`focus_probe`, bound `is s<k>_0 thief` as independent cases accrete): global 0.5s→5.5s→31s→112s
+    (super-linear cliff); focus 23→29→65→83ms (FLAT); ratio 23×→1361× and climbing. Bounded attention makes
+    per-utterance cost track the focus, not the session — the accretion fix, validated. `tests/test_isa_focus.py`
+    (16). SEMANTIC: off-focus facts leave attention (agent-not-theorem-prover); that is the point.
 - **8.4 — anaphora as reasoning.** Descriptive → CHOOSE over centers; bare pronouns → CHOOSE over graded
   defeasible preferences (recency+role default, domain-overridable); metareasoning owns only the
   ask-vs-guess margin → near-tie escalates via the existing `ask_user`. Design §4. Habitability rejection

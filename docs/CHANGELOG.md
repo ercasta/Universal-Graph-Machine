@@ -28,8 +28,17 @@ Kicked off the first UGM CLIENT (agent loop + TUI) per `docs/cnl_intake_design.m
   — seed-from-focus is 8.3b).
 - **8.2 groundwork** — `tokenize(..., control=True)`; 8.2 folded into 8.3 (a live `<query>` has no consumer
   but focus, which governs its GC — the transplant lands there).
+- **8.3a remainder** — questions widen focus too; spent token-chain scaffolding GC'd per utterance
+  (`focus.gc_utterance_scaffolding`, answer-neutral).
+- **8.3b seed-from-focus** — BOUNDED ATTENTION, exposed + caller-selected (`focus_scope` threaded through
+  `chain_sip`/`_facts_matching`/`check`/`ask_goal`; `ingest(attention="global"|"focus")`). A fact is
+  visible iff an endpoint is in the focus working set; default = whole-graph (278 suite green). PROBE — a
+  bound `is s<k>_0 thief` as independent cases accrete: GLOBAL 0.5s→5.5s→31s→112s (super-linear session-
+  accretion cliff, the coref fan-out over the whole KB); FOCUS 23→29→65→83ms (FLAT); ratio 23×→1361×.
+  Per-utterance cost now tracks the focus, not the session — the accretion fix validated. SEMANTIC: off-
+  focus facts leave attention (agent-not-theorem-prover), so answers can differ from global by design.
 Discipline: `docs/cnl_intake_design.md` §D (7 anti-hardcoding rules) documented + mirrored in the plan's
-Phase 8 header. `tests/test_isa_intake.py` (6) + `tests/test_isa_focus.py` (9).
+Phase 8 header. `tests/test_isa_intake.py` (6) + `tests/test_isa_focus.py` (16).
 
 ### NAC existence check made ENDPOINT-DRIVEN — 40× on the NAF hot path (258 passed, suite 54s→35s)
 Phase 8.0 probe (`bench/session_accretion.py`, `docs/cnl_intake_design.md` §7) found the agent-loop client's

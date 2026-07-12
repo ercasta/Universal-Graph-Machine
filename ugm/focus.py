@@ -182,6 +182,32 @@ def apply_focus_op(kb, op: str, target: str | None) -> None:
 # Content-blind: the entities an utterance is ABOUT (its content SUBJECTS)
 # ---------------------------------------------------------------------------
 
+def gc_utterance_scaffolding(kb, anchor: str) -> None:
+    """Sweep ONE processed utterance's recognition scaffolding — its `<sentence>` anchor and `first`/`next`
+    token chain — after routing. Surgical (only THIS anchor's chain, never a shared `next` structure like a
+    reified itinerary): the fact CONTENT lives on the entity nodes (a relation between them), not the chain,
+    so removing the chain is ANSWER-NEUTRAL; entity tokens survive (they keep their content relations and
+    re-coref with future same-named mentions), while pure grammar-word tokens (`is`/`a`, no content relation)
+    are swept by `gc_disconnected`. Accretion control (§3): the transcript's tokens don't pile up in the KB.
+    (Focus-reachability GC of a persistent `<query>`/`<goal>` lands with streaming, 8.5.)"""
+    seen: set[str] = set()
+    frontier = [anchor]
+    chain_rels: list[str] = []
+    while frontier:
+        n = frontier.pop()
+        if n in seen:
+            continue
+        seen.add(n)
+        for rel, nxt in list(kb.relations_from(n)):
+            if kb.has_key(rel, "first") or kb.has_key(rel, "next"):
+                chain_rels.append(rel)
+                frontier.append(nxt)
+    for rel in chain_rels:
+        kb.remove_node(rel)
+    kb.remove_node(anchor)
+    kb.gc_disconnected()
+
+
 def utterance_subjects(kb, anchor: str) -> set[str]:
     """The names of the content entities this utterance PREDICATES ABOUT — a token that carries an
     outgoing content relation (subject of a fact). Content-blind: no predicate/domain vocabulary; the

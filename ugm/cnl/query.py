@@ -278,7 +278,8 @@ def _materialize_fact(graph: Graph, s: str, p: str, o: str) -> None:
 
 def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
              policy=None, open_preds: frozenset[str] | None = None, ask_user=None,
-             extra_forms: list[Rule] = (), strata=None, journal: list | None = None) -> list[str]:
+             extra_forms: list[Rule] = (), strata=None, journal: list | None = None,
+             focus_scope: frozenset[str] | None = None) -> list[str]:
     """Answer a CNL `question` GOAL-DIRECTED: demand just the question's goal through the ISA
     machine (`GoalSolver`), materializing only the facts that goal needs — NOT a forward pass over
     the whole rule set. This is the backward face of the engine (`decision-attrgraph-rehost`
@@ -340,14 +341,14 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     if q["qtype"] == "yesno":
         if q["s"] in EXISTENTIAL_SUBJECTS:
             # `is anyone happy` is ∃ — demand the WILDCARD-subject goal, then match any witness.
-            chain_sip(graph, rule_g, (q["p"], None, q["o"]))
+            chain_sip(graph, rule_g, (q["p"], None, q["o"]), focus_scope=focus_scope)
             if match(graph, [Pat("?w", q["p"], q["o"])]):
                 return ["yes"]
             return ["unknown"] if policy_.is_open(concept_key(q["p"], q["o"])) else ["no"]
         # a bound goal: the demand-driven 4-status CHECK, collapsed to yes/no/unknown. CHECK runs the
         # positive closure (POSITIVE), the negative closure (ENTAILED_NEG), else CWA-default ASSUMED_NO
         # unless the concept is OPEN (UNKNOWN) or fuel ran out before closure (also UNKNOWN).
-        v = collapse(check(graph, rule_g, (q["p"], q["s"], q["o"]), policy=policy_))
+        v = collapse(check(graph, rule_g, (q["p"], q["s"], q["o"]), policy=policy_, focus_scope=focus_scope))
         # OWA evidence-gatherer: an open UNKNOWN the goal needs -> gather (never a CWA-default `no`).
         if v == "unknown" and ask_user is not None and q["o"] is not None:
             held = ask_user(q["s"], q["p"], q["o"])
@@ -359,7 +360,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         return [v]
 
     if q["qtype"] == "who":
-        chain_sip(graph, rule_g, (q["p"], None, q["o"]))           # demand the wildcard-subject goal
+        chain_sip(graph, rule_g, (q["p"], None, q["o"]), focus_scope=focus_scope)   # wildcard-subject goal
         names = sorted({graph.name(b["?x"])
                         for b in match(graph, [Pat("?x", q["p"], q["o"])])})
         if names:
@@ -370,11 +371,11 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         # demand the goal WITH provenance (RECORD, mode 9) so the in-graph support is present, then
         # render the derivation trace via the existing reader. `explain` reads the in-graph proves/uses
         # support (not the journal), so an empty journal is enough to pass the reader's guard.
-        chain_sip(graph, rule_g, (q["p"], q["s"], q["o"]), provenance=True)
+        chain_sip(graph, rule_g, (q["p"], q["s"], q["o"]), provenance=True, focus_scope=focus_scope)
         return ask(graph, question, journal=journal if journal is not None else [],
                    rules=rules, extra_forms=extra_forms, strata=strata)
 
     # n-ary: demand the event predicate, then render via the reader (event-role reads stay in `ask`).
     if q.get("pred") is not None:
-        chain_sip(graph, rule_g, (q["pred"], None, None))
+        chain_sip(graph, rule_g, (q["pred"], None, None), focus_scope=focus_scope)
     return ask(graph, question, journal=journal, rules=rules, extra_forms=extra_forms, strata=strata)

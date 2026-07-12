@@ -235,7 +235,8 @@ def _rel_matches_pred(g: AttrGraph, rel: str, pred: str, scope: str | None) -> b
 
 def _facts_matching(fact_g: AttrGraph, pred: str,
                     subj_name: str | None, obj_name: str | None,
-                    *, scope: str | None = None) -> list[tuple[str, str]]:
+                    *, scope: str | None = None,
+                    focus_scope: frozenset[str] | None = None) -> list[tuple[str, str]]:
     """The `(subj_name, obj_name)` of every FACT `pred` whose bound endpoints match the demand (a
     None endpoint is a wildcard). The bound-tuple analog of APPLY's whole-predicate scan — SIP
     prunes to the demanded subject/object. Within a SUPPOSE `scope`, this scope's pencil is visible too.
@@ -246,8 +247,20 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
     discipline holds), then local topology gives the (pred,subj)/(pred,obj) facts directly. SIP makes a
     bound endpoint almost always available, so the whole-predicate scan (which recomputed every `pred`
     fact's endpoint names to discard all but one subject) is the fallback ONLY for a fully-unbound demand.
-    Behaviour-identical to the old scan; it just stops touching off-goal tuples."""
+    Behaviour-identical to the old scan; it just stops touching off-goal tuples.
+
+    FOCUS-SCOPE (Phase 8.3b, docs/cnl_intake_design.md §3) — BOUNDED ATTENTION, opt-in and caller-selected
+    (default None = whole-graph, behaviour-identical). When `focus_scope` is a set of in-play entity names
+    (the top focus frame's centers), a fact is visible iff it TOUCHES the working set (either endpoint in
+    scope). Reasoning then follows edges out of focus entities but cannot start from / jump to an entity
+    disconnected from focus — so per-utterance cost tracks the focus closure, not the accreted session, and
+    the coref fan-out is bounded to what is in play. This is a SEMANTIC scope, not a neutral perf tweak:
+    off-focus facts leave the agent's attention (the agent-not-theorem-prover reading of §14)."""
     out: list[tuple[str, str]] = []
+
+    def keep(s: str, o: str) -> bool:                     # bounded-attention: a fact is in scope iff it
+        return focus_scope is None or s in focus_scope or o in focus_scope   # touches the working set
+
     if subj_name is not None:                              # (pred, subj, ?) — walk OUT of the subject
         for s in fact_g.nodes_named(subj_name):
             if fact_g.is_control(s) or fact_g.is_inert(s):
@@ -259,7 +272,7 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
                     if fact_g.is_control(o) or fact_g.is_inert(o):
                         continue
                     on = fact_g.name(o)
-                    if obj_name is None or on == obj_name:
+                    if (obj_name is None or on == obj_name) and keep(subj_name, on):
                         out.append((subj_name, on))
         return out
     if obj_name is not None:                               # (pred, ?, obj) — walk INTO the object
@@ -272,11 +285,15 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
                 for s in fact_g.pred(rel):
                     if fact_g.is_control(s) or fact_g.is_inert(s):
                         continue
-                    out.append((fact_g.name(s), obj_name))
+                    sn = fact_g.name(s)
+                    if keep(sn, obj_name):
+                        out.append((sn, obj_name))
         return out
     for rel in _fact_relnodes(fact_g, pred, scope=scope):  # (pred, ?, ?) — the whole-predicate scan
         for s, o in _endpoints(fact_g, rel):
-            out.append((fact_g.name(s), fact_g.name(o)))
+            sn, on = fact_g.name(s), fact_g.name(o)
+            if keep(sn, on):
+                out.append((sn, on))
     return out
 
 
@@ -343,6 +360,7 @@ def _graded_ok(fact_g: AttrGraph, graded: list[tuple[str, str, float]], env: dic
 
 def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str, str, str]],
                 env: dict[str, str], *, scope: str | None, provenance: bool,
+                focus_scope: frozenset[str] | None = None,
                 neg_stack: frozenset[tuple[str, str | None, str | None]],
                 fuel: "_Exhaustion | None", max_rounds: int, closed: set) -> bool:
     """Decide the rule's NAC clauses under `env` by DEMAND-DRIVEN NEGATION-AS-FAILURE (firmware v3):
@@ -367,10 +385,11 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
             return True                        # re-entry: prune the higher-stratum rule (block env)
         if neg_goal not in closed:             # MEMO: a negative's positive is closed ONCE per session.
             chain_sip(fact_g, rule_g, neg_goal, provenance=provenance, scope=scope,   # close the positive
+                      focus_scope=focus_scope,
                       _neg_stack=neg_stack | {neg_goal}, _fuel=fuel, max_rounds=max_rounds, _closed=closed)
             closed.add(neg_goal)               # facts are monotone + stratified -> the closure is stable,
         # so re-demands (the round loop re-services this env each round) just READ absence, never re-close.
-        if _facts_matching(fact_g, np, neg_goal[1], neg_goal[2], scope=scope):
+        if _facts_matching(fact_g, np, neg_goal[1], neg_goal[2], scope=scope, focus_scope=focus_scope):
             return True                                    # L holds -> the NAC fails -> block this env
         if fuel is not None and fuel.exhausted:
             return True             # the positive is not EXHAUSTED -> the NAC is UNDECIDED; do not fire
@@ -380,6 +399,7 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
 def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                        demand: tuple[str, str | None, str | None], mint,
                        *, provenance: bool = False, scope: str | None = None,
+                       focus_scope: frozenset[str] | None = None,
                        neg_stack: frozenset[tuple[str, str | None, str | None]] = frozenset(),
                        fuel: "_Exhaustion | None" = None, max_rounds: int = 1000,
                        closed: set = frozenset()) -> int:
@@ -416,7 +436,8 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
             for env in envs:
                 mint((bp, _tok_name(env, s_tok), _tok_name(env, o_tok)))
                 for fs, fo in _facts_matching(fact_g, bp, _tok_name(env, s_tok),
-                                              _tok_name(env, o_tok), scope=scope):
+                                              _tok_name(env, o_tok), scope=scope,
+                                              focus_scope=focus_scope):
                     e1 = _bind(env, s_tok, fs)
                     if e1 is None:
                         continue
@@ -428,6 +449,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
             if graded and not _graded_ok(fact_g, graded, env):             # α-cut DURING matching
                 continue
             if nac and _nac_blocks(fact_g, rule_g, nac, env, scope=scope,   # NAF: absence decides
+                                   focus_scope=focus_scope,
                                    provenance=provenance, neg_stack=neg_stack,
                                    fuel=fuel, max_rounds=max_rounds, closed=closed):
                 continue
@@ -454,6 +476,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
 def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
               goal: tuple[str, str | None, str | None], *, max_rounds: int = 1000,
               provenance: bool = False, scope: str | None = None,
+              focus_scope: frozenset[str] | None = None,
               _neg_stack: frozenset[tuple[str, str | None, str | None]] = frozenset(),
               _fuel: "_Exhaustion | None" = None, _closed: set | None = None) -> int:
     """Answer a BOUND-TUPLE goal `(pred, subj|None, obj|None)` demand-driven with SIP: raise the goal
@@ -504,6 +527,7 @@ def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
             for rn in rules_producing(rule_g, demand[0]):
                 fired += _solve_demand_rule(fact_g, rule_g, rn, demand, mint,
                                             provenance=provenance, scope=scope,
+                                            focus_scope=focus_scope,
                                             neg_stack=_neg_stack, fuel=_fuel, max_rounds=max_rounds,
                                             closed=_closed)
         agenda |= newly

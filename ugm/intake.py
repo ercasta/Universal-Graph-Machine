@@ -63,10 +63,31 @@ def _anchor_has_content_fact(kb, anchor: str) -> bool:
     return False
 
 
-def ingest(kb, rules, utterance, *, policy=None, ask_user=None) -> Outcome:
+def _question_entities(q: dict) -> set[str]:
+    """The concrete entities a recognized question is ABOUT — its bound SUBJECT (skipping the `who`/
+    `someone` unknowns), or an n-ary question's filled roles. These enter the focus so a follow-up
+    ('is he cleared?') resolves against them (§4). The OBJECT of a binary question is deliberately
+    EXCLUDED: for a copula question it is a TYPE (`is bo thief` -> `thief`), and a shared type in the
+    focus scope would act as a stopword-anchor that reconnects everything, defeating bounded attention.
+    Mirrors `focus.utterance_subjects` (subjects, not types)."""
+    from .cnl.query import EXISTENTIAL_SUBJECTS, WH
+    if q.get("qtype") == "nary":
+        return {v for v in q.get("roles", {}).values() if v and v != WH}
+    s = q.get("s")
+    return {s} if (s and s not in EXISTENTIAL_SUBJECTS) else set()
+
+
+def ingest(kb, rules, utterance, *, policy=None, ask_user=None, attention: str = "global") -> Outcome:
     """Route ONE CNL `utterance` against the live session KB `kb` (+ accumulated `rules`) by which
     recognition forms fire, and act on it. Returns an `Outcome`. `rules` is mutated in place when the
-    utterance adds a rule (so subsequent turns reason with it immediately — Phase 8.6)."""
+    utterance adds a rule (so subsequent turns reason with it immediately — Phase 8.6).
+
+    `attention` (EXPOSED so the consuming system picks the reasoning mode, docs/cnl_intake_design.md §3):
+      - "global" (default) — reason over the whole KB (behaviour-identical to a bare `ask_goal`).
+      - "focus"  — BOUNDED ATTENTION: a question reasons only within the current focus working set (the
+        top frame's centers + their closure). Per-utterance cost then tracks the focus, not the accreted
+        session, and the coref fan-out is bounded — but off-focus facts are outside attention (a SEMANTIC
+        choice, the agent-not-theorem-prover reading), so answers can differ from "global"."""
     from .cnl.query import recognize, ask_goal
     from .cnl.authoring import load_rules, load_facts, _on_cycle
     from . import focus as focus_mod
@@ -83,8 +104,12 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None) -> Outcome:
         return Outcome("focus", utterance, focus_op=fop)
 
     # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
-    if recognize(text) is not None:
-        answer = ask_goal(kb, text, rules, policy=policy, ask_user=ask_user)
+    q = recognize(text)
+    if q is not None:
+        # widen BEFORE answering so bounded attention includes what this question is about.
+        focus_mod.widen(kb, _question_entities(q))
+        fscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
+        answer = ask_goal(kb, text, rules, policy=policy, ask_user=ask_user, focus_scope=fscope)
         return Outcome("answer", utterance, answer=answer)
 
     # RULE — a `HEAD when …` line reflects to executable rule(s); none => not a rule line.
@@ -98,9 +123,12 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None) -> Outcome:
 
     # FACT vs UNRECOGNIZED — recognize into the live KB; a content relation means a fact landed.
     anchors = load_facts(kb, text)
-    if anchors and _anchor_has_content_fact(kb, anchors[0]):
+    anchor = anchors[0] if anchors else None
+    is_fact = anchor is not None and _anchor_has_content_fact(kb, anchor)
+    if is_fact:
         # IMPLICIT widen (§3): the entities the utterance is about enter the top focus frame. Never a
         # push — a topic switch is explicit. Content-blind subject extraction (`focus.utterance_subjects`).
-        focus_mod.widen(kb, focus_mod.utterance_subjects(kb, anchors[0]))
-        return Outcome("fact", utterance)
-    return Outcome("unrecognized", utterance)
+        focus_mod.widen(kb, focus_mod.utterance_subjects(kb, anchor))
+    if anchor is not None:
+        focus_mod.gc_utterance_scaffolding(kb, anchor)   # sweep the spent token chain (accretion control)
+    return Outcome("fact", utterance) if is_fact else Outcome("unrecognized", utterance)

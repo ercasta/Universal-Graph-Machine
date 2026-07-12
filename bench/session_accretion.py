@@ -124,8 +124,29 @@ def suspend_resume_probe(cases: int = 30, m: int = 6) -> None:
           "\nwarm≪cold means the graph-resident derivations already make resume cheap.")
 
 
+def focus_probe(cases: int = 25, m: int = 6, sample_every: int = 5) -> None:
+    """Phase 8.3b validation: does BOUNDED ATTENTION (focus_scope) keep a bound question's cost flat as
+    independent cases accrete, where whole-graph reasoning grows (the coref fan-out over the whole KB)?"""
+    kb, rules = h.load_corpus(RULES_TEXT)
+    print(f"\n=== focus probe: bound 'is s<k>_0 thief', global vs focus, {cases} cases ===")
+    print(f"{'case':>5} {'kb_nodes':>9} {'global_ms':>10} {'focus_ms':>10} {'ratio':>7}")
+    for k in range(cases):
+        h.load_facts(kb, case_facts(k, m))
+        subj = f"s{k}_0"
+        glob = _time(lambda: h.ask_goal(kb, f"is {subj} thief", rules))
+        foc = _time(lambda: h.ask_goal(kb, f"is {subj} thief", rules, focus_scope=frozenset({subj})))
+        if k % sample_every == 0 or k == cases - 1:
+            ratio = glob / foc if foc else float("nan")
+            print(f"{k:>5} {len(kb.nodes()):>9} {glob:>10.2f} {foc:>10.2f} {ratio:>7.1f}", flush=True)
+    print("\nReading: if global_ms climbs with accreted cases while focus_ms stays flat, bounded attention"
+          "\n(Phase 8.3b) makes per-utterance cost track the focus, not the session — the accretion fix.")
+
+
 if __name__ == "__main__":
     import sys
-    turns = int(sys.argv[1]) if len(sys.argv) > 1 else 12
-    accretion_probe(turns=turns, sample_every=1)
-    suspend_resume_probe(cases=min(turns, 20))
+    which = sys.argv[1] if len(sys.argv) > 1 else "focus"
+    if which == "accretion":
+        accretion_probe(turns=12, sample_every=1)
+        suspend_resume_probe(cases=12)
+    else:
+        focus_probe()
