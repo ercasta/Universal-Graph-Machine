@@ -84,12 +84,25 @@ Build slices, in dependency order (each with tests; the probe first to validate 
   STAGING: the caller-side fork is closed at the ENTRY; the QUESTION *parse* still runs off-graph
   (`recognize` throwaway) — collapsing it into a live control-flagged `<query>` node is 8.2. GOAL/command
   route + focus control-CNL are 8.3. Design §1, §D discipline obeyed (content-blind, no string sniff).
-- **8.2 — `<query>` as a live control node.** Retire the throwaway-graph question path; a `<query>` lands
-  control-flagged in the KB and raises its demand over the live graph. Monotonicity kept by the
-  control/fact split. Design §2.
-- **8.3 — `<focus>` stack + centers + seed-from-focus.** Pointer-at-center (extent DERIVED, not
-  scope-as-subgraph); seed scope = top frame's centers; implicit widen-only + explicit `focus on`/`forget
-  that`/`back to` (reuse SUPPOSE scope ops); scaffolding GC by reachability from focus roots. Design §3.
+- **8.2 — `<query>`/`<goal>` as live control nodes. FOLDED INTO 8.3** (2026-07-12): a standalone 8.2 has
+  no clean form — recognizing a question over the live graph via `run_bank` isn't scoped (it tags fact
+  tokens' `is_kw`), and the live `<query>`'s only consumer (retention/GC) IS focus. So the transplant
+  (recognize in a scratch scope → mint a control-flagged `<query>`/`<goal>` in the live KB) lands in 8.3,
+  where focus-GC gives it a real lifecycle. Groundwork done: `tokenize(..., control=True)` (Phase 8.2).
+- **8.3 — `<focus>` stack + centers + `<query>`/`<goal>` landing + seed-from-focus.** Pointer-at-center
+  (extent DERIVED, not scope-as-subgraph); seed scope = top frame's centers; implicit widen-only + explicit
+  `focus on`/`forget that`/`back to` (reuse SUPPOSE scope ops); `<query>`/`<goal>` land as control nodes
+  retained/GC'd by focus reachability. Design §2, §3.
+  - **8.3a DONE 2026-07-12** — `ugm/focus.py`: `<focus>` stack (top = frame nothing is stacked below-of),
+    `push`/`widen`/`drop`/`reenter`/`top_centers`; implicit widen-only on assert (content-blind
+    `utterance_subjects`); explicit `FOCUS_FORMS` (`focus on`/`forget that`/`back to`) recognized as forms,
+    wired into `ingest` (route "focus"); drop/reenter are control-layer ops (§5-safe). Answer-neutral.
+    `tests/test_isa_focus.py` (9), 273 suite green.
+  - **8.3a REMAINING** — `<query>`/`<goal>` land as control nodes tied to the top frame; scaffolding GC by
+    reachability from focus roots (drop spent `<query>`/token chains); widen on QUESTION subjects too.
+  - **8.3b NEXT** — seed-from-focus: the demand chain seeds from the top frame's centers. A SEMANTIC scope
+    change (off-focus facts leave the working set — bounded attention, not a neutral perf tweak); re-run the
+    8.0 probe to confirm it flattens accretion + bounds the coref fan-out.
 - **8.4 — anaphora as reasoning.** Descriptive → CHOOSE over centers; bare pronouns → CHOOSE over graded
   defeasible preferences (recency+role default, domain-overridable); metareasoning owns only the
   ask-vs-guess margin → near-tie escalates via the existing `ask_user`. Design §4. Habitability rejection

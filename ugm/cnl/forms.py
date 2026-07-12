@@ -27,7 +27,7 @@ from ..world_model import Graph
 # The tokenizer tool — opaque string -> token nodes + 'next' adjacency
 # ---------------------------------------------------------------------------
 
-def tokenize(graph: Graph, sentence: str) -> str:
+def tokenize(graph: Graph, sentence: str, *, control: bool = False) -> str:
     """Emit token nodes for `sentence`, chained by 'next' relations.
 
     Returns the '<sentence>' anchor node id. Mechanical only: splits on
@@ -38,12 +38,17 @@ def tokenize(graph: Graph, sentence: str) -> str:
     case-insensitive and rule literals are lower-case. Code that builds graph
     nodes DIRECTLY (bypassing this tokenizer) MUST lower-case its names to match
     — else a proper-noun fact node `Gary` never matches a rule literal `gary`.
-    """
+
+    `control=True` flags the token nodes as CONTROL (not just the chain edges): use it when the
+    sentence is an INTERACTION recognized INTO a live KB rather than corpus content — a QUESTION
+    (Phase 8.2, `query._recognize_query_live`), whose tokens must stay fact-invisible (skipped by every
+    fact reader) and be GC-able, so asking never mutates the monotone fact layer even though it now lands
+    in the one substrate instead of a throwaway graph."""
     anchor = graph.add_node("<sentence>", control=True)   # scaffolding hub, not a fact
     prev: str | None = None
     for word in sentence.lower().split():
-        tok = graph.add_node(word)                        # a token = potential CONTENT, stays fact
-        if prev is None:
+        tok = graph.add_node(word, control=control)       # a token = potential CONTENT (fact) unless it
+        if prev is None:                                  # is an interaction (question) -> control
             graph.add_relation(anchor, "first", tok, control=True)
         else:
             graph.add_relation(prev, "next", tok, control=True)   # chain links = ephemeral scaffolding

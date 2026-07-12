@@ -28,10 +28,11 @@ from dataclasses import dataclass, field
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                                    # "answer" | "fact" | "rule" | "unrecognized"
+    kind: str                          # "answer" | "fact" | "rule" | "focus" | "unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
+    focus_op: tuple | None = None                # FOCUS: the (op, target) move applied
 
 
 def _anchor_has_content_fact(kb, anchor: str) -> bool:
@@ -68,11 +69,18 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None) -> Outcome:
     utterance adds a rule (so subsequent turns reason with it immediately — Phase 8.6)."""
     from .cnl.query import recognize, ask_goal
     from .cnl.authoring import load_rules, load_facts, _on_cycle
-    from .policy import DEFAULT_POLICY
+    from . import focus as focus_mod
 
     text = utterance.strip()
     if not text:
         return Outcome("unrecognized", utterance)
+
+    # FOCUS — an explicit focus move (`focus on X` / `forget that` / `back to X`), recognized as a FORM
+    # (not a string sniff, §D.2). Checked first: these are control-CNL, never facts/questions.
+    fop = focus_mod.recognize_focus_op(text)
+    if fop is not None and fop[0] is not None:
+        focus_mod.apply_focus_op(kb, fop[0], fop[1])
+        return Outcome("focus", utterance, focus_op=fop)
 
     # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
     if recognize(text) is not None:
@@ -91,5 +99,8 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None) -> Outcome:
     # FACT vs UNRECOGNIZED — recognize into the live KB; a content relation means a fact landed.
     anchors = load_facts(kb, text)
     if anchors and _anchor_has_content_fact(kb, anchors[0]):
+        # IMPLICIT widen (§3): the entities the utterance is about enter the top focus frame. Never a
+        # push — a topic switch is explicit. Content-blind subject extraction (`focus.utterance_subjects`).
+        focus_mod.widen(kb, focus_mod.utterance_subjects(kb, anchors[0]))
         return Outcome("fact", utterance)
     return Outcome("unrecognized", utterance)

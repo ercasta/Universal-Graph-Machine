@@ -14,6 +14,23 @@ this log is itself a historical record.
 
 ## 2026-07-12
 
+### Phase 8 client build: unified intake + discourse focus stack (273 passed)
+Kicked off the first UGM CLIENT (agent loop + TUI) per `docs/cnl_intake_design.md`. Landed:
+- **8.1 unified intake** (`ugm/intake.py`) — `ingest(kb, rules, utterance) -> Outcome` routes fact / rule /
+  question / focus / unrecognized by WHICH FORMS FIRE (not a string sniff, §D discipline), reusing
+  `recognize`/`ask_goal`/`load_rules`/`load_facts`. A mid-session rule reasons immediately (8.6 seed);
+  gibberish → the habitability rejection. Removes the caller-side question-vs-assert fork at the entry.
+- **8.3a focus stack** (`ugm/focus.py`) — the working set as a `<focus>` STACK in the control layer, each
+  frame pointing at CENTER entity nodes; extent DERIVED, not a declared scope. Implicit WIDEN-ONLY on
+  assert (`utterance_subjects`, content-blind); explicit control-CNL `focus on X` / `forget that` /
+  `back to X` recognized as `FOCUS_FORMS` (not string-sniffed); drop/re-enter are control-layer ops (§5:
+  entities persist, only the pointer is cut). Answer-neutral (focus is tracked; reasoning still whole-graph
+  — seed-from-focus is 8.3b).
+- **8.2 groundwork** — `tokenize(..., control=True)`; 8.2 folded into 8.3 (a live `<query>` has no consumer
+  but focus, which governs its GC — the transplant lands there).
+Discipline: `docs/cnl_intake_design.md` §D (7 anti-hardcoding rules) documented + mirrored in the plan's
+Phase 8 header. `tests/test_isa_intake.py` (6) + `tests/test_isa_focus.py` (9).
+
 ### NAC existence check made ENDPOINT-DRIVEN — 40× on the NAF hot path (258 passed, suite 54s→35s)
 Phase 8.0 probe (`bench/session_accretion.py`, `docs/cnl_intake_design.md` §7) found the agent-loop client's
 real near-term blocker is NOT session accretion but PER-UTTERANCE NAF cost: a *bound* query on a bank with
