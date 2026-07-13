@@ -33,8 +33,9 @@ from .forms import (
     FORM_RULES, _predicate_literals, declared_auxiliaries, declared_prepositions,
     declared_relations, declared_rule_variables, declared_univ_nouns, load_text, normalize_lexical,
     propagate_embeddings, relation_predicates, rule_var_name, tokenize, mark_mentions,
+    intern_mentions,
 )
-from .universal import same_as_rules, same_name_coref_rules
+from .universal import same_as_rules
 from ..vocabulary import SUBSTRATE_COREF_PREDS, CLOSES, CWA
 from ..production_rule import (
     GradedCondition, ValueMatch, Pat, Rule, is_var as _is_var, literal_name, rhs_only_head_vars,
@@ -281,16 +282,15 @@ def anchor_has_content_fact(graph: Graph, anchor: str) -> bool:
 
 
 def load_facts(graph: Graph, text: str, *, strict: bool = False) -> list[str]:
-    """Load CNL facts into `graph`: recognize -> additive coref -> graded rules.
+    """Load CNL facts into `graph`: recognize -> intern same-named mentions -> graded rules.
 
     Recognition runs on the ISA forward driver (`_recognize` -> `run_bank`) — the "one engine" move
     (decision-attrgraph-rehost); the whole-batch forward pass, not a backward solve.
-    Coreference is the ADDITIVE `same_as` wiring (vision §3), NOT the destructive `canonicalize`
-    node-merge (a fact-edge deletion, retired for §5). Same-named mentions are LINKED, then
-    `same_as` propagation composes their facts — so a gradable declaration (`urgent is gradable`)
-    reaches the surface `urgent` token of its use (`alice is very urgent`) before the graded rule
-    fires, and `propagate_embeddings` spreads the resulting degree to every coreferent mention.
-    Returns the sentence-anchor ids. The scenario half of a CNL demo.
+    Coreference is HARDCODED INTERNING (`intern_mentions`): same-named entity mentions fold to ONE
+    node, so their facts already coincide — a gradable declaration (`urgent is gradable`) and the
+    surface `urgent` of its use (`alice is very urgent`) are the SAME node, and any degree lands there
+    directly. (Distinct same-name referents use a distinct name; asserted/cross-name coref is a separate
+    `same_as_rules` tool, not run here.) Returns the sentence-anchor ids. The scenario half of a CNL demo.
 
     `strict=True` (feedback #5): a line that produced NO content fact — an unrecognized `S P O` whose
     verb is not lexicon-known/declared, which otherwise stays raw tokens with no signal — RAISES,
@@ -300,14 +300,13 @@ def load_facts(graph: Graph, text: str, *, strict: bool = False) -> list[str]:
     rules = FORM_RULES + FACT_FORMS
     lines = [ln for ln in text.splitlines() if ln.strip()]
     anchors = _recognize(graph, lines, rules)
-    # DECLARED same-name coreference (coreference-as-rules Stage 4): tag entities `is_a <mention>`
-    # (`mark_mentions`), then the universal value-match rule derives `same_as` between same-named mentions
-    # and `_coref_propagation` composes facts across the link — the principled replacement for the
-    # mechanical `wire_same_as` ingest merge (the loader marks what an entity is; a RULE decides coref).
+    # Mark entities `is_a <mention>`, then INTERN same-named mentions to one node (hardcoded "same name
+    # => same node"; see load_corpus). Replaces the old mark -> same_name coref rule -> `same_as`
+    # propagation pass: interning makes an entity's facts coincide on one node with no propagation.
     mark_mentions(graph, rules)
-    run_bank(graph, same_name_coref_rules() + _coref_propagation(graph))
+    intern_mentions(graph)
     run_bank(graph, graded_rules(graph))  # gradable word -> embedding (propagate EMIT); degrees from KB
-    propagate_embeddings(graph)                      # spread degrees to coreferent mentions
+    propagate_embeddings(graph)                      # graded-layer union (no-op post-interning)
     if strict:
         dropped = [ln for ln, a in zip(lines, anchors) if not anchor_has_content_fact(graph, a)]
         if dropped:
@@ -1273,17 +1272,17 @@ def load_corpus(text: str, *, policy=None) -> tuple[Graph, list[Rule]]:
     # facts and rule-source COEXIST because rule fragments are built with bound-literals (recognition
     # never grabs a fact node), exactly as under `rewriter`.
     _recognize(kb, _corpus_lines(text), _ALL_FORMS)
-    mark_mentions(kb, _ALL_FORMS)        # tag entities `is_a <mention>` — the universal coref handle
-    coref = same_name_coref_rules()      # DECLARED same-name coreference (was: mechanical wire_same_as) —
-                                         # the universal value-match rule deriving `same_as` (Stage 4)
-    prop = _coref_propagation(kb)        # `same_as` propagation over the content predicates present
-    run_bank(kb, coref + prop)           # derive same_as + compose facts across links (ISA): closed-world
-                                         # markers (`closes`) reach a rule's `is not P` clause, etc.
+    mark_mentions(kb, _ALL_FORMS)        # tag entities `is_a <mention>` — the entity handle
+    intern_mentions(kb)                  # HARDCODED "same name => same node" (interning): fold same-named
+                                         # mentions to ONE node. This REPLACES the old automatic same-name
+                                         # coref rule + `same_as` propagation pass (the M^2 load blowup) —
+                                         # one entity is one node, so its facts already coincide (nothing to
+                                         # compose) and a gradable declaration + its use-site are one node.
+                                         # `same_name_coref_rules`/`same_as_rules` remain available as TOOLS
+                                         # for ASSERTED identity / future cross-name coref, just not run here.
     run_bank(kb, graded_rules(kb))       # gradable word -> embedding (propagate EMIT); degrees from KB
-    propagate_embeddings(kb)             # spread degrees to coreferent mentions
-    # Reflect to executable Rules; APPEND coref + propagation so `run_rules(kb, rules)` re-derives the
-    # same_as links and composes facts across them too (the merge gave that permanently; declared needs it live).
-    rules = expand_rules(kb) + expand_loose_from_graph(kb) + coref + prop
+    propagate_embeddings(kb)             # graded-layer union across any `same_as` class (no-op post-interning)
+    rules = expand_rules(kb) + expand_loose_from_graph(kb)
     if _on_cycle(policy) == "raise":                     # firmware STANCE (see `policy.py`)
         lint_stratifiable(rules, source="load_corpus")
     return kb, rules

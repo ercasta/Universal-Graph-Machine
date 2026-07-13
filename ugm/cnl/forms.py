@@ -484,6 +484,54 @@ def mark_mentions(graph: Graph, rules: list[Rule]) -> Graph:
     return graph
 
 
+def _fold_node(graph: Graph, rep: str, victim: str) -> None:
+    """Fold `victim` into `rep`: rewire every relation node touching `victim` to `rep`, union graded
+    embedding dims (rep wins on clash), then drop `victim`. Relations are reified nodes
+    (subject -> relNode -> object), so victim's OUT edges are relations it subjects and its IN edges
+    are relations it objects — rewire each endpoint. No provenance/split record: same-name interning is
+    a hardcoded CNL-reader decision, not a defeasible coref judgement (see indexing_and_coalescing_design)."""
+    for rid in graph.out(victim):                       # victim is SUBJECT of rid
+        graph.remove_edge(victim, rid)
+        graph.add_edge(rep, rid)
+    for rid in graph.into(victim):                      # victim is OBJECT of rid
+        graph.remove_edge(rid, victim)
+        graph.add_edge(rid, rep)
+    emb = graph.get_embedding(victim)
+    if emb:
+        merged = graph.get_embedding(rep)
+        for dim, v in emb.items():
+            merged.setdefault(dim, v)
+        graph.set_embedding(rep, merged)
+    graph.remove_node(victim)
+
+
+def intern_mentions(graph: Graph) -> Graph:
+    """Coalesce same-named ENTITY mentions into ONE node — the hardcoded "same name => same node"
+    default that replaces the M^2 `same_name` coref rule + `same_as` propagation (see
+    `docs/indexing_and_coalescing_design.md`). Scoped to `<mention>`-marked nodes (run `mark_mentions`
+    first), so `?vars`, `<control>` tokens and predicates are never merged — and rule variables stay
+    distinct. Distinct same-name referents are disambiguated at authoring time by a distinct name
+    (`other_alice`); programmatic producers mint distinct nodes directly and never reach this path."""
+    named = graph.nodes_named(MENTION)
+    if not named:
+        return graph
+    marker = named[0]
+    groups: dict[str, list[str]] = {}
+    for nid in list(graph.nodes()):
+        if nid == marker:
+            continue
+        nm = graph.name(nid)
+        if not nm:
+            continue
+        if any(graph.has_key(r, IS_A) and marker in graph.out(r) for r in graph.out(nid)):
+            groups.setdefault(nm, []).append(nid)
+    for members in groups.values():
+        rep = members[0]
+        for victim in members[1:]:
+            _fold_node(graph, rep, victim)
+    return graph
+
+
 def propagate_embeddings(graph: Graph) -> Graph:
     """Union graded (embedding) attrs across each `same_as` equivalence class — the GRADED-layer
     counterpart of `universal.same_as_rules` for additive coreference. Embeddings are node ATTRS the
