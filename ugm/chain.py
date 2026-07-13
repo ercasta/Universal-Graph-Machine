@@ -25,7 +25,7 @@ from .apply import (
     _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
     _rel_in_scope, apply_rule, build_head_index, rules_producing, SCOPE,
 )
-from .production_rule import is_var, literal_name
+from .production_rule import is_var, is_bound_literal, literal_name
 from .vocabulary import SAME_AS
 
 DEMAND = "<demand>"
@@ -603,6 +603,83 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
     return False                                           # (the `fuel.exhausted` flag makes it UNKNOWN)
 
 
+def _head_skolems(body: list[tuple[str, str, str]],
+                  heads: list[tuple[str, str, str]]) -> set[str]:
+    """The RHS-introduced SKOLEM tokens of a rule: a bound-literal (`<succ>?`) that appears in a head
+    endpoint slot but NOWHERE in the body. These are the label-less substrate's genuine value invention —
+    the skolem FUNCTION `f(args)` the forward path mints one-per-firing (`lowering.lower_rhs`). A plain
+    RHS literal is NOT a skolem (it interns to its graph-wide node); an RHS-only VARIABLE is not one either
+    (it is unsound — rejected at authoring, `reject_rhs_only_head_vars`). Only the bound-literal binder is."""
+    body_toks = {t for atom in body for t in atom}
+    return {t for hs, _hp, ho in heads for t in (hs, ho)
+            if is_bound_literal(t) and t not in body_toks}
+
+
+def _anchor_node(fact_g: AttrGraph, env: dict[str, str], tok: str) -> str | None:
+    """The already-bound fact-layer node a NON-skolem head endpoint denotes under `env` (an LHS-bound var
+    or a plain literal) — the ARGUMENT a skolem is a function OF. None if the token is unbound. Never mints
+    (a witness search must not create the very node it is looking for)."""
+    name = _tok_name(env, tok)
+    if name is None:
+        return None
+    nodes = _bound_entity_nodes(fact_g, name)
+    return nodes[0] if nodes else None
+
+
+def _find_skolem_witness(fact_g: AttrGraph, sk_name: str,
+                         constraints: list[tuple[str, str, bool]]) -> str | None:
+    """The existing node that IS this firing's skolem `f(args)`, or None. A witness is a node NAMED
+    `sk_name` that already stands in EVERY defining relation the skolem's head atoms assert against the
+    firing's bound arguments (`constraints`: (pred, anchor_node, skolem_is_subject)). This is the demand
+    counterpart of the forward path's per-firing identity — re-finding the skolem STRUCTURALLY, by its
+    defining relations (the user's law: a minted node is identified by how it relates to the LHS match, not
+    by a raw id or a fabricated name). Reusing it (instead of re-minting) is what lets check-before-derive
+    trip on a re-served demand, so the closure CONVERGES instead of minting a fresh node every round.
+    The `sk_name` restriction keeps the witness to a PRIOR SKOLEM of this name, never a coincidental real
+    neighbour that happens to fill the functional role."""
+    cand: set[str] | None = None
+    for pred, anchor, sk_is_subj in constraints:
+        if sk_is_subj:                                     # skolem -[pred]-> anchor (skolem is subject)
+            here = {s for rel in fact_g.pred(anchor) if fact_g.has_key(rel, pred)
+                    for s in fact_g.pred(rel) if fact_g.name(s) == sk_name}
+        else:                                              # anchor -[pred]-> skolem (skolem is object)
+            here = {o for rel, o in fact_g.relations_from(anchor)
+                    if fact_g.has_key(rel, pred) and fact_g.name(o) == sk_name}
+        cand = here if cand is None else (cand & here)
+        if not cand:
+            return None
+    return sorted(cand)[0] if cand else None
+
+
+def _resolve_skolems(fact_g: AttrGraph, heads: list[tuple[str, str, str]],
+                     env: dict[str, str], skolems: set[str]) -> dict[str, str]:
+    """Bind each head skolem to ONE node id for this firing (shared across all its head atoms, like the
+    forward path's per-firing `reg_of`): reuse the structural witness of its defining relations, or MINT a
+    fresh node when none exists yet (round 1). Keyed on the LHS-bound anchors, so the SAME firing re-served
+    next round re-finds the SAME node — the fix for the demand-path skolem blowup (feedback #2)."""
+    out: dict[str, str] = {}
+    for sk in skolems:
+        constraints: list[tuple[str, str, bool]] = []
+        for hs, hp, ho in heads:
+            if hs == sk and ho != sk and (a := _anchor_node(fact_g, env, ho)) is not None:
+                constraints.append((hp, a, True))
+            elif ho == sk and hs != sk and (a := _anchor_node(fact_g, env, hs)) is not None:
+                constraints.append((hp, a, False))
+        node = _find_skolem_witness(fact_g, literal_name(sk), constraints) if constraints else None
+        out[sk] = node if node is not None else fact_g.add_node(literal_name(sk))
+    return out
+
+
+def _head_endpoint_id(fact_g: AttrGraph, env: dict[str, str], tok: str,
+                      sk_ids: dict[str, str]) -> str | None:
+    """The node id a head endpoint EMITs to: this firing's skolem node if `tok` is a skolem, else the
+    bound var / literal resolved to its write node (`_node_for_name`). None for an unbound non-skolem slot."""
+    if tok in sk_ids:
+        return sk_ids[tok]
+    name = _tok_name(env, tok)
+    return None if name is None else _node_for_name(fact_g, name)
+
+
 def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                        demand: tuple[str, str | None, str | None], mint,
                        *, provenance: bool = False, scope: str | None = None,
@@ -626,6 +703,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     # — and treating it as NAF would (correctly, but uselessly) flag the rule's head as depending
     # negatively on itself. Drop it; only GENUINE NACs (on another tuple) get the nested-negative-demand.
     nac = [n for n in _read_atoms(rule_g, rule_node, "nac") if n not in heads]
+    skolems = _head_skolems(body, heads)   # RHS-introduced value invention (feedback #2), keyed per firing
     graded = _read_graded(rule_g, rule_node)
     value_matches = _read_value_matches(rule_g, rule_node)
     rule_key = rule_g.name(rule_node) if provenance else ""
@@ -663,11 +741,12 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                                    provenance=provenance, neg_stack=neg_stack,
                                    fuel=fuel, max_rounds=max_rounds, closed=closed):
                 continue
+            sk_ids = _resolve_skolems(fact_g, heads, env, skolems) if skolems else {}
             for hs, hp, ho in heads:
-                s_name, o_name = _tok_name(env, hs), _tok_name(env, ho)
-                if s_name is None or o_name is None:       # unbound head slot — out of v1 slice
+                s_id = _head_endpoint_id(fact_g, env, hs, sk_ids)
+                o_id = _head_endpoint_id(fact_g, env, ho, sk_ids)
+                if s_id is None or o_id is None:           # unbound non-skolem head slot — out of slice
                     continue
-                s_id, o_id = _node_for_name(fact_g, s_name), _node_for_name(fact_g, o_name)
                 if not _fact_exists(fact_g, s_id, hp, o_id, scope=scope):
                     # EMIT: an ink fact normally, but PENCIL (control + scope tag) inside a SUPPOSE scope
                     head_node = fact_g.add_relation(s_id, hp, o_id, control=(scope is not None))

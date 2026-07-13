@@ -48,6 +48,24 @@ absorbing a keyword. A boolean-shaped predicate should be a hard error with a hi
 > docstring is corrected. Bound-literal skolem binders (`<rule>?`/`<cond>?`) and NAC-bound head vars are
 > untouched. Genuine per-match fresh minting (C) is deferred — pystrider's pre-materialized-pool workaround
 > does not need it. Tests in `tests/test_feedback_fixes.py`.
+>
+> **UPDATE (2026-07-13): (C) is no longer deferred — done.** Genuine per-match minting IS supported, via the
+> bound-literal skolem `<foo>?` (a skolem FUNCTION keyed on the LHS match), now convergent on the demand
+> chain too. See the RESOLVED note under #2. The rejection of the bare `?x` case stays — it is unsound, not
+> merely unimplemented.
+
+> **RESOLVED (2026-07-13).** Two distinct cases, now distinguished. (a) A bare RHS-only VARIABLE (`?x` from
+> nowhere) is genuinely unsound — forward mints an unnamed node the name surfaces can't see, and the demand
+> chain SELF-FULFILS a ground goal (`chain_sip(('succ','p1','moon_cheese'))` returned yes AND wrote it). It
+> stays REJECTED at authoring, on principle (not deferred). (b) The SUPPORTED minting path is the bound-
+> literal skolem `<foo>?` anchored to LHS-bound endpoints — a skolem FUNCTION of the match ("the successor
+> of ?p"). Forward already minted one node per firing; the demand chain used to BLOW UP (a fresh node every
+> round, fuel-capped at ~1000/2000) because the bracket-named skolem is control and the reuse-by-name lookup
+> skipped it, so check-before-derive never tripped. `chain._resolve_skolems` now re-finds the skolem
+> STRUCTURALLY by its defining relation, keyed on the firing's LHS args, so forward and demand AGREE (one
+> node per argument) and a re-served demand converges (idempotent). This retires the pre-materialized-pool
+> workaround. Docstrings (`lower_rhs`, `rhs_only_head_vars`, the rejection message) corrected. Tests in
+> `tests/test_feedback_fixes.py` (`test_demand_skolem_*`).
 
 ## 2. Existential / Skolem head variables are not fresh-minted by the public drivers (and drivers disagree)
 
@@ -187,12 +205,69 @@ the whole accreted graph — but it only reaches the *trace* path (`ask_goal "wh
 calls, exactly as `ask_goal` already does — a small, mechanical addition that makes the Session
 focus story usable for hypothesis-driven consumers.
 
+## 8. Name-addressing on the retrieval/CHOOSE path: silent name-split joins + no get-or-create, and focus doesn't reach it either
+
+Collected while building the **synthesis** probes (`experiments/spec_synthesis.py`,
+`codegen_understand.py`, `controlflow_synthesis.py`), which drive the *retrieval + CHOOSE* firmware
+(`ask_goal "who realizes …"` / `set_candidate` / `choose`) hard, over many small authored graphs.
+Two related rough edges, both in the same "attention / addressing" family as #7.
+
+**(a) A name that resolves to two nodes fails a rule join — signalled only at write time, never at
+query time.** `add_node(name)` is (correctly, by design) *fresh per call* — a name is a label, not
+an identity, and `nodes_named` returns a candidate *set*. But that means a consumer who mentions the
+same intended entity twice while building a graph silently splits its facts across two nodes, and a
+rule that must join those facts then derives nothing:
+
+```python
+import ugm as h
+from ugm import load_machine_rules, ask_goal
+g = h.Graph()
+a1 = g.add_node("plan"); a2 = g.add_node("plan")   # two DISTINCT nodes, both named "plan"
+g.add_relation(a1, "is_a", g.add_node("thing"))
+g.add_relation(a2, "flag", g.add_node("yes"))
+rules = load_machine_rules("?p ok yes when ?p is_a thing and ?p flag yes")
+print(ask_goal(g, "who ok yes", rules))            # ['(no answer)']  — is_a and flag are on diff nodes
+```
+
+The only signal ugm emits is a `UserWarning` at rule **EMIT** time when a rule tries to *write* to a
+name resolving to >1 node ("name 'plan' resolves to 2 distinct nodes; writing to the first …") — a
+read-only join like the above gets **no** signal at all. This cost real time on the
+`codegen_understand` round-trip link (a plan node built by the graph-builder, then re-`add_node`d
+when attaching `emitted_as`, split the join so recognition silently returned nothing). It is the
+same silent-does-less theme as #1/#2/#5, on the query path. **Ask:** at goal/`chain_sip` time, when a
+body or goal pattern references a name that resolves to multiple nodes, surface it (strict-mode raise
+or a warning) — "goal names `plan`, which is 2 nodes; did you mean one?" — so a split entity is
+caught where it bites, not only where it's written.
+
+**(b) No sanctioned get-or-create-by-name, so every graph-building consumer hand-rolls an id cache.**
+Because `add_node` is fresh-per-call and there is no `get_or_add(name)` / by-name write helper, all
+three synthesis probes (and the two tests that build ad-hoc graphs) carry the identical boilerplate —
+a local `ids: dict[str,str]` with `def n(x): ids.setdefault(x, g.add_node(x)); return ids[x]` — purely
+to keep one name mapped to one node. **Ask:** a first-class "intern this name to a stable node"
+helper (or an id-addressed authoring API), so consumers don't reinvent the cache and (a) stops being
+easy to trip.
+
+**(c) The synthesis retrieval path wants focus/attention just as `suppose` does (#7 generalizes).**
+The probes spin up a *fresh isolated `Graph` per goal / per CHOOSE iteration* — not for cleanliness
+but to keep each `ask_goal "who realizes …"` scoped to that layer's candidates and collision-free.
+That is a manual stand-in for exactly the `focus_scope` / id-addressed-goal mechanism #7 asks for on
+`suppose`. Once synthesis accretes many candidate + emitted nodes in one persistent graph (the
+demand-driven pool, or a Session that both analyzes and synthesizes), retrieval + CHOOSE will need
+the same attention-bounding the trace path already has. **Ask:** treat #7's `focus_scope` as covering
+the retrieval/CHOOSE entry points too (`ask_goal`/`choose` over a scoped candidate set by id), not
+just `suppose` — and an **id-addressed goal API** (seed/query by node id, names as labels) would
+retire (a) and (b) at the same time. This is the ugm-side of the "addressing" follow-on pystrider's
+own `docs/spike_findings.md` flags for a shared multi-function graph.
+
 ---
 
 ### Net
 
 The spike succeeded and the model (SUPPOSE + CHAIN over reified semantics, RECORD as the
 trace) fit beautifully. The friction was almost entirely **silent failure modes** (#1, #2, #3,
-#5): ugm tends to quietly do less rather than error, which is costly when you're authoring
-rules/facts programmatically. A strict/verbose mode that surfaces "I did not recognize / could
-not mint / dropped this" would remove most of the pain.
+#5, and #8a — a name-split join that quietly returns nothing): ugm tends to quietly do less
+rather than error, which is costly when you're authoring rules/facts programmatically. A
+strict/verbose mode that surfaces "I did not recognize / could not mint / dropped this / joined
+across a split name" would remove most of the pain. The synthesis probes (retrieval + CHOOSE over
+many small authored graphs) add an **addressing/attention** ask on top (#8): a get-or-create-by-name
+helper and an id-addressed goal API, with focus reaching the retrieval path, not just `suppose`.

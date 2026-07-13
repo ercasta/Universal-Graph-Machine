@@ -799,19 +799,30 @@ def expand_rules(rule_graph: Graph) -> list[Rule]:
 
 
 def reject_rhs_only_head_vars(rules: list[Rule], *, source: str = "<rule>") -> None:
-    """Raise if any rule has an existential / skolem RHS-only head var (feedback #2): unsupported by the
-    drivers (forward mints a fresh unnamed node per firing; the demand chain collapses it onto the query
-    goal). Called by the loaders AFTER their malformed-clause checks — a dropped body clause would leave a
-    head var spuriously body-less, and that more specific defect must be reported first."""
+    """Raise if any rule has an RHS-only head VARIABLE (feedback #2) — a `?x` in a head slot that never
+    appears in the body. This is a value invention with NO tie to the LHS match: forward chaining mints a
+    fresh unnamed node the name-based read surfaces cannot see, and the demand chain is UNSOUND on it (a
+    ground goal `?p succ moon_cheese` self-fulfils — the head var unifies with the goal's object and the
+    fact is written for whatever you name). It is not a well-founded operation; reject it.
+
+    A minted node must be a FUNCTION of the LHS match. The SUPPORTED way to invent a node is a bound-literal
+    skolem `foo?` in a head, ANCHORED to LHS-bound endpoints (`?p has_succ s2?` — "the successor of ?p"):
+    the forward path mints one per firing, and the demand chain re-finds it by its defining relation so it
+    converges (`chain._resolve_skolems`). A non-bracket name gives a FACT individual (matchable downstream,
+    so a later rule re-binds it via `?p has_succ ?x`); a `<bracket>?` name gives a CONTROL scaffolding node
+    (skipped by fact matching). Called by the loaders AFTER their malformed-clause checks — a dropped body
+    clause would leave a head var spuriously body-less, and that defect must be reported first."""
     for r in rules:
         bad = rhs_only_head_vars(r)
         if bad:
             raise ValueError(
                 f"{source}: rule '{r.key}' has RHS-only head variable(s) {bad} — a head variable that "
-                "never appears in the body. Existential / skolem head vars are not supported by the "
-                "drivers (forward chaining mints a fresh unnamed node every firing; the demand chain "
-                "collapses the var onto the query goal). Bind the head variable in the body, or MINT the "
-                "new node explicitly via a tool / a pre-materialized node pool.")
+                "never appears in the body. A bare existential head var is not a well-founded operation "
+                "(forward mints an unnamed node the name surfaces can't see; the demand chain self-fulfils "
+                "a ground goal). Bind the head variable in the body, or — to genuinely INVENT a node — use "
+                "a bound-literal skolem `name?` anchored to LHS-bound endpoints (e.g. `?p succ s2?`), which "
+                "mints one node per firing, keyed on the match so the demand chain converges. A non-bracket "
+                "name makes a fact individual you can re-bind downstream (`?p succ ?x`).")
 
 
 def _dropped_conditions(graph: Graph, R: str) -> list[str]:

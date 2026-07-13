@@ -97,9 +97,11 @@ def rhs_only_head_vars(rule) -> list[str]:
     node per firing (never suppressed by check-before-derive, so the rule re-fires and the result is
     invisible to `derived_triples`); the demand chain collapses the var onto the query's goal endpoint.
     Reported so a loader can REJECT the rule with guidance rather than silently misbehave. Bound-LITERAL
-    skolem binders (`<rule>?`/`<cond>?`) are excluded — they are `is_bound_literal`, not `is_var` — so a
-    reified rule fragment is untouched. When genuine minting lands (the deferred `MINT`-tool route), this
-    hook is where support is added instead of the raise."""
+    skolem binders (`<rule>?`/`<cond>?`, and any `<name>?` head) are excluded — they are `is_bound_literal`,
+    not `is_var`. That exclusion is DELIBERATE and is the supported minting path: a bound-literal head skolem
+    anchored to LHS-bound endpoints IS genuine value invention (a skolem FUNCTION of the match), minted once
+    per firing forward and re-found by its defining relation on demand (`chain._resolve_skolems`). Only the
+    unanchored `?x` — a node from nowhere — is unsound and rejected."""
     body = {t for pats in (rule.lhs, rule.nac) for pat in pats
             for t in (pat.s, pat.p, pat.o) if is_var(t)}
     body |= {g.var for g in rule.graded if is_var(g.var)}   # a graded condition binds its var too

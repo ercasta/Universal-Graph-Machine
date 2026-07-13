@@ -54,6 +54,76 @@ def test_nac_only_body_binds_head_var_not_flagged():
     assert h.load_rules("?x is q when ?x is not p")                # ?x bound by the NAC, valid
 
 
+# --- #2: the SUPPORTED minting primitive — the LHS-keyed skolem `<foo>?` — converges on the demand path.
+# An RHS-only VARIABLE is unsound (rejected above); a bound-literal skolem is a value invention keyed on the
+# firing's LHS args (`f(?p)`). It used to BLOW UP on the demand chain (a fresh node every round, fuel-capped
+# at ~1000) because the bracket-named node is control and the reuse-by-name lookup skipped it. It is now
+# re-found STRUCTURALLY by its defining relation, so check-before-derive converges.
+
+def _skolem_rule():
+    from ugm.production_rule import Rule, Pat
+    # `s2?` is RHS-only, anchored to ?p by two defining relations — "the successor of ?p". A non-bracket
+    # name makes it a FACT individual (matchable downstream); the identity is the anchoring relation.
+    return Rule(key="mk", lhs=[Pat("?p", "is_a", "state")],
+                rhs=[Pat("?p", "has_succ", "s2?"), Pat("s2?", "succ_of", "?p")])
+
+
+def _demand_skolems(objs):
+    from ugm import chain_sip
+    rg = AttrGraph(); write_rule(rg, _skolem_rule())
+    g = h.Graph()
+    for nm in ("p1", "p2"):
+        n = g.add_node(nm); g.add_relation(n, "is_a", g.add_node("state"))
+    for pred_subj, pred_obj in objs:
+        chain_sip(g, rg, ("has_succ", pred_subj, pred_obj))
+    return g, [x for x in g.nodes() if g.name(x) == "s2"]
+
+
+def test_demand_skolem_converges_one_node_per_arg():
+    # ONE fresh successor per state (not a fuel-capped flood), each linked back to its own argument.
+    g, succ = _demand_skolems([("p1", None), ("p2", None)])
+    assert len(succ) == 2                                          # was ~2000 (fuel-capped) before the fix
+    backlinks = {g.name(o) for sn in succ for r, o in g.relations_from(sn)
+                 if g.predicate(r) == "succ_of"}
+    assert backlinks == {"p1", "p2"}                              # distinct skolem per LHS binding
+
+
+def test_demand_skolem_is_idempotent_across_reasks():
+    # re-serving the SAME demand re-finds the SAME node (the whole point: it terminates by reuse).
+    _g, once = _demand_skolems([("p1", None)])
+    _g2, twice = _demand_skolems([("p1", None), ("p1", None)])
+    assert len(once) == len(twice) == 1
+
+
+def test_demand_and_forward_skolem_agree_on_count():
+    from ugm.lowering import run_bank, to_attrgraph
+    fg = h.Graph()
+    for nm in ("p1", "p2"):
+        n = fg.add_node(nm); fg.add_relation(n, "is_a", fg.add_node("state"))
+    ag, _ = to_attrgraph(fg); run_bank(ag, [_skolem_rule()], max_rounds=50)
+    fwd = [x for x in ag.nodes() if ag.name(x) == "s2"]
+    _g, dmd = _demand_skolems([("p1", None), ("p2", None)])
+    assert len(fwd) == len(dmd) == 2                              # one skolem per firing, both paths
+
+
+def test_demand_skolem_is_matchable_downstream():
+    # the ACCESS path: a fact-layer skolem is re-bound by a later rule via ?x-threading and reasoned about,
+    # all on the demand chain — no node ids ever leave the rule surface (the user's law).
+    from ugm.production_rule import Rule, Pat
+    from ugm import chain_sip
+    r1 = Rule(key="mk", lhs=[Pat("?p", "is_a", "state")],
+              rhs=[Pat("?p", "has_succ", "s2?"), Pat("s2?", "is_a", "state")])
+    r2 = Rule(key="label", lhs=[Pat("?p", "has_succ", "?x"), Pat("?p", "is_a", "state")],
+              rhs=[Pat("?x", "derived_from", "?p")])
+    rg = AttrGraph(); write_rule(rg, r1); write_rule(rg, r2)
+    g = h.Graph(); p = g.add_node("p1"); g.add_relation(p, "is_a", g.add_node("state"))
+    chain_sip(g, rg, ("derived_from", None, "p1"))                # demand the DOWNSTREAM fact
+    sk = [x for x in g.nodes() if g.name(x) == "s2"]
+    assert len(sk) == 1 and not g.is_control(sk[0])               # one fact-layer individual
+    stamped = {(g.predicate(r), g.name(o)) for r, o in g.relations_from(sk[0])}
+    assert ("derived_from", "p1") in stamped                      # re-bound via ?x and reasoned about
+
+
 # --- #4: apply_* give a clear error for a Rule object instead of a cryptic TypeError -----------------
 
 def test_apply_with_rule_object_gives_clear_error():
