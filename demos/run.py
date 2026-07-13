@@ -23,11 +23,12 @@ answered, not loaded as content. This runner only adds:
 
 Everything else is either plain CNL (facts + rules) or a plain `#` walkthrough comment.
 
-Each recognized question is answered against a FRESHLY loaded copy of the corpus. That is
-not required in general (`ingest`/`ask_goal` are happy to answer many questions against one
-KB — see demo 6), but it keeps every `why …` derivation a clean, from-scratch demand trace —
-otherwise a fact already materialised by an earlier question renders as `(given)` instead of
-showing its rule. Demos are tiny, so the reload is instant.
+The corpus is loaded ONCE per demo, then each question is answered against a `.copy()` of that
+post-load KB. Answering many questions against one KB is fine in general (`ingest`/`ask_goal`,
+see demo 6); the per-question copy is only to keep every `why …` derivation a clean, from-scratch
+demand trace — otherwise a fact already materialised by an earlier question renders as `(given)`
+instead of showing its rule. The copy is a cheap in-memory clone (no re-parsing), unlike the old
+reload-per-question.
 """
 import sys
 from pathlib import Path
@@ -87,12 +88,14 @@ def run_demo(path):
     print("\n" + "=" * 70)
     print(f"  {path.name}")
     print("=" * 70)
+    base_kb, rules = h.load_corpus(content)                   # load ONCE; copy per question below
     for kind, payload in directives:
         if kind == "head":
             print(f"\n  -- {payload} --")
             continue
         open_preds, q = payload
-        kb, rules = h.load_corpus(content)                    # fresh load per question (see module docstring)
+        kb = base_kb.copy()                                   # pristine post-load KB per question, so each
+                                                              # `why` stays a clean trace (see module docstring)
         policy = h.FirmwarePolicy(open_preds=open_preds) if open_preds else None
         outcome = h.ingest(kb, rules, q, policy=policy)       # the native question-answering entry point
         tag = f"   [open: {' '.join(sorted(open_preds))}]" if open_preds else ""

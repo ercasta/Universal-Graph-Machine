@@ -138,6 +138,10 @@ not engine auto-recovery. This is the honest, simple contract and the reason the
    legitimately persist) and for ASSERTED `same_as`. Step 3's premise ("one entity node => ambiguity
    dissolves") holds only for the CNL path; duplicates persist on the programmatic path, so these
    consumers must stay. Deleting them would break suppose/ById. No change made.
+4. **DONE — demo runner load-once.** `demos/run.py` now `load_corpus`es ONCE per demo and answers each
+   question against a `base_kb.copy()` (pristine post-load KB, so every `why` stays a clean from-scratch
+   trace) instead of reloading the corpus per question. Cheap in-memory clone, no re-parse. **Demos now
+   0.1-0.55s** (04 2.3->0.45s, 05 2.5->0.55s); `why` traces + answers unchanged.
 
 # Open questions for the user
 All prior open questions are resolved — see the Decisions log at the top. Remaining detail to settle
