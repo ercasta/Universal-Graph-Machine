@@ -88,21 +88,6 @@ def valued(value: object) -> Attr:
     return Attr(VALUED, value)
 
 
-def intern_node(graph: "AttrGraph", name: str) -> str:
-    """Get-or-create by name: reuse the first non-control, non-inert node named `name`, else mint one.
-    The SINGLE Python interner — the authoring-boundary twin of the ISA's `MINT(intern=True)` (which
-    canonicalizes a name during rule firing). `add_node` is fresh-per-call BY DESIGN — a name is a LABEL,
-    not an identity — so this is the CONSUMER's explicit build-time decision to keep one intended entity
-    mapped to one node (feedback #8b: retires the hand-rolled `ids.setdefault(x, add_node(x))` cache). It
-    is NOT engine coreference: the matcher never follows same-name as identity (that stays coref-as-rules);
-    interning is a choice a graph-BUILDER makes, here, at construction time. Control/inert scaffolding of
-    the same name is skipped so a write lands on a real entity, never on a `<call>`/provenance node."""
-    for n in graph.nodes_named(name):
-        if not (graph.is_control(n) or graph.is_inert(n)):
-            return n
-    return graph.add_node(name)
-
-
 @dataclass
 class AttrNode:
     """A node instance. Identity is `nid` (opaque). `attrs` maps a key to an `Attr`. `control`

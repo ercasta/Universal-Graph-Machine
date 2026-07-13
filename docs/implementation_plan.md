@@ -22,10 +22,29 @@
 
 ## Current state
 
-**Suite: 340 passed, 0 failed** (`python -m pytest -q`, ~50s; run via `.venv/Scripts/python.exe -m
+**Suite: 346 passed, 0 failed** (`python -m pytest -q`, ~50s; run via `.venv/Scripts/python.exe -m
 pytest -q`). Production runtime is 100% the ISA engine, and so is every test — no second engine anywhere
 in the repo. `ask_goal` is demand-driven; `rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are
 all deleted.
+
+**▶ LANDED 2026-07-13 — pystrider-feedback pass** (`docs/feedback_from_pystrider.md`, tests in
+`tests/test_feedback_fixes.py`). Four items closed, one deferred:
+- **#2 minting.** Bare RHS-only head `?x` stays rejected (unsound: invisible forward, self-fulfilling on a
+  ground demand). The SUPPORTED minting primitive is the LHS-keyed bound-literal skolem (`foo?` fact / `<foo>?`
+  control), a skolem FUNCTION of the match. It BLEW UP on the demand chain (fresh node/round, fuel-capped);
+  fixed by `chain._resolve_skolems`/`_find_skolem_witness` — re-find the skolem STRUCTURALLY by its defining
+  relation to the LHS-bound anchors, so check-before-derive converges (idempotent, agrees with forward).
+- **#8a** query-time name-split warning (`query._warn_name_split_join`).
+- **#8b** solved the VISION-ALIGNED way: `intern_node` helper KILLED (a Python twin of `MINT(intern=True)`);
+  fact authoring is now `lowering.assemble_facts`(triples)→`MINT` program→`Machine.run` (`load_fact_triples`).
+  Interning is the instruction's. Principle ratified: capabilities/semantics are ISA programs, never substrate-
+  poking helpers — see the vision-cleanup residual below.
+- **#7** confirmed done (`suppose` has `focus_scope`).
+- **#8c DEFERRED — id-addressed RETRIEVE surface.** `ask_goal`/`suppose` have `focus_scope`; `choose` is
+  already id-addressed + doesn't reason; id-addressed GOALS already work via `chain_sip`+`ById` (collision-
+  free). The remaining ergonomic — an id-addressable "who realizes X" — should be a **RETRIEVE `<call>` mode**
+  (like CHECK/CHOOSE/SUPPOSE in `mode_calls.py`: a `<call>` with id-addressed slots, serviced by the dumb
+  dispatcher, emitting answer bindings as nodes), NOT a `who()` Python helper. Not started.
 
 **▶ RESUME HERE (2026-07-12):** the active track is **coreference-as-rules** (`docs/coreference_as_rules_
 design.md`), the reshaped "D". Stages **1–4 DONE** (value-match primitive + CNL surface + **id-addressed
@@ -156,6 +175,18 @@ These were TODOs embedded in now-done phases; they live in the open work below:
   resolves once coref rules reify (bank-authored `same_as propagates through X`).
 - RETIRED / not carried: Phase 5.1's "aggressive `is_not` completion" (replaced by demand-driven NAF);
   Phase 2.2's "Phase-6 reader flip" (landed in Phase 6.0).
+- **VISION-CLEANUP: get-or-create plumbing should EMIT `MINT`, not poke the substrate** (2026-07-13, from the
+  feedback #8b pass). The principle (ratified with the user): the machine is a MACHINE — every *semantic*
+  (interning, dedup, reasoning) is an ISA instruction/program run by the one interpreter; the raw storage API
+  (`add_node`/`add_relation`) is the dumb loader/RAM and must never host a semantic that is already an
+  instruction. `MINT(intern=True)` IS interning; the public `intern_node` twin was therefore KILLED, and
+  fact-authoring now goes through `lowering.assemble_facts` (facts → a `MINT` program → `Machine.run`). Left
+  to clean up (tagged `TODO(vision-cleanup)` in-source): the internal get-or-create plumbing that still pokes
+  the substrate directly — `dispatch._ensure`, `mode_calls._ensure`, `focus._entity_node` (and the general
+  question of whether firmware minting scaffolding — `_control_rel`, verdict nodes — should emit `MINT` too).
+  These are the machine's own plumbing minting *control* nodes, so lower priority than a public API twin, but
+  the same principle applies: a mode/tool should lay down instructions, not call substrate methods. ✓S per
+  site (mechanical), ⚠Opus for the "does all firmware minting become emitted `MINT`" scope call.
 
 ## Phase 8 — CLIENT: unified CNL intake + focus + streaming (ACTIVE — the current build)
 

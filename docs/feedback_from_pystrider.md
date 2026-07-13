@@ -183,6 +183,10 @@ are consistent with the pencil/ink contract, but for a consumer a **non-committi
 in-scope trace only"** entry point would fit hypothesis-driven tools much better. **Ask:**
 consider a `suppose(..., commit=False)` returning the in-scope derivations for inspection.
 
+> **FIXED.** `suppose(..., focus_scope=frozenset(...))` now threads bounded attention into its in-scope
+> `chain_sip`/`_facts_matching` calls exactly as `ask_goal` does (`suppose.py`), so a hypothesis-driven
+> consumer can bound the outcome path to the working set. Test: `test_suppose_accepts_focus_scope`.
+
 ## 7. `suppose()` does not accept `focus_scope` (unlike `ask_goal`) — the outcome path can't be attention-bounded
 
 `ask_goal(..., focus_scope=frozenset(...))` threads bounded attention into its internal
@@ -205,21 +209,30 @@ the whole accreted graph — but it only reaches the *trace* path (`ask_goal "wh
 calls, exactly as `ask_goal` already does — a small, mechanical addition that makes the Session
 focus story usable for hypothesis-driven consumers.
 
-> **ADDRESSED (2026-07-13) — (a) + (b) done; (c) scoped separately.** (a) A CNL query that NAMES a name
-> resolving to >1 genuinely-distinct fact entity now WARNS at query time (`query._warn_name_split_join`,
-> sibling of the #3 case-fold warning; reuses `_one_identity` so coref'd mentions stay quiet). NOTE the
-> limit: this catches a query that *names* the split entity; the flagship example (the split entity bound to
-> a rule's JOIN VARIABLE, never named in the query) is a build-time smell best PREVENTED, not queried — see
-> (b). (b) `intern_node(graph, name)` is now a public get-or-create-by-name helper (`attrgraph.intern_node`)
-> — the authoring-boundary twin of the ISA's `MINT(intern=True)` (NOT a new instruction: interning already
-> exists in the ISA; a new op would duplicate it). It retires the hand-rolled `ids.setdefault(x, add_node(x))`
-> cache and, used while building, keeps one name → one node so the split-join never forms. It is the SINGLE
-> Python interner now: `resolve_write_node`, `focus._entity_node`, `dispatch`/`mode_calls` get-or-create all
-> route through it, and a dead `retraction._ensure` copy was deleted (5 copies → 1). Names stay LABELS, not
-> identity — interning is the builder's explicit choice, never engine coref (the matcher never follows
-> same-name). (c) focus/id-addressing on `ask_goal`/`choose` (generalizing #7) is a larger, separate piece —
-> `ById` already gives id-addressed goals at the `chain_sip` level; threading it up is not yet done. Tests:
-> `tests/test_feedback_fixes.py` (`test_name_split_join_*`, `test_intern_node_*`).
+> **ADDRESSED (2026-07-13) — (a) + (b) done the VISION-ALIGNED way; (c) mostly already supported.** (a) A CNL
+> query that NAMES a name resolving to >1 genuinely-distinct fact entity now WARNS at query time
+> (`query._warn_name_split_join`, sibling of the #3 case-fold warning; reuses `_one_identity` so coref'd
+> mentions stay quiet). Limit: this catches a query that *names* the split entity; the flagship example (the
+> split entity bound to a rule's JOIN VARIABLE, never named in the query) is a build-time smell best
+> PREVENTED — see (b).
+>
+> (b) **The machine is a MACHINE: capabilities/semantics are ISA PROGRAMS, not Python helpers** (ratified
+> with the user). An earlier pass added a public `intern_node` get-or-create helper; that was a Python TWIN of
+> `MINT(intern=True)` — a semantic that is already an instruction — so it was KILLED. Fact authoring now goes
+> through `lowering.assemble_facts(triples)` → a `MINT` program (each endpoint `MINT(intern=True)`, each
+> relation `MINT(dedup=True)`) → `Machine.run` (`load_fact_triples`). A re-mentioned entity interns to one
+> node VIA THE ISA, so a built graph never splits a name across duplicate nodes — retiring the hand-rolled
+> `ids.setdefault(x, add_node(x))` cache, with the get-or-create living where it belongs (the interpreter),
+> not in a substrate-poking helper. `add_node`/`add_relation` stay the dumb loader/RAM; interning is the
+> instruction. (Internal get-or-create plumbing — `dispatch`/`mode_calls._ensure`, `focus._entity_node` — is
+> tagged `TODO(vision-cleanup)` and flagged in `implementation_plan.md`: same principle, lower priority.)
+>
+> (c) mostly ALREADY supported: `ask_goal`/`suppose` have `focus_scope` (#7 done); `choose` is already fully
+> id-addressed (operates on node ids, and doesn't reason, so nothing to attention-bound); and id-addressed
+> GOALS work today via `chain_sip` + `ById` — verified collision-free (`realizes ? ById(s1)` returns only
+> s1's realizer though two specs share a name). A vision-aligned id-addressed RETRIEVE surface would be a
+> `<call>` mode (like CHECK/CHOOSE), not a `who()` helper — deferred. Tests:
+> `tests/test_feedback_fixes.py` (`test_name_split_join_*`, `test_assemble_facts_*`).
 
 ## 8. Name-addressing on the retrieval/CHOOSE path: silent name-split joins + no get-or-create, and focus doesn't reach it either
 

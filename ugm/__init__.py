@@ -9,7 +9,7 @@ from .vocabulary import (
 )
 from .world_model import Graph, Node, WorldModel
 from .production_rule import Pat, Rule, GradedCondition, ValueMatch
-from .attrgraph import AttrGraph, AttrNode, Attr, GRADED, VALUED, intern_node
+from .attrgraph import AttrGraph, AttrNode, Attr, GRADED, VALUED
 from .machine import (
     Machine, State, run_program,
     SEED, FOLLOW, JOIN, TEST, GRADE, FUZZY, MINT, EMIT, DROP_CTRL, SET, DUP, SAME,
@@ -22,6 +22,7 @@ from .lowering import (
     lower_propagate, lower_drop, lower_rewire,
     lower_rule, lower_nac_programs, run_bank, match_pats, run_to_fixpoint,
     derived_triples, Unlowerable, rule_touches_provenance,
+    assemble_facts, load_fact_triples,
 )
 from .apply import apply_rule, apply_to_fixpoint, build_head_index, rules_producing
 from .chain import (
@@ -126,7 +127,7 @@ def __getattr__(name: str):
 __all__ = [
     "Graph", "Node", "WorldModel",
     "Pat", "Rule", "GradedCondition", "ValueMatch",
-    "AttrGraph", "AttrNode", "Attr", "GRADED", "VALUED", "intern_node",
+    "AttrGraph", "AttrNode", "Attr", "GRADED", "VALUED",
     "Machine", "State", "run_program",
     "SEED", "FOLLOW", "JOIN", "TEST", "GRADE", "FUZZY", "MINT", "EMIT",
     "DROP_CTRL", "SET", "DUP", "SAME", "INTERPOSE", "RESTORE",
@@ -134,7 +135,7 @@ __all__ = [
     "to_attrgraph", "lower_conj", "lower_lhs", "lower_graded", "lower_rhs",
     "lower_propagate", "lower_drop", "lower_rewire", "lower_rule", "lower_nac_programs",
     "run_bank", "match_pats", "run_to_fixpoint", "derived_triples", "Unlowerable",
-    "rule_touches_provenance",
+    "rule_touches_provenance", "assemble_facts", "load_fact_triples",
     "apply_rule", "apply_to_fixpoint", "build_head_index", "rules_producing",
     "chain", "demand_closure", "relevant_rules", "demanded_preds", "chain_sip", "bound_demands",
     "NonStratifiable",

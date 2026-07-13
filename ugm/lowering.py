@@ -28,7 +28,7 @@ binding a fresh variable, or SAME-checking an already-bound one, or TEST-ing a l
 from __future__ import annotations
 
 from .production_rule import Pat, Rule, binder, is_var, is_bound_literal, literal_name
-from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert
+from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert, NAME
 from .vocabulary import MENTION
 from .machine import (
     Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, MINT, EMIT, DROP_CTRL,
@@ -598,6 +598,49 @@ def match_pats(ag: AttrGraph, pats: list[Pat], *,
             seen.add(fb)
             out.append(b)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Fact authoring: (subject, predicate, object) name triples -> an ISA MINT program
+# ---------------------------------------------------------------------------
+
+def assemble_facts(facts: list[tuple[str, str, str]]) -> list[Instr]:
+    """Lower `(subject, predicate, object)` NAME triples to an ISA program of MINT effects — the
+    vision-aligned way to BUILD a graph. In a machine, state is written by INSTRUCTIONS, not by Python
+    functions that poke the substrate: authoring is assembling a program and running it through the one
+    interpreter (exactly as `lower_rhs` lowers a rule's head).
+
+    Each distinct endpoint NAME becomes `MINT(intern=True)`, so a re-mentioned entity CANONICALIZES to a
+    single node — the get-or-create is the INSTRUCTION's semantic (`machine._apply` intern branch), so a
+    built graph never silently SPLITS a repeated name across two nodes (feedback #8b) and no `intern_node`
+    Python twin is needed. Each relation becomes a deduped reified rel node `subject -[predicate]-> object`
+    (`MINT(dedup=True)`, exactly `lower_rhs`), so re-asserting a fact is idempotent. Endpoints thread
+    through registers, so every fact assembles into ONE program applied in a single pass (`Machine.run` /
+    `load_fact_triples`)."""
+    prog: list[Instr] = []
+    reg_of: dict[str, str] = {}
+
+    def endpoint(name: str) -> str:
+        reg = reg_of.get(name)
+        if reg is None:
+            reg = f"_e{len(reg_of)}"
+            prog.append(MINT(reg, attrs={NAME: valued(name)}, intern=True))   # get-or-create = the instruction
+            reg_of[name] = reg
+        return reg
+
+    for k, (s, p, o) in enumerate(facts):
+        s_reg, o_reg = endpoint(s), endpoint(o)
+        prog.append(MINT(f"_r{k}", attrs={p: graded_attr(1.0)},
+                         in_edges=[s_reg], edges=[o_reg], dedup=True))       # reified, deduped fact
+    return prog
+
+
+def load_fact_triples(ag: AttrGraph, facts: list[tuple[str, str, str]]) -> None:
+    """Build `ag` from `(subject, predicate, object)` NAME triples by RUNNING their MINT program through the
+    interpreter (`assemble_facts` + `Machine.run`). The vision-aligned authoring surface: a repeated name
+    interns to one node VIA THE ISA, so facts never split across duplicate nodes — no id cache, no Python
+    interner (feedback #8b). Monotone and idempotent: re-loading the same facts is a no-op (dedup)."""
+    Machine().run(ag, assemble_facts(facts))
 
 
 # ---------------------------------------------------------------------------

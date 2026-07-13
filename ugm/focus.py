@@ -22,7 +22,6 @@ predicate/domain strings here (§D).
 """
 from __future__ import annotations
 
-from .attrgraph import intern_node
 from .production_rule import Pat, Rule
 from .vocabulary import SAME_AS, MENTION
 
@@ -59,8 +58,14 @@ def top_frame(kb) -> str | None:
 
 def _entity_node(kb, name: str) -> str:
     """The KB node for entity `name` (a real, non-control mention), minted if absent — a center is an
-    entity in play, not a fresh scaffolding node. The shared interner (`attrgraph.intern_node`)."""
-    return intern_node(kb, name)
+    entity in play, not a fresh scaffolding node.
+
+    TODO(vision-cleanup, see docs/implementation_plan.md): this get-or-create pokes the substrate directly
+    — a Python twin of `MINT(intern=True)`. It should emit that instruction, not reimplement it."""
+    for n in kb.nodes_named(name):
+        if not (kb.is_control(n) or kb.is_inert(n)):
+            return n
+    return kb.add_node(name)
 
 
 def _center_edges(kb, frame: str) -> list[tuple[str, str]]:

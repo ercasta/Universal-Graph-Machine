@@ -19,7 +19,7 @@ from __future__ import annotations
 import warnings
 from dataclasses import dataclass
 
-from .attrgraph import AttrGraph, intern_node
+from .attrgraph import AttrGraph
 from .attrgraph import valued, GRADED, VALUED
 from .apply import (
     _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
@@ -147,7 +147,7 @@ def resolve_write_node(fact_g: AttrGraph, endpoint, *, where: str) -> str:
         warnings.warn(
             f"{where}: name {endpoint!r} resolves to {len(entities)} distinct nodes; writing to the "
             f"first ({ex[0]}). Pass ById(node_id) to target a specific node.", stacklevel=2)
-    return intern_node(fact_g, endpoint)   # the shared get-or-create core (ById + ambiguity-warn layered above)
+    return ex[0] if ex else fact_g.add_node(endpoint)
 
 
 class _Exhaustion:

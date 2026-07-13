@@ -31,7 +31,6 @@ from __future__ import annotations
 
 from typing import Callable
 
-from .attrgraph import intern_node
 from .world_model import Graph
 
 CALL = "<call>"
@@ -56,6 +55,13 @@ def merge_tools(*registries: dict[str, Tool]) -> dict[str, Tool]:
     return out
 
 
+def _ensure(graph: Graph, name: str) -> str:
+    # TODO(vision-cleanup, see docs/implementation_plan.md): get-or-create pokes the substrate directly —
+    # a Python twin of `MINT(intern=True)`. Should emit that instruction, not reimplement it.
+    found = graph.nodes_named(name)
+    return found[0] if found else graph.add_node(name)
+
+
 def _objs(graph: Graph, subj: str, rel: str) -> list[str]:
     return [o for r, o in graph.relations_from(subj) if graph.has_key(r, rel)]
 
@@ -64,7 +70,7 @@ def emit_call(graph: Graph, tool_name: str, slots: dict[str, str]) -> str:
     """Materialize a `<call>` for `tool_name` with the given argument `slots`
     (slot-name -> node id). Driver/test helper; normally a RULE materializes a call."""
     c = graph.add_node(CALL)
-    graph.add_relation(c, TOOL, intern_node(graph, tool_name))
+    graph.add_relation(c, TOOL, _ensure(graph, tool_name))
     for slot, node_id in slots.items():
         graph.add_relation(c, slot, node_id)
     return c

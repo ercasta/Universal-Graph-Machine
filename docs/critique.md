@@ -5,6 +5,8 @@
 > Companion to `related_work.md` (positioning) and `reference.md` (what the claims are).
 > This is deliberately an outside voice: where it disagrees with the vision docs, that is
 > the point of the document, not an error to reconcile.
+> **§7 (2026-07-13) is an addendum recording what moved after the snapshot** — the body
+> above is left as written; read §7 before acting on §4.
 
 ## 1. Overall rating
 
@@ -169,3 +171,57 @@ ingestion as in-graph rules (homoiconicity, §2); E7 performance feasibility spi
 ceiling — whether the substrate commitments cap any implementation, and whether closing the
 gap hands the system to the AOT compiler). Anti-recommendation: no more ProofWriter-style
 benchmarks — they test coverage, which is already demonstrated, not advantage.
+
+## 7. Addendum — what moved since the snapshot (2026-07-13)
+
+> Two days and one build phase (Phase 8, the agent-loop client) after the snapshot. The body
+> above is unchanged; this section records which of its claims the landed work has confirmed,
+> defused, or left standing. Suite at time of writing: 346 passed.
+
+1. **§4.1(a) session accretion — MEASURED AND ANSWERED, and not by the feared remedy.** The
+   Phase 8.0 probe found the near-term blocker was per-utterance NAF cost (a whole-predicate
+   scan in the NAC existence check; fixed endpoint-driven, 40×), and the 8.3b probe measured
+   the accretion cliff directly: a bound query over an accreting session goes 0.5s→112s
+   global, but stays **flat (23→83ms) under seed-from-focus bounded attention**. Two things
+   follow. First, the fix was *architectural and in-substrate* — a `<focus>` working set
+   scoping the reader — not the Phase 7(d) two-tier compilation this document called
+   "mandatory"; the §4.1 AOT-takeover worry ("the compiled fast path becomes the de facto
+   system") is substantially defused *for the client scope*, and by a mechanism more in-spirit
+   than the one anticipated here. Second, the semantics changed honestly with it: off-focus
+   facts leave attention (the agent-not-theorem-prover stance made operational). The risk
+   ledger relocates again: **(b) cross-bank join selectivity is now the strongest surviving
+   performance concern** — E4 has not run, and combining banks is the stated core use case;
+   (c) per-query combinatorics unchanged (fuel-fenced).
+2. **§4.2 convention fragility — confirmed in the wild, then half-answered.** A consumer
+   project (pystrider; same author, so this does not discharge the non-author question) hit
+   exactly the predicted failure class: silent `[0]`-picks on duplicate names, name-split
+   joins, silent CNL case-fold misses. All seven reported failures were made loud or fixed,
+   and the deep one (name-vs-id addressing) got an architectural answer rather than a patch:
+   an id-addressed core (`ById`, names resolved at the CNL boundary) plus
+   coreference-as-rules (mechanical `wire_same_as` retired for one *declared* value-match
+   rule over a universal `<mention>` marker). The section's sharpest line — *"the linter
+   needs to be as central as the engine, and currently is not"* — **still stands**:
+   conflict-lint and per-add stratification re-lint landed (8.6), but the general convention
+   lint over the untyped substrate remains a documented discipline (the intake-spine §D
+   rules), not an enforced one.
+3. **§4.4 habitability — mechanism built, claim still untested.** The unified intake (8.1)
+   now produces the named-rejection outcome for unrecognized utterances, which is the design
+   answer this document asked for. E1 remains unrun and remains the cheapest decisive
+   experiment on the board.
+4. **§4.3 evaluation gap and §4.5 clingo hatch — unchanged.** No E2/E3; §3 is still an
+   inference, not a measurement. `validation_experiments.md` is still marked proposed, not
+   ratified. The missing-neighbor citations (§2: NARS, ATMS/TMS, local CWA) are still
+   missing from `related_work.md`.
+5. **§2.2 (immune system against accretion) — one more data point.** In-substrate anaphora
+   resolution was built, landed, and then **backed out on principle**: reasoning was
+   byte-identical for "she" vs "ada", so the feature bought nothing structural and was
+   relocated to the SLM boundary. Rejecting a *working* feature by that test is the closed
+   inventory's discipline functioning as claimed. Same vein: the "machine is a MACHINE"
+   ratification (semantics are ISA programs; the public `intern_node` helper was killed as a
+   Python twin of `MINT(intern=True)`) extends the single-substrate commitment to the
+   authoring API itself.
+6. **Bottom line, updated.** Of the two deciding questions in §5: the first ("fast without
+   the compiler sneaking back in") has a *partial, favorable* answer at session scale —
+   bounded attention, not compilation, was what the client needed. The second ("can one
+   non-author human author and audit a rule book") is untouched, still open, and still cheap
+   to answer. E1 is now the single highest-information action this document points at.
