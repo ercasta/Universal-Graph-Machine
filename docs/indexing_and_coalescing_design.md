@@ -125,13 +125,19 @@ not engine auto-recovery. This is the honest, simple contract and the reason the
    duplicate mentions to link) — Step 2 removes it. **Result: 338/338 green; demos 4-8x faster**
    (01 2.4→0.5s, 03 13→2.0s, 04 39→4.7s, 05 62→10s). Answers unchanged incl. graded/defeasible `why`
    (Blocker B is gone — declaration & use-site are one node).
-2. **DONE — removed the dead coref pass.** Deleted only the AUTOMATIC same-name coref invocation in
-   `load_corpus`/`load_facts` (the `run_bank(kb, coref+prop)` pass and the `+coref+prop` appended to the
-   returned rules). The coref FUNCTIONS stay (`same_name_coref_rules`, `same_as_rules`,
-   `_coref_propagation`, `SAME_AS_RULES`, `propagate_embeddings`) — they are live TOOLS used by five test
-   files for ASSERTED identity and are the mechanism the future cross-name coref will reuse; only their
-   auto-run at load was dead. **338/338 green; demos faster again** (04 4.7→2.3s, 05 10→2.5s; ~17-24x
-   over baseline).
+2. **DONE — removed the dead SAME-NAME coref pass; kept SAME-AS propagation for asserted identity.**
+   Deleted the `same_name` coref DECISION rule from the load path (interning replaces it) and stopped
+   appending it to the returned rules. **BUT** `same_as` propagation (`_coref_propagation`) is NOT
+   dead: the live CNL form `form.fact.same_as` ("X is the same as Y", `authoring.py:106`) asserts a
+   CROSS-name `same_as` edge, and facts must compose across it. Initially removed it too (a REGRESSION —
+   `is eveningstar bright` went yes→no; NO test covered `form.fact.same_as`, so the suite stayed green).
+   Restored as a **guarded eager pass**: `if kb.key_count(SAME_AS): run_bank(kb, prop)` in
+   `load_corpus`/`load_facts`, plus `prop` back in the returned rules. Eager because the recognized
+   `same_as` is control-layer → invisible to the demand matcher (Blocker A); cheap because interning
+   removed the same-name clique (asserted `same_as` is sparse); guarded so a corpus with no asserted
+   identity pays nothing. Added a regression test
+   (`test_isa_value_match.py::test_asserted_identity_composes_across_names_via_load_corpus`).
+   **338+1 green; demos ~0.7s** (04 0.72s, 05 0.73s).
 3. **SKIPPED (by design) — the `same_as` consumers are NOT dead.** `resolve_write_node`/`_one_identity`/
    `_same_as_neighbors` and the `focus.py` `same_as` skip are general write-target discipline for the
    PROGRAMMATIC path (EMIT / SUPPOSE pencil / `ById` — the "two Pauls" case where same-name duplicates

@@ -189,3 +189,14 @@ def test_coref_gate_no_rule_no_composition():
     # the SAME facts, but WITHOUT the coref rule, do not compose — coref-following is DATA, not baked in.
     kb, _ = load_corpus(_COREF_FACTS)
     assert ask_goal(kb.copy(), "is eveningstar visible", same_as_rules(["is", "same_as"])) == ["no"]
+
+
+def test_asserted_identity_composes_across_names_via_load_corpus():
+    # `X is the same as Y` (form.fact.same_as) asserts CROSS-name identity — a `same_as` edge between two
+    # DIFFERENT names (so interning, which is by-name, leaves them distinct). load_corpus composes facts
+    # across that edge with an eager `same_as` propagation pass (control same_as is demand-invisible), so a
+    # fact stated under one name answers under the other. Guards the regression where dropping the pass for
+    # the same-name interning win silently broke asserted identity (no prior coverage of this form).
+    kb, rules = load_corpus("morningstar is the same as eveningstar\nmorningstar is bright")
+    assert ask_goal(kb.copy(), "is eveningstar bright", rules) == ["yes"]     # composed across identity
+    assert ask_goal(kb.copy(), "is morningstar bright", rules) == ["yes"]     # and the stated name

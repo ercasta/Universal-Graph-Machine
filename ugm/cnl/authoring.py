@@ -36,7 +36,7 @@ from .forms import (
     intern_mentions,
 )
 from .universal import same_as_rules
-from ..vocabulary import SUBSTRATE_COREF_PREDS, CLOSES, CWA
+from ..vocabulary import SUBSTRATE_COREF_PREDS, CLOSES, CWA, SAME_AS
 from ..production_rule import (
     GradedCondition, ValueMatch, Pat, Rule, is_var as _is_var, literal_name, rhs_only_head_vars,
 )
@@ -289,8 +289,9 @@ def load_facts(graph: Graph, text: str, *, strict: bool = False) -> list[str]:
     Coreference is HARDCODED INTERNING (`intern_mentions`): same-named entity mentions fold to ONE
     node, so their facts already coincide — a gradable declaration (`urgent is gradable`) and the
     surface `urgent` of its use (`alice is very urgent`) are the SAME node, and any degree lands there
-    directly. (Distinct same-name referents use a distinct name; asserted/cross-name coref is a separate
-    `same_as_rules` tool, not run here.) Returns the sentence-anchor ids. The scenario half of a CNL demo.
+    directly. (Distinct same-name referents use a distinct name.) ASSERTED cross-name identity ("X is
+    the same as Y") still composes via an eager `same_as` propagation pass (`_coref_propagation`), sparse
+    now that interning removed the same-name clique. Returns the sentence-anchor ids.
 
     `strict=True` (feedback #5): a line that produced NO content fact — an unrecognized `S P O` whose
     verb is not lexicon-known/declared, which otherwise stays raw tokens with no signal — RAISES,
@@ -305,8 +306,10 @@ def load_facts(graph: Graph, text: str, *, strict: bool = False) -> list[str]:
     # propagation pass: interning makes an entity's facts coincide on one node with no propagation.
     mark_mentions(graph, rules)
     intern_mentions(graph)
+    if graph.key_count(SAME_AS):         # compose across ASSERTED cross-name identity only when asserted
+        run_bank(graph, _coref_propagation(graph))               # ("X is the same as Y"; see load_corpus)
     run_bank(graph, graded_rules(graph))  # gradable word -> embedding (propagate EMIT); degrees from KB
-    propagate_embeddings(graph)                      # graded-layer union (no-op post-interning)
+    propagate_embeddings(graph)                      # graded-layer union across each same_as class
     if strict:
         dropped = [ln for ln, a in zip(lines, anchors) if not anchor_has_content_fact(graph, a)]
         if dropped:
@@ -1274,15 +1277,19 @@ def load_corpus(text: str, *, policy=None) -> tuple[Graph, list[Rule]]:
     _recognize(kb, _corpus_lines(text), _ALL_FORMS)
     mark_mentions(kb, _ALL_FORMS)        # tag entities `is_a <mention>` — the entity handle
     intern_mentions(kb)                  # HARDCODED "same name => same node" (interning): fold same-named
-                                         # mentions to ONE node. This REPLACES the old automatic same-name
-                                         # coref rule + `same_as` propagation pass (the M^2 load blowup) —
-                                         # one entity is one node, so its facts already coincide (nothing to
-                                         # compose) and a gradable declaration + its use-site are one node.
-                                         # `same_name_coref_rules`/`same_as_rules` remain available as TOOLS
-                                         # for ASSERTED identity / future cross-name coref, just not run here.
+                                         # mentions to ONE node. REPLACES the old M^2 same-NAME coref rule —
+                                         # one entity is one node, so its facts already coincide (a gradable
+                                         # declaration + its use-site are the same node).
+    prop = _coref_propagation(kb)        # `same_as` propagation over the content predicates present
+    if kb.key_count(SAME_AS):            # ONLY when identity is actually asserted ("X is the same as Y" ->
+        run_bank(kb, prop)               # a `same_as` edge, form.fact.same_as); else the pass is pure
+                                         # overhead. Compose EAGERLY: the recognized same_as is control-layer,
+                                         # invisible to the demand matcher, so it can't be deferred (Blocker A).
+                                         # Sparse post-interning (only asserted, never same-name), so cheap —
+                                         # interning killed the same-name clique the OLD eager pass blew up on.
     run_bank(kb, graded_rules(kb))       # gradable word -> embedding (propagate EMIT); degrees from KB
-    propagate_embeddings(kb)             # graded-layer union across any `same_as` class (no-op post-interning)
-    rules = expand_rules(kb) + expand_loose_from_graph(kb)
+    propagate_embeddings(kb)             # graded-layer union across each `same_as` class
+    rules = expand_rules(kb) + expand_loose_from_graph(kb) + prop
     if _on_cycle(policy) == "raise":                     # firmware STANCE (see `policy.py`)
         lint_stratifiable(rules, source="load_corpus")
     return kb, rules
