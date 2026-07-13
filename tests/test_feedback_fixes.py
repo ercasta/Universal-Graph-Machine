@@ -124,6 +124,48 @@ def test_demand_skolem_is_matchable_downstream():
     assert ("derived_from", "p1") in stamped                      # re-bound via ?x and reasoned about
 
 
+# --- #8: name-addressing on the retrieval path ------------------------------------------------------
+
+def test_name_split_join_warns_at_query_time():
+    # #8a: a query that NAMES a split entity warns (was: signalled only at write time).
+    from ugm import intern_node
+    g = h.Graph()
+    a1 = g.add_node("plan"); a2 = g.add_node("plan")          # two distinct nodes, same name
+    g.add_relation(a1, "is_a", g.add_node("thing"))
+    g.add_relation(a2, "flag", g.add_node("yes"))
+    with pytest.warns(UserWarning, match="resolves to 2 distinct nodes"):
+        ask_goal(g, "is plan a thing", [])
+    # a single interned node draws NO warning and the join composes.
+    g2 = h.Graph()
+    p = intern_node(g2, "plan"); assert intern_node(g2, "plan") == p    # get-or-create: same node
+    g2.add_relation(p, "is_a", g2.add_node("thing")); g2.add_relation(p, "flag", g2.add_node("yes"))
+    rules = load_machine_rules("?p ok yes when ?p is_a thing and ?p flag yes")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")                        # no spurious warning on a clean single node
+        assert ask_goal(g2, "who ok yes", rules) == ["plan ok yes"]
+
+
+def test_intern_node_prevents_split_join():
+    # #8b: interning while BUILDING keeps one name -> one node, so the join that split silently now holds.
+    from ugm import intern_node
+    g = h.Graph()
+    def n(name): return intern_node(g, name)                  # retires the hand-rolled ids.setdefault cache
+    g.add_relation(n("plan"), "is_a", g.add_node("thing"))
+    g.add_relation(n("plan"), "flag", g.add_node("yes"))      # SAME 'plan' node as above
+    assert len([x for x in g.nodes() if g.name(x) == "plan"]) == 1
+    rules = load_machine_rules("?p ok yes when ?p is_a thing and ?p flag yes")
+    assert ask_goal(g, "who ok yes", rules) == ["plan ok yes"]
+
+
+def test_intern_node_skips_control_scaffolding():
+    # the shared interner resolves to a real entity, never a same-named control node.
+    from ugm import intern_node
+    g = h.Graph()
+    ctrl = g.add_node("marker", control=True)
+    got = intern_node(g, "marker")
+    assert got != ctrl and not g.is_control(got)              # minted a fresh entity, skipped the control node
+
+
 # --- #4: apply_* give a clear error for a Rule object instead of a cryptic TypeError -----------------
 
 def test_apply_with_rule_object_gives_clear_error():

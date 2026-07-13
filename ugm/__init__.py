@@ -9,7 +9,7 @@ from .vocabulary import (
 )
 from .world_model import Graph, Node, WorldModel
 from .production_rule import Pat, Rule, GradedCondition, ValueMatch
-from .attrgraph import AttrGraph, AttrNode, Attr, GRADED, VALUED
+from .attrgraph import AttrGraph, AttrNode, Attr, GRADED, VALUED, intern_node
 from .machine import (
     Machine, State, run_program,
     SEED, FOLLOW, JOIN, TEST, GRADE, FUZZY, MINT, EMIT, DROP_CTRL, SET, DUP, SAME,
@@ -126,7 +126,7 @@ def __getattr__(name: str):
 __all__ = [
     "Graph", "Node", "WorldModel",
     "Pat", "Rule", "GradedCondition", "ValueMatch",
-    "AttrGraph", "AttrNode", "Attr", "GRADED", "VALUED",
+    "AttrGraph", "AttrNode", "Attr", "GRADED", "VALUED", "intern_node",
     "Machine", "State", "run_program",
     "SEED", "FOLLOW", "JOIN", "TEST", "GRADE", "FUZZY", "MINT", "EMIT",
     "DROP_CTRL", "SET", "DUP", "SAME", "INTERPOSE", "RESTORE",

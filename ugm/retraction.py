@@ -29,11 +29,6 @@ TARGETS = "targets"
 RETRACTED = "<retracted>"       # the interposer spliced into a fact's path to hide it (inert)
 
 
-def _ensure(graph: Graph, name: str) -> str:
-    found = graph.nodes_named(name)
-    return found[0] if found else graph.add_node(name)
-
-
 # ---------------------------------------------------------------------------
 # Retraction AS RULES — the cascade over now-matchable provenance (docs/depythonization_design.md)
 # ---------------------------------------------------------------------------

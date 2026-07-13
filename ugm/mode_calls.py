@@ -29,7 +29,7 @@ surface that emits them are the next slices.
 from __future__ import annotations
 
 from .dispatch import call_arg, call_args, service_calls, Tool
-from .attrgraph import AttrGraph, valued
+from .attrgraph import AttrGraph, valued, intern_node
 from .check import check, COPULA
 from .policy import FirmwarePolicy, DEFAULT_POLICY
 from .choose import choose, winners_of, SATISFIED_BY
@@ -75,9 +75,6 @@ def _slot_name(g: AttrGraph, call_id: str, slot: str) -> str | None:
     return g.name(nid) if nid is not None else None
 
 
-def _ensure(g: AttrGraph, name: str) -> str:
-    found = g.nodes_named(name)
-    return found[0] if found else g.add_node(name)
 
 
 def _control_rel(g: AttrGraph, subj: str, pred: str, obj: str) -> str:
@@ -112,7 +109,7 @@ def check_tool(rule_g: AttrGraph, *, policy: FirmwarePolicy = DEFAULT_POLICY,
         if obj is not None:
             g.set_attr(res, OBJ, valued(obj))
         g.set_attr(res, STATUS, valued(status))
-        touched = {res, _control_rel(g, res, STATUS, _ensure(g, status))}   # matchable verdict relation
+        touched = {res, _control_rel(g, res, STATUS, intern_node(g, status))}   # matchable verdict relation
         if subj_id is not None:                            # correlate the verdict to the goal subject
             touched.add(_control_rel(g, res, OF, subj_id))
         return touched
@@ -171,11 +168,11 @@ def suppose_tool(rule_g: AttrGraph, *, provenance: bool = False) -> Tool:
         result = suppose(g, rule_g, assumptions, predictions, provenance=provenance)
         res = g.add_node(SUPPOSE_RESULT)                     # reserved `<…>` -> a CONTROL token
         g.set_attr(res, STATUS, valued(result.status))      # VALUED view (the Python reader)
-        touched = {res, _control_rel(g, res, STATUS, _ensure(g, result.status))}   # matchable verdict relation
+        touched = {res, _control_rel(g, res, STATUS, intern_node(g, result.status))}   # matchable verdict relation
         label = _slot_name(g, call_id, LABEL)
         if label is not None:                               # correlate the verdict to the caller's label
             g.set_attr(res, OF, valued(label))              # VALUED view (the Python reader)
-            touched.add(_control_rel(g, res, OF, _ensure(g, label)))   # matchable correlation relation
+            touched.add(_control_rel(g, res, OF, intern_node(g, label)))   # matchable correlation relation
         return touched
     return handler
 

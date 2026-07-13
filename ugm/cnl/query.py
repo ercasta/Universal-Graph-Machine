@@ -299,6 +299,31 @@ def _warn_case_folded_mismatch(graph: Graph, q: dict) -> None:
                 stacklevel=3)
 
 
+def _warn_name_split_join(graph: Graph, q: dict) -> None:
+    """Feedback #8a: a query name that resolves to MULTIPLE genuinely-distinct nodes silently splits a
+    rule join. `?p is_a thing and ?p flag yes` derives NOTHING when a graph-builder mentioned `plan`
+    twice (`add_node` is fresh-per-call by design — a name is a label, not an identity), scattering the
+    two facts across two `plan` nodes. ugm only signalled at WRITE time (`resolve_write_node`'s ambiguity
+    warning); a read-only join got no signal — the same silent-does-less theme as #1/#2/#5, on the query
+    path. Warn where it BITES: when a goal/query name denotes >1 distinct IDENTITY — not mere coref
+    mentions of one entity (`_one_identity`), and counting only real fact entities (`_is_fact_entity`, so
+    reified rule/clause vocabulary carrying the name does not inflate the count)."""
+    from ..chain import _one_identity, _is_fact_entity
+    names = {v for k in ("s", "o") if isinstance((v := q.get(k)), str)}
+    names |= {v for v in (q.get("roles") or {}).values() if isinstance(v, str)}
+    for nm in names:
+        if not nm or nm in EXISTENTIAL_SUBJECTS or nm == WH:
+            continue                                     # a wildcard subject/object is not an entity name
+        entities = [n for n in graph.nodes_named(nm)
+                    if not (graph.is_control(n) or graph.is_inert(n)) and _is_fact_entity(graph, n)]
+        if len(entities) > 1 and not _one_identity(graph, entities):
+            warnings.warn(
+                f"CNL query names '{nm}', which resolves to {len(entities)} distinct nodes; a rule join "
+                f"over '{nm}' may silently derive nothing (its facts are split across the copies). Intern "
+                f"the name to one node when building the graph, or address the intended node by id.",
+                stacklevel=3)
+
+
 def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
              policy=None, open_preds: frozenset[str] | None = None, ask_user=None,
              extra_forms: list[Rule] = (), strata=None, journal: list | None = None,
@@ -354,6 +379,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     if q is None or q.get("qtype") is None:
         return ["(no question form recognized this)"]
     _warn_case_folded_mismatch(graph, q)             # feedback #3: no silent case-fold false negative
+    _warn_name_split_join(graph, q)                  # feedback #8a: no silent name-split join (read side)
 
     def concept_key(p: str, o: str | None) -> str:
         # Openness is a property of the CONCEPT: for a copula query (`is S C`) it is the object

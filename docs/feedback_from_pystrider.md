@@ -205,6 +205,22 @@ the whole accreted graph — but it only reaches the *trace* path (`ask_goal "wh
 calls, exactly as `ask_goal` already does — a small, mechanical addition that makes the Session
 focus story usable for hypothesis-driven consumers.
 
+> **ADDRESSED (2026-07-13) — (a) + (b) done; (c) scoped separately.** (a) A CNL query that NAMES a name
+> resolving to >1 genuinely-distinct fact entity now WARNS at query time (`query._warn_name_split_join`,
+> sibling of the #3 case-fold warning; reuses `_one_identity` so coref'd mentions stay quiet). NOTE the
+> limit: this catches a query that *names* the split entity; the flagship example (the split entity bound to
+> a rule's JOIN VARIABLE, never named in the query) is a build-time smell best PREVENTED, not queried — see
+> (b). (b) `intern_node(graph, name)` is now a public get-or-create-by-name helper (`attrgraph.intern_node`)
+> — the authoring-boundary twin of the ISA's `MINT(intern=True)` (NOT a new instruction: interning already
+> exists in the ISA; a new op would duplicate it). It retires the hand-rolled `ids.setdefault(x, add_node(x))`
+> cache and, used while building, keeps one name → one node so the split-join never forms. It is the SINGLE
+> Python interner now: `resolve_write_node`, `focus._entity_node`, `dispatch`/`mode_calls` get-or-create all
+> route through it, and a dead `retraction._ensure` copy was deleted (5 copies → 1). Names stay LABELS, not
+> identity — interning is the builder's explicit choice, never engine coref (the matcher never follows
+> same-name). (c) focus/id-addressing on `ask_goal`/`choose` (generalizing #7) is a larger, separate piece —
+> `ById` already gives id-addressed goals at the `chain_sip` level; threading it up is not yet done. Tests:
+> `tests/test_feedback_fixes.py` (`test_name_split_join_*`, `test_intern_node_*`).
+
 ## 8. Name-addressing on the retrieval/CHOOSE path: silent name-split joins + no get-or-create, and focus doesn't reach it either
 
 Collected while building the **synthesis** probes (`experiments/spec_synthesis.py`,
