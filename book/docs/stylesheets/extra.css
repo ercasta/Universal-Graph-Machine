@@ -1,0 +1,261 @@
+/* UGM book — playground widget styling. Works in both light and dark themes
+   via Material's CSS variables. */
+
+.ugm-playground {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+  padding: 1rem;
+  margin: 1.2rem 0;
+  background: var(--md-code-bg-color);
+}
+
+.ugm-label {
+  display: block;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.ugm-corpus {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 0.3rem;
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  resize: vertical;
+}
+
+.ugm-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.ugm-question {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.9rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 0.3rem;
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+}
+
+.ugm-playground button {
+  cursor: pointer;
+  border: none;
+  border-radius: 0.3rem;
+  font-weight: 600;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.ugm-playground button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.ugm-run {
+  background: var(--md-primary-fg-color);
+  color: var(--md-primary-bg-color);
+  padding: 0.5rem 1.3rem;
+  font-size: 0.9rem;
+}
+
+.ugm-run:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.ugm-openmind {
+  display: block;
+  margin-top: 0.7rem;
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color--light);
+  cursor: pointer;
+}
+
+.ugm-openmind .ugm-hint {
+  color: var(--md-default-fg-color--lighter);
+}
+
+.ugm-quick {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.ugm-quick-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--md-default-fg-color--light);
+  margin-right: 0.2rem;
+}
+
+.ugm-ask {
+  background: var(--md-default-fg-color--lightest);
+  color: var(--md-default-fg-color);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  font-family: var(--md-code-font-family, monospace);
+}
+
+.ugm-ask:hover:not(:disabled) {
+  background: var(--md-default-fg-color--lighter);
+}
+
+/* --- the step-by-step "watch it think" tape --- */
+
+.ugm-steps {
+  margin-top: 1rem;
+  padding: 0.6rem;
+  min-height: 3rem;
+  border-radius: 0.3rem;
+  background: var(--md-default-bg-color);
+  border: 1px dashed var(--md-default-fg-color--lighter);
+}
+
+.ugm-status {
+  padding: 0.6rem 0.4rem;
+  font-size: 0.9rem;
+  color: var(--md-default-fg-color--light);
+  font-style: italic;
+}
+
+.ugm-step {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.55rem 0.6rem;
+  margin: 0.4rem 0;
+  border-radius: 0.3rem;
+  border-left: 3px solid var(--md-default-fg-color--lighter);
+  background: var(--md-code-bg-color);
+  /* fade + slide in */
+  opacity: 0;
+  transform: translateY(0.35rem);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ugm-step {
+    transition: none;
+    transform: none;
+  }
+}
+
+.ugm-step-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ugm-step-icon {
+  font-size: 1.1rem;
+  line-height: 1.4;
+  flex: 0 0 auto;
+}
+
+.ugm-step-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ugm-step-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--md-default-fg-color--light);
+  margin-bottom: 0.1rem;
+}
+
+.ugm-step-fact {
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.92rem;
+  color: var(--md-default-fg-color);
+  word-break: break-word;
+}
+
+.ugm-step-rule {
+  font-size: 0.78rem;
+  color: var(--md-default-fg-color--light);
+  margin-top: 0.15rem;
+}
+
+.ugm-step-goal {
+  border-left-color: var(--md-primary-fg-color);
+}
+
+.ugm-step-answer {
+  border-left-color: var(--md-accent-fg-color, var(--md-primary-fg-color));
+  background: var(--md-default-bg-color);
+}
+
+.ugm-step-note {
+  border-left-color: var(--md-default-fg-color--light);
+}
+
+/* NAF checks — a question the machine asked itself */
+.ugm-step-check-yes {
+  border-left-color: #1e88e5;
+}
+
+.ugm-step-check-no {
+  border-left-color: #f9a825;
+}
+
+.ugm-verdict {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 0.15rem 0.8rem;
+  border-radius: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ugm-verdict-yes {
+  background: #1b5e2033;
+  color: #2e7d32;
+}
+
+.ugm-verdict-no {
+  background: #b71c1c22;
+  color: #c62828;
+}
+
+.ugm-verdict-unknown {
+  background: #f57f1722;
+  color: #ef6c00;
+}
+
+[data-md-color-scheme="slate"] .ugm-verdict-yes {
+  color: #81c784;
+}
+[data-md-color-scheme="slate"] .ugm-verdict-no {
+  color: #ef9a9a;
+}
+[data-md-color-scheme="slate"] .ugm-verdict-unknown {
+  color: #ffb74d;
+}
+
+.ugm-answer-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--md-default-fg-color);
+}

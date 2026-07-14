@@ -1,0 +1,7 @@
+# Built site
+site/
+
+# The Pyodide wheel is a build artifact — CI builds it fresh from the repo's
+# pyproject and drops it here before `mkdocs build`. Build it locally with:
+#   python -m build --wheel --outdir book/docs/wheels ..
+docs/wheels/*.whl

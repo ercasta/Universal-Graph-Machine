@@ -144,6 +144,13 @@ def _demand_endpoint(fact_g: AttrGraph, endpoint):
     return endpoint
 
 
+def _endpoint_name(fact_g: AttrGraph, endpoint):
+    """The plain NAME an `on_subgoal` record reports for a goal endpoint: a wildcard (None) stays None;
+    anything else renders through `_demand_endpoint` (value-node pointer -> its value, `ById` -> id,
+    plain name -> itself), so subgoal records read identically to the demand trace."""
+    return None if endpoint is None else _demand_endpoint(fact_g, endpoint)
+
+
 def _same_as_neighbors(fact_g: AttrGraph, n: str) -> set[str]:
     """The nodes directly `same_as`-linked to `n`, either edge direction (the link is a declared
     congruence and its symmetric closure may not have fired yet — treat it undirected)."""
@@ -1019,7 +1026,7 @@ def _frame_program(fact_g: AttrGraph, rule_g: AttrGraph,
 def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
               rules: AttrGraph | None = None, max_rounds: int = 1000,
               provenance: bool = False, scope: str | None = None,
-              focus_scope: frozenset[str] | None = None,
+              focus_scope: frozenset[str] | None = None, on_subgoal=None,
               _neg_stack: frozenset[tuple[str, str | None, str | None]] = frozenset(),
               _fuel: "_Exhaustion | None" = None, _closed: set | None = None) -> int:
     """Answer a BOUND-TUPLE goal `(pred, subj|None, obj|None)` demand-driven with SIP: raise the goal
@@ -1052,7 +1059,17 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     ONE-GRAPH DEFAULT (the fold, firmware doc §7 step 4): the reified rules live in `rules` — by
     default the FACT GRAPH ITSELF (rules are graph data like any other, segregated only by the
     control/pattern marker attributes). Passing a separate graph keeps the classic split layout — a
-    consumer's choice (e.g. a fresh rule bank per hypothesis), no longer a requirement."""
+    consumer's choice (e.g. a fresh rule bank per hypothesis), no longer a requirement.
+
+    `on_subgoal` (an OBSERVER, never a control hook — like `trace`, it cannot perturb reasoning) fires
+    once per goal-closure FRAME as it is entered and again as it resolves, with a record
+    `{pred, subj, obj, depth, phase, found}`: `depth` is the negation-stack depth (0 = the top goal;
+    ≥1 = a NAF check the machine raised to decide a `not L` clause), `phase` is `"enter"`/`"resolve"`,
+    and `found` (on resolve) is whether any fact matched. Because a frame is spawned ONLY for the top
+    goal and for NAC negatives (positive sub-demands and same_as coref are in-frame demand nodes, not
+    frames), the callback stream is exactly "the questions the machine asked itself" — the ordered
+    subgoal chain, free of coref noise. This is the demand-side companion to the provenance `derive`
+    trace (which records what was concluded); together they explain a demand-driven answer."""
     rule_g = rules if rules is not None else fact_g        # the fold: one graph unless split by choice
     validate_ids(fact_g, goal[1], goal[2])                 # id-addressed pins must exist (silent->loud)
     # §7.2 (value operands): the goal's NAME endpoints become value-node POINTERS at this boundary, so
@@ -1071,12 +1088,21 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
             minted.add(d)
             _mint_bound_demand(fact_g, rule_g, d)
 
+    def _observe(g, ns, phase, found=None):                # OBSERVER only (§ on_subgoal); never mutates
+        if on_subgoal is None:
+            return
+        on_subgoal({"pred": g[0],
+                    "subj": _endpoint_name(fact_g, g[1]),
+                    "obj": _endpoint_name(fact_g, g[2]),
+                    "depth": len(ns), "phase": phase, "found": found})
+
     def start(g, ns):
+        _observe(g, ns, "enter")
         cm = ControlMachine()
         program, fr = _frame_program(fact_g, rule_g, g, neg_stack=ns, provenance=provenance,
                                      scope=scope, focus_scope=focus_scope, fuel=_fuel,
                                      max_rounds=max_rounds, closed=_closed, visible=visible)
-        return cm, fr, cm.run(fact_g, program)
+        return cm, fr, cm.run(fact_g, program), g, ns
 
     # THE CONTROL STACK: DFS over suspended frame machines. A resumed parent reads the child's result
     # from the SHARED graph (like `CALL`/`RET` where callee graph writes persist), never a return value.
@@ -1085,17 +1111,20 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     stack = [start(goal, _neg_stack)]
     root_total = 0
     while stack:
-        cm, fr, res = stack[-1]
+        cm, fr, res, g, ns = stack[-1]
         if isinstance(res, Continuation):                  # SUSPENDed on a NAC subgoal request
             _kind, neg_goal, child_neg_stack = res.request     # ("subgoal", goal, neg_stack|{goal})
             stack.append(start(neg_goal, child_neg_stack))     # push the child closure; parent waits
         else:                                              # HALT — this frame's closure is complete
             stack.pop()
+            _observe(g, ns, "resolve",                     # did the closure derive/find the goal?
+                     found=bool(_facts_matching(fact_g, g[0], g[1], g[2],
+                                                scope=scope, focus_scope=focus_scope)))
             if not stack:
                 root_total = fr.total
             else:
-                pcm, pfr, pres = stack[-1]                 # continue the parent mid-round, exactly
-                stack[-1] = (pcm, pfr, pcm.resume(fact_g, pres))   # where its SUSPEND paused it
+                pcm, pfr, pres, pg, pns = stack[-1]        # continue the parent mid-round, exactly
+                stack[-1] = (pcm, pfr, pcm.resume(fact_g, pres), pg, pns)   # where its SUSPEND paused it
     return root_total
 
 

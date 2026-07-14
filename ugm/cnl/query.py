@@ -352,7 +352,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
              policy=None, open_preds: frozenset[str] | None = None, ask_user=None,
              extra_forms: list[Rule] = (), strata=None, journal: list | None = None,
              focus_scope: frozenset[str] | None = None, provenance: bool = False,
-             commit: bool = True) -> list[str]:
+             on_subgoal=None, commit: bool = True) -> list[str]:
     """Answer a CNL `question` GOAL-DIRECTED: demand just the question's goal through the ISA
     machine (`GoalSolver`), materializing only the facts that goal needs — NOT a forward pass over
     the whole rule set. This is the backward face of the engine (`decision-attrgraph-rehost`
@@ -488,7 +488,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             if q["s"] in EXISTENTIAL_SUBJECTS:
                 # `is anyone happy` is ∃ — demand the WILDCARD-subject goal, then match any witness.
                 chain_sip(graph, (q["p"], None, q["o"]), provenance=provenance, focus_scope=focus_scope,
-                          rules=rule_g, scope=scope)
+                          rules=rule_g, scope=scope, on_subgoal=on_subgoal)
                 found = (_facts_matching(graph, q["p"], None, q["o"], scope=scope,
                                          focus_scope=focus_scope) if scope is not None
                          else match(graph, [Pat("?w", q["p"], q["o"])]))
@@ -500,7 +500,8 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             # unless the concept is OPEN (UNKNOWN) or fuel ran out before closure (also UNKNOWN).
             goal = (q["p"], q["s"], q["o"])
             v = collapse(check(graph, goal, policy=policy_, provenance=provenance,
-                               focus_scope=focus_scope, rules=rule_g, scope=scope))
+                               focus_scope=focus_scope, rules=rule_g, scope=scope,
+                               on_subgoal=on_subgoal))
             # MID-CHAIN gather (§8.5b): only when the goal was NOT derivable — ask for the OPEN premises the
             # derivation demands, materialize the confirmed ones, and re-decide (so a rule blocked solely by a
             # gatherable fact fires instead of being wrongly assumed-no). A derivable goal pays no extra work.
@@ -519,7 +520,8 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
 
         if q["qtype"] == "who":
             chain_sip(graph, (q["p"], None, q["o"]), # wildcard-subject goal
-                      provenance=provenance, focus_scope=focus_scope, rules=rule_g, scope=scope)
+                      provenance=provenance, focus_scope=focus_scope, rules=rule_g, scope=scope,
+                      on_subgoal=on_subgoal)
             if scope is not None:                     # read-only: answer from ink + this scope's pencil
                 names = sorted({ep_name(s) for s, _o in _facts_matching(
                     graph, q["p"], None, q["o"], scope=scope, focus_scope=focus_scope)})
@@ -534,7 +536,8 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             # demand the goal WITH provenance (RECORD, mode 9) so the in-graph support is present, then
             # render the derivation trace via the existing reader. `explain` reads the in-graph proves/uses
             # support (not the journal), so an empty journal is enough to pass the reader's guard.
-            chain_sip(graph, (q["p"], q["s"], q["o"]), provenance=True, focus_scope=focus_scope, rules=rule_g)
+            chain_sip(graph, (q["p"], q["s"], q["o"]), provenance=True, focus_scope=focus_scope,
+                      rules=rule_g, on_subgoal=on_subgoal)
             return ask(graph, question, journal=journal if journal is not None else [],
                        rules=rules, extra_forms=extra_forms, strata=strata)
 

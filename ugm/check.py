@@ -63,7 +63,7 @@ def _concept_key(pred: str, obj: str | None) -> str:
 def check(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
           rules: AttrGraph | None = None,
           policy: FirmwarePolicy = DEFAULT_POLICY, open_preds: frozenset[str] | None = None,
-          provenance: bool = False, max_rounds: int = 1000,
+          provenance: bool = False, max_rounds: int = 1000, on_subgoal=None,
           focus_scope: frozenset[str] | None = None, scope: str | None = None) -> str:
     """CHECK `goal` and return one of POSITIVE / ENTAILED_NEG / ASSUMED_NO / UNKNOWN. Runs CHAIN for
     the positive (bounded); if absent, runs CHAIN for the negative; if that too is absent, the
@@ -91,14 +91,16 @@ def check(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     pred, subj, obj = goal
     fuel = _Exhaustion()
     chain_sip(fact_g, goal, rules=rule_g, provenance=provenance,    # demand-driven positive
-              max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope, scope=scope)
+              max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope, scope=scope,
+              on_subgoal=on_subgoal)
     if _present(fact_g, goal, scope=scope):
         return POSITIVE
     if fuel.exhausted:                                              # ran out of fuel before closure ->
         return UNKNOWN                                             # honest "didn't finish", not a no
     neg = (_neg_pred(pred), subj, obj)
     chain_sip(fact_g, neg, rules=rule_g, provenance=provenance,    # is the HARD negative entailed?
-              max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope, scope=scope)
+              max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope, scope=scope,
+              on_subgoal=on_subgoal)
     if _present(fact_g, neg, scope=scope):
         return ENTAILED_NEG
     if fuel.exhausted:

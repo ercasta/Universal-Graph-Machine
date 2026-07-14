@@ -148,13 +148,17 @@ def test_converse_midchain_ask_suspends_per_premise():
 
 
 def test_trace_streams_derivations_before_answer():
-    # trace=True surfaces one `derive` event per rule firing, in order, before the answer.
+    # trace=True surfaces the demand-side trace (NAF `subgoal` checks) then the provenance-side trace
+    # (`derive` per rule firing), in order, before the answer.
     kb, rules = load_corpus(THIEF)
     ingest(kb, rules, "ada is a suspect")
     ev = []
     out = ingest(kb, rules, "is ada thief", on_event=ev.append, trace=True)
     kinds = [e.kind for e in ev]
-    assert kinds == ["question", "derive", "answer"]
+    assert kinds == ["question", "subgoal", "derive", "answer"]
+    s = ev[kinds.index("subgoal")].data                   # the NAF check the thief rule raised
+    assert (s["subj"], s["pred"], s["obj"]) == ("ada", "is", "cleared")
+    assert s["found"] is False and s["depth"] >= 1        # nothing cleared ada -> "not cleared" holds
     d = ev[kinds.index("derive")].data
     assert d["fact"] == "ada is thief" and d["rule"]      # the firing names its fact and rule
     assert out.answer == ["yes"]
@@ -172,7 +176,7 @@ def test_converse_trace_interleaves_derivations():
     kb, rules = load_corpus(THIEF)
     ingest(kb, rules, "ada is a suspect")
     kinds, out = _drive(converse(kb, rules, "is ada thief", trace=True))
-    assert kinds == ["question", "derive", "answer"]
+    assert kinds == ["question", "subgoal", "derive", "answer"]
     assert out.answer == ["yes"]
 
 

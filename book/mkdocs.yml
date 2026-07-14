@@ -1,0 +1,71 @@
+site_name: The Universal Graph Machine
+site_description: A machine that reasons — and can always show its work. A tutorial for curious beginners.
+site_url: https://ercasta.github.io/Universal-Graph-Machine/
+repo_url: https://github.com/ercasta/Universal-Graph-Machine
+repo_name: ercasta/Universal-Graph-Machine
+copyright: Made with care for anyone curious about how machines can reason.
+
+# Simpler, deterministic paths (playground/detective.html) so the live pages
+# can reference the Pyodide wheel with a plain relative URL.
+use_directory_urls: false
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - toc.follow
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      permalink: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/playground.js
+
+nav:
+  - Home: index.md
+  - "Part 1 — Basic":
+      - "0 · A machine that explains itself": basic/00-a-machine-that-explains-itself.md
+      - "1 · The substrate": basic/01-the-substrate.md
+  - "Playground":
+      - "The detective case": playground/detective.md
+  - "Appendix — concepts": appendix/index.md

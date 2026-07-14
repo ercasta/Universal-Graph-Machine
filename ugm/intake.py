@@ -43,7 +43,7 @@ class Event:
     fire — same discipline as routing (no string sniff). An `"ask"` event brackets the human-in-the-loop
     `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). Per-EMIT reasoning
     trace (reuse the RECORD/`<j:>` substrate) and generator-based suspend/resume are 8.5b."""
-    kind: str                # focus|question|ask|derive|answer|fact|rule|rule-conflict|rule-disable|unrecognized
+    kind: str                # focus|question|ask|subgoal|derive|answer|fact|rule|rule-conflict|rule-disable|unrecognized
     data: dict = field(default_factory=dict)
 
 
@@ -125,6 +125,7 @@ def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace):
     before = _j_nodes(kb) if trace else set()
 
     memo: dict = {}                       # (subj, rel, obj) -> verdict, filled as each ask is answered
+    subgoals: list = []                   # the demand-side trace: goals/NAF-checks the chain raised
 
     def handler(s, r, o):
         if (s, r, o) in memo:             # already answered this turn -> reuse, don't re-ask
@@ -133,14 +134,34 @@ def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace):
 
     while True:
         try:
-            answer = ask_goal(kb, text, rules, policy=policy,
+            subgoals.clear()              # keep only the FINAL (complete) run's subgoal trace, not the
+            answer = ask_goal(kb, text, rules, policy=policy,   # partial pre-gather re-entries
                               ask_user=(handler if can_ask else None),
-                              focus_scope=fscope, provenance=trace)
+                              focus_scope=fscope, provenance=trace,
+                              on_subgoal=(subgoals.append if trace else None))
             break
         except _NeedVerdict as nv:
             verdict = yield Event("ask", {"subj": nv.subj, "rel": nv.rel, "obj": nv.obj})
             memo[(nv.subj, nv.rel, nv.obj)] = verdict
     if trace:
+        # The demand-side trace (what the machine asked itself) then the provenance-side trace (what it
+        # concluded) — the two halves of a demand-driven explanation. Only the "resolve" phase of the
+        # NAF checks (depth>=1) is streamed: those are the crux ("looked for X, found nothing -> not X").
+        # Collapse the SAME check (a chain may re-enter a subgoal) to one event, in first-seen order;
+        # monotone, so a check that is ever found stays found.
+        checks: dict = {}
+        order: list = []
+        for rec in subgoals:
+            if rec["phase"] != "resolve" or rec["depth"] < 1:
+                continue
+            key = (rec["pred"], rec["subj"], rec["obj"])
+            if key not in checks:
+                checks[key] = dict(rec)
+                order.append(key)
+            elif rec["found"]:
+                checks[key]["found"] = True
+        for key in order:
+            yield Event("subgoal", checks[key])
         for rec in _derivations_since(kb, before):
             yield Event("derive", rec)
     return answer

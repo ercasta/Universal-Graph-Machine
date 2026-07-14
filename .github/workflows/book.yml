@@ -1,0 +1,64 @@
+name: Build & deploy the book
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "book/**"
+      - "ugm/**"
+      - "pyproject.toml"
+      - ".github/workflows/book.yml"
+  workflow_dispatch:
+
+# Allow the workflow to publish to GitHub Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; don't cancel an in-progress publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build & docs tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+          python -m pip install -r book/requirements.txt
+
+      - name: Build the ugm wheel (for the in-browser Pyodide engine)
+        run: |
+          python -m build --wheel --outdir book/docs/wheels .
+          echo "Built wheels:"
+          ls -l book/docs/wheels
+
+      - name: Build the MkDocs site
+        run: mkdocs build --strict --site-dir site
+        working-directory: book
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: book/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
