@@ -481,16 +481,20 @@ In leverage order:
   LOW-RISK first rung, in PURE PYTHON** (the profile's `isinstance` 1.0 s + dict-`bind` 0.8 s are attackable
   without leaving Python: a dispatch-table for `_match_step`, int-interned keys, array/`__slots__` register
   states). Likely 2–3× at near-zero risk. Do this BEFORE (b) if perf bites.
-- **(b) → Phase 7b: the Rust engine, Python surface.** ⭐ FULL PLAN: **`docs/rust_engine_plan.md`** (written
-  2026-07-14, ready for a fresh multi-hour session). The graph LIVES in Rust; Python holds a PyO3 handle and
-  taps in at closure granularity. MEASURED CONSTANT: match inner loop 111 ms Python vs 0.29 ms Rust ≈ **381×**
-  (`bench/rust_pilot/`). ⚠ HONEST GUARDRAILS (baked into the plan): perf is NOT the current bottleneck
-  (session scale is fast); Rust buys the CONSTANT not the CURVE (focus holds the curve); Amdahl caps the
-  end-to-end win (~4.5× for recognition unless everything ports); the Python engine STAYS the reference
-  oracle, every slice differential-tested, nothing deleted; FREEZE the ISA first; VALUE IS FRONT-LOADED (port
-  substrate+matcher first, STOP-AND-ASSESS before `chain_sip`). "Make it the default" is a separate, later
-  gate after full parity. Start only when a real target-scale workload is measurably too slow AND (a) is
-  exhausted. ⚠Opus for design; ✓S for the mechanical slices under the plan's differential gate.
+- **(b) → Phase 7b: Rust core, Python surface.** ⭐ FULL PLAN: **`docs/rust_engine_plan.md`** (2026-07-14,
+  ready for a fresh multi-hour session). **STRATEGY (user-ratified): write procedures as ISA FIRMWARE first,
+  then port only the INTERPRETER** — do NOT reimplement `chain_sip` in Rust. TWO PHASES: **Phase A (Python,
+  the real work)** finish firmware-ifying the demand solver's WORK layer (route demand body-matching through
+  the ISA matcher seeded with the demand's bound endpoints → RETIRE the bespoke `_facts_matching`, unify
+  forward+demand on ONE matcher; env→registers; graded/value/coref→existing GRADE/VMATCH/coref-rules; the
+  demand loop+NAC = a control-machine program; isolate the minimal irreducible primitives). Pays off WITHOUT
+  Rust (thesis complete). **Phase B (Rust, bounded because of A)** port the ISA INTERPRETER — the procedures
+  come along as DATA both interpreters run. MEASURED CONSTANT: match inner loop 111 ms Python vs 0.29 ms Rust
+  ≈ **381×** (`bench/rust_pilot/`). ⚠ GUARDRAILS (in the plan): perf NOT the current bottleneck; Rust = CONSTANT,
+  focus = CURVE; Amdahl-bounded; Python engine STAYS the reference oracle, differential-tested, nothing
+  deleted; FREEZE the ISA first (Phase A may add a few primitives, expected). "Make it the default" = a
+  separate later gate. Start only when a real target-scale workload is too slow AND (a) is exhausted.
+  ⚠Opus for Phase A design; ✓S for the mechanical Phase-B slices under the differential gate.
 - **(c)** Per-rule AOT codegen = partial evaluation of APPLY (Soufflé-style), differentially gated.
 - **(d)** Two-tier execution for runtime-edited rules — fresh rules interpret, stable-hot rules compile in
   background, version-stamp invalidation on edit. JIT (Cranelift/copy-and-patch before LLVM) only if
