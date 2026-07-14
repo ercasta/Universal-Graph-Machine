@@ -129,11 +129,20 @@ blocks exist). Value: uniformity. Sequenced AFTER (X)'s work (else the `PRIM` ju
 Full de-privileging touches many modules (machine, attrgraph, apply, provenance, retraction, run_bank). We
 lock the PRINCIPLE and move (X) already in the target shape, rather than rip out flags globally first:
 
+0. **ISA value operands as regular nodes** (`docs/isa_value_operands_design.md`) — the SUBSTRATE ENABLER that
+   lands BEFORE (X). A demand endpoint NAME cannot cleanly become a register binding, because a name is a
+   reference to a coref class (over which operations aggregate), not a single node. Resolution (user's design):
+   a register holds only a NODE-POINTER; a value like `ada` is a REGULAR node carrying `<isa_operand_value>=
+   "ada"` (interned, distinct from an entity named `ada`, differentiated by attribute + use — no new kind),
+   which instructions interpret. This dissolves the fork-vs-aggregate crux (the name stays a reference-as-node;
+   resolution/aggregation stay inside the instructions, unchanged) and makes the `env`→`regs` conversion of
+   step 1 clean (uniform pointer register file). Narrow now (demand-solver bindings), general later ("just
+   change the lowering program" → the program-as-data homoiconicity milestone).
 1. **(X) core, pure-shape.** Lower each demand read+body to an ephemeral program — `SEED`/`FOLLOW` + the
    attribute guard (transitionally testing the existing inert/control markers AS attributes, via the compiler,
-   not a privileged matcher skip) + live-set membership; `env`→`State.regs`; `GRADE`/`VMATCH` for thresholds;
-   interleaving kept; differential-gated (the `_CROSSCHECK` harness). This lands the design in the target shape
-   WITHOUT needing the migrations first.
+   not a privileged matcher skip) + live-set membership; `env`→`State.regs` (on the step-0 pointer model);
+   `GRADE`/`VMATCH` for thresholds; interleaving kept; differential-gated (the `_CROSSCHECK` harness). This
+   lands the design in the target shape WITHOUT needing the migrations first.
 2. **Live-set mechanism** (register-pointed) → migrate **focus** onto it (already a register), then **scope
    pencils** onto a scope overlay.
 3. **De-privilege the markers** — `inert`/`control` flags → plain attributes; `<mention>` → attribute /
