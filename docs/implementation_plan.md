@@ -28,6 +28,23 @@ in the repo. `ask_goal` is demand-driven; `rewriter.py`/`goal.py`/`walker.py`/`d
 all deleted. The predicate-grain v0 `chain` cluster (`chain`/`demand_closure`/`relevant_rules`) was
 retired 2026-07-14 (superseded by `chain_sip`).
 
+**▶ LANDED 2026-07-14 — Phase A / A1 first increment: the demand matcher on the shared ISA matcher**
+(`docs/phase_a_demand_firmware.md`). "Python as firmware over ISA" (`docs/rust_engine_plan.md` §2 A1): the
+demand path's single-atom fact lookup now has a shared-`Machine.match` implementation
+(`chain._facts_matching_isa` — SET the bound endpoint → FOLLOW to rel → predicate-key TEST → FOLLOW to the
+other; free slots wrap `ById` natively), retiring the bespoke topology walk's role as a SECOND matcher.
+ADDITIVE + oracle-retained (the standing rule): the walk (`_facts_matching_walk`) stays the reference; a
+`chain._CROSSCHECK` gate makes every `_facts_matching` call assert the two agree. Proven equal across the
+WHOLE reasoning suite with the gate globally ON (391 green) + a dedicated differential test (9,
+`tests/test_isa_demand_matcher_differential.py`) over every shape (bound-subj/wildcard, bound-obj/wildcard,
+both-bound, whole-predicate, nested-NAF, coref `same_as`, SUPPOSE scope pencils, focus attention, `ById`).
+KEY FINDING (feeds A5): the walk = an ISA-structural topology walk (now the shared matcher) + THREE
+irreducible visibility filters that are runtime POLICY not graph structure — fact-layer endpoint/rel
+visibility, SUPPOSE scope-pencil visibility, focus attention. The SWAP (flip production to the ISA path,
+delete the walk) + the fork for where those filters live (a Machine `visible(nid)` predicate vs. driver
+post-filter — this increment takes the conservative post-filter, contract-untouching) are the user's
+ratified gate. Perf NOT the driver — this is the architecture win Phase A pays WITHOUT Rust (one matcher).
+
 **▶ LANDED 2026-07-14 — mechanism/policy separation, Axis B: control state → machine registers**
 (`docs/axis_b_control_registers.md`). New `AttrGraph.registers` (dict) = the CONTROL-REGISTER FILE, the
 "second home" — physically separate from the node/edge store, so matching/`nodes()`/`derived_triples`

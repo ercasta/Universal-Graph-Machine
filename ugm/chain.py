@@ -17,6 +17,7 @@ v0 SCOPE (differentially gated against `run_bank` over the full bank):
 from __future__ import annotations
 
 import warnings
+from collections import Counter
 from dataclasses import dataclass
 
 from .attrgraph import AttrGraph
@@ -25,6 +26,7 @@ from .apply import (
     _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
     _rel_in_scope, build_head_index, rules_producing, SCOPE,
 )
+from .machine import Machine, SEED, FOLLOW, SET
 from .production_rule import is_var, is_bound_literal, literal_name
 from .vocabulary import SAME_AS
 
@@ -309,10 +311,10 @@ def _rel_matches_pred(g: AttrGraph, rel: str, pred: str, scope: str | None) -> b
     return True
 
 
-def _facts_matching(fact_g: AttrGraph, pred: str,
-                    subj_name: str | None, obj_name: str | None,
-                    *, scope: str | None = None,
-                    focus_scope: frozenset[str] | None = None) -> list[tuple[str, str]]:
+def _facts_matching_walk(fact_g: AttrGraph, pred: str,
+                         subj_name: str | None, obj_name: str | None,
+                         *, scope: str | None = None,
+                         focus_scope: frozenset[str] | None = None) -> list[tuple[str, str]]:
     """The `(subj_name, obj_name)` of every FACT `pred` whose bound endpoints match the demand (a
     None endpoint is a wildcard). The bound-tuple analog of APPLY's whole-predicate scan — SIP
     prunes to the demanded subject/object. Within a SUPPOSE `scope`, this scope's pencil is visible too.
@@ -379,6 +381,101 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
             sn, on = fact_g.name(s), fact_g.name(o)
             if keep(sn, on):
                 out.append((ById(s), ById(o)))
+    return out
+
+
+# --- A1: the demand lookup on the SHARED ISA matcher (docs/phase_a_demand_firmware.md) -------------
+#
+# The bespoke `_facts_matching_walk` above is a SECOND matcher (a hand-written topology walk). A1's
+# thesis: that walk IS the ISA matcher's walk — SET the bound endpoint node, FOLLOW to the rel, TEST
+# the predicate key, FOLLOW to the other endpoint. `_facts_matching_isa` does exactly that through the
+# ONE `Machine.match`, so forward and demand unify on one matcher (the precondition for a single Rust
+# interpreter, Phase B). The three demand-specific VISIBILITY filters that are NOT ISA-structural stay
+# as post-filters — the irreducible demand policy A5 isolates (fork (b), see the doc §2): fact-layer
+# endpoint/rel visibility (skip control/inert scaffolding), SUPPOSE scope-pencil visibility
+# (`_rel_matches_pred`), and focus attention (`keep`). A free slot wraps to `ById(node)` — native
+# here, since the matcher's register already holds the specific node id.
+
+_ISA_READER = Machine()   # skip_inert OFF: the post-filters below skip inert AND control, exactly the
+# walk (so the ISA path and the walk see the identical candidate set — provable parity, not near-parity)
+
+_CROSSCHECK = False   # A1 differential gate: when True, every `_facts_matching` asserts the ISA path
+# agrees with the bespoke walk on that call (order-insensitive). The reference oracle (the walk) is
+# retained; the production SWAP to the ISA path is the user's ratified gate (doc §4). Tests flip it on.
+
+
+def _facts_matching_isa(fact_g: AttrGraph, pred: str,
+                        subj_name: str | None, obj_name: str | None,
+                        *, scope: str | None = None,
+                        focus_scope: frozenset[str] | None = None) -> list[tuple[str, str]]:
+    """The single-atom demand fact lookup with the TOPOLOGY WALK done by the shared ISA matcher (A1).
+    Behaviour-identical to `_facts_matching_walk` (differentially gated by `_CROSSCHECK`); see the
+    module note above and `docs/phase_a_demand_firmware.md`."""
+    out: list[tuple[str, str]] = []
+
+    def keep(s: str, o: str) -> bool:
+        return focus_scope is None or s in focus_scope or o in focus_scope
+
+    if subj_name is not None:                              # (pred, subj, ?) — walk OUT of the subject
+        subj_key = _scope_key(fact_g, subj_name)
+        prog = [SET("s", ""), FOLLOW("r", "s", "out"), FOLLOW("o", "r", "out")]
+        for s in _candidate_nodes(fact_g, subj_name):
+            if fact_g.is_control(s) or fact_g.is_inert(s):
+                continue
+            prog[0] = SET("s", s)
+            for st in _ISA_READER.match(fact_g, prog):
+                rel, o = st.regs["r"], st.regs["o"]
+                if not _rel_matches_pred(fact_g, rel, pred, scope):
+                    continue
+                if fact_g.is_control(o) or fact_g.is_inert(o):
+                    continue
+                if obj_name is not None and not _endpoint_matches(fact_g, o, obj_name):
+                    continue
+                if keep(subj_key, fact_g.name(o)):
+                    out.append((subj_name, obj_name if obj_name is not None else ById(o)))
+        return out
+    if obj_name is not None:                               # (pred, ?, obj) — walk INTO the object
+        obj_key = _scope_key(fact_g, obj_name)
+        prog = [SET("o", ""), FOLLOW("r", "o", "in"), FOLLOW("s", "r", "in")]
+        for o in _candidate_nodes(fact_g, obj_name):
+            if fact_g.is_control(o) or fact_g.is_inert(o):
+                continue
+            prog[0] = SET("o", o)
+            for st in _ISA_READER.match(fact_g, prog):
+                rel, s = st.regs["r"], st.regs["s"]
+                if not _rel_matches_pred(fact_g, rel, pred, scope):
+                    continue
+                if fact_g.is_control(s) or fact_g.is_inert(s):
+                    continue
+                if keep(fact_g.name(s), obj_key):
+                    out.append((ById(s), obj_name))
+        return out
+    for st in _ISA_READER.match(fact_g, [SEED("r", pred, cmp=None)]):   # (pred, ?, ?) — predicate scan
+        rel = st.regs["r"]
+        if not _rel_matches_pred(fact_g, rel, pred, scope):
+            continue
+        for s, o in _endpoints(fact_g, rel):
+            sn, on = fact_g.name(s), fact_g.name(o)
+            if keep(sn, on):
+                out.append((ById(s), ById(o)))
+    return out
+
+
+def _facts_matching(fact_g: AttrGraph, pred: str,
+                    subj_name: str | None, obj_name: str | None,
+                    *, scope: str | None = None,
+                    focus_scope: frozenset[str] | None = None) -> list[tuple[str, str]]:
+    """The single-atom demand fact lookup (SIP). Currently the bespoke topology walk
+    (`_facts_matching_walk`, the reference oracle); when `_CROSSCHECK` is set it asserts the shared
+    ISA-matcher path (`_facts_matching_isa`, A1 — `docs/phase_a_demand_firmware.md`) agrees on every
+    call, the differential gate for retiring the second matcher (the swap is the user's ratified gate)."""
+    out = _facts_matching_walk(fact_g, pred, subj_name, obj_name, scope=scope, focus_scope=focus_scope)
+    if _CROSSCHECK:
+        isa = _facts_matching_isa(fact_g, pred, subj_name, obj_name, scope=scope, focus_scope=focus_scope)
+        if Counter(out) != Counter(isa):
+            raise AssertionError(
+                f"A1 demand-matcher divergence for ({pred!r},{subj_name!r},{obj_name!r}) "
+                f"scope={scope!r} focus_scope={focus_scope!r}:\n  walk={out!r}\n  isa ={isa!r}")
     return out
 
 

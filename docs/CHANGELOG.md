@@ -12,6 +12,27 @@ this log is itself a historical record.
 
 ---
 
+## 2026-07-14
+
+### Phase A / A1 first increment — the demand matcher on the shared ISA matcher (391 passed)
+"Python as firmware over ISA" (`docs/rust_engine_plan.md` §2, `docs/phase_a_demand_firmware.md`). The demand
+path's single-atom fact lookup (`chain._facts_matching`) was a SECOND matcher — a bespoke topology walk
+separate from the forward `Machine.match`. A1 unifies it: `chain._facts_matching_isa` does the same lookup
+through the ONE ISA matcher (SET the bound endpoint → FOLLOW to the rel → predicate-key TEST → FOLLOW to the
+other endpoint; a free slot's register already holds the node id, so it wraps `ById` natively). ADDITIVE and
+oracle-retained (the standing rule): the walk (`_facts_matching_walk`) stays the reference; `chain._CROSSCHECK`
+makes every `_facts_matching` call assert the two agree (order-insensitive multiset). Proven equal across the
+WHOLE reasoning suite with the gate globally ON (391 green) + `tests/test_isa_demand_matcher_differential.py`
+(9) covering every shape (bound-subj/wildcard, bound-obj/wildcard, both-bound, whole-predicate, nested-NAF,
+coref `same_as`, SUPPOSE scope pencils, focus attention, `ById`) plus a gate-fires-on-divergence sanity test.
+KEY FINDING (feeds A5): the walk = an ISA-structural topology walk (now the shared matcher) + THREE
+irreducible visibility filters that are runtime POLICY, not graph structure — fact-layer endpoint/rel
+visibility (skip control/inert scaffolding), SUPPOSE scope-pencil visibility, focus attention. The production
+SWAP (flip to the ISA path, delete the walk) + the fork for where those filters live (a Machine `visible(nid)`
+predicate vs. driver post-filter) are the user's ratified gate; this increment takes the conservative
+post-filter fork, which touches nothing in the to-be-frozen instruction-set contract. Perf is NOT the driver:
+this is the architecture win Phase A pays out WITHOUT Rust (forward + demand on one matcher).
+
 ## 2026-07-12
 
 ### pystrider feedback #6 — read-only `suppose(commit=False)` (343 passed)

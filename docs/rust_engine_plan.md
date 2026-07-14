@@ -63,7 +63,9 @@ holds the CURVE — orthogonal.
 - **`chain_sip` (demand):** control skeleton is on the machine (brick #3 — subgoal descent = the control
   stack), BUT the WORK is bespoke Python: `_facts_matching` topology-walks from bound endpoints (a SECOND
   matcher, not the ISA one), the env is a Python dict (not the register file), and `_solve_demand_rule`
-  raises/reads sub-demands in Python. THIS is the main Phase-A target.
+  raises/reads sub-demands in Python. THIS is the main Phase-A target. **UPDATE 2026-07-14:** the
+  single-atom lookup half now HAS an ISA-matcher implementation, differential-proven equal (see A1's
+  first-increment note in §2); the env-dict + interleaved sub-demand raising (A2) is the remaining half.
 - **`dispatch`:** `service_calls_cm` is a control-machine program already (brick #4-slice); sync inline,
   async via SUSPEND/RESUME. Little left.
 
@@ -83,6 +85,23 @@ randomized sweeps are the oracle):
   RETIRES the duplicate matcher and unifies forward + demand on one. Preserve the focus-scope filter by
   construction (it becomes a seed-set on the matcher). ⚠ the subtle part: `ById` free-slot binding + coref
   fan-out semantics must survive the switch.
+  - **▶ FIRST INCREMENT LANDED 2026-07-14** (`docs/phase_a_demand_firmware.md`). The single-atom demand
+    lookup now has a shared-ISA-matcher implementation (`chain._facts_matching_isa`: SET the bound endpoint
+    → FOLLOW to the rel → predicate-key TEST → FOLLOW to the other endpoint, through the ONE `Machine.match`;
+    free slots wrap `ById` natively — the register holds the node id). ADDITIVE: the bespoke walk
+    (`_facts_matching_walk`) stays the reference oracle; `chain._CROSSCHECK` makes every `_facts_matching`
+    call assert the two agree (order-insensitive). Proven equal across the WHOLE reasoning suite with the
+    gate globally ON (391 green) + a targeted differential test (`tests/test_isa_demand_matcher_differential.py`,
+    9) covering every shape (bound-subj/wildcard, bound-obj/wildcard, both-bound, whole-predicate, nested-NAF,
+    coref `same_as`, SUPPOSE scope pencils, focus attention, `ById`). KEY FINDING (feeds A5): the walk
+    decomposes into (a) an ISA-structural topology walk (moved to the shared matcher) + (b) THREE irreducible
+    visibility filters that are runtime POLICY, not graph structure — fact-layer endpoint/rel visibility
+    (skip control/inert scaffolding), SUPPOSE scope-pencil visibility, focus attention. The FORK for where
+    (b) lives after the swap (a Machine `visible(nid)` predicate vs. driver post-filter) is documented as the
+    user's ratified gate; this increment takes the conservative fork (b) (post-filter), which touches nothing
+    in the to-be-frozen contract and is valid under either outcome. REMAINING A1: flip production to the ISA
+    path + delete the walk (user gate), then A2 (the per-atom SIP join loop → whole-body `Machine.match`, the
+    harder half where the interleaved magic-set raising must survive).
 - **A2 — the env IS the register file.** The per-derivation Python env (`dict[str,str]`) becomes `State.regs`;
   bindings flow through the matcher's register file, not a side dict.
 - **A3 — graded / value-match / coref → existing opcodes.** `GRADE` (α-cut), `VMATCH` (value-JOIN), and the
