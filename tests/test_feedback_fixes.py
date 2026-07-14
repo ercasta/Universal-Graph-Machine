@@ -459,3 +459,38 @@ def test_parse_question_memo_returns_isolated_copies():
     q1["p"] = "corrupted"                                # a caller mutating its result…
     q2 = _parse_question("is c contested yes")
     assert q2["p"] == "contested"                        # …can never poison the memo
+
+
+# --- #14: the read-side split-join diagnostic must not crash on a shared-literal / phantom endpoint ---
+
+_DISCOUNT = "?m gets_discount yes when ?m premium yes and ?m big_spender yes"
+
+
+def _discount_world():
+    g = h.Graph(); ids = {}
+    n = lambda x: ids.setdefault(x, ids.get(x) or g.add_node(x))
+    g.add_relation(n("alice"), "premium", n("yes"))      # 'yes' is ONE shared object node across both facts
+    g.add_relation(n("alice"), "big_spender", n("yes"))
+    return g
+
+
+def test_why_provenance_over_shared_literal_object():
+    # #14: a why-trace whose decision object ('yes') is a literal shared across facts used to raise
+    # KeyError in the split-join guard (_is_fact_entity -> is_control on the shared 'yes'). Both the
+    # plain and provenance=True paths now render the same correct trace.
+    g = _discount_world()
+    plain = ask_goal(g, "why alice gets_discount yes", load_machine_rules(_DISCOUNT))
+    prov = ask_goal(g, "why alice gets_discount yes", load_machine_rules(_DISCOUNT), provenance=True)
+    assert plain[0].startswith("alice gets_discount yes")
+    assert prov[0].startswith("alice gets_discount yes")
+
+
+def test_split_join_guard_tolerates_phantom_endpoint():
+    # #14 root cause: the read-only diagnostic guard walks EDGE endpoints, which are not guaranteed to
+    # be minted nodes (a consumer that passes a raw label as an object id wires an edge to an
+    # unregistered id). The guard must skip such a phantom endpoint, not crash on is_control's KeyError.
+    from ugm.chain import _is_fact_entity
+    g = h.Graph()
+    alice = g.add_node("alice")
+    g.add_relation(alice, "premium", "yes")              # 'yes' passed as a raw label — never minted
+    assert _is_fact_entity(g, alice) is False            # the sole neighbour is a phantom -> no crash

@@ -165,7 +165,14 @@ def _is_fact_entity(fact_g: AttrGraph, n: str) -> bool:
     an entity a write competes for, so it must not inflate the same-named ambiguity count."""
     for rel in (*fact_g.succ(n), *fact_g.pred(n)):
         for other in (*fact_g.succ(rel), *fact_g.pred(rel)):
-            if other != n and not fact_g.is_control(other) and not fact_g.is_inert(other):
+            # `other` is an EDGE endpoint, which is not guaranteed to be a MINTED node: a consumer that
+            # passes a raw label where a node id is expected (`add_relation(a, "premium", "yes")`) wires an
+            # edge to an unregistered id, and a shared literal like `yes` is exactly the object reused across
+            # many triples (feedback #14). Such a phantom endpoint is not a fact entity a write competes for
+            # (it isn't a node at all), so skip it — this is a read-only DIAGNOSTIC guard and must never
+            # crash the query on `is_control`'s `self._nodes[nid]` KeyError.
+            if other != n and fact_g.has(other) \
+                    and not fact_g.is_control(other) and not fact_g.is_inert(other):
                 return True
     return False
 

@@ -554,6 +554,50 @@ would let a soundness check authored in CNL run at a cost comparable to the hand
 **Workaround available:** we can switch grammapy's `_cnl.derive` from `ask_goal` to the `chain_sip` tuple
 path for the ~2.7x, but the fixed firmware floor remains.
 
+> **FIXED (2026-07-14).** The read-side split-join DIAGNOSTIC (`_warn_name_split_join` → `chain._is_fact_entity`,
+> feedback #8a) walks a query node's EDGE endpoints, and an endpoint is NOT guaranteed to be a minted node —
+> a shared literal like `yes` reused across triples, or (the reproducible trigger) a consumer that passes a
+> raw label where a node id is expected (`add_relation(a, "premium", "yes")`) wires an edge to an unregistered
+> id. The guard now skips a phantom endpoint (`fact_g.has(other)`) — a non-node cannot be a fact entity a write
+> competes for — instead of crashing on `is_control`'s `self._nodes[nid]` KeyError; a read-only warning helper
+> must never abort the query. The originally-filed shape (a WELL-FORMED interned graph whose decision object
+> `yes` is one shared node — the yes/no-policy case) already renders an identical correct trace on both the
+> plain and `provenance=True` paths in the current build (a concurrent-work RECORD fix; the crash now
+> reproduces only against a genuinely malformed graph). A malformed graph — a raw label as a node id — still
+> SIGNALS, but past the guard and deeper, as a clearer `ProgramError: TEST referenced unbound register 'yes'`
+> naming the phantom, not a `KeyError` inside a warning helper. Tests in `tests/test_feedback_fixes.py`
+> (`test_why_provenance_over_shared_literal_object`, `test_split_join_guard_tolerates_phantom_endpoint`).
+
+## 14. `ask_goal(..., provenance=True)` raises `KeyError` on a shared object node (before deriving anything)
+
+Found building rulestrider (Phase 2 Track B — anomaly-checking a CNL rule bank). Asking a plain
+`why …` renders a correct multi-hop trace; asking the *same* question with `provenance=True` raises
+inside the read-side name-split-join guard, before any derivation runs:
+
+```python
+POLICY = "?m gets_discount yes when ?m premium yes and ?m big_spender yes"
+g = graph([("alice","premium","yes"), ("alice","big_spender","yes")])   # 'yes' is one shared object node
+ask_goal(g, "why alice gets_discount yes", load_machine_rules(POLICY))                    # OK -> real trace
+ask_goal(g, "why alice gets_discount yes", load_machine_rules(POLICY), provenance=True)   # KeyError: 'yes'
+```
+
+```
+File ugm/cnl/query.py:419  in ask_goal ->  _warn_name_split_join(graph, q)
+File ugm/cnl/query.py:342  in _warn_name_split_join ->  ... _is_fact_entity(graph, n)
+File ugm/chain.py:168      in _is_fact_entity ->  if other != n and not fact_g.is_control(other) ...
+File ugm/attrgraph.py:316  in is_control ->  return self._nodes[nid].control      # KeyError: 'yes'
+```
+
+`_is_fact_entity` iterates neighbours of a query node and calls `is_control(other)` on a neighbour id
+`'yes'` that isn't in `self._nodes` — looks like it's handing `is_control` a *name*/label where a node id
+is expected, or a shared literal object (`yes`, reused across many triples) isn't registered the way the
+guard assumes. It only fires on the `provenance=True` path (the plain `why` path is fine), and only when
+the object is a shared/reused node. **Not blocking** — read-only `commit=False` for detection + a
+fresh-graph plain `why` for the trace is the working pattern (a prior `commit=True` query otherwise
+materializes the derived fact, so a later `why` collapses to `(given)` instead of threading the rule —
+worth a doc note too). But `provenance=True` is unusable for the trace whenever a decision object is a
+shared literal, which for a yes/no policy is always.
+
 ---
 
 ### Net
