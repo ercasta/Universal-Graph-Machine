@@ -32,19 +32,19 @@ The book comes in three parts, each building on the last:
 
     ---
 
-    Why it's lazy on purpose, the difference between *"no evidence"* and
-    *"known false"*, and how it explains itself.
+    Why it's lazy on purpose, the difference between *"no"* and
+    *"I don't know"*, the language it speaks, and how it explains itself.
 
-    *(coming as we build the book out)*
+    [:octicons-arrow-right-24: Part 2](intermediate/05-no-and-unknown.md)
 
 - :material-numeric-3-circle:{ .lg .middle } **Advanced — the engine**
 
     ---
 
-    Supposing "what if?", questions of identity, and the tiny instruction set
-    that powers it all.
+    Supposing "what if?", questions of identity, gathering evidence, and the
+    tiny machine that powers it all.
 
-    *(coming as we build the book out)*
+    [:octicons-arrow-right-24: Part 3](advanced/09-supposing.md)
 
 </div>
 

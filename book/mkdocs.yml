@@ -3,7 +3,9 @@ site_description: A machine that reasons — and can always show its work. A tut
 site_url: https://ercasta.github.io/Universal-Graph-Machine/
 repo_url: https://github.com/ercasta/Universal-Graph-Machine
 repo_name: ercasta/Universal-Graph-Machine
-copyright: Made with care for anyone curious about how machines can reason.
+copyright: >
+  Made with care for anyone curious about how machines can reason ·
+  <a href="https://github.com/ercasta/Universal-Graph-Machine">View the project on GitHub</a>
 
 # Simpler, deterministic paths (playground/detective.html) so the live pages
 # can reference the Pyodide wheel with a plain relative URL.
@@ -69,6 +71,16 @@ nav:
       - "2 · Telling the machine facts": basic/02-facts.md
       - "3 · Asking questions": basic/03-questions.md
       - "4 · Rules: the word \"when\"": basic/04-rules.md
+  - "Part 2 — Intermediate":
+      - "5 · \"No\" and \"I don't know\"": intermediate/05-no-and-unknown.md
+      - "6 · Only chase what you need": intermediate/06-only-what-you-need.md
+      - "7 · Talking to the machine": intermediate/07-controlled-language.md
+      - "8 · Because…": intermediate/08-because.md
+  - "Part 3 — Advanced":
+      - "9 · Supposing": advanced/09-supposing.md
+      - "10 · Same name, same person?": advanced/10-identity.md
+      - "11 · Gathering evidence": advanced/11-gathering-evidence.md
+      - "12 · The machine underneath": advanced/12-the-machine-underneath.md
   - "Playground":
       - "The detective case": playground/detective.md
   - "Appendix — concepts": appendix/index.md

@@ -180,5 +180,6 @@ with answers it can always justify. That's a genuinely capable little mind.
 
 **Part 2 — Intermediate** opens up *how* it thinks: why it's lazy, the deep
 difference between *"no"* and *"I don't know,"* the controlled language you've
-been speaking all along, and how the "because" trail really works. See you
-there.
+been speaking all along, and how the "because" trail really works.
+
+[Begin Part 2 → "No" and "I don't know"](../intermediate/05-no-and-unknown.md)

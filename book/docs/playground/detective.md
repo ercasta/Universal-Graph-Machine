@@ -13,7 +13,14 @@ and finally its answer. Try these:
 - Ask `who is thief` — then **delete the line `ada is alibied`** and ask again.
 - Ask `why cy is thief` to see the machine's own reasoning trail.
 - Ask `is zz thief` — then tick **keep an open mind** and ask the *same*
-  question again. Watch `no` become `unknown`.
+  question again. Watch `no` become `unknown`. (It also flips `is ada thief`.)
+
+!!! tip "About *keep an open mind*"
+    This switch only changes answers the machine **can't prove** — a defeasible
+    `no` becomes `unknown`. It has **no effect** on questions it *can* prove, like
+    `who is thief` or `is cy thief`: proof doesn't care about your attitude toward
+    missing evidence. So try it on `is ada thief` or `is zz thief` to see it work.
+    (Chapter 5 explains why.)
 
 <div class="ugm-playground"
      data-wheel="../wheels/universal_graph_machine-0.1.0-py3-none-any.whl">
@@ -42,8 +49,8 @@ ada is alibied
 
   <label class="ugm-openmind">
     <input type="checkbox" class="ugm-open" />
-    keep an open mind <span class="ugm-hint">(treat missing evidence as
-    "unknown" instead of "no")</span>
+    keep an open mind <span class="ugm-hint">(an unprovable answer becomes
+    "unknown" instead of "no" — try it on <code>is ada thief</code>)</span>
   </label>
 
   <div class="ugm-quick">

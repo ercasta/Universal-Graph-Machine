@@ -91,5 +91,62 @@ between "I've proven no" and "I didn't find anything."
 
 ---
 
-*More entries — lattices, negation-as-failure, provenance, controlled natural
-language — will land here as the matching chapters are written.*
+## Negation-as-failure
+
+How does a machine decide something is *false*? One powerful answer:
+**negation-as-failure**. To decide *"cy is **not** cleared,"* the machine tries
+its hardest to prove the **positive** — *"cy is cleared"* — and if that search
+**fails**, it concludes the negative.
+
+It's exactly how you'd reason: *"Is there any reason to think cy is cleared? …No?
+Then cy isn't cleared."* In the playground's step view, it's the 🔍 check —
+*"is cy cleared? → found no evidence."*
+
+This is efficient and intuitive, but it leans on an assumption: that if the fact
+were true, you'd have found it. That's the [closed-world
+assumption](#closed-world-vs-open-world) again — which is why negation-as-failure
+and the open/closed-world question are two sides of one coin.
+
+> **Go deeper:** the phrases to search are "negation as failure" and "closed-world
+> assumption." They're foundational ideas in logic programming (the tradition
+> behind languages like Prolog and Datalog).
+
+---
+
+## Provenance
+
+**Provenance** means *a record of where something came from.* When the machine
+derives a new fact, it also stores a little receipt: which rule fired, and which
+facts that rule stood on. Do that for every conclusion and you get a complete
+trail from any belief back to the raw facts it rests on.
+
+That trail is what the machine reads back when you ask **`why`** — so an
+explanation isn't a story generated *about* the reasoning, it's the recorded
+reasoning itself, replayed. It's what lets you *trust* and *correct* the machine
+instead of taking its word on faith.
+
+> **Go deeper:** the ideas here live under "provenance" and "truth maintenance
+> systems" in computer science, and "proof" in logic — in this machine, the three
+> turn out to be the same thing.
+
+---
+
+## Controlled natural language (CNL)
+
+A **controlled natural language** is a deliberately restricted slice of an
+ordinary language (here, English), narrowed down so that every accepted sentence
+has exactly **one** meaning. `ada is a suspect` can't be read two ways.
+
+Ordinary English is full of ambiguity, which is fine for people but poison for a
+machine that has to reason precisely. A CNL keeps the friendly, readable feel of
+English while removing the guesswork — and, importantly, it tells you when you've
+written something outside its rules rather than misinterpreting you (a property
+called *habitability*).
+
+> **Go deeper:** look up "controlled natural language" and, for the specific
+> tradition UGM draws on, "Attempto Controlled English (ACE)."
+
+---
+
+*This appendix grows with the book. Spotted a concept you'd like explained here?
+The project lives on [GitHub](https://github.com/ercasta/Universal-Graph-Machine).*
