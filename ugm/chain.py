@@ -23,7 +23,7 @@ from .attrgraph import AttrGraph
 from .attrgraph import valued, GRADED, VALUED
 from .apply import (
     _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
-    _rel_in_scope, apply_rule, build_head_index, rules_producing, SCOPE,
+    _rel_in_scope, build_head_index, rules_producing, SCOPE,
 )
 from .production_rule import is_var, is_bound_literal, literal_name
 from .vocabulary import SAME_AS
@@ -200,94 +200,21 @@ class NonStratifiable(Exception):
     guard fires spuriously on stratifiable banks with coref propagation)."""
 
 
-def _mint_demand(rule_g: AttrGraph, pred: str) -> None:
-    """Materialize a predicate-grain demand for `pred` as a VISIBLE `<demand>` node carrying `for=pred` —
-    a subgoal record (the negative's explanation), matchable in the graph, not a register (see the
-    AXIS B BOUNDARY note above)."""
-    d = rule_g.add_node(DEMAND, control=True)
-    rule_g.set_attr(d, "for", valued(pred))
-
-
-def demanded_preds(rule_g: AttrGraph) -> set[str]:
-    """The predicates currently demanded (read back from the visible `<demand>` nodes)."""
-    out: set[str] = set()
-    for d in rule_g.nodes_named(DEMAND):
-        a = rule_g.get_attr(d, "for")
-        if a is not None:
-            out.add(str(a.value))
-    return out
-
-
-def demand_closure(rule_g: AttrGraph, goal_pred: str) -> set[str]:
-    """Close the demand set backward from `goal_pred` through the head index: a demanded predicate
-    pulls in the BODY predicates of every rule that produces it (those must hold for it to derive),
-    transitively. Mints a `<demand>` node per predicate (idempotent) so the magic set is visible."""
-    build_head_index(rule_g)                              # idempotent
-    already = demanded_preds(rule_g)
-    demanded: set[str] = set(already)
-    frontier = [goal_pred]
-    while frontier:
-        p = frontier.pop()
-        if p in demanded:
-            continue
-        demanded.add(p)
-        if p not in already:
-            _mint_demand(rule_g, p)
-        for rn in rules_producing(rule_g, p):
-            for _bs, bp, _bo in _read_atoms(rule_g, rn, "lhs"):
-                if bp not in demanded:
-                    frontier.append(bp)
-    return demanded
-
-
-def relevant_rules(rule_g: AttrGraph, demanded: set[str]) -> list[str]:
-    """The reified rule nodes whose head produces some demanded predicate — the ONLY rules CHAIN
-    applies. A rule outside this set derives nothing the goal needs, so skipping it is sound."""
-    out: list[str] = []
-    for p in demanded:
-        for rn in rules_producing(rule_g, p):
-            if rn not in out:
-                out.append(rn)
-    return out
-
-
-def chain(fact_g: AttrGraph, rule_g: AttrGraph, goal_pred: str,
-          *, fuel: int = 1_000_000, max_rounds: int = 500) -> int:
-    """Answer `goal_pred` demand-driven: close the demand set via the head index, then APPLY ONLY
-    the relevant rules to quiescence. Returns #facts derived. Complete for the goal predicate (it
-    derives every `goal_pred` fact the full-bank forward closure would) while never applying a rule
-    irrelevant to the goal — the demand-scoping win, with the magic set as visible `<demand>` nodes."""
-    demanded = demand_closure(rule_g, goal_pred)
-    rules = relevant_rules(rule_g, demanded)
-    total = 0
-    for _ in range(max_rounds):
-        n = 0
-        for rn in rules:
-            n += apply_rule(fact_g, rule_g, rn, fuel=fuel)
-        total += n
-        if n == 0:
-            break
-    return total
-
-
-# --- Phase 4.1: BOUND-TUPLE SIP (magic sets, one grain finer than the predicate demand) ----------
+# --- BOUND-TUPLE SIP (magic sets) — the demand-driven solver `chain_sip` --------------------------
 #
-# CHAIN v0's `<demand>` is at the PREDICATE grain — it restricts WHICH RULES run, then forward-rushes
-# them. The bound-tuple SIP restricts WHICH TUPLES: a goal `is_a(socrates, ?)` demands only
-# derivations ABOUT socrates, passing the bound subject sideways (SIP) down each rule body. This is
-# the magic-set the GoalSolver already computes at tuple grain (`goal.py`'s `_join_body`/`_pat_goal`),
-# realized here as VISIBLE bound `<demand>` nodes over the reified rules.
+# A demand is a bound tuple `(pred, subj|None, obj|None)` (a name or a wildcard), carried on a VISIBLE
+# `<demand>` control node as `for=/subj=/obj=`. `chain_sip` restricts WHICH TUPLES are derived: a goal
+# `is_a(socrates, ?)` demands only derivations ABOUT socrates, passing the bound subject sideways (SIP)
+# down each rule body. Evaluation INTERLEAVES demand-raising with evaluation (a sub-demand for a body
+# atom is raised while walking that body under a partial env, so a join variable bound by an earlier
+# atom grounds the next atom's demand) and iterates to a fixpoint.
 #
-# A demand is a bound tuple `(pred, subj|None, obj|None)` (a name or a wildcard), carried on a
-# `<demand>` control node as `for=/subj=/obj=`. The evaluation INTERLEAVES demand-raising with
-# evaluation (a sub-demand for a body atom is raised while walking that body under a partial env, so a
-# join variable bound by an earlier atom grounds the next atom's demand) and iterates to a fixpoint —
-# a static predicate closure can't bind join vars, which is why v0 stayed at predicate grain.
+# (A predicate-GRAIN precursor, `chain`/`demand_closure`, was retired 2026-07-14 — superseded by this
+# tuple-grain solver, which prunes not only WHICH RULES but WHICH TUPLES run.)
 #
-# v1 SCOPE (differentially gated vs `run_bank`): positive rules, plain-literal predicates; names are
+# SCOPE (differentially gated vs `run_bank`): positive rules, plain-literal predicates; names are
 # unique-noded (an EMIT resolves a head name to its node, minting if absent — same as APPLY's
-# `_resolve_head`); the per-env body bindings stay a Python env (the headline visible gadget here is
-# the bound `<demand>`; promoting the env to a `<frame>` as APPLY does is a later unification).
+# `_resolve_head`); the per-env body bindings stay a Python env.
 
 
 def _mint_bound_demand(rule_g: AttrGraph, demand: tuple[str, str | None, str | None]) -> str:

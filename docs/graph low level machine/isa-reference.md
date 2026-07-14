@@ -1,7 +1,8 @@
 # The Rule ISA — reference semantics (the cheap experiment, built)
 
 > **Status: BUILT as a reference interpreter (2026-07-05; opcode set and conformance suite grown
-> since — 14 opcodes, `tests/test_isa_machine.py` now 22 programs).** This is the small-step
+> since — 17 data-path opcodes: the matching core + `ITERATE`/`VMATCH` and the `MINT`/`EMIT`/
+> `DROP_CTRL`/`INTERPOSE`/`RESTORE`/`RETIRE` effects, plus the control path below).** This is the small-step
 > operational semantics of the label-less attribute ISA, with a runnable reference machine
 > (`ugm/`) and a hand-written conformance suite (`tests/test_isa_machine.py`,
 > no rules involved). It realizes "the cheap experiment" of
@@ -9,6 +10,14 @@
 > rule→opcode compiler, and see whether the set enumerates cleanly. Read `rule-isa-design.md`
 > (the design + the label-less-substrate revision) and `memory/decision_labelless_substrate`
 > first; this is the operational companion to them.
+>
+> **The machine now has BOTH an ISA plane and a CONTROL plane (control path BUILT 2026-07-14,
+> `docs/isa_control_machine.md`).** The opcodes below are the **data path** — a single straight-line
+> *basic block* (match-then-apply, run once). The **control path** (`ControlMachine`: a program counter
+> over labeled basic blocks + `BRANCH`/`BRANCH_IF`/`CALL`/`RET`/`SUSPEND` + a control stack + `PRIM`
+> interpreter steps) is the added half that makes loops, subgoals, fixpoints, and tool waits **compose as
+> instructions** instead of Python drivers. See "The control path" below; the two planes together are the
+> whole ISA (parallel to a real CPU's data lane + PC/JMP/CALL/RET).
 
 ---
 
@@ -177,6 +186,88 @@ Wiring note: the **production** reasoning path is `GoalSolver` (demand-driven, t
 this opcode makes retraction *representable + structurally safe in the reference machine*; putting it LIVE
 on the backward path is a separate step (a demand-time "is this fact interposed?" that again reuses the
 control-node skip) — decide then whether retraction runs on the backward path or only the forward TMS rules.
+
+---
+
+## The control path — control flow as instructions (BUILT 2026-07-14)
+
+> Companion design + slice log: `docs/isa_control_machine.md`. The opcodes above are the machine's **data
+> path** — one straight-line *basic block* (match-then-apply, run once, **no program counter**). They have
+> no control transfer: every loop / branch / subgoal / fixpoint / tool-wait was faked in a Python driver
+> (`run_bank`, `chain_sip`, `service_calls`) or hidden inside an opcode (`ITERATE`'s Python `for`). The
+> **control path** adds the missing half — a PC over an addressable program of basic blocks, plus the
+> control-transfer instructions — so those forms **compose as instructions**, not procedures. Parallel to
+> a real CPU: the data-path opcodes are the ALU/load-store lane; the control path is PC/JMP/CALL/RET.
+
+### The program and the machine
+
+A **program** is an ordered list of labeled **basic blocks** (`ugm/machine.py`'s `ControlMachine` over
+`Block`s). A block runs three phases:
+
+- **work** — EITHER the data-path `body` (the match-then-apply opcodes above, run by the base `Machine`)
+  OR a single `PRIM` — an *upper-level interpreter step*: a Python callable `fn(g, σ, ctrl) → (σ', flag)`
+  the control machine SEQUENCES but does not decode. `PRIM` is the escape hatch that lets the control
+  machine RUN the demand solver / fixpoint driver (the "two levels of program", §10 of the design) while
+  control stays ISA; its `flag` can land in a control register for a following `BRANCH_IF`.
+- **control** — scalar control-register ops (`SETI r,n` / `DEC r`) on the machine's **control registers**
+  (loop counters — a home distinct from the per-state `regs` AND from graph nodes: "how the machine
+  stepped", not a fact).
+- **terminator** — sets the next PC (and, for `CALL`/`RET`, moves the control stack).
+
+The machine carries a **PC** (indexing blocks), a scalar **control-register file** (`ctrl`), and a
+**control stack** (`stk`, frames of ⟨return-PC, saved register window⟩). Between blocks it threads the
+data-path **state stream** `σ` (`list[State]`). Fetch-decode-execute over the PC.
+
+### The control-transfer instructions (block terminators)
+
+Notation: `pc` the program counter, `label(L)` the block index of label `L`, `ctrl[r]` a control register,
+`stk` the control stack, `σ` the state stream, `ε` a single empty state.
+
+```
+FALL                 pc ← pc + 1                                          -- fall through (default)
+BRANCH L             pc ← label(L)                                        -- unconditional jump (JMP)
+BRANCH_IF r cmp v L  pc ← label(L) if ctrl[r] cmp v else pc + 1           -- conditional (JZ/JNZ)
+CALL L               push ⟨pc+1, σ, ctrl⟩ on stk ; σ ← [ε] ; pc ← label(L)   -- subroutine (fresh window)
+RET                  ⟨pc',σ',ctrl'⟩ ← pop stk ; σ ← σ' ; ctrl ← ctrl' ; pc ← pc'   -- return
+SUSPEND [r]          return Continuation⟨program, pc+1, stk, ctrl, σ, ctrl[r]⟩     -- yield to the host
+HALT                 stop ; return σ
+
+SETI r n             ctrl[r] ← n            -- (control phase) initialize a loop counter
+DEC  r               ctrl[r] ← ctrl[r] - 1  -- (control phase) step a loop counter
+```
+
+- **`CALL`/`RET`** push/pop the caller's **register window** (state stream + control snapshot); the callee
+  starts with a fresh window over the **shared** graph, so a subgoal's graph writes persist and the caller
+  reads them after `RET`. Subgoals nest to arbitrary depth on `stk` — the WAM environment stack, in the
+  machine rather than Python.
+- **`SUSPEND`** captures the WHOLE control state as a resumable **`Continuation`** (program, resume-PC,
+  stack, registers, stream, request) handed back to the driver; `ControlMachine.resume(g, cont, response)`
+  continues it. This is the continuation a mid-computation subgoal or an external tool/`ask_user` wait
+  needs.
+- There is **no backtracking** and no reverse execution: the reasoning is monotone, tabled, set-at-a-time,
+  so the control plane is **forward-only** (design §10). "Backward"/demand reasoning is a *program* on this
+  forward plane (a tabled solver that `CALL`s subgoals), not a second plane.
+
+### Loops, subgoals, fixpoints, waits — all instructions now (the driver ports)
+
+| Form | As control instructions | Ported driver |
+|---|---|---|
+| **loop** | `SETI i,N; L: <body>; DEC i; BRANCH_IF i>0,L` | `ITERATE` re-expressed as primitives (differential-tested to reproduce its effects); `ITERATE` STAYS as the bulk/REP convenience |
+| **subgoal** | `CALL` (arbitrary depth via `stk`) | `chain_sip`'s NAC negative subgoal — the demand solver's only recursion — de-recursed onto the control stack (generator-based: the yield IS the `CALL`, the driver stack IS the control stack). Proven by a 601-deep NAF stratification that runs under a Python recursion limit of 200 |
+| **fixpoint** | a `PRIM` round + `BRANCH_IF`-back over a "changed?" flag | `run_bank`'s `for _ in range(max_rounds)` loop IS this program now; `run_bank` assembles + runs it |
+| **tool wait** | sync = inline `PRIM`; async = `SUSPEND`+`RESUME` | the `<call>` dispatcher is a control-machine program; an `AsyncTool` SUSPENDs to the host and RESUMEs with the answer (the streaming boundary). The `<call>` RECORD stays a graph node; only the return/resume mechanics became instructions |
+
+Each port is **behaviour-identical** to the driver it replaces (the reasoning / recognition / planning
+suites are the differential oracle). Every Python control driver named in `docs/isa_control_machine.md` §1
+now runs as control-machine instructions; the **seam** — "a loop can't contain a subgoal" — is closed.
+
+### Performance posture (unchanged)
+
+The instruction set is the stable CONTRACT; the interpreter is SWAPPABLE (the reference-vs-optimized
+split, below). The finer instruction stream is naive-Python-slower, but it is exactly what a compiled
+(Rust) `match`-dispatch eats cheaply — Rust buys the CONSTANT. The algorithmic CURVE (session-accretion
+NAF) is held by seed-from-focus, not the interpreter. Correctness-first: the reference stays naive +
+differential-tested.
 
 ---
 

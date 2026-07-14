@@ -76,7 +76,7 @@ engine.
   FIRMWARE        CHAIN · CHECK · CHOOSE · SUPPOSE · mode-calls   ← the reasoning "psychology"
   reified rules   write_rule · head index                        ← homoiconic: rules are graph too
   TOOLS (§8)      <call> nodes · Tool registry · service_calls    ← generic calculator boundary
-  ENGINE (ISA)    Machine (opcodes) · run_bank · run_rules        ← the stupid scheduler
+  ENGINE (ISA)    Machine (data path) · ControlMachine (control path) · run_bank   ← the stupid scheduler
   SUBSTRATE       AttrGraph (label-less attribute graph)          ← one kind of thing: a node
 ```
 
@@ -117,19 +117,62 @@ state into many. There's a full worked example after the opcode table.
 | **SET** | match | bind a register directly to a known ground identity |
 | **DUP** | match | copy one register into another |
 | **SAME** | match | keep the state iff two registers are bound to the same node (join consistency) |
+| **VMATCH** | match | keep the state iff two bound registers carry matching values on a key (value-join across distinct nodes) |
+| **ITERATE** | match | bounded loop: fork the state stream over a range, binding a register counter (the bulk/REP convenience) |
 | **MINT** | effect | create a fresh node (Skolem / reified relation / chunk head), write attrs, wire edges |
 | **EMIT** | effect | assert a fact attribute on a bound node (graded: monotone raise; valued: set) |
 | **DROP_CTRL** | effect | delete a bare edge — refuses and raises if the edge is a FACT edge |
-| **INTERPOSE** | effect | reversibly hide an edge by splicing in a control marker (the sole fact-edge mutation) |
+| **INTERPOSE** | effect | reversibly hide an edge by splicing in a control marker (the sole *reasoning-reachable* fact-edge mutation) |
 | **RESTORE** | effect | the exact inverse of INTERPOSE |
+| **RETIRE** | effect | privileged real deletion of a reified relation — the retraction mechanism; **not** in the rule-lowering vocabulary |
 
 There is no NAC/`CHECK-ABSENT` opcode — the matching core is purely positive. Negation is
 not an ISA primitive but a FIRMWARE decision: in the forward driver a rule's NAC is a
 match-time filter, and in the demand-driven firmware a `not L` clause is resolved on demand by
 stratified **negation-as-failure** — `chain_sip` demands the positive to closure and reads
 absence, never an exhaustive-search opcode (`docs/demand_driven_negation_design.md`). Nothing
-is materialized or retracted for a negation. There is also no opcode that deletes or lowers a
-fact: the invariant is a property of the opcode set itself, not a lint pass.
+is materialized or retracted for a negation. No opcode *reachable from rule lowering* deletes or
+lowers a fact — that invariant is a property of the opcode set, not a lint pass. The one real
+fact-deletion opcode, `RETIRE`, is **privileged**: the rule→program lowering never emits it; only
+the retraction/GC policy driver assembles a program containing it, so monotonicity is a policy
+imposed *between* passes, never something ordinary reasoning can express.
+
+### The control path — control flow as instructions
+
+The opcodes above are the machine's **data path**: they run a rule as one straight-line *basic
+block* — match-then-apply, executed once. That leaves a gap the engine used to fill with Python:
+a rule body is a basic block, but the *control flow around it* — looping a fixpoint to quiescence,
+descending into a subgoal, waiting on a tool — lived in Python driver functions, outside the
+machine. UGM closes that gap with a **control path**: a program counter over a program of labeled
+basic blocks, plus explicit control-transfer instructions, so control flow composes as instructions
+the same way data flow does (`ugm/machine.py`'s `ControlMachine`).
+
+| Instruction | What it does |
+|-------------|--------------|
+| **BRANCH / BRANCH_IF** | jump / conditional jump — a loop is a branch *back* over a basic block |
+| **CALL / RET** | call a subroutine / return; a control **stack** carries subgoals to arbitrary depth |
+| **SUSPEND / RESUME** | capture the whole control state as a resumable *continuation* — for a tool call or a wait |
+| **SETI / DEC** | scalar control-register ops (loop counters), distinct from the per-state register file |
+| **PRIM** | run one step of an upper-level interpreter (the demand solver, a fixpoint round) under machine control |
+
+So the engine's own procedures are now programs on this machine, not Python:
+
+- a **bounded loop** is `SETI i,N; L: <body>; DEC i; BRANCH_IF i>0,L` — the bulk `ITERATE` opcode
+  decomposed into primitives (kept as a convenience for the data-parallel common case);
+- a **subgoal** is a `CALL`, so the demand solver's negation-as-failure descent runs on an explicit
+  control stack, not Python recursion — it closes a 600-deep stratified query with the interpreter's
+  recursion limit turned down to 200;
+- the **forward fixpoint** (`run_bank`) is a `PRIM` round with a branch-back over a "changed?" flag;
+- a **tool call** is inline when synchronous and `SUSPEND`/`RESUME` when it must wait on the outside
+  world (an async tool, a user prompt): the machine yields a continuation, the host answers, and it
+  resumes exactly where it paused.
+
+There is no backtracking and no reverse execution — reasoning is monotone and set-at-a-time, so the
+control plane is **forward-only**; "backward" (demand-driven) reasoning is itself a *program* on the
+forward plane (a tabled solver that `CALL`s subgoals), not a second engine. The instruction set is
+the stable contract and the interpreter is swappable — a compiled backend can replace the reference
+Python one without touching semantics. Full detail: `docs/isa_control_machine.md` and
+`docs/graph low level machine/isa-reference.md`.
 
 ## Processing modes — nine KB-level operations built on the ISA
 

@@ -1,17 +1,17 @@
 """
-Phase 3.3 head index + Phase 4.3 CHAIN firmware v0 (`harneskills/isa/{apply,chain}.py`).
+Phase 3.3 head index + the demand-driven solver `chain_sip` (bound-tuple SIP).
 
-The head index is graph structure (`<head-index>` hub -[headPred]-> rule). CHAIN uses it to
-demand-drive: close the demand set backward from a goal predicate, then APPLY only the relevant
-rules. Differentially gated against `run_bank` over the FULL bank: CHAIN derives exactly the
-goal-predicate facts the full forward closure does, while NEVER applying a rule the goal doesn't
-need (the demand-scoping win, made of visible `<demand>` control nodes).
+The head index is graph structure (`<head-index>` hub -[headPred]-> rule); `chain_sip` uses it to
+demand-drive, closing the bound-tuple demand set and applying only the relevant rules. Differentially
+gated against `run_bank` over the FULL bank: `chain_sip` derives exactly the goal-tuple facts the full
+forward closure does, while pruning to demanded TUPLES (the magic set of visible `<demand>` nodes).
+
+(The predicate-grain precursor `chain`/`demand_closure` was retired 2026-07-14 — see chain.py.)
 """
 import ugm as h
 from ugm import (
     AttrGraph, run_bank, derived_triples,
     build_head_index, rules_producing,
-    chain, demand_closure, relevant_rules, demanded_preds,
     chain_sip, bound_demands,
 )
 
@@ -36,10 +36,6 @@ def _reify(rules) -> tuple[AttrGraph, dict]:
     return rg, nodes
 
 
-def _preds(triples, pred) -> set:
-    return {t for t in triples if t[1] == pred}
-
-
 # --- Phase 3.3: the head index -------------------------------------------------------------------
 
 MORTAL = h.Rule(key="mortal", lhs=[h.Pat("?x", "is_a", "person")], rhs=[h.Pat("?x", "is_a", "mortal")])
@@ -60,62 +56,6 @@ def test_head_index_build_is_idempotent():
     build_head_index(rg)
     build_head_index(rg)                                   # second build adds nothing
     assert sorted(rules_producing(rg, "is_a")) == sorted([nodes["mortal"], nodes["person"]])
-
-
-# --- Phase 4.3: CHAIN demand closure + relevance -------------------------------------------------
-
-def test_demand_closure_pulls_body_predicates_transitively():
-    # eligible <- qualified <- member : demanding `eligible` must demand `qualified` and `member`.
-    D = h.Rule(key="d", lhs=[h.Pat("?x", "qualified", "?y")], rhs=[h.Pat("?x", "eligible", "?y")])
-    E = h.Rule(key="e", lhs=[h.Pat("?x", "member", "?y")], rhs=[h.Pat("?x", "qualified", "?y")])
-    UNREL = h.Rule(key="u", lhs=[h.Pat("?x", "b", "?y")], rhs=[h.Pat("?x", "unrelated", "?y")])
-    rg, nodes = _reify([D, E, UNREL])
-    demanded = demand_closure(rg, "eligible")
-    assert demanded == {"eligible", "qualified", "member"}   # transitive, NOT `unrelated`/`b`
-    assert demanded_preds(rg) == demanded                    # ... and visible as <demand> nodes
-    assert set(relevant_rules(rg, demanded)) == {nodes["d"], nodes["e"]}   # UNREL excluded
-
-
-# --- CHAIN differential gate ---------------------------------------------------------------------
-
-def test_chain_is_complete_for_goal_and_skips_irrelevant_rules():
-    facts = [("socrates", "is_a", "philosopher"), ("alice", "follows", "bob")]
-    # oracle: run_bank over the FULL bank
-    g1 = _facts(facts)
-    base1 = derived_triples(g1)
-    run_bank(g1, [MORTAL, PERSON, LIKES])
-    oracle = derived_triples(g1) - base1
-
-    # CHAIN the goal predicate `is_a`
-    g2 = _facts(facts)
-    base2 = derived_triples(g2)
-    rg, _ = _reify([MORTAL, PERSON, LIKES])
-    chain(g2, rg, "is_a")
-    got = derived_triples(g2) - base2
-
-    # complete for the goal predicate: every is_a fact the full closure derives, CHAIN derives
-    assert _preds(got, "is_a") == _preds(oracle, "is_a")
-    assert ("socrates", "is_a", "person") in got and ("socrates", "is_a", "mortal") in got
-    # demand-scoped: the `likes` rule is irrelevant to an `is_a` goal, so it never runs
-    assert _preds(got, "likes") == set()
-    assert ("alice", "likes", "bob") in _preds(oracle, "likes")   # the full bank DID derive it
-
-
-def test_chain_transitive_goal_matches_run_bank():
-    rule = h.Rule(key="is_a.transitive",
-                  lhs=[h.Pat("?a", "is_a", "?b"), h.Pat("?b", "is_a", "?c")],
-                  rhs=[h.Pat("?a", "is_a", "?c")])
-    facts = [("alice", "is_a", "ordering_customer"), ("ordering_customer", "is_a", "customer"),
-             ("customer", "is_a", "party")]
-    g1 = _facts(facts); base1 = derived_triples(g1); run_bank(g1, [rule])
-    oracle = derived_triples(g1) - base1
-
-    g2 = _facts(facts); base2 = derived_triples(g2)
-    rg, _ = _reify([rule])
-    chain(g2, rg, "is_a")
-    got = derived_triples(g2) - base2
-    assert got == oracle
-    assert ("alice", "is_a", "party") in got
 
 
 # --- Phase 4.1: BOUND-TUPLE SIP (chain_sip) ------------------------------------------------------

@@ -8,6 +8,14 @@
 > `harneskills-foundations-extended.md` (the prior art), `comparison-to-current-system.md`
 > (what harneskills already implements), `docs/vision.md` (the substrate philosophy this
 > must not violate), `docs/architecture.md` (the engine as built).
+>
+> **UPDATE (2026-07-14): BUILT, and extended with a CONTROL PATH.** This design describes the *data path*
+> — the opcodes that run a rule as a straight-line basic block ("the machine only *runs* rules"). What
+> ran those blocks was still Python (`run_bank`'s fixpoint, `chain_sip`'s recursion, the dispatch loop).
+> That gap is now closed: `docs/isa_control_machine.md` adds the **control path** (a PC over labeled basic
+> blocks + `BRANCH`/`CALL`/`RET`/`SUSPEND` + a control stack + `PRIM` interpreter steps), and the Python
+> drivers are ported onto it — so loops, subgoals, fixpoints, and tool waits are now ISA control, not
+> procedures. See `isa-reference.md` §"The control path" for the built semantics.
 
 ---
 

@@ -12,6 +12,12 @@
 > Read `isa-reference.md` (the opcode semantics + the honest verdict) and `rule-isa-design.md`
 > first. The ISA is the "make hardcoding STRUCTURALLY IMPOSSIBLE" move: with CNL → a dumb lowering
 > → a fixed generic machine, all domain content MUST be CNL rules — the guard becomes structure.
+>
+> **NOTE (2026-07-14).** This map covers the **data-path** opcodes (`SEED`/`FOLLOW`/`JOIN`/`GRADE`/`FUZZY`/
+> `MINT`/`EMIT`/`DROP_CTRL` + NAC shapes) — what each bank's *rules* lower to. The machine since gained a
+> **control path** (PC/`BRANCH`/`CALL`/`RET`/`SUSPEND`/`PRIM`) that runs those blocks — loops, subgoals,
+> fixpoints, and tool waits as instructions; see `isa-reference.md` §"The control path". The coverage
+> below is unchanged (control is orthogonal to which opcodes a rule uses).
 
 ## The opcode set (recap)
 
