@@ -33,6 +33,7 @@ from .vocabulary import MENTION
 from .machine import (
     Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, MINT, EMIT, DROP_CTRL,
     INTERPOSE, RESTORE, State,
+    ControlMachine, Block, PRIM, SETI, DEC, FALL, BRANCH_IF, HALT,
 )
 
 
@@ -524,7 +525,12 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
     fired: set[tuple[str, frozenset]] = set()
     has_drops = any(r.drop for r in rules)   # a drop orphans its rel node -> gc it (vision §5)
     total = 0
-    for _ in range(max_rounds):
+
+    def one_round(g, stream, ctrl):
+        """One fixpoint ROUND (a §10 PRIM interpreter step): collect-then-apply, returning a 'changed?'
+        flag — 1 if a firing (or a serviced tool `<call>`) advanced the graph, else 0 (quiesced). The
+        BRANCH_IF loops while it stays 1 (docs/isa_control_machine.md §9.5)."""
+        nonlocal total
         # COLLECT-THEN-APPLY (the engine's collect-pending-then-fire order): match + NAC-filter every
         # rule against the START-OF-ROUND graph, THEN apply. A rule never sees a half-updated graph, so
         # a guard tag (`a is_kw yes`) and the clause it gates (matchable only once its `body_subj` is
@@ -533,24 +539,24 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
         pending: list[tuple[int, list, State]] = []
         for i, (match_ops, effect_ops, nac_progs, keys, prem_regs, head_regs) in lowered:
             m = machine_prov if prov_aware[i] else machine   # meta rules match with inert visible
-            for st in m.match(ag, match_ops):
+            for st in m.match(g, match_ops):
                 sig = (rules[i].key, frozenset((k, st.regs[k]) for k in keys if k in st.regs))
                 if sig in fired:
                     continue
-                if any(m.match(ag, np, init=[State(dict(st.regs))]) for np in nac_progs):
+                if any(m.match(g, np, init=[State(dict(st.regs))]) for np in nac_progs):
                     continue                              # a NAC group has a witness -> blocked
                 fired.add(sig)
                 pending.append((i, effect_ops, st))
         if not pending:
             if tools:                                 # rules quiesced: service <call>s, re-run
                 from .dispatch import service_calls  # lazy (dispatch -> world_model import cycle)
-                if service_calls(ag, tools):
-                    continue
-            break
+                if service_calls(g, tools):
+                    return stream, 1                  # tool progress -> another round (was `continue`)
+            return stream, 0                          # quiesced -> exit (was `break`)
         for i, effect_ops, st in pending:
             emit_prov = provenance and not rules[i].meta   # META rules stay PROVENANCE-SILENT even
-            before = set(ag.nodes()) if emit_prov else None  # in a provenance=True run (the regress
-            out = machine.apply(ag, effect_ops, st)          # guard — a meta rule naming proves/uses
+            before = set(g.nodes()) if emit_prov else None   # in a provenance=True run (the regress
+            out = machine.apply(g, effect_ops, st)           # guard — a meta rule naming proves/uses
             total += 1                                       # would else re-match the <j:> it just
             if emit_prov:                              # minted), so reasoning + TMS/retraction rules
                 from .provenance import j_name, PROVES, USES   # can share ONE run (coref-as-rules).
@@ -560,17 +566,36 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
                 made = [n for hr in head_regs
                         if (n := out.regs.get(hr)) is not None and n not in before]
                 if made:
-                    j = ag.add_node(j_name(rules[i].key), inert=True)  # Phase 2.2: inert flag
+                    j = g.add_node(j_name(rules[i].key), inert=True)  # Phase 2.2: inert flag
                     for c in made:
-                        ag.add_relation(j, PROVES, c, inert=True)
+                        g.add_relation(j, PROVES, c, inert=True)
                     for pr in prem_regs:              # uses each still-present LHS premise rel node
                         pn = st.regs.get(pr)
-                        if pn is not None and ag.has(pn):
-                            ag.add_relation(j, USES, pn, inert=True)
-    if has_drops:                             # remove control rel nodes a DROP_CTRL orphaned
-        for nid in ag.nodes():                # (disconnected + control: never fact/rule structure)
-            if ag.is_control(nid) and not ag.succ(nid) and not ag.pred(nid):
-                ag.remove_node(nid)
+                        if pn is not None and g.has(pn):
+                            g.add_relation(j, USES, pn, inert=True)
+        return stream, 1                              # a firing advanced the graph -> another round
+
+    def final_gc(g, stream, ctrl):
+        if has_drops:                             # remove control rel nodes a DROP_CTRL orphaned
+            for nid in list(g.nodes()):           # (disconnected + control: never fact/rule structure)
+                if g.is_control(nid) and not g.succ(nid) and not g.pred(nid):
+                    g.remove_node(nid)
+        return stream, 0
+
+    # THE FIXPOINT AS A BRANCH-BACK (docs/isa_control_machine.md §9.5, brick #5). The Python
+    # `for _ in range(max_rounds)` driver loop is now a CONTROL-MACHINE program: a round counter (the
+    # `for` bound), a for-guard, a ROUND block whose PRIM runs one collect-then-apply round and reports
+    # `changed?`, and a branch-back. run_bank no longer HOLDS the loop — it ASSEMBLES the program and
+    # runs it (the Python driver is gone; control lives in the machine). Behaviour-identical to the loop
+    # above (the recognition/planning banks that exercise run_bank are the differential oracle).
+    program = [
+        Block(control=[SETI("rounds", max_rounds)], term=FALL()),           # for _ in range(max_rounds):
+        Block(label="HEAD", term=BRANCH_IF("rounds", "<=", 0, "DONE")),      #   the for-guard (budget)
+        Block(prim=PRIM(one_round, out="changed"), control=[DEC("rounds")],  #   one round; then loop back
+              term=BRANCH_IF("changed", ">", 0, "HEAD")),                    #   while it changed, else fall
+        Block(label="DONE", prim=PRIM(final_gc), term=HALT()),               # drop-orphan GC, once at end
+    ]
+    ControlMachine().run(ag, program)
     return total
 
 

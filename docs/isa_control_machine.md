@@ -25,8 +25,15 @@
 > (§9.3): the NAC subgoal descent is de-recursed onto an explicit control stack (generator-based, the
 > yield = the CALL, the driver stack = the control stack), behaviour-identical (whole reasoning suite
 > the oracle), proven by a 601-deep NAF stratification that runs under a recursion limit of 200. Suite:
-> **379 passed** (355 baseline + 23 control-machine + 1 deep-stratification). Remaining: dispatch (§9.4)
-> + run_bank fixpoint (§9.5), then the Python drivers + control-mechanics `<…>` tokens + the seam are gone.
+> **379 passed** (355 baseline + 23 control-machine + 1 deep-stratification). **Brick #5 (run_bank
+> fixpoint) is now DONE** (§9.5): the `for _ in range(max_rounds)` driver loop is a control-machine
+> program (round-counter for-guard + a `PRIM` collect-then-apply round + branch-back over a `changed?`
+> flag + a final drop-GC `PRIM`); `run_bank` assembles + runs it, behaviour-identical (suite 379 green,
+> the recognition/planning banks are the oracle). **Only §9.4 (dispatch) remains, and its concrete part
+> is already realized:** `service_calls` runs under the control-machine fixpoint (run_bank's round PRIM).
+> Its SUSPEND/RESUME "waiting tool" form (async / ask_user) has NO current consumer — the mechanism is
+> built (brick #4) and ready for the intake/streaming work, but wiring it now would be speculative
+> machinery with no differential oracle. So the DRIVER-PORT arc is effectively complete.
 >
 > **Prerequisite reading:** `ugm/machine.py` (the match-then-apply interpreter + its docstring's
 > "reference vs optimized" note), `ugm/chain.py` (`chain_sip` — subgoals as Python recursion),
@@ -261,10 +268,23 @@ Rust story (§7); the *curve* is held by this section, unchanged. Both levers, k
    descent, ~4 frames/stratum, would `RecursionError`). This realizes the continuation via Python
    generators — the yield IS the `CALL`, the driver stack IS the control stack; a machine-level
    `SUSPEND`/`RESUME` (brick #4 mechanism) is the same shape one level down.
-4. **Port `dispatch` (`<call>`) onto `CALL` + `SUSPEND`/`RESUME`** — retiring the `<call>` control node
-   (its record stays; its mechanics become instructions).
-5. **Port `run_bank`'s fixpoint** onto the control machine (a branch-back over a "changed?" flag). Then the
-   Python drivers are gone; the control-mechanics `<…>` tokens are gone; the seam is gone.
+4. ⏳ **Port `dispatch` (`<call>`) onto `CALL` + `SUSPEND`/`RESUME`** — retiring the `<call>` control node
+   (its record stays; its mechanics become instructions). *(PARTIAL 2026-07-14.)* The SYNCHRONOUS part is
+   already realized: `service_calls` runs inside the control-machine fixpoint (brick #5's round `PRIM`
+   services pending `<call>`s at rule-quiescence). The `<call>` RECORD stays a graph node (§6 — a rule
+   materializes it; it explains what was requested). The remaining SUSPEND/RESUME "return/resume" form is
+   for a WAITING tool (an async tool / `ask_user` — the streaming suspend/resume the intake design wants);
+   the mechanism is built (brick #4) but has NO current consumer, so wiring it now would be speculative
+   with no differential oracle. Deferred to the intake/streaming work, which supplies the async-tool
+   consumer that justifies it.
+5. ✅ **Port `run_bank`'s fixpoint** onto the control machine. *(BUILT 2026-07-14, `ugm/lowering.py`.)*
+   The Python `for _ in range(max_rounds)` driver loop is now a control-machine program: a round-counter
+   (the `for` bound), a for-guard `BRANCH_IF`, a ROUND block whose `PRIM` runs one collect-then-apply
+   round and reports a `changed?` flag, a branch-back while it changed, and a final `PRIM` for the
+   drop-orphan GC. `run_bank` ASSEMBLES the program and runs it — it no longer HOLDS the loop.
+   Behaviour-identical (the recognition/planning/reasoning banks that pervade the suite are the
+   differential oracle: **379 green**). The tool-service `continue`/`break` map to the round's
+   `changed`=1/0; the `max_rounds` bound is faithfully the round counter.
 6. **(Later, perf) the Rust interpreter** over the now-stable instruction set, differential-tested against
    the Python reference.
 
