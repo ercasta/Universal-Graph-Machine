@@ -106,6 +106,13 @@ loops the forward path.
 **What dies:** `_facts_matching`'s bespoke walk, the `env` dict, the Python threshold checks. **What stays
 Python:** the interpreter, the lowering compiler, and the thin demand driver (round loop + agenda).
 
+> **Note on "the same `lower_conj`" (2026-07-14, as built):** the landed (X) lowers each atom's read to
+> an ephemeral program built inline in `chain._facts_matching_isa` (SET/SEED/FOLLOW + the compiler-emitted
+> guard + MEMBER/OVERLAY), not through `lower_conj` itself — guardrail (iii) FORBIDS the whole-body
+> single-program match `lower_conj` produces (it would raise no per-atom sub-demands and break the demand
+> closure). The design's intent — one matcher, one binding model, compiler-emitted visibility — is met;
+> literally routing the per-atom program through `lower_conj` would add a call, not unification. Closed.
+
 ## 5. Decision 1 — dissolves into (X)
 
 With no kinds, there is no "fact-view mode" on the matcher and no explanation/control umbrella. A **"fact read"
@@ -123,6 +130,16 @@ same mechanism as (X). So Decision 1 is not a separate feature — it folds into
 The demand driver's "iterate to fixpoint" becomes a `PRIM` round + `BRANCH_IF`-back program, exactly as
 `run_bank`'s fixpoint already is (`docs/isa_control_machine.md` §9.5). New instructions: none (those control
 blocks exist). Value: uniformity. Sequenced AFTER (X)'s work (else the `PRIM` just wraps the same Python).
+
+**BUILT 2026-07-14.** Each goal-closure frame is a `ControlMachine` program (`chain._frame_program`):
+`SETI budget` → `PRIM(advance)` (run/continue one round) → `BRANCH_IF` fixpoint/budget branches, with the
+fuel→UNKNOWN honesty as the budget branch falling through to an `exhaust` PRIM. The NAC subgoal, which was a
+Python generator yield at the frame boundary, is now a machine `SUSPEND` (brick #4): the request travels in a
+control register onto the `Continuation`, and `chain_sip` is a thin driver over a stack of suspended machines
+(push a child frame program per subgoal, `resume` the parent mid-round when it completes). Round internals
+(`_round`/`_solve_demand_rule`) remain generators — the mid-round continuation the `advance` PRIM parks — and
+the agenda/policy state lives in a driver-owned `_Frame`, scalars in the machine's control registers (Axis B).
+Suite 423 green; behaviour identical (same DFS order, same stratification stack).
 
 ## 7. Sequencing (pure-shape from the start; don't boil the ocean)
 
@@ -164,15 +181,45 @@ lock the PRINCIPLE and move (X) already in the target shape, rather than rip out
    `Machine._inert_cache` (nid-keyed across graphs — a cold≠warm hazard, pystrider #10). Suite 419.
 2. **Live-set mechanism** (register-pointed) → migrate **focus** onto it (already a register), then **scope
    pencils** onto a scope overlay.
+   **[BUILT for the demand read 2026-07-14]** `MEMBER` (restrict, by name — focus) and `OVERLAY` (extend,
+   by id — the scope's pencils; degenerates to the plain absent-test with no set parked, so ONE program
+   shape serves scoped and unscoped reads). The overlay set is derived transitionally from the `SCOPE`
+   tags per lookup (`chain._scope_pencils` — the tag stays the pencil's persistent explanation); end-state:
+   the suppose/chain WRITERS maintain it incrementally. The forward path (`apply._fact_relnodes` etc.)
+   still reads tags directly — its migration rides the one-graph fold.
 3. **De-privilege the markers** — `inert`/`control` flags → plain attributes; `<mention>` → attribute /
    named-node; the guard reads attributes, not flags.
+   **[control/inert DONE 2026-07-14]** `AttrNode.control`/`inert` are no longer dataclass fields: the
+   MARKER ATTRIBUTE is the single source of truth, and the old flags are derived read-properties kept for
+   call-site compatibility (every `is_control`/`node.inert` reader now reads attributes through them).
+   `set_control`/`set_inert` write only the marker; `copy`/`absorb`/`to_dict` carry markers in `attrs`
+   (which also fixed `to_dict` silently dropping inert-ness). `<mention>` → attribute still open.
 4. **One-graph fold** — retire `rule_g`; rules join the fact graph, guarded by the same attribute discipline
    (Phase 3.1 step 2's hazard — "pattern nodes must not match as facts" — is exactly what this guard handles).
+   **[SUPPORTED 2026-07-14]** `rule_g` may BE `fact_g`: the marker-attribute guards already kept pattern
+   nodes out of fact reads; the last gap was the fact VIEW, closed by `PATTERN_MARK` — an ordinary
+   attribute `write_rule`/`build_head_index` stamp on rule wiring and `derived_triples` selects on
+   (authoring-written, view-selected, never machine-privileged; control-plane derivations like
+   `<goal> reached <plan>` are untouched). Parity split-vs-folded gated by `tests/test_one_graph_fold.py`
+   (joins, NAF, shared literal names, value-match, skolems, SUPPOSE). Callers still pass two graphs —
+   MIGRATING the public API to one graph (retiring the parameter) is the remaining, user-gated step.
+   **[API MIGRATED 2026-07-14, user-ratified.]** `chain_sip(g, goal)` / `check(g, goal)` /
+   `suppose(g, assumptions, predictions)` — the rules live in the graph itself by default; a SEPARATE
+   rule graph remains available as the explicit `rules=` keyword (a consumer's choice — e.g. a fresh
+   bank per hypothesis, the pystrider layout — no longer a requirement). All ~104 call sites migrated
+   mechanically (tokenizer-based, defs/strings skipped); suite 429 green, no old-form call remains.
 5. **Decision 3** (round loop → firmware) + **A5** (write down the irreducible primitives).
+   **[Decision 3 BUILT 2026-07-14 — see §6.]** A5 so far: TEST-absent (the fact-read guard), MEMBER
+   (live-set restrict), OVERLAY (live-set extend), skolem re-finding (`_find_skolem_witness`, still a
+   Python helper), sub-demand raising (`mint` — a driver step in the `_round` generator).
 
 ## 8. Migration backlog (so it is not lost)
 
 - `<mention>` → node attribute (or plain named node) selected by coref rules.
+  **[RESOLVED 2026-07-14 — already de-privileged.]** `<mention>` is a plain NAMED NODE and the marker is
+  an ordinary `is_a` RELATION the universal coref rule selects (`?x is_a <mention> and …`) — it MUST stay
+  a matchable relation for that rule to exist, so "→ attribute" would be a regression. The only special-
+  casing is view-level (`derived_triples` hides the handle), not matcher privilege. Nothing to do.
 - SUPPOSE pencils → register-pointed **scope overlay** (retires the pencil half of the transitional guard).
 - `<call>` / dispatch state → registers / ephemeral (confirm none is a persisted fact-graph node).
 - `is_control` / `is_inert` → ordinary attributes; the fact-read guard tests attributes, not flags.

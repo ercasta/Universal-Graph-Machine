@@ -26,7 +26,9 @@ from .apply import (
     _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
     _rel_in_scope, build_head_index, rules_producing, SCOPE,
 )
-from .machine import Machine, SEED, FOLLOW, SET, TEST, SAME, MEMBER, GRADE, VMATCH, State
+from .machine import Machine, SEED, FOLLOW, SET, TEST, SAME, MEMBER, OVERLAY, GRADE, VMATCH, State
+from .machine import (ControlMachine, Continuation, Block, PRIM, SETI, DEC,
+                      BRANCH, BRANCH_IF, SUSPEND, HALT)
 from .production_rule import is_var, is_bound_literal, literal_name
 from .vocabulary import SAME_AS
 
@@ -460,9 +462,13 @@ def _facts_matching_walk(fact_g: AttrGraph, pred: str,
 #   * a bound second endpoint — `TEST` on the NAME value (a name/value-pointer goal) or `SET`+`SAME`
 #     (an entity pin);
 #   * focus attention — the register-pointed `MEMBER` live-set op (§5: the working set's CONTENTS are
-#     driver policy, parked in `AttrGraph.registers[_FOCUS_LIVE]`; the membership TEST is mechanism).
-# The ONE Python post-filter left is SUPPOSE scope-pencil visibility (`pencil_ok`: a CONTROL rel is
-# visible iff it is the active scope's pencil — a disjunction awaiting the §8 scope-overlay live-set).
+#     driver policy, parked in `AttrGraph.registers[_FOCUS_LIVE]`; the membership TEST is mechanism);
+#   * SUPPOSE scope-pencil visibility — the register-pointed `OVERLAY` op (§5's 'extend' face): a rel
+#     must lack the control marker (the base) OR be in the active scope's pencil set (the overlay,
+#     parked in `registers[_SCOPE_OVERLAY]`, derived transitionally from the `SCOPE` tags — the tag
+#     stays the pencil's persistent explanation; the set is the read mechanism). With no scope the op
+#     degenerates to the plain absent-test, so ONE program shape serves scoped and unscoped reads.
+# NO Python post-filter remains — the read is entirely the program.
 # A free slot wraps to `ById(node)` — native here, since the register already holds the node id.
 
 _ISA_READER = Machine()   # skip_inert OFF: visibility lives in the PROGRAM (marker-attribute guards),
@@ -472,13 +478,25 @@ _CROSSCHECK = False   # A1 differential gate: when True, every `_facts_matching`
 # agrees with the bespoke walk on that call (order-insensitive). The reference oracle (the walk) is
 # retained; the production SWAP to the ISA path is the user's ratified gate (doc §4). Tests flip it on.
 
-_FOCUS_LIVE = "<focus>"   # the live-set register the read program's MEMBER op points at
+_FOCUS_LIVE = "<focus>"           # the live-set register the read program's MEMBER op points at
+_SCOPE_OVERLAY = "<scope-overlay>"   # the live-set register the read program's OVERLAY op points at
 
 
 def _guard(reg: str) -> list:
     """The compiler-emitted fact-read guard (§3): a fact endpoint/rel must carry NEITHER marker
     attribute. Uniform — an author can never forget it; the substrate stays kind-less."""
     return [TEST(reg, CONTROL_MARK, absent=True), TEST(reg, INERT_MARK, absent=True)]
+
+
+def _scope_pencils(fact_g: AttrGraph, scope: str | None) -> frozenset[str] | None:
+    """The OVERLAY live-set for the active SUPPOSE scope: the ids of ITS pencil rels (control rels
+    tagged `SCOPE=scope`) — visible in-scope although control-marked. None (no overlay — the base
+    absent-test alone) outside any scope. Transitional derivation from the persistent tags; the §5
+    end-state has the suppose/chain WRITERS maintain the set incrementally as they pencil."""
+    if scope is None:
+        return None
+    return frozenset(r for r in fact_g.nodes_with_key(SCOPE)
+                     if (a := fact_g.get_attr(r, SCOPE)) is not None and a.value == scope)
 
 
 def _bound_endpoint_ops(fact_g: AttrGraph, reg: str, endpoint) -> list:
@@ -498,16 +516,13 @@ def _facts_matching_isa(fact_g: AttrGraph, pred: str,
     note above). Behaviour-identical to `_facts_matching_walk` (differentially gated by
     `_CROSSCHECK`)."""
     out: list[tuple[str, str]] = []
-    prev_live = fact_g.registers.get(_FOCUS_LIVE)          # park the working set for MEMBER (policy);
-    fact_g.registers[_FOCUS_LIVE] = focus_scope            # transitional: set from the parameter here
+    prev_live = fact_g.registers.get(_FOCUS_LIVE)          # park the live-sets (policy) for the ops
+    prev_overlay = fact_g.registers.get(_SCOPE_OVERLAY)    # (mechanism); transitional: derived from
+    fact_g.registers[_FOCUS_LIVE] = focus_scope            # the parameters here, per call — later the
+    fact_g.registers[_SCOPE_OVERLAY] = _scope_pencils(fact_g, scope)   # drivers own them per run
     try:
-        rel_guard = [TEST("r", pred), TEST("r", INERT_MARK, absent=True)]
-        if scope is None:
-            rel_guard.append(TEST("r", CONTROL_MARK, absent=True))
-
-        def pencil_ok(rel: str) -> bool:                   # the one remaining post-filter (§8 backlog)
-            return scope is None or not fact_g.is_control(rel) or _rel_in_scope(fact_g, rel, scope)
-
+        rel_guard = [TEST("r", pred), TEST("r", INERT_MARK, absent=True),
+                     OVERLAY("r", CONTROL_MARK, _SCOPE_OVERLAY)]
         if subj_name is not None:                          # (pred, subj, ?) — walk OUT of the subject
             prog = [SET("s", ""), *_guard("s"),
                     FOLLOW("r", "s", "out"), *rel_guard,
@@ -517,9 +532,8 @@ def _facts_matching_isa(fact_g: AttrGraph, pred: str,
             for s in _candidate_nodes(fact_g, subj_name):
                 prog[0] = SET("s", s)
                 for st in _ISA_READER.match(fact_g, prog):
-                    if pencil_ok(st.regs["r"]):
-                        out.append((subj_name,
-                                    obj_name if obj_name is not None else ById(st.regs["o"])))
+                    out.append((subj_name,
+                                obj_name if obj_name is not None else ById(st.regs["o"])))
             return out
         if obj_name is not None:                           # (pred, ?, obj) — walk INTO the object
             prog = [SET("o", ""), *_guard("o"),
@@ -529,19 +543,18 @@ def _facts_matching_isa(fact_g: AttrGraph, pred: str,
             for o in _candidate_nodes(fact_g, obj_name):
                 prog[0] = SET("o", o)
                 for st in _ISA_READER.match(fact_g, prog):
-                    if pencil_ok(st.regs["r"]):
-                        out.append((ById(st.regs["s"]), obj_name))
+                    out.append((ById(st.regs["s"]), obj_name))
             return out
         prog = [SEED("r", pred, cmp=None), *rel_guard,     # (pred, ?, ?) — the whole-predicate scan
                 FOLLOW("s", "r", "in"), *_guard("s"),
                 FOLLOW("o", "r", "out"), *_guard("o"),
                 MEMBER(("s", "o"), _FOCUS_LIVE)]
         for st in _ISA_READER.match(fact_g, prog):
-            if pencil_ok(st.regs["r"]):
-                out.append((ById(st.regs["s"]), ById(st.regs["o"])))
+            out.append((ById(st.regs["s"]), ById(st.regs["o"])))
         return out
     finally:
         fact_g.registers[_FOCUS_LIVE] = prev_live
+        fact_g.registers[_SCOPE_OVERLAY] = prev_overlay
 
 
 def _facts_matching(fact_g: AttrGraph, pred: str,
@@ -874,49 +887,100 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     return fired
 
 
-def _close_goal(fact_g: AttrGraph, rule_g: AttrGraph,
-                goal: tuple[str, str | None, str | None], *, neg_stack, provenance, scope,
-                focus_scope, fuel, max_rounds, closed, visible):
-    """Close ONE goal's positive to fixpoint — the per-goal round-loop, as a GENERATOR (brick #3). It
-    serves every standing demand with the rules that produce it (raising bound sub-demands and EMITting)
-    until no new fact and no new demand. When a rule's NAC needs a negative subgoal closed, the delegated
-    `_solve_demand_rule`/`_nac_blocks` YIELD a `("subgoal", neg_goal, child_neg_stack)` request up to the
-    driver (`chain_sip`), which pushes a child `_close_goal` on the explicit control stack and resumes
-    this frame once it completes — so the subgoal descent is the machine's stack, not Python recursion.
-    Returns #facts EMITted in THIS goal's closure (nested-negative derivations count toward their OWN
-    frame, exactly as the old nested `chain_sip` return was discarded). `visible(d, neg_stack)` mints the
-    top-level magic-set trace (only when `neg_stack` is empty)."""
+class _Frame:
+    """The driver-owned POLICY state of one goal-closure frame (the control machine owns the LOOP):
+    the frame's local agenda (its demand sub-tree), the running derivation count, and `gen` — the
+    mid-round continuation (the round generator parked while a NAC subgoal is being closed). The
+    scalars the LOOP branches on (round budget, progress, pending-subgoal flag) live in the machine's
+    CONTROL REGISTERS, not here (Axis B: stepping state is a register)."""
+    __slots__ = ("agenda", "total", "gen")
+
+    def __init__(self, goal) -> None:
+        self.agenda: set[tuple] = {goal}
+        self.total = 0
+        self.gen = None
+
+
+def _round(fact_g: AttrGraph, rule_g: AttrGraph, frame: _Frame, *, neg_stack, provenance,
+           scope, focus_scope, fuel, max_rounds, closed, visible):
+    """ONE fixpoint round over the frame's agenda, as a GENERATOR (brick #3): serve every standing
+    demand with the rules that produce it (raising bound sub-demands and EMITting); a NAC's negative
+    subgoal is YIELDed up (the `advance` PRIM turns the yield into a machine `SUSPEND`). Returns
+    `(fired, newly)` — the progress the loop's `BRANCH_IF` tests."""
+    newly: set[tuple] = set()
+
+    def mint(d):
+        if d not in frame.agenda and d not in newly:
+            newly.add(d)
+            visible(d, neg_stack)                          # visible magic-set node (trace), minted once
+
+    fired = 0
+    for demand in frame.agenda:
+        for rn in rules_producing(rule_g, demand[0]):
+            fired += (yield from _solve_demand_rule(
+                fact_g, rule_g, rn, demand, mint,
+                provenance=provenance, scope=scope, focus_scope=focus_scope,
+                neg_stack=neg_stack, fuel=fuel, max_rounds=max_rounds, closed=closed))
+    return fired, newly
+
+
+def _frame_program(fact_g: AttrGraph, rule_g: AttrGraph,
+                   goal: tuple[str, str | None, str | None], *, neg_stack, provenance, scope,
+                   focus_scope, fuel, max_rounds, closed, visible):
+    """Close ONE goal's positive to fixpoint — the per-goal round-loop as a CONTROL-MACHINE PROGRAM
+    (Decision 3, docs/firmware_over_isa_design.md §6): a `PRIM` runs (or, after a serviced subgoal,
+    CONTINUES) one round; `BRANCH_IF` loops it to fixpoint under a `SETI`/`DEC` round budget — the
+    same block shape as `run_bank`'s fixpoint (docs/isa_control_machine.md §9.5); fuel exhaustion is
+    the budget branch falling through (fuel→UNKNOWN honesty). A pending NAC subgoal leaves the
+    machine as a `SUSPEND` whose `Continuation` the driver (`chain_sip`) services (brick #4 — what
+    was a Python generator yield at the frame boundary is now a machine suspension). Returns
+    `(program, frame)`; the frame carries the driver-owned policy state (`_Frame`)."""
     visible(goal, neg_stack)
-    agenda: set[tuple[str, str | None, str | None]] = {goal}   # this frame's own demand sub-tree
-    total = 0
-    converged = False
-    for _ in range(max_rounds):
-        newly: set[tuple[str, str | None, str | None]] = set()
+    frame = _Frame(goal)
 
-        def mint(d, _agenda=agenda, _new=newly, _ns=neg_stack):
-            if d not in _agenda and d not in _new:
-                _new.add(d)
-                visible(d, _ns)                            # visible magic-set node (trace), minted once
+    def advance(g, stream, ctrl):
+        # one upper-interpreter step: run/continue the round generator. flag 1 = a subgoal request is
+        # parked in ctrl["req"] (the SUSPEND payload); flag 0 = the round completed (progress set).
+        gen = frame.gen
+        if gen is None:
+            gen = _round(fact_g, rule_g, frame, neg_stack=neg_stack, provenance=provenance,
+                         scope=scope, focus_scope=focus_scope, fuel=fuel,
+                         max_rounds=max_rounds, closed=closed, visible=visible)
+        try:
+            req = gen.send(None)
+        except StopIteration as e:
+            fired, newly = e.value
+            frame.agenda |= newly
+            frame.total += fired
+            frame.gen = None
+            ctrl["progress"] = 1 if (fired or newly) else 0
+            return stream, 0
+        frame.gen = gen                                    # park the mid-round continuation
+        ctrl["req"] = req                                  # ("subgoal", neg_goal, child_neg_stack)
+        return stream, 1
 
-        fired = 0
-        for demand in agenda:
-            for rn in rules_producing(rule_g, demand[0]):
-                fired += (yield from _solve_demand_rule(
-                    fact_g, rule_g, rn, demand, mint,
-                    provenance=provenance, scope=scope, focus_scope=focus_scope,
-                    neg_stack=neg_stack, fuel=fuel, max_rounds=max_rounds, closed=closed))
-        agenda |= newly
-        total += fired
-        if fired == 0 and not newly:                       # no new fact AND no new demand -> fixpoint
-            converged = True
-            break
-    if not converged and fuel is not None:                 # hit the round budget short of fixpoint ->
-        fuel.exhausted = True                              # the closure is not EXHAUSTED (fuel->UNKNOWN)
-    return total
+    def exhaust(g, stream, ctrl):
+        if fuel is not None:                               # budget spent short of fixpoint -> the
+            fuel.exhausted = True                          # closure is not EXHAUSTED (fuel->UNKNOWN)
+        return stream, 0
+
+    program = [
+        Block(control=[SETI("budget", max_rounds)]),
+        Block(label="round", prim=PRIM(advance, out="ev"),
+              term=BRANCH_IF("ev", ">", 0, "wait")),          # NAC subgoal pending -> suspend
+        Block(term=BRANCH_IF("progress", "=", 0, "done")),    # quiet round -> fixpoint (converged)
+        Block(control=[DEC("budget")],
+              term=BRANCH_IF("budget", ">", 0, "round")),     # budget left -> next round
+        Block(prim=PRIM(exhaust), term=BRANCH("done")),       # progress but no budget -> fuel
+        Block(label="wait", term=SUSPEND(request_reg="req")),
+        Block(term=BRANCH("round")),                          # resumed -> continue the SAME round
+        Block(label="done", term=HALT()),
+    ]
+    return program, frame
 
 
-def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
-              goal: tuple[str, str | None, str | None], *, max_rounds: int = 1000,
+def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
+              rules: AttrGraph | None = None, max_rounds: int = 1000,
               provenance: bool = False, scope: str | None = None,
               focus_scope: frozenset[str] | None = None,
               _neg_stack: frozenset[tuple[str, str | None, str | None]] = frozenset(),
@@ -931,21 +995,28 @@ def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
     scope's pencil facts as well as ink and EMITs its derivations back in PENCIL — same-graph, not a
     branch.
 
-    CONTROL-MACHINE PORT (brick #3, docs/isa_control_machine.md §9.3). `chain_sip` is now a DRIVER over
-    an EXPLICIT CONTROL STACK of `_close_goal` frames — the WAM environment stack — replacing the Python
-    recursion the NAC negative subgoal used (`_nac_blocks` used to CALL `chain_sip`). Each frame closes
-    one goal; when its NAC needs a negative closed it YIELDS a subgoal request, the driver pushes a child
-    frame for it (with `neg_stack | {neg_goal}`, so the stratification stack IS the control stack), runs
-    the child to completion (mutating the SHARED, monotone graph), then resumes the parent — the same DFS
-    order as the old recursion, so behaviour is identical (the reasoning suite is the differential oracle).
-    The subgoal descent now lives in the machine's stack, not Python's — the seam-crossing §9.3 promises.
+    CONTROL-MACHINE PORT (brick #3 §9.3 + Decision 3, firmware doc §6). Each goal-closure frame is a
+    CONTROL-MACHINE PROGRAM (`_frame_program`: PRIM round + BRANCH_IF fixpoint loop + SETI/DEC budget —
+    run_bank's §9.5 shape), and `chain_sip` is a DRIVER over an EXPLICIT STACK of suspended machines:
+    when a frame's NAC needs a negative closed, its program SUSPENDs with the subgoal as the
+    `Continuation.request`; the driver pushes a child frame program (with `neg_stack | {neg_goal}`, so
+    the stratification stack IS the control stack), runs it to completion (mutating the SHARED,
+    monotone graph), then RESUMEs the parent's continuation mid-round — the same DFS order as the old
+    recursion, so behaviour is identical (the reasoning suite is the differential oracle). What was a
+    Python generator yield at the frame boundary is now a machine suspension (brick #4).
 
     The agenda stays LOCAL to each frame (seeded from its goal, grown only by the sub-demands its own
     rules raise), and the visible `<demand>` trace is minted ONLY for the top-level goal (`neg_stack`
     empty). A nested negative frame needs no trace and mints none. Self-containment (a NAC closes ONLY its
     negated positive `L`, never re-entering the consumer whose NAC is being decided) is preserved: each
     frame is a distinct goal-closure on the stack; the `_closed`/`neg_stack` memo + prune keep NAF's
-    'the positive failed' read from L's COMPLETE extension."""
+    'the positive failed' read from L's COMPLETE extension.
+
+    ONE-GRAPH DEFAULT (the fold, firmware doc §7 step 4): the reified rules live in `rules` — by
+    default the FACT GRAPH ITSELF (rules are graph data like any other, segregated only by the
+    control/pattern marker attributes). Passing a separate graph keeps the classic split layout — a
+    consumer's choice (e.g. a fresh rule bank per hypothesis), no longer a requirement."""
+    rule_g = rules if rules is not None else fact_g        # the fold: one graph unless split by choice
     validate_ids(fact_g, goal[1], goal[2])                 # id-addressed pins must exist (silent->loud)
     # §7.2 (value operands): the goal's NAME endpoints become value-node POINTERS at this boundary, so
     # everything the solver carries downstream (env seeds, sub-demands, NAC goals) is a node-pointer.
@@ -963,27 +1034,31 @@ def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
             minted.add(d)
             _mint_bound_demand(fact_g, rule_g, d)
 
-    def frame(g, ns):
-        return _close_goal(fact_g, rule_g, g, neg_stack=ns, provenance=provenance, scope=scope,
-                           focus_scope=focus_scope, fuel=_fuel, max_rounds=max_rounds,
-                           closed=_closed, visible=visible)
+    def start(g, ns):
+        cm = ControlMachine()
+        program, fr = _frame_program(fact_g, rule_g, g, neg_stack=ns, provenance=provenance,
+                                     scope=scope, focus_scope=focus_scope, fuel=_fuel,
+                                     max_rounds=max_rounds, closed=_closed, visible=visible)
+        return cm, fr, cm.run(fact_g, program)
 
-    # THE CONTROL STACK: DFS over goal-closure frames. `send` is always None — a resumed parent reads the
-    # child's result from the SHARED graph (like `CALL`/`RET` where callee graph writes persist), not a
-    # return value. Only the ROOT frame's `total` is returned (nested closures count toward their own
-    # frame — the old nested `chain_sip` return was discarded).
-    stack = [frame(goal, _neg_stack)]
+    # THE CONTROL STACK: DFS over suspended frame machines. A resumed parent reads the child's result
+    # from the SHARED graph (like `CALL`/`RET` where callee graph writes persist), never a return value.
+    # Only the ROOT frame's `total` is returned (nested closures count toward their own frame — the old
+    # nested `chain_sip` return was discarded).
+    stack = [start(goal, _neg_stack)]
     root_total = 0
     while stack:
-        try:
-            req = stack[-1].send(None)                     # advance the deepest frame to its next subgoal
-        except StopIteration as e:                         # ... or to completion
+        cm, fr, res = stack[-1]
+        if isinstance(res, Continuation):                  # SUSPENDed on a NAC subgoal request
+            _kind, neg_goal, child_neg_stack = res.request     # ("subgoal", goal, neg_stack|{goal})
+            stack.append(start(neg_goal, child_neg_stack))     # push the child closure; parent waits
+        else:                                              # HALT — this frame's closure is complete
             stack.pop()
             if not stack:
-                root_total = e.value if e.value is not None else 0
-            continue
-        _kind, neg_goal, child_neg_stack = req             # ("subgoal", neg_goal, neg_stack|{neg_goal})
-        stack.append(frame(neg_goal, child_neg_stack))     # push the child closure (the control stack)
+                root_total = fr.total
+            else:
+                pcm, pfr, pres = stack[-1]                 # continue the parent mid-round, exactly
+                stack[-1] = (pcm, pfr, pcm.resume(fact_g, pres))   # where its SUSPEND paused it
     return root_total
 
 

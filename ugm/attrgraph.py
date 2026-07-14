@@ -71,6 +71,15 @@ ISA_OPERAND_VALUE = "<isa_operand_value>"
 CONTROL_MARK = "<control>"
 INERT_MARK = "<inert>"
 
+# PATTERN-SPACE marker (the one-graph fold, firmware §7 step 4): every relation `write_rule` /
+# `build_head_index` creates as REIFIED-RULE wiring (a pattern atom, a role rel, the head-index
+# entries) carries this ordinary graded attribute. It is AUTHORING-written and VIEW-selected
+# (`derived_triples` hides pattern-space from the fact view) — never machine-privileged: matching
+# already excludes rule wiring by its `<control>` marker; this one only tells the fact VIEW apart
+# from rule structure once both live in the ONE graph. Bracketed, so `predicate()`/`embedding`
+# ignore it like any control token.
+PATTERN_MARK = "<pattern>"
+
 # Provenance / withdrawal node names the 2-hop relation reader and locality traversal treat as
 # INERT (ported verbatim from world_model so `relations_from`/`within` behave identically during the
 # re-host; a later slice moves inertness onto the `control` flag per the audits).
@@ -118,21 +127,29 @@ class AttrNode:
     `inert` marks a provenance/justification node (`<j:...>`, and a `proves`/`uses` relation
     middle-node) — invisible to ordinary fact matching (`Machine.skip_inert`, `relations_from`,
     `within`, `embedding`), DISTINCT from `control`: a control-relation (e.g. the planner's
-    `chosen`) must stay visible to ordinary matching, only provenance bookkeeping is inert. A
-    dataclass FIELD, not an `attrs` key — so it can never collide with a domain schema key (a
-    KB about buildings could have its own unrelated "inert" attribute). Phase 2.2
-    (decision_attrgraph_rehost): supersedes the name-string `_is_inert`/`_INERT_NAMES` check for
-    every NODE-INSTANCE call site; `_is_inert` itself stays (rewriter.py's oracle imports it by
-    identity), kept in lockstep by tagging `inert=True` at every provenance mint site alongside
-    the unchanged name.
+    `chosen`) must stay visible to ordinary matching, only provenance bookkeeping is inert.
+
+    DE-PRIVILEGED (firmware §3, §7 step 3 — 2026-07-14): `control`/`inert` are no longer dataclass
+    FIELDS. The single source of truth is the MARKER ATTRIBUTE (`CONTROL_MARK`/`INERT_MARK` in
+    `attrs`, written at the `add_node`/`set_control`/`set_inert` chokepoints); the properties below
+    are derived READ views kept so every `node.control`/`is_control(nid)` call site works unchanged.
+    The reserved `<…>` key syntax keeps the marker collision-free with domain schema keys (the
+    reason the field existed). Phase 2.2's flag superseded the name-string `_is_inert`/`_INERT_NAMES`
+    check; the marker attribute now supersedes the flag — what a node "is" is its attributes.
 
     The `name`/`embedding`/`confidence` properties are the production CONVENTION (a former
     name-`Graph` node maps 1:1): they read the reserved `NAME`/`CONF` VALUED attrs and the graded
     attrs, so call-sites doing `graph.node(nid).name` keep working after the substrate swap."""
     nid: str
     attrs: dict[str, Attr] = field(default_factory=dict)
-    control: bool = False
-    inert: bool = False
+
+    @property
+    def control(self) -> bool:
+        return CONTROL_MARK in self.attrs
+
+    @property
+    def inert(self) -> bool:
+        return INERT_MARK in self.attrs
 
     @property
     def id(self) -> str:                                  # former Graph.Node.id
@@ -244,13 +261,16 @@ class AttrGraph:
         provenance/justification node (see `AttrNode.inert`).
         """
         ident = nid or node_id or f"n{next(self._counter)}"
-        node = AttrNode(nid=ident, control=control, inert=inert)
+        node = AttrNode(nid=ident)
         self._nodes[ident] = node
         self._out.setdefault(ident, set())
         self._in.setdefault(ident, set())
         if isinstance(name_or_attrs, dict):
             for key, attr in name_or_attrs.items():
-                self.set_attr(ident, key, attr)
+                if key in (CONTROL_MARK, INERT_MARK):   # engine marker: schema-exempt (`_set_marker`)
+                    self._set_marker(ident, key)
+                else:
+                    self.set_attr(ident, key, attr)
         elif name_or_attrs is not None:
             nm = str(name_or_attrs)
             self.set_attr(ident, NAME, valued(nm))
@@ -264,27 +284,22 @@ class AttrGraph:
                 self.set_attr(ident, nm, graded(1.0))
                 # Phase 2.2 HALF 2 (control-ness at mint): reserved `<…>` syntax + NOT inert ⟹ CONTROL
                 # — the ratified content-blind criterion (`decision-control-ness-criterion`) applied at
-                # the mint chokepoint, so every control token is flag-queryable (`is_control`) for the
-                # Phase-6 reader flip. Inert provenance (`<j:…>`/`<axiom>`, minted `inert=True`) is
-                # EXCLUDED — it is inert, not control. A caller's explicit `control=` still holds (only
-                # promotes False->True here, never demotes).
+                # the mint chokepoint, so every control token is queryable (`is_control`). Inert
+                # provenance (`<j:…>`/`<axiom>`, minted `inert=True`) is EXCLUDED — it is inert, not
+                # control. A caller's explicit `control=` still holds (only promotes, never demotes).
                 if not inert:
-                    node.control = True
+                    control = True
             for dim, v in (embedding or {}).items():
                 self.set_attr(ident, dim, graded(v))
             if confidence != 1.0:
                 self.set_attr(ident, CONF, valued(float(confidence)))
-        # MARKER LOCKSTEP (firmware §3): flags and marker attributes may never diverge. A marker
-        # arriving IN an attrs dict (copy/absorb/deserialize) restores its flag; a flag set by any
-        # path above (param, `<…>` auto-promote) writes its marker. This is the mint chokepoint —
-        # every relation/provenance/control mint routes through here.
-        if CONTROL_MARK in node.attrs:
-            node.control = True
-        if INERT_MARK in node.attrs:
-            node.inert = True
-        if node.control:
+        # MARKERS (firmware §3, §7 step 3 — the single source of truth): the mint chokepoint writes
+        # the marker ATTRIBUTES; the legacy `control=`/`inert=` params and a marker already present in
+        # an attrs dict (copy/absorb/deserialize) both land on the same attributes, and
+        # `node.control`/`node.inert` are derived views over them. Every mint routes through here.
+        if control:
             self._set_marker(ident, CONTROL_MARK)
-        if node.inert:
+        if inert:
             self._set_marker(ident, INERT_MARK)
         return ident
 
@@ -304,8 +319,7 @@ class AttrGraph:
         """Mark a node CONTROL-layer (or clear it). A control node is invisible to fact
         matching (vision §5) — used to demote ephemeral scaffolding a rule materialized
         (e.g. a recognition NAC completion) so it can never be read as a reasoning fact.
-        Dual-writes the `<control>` marker attribute (firmware §3 lockstep)."""
-        self._nodes[nid].control = flag
+        Writes the `<control>` marker attribute — the single source of truth (firmware §3)."""
         (self._set_marker if flag else self._clear_marker)(nid, CONTROL_MARK)
 
     def is_inert(self, nid: str) -> bool:
@@ -316,8 +330,8 @@ class AttrGraph:
         DISTINCT from `set_control`: an inert node is invisible to ORDINARY fact matching
         (`Machine.skip_inert`), whereas a control node stays matchable (only DROP_CTRL treats it
         differently) — provenance bookkeeping must vanish from reasoning, a control-relation like
-        the planner's `chosen` must not. Dual-writes the `<inert>` marker (firmware §3 lockstep)."""
-        self._nodes[nid].inert = flag
+        the planner's `chosen` must not. Writes the `<inert>` marker attribute — the single source
+        of truth (firmware §3)."""
         (self._set_marker if flag else self._clear_marker)(nid, INERT_MARK)
 
     # ------------------------------------------------------------------
@@ -637,7 +651,7 @@ class AttrGraph:
                        indexed_keys=set(self._indexed_keys))
         maxn = -1
         for nid, n in self._nodes.items():
-            g._nodes[nid] = AttrNode(nid=nid, attrs=dict(n.attrs), control=n.control, inert=n.inert)
+            g._nodes[nid] = AttrNode(nid=nid, attrs=dict(n.attrs))   # markers travel IN the attrs
             g._out[nid] = set(self._out.get(nid, ()))
             g._in[nid] = set(self._in.get(nid, ()))
             for key, a in n.attrs.items():

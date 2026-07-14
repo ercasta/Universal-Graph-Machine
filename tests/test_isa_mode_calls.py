@@ -77,7 +77,7 @@ def test_check_call_emits_the_positive_verdict_and_materializes_the_fact():
     results = check_results(g)
     assert results == [{"pred": "is", "subj": "robin", "obj": "flyer", "status": POSITIVE}]
     # the same verdict the direct firmware call returns (the call is just the dispatch shell)
-    assert check(_facts([("robin", "is", "bird")]), rule_g, ("is", "robin", "flyer")) == POSITIVE
+    assert check(_facts([("robin", "is", "bird")]), ("is", "robin", "flyer"), rules=rule_g) == POSITIVE
 
 
 def test_check_call_emits_assumed_no_for_a_closed_world_miss():

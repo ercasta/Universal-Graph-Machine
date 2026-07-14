@@ -139,8 +139,9 @@ def _record_confirmed(g: AttrGraph, ink_node: str) -> None:
     g.add_relation(j, PROVES, ink_node, inert=True)
 
 
-def suppose(fact_g: AttrGraph, rule_g: AttrGraph,
+def suppose(fact_g: AttrGraph,
             assumptions: list[Triple], predictions: list[Triple], *,
+            rules: AttrGraph | None = None,
             provenance: bool = False, commit: bool = True,
             focus_scope: frozenset[str] | None = None) -> SupposeResult:
     """Entertain `assumptions` in a `<hypothesis>` scope, CHAIN their consequences in pencil, and CHECK
@@ -164,6 +165,7 @@ def suppose(fact_g: AttrGraph, rule_g: AttrGraph,
     `focus_scope`), keeping per-hypothesis cost tracking the focus, not the accreted graph. `None` =
     whole-graph (behaviour-identical). Orthogonal to the pencil `scope` (which segregates the hypothesis)."""
     from .chain import validate_ids
+    rule_g = rules if rules is not None else fact_g        # one-graph default (the fold)
     for s, _p, o in (*assumptions, *predictions):          # id-addressed pins must exist (silent->loud)
         validate_ids(fact_g, s, o)
     scope = fact_g.add_node(HYPOTHESIS, control=True)
@@ -176,9 +178,9 @@ def suppose(fact_g: AttrGraph, rule_g: AttrGraph,
     for pred, subj, obj in predictions:
         # CHAIN the prediction and its negation inside the scope (pencil reasoning; provenance is
         # ephemeral here, so it is never journaled — only the confirmed ink commit records provenance).
-        chain_sip(fact_g, rule_g, (pred, subj, obj), scope=scope, focus_scope=focus_scope)
+        chain_sip(fact_g, (pred, subj, obj), rules=rule_g, scope=scope, focus_scope=focus_scope)
         neg_pred = _neg_pred(pred)
-        chain_sip(fact_g, rule_g, (neg_pred, subj, obj), scope=scope, focus_scope=focus_scope)
+        chain_sip(fact_g, (neg_pred, subj, obj), rules=rule_g, scope=scope, focus_scope=focus_scope)
         if _facts_matching(fact_g, neg_pred, subj, obj, scope=scope, focus_scope=focus_scope):
             contradiction = (pred, subj, obj)          # entails the opposite of the prediction -> refute
             break

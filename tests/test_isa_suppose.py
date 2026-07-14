@@ -74,7 +74,7 @@ def test_pencil_fact_is_invisible_to_scopeless_chain():
     _pencil(g, scope, tweety, "is", g.add_node("bird"))
     # ordinary CHAIN (no scope) must NOT see the pencil `tweety is bird`, so it derives nothing
     before = _ink(g)
-    chain_sip(g, rg, ("is", "tweety", "flyer"))
+    chain_sip(g, ("is", "tweety", "flyer"), rules=rg)
     assert _ink(g) == before                                  # positive core untouched
 
 
@@ -85,7 +85,7 @@ def test_in_scope_chain_sees_the_pencil_and_derives_in_pencil():
     tweety = g.add_node("tweety")
     _pencil(g, scope, tweety, "is", g.add_node("bird"))
     # WITHIN the scope, the pencil `tweety is bird` is visible -> `tweety is flyer` is derived...
-    chain_sip(g, rg, ("is", "tweety", "flyer"), scope=scope)
+    chain_sip(g, ("is", "tweety", "flyer"), scope=scope, rules=rg)
     # ...but only in PENCIL: it is NOT an ink fact (derived_triples reads ink only)
     assert ("tweety", "is", "flyer") not in _ink(g)
     # and it is a member of the scope (a scope-tagged control rel node)
@@ -98,7 +98,7 @@ def test_confirm_commits_the_assumption_to_ink():
     # observed: tweety flies. Hypothesis `tweety is bird` predicts it -> confirmed, inked.
     g = _facts([("tweety", "is", "flyer")])
     rg = _reify([BIRD_FLIES])
-    r = suppose(g, rg, assumptions=[("tweety", "is", "bird")], predictions=[("is", "tweety", "flyer")])
+    r = suppose(g, assumptions=[("tweety", "is", "bird")], predictions=[("is", "tweety", "flyer")], rules=rg)
     assert r.status == CONFIRMED
     assert r.committed == [("tweety", "is", "bird")]
     # the assumption is now INK and survives the scope sweep...
@@ -110,9 +110,9 @@ def test_confirm_commits_the_assumption_to_ink():
 def test_confirmed_ink_lets_ordinary_reasoning_rederive_the_consequence():
     g = _facts([("tweety", "is", "flyer")])
     rg = _reify([BIRD_FLIES])
-    suppose(g, rg, [("tweety", "is", "bird")], [("is", "tweety", "flyer")])
+    suppose(g, [("tweety", "is", "bird")], [("is", "tweety", "flyer")], rules=rg)
     # after confirmation the inked assumption drives ordinary (scopeless) CHAIN to the consequence
-    chain_sip(g, rg, ("is", "tweety", "flyer"))
+    chain_sip(g, ("is", "tweety", "flyer"), rules=rg)
     assert ("tweety", "is", "flyer") in _ink(g)               # already ink; still holds — monotone
 
 
@@ -124,7 +124,7 @@ def test_refute_on_contradiction_leaves_ink_untouched():
     g = _facts([("tweety", "is", "penguin")])
     rg = _reify([BIRD_FLIES, PENGUIN_NOFLY])
     ink_before = _ink(g)
-    r = suppose(g, rg, [("tweety", "is", "bird")], [("is", "tweety", "flyer")])
+    r = suppose(g, [("tweety", "is", "bird")], [("is", "tweety", "flyer")], rules=rg)
     assert r.status == REFUTED
     assert r.contradiction == ("is", "tweety", "flyer")
     assert r.committed == []
@@ -139,7 +139,7 @@ def test_inconclusive_when_prediction_underivable_leaves_ink_untouched():
     g = _facts([])
     rg = _reify([BIRD_FLIES])
     before = _ink(g)
-    r = suppose(g, rg, [("tweety", "is", "bird")], [("is", "tweety", "swimmer")])
+    r = suppose(g, [("tweety", "is", "bird")], [("is", "tweety", "swimmer")], rules=rg)
     assert r.status == INCONCLUSIVE
     assert r.committed == []
     assert _ink(g) == before
@@ -151,9 +151,9 @@ def test_inconclusive_when_prediction_underivable_leaves_ink_untouched():
 def test_two_supposes_on_the_same_graph_do_not_interfere():
     g = _facts([("tweety", "is", "flyer")])
     rg = _reify([BIRD_FLIES])
-    r1 = suppose(g, rg, [("tweety", "is", "bird")], [("is", "tweety", "flyer")])
+    r1 = suppose(g, [("tweety", "is", "bird")], [("is", "tweety", "flyer")], rules=rg)
     # a second, unrelated, underivable hypothesis on the SAME graph must not disturb the first's ink
-    r2 = suppose(g, rg, [("robin", "is", "rock")], [("is", "robin", "swimmer")])
+    r2 = suppose(g, [("robin", "is", "rock")], [("is", "robin", "swimmer")], rules=rg)
     assert r1.status == CONFIRMED and r2.status == INCONCLUSIVE
     assert ("tweety", "is", "bird") in _ink(g)               # r1's commit stands
     assert ("robin", "is", "rock") not in _ink(g)           # r2 touched no ink
@@ -163,7 +163,7 @@ def test_two_supposes_on_the_same_graph_do_not_interfere():
 def test_explain_suppose_renders_the_verdict_and_the_commit():
     g = _facts([("tweety", "is", "flyer")])
     rg = _reify([BIRD_FLIES])
-    r = suppose(g, rg, [("tweety", "is", "bird")], [("is", "tweety", "flyer")])
+    r = suppose(g, [("tweety", "is", "bird")], [("is", "tweety", "flyer")], rules=rg)
     lines = explain_suppose(r)
     assert lines[0].startswith("confirmed")
     assert any("tweety is bird" in ln for ln in lines)          # what entered ink

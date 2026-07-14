@@ -45,7 +45,7 @@ def test_exact_value_match_joins_only_equal_values():
                 rhs=[Pat("?x", "coworker", "?y")],
                 value_matches=[ValueMatch("?x", "?y", "dept")])
     rg = AttrGraph(); write_rule(rg, rule)
-    chain_sip(g, rg, ("coworker", "alice", None))
+    chain_sip(g, ("coworker", "alice", None), rules=rg)
     pairs = _pairs(g, "coworker")
     assert ("alice", "bob") in pairs        # same dept -> joined
     assert ("alice", "carol") not in pairs  # different dept -> NOT joined
@@ -64,7 +64,7 @@ def test_exact_value_match_missing_attr_does_not_fire():
                 rhs=[Pat("?x", "coworker", "?y")],
                 value_matches=[ValueMatch("?x", "?y", "dept")])
     rg = AttrGraph(); write_rule(rg, rule)
-    chain_sip(g, rg, ("coworker", "dave", None))
+    chain_sip(g, ("coworker", "dave", None), rules=rg)
     # dave has no `dept` -> the value-match is unevaluable on his side -> he joins NO ONE (not even self).
     assert not any(s == "dave" or o == "dave" for s, o in _pairs(g, "coworker"))
 
@@ -87,7 +87,7 @@ def test_graded_value_match_joins_close_and_excludes_far():
                 rhs=[Pat("?x", "same_as", "?y")],
                 value_matches=[ValueMatch("?x", "?y", "warmth", threshold=0.9)])
     rg = AttrGraph(); write_rule(rg, rule)
-    chain_sip(g, rg, ("same_as", "morningstar", None))
+    chain_sip(g, ("same_as", "morningstar", None), rules=rg)
     pairs = _pairs(g, "same_as")
     assert ("morningstar", "eveningstar") in pairs   # |.90-.88|=.02 -> 1-.02=.98 >= .9
     assert ("morningstar", "pluto") not in pairs      # |.90-.10|=.80 -> 1-.80=.20 <  .9
@@ -100,7 +100,7 @@ def test_graded_value_match_respects_the_threshold_boundary():
                 rhs=[Pat("?x", "same_as", "?y")],
                 value_matches=[ValueMatch("?x", "?y", "warmth", threshold=0.85)])
     rg = AttrGraph(); write_rule(rg, rule)
-    chain_sip(g, rg, ("same_as", "a", None))
+    chain_sip(g, ("same_as", "a", None), rules=rg)
     assert ("a", "b") not in _pairs(g, "same_as")     # 0.80 < 0.85 -> excluded
 
 

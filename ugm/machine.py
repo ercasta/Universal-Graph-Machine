@@ -261,6 +261,20 @@ class MEMBER(Instr):
 
 
 @dataclass
+class OVERLAY(Instr):
+    """Register-pointed live-set EXTENSION (firmware §5/A5 — the 'extend' face of the membership
+    primitive; MEMBER is the 'restrict' face): keep the state iff the node in `reg` does NOT carry
+    `key` (the BASE — e.g. a fact rel, no `<control>` marker), OR the live-set register `live` holds
+    a set containing the node's ID (the OVERLAY — e.g. the active SUPPOSE scope's pencil rels,
+    visible in-scope although control-marked). With no set parked the op degenerates to the plain
+    absent-test, so ONE program shape serves scoped and unscoped reads. Set contents are driver
+    policy; this test is mechanism."""
+    reg: str
+    key: str
+    live: str
+
+
+@dataclass
 class VMATCH(Instr):
     """Value-JOIN filter: keep the state iff two ALREADY-bound registers carry MATCHING values on
     `key` — the TWO-register sibling of GRADE (which tests one register). The ONE op both engines run
@@ -478,6 +492,14 @@ class Machine:
             live = g.registers.get(ins.live)
             if live is None or any(g.name(st.regs[r]) in live for r in ins.regs):
                 yield st
+        elif isinstance(ins, OVERLAY):
+            nid = st.regs[ins.reg]
+            if not g.has_key(nid, ins.key):                # the base: an unmarked (fact) node
+                yield st
+            else:
+                live = g.registers.get(ins.live)           # the overlay: in-scope marked nodes
+                if live is not None and nid in live:
+                    yield st
         elif isinstance(ins, JOIN):
             src = st.regs[ins.src]
             nbrs = g.succ(src) if ins.direction == "out" else g.pred(src)

@@ -107,8 +107,7 @@ def check_tool(rule_g: AttrGraph, *, policy: FirmwarePolicy = DEFAULT_POLICY,
         pred = _slot_name(g, call_id, PRED) or COPULA
         obj = _slot_name(g, call_id, OBJ)
         subj = g.name(subj_id) if subj_id is not None else None
-        status = check(g, rule_g, (pred, subj, obj), policy=policy,
-                       open_preds=open_preds, provenance=provenance)
+        status = check(g, (pred, subj, obj), policy=policy, open_preds=open_preds, provenance=provenance, rules=rule_g)
         res = g.add_node(CHECK_RESULT)                     # reserved `<…>` -> a CONTROL token
         g.set_attr(res, PRED, valued(pred))                # VALUED view (the Python reader)
         if subj is not None:
@@ -172,7 +171,7 @@ def suppose_tool(rule_g: AttrGraph, *, provenance: bool = False) -> Tool:
             t = _reified_triple(g, nid)
             if t is not None:
                 predictions.append((t[1], t[0], t[2]))      # -> (pred, subj, obj) — `suppose`'s prediction order
-        result = suppose(g, rule_g, assumptions, predictions, provenance=provenance)
+        result = suppose(g, assumptions, predictions, provenance=provenance, rules=rule_g)
         res = g.add_node(SUPPOSE_RESULT)                     # reserved `<…>` -> a CONTROL token
         g.set_attr(res, STATUS, valued(result.status))      # VALUED view (the Python reader)
         touched = {res, _control_rel(g, res, STATUS, _ensure(g, result.status))}   # matchable verdict relation

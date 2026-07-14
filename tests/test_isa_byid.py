@@ -48,14 +48,14 @@ def test_check_by_id_seeds_from_the_pinned_node():
     g, a1, a2 = _two_distinct_ada()
     rg = _thief_rules()
     # a1 stole -> a thief; a2 did not. The NAME 'ada' cannot tell them apart, the ID can.
-    assert check(g, rg, ("is", ById(a1), "thief")) == POSITIVE
-    assert check(g, rg, ("is", ById(a2), "thief")) == ASSUMED_NO
+    assert check(g, ("is", ById(a1), "thief"), rules=rg) == POSITIVE
+    assert check(g, ("is", ById(a2), "thief"), rules=rg) == ASSUMED_NO
 
 
 def test_by_id_emit_lands_the_derived_fact_on_the_pinned_node():
     g, a1, a2 = _two_distinct_ada()
     rg = _thief_rules()
-    chain_sip(g, rg, ("is", ById(a1), "thief"))
+    chain_sip(g, ("is", ById(a1), "thief"), rules=rg)
     subjects = _is_thief_subjects(g)
     assert a1 in subjects and a2 not in subjects        # derived onto a1 exactly, never a2
 
@@ -80,7 +80,7 @@ def test_suppose_by_id_commits_to_the_pinned_node():
     rg = _thief_rules()
     # The prediction `is thief` pinned to a2 CONFIRMS only if a2 (not a1) is reasoned as the thief:
     # a2's pencil `stole book` derives it. Pinning to a1 (who never stole) would be inconclusive.
-    res = suppose(g, rg, [(ById(a2), "stole", "book")], [("is", ById(a2), "thief")])
+    res = suppose(g, [(ById(a2), "stole", "book")], [("is", ById(a2), "thief")], rules=rg)
     assert res.status == CONFIRMED
     # the committed assumption landed on a2 exactly (ink survives; the pencil prediction is swept, §5).
     stole_subjects = [s for r in g.nodes() if g.predicate(r) == "stole"
@@ -93,7 +93,7 @@ def test_suppose_by_id_is_inconclusive_when_the_wrong_node_is_pinned():
     g = AttrGraph()
     a1, a2 = g.add_node("ada"), g.add_node("ada"); g.add_node("book")
     rg = _thief_rules()
-    res = suppose(g, rg, [(ById(a2), "stole", "book")], [("is", ById(a1), "thief")])
+    res = suppose(g, [(ById(a2), "stole", "book")], [("is", ById(a1), "thief")], rules=rg)
     assert res.status != CONFIRMED
 
 
@@ -103,14 +103,14 @@ def test_by_id_missing_node_raises():
     g, a1, _ = _two_distinct_ada()
     rg = _thief_rules()
     with pytest.raises(ValueError, match="not in the graph"):
-        check(g, rg, ("is", ById("no-such-node"), "thief"))
+        check(g, ("is", ById("no-such-node"), "thief"), rules=rg)
 
 
 def test_suppose_by_id_missing_node_raises():
     g, _, _ = _two_distinct_ada()
     rg = _thief_rules()
     with pytest.raises(ValueError, match="not in the graph"):
-        suppose(g, rg, [(ById("ghost"), "stole", "book")], [])
+        suppose(g, [(ById("ghost"), "stole", "book")], [], rules=rg)
 
 
 # --- silent->loud: the write points WARN on a genuinely-ambiguous name -------------------------------
@@ -127,13 +127,13 @@ def test_name_write_warns_over_distinct_entities():
     g, a1, a2 = _two_distinct_ada()
     g.add_relation(a2, "stole", g.add_node("pen"))
     rg = _thief_rules()
-    assert _warns_distinct(lambda: chain_sip(g, rg, ("is", "ada", "thief")))
+    assert _warns_distinct(lambda: chain_sip(g, ("is", "ada", "thief"), rules=rg))
 
 
 def test_name_write_does_not_warn_for_a_single_node():
     g = AttrGraph(); a = g.add_node("ada"); g.add_relation(a, "stole", g.add_node("book"))
     rg = _thief_rules()
-    assert not _warns_distinct(lambda: chain_sip(g, rg, ("is", "ada", "thief")))
+    assert not _warns_distinct(lambda: chain_sip(g, ("is", "ada", "thief"), rules=rg))
 
 
 def test_name_write_does_not_warn_for_coref_linked_mentions():
@@ -144,7 +144,7 @@ def test_name_write_does_not_warn_for_coref_linked_mentions():
     g.add_relation(a2, "is", g.add_node("detective"))
     g.add_relation(a1, "same_as", a2)
     rg = _thief_rules()
-    assert not _warns_distinct(lambda: chain_sip(g, rg, ("is", "ada", "thief")))
+    assert not _warns_distinct(lambda: chain_sip(g, ("is", "ada", "thief"), rules=rg))
 
 
 def test_by_id_write_never_warns():
@@ -152,4 +152,4 @@ def test_by_id_write_never_warns():
     g, a1, a2 = _two_distinct_ada()
     g.add_relation(a2, "stole", g.add_node("pen"))
     rg = _thief_rules()
-    assert not _warns_distinct(lambda: chain_sip(g, rg, ("is", ById(a1), "thief")))
+    assert not _warns_distinct(lambda: chain_sip(g, ("is", ById(a1), "thief"), rules=rg))

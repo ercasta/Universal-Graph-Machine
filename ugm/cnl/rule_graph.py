@@ -23,10 +23,12 @@ in the graph into the engine's matchable form — the seam-free counterpart of a
 compiler (same substrate in, executable view out), and exactly the function a
 meta-circular `run` would call per step (the b2 step, still future).
 
-For now rules live in a dedicated rule-graph, kept separate from the fact graph so
-their placeholder nodes ('?a') never bind as facts.  Folding them into the one
-graph (with scope segregation between pattern-space and fact-space) is the
-meta-circular milestone — the schema here does not change for it.
+THE ONE-GRAPH FOLD IS SUPPORTED (firmware doc §7 step 4, 2026-07-14): `rule_g` may simply BE the
+fact graph. Segregation is by ATTRIBUTE, never by partition — the fragment is control-marked (the
+compiled read guards keep '?a' from ever binding as a fact) and its rels carry `PATTERN_MARK`
+(authoring-written, selected by the fact VIEW `derived_triples` to hide pattern-space). Callers may
+still pass a dedicated rule-graph (the classic layout) — both are correct, parity-gated by
+`tests/test_one_graph_fold.py`. The schema here did not change for it, as predicted.
 
 Limitations (b1): only the structural fields (lhs/rhs/nac/drop) round-trip. The
 graded layer (`probability`, `graded`, `priority`, `propagate`) is not yet encoded
@@ -37,7 +39,7 @@ from __future__ import annotations
 
 from ..production_rule import Pat, Rule
 from ..world_model import Graph
-from ..attrgraph import valued
+from ..attrgraph import valued, graded, PATTERN_MARK
 
 # The role relations that wire a rule node to the predicate node of each Pat.
 ROLE_NAMES: tuple[str, ...] = ("lhs", "rhs", "nac", "drop")
@@ -77,13 +79,21 @@ def write_rule(graph: Graph, rule: Rule) -> str:
             shared[tok] = graph.add_node(tok, control=True)
         return shared[tok]
 
+    def wire(s: str, p: str, o: str) -> str:
+        # every rel of the fragment is PATTERN-SPACE: control (the matcher's exclusion) + the
+        # `PATTERN_MARK` attribute (the fact VIEW's exclusion, for the folded one graph — see the
+        # constant's note in attrgraph). Ordinary attributes both, never a machine privilege.
+        r = graph.add_relation(s, p, o, control=True)
+        graph.set_attr(r, PATTERN_MARK, graded(1.0))
+        return r
+
     for role, pats in (("lhs", rule.lhs), ("rhs", rule.rhs),
                        ("nac", rule.nac), ("drop", rule.drop)):
         for pat in pats:
             s = so_node(pat.s)
             o = so_node(pat.o)
-            p = graph.add_relation(s, pat.p, o, control=True)   # pattern atom in fact shape (keyed pred)
-            graph.add_relation(rule_node, role, p, control=True)  # rule --[role]--> pred
+            p = wire(s, pat.p, o)                    # pattern atom in fact shape (keyed pred)
+            wire(rule_node, role, p)                 # rule --[role]--> pred
     # Graded conditions (the α-cut match filter). Reified as `<graded>` nodes so the demand-driven
     # firmware can apply them; one per (var, dim) — mirroring `lowering.lower_graded`'s one-GRADE-per-dim.
     # An INVERTED α-cut ('not at all') is a later slice (as in `lower_graded`), so it is skipped here.
@@ -95,7 +105,7 @@ def write_rule(graph: Graph, rule: Rule) -> str:
             graph.set_attr(g, "gc_var", valued(gc.var))
             graph.set_attr(g, "gc_dim", valued(dim))
             graph.set_attr(g, "gc_threshold", valued(gc.threshold))
-            graph.add_relation(rule_node, GRADED_ROLE, g, control=True)
+            wire(rule_node, GRADED_ROLE, g)
     # Value-match conditions (the declared value-JOIN). Reified as `<value_match>` nodes so the
     # demand-driven firmware can apply them, exactly like the graded α-cut above.
     for vm in rule.value_matches:
@@ -105,7 +115,7 @@ def write_rule(graph: Graph, rule: Rule) -> str:
         graph.set_attr(v, "vm_dim", valued(vm.dim))
         if vm.threshold is not None:
             graph.set_attr(v, "vm_threshold", valued(float(vm.threshold)))
-        graph.add_relation(rule_node, VALUE_MATCH_ROLE, v, control=True)
+        wire(rule_node, VALUE_MATCH_ROLE, v)
     return rule_node
 
 

@@ -23,25 +23,25 @@ def _rg(rules):
 
 def test_closed_default_reads_absence_as_assumed_no():
     g, rg = AttrGraph(), _rg([])                        # empty KB: `bob is happy` is underivable
-    assert check(g, rg, ("is", "bob", "happy")) == ASSUMED_NO           # the shipped stance (CWA)
+    assert check(g, ("is", "bob", "happy"), rules=rg) == ASSUMED_NO           # the shipped stance (CWA)
 
 
 def test_open_default_reads_absence_as_unknown():
     g, rg = AttrGraph(), _rg([])
     owa = FirmwarePolicy(negation_default="open")
-    assert check(g, rg, ("is", "bob", "happy"), policy=owa) == UNKNOWN  # flipped firmware stance
+    assert check(g, ("is", "bob", "happy"), policy=owa, rules=rg) == UNKNOWN  # flipped firmware stance
 
 
 def test_open_default_with_closed_exception():
     g, rg = AttrGraph(), _rg([])
     owa = FirmwarePolicy(negation_default="open", closed_preds=frozenset({"happy"}))
     # `happy` is a CWA exception under the open default -> a decided assumed-no again
-    assert check(g, rg, ("is", "bob", "happy"), policy=owa) == ASSUMED_NO
+    assert check(g, ("is", "bob", "happy"), policy=owa, rules=rg) == ASSUMED_NO
 
 
 def test_open_preds_kwarg_still_folds_into_the_closed_default():
     g, rg = AttrGraph(), _rg([])                        # back-compat: the legacy kwarg == closed + exc
-    assert check(g, rg, ("is", "bob", "happy"), open_preds=frozenset({"happy"})) == UNKNOWN
+    assert check(g, ("is", "bob", "happy"), open_preds=frozenset({"happy"}), rules=rg) == UNKNOWN
 
 
 def test_positive_goal_is_stance_independent():
@@ -50,7 +50,7 @@ def test_positive_goal_is_stance_independent():
     g.add_relation(bob, "is", g.add_node("happy"))
     rg = _rg([])
     for pol in (DEFAULT_POLICY, FirmwarePolicy(negation_default="open")):
-        assert check(g, rg, ("is", "bob", "happy"), policy=pol) == POSITIVE
+        assert check(g, ("is", "bob", "happy"), policy=pol, rules=rg) == POSITIVE
 
 
 # --- on_cycle: a loader's behaviour on a non-stratifiable bank ------------------------------------

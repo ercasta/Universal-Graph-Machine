@@ -15,8 +15,9 @@ Three layers pinned here:
 import ugm as h
 from ugm import AttrGraph, Pat, Rule, chain_sip, derived_triples
 from ugm import chain
-from ugm.attrgraph import CONTROL_MARK, INERT_MARK
-from ugm.machine import Machine, SET, TEST, MEMBER
+from ugm.attrgraph import CONTROL_MARK, INERT_MARK, valued
+from ugm.apply import SCOPE
+from ugm.machine import Machine, SET, TEST, MEMBER, OVERLAY
 
 
 # --- 1. marker lockstep ----------------------------------------------------------------------------
@@ -107,6 +108,61 @@ def test_member_is_touch_semantics_any_of():
     assert not m.match(g, [SET("s", dee), SET("o", dee), MEMBER(("s", "o"), "<focus>")])
 
 
+def test_marker_attribute_is_the_single_source_of_truth():
+    """§7 step 3: the flags are DERIVED views over the marker attributes — no dataclass kind-field
+    remains. Reading the flag and reading the attribute are the same read."""
+    g = AttrGraph()
+    n = g.add_node("x", control=True)
+    assert g.node(n).control is True and CONTROL_MARK in g.node(n).attrs
+    g._clear_marker(n, CONTROL_MARK)                       # remove the attribute ...
+    assert g.node(n).control is False                      # ... and the "flag" is gone with it
+
+
+def test_serialization_roundtrip_preserves_inertness_via_markers():
+    """`to_dict` never serialized `inert`; with the marker IN `attrs`, inertness now survives the
+    round-trip (the gap self-heals)."""
+    g = AttrGraph()
+    g.add_node("uses", inert=True)
+    g2 = AttrGraph.from_dict(g.to_dict())
+    assert [n for n in g2.nodes() if g2.is_inert(n)]
+
+
+def test_overlay_extends_the_base_with_a_live_set():
+    """OVERLAY = the 'extend' face: an unmarked node always passes (the base); a marked node passes
+    only when the register-pointed set holds its ID; with no set parked it is a pure absent-test."""
+    g = AttrGraph()
+    fact = g.add_node("f")
+    pencil = g.add_node("p", control=True)
+    m = Machine()
+
+    def passes(nid):
+        return bool(m.match(g, [SET("x", nid), OVERLAY("x", CONTROL_MARK, "<ov>")]))
+
+    assert passes(fact) and not passes(pencil)             # no overlay -> plain absent-test
+    g.registers["<ov>"] = frozenset({pencil})
+    assert passes(fact) and passes(pencil)                 # in-overlay marked node becomes visible
+    g.registers["<ov>"] = frozenset()
+    assert not passes(pencil)                              # an EMPTY overlay extends by nothing
+
+
+def test_scope_pencil_visibility_is_the_overlay_op():
+    """End-to-end: a pencil (control rel tagged with a scope) is invisible to a plain read, visible
+    to a read within ITS scope, and invisible within ANOTHER scope — all in-program, no post-filter
+    (cross-checked against the walk oracle)."""
+    g = AttrGraph()
+    ada, bo = g.add_node("ada"), g.add_node("bo")
+    rel = g.add_relation(ada, "suspects", bo, control=True)   # a pencil ...
+    g.set_attr(rel, SCOPE, valued("<hyp1>"))                  # ... of scope <hyp1>
+    prev = chain._CROSSCHECK
+    chain._CROSSCHECK = True
+    try:
+        assert chain._facts_matching(g, "suspects", "ada", None) == []
+        assert len(chain._facts_matching(g, "suspects", "ada", None, scope="<hyp1>")) == 1
+        assert chain._facts_matching(g, "suspects", "ada", None, scope="<hyp2>") == []
+    finally:
+        chain._CROSSCHECK = prev
+
+
 # --- 3. the read program end-to-end ----------------------------------------------------------------
 
 def test_focus_scope_flows_through_the_live_set_register():
@@ -150,6 +206,6 @@ def test_focused_chain_derivation_still_bounded():
     rules = AttrGraph()
     h.write_rule(rules, Rule(key="ack", lhs=[Pat("?x", "knows", "?y")],
                              rhs=[Pat("?x", "ack", "?y")]))
-    chain_sip(facts, rules, ("ack", None, None), focus_scope=frozenset({"ada", "bo"}))
+    chain_sip(facts, ("ack", None, None), focus_scope=frozenset({"ada", "bo"}), rules=rules)
     acked = {(s, o) for s, p, o in derived_triples(facts) if p == "ack"}
     assert acked == {("ada", "bo")}

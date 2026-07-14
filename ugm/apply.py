@@ -27,7 +27,7 @@ v0 SCOPE (deliberately small; differentially gated against `run_bank`):
 """
 from __future__ import annotations
 
-from .attrgraph import AttrGraph, valued, graded, NAME
+from .attrgraph import AttrGraph, valued, graded, NAME, PATTERN_MARK
 from .production_rule import is_var, is_bound_literal, literal_name
 
 FRAME = "<frame>"
@@ -68,7 +68,8 @@ def build_head_index(rule_g: AttrGraph) -> str:
     for rn in rule_nodes(rule_g):
         for _hs, hp, _ho in _read_atoms(rule_g, rn, "rhs"):
             if (hp, rn) not in existing:
-                rule_g.add_relation(hub, hp, rn, control=True)   # hub -[headPred]-> rule
+                rel = rule_g.add_relation(hub, hp, rn, control=True)   # hub -[headPred]-> rule
+                rule_g.set_attr(rel, PATTERN_MARK, graded(1.0))   # rule wiring: out of the fact view
                 existing.add((hp, rn))
     return hub
 

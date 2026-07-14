@@ -42,7 +42,7 @@ def _reify(rules) -> AttrGraph:
 def test_chain_sip_journals_a_derivation_that_explains_as_a_cnl_proof_tree():
     g = _facts([("socrates", "is_a", "philosopher")])
     rg = _reify([MORTAL, PERSON])
-    chain_sip(g, rg, ("is_a", "socrates", None), provenance=True)
+    chain_sip(g, ("is_a", "socrates", None), provenance=True, rules=rg)
 
     # the derived facts are present ...
     from ugm import derived_triples
@@ -86,7 +86,7 @@ def test_journaling_is_off_by_default_and_does_not_perturb_derivations():
     # provenance defaults OFF; with it off the firmware graph carries no <j:> nodes.
     g = _facts([("socrates", "is_a", "philosopher")])
     rg = _reify([MORTAL, PERSON])
-    chain_sip(g, rg, ("is_a", "socrates", None))
+    chain_sip(g, ("is_a", "socrates", None), rules=rg)
     assert not any(g.name(n).startswith("<j:") for n in g.nodes())
 
 
@@ -95,7 +95,7 @@ def test_render_demands_shows_the_bound_magic_set_as_cnl():
     # scoped to the goal subject (SIP), with wildcards as `anyone`.
     g = _facts([("socrates", "is_a", "philosopher")])
     rg = _reify([MORTAL, PERSON])
-    chain_sip(g, rg, ("is_a", "socrates", None))
+    chain_sip(g, ("is_a", "socrates", None), rules=rg)
     lines = render_demands(rg)
     assert "socrates is_a anyone" in lines                     # the goal, object a wildcard
     assert "socrates is_a person" in lines                     # MORTAL's body, subject passed sideways

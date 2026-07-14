@@ -52,7 +52,7 @@ def _same_as_id_pairs(g: AttrGraph) -> set[tuple[str, str]]:
 
 def test_same_name_coref_relates_two_distinct_nodes():
     g, a1, a2 = _two_ada_persons()
-    chain_sip(g, _rule_graph(_coref_rule_obj()), ("same_as", None, None))
+    chain_sip(g, ("same_as", None, None), rules=_rule_graph(_coref_rule_obj()))
     pairs = _same_as_id_pairs(g)
     # the CROSS pair between the two distinct 'ada' nodes now exists (the rule is symmetric, so both
     # directions fire). On the name-keyed core both vars collapsed to name "ada" and only a self-loop
@@ -64,7 +64,7 @@ def test_same_name_coref_relates_two_distinct_nodes():
 def test_same_name_coref_id_seeded_goal_pins_one_side():
     # seed one side by id: `?x` is pinned to a1, `?y` ranges free and binds the OTHER ada by id.
     g, a1, a2 = _two_ada_persons()
-    chain_sip(g, _rule_graph(_coref_rule_obj()), ("same_as", ById(a1), None))
+    chain_sip(g, ("same_as", ById(a1), None), rules=_rule_graph(_coref_rule_obj()))
     assert (a1, a2) in _same_as_id_pairs(g)
 
 
@@ -76,7 +76,7 @@ def test_same_name_coref_composes_a_fact_across_the_link():
     rg = _rule_graph(_coref_rule_obj(), *same_as_rules(["likes", "same_as"]))
     # a2 has no `likes` of its own; it inherits a1's via the coref `same_as` the id-core lets the rule
     # derive between the two distinct nodes, then `same_as_rules` propagate `likes` across it.
-    assert check(g, rg, ("likes", ById(a2), "tea")) == POSITIVE
+    assert check(g, ("likes", ById(a2), "tea"), rules=rg) == POSITIVE
 
 
 def test_composition_gate_no_coref_rule_no_crossing():
@@ -85,4 +85,4 @@ def test_composition_gate_no_coref_rule_no_crossing():
     g, a1, a2 = _two_ada_persons()
     g.add_relation(a1, "likes", g.add_node("tea"))
     rg = _rule_graph(*same_as_rules(["likes", "same_as"]))
-    assert check(g, rg, ("likes", ById(a2), "tea")) == ASSUMED_NO
+    assert check(g, ("likes", ById(a2), "tea"), rules=rg) == ASSUMED_NO

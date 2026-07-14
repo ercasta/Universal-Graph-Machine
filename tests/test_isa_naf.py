@@ -72,14 +72,14 @@ def test_thief_elimination_by_naf_single_stratum():
     # cy is cleared by nothing -> `not cleared` holds on demand -> cy is the thief; ada/bo are cleared.
     g = _facts(THIEF_FACTS)
     rg = _reify(THIEF_RULES)
-    chain_sip(g, rg, ("is", None, "thief"))
+    chain_sip(g, ("is", None, "thief"), rules=rg)
     thieves = {b["?x"] and g.name(b["?x"]) for b in match_pats(g, [Pat("?x", "is", "thief")])}
     assert thieves == {"cy"}
 
 
 def test_thief_naf_derives_exactly_the_uncleared_suspect():
     g = _facts(THIEF_FACTS)
-    chain_sip(g, _reify(THIEF_RULES), ("is", None, "thief"))
+    chain_sip(g, ("is", None, "thief"), rules=_reify(THIEF_RULES))
     got = {t for t in derived_triples(g) if t[1] == "is" and t[2] == "thief"}
     assert got == {("cy", "is", "thief")}
     # and the cleared suspects were genuinely cleared (the multi-step deduction ran under demand)
@@ -89,7 +89,7 @@ def test_thief_naf_derives_exactly_the_uncleared_suspect():
 def test_thief_naf_materializes_no_is_not_fact():
     # the whole point: absence DECIDES; no `is_not cleared` is ever written (unlike forward completion).
     g = _facts(THIEF_FACTS)
-    chain_sip(g, _reify(THIEF_RULES), ("is", None, "thief"))
+    chain_sip(g, ("is", None, "thief"), rules=_reify(THIEF_RULES))
     assert not match_pats(g, [Pat("?x", "is_not", "cleared")])
     assert not any(t[1] == "is_not" for t in derived_triples(g))
 
@@ -102,7 +102,7 @@ def test_existential_nac_holds_when_no_object_matches():
     rules = [Rule(key="lonely", lhs=[Pat("?x", "is_a", "person")],
                   nac=[Pat("?x", "likes", "?anyone")], rhs=[Pat("?x", "is", "lonely")])]
     g = _facts(facts)
-    chain_sip(g, _reify(rules), ("is", None, "lonely"))
+    chain_sip(g, ("is", None, "lonely"), rules=_reify(rules))
     lonely = {g.name(b["?x"]) for b in match_pats(g, [Pat("?x", "is", "lonely")])}
     assert lonely == {"bo"}                                 # ada likes something -> not lonely
 
@@ -116,7 +116,7 @@ def test_transitive_with_idempotency_nac_via_naf():
                 nac=[Pat("?a", "rel", "?c")], rhs=[Pat("?a", "rel", "?c")])
     facts = [("a", "rel", "b"), ("b", "rel", "c"), ("c", "rel", "d")]
     g = _facts(facts)
-    chain_sip(g, _reify([rule]), ("rel", "a", None))
+    chain_sip(g, ("rel", "a", None), rules=_reify([rule]))
     got = {(g.name(b["?a"]), "rel", g.name(b["?c"]))
            for b in match_pats(g, [Pat("?a", "rel", "?c")]) if g.name(b["?a"]) == "a"}
     # a reaches b, c, d transitively (the NAC never blocks a genuinely-new edge)
@@ -135,7 +135,7 @@ def test_nested_negation_two_strata():
              rhs=[Pat("?x", "is", "s")]),
     ]
     g = _facts(facts)
-    chain_sip(g, _reify(rules), ("is", None, "s"))
+    chain_sip(g, ("is", None, "s"), rules=_reify(rules))
     # r(a) holds -> q(a) BLOCKED -> not q(a) holds -> s(a) DERIVED
     assert match_pats(g, [Pat("a", "is", "s")])
     assert not match_pats(g, [Pat("a", "is", "q")])
@@ -151,7 +151,7 @@ def test_nested_negation_flips_when_lower_negative_flips():
              rhs=[Pat("?x", "is", "s")]),
     ]
     g = _facts(facts)
-    chain_sip(g, _reify(rules), ("is", None, "s"))
+    chain_sip(g, ("is", None, "s"), rules=_reify(rules))
     assert match_pats(g, [Pat("a", "is", "q")])
     assert not match_pats(g, [Pat("a", "is", "s")])
 
@@ -165,7 +165,7 @@ def test_nac_identical_to_head_is_an_idempotency_memo_not_a_cycle():
     rules = [Rule(key="p", lhs=[Pat("?x", "is", "base")], nac=[Pat("?x", "is", "p")],
                   rhs=[Pat("?x", "is", "p")])]
     g = _facts([("a", "is", "base")])
-    chain_sip(g, _reify(rules), ("is", "a", "p"))
+    chain_sip(g, ("is", "a", "p"), rules=_reify(rules))
     assert match_pats(g, [Pat("a", "is", "p")])
 
 
@@ -187,7 +187,7 @@ def test_chain_prunes_re_entry_and_terminates_rather_than_hanging():
     # (block + no recurse), so the closure TERMINATES (does not hang) — the load-time lint is what
     # guarantees the answer is also sound; the chain only guarantees termination here.
     g = _facts([("a", "is", "base")])
-    chain_sip(g, _reify(EVEN_CYCLE), ("is", "a", "p"))       # must return, not recurse forever
+    chain_sip(g, ("is", "a", "p"), rules=_reify(EVEN_CYCLE))       # must return, not recurse forever
 
 
 # --- Step 3: fuel -> UNKNOWN (the agent-not-theorem-prover payoff) --------------------------------
@@ -201,12 +201,12 @@ def test_positive_goal_truncated_is_unknown_not_no():
     # (reach a e) needs several closure rounds; with a tiny budget the closure is NOT exhausted, so the
     # honest verdict is UNKNOWN ("I didn't finish looking"), never a decided no.
     g = _facts(CHAIN_FACTS)
-    assert check(g, _reify([TRANS]), ("reach", "a", "e"), max_rounds=1) == UNKNOWN
+    assert check(g, ("reach", "a", "e"), max_rounds=1, rules=_reify([TRANS])) == UNKNOWN
 
 
 def test_same_goal_is_positive_with_enough_fuel():
     g = _facts(CHAIN_FACTS)
-    assert check(g, _reify([TRANS]), ("reach", "a", "e")) == POSITIVE     # default budget closes it
+    assert check(g, ("reach", "a", "e"), rules=_reify([TRANS])) == POSITIVE     # default budget closes it
 
 
 def test_nac_whose_nested_closure_truncates_is_unknown():
@@ -215,7 +215,7 @@ def test_nac_whose_nested_closure_truncates_is_unknown():
     # nested negative demand is un-exhausted, so bo's thief-status is UNKNOWN, not a decided ASSUMED_NO.
     g = _facts(THIEF_FACTS)
     rg = _reify(THIEF_RULES)
-    assert check(g, rg, ("is", "bo", "thief"), max_rounds=1) == UNKNOWN
+    assert check(g, ("is", "bo", "thief"), max_rounds=1, rules=rg) == UNKNOWN
 
 
 # --- Brick #3 (docs/isa_control_machine.md §9.3): the NAC subgoal descent runs on an EXPLICIT control
@@ -241,7 +241,7 @@ def test_deep_nac_stratification_uses_the_control_stack_not_python_recursion():
     old_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(200)                           # the OLD recursive descent (~2400 frames) would
     try:                                                 # RecursionError here; the explicit stack does not
-        chain_sip(g, rg, ("p0", "a", None))
+        chain_sip(g, ("p0", "a", None), rules=rg)
     finally:
         sys.setrecursionlimit(old_limit)
 
@@ -255,4 +255,4 @@ def test_nac_consumer_is_decided_no_with_enough_fuel():
     # the thief, and the verdict is a DECIDED ASSUMED_NO (closed-world), not UNKNOWN.
     g = _facts(THIEF_FACTS)
     rg = _reify(THIEF_RULES)
-    assert check(g, rg, ("is", "bo", "thief")) == ASSUMED_NO
+    assert check(g, ("is", "bo", "thief"), rules=rg) == ASSUMED_NO

@@ -28,7 +28,7 @@ binding a fresh variable, or SAME-checking an already-bound one, or TEST-ing a l
 from __future__ import annotations
 
 from .production_rule import Pat, Rule, binder, is_var, is_bound_literal, literal_name
-from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert, NAME
+from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert, NAME, PATTERN_MARK
 from .vocabulary import MENTION
 from .machine import (
     Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, MINT, EMIT, DROP_CTRL,
@@ -730,6 +730,13 @@ def derived_triples(ag: AttrGraph) -> set[tuple[str, str, str]]:
             continue
         preds, succs = ag.pred(r), ag.succ(r)
         if not preds or not succs:
+            continue
+        # ONE-GRAPH FOLD (firmware §7 step 4): PATTERN-SPACE stays out of the fact view. Reified-rule
+        # wiring (pattern atoms, role rels, head-index entries) carries the ordinary `PATTERN_MARK`
+        # attribute written at authoring time — selected HERE (a view), never by the matcher (which
+        # already excludes rule wiring via its control marker). Control-plane derivations joining
+        # control nodes (`<goal> reached <plan>`) carry no pattern mark and stay visible as before.
+        if ag.has_key(r, PATTERN_MARK):
             continue
         for s in preds:
             for o in succs:

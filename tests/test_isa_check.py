@@ -47,26 +47,25 @@ PENGUIN_NOFLY = Rule(key="peng_nofly", lhs=[Pat("?x", "is", "penguin")], rhs=[Pa
 
 def test_positive_when_derivable():
     g = _facts([("robin", "is", "bird")])
-    assert check(g, _reify([BIRD_FLIES]), ("is", "robin", "flyer")) == POSITIVE
+    assert check(g, ("is", "robin", "flyer"), rules=_reify([BIRD_FLIES])) == POSITIVE
 
 
 def test_assumed_no_is_the_closed_world_default():
     g = _facts([("robin", "is", "bird")])
     # robin is not a penguin, nothing derives it, and `penguin` is closed-world by default
-    assert check(g, _reify([BIRD_FLIES]), ("is", "robin", "penguin")) == ASSUMED_NO
+    assert check(g, ("is", "robin", "penguin"), rules=_reify([BIRD_FLIES])) == ASSUMED_NO
 
 
 def test_unknown_for_an_open_world_concept():
     g = _facts([("robin", "is", "bird")])
     # `hungry` is declared OPEN — absence is not falsity, so gather instead of assuming no
-    assert check(g, _reify([BIRD_FLIES]), ("is", "robin", "hungry"),
-                 open_preds=frozenset({"hungry"})) == UNKNOWN
+    assert check(g, ("is", "robin", "hungry"), open_preds=frozenset({"hungry"}), rules=_reify([BIRD_FLIES])) == UNKNOWN
 
 
 def test_entailed_no_when_the_negative_is_derivable():
     g = _facts([("tweety", "is", "penguin")])
     # the positive `tweety is flyer` is not derivable, but `tweety is_not flyer` IS -> a HARD no
-    assert check(g, _reify([BIRD_FLIES, PENGUIN_NOFLY]), ("is", "tweety", "flyer")) == ENTAILED_NEG
+    assert check(g, ("is", "tweety", "flyer"), rules=_reify([BIRD_FLIES, PENGUIN_NOFLY])) == ENTAILED_NEG
 
 
 def test_collapse_maps_the_four_statuses_to_yes_no_unknown():
@@ -79,7 +78,7 @@ def test_collapse_maps_the_four_statuses_to_yes_no_unknown():
 def test_explain_check_renders_where_i_looked():
     g = _facts([("robin", "is", "bird")])
     rg = _reify([BIRD_FLIES])
-    status = check(g, rg, ("is", "robin", "penguin"))
+    status = check(g, ("is", "robin", "penguin"), rules=rg)
     lines = explain_check(status, rg)
     assert lines[0].startswith("assumed no")                   # the honest defeasible verdict
     assert "  looked for:" in lines
@@ -144,7 +143,7 @@ def test_collapsed_check_matches_forward_materialization_verdict():
                 for obj in names:
                     want = _oracle_verdict(g0, (rel, subj, obj))
                     ag, _ = to_attrgraph(g0)
-                    got = collapse(check(ag, _reify(RULES), (rel, subj, obj), open_preds=OPEN))
+                    got = collapse(check(ag, (rel, subj, obj), open_preds=OPEN, rules=_reify(RULES)))
                     assert got == want, (
                         f"seed={seed} {rel}({subj},{obj}): firmware {got} != oracle {want}"
                     )

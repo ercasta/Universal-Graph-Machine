@@ -67,7 +67,7 @@ def _sip_vs_run_bank(rules, facts, goal):
     oracle = derived_triples(g1) - base1
     g2 = _facts(facts); base2 = derived_triples(g2)
     rg, _ = _reify(rules)
-    chain_sip(g2, rg, goal)
+    chain_sip(g2, goal, rules=rg)
     got = derived_triples(g2) - base2
     return oracle, got, rg
 

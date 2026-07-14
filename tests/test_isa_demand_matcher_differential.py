@@ -111,13 +111,13 @@ def test_thief_naf_all_suspects_crosschecked():
         Rule(key="thief", lhs=[Pat("?x", "is_a", "suspect")],
              nac=[Pat("?x", "is", "cleared")], rhs=[Pat("?x", "is", "thief")]),
     ])
-    verdicts = {s: check(facts, rules, ("is", s, "thief")) for s in ("ada", "bo", "cy")}
+    verdicts = {s: check(facts, ("is", s, "thief"), rules=rules) for s in ("ada", "bo", "cy")}
     # cy has no clearance -> thief; ada/bo cleared -> not
     from ugm import POSITIVE, ASSUMED_NO
     assert verdicts["cy"] == POSITIVE
     assert verdicts["ada"] == ASSUMED_NO and verdicts["bo"] == ASSUMED_NO
     # a wildcard-subject goal too (whole-predicate reads inside the closure)
-    chain_sip(facts, rules, ("is", None, "thief"))
+    chain_sip(facts, ("is", None, "thief"), rules=rules)
 
 
 def test_transitive_multi_atom_join_crosschecked():
@@ -129,7 +129,7 @@ def test_transitive_multi_atom_join_crosschecked():
         Rule(key="reach.step", lhs=[Pat("?x", "edge", "?y"), Pat("?y", "reach", "?z")],
              rhs=[Pat("?x", "reach", "?z")]),
     ])
-    chain_sip(facts, rules, ("reach", "a", None))
+    chain_sip(facts, ("reach", "a", None), rules=rules)
     from ugm import derived_triples
     reached = {o for (s, p, o) in derived_triples(facts) if p == "reach" and s == "a"}
     assert reached == {"b", "c", "d"}
@@ -146,7 +146,7 @@ def test_coref_same_as_fanout_crosschecked():
         Rule(key="prop", lhs=[Pat("?a", "same_as", "?b"), Pat("?a", "is", "?p")],
              rhs=[Pat("?b", "is", "?p")]),
     ])
-    chain_sip(facts, rules, ("is", "eveningstar", None))
+    chain_sip(facts, ("is", "eveningstar", None), rules=rules)
     from ugm import derived_triples
     props = {o for (s, p, o) in derived_triples(facts) if p == "is" and s == "eveningstar"}
     assert "bright" in props
@@ -160,7 +160,7 @@ def test_focus_scope_bounds_reads_crosschecked():
     _assert_parity(facts, "knows", None, "dee", focus_scope=frozenset({"ada", "bo"}))  # off-focus
     # and through the real solver
     rules = _reify([Rule(key="ack", lhs=[Pat("?x", "knows", "?y")], rhs=[Pat("?x", "ack", "?y")])])
-    chain_sip(facts, rules, ("ack", "ada", None), focus_scope=frozenset({"ada", "bo"}))
+    chain_sip(facts, ("ack", "ada", None), focus_scope=frozenset({"ada", "bo"}), rules=rules)
 
 
 def test_suppose_scope_pencil_visibility_crosschecked():
@@ -170,9 +170,7 @@ def test_suppose_scope_pencil_visibility_crosschecked():
     rules = _reify([
         Rule(key="mortal", lhs=[Pat("?x", "is", "person")], rhs=[Pat("?x", "is", "mortal")]),
     ])
-    res = suppose(facts, rules,
-                  assumptions=[("bo", "is", "person")],
-                  predictions=[("bo", "is", "mortal")])
+    res = suppose(facts, assumptions=[("bo", "is", "person")], predictions=[("bo", "is", "mortal")], rules=rules)
     # bo assumed a person in pencil -> mortal derivable in-scope; the point here is the cross-check ran
     assert res.status in ("confirmed", "inconclusive", "refuted")
 

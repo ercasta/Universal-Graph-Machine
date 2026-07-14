@@ -166,7 +166,7 @@ def test_thief_riddle_cy_is_not_cleared_is_an_assumed_no():
     rg = h.AttrGraph()
     for r in rules:
         h.write_rule(rg, r)
-    status = h.check(g, rg, ("is", "cy", "cleared"))
+    status = h.check(g, ("is", "cy", "cleared"), rules=rg)
     assert status == h.ASSUMED_NO
     assert h.collapse(status) == "no"
     assert any("cy is cleared" in ln for ln in h.explain_check(status, rg))   # the demand it explored

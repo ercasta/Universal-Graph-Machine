@@ -75,7 +75,7 @@ def _demand_skolems(objs):
     for nm in ("p1", "p2"):
         n = g.add_node(nm); g.add_relation(n, "is_a", g.add_node("state"))
     for pred_subj, pred_obj in objs:
-        chain_sip(g, rg, ("has_succ", pred_subj, pred_obj))
+        chain_sip(g, ("has_succ", pred_subj, pred_obj), rules=rg)
     return g, [x for x in g.nodes() if g.name(x) == "s2"]
 
 
@@ -117,7 +117,7 @@ def test_demand_skolem_is_matchable_downstream():
               rhs=[Pat("?x", "derived_from", "?p")])
     rg = AttrGraph(); write_rule(rg, r1); write_rule(rg, r2)
     g = h.Graph(); p = g.add_node("p1"); g.add_relation(p, "is_a", g.add_node("state"))
-    chain_sip(g, rg, ("derived_from", None, "p1"))                # demand the DOWNSTREAM fact
+    chain_sip(g, ("derived_from", None, "p1"), rules=rg)                # demand the DOWNSTREAM fact
     sk = [x for x in g.nodes() if g.name(x) == "s2"]
     assert len(sk) == 1 and not g.is_control(sk[0])               # one fact-layer individual
     stamped = {(g.predicate(r), g.name(o)) for r, o in g.relations_from(sk[0])}
@@ -235,8 +235,7 @@ def test_suppose_accepts_focus_scope():
     for r in rules:
         write_rule(rg, r)
     # in-scope entity -> the hypothesis reasons within the working set and still confirms
-    res = suppose(kb, rg, [("ada", "is", "rained_on")], [("is", "ada", "wet")],
-                  focus_scope=frozenset({"ada"}))
+    res = suppose(kb, [("ada", "is", "rained_on")], [("is", "ada", "wet")], focus_scope=frozenset({"ada"}), rules=rg)
     assert res.status == "confirmed"
 
 
@@ -253,7 +252,7 @@ def _wet_world():
 def test_suppose_commit_false_is_read_only_and_returns_derivations():
     assert "commit" in inspect.signature(suppose).parameters
     kb, rules, rg = _wet_world()
-    res = suppose(kb, rg, [("ada", "is", "rained_on")], [("is", "ada", "wet")], commit=False)
+    res = suppose(kb, [("ada", "is", "rained_on")], [("is", "ada", "wet")], commit=False, rules=rg)
     assert res.status == "confirmed"
     assert res.committed == []                               # a READ-ONLY run inks NOTHING
     assert ("ada", "is", "wet") in res.derived              # the in-scope consequence, for inspection
@@ -263,7 +262,7 @@ def test_suppose_commit_false_is_read_only_and_returns_derivations():
 
 def test_suppose_default_still_commits_to_ink():
     kb, rules, rg = _wet_world()
-    res = suppose(kb, rg, [("ada", "is", "rained_on")], [("is", "ada", "wet")])   # commit=True default
+    res = suppose(kb, [("ada", "is", "rained_on")], [("is", "ada", "wet")], rules=rg)   # commit=True default
     assert res.status == "confirmed" and ("ada", "is", "rained_on") in res.committed
     assert res.derived == []                                # default run: no read-only snapshot
     assert h.ask_goal(kb, "is ada wet", rules) == ["yes"]   # inked -> re-derives from ink
@@ -273,8 +272,7 @@ def test_suppose_commit_false_exposes_partial_derivations_on_inconclusive():
     # a prediction that does NOT derive makes the run inconclusive — but the partial consequence that
     # DID derive (and used to be swept unseen) is now inspectable, answering 'why inconclusive?'.
     kb, rules, rg = _wet_world()
-    res = suppose(kb, rg, [("ada", "is", "rained_on")],
-                  [("is", "ada", "wet"), ("is", "ada", "happy")], commit=False)
+    res = suppose(kb, [("ada", "is", "rained_on")], [("is", "ada", "wet"), ("is", "ada", "happy")], commit=False, rules=rg)
     assert res.status == "inconclusive"
     assert ("ada", "is", "wet") in res.derived
     assert h.ask_goal(kb, "is ada wet", rules) == ["no"]     # still read-only

@@ -39,7 +39,7 @@ def _demand_answer(facts, producers, consumer_nac, head):
     by `chain_sip` (nested negative demand, absence decides). No `is_not` is ever materialized."""
     g = _facts(facts)
     rg = _reify([*producers, consumer_nac])
-    chain_sip(g, rg, (head[0], None, head[1]))
+    chain_sip(g, (head[0], None, head[1]), rules=rg)
     return {g.name(b["?x"]) for b in match_pats(g, [Pat("?x", head[0], head[1])])}
 
 

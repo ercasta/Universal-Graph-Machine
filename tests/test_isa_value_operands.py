@@ -98,7 +98,7 @@ def test_transitive_join_bound_subject():
         Rule(key="reach.step", lhs=[Pat("?x", "edge", "?y"), Pat("?y", "reach", "?z")],
              rhs=[Pat("?x", "reach", "?z")]),
     ])
-    chain_sip(facts, rules, ("reach", "a", None))
+    chain_sip(facts, ("reach", "a", None), rules=rules)
     reached = {o for (s, p, o) in derived_triples(facts) if p == "reach" and s == "a"}
     assert reached == {"b", "c", "d"}
 
@@ -112,7 +112,7 @@ def test_literal_body_endpoints():
         Rule(key="reader", lhs=[Pat("?x", "in", "library"), Pat("library", "is", "quiet")],
              rhs=[Pat("?x", "is", "reader")]),
     ])
-    chain_sip(facts, rules, ("is", None, "reader"))
+    chain_sip(facts, ("is", None, "reader"), rules=rules)
     triples = derived_triples(facts)
     assert ("ada", "is", "reader") in triples and ("bo", "is", "reader") not in triples
 
@@ -132,7 +132,7 @@ def test_naf_nested_negative_verdicts():
         Rule(key="thief", lhs=[Pat("?x", "is_a", "suspect")],
              nac=[Pat("?x", "is", "cleared")], rhs=[Pat("?x", "is", "thief")]),
     ])
-    verdicts = {s: check(facts, rules, ("is", s, "thief")) for s in ("ada", "bo", "cy")}
+    verdicts = {s: check(facts, ("is", s, "thief"), rules=rules) for s in ("ada", "bo", "cy")}
     assert verdicts == {"ada": ASSUMED_NO, "bo": ASSUMED_NO, "cy": POSITIVE}
 
 
@@ -149,7 +149,7 @@ def test_graded_alpha_cut_as_grade_program():
              rhs=[Pat("?c", "needs", "attention")],
              graded=[GradedCondition("?c", {"urgency": 1.0}, 0.5)]),
     ])
-    chain_sip(facts, rules, ("needs", None, "attention"))
+    chain_sip(facts, ("needs", None, "attention"), rules=rules)
     triples = derived_triples(facts)
     assert ("leak", "needs", "attention") in triples
     assert ("drip", "needs", "attention") not in triples
@@ -169,7 +169,7 @@ def test_graded_alpha_cut_aggregates_over_coref_mentions():
              graded=[GradedCondition("?c", {"urgency": 1.0}, 0.5)]),
     ])
     # goal bound BY NAME -> ?c seeded with the value-node pointer -> GRADE aggregates over mentions
-    chain_sip(facts, rules, ("needs", "leak", None))
+    chain_sip(facts, ("needs", "leak", None), rules=rules)
     assert ("leak", "needs", "attention") in derived_triples(facts)
 
 
@@ -185,7 +185,7 @@ def test_value_match_join_as_vmatch_program():
              rhs=[Pat("?x", "same_as", "?y")],
              value_matches=[ValueMatch("?x", "?y", "warmth", threshold=0.9)]),
     ])
-    chain_sip(facts, rules, ("same_as", "morningstar", None))
+    chain_sip(facts, ("same_as", "morningstar", None), rules=rules)
     pairs = {(s, o) for s, p, o in derived_triples(facts) if p == "same_as"}
     assert ("morningstar", "eveningstar") in pairs and ("morningstar", "pluto") not in pairs
 
@@ -199,7 +199,7 @@ def test_skolem_minting_and_refinding():
         Rule(key="succ", lhs=[Pat("?p", "is_a", "state")],
              rhs=[Pat("?p", "has_succ", "s2?"), Pat("s2?", "succ_of", "?p")]),
     ])
-    chain_sip(facts, rules, ("has_succ", "p1", None))
+    chain_sip(facts, ("has_succ", "p1", None), rules=rules)
     triples = derived_triples(facts)
     assert sum(1 for s, p, o in triples if s == "p1" and p == "has_succ") == 1
 
@@ -210,9 +210,7 @@ def test_suppose_scope_pencil():
     rules = _reify([
         Rule(key="mortal", lhs=[Pat("?x", "is", "person")], rhs=[Pat("?x", "is", "mortal")]),
     ])
-    res = suppose(facts, rules,
-                  assumptions=[("bo", "is", "person")],
-                  predictions=[("bo", "is", "mortal")])
+    res = suppose(facts, assumptions=[("bo", "is", "person")], predictions=[("bo", "is", "mortal")], rules=rules)
     assert res.status in ("confirmed", "inconclusive", "refuted")
 
 
@@ -220,7 +218,7 @@ def test_focus_scope():
     facts = _facts([("ada", "knows", "bo"), ("cy", "knows", "dee"), ("bo", "knows", "ada")])
     rules = _reify([Rule(key="ack", lhs=[Pat("?x", "knows", "?y")],
                          rhs=[Pat("?x", "ack", "?y")])])
-    chain_sip(facts, rules, ("ack", "ada", None), focus_scope=frozenset({"ada", "bo"}))
+    chain_sip(facts, ("ack", "ada", None), focus_scope=frozenset({"ada", "bo"}), rules=rules)
     acked = {(s, o) for s, p, o in derived_triples(facts) if p == "ack"}
     assert acked == {("ada", "bo")}                        # cy->dee is off-focus, never derived
 
@@ -235,7 +233,7 @@ def test_byid_entity_pin_passes_through():
     facts.add_relation(ada1, "knows", bo)
     rules = _reify([Rule(key="ack", lhs=[Pat("?x", "knows", "?y")],
                          rhs=[Pat("?x", "ack", "?y")])])
-    n = chain_sip(facts, rules, ("ack", ById(ada1), None))
+    n = chain_sip(facts, ("ack", ById(ada1), None), rules=rules)
     assert n == 1 and ("ada", "ack", "bo") in derived_triples(facts)
 
 
@@ -244,7 +242,7 @@ def test_provenance_journaling():
     facts = _facts([("ada", "knows", "bo")])
     rules = _reify([Rule(key="ack", lhs=[Pat("?x", "knows", "?y")],
                          rhs=[Pat("?x", "ack", "?y")])])
-    n = chain_sip(facts, rules, ("ack", "ada", None), provenance=True)
+    n = chain_sip(facts, ("ack", "ada", None), provenance=True, rules=rules)
     assert n == 1 and ("ada", "ack", "bo") in derived_triples(facts)
 
 
@@ -266,7 +264,7 @@ def test_solver_carries_only_pointers(monkeypatch):
         return real(fact_g, pred, subj, obj, **kw)
 
     monkeypatch.setattr(chain, "_facts_matching", spy)
-    chain_sip(facts, rules, ("is", "ada", "reader"))
+    chain_sip(facts, ("is", "ada", "reader"), rules=rules)
     assert seen, "the spy saw no lookups — the scenario did not exercise the solver"
     for pred, subj, obj in seen:
         for ep in (subj, obj):
@@ -279,7 +277,7 @@ def test_emits_land_on_entities_never_on_value_nodes():
     operand data — no name, no relations — even after a full demand run."""
     facts = _facts([("a", "edge", "b")])
     rules = _reify([Rule(key="reach", lhs=[Pat("?x", "edge", "?y")], rhs=[Pat("?x", "reach", "?y")])])
-    chain_sip(facts, rules, ("reach", "a", None))
+    chain_sip(facts, ("reach", "a", None), rules=rules)
     assert ("a", "reach", "b") in derived_triples(facts)
     vnodes = facts.nodes_with_key(ISA_OPERAND_VALUE)
     assert vnodes, "the run should have interned value-nodes"
@@ -293,5 +291,5 @@ def test_demand_trace_records_values_not_node_ids():
     stringifies to its VALUE."""
     facts = _facts([("ada", "knows", "bo")])
     rules = _reify([Rule(key="ack", lhs=[Pat("?x", "knows", "?y")], rhs=[Pat("?x", "ack", "?y")])])
-    chain_sip(facts, rules, ("ack", "ada", None))
+    chain_sip(facts, ("ack", "ada", None), rules=rules)
     assert "ada ack anyone" in render_demands(rules)
