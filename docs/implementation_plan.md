@@ -278,8 +278,27 @@ Build slices, in dependency order (each with tests; the probe first to validate 
   endpoint-driven, 40× (m=6 13.8s→0.34s), suite 258 green + 54s→35s (CHANGELOG 2026-07-12). RESIDUAL
   super-linearity (m=12=5.5s) = levers (b) agenda re-servicing + (c) coref `same_as` fan-out; the profile
   is now flat. Seed-from-focus (8.3) bounds the coref fan-out by scoping — so the residual is addressed by
-  the spine build, not a separate perf push. STILL TODO in 8.0: re-run the probe AFTER 8.3 to confirm
-  focus-scoping isolates+flattens accretion, and that suspend/resume on `chain_sip` preserves the frontier.
+  the spine build, not a separate perf push. **RE-RUN 2026-07-14 (post control-machine port) — two findings:**
+  (i) FOCUS FLATTENS confirmed — `focus_probe` (bench/session_accretion.py): global grows ~3.5x over 8
+  accreting cases (48->168 ms, tracks KB size) while focus stays FLAT (~40-55 ms), ratio climbing 1.1->3.9x.
+  (Accretion is now MILDER than the original probe — global ~168 ms @ case 7 vs the old ~31 s — the engine
+  got much faster since, e.g. the endpoint-driven NAF fix; the SHAPE holds.) (ii) SUSPEND/RESUME FRONTIER
+  NOT preserved — `suspend_resume_probe`: warm re-entry ~= cold (1.01x), so `chain_sip` re-entry REDOES the
+  closure (the frontier/memo is per-call-local, not persisted). **SHARPENED (measured 2026-07-14):** this
+  bites ONLY for a WILDCARD / whole-session goal (the 7.7s case was `who is thief` UNSCOPED). A BOUND query
+  is already cheap — `is s5_0 thief` over 12 accreted cases: ~29 ms global / ~14 ms focus, and warm≈cold
+  (nothing to fix). So focus SUBSUMES the redo for the common interactive (bound) turn; the expensive-redo
+  residual = incremental re-close of a WILDCARD closure, which is inherently whole-KB anyway. FIX (when it
+  bites, not now): persistent tabled frontier / semi-naive delta ACROSS `chain_sip` calls = **perf lever (b)**
+  + the §10 memo-table-in-`AttrGraph.registers`; differentially gated. NOT a general blocker. The control
+  machine gives the MECHANISM (a `Continuation`); this is the payoff to wire when wildcard-streaming latency
+  matters. Control-machine port did NOT regress either behaviour.
+
+  **RUST PILOT (2026-07-14, scratchpad microbenchmark).** Confirmed the CONSTANT: the match inner loop
+  (SEED->FOLLOW->TEST fold, 30k final states) is **111 ms Python (`Machine.match`) vs 0.29 ms native Rust =
+  ~381x** — enum jump-table dispatch + `Vec` CSR + array-register states (no dict/isinstance). Above the
+  doc's 1-2 orders estimate (it also captures the dict->array state win). Sizes Phase 7b (Rust inner loop):
+  the constant is real + large; still orthogonal to the curve (focus). Not a repo artifact (throwaway).
 - **8.1 — unified intake entry + routing. FIRST INCREMENT DONE 2026-07-12.** `ugm/intake.py`
   `ingest(kb, rules, utterance) -> Outcome`: routes fact / rule / question / unrecognized by which FORMS
   fire (not a string sniff), reusing `recognize`/`ask_goal`/`load_rules`/`load_facts`/`expand_rules`.
@@ -458,8 +477,20 @@ under the design spec.
 ## Phase 7 — PERFORMANCE track (after correctness — user standing rule)
 
 In leverage order:
-- **(a)** Intern keys/values to ints, CSR adjacency, bitset candidate sets — see NEXT STEP item 3.
-- **(b)** Rust (PyO3) inner loop for Machine + store; Python stays the shell.
+- **(a)** Intern keys/values to ints, CSR adjacency, bitset candidate sets — see NEXT STEP item 3. **The
+  LOW-RISK first rung, in PURE PYTHON** (the profile's `isinstance` 1.0 s + dict-`bind` 0.8 s are attackable
+  without leaving Python: a dispatch-table for `_match_step`, int-interned keys, array/`__slots__` register
+  states). Likely 2–3× at near-zero risk. Do this BEFORE (b) if perf bites.
+- **(b) → Phase 7b: the Rust engine, Python surface.** ⭐ FULL PLAN: **`docs/rust_engine_plan.md`** (written
+  2026-07-14, ready for a fresh multi-hour session). The graph LIVES in Rust; Python holds a PyO3 handle and
+  taps in at closure granularity. MEASURED CONSTANT: match inner loop 111 ms Python vs 0.29 ms Rust ≈ **381×**
+  (`bench/rust_pilot/`). ⚠ HONEST GUARDRAILS (baked into the plan): perf is NOT the current bottleneck
+  (session scale is fast); Rust buys the CONSTANT not the CURVE (focus holds the curve); Amdahl caps the
+  end-to-end win (~4.5× for recognition unless everything ports); the Python engine STAYS the reference
+  oracle, every slice differential-tested, nothing deleted; FREEZE the ISA first; VALUE IS FRONT-LOADED (port
+  substrate+matcher first, STOP-AND-ASSESS before `chain_sip`). "Make it the default" is a separate, later
+  gate after full parity. Start only when a real target-scale workload is measurably too slow AND (a) is
+  exhausted. ⚠Opus for design; ✓S for the mechanical slices under the plan's differential gate.
 - **(c)** Per-rule AOT codegen = partial evaluation of APPLY (Soufflé-style), differentially gated.
 - **(d)** Two-tier execution for runtime-edited rules — fresh rules interpret, stable-hot rules compile in
   background, version-stamp invalidation on edit. JIT (Cranelift/copy-and-patch before LLVM) only if

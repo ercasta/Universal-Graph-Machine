@@ -288,6 +288,46 @@ just `suppose` — and an **id-addressed goal API** (seed/query by node id, name
 retire (a) and (b) at the same time. This is the ugm-side of the "addressing" follow-on pystrider's
 own `docs/spike_findings.md` flags for a shared multi-function graph.
 
+## 9. `load_machine_rules` VALIDATES by running the bank on every call — a 65% hidden cost for a consumer that reloads rules
+
+`load_machine_rules(text)` doesn't just parse — it *validates the bank by executing it*
+(`authoring.machine_rule_defects` → `run_bank`/`machine.run`). That is the right default for a
+one-time load, but it is **surprisingly expensive** and there is no way to skip it or to reuse a
+validated result. A consumer that reasons over one static bank pays the full parse+validate cost on
+every reload.
+
+pystrider reifies its semantics bank fresh for each detect (a fresh rule graph is the clean way to
+avoid shared graph-state across hypotheses). Profiling `repair_all` on a 3-line function:
+
+```
+repair_all -> _detect ×7 -> build_rule_graph/rule_list -> load_machine_rules ×15
+load_machine_rules cumulative: 28.9s of a 28.7s* profiled run   (*profiler overhead)
+```
+
+`load_machine_rules` was **~65% of every `analyze`** and ran 7× per `repair_all` — the bank never
+changes, so it was 100% redundant re-validation. Memoizing the parse on our side (parse once, still
+build a fresh graph per call) took **`repair_all` 8.2s → 0.21s (~39×)** and our **test suite 376s →
+31s (~12×)**, with no behaviour change (138/138 green). Repro:
+
+```python
+import time
+from ugm import load_machine_rules
+text = open("pystrider/semantics.cnl").read()   # ~a dozen machine rules
+t = time.perf_counter()
+for _ in range(10):
+    load_machine_rules(text)                     # each call re-parses AND re-validates
+print((time.perf_counter() - t) / 10, "s per load")   # ~2s, dominated by machine_rule_defects
+```
+
+**Ask:** give consumers a way to not pay validation on every load — e.g. `load_machine_rules(text,
+validate=False)` (parse only), or a compiled/validated bank handle that reuses the check across
+reloads (validation is a pure function of the text, so it's cacheable on a text hash). Since the ISA
+control-machine work makes rule-set-versioned compilation a first-class idea (isa doc §10, "keyed on
+a rule-set version"), a validated-once handle keyed on the bank text fits that direction cleanly. At
+minimum, the docstring should note that this call *runs the bank*, so consumers know to load once and
+reuse rather than reload per query. (Not a blocker — the one-line memoization on our side fixed it —
+but it's a footgun for any library consumer that treats rule-loading as cheap.)
+
 ---
 
 ### Net
@@ -299,4 +339,7 @@ rather than error, which is costly when you're authoring rules/facts programmati
 strict/verbose mode that surfaces "I did not recognize / could not mint / dropped this / joined
 across a split name" would remove most of the pain. The synthesis probes (retrieval + CHOOSE over
 many small authored graphs) add an **addressing/attention** ask on top (#8): a get-or-create-by-name
-helper and an id-addressed goal API, with focus reaching the retrieval path, not just `suppose`.
+helper and an id-addressed goal API, with focus reaching the retrieval path, not just `suppose`. And
+#9 adds a **performance** ask distinct from the correctness ones: `load_machine_rules` validates by
+running the bank on every call, so a consumer that reloads a static bank pays it repeatedly — a
+load-without-revalidate / validated-once handle would remove a 65%-of-runtime footgun.
