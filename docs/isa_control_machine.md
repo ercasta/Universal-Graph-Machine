@@ -11,6 +11,23 @@
 > start at §9 brick #1.** Standing rules: no commits by the assistant; correctness before performance; the
 > reference interpreter stays naive + differential-tested.
 >
+> **PROGRESS (2026-07-14):** bricks **#1 (PC + BRANCH/BRANCH_IF/SETI/DEC, ITERATE-as-primitives)**,
+> **#2 (CALL/RET + control stack)**, the **`PRIM` interpreter step (§10 two-levels)** and brick
+> **#4's SUSPEND/RESUME continuation mechanism** are BUILT — see §9. `ugm/machine.py` gains a
+> `ControlMachine` layered on the untouched two-phase `Machine`; `tests/test_isa_control_machine.py`
+> (23 tests) covers the loop differential-test, subgoal/recursion via the stack, PRIM fixpoint-as-
+> branch-back, and suspend/resume (incl. the internal-subgoal service-loop shape brick #3 uses).
+> **KEY FINDING (§9.3):** chain_sip's ONLY Python recursion is the NAC negative subgoal (`_nac_blocks`),
+> a *synchronous mid-solve* call → its faithful de-recursion needs a CONTINUATION (brick #4's
+> SUSPEND/RESUME), which is why #4's mechanism was built before #3. SUSPEND/RESUME is realized as a
+> resumable `Continuation` (full control state) + a driver `resume`; the service-loop over suspensions
+> carries arbitrary subgoal depth with no Python recursion. **Brick #3 (chain_sip port) is now DONE**
+> (§9.3): the NAC subgoal descent is de-recursed onto an explicit control stack (generator-based, the
+> yield = the CALL, the driver stack = the control stack), behaviour-identical (whole reasoning suite
+> the oracle), proven by a 601-deep NAF stratification that runs under a recursion limit of 200. Suite:
+> **379 passed** (355 baseline + 23 control-machine + 1 deep-stratification). Remaining: dispatch (§9.4)
+> + run_bank fixpoint (§9.5), then the Python drivers + control-mechanics `<…>` tokens + the seam are gone.
+>
 > **Prerequisite reading:** `ugm/machine.py` (the match-then-apply interpreter + its docstring's
 > "reference vs optimized" note), `ugm/chain.py` (`chain_sip` — subgoals as Python recursion),
 > `ugm/lowering.py` (`run_bank` — the fixpoint driver), `ugm/dispatch.py` (`<call>` servicing),
@@ -214,15 +231,36 @@ Rust story (§7); the *curve* is held by this section, unchanged. Both levers, k
 
 ## 9. Slices (executable order — §10 resolved; brick #1 is the entry point)
 
-1. **Brick #1 — PC + `BRANCH`, and `ITERATE` re-expressed as primitives.** Add the control pointer and
-   `BRANCH`/`BRANCH_IF`/`SETI`/`DEC`; express a bounded loop as `SETI/…/DEC/BRANCH_IF` over a basic block;
-   **differential-test** it against today's `ITERATE` (identical effects). Proves the primitive control
-   layer reproduces the bulk op before touching subgoals. `ITERATE` stays as the REP/SIMD convenience.
-2. **`CALL`/`RET` + the control stack.** Nesting to arbitrary depth via the stack; a self-contained
-   subgoal-as-`CALL` test.
-3. **Port `chain_sip` (subgoals) onto `CALL`/`RET`** — the subgoal descent becomes ISA control, not Python
-   recursion; the demand *agenda* moves to the control stack, the demand *record* stays a `<demand>` graph
-   node (the explanation, §6). Differential-test against the current chain.
+1. ✅ **Brick #1 — PC + `BRANCH`, and `ITERATE` re-expressed as primitives.** *(BUILT 2026-07-14,
+   `ugm/machine.py` + `tests/test_isa_control_machine.py`.)* Added the control pointer and
+   `BRANCH`/`BRANCH_IF`/`SETI`/`DEC`, plus `Block`/`ControlMachine` (fetch-decode-execute over a
+   PC-indexed program of labeled basic blocks). A bounded loop is now `SETI/…/DEC/BRANCH_IF` over a
+   basic block; a differential test confirms it reproduces `ITERATE`'s graph effects exactly (node
+   counts + `derived_triples`), including the zero-trip case. The `ControlMachine` LAYERS ON the
+   untouched two-phase `Machine` (the basic-block primitive) — no existing opcode changed, suite green.
+   Loop counters are SCALAR control registers (`ControlMachine.ctrl`, a machine-level control context —
+   §4.3's sanctioned alternative to `AttrGraph.registers` for ephemeral per-run state). `ITERATE` stays
+   as the REP/SIMD convenience.
+2. ✅ **`CALL`/`RET` + the control stack.** *(BUILT 2026-07-14, same files.)* `CALL`/`RET` are block
+   TERMINATORS (§10) that push/pop `ControlMachine.stack` — frames of (return-PC, saved register window
+   = state stream + control snapshot). The callee gets a fresh window and the SHARED graph, so its fact
+   writes persist and the caller reads them after `RET` (the subgoal model); the control snapshot is
+   caller-saved (a counter passes an argument down, restored on return). Tests cover subroutine call +
+   return, caller-window preservation, depth-3 nesting, and bounded RECURSION carried by the explicit
+   stack (not Python) — the WAM environment stack `chain_sip` fakes today, ready for brick #3.
+3. ✅ **Port `chain_sip` (subgoals) onto `CALL`/`RET`.** *(BUILT 2026-07-14, `ugm/chain.py` +
+   `tests/test_isa_naf.py`.)* The ONLY Python recursion in the demand solver was the NAC negative subgoal
+   (`_nac_blocks` → `chain_sip`), a synchronous mid-solve call. Ported via a GENERATOR de-recursion:
+   `_nac_blocks`/`_solve_demand_rule` are now generators that YIELD `("subgoal", neg_goal, child_neg_stack)`
+   instead of recursing; `chain_sip` became a DRIVER over an EXPLICIT control stack of `_close_goal`
+   frames — the WAM environment stack — that pushes a child frame per subgoal and resumes the parent on
+   completion (same DFS order → behaviour-identical, the whole reasoning suite is the differential oracle,
+   379 green). `neg_stack` (stratification) IS the control stack; the demand *record* stays a `<demand>`
+   graph node (explanation, §6); the per-frame agenda stays a local register. Proven de-recursed by a
+   601-deep NAF stratification that completes with Python's recursion limit set to 200 (the old recursive
+   descent, ~4 frames/stratum, would `RecursionError`). This realizes the continuation via Python
+   generators — the yield IS the `CALL`, the driver stack IS the control stack; a machine-level
+   `SUSPEND`/`RESUME` (brick #4 mechanism) is the same shape one level down.
 4. **Port `dispatch` (`<call>`) onto `CALL` + `SUSPEND`/`RESUME`** — retiring the `<call>` control node
    (its record stays; its mechanics become instructions).
 5. **Port `run_bank`'s fixpoint** onto the control machine (a branch-back over a "changed?" flag). Then the

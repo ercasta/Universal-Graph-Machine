@@ -218,6 +218,38 @@ def test_nac_whose_nested_closure_truncates_is_unknown():
     assert check(g, rg, ("is", "bo", "thief"), max_rounds=1) == UNKNOWN
 
 
+# --- Brick #3 (docs/isa_control_machine.md §9.3): the NAC subgoal descent runs on an EXPLICIT control
+# stack, not Python recursion. A deeply-stratified NAF chain (p0 :- not p1, p1 :- not p2, …, pN base)
+# closes by descending N negative subgoals. The old code recursed `chain_sip -> _solve_demand_rule ->
+# _nac_blocks -> chain_sip` per stratum (~4 Python frames/level), so a deep chain blew Python's
+# recursion limit; the ported driver carries the descent on its own stack (O(1) Python depth), so it
+# completes even with the interpreter's recursion limit turned WAY down — the definitive de-recursion test.
+
+def test_deep_nac_stratification_uses_the_control_stack_not_python_recursion():
+    import sys
+    N = 601                                              # far deeper than the recursion limit below
+    # pI(a) :- q(a) and not p{I+1}(a);  pN has no rule (base). derived(pN)=F and
+    # derived(pI) = not derived(p{I+1}), so derived(p0) is True iff N is odd. N=601 -> p0(a) derived.
+    rules = [Rule(key=f"p{i}",
+                  lhs=[Pat("?x", "q", "yes")],
+                  nac=[Pat("?x", f"p{i+1}", "yes")],
+                  rhs=[Pat("?x", f"p{i}", "yes")])
+             for i in range(N)]
+    g = _facts([("a", "q", "yes")])
+    rg = _reify(rules)
+
+    old_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(200)                           # the OLD recursive descent (~2400 frames) would
+    try:                                                 # RecursionError here; the explicit stack does not
+        chain_sip(g, rg, ("p0", "a", None))
+    finally:
+        sys.setrecursionlimit(old_limit)
+
+    # and the answer is correct: the 601-deep negative closure resolves p0(a) as derived (N odd)
+    derived = {g.name(b["?x"]) for b in match_pats(g, [Pat("?x", "p0", "yes")])}
+    assert "a" in derived
+
+
 def test_nac_consumer_is_decided_no_with_enough_fuel():
     # with the full budget the cleared deduction finishes -> bo IS cleared -> the NAC fails -> bo is not
     # the thief, and the verdict is a DECIDED ASSUMED_NO (closed-world), not UNKNOWN.

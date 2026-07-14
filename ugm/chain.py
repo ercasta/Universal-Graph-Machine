@@ -597,15 +597,21 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
     this lower stratum, so the chain PRUNES it: block this env and DO NOT recurse (returning "blocked"
     for the re-entered rule, continuing the outer closure). A wildcard endpoint (a NAC var the positive
     body left unbound) is an EXISTENTIAL NAC — `not L(x, ·)` holds iff NO `L(x, anything)` exists, which
-    the wildcard `_facts_matching` reads directly."""
+    the wildcard `_facts_matching` reads directly.
+
+    GENERATOR (brick #3, docs/isa_control_machine.md §9.3): this is now a GENERATOR — instead of RECURSING
+    into `chain_sip` to close a negative's positive, it YIELDS a subgoal request `("subgoal", neg_goal,
+    child_neg_stack)` and the driver (`chain_sip`) closes it on an EXPLICIT control stack, then resumes
+    here. The yield IS the `CALL`; the driver's stack IS the control stack — the subgoal descent lives in
+    the machine's stack, not Python's. Operation order is unchanged (the driver services each yield
+    synchronously before resuming), so the demand-driven NAF semantics are identical. Returns the block
+    verdict via the generator's return value (`yield from` surfaces it)."""
     for ns, np, no in nac_atoms:
         neg_goal = (np, _tok_name(env, ns), _tok_name(env, no))
         if neg_goal in neg_stack:
             return True                        # re-entry: prune the higher-stratum rule (block env)
         if neg_goal not in closed:             # MEMO: a negative's positive is closed ONCE per session.
-            chain_sip(fact_g, rule_g, neg_goal, provenance=provenance, scope=scope,   # close the positive
-                      focus_scope=focus_scope,
-                      _neg_stack=neg_stack | {neg_goal}, _fuel=fuel, max_rounds=max_rounds, _closed=closed)
+            yield ("subgoal", neg_goal, neg_stack | {neg_goal})   # driver closes the positive, then resumes
             closed.add(neg_goal)               # facts are monotone + stratified -> the closure is stable,
         # so re-demands (the round loop re-services this env each round) just READ absence, never re-close.
         if _facts_matching(fact_g, np, neg_goal[1], neg_goal[2], scope=scope, focus_scope=focus_scope):
@@ -706,7 +712,12 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     the sub-demand as a visible node. `provenance=True` journals each firing (RECORD, mode 9). Within a
     SUPPOSE `scope`, the scope's pencil facts are visible to the body match and each EMIT is written in
     PENCIL (a control rel node tagged `scope`), so nothing touches ink. `neg_stack` carries the negative
-    goals being resolved up-stack (the NAF cycle guard). Returns #facts EMITted this call."""
+    goals being resolved up-stack (the NAF cycle guard). Returns #facts EMITted this call.
+
+    GENERATOR (brick #3): a generator — its NAC decision `yield from`s `_nac_blocks`, so a nested negative
+    subgoal is a request the driver (`chain_sip`) services on the explicit control stack rather than Python
+    recursion. With no NAC it yields nothing and returns the fired count (still a generator; `yield from`
+    reads its return value)."""
     body = _read_atoms(rule_g, rule_node, "lhs")
     heads = _read_atoms(rule_g, rule_node, "rhs")
     # A NAC atom IDENTICAL to a head atom is an IDEMPOTENCY memo (`?a rel ?c when … and not ?a rel ?c`,
@@ -748,10 +759,10 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                 continue
             if value_matches and not _value_matches_ok(fact_g, value_matches, env):   # declared value-JOIN
                 continue
-            if nac and _nac_blocks(fact_g, rule_g, nac, env, scope=scope,   # NAF: absence decides
-                                   focus_scope=focus_scope,
-                                   provenance=provenance, neg_stack=neg_stack,
-                                   fuel=fuel, max_rounds=max_rounds, closed=closed):
+            if nac and (yield from _nac_blocks(fact_g, rule_g, nac, env, scope=scope,   # NAF: absence
+                                               focus_scope=focus_scope,                 # decides — the
+                                               provenance=provenance, neg_stack=neg_stack,  # subgoal is
+                                               fuel=fuel, max_rounds=max_rounds, closed=closed)):  # a yield
                 continue
             sk_ids = _resolve_skolems(fact_g, heads, env, skolems) if skolems else {}
             for hs, hp, ho in heads:
@@ -774,6 +785,47 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     return fired
 
 
+def _close_goal(fact_g: AttrGraph, rule_g: AttrGraph,
+                goal: tuple[str, str | None, str | None], *, neg_stack, provenance, scope,
+                focus_scope, fuel, max_rounds, closed, visible):
+    """Close ONE goal's positive to fixpoint — the per-goal round-loop, as a GENERATOR (brick #3). It
+    serves every standing demand with the rules that produce it (raising bound sub-demands and EMITting)
+    until no new fact and no new demand. When a rule's NAC needs a negative subgoal closed, the delegated
+    `_solve_demand_rule`/`_nac_blocks` YIELD a `("subgoal", neg_goal, child_neg_stack)` request up to the
+    driver (`chain_sip`), which pushes a child `_close_goal` on the explicit control stack and resumes
+    this frame once it completes — so the subgoal descent is the machine's stack, not Python recursion.
+    Returns #facts EMITted in THIS goal's closure (nested-negative derivations count toward their OWN
+    frame, exactly as the old nested `chain_sip` return was discarded). `visible(d, neg_stack)` mints the
+    top-level magic-set trace (only when `neg_stack` is empty)."""
+    visible(goal, neg_stack)
+    agenda: set[tuple[str, str | None, str | None]] = {goal}   # this frame's own demand sub-tree
+    total = 0
+    converged = False
+    for _ in range(max_rounds):
+        newly: set[tuple[str, str | None, str | None]] = set()
+
+        def mint(d, _agenda=agenda, _new=newly, _ns=neg_stack):
+            if d not in _agenda and d not in _new:
+                _new.add(d)
+                visible(d, _ns)                            # visible magic-set node (trace), minted once
+
+        fired = 0
+        for demand in agenda:
+            for rn in rules_producing(rule_g, demand[0]):
+                fired += (yield from _solve_demand_rule(
+                    fact_g, rule_g, rn, demand, mint,
+                    provenance=provenance, scope=scope, focus_scope=focus_scope,
+                    neg_stack=neg_stack, fuel=fuel, max_rounds=max_rounds, closed=closed))
+        agenda |= newly
+        total += fired
+        if fired == 0 and not newly:                       # no new fact AND no new demand -> fixpoint
+            converged = True
+            break
+    if not converged and fuel is not None:                 # hit the round budget short of fixpoint ->
+        fuel.exhausted = True                              # the closure is not EXHAUSTED (fuel->UNKNOWN)
+    return total
+
+
 def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
               goal: tuple[str, str | None, str | None], *, max_rounds: int = 1000,
               provenance: bool = False, scope: str | None = None,
@@ -790,56 +842,57 @@ def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
     scope's pencil facts as well as ink and EMITs its derivations back in PENCIL — same-graph, not a
     branch.
 
-    The agenda is LOCAL to this call (seeded from `goal`, grown only by the sub-demands its own rules
-    raise) — it still MINTS every demand as a visible `<demand>` node for the trace, but it does NOT
-    re-drive pre-existing demand nodes left by other calls. That self-containment is what makes a NESTED
-    NEGATIVE demand (`_nac_blocks`) close ONLY its negated positive `L` without re-entering the very
-    consumer whose NAC is being decided — the demand-driven analog of the reference's self-contained
-    nested completion solve, and what keeps NAF's "the positive failed" read from L's COMPLETE extension."""
+    CONTROL-MACHINE PORT (brick #3, docs/isa_control_machine.md §9.3). `chain_sip` is now a DRIVER over
+    an EXPLICIT CONTROL STACK of `_close_goal` frames — the WAM environment stack — replacing the Python
+    recursion the NAC negative subgoal used (`_nac_blocks` used to CALL `chain_sip`). Each frame closes
+    one goal; when its NAC needs a negative closed it YIELDS a subgoal request, the driver pushes a child
+    frame for it (with `neg_stack | {neg_goal}`, so the stratification stack IS the control stack), runs
+    the child to completion (mutating the SHARED, monotone graph), then resumes the parent — the same DFS
+    order as the old recursion, so behaviour is identical (the reasoning suite is the differential oracle).
+    The subgoal descent now lives in the machine's stack, not Python's — the seam-crossing §9.3 promises.
+
+    The agenda stays LOCAL to each frame (seeded from its goal, grown only by the sub-demands its own
+    rules raise), and the visible `<demand>` trace is minted ONLY for the top-level goal (`neg_stack`
+    empty). A nested negative frame needs no trace and mints none. Self-containment (a NAC closes ONLY its
+    negated positive `L`, never re-entering the consumer whose NAC is being decided) is preserved: each
+    frame is a distinct goal-closure on the stack; the `_closed`/`neg_stack` memo + prune keep NAF's
+    'the positive failed' read from L's COMPLETE extension."""
     validate_ids(fact_g, goal[1], goal[2])                 # id-addressed pins must exist (silent->loud)
     build_head_index(rule_g)                               # idempotent
     if _closed is None:
-        _closed = set()                                    # NAC-closure MEMO, shared with nested demands
-    # Drive from a LOCAL agenda (a Python set), NOT `bound_demands(rule_g)`: reading the demand nodes
-    # back out of the graph on every sub-demand is O(#demands), and demand nodes accumulate across a
-    # call's nested negative closures — that scan-in-the-hot-path was quadratic. The VISIBLE `<demand>`
-    # trace nodes are minted lazily and ONLY at the top level (`_neg_stack` empty), deduped by a local
-    # set; a nested negative closure needs no trace, so it mints none (and never re-scans the graph).
+        _closed = set()                                    # NAC-closure MEMO, shared across all frames
+    # The VISIBLE `<demand>` trace is minted lazily and ONLY at the top level (`neg_stack` empty), deduped
+    # by ONE set shared across frames (only the root frame ever mints — nested frames pass a non-empty
+    # neg_stack, so `visible` no-ops). A nested negative closure needs no trace and never re-scans the graph.
     minted: set[tuple[str, str | None, str | None]] = set()
 
-    def _visible(d):
-        if not _neg_stack and d not in minted:             # top-level magic set only (trace)
+    def visible(d, ns):
+        if not ns and d not in minted:                     # top-level magic set only (trace)
             minted.add(d)
             _mint_bound_demand(rule_g, d)
 
-    _visible(goal)
-    agenda: set[tuple[str, str | None, str | None]] = {goal}   # this call's own demand sub-tree
-    total = 0
-    converged = False
-    for _ in range(max_rounds):
-        newly: set[tuple[str, str | None, str | None]] = set()
+    def frame(g, ns):
+        return _close_goal(fact_g, rule_g, g, neg_stack=ns, provenance=provenance, scope=scope,
+                           focus_scope=focus_scope, fuel=_fuel, max_rounds=max_rounds,
+                           closed=_closed, visible=visible)
 
-        def mint(d, _agenda=agenda, _new=newly, _vis=_visible):
-            if d not in _agenda and d not in _new:
-                _new.add(d)
-                _vis(d)                                    # visible magic-set node (trace), minted once
-
-        fired = 0
-        for demand in agenda:
-            for rn in rules_producing(rule_g, demand[0]):
-                fired += _solve_demand_rule(fact_g, rule_g, rn, demand, mint,
-                                            provenance=provenance, scope=scope,
-                                            focus_scope=focus_scope,
-                                            neg_stack=_neg_stack, fuel=_fuel, max_rounds=max_rounds,
-                                            closed=_closed)
-        agenda |= newly
-        total += fired
-        if fired == 0 and not newly:                       # no new fact AND no new demand -> fixpoint
-            converged = True
-            break
-    if not converged and _fuel is not None:                # hit the round budget short of fixpoint ->
-        _fuel.exhausted = True                             # the closure is not EXHAUSTED (fuel->UNKNOWN)
-    return total
+    # THE CONTROL STACK: DFS over goal-closure frames. `send` is always None — a resumed parent reads the
+    # child's result from the SHARED graph (like `CALL`/`RET` where callee graph writes persist), not a
+    # return value. Only the ROOT frame's `total` is returned (nested closures count toward their own
+    # frame — the old nested `chain_sip` return was discarded).
+    stack = [frame(goal, _neg_stack)]
+    root_total = 0
+    while stack:
+        try:
+            req = stack[-1].send(None)                     # advance the deepest frame to its next subgoal
+        except StopIteration as e:                         # ... or to completion
+            stack.pop()
+            if not stack:
+                root_total = e.value if e.value is not None else 0
+            continue
+        _kind, neg_goal, child_neg_stack = req             # ("subgoal", neg_goal, neg_stack|{neg_goal})
+        stack.append(frame(neg_goal, child_neg_stack))     # push the child closure (the control stack)
+    return root_total
 
 
 def render_demands(rule_g: AttrGraph) -> list[str]:
