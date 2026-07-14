@@ -109,6 +109,6 @@ of thieves. You just added a dot and an arrow, and the machine's answer changed.
 
 ---
 
-**Coming next (Part 1 continues):** now that we know what the world is made of,
-we'll get systematic about the three things you can *do* with it — state facts,
-ask questions, and write rules.
+**Next:** now that we know what the world is made of, let's get systematic about
+filling it — the handful of ways to state a fact.
+[Telling the machine facts →](02-facts.md)

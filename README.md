@@ -2,6 +2,8 @@
 
 **A substrate for performing computation over graphs.**
 
+> 📘 **New here? Start with the [illustrated tutorial →](https://ercasta.github.io/Universal-Graph-Machine/)** — a plain-language, mobile-friendly book that teaches the machine from scratch, with **live examples you can run in your browser**. No background needed. (The rest of this README is the technical overview.)
+
 UGM doesn't *break* the wall between (controlled) language and computation — it **dissolves**
 it. Parsing, reasoning, and explanation are one process (graph rewriting over one substrate),
 so language isn't a layer bolted onto an engine — it's made of the same thing. ([see how](#the-cnl-layer-ugmcnl))

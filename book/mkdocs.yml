@@ -66,6 +66,8 @@ nav:
   - "Part 1 — Basic":
       - "0 · A machine that explains itself": basic/00-a-machine-that-explains-itself.md
       - "1 · The substrate": basic/01-the-substrate.md
+      - "2 · Telling the machine facts": basic/02-facts.md
+      - "3 · Asking questions": basic/03-questions.md
   - "Playground":
       - "The detective case": playground/detective.md
   - "Appendix — concepts": appendix/index.md
