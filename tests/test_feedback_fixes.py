@@ -6,7 +6,9 @@ and an unrecognized fact line (#5) now signal instead of quietly doing less. Plu
 gap: `suppose` now accepts `focus_scope` like `ask_goal` (#7). Round 3 (the CNL-rule-module asks):
 `load_machine_rules` is memoized on the bank text (#9), `?a != ?b` is a declared DISTINCTNESS condition
 honoured by the join on both engines (#11), and `ask_goal(commit=False)` is a read-only query over an
-ephemeral pencil scope (#12).
+ephemeral pencil scope (#12). Round 4 (performance): the ~2.8ms fixed `ask_goal` floor (#13) — question
+recognition and per-rule bank lowering are memoized (pure functions of text/rule), and `query_goal` is
+the tuple-goal read-only sibling of `ask_goal` that skips the CNL layer entirely.
 """
 import inspect
 import warnings
@@ -392,3 +394,68 @@ def test_ask_goal_commit_false_why_raises():
     g = _contested_world()
     with pytest.raises(ValueError, match="commit=False"):
         ask_goal(g, "why c contested yes", load_machine_rules(_CONTESTED), commit=False)
+
+
+# --- #13: the fixed per-call floor — query_goal (tuple goal, no CNL layer) + compile-once memos ------
+
+def test_query_goal_returns_matching_facts_read_only():
+    from ugm import query_goal
+    g = _contested_world()
+    # bound goal: the yes/no shape — the matching fact comes back as data, nothing is inked.
+    assert query_goal(g, ("contested", "c", "yes"), rules=load_machine_rules(_CONTESTED)) == \
+        [("c", "contested", "yes")]
+    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["no"]      # poison test (#12)
+    assert not [x for x in g.nodes() if g.name(x) == "<query>"]         # the pencil scope was swept
+
+
+def test_query_goal_free_slot_returns_id_pin():
+    from ugm import query_goal, ById
+    g = _contested_world()
+    out = query_goal(g, ("contested", None, "yes"), rules=load_machine_rules(_CONTESTED))
+    assert len(out) == 1
+    s, p, o = out[0]
+    assert p == "contested" and o == "yes"
+    assert isinstance(s, ById) and g.name(s.node_id) == "c"             # witness as a collision-free pin
+
+
+def test_query_goal_commit_true_materializes():
+    from ugm import query_goal
+    g = _contested_world()
+    assert query_goal(g, ("contested", "c", "yes"), rules=load_machine_rules(_CONTESTED),
+                      commit=True) == [("c", "contested", "yes")]
+    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["yes"]     # inked, as asked
+
+
+def test_query_goal_accepts_reified_rule_graph():
+    from ugm import query_goal
+    from ugm.cnl.rule_graph import write_rule as write_rule_g
+    rg = h.Graph()
+    for r in load_machine_rules(_CONTESTED):
+        write_rule_g(rg, r)
+    for _ in range(2):                                   # reify-once reuse converges (no accretion bug)
+        g = _contested_world()
+        assert query_goal(g, ("contested", "c", "yes"), rules=rg) == [("c", "contested", "yes")]
+
+
+def test_query_goal_underivable_is_empty():
+    from ugm import query_goal
+    g = h.Graph(); ids = {}
+    n = lambda x: ids.setdefault(x, ids.get(x) or g.add_node(x))
+    g.add_relation(n("a"), "writes", n("c"))             # ONE writer -> no conflict derivable
+    assert query_goal(g, ("contested", "c", "yes"), rules=load_machine_rules(_CONTESTED)) == []
+
+
+def test_lower_bank_rule_is_memoized_per_rule():
+    from ugm.lowering import _lower_bank_rule
+    rule = load_machine_rules(_CONTESTED)[0]
+    first = _lower_bank_rule(rule)
+    assert _lower_bank_rule(rule) is first               # compile-once: the same cached tuple
+    assert _lower_bank_rule(rule, guard=True) is not first   # a distinct configuration lowers its own
+
+
+def test_parse_question_memo_returns_isolated_copies():
+    from ugm.cnl.query import _parse_question
+    q1 = _parse_question("is c contested yes")
+    q1["p"] = "corrupted"                                # a caller mutating its result…
+    q2 = _parse_question("is c contested yes")
+    assert q2["p"] == "contested"                        # …can never poison the memo

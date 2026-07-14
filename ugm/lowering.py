@@ -509,7 +509,25 @@ def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset(),
     reversible retraction interposition — `lower_rewire`).
     `control_preds` marks heads whose predicate is a scaffolding predicate as control-layer.
     `guard=True` emits the inert fact-read guard into the match + NAC programs (`guard_inert` —
-    the compiler-emitted replacement for the retired `Machine.skip_inert` mode)."""
+    the compiler-emitted replacement for the retired `Machine.skip_inert` mode).
+
+    MEMOIZED per `Rule` instance (feedback #13, the compile-once lowered program): lowering is a pure
+    function of (rule, control_preds, guard), and `Rule` objects are shared-immutable (the #9
+    `load_machine_rules` memo returns the same instances; every engine path treats them as frozen), so
+    a static bank's ISA programs are compiled ONCE instead of on every `run_bank` round-trip — this was
+    ~45% of `ask_goal`'s fixed per-call floor (the question-form banks re-lowered per question). The
+    cached tuple is read-only by contract (`run_bank` only iterates it; a caller must never mutate the
+    op lists). The cache lives on the rule's own `__dict__` (not a module dict keyed on `id()`), so its
+    lifetime is exactly the rule's and a `dataclasses.replace` copy starts fresh."""
+    cache = rule.__dict__.setdefault("_lowered_bank", {})
+    hit = cache.get((control_preds, guard))
+    if hit is None:
+        cache[(control_preds, guard)] = hit = _lower_bank_rule_uncached(
+            rule, control_preds, guard=guard)
+    return hit
+
+
+def _lower_bank_rule_uncached(rule: Rule, control_preds: frozenset[str], *, guard: bool):
     if any(c.inverted for c in rule.graded):
         raise Unlowerable(f"{rule.key}: inverted graded condition is a later slice")
     prem_regs: list[str] = []             # LHS body rel nodes a firing `uses` (provenance)

@@ -156,6 +156,19 @@ def _parse_qevent(graph: Graph, qid: str) -> dict:
     return {"qtype": "nary", "pred": pred, "roles": roles, "unknown": unknown}
 
 
+# Feedback #13: question RECOGNITION is a pure function of the question text (a throwaway graph +
+# the STATIC form banks), yet it dominated `ask_goal`'s ~2.8ms fixed per-call floor — a consumer
+# running one check-question many times re-recognized the same string every call. Memoized here for
+# the default path (no `extra_forms`/`strata` — those vary by caller and KB, so they bypass the memo).
+# Values are the recognized query dicts; `_parse_question` returns a fresh COPY per call so a caller
+# mutating its result can never poison the memo.
+_RECOGNIZED_QUESTIONS: dict[str, dict | None] = {}
+
+
+def _copy_query(q: dict | None) -> dict | None:
+    return None if q is None else ({**q, "roles": dict(q["roles"])} if "roles" in q else dict(q))
+
+
 def _parse_question(question: str, extra_forms: list[Rule] = (), *, strata=None) -> dict | None:
     """Recognize `question` (in a throwaway graph) into a query dict.
 
@@ -168,7 +181,18 @@ def _parse_question(question: str, extra_forms: list[Rule] = (), *, strata=None)
     `strata` are the surface-normalization form banks (`forms.surface_forms(...)`): run first so a
     question with a determiner / multi-word entity ("is the bald eagle a bird") normalizes to the
     same names the assert path produced and matches by name. None (direct callers) => no
-    normalization, single-word behaviour."""
+    normalization, single-word behaviour.
+
+    Memoized on the question text for the static-banks path (feedback #13, see
+    `_RECOGNIZED_QUESTIONS`); a call with `extra_forms` or `strata` recognizes fresh every time."""
+    if not extra_forms and strata is None:
+        if question not in _RECOGNIZED_QUESTIONS:
+            _RECOGNIZED_QUESTIONS[question] = _recognize_question(question)
+        return _copy_query(_RECOGNIZED_QUESTIONS[question])
+    return _recognize_question(question, extra_forms, strata=strata)
+
+
+def _recognize_question(question: str, extra_forms: list[Rule] = (), *, strata=None) -> dict | None:
     tmp = Graph()
     anchor = tokenize(tmp, question)
     if strata:

@@ -14,6 +14,25 @@ this log is itself a historical record.
 
 ## 2026-07-14
 
+### pystrider feedback round 4 — #13 the fixed per-call floor: `query_goal` + compile-once memos (449 passed)
+The one new item in the round-4 feedback drop: `ask_goal` carried a ~2.8ms FIXED floor per call (measured
+3.5ms here), so a CNL-authored check run O(many) times paid ~1150× the Python scan it replaced. Profiling
+localized it: ~63% was `_parse_question` — which re-LOWERED the static question-form banks to ISA programs
+on every question (`run_bank` → `_lower_bank_rule`, 45% of the whole call) — and the rest the genuine demand
+chain. Both feedback asks shipped: **(2) compile-once** — `_lower_bank_rule` is memoized per `Rule` instance
+(lowering is a pure function of (rule, control_preds, guard); the #9 memo already shares Rule objects as
+immutable; cache lives on the rule's own `__dict__`, so lifetime is the rule's), and question RECOGNITION is
+memoized on the question text (`_RECOGNIZED_QUESTIONS`, isolated copies out, `extra_forms`/`strata` callers
+bypass); **(1) the tuple-goal query** — `ugm.query_goal(fact_g, goal, rules=…)`, the read-only-by-DEFAULT
+sibling of `ask_goal` (the #12 pencil scope) that skips the CNL layer entirely and returns goal-matching
+facts as `(s, p, o)` data (free slot → `ById` pin; `rules=` takes the rule list or a pre-reified graph;
+`commit=True` opts into ink). Named `query_goal` because `ugm.query` is the module alias. Measured:
+`ask_goal(commit=False)` 3.5ms → 1.1ms (~3.2×); `query_goal` ~1.0ms — the residue is real demand-solving
+(per-goal ISA fact lookups), whose constant factor is the Rust port's job, not redundant setup. Differential:
+pystrider 240 passed; its 14 failures (9 `test_app_synthesis` + 5 new `test_generator_frontend`) all
+reproduce as the known environmental `ModuleNotFoundError: textual`. Tests: `tests/test_feedback_fixes.py`
+(+7: `test_query_goal_*`, memo identity/isolation).
+
 ### pystrider feedback round 3 — #9 memoized bank load, #11 distinctness (`?a != ?b`), #12 read-only `ask_goal` (442 passed)
 The three open asks from the CNL-rule-module spike (`docs/feedback_from_pystrider.md`), each fixed on the
 established mechanism rather than a bolt-on. **#11** (the headline — the single gate to porting the

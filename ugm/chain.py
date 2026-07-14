@@ -1092,6 +1092,51 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     return root_total
 
 
+def query_goal(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
+               rules=None, commit: bool = False,
+               focus_scope: frozenset[str] | None = None,
+               max_rounds: int = 1000) -> list[tuple]:
+    """Answer a BOUND-TUPLE goal and return the MATCHING FACTS — the low-fixed-overhead sibling of
+    `ask_goal` (feedback #13): no CNL question parse or answer render (the ~half of `ask_goal`'s
+    per-call floor the question-string layer cost), READ-ONLY by default, and the answers come back
+    as data instead of rendered strings. The hot inner loop of a consumer that runs MANY small
+    checks (a per-composition soundness rule, a per-hypothesis probe) belongs here; `ask_goal`
+    stays the CNL conversation surface.
+
+    `goal` is `(pred, subj|None, obj|None)` — a `None` slot is the queried variable (`chain_sip`'s
+    grain); an endpoint may be a name or a `ById` pin (id-addressed, collision-free). `rules` is a
+    rule bank as a `list[Rule]` (reified fresh per call, exactly `ask_goal`'s discipline — no
+    demand-trace accretion across queries) or an already-reified `AttrGraph` (reify once and reuse,
+    the caller's choice); `None` reasons over `fact_g` itself (the one-graph fold).
+
+    Returns the goal-matching facts as `(subj, pred, obj)` triples: a bound endpoint echoes the
+    goal's; a free slot comes back as a `ById` pin naming the witness NODE (render it with
+    `fact_g.name(pin.node_id)`). Both-endpoints-bound is the yes/no shape: `[]` means not derivable
+    (plain absence — for the OWA/CWA verdict distinction use `check`, which this does not replace).
+
+    `commit=False` (the default) runs the derivation in an ephemeral PENCIL scope and sweeps it —
+    the graph is untouched, mirroring `ask_goal(commit=False)`/`suppose(commit=False)`; the #12
+    boundary applies here too (a skolem-minting rule still mints its witness entity node — only
+    derived RELATIONS are pencil). `commit=True` materializes the derivations (monotone, §5)."""
+    rule_g = rules
+    if rules is not None and not isinstance(rules, AttrGraph):
+        from .cnl.rule_graph import write_rule
+        rule_g = AttrGraph()
+        for r in rules:
+            write_rule(rule_g, r)
+    scope = fact_g.add_node("<query>", control=True) if not commit else None
+    try:
+        chain_sip(fact_g, goal, rules=rule_g, scope=scope,
+                  focus_scope=focus_scope, max_rounds=max_rounds)
+        return [(s, goal[0], o) for s, o in
+                _facts_matching(fact_g, goal[0], goal[1], goal[2],
+                                scope=scope, focus_scope=focus_scope)]
+    finally:
+        if scope is not None:
+            from .suppose import _drop_scope
+            _drop_scope(fact_g, scope)
+
+
 def render_demands(rule_g: AttrGraph) -> list[str]:
     """Render the bound-tuple magic set (the visible `<demand>` nodes) as CNL 'what I looked for'
     lines — the demand half of the trace renderer (Phase 4.4). A wildcard endpoint reads as `anyone`.

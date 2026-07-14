@@ -26,7 +26,7 @@ from .lowering import (
 )
 from .apply import apply_rule, apply_to_fixpoint, build_head_index, rules_producing
 from .chain import (
-    chain_sip, bound_demands, render_demands, NonStratifiable,
+    chain_sip, query_goal, bound_demands, render_demands, NonStratifiable,
     ById, resolve_write_node, validate_ids,
 )
 from .check import (
@@ -136,7 +136,7 @@ __all__ = [
     "run_bank", "match_pats", "run_to_fixpoint", "derived_triples", "Unlowerable",
     "rule_touches_provenance", "assemble_facts", "load_fact_triples",
     "apply_rule", "apply_to_fixpoint", "build_head_index", "rules_producing",
-    "chain_sip", "bound_demands",
+    "chain_sip", "query_goal", "bound_demands",
     "NonStratifiable",
     "render_demands", "ById", "resolve_write_node", "validate_ids",
     "check", "collapse", "explain_check", "POSITIVE", "ENTAILED_NEG", "ASSUMED_NO", "UNKNOWN",

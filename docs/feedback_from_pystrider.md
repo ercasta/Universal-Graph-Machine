@@ -495,6 +495,65 @@ would **mutate the very graph it is checking**.
 sibling) that returns the derived answers without inking them, mirroring `suppose(commit=False)`. At
 minimum, document that `ask_goal` materializes, so consumers querying a persistent graph know to snapshot.
 
+> **FIXED (2026-07-14) — both asks.** (1) `ugm.query_goal(fact_g, goal, rules=…)` is the first-class
+> TUPLE-GOAL query: read-only by DEFAULT (the #12 pencil-scope mechanism), no question parse / answer
+> render, returns the goal-matching facts as `(s, p, o)` data — a bound endpoint echoes the goal's, a
+> free slot comes back as a `ById` pin (`g.name(pin.node_id)` renders it). `rules=` takes the
+> `load_machine_rules` list (reified fresh per call, `ask_goal`'s discipline) or an already-reified
+> graph; `commit=True` opts back into materialization. (2) The compile-once half: `_lower_bank_rule` is
+> memoized per `Rule` instance (lowering is a pure function of (rule, control_preds, guard) and the #9
+> memo already shares Rule objects), so a static bank's ISA programs — including the QUESTION-FORM banks
+> the CNL layer runs per question — are lowered once per process; and question RECOGNITION
+> (`_parse_question`) is memoized on the question text (callers get isolated copies). Measured on the
+> repro below: `ask_goal(commit=False)` 3.5ms → **1.1ms** per call (~3.2×), `query_goal` ~**1.0ms** —
+> the remaining floor is the genuine demand-solving firmware (per-goal ISA fact lookups), not redundant
+> setup; its constant-factor home is the Rust port (rust-engine-plan). Tests in
+> `tests/test_feedback_fixes.py` (`test_query_goal_*`, `test_lower_bank_rule_is_memoized_per_rule`,
+> `test_parse_question_memo_returns_isolated_copies`).
+
+## 13. `ask_goal` has a large FIXED per-call cost (~2.8 ms) — dominated by the CNL question-string layer
+
+Collected while porting grammapy's composition-soundness checks to CNL rule-modules (the convergence).
+Each check builds a tiny graph and asks one `who …` question read-only. It *works* and is verdict-correct
+— but routing four small combinator checks through `ask_goal` inflated the pystrider suite **55 s → 255 s**
+(the app-synthesis tests call the checks many times). Profiling a single `who write_conflict yes` over a
+**5-fact** graph (`?c write_conflict yes when ?a writes ?c and ?b writes ?c and ?a != ?b`):
+
+```
+per-call microseconds (avg 500)
+  Accumulate.check (full)         : 3228 us
+  - graph build only              :   56 us
+  - load_machine_rules (memoized) :    2 us   (thanks to #9)
+  - ask_goal(commit=False)        : 3240 us   <- effectively the whole cost
+  - ask_goal(commit=True)         : 3191 us   <- commit=False adds ~nothing
+  [ref] old Python owner-scan     :  2.8 us   <- the check this replaced (~1150x)
+```
+
+Two things localize it (avg 300):
+
+```
+minimal 1-fact / 1-rule / one 'is' question : 2764 us   <- ~2.8ms is FIXED, size-independent
+chain_sip tuple goal, SAME derivation       : 1179 us   <- the firmware path is ~2.7x faster
+ask_goal scaling: 2 facts=3153us  12=4665us  102=18670us  502=84370us
+```
+
+So: (a) there is a **~2.8 ms fixed floor** paid on every call regardless of problem size, and (b) roughly
+half of it is the **CNL question layer** — `chain_sip` with a *tuple* goal does the identical derivation in
+~1.2 ms, so parsing the `"who … yes"` string + rendering answers costs ~1.6 ms/call on top of the firmware.
+(The fixed ~1.2 ms in `chain_sip` itself looks like per-call machine/rule setup — `load_machine_rules` is
+memoized, but the lowered ISA program may be rebuilt per query.) The graph-size scaling is partly my rule's
+`writes`×`writes` self-join, but the fixed floor is the dominant cost for the small graphs a per-composition
+check uses.
+
+**Ask (a performance one, like #9):** a low-fixed-overhead query path for consumers that run *many small*
+queries. Concretely, either (1) a first-class **tuple-goal read-only query returning variable bindings**
+(what `ask_goal` gives, but skipping the question-string parse/render — today `chain_sip` returns a count and
+mutates the graph, so it isn't a drop-in), and/or (2) a **compile-once / cached lowered-program** handle so
+the ISA program for a static rule bank isn't rebuilt per call (the analogue of #9 one level down). Either
+would let a soundness check authored in CNL run at a cost comparable to the hand-written Python it replaced.
+**Workaround available:** we can switch grammapy's `_cnl.derive` from `ask_goal` to the `chain_sip` tuple
+path for the ~2.7x, but the fixed firmware floor remains.
+
 ---
 
 ### Net
@@ -519,3 +578,10 @@ happily in the rule language. The two gaps that stop the rest: **#11** no distin
 hand-authored `distinct_from` facts — the single gate to porting that whole family; and **#12** `ask_goal`
 inks its derivations, so a CNL-authored check run over a persistent graph mutates what it checks — a
 read-only `ask_goal` (mirroring `suppose(commit=False)`) is wanted before checks can safely share a graph.
+With #11 and #12 both shipped, **all four** grammapy combinators now run as CNL rule-modules — which
+surfaced **#13**, the second **performance** ask (after #9): `ask_goal` carries a ~2.8 ms fixed per-call
+floor (about half of it the CNL question-string layer — the `chain_sip` tuple path is ~2.7x faster), so a
+soundness check called O(many) times pays dearly (suite 55 s → 255 s). A low-fixed-overhead query path
+(tuple-goal bindings, and/or a compile-once lowered program) would let CNL-authored checks run near the
+cost of the Python they replaced. Correctness is not in question — this is purely the price of running a
+hot inner check through the full CNL question interface.
