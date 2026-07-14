@@ -2,7 +2,7 @@
 
 > **Status: CRITICAL SNAPSHOT (2026-07-11, written by the assistant at the user's request,
 > post Phase 5.5/6.0).** Reads the system against its own claims and against the literature.
-> Companion to `related_work.md` (positioning) and `reference.md` (what the claims are).
+> Companion to `related_work.md` (positioning) and `README.md` (what the claims are).
 > This is deliberately an outside voice: where it disagrees with the vision docs, that is
 > the point of the document, not an error to reconcile.
 > **§7 (2026-07-13) is an addendum recording what moved after the snapshot** — the body
@@ -61,7 +61,7 @@ provenance semirings plus event sourcing.
   The mechanisms differ substantially (NARS has its own term logic and truth functions), but
   the *semantic stance* has a named 30-year precedent and should be cited.
 - **ATMS/TMS (de Kleer; Doyle).** SUPPOSE scopes with confirm-to-ink / refute-and-drop are
-  assumption-based contexts; `reference.md` says "TMS becomes ISA-native" (INTERPOSE) without
+  assumption-based contexts; `README.md` says "TMS becomes ISA-native" (INTERPOSE) without
   citing the tradition. The pencil/ink answer to belief revision — never retract ink, keep
   hypotheses in labeled scopes — is essentially an ATMS restricted to one context at a time:
   a defensible simplification, but it should be positioned as one.
@@ -81,7 +81,7 @@ together:
    X and Y within budget and found nothing," which neither exhaustive provers (a claim about
    the universe) nor Prolog NAF (silent failure) can offer. This is arguably the single most
    distinctive *user-facing* feature in the system.
-3. **Conflict-lint at authoring time** (`logic_fragment.md` Amendment 2) — surfacing
+3. **Conflict-lint at authoring time** (`reference/logic_fragment.md` Amendment 2) — surfacing
    undeclared priority conflicts as questions targets exactly where real rule books rot,
    where Drools silently uses salience and formal logic just halts. A precise, defensible
    wedge.
@@ -145,7 +145,7 @@ do not have.
 5. **The clingo escape hatch quietly punctures the purity claim.** Disjunction, optimization,
    and global constraints exit the substrate to a foreign solver and fold back. That is the
    pragmatic right call — but the honest claim is then "no seam except tools," and the more
-   business workloads lean on aggregation/temporal/clingo calls (which `logic_fragment.md`
+   business workloads lean on aggregation/temporal/clingo calls (which `reference/logic_fragment.md`
    Amendment 1 says are *bread and butter*), the more computation lives on the wrong side of
    the abolished wall.
 
@@ -162,7 +162,7 @@ yet; both are answerable — the second one cheaply.
 
 ## 6. De-risking experiments
 
-Moved to **`validation_experiments.md`** (2026-07-11) — seven experiments (E1–E7), ordered by
+Moved to **`design/validation_experiments.md`** (2026-07-11) — seven experiments (E1–E7), ordered by
 information per unit of effort, each citing the claim in this document it tests. In one line
 each: E1 stranger-authoring (habitability, §4.4); E2 audit head-to-head vs Drools/DMN (§3);
 E3 conflict-lint on a real rule book (§3.3); E4 cross-bank composition, candy shop ×
@@ -209,7 +209,7 @@ benchmarks — they test coverage, which is already demonstrated, not advantage.
    answer this document asked for. E1 remains unrun and remains the cheapest decisive
    experiment on the board.
 4. **§4.3 evaluation gap and §4.5 clingo hatch — unchanged.** No E2/E3; §3 is still an
-   inference, not a measurement. `validation_experiments.md` is still marked proposed, not
+   inference, not a measurement. `design/validation_experiments.md` is still marked proposed, not
    ratified. The missing-neighbor citations (§2: NARS, ATMS/TMS, local CWA) are still
    missing from `related_work.md`.
 5. **§2.2 (immune system against accretion) — one more data point.** In-substrate anaphora

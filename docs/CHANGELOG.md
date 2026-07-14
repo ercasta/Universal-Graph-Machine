@@ -4,7 +4,7 @@ Reverse-chronological log of the ground-up rebuild onto `docs/vision.md`. Newest
 Test counts are `pytest tests/ -q`. Nothing is committed automatically — the user commits
 manually, so "N tests green" is the state at that point, not a commit.
 
-For the **index of everything**, read `docs/reference.md`. For the **current plan and next
+For the **index of everything**, read `docs/README.md`. For the **current plan and next
 step**, read `docs/implementation_plan.md`. For the **design philosophy**, read
 `docs/vision.md`. Deep rationale for most entries lives in the `memory/` decision/finding
 files (linked inline). Older entries reference docs now in `docs/attic/` — that is expected;
@@ -31,8 +31,46 @@ failures never cached). Differential: pystrider suite green against the new ugm 
 `test_app_synthesis` failures reproduce against UNMODIFIED ugm — a missing `textual` module, environmental).
 Tests: `tests/test_feedback_fixes.py` (+12).
 
+### Firmware over ISA — the arc COMPLETED: one matcher, one binding model, no privileged partitions (429–442 passed)
+The `docs/attic/firmware_over_isa_design.md` arc (locked design 2026-07-14, built the same day) finished the
+"machine-semantics-are-ISA-programs" thesis in Python (Rust deferred). Everything the demand solver did in
+bespoke Python is now ISA programs on the one interpreter:
+- **ISA value operands as regular nodes** (`docs/attic/isa_value_operands_design.md` §7, swapped structural):
+  registers hold only NODE-POINTERS; a value like `ada` is a REGULAR node carrying `<isa_operand_value>="ada"`
+  (interned, differentiated by attribute + use — no new kind), interpreted by instructions. This dissolved the
+  fork-vs-aggregate crux (a name stays a reference to a coref class; aggregation stays inside the instructions)
+  and enabled `env`→`State.regs`.
+- **(X) the demand solver's WORK as firmware:** the A1 production SWAP taken (`_facts_matching` = the shared
+  ISA matcher's SET/FOLLOW program; the bespoke walk is only the `_CROSSCHECK` oracle); the `env` dict →
+  `State.regs`; graded/value thresholds = ephemeral `GRADE`/`VMATCH` programs with coref-class aggregation
+  inside the instructions (`Machine._operand_nodes`); `_graded_ok`/`_value_matches_ok`/`_bind`/`_tok_name`
+  deleted. Interleaving + per-atom sub-demands kept (guardrail iii — composability).
+- **The read is a SELF-CONTAINED program:** control/inert became MARKER ATTRIBUTES (`CONTROL_MARK`/`INERT_MARK`;
+  the dataclass flags are now derived read-properties — marker attrs are the single source of truth); the §3
+  safe-default guard is COMPILER-emitted `TEST(..., absent=True)` (never hand-written per rule, never a
+  substrate mode); focus = the register-pointed `MEMBER` live-set op (contents in
+  `AttrGraph.registers` = policy, membership test = mechanism); SUPPOSE scope pencils = `OVERLAY` (extend).
+  New A5 primitives: TEST-absent, MEMBER, OVERLAY. Zero Python post-filters left on the demand read.
+- **`Machine.skip_inert` RETIRED — the last privileged matcher mode.** Forward inert-visibility rides IN the
+  lowered program (`lowering.guard_inert`); a provenance-aware rule is lowered WITHOUT the guard
+  (`rule_touches_provenance`). The machine has NO privileged category and NO mode.
+- **Decision 3 — the demand round-loop is a `ControlMachine` program** (`chain._frame_program`): `SETI budget`
+  → `PRIM(advance)` → `BRANCH_IF` fixpoint/budget, fuel→UNKNOWN as the exhaust branch; the NAC subgoal is a
+  machine `SUSPEND` (the request travels in a control register onto the `Continuation`); `chain_sip` is a thin
+  driver over a stack of suspended machines. Behaviour identical (same DFS order, same stratification stack).
+- **ONE-GRAPH FOLD, including the API** (user-ratified): `rule_g` may BE `fact_g` — `PATTERN_MARK` (an ordinary
+  attribute stamped by `write_rule`/`build_head_index`, selected by `derived_triples`) keeps pattern-space out
+  of the fact VIEW; parity split-vs-folded gated by `tests/test_one_graph_fold.py`. Public API migrated:
+  `chain_sip(g, goal)` / `check(g, goal)` / `suppose(g, assumptions, predictions)` — rules live in the graph by
+  default, a separate bank stays available as the explicit `rules=` keyword. All ~104 call sites migrated.
+- Also: `<mention>` confirmed already de-privileged (a plain named node + an ordinary `is_a` relation the
+  universal coref rule selects — view-level hiding only); `Machine._inert_cache` removed (cold≠warm hazard,
+  pystrider #10); `write_rule` rejects an inverted graded condition loudly. Magic-set rewrite ("(Y)") REJECTED
+  (query-specific rules accumulating in the graph fight monotonicity; NAF soundness under the rewrite is
+  research-grade risk).
+
 ### Phase A / A1 first increment — the demand matcher on the shared ISA matcher (391 passed)
-"Python as firmware over ISA" (`docs/rust_engine_plan.md` §2, `docs/phase_a_demand_firmware.md`). The demand
+"Python as firmware over ISA" (`docs/design/rust_engine_plan.md` §2, `docs/attic/phase_a_demand_firmware.md`). The demand
 path's single-atom fact lookup (`chain._facts_matching`) was a SECOND matcher — a bespoke topology walk
 separate from the forward `Machine.match`. A1 unifies it: `chain._facts_matching_isa` does the same lookup
 through the ONE ISA matcher (SET the bound endpoint → FOLLOW to the rel → predicate-key TEST → FOLLOW to the
@@ -49,6 +87,59 @@ SWAP (flip to the ISA path, delete the walk) + the fork for where those filters 
 predicate vs. driver post-filter) are the user's ratified gate; this increment takes the conservative
 post-filter fork, which touches nothing in the to-be-frozen instruction-set contract. Perf is NOT the driver:
 this is the architecture win Phase A pays out WITHOUT Rust (forward + demand on one matcher).
+
+### The ISA CONTROL MACHINE — control flow as instructions, all of §9 built (385 passed)
+The ISA had a data path but NO control path — loops, subgoals, fixpoints and waits were faked in Python
+drivers (`run_bank`/`chain_sip`/`dispatch`) plus `<…>` token idioms, which is why a loop couldn't contain a
+subgoal (the seam `ITERATE` surfaced). `ugm/machine.py` now carries a `ControlMachine` LAYERED on the untouched
+two-phase `Machine`: a PC over labeled basic blocks + `BRANCH`/`BRANCH_IF`/`CALL`/`RET`/`SUSPEND`/`HALT`,
+scalar control registers (`SETI`/`DEC`), a control stack, and `PRIM` (an upper-level interpreter step — the
+§10 two-levels model). Every Python control driver PORTED, each behaviour-identical (the reasoning/
+recognition/planning banks as the differential oracle): **#1** bounded loop = `SETI`/`DEC`/`BRANCH_IF`
+(differential-tested vs `ITERATE`, which STAYS as REP/SIMD); **#2** `CALL`/`RET` + control stack
+(arbitrary-depth subgoals in the machine, not Python); **#3** `chain_sip`'s NAC negative subgoal (the solver's
+only recursion) de-recursed onto the control stack via a GENERATOR transform (the yield IS the `CALL`, the
+driver stack IS the control stack) — proven by a 601-deep NAF stratification under `setrecursionlimit(200)`;
+**#4** `SUSPEND`/`RESUME` continuation + the `<call>` dispatch ported (sync inline, async end-to-end with a
+simulated `AsyncTool` — `dispatch.service_calls_cm`); **#5** `run_bank`'s fixpoint = a `PRIM` round +
+`BRANCH_IF`-back over a changed-flag. The plane is FORWARD-ONLY (no backtracking); the instruction set is the
+CONTRACT, the interpreter SWAPPABLE (Rust buys the CONSTANT; seed-from-focus holds the CURVE). Design + crux
+resolution (evaluation model A, interpret-by-default): `docs/attic/isa_control_machine.md`. Tests:
+`tests/test_isa_control_machine.py` (23) + `test_isa_dispatch_async.py` (6) + the deep-stratification test.
+
+### Rust pilot — the interpreter CONSTANT measured: ~381× (microbenchmark, `bench/rust_pilot/`)
+The match inner loop (SEED→FOLLOW→TEST fold, 30k final states): 111 ms Python (`Machine.match`) vs 0.29 ms
+native Rust (enum jump-table dispatch + `Vec` CSR + array-register states). Above the plan's 1–2 orders
+estimate (it also captures the dict→array state win). Sizes Phase 7b; orthogonal to the curve (focus).
+Strategy ratified the same day (`docs/design/rust_engine_plan.md`): procedures become ISA FIRMWARE first
+(Python), then port ONLY the interpreter — never reimplement `chain_sip` in Rust.
+
+### Mechanism/policy Axis B — control state → machine registers; `ITERATE` (355 passed)
+Second axis of `docs/attic/mechanism_policy_separation.md`, design + build in
+`docs/attic/axis_b_control_registers.md`. New `AttrGraph.registers` (dict) = the CONTROL-REGISTER FILE, the
+"second home" — physically separate from the node/edge store (matching/`nodes()`/`derived_triples` never see
+it; `copy()` carries it). **Focus stack lifted** (`focus.py`: the `<focus>`/`center`/`below` node chain →
+`kb.registers["focus"]`, a list of frames of center names — a `drop` is graph-neutral BY CONSTRUCTION;
+API-preserving, 15/15 focus tests). **Demand search trace lift REVERTED — the sharpest finding:** the
+demand/subgoal chain is the negative's PROVENANCE under NAF (the mirror of a positive's `<j:>` proof tree),
+i.e. EXPLANATION, so it stays a matchable graph node (the Axis A hard constraint); only the agenda/worklist is
+a register. The boundary sharpened: depth never forces graph materialization — being explanation does.
+**`ITERATE` landed** (§8's clean exemplar): a MATCHING opcode that forks the state stream over `range(count)`,
+binding the loop counter in `State.regs` — no minted `<iter>` node. TIMING at session scale: per-utterance
+`ingest` median ~12 ms; ITERATE ~13–17 µs/iter; suite ~13 s.
+
+### Mechanism/policy Axis A — copy-on-delete retraction; privileged `RETIRE` (350 passed)
+Probe 1 of `docs/attic/mechanism_policy_separation.md`. Retraction no longer HIDES a fact behind an interposed
+`<retracted>` marker — it really DELETES it (copy-on-delete). New privileged `RETIRE` opcode (`machine.py`)
+deletes a reified fact relation; it is NOT in the rule→program lowering vocabulary, so ordinary reasoning
+rules structurally cannot delete a fact (pinned by `test_no_rule_lowering_emits_retire`). The `retract` driver
+is three separated phases — **decide** (CASCADE rules, read-only) → **record** (`record_history`: copy each
+pre-image into an in-graph, INERT, meta-visible `<history>` record, redirecting the retired rel's
+`proves`/`uses` onto the record so provenance survives) → **retire** (assemble+run `RETIRE`, emitted only
+here). `resurrect` re-materializes from history via `load_fact_triples`. The HARD CONSTRAINT holds:
+explanation stays matchable DATA in the ONE graph, so `why`/reflection survive a retraction. Monotonicity is
+now MECHANISM within a pass, POLICY between passes. `INTERPOSE_RULE` removed from the TMS. Tests:
+`tests/test_retract_rules.py`.
 
 ## 2026-07-12
 
@@ -134,7 +225,7 @@ The value-match primitive (Stage 1) becomes AUTHORABLE and coreference becomes D
   NEXT: **Stage 3** — the id-addressed core (env binds ids), which unlocks same-NAME value-coref.
 
 ### Coreference-as-rules Stage 1 — the value-match primitive (331 passed)
-D was reframed with the user (`docs/coreference_as_rules_design.md`): a mechanical "same name ⇒ same
+D was reframed with the user (`docs/attic/coreference_as_rules_design.md`): a mechanical "same name ⇒ same
 node" ingest merge bakes an NLP judgment into the engine, against the "logic lives in banks" discipline.
 New direction — **every mention stays a separate node; coreference becomes DECLARED rules** — enabled by a
 new match primitive. Stage 1 lands that primitive.
@@ -240,7 +331,7 @@ Closed a SILENT-WRONG-answer hole: a rule blocked only by an OPEN premise (`safe
 `cleared` open) used to return a confident `ASSUMED_NO` and NEVER ask, because `ask_goal` only gathered
 evidence for the TOP goal's own open predicate, not for open predicates sitting in a rule BODY. Now
 `ask_goal.gather_open_premises` asks the human/tool for those premises, materializes the confirmed ones,
-and re-decides — so the reasoner gathers what it needs to reach a conclusion (`docs/cnl_intake_design.md`
+and re-decides — so the reasoner gathers what it needs to reach a conclusion (`docs/design/cnl_intake_design.md`
 §5). WHICH premises to ask is DERIVED, never hardcoded (§D): the candidates are the visible bound
 `<demand>` magic-set the backward closure itself produced (`chain.bound_demands`), filtered by the FIRMWARE
 openness STANCE (`policy.is_open`) and skipping internal NAF neg-predicate demands via the substrate naming
@@ -255,7 +346,7 @@ path, the common case) and lazy relevance-ordered asking instead of the eager fr
 
 ### Phase 8.5b: per-emit reasoning-trace streaming (`trace=True`) (296 passed)
 `ingest`/`converse(trace=True)` now stream an `Event("derive", {rule, fact})` per rule firing before the
-answer — the reasoning trace as a live event stream (`docs/cnl_intake_design.md` §5: "the meta-debug trace
+answer — the reasoning trace as a live event stream (`docs/design/cnl_intake_design.md` §5: "the meta-debug trace
 renderer IS the event stream"). Implementation reads the RECORD/provenance substrate rather than hooking
 the reasoning control flow: the demand chain runs with `provenance=True` (which already mints `<j:RULEKEY>`
 justification nodes with proves/uses), and intake snapshots the `<j:>` node set before/after the closure
@@ -270,7 +361,7 @@ chain) + mid-CHAIN ask (v1 wait-set is the TOP goal only; the re-entry resume mo
 to multiple ask points). Both are engine-deep and deferred.
 
 ### Phase 8.6: runtime-rule DISABLE via `<disabled>` marker — 8.6 functionally complete (293 passed)
-`forget that rule` / `disable that rule` marks the LAST-AUTHORED rule `<disabled>` (`docs/cnl_intake_design.md`
+`forget that rule` / `disable that rule` marks the LAST-AUTHORED rule `<disabled>` (`docs/design/cnl_intake_design.md`
 §6), completing the rule-authoring lifecycle: add / conflict-negotiate / disable. It is an additive
 control-layer MARKER, never a deletion (§5) — the `Rule` object stays in the theory list; only which rules
 are ACTIVE changes. New module `ugm/rule_control.py` mirrors `focus.py`: `<disabled>`/`<last-rule>` control
@@ -288,7 +379,7 @@ new/disabled rule already takes effect immediately). **8.6 is functionally compl
 
 ### Phase 8.6: runtime-rule conflict-lint AS CONVERSATION (290 passed)
 A mid-session `HEAD when …` that forms a NEGATION CYCLE with the live theory is now a conversation, not a
-crash (`docs/cnl_intake_design.md` §6 — critique §3.3's "the reasoner negotiates its own repair"). Intake
+crash (`docs/design/cnl_intake_design.md` §6 — critique §3.3's "the reasoner negotiates its own repair"). Intake
 parses the rule with `load_rules(lint=False)` (runtime authoring OWNS the stratification check now, instead
 of `load_rules` raising), tests a TRIAL `rules + new` with `_stratify_conflict` (the content-blind
 `authoring.stratify`, no relation name special-cased), and on a cycle YIELDS `Event("rule-conflict",
@@ -304,7 +395,7 @@ rule" control-CNL (reification skips a disabled rule, no deletion §5), and incr
 (a PERF follow-on — a new rule already reasons immediately since `_reify_rules` rebuilds per `ask_goal`).
 
 ### Phase 8.5b: `converse` — threadless generator driver with ask suspend/resume (286 passed)
-The non-blocking driver for the TUI (`docs/cnl_intake_design.md` §5). `ingest`'s body was refactored into a
+The non-blocking driver for the TUI (`docs/design/cnl_intake_design.md` §5). `ingest`'s body was refactored into a
 generator routing CORE `_ingest_gen` that yields an `Event` per step boundary and returns the `Outcome`;
 TWO thin drivers ride it — `ingest` (blocking, 8.5a, byte-identical: forwards events to `on_event`, calls
 `ask_user` synchronously) and the new `converse(kb, rules, utt)` (non-blocking generator the caller pumps
@@ -319,7 +410,7 @@ verdict no/unknown). REMAINING in 8.5b: PER-EMIT reasoning-trace streaming (surf
 True)`'s `<j:>` firings live) + mid-CHAIN ask (v1 wait-set is `{ask_user}` at the TOP goal only).
 
 ### Phase 8 client build: unified intake + discourse focus stack (273 passed)
-Kicked off the first UGM CLIENT (agent loop + TUI) per `docs/cnl_intake_design.md`. Landed:
+Kicked off the first UGM CLIENT (agent loop + TUI) per `docs/design/cnl_intake_design.md`. Landed:
 - **8.1 unified intake** (`ugm/intake.py`) — `ingest(kb, rules, utterance) -> Outcome` routes fact / rule /
   question / focus / unrecognized by WHICH FORMS FIRE (not a string sniff, §D discipline), reusing
   `recognize`/`ask_goal`/`load_rules`/`load_facts`. A mid-session rule reasons immediately (8.6 seed);
@@ -348,16 +439,16 @@ Kicked off the first UGM CLIENT (agent loop + TUI) per `docs/cnl_intake_design.m
   substrate's mission. `salient_center`/recency-ranking/`clarify` deleted; `focus`/`top_centers` stay. Bonus:
   `focus.utterance_subjects` now skips coref `same_as` edges so a TYPE can't leak into the centers as a
   stopword-anchor. Descriptive anaphora + substrate ask-margin (was 8.4b) dropped for the same reason. See
-  `docs/cnl_intake_design.md` §4.
+  `docs/design/cnl_intake_design.md` §4.
 - **8.5a live event stream** — `ingest(on_event=…)` emits `Event(kind, data)` at route boundaries (focus/
   clarify/question/ask/answer/fact/rule/unrecognized) so a TUI renders a turn live; the `ask` event brackets
   the human-in-the-loop `ask_user` gather. Additive (`on_event=None` = no-op). `tests/test_isa_stream.py` (4).
-Discipline: `docs/cnl_intake_design.md` §D (7 anti-hardcoding rules) documented + mirrored in the plan's
+Discipline: `docs/design/cnl_intake_design.md` §D (7 anti-hardcoding rules) documented + mirrored in the plan's
 Phase 8 header. `tests/test_isa_intake.py` (6) + `tests/test_isa_focus.py` (20) + `tests/test_isa_stream.py`
 (4). 283 suite green (after the 8.4a back-out).
 
 ### NAC existence check made ENDPOINT-DRIVEN — 40× on the NAF hot path (258 passed, suite 54s→35s)
-Phase 8.0 probe (`bench/session_accretion.py`, `docs/cnl_intake_design.md` §7) found the agent-loop client's
+Phase 8.0 probe (`bench/session_accretion.py`, `docs/design/cnl_intake_design.md` §7) found the agent-loop client's
 real near-term blocker is NOT session accretion but PER-UTTERANCE NAF cost: a *bound* query on a bank with
 one `not …` rule was super-linear in the bank's entity count — `is s0 thief` over 6 suspects took 13.8s.
 cProfile named it: the NAC check `_nac_blocks -> _fact_exists -> apply._find_fact_relnode` did a
@@ -425,7 +516,7 @@ to the old whole-predicate scan; that scan stays only as the fallback for a full
 No new index structure — the existing `name` index + topology. Result (identical answers, gated by the
 whole suite + the NAF differential): under cProfile at 12 suspects/6 aliases (wildcard `who is thief`)
 6.18s→0.565s, call count 9.9M→0.98M; the full suite ~90s→~54s; the old top-of-profile `_endpoints`/`name`
-linear scans are gone. As-built: `docs/demand_driven_negation_design.md` AS-BUILT §6. The other item-0'
+linear scans are gone. As-built: `docs/attic/demand_driven_negation_design.md` AS-BUILT §6. The other item-0'
 levers (semi-naive worklist; coref demand fan-out) are un-started — at session scale the query is now
 sub-second, so they stay Phase 7.
 
@@ -436,7 +527,7 @@ Negation is now decided ON DEMAND by negation-as-failure, not by eager forward c
 model (ratified): we are a bounded reasoning AGENT, not a theorem prover — a human decides a negation by
 ASKING the positive when the question comes up and taking absence as the answer (CWA), never by
 completing every `is_not` then retracting. Design + as-built (with the deviations that matter):
-`docs/demand_driven_negation_design.md`. Both §Crux ratified the aggressive way ([[demand-negation-crux]]):
+`docs/attic/demand_driven_negation_design.md`. Both §Crux ratified the aggressive way ([[demand-negation-crux]]):
 drop `decide.solve` ENTIRELY (no `materialize` helper), fold `ask` into `ask_goal`. What landed:
 
 - **NAF in `chain_sip` (`_nac_blocks`).** A rule-body NAC `not L` is serviced by a NESTED NEGATIVE
@@ -468,7 +559,7 @@ drop `decide.solve` ENTIRELY (no `materialize` helper), fold `ask` into `ask_goa
   linear fact scans → indexing/semi-naive) is Phase 7. See design AS-BUILT §2.
 
 ### Phase 6.1 — GoalSolver + reference Walker DELETED; ONE firmware engine; decided-negation-only (264 passed, 1 skipped, 0 failed)
-The second reasoning engine is gone. Design + as-built: `docs/goalsolver_retirement_design.md`. Ratified
+The second reasoning engine is gone. Design + as-built: `docs/attic/goalsolver_retirement_design.md`. Ratified
 by the user ("nuke the old code — it caused at least 3 refactors from things we forgot"; keep GoalSolver
 only as a throwaway differential oracle, delete the moment it hinders, "I don't care about reds"). See
 [[delete-old-code-aggressively]]. What landed:
@@ -501,7 +592,7 @@ only as a throwaway differential oracle, delete the moment it hinders, "I don't 
 ### Phase 2.5 — substrate vocabulary consolidated, domain coref de-hardcoded (342 passed, 1 skipped, 0 failed)
 The logic-fragment predicate strings that were scattered/duplicated across the reasoning modules are now a
 single source of truth, and the hardcoded DOMAIN predicate list is gone. Design doc:
-`docs/vocabulary_declaration_design.md`; **crux §7 ratified by the user: "consolidate"** (Tier 1 is fixed
+`docs/attic/vocabulary_declaration_design.md`; **crux §7 ratified by the user: "consolidate"** (Tier 1 is fixed
 substrate vocabulary to centralize, NOT genuinely KB-declared — a KB no more declares its copula than its
 `same_as`). Three-tier boundary from the design, executed:
 
@@ -535,7 +626,7 @@ substrate vocabulary to centralize, NOT genuinely KB-declared — a KB no more d
   by design (recognizing English is the surface's job); untouched.
 
 Pairs with Phase 5.5 slice 4 (which did the plan-control-flow half of the `solve.py` predicate leak);
-this is the vocabulary half. `docs/vocabulary_declaration_design.md` updated to as-built.
+this is the vocabulary half. `docs/attic/vocabulary_declaration_design.md` updated to as-built.
 
 ### Phase 2.4 — name-free identity tokens (342 passed, 1 skipped, 0 failed)
 `GoalSolver`'s coref-class identity token was `name + SEP + classrep` (SEP = `\x00`) — the surface name
@@ -557,7 +648,7 @@ contains no surface name, and still renders + denotes the whole class). Unblocke
 
 ### Phase 2.3 — `name` demoted, discriminating-key indexes, `TEMPORARY BRIDGE` retired (341 passed, 1 skipped, 0 failed)
 The load-bearing `TEMPORARY BRIDGE` (a relation node's predicate stored BOTH as its graded key `{chase:1.0}`
-AND as a legacy VALUED `name="chase"`) is gone. Design doc: `docs/name_demotion_design.md` (ratified +
+AND as a legacy VALUED `name="chase"`) is gone. Design doc: `docs/attic/name_demotion_design.md` (ratified +
 implemented same day). Two halves, both landed:
 
 - **(A) Predicate decoupling.** A relation's predicate is now SOLELY its graded key. New accessor
@@ -1807,7 +1898,7 @@ The ISA migration's first two phases (handoff "Next step"): make hardcoding stru
 by moving reasoning onto the label-less / goal-directed machine, with the card-trader banks as the
 differential-test oracle.
 
-- **Phase 0 — the coverage map** (`docs/graph low level machine/isa-card-trader-coverage.md`). Every
+- **Phase 0 — the coverage map** (`docs/attic/isa_card_trader_coverage.md`). Every
   card-trader bank's rules (`policy`/`risk`/`preference`/`cards_reasoning`/`planning`) against the
   opcode set, each row marked COVERED / PHASE 1 / PHASE 2 / PHASE 3. The bulk of the domain reasoning
   (positive conjunction, transitive closure, graded α-cut, MINT reification) was already covered; the
@@ -1873,7 +1964,7 @@ relational / negative-cycle NACs are rejected. Memory `finding-isa-reference-mac
 
 ### Rule ISA — the cheap experiment BUILT: label-less attribute substrate + reference machine (299 tests)
 
-Built the go/no-go artifact of `docs/graph low level machine/rule-isa-design.md` (the label-less-substrate
+Built the go/no-go artifact of `docs/attic/rule_isa_design.md` (the label-less-substrate
 revision) and `memory/decision_labelless_substrate`: the opcode set as a small-step operational semantics
 plus a runnable reference interpreter, exercised by HAND-WRITTEN instruction sequences — no rules, no
 compiler. Isolated from the as-built engine (imports nothing from `rewriter.py`/`world_model.Graph`),
@@ -1888,7 +1979,7 @@ non-throwaway.
   (Skolem/reify/chunk), EMIT (monotone graded raise / valued assert), DROP_CTRL (deletes an edge, REFUSES a
   fact edge). State = (regs, score); score composes by t-norm (min default, product selectable). Two-phase
   match-then-apply.
-- **`docs/graph low level machine/isa-reference.md`** — the spec + the honest verdict.
+- **`docs/reference/isa_reference.md`** — the spec + the honest verdict.
 - **`tests/test_isa_machine.py`** — 14 conformance programs.
 
 VERDICT (what the experiment decided): the positive core + monotone/control effects + MINT enumerate
@@ -2511,7 +2602,7 @@ views (no per-call set copy); bound-NAC → existence check; **seed-from-ground*
 pattern from its most-selective ground anchor via the lexical index). Chain n=40 10,730→359ms (~30×).
 Honest findings: rule-level anchor-delta is ~inert atop the index; semi-naive helps only deep-closure;
 per-line Session reasoning stays whole-graph (name-matching across disconnected mentions is non-local).
-See `docs/walkers_and_locality.md`.
+See `docs/attic/walkers_and_locality.md`.
 
 ### `within`/`radius` retired as the matching scope
 Profiling showed hop-radius is mismatched to a name-keyed substrate (a single-pattern law finds a
@@ -2576,3 +2667,273 @@ compiler) was deleted; a clean core was built on `docs/vision.md`. Rules-as-grap
 `rule_graph.py` stores a rule as a literal-subgraph fragment; `write_rule`/`rules_in_graph` round-trip.
 Relation-property meta-feature (`is_a is transitive` → a rule-node, two-phase). b2 meta-circular
 execution parked. Canonical: memory `decision_one_substrate_vision`.
+
+
+---
+
+# Appendix — completed phases (absorbed from `implementation_plan_done.md`, 2026-07-14)
+
+> This appendix is the phase-by-phase record split out of `implementation_plan.md` on 2026-07-12 and
+> folded into the changelog on 2026-07-14 (the active plan holds ONLY remaining work). Unlike the log
+> above it is organized by PHASE, not date. Nothing here is a TODO; residual TODOs were lifted into
+> the active plan when the split happened. The standing ratification recorded with it:
+> **EQUIVALENCE WITH THE PREVIOUS (rewriter / name-based) GENERATION IS NOT A CORRECTNESS TARGET**
+> (user, 2026-07-10) — the old generation was never used; the goal is a working, self-consistent
+> firmware system judged on sensible bench answers.
+
+## Landed milestones (the NEXT-STEP achievements, newest first)
+
+### Firmware stance as DATA + pluggable tools + engine docs — DONE 2026-07-12 (user-directed)
+The firmware's opinions are now selectable data (`ugm/policy.py` `FirmwarePolicy`: `negation_default`
+closed/open + `open_preds`/`closed_preds`; `on_cycle` raise/degrade), wired through
+`check`/`ask_goal`/`mode_calls`/loaders, `DEFAULT_POLICY` behaviour-neutral. `dispatch.merge_tools`
+= collision-safe tool composition (the mechanism was already pluggable). Three docs written:
+`docs/architecture.md` (the generic→opinionated layering — Phase 6.2 architecture half),
+`docs/engine_developer_guide.md`, `docs/engine_user_guide.md`; README de-staled + Architecture section.
+See CHANGELOG (2026-07-12). Note: the FirmwarePolicy landed the two knobs the audit named; a broader
+stance surface is tracked as a PLACEHOLDER in the active plan (no third opinion is pending).
+
+### Pre-Phase-7 LEFTOVER RETIREMENT — DONE 2026-07-12
+`ugm/demand.py` / `ugm/coref_walk.py` / `ugm/cnl/walker.py` / `ugm/asp.py` DELETED (superseded by the
+firmware-v3 chain; no live path depended on them), plus `corpus/walker.cnl`, three dedicated test files,
+the walker/demand benches, and the walker/demand/coref test functions in `test_machine_rules`/
+`test_new_core`. `ugm/__init__.py` unwired (incl. a stale `"decide"` entry). Suite 283→258 (−25 tests,
+all for deleted code), 0 failed. harneskills (the only cross-repo consumer) is being adapted onto the
+engine docs — any reference to a deleted export migrates to `chain_sip`/`ask_goal`/`same_as_rules` per
+`docs/engine_user_guide.md`. See CHANGELOG.
+
+### Demand-driven-negation PERF lever (a) — DONE 2026-07-12
+The linear per-predicate fact scan is gone: `chain._facts_matching` is now ENDPOINT-DRIVEN — a bound
+endpoint (SIP makes one almost always available) reaches its facts through the endpoint's node via the
+`name` value-accelerator + local topology, not a whole-predicate scan. Behaviour-identical (whole suite
++ NAF differential green); under cProfile at 12 suspects/6 aliases 6.18s→0.565s (call count 9.9M→0.98M),
+full suite ~90s→~54s. As-built: `docs/attic/demand_driven_negation_design.md` AS-BUILT §6; CHANGELOG.
+
+### FIRMWARE v3 (demand-driven negation) — DONE 2026-07-11
+Negation is decided ON DEMAND by NAF in `chain_sip._nac_blocks` (nested negative demand → positive
+closure → absence decides); fuel→UNKNOWN; stratification enforced at LOAD by the object-aware
+`lint_stratifiable`, chain prune-and-continues on re-entry. `ask_goal` is demand-driven (`ask` is now
+pure rendering). `expand_rules` no longer upgrades closed-world NACs / emits completion rules.
+`ugm/decide.py` + `test_decide.py` DELETED (the step-4 differential earned it). Graded α-cut reified into
+the chain (`write_rule`/`chain._graded_ok`). Perf: NAC-closure memo + local-agenda drive took a wildcard
+query 129s→7.5s, the suite 26min→90s. As-built + deviations: `docs/attic/demand_driven_negation_design.md`
+AS-BUILT §§1–5; CHANGELOG. **Do NOT re-do; do NOT resurrect `decide.solve`.**
+
+---
+
+## Phase 0 — ONE ENGINE: finish the peel, delete `rewriter` ✅ COMPLETE
+
+All items DONE (2026-07-07/08, 465 tests). Key landmarks:
+
+- **0.1** `run_bank` optimized (name-index SEED + bound-endpoint join driving; 89×→2.6× on planning.cnl)
+- **0.2** All recognizers onto `run_bank` (rule loaders, `load_facts`, `load_corpus`)
+- **0.3** Planner control onto ISA: `DROP_CTRL` lowering + control-stamp-at-MINT
+- **0.4** Graded/coref reasoning passes onto ISA (`_coref_propagation`, `graded_rules`)
+- **0.5** All production callers on `isa=True`; `rewriter.py` retained as TEST ORACLE only
+
+---
+
+## Phase 1 — STABILIZE the oracle ✅ COMPLETE
+
+All items DONE (2026-07-08, 470 tests).
+
+- **1.1** `GoalSolver` staleness fixed (`_sa_union`, `_token_class`, nested-solver identity caches)
+- **1.2** `_group_satisfiable` cached safely (epoch-validated, monotonic invalidation)
+- **1.3** Stratification LINT at bank load (`authoring.lint_stratifiable` wired into loaders)
+- **1.4** Adversarial tests (`tests/test_isa_goal_adversarial.py`): goal-order independence,
+  derived-`same_as`, cache staleness, `NonStratifiable` regardless of asking order
+
+---
+
+## Phase 2 — ATTRIBUTE-NATIVE conventions (namelessness for real) ✅ COMPLETE
+
+- **2.1 DONE (2026-07-08, 470 green).** Predicates as graded KEYS (`{chase: 1.0}` on rel node);
+  `add_relation` mints the predicate key; `nodes_with_key`/`has_key` replace name-equality tests
+  in `lowering`, `goal`, `solve`. TEMPORARY BRIDGE dual-write (also writes legacy VALUED `name`)
+  kept until Phase 6 oracle retirement. Reserved-key collision (`name` predicate) guarded.
+
+- **2.2 DONE (2026-07-09, 478 green) — both halves.** [Residual now RESOLVED: the "Phase-6 reader
+  flip" it named landed in Phase 6.0.]
+  - HALF 1: control-token dual-write — `add_node("<goal>")` also writes `{<goal>: 1.0}` key
+  - HALF 2: `add_node` control-flag at mint chokepoint — reserved `<…>` syntax ⟹ `control=True`
+  - `_is_inert`→`.inert` flag migration COMPLETE for all non-oracle, non-bridge sites
+
+- **2.3 DONE (2026-07-11, 341 green).** `name` demoted to an ordinary VALUED attr; the value-accelerator
+  generalized to KB-declared discriminating-key indexes (`_by_value`/`declare_index`/`nodes_with_value`,
+  default `{"name"}`); the `TEMPORARY BRIDGE` dual-write RETIRED (a relation's predicate is solely its
+  graded key; new `AttrGraph.predicate(rid)`; `name()` requires VALUED so a `name`-predicate relation is
+  sound). ~85 predicate readers swept + the `nodes_named(PREDICATE)`/`walker.get_attr(r,"name")` classes
+  the plain grep missed. Bonus: `derived_triples` no longer emits garbage triples (entity-as-relation).
+  Design + as-built: `docs/attic/name_demotion_design.md`, CHANGELOG.
+
+- **2.4 DONE (2026-07-11, 342 green).** Identity tokens name-free: a coref-class token is now
+  `SEP + class-rep-nid` (was `name + SEP + rep`) — the redundant name prefix is dropped, the name is
+  recovered from the rep node via `ag.name(rep)` in `_render` (the output boundary). The Skolem token
+  likewise references its fresh node id. Contained entirely to `goal.py` (SEP never escaped it); gated
+  by the coref/adversarial suite + a new name-free pin (`test_duplicated_name_identity_token_is_name_free`).
+
+- **2.5 DONE (2026-07-11, 342 green).** Crux §7 ratified "**consolidate**". Tier-1 substrate vocabulary
+  (`COPULA`/`NEG_COPULA`/`NEG_SUFFIX`/`IS_A`/`SAME_AS`/`DISJOINT`/`CLOSES`/`CWA`/… + `neg_pred`) centralized
+  in a new leaf module `ugm/vocabulary.py` (single source of truth). Tier-2 domain coref leak removed:
+  `authoring._COREF_PREDS`'s hardcoded `wants`/`in`/`has`/`before`/… gone; `_coref_propagation` derives the
+  set content-blind via `SUBSTRATE_COREF_PREDS | relation_predicates(graph) | declared_relations |
+  declared_prepositions`. Tier-3 CNL surface English lexicon stays literal by design. Reasoning modules
+  grep-clean of vocab literals; no substrate constant defined outside `vocabulary.py`. Design as-built:
+  `docs/attic/vocabulary_declaration_design.md`, CHANGELOG. (The planner's `want`/`add`/`chosen`/… vocabulary is
+  harness-side now — Slice 4 retired `solve.py`.)
+
+---
+
+## Phase 3 — RULES AS DATA (homoiconicity) — PARTIALLY DONE
+
+> SCOPING DECISION (2026-07-09): Phase 3 is done AS PREREQUISITE FOR Phase 4's firmware — the
+> firmware needs the reified rule SHAPE, NOT the "built by FORM rules" authoring. The meta-circular
+> FORM-rule authoring (the quote/eval wall) is DEFERRED as a homoiconicity-purity milestone off the
+> critical path.
+>
+> Steps 3.1-step2, 3.2, 3.4 remain OPEN — see the active plan. Done steps below.
+
+- **3.1 STEP 1 DONE (2026-07-09, 478 green).** `rule_graph.write_rule` modernized: rule/var/pattern
+  nodes are `control`-flagged; each pattern atom built in FACT SHAPE via `add_relation` (predicate
+  as graded key), so APPLY can seed through `nodes_with_key` exactly as for facts.
+  [RESIDUAL lifted to active plan: `same_as propagates through X` CNL surface lands here — needs coref
+  rules reified; `coref_prop` is forward-compatible.]
+
+- **3.3 DONE (2026-07-09, 487 green).** Head index as graph structure: `<head-index>` hub with
+  `hub -[headPred]-> rule_node` per head predicate. Built by `apply.build_head_index` / `rules_producing`.
+
+---
+
+## Phase 4 — FIRMWARE v1: APPLY + CHAIN (the positive core) ✅ COMPLETE
+
+All items DONE (2026-07-09/10). Gate met.
+
+- **4.1 DONE** — all four gadgets: `<frame>` (bindings), `<current-atom>` cursor over `next`-chain
+  itinerary, `<fresh>` semi-naive delta, bound-tuple SIP `<demand>` at CHAIN-side.
+- **4.2 DONE** — `apply_rule` / `apply_to_fixpoint` (`ugm/apply.py`): reified-rule match with
+  VISIBLE `<frame>` bindings, df-seeded, semi-naive, fuel-bounded. Differentially gated vs `run_bank`.
+- **4.3 DONE** — `chain` / `chain_sip` / `demand_closure` (`ugm/chain.py`): demand-driven sub-goaling
+  through `<head-index>`, bound-tuple SIP (SUBJECT/OBJECT pruning). Gated: derives exactly the
+  goal-predicate facts `run_bank` derives, never applies irrelevant rules.
+- **4.4 DONE** — trace renderer: `RECORD` (mode 9) mints `<j:rulekey>` justifications at every
+  APPLY/CHAIN EMIT, byte-identical to `run_bank(provenance=True)`; renders via existing `surface.explain`;
+  `render_demands` shows the bound magic set as CNL.
+  **Exit gate met**: `chain_sip` == `GoalSolver` on a randomized ProofWriter-positive slice (1000+ checks).
+
+---
+
+## Phase 5 — FIRMWARE v2: the psychology leaves Python ✅ COMPLETE (engine half)
+
+- **5.1 DONE (2026-07-10).** CHECK: `check(fact_g, rule_g, goal, open_preds=…)` → 4-status verdict
+  (POSITIVE / ENTAILED_NEG / ASSUMED_NO / UNKNOWN) over `chain_sip`. `collapse()` == `ask_goal`
+  verdict. `explain_check` renders "where I looked." `ugm/check.py`, `tests/test_isa_check.py`.
+  [COMPANION now RETIRED: AGGRESSIVE `is_not` completion (`decide.solve`'s write-side elimination) was
+  replaced by demand-driven NAF in firmware v3; `decide.solve` is deleted. Do NOT resurrect.]
+
+- **5.2 DONE (2026-07-10).** CHOOSE: `choose(g, goal, alpha=…)` = graded α-cut argmax (nothing-beats-it,
+  MONOTONE, ties→all win). `ugm/choose.py`, `tests/test_isa_choose.py`. Gated on design fixtures +
+  200-seed randomized argmax differential.
+  [COMPANION half-open, lifted to active plan: graded α-cut DURING matching in the APPLY body + the
+  inverted ('not at all') cut. The CHAIN half is DONE (firmware v3 `chain._graded_ok`).]
+
+- **5.3 DONE (2026-07-10).** SUPPOSE: `<hypothesis>` scopes — pencil writes, `chain_sip` in-scope,
+  CONFIRM→ink / REFUTE→drop_scope, ink monotone. `ugm/suppose.py`, `tests/test_isa_suppose.py`.
+  Scope-aware matching as `scope=` param on `apply`/`chain` fact readers, gated behavior-NEUTRAL.
+
+- **5.4 DONE (2026-07-10).** Declared strategies replace shape-sniffing: walker/transitive (`R is
+  transitive` → `_closure_declarations`), coref-follow (`coref_prop` flag on `Rule` read by
+  `GoalSolver`, not key-sniffing). All three sniffers deleted. `ugm/cnl/machine_rules.py`, `ugm/goal.py`.
+  [TRACKED RESIDUAL lifted to active plan: `session.py:CONTENT_PREDS` + Python-generated coref rules →
+  Phase 3 (bank-authored `same_as propagates through X`) once coref rules reify — harness-side.]
+
+- **5.5 KB procedures — DONE.** Named compositions of modes, authored in CNL, run as control-token
+  programs.
+  - **Slices 1–2 DONE (2026-07-10).** CHECK + CHOOSE as `<call>` calculators. `ugm/mode_calls.py`,
+    `tests/test_isa_mode_calls.py`. Reuses the existing `<call>` loop; NOT a new driver.
+  - **Slices 3a–3b DONE (2026-07-10).** Rules emit mode-calls, existing loop services them, verdict
+    feeds back. Key-aware INTERN fix (MINT skips reified domain-relation candidates). Zero new CNL
+    surface, zero SLM debt.
+  - **Slice 3c DONE (2026-07-11).** SUPPOSE authored as a `<call>` mode with VARIABLE-LENGTH
+    assumptions/predictions: `mode_calls.suppose_tool` reads N `assume`/`predict` reified triples
+    (`<t> -[k_subj/k_pred/k_obj]-> …`), runs the firmware `suppose`, folds a `<suppose>` verdict back
+    (CONFIRMED/REFUTED/INCONCLUSIVE). Authored via the EXISTING machine-rule grammar; zero new prose
+    forms, zero SLM debt. `tests/test_isa_suppose_calls.py` (6 tests). [Prose `suppose … predict …`
+    sugar deferred like `to NAME` — tracked as an optional follow-on in the active plan.]
+  - **Slice 4 DONE (2026-07-11).** Retired `solve.py`'s Python-hardcoded plan→act→check→replan CONTROL
+    FLOW (the `graph.name(r) == "want"/"add"/"chosen"/"done"` shape-sniffing) by expressing it as a
+    KB-DECLARED composition of ITERATE×CHECK over `<check>` verdicts, serviced by the EXISTING `<call>`
+    loop (`run_bank(..., tools=mode_registry(rule_g))`) — no new driver. `tests/test_isa_plan_act_check.py`
+    (4 tests). `solve.py` DELETED (export-only inside `ugm`; harness consumers migrate cross-repo).
+    KEY RESULT: the monotone substrate needs NO driver-state reset — per-(op,want) CHECK suppression makes
+    an alternative op's positive verdict independent of the diverged op's stale assumed-no (the `DROP_CTRL`
+    teardown-subsumption again). Pairs with Phase 2.5 (the vocabulary half).
+
+  **Exit gate (DOWNGRADED per 2026-07-10 ratification):** engine grep-clean (no strategy selection in
+  Python); benches produce SENSIBLE, SELF-CONSISTENT answers on firmware semantics. No longer requires
+  divergence-from-old-exhaustive classification.
+
+  **ENGINE-HALF MET — audited 2026-07-11 (in-repo).** Systematic sweep of `ugm/` for strategy-selection-
+  in-Python: (1) the three shape-sniffers are gone (5.4); (2) `solve.py`'s hardcoded plan control flow is
+  gone (slice 4); (3) NO rule-key sniffing; (4) every remaining `g.name(...) == "literal"` is firmware
+  CONTROL SUBSTRATE or CNL SURFACE RECOGNITION grammar — never reasoning-strategy; (5) `goal.py:127 ==
+  "transitive"` READS the declared `rel_property` map. Phase 2.5 has since consolidated the copula/
+  negation/coref VOCABULARY into `ugm/vocabulary.py` and de-hardcoded the domain coref list.
+  [The BENCH-SENSIBILITY HALF is harness-side and remains OPEN — see the active plan.]
+
+---
+
+## Phase 6 — DEMOTE the Python solver; docs converge — PARTIALLY DONE
+
+- **6.0 DONE (2026-07-11, 331 passed/1 skipped).** Retired `rewriter.py` entirely (deleted; `run_rules`'s
+  `isa`/`seeds` params removed, always runs `run_bank`); did the `nodes_named("<tok>")`→`nodes_with_key`
+  and `startswith("<")`→`is_control` reader flips in `ugm/cnl/forms.py`/`ugm/cnl/universal.py`. The
+  `TEMPORARY BRIDGE` dual-write + Phase 2.3 name demotion were correctly rescoped OUT of 6.0 (their own
+  item) — and have since LANDED as Phase 2.3 (2026-07-11). `_INERT_NAMES`/`_is_inert` mostly stays by
+  design (pattern/literal-side guards over string tokens).
+
+- **6.1 DONE (2026-07-11, 264 passed/1 skipped) — THE TWO-ENGINE RETIREMENT.** `ugm/goal.py` (GoalSolver,
+  Goal, solve_goal, solve_all, NonStratifiable) and `ugm/walker.py` (the Python reference `Walker`/
+  `walk_to_goal`) are DELETED. `ask_goal` — GoalSolver's last production consumer — now runs the FORWARD
+  firmware. ~79 GoalSolver/Walker/solve_all tests removed (12 files); survivors re-targeted onto the
+  firmware. KEY REALIZATION: the monotone demand-driven chain CANNOT do decided negation — decided negation
+  is inherently FORWARD, and `run_bank` already stratifies + services INTERPOSE. [Superseded in part by
+  firmware v3, which made negation demand-driven and deleted `decide.py`.] As-built:
+  `docs/attic/goalsolver_retirement_design.md`, CHANGELOG. Ratified [[delete-old-code-aggressively]].
+
+- **6.2 architecture half DONE (2026-07-12).** `docs/architecture.md` rewritten as the as-built
+  generic→opinionated layering (substrate → engine/ISA → tools → reified rules → firmware → stance → CNL).
+  [Two 6.2 items REMAIN OPEN — see active plan: refresh `reference.md`'s doc-map (it still lists
+  architecture.md as pre-rehost / to-be-rewritten), and summarize finished phases into CHANGELOG.]
+
+---
+
+## Settled rationale trails (historical — the reasoning behind done decisions)
+
+### PHASE 6.0 CORRECTION (2026-07-11) — the `TEMPORARY BRIDGE` dual-write was NOT rewriter-only
+[RESOLVED: the bridge was retired in Phase 2.3, 2026-07-11. This correction stands as the rationale for
+WHY 6.0 correctly left it in place at the time.] Tracing actual readers found the three "TEMPORARY BRIDGE"
+comments (`attrgraph.py`'s `add_relation`, `lowering.py`'s `to_attrgraph`/`lower_rhs`) were wrong about
+what blocked their removal: `machine.py`'s MINT intern/dedup read `attrs[NAME]`/`g.name(rel)` directly, and
+dozens of production call sites read a relation's predicate back via `g.name(rel)`. Dropping the legacy
+`name` write then would break the live ISA engine. So the bridges were deliberately left in place —
+entangled with Phase 2.3 (real indexing-declaration design work). What 6.0 actually did: deleted
+`rewriter.py` + its `isa=False` branch/re-exports (migrating ~15 dependent test files onto `run_bank`/
+`run_rules`, converting differential-vs-rewriter assertions to direct ISA-pinned ones), and the
+`nodes_named`→`nodes_with_key` / `startswith("<")`→`is_control` reader flips. Also fixed a real
+pre-existing bug: `run_bank` ignored `Rule.meta` (every firing minted provenance regardless of the flag)
+— now fixed in `lowering.py`.
+
+### SLICE 4 SCOPE CLARIFICATION (2026-07-11, user-confirmed) — RESOLVED, slice 4 is DONE
+Before starting slice 4, we checked whether `solve.py` was genuinely `ugm`-scope firmware or harness-only
+planning content that leaked in. First pass (vocabulary + zero `ugm/tests/` coverage) argued for moving it
+to `harneskills` wholesale. **That read was incomplete.** Reading `solve.py` directly: its solving MECHANISM
+is `GoalSolver(...).solve(Goal(...))` — the same ISA-native demand-forward backward reasoner every
+legitimate `ugm` capability uses, not a from-scratch engine like `rewriter.py`. So it was NOT pre-ISA legacy
+and NOT simply misplaced-repo content. **The real defect: `solve.py` violated the plan's own standing rule**
+— its driver hardcoded fixed predicate NAMES into Python control flow (`graph.name(r) == "want"/"add"/…`),
+exactly the shape-sniffing Phase 5.4 eliminated for the walker/coref strategies. So slice 4 was genuinely
+`ugm`-scope firmware work, reframed: not "extend `solve.py` as-is" but "retire its Python-hardcoded
+plan→act→check→replan CONTROL FLOW by expressing it as a KB-declared composition of ITERATE×CHECK over
+`<check>` verdicts (reuse `mode_calls.py`'s existing `<call>` loop, don't rebuild)." The planning-specific
+predicate VOCABULARY (`pre`/`add`/`del`/`cost`/`want`) stays whatever a bank declares — those banks live in
+`harneskills` as an APPLICATION of the generic mechanism.

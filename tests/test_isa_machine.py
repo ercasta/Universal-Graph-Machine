@@ -1,6 +1,6 @@
 """
 Conformance suite for the reference ISA machine (the cheap experiment,
-docs/graph low level machine/rule-isa-design.md + isa-reference.md).
+docs/attic/rule_isa_design.md + isa-reference.md).
 
 Every test is a HAND-WRITTEN instruction sequence over the label-less attribute substrate —
 NO rules, no compiler, no `harneskills.rewriter`. This is payoff #3 of the design (a testable

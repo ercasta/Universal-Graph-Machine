@@ -1,5 +1,5 @@
 """
-ISA VALUE OPERANDS (docs/isa_value_operands_design.md) + the (X) register file — now STRUCTURAL.
+ISA VALUE OPERANDS (docs/attic/isa_value_operands_design.md) + the (X) register file — now STRUCTURAL.
 
 Step 1 (substrate): a data value an operand needs is a REGULAR node interned per distinct value under
 `<isa_operand_value>` (`AttrGraph.value_node`). No name, no flag, no relations — invisible to fact

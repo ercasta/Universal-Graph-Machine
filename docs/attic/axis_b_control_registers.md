@@ -7,7 +7,7 @@
 > node — see §4/§5. That reversal is the sharpest finding of this probe: it draws the register/graph line
 > exactly. **`ITERATE`** (§8's exemplar — a loop whose counter is a register value, not a minted node)
 > also landed (§4b). Suite: **355 passed**. Second half of the thesis in
-> `docs/mechanism_policy_separation.md` (Axis A = copy-on-delete retraction, done). Prerequisite reading:
+> `docs/attic/mechanism_policy_separation.md` (Axis A = copy-on-delete retraction, done). Prerequisite reading:
 > that doc's §1 (two homes) and §8.
 >
 > **Timing (session scale, 2026-07-14):** per-utterance `ingest` median **~12 ms** (8–16 ms across
@@ -20,7 +20,7 @@
 
 ## 1. The thesis
 
-`docs/mechanism_policy_separation.md` §1/§8: **execution/control state belongs in machine
+`docs/attic/mechanism_policy_separation.md` §1/§8: **execution/control state belongs in machine
 registers/pointers, not in data-graph nodes.** The ISA baked control-vs-fact into nodes (`is_control`
 flag + the `<…>` naming convention), so machine state — a focus cursor, a demand agenda, a search
 trace — lived in the data graph as `<focus>`/`<demand>` nodes, indistinguishable in *kind* from facts.

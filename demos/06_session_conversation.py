@@ -14,7 +14,7 @@ it all runs on the SAME CNL surface demos 1-5 use (see `docs/architecture.md` §
 What this buys over calling `ask_goal` by hand, turn by turn:
   - ONE entry (`ingest`) routes a raw utterance to fact / question / rule / focus-move /
     rule-disable by WHICH RECOGNITION FORM FIRES — never a Python classifier sniffing the
-    string. (`docs/cnl_intake_design.md` §D.) A fact and a question look the same to the
+    string. (`docs/design/cnl_intake_design.md` §D.) A fact and a question look the same to the
     caller: hand over text, read the `Outcome`.
   - A `HEAD when ...` utterance authors a REAL rule mid-conversation, and it reasons on
     the very next question — no reload, no restart.

@@ -3,7 +3,7 @@ Phase 5.2 — CHOOSE (firmware v2, `processing_modes.md` mode 5): "comparing opt
 Enumerate candidate options for a goal, α-cut by graded fit, and select the best by graded comparison
 — the deterministic stable pick (PREFER/SELECT).
 
-This realizes the LOCKED means-selection design (`docs/graded_means_selection_design.md`, mechanism 1b
+This realizes the LOCKED means-selection design (`docs/attic/graded_means_selection_design.md`, mechanism 1b
 "RETAINED / RANKED, MONOTONE — no retraction"), which was designed but never built:
 
   - candidates are OPTION nodes reachable from the goal by a `candidate` relation, each carrying a

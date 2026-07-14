@@ -2,12 +2,12 @@
 
 > **Status: LOCKED DESIGN (2026-07-14).** The ratified plan for finishing the "machine-semantics-are-ISA-
 > programs" thesis in **Python** (Rust explicitly deferred — see §11). Supersedes the visibility "fork (a)
-> vs (b)" framing in `docs/phase_a_demand_firmware.md` §2: that fork is RESOLVED by dissolution (§5). The
+> vs (b)" framing in `docs/attic/phase_a_demand_firmware.md` §2: that fork is RESOLVED by dissolution (§5). The
 > landed A1 first increment (the ISA-matcher demand lookup, differential-gated) is described in
-> `docs/phase_a_demand_firmware.md` and stands.
+> `docs/attic/phase_a_demand_firmware.md` and stands.
 >
-> Prerequisite reading: `docs/isa_control_machine.md` (the control path), `docs/mechanism_policy_separation.md`
-> + `docs/axis_b_control_registers.md` (registers as the second home), `docs/vision.md` (§5/§6 homoiconicity,
+> Prerequisite reading: `docs/attic/isa_control_machine.md` (the control path), `docs/attic/mechanism_policy_separation.md`
+> + `docs/attic/axis_b_control_registers.md` (registers as the second home), `docs/vision.md` (§5/§6 homoiconicity,
 > no-seam), `ugm/chain.py` (`chain_sip`/`_solve_demand_rule`/`_facts_matching` — the procedure to firmware-ify),
 > `ugm/lowering.py` (`lower_conj`/`run_bank` — the forward path already IS firmware), `ugm/machine.py` (the
 > interpreter + instruction set).
@@ -128,7 +128,7 @@ same mechanism as (X). So Decision 1 is not a separate feature — it folds into
 ## 6. Decision 3 — the demand round-loop becomes firmware
 
 The demand driver's "iterate to fixpoint" becomes a `PRIM` round + `BRANCH_IF`-back program, exactly as
-`run_bank`'s fixpoint already is (`docs/isa_control_machine.md` §9.5). New instructions: none (those control
+`run_bank`'s fixpoint already is (`docs/attic/isa_control_machine.md` §9.5). New instructions: none (those control
 blocks exist). Value: uniformity. Sequenced AFTER (X)'s work (else the `PRIM` just wraps the same Python).
 
 **BUILT 2026-07-14.** Each goal-closure frame is a `ControlMachine` program (`chain._frame_program`):
@@ -147,7 +147,7 @@ Full de-privileging touches many modules (machine, attrgraph, apply, provenance,
 lock the PRINCIPLE and move (X) already in the target shape, rather than rip out flags globally first:
 
 0. **[BUILT 2026-07-14, swapped structural — see the rollout log in its doc]**
-   **ISA value operands as regular nodes** (`docs/isa_value_operands_design.md`) — the SUBSTRATE ENABLER that
+   **ISA value operands as regular nodes** (`docs/attic/isa_value_operands_design.md`) — the SUBSTRATE ENABLER that
    lands BEFORE (X). A demand endpoint NAME cannot cleanly become a register binding, because a name is a
    reference to a coref class (over which operations aggregate), not a single node. Resolution (user's design):
    a register holds only a NODE-POINTER; a value like `ada` is a REGULAR node carrying `<isa_operand_value>=
@@ -251,7 +251,7 @@ What genuinely is NOT data-path opcodes + control flow, to be written down as a 
 
 ## 11. Explicitly deferred / rejected
 
-- **Rust port (Phase B, `docs/rust_engine_plan.md`).** Deferred. This document is its Phase A, minus the Rust
+- **Rust port (Phase B, `docs/design/rust_engine_plan.md`).** Deferred. This document is its Phase A, minus the Rust
   framing and minus the "freeze the instruction set" pressure — in Python we are free to ADD clean primitives.
 - **Magic-set rewrite ("(Y)").** REJECTED for the demand solver: it would recompile per query and mint
   query-specific rules that accumulate as graph structure (fighting monotonicity / composability), and

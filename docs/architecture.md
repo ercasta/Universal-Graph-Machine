@@ -126,7 +126,7 @@ not domain knowledge. All of it runs on the generic engine + reified rules:
   demand the positive `L` to closure (a nested negative demand), read ABSENCE. Nothing is materialized
   for the negative. Sound because the bank is **stratified** (checked at load); fuel-exhaustion before
   closure yields UNKNOWN, not a decided no (the agent-not-theorem-prover model). See
-  `demand_driven_negation_design.md`.
+  `attic/demand_driven_negation_design.md`.
 - **CHECK** (`check.check`) — runs the positive closure, then the negative, and returns a **4-status**
   verdict: POSITIVE / ENTAILED_NEG (a hard no) / ASSUMED_NO (the closed-world default) / UNKNOWN (open
   or fuel-exhausted). The closed-vs-open reading of absence is the STANCE (§6).

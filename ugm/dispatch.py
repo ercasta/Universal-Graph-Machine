@@ -44,7 +44,7 @@ Tool = Callable[[Graph, str], "set[str]"]
 @dataclass
 class AsyncTool:
     """A tool that CANNOT answer synchronously — it needs the outside world (a network round-trip, an
-    `ask_user` prompt). Two halves around a `SUSPEND` (docs/isa_control_machine.md §9.4):
+    `ask_user` prompt). Two halves around a `SUSPEND` (docs/attic/isa_control_machine.md §9.4):
       * `request(graph, call_id) -> payload` — what the world must answer (an opaque payload the host
         services); computed from the call's argument slots (the §1/§8 calculator discipline).
       * `fold(graph, call_id, response) -> set[str]` — apply the world's answer as result/control nodes
@@ -147,7 +147,7 @@ def service_calls(graph: Graph, registry: dict[str, Tool]) -> set[str]:
 
 
 # ---------------------------------------------------------------------------
-# The dispatcher AS A CONTROL-MACHINE PROGRAM (docs/isa_control_machine.md §9.4)
+# The dispatcher AS A CONTROL-MACHINE PROGRAM (docs/attic/isa_control_machine.md §9.4)
 # ---------------------------------------------------------------------------
 #
 # The §9.4 port: the `<call>` servicing MECHANICS become control instructions. `service_calls` above is

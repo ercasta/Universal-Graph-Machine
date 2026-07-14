@@ -3,7 +3,8 @@
 > **Audience.** You are CONSUMING the engine — building a system on top of it (the way `harneskills`
 > does): load a knowledge base, ask it questions, plug in your own tools, choose a reasoning stance. You
 > do not need to touch the engine internals; if you find you do, read the **developer guide**. For the
-> big picture read `architecture.md`.
+> big picture read `architecture.md`; for the full CNL surface (every fact/rule/question form and
+> declaration) read `reference/cnl_reference.md`.
 
 UGM gives you a demand-driven reasoner over a controlled natural language. You bring the domain
 knowledge (as CNL text or `Rule` data) and any domain tools; UGM does the reasoning and renders answers

@@ -1,5 +1,5 @@
 """
-Phase A / A1 (docs/phase_a_demand_firmware.md) — DIFFERENTIAL gate for the demand matcher on the
+Phase A / A1 (docs/attic/phase_a_demand_firmware.md) — DIFFERENTIAL gate for the demand matcher on the
 shared ISA matcher.
 
 The demand path's single-atom fact lookup (`chain._facts_matching`) is being unified onto the ONE

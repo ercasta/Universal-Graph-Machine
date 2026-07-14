@@ -508,7 +508,7 @@ def _fold_node(graph: Graph, rep: str, victim: str) -> None:
 def intern_mentions(graph: Graph) -> Graph:
     """Coalesce same-named ENTITY mentions into ONE node — the hardcoded "same name => same node"
     default that replaces the M^2 `same_name` coref rule + `same_as` propagation (see
-    `docs/indexing_and_coalescing_design.md`). Scoped to `<mention>`-marked nodes (run `mark_mentions`
+    `docs/attic/indexing_and_coalescing_design.md`). Scoped to `<mention>`-marked nodes (run `mark_mentions`
     first), so `?vars`, `<control>` tokens and predicates are never merged — and rule variables stay
     distinct. Distinct same-name referents are disambiguated at authoring time by a distinct name
     (`other_alice`); programmatic producers mint distinct nodes directly and never reach this path."""

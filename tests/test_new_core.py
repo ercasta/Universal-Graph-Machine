@@ -982,7 +982,7 @@ def test_retract_withdraws_derived_consequences():
 # scan) is still covered below via the ISA's own one-shot matcher, `lowering.match_pats`.
 
 def test_seed_from_ground_never_scans_for_a_free_pattern():
-    """Seed-from-ground (docs/walkers_and_locality.md §1): a pattern with NO ground position
+    """Seed-from-ground (docs/attic/walkers_and_locality.md §1): a pattern with NO ground position
     (all of s/p/o free) has no anchor to seed from, so there is no whole-scope scan — the ISA
     lowering REFUSES it outright (`Unlowerable`), rather than silently scanning or (as the
     retired oracle did) quietly returning no matches; either way, never a scan. A literal

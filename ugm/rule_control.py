@@ -1,5 +1,5 @@
 """
-Phase 8.6 — runtime rule DISABLE (docs/cnl_intake_design.md §6).
+Phase 8.6 — runtime rule DISABLE (docs/design/cnl_intake_design.md §6).
 
 The rule-authoring lifecycle is add / conflict-negotiate / DISABLE. Disable is the §5-safe "no, forget
 that rule": NEVER a deletion — an additive `<disabled>` MARKER in the control layer that reasoning skips.

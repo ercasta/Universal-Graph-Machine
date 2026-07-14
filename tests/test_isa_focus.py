@@ -1,4 +1,4 @@
-"""Phase 8.3a — the discourse focus stack (docs/cnl_intake_design.md §3).
+"""Phase 8.3a — the discourse focus stack (docs/design/cnl_intake_design.md §3).
 
 Focus is control-layer structure; ops are content-blind; the explicit CNL is recognized as forms.
 """

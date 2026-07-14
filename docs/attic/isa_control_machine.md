@@ -1,8 +1,12 @@
 # The ISA Control Machine — control flow as instructions, not procedures
 
+> **UPDATE (2026-07-14, attic): BUILT the same day — all of §9 (bricks #1–#5), suite 385 green.**
+> The status line below predates the build and is kept as the historical record; the operational
+> truth is `../reference/isa_reference.md` §"The control path" and the CHANGELOG entry.
+>
 > **Status:** DESIGN / ALIGNED, not started (2026-07-14). ⚠**Foundational** — this touches the machine's
 > control model (the deepest layer), so it needs vision-judgment, not mechanical execution. Produced from
-> the design conversation that followed Axis B (`docs/axis_b_control_registers.md`): building `ITERATE` as
+> the design conversation that followed Axis B (`docs/attic/axis_b_control_registers.md`): building `ITERATE` as
 > a §8 exemplar surfaced a **seam** — a loop can't contain a subgoal — which unwound into the realization
 > that the ISA has a data path but no **control** path. The crux (§10) is now **resolved**: the control
 > plane is **forward-only** (backward/demand reasoning is an above-plane tabled-solver *program*, not a
@@ -36,7 +40,7 @@
 > **Prerequisite reading:** `ugm/machine.py` (the match-then-apply interpreter + its docstring's
 > "reference vs optimized" note), `ugm/chain.py` (`chain_sip` — subgoals as Python recursion),
 > `ugm/lowering.py` (`run_bank` — the fixpoint driver), `ugm/dispatch.py` (`<call>` servicing),
-> `docs/mechanism_policy_separation.md` §8 + `docs/axis_b_control_registers.md` (the register file this
+> `docs/attic/mechanism_policy_separation.md` §8 + `docs/attic/axis_b_control_registers.md` (the register file this
 > builds on).
 
 ---

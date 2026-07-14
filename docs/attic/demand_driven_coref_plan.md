@@ -38,7 +38,7 @@ on this axis. **This needs a user decision — see §0.1.**
 
 ### 0.1 Options for the user (recommendation first)
 1. **(Recommended) Bounded attention.** Run demand coref under `attention="focus"` (already exists,
-   `intake.ingest`, `docs/cnl_intake_design.md §3`): a query reasons only within the focus working set,
+   `intake.ingest`, `docs/design/cnl_intake_design.md §3`): a query reasons only within the focus working set,
    so coref composition is bounded to in-play entities, not the whole `same_as` graph. Vision-pure
    (it's the agent-not-theorem-prover reading) AND likely fast. The demos use `attention="global"`;
    this is a semantic choice (off-focus facts are outside attention). Try this FIRST on the wip branch.

@@ -1,5 +1,5 @@
 """
-The control machine (docs/isa_control_machine.md §9, brick #1) — a PC over an addressable program
+The control machine (docs/attic/isa_control_machine.md §9, brick #1) — a PC over an addressable program
 of labeled basic blocks, with the primitive control transfers (BRANCH/BRANCH_IF) and a minimal
 loop kit on scalar control registers (SETI/DEC). The headline claim: a bounded loop expressed with
 these primitives reproduces `ITERATE`'s graph effects EXACTLY (the differential test) — proving the

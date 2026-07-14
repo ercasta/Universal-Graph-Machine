@@ -513,7 +513,7 @@ class Machine:
                         continue
                 yield st.bind(ins.dst, nid)
         elif isinstance(ins, GRADE):
-            # ISA VALUE OPERANDS (docs/isa_value_operands_design.md §1/§3): the register may hold a
+            # ISA VALUE OPERANDS (docs/attic/isa_value_operands_design.md §1/§3): the register may hold a
             # VALUE-NODE, whose denotation is the coref class of same-named entities — the instruction
             # interprets it, aggregating max-over-mentions (graded) / first-carried-value (valued),
             # exactly the demand chain's α-cut semantics (`chain._grades_pass` runs THIS op). An
@@ -552,7 +552,7 @@ class Machine:
             raise ProgramError(f"{type(ins).__name__} is an effect opcode in the match phase")
 
     def _operand_nodes(self, g: AttrGraph, nid: str) -> tuple[str, ...]:
-        """The fact-layer node(s) a register's node DENOTES (docs/isa_value_operands_design.md): a
+        """The fact-layer node(s) a register's node DENOTES (docs/attic/isa_value_operands_design.md): a
         VALUE-NODE (carries `<isa_operand_value>`) denotes the entities NAMED its value — the coref-
         class aggregate the carried name refers to, control/inert scaffolding skipped; any other node
         denotes itself. Resolution lives INSIDE the instruction (§3), never in the substrate."""
@@ -757,7 +757,7 @@ def run_program(g: AttrGraph, program: list[Instr], *, tnorm: TNorm = T_MIN) -> 
 # The control machine — control flow as instructions, not procedures
 # ===========================================================================
 #
-# docs/isa_control_machine.md §4 (brick #1). The `Machine` above is a straight-line basic
+# docs/attic/isa_control_machine.md §4 (brick #1). The `Machine` above is a straight-line basic
 # block: match-then-apply over a state stream, run ONCE, with NO program counter and NO way to
 # transfer control — every loop/branch/subgoal is faked in a Python driver (`run_bank`,
 # `chain_sip`, `service_calls`) or hidden INSIDE an opcode (`ITERATE`'s Python `for`). That
@@ -833,7 +833,7 @@ class BRANCH_IF(Term):
 
 @dataclass
 class CALL(Term):
-    """Call a subroutine (brick #2, docs/isa_control_machine.md §4.2). PUSH a frame — the return-PC
+    """Call a subroutine (brick #2, docs/attic/isa_control_machine.md §4.2). PUSH a frame — the return-PC
     (`pc+1`, the block after this CALL) and the caller's saved register window (its state stream +
     scalar-control snapshot) — onto the CONTROL STACK, then `PC = label`. The callee begins with a
     FRESH window (a single empty state); the graph is SHARED, so the callee's fact writes persist and
@@ -861,7 +861,7 @@ class HALT(Term):
 
 @dataclass
 class SUSPEND(Term):
-    """Pause the machine and hand a resumable CONTINUATION back to the caller (docs/isa_control_machine.md
+    """Pause the machine and hand a resumable CONTINUATION back to the caller (docs/attic/isa_control_machine.md
     §4.2 — "save/restore the whole control stack + PC as a continuation"). Unlike `HALT` (done) or `RET`
     (return within the machine), `SUSPEND` yields control OUT to the driver that called `run`/`resume`,
     capturing the FULL control state (resume-PC, control stack, control registers, state stream) as a
@@ -895,7 +895,7 @@ class Continuation:
 
 @dataclass
 class PRIM:
-    """An upper-level INTERPRETER STEP (docs/isa_control_machine.md §10, "two levels of program").
+    """An upper-level INTERPRETER STEP (docs/attic/isa_control_machine.md §10, "two levels of program").
 
     The control machine has two client programs: the ISA-level match-then-apply opcodes (a block's
     `body`), and — layered ON TOP — the reified-rule / demand REASONING program, "interpreted on top,
@@ -918,7 +918,7 @@ class PRIM:
 
 @dataclass
 class Block:
-    """A labeled basic block — the addressable unit the PC indexes (docs/isa_control_machine.md §4).
+    """A labeled basic block — the addressable unit the PC indexes (docs/attic/isa_control_machine.md §4).
 
     A block runs, in order:
       * `body` OR `prim` — the WORK. Either the ISA match-then-apply `body` (ordinary `Instr` opcodes,
@@ -940,7 +940,7 @@ class Block:
 
 class ControlMachine:
     """Fetch-decode-execute over a PC-indexed program of `Block`s — the control path the ISA lacked
-    (docs/isa_control_machine.md §4, brick #1). Wraps the straight-line `Machine` (the basic-block
+    (docs/attic/isa_control_machine.md §4, brick #1). Wraps the straight-line `Machine` (the basic-block
     primitive) with a program counter, scalar control registers, and control transfers, so loops
     (and later subgoals) COMPOSE as instructions instead of Python drivers.
 

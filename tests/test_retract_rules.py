@@ -1,7 +1,7 @@
 """
 Retraction AS COPY-ON-DELETE — the cascade decides the set (rules over now-matchable provenance),
 then the driver ARCHIVES each pre-image into the in-graph history and RETIRES the live relation
-(docs/mechanism_policy_separation.md, Probe 1; retraction.retract). Supersedes the earlier
+(docs/attic/mechanism_policy_separation.md, Probe 1; retraction.retract). Supersedes the earlier
 interpose-hiding driver: a retracted fact is really DELETED (its live 2-hop is gone), not spliced
 through a `<retracted>` marker. Its pre-image + provenance stay in the graph as inert, meta-visible
 DATA so reflection survives, and `resurrect` re-materializes it.

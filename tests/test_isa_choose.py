@@ -1,7 +1,7 @@
 """
 Phase 5.2 — CHOOSE firmware (`harneskills/isa/choose.py`): graded α-cut argmax over candidate options,
 monotone (losers retained). The scenarios are the LOCKED design's build-step-4 tests
-(`docs/graded_means_selection_design.md`): the higher-fit means wins, ties offer both, a single
+(`docs/attic/graded_means_selection_design.md`): the higher-fit means wins, ties offer both, a single
 candidate is trivially satisfied, and the α-cut prunes a candidate BEFORE selection even runs.
 Plus a randomized differential against an independent argmax reference.
 """

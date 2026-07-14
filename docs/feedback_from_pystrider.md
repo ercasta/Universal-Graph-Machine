@@ -444,7 +444,7 @@ print(conflicts("?c write_conflict yes when ?a writes ?c and ?b writes ?c and ?a
 ```
 
 This matches your own scoping: `rule_graph._property_rule` notes `functional`/`injective` "**DO need
-distinctness and are deferred** — see docs/consistency_design.md". So it is a known gap; this is the
+distinctness and are deferred** — see docs/design/consistency_design.md". So it is a known gap; this is the
 concrete consumer cost. The only faithful workaround today is to author O(n²) `distinct_from` facts,
 which defeats the point (the check exists to *scale* composition).
 

@@ -6,7 +6,7 @@ here a node carries NO label and NO name. A node is an opaque `identity` plus a 
 **attributes** drawn from the KB's *closed* key vocabulary. Edges are directed and
 **unlabeled**. All discrimination that used to live in node-names and edge-predicates now
 lives in `(attributes + directed topology)`. See `decision_labelless_substrate` and
-`docs/graph low level machine/rule-isa-design.md` ("The label-less attribute substrate").
+`docs/attic/rule_isa_design.md` ("The label-less attribute substrate").
 
 An attribute is `(key, value, comparator)` with two poles:
 
@@ -52,7 +52,7 @@ VALUED = "valued"      # value from an open domain; data under a key
 NAME = "name"
 CONF = "confidence"
 
-# ISA VALUE OPERANDS (docs/isa_value_operands_design.md): a data value an instruction operand needs (a
+# ISA VALUE OPERANDS (docs/attic/isa_value_operands_design.md): a data value an instruction operand needs (a
 # name endpoint, a literal) lives on a REGULAR node under this conventional VALUED key, interned one
 # node per distinct value (`value_node`). NOT a new kind and NOT a flag: a value-node is distinguished
 # from an entity named "ada" (which carries `NAME="ada"`) only by WHICH attribute it carries and which
@@ -61,7 +61,7 @@ CONF = "confidence"
 # (`nodes_named` never returns it; no relation reader ever reaches it).
 ISA_OPERAND_VALUE = "<isa_operand_value>"
 
-# MARKER ATTRIBUTES (docs/firmware_over_isa_design.md §3 — de-privileging the kind-flags): a node's
+# MARKER ATTRIBUTES (docs/attic/firmware_over_isa_design.md §3 — de-privileging the kind-flags): a node's
 # control/inert-ness lives BOTH as the legacy dataclass flag AND as an ordinary graded attribute,
 # dual-written IN LOCKSTEP at the mint/set chokepoints below. The attributes are what a fact-read
 # guard TESTs (a compiler-emitted `TEST(..., absent=True)` op in the read program — uniform, never a
@@ -199,7 +199,7 @@ class AttrGraph:
         # this is the structural guard that keeps valued attributes from resurrecting labels
         # (see module docstring). Seeding is over keys; values are filtered per-candidate.
         self._by_key: dict[str, set[str]] = {}
-        # DISCRIMINATING-KEY value-accelerator (Phase 2.3, `docs/name_demotion_design.md`): key ->
+        # DISCRIMINATING-KEY value-accelerator (Phase 2.3, `docs/attic/name_demotion_design.md`): key ->
         # {value -> {nid}}, maintained for DECLARED keys only. Semantically transparent (vision §11):
         # it returns a CANDIDATE SET to test, NEVER a single node and never a merge, so identity stays
         # opaque — two nodes both named "Paul" are two nids both under "Paul", never resurrecting

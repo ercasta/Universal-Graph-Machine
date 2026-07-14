@@ -1,6 +1,6 @@
 """
 Firmware §3/§5 — the fact-read guard as compiler-emitted attribute TESTs, and focus as the
-register-pointed MEMBER live-set op (docs/firmware_over_isa_design.md).
+register-pointed MEMBER live-set op (docs/attic/firmware_over_isa_design.md).
 
 Three layers pinned here:
   1. MARKER LOCKSTEP: control/inert live BOTH as the legacy flags and as ordinary marker attributes

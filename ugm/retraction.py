@@ -1,6 +1,6 @@
 """
 Retraction — a truth-maintenance layer over the in-graph support, as COPY-ON-DELETE
-(docs/mechanism_policy_separation.md, Probe 1; supersedes the earlier interpose-hiding driver).
+(docs/attic/mechanism_policy_separation.md, Probe 1; supersedes the earlier interpose-hiding driver).
 
 A withdrawn fact and everything derived from it must go. Three cleanly-separated phases — the
 mechanism/policy split made concrete:
@@ -95,7 +95,7 @@ CASCADE_RULE = Rule(
 # NOTE — INTERPOSE_RULE is GONE. Retraction no longer HIDES a fact by splicing a `<retracted>`
 # marker into its path; it DELETES the fact (copy-on-delete, below). The `INTERPOSE`/`RESTORE`
 # opcodes + `lower_rewire` stay in the ISA for their own direct tests, just unused by the TMS
-# (docs/mechanism_policy_separation.md §7 defers their removal to a post-probe cleanup).
+# (docs/attic/mechanism_policy_separation.md §7 defers their removal to a post-probe cleanup).
 
 RETRACT_RULES: list[Rule] = [CASCADE_RULE]
 
@@ -142,7 +142,7 @@ def record_history(graph: Graph, rel: str) -> str:
     root. Being inert, it is invisible to ordinary reasoning (so the retracted fact stops matching)
     yet visible to meta-reasoning — the HARD CONSTRAINT: explanation stays matchable DATA in the SAME
     graph, so `why`/reflection can still answer "what did we believe, and why was it retracted?"
-    (docs/mechanism_policy_separation.md §1). The endpoint ENTITIES are NOT deleted (only the relation
+    (docs/attic/mechanism_policy_separation.md §1). The endpoint ENTITIES are NOT deleted (only the relation
     is retracted), so the record references them directly; a distinct meta-predicate (`was_subj` etc.)
     means the archive does not alias the live fact a raw 2-hop walk would re-see."""
     # the subject/object are the DOMAIN endpoints (non-inert AND non-control) — this excludes the
@@ -170,7 +170,7 @@ def record_history(graph: Graph, rel: str) -> str:
 
 def retract(graph: Graph, rel: str) -> list:
     """Retract relation node `rel` and its dependents — copy-on-delete over the ONE graph
-    (docs/mechanism_policy_separation.md, Probe 1). Three cleanly-separated phases:
+    (docs/attic/mechanism_policy_separation.md, Probe 1). Three cleanly-separated phases:
 
       DECIDE  — seed `<retract> targets rel` and run `RETRACT_RULES` (the CASCADE) to a fixpoint,
                 accumulating the full set of rel nodes to retract (read-only reasoning; the rule is

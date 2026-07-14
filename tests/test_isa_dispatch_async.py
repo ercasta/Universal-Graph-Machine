@@ -1,5 +1,5 @@
 """
-Brick #4-slice (docs/isa_control_machine.md §9.4): the `<call>` dispatcher AS A CONTROL-MACHINE PROGRAM,
+Brick #4-slice (docs/attic/isa_control_machine.md §9.4): the `<call>` dispatcher AS A CONTROL-MACHINE PROGRAM,
 including the piece the flat `service_calls` loop cannot express — an ASYNC tool that SUSPENDs to the host
 and RESUMEs with the answer (the streaming suspend/resume the intake design wants). Sync tools run inline
 (a PRIM); async tools are a SUSPEND return/resume pair. The `<call>` RECORD stays a graph node; only the

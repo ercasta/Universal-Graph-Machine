@@ -5,11 +5,11 @@
 > Instead, first finish expressing them as **ISA PROGRAMS (firmware over the control machine)** in Python,
 > so the only thing left to port is the **ISA interpreter** — the procedures come along as DATA (programs)
 > that a Python and a Rust interpreter run identically. This is the whole point of the control machine
-> (`docs/isa_control_machine.md` §7.3: "Once control lives in the ISA, the port is one bounded
+> (`docs/attic/isa_control_machine.md` §7.3: "Once control lives in the ISA, the port is one bounded
 > fetch-decode-execute loop") and the "machine-semantics-are-ISA-programs" thesis.
 >
-> Written for a FRESH session (autonomous, multi-hour capable). **Prerequisite reading:** `docs/isa_control_machine.md`
-> (the control path — what firmware-ification builds on), `docs/graph low level machine/isa-reference.md`
+> Written for a FRESH session (autonomous, multi-hour capable). **Prerequisite reading:** `docs/attic/isa_control_machine.md`
+> (the control path — what firmware-ification builds on), `docs/reference/isa_reference.md`
 > (the instruction-set CONTRACT), `ugm/chain.py` (`chain_sip`/`_solve_demand_rule`/`_facts_matching` — the
 > procedure to firmware-ify), `ugm/lowering.py` (`run_bank`, `lower_conj` — the ISA matcher already used by
 > the forward path), `ugm/attrgraph.py` (the substrate to port), `bench/rust_pilot/` (the 381× pilot).
@@ -85,7 +85,7 @@ randomized sweeps are the oracle):
   RETIRES the duplicate matcher and unifies forward + demand on one. Preserve the focus-scope filter by
   construction (it becomes a seed-set on the matcher). ⚠ the subtle part: `ById` free-slot binding + coref
   fan-out semantics must survive the switch.
-  - **▶ FIRST INCREMENT LANDED 2026-07-14** (`docs/phase_a_demand_firmware.md`). The single-atom demand
+  - **▶ FIRST INCREMENT LANDED 2026-07-14** (`docs/attic/phase_a_demand_firmware.md`). The single-atom demand
     lookup now has a shared-ISA-matcher implementation (`chain._facts_matching_isa`: SET the bound endpoint
     → FOLLOW to the rel → predicate-key TEST → FOLLOW to the other endpoint, through the ONE `Machine.match`;
     free slots wrap `ById` natively — the register holds the node id). ADDITIVE: the bespoke walk

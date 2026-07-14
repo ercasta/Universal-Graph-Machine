@@ -2,7 +2,7 @@
 
 Status: **design, not built.** Supersedes the rule-based coref plan (value-indexing + defeasible
 node-coalescing) that previously filled this file — see git history and
-`docs/demand_driven_coref_plan.md` for the investigation and perf data that led here. This is a
+`docs/attic/demand_driven_coref_plan.md` for the investigation and perf data that led here. This is a
 **major simplification** decided in conversation.
 
 ## Decisions log (2026-07-13)

@@ -71,7 +71,7 @@ def validate_ids(fact_g: AttrGraph, *endpoints) -> None:
             raise ValueError(f"ById({ep.node_id!r}) addresses a node that is not in the graph.")
 
 
-# --- ISA VALUE OPERANDS (docs/isa_value_operands_design.md §7 step 2, STRUCTURAL since (X)) --------
+# --- ISA VALUE OPERANDS (docs/attic/isa_value_operands_design.md §7 step 2, STRUCTURAL since (X)) --------
 #
 # The uniform POINTER model for demand-solver bindings: a register holds only a node-pointer; a NAME
 # endpoint (`"ada"`) is carried as a pointer to its INTERNED value-node (a regular node carrying
@@ -394,7 +394,7 @@ def _facts_matching_walk(fact_g: AttrGraph, pred: str,
     fact's endpoint names to discard all but one subject) is the fallback ONLY for a fully-unbound demand.
     Behaviour-identical to the old scan; it just stops touching off-goal tuples.
 
-    FOCUS-SCOPE (Phase 8.3b, docs/cnl_intake_design.md §3) — BOUNDED ATTENTION, opt-in and caller-selected
+    FOCUS-SCOPE (Phase 8.3b, docs/design/cnl_intake_design.md §3) — BOUNDED ATTENTION, opt-in and caller-selected
     (default None = whole-graph, behaviour-identical). When `focus_scope` is a set of in-play entity names
     (the top focus frame's centers), a fact is visible iff it TOUCHES the working set (either endpoint in
     scope). Reasoning then follows edges out of focus entities but cannot start from / jump to an entity
@@ -726,7 +726,7 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
     body left unbound) is an EXISTENTIAL NAC — `not L(x, ·)` holds iff NO `L(x, anything)` exists, which
     the wildcard `_facts_matching` reads directly.
 
-    GENERATOR (brick #3, docs/isa_control_machine.md §9.3): this is now a GENERATOR — instead of RECURSING
+    GENERATOR (brick #3, docs/attic/isa_control_machine.md §9.3): this is now a GENERATOR — instead of RECURSING
     into `chain_sip` to close a negative's positive, it YIELDS a subgoal request `("subgoal", neg_goal,
     child_neg_stack)` and the driver (`chain_sip`) closes it on an EXPLICIT control stack, then resumes
     here. The yield IS the `CALL`; the driver's stack IS the control stack — the subgoal descent lives in
@@ -958,9 +958,9 @@ def _frame_program(fact_g: AttrGraph, rule_g: AttrGraph,
                    goal: tuple[str, str | None, str | None], *, neg_stack, provenance, scope,
                    focus_scope, fuel, max_rounds, closed, visible):
     """Close ONE goal's positive to fixpoint — the per-goal round-loop as a CONTROL-MACHINE PROGRAM
-    (Decision 3, docs/firmware_over_isa_design.md §6): a `PRIM` runs (or, after a serviced subgoal,
+    (Decision 3, docs/attic/firmware_over_isa_design.md §6): a `PRIM` runs (or, after a serviced subgoal,
     CONTINUES) one round; `BRANCH_IF` loops it to fixpoint under a `SETI`/`DEC` round budget — the
-    same block shape as `run_bank`'s fixpoint (docs/isa_control_machine.md §9.5); fuel exhaustion is
+    same block shape as `run_bank`'s fixpoint (docs/attic/isa_control_machine.md §9.5); fuel exhaustion is
     the budget branch falling through (fuel→UNKNOWN honesty). A pending NAC subgoal leaves the
     machine as a `SUSPEND` whose `Continuation` the driver (`chain_sip`) services (brick #4 — what
     was a Python generator yield at the frame boundary is now a machine suspension). Returns

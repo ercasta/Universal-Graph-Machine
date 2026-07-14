@@ -1,6 +1,6 @@
 # Design — universal consistency: constraint schemas, an upper layer, a rule-linter (2026-06-29)
 
-> **Status: SKETCH / PLAN — importance PROMOTED by `logic_fragment.md` Amendment 2 (the
+> **Status: SKETCH / PLAN — importance PROMOTED by `../reference/logic_fragment.md` Amendment 2 (the
 > fragment's hard part is exception/priority CONSISTENCY, which this lint addresses).** Read
 > `docs/vision.md` (§5 two layers, §7 conventions, §2 homoiconic) and
 > `docs/implementation_plan.md` first. This plans the "general rules for

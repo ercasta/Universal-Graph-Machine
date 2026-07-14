@@ -1,5 +1,5 @@
 """
-Firmware v3 — DEMAND-DRIVEN NEGATION (`docs/demand_driven_negation_design.md`), steps 1 & 2.
+Firmware v3 — DEMAND-DRIVEN NEGATION (`docs/attic/demand_driven_negation_design.md`), steps 1 & 2.
 
 `chain_sip` decides a rule's NAC clause `not L` by NEGATION-AS-FAILURE: demand the positive `L`
 (bound by the body so far), run it to CLOSURE (a nested negative demand), and take ABSENCE as the
@@ -218,7 +218,7 @@ def test_nac_whose_nested_closure_truncates_is_unknown():
     assert check(g, ("is", "bo", "thief"), max_rounds=1, rules=rg) == UNKNOWN
 
 
-# --- Brick #3 (docs/isa_control_machine.md §9.3): the NAC subgoal descent runs on an EXPLICIT control
+# --- Brick #3 (docs/attic/isa_control_machine.md §9.3): the NAC subgoal descent runs on an EXPLICIT control
 # stack, not Python recursion. A deeply-stratified NAF chain (p0 :- not p1, p1 :- not p2, …, pN base)
 # closes by descending N negative subgoals. The old code recursed `chain_sip -> _solve_demand_rule ->
 # _nac_blocks -> chain_sip` per stratum (~4 Python frames/level), so a deep chain blew Python's

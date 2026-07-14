@@ -1,6 +1,6 @@
 """
 The reference ISA machine's own derivations on the positive, monotone, non-graded fragment
-(docs/graph low level machine/isa-reference.md "Next slice").
+(docs/reference/isa_reference.md "Next slice").
 
 For each rule + fact set: lower the `Rule` to an ISA program, bridge the graph to the label-less
 `AttrGraph`, run the reference machine to fixpoint, and assert the derived relation SET against a

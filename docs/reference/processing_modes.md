@@ -121,7 +121,7 @@ Each rejection names the reflex and what to use instead:
 
 ## 6. Consequences for the firmware arc
 
-- Phase 4 of `implementation_plan.md` gains the **collection conventions** (member
+- Phase 4 of `../implementation_plan.md` gains the **collection conventions** (member
   `next`-chains + the ITERATE cursor gadget) and Phases 4–5 gain the **`<hypothesis>` scope
   conventions** (pencil writes, confirm-EMIT, refute-DROP) as named deliverables.
 - The **KB procedure surface** (`to NAME: …` beyond planner ops) is promoted from TUI-arc

@@ -1,8 +1,8 @@
 # The Harneskills Vision — One Substrate
 
-> The doc index is `docs/reference.md`.)
+> The doc index is `docs/README.md`.)
 
-> Design home: `docs/graph low level machine/rule-isa-design.md`;
+> Design home: `docs/attic/rule_isa_design.md`;
 > memory `decision-labelless-substrate`.
 
 The whole system is one idea applied without exception: **there is a single
@@ -439,7 +439,7 @@ an unconstrained match from scanning the graph **with no neighbourhood cap at al
 > **truncated valid long joins** (a 40-hop transitive chain closed incompletely under radius=3).
 > So `within`/radius is **RETIRED** as the matching scope: matching is unbounded and correct,
 > seed-from-ground keeps it cheap. (`radius` survives only as a vestigial, ignored parameter.)
-> See `docs/walkers_and_locality.md`. This is still a **different** Rete than the deleted
+> See `docs/attic/walkers_and_locality.md`. This is still a **different** Rete than the deleted
 > dimension-indexed "alpha network" that routed by `lhs_embedding` (the relation-routing §10
 > forbids); we keep the **lexical index** and **semi-naive** delta matching, drop the radius.
 

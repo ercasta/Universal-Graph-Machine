@@ -1,6 +1,6 @@
 """
-Phase 8.3 — the discourse focus stack (docs/cnl_intake_design.md §3; Axis B register lift,
-docs/mechanism_policy_separation.md §8).
+Phase 8.3 — the discourse focus stack (docs/design/cnl_intake_design.md §3; Axis B register lift,
+docs/attic/mechanism_policy_separation.md §8).
 
 The working set of a long CNL session is a FOCUS: what the conversation is currently about. Not
 last-N-turns (topics switch) — a STACK, each frame naming the in-play CENTER entities. Decisions

@@ -1,11 +1,11 @@
 # ISA value operands as regular nodes — the `<isa_operand_value>` convention
 
 > **Status: LOCKED DESIGN (2026-07-14).** The substrate enabler that must land BEFORE the demand-solver
-> firmware-ification (`docs/firmware_over_isa_design.md`, "(X)"). Ratified with the user over discussion. It
+> firmware-ification (`docs/attic/firmware_over_isa_design.md`, "(X)"). Ratified with the user over discussion. It
 > is deliberately NARROW now and GENERAL later (§6).
 >
-> Prerequisite reading: `docs/firmware_over_isa_design.md` (the no-privileged-partitions principle + (X)),
-> `docs/mechanism_policy_separation.md` + `docs/axis_b_control_registers.md` (registers as a home for control
+> Prerequisite reading: `docs/attic/firmware_over_isa_design.md` (the no-privileged-partitions principle + (X)),
+> `docs/attic/mechanism_policy_separation.md` + `docs/attic/axis_b_control_registers.md` (registers as a home for control
 > state), `ugm/machine.py` (the register file `State.regs`, the `SEED`-on-`NAME` accelerator), `ugm/chain.py`
 > (`_solve_demand_rule` — the `env` dict this replaces).
 >

@@ -1,4 +1,4 @@
-"""Phase 8.1 — unified intake routing (docs/cnl_intake_design.md §1, §D).
+"""Phase 8.1 — unified intake routing (docs/design/cnl_intake_design.md §1, §D).
 
 One entry `ingest(kb, rules, utterance)`; the route EMERGES from which forms fire, not a string sniff.
 """

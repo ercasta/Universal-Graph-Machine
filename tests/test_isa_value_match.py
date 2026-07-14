@@ -1,4 +1,4 @@
-"""Stage 1 of coreference-as-rules (docs/coreference_as_rules_design.md) — the value-match primitive.
+"""Stage 1 of coreference-as-rules (docs/attic/coreference_as_rules_design.md) — the value-match primitive.
 
 A `ValueMatch` is the substrate's first DECLARED value-JOIN: a match-time condition comparing an
 ATTRIBUTE VALUE across two LHS-bound variables (the path language otherwise joins only on shared

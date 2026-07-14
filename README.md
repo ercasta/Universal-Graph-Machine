@@ -13,8 +13,9 @@ for authoring and rendering. The core is pure symbolic graph computation — no 
 no LLMs, no external solvers (the graded layer is *sparse named* attributes in `[0,1]`, not
 dense/neural embeddings).
 
-New here? Read **`docs/architecture.md`** for the layering, then the **`docs/engine_user_guide.md`**
-(build on UGM) or **`docs/engine_developer_guide.md`** (extend/fork it).
+New here? Start at **`docs/README.md`** (the doc index), read **`docs/architecture.md`** for the
+layering, then the **`docs/engine_user_guide.md`** (build on UGM) or
+**`docs/engine_developer_guide.md`** (extend/fork it).
 
 ---
 
@@ -130,7 +131,7 @@ There is no NAC/`CHECK-ABSENT` opcode — the matching core is purely positive. 
 not an ISA primitive but a FIRMWARE decision: in the forward driver a rule's NAC is a
 match-time filter, and in the demand-driven firmware a `not L` clause is resolved on demand by
 stratified **negation-as-failure** — `chain_sip` demands the positive to closure and reads
-absence, never an exhaustive-search opcode (`docs/demand_driven_negation_design.md`). Nothing
+absence, never an exhaustive-search opcode (`docs/attic/demand_driven_negation_design.md`). Nothing
 is materialized or retracted for a negation. No opcode *reachable from rule lowering* deletes or
 lowers a fact — that invariant is a property of the opcode set, not a lint pass. The one real
 fact-deletion opcode, `RETIRE`, is **privileged**: the rule→program lowering never emits it; only
@@ -171,8 +172,8 @@ There is no backtracking and no reverse execution — reasoning is monotone and 
 control plane is **forward-only**; "backward" (demand-driven) reasoning is itself a *program* on the
 forward plane (a tabled solver that `CALL`s subgoals), not a second engine. The instruction set is
 the stable contract and the interpreter is swappable — a compiled backend can replace the reference
-Python one without touching semantics. Full detail: `docs/isa_control_machine.md` and
-`docs/graph low level machine/isa-reference.md`.
+Python one without touching semantics. Full detail: `docs/attic/isa_control_machine.md` and
+`docs/reference/isa_reference.md`.
 
 ## Processing modes — nine KB-level operations built on the ISA
 
@@ -285,7 +286,7 @@ Key CNL concepts:
   `no`); a concept is opted into OWA through the firmware **stance**
   (`FirmwarePolicy(open_preds=…)` / `negation_default`), so absence stays `UNKNOWN` and defers
   to evidence. Negation itself is demand-driven negation-as-failure — nothing is completed or
-  retracted (`docs/demand_driven_negation_design.md`)
+  retracted (`docs/attic/demand_driven_negation_design.md`)
 
 ### Lowering: CNL rule → ISA program
 
@@ -435,7 +436,7 @@ The design is informed by:
 - Attempto Controlled English (CNL as surface, not engine input)
 - Provenance / truth-maintenance traditions
 
-See `docs/vision.md`, `docs/logic_fragment.md`, and `docs/processing_modes.md` for the
+See `docs/vision.md`, `docs/reference/logic_fragment.md`, and `docs/reference/processing_modes.md` for the
 canonical design rationale; `docs/architecture.md` for the as-built layering; and
 `docs/engine_user_guide.md` / `docs/engine_developer_guide.md` for building on and extending
 the engine.

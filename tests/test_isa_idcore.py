@@ -1,4 +1,4 @@
-"""Stage 3 of coreference-as-rules (docs/coreference_as_rules_design.md) — the id-addressed core.
+"""Stage 3 of coreference-as-rules (docs/attic/coreference_as_rules_design.md) — the id-addressed core.
 
 The demand chain's env now binds node IDS in free slots (`chain._facts_matching` returns a `ById` for a
 discovered node, not its name). The load-bearing payoff: two DISTINCT nodes that happen to share a NAME

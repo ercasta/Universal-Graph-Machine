@@ -6,13 +6,13 @@
 > operational semantics of the label-less attribute ISA, with a runnable reference machine
 > (`ugm/`) and a hand-written conformance suite (`tests/test_isa_machine.py`,
 > no rules involved). It realizes "the cheap experiment" of
-> `rule-isa-design.md`: write the opcodes as a spec + reference interpreter *before* any
-> rule→opcode compiler, and see whether the set enumerates cleanly. Read `rule-isa-design.md`
+> `../attic/rule_isa_design.md`: write the opcodes as a spec + reference interpreter *before* any
+> rule→opcode compiler, and see whether the set enumerates cleanly. Read `../attic/rule_isa_design.md`
 > (the design + the label-less-substrate revision) and `memory/decision_labelless_substrate`
 > first; this is the operational companion to them.
 >
 > **The machine now has BOTH an ISA plane and a CONTROL plane (control path BUILT 2026-07-14,
-> `docs/isa_control_machine.md`).** The opcodes below are the **data path** — a single straight-line
+> `docs/attic/isa_control_machine.md`).** The opcodes below are the **data path** — a single straight-line
 > *basic block* (match-then-apply, run once). The **control path** (`ControlMachine`: a program counter
 > over labeled basic blocks + `BRANCH`/`BRANCH_IF`/`CALL`/`RET`/`SUSPEND` + a control stack + `PRIM`
 > interpreter steps) is the added half that makes loops, subgoals, fixpoints, and tool waits **compose as
@@ -191,7 +191,7 @@ control-node skip) — decide then whether retraction runs on the backward path 
 
 ## The control path — control flow as instructions (BUILT 2026-07-14)
 
-> Companion design + slice log: `docs/isa_control_machine.md`. The opcodes above are the machine's **data
+> Companion design + slice log: `docs/attic/isa_control_machine.md`. The opcodes above are the machine's **data
 > path** — one straight-line *basic block* (match-then-apply, run once, **no program counter**). They have
 > no control transfer: every loop / branch / subgoal / fixpoint / tool-wait was faked in a Python driver
 > (`run_bank`, `chain_sip`, `service_calls`) or hidden inside an opcode (`ITERATE`'s Python `for`). The
@@ -258,7 +258,7 @@ DEC  r               ctrl[r] ← ctrl[r] - 1  -- (control phase) step a loop cou
 | **tool wait** | sync = inline `PRIM`; async = `SUSPEND`+`RESUME` | the `<call>` dispatcher is a control-machine program; an `AsyncTool` SUSPENDs to the host and RESUMEs with the answer (the streaming boundary). The `<call>` RECORD stays a graph node; only the return/resume mechanics became instructions |
 
 Each port is **behaviour-identical** to the driver it replaces (the reasoning / recognition / planning
-suites are the differential oracle). Every Python control driver named in `docs/isa_control_machine.md` §1
+suites are the differential oracle). Every Python control driver named in `docs/attic/isa_control_machine.md` §1
 now runs as control-machine instructions; the **seam** — "a loop can't contain a subgoal" — is closed.
 
 ### Performance posture (unchanged)
@@ -367,7 +367,7 @@ is the swap-safety correspondence the design asked for, on the fragment lowered.
 > **The driver direction (§6a "Everything is goal-directed").** `run_to_fixpoint` above is the
 > forward-rush — it derives the whole closure whether or not a query needs it, and it exists
 > here as the differential-test harness and the contrast. The *direction* the substrate commits
-> to (`decision_labelless_substrate`, `vision.md` §6a) is **demand-forward**: a goal is a partial
+> to (`decision_labelless_substrate`, `../vision.md` §6a) is **demand-forward**: a goal is a partial
 > attribute-node / partial relation — the same shape as a fact — and answering it materializes
 > ONLY what the goal demands. `ugm/goal.py` (`GoalSolver`, `tests/test_isa_goal.py`)
 > is the first slice of that driver.
@@ -493,7 +493,7 @@ keystone (`today outranks standing` → `sell overridden` → the exclusion lift
 a partial graph and derives the unsound `op stance neutral` alongside `op stance encouraged` — the
 completion's nested-complete-solve is the goal-directed analog of stratifying the producer below the
 consumer, which is what makes it sound. Full bank-by-opcode map:
-`docs/graph low level machine/isa-card-trader-coverage.md` (the ISA arc's Phase-0 coverage map).
+`docs/attic/isa_card_trader_coverage.md` (the ISA arc's Phase-0 coverage map).
 
 ### Existential NACs (¬∃) + `DROP_CTRL` subsumed — the planner's block/unblock idiom (DONE 2026-07-06)
 

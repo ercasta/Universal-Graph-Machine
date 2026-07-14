@@ -2,7 +2,7 @@
 
 > **Status: CANONICAL (2026-07-07, ratified in conversation with the user).** Given the
 > decisions in force (CWA-default, bounded-defeasible semantics, brain-firmware direction —
-> see `docs/reference.md`), this document fixes WHICH pieces of formal logic the system
+> see `docs/README.md`), this document fixes WHICH pieces of formal logic the system
 > genuinely needs, which are replaced by "swiss-knife" system-2 procedures, and what that
 > implies for the CNL authoring surface. **Backward compatibility with prior semantics is
 > explicitly NOT a constraint** (user, 2026-07-07): the system is a stratification of research

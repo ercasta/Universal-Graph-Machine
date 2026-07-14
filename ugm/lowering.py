@@ -2,7 +2,7 @@
 The bridge to the as-built engine: a DUMB `Rule` -> ISA-program lowering, a name-`Graph` ->
 `AttrGraph` bridge, and a fixpoint driver — so the reference machine can be differential-tested
 against `rewriter.run` (the swap-safety net the design names,
-`docs/graph low level machine/isa-reference.md` "Next slice").
+`docs/reference/isa_reference.md` "Next slice").
 
 Scope of this slice (kept deliberately narrow, per "keep the compiler dumb"): the POSITIVE,
 MONOTONE, non-graded fragment — a rule of plain-relation `Pat`s (`s p o`), no NAC, no graded
@@ -576,7 +576,7 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
     def one_round(g, stream, ctrl):
         """One fixpoint ROUND (a §10 PRIM interpreter step): collect-then-apply, returning a 'changed?'
         flag — 1 if a firing (or a serviced tool `<call>`) advanced the graph, else 0 (quiesced). The
-        BRANCH_IF loops while it stays 1 (docs/isa_control_machine.md §9.5)."""
+        BRANCH_IF loops while it stays 1 (docs/attic/isa_control_machine.md §9.5)."""
         nonlocal total
         # COLLECT-THEN-APPLY (the engine's collect-pending-then-fire order): match + NAC-filter every
         # rule against the START-OF-ROUND graph, THEN apply. A rule never sees a half-updated graph, so
@@ -628,7 +628,7 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
                     g.remove_node(nid)
         return stream, 0
 
-    # THE FIXPOINT AS A BRANCH-BACK (docs/isa_control_machine.md §9.5, brick #5). The Python
+    # THE FIXPOINT AS A BRANCH-BACK (docs/attic/isa_control_machine.md §9.5, brick #5). The Python
     # `for _ in range(max_rounds)` driver loop is now a CONTROL-MACHINE program: a round counter (the
     # `for` bound), a for-guard, a ROUND block whose PRIM runs one collect-then-apply round and reports
     # `changed?`, and a branch-back. run_bank no longer HOLDS the loop — it ASSEMBLES the program and

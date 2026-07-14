@@ -1,12 +1,12 @@
 # Phase A — Python as firmware over ISA: the demand matcher (A1)
 
 > **Status: IN PROGRESS (2026-07-14).** The first, differential-gated increment of Phase A / A1
-> (`docs/rust_engine_plan.md` §2) has LANDED as an ADDITIVE parallel path — the bespoke demand
+> (`docs/design/rust_engine_plan.md` §2) has LANDED as an ADDITIVE parallel path — the bespoke demand
 > matcher stays the reference oracle; the shared-ISA-matcher path is proven equal on every call
 > under a cross-check flag. The production SWAP (retire the walk) is the user's ratified gate and is
 > NOT taken here.
 >
-> Prerequisite reading: `docs/rust_engine_plan.md` (§2 A1–A5), `docs/isa_control_machine.md`,
+> Prerequisite reading: `docs/design/rust_engine_plan.md` (§2 A1–A5), `docs/attic/isa_control_machine.md`,
 > `ugm/chain.py` (`_facts_matching` — the procedure), `ugm/lowering.py` / `ugm/machine.py` (the ISA
 > matcher the forward path already uses).
 
@@ -50,7 +50,7 @@ policy A5 must name.
 
 ## 2. The fork (the load-bearing decision — the user's call, for the SWAP)
 
-> **RESOLVED 2026-07-14 by dissolution — see `docs/firmware_over_isa_design.md` (the LOCKED design).** The
+> **RESOLVED 2026-07-14 by dissolution — see `docs/attic/firmware_over_isa_design.md` (the LOCKED design).** The
 > fork below (a Machine `visible(nid)` predicate vs. driver post-filters) is superseded: the ratified
 > principle is NO PRIVILEGED PARTITIONS (no kind-flags, no separate rule graph). A "fact read" is a lowered
 > PROGRAM with a COMPILER-EMITTED attribute guard + optional register-pointed live-set (focus restricts,

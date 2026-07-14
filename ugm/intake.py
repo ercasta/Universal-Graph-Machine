@@ -1,5 +1,5 @@
 """
-Phase 8.1 — unified CNL intake (docs/cnl_intake_design.md §1).
+Phase 8.1 — unified CNL intake (docs/design/cnl_intake_design.md §1).
 
 ONE entry for a CNL utterance in a live agent session: `ingest(kb, rules, utterance)`. What the
 utterance IS — an assertion, a rule, a question, or nothing recognized — EMERGES from which recognition
@@ -38,7 +38,7 @@ class Outcome:
 
 @dataclass
 class Event:
-    """A live progress event streamed DURING `ingest` (Phase 8.5, docs/cnl_intake_design.md §5) so a TUI
+    """A live progress event streamed DURING `ingest` (Phase 8.5, docs/design/cnl_intake_design.md §5) so a TUI
     renders the turn as it happens instead of one final blob. Emitted at step boundaries by which FORMS
     fire — same discipline as routing (no string sniff). An `"ask"` event brackets the human-in-the-loop
     `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). Per-EMIT reasoning
@@ -251,7 +251,7 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, on_conflict=None
     generator driver is `converse` (8.5b). `trace=True` streams an `Event("derive", {rule, fact})` per
     rule firing (the reasoning trace) before the answer — additive, off by default.
 
-    `attention` (EXPOSED so the consuming system picks the reasoning mode, docs/cnl_intake_design.md §3):
+    `attention` (EXPOSED so the consuming system picks the reasoning mode, docs/design/cnl_intake_design.md §3):
       - "global" (default) — reason over the whole KB (behaviour-identical to a bare `ask_goal`).
       - "focus"  — BOUNDED ATTENTION: a question reasons only within the current focus working set (the
         top frame's centers + their closure). Per-utterance cost then tracks the focus, not the accreted
@@ -275,7 +275,7 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, on_conflict=None
 
 
 def converse(kb, rules, utterance, *, policy=None, attention: str = "global", trace: bool = False):
-    """Non-blocking generator driver (8.5b, docs/cnl_intake_design.md §5): the same routing as `ingest`,
+    """Non-blocking generator driver (8.5b, docs/design/cnl_intake_design.md §5): the same routing as `ingest`,
     but as a GENERATOR the caller pumps. It YIELDS an `Event` per step boundary; the caller renders each
     and, for the single `"ask"` event, `.send()`s the human/tool verdict (True/False/None) — every other
     event's send is ignored (send `None` / call `next`). SUSPEND/RESUME is threadless: the ask unwinds the

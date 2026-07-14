@@ -1,5 +1,5 @@
 """
-Phase 8.0 probe — session accretion + suspend/resume (docs/cnl_intake_design.md §7).
+Phase 8.0 probe — session accretion + suspend/resume (docs/design/cnl_intake_design.md §7).
 
 The first UGM client is an agent loop with a TUI: a LONG, topical CNL session where facts (and rules)
 accrete monotonically with the transcript. The critique's real perf risk for this client is NOT total-KB

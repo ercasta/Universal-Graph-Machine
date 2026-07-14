@@ -255,7 +255,7 @@ def _property_rule(rel: str, prop: str) -> list[Rule]:
         inequality primitive: `irreflexive`/`asymmetric` read self/mutual edges directly,
         and `acyclic` = transitive (closure) + irreflexive, so a cycle surfaces as a
         self-loop `?a R ?a` after closure. (`functional`/`injective` DO need distinctness
-        and are deferred — see docs/consistency_design.md.)
+        and are deferred — see docs/design/consistency_design.md.)
     """
     if prop == "transitive":
         return [Rule(

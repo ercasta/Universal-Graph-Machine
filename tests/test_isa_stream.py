@@ -1,5 +1,5 @@
 """Phase 8.5a/8.5b — live event streaming (`ingest`) + generator suspend/resume (`converse`),
-docs/cnl_intake_design.md §5."""
+docs/design/cnl_intake_design.md §5."""
 from ugm import FirmwarePolicy
 from ugm.cnl.authoring import load_corpus
 from ugm.intake import ingest, converse

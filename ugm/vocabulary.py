@@ -1,6 +1,6 @@
 """
 Substrate vocabulary — the ONE canonical source of truth for the logic fragment's fixed predicate
-tokens (Phase 2.5, `docs/vocabulary_declaration_design.md`, crux §7 ratified "consolidate").
+tokens (Phase 2.5, `docs/attic/vocabulary_declaration_design.md`, crux §7 ratified "consolidate").
 
 These are the CLOSED logical vocabulary `logic_fragment.md` fixes: the copula/membership/negation/
 subsumption/congruence primitives, universal to EVERY KB, NOT domain-specific. `logic_fragment.md` §5

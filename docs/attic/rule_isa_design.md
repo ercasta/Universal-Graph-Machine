@@ -12,7 +12,7 @@
 > **UPDATE (2026-07-14): BUILT, and extended with a CONTROL PATH.** This design describes the *data path*
 > — the opcodes that run a rule as a straight-line basic block ("the machine only *runs* rules"). What
 > ran those blocks was still Python (`run_bank`'s fixpoint, `chain_sip`'s recursion, the dispatch loop).
-> That gap is now closed: `docs/isa_control_machine.md` adds the **control path** (a PC over labeled basic
+> That gap is now closed: `docs/attic/isa_control_machine.md` adds the **control path** (a PC over labeled basic
 > blocks + `BRANCH`/`CALL`/`RET`/`SUSPEND` + a control stack + `PRIM` interpreter steps), and the Python
 > drivers are ported onto it — so loops, subgoals, fixpoints, and tool waits are now ISA control, not
 > procedures. See `isa-reference.md` §"The control path" for the built semantics.
@@ -331,6 +331,6 @@ corpus (the behavioral contract suite in `tests/test_contract.py` is the swap-sa
 for exactly this kind of engine substitution).
 
 **This is design-hygiene, not on the critical path.** The immediate build remains graded
-means-selection (`docs/graded_means_selection_design.md`); the ISA experiment is a
+means-selection (`docs/attic/graded_means_selection_design.md`); the ISA experiment is a
 parallel, low-cost track to pick up when the engine's implicit semantics next gets in the
 way.

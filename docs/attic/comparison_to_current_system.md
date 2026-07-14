@@ -16,7 +16,7 @@
 >
 > **UPDATE (2026-07-14).** The comparison below contrasts the ISA idea with the current system's Python
 > control (`rewriter.run`, the fixpoint/subgoal/dispatch drivers). Those drivers are now themselves ISA
-> programs: the machine gained a **control path** (`docs/isa_control_machine.md`, `isa-reference.md`
+> programs: the machine gained a **control path** (`docs/attic/isa_control_machine.md`, `isa-reference.md`
 > §"The control path"). So the "the machine only runs a basic block; Python does the control" reading
 > below is superseded — `run_bank`'s fixpoint, `chain_sip`'s subgoal recursion, and the `<call>`
 > dispatcher now run as control-machine instructions (PC/`BRANCH`/`CALL`/`RET`/`SUSPEND`/`PRIM`).

@@ -1,7 +1,7 @@
 # Validation Experiments — discovering the real value and risks, fast
 
 > **Status: PROPOSED PLAN (2026-07-11, drafted by the assistant, not yet ratified).**
-> Companion to `critique.md` (which argues WHY these are the right experiments — see its §3
+> Companion to `../critique.md` (which argues WHY these are the right experiments — see its §3
 > value proposition and §4 weaknesses; each experiment below cites the claim it tests).
 > Ordering principle: **test the value claims (cheap, decisive, human-facing) before the
 > feasibility claims (expensive, gradual)** — and run nothing that only re-demonstrates
@@ -38,7 +38,7 @@ jointly with E4), not raw data scale.
 ## E1 — Stranger-authoring session (the habitability test)
 
 **Tests:** the business-rules thesis's core premise and the load-bearing, deferred SLM/CNL
-boundary (`critique.md` §4.4). Controlled languages historically die here — the
+boundary (`../critique.md` §4.4). Controlled languages historically die here — the
 *habitability problem*: users cannot stay inside the fragment, and the frustration lands on
 the first sentence, not the hundredth.
 
@@ -50,14 +50,14 @@ book (a shop return policy, a discount scheme with exceptions) in CNL, with the 
 - time to first working rule, and to a working 10-rule book;
 - where they gave up or asked for help.
 
-**Decides.** Whether the fragment boundary "feels like a feature" (the `logic_fragment.md`
+**Decides.** Whether the fragment boundary "feels like a feature" (the `../reference/logic_fragment.md`
 authoring contract) or reproduces ACE's habitability failure. A failure here reprioritizes
 everything: it says the linter's named-rejection contract and the prose sugar backlog are the
 critical path, not the firmware.
 
 ## E2 — Audit head-to-head against Drools or DMN
 
-**Tests:** the strongest value proposition directly (`critique.md` §3): explanations faithful
+**Tests:** the strongest value proposition directly (`../critique.md` §3): explanations faithful
 by construction, and honest negative answers.
 
 **Setup.** One realistic layered policy (loan approval, discount stacking) implemented twice:
@@ -71,7 +71,7 @@ experiment that turns the §3 value proposition from inference into measurement.
 
 ## E3 — Conflict-lint on a real, messy, public rule book
 
-**Tests:** the `logic_fragment.md` Amendment-2 wedge — "beats Drools' silent salience and
+**Tests:** the `../reference/logic_fragment.md` Amendment-2 wedge — "beats Drools' silent salience and
 formal logic's halt" on layered exceptions whose priority order was never stated.
 
 **Setup.** Author a genuinely messy public policy (airline baggage rules, university
@@ -84,7 +84,7 @@ none, or only noise, the wedge claim weakens. **Prerequisite:** the conflict-lin
 
 ## E4 — Cross-bank composition (candy shop × spec-writing)
 
-**Tests:** the "conventions hold everywhere" claim (`critique.md` §4.2) and the one-substrate
+**Tests:** the "conventions hold everywhere" claim (`../critique.md` §4.2) and the one-substrate
 composition story — the claims **no single-domain bench can touch**, because convention
 collision (predicate vocabulary drift, coref conventions, normalization-tax mismatches) only
 appears between *independently authored* banks.
@@ -117,7 +117,7 @@ linter must learn to catch.
 
 ## E5 — Performance cliff map (before Phase 7, not as part of it)
 
-**Tests:** how much of the performance risk (`critique.md` §4.1) is already biting — whether
+**Tests:** how much of the performance risk (`../critique.md` §4.1) is already biting — whether
 Phase 7 is urgent or existential.
 
 **Setup.** No optimization work; **measurement only**. The deployment model is an
@@ -147,7 +147,7 @@ runs should also record per-utterance latency.
 **Tests:** whether rules-that-write-rules earns its keep — the vision-§2 claim that
 self-modification is "ordinary graph rewriting", so far unexercised by any real task.
 
-**Setup.** Implement the `logic_fragment.md` authoring consequence — decision-table rows
+**Setup.** Implement the `../reference/logic_fragment.md` authoring consequence — decision-table rows
 lower mechanically to Horn+priority rules — as **form rules in the graph**, not Python. This
 is the smallest real task that exercises rule-writing-rules end to end, and it is
 independently useful (the DMN lesson: tables are the natural bulk-authoring form).
@@ -158,7 +158,7 @@ the plan assumes.
 
 ## E7 — Performance feasibility spike (the ceiling, not the cliff)
 
-**Tests:** the deep half of the performance risk (`critique.md` §4.1): whether the
+**Tests:** the deep half of the performance risk (`../critique.md` §4.1): whether the
 substrate's defining commitments cap what any implementation can reach, and whether reaching
 competitive speed forfeits the "no seam" claim. E5 measures where today's engine dies; E7
 bounds where an optimized one could live.

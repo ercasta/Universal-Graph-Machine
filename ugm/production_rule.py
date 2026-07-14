@@ -181,7 +181,7 @@ class Distinct:
 class ValueMatch:
     """A value-EQUALITY (or graded 'close-enough') LHS condition joining TWO bound variables by an
     ATTRIBUTE VALUE — the substrate's first DECLARED value-join, added deliberately beside the default
-    topological join (`docs/coreference_as_rules_design.md`).
+    topological join (`docs/attic/coreference_as_rules_design.md`).
 
     The path match language binds variables to NODES and joins on shared TOPOLOGY; it has no "these two
     nodes carry the same value" predicate, which is why coreference was a §8 tool (`wire_same_as`), never

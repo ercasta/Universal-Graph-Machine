@@ -1,6 +1,6 @@
 """
 ITERATE — bounded control-flow whose loop COUNTER is a REGISTER value, not a MINT-ed graph node
-(docs/axis_b_control_registers.md §7; mechanism_policy_separation.md §8, Axis B). A loop counter
+(docs/attic/axis_b_control_registers.md §7; mechanism_policy_separation.md §8, Axis B). A loop counter
 explains nothing → it is register state. ITERATE forks the match-phase state stream over range(count),
 binding the counter in `State.regs`; the effect phase then runs the body once per index.
 """

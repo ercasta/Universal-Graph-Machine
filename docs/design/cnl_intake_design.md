@@ -2,9 +2,9 @@
 
 > **Status: DESIGN (2026-07-12, ratified with the user in conversation).** The spec for the first
 > UGM *client*: an **agent loop with a TUI**. Not yet built. The active plan tracks the build in
-> `implementation_plan.md` (Phase 8); this doc is the detail that phase points at.
+> `../implementation_plan.md` (Phase 8); this doc is the detail that phase points at.
 >
-> Read after: `architecture.md` (the generic→opinionated layering), `engine_user_guide.md` (today's
+> Read after: `../architecture.md` (the generic→opinionated layering), `../engine_user_guide.md` (today's
 > boundary API), `docs/critique.md` (the risks this design answers — §4.1a session accretion, §4.4
 > habitability, §3.3 conflict-lint). Related memory: `cnl-intake-focus-design`,
 > `ugm-scope-session-sized`, `agent-not-theorem-prover`.

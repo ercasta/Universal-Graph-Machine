@@ -491,7 +491,7 @@ def _graded_cond_form(adverb: str) -> Rule:
 # ---- value-match SUGAR — the coreference-as-rules value-JOIN (Stage 2) ----
 #
 # `?x same DIM as ?y` (EXACT) / `?x close DIM as ?y` (graded 'close enough') folds a `ValueMatch` on the
-# rule — the DECLARED value-JOIN (`docs/coreference_as_rules_design.md`). `same`/`close` are is_kw-tagged
+# rule — the DECLARED value-JOIN (`docs/attic/coreference_as_rules_design.md`). `same`/`close` are is_kw-tagged
 # so the generic body clause defers (like the copula/degree sugar). `DIM` binds `vm_dim`; the graded form
 # uses a default closeness threshold (declarable-degree refinement is a later slice). Expanded by
 # `_expand_rule_node` into `Rule.value_matches`, checked in the demand chain (`chain._value_matches_ok`).
