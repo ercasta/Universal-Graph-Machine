@@ -418,26 +418,15 @@ class RETIRE(Instr):
 class Machine:
     """Executes an instruction sequence over an `AttrGraph`. See module docstring."""
 
-    def __init__(self, tnorm: TNorm = T_MIN, *, skip_inert: bool = False) -> None:
+    def __init__(self, tnorm: TNorm = T_MIN) -> None:
         self.tnorm = tnorm
-        # `skip_inert` = never bind a SEED/FOLLOW/JOIN candidate that is provenance-inert (a `<j:…>`
-        # justification, `proves`/`uses`, `<axiom>`/`<quarantine>`/`<retracted>`). The pure reference
-        # matcher (default OFF) sees every node; the PRODUCTION forward driver (`run_bank`) turns it ON
-        # so matching sees only FACTS — exactly `rewriter._match` / `GoalSolver._facts_matching`, which
-        # skip inert. Without it, a `uses`->fact provenance edge is walked as if it were a fact edge
-        # (e.g. `?s first if?` binding `?s` to the `uses` node that justified the `first` relation).
-        self.skip_inert = skip_inert
+        # There is NO `skip_inert` mode anymore (firmware §3, retired 2026-07-14): visibility lives in
+        # the PROGRAM as compiler-emitted `TEST(..., absent=True)` guards on the `<inert>` marker
+        # (`lowering.guard_inert` — after every SEED/FOLLOW/JOIN bind, exactly what the mode used to
+        # skip). A provenance-aware (meta/TMS) rule is simply lowered WITHOUT the guard and sees the
+        # `<j:…>` layer. The machine is maximally dumb: no privileged category, no mode.
 
     # --- matching transitions (state -> zero-or-more states) ---------------
-
-    def _inert(self, g: AttrGraph, nid: str) -> bool:
-        # Called ONLY when `skip_inert` is on (guarded by `self.skip_inert and ...` at each call site,
-        # so the OFF path pays nothing — not even this call). Phase 2.2: the node's dedicated
-        # `inert` flag (set at every provenance mint site), not a name-string sniff. A per-machine
-        # memo keyed by nid was REMOVED (pystrider feedback #10, cold==warm): nids collide ACROSS
-        # graphs (every graph mints n0, n1, …), so a machine shared over two graphs would serve one
-        # graph's verdict to the other — and the memo saved nothing over this direct field read.
-        return g.node(nid).inert
 
     def _match_step(self, g: AttrGraph, ins: Instr, st: State) -> Iterator[State]:
         if isinstance(ins, SET):
@@ -460,13 +449,9 @@ class Machine:
             # attr, so the candidate set is identical to the scan-and-filter path.
             if ins.key == NAME and ins.cmp == "=" and isinstance(ins.value, str):
                 for nid in g.nodes_named(ins.value):
-                    if self.skip_inert and self._inert(g, nid):
-                        continue
                     yield st.bind(ins.reg, nid)
                 return
             for nid in g.nodes_with_key(ins.key):
-                if self.skip_inert and self._inert(g, nid):
-                    continue
                 if self._valued_ok(g, nid, ins.key, ins.cmp, ins.value):
                     yield st.bind(ins.reg, nid)
         elif isinstance(ins, FUZZY):
@@ -478,8 +463,6 @@ class Machine:
             src = st.regs[ins.src]
             nbrs = g.succ(src) if ins.direction == "out" else g.pred(src)
             for nid in nbrs:
-                if self.skip_inert and self._inert(g, nid):
-                    continue
                 yield st.bind(ins.dst, nid)
         elif isinstance(ins, TEST):
             nid = st.regs[ins.reg]
@@ -504,8 +487,6 @@ class Machine:
             src = st.regs[ins.src]
             nbrs = g.succ(src) if ins.direction == "out" else g.pred(src)
             for nid in nbrs:
-                if self.skip_inert and self._inert(g, nid):
-                    continue
                 if ins.key is not None:
                     if not g.has_key(nid, ins.key):
                         continue
@@ -952,9 +933,8 @@ class ControlMachine:
     Correctness-first (the standing rule): naive fetch-decode-execute, no compilation. `max_steps`
     guards a runaway loop or unbounded recursion with a `ProgramError` rather than hanging."""
 
-    def __init__(self, tnorm: TNorm = T_MIN, *, skip_inert: bool = False,
-                 max_steps: int = 1_000_000) -> None:
-        self.machine = Machine(tnorm, skip_inert=skip_inert)
+    def __init__(self, tnorm: TNorm = T_MIN, *, max_steps: int = 1_000_000) -> None:
+        self.machine = Machine(tnorm)
         self.max_steps = max_steps
         self.ctrl: dict[str, int] = {}     # scalar control registers (loop counters); reset per run
         # the control stack: frames of (return-PC, saved state stream, saved control snapshot). One

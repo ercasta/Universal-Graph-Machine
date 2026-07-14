@@ -104,6 +104,18 @@ def test_graded_value_match_respects_the_threshold_boundary():
     assert ("a", "b") not in _pairs(g, "same_as")     # 0.80 < 0.85 -> excluded
 
 
+def test_write_rule_rejects_inverted_graded_loudly():
+    """An inverted α-cut ('not at all') used to be SILENTLY skipped at reification, so the demand
+    path fired the rule WITHOUT its condition (weaker than authored, silently). Now it raises,
+    matching the forward path's `Unlowerable` loudness."""
+    from ugm import GradedCondition
+    rule = Rule(key="calm", lhs=[Pat("?x", "is_a", "issue")], rhs=[Pat("?x", "is", "calm")],
+                graded=[GradedCondition("?x", {"urgency": 1.0}, 0.7, inverted=True)])
+    rg = AttrGraph()
+    with pytest.raises(ValueError, match="inverted graded"):
+        write_rule(rg, rule)
+
+
 # --- reification round-trip ------------------------------------------------------------------------
 
 def test_write_rule_reifies_value_match_read_back():

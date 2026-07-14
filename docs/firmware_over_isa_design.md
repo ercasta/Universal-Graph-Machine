@@ -194,6 +194,15 @@ lock the PRINCIPLE and move (X) already in the target shape, rather than rip out
    call-site compatibility (every `is_control`/`node.inert` reader now reads attributes through them).
    `set_control`/`set_inert` write only the marker; `copy`/`absorb`/`to_dict` carry markers in `attrs`
    (which also fixed `to_dict` silently dropping inert-ness). `<mention>` → attribute still open.
+   **[`Machine.skip_inert` RETIRED 2026-07-14 — the last privileged matcher mode.]** The FORWARD path's
+   inert visibility now rides IN the lowered program: `lowering.guard_inert` emits `TEST(..., absent=True)`
+   on the `<inert>` marker after every `SEED`/`FOLLOW` bind (exactly what the mode used to skip), applied
+   per rule by the bank compiler — a provenance-aware rule (`rule_touches_provenance`, an authoring-layer
+   convention read §3 permits) is lowered WITHOUT it, and a fresh provenance-free graph gets guard-free
+   programs (the mode's zero-cost OFF path, preserved). `run_bank` runs ONE mode-less machine; the
+   `Machine(skip_inert=)`/`ControlMachine(skip_inert=)` params are deleted. The machine now has NO
+   privileged category and NO mode. Also fixed (audit item 2): `write_rule` now REJECTS an inverted
+   graded condition loudly instead of silently reifying the rule without it. Suite 430.
 4. **One-graph fold** — retire `rule_g`; rules join the fact graph, guarded by the same attribute discipline
    (Phase 3.1 step 2's hazard — "pattern nodes must not match as facts" — is exactly what this guard handles).
    **[SUPPORTED 2026-07-14]** `rule_g` may BE `fact_g`: the marker-attribute guards already kept pattern

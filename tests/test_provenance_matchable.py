@@ -31,11 +31,12 @@ def match_with_premises(g, pats):
     `match_with_premises`, built from the same `lower_conj(rel_out=...)` run_bank itself uses."""
     prem_regs: list[str] = []
     prog = lower_conj(list(pats), rel_out=prem_regs)
-    skip_inert = not any(not is_var(t) and _is_inert(literal_name(t))
-                         for pat in pats for t in pat.tokens())
+    if not any(not is_var(t) and _is_inert(literal_name(t))
+               for pat in pats for t in pat.tokens()):
+        prog = guard_inert(prog)                     # compiler-emitted guard, not a machine mode
     keys = [k for pat in pats for t in pat.tokens() if (k := binder(t)) is not None]
     out = []
-    for st in Machine(skip_inert=skip_inert).match(g, prog):
+    for st in Machine().match(g, prog):
         b = {k: st.regs[k] for k in keys if k in st.regs}
         prem = [st.regs[r] for r in prem_regs]
         out.append((b, prem))

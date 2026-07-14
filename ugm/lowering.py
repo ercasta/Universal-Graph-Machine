@@ -28,7 +28,7 @@ binding a fresh variable, or SAME-checking an already-bound one, or TEST-ing a l
 from __future__ import annotations
 
 from .production_rule import Pat, Rule, binder, is_var, is_bound_literal, literal_name
-from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert, NAME, PATTERN_MARK
+from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert, NAME, PATTERN_MARK, INERT_MARK
 from .vocabulary import MENTION
 from .machine import (
     Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, MINT, EMIT, DROP_CTRL,
@@ -408,11 +408,31 @@ def lower_rewire(rule: Rule) -> list[Instr]:
 def rule_touches_provenance(rule: Rule) -> bool:
     """True iff the rule's LHS/NAC names a provenance LITERAL (`proves`/`uses`/`<j:…>`/`<axiom>`/
     `<retracted>`) — the meta/TMS rules whose match must SEE inert nodes (`rewriter._pats_touch_prov`).
-    For such a rule `run_bank` matches with `skip_inert` OFF so `?j` can bind a `<j:…>` and
-    `?j proves ?f` matches (a plain reasoning rule never names provenance, so it stays inert-blind)."""
+    Such a rule is lowered WITHOUT the inert guard (`guard_inert`) so `?j` can bind a `<j:…>` and
+    `?j proves ?f` matches (a plain reasoning rule never names provenance, so it stays inert-blind).
+    This convention read (`_is_inert` on the rule's own token names) is AUTHORING-layer work — the
+    compiler deciding which guard to emit — which §3 of the firmware doc explicitly permits; the
+    substrate and machine stay convention-free."""
     pats = list(rule.lhs) + list(rule.nac)
     return any(not is_var(t) and _is_inert(literal_name(t))
                for pat in pats for t in pat.tokens())
+
+
+def guard_inert(prog: list[Instr]) -> list[Instr]:
+    """The COMPILER-EMITTED fact-read guard for the FORWARD path (firmware §3): after every op that
+    BINDS a register from the graph (`SEED`/`FOLLOW`/`JOIN` — exactly the binds the retired
+    `Machine.skip_inert` mode used to filter), test that the bound node is NOT provenance-inert
+    (`TEST(..., absent=True)` on the `<inert>` marker attribute). Uniform and un-forgettable — the
+    guard is part of the PROGRAM, never a privileged machine mode; a provenance-aware rule
+    (`rule_touches_provenance`) is simply lowered without it and sees the `<j:…>` layer."""
+    out: list[Instr] = []
+    for op in prog:
+        out.append(op)
+        if isinstance(op, SEED):
+            out.append(TEST(op.reg, INERT_MARK, absent=True))
+        elif isinstance(op, FOLLOW):
+            out.append(TEST(op.dst, INERT_MARK, absent=True))
+    return out
 
 
 def lower_rule(rule: Rule) -> list[Instr]:
@@ -464,13 +484,16 @@ def lower_nac_programs(rule: Rule) -> list[list[Instr]]:
             for gi, group in enumerate(_nac_groups(rule))]
 
 
-def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset()):
+def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset(),
+                     *, guard: bool = False):
     """Structured lowering for the bank driver: (match_ops, effect_ops, nac_programs, keys). NAC is
     NOT folded into the main program (it is the driver's filter). `drop` lowers to DROP_CTRL (its
     match ops append to the LHS match, using its bindings; its DROP_CTRLs append to the effects);
     `propagate` lowers to EMIT embedding-writes (graded rules); `rewire` lowers to INTERPOSE (the
     reversible retraction interposition — `lower_rewire`).
-    `control_preds` marks heads whose predicate is a scaffolding predicate as control-layer."""
+    `control_preds` marks heads whose predicate is a scaffolding predicate as control-layer.
+    `guard=True` emits the inert fact-read guard into the match + NAC programs (`guard_inert` —
+    the compiler-emitted replacement for the retired `Machine.skip_inert` mode)."""
     if any(c.inverted for c in rule.graded):
         raise Unlowerable(f"{rule.key}: inverted graded condition is a later slice")
     prem_regs: list[str] = []             # LHS body rel nodes a firing `uses` (provenance)
@@ -480,8 +503,13 @@ def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset()):
         + lower_rhs(rule, control_preds, head_out=head_regs) + lower_propagate(rule))
     drop_match, drop_effect = lower_drop(rule)
     rewire_effect = lower_rewire(rule) if rule.rewire else []
-    return (match_ops + drop_match, effect_ops + drop_effect + rewire_effect,
-            lower_nac_programs(rule), rule.bound_names(), prem_regs, head_regs)
+    all_match = match_ops + drop_match
+    nac_progs = lower_nac_programs(rule)
+    if guard:                                              # firmware §3: the guard is in the PROGRAM
+        all_match = guard_inert(all_match)
+        nac_progs = [guard_inert(np) for np in nac_progs]
+    return (all_match, effect_ops + drop_effect + rewire_effect,
+            nac_progs, rule.bound_names(), prem_regs, head_regs)
 
 
 def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
@@ -510,13 +538,15 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
     # (common path); a graph that reasoned (e.g. `normalize_surface`'s `<j:…>`/`uses`) or a provenance
     # run needs it (else a `uses`->fact edge is matched as a fact).
     has_prov = provenance or any(ag.node(nid).inert for nid in ag.nodes())
-    machine = Machine(skip_inert=has_prov)
+    machine = Machine()
     # A META/TMS rule that NAMES provenance (`?j proves ?f`, the retraction CASCADE) must SEE the
-    # inert `<j:…>` nodes — matched with `skip_inert` OFF (`rewriter`'s per-rule `match_inert`). A
-    # plain reasoning rule never names provenance, so it keeps the fact-only view. Lazily built.
+    # inert `<j:…>` nodes — lowered WITHOUT the inert guard; a plain reasoning rule gets the
+    # compiler-emitted guard (`guard_inert`) whenever the graph carries (or this run will mint)
+    # provenance. A fresh guard-free graph pays nothing — the same profile as the retired machine
+    # mode, but the visibility now lives in the PROGRAM (firmware §3), never a privileged flag.
     prov_aware = [rule_touches_provenance(r) for r in rules]
-    machine_prov = Machine(skip_inert=False) if any(prov_aware) else machine
-    lowered = [(i, _lower_bank_rule(r, control_preds)) for i, r in enumerate(rules)]
+    lowered = [(i, _lower_bank_rule(r, control_preds, guard=has_prov and not prov_aware[i]))
+               for i, r in enumerate(rules)]
     # Fired-suppression keyed by (rule KEY, binding-sig) — NOT per rule-index — exactly `rewriter`'s
     # `set[(rule.key, frozenset(bindings))]`. So a rule that appears TWICE in the bank (form generators
     # legitimately overlap — default forms + per-KB regenerated defaults) SHARES one suppression set
@@ -538,12 +568,11 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
         # tag is applied, so its NAC sees the tag. This is the stratified reading recognition relies on.
         pending: list[tuple[int, list, State]] = []
         for i, (match_ops, effect_ops, nac_progs, keys, prem_regs, head_regs) in lowered:
-            m = machine_prov if prov_aware[i] else machine   # meta rules match with inert visible
-            for st in m.match(g, match_ops):
+            for st in machine.match(g, match_ops):         # visibility rides IN the lowered program
                 sig = (rules[i].key, frozenset((k, st.regs[k]) for k in keys if k in st.regs))
                 if sig in fired:
                     continue
-                if any(m.match(g, np, init=[State(dict(st.regs))]) for np in nac_progs):
+                if any(machine.match(g, np, init=[State(dict(st.regs))]) for np in nac_progs):
                     continue                              # a NAC group has a witness -> blocked
                 fired.add(sig)
                 pending.append((i, effect_ops, st))
@@ -613,10 +642,12 @@ def match_pats(ag: AttrGraph, pats: list[Pat], *,
         skip_inert = not any(not is_var(t) and _is_inert(literal_name(t))
                              for pat in pats for t in pat.tokens())
     prog = lower_conj(list(pats))
+    if skip_inert:                                         # compiler-emitted guard (firmware §3),
+        prog = guard_inert(prog)                           # never a machine mode
     keys = [k for pat in pats for t in pat.tokens() if (k := binder(t)) is not None]
     seen: set[frozenset] = set()
     out: list[dict[str, str]] = []
-    for st in Machine(skip_inert=skip_inert).match(ag, prog):
+    for st in Machine().match(ag, prog):
         b = {k: st.regs[k] for k in keys if k in st.regs}
         fb = frozenset(b.items())
         if fb not in seen:

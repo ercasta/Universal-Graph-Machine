@@ -282,30 +282,32 @@ def test_matching_opcode_after_effect_is_malformed():
 
 
 # ---------------------------------------------------------------------------
-# skip_inert — the production forward driver (`run_bank`) matches only FACTS
+# the inert fact-read guard — the production forward driver matches only FACTS
 # ---------------------------------------------------------------------------
 
-def test_skip_inert_excludes_provenance_from_matching():
+def test_inert_guard_excludes_provenance_from_matching():
     # A provenance node (`uses`) with an edge INTO a fact node must NOT be walked as a fact by a
-    # `skip_inert=True` machine (what `run_bank` uses) — else `FOLLOW ... in` would bind it as a
-    # subject, the bug that tripled recognition on a graph carrying justifications. The default
-    # (pure reference) machine sees it; the production driver skips it. `SEED` skips it too.
+    # GUARDED program (what `run_bank` lowers on a provenance-carrying graph) — else `FOLLOW ... in`
+    # would bind it as a subject, the bug that tripled recognition on a graph carrying
+    # justifications. The bare program sees it (the pure reference view); the compiler-emitted
+    # guard (`lowering.guard_inert` — the retired `Machine.skip_inert` mode's replacement, firmware
+    # §3) drops it after every SEED/FOLLOW bind.
+    from ugm.lowering import guard_inert
     g = AttrGraph()
     fact = g.add_node({"name": valued("target")})
     subj = g.add_node({"name": valued("s")})
-    prov = g.add_node({"name": valued("uses")}, inert=True)   # provenance-inert: the `.inert` FLAG
-                                                             # (Phase 2.2), not a name sniff
+    prov = g.add_node({"name": valued("uses")}, inert=True)   # provenance-inert (marker attribute)
     g.add_edge(subj, fact)                            # a real fact predecessor
-    g.add_edge(prov, fact)                            # a provenance predecessor (must be skipped)
+    g.add_edge(prov, fact)                            # a provenance predecessor (must be guarded off)
 
     prog = [SEED("_r", "name", "=", "target"), FOLLOW("s", "_r", "in")]
     pure = Machine().match(g, prog)
-    skipping = Machine(skip_inert=True).match(g, prog)
-    assert sorted(st.regs["s"] for st in pure) == sorted([subj, prov])       # reference sees both
-    assert [st.regs["s"] for st in skipping] == [subj]                       # driver: fact only
+    guarded = Machine().match(g, guard_inert(prog))
+    assert sorted(st.regs["s"] for st in pure) == sorted([subj, prov])       # bare: sees both
+    assert [st.regs["s"] for st in guarded] == [subj]                        # guarded: fact only
 
-    # SEED also skips an inert candidate outright.
-    seeded = Machine(skip_inert=True).match(g, [SEED("x", "name", "=", "uses")])
+    # a guarded SEED drops an inert candidate outright.
+    seeded = Machine().match(g, guard_inert([SEED("x", "name", "=", "uses")]))
     assert seeded == []
 
 

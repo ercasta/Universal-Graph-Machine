@@ -96,10 +96,16 @@ def write_rule(graph: Graph, rule: Rule) -> str:
             wire(rule_node, role, p)                 # rule --[role]--> pred
     # Graded conditions (the α-cut match filter). Reified as `<graded>` nodes so the demand-driven
     # firmware can apply them; one per (var, dim) — mirroring `lowering.lower_graded`'s one-GRADE-per-dim.
-    # An INVERTED α-cut ('not at all') is a later slice (as in `lower_graded`), so it is skipped here.
+    # An INVERTED α-cut ('not at all') is REJECTED LOUDLY (2026-07-14, audit): it used to be silently
+    # SKIPPED, so a demand-path rule fired WITHOUT its 'not at all' condition — weaker than authored,
+    # silently (the exact pystrider "quietly does less" failure mode). The forward path already
+    # rejects it (`lowering.Unlowerable`); the reification now matches that loudness.
     for gc in rule.graded:
         if gc.inverted:
-            continue
+            raise ValueError(
+                f"{rule.key}: inverted graded condition ('not at all') is not supported by the "
+                "demand chain — reifying it silently would fire the rule WITHOUT the condition. "
+                "(The forward path rejects it identically: lowering.Unlowerable.)")
         for dim in gc.embedding:
             g = graph.add_node("<graded>", control=True)
             graph.set_attr(g, "gc_var", valued(gc.var))

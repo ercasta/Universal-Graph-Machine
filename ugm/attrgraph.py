@@ -125,8 +125,8 @@ class AttrNode:
     (vision.md §5).
 
     `inert` marks a provenance/justification node (`<j:...>`, and a `proves`/`uses` relation
-    middle-node) — invisible to ordinary fact matching (`Machine.skip_inert`, `relations_from`,
-    `within`, `embedding`), DISTINCT from `control`: a control-relation (e.g. the planner's
+    middle-node) — invisible to ordinary fact matching (the compiler-emitted inert guard,
+    `relations_from`, `within`, `embedding`), DISTINCT from `control`: a control-relation (e.g. the planner's
     `chosen`) must stay visible to ordinary matching, only provenance bookkeeping is inert.
 
     DE-PRIVILEGED (firmware §3, §7 step 3 — 2026-07-14): `control`/`inert` are no longer dataclass
@@ -328,7 +328,7 @@ class AttrGraph:
     def set_inert(self, nid: str, flag: bool = True) -> None:
         """Mark a node provenance/justification-INERT (or clear it) — see `AttrNode.inert`.
         DISTINCT from `set_control`: an inert node is invisible to ORDINARY fact matching
-        (`Machine.skip_inert`), whereas a control node stays matchable (only DROP_CTRL treats it
+        (the compiler-emitted inert guard), whereas a control node stays matchable (only DROP_CTRL treats it
         differently) — provenance bookkeeping must vanish from reasoning, a control-relation like
         the planner's `chosen` must not. Writes the `<inert>` marker attribute — the single source
         of truth (firmware §3)."""
