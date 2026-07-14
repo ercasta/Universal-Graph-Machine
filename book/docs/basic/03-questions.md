@@ -98,4 +98,4 @@ then a `why`. Change a clue and watch an answer flip.
 
 **Next:** so far the machine only knows what we *tell* it. Time to teach it to
 **work things out on its own** — the word `when`, and the magic of rules.
-*(Part 1 continues.)*
+[Rules: the word "when" →](04-rules.md)
