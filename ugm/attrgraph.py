@@ -35,6 +35,7 @@ it is produced by MINT at the machine level and read back by ordinary FOLLOW/TES
 """
 from __future__ import annotations
 
+import copy
 import itertools
 from collections import deque
 from dataclasses import dataclass, field
@@ -178,6 +179,17 @@ class AttrGraph:
         # the many repeated snapshots the goal solver takes are O(1) once the graph is quiescent
         # (a pure-performance cache — the value is a function of the current graph, version-keyed).
         self._version = 0
+        # The CONTROL-REGISTER FILE (mechanism_policy_separation.md, Axis B — the SECOND home). A
+        # compartment for EXECUTION/CONTROL state that explains nothing and that NO rule reasons about
+        # — the focus cursor, a demand-search trace, loop/iteration counters. It is PHYSICALLY separate
+        # from the node/edge store (`_nodes`/`_out`/`_in`), so matching/seeding/`nodes()`/`derived_
+        # triples` never see it: this is the honest form of "control state is not a fact". State that is
+        # reasoned-over (facts AND their explanation/provenance/history) stays in the graph as matchable
+        # nodes; only pure "how did the machine step?" state lives here. Discriminator (ratified): if
+        # ANYTHING reasons about it — including reasoning about the reasoning — it is a graph node; if it
+        # only answers *how the machine stepped*, it is a register. Values are arbitrary Python (pointers-
+        # to-node-ids or plain handles); a register is named by a string key.
+        self.registers: dict[str, object] = {}
 
     @property
     def version(self) -> int:
@@ -557,6 +569,7 @@ class AttrGraph:
                 maxn = max(maxn, int(nid[1:]))
         g._counter = itertools.count(maxn + 1)
         g._version = self._version
+        g.registers = copy.deepcopy(self.registers)   # the control-register file travels with the graph
         return g
 
     def absorb(self, other: "AttrGraph") -> dict[str, str]:

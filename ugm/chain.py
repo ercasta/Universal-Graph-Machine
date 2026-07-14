@@ -29,6 +29,17 @@ from .production_rule import is_var, is_bound_literal, literal_name
 from .vocabulary import SAME_AS
 
 DEMAND = "<demand>"
+# AXIS B BOUNDARY (ratified 2026-07-14): the demand/subgoal CHAIN stays IN THE GRAPH — it is NOT
+# mechanical stepping. Distinguish two things the chain produces:
+#   * the AGENDA / worklist / iteration order — "what to try next, in what order" — is mechanical
+#     stepping. It is (and always was) a Python-LOCAL set (`chain_sip`'s `agenda`), a register. Correct.
+#   * the SUBGOAL CHAIN — "to answer X I needed Y, which needed Z" — is the negative's EXPLANATION: an
+#     assumed-no / UNKNOWN is justified by the searched closure (NAF: "I looked for P over its closure and
+#     found nothing"), the negative-side analog of a `<j:>` proof tree. Explanation is reasoned-over, so
+#     it stays a MATCHABLE graph node — the same reason provenance does, even though only META rules
+#     touch either. (An earlier probe wrongly lifted this to a register; reverted — it was explanation,
+#     not stepping.) The visible `<demand>` node is that subgoal record; a later refinement links parent
+#     -> child demands with in-graph POINTERS to carry the chain STRUCTURE, not just the flat set.
 
 
 @dataclass(frozen=True)
@@ -190,8 +201,9 @@ class NonStratifiable(Exception):
 
 
 def _mint_demand(rule_g: AttrGraph, pred: str) -> None:
-    """Materialize a demand for `pred` as a VISIBLE control node `<demand>` carrying `for=pred` —
-    the magic-set element a trace renderer can show ("I looked for rules producing `pred`")."""
+    """Materialize a predicate-grain demand for `pred` as a VISIBLE `<demand>` node carrying `for=pred` —
+    a subgoal record (the negative's explanation), matchable in the graph, not a register (see the
+    AXIS B BOUNDARY note above)."""
     d = rule_g.add_node(DEMAND, control=True)
     rule_g.set_attr(d, "for", valued(pred))
 
@@ -279,9 +291,9 @@ def chain(fact_g: AttrGraph, rule_g: AttrGraph, goal_pred: str,
 
 
 def _mint_bound_demand(rule_g: AttrGraph, demand: tuple[str, str | None, str | None]) -> str:
-    """Materialize a bound-tuple demand as a VISIBLE `<demand>` control node carrying `for=pred` and,
-    when bound, `subj=`/`obj=` — the magic-set element a trace renderer shows ("I need `pred` about
-    this subject")."""
+    """Materialize a bound-tuple demand as a VISIBLE `<demand>` node carrying `for=pred` and, when bound,
+    `subj=`/`obj=` — a subgoal record (the negative's explanation, matchable in the graph): "I need `pred`
+    about this subject". Endpoints are stringified (a `ById` shows its id)."""
     pred, subj, obj = demand
     d = rule_g.add_node(DEMAND, control=True)
     rule_g.set_attr(d, "for", valued(pred))

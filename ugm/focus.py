@@ -1,9 +1,10 @@
 """
-Phase 8.3 — the discourse focus stack (docs/cnl_intake_design.md §3).
+Phase 8.3 — the discourse focus stack (docs/cnl_intake_design.md §3; Axis B register lift,
+docs/mechanism_policy_separation.md §8).
 
-The working set of a long CNL session is a FOCUS: pointer nodes into the KB marking what the conversation
-is currently about. Not last-N-turns (topics switch) — a `<focus>` STACK in the control layer, each frame
-pointing at CENTER node(s) (the in-play entities). Decisions (ratified 2026-07-12):
+The working set of a long CNL session is a FOCUS: what the conversation is currently about. Not
+last-N-turns (topics switch) — a STACK, each frame naming the in-play CENTER entities. Decisions
+(ratified 2026-07-12):
 
   - POINTER-AT-CENTER, extent DERIVED. A frame names only its centers; the working-set EXTENT is the
     demand-closure reasoning reaches from them (§3), never a declared scope subgraph (that boundary is
@@ -13,11 +14,16 @@ pointing at CENTER node(s) (the in-play entities). Decisions (ratified 2026-07-1
     frame (`widen`); it never pushes a new frame. This sidesteps brittle implicit topic-switch detection.
   - EXPLICIT = the small control-CNL (`FOCUS_FORMS`, recognized — never string-sniffed, §D discipline):
     `focus on X` pushes, `forget that` drops, `back to X` re-enters. Reuse of the SUPPOSE scope idiom.
-  - GC by REACHABILITY from focus roots: a dropped frame's center pointers are cut (control-layer op, NOT
-    a fact deletion §5 — entities/facts persist, only the focus's pointer goes).
 
-The stack is label-less structure: frames are `<focus>` nodes; `newer -[below]-> older` links them; the
-TOP is the frame no other frame is stacked below-of (derived, not a mutable pointer). Content-blind — no
+AXIS B (2026-07-14): the focus stack is EXECUTION/CONTROL state — pure attention bookkeeping that NO rule
+reasons about (the extent is DERIVED on demand from the centers; nothing matches a focus frame). By the
+discriminating test it is NOT a fact and NOT explanation, so it lives in the graph's CONTROL-REGISTER FILE
+(`AttrGraph.registers["focus"]`), not as `<focus>`/`center`/`below` NODES in the data graph. The stack is
+a plain Python list of frames, each frame an ordered list of center NAMES (focus is name-grained — the
+discourse handle the SLM resolves anaphora to, and exactly what `top_centers` feeds `fscope`). This RETIRES
+the `<focus>` control-node convention: focus never touches the node/edge store, so a `drop` is graph-neutral
+by construction (the entities were never linked to focus — the old §5 "cut the pointer, keep the entity"
+guarantee is now trivially true) and no focus node can ever leak into fact matching. Content-blind — no
 predicate/domain strings here (§D).
 """
 from __future__ import annotations
@@ -25,89 +31,53 @@ from __future__ import annotations
 from .production_rule import Pat, Rule
 from .vocabulary import SAME_AS, MENTION
 
-FOCUS = "<focus>"
-CENTER = "center"
-BELOW = "below"
-FOCUS_OP = "<focus-op>"
+FOCUS_OP = "<focus-op>"      # transient recognition marker (scratch graph only — see recognize_focus_op)
 
 
 # ---------------------------------------------------------------------------
-# The stack (control-layer structure)
+# The stack — a control REGISTER (Axis B), not `<focus>` graph nodes
 # ---------------------------------------------------------------------------
+#
+# `kb.registers["focus"]` is the stack: a list of frames, each frame an ordered list of center NAMES.
+# Frame `[-1]` is the TOP. The register is physically separate from the node/edge store, so matching /
+# `nodes()` / `derived_triples` never see it (control state is not a fact).
 
-def _frames(kb) -> list[str]:
-    return list(kb.nodes_named(FOCUS))
-
-
-def _covered(kb) -> set[str]:
-    """Frames that have another frame stacked above them (objects of a `below` edge)."""
-    out: set[str] = set()
-    for f in _frames(kb):
-        for rel, obj in kb.relations_from(f):
-            if kb.has_key(rel, BELOW):
-                out.add(obj)
-    return out
+def _stack(kb) -> list[list[str]]:
+    return kb.registers.setdefault("focus", [])
 
 
-def top_frame(kb) -> str | None:
-    """The current top of the focus stack — the frame nothing is stacked below-of — or None."""
-    covered = _covered(kb)
-    tops = [f for f in _frames(kb) if f not in covered]
-    return tops[0] if tops else None
+def top_frame(kb) -> list[str] | None:
+    """The current top frame (its list of center names), or None if the stack is empty."""
+    st = _stack(kb)
+    return st[-1] if st else None
 
 
-def _entity_node(kb, name: str) -> str:
-    """The KB node for entity `name` (a real, non-control mention), minted if absent — a center is an
-    entity in play, not a fresh scaffolding node.
-
-    TODO(vision-cleanup, see docs/implementation_plan.md): this get-or-create pokes the substrate directly
-    — a Python twin of `MINT(intern=True)`. It should emit that instruction, not reimplement it."""
-    for n in kb.nodes_named(name):
-        if not (kb.is_control(n) or kb.is_inert(n)):
-            return n
-    return kb.add_node(name)
-
-
-def _center_edges(kb, frame: str) -> list[tuple[str, str]]:
-    return [(rel, o) for rel, o in kb.relations_from(frame) if kb.has_key(rel, CENTER)]
-
-
-def _center_names(kb, frame: str) -> set[str]:
-    return {kb.name(o) for rel, o in _center_edges(kb, frame)}
-
-
-def _add_center(kb, frame: str, name: str) -> None:
-    """Add `name` as a center of `frame` (idempotent) — an entity now in play."""
-    if name not in _center_names(kb, frame):
-        kb.add_relation(frame, CENTER, _entity_node(kb, name), control=True)
-
-
-def push_focus(kb, center_names=()) -> str:
+def push_focus(kb, center_names=()) -> list[str]:
     """Push a new focus frame (an EXPLICIT topic switch), optionally seeded with centers. Returns it."""
-    old = top_frame(kb)
-    frame = kb.add_node(FOCUS, control=True)
-    if old is not None:
-        kb.add_relation(frame, BELOW, old, control=True)
+    frame: list[str] = []
+    _stack(kb).append(frame)
     for nm in center_names:
-        _add_center(kb, frame, nm)
+        if nm not in frame:
+            frame.append(nm)
     return frame
 
 
-def widen(kb, center_names) -> str:
+def widen(kb, center_names) -> list[str]:
     """IMPLICIT default: add `center_names` as centers of the TOP frame (creating a first frame if the
     stack is empty), bumping recency on re-mention. Never pushes — a topic switch is explicit."""
     frame = top_frame(kb)
     if frame is None:
         return push_focus(kb, center_names)
     for nm in center_names:
-        _add_center(kb, frame, nm)
+        if nm not in frame:
+            frame.append(nm)
     return frame
 
 
 def top_centers(kb) -> list[str]:
     """The center entity NAMES of the top frame — the seed set (8.3b) and the anaphora referents (8.4)."""
     frame = top_frame(kb)
-    return sorted(_center_names(kb, frame)) if frame is not None else []
+    return sorted(frame) if frame is not None else []
 
 
 # ANAPHORA is a BOUNDARY concern, not the substrate's (decision 2026-07-12): resolving "she" -> "ada" is
@@ -116,32 +86,20 @@ def top_centers(kb) -> list[str]:
 # in-substrate salience ranking / pronoun resolver here — only the exposed centers. See `cnl_intake_design.md` §4.
 
 
-def _drop_top(kb) -> None:
-    frame = top_frame(kb)
-    if frame is None:
-        return
-    for rel, _o in list(kb.relations_from(frame)):
-        kb.remove_node(rel)                 # cut this frame's center/below rel nodes (control-layer op)
-    kb.remove_node(frame)
-    kb.gc_disconnected()                    # entities with other edges persist (§5); orphans swept
-
-
 def drop_focus(kb) -> None:
-    """`forget that` — pop the top frame. A control-layer op, NOT a fact deletion (§5): the entities stay,
-    only the focus's pointer to them goes. The frame below becomes top."""
-    _drop_top(kb)
+    """`forget that` — pop the top frame. Purely a register op: graph-NEUTRAL by construction (focus never
+    linked to the entities, so nothing to cut, no §5 fact-deletion risk). The frame below becomes top."""
+    st = _stack(kb)
+    if st:
+        st.pop()
 
 
 def reenter_focus(kb, name: str) -> None:
     """`back to X` — return to the frame whose centers include `X` by popping the frames above it. (v1:
     pop-to-X; keeping intervening frames below a re-raised one is a later refinement.)"""
-    guard = len(_frames(kb))
-    while guard >= 0:
-        frame = top_frame(kb)
-        if frame is None or name in _center_names(kb, frame):
-            return
-        _drop_top(kb)
-        guard -= 1
+    st = _stack(kb)
+    while st and name not in st[-1]:
+        st.pop()
 
 
 # ---------------------------------------------------------------------------

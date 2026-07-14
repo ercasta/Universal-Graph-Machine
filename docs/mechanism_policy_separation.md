@@ -1,14 +1,26 @@
 # Mechanism / Policy Separation in the ISA — Probe 1: copy-on-delete retraction
 
-> **Status:** DESIGN / not started (2026-07-13). A contained experiment. ⚠**Opus** — this touches a
-> founding invariant (fact-monotonicity) and needs vision-judgment; where a decision is flagged OPEN,
-> prefer the smallest contained interpretation and leave a note rather than expanding scope.
+> **Status:** ✅ **DONE / Probe 1 built (2026-07-14).** Copy-on-delete retraction is live: `RETIRE`
+> opcode (privileged, ungated by lowering), `record_history` (in-graph meta-visible archive that
+> retains provenance), the `retract` driver (decide → record → retire), and `resurrect`. All slices
+> §5.1–§5.6 landed; acceptance §6 met. Suite: **350 passed** (346 baseline + 4 net-new). Axis B (§8)
+> remains the untouched second probe. Below is the design as executed (kept as the record).
 >
-> **For a fresh session:** read this doc, then `docs/vision.md` §5/§11 (fact immutability / no
-> non-stratified negation), `ugm/retraction.py`, the `INTERPOSE`/`RESTORE`/`DROP_CTRL` opcodes in
+> **What shipped vs. the OPEN calls (smallest-interpretation choices):** `RETIRE(rel)` (not
+> `DROP_FACT_EDGE`) — matches the unit retraction operates on. Gate = "only the driver assembles
+> `RETIRE`" (no `privileged=True` flag) — asserted by `test_no_rule_lowering_emits_retire`. History =
+> a new inert `<history>`/`was_subj`/`was_obj`/`was_pred` record (not the `<j:>` vocabulary) that
+> references the surviving entities via DISTINCT meta-predicates so it does not alias the live fact;
+> provenance is RETAINED by redirecting the retired rel's inert `proves`/`uses` edges onto the record.
+> `INTERPOSE_RULE` was removed from the TMS (not just from `RETRACT_RULES`); the `INTERPOSE`/`RESTORE`
+> opcodes + `lower_rewire` stay for their own direct tests (§7 defers their removal). One real bug
+> found + fixed: `seed_retract`'s `targets` node was a non-control predecessor of the rel node and
+> could be misread as the subject — it is now control-stamped and the subject/object finder excludes
+> control+inert.
+>
+> **For a fresh session:** read this doc, then `ugm/retraction.py`, the `RETIRE` opcode in
 > `ugm/machine.py`, and `tests/test_retract_rules.py`. Standing rules: **no commits by the assistant**;
-> domain logic only in banks; correctness before performance. Baseline suite: **346 passed**
-> (`.venv/Scripts/python.exe -m pytest -q`).
+> domain logic only in banks; correctness before performance.
 
 ---
 

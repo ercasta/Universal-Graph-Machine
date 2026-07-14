@@ -25,13 +25,18 @@ effect opcodes for each surviving state, in state order, mutating the graph. So 
 state is visible to a following EMIT in the SAME state (they share that state's regs), and no
 effect perturbs matching.
 
-THE INVARIANT AS A PROPERTY OF THE OPCODE SET (rule-isa-design.md payoff #1).  The only
-mutating opcodes are `EMIT`/`MINT` (monotone: add a node, raise a graded degree, assert a
+THE INVARIANT AS A PROPERTY OF THE OPCODE SET (rule-isa-design.md payoff #1).  The
+monotone mutating opcodes are `EMIT`/`MINT` (add a node, raise a graded degree, assert a
 value — never lower or delete) and `DROP_CTRL` (delete a bare edge, but it consults
-`AttrGraph.edge_is_fact` and REFUSES a fact edge). There is NO opcode that deletes a fact
-edge or lowers a degree — "an ungated fact deletion" is simply not expressible. There is also
-NO `CHECK-ABSENT`/NAC opcode: the matching core is purely positive (negation is materialized
-as a positive attribute and matched positively — the decide/de-pythonization line).
+`AttrGraph.edge_is_fact` and REFUSES a fact edge). Fact deletion is not expressible from
+ordinary reasoning: there is no fact-deleting opcode in the rule->program lowering vocabulary.
+The ONE fact-deletion opcode, `RETIRE`, is the PRIVILEGED mechanism of the retraction/GC policy
+(mechanism_policy_separation.md): it really deletes a reified relation, but `lowering` never
+emits it — only the retraction driver assembles a program containing it (the privilege gate),
+so monotonicity is now a POLICY the driver imposes between passes, not an opcode refusal within
+a pass. There is also NO `CHECK-ABSENT`/NAC opcode: the matching core is purely positive
+(negation is materialized as a positive attribute and matched positively — the decide/
+de-pythonization line).
 """
 from __future__ import annotations
 
@@ -213,6 +218,26 @@ class SAME(Instr):
 
 
 @dataclass
+class ITERATE(Instr):
+    """Bounded control-flow: FORK the state stream over `range(count)`, binding `counter` to each index
+    in the register file (`State.regs`) — a LOOP whose counter is a REGISTER value, never a MINT-ed
+    `<iter>`/`<round>` graph node (mechanism_policy_separation.md §8, Axis B: "control-flow ISA ops like
+    ITERATE over a loop register, instead of MINT-ed control nodes"; a loop counter explains nothing → it
+    is register state, not a fact). It fits the machine's model exactly: the match phase is ALREADY a
+    nondeterministic fork (SEED forks over candidates), so a bounded loop is a fork over a range — the
+    effect phase then runs the body ONCE PER iteration, in index order. Positive/monotone (a fork, never a
+    graph read or write): purely a matching op. This is PARALLEL/MAP iteration (each index independent —
+    the body of iteration `i` cannot see iteration `i-1`); a stateful ACCUMULATING loop is the driver's
+    fixpoint (`run_bank`/`run_to_fixpoint`), whose round counter is likewise a Python-local register.
+
+    `count` is a literal bound (the common case); reading it from a register — a dynamic trip count —
+    is a later refinement. The counter binding is a VALUED literal (an int), the same register file that
+    holds node identities and SET's literals; a body effect that wants to STAMP the index reads it there."""
+    counter: str
+    count: int
+
+
+@dataclass
 class VMATCH(Instr):
     """Value-JOIN filter: keep the state iff two ALREADY-bound registers carry MATCHING values on
     `key` — the TWO-register sibling of GRADE (which tests one register), and the forward-engine
@@ -326,6 +351,29 @@ class RESTORE(Instr):
     is_effect = True
 
 
+@dataclass
+class RETIRE(Instr):
+    """PRIVILEGED fact-deletion mechanism (mechanism_policy_separation.md, Probe 1): really delete
+    the reified relation in `regs[rel]` — its subject->rel and rel->object bare edges AND the rel
+    node itself. Unlike `DROP_CTRL` it does NOT consult `edge_is_fact` and does NOT refuse a fact
+    edge: deleting a live fact relation is its whole PURPOSE. This is the raw mechanism the
+    retraction (and later GC) policy wields — the honest "delete" behind copy-on-delete.
+
+    It carries NO archiving: the "copy" of copy-on-delete is POLICY, done by the retraction driver
+    (record_history) BEFORE this runs — baking archiving into the opcode would re-conflate mechanism
+    and policy. The opcode just deletes.
+
+    THE PRIVILEGE GATE is structural: `RETIRE` is NOT in the rule->program lowering vocabulary
+    (`lowering.lower_rhs`/`lower_rewire`/… never emit it). Only the retraction policy driver
+    assembles a program containing it, so ordinary reasoning rules CANNOT delete a fact
+    (soundness-by-construction for reasoning is preserved), while the policy layer wields real
+    deletion — the mechanism/policy split made concrete. By the time it runs, `record_history` has
+    redirected `rel`'s inert provenance (proves/uses) onto the archive record, so `rel`'s only
+    remaining edges are the live fact edges this drops."""
+    rel: str
+    is_effect = True
+
+
 # ---------------------------------------------------------------------------
 # The interpreter
 # ---------------------------------------------------------------------------
@@ -365,6 +413,9 @@ class Machine:
         elif isinstance(ins, SAME):
             if st.regs[ins.a] == st.regs[ins.b]:
                 yield st
+        elif isinstance(ins, ITERATE):
+            for i in range(ins.count):           # fork the stream: one successor per loop index ...
+                yield st.bind(ins.counter, i)    # ... the counter is a REGISTER value, not a graph node
         elif isinstance(ins, SEED):
             # Blessed name-index fast path: an equality SEED on the reserved NAME key hits the
             # O(1) lexical accelerator (`nodes_named`) instead of scanning EVERY named node and
@@ -532,6 +583,12 @@ class Machine:
             rel, m, obj = st.regs[ins.rel], st.regs[ins.marker], st.regs[ins.obj]
             g.remove_edge(rel, m); g.remove_edge(m, obj)     # drop the marker's two bare edges ...
             g.add_edge(rel, obj)                             # ... reconstruct the original edge
+            return st
+        if isinstance(ins, RETIRE):
+            # Privileged real deletion: remove the rel node and every edge touching it (its live
+            # subject->rel / rel->object fact edges — provenance was redirected off it first by the
+            # driver's record_history). NO fact-edge refusal: deletion is the point (see RETIRE doc).
+            g.remove_node(st.regs[ins.rel])
             return st
         raise ProgramError(f"{type(ins).__name__} is a matching opcode in the apply phase")
 

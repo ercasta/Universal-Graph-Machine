@@ -13,7 +13,7 @@ from .attrgraph import AttrGraph, AttrNode, Attr, GRADED, VALUED
 from .machine import (
     Machine, State, run_program,
     SEED, FOLLOW, JOIN, TEST, GRADE, FUZZY, MINT, EMIT, DROP_CTRL, SET, DUP, SAME,
-    INTERPOSE, RESTORE,
+    INTERPOSE, RESTORE, RETIRE, ITERATE,
     Instr, ControlEdgeError, ProgramError, SchemaError,
     T_MIN, T_PROD,
 )
@@ -47,7 +47,7 @@ from .provenance import (
     derived_facts, axiomatize,
 )
 from .retraction import (
-    RETRACT, TARGETS, RETRACTED, RETRACT_RULES, seed_retract, retract,
+    RETRACT, TARGETS, RETRACTED, RETRACT_RULES, seed_retract, retract, resurrect, record_history,
     record_rejection, is_rejected,
 )
 from .dispatch import (
@@ -130,7 +130,7 @@ __all__ = [
     "AttrGraph", "AttrNode", "Attr", "GRADED", "VALUED",
     "Machine", "State", "run_program",
     "SEED", "FOLLOW", "JOIN", "TEST", "GRADE", "FUZZY", "MINT", "EMIT",
-    "DROP_CTRL", "SET", "DUP", "SAME", "INTERPOSE", "RESTORE",
+    "DROP_CTRL", "SET", "DUP", "SAME", "INTERPOSE", "RESTORE", "RETIRE", "ITERATE",
     "Instr", "ControlEdgeError", "ProgramError", "SchemaError", "T_MIN", "T_PROD",
     "to_attrgraph", "lower_conj", "lower_lhs", "lower_graded", "lower_rhs",
     "lower_propagate", "lower_drop", "lower_rewire", "lower_rule", "lower_nac_programs",
@@ -148,7 +148,7 @@ __all__ = [
     "support_js", "rule_support_j", "premises_of", "proven_of", "justifications_using",
     "derived_facts", "axiomatize",
     "RETRACT", "TARGETS", "RETRACTED", "RETRACT_RULES", "seed_retract", "retract",
-    "record_rejection", "is_rejected",
+    "resurrect", "record_history", "record_rejection", "is_rejected",
     "CWA", "COPULA", "NEG_COPULA", "NEG_SUFFIX", "IS_A", "IS_A_NOT", "SAME_AS", "DISJOINT",
     "CLOSES", "REL_PROPERTY", "TRANSITIVE", "EVERY_IS_A", "IS_UNIQUE", "TARGET", "TYPE",
     "SUBSTRATE_COREF_PREDS", "neg_pred", "is_neg_pred",

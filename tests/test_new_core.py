@@ -952,7 +952,7 @@ def test_explain_reads_provenance_not_a_journal():
 
 
 # ---------------------------------------------------------------------------
-# Reversible retraction — quarantine + cascade (the truth-maintenance layer)
+# Retraction — copy-on-delete cascade (the truth-maintenance layer)
 # ---------------------------------------------------------------------------
 
 def test_retract_withdraws_derived_consequences():
@@ -962,9 +962,9 @@ def test_retract_withdraws_derived_consequences():
     h.run_rules(g, [chain])
     assert _has(g, "b", "r2", "a")                       # derived, justified in-graph
     premise = next(r for r in g.out(g.nodes_named("a")[0]) if g.predicate(r) == "r")
-    h.retract(g, premise)                                # rule-based cascade (RETRACT_RULES)
-    assert not _has(g, "a", "r", "b")                    # premise hidden by interposition
-    assert not _has(g, "b", "r2", "a")                   # its consequence lost support -> hidden
+    h.retract(g, premise)                                # decide (cascade) + record + retire
+    assert not _has(g, "a", "r", "b")                    # premise really deleted (copy-on-delete)
+    assert not _has(g, "b", "r2", "a")                   # its consequence lost support -> deleted
 
 
 # ---------------------------------------------------------------------------

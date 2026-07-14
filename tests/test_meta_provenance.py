@@ -47,24 +47,20 @@ def test_ordinary_rule_still_emits_provenance():
     assert prov.support_js(g, _rel(g, "r1")) != []
 
 
-def test_retract_rules_are_meta_and_run_clean_inside_a_prov_on_run():
-    # The coref enabler: RETRACT_RULES (now meta=True) can be mixed into a provenance=True run
-    # WITHOUT the separate prov-off pass and WITHOUT minting justifications that would regress.
+def test_retraction_deletes_the_chain_and_mints_no_justifications():
+    # The DECIDE cascade is meta=True (provenance-silent, no regress); RECORD redirects (never mints)
+    # provenance onto the history; RETIRE deletes. So copy-on-delete retraction adds NO new <j:>.
     g = h.Graph()
     r0 = g.add_relation(g.add_node("x"), "r0", g.add_node("y"))
     prov.axiomatize(g, ["r0"])
     run_rules(g, [NORM])                              # derive x r1 y with provenance
-    r1 = _rel(g, "r1")
     js_before = len([n for n in g.nodes() if prov.is_justification(g.name(n))])
 
-    # seed a retract and run RETRACT_RULES with provenance ON — the meta rules must stay silent
-    # (no separate prov-off pass needed). Only meta rules here, so any new <j:> would be a bug.
-    ret.seed_retract(g, r0)
-    run_rules(g, ret.RETRACT_RULES, provenance=True)
+    ret.retract(g, r0)                                # cascade (meta) + record + retire
 
-    assert not _vis(g, "x", "r0", "y")      # base hidden by interposition
-    assert not _vis(g, "x", "r1", "y")      # cascade hid the derived fact too
-    # the retraction rules minted no new justifications despite the prov-on run.
+    assert not _vis(g, "x", "r0", "y")      # base really deleted (no <retracted> splice)
+    assert not _vis(g, "x", "r1", "y")      # cascade + retire took the derived fact too
+    # retraction minted no new justifications (RECORD redirects the existing <j:> onto the record).
     js_after = len([n for n in g.nodes() if prov.is_justification(g.name(n))])
     assert js_after == js_before
 
@@ -103,20 +99,20 @@ def test_inert_flag_covers_every_provenance_mint_path():
     _assert_flag_matches_prov_kind(g)
 
 
-def test_retracted_marker_is_not_inert_flagged():
+def test_retracted_marker_from_interpose_opcode_is_not_inert_flagged():
     # Pins the intentional flag/name DIVERGENCE that makes `_is_inert` (name) a strict SUPERSET of
     # the `.inert` flag: `<retracted>` IS name-inert (`_is_inert("<retracted>")` True) yet is NEVER
-    # minted `inert=True`. A retracted fact hides because the spliced marker's NAME fails
-    # `_endpoint_matches` (goal.py:736 sees it as a non-inert successor), NOT because it is
-    # inert-skipped — so the flag-reader flip stays sound even though the marker is name-inert.
+    # minted `inert=True` — it is CONTROL, not inert. Retraction no longer produces the marker
+    # (copy-on-delete deletes instead of interposing), but the INTERPOSE opcode still can, so the
+    # invariant is pinned directly on the opcode that mints it.
     from ugm.world_model import _is_inert
+    from ugm.machine import Machine, INTERPOSE, State
     assert _is_inert(ret.RETRACTED)                    # name-inert ...
     g = h.Graph()
-    r0 = g.add_relation(g.add_node("x"), "r0", g.add_node("y"))
-    prov.axiomatize(g, ["r0"])
-    run_rules(g, [NORM])
-    ret.seed_retract(g, r0)
-    run_rules(g, ret.RETRACT_RULES, provenance=True)
-    marker = next((n for n in g.nodes() if g.name(n) == ret.RETRACTED), None)
-    assert marker is not None                          # the interposition happened ...
-    assert not g.is_inert(marker)                      # ... but is NOT inert-flagged
+    rel = g.add_relation(g.add_node("x"), "r0", g.add_node("y"))
+    o = next(iter(g.out(rel)))
+    st = Machine().apply(g, [INTERPOSE(rel="r", obj="o", marker_name=ret.RETRACTED, out="mk")],
+                         State({"r": rel, "o": o}))
+    marker = st.regs["mk"]
+    assert g.name(marker) == ret.RETRACTED             # the marker was spliced in ...
+    assert not g.is_inert(marker)                      # ... but is NOT inert-flagged (it is control)

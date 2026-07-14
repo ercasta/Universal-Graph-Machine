@@ -22,10 +22,42 @@
 
 ## Current state
 
-**Suite: 346 passed, 0 failed** (`python -m pytest -q`, ~50s; run via `.venv/Scripts/python.exe -m
+**Suite: 355 passed, 0 failed** (`python -m pytest -q`, ~13s; run via `.venv/Scripts/python.exe -m
 pytest -q`). Production runtime is 100% the ISA engine, and so is every test — no second engine anywhere
 in the repo. `ask_goal` is demand-driven; `rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are
 all deleted.
+
+**▶ LANDED 2026-07-14 — mechanism/policy separation, Axis B: control state → machine registers**
+(`docs/axis_b_control_registers.md`). New `AttrGraph.registers` (dict) = the CONTROL-REGISTER FILE, the
+"second home" — physically separate from the node/edge store, so matching/`nodes()`/`derived_triples`
+never see it; `copy()` carries it. One lift landed, one reverted. **Focus stack** (`focus.py`: `<focus>`/`center`/`below` nodes →
+`kb.registers["focus"]`, a list of frames of center names — a `drop` is now graph-neutral by
+construction; API-preserving, 15/15 focus tests green). **Demand search trace** was lifted to a register
+then REVERTED: the demand/subgoal CHAIN is the negative's provenance (an assumed-no under NAF is justified
+by the searched closure — the mirror of a positive's `<j:>` proof tree), i.e. EXPLANATION, so it stays a
+matchable graph node (Axis A HARD CONSTRAINT). Only the AGENDA/worklist (already a Python-local set) is a
+register. Sharpened boundary: depth never forces graph materialization — being explanation does; the
+subgoal chain's inter-frame pointers belong in the graph. `ITERATE` over a loop register also landed (§8's
+clean exemplar): a MATCHING opcode that forks the state stream over `range(count)`, binding the loop
+counter in `State.regs` — no minted `<iter>` node (`machine.py` + `tests/test_isa_iterate.py`). TIMING
+(session scale): per-utterance `ingest` median ~12 ms (8–16 ms) — healthy; corpus load 2–49 ms/line
+(`planning.cnl` the ~49 ms/line outlier); ITERATE linear ~13–17 µs/iter; suite ~13 s / 355 tests. Later:
+the linked subgoal chain (parent→child in-graph pointers so `explain` walks the negative's decomposition).
+
+**▶ LANDED 2026-07-14 — mechanism/policy separation, Axis A Probe 1: copy-on-delete retraction**
+(`docs/mechanism_policy_separation.md`, tests in `tests/test_retract_rules.py`). Retraction no longer
+HIDES a fact by interposing a `<retracted>` marker — it really DELETES it (copy-on-delete). New
+privileged `RETIRE` opcode (`machine.py`) deletes a reified fact relation; it is NOT in the rule→program
+lowering vocabulary, so ordinary reasoning rules structurally cannot delete a fact (the privilege gate,
+pinned by `test_no_rule_lowering_emits_retire`). The `retract` driver is now three cleanly-separated
+phases — **decide** (CASCADE rules, read-only) → **record** (`record_history`: copy each pre-image into
+an in-graph, INERT, meta-visible `<history>` record, retaining provenance by redirecting the retired
+rel's `proves`/`uses` onto the record) → **retire** (assemble+run `RETIRE`, emitted only here).
+`resurrect` re-materializes a fact from its history via `load_fact_triples`. The HARD CONSTRAINT holds:
+explanation stays matchable DATA in the ONE graph, so `why`/reflection survive a retraction. Monotonicity
+is now MECHANISM within a pass, POLICY between passes. `INTERPOSE_RULE` removed from the TMS; the
+`INTERPOSE`/`RESTORE` opcodes stay for their own tests (§7 defers their removal). Axis B (control
+registers, §8) is the untouched next probe.
 
 **▶ LANDED 2026-07-13 — pystrider-feedback pass** (`docs/feedback_from_pystrider.md`, tests in
 `tests/test_feedback_fixes.py`). Four items closed, one deferred:

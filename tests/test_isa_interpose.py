@@ -16,6 +16,19 @@ from ugm.attrgraph import AttrGraph
 from ugm.machine import Machine, INTERPOSE, RESTORE, State
 from ugm.lowering import lower_rewire, rule_touches_provenance, Unlowerable
 
+# The retraction TMS no longer uses interposition (it deletes — copy-on-delete), so the old
+# `INTERPOSE_RULE` is gone. The INTERPOSE/RESTORE opcodes + `lower_rewire` are kept in the ISA and
+# still exercised here via this interposition-shaped rule fixture (identical to the retired rule).
+_INTERPOSE_RULE = h.Rule(
+    key="tms.interpose",
+    lhs=[h.Pat("<retract>?", "targets", "?rel"), h.Pat("?s", "?rel", "?o")],
+    rhs=[],
+    rewire=[("cut", "?rel", "?o"),
+            ("link", "?rel", "<retracted>?"),
+            ("link", "<retracted>?", "?o")],
+    meta=True,
+)
+
 
 def _has(g, s, r, o):
     sn, on = g.nodes_named(s), g.nodes_named(o)
@@ -56,7 +69,7 @@ def test_interpose_works_on_a_control_edge_too():
 # --- 2. rewire -> INTERPOSE lowering --------------------------------------------------------
 
 def test_interpose_rule_rewire_lowers_to_one_interpose():
-    ops = lower_rewire(ret.INTERPOSE_RULE)
+    ops = lower_rewire(_INTERPOSE_RULE)
     assert len(ops) == 1 and isinstance(ops[0], INTERPOSE)
     assert ops[0].marker_name == ret.RETRACTED
 
@@ -74,13 +87,13 @@ def test_a_non_interposition_rewire_stays_unlowerable():
 # --- 3. per-rule provenance-awareness (the meta CASCADE match) ------------------------------
 
 def test_cascade_is_provenance_aware_but_interpose_is_not():
-    # CASCADE names proves/uses -> its match must see inert <j:> nodes; INTERPOSE names only
-    # <retract>/targets (not provenance) -> it keeps the fact-only (inert-blind) view.
+    # CASCADE names proves/uses -> its match must see inert <j:> nodes; an interposition rule names
+    # only <retract>/targets (not provenance) -> it keeps the fact-only (inert-blind) view.
     assert rule_touches_provenance(ret.CASCADE_RULE) is True
-    assert rule_touches_provenance(ret.INTERPOSE_RULE) is False
+    assert rule_touches_provenance(_INTERPOSE_RULE) is False
 
 
-# --- 4. run_bank retraction hides the derived fact and its dependents -------------------------
+# --- 4. the retraction DRIVER deletes the derived fact and its dependents ----------------------
 
 def _derived_chain():
     g = h.Graph()
@@ -90,11 +103,12 @@ def _derived_chain():
     return g
 
 
-def test_runbank_retraction_hides_the_derived_fact_and_its_dependents():
+def test_retraction_driver_deletes_the_derived_fact_and_its_dependents():
+    # copy-on-delete via the retract DRIVER (cascade decides, RETIRE deletes) — no longer a hiding
+    # rule. Retracting b is_a c removes it AND the a is_a c shortcut derived from it.
     g = _derived_chain()
     assert _has(g, "a", "is_a", "c")                  # the derived shortcut is present
     rel = next(r for r in g.out(g.nodes_named("b")[0])
                if g.has_key(r, "is_a") and g.nodes_named("c")[0] in g.out(r))
-    ret.seed_retract(g, rel)
-    run_rules(g, ret.RETRACT_RULES, provenance=False)
+    ret.retract(g, rel)
     assert not _has(g, "b", "is_a", "c") and not _has(g, "a", "is_a", "c")
