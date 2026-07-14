@@ -22,10 +22,11 @@
 
 ## Current state
 
-**Suite: 355 passed, 0 failed** (`python -m pytest -q`, ~13s; run via `.venv/Scripts/python.exe -m
+**Suite: 382 passed, 0 failed** (`python -m pytest -q`, ~14s; run via `.venv/Scripts/python.exe -m
 pytest -q`). Production runtime is 100% the ISA engine, and so is every test — no second engine anywhere
 in the repo. `ask_goal` is demand-driven; `rewriter.py`/`goal.py`/`walker.py`/`decide.py`/`solve.py` are
-all deleted.
+all deleted. The predicate-grain v0 `chain` cluster (`chain`/`demand_closure`/`relevant_rules`) was
+retired 2026-07-14 (superseded by `chain_sip`).
 
 **▶ LANDED 2026-07-14 — mechanism/policy separation, Axis B: control state → machine registers**
 (`docs/axis_b_control_registers.md`). New `AttrGraph.registers` (dict) = the CONTROL-REGISTER FILE, the
@@ -44,18 +45,31 @@ counter in `State.regs` — no minted `<iter>` node (`machine.py` + `tests/test_
 (`planning.cnl` the ~49 ms/line outlier); ITERATE linear ~13–17 µs/iter; suite ~13 s / 355 tests. Later:
 the linked subgoal chain (parent→child in-graph pointers so `explain` walks the negative's decomposition).
 
-**▷ DESIGN (not started) — the ISA CONTROL MACHINE** (`docs/isa_control_machine.md`). Building `ITERATE`
-surfaced a SEAM: a loop can't contain a subgoal, because `ITERATE`'s iteration is a Python `for` inside the
-opcode — a "procedure masked as an instruction". Diagnosis: the ISA has a machine's DATA path (register
-file, matcher, effects) but NO CONTROL path — no PC/branch/CALL/RET/stack; control is faked in Python
-drivers (`run_bank`/`chain_sip`/`dispatch`) + `<…>` graph nodes. Fix: add explicit control-flow
-INSTRUCTIONS (PC + BRANCH/BRANCH_IF + CALL/RET over a control stack + SUSPEND/RESUME) so loops and subgoals
-COMPOSE — the match-then-apply program becomes a basic block; bulk ops (ITERATE) stay as REP/SIMD
-conveniences. Perf: instruction set = contract, interpreter swappable → Rust (the constant); seed-from-focus
-holds the curve. Recommended eval model: control ABOVE the set-at-a-time matcher, no backtracking (WAM-
-without-choice-points). Foundational; subsumes the naive `<call>`/dispatch lift. Brick #1 = PC + BRANCH +
-`ITERATE`-as-`SETI/DEC/BRANCH_IF`, differential-tested. Independent side item still open: Axis A `DROP_CTRL`
-goes raw, fact/control policy moves above (user's call).
+**▶ LANDED 2026-07-14 — the ISA CONTROL MACHINE (ALL of §9 built)** (`docs/isa_control_machine.md`).
+Building `ITERATE` surfaced a SEAM: a loop couldn't contain a subgoal, because control was faked in Python
+drivers (`run_bank`/`chain_sip`/`dispatch`) + `<…>` nodes — the ISA had a DATA path but no CONTROL path.
+FIXED: `ugm/machine.py` now carries a `ControlMachine` layered on the UNTOUCHED two-phase `Machine` — a PC
+over labeled basic blocks + `BRANCH`/`BRANCH_IF`/`CALL`/`RET`/`SUSPEND`/`HALT`, scalar control registers
+(`SETI`/`DEC`), a control stack, and `PRIM` (an upper-level interpreter step, §10 two-levels). Every Python
+control driver was PORTED onto it, each behaviour-identical (the reasoning/recognition/planning banks are
+the differential oracle):
+- **#1** bounded loop = `SETI/DEC/BRANCH_IF` (differential-tested vs `ITERATE`; `ITERATE` STAYS as REP/SIMD);
+- **#2** `CALL`/`RET` + control stack (arbitrary-depth subgoals in the machine, not Python);
+- **#3** `chain_sip`'s NAC negative subgoal (the solver's only recursion) de-recursed onto the control
+  stack via a GENERATOR transform (the yield IS the `CALL`, the driver stack IS the control stack) — proven
+  by a 601-deep NAF stratification that runs under `setrecursionlimit(200)`;
+- **#4** `SUSPEND`/`RESUME` continuation mechanism + the `<call>` dispatch ported (sync inline, async via
+  `SUSPEND`/`RESUME` with a simulated `AsyncTool` end-to-end — `dispatch.service_calls_cm`);
+- **#5** `run_bank`'s fixpoint = a `PRIM` round + `BRANCH_IF`-back over a changed-flag.
+The plane is FORWARD-ONLY (no backtracking); the instruction set is the CONTRACT, the interpreter SWAPPABLE
+(Rust buys the CONSTANT; seed-from-focus holds the CURVE). Tests: `tests/test_isa_control_machine.py` (23) +
+`test_isa_dispatch_async.py` (6) + a deep-stratification test. Docs updated: `isa-reference.md` §"The
+control path", README, the design-folder companions. FOLLOW-ONS (non-blocking): (a) wire real async
+`ask_user`/tools through `service_calls_cm` in Phase 8.5 streaming (the `SUSPEND`/`RESUME` mechanism now
+exists — a candidate replacement for the generator `_NeedVerdict` unwind); (b) retire the control-mechanics
+`<…>` tokens now that control moved (§6/§11); (c) the Rust/compiled interpreter over the now-stable
+instruction set (Phase 7). Independent side item still open: Axis A `DROP_CTRL` goes raw, fact/control
+policy moves above (user's call).
 
 **▶ LANDED 2026-07-14 — mechanism/policy separation, Axis A Probe 1: copy-on-delete retraction**
 (`docs/mechanism_policy_separation.md`, tests in `tests/test_retract_rules.py`). Retraction no longer
