@@ -52,6 +52,15 @@ VALUED = "valued"      # value from an open domain; data under a key
 NAME = "name"
 CONF = "confidence"
 
+# ISA VALUE OPERANDS (docs/isa_value_operands_design.md): a data value an instruction operand needs (a
+# name endpoint, a literal) lives on a REGULAR node under this conventional VALUED key, interned one
+# node per distinct value (`value_node`). NOT a new kind and NOT a flag: a value-node is distinguished
+# from an entity named "ada" (which carries `NAME="ada"`) only by WHICH attribute it carries and which
+# operations select it — differentiation by attribute + use, never a privileged partition. It carries
+# no `name` and stands in no fact relations, so it is invisible to fact reads BY CONSTRUCTION
+# (`nodes_named` never returns it; no relation reader ever reaches it).
+ISA_OPERAND_VALUE = "<isa_operand_value>"
+
 # Provenance / withdrawal node names the 2-hop relation reader and locality traversal treat as
 # INERT (ported verbatim from world_model so `relations_from`/`within` behave identically during the
 # re-host; a later slice moves inertness onto the `control` flag per the audits).
@@ -429,6 +438,26 @@ class AttrGraph:
         """Document frequency of NAME `name` (how many nodes wear it), O(1) — the selectivity the
         matcher seeds from without materializing the candidate list (seed-from-ground, §11/§14)."""
         return self.value_count(NAME, name)
+
+    def value_node(self, value: object) -> str:
+        """The INTERNED value-node for `value` — get-or-create, one node per distinct value (docs/
+        isa_value_operands_design.md §2). A regular node carrying only `ISA_OPERAND_VALUE=value`: no
+        name, no flags, no relations — so a register/operand can hold a stable POINTER to "the value
+        `ada`" while the value stays invisible to fact reads (see the constant's note). The key is
+        lazily declared as a discriminating index (the interning lookup), same facility as `name`."""
+        if ISA_OPERAND_VALUE not in self._indexed_keys:
+            self.declare_index(ISA_OPERAND_VALUE)
+        existing = self.nodes_with_value(ISA_OPERAND_VALUE, value)
+        if existing:
+            return min(existing)          # interning yields at most one; min() pins determinism anyway
+        return self.add_node({ISA_OPERAND_VALUE: valued(value)})
+
+    def operand_value(self, nid: str) -> object | None:
+        """The value a VALUE-NODE carries (its `ISA_OPERAND_VALUE`), or None when `nid` is not a
+        value-node — the read half of the operand convention: an operation holding a node-pointer asks
+        this to learn whether the pointer references a VALUE (interpret it) or an entity (use it)."""
+        a = self._nodes[nid].attrs.get(ISA_OPERAND_VALUE)
+        return a.value if a is not None and a.kind == VALUED else None
 
     def remove_node(self, nid: str) -> None:
         """Remove a node and every edge touching it, keeping the key/name indices in sync.

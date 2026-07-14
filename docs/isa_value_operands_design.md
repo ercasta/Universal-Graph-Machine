@@ -112,9 +112,21 @@ not graph). Those STAY scalars for now. Only DATA values become value-nodes. Mak
 1. **Value-node substrate.** Interned value-nodes carrying `<isa_operand_value>` (get-or-create per value),
    with the read paths able to source an operand value from a value-node. Additive — the existing `name`
    attribute + `nodes_named` stay; value-nodes are new, invisible to fact reads (§2).
+   **BUILT 2026-07-14**: `AttrGraph.value_node` (interned via a lazily-declared discriminating index on
+   the key — the same facility as `name`) + `AttrGraph.operand_value` (the read half).
 2. **Demand-solver bindings → value-nodes.** Where `_solve_demand_rule`/`_facts_matching` carry a name
    endpoint, carry a value-node pointer; interpret it identically (read `<isa_operand_value>`). Differential-
    gate against the current name path (the `_CROSSCHECK` harness).
+   **BUILT 2026-07-14**, behind `chain._VALUE_OPERANDS` (default OFF — the swap is the user's gate, the A1
+   precedent). With the flag on, `chain_sip` converts NAME goal endpoints to value-node pointers at its
+   boundary and the solver converts literal/NAC endpoints at use (`_operand`), so every carried endpoint is
+   a `ById` node-pointer; the interpretation lives in the shared endpoint helpers (`_operand_value_of` feeding
+   `_candidate_nodes`/`_endpoint_matches`/`_scope_key`/`_endpoint_name`/`_bound_entity_nodes`/
+   `resolve_write_node`/`_demand_endpoint` — resolve/match/write/trace by the carried VALUE, never on the
+   value-node itself). Gate: `tests/test_isa_value_operands.py` — every scenario runs flag-OFF (oracle) then
+   flag-ON with `_CROSSCHECK` also on, asserting identical derivations, `<demand>` traces, and verdicts;
+   plus the pointer claim itself (no bare string reaches `_facts_matching`; value-nodes stay nameless and
+   relation-free after runs). Suite 407 green; flag-off path proven byte-identical under fixed hash seeds.
 3. **Then (X):** `env`→`State.regs` on the now-uniform pointer register model; the demand read/body a program;
    `GRADE`/`VMATCH` for thresholds; interleaving kept.
 4. **Later:** progressive generalization (§6); revisit the `NAME` accelerator; counters-as-nodes (§5).

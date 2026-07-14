@@ -68,31 +68,80 @@ def validate_ids(fact_g: AttrGraph, *endpoints) -> None:
             raise ValueError(f"ById({ep.node_id!r}) addresses a node that is not in the graph.")
 
 
+# --- ISA VALUE OPERANDS (docs/isa_value_operands_design.md §7 step 2) ------------------------------
+#
+# The uniform POINTER model for demand-solver bindings: a register/env slot holds only a node-pointer;
+# a NAME endpoint (`"ada"`) is carried as a pointer to its INTERNED value-node (a regular node carrying
+# `<isa_operand_value>="ada"`, `AttrGraph.value_node`), and the operations that consume an endpoint
+# INTERPRET the pointer — a value-node means "the entities named ada" (resolved exactly as the name was:
+# `nodes_named`, max-over-mentions, write-by-name), any other node pins (`ById` semantics). Coref-class
+# aggregation is untouched — it happens INSIDE the consuming operation, which is what dissolves the
+# fork-vs-aggregate crux (§3). Behaviour-identical by construction; differential-gated (the reasoning
+# suite + `_CROSSCHECK` run green with the flag on before any swap).
+
+_VALUE_OPERANDS = False   # §7.2 gate: default OFF (the shipped name path). Tests flip it on; the
+# production swap is the user's ratified gate, exactly as A1's `_CROSSCHECK` precedent.
+
+
+def _operand(fact_g: AttrGraph, endpoint):
+    """The endpoint as CARRIED by the demand solver: under `_VALUE_OPERANDS` a bare NAME becomes the
+    pointer to its interned value-node; a wildcard (None) and an already-pointing `ById` pass through.
+    Flag off = identity (the name path, unperturbed)."""
+    if _VALUE_OPERANDS and isinstance(endpoint, str):
+        return ById(fact_g.value_node(endpoint))
+    return endpoint
+
+
+def _operand_value_of(fact_g: AttrGraph, endpoint):
+    """The VALUE a pointer endpoint references, when it points at a value-node — else None (an entity
+    pin, a missing node, or a plain name, which is not a pointer). The single interpretation hook the
+    endpoint helpers share: a pointer is a value endpoint iff its node CARRIES `<isa_operand_value>`
+    (differentiation by attribute + use, never a kind)."""
+    if isinstance(endpoint, ById) and fact_g.has(endpoint.node_id):
+        return fact_g.operand_value(endpoint.node_id)
+    return None
+
+
 def _candidate_nodes(fact_g: AttrGraph, endpoint) -> list[str]:
     """The candidate node ids for a BOUND endpoint (read side): a `ById` PINS to exactly its node (empty
-    if that node is absent — the pin is honest, never a silent fall-through to a same-named other); a
-    name resolves via the value-accelerator to every same-named node."""
+    if that node is absent — the pin is honest, never a silent fall-through to a same-named other) —
+    UNLESS it points at a value-node, which resolves like the value it carries; a name resolves via the
+    value-accelerator to every same-named node."""
     if isinstance(endpoint, ById):
+        v = _operand_value_of(fact_g, endpoint)
+        if v is not None:                                  # value-node pointer: resolve by name value
+            return fact_g.nodes_named(v)
         return [endpoint.node_id] if fact_g.has(endpoint.node_id) else []
     return fact_g.nodes_named(endpoint)
 
 
 def _endpoint_matches(fact_g: AttrGraph, node: str, endpoint) -> bool:
-    """Does `node` satisfy a bound endpoint — id-identity for a `ById`, name-equality for a name?"""
+    """Does `node` satisfy a bound endpoint — id-identity for a `ById` (value-equality when it points
+    at a value-node), name-equality for a name?"""
     if isinstance(endpoint, ById):
+        v = _operand_value_of(fact_g, endpoint)
+        if v is not None:
+            return fact_g.name(node) == v
         return node == endpoint.node_id
     return fact_g.name(node) == endpoint
 
 
 def _scope_key(fact_g: AttrGraph, endpoint) -> str:
     """The NAME used for a focus-scope membership test on an endpoint (focus frames hold names): a
-    `ById` contributes its node's name, a name contributes itself."""
-    return fact_g.name(endpoint.node_id) if isinstance(endpoint, ById) else endpoint
+    `ById` contributes its node's name (a value-node pointer its VALUE), a name contributes itself."""
+    if isinstance(endpoint, ById):
+        v = _operand_value_of(fact_g, endpoint)
+        return v if v is not None else fact_g.name(endpoint.node_id)
+    return endpoint
 
 
-def _demand_endpoint(endpoint):
-    """The plain string a `<demand>` trace node records for an endpoint (a `ById` shows its id)."""
-    return endpoint.node_id if isinstance(endpoint, ById) else endpoint
+def _demand_endpoint(fact_g: AttrGraph, endpoint):
+    """The plain string a `<demand>` trace node records for an endpoint (a value-node pointer shows its
+    VALUE — the trace is identical to the name path's; an entity `ById` shows its id)."""
+    if isinstance(endpoint, ById):
+        v = _operand_value_of(fact_g, endpoint)
+        return v if v is not None else endpoint.node_id
+    return endpoint
 
 
 def _same_as_neighbors(fact_g: AttrGraph, n: str) -> set[str]:
@@ -145,9 +194,14 @@ def resolve_write_node(fact_g: AttrGraph, endpoint, *, where: str) -> str:
     reuses an existing same-named node or mints one. SILENT->LOUD (Phase 8 C): when a name resolves to
     GENUINELY DISTINCT same-named nodes (>1 identity, NOT merely coref mentions of one — `_one_identity`),
     the `[0]`-pick is now a WARNING naming `where`, with the fix (pass `ById`). Coref duplicates (same
-    entity, multiple mentions, `same_as`-linked) do NOT warn — there the `[0]`-pick composes correctly."""
+    entity, multiple mentions, `same_as`-linked) do NOT warn — there the `[0]`-pick composes correctly.
+    A VALUE-NODE pointer writes by its VALUE (the same reuse-or-mint discipline as the name it carries)
+    — never onto the value-node itself, which is operand data, not an entity."""
     if isinstance(endpoint, ById):
-        return endpoint.node_id
+        v = _operand_value_of(fact_g, endpoint)
+        if v is None:
+            return endpoint.node_id
+        endpoint = v                                       # fall through to the name write path
     # FACT-LAYER only: `nodes_named` also returns control/inert scaffolding (reified rule/call args,
     # provenance) that the matcher already skips — a write must land on a real entity node.
     ex = [n for n in fact_g.nodes_named(endpoint)
@@ -219,17 +273,19 @@ class NonStratifiable(Exception):
 # `_resolve_head`); the per-env body bindings stay a Python env.
 
 
-def _mint_bound_demand(rule_g: AttrGraph, demand: tuple[str, str | None, str | None]) -> str:
+def _mint_bound_demand(fact_g: AttrGraph, rule_g: AttrGraph,
+                       demand: tuple[str, str | None, str | None]) -> str:
     """Materialize a bound-tuple demand as a VISIBLE `<demand>` node carrying `for=pred` and, when bound,
     `subj=`/`obj=` — a subgoal record (the negative's explanation, matchable in the graph): "I need `pred`
-    about this subject". Endpoints are stringified (a `ById` shows its id)."""
+    about this subject". Endpoints are stringified (a `ById` shows its id, a value-node pointer its VALUE
+    — `fact_g` is where the pointer resolves; the trace itself is written into `rule_g`)."""
     pred, subj, obj = demand
     d = rule_g.add_node(DEMAND, control=True)
     rule_g.set_attr(d, "for", valued(pred))
     if subj is not None:
-        rule_g.set_attr(d, "subj", valued(_demand_endpoint(subj)))
+        rule_g.set_attr(d, "subj", valued(_demand_endpoint(fact_g, subj)))
     if obj is not None:
-        rule_g.set_attr(d, "obj", valued(_demand_endpoint(obj)))
+        rule_g.set_attr(d, "obj", valued(_demand_endpoint(fact_g, obj)))
     return d
 
 
@@ -258,24 +314,29 @@ def _tok_name(env: dict[str, str], tok: str):
 
 
 def _endpoint_name(fact_g: AttrGraph, endpoint) -> str:
-    """The NAME an endpoint denotes: a `ById` -> its node's name; a name -> itself. Used where a rule
-    LITERAL (matched by name) meets a `ById` env/demand endpoint (matched by id)."""
-    return fact_g.name(endpoint.node_id) if isinstance(endpoint, ById) else endpoint
+    """The NAME an endpoint denotes: a `ById` -> its node's name (a value-node pointer -> its VALUE);
+    a name -> itself. Used where a rule LITERAL (matched by name) meets a `ById` env/demand endpoint
+    (matched by id)."""
+    if isinstance(endpoint, ById):
+        v = _operand_value_of(fact_g, endpoint)
+        return v if v is not None else fact_g.name(endpoint.node_id)
+    return endpoint
 
 
-def _bind(env: dict[str, str], tok: str, val) -> dict[str, str] | None:
+def _bind(fact_g: AttrGraph, env: dict[str, str], tok: str, val) -> dict[str, str] | None:
     """Extend `env` binding `tok` to `val` (a name or a `ById`): a var binds (or must already agree by
-    equality — a `ById` is agreement-safe, a distinct same-named node has a DIFFERENT id and correctly
-    fails to unify), a literal must equal `val` (a literal only ever meets a name here — a free slot,
-    which alone yields a `ById`, is by construction a var, never a literal). Returns the extended env,
-    or None on conflict."""
+    equality — a `ById` is agreement-safe: a distinct same-named node has a DIFFERENT id and correctly
+    fails to unify, and a value-node pointer is INTERNED so the same value is the same pointer), a
+    literal must equal `val` BY NAME (under `_VALUE_OPERANDS` a literal meets its own echoed value-node
+    pointer, unwrapped by `_endpoint_name`; a free slot, which alone yields an entity `ById`, is by
+    construction a var, never a literal). Returns the extended env, or None on conflict."""
     if is_var(tok):
         if tok in env:
             return env if env[tok] == val else None
         e = dict(env)
         e[tok] = val
         return e
-    return env if literal_name(tok) == val else None
+    return env if literal_name(tok) == _endpoint_name(fact_g, val) else None
 
 
 def _unify_head_with_demand(fact_g: AttrGraph, demand: tuple[str, str | None, str | None],
@@ -292,7 +353,7 @@ def _unify_head_with_demand(fact_g: AttrGraph, demand: tuple[str, str | None, st
     for slot, ep in ((hs, dsubj), (ho, dobj)):
         if ep is None:
             continue
-        nxt = _bind(env, slot, ep if is_var(slot) else _endpoint_name(fact_g, ep))
+        nxt = _bind(fact_g, env, slot, ep if is_var(slot) else _endpoint_name(fact_g, ep))
         if nxt is None:
             return None
         env = nxt
@@ -559,11 +620,15 @@ def _read_value_matches(rule_g: AttrGraph, rule_node: str) -> list[tuple[str, st
 
 
 def _bound_entity_nodes(fact_g: AttrGraph, bound) -> list[str]:
-    """The fact-layer node(s) a bound env value denotes: a `ById` -> exactly its node; a name -> the
+    """The fact-layer node(s) a bound env value denotes: a `ById` -> exactly its node (a value-node
+    pointer -> the nodes named its VALUE, the coref-class aggregate the name denoted); a name -> the
     same-named fact-layer nodes (control/inert scaffolding skipped). Used to read an ENDPOINT's attribute
     value for a value-match."""
     if isinstance(bound, ById):
-        return [bound.node_id] if fact_g.has(bound.node_id) else []
+        v = _operand_value_of(fact_g, bound)
+        if v is None:
+            return [bound.node_id] if fact_g.has(bound.node_id) else []
+        bound = v
     return [n for n in fact_g.nodes_named(bound)
             if not (fact_g.is_control(n) or fact_g.is_inert(n))]
 
@@ -631,7 +696,7 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
     synchronously before resuming), so the demand-driven NAF semantics are identical. Returns the block
     verdict via the generator's return value (`yield from` surfaces it)."""
     for ns, np, no in nac_atoms:
-        neg_goal = (np, _tok_name(env, ns), _tok_name(env, no))
+        neg_goal = (np, _operand(fact_g, _tok_name(env, ns)), _operand(fact_g, _tok_name(env, no)))
         if neg_goal in neg_stack:
             return True                        # re-entry: prune the higher-stratum rule (block env)
         if neg_goal not in closed:             # MEMO: a negative's positive is closed ONCE per session.
@@ -767,14 +832,17 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
         for s_tok, bp, o_tok in _sideways_order(body, set(env0)):   # SIP: each atom demanded under env
             nxt: list[dict[str, str]] = []
             for env in envs:
-                mint((bp, _tok_name(env, s_tok), _tok_name(env, o_tok)))
-                for fs, fo in _facts_matching(fact_g, bp, _tok_name(env, s_tok),
-                                              _tok_name(env, o_tok), scope=scope,
+                # the endpoints as CARRIED (§7.2): a literal's name becomes its value-node pointer
+                # under `_VALUE_OPERANDS` (a bound var already holds a pointer); flag off = the names
+                s_ep = _operand(fact_g, _tok_name(env, s_tok))
+                o_ep = _operand(fact_g, _tok_name(env, o_tok))
+                mint((bp, s_ep, o_ep))
+                for fs, fo in _facts_matching(fact_g, bp, s_ep, o_ep, scope=scope,
                                               focus_scope=focus_scope):
-                    e1 = _bind(env, s_tok, fs)
+                    e1 = _bind(fact_g, env, s_tok, fs)
                     if e1 is None:
                         continue
-                    e2 = _bind(e1, o_tok, fo)
+                    e2 = _bind(fact_g, e1, o_tok, fo)
                     if e2 is not None:
                         nxt.append(e2)
             envs = nxt
@@ -882,6 +950,9 @@ def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
     frame is a distinct goal-closure on the stack; the `_closed`/`neg_stack` memo + prune keep NAF's
     'the positive failed' read from L's COMPLETE extension."""
     validate_ids(fact_g, goal[1], goal[2])                 # id-addressed pins must exist (silent->loud)
+    # §7.2 (value operands): the goal's NAME endpoints become value-node POINTERS at this boundary, so
+    # everything the solver carries downstream (env seeds, sub-demands, NAC goals) is a node-pointer.
+    goal = (goal[0], _operand(fact_g, goal[1]), _operand(fact_g, goal[2]))
     build_head_index(rule_g)                               # idempotent
     if _closed is None:
         _closed = set()                                    # NAC-closure MEMO, shared across all frames
@@ -893,7 +964,7 @@ def chain_sip(fact_g: AttrGraph, rule_g: AttrGraph,
     def visible(d, ns):
         if not ns and d not in minted:                     # top-level magic set only (trace)
             minted.add(d)
-            _mint_bound_demand(rule_g, d)
+            _mint_bound_demand(fact_g, rule_g, d)
 
     def frame(g, ns):
         return _close_goal(fact_g, rule_g, g, neg_stack=ns, provenance=provenance, scope=scope,
