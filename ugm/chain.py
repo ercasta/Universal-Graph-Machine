@@ -21,12 +21,12 @@ from collections import Counter
 from dataclasses import dataclass
 
 from .attrgraph import AttrGraph
-from .attrgraph import valued, GRADED, VALUED
+from .attrgraph import valued, GRADED, VALUED, NAME, CONTROL_MARK, INERT_MARK
 from .apply import (
     _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
     _rel_in_scope, build_head_index, rules_producing, SCOPE,
 )
-from .machine import Machine, SEED, FOLLOW, SET
+from .machine import Machine, SEED, FOLLOW, SET, TEST, SAME, MEMBER, GRADE, VMATCH, State
 from .production_rule import is_var, is_bound_literal, literal_name
 from .vocabulary import SAME_AS
 
@@ -68,26 +68,23 @@ def validate_ids(fact_g: AttrGraph, *endpoints) -> None:
             raise ValueError(f"ById({ep.node_id!r}) addresses a node that is not in the graph.")
 
 
-# --- ISA VALUE OPERANDS (docs/isa_value_operands_design.md §7 step 2) ------------------------------
+# --- ISA VALUE OPERANDS (docs/isa_value_operands_design.md §7 step 2, STRUCTURAL since (X)) --------
 #
-# The uniform POINTER model for demand-solver bindings: a register/env slot holds only a node-pointer;
-# a NAME endpoint (`"ada"`) is carried as a pointer to its INTERNED value-node (a regular node carrying
+# The uniform POINTER model for demand-solver bindings: a register holds only a node-pointer; a NAME
+# endpoint (`"ada"`) is carried as a pointer to its INTERNED value-node (a regular node carrying
 # `<isa_operand_value>="ada"`, `AttrGraph.value_node`), and the operations that consume an endpoint
 # INTERPRET the pointer — a value-node means "the entities named ada" (resolved exactly as the name was:
 # `nodes_named`, max-over-mentions, write-by-name), any other node pins (`ById` semantics). Coref-class
-# aggregation is untouched — it happens INSIDE the consuming operation, which is what dissolves the
-# fork-vs-aggregate crux (§3). Behaviour-identical by construction; differential-gated (the reasoning
-# suite + `_CROSSCHECK` run green with the flag on before any swap).
-
-_VALUE_OPERANDS = False   # §7.2 gate: default OFF (the shipped name path). Tests flip it on; the
-# production swap is the user's ratified gate, exactly as A1's `_CROSSCHECK` precedent.
+# aggregation is untouched — it happens INSIDE the consuming operation (`Machine._operand_nodes`, the
+# endpoint helpers below), which is what dissolves the fork-vs-aggregate crux (§3). Ratified + swapped
+# 2026-07-14; with (X) (env -> `State.regs`) the pointer model is structural, no name path remains.
 
 
 def _operand(fact_g: AttrGraph, endpoint):
-    """The endpoint as CARRIED by the demand solver: under `_VALUE_OPERANDS` a bare NAME becomes the
-    pointer to its interned value-node; a wildcard (None) and an already-pointing `ById` pass through.
-    Flag off = identity (the name path, unperturbed)."""
-    if _VALUE_OPERANDS and isinstance(endpoint, str):
+    """A PUBLIC goal endpoint as carried by the solver: a bare NAME becomes the pointer to its interned
+    value-node (the register file holds only node-pointers); a wildcard (None) and an already-pointing
+    `ById` pass through. The boundary conversion `chain_sip` applies to its goal."""
+    if isinstance(endpoint, str):
         return ById(fact_g.value_node(endpoint))
     return endpoint
 
@@ -270,7 +267,8 @@ class NonStratifiable(Exception):
 #
 # SCOPE (differentially gated vs `run_bank`): positive rules, plain-literal predicates; names are
 # unique-noded (an EMIT resolves a head name to its node, minting if absent — same as APPLY's
-# `_resolve_head`); the per-env body bindings stay a Python env.
+# `_resolve_head`); the per-derivation body bindings live in the machine's REGISTER FILE (`State.regs`,
+# (X) — one binding model shared with the forward path).
 
 
 def _mint_bound_demand(fact_g: AttrGraph, rule_g: AttrGraph,
@@ -304,13 +302,17 @@ def bound_demands(rule_g: AttrGraph) -> set[tuple[str, str | None, str | None]]:
     return out
 
 
-def _tok_name(env: dict[str, str], tok: str):
-    """The ENDPOINT a rule token resolves to under `env` — a NAME or, since the id-addressed core
-    (Stage 3), a `ById`: a bound var -> its env value (a name it was seeded with, or a `ById` a free
-    slot bound it to — see `_facts_matching`); a literal -> its name; an UNBOUND var -> None (a wildcard
-    demand endpoint, an open slot to be bound by a fact). Consumers (`_facts_matching`, `_node_for_name`,
-    `_bound_entity_nodes`) are `ById`-aware, so a var can carry a node id through the whole chain."""
-    return env.get(tok) if is_var(tok) else literal_name(tok)
+def _ptr(fact_g: AttrGraph, st: State, tok: str):
+    """The POINTER endpoint a rule token resolves to under the REGISTER FILE `st` ((X), docs/
+    firmware_over_isa_design.md §4 — bindings live in `State.regs`, the machine's binding model, not a
+    dict): a bound var -> its register's node (an entity pin a free slot bound, or a value-node pointer
+    it was seeded with); a literal -> its interned value-node's pointer; an UNBOUND var -> None (a
+    wildcard demand endpoint, an open slot to be bound by a fact). Consumers (`_facts_matching`,
+    `_node_for_name`, `_bound_entity_nodes`) interpret the pointer by its node's attributes."""
+    if is_var(tok):
+        nid = st.regs.get(tok)
+        return None if nid is None else ById(nid)
+    return ById(fact_g.value_node(literal_name(tok)))
 
 
 def _endpoint_name(fact_g: AttrGraph, endpoint) -> str:
@@ -323,41 +325,42 @@ def _endpoint_name(fact_g: AttrGraph, endpoint) -> str:
     return endpoint
 
 
-def _bind(fact_g: AttrGraph, env: dict[str, str], tok: str, val) -> dict[str, str] | None:
-    """Extend `env` binding `tok` to `val` (a name or a `ById`): a var binds (or must already agree by
-    equality — a `ById` is agreement-safe: a distinct same-named node has a DIFFERENT id and correctly
-    fails to unify, and a value-node pointer is INTERNED so the same value is the same pointer), a
-    literal must equal `val` BY NAME (under `_VALUE_OPERANDS` a literal meets its own echoed value-node
-    pointer, unwrapped by `_endpoint_name`; a free slot, which alone yields an entity `ById`, is by
-    construction a var, never a literal). Returns the extended env, or None on conflict."""
+def _bind_state(fact_g: AttrGraph, st: State, tok: str, ep) -> State | None:
+    """Extend the register file binding `tok` to the pointer endpoint `ep` ((X): the solver carries
+    ONLY `ById` node-pointers — an entity pin from a free slot, or an interned value-node, so pointer
+    identity IS agreement: a distinct same-named node has a different id and correctly fails to unify,
+    and interning makes the same value the same pointer). A literal must equal the endpoint BY NAME
+    (its own echoed value-node unwraps via `_endpoint_name`; a free slot, which alone yields an entity
+    pin, is by construction a var, never a literal). Returns the extended State, or None on conflict."""
     if is_var(tok):
-        if tok in env:
-            return env if env[tok] == val else None
-        e = dict(env)
-        e[tok] = val
-        return e
-    return env if literal_name(tok) == _endpoint_name(fact_g, val) else None
+        if not isinstance(ep, ById):                       # a name reaching here is a solver bug: every
+            raise AssertionError(f"non-pointer endpoint {ep!r} for {tok!r}")   # carried endpoint points
+        held = st.regs.get(tok)
+        if held is not None:
+            return st if held == ep.node_id else None
+        return st.bind(tok, ep.node_id)
+    return st if literal_name(tok) == _endpoint_name(fact_g, ep) else None
 
 
 def _unify_head_with_demand(fact_g: AttrGraph, demand: tuple[str, str | None, str | None],
-                            hs: str, hp: str, ho: str) -> dict[str, str] | None:
-    """The env binding a head atom `(hs, hp, ho)` inherits from a demand it can serve: the predicates
-    must match, and the demand's bound endpoints seed the head's slots (a wildcard demand endpoint
-    leaves the head slot open). None if the head can't produce the demanded tuple. A demand endpoint may
-    be a `ById` (an id-addressed goal, or a sub-demand raised from a free var the body bound to a node);
-    a head VAR takes it verbatim (id-addressed seed), a head LITERAL is matched against the id's NAME."""
+                            hs: str, hp: str, ho: str) -> State | None:
+    """The REGISTER FILE a head atom `(hs, hp, ho)` inherits from a demand it can serve ((X): bindings
+    live in `State.regs`): the predicates must match, and the demand's bound endpoint POINTERS seed the
+    head's slots (a wildcard demand endpoint leaves the head slot open). None if the head can't produce
+    the demanded tuple. A head VAR takes the pointer verbatim (a value-node for a name goal, an entity
+    pin for an id-addressed one); a head LITERAL is matched against the pointer's name/value."""
     pred, dsubj, dobj = demand
     if hp != pred:
         return None
-    env: dict[str, str] = {}
+    st = State()
     for slot, ep in ((hs, dsubj), (ho, dobj)):
         if ep is None:
             continue
-        nxt = _bind(fact_g, env, slot, ep if is_var(slot) else _endpoint_name(fact_g, ep))
+        nxt = _bind_state(fact_g, st, slot, ep)
         if nxt is None:
             return None
-        env = nxt
-    return env
+        st = nxt
+    return st
 
 
 def _rel_matches_pred(g: AttrGraph, rel: str, pred: str, scope: str | None) -> bool:
@@ -445,98 +448,117 @@ def _facts_matching_walk(fact_g: AttrGraph, pred: str,
     return out
 
 
-# --- A1: the demand lookup on the SHARED ISA matcher (docs/phase_a_demand_firmware.md) -------------
+# --- A1 + firmware §3/§5: the demand lookup as a SELF-CONTAINED ISA program ------------------------
 #
 # The bespoke `_facts_matching_walk` above is a SECOND matcher (a hand-written topology walk). A1's
 # thesis: that walk IS the ISA matcher's walk — SET the bound endpoint node, FOLLOW to the rel, TEST
 # the predicate key, FOLLOW to the other endpoint. `_facts_matching_isa` does exactly that through the
-# ONE `Machine.match`, so forward and demand unify on one matcher (the precondition for a single Rust
-# interpreter, Phase B). The three demand-specific VISIBILITY filters that are NOT ISA-structural stay
-# as post-filters — the irreducible demand policy A5 isolates (fork (b), see the doc §2): fact-layer
-# endpoint/rel visibility (skip control/inert scaffolding), SUPPOSE scope-pencil visibility
-# (`_rel_matches_pred`), and focus attention (`keep`). A free slot wraps to `ById(node)` — native
-# here, since the matcher's register already holds the specific node id.
+# ONE `Machine.match`. The VISIBILITY that used to be Python post-filters is now IN the program:
+#   * the fact-read guard — control/inert as MARKER ATTRIBUTES (`CONTROL_MARK`/`INERT_MARK`, dual-
+#     written with the legacy flags), tested by compiler-emitted `TEST(..., absent=True)` ops (§3:
+#     uniform, never per-rule, never a privileged matcher skip);
+#   * a bound second endpoint — `TEST` on the NAME value (a name/value-pointer goal) or `SET`+`SAME`
+#     (an entity pin);
+#   * focus attention — the register-pointed `MEMBER` live-set op (§5: the working set's CONTENTS are
+#     driver policy, parked in `AttrGraph.registers[_FOCUS_LIVE]`; the membership TEST is mechanism).
+# The ONE Python post-filter left is SUPPOSE scope-pencil visibility (`pencil_ok`: a CONTROL rel is
+# visible iff it is the active scope's pencil — a disjunction awaiting the §8 scope-overlay live-set).
+# A free slot wraps to `ById(node)` — native here, since the register already holds the node id.
 
-_ISA_READER = Machine()   # skip_inert OFF: the post-filters below skip inert AND control, exactly the
-# walk (so the ISA path and the walk see the identical candidate set — provable parity, not near-parity)
+_ISA_READER = Machine()   # skip_inert OFF: visibility lives in the PROGRAM (marker-attribute guards),
+# never in a privileged machine mode — the walk (the oracle) applies the same skips by flag.
 
 _CROSSCHECK = False   # A1 differential gate: when True, every `_facts_matching` asserts the ISA path
 # agrees with the bespoke walk on that call (order-insensitive). The reference oracle (the walk) is
 # retained; the production SWAP to the ISA path is the user's ratified gate (doc §4). Tests flip it on.
+
+_FOCUS_LIVE = "<focus>"   # the live-set register the read program's MEMBER op points at
+
+
+def _guard(reg: str) -> list:
+    """The compiler-emitted fact-read guard (§3): a fact endpoint/rel must carry NEITHER marker
+    attribute. Uniform — an author can never forget it; the substrate stays kind-less."""
+    return [TEST(reg, CONTROL_MARK, absent=True), TEST(reg, INERT_MARK, absent=True)]
+
+
+def _bound_endpoint_ops(fact_g: AttrGraph, reg: str, endpoint) -> list:
+    """The in-program test that register `reg` matches a BOUND second endpoint: an entity pin
+    unifies registers (`SET` the pin + `SAME`); a name / value-node pointer tests the NAME value."""
+    v = _operand_value_of(fact_g, endpoint)
+    if isinstance(endpoint, ById) and v is None:           # entity pin -> register unification
+        return [SET(reg + "'", endpoint.node_id), SAME(reg, reg + "'")]
+    return [TEST(reg, NAME, cmp="=", value=v if v is not None else endpoint)]
 
 
 def _facts_matching_isa(fact_g: AttrGraph, pred: str,
                         subj_name: str | None, obj_name: str | None,
                         *, scope: str | None = None,
                         focus_scope: frozenset[str] | None = None) -> list[tuple[str, str]]:
-    """The single-atom demand fact lookup with the TOPOLOGY WALK done by the shared ISA matcher (A1).
-    Behaviour-identical to `_facts_matching_walk` (differentially gated by `_CROSSCHECK`); see the
-    module note above and `docs/phase_a_demand_firmware.md`."""
+    """The single-atom demand fact lookup as a self-contained ephemeral ISA program (see the module
+    note above). Behaviour-identical to `_facts_matching_walk` (differentially gated by
+    `_CROSSCHECK`)."""
     out: list[tuple[str, str]] = []
+    prev_live = fact_g.registers.get(_FOCUS_LIVE)          # park the working set for MEMBER (policy);
+    fact_g.registers[_FOCUS_LIVE] = focus_scope            # transitional: set from the parameter here
+    try:
+        rel_guard = [TEST("r", pred), TEST("r", INERT_MARK, absent=True)]
+        if scope is None:
+            rel_guard.append(TEST("r", CONTROL_MARK, absent=True))
 
-    def keep(s: str, o: str) -> bool:
-        return focus_scope is None or s in focus_scope or o in focus_scope
+        def pencil_ok(rel: str) -> bool:                   # the one remaining post-filter (§8 backlog)
+            return scope is None or not fact_g.is_control(rel) or _rel_in_scope(fact_g, rel, scope)
 
-    if subj_name is not None:                              # (pred, subj, ?) — walk OUT of the subject
-        subj_key = _scope_key(fact_g, subj_name)
-        prog = [SET("s", ""), FOLLOW("r", "s", "out"), FOLLOW("o", "r", "out")]
-        for s in _candidate_nodes(fact_g, subj_name):
-            if fact_g.is_control(s) or fact_g.is_inert(s):
-                continue
-            prog[0] = SET("s", s)
-            for st in _ISA_READER.match(fact_g, prog):
-                rel, o = st.regs["r"], st.regs["o"]
-                if not _rel_matches_pred(fact_g, rel, pred, scope):
-                    continue
-                if fact_g.is_control(o) or fact_g.is_inert(o):
-                    continue
-                if obj_name is not None and not _endpoint_matches(fact_g, o, obj_name):
-                    continue
-                if keep(subj_key, fact_g.name(o)):
-                    out.append((subj_name, obj_name if obj_name is not None else ById(o)))
+        if subj_name is not None:                          # (pred, subj, ?) — walk OUT of the subject
+            prog = [SET("s", ""), *_guard("s"),
+                    FOLLOW("r", "s", "out"), *rel_guard,
+                    FOLLOW("o", "r", "out"), *_guard("o"),
+                    *(_bound_endpoint_ops(fact_g, "o", obj_name) if obj_name is not None else ()),
+                    MEMBER(("s", "o"), _FOCUS_LIVE)]
+            for s in _candidate_nodes(fact_g, subj_name):
+                prog[0] = SET("s", s)
+                for st in _ISA_READER.match(fact_g, prog):
+                    if pencil_ok(st.regs["r"]):
+                        out.append((subj_name,
+                                    obj_name if obj_name is not None else ById(st.regs["o"])))
+            return out
+        if obj_name is not None:                           # (pred, ?, obj) — walk INTO the object
+            prog = [SET("o", ""), *_guard("o"),
+                    FOLLOW("r", "o", "in"), *rel_guard,
+                    FOLLOW("s", "r", "in"), *_guard("s"),
+                    MEMBER(("s", "o"), _FOCUS_LIVE)]
+            for o in _candidate_nodes(fact_g, obj_name):
+                prog[0] = SET("o", o)
+                for st in _ISA_READER.match(fact_g, prog):
+                    if pencil_ok(st.regs["r"]):
+                        out.append((ById(st.regs["s"]), obj_name))
+            return out
+        prog = [SEED("r", pred, cmp=None), *rel_guard,     # (pred, ?, ?) — the whole-predicate scan
+                FOLLOW("s", "r", "in"), *_guard("s"),
+                FOLLOW("o", "r", "out"), *_guard("o"),
+                MEMBER(("s", "o"), _FOCUS_LIVE)]
+        for st in _ISA_READER.match(fact_g, prog):
+            if pencil_ok(st.regs["r"]):
+                out.append((ById(st.regs["s"]), ById(st.regs["o"])))
         return out
-    if obj_name is not None:                               # (pred, ?, obj) — walk INTO the object
-        obj_key = _scope_key(fact_g, obj_name)
-        prog = [SET("o", ""), FOLLOW("r", "o", "in"), FOLLOW("s", "r", "in")]
-        for o in _candidate_nodes(fact_g, obj_name):
-            if fact_g.is_control(o) or fact_g.is_inert(o):
-                continue
-            prog[0] = SET("o", o)
-            for st in _ISA_READER.match(fact_g, prog):
-                rel, s = st.regs["r"], st.regs["s"]
-                if not _rel_matches_pred(fact_g, rel, pred, scope):
-                    continue
-                if fact_g.is_control(s) or fact_g.is_inert(s):
-                    continue
-                if keep(fact_g.name(s), obj_key):
-                    out.append((ById(s), obj_name))
-        return out
-    for st in _ISA_READER.match(fact_g, [SEED("r", pred, cmp=None)]):   # (pred, ?, ?) — predicate scan
-        rel = st.regs["r"]
-        if not _rel_matches_pred(fact_g, rel, pred, scope):
-            continue
-        for s, o in _endpoints(fact_g, rel):
-            sn, on = fact_g.name(s), fact_g.name(o)
-            if keep(sn, on):
-                out.append((ById(s), ById(o)))
-    return out
+    finally:
+        fact_g.registers[_FOCUS_LIVE] = prev_live
 
 
 def _facts_matching(fact_g: AttrGraph, pred: str,
                     subj_name: str | None, obj_name: str | None,
                     *, scope: str | None = None,
                     focus_scope: frozenset[str] | None = None) -> list[tuple[str, str]]:
-    """The single-atom demand fact lookup (SIP). Currently the bespoke topology walk
-    (`_facts_matching_walk`, the reference oracle); when `_CROSSCHECK` is set it asserts the shared
-    ISA-matcher path (`_facts_matching_isa`, A1 — `docs/phase_a_demand_firmware.md`) agrees on every
-    call, the differential gate for retiring the second matcher (the swap is the user's ratified gate)."""
-    out = _facts_matching_walk(fact_g, pred, subj_name, obj_name, scope=scope, focus_scope=focus_scope)
+    """The single-atom demand fact lookup (SIP) — on the SHARED ISA matcher (`_facts_matching_isa`,
+    A1; production swap ratified 2026-07-14): forward and demand walk topology through the ONE
+    `Machine.match`. The bespoke walk (`_facts_matching_walk`) is retained ONLY as the independent
+    parity oracle: when `_CROSSCHECK` is set, every call asserts it agrees (order-insensitive)."""
+    out = _facts_matching_isa(fact_g, pred, subj_name, obj_name, scope=scope, focus_scope=focus_scope)
     if _CROSSCHECK:
-        isa = _facts_matching_isa(fact_g, pred, subj_name, obj_name, scope=scope, focus_scope=focus_scope)
-        if Counter(out) != Counter(isa):
+        walk = _facts_matching_walk(fact_g, pred, subj_name, obj_name, scope=scope, focus_scope=focus_scope)
+        if Counter(out) != Counter(walk):
             raise AssertionError(
                 f"A1 demand-matcher divergence for ({pred!r},{subj_name!r},{obj_name!r}) "
-                f"scope={scope!r} focus_scope={focus_scope!r}:\n  walk={out!r}\n  isa ={isa!r}")
+                f"scope={scope!r} focus_scope={focus_scope!r}:\n  walk={walk!r}\n  isa ={out!r}")
     return out
 
 
@@ -585,22 +607,17 @@ def _read_graded(rule_g: AttrGraph, rule_node: str) -> list[tuple[str, str, floa
     return out
 
 
-def _graded_ok(fact_g: AttrGraph, graded: list[tuple[str, str, float]], env: dict[str, str]) -> bool:
-    """True iff every graded condition passes under `env` — the α-cut DURING matching (the CHAIN analog
-    of the forward `GRADE` op): the bound var's node must carry the dimension as a GRADED membership
-    `>= threshold` (and `> 0`). Node-agnostic (any coreferent mention may carry the propagated degree).
-    An unbound graded var is out of slice -> fail (never fire on an unevaluable α-cut). The bound value
-    may be a name OR (id-addressed core, Stage 3) a `ById`, so resolve it through `_bound_entity_nodes`
-    (id -> its node; name -> the same-named entities — any coreferent mention may carry the degree)."""
-    for var, dim, thr in graded:
-        bound = env.get(var)
-        if bound is None:
-            return False
-        deg = max((float(a.value) for n in _bound_entity_nodes(fact_g, bound)
-                   if (a := fact_g.get_attr(n, dim)) is not None and a.kind == GRADED), default=0.0)
-        if not (deg >= thr and deg > 0.0):
-            return False
-    return True
+def _grades_pass(fact_g: AttrGraph, graded: list[tuple[str, str, float]], st: State) -> bool:
+    """The α-cut DURING matching, as FIRMWARE ((X)): the reified graded conditions lower to an
+    EPHEMERAL `GRADE` program run by the shared machine over the match's register file — the SAME op
+    the forward path lowers to, no bespoke Python check. A value-node register aggregates
+    max-over-mentions INSIDE the instruction (`Machine._operand_nodes`, the §3 coref-class semantics —
+    any coreferent mention may carry the propagated degree). An unbound graded var is out of slice ->
+    fail (never fire on an unevaluable α-cut)."""
+    if any(var not in st.regs for var, _dim, _thr in graded):
+        return False
+    prog = [GRADE(var, dim, threshold=thr) for var, dim, thr in graded]
+    return bool(_ISA_READER.match(fact_g, prog, init=[st]))
 
 
 def _read_value_matches(rule_g: AttrGraph, rule_node: str) -> list[tuple[str, str, str, float | None]]:
@@ -633,47 +650,28 @@ def _bound_entity_nodes(fact_g: AttrGraph, bound) -> list[str]:
             if not (fact_g.is_control(n) or fact_g.is_inert(n))]
 
 
-def _value_matches_ok(fact_g: AttrGraph, vms: list[tuple[str, str, str, float | None]],
-                      env: dict[str, str]) -> bool:
-    """True iff every value-match passes under `env` — the DECLARED value-JOIN applied DURING matching
-    (`ValueMatch`). Both vars must be bound; then, on `dim`:
-      * EXACT (threshold None): the two bound nodes carry EQUAL VALUED values (e.g. the same `name`).
-      * GRADED ('close enough'): both carry a GRADED degree on `dim` and `1 - |deg_a - deg_b| >= threshold`.
-    An unbound var, or a missing value on either side, fails (never fire on an unevaluable join)."""
-    def valued_of(bound, dim):
-        for n in _bound_entity_nodes(fact_g, bound):
-            a = fact_g.get_attr(n, dim)
-            if a is not None and a.kind == VALUED:
-                return a.value
-        return None
-
-    def graded_of(bound, dim):
-        return max((float(a.value) for n in _bound_entity_nodes(fact_g, bound)
-                    if (a := fact_g.get_attr(n, dim)) is not None and a.kind == GRADED), default=None)
-
-    for va, vb, dim, thr in vms:
-        ba, bb = env.get(va), env.get(vb)
-        if ba is None or bb is None:
-            return False
-        if thr is None:                                   # exact VALUED equality
-            xa, xb = valued_of(ba, dim), valued_of(bb, dim)
-            if xa is None or xb is None or xa != xb:
-                return False
-        else:                                             # graded 'close enough'
-            da, db = graded_of(ba, dim), graded_of(bb, dim)
-            if da is None or db is None or (1.0 - abs(da - db)) < thr:
-                return False
-    return True
+def _vmatches_pass(fact_g: AttrGraph, vms: list[tuple[str, str, str, float | None]],
+                   st: State) -> bool:
+    """The DECLARED value-JOIN during matching, as FIRMWARE ((X)): the reified `ValueMatch`es lower to
+    an EPHEMERAL `VMATCH` program — the SAME op the forward path lowers to, run by the shared machine
+    over the match's register file. Exact mode (threshold None): equal VALUED `dim` values; graded
+    mode: `1 - |deg_a - deg_b| >= threshold`; a value-node register aggregates over its coref class
+    inside the instruction. An unbound var, or a missing value on either side, fails (never fire on an
+    unevaluable join)."""
+    if any(v not in st.regs for va, vb, _d, _t in vms for v in (va, vb)):
+        return False
+    prog = [VMATCH(va, vb, dim, threshold=thr) for va, vb, dim, thr in vms]
+    return bool(_ISA_READER.match(fact_g, prog, init=[st]))
 
 
 def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str, str, str]],
-                env: dict[str, str], *, scope: str | None, provenance: bool,
+                st: State, *, scope: str | None, provenance: bool,
                 focus_scope: frozenset[str] | None = None,
                 neg_stack: frozenset[tuple[str, str | None, str | None]],
                 fuel: "_Exhaustion | None", max_rounds: int, closed: set) -> bool:
     """Decide the rule's NAC clauses under `env` by DEMAND-DRIVEN NEGATION-AS-FAILURE (firmware v3):
     return True iff some `not L(bound)` clause's POSITIVE holds — i.e. the rule must NOT fire for this
-    env. Each NAC `L` is a NESTED NEGATIVE DEMAND: bind it by `env`, demand the positive `L` and run
+    match. Each NAC `L` is a NESTED NEGATIVE DEMAND: bind it by the register file, demand the positive `L` and run
     it to CLOSURE (a self-contained nested `chain_sip`, so "the positive failed" is read from L's
     COMPLETE extension — the goal-directed analog of stratifying L's producers BELOW this consumer),
     then read ABSENCE. Any matching L-fact -> the NAC fails -> block; none -> `not L` holds. NOTHING is
@@ -696,7 +694,7 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
     synchronously before resuming), so the demand-driven NAF semantics are identical. Returns the block
     verdict via the generator's return value (`yield from` surfaces it)."""
     for ns, np, no in nac_atoms:
-        neg_goal = (np, _operand(fact_g, _tok_name(env, ns)), _operand(fact_g, _tok_name(env, no)))
+        neg_goal = (np, _ptr(fact_g, st, ns), _ptr(fact_g, st, no))
         if neg_goal in neg_stack:
             return True                        # re-entry: prune the higher-stratum rule (block env)
         if neg_goal not in closed:             # MEMO: a negative's positive is closed ONCE per session.
@@ -722,14 +720,14 @@ def _head_skolems(body: list[tuple[str, str, str]],
             if is_bound_literal(t) and t not in body_toks}
 
 
-def _anchor_node(fact_g: AttrGraph, env: dict[str, str], tok: str) -> str | None:
-    """The already-bound fact-layer node a NON-skolem head endpoint denotes under `env` (an LHS-bound var
-    or a plain literal) — the ARGUMENT a skolem is a function OF. None if the token is unbound. Never mints
-    (a witness search must not create the very node it is looking for)."""
-    name = _tok_name(env, tok)
-    if name is None:
+def _anchor_node(fact_g: AttrGraph, st: State, tok: str) -> str | None:
+    """The already-bound fact-layer node a NON-skolem head endpoint denotes under the register file
+    (an LHS-bound var or a plain literal) — the ARGUMENT a skolem is a function OF. None if the token
+    is unbound. Never mints (a witness search must not create the very node it is looking for)."""
+    ep = _ptr(fact_g, st, tok)
+    if ep is None:
         return None
-    nodes = _bound_entity_nodes(fact_g, name)
+    nodes = _bound_entity_nodes(fact_g, ep)
     return nodes[0] if nodes else None
 
 
@@ -759,7 +757,7 @@ def _find_skolem_witness(fact_g: AttrGraph, sk_name: str,
 
 
 def _resolve_skolems(fact_g: AttrGraph, heads: list[tuple[str, str, str]],
-                     env: dict[str, str], skolems: set[str]) -> dict[str, str]:
+                     st: State, skolems: set[str]) -> dict[str, str]:
     """Bind each head skolem to ONE node id for this firing (shared across all its head atoms, like the
     forward path's per-firing `reg_of`): reuse the structural witness of its defining relations, or MINT a
     fresh node when none exists yet (round 1). Keyed on the LHS-bound anchors, so the SAME firing re-served
@@ -768,23 +766,24 @@ def _resolve_skolems(fact_g: AttrGraph, heads: list[tuple[str, str, str]],
     for sk in skolems:
         constraints: list[tuple[str, str, bool]] = []
         for hs, hp, ho in heads:
-            if hs == sk and ho != sk and (a := _anchor_node(fact_g, env, ho)) is not None:
+            if hs == sk and ho != sk and (a := _anchor_node(fact_g, st, ho)) is not None:
                 constraints.append((hp, a, True))
-            elif ho == sk and hs != sk and (a := _anchor_node(fact_g, env, hs)) is not None:
+            elif ho == sk and hs != sk and (a := _anchor_node(fact_g, st, hs)) is not None:
                 constraints.append((hp, a, False))
         node = _find_skolem_witness(fact_g, literal_name(sk), constraints) if constraints else None
         out[sk] = node if node is not None else fact_g.add_node(literal_name(sk))
     return out
 
 
-def _head_endpoint_id(fact_g: AttrGraph, env: dict[str, str], tok: str,
+def _head_endpoint_id(fact_g: AttrGraph, st: State, tok: str,
                       sk_ids: dict[str, str]) -> str | None:
     """The node id a head endpoint EMITs to: this firing's skolem node if `tok` is a skolem, else the
-    bound var / literal resolved to its write node (`_node_for_name`). None for an unbound non-skolem slot."""
+    bound var / literal pointer resolved to its write node (`_node_for_name` — a value-node pointer
+    writes by its value). None for an unbound non-skolem slot."""
     if tok in sk_ids:
         return sk_ids[tok]
-    name = _tok_name(env, tok)
-    return None if name is None else _node_for_name(fact_g, name)
+    ep = _ptr(fact_g, st, tok)
+    return None if ep is None else _node_for_name(fact_g, ep)
 
 
 def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
@@ -820,46 +819,44 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     value_matches = _read_value_matches(rule_g, rule_node)
     rule_key = rule_g.name(rule_node) if provenance else ""
 
-    seeds: list[dict[str, str]] = []
+    seeds: list[State] = []                                # (X): bindings live in the REGISTER FILE
     for hs, hp, ho in heads:
-        env0 = _unify_head_with_demand(fact_g, demand, hs, hp, ho)
-        if env0 is not None and env0 not in seeds:
-            seeds.append(env0)
+        st0 = _unify_head_with_demand(fact_g, demand, hs, hp, ho)
+        if st0 is not None and st0 not in seeds:
+            seeds.append(st0)
 
     fired = 0
-    for env0 in seeds:
-        envs = [env0]
-        for s_tok, bp, o_tok in _sideways_order(body, set(env0)):   # SIP: each atom demanded under env
-            nxt: list[dict[str, str]] = []
-            for env in envs:
-                # the endpoints as CARRIED (§7.2): a literal's name becomes its value-node pointer
-                # under `_VALUE_OPERANDS` (a bound var already holds a pointer); flag off = the names
-                s_ep = _operand(fact_g, _tok_name(env, s_tok))
-                o_ep = _operand(fact_g, _tok_name(env, o_tok))
+    for st0 in seeds:
+        states = [st0]
+        for s_tok, bp, o_tok in _sideways_order(body, set(st0.regs)):   # SIP: each atom demanded
+            nxt: list[State] = []                          # under the register file so far
+            for st in states:
+                s_ep = _ptr(fact_g, st, s_tok)             # the endpoints as CARRIED: node-pointers
+                o_ep = _ptr(fact_g, st, o_tok)             # (a literal -> its interned value-node)
                 mint((bp, s_ep, o_ep))
                 for fs, fo in _facts_matching(fact_g, bp, s_ep, o_ep, scope=scope,
                                               focus_scope=focus_scope):
-                    e1 = _bind(fact_g, env, s_tok, fs)
-                    if e1 is None:
+                    st1 = _bind_state(fact_g, st, s_tok, fs)
+                    if st1 is None:
                         continue
-                    e2 = _bind(fact_g, e1, o_tok, fo)
-                    if e2 is not None:
-                        nxt.append(e2)
-            envs = nxt
-        for env in envs:                                   # EMIT every head atom per full match
-            if graded and not _graded_ok(fact_g, graded, env):             # α-cut DURING matching
+                    st2 = _bind_state(fact_g, st1, o_tok, fo)
+                    if st2 is not None:
+                        nxt.append(st2)
+            states = nxt
+        for st in states:                                  # EMIT every head atom per full match
+            if graded and not _grades_pass(fact_g, graded, st):           # α-cut: ephemeral GRADE prog
                 continue
-            if value_matches and not _value_matches_ok(fact_g, value_matches, env):   # declared value-JOIN
+            if value_matches and not _vmatches_pass(fact_g, value_matches, st):   # ephemeral VMATCH prog
                 continue
-            if nac and (yield from _nac_blocks(fact_g, rule_g, nac, env, scope=scope,   # NAF: absence
+            if nac and (yield from _nac_blocks(fact_g, rule_g, nac, st, scope=scope,    # NAF: absence
                                                focus_scope=focus_scope,                 # decides — the
                                                provenance=provenance, neg_stack=neg_stack,  # subgoal is
                                                fuel=fuel, max_rounds=max_rounds, closed=closed)):  # a yield
                 continue
-            sk_ids = _resolve_skolems(fact_g, heads, env, skolems) if skolems else {}
+            sk_ids = _resolve_skolems(fact_g, heads, st, skolems) if skolems else {}
             for hs, hp, ho in heads:
-                s_id = _head_endpoint_id(fact_g, env, hs, sk_ids)
-                o_id = _head_endpoint_id(fact_g, env, ho, sk_ids)
+                s_id = _head_endpoint_id(fact_g, st, hs, sk_ids)
+                o_id = _head_endpoint_id(fact_g, st, ho, sk_ids)
                 if s_id is None or o_id is None:           # unbound non-skolem head slot — out of slice
                     continue
                 if not _fact_exists(fact_g, s_id, hp, o_id, scope=scope):
@@ -870,8 +867,8 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                     fired += 1
                     if provenance:                         # RECORD (mode 9): journal the firing
                         _record(fact_g, rule_key, head_node,
-                                [_find_fact_relnode(fact_g, _node_for_name(fact_g, _tok_name(env, bs)),
-                                                    bp2, _node_for_name(fact_g, _tok_name(env, bo)),
+                                [_find_fact_relnode(fact_g, _node_for_name(fact_g, _ptr(fact_g, st, bs)),
+                                                    bp2, _node_for_name(fact_g, _ptr(fact_g, st, bo)),
                                                     scope=scope)
                                  for bs, bp2, bo in body])
     return fired

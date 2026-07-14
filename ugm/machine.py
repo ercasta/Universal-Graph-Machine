@@ -63,6 +63,9 @@ class ProgramError(Exception):
     """A malformed program (e.g. a matching opcode after an effect opcode)."""
 
 
+_MISSING = object()   # "no value carried" sentinel (distinct from a carried None) for `_first_valued`
+
+
 class ControlEdgeError(Exception):
     """DROP_CTRL was pointed at a FACT edge. The invariant made an error, not a deletion:
     reasoning never deletes a fact edge (vision.md §5) — there is no opcode for it."""
@@ -155,11 +158,15 @@ class FOLLOW(Instr):
 @dataclass
 class TEST(Instr):
     """Crisp filter: the node in `reg` must carry `key` (and, if `cmp` given, satisfy the
-    valued comparison). No score change."""
+    valued comparison). No score change. `absent=True` INVERTS to a TEST-ABSENT — keep the
+    state iff the node does NOT carry `key`: the fact-read attribute guard primitive
+    (firmware §3/A5), emitted by the lowering compiler so a read never binds control/inert
+    scaffolding — an ordinary attribute test, never a privileged matcher skip."""
     reg: str
     key: str
     cmp: str | None = None
     value: object = None
+    absent: bool = False
 
 
 @dataclass
@@ -242,11 +249,23 @@ class ITERATE(Instr):
 
 
 @dataclass
+class MEMBER(Instr):
+    """Register-pointed LIVE-SET restriction (firmware §5/A5 — bounded attention as MECHANISM):
+    keep the state iff the live-set register `live` (a key in `AttrGraph.registers`, the control-
+    register file) is absent/None — no restriction — or ANY of `regs`' bound nodes has its NAME in
+    the set. Set CONTENTS are driver POLICY (a focus frame's working set); this membership test is
+    the machine mechanism — the first op of the §5 focus/scope live-set unification. The any-of
+    disjunction is the focus semantic: a fact is in attention iff it TOUCHES the working set."""
+    regs: tuple[str, ...]
+    live: str
+
+
+@dataclass
 class VMATCH(Instr):
     """Value-JOIN filter: keep the state iff two ALREADY-bound registers carry MATCHING values on
-    `key` — the TWO-register sibling of GRADE (which tests one register), and the forward-engine
-    counterpart of the demand chain's `chain._value_matches_ok` (the DECLARED value-JOIN of a
-    `ValueMatch`, coreference-as-rules Stage 1/4). Unlike SAME (which needs the same NODE), VMATCH
+    `key` — the TWO-register sibling of GRADE (which tests one register). The ONE op both engines run
+    for a declared `ValueMatch` (coreference-as-rules Stage 1/4): the forward path lowers to it, and
+    the demand chain runs it as an ephemeral program (`chain._vmatches_pass`, (X)). Unlike SAME (which needs the same NODE), VMATCH
     relates DISTINCT nodes that agree on a value — the join the path language cannot otherwise express.
     Exact mode (`threshold` None): both carry EQUAL VALUED `key` values (e.g. the same `name`). Graded
     mode (`threshold` given): both carry a GRADED `key` degree and `1 - |da - db| >= threshold`. A
@@ -394,20 +413,17 @@ class Machine:
         # skip inert. Without it, a `uses`->fact provenance edge is walked as if it were a fact edge
         # (e.g. `?s first if?` binding `?s` to the `uses` node that justified the `first` relation).
         self.skip_inert = skip_inert
-        self._inert_cache: dict[str, bool] = {}
 
     # --- matching transitions (state -> zero-or-more states) ---------------
 
     def _inert(self, g: AttrGraph, nid: str) -> bool:
         # Called ONLY when `skip_inert` is on (guarded by `self.skip_inert and ...` at each call site,
         # so the OFF path pays nothing — not even this call). Phase 2.2: the node's dedicated
-        # `inert` flag (set at every provenance mint site), not a name-string sniff — a node's
-        # inertness is fixed for the run, so the verdict is still memoizable per nid.
-        c = self._inert_cache.get(nid)
-        if c is None:
-            c = g.node(nid).inert
-            self._inert_cache[nid] = c
-        return c
+        # `inert` flag (set at every provenance mint site), not a name-string sniff. A per-machine
+        # memo keyed by nid was REMOVED (pystrider feedback #10, cold==warm): nids collide ACROSS
+        # graphs (every graph mints n0, n1, …), so a machine shared over two graphs would serve one
+        # graph's verdict to the other — and the memo saved nothing over this direct field read.
+        return g.node(nid).inert
 
     def _match_step(self, g: AttrGraph, ins: Instr, st: State) -> Iterator[State]:
         if isinstance(ins, SET):
@@ -453,7 +469,14 @@ class Machine:
                 yield st.bind(ins.dst, nid)
         elif isinstance(ins, TEST):
             nid = st.regs[ins.reg]
-            if g.has_key(nid, ins.key) and self._valued_ok(g, nid, ins.key, ins.cmp, ins.value):
+            if ins.absent:                               # the fact-read attribute guard (test-absent)
+                if not g.has_key(nid, ins.key):
+                    yield st
+            elif g.has_key(nid, ins.key) and self._valued_ok(g, nid, ins.key, ins.cmp, ins.value):
+                yield st
+        elif isinstance(ins, MEMBER):
+            live = g.registers.get(ins.live)
+            if live is None or any(g.name(st.regs[r]) in live for r in ins.regs):
                 yield st
         elif isinstance(ins, JOIN):
             src = st.regs[ins.src]
@@ -468,35 +491,77 @@ class Machine:
                         continue
                 yield st.bind(ins.dst, nid)
         elif isinstance(ins, GRADE):
-            nid = st.regs[ins.reg]
-            attr = g.get_attr(nid, ins.key)
-            if attr is None:
-                return
-            if ins.threshold is not None:                # graded alpha-cut
-                if attr.kind != GRADED:
-                    return
-                deg = float(attr.value)
+            # ISA VALUE OPERANDS (docs/isa_value_operands_design.md §1/§3): the register may hold a
+            # VALUE-NODE, whose denotation is the coref class of same-named entities — the instruction
+            # interprets it, aggregating max-over-mentions (graded) / first-carried-value (valued),
+            # exactly the demand chain's α-cut semantics (`chain._grades_pass` runs THIS op). An
+            # entity register denotes itself, so
+            # the single-node behaviour is unchanged (the forward path never binds value-nodes today).
+            cands = self._operand_nodes(g, st.regs[ins.reg])
+            if ins.threshold is not None:                # graded alpha-cut (max over the denotation)
+                deg = self._max_graded(g, cands, ins.key)
                 if deg >= ins.threshold and deg > 0.0:
                     yield st.scaled(deg, self.tnorm)
-            elif ins.cmp is not None:                    # valued comparison
-                if attr.kind == VALUED and _cmp(attr.value, ins.cmp, ins.value):
+            elif ins.cmp is not None:                    # valued comparison (first carried value)
+                val = self._first_valued(g, cands, ins.key)
+                if val is not _MISSING and _cmp(val, ins.cmp, ins.value):
                     yield st
             else:
                 raise ProgramError("GRADE needs either a graded threshold or a valued cmp")
         elif isinstance(ins, VMATCH):
-            aa = g.get_attr(st.regs[ins.a], ins.key)
-            bb = g.get_attr(st.regs[ins.b], ins.key)
-            if aa is None or bb is None:
-                return
+            ca = self._operand_nodes(g, st.regs[ins.a])
+            cb = self._operand_nodes(g, st.regs[ins.b])
             if ins.threshold is None:                    # exact VALUED equality
-                if aa.kind == VALUED and bb.kind == VALUED and aa.value == bb.value:
+                va = self._first_valued(g, ca, ins.key)
+                vb = self._first_valued(g, cb, ins.key)
+                if va is not _MISSING and vb is not _MISSING and va == vb:
                     yield st
             else:                                        # graded 'close enough'
-                if (aa.kind == GRADED and bb.kind == GRADED
-                        and (1.0 - abs(float(aa.value) - float(bb.value))) >= ins.threshold):
+                da = self._graded_or_none(g, ca, ins.key)
+                db = self._graded_or_none(g, cb, ins.key)
+                if da is not None and db is not None and (1.0 - abs(da - db)) >= ins.threshold:
                     yield st
         else:
             raise ProgramError(f"{type(ins).__name__} is an effect opcode in the match phase")
+
+    def _operand_nodes(self, g: AttrGraph, nid: str) -> tuple[str, ...]:
+        """The fact-layer node(s) a register's node DENOTES (docs/isa_value_operands_design.md): a
+        VALUE-NODE (carries `<isa_operand_value>`) denotes the entities NAMED its value — the coref-
+        class aggregate the carried name refers to, control/inert scaffolding skipped; any other node
+        denotes itself. Resolution lives INSIDE the instruction (§3), never in the substrate."""
+        v = g.operand_value(nid)
+        if v is None:
+            return (nid,)
+        return tuple(n for n in g.nodes_named(v) if not (g.is_control(n) or g.is_inert(n)))
+
+    def _first_valued(self, g: AttrGraph, cands: tuple[str, ...], key: str) -> object:
+        """The first VALUED `key` value carried across a denotation (`_MISSING` when none carries it —
+        distinct from a carried None value). The demand chain's `valued_of` aggregation."""
+        for n in cands:
+            a = g.get_attr(n, key)
+            if a is not None and a.kind == VALUED:
+                return a.value
+        return _MISSING
+
+    def _max_graded(self, g: AttrGraph, cands: tuple[str, ...], key: str) -> float:
+        """Max GRADED `key` degree over a denotation, 0.0 when absent (GRADE's `deg > 0` guard then
+        fails). The demand chain's max-over-mentions aggregation, now inside the instruction."""
+        deg = 0.0
+        for n in cands:
+            a = g.get_attr(n, key)
+            if a is not None and a.kind == GRADED:
+                deg = max(deg, float(a.value))
+        return deg
+
+    def _graded_or_none(self, g: AttrGraph, cands: tuple[str, ...], key: str) -> float | None:
+        """Like `_max_graded` but None when NO candidate carries a GRADED `key` — VMATCH must
+        distinguish ABSENT (unevaluable join -> fail) from a present 0.0 degree (evaluable)."""
+        deg: float | None = None
+        for n in cands:
+            a = g.get_attr(n, key)
+            if a is not None and a.kind == GRADED:
+                deg = float(a.value) if deg is None else max(deg, float(a.value))
+        return deg
 
     def _valued_ok(self, g: AttrGraph, nid: str, key: str, cmp: str | None, value: object) -> bool:
         if cmp is None:

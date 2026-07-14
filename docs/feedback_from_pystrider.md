@@ -328,6 +328,53 @@ minimum, the docstring should note that this call *runs the bank*, so consumers 
 reuse rather than reload per query. (Not a blocker — the one-line memoization on our side fixed it —
 but it's a footgun for any library consumer that treats rule-loading as cheap.)
 
+> **APPEARS RESOLVED (2026-07-14), concurrent ugm work.** The cold path below now works with no prime;
+> the `import pystrider` workaround was removed and the pystrider suite is green (194) without it. Kept as
+> a fingerprint in case it recurs. It was never minimizable to a standalone repro (see below), so this is
+> a record + confirmation, not an open bug.
+>
+> **DIAGNOSED + HARDENED (2026-07-14).** The fingerprint matches EDITABLE-INSTALL VERSION SKEW during the
+> concurrent (X) migration: `env` was being converted to the machine's `State` register file that same day,
+> and an import that landed mid-edit could pair the NEW `_unify_head_with_demand` (returns a `State`) with
+> STALE bytecode for `_solve_demand_rule` (still `set(env0)`) — exactly this traceback, import-order
+> sensitive, impossible to reproduce against a coherent tree. Both asks are now satisfied structurally:
+> (a) the dict/State seam no longer exists — bindings are `State.regs` end-to-end, and `set(env0)` is gone
+> (`_sideways_order(body, set(st0.regs))`); (b) the one genuinely order-sensitive global in the demand path
+> was found and REMOVED — `Machine._inert_cache`, a per-machine inertness memo keyed by nid alone, which a
+> machine shared across graphs could poison (nids collide across graphs: every graph mints `n0, n1, …`).
+> No demand-path global now depends on prior imports/queries; cold == warm.
+
+## 10. `ask_goal` raised `TypeError: 'State' object is not iterable` on a COLD ugm import — order-sensitive, un-minimizable
+
+Collected while building the **app-synthesis** probe (`experiments/app_synthesis.py`, the grammapy-
+convergence Phase 2). Removing an incidental `from pystrider.emit import …` line (retiring an ad-hoc
+selector) made a previously-green `ask_goal` start raising:
+
+```
+File ".../ugm/chain.py", line 811, in _solve_demand_rule
+    for s_tok, bp, o_tok in _sideways_order(body, set(env0)):   # SIP: each atom demanded under env
+                                                  ~~~^^^^^^
+TypeError: 'State' object is not iterable
+```
+
+i.e. `env0` (from `_unify_head_with_demand`) was a `State`, not the `dict` `set(env0)` expects. The
+failing goal (`who needed_by <spec>`) is a plain multi-atom join with **no negation**, so it was not a
+stratified-negation issue.
+
+**What localized it: an import-order dependency, not the query.** The exact same call *did not* raise if
+`pystrider.analysis`/`semantics` (which imports `ugm` and builds a rule bank) had been imported first —
+so some ugm global that the analysis import primes was load-bearing. Phase 1 got that prime for free via
+`pystrider.emit`; Phase 2 dropped it and exposed the raw path.
+
+**Why there is no minimal repro.** Every standalone reconstruction — the same fact set + the same 5-rule
+bank (incl. the `not …` preference rules), built inline against a fresh `ugm` — ran **clean cold**. The
+fault only surfaced through the full `experiments/app_synthesis` import chain, so it was sensitive to
+some accumulated import/global state I could not isolate before the concurrent ugm change made it
+disappear. **Ask (if it recurs):** `_solve_demand_rule` should assert/normalize `env0` to a mapping (or
+fail with a message naming the rule) rather than iterating a `State`, and the demand path should not
+depend on a prior unrelated import having warmed a global — a cold `ask_goal` should behave identically
+to a warm one.
+
 ---
 
 ### Net

@@ -129,7 +129,8 @@ blocks exist). Value: uniformity. Sequenced AFTER (X)'s work (else the `PRIM` ju
 Full de-privileging touches many modules (machine, attrgraph, apply, provenance, retraction, run_bank). We
 lock the PRINCIPLE and move (X) already in the target shape, rather than rip out flags globally first:
 
-0. **ISA value operands as regular nodes** (`docs/isa_value_operands_design.md`) — the SUBSTRATE ENABLER that
+0. **[BUILT 2026-07-14, swapped structural — see the rollout log in its doc]**
+   **ISA value operands as regular nodes** (`docs/isa_value_operands_design.md`) — the SUBSTRATE ENABLER that
    lands BEFORE (X). A demand endpoint NAME cannot cleanly become a register binding, because a name is a
    reference to a coref class (over which operations aggregate), not a single node. Resolution (user's design):
    a register holds only a NODE-POINTER; a value like `ada` is a REGULAR node carrying `<isa_operand_value>=
@@ -143,6 +144,24 @@ lock the PRINCIPLE and move (X) already in the target shape, rather than rip out
    not a privileged matcher skip) + live-set membership; `env`→`State.regs` (on the step-0 pointer model);
    `GRADE`/`VMATCH` for thresholds; interleaving kept; differential-gated (the `_CROSSCHECK` harness). This
    lands the design in the target shape WITHOUT needing the migrations first.
+   **[LARGELY BUILT 2026-07-14]** Landed: the A1 production swap (`_facts_matching` = the shared ISA
+   matcher's `SET`/`FOLLOW` program; the bespoke walk is only the `_CROSSCHECK` oracle now);
+   `env`→`State.regs` (bindings are the machine's register file, `_ptr`/`_bind_state`); thresholds as
+   EPHEMERAL `GRADE`/`VMATCH` programs, with coref-class aggregation inside the instructions
+   (`Machine._operand_nodes`); interleaving + NAC control-stack untouched; `_graded_ok`/
+   `_value_matches_ok`/`_bind`/`_tok_name` deleted. Suite 408 green. STILL OPEN from this step: the
+   visibility filters (`_rel_matches_pred`, control/inert endpoint skips, focus `keep()`) are Python
+   POST-filters on the matched states, not compiler-emitted guard ops in the program — that is the §3
+   guard work, folded into step 2/3 (live-sets + de-privileged markers give it its vocabulary).
+   **[GUARDS IN-PROGRAM 2026-07-14 — the remainder landed]** The read is now a SELF-CONTAINED program:
+   control/inert are dual-written as MARKER ATTRIBUTES (`CONTROL_MARK`/`INERT_MARK`, lockstep with the
+   legacy flags at the `add_node`/`set_control`/`set_inert` chokepoints — the §3 transitional form) and
+   the §3 guard is compiler-emitted `TEST(..., absent=True)` ops; a bound second endpoint is in-program
+   (`TEST` on NAME / `SET`+`SAME` for a pin); focus is the register-pointed `MEMBER` live-set op (§5 —
+   contents in `AttrGraph.registers["<focus>"]` = policy, the membership test = mechanism). New A5
+   primitives: TEST-absent, MEMBER. The ONE Python post-filter left is the SUPPOSE scope-pencil
+   disjunction (`pencil_ok`) — §8's "scope pencils → register-pointed scope overlay". Also removed:
+   `Machine._inert_cache` (nid-keyed across graphs — a cold≠warm hazard, pystrider #10). Suite 419.
 2. **Live-set mechanism** (register-pointed) → migrate **focus** onto it (already a register), then **scope
    pencils** onto a scope overlay.
 3. **De-privilege the markers** — `inert`/`control` flags → plain attributes; `<mention>` → attribute /

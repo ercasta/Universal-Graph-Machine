@@ -61,6 +61,16 @@ CONF = "confidence"
 # (`nodes_named` never returns it; no relation reader ever reaches it).
 ISA_OPERAND_VALUE = "<isa_operand_value>"
 
+# MARKER ATTRIBUTES (docs/firmware_over_isa_design.md §3 — de-privileging the kind-flags): a node's
+# control/inert-ness lives BOTH as the legacy dataclass flag AND as an ordinary graded attribute,
+# dual-written IN LOCKSTEP at the mint/set chokepoints below. The attributes are what a fact-read
+# guard TESTs (a compiler-emitted `TEST(..., absent=True)` op in the read program — uniform, never a
+# per-rule burden, never a privileged matcher skip); the flags remain until every reader has flipped
+# (§7 step 3), at which point they retire. Engine bookkeeping, not domain vocabulary — written
+# through `_set_marker`, which bypasses the closed schema.
+CONTROL_MARK = "<control>"
+INERT_MARK = "<inert>"
+
 # Provenance / withdrawal node names the 2-hop relation reader and locality traversal treat as
 # INERT (ported verbatim from world_model so `relations_from`/`within` behave identically during the
 # re-host; a later slice moves inertness onto the `control` flag per the audits).
@@ -264,6 +274,18 @@ class AttrGraph:
                 self.set_attr(ident, dim, graded(v))
             if confidence != 1.0:
                 self.set_attr(ident, CONF, valued(float(confidence)))
+        # MARKER LOCKSTEP (firmware §3): flags and marker attributes may never diverge. A marker
+        # arriving IN an attrs dict (copy/absorb/deserialize) restores its flag; a flag set by any
+        # path above (param, `<…>` auto-promote) writes its marker. This is the mint chokepoint —
+        # every relation/provenance/control mint routes through here.
+        if CONTROL_MARK in node.attrs:
+            node.control = True
+        if INERT_MARK in node.attrs:
+            node.inert = True
+        if node.control:
+            self._set_marker(ident, CONTROL_MARK)
+        if node.inert:
+            self._set_marker(ident, INERT_MARK)
         return ident
 
     def has(self, nid: str) -> bool:
@@ -281,8 +303,10 @@ class AttrGraph:
     def set_control(self, nid: str, flag: bool = True) -> None:
         """Mark a node CONTROL-layer (or clear it). A control node is invisible to fact
         matching (vision §5) — used to demote ephemeral scaffolding a rule materialized
-        (e.g. a recognition NAC completion) so it can never be read as a reasoning fact."""
+        (e.g. a recognition NAC completion) so it can never be read as a reasoning fact.
+        Dual-writes the `<control>` marker attribute (firmware §3 lockstep)."""
         self._nodes[nid].control = flag
+        (self._set_marker if flag else self._clear_marker)(nid, CONTROL_MARK)
 
     def is_inert(self, nid: str) -> bool:
         return self._nodes[nid].inert
@@ -292,12 +316,35 @@ class AttrGraph:
         DISTINCT from `set_control`: an inert node is invisible to ORDINARY fact matching
         (`Machine.skip_inert`), whereas a control node stays matchable (only DROP_CTRL treats it
         differently) — provenance bookkeeping must vanish from reasoning, a control-relation like
-        the planner's `chosen` must not."""
+        the planner's `chosen` must not. Dual-writes the `<inert>` marker (firmware §3 lockstep)."""
         self._nodes[nid].inert = flag
+        (self._set_marker if flag else self._clear_marker)(nid, INERT_MARK)
 
     # ------------------------------------------------------------------
     # Attributes
     # ------------------------------------------------------------------
+
+    def _set_marker(self, nid: str, key: str) -> None:
+        """Write a `<control>`/`<inert>` MARKER attribute (graded 1.0), bypassing the closed schema —
+        markers are engine bookkeeping, not domain vocabulary (see the constants' note). Keeps the
+        key index in sync; idempotent."""
+        node = self._nodes[nid]
+        if key not in node.attrs:
+            node.attrs[key] = graded(1.0)
+            self._by_key.setdefault(key, set()).add(nid)
+            self._version += 1
+
+    def _clear_marker(self, nid: str, key: str) -> None:
+        """Remove a marker attribute (the flag's False write), keeping the key index in sync."""
+        node = self._nodes[nid]
+        if key in node.attrs:
+            del node.attrs[key]
+            bucket = self._by_key.get(key)
+            if bucket is not None:
+                bucket.discard(nid)
+                if not bucket:
+                    del self._by_key[key]
+            self._version += 1
 
     def set_attr(self, nid: str, key: str, attr: Attr) -> None:
         """Write `key -> attr` on a node. Off-schema keys raise (closed keys)."""
@@ -537,9 +584,12 @@ class AttrGraph:
         return result
 
     def set_embedding(self, nid: str, embedding: dict[str, float]) -> None:
-        """Replace the node's embedding: each dim -> a GRADED attr. Clears prior graded dims."""
+        """Replace the node's embedding: each dim -> a GRADED attr. Clears prior graded dims —
+        sparing reserved `<…>` keys (control tokens, the firmware-§3 markers), which the `embedding`
+        view already excludes: they are not embedding dimensions and must survive a re-embed."""
         for key in [k for k, a in list(self._nodes[nid].attrs.items())
-                    if a.kind == GRADED and k != CONF]:
+                    if a.kind == GRADED and k != CONF
+                    and not (k.startswith("<") and k.endswith(">"))]:
             del self._nodes[nid].attrs[key]
             b = self._by_key.get(key)
             if b is not None:

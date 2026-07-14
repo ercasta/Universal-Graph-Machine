@@ -129,6 +129,15 @@ not graph). Those STAY scalars for now. Only DATA values become value-nodes. Mak
    relation-free after runs). Suite 407 green; flag-off path proven byte-identical under fixed hash seeds.
 3. **Then (X):** `env`→`State.regs` on the now-uniform pointer register model; the demand read/body a program;
    `GRADE`/`VMATCH` for thresholds; interleaving kept.
+   **BUILT 2026-07-14** (with the step-2 swap ratified the same day, making the pointer model STRUCTURAL —
+   the flag and the name path are retired): per-derivation bindings are `State.regs` (var → node id;
+   `chain._ptr`/`_bind_state` replace `_tok_name`/`_bind`); the α-cut and value-join run as EPHEMERAL
+   `GRADE`/`VMATCH` programs on the shared machine (`_grades_pass`/`_vmatches_pass` replace
+   `_graded_ok`/`_value_matches_ok`), with the coref-class aggregation moved INSIDE the instructions
+   (`Machine._operand_nodes`: a value-node register denotes the entities named its value — §1's
+   "instructions interpret value-nodes", landed). The A1 production swap also ratified: `_facts_matching`
+   runs the shared ISA matcher; the bespoke walk survives only as the `_CROSSCHECK` oracle. Interleaving
+   (per-atom sub-demands, NAC generator/control-stack) untouched. Suite 408 green.
 4. **Later:** progressive generalization (§6); revisit the `NAME` accelerator; counters-as-nodes (§5).
 
 ## 8. Open / deferred
