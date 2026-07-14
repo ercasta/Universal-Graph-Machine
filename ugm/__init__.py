@@ -51,8 +51,8 @@ from .retraction import (
     record_rejection, is_rejected,
 )
 from .dispatch import (
-    CALL, TOOL, Tool, emit_call, call_tool, call_arg, call_args, pending_calls, consume_call,
-    service_calls, merge_tools,
+    CALL, TOOL, Tool, AsyncTool, emit_call, call_tool, call_arg, call_args, pending_calls, consume_call,
+    service_calls, service_calls_cm, merge_tools,
 )
 from .policy import FirmwarePolicy, DEFAULT_POLICY
 from .mode_calls import (
@@ -152,8 +152,8 @@ __all__ = [
     "CWA", "COPULA", "NEG_COPULA", "NEG_SUFFIX", "IS_A", "IS_A_NOT", "SAME_AS", "DISJOINT",
     "CLOSES", "REL_PROPERTY", "TRANSITIVE", "EVERY_IS_A", "IS_UNIQUE", "TARGET", "TYPE",
     "SUBSTRATE_COREF_PREDS", "neg_pred", "is_neg_pred",
-    "CALL", "TOOL", "Tool", "emit_call", "call_tool", "call_arg", "call_args", "pending_calls",
-    "consume_call", "service_calls", "merge_tools",
+    "CALL", "TOOL", "Tool", "AsyncTool", "emit_call", "call_tool", "call_arg", "call_args",
+    "pending_calls", "consume_call", "service_calls", "service_calls_cm", "merge_tools",
     "FirmwarePolicy", "DEFAULT_POLICY",
     "ingest", "converse", "Outcome", "Event", "intake", "focus", "rule_control",
     "check_tool", "choose_tool", "suppose_tool", "mode_registry", "service_modes",

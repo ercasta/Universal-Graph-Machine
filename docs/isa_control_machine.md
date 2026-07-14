@@ -25,15 +25,13 @@
 > (§9.3): the NAC subgoal descent is de-recursed onto an explicit control stack (generator-based, the
 > yield = the CALL, the driver stack = the control stack), behaviour-identical (whole reasoning suite
 > the oracle), proven by a 601-deep NAF stratification that runs under a recursion limit of 200. Suite:
-> **379 passed** (355 baseline + 23 control-machine + 1 deep-stratification). **Brick #5 (run_bank
-> fixpoint) is now DONE** (§9.5): the `for _ in range(max_rounds)` driver loop is a control-machine
-> program (round-counter for-guard + a `PRIM` collect-then-apply round + branch-back over a `changed?`
-> flag + a final drop-GC `PRIM`); `run_bank` assembles + runs it, behaviour-identical (suite 379 green,
-> the recognition/planning banks are the oracle). **Only §9.4 (dispatch) remains, and its concrete part
-> is already realized:** `service_calls` runs under the control-machine fixpoint (run_bank's round PRIM).
-> Its SUSPEND/RESUME "waiting tool" form (async / ask_user) has NO current consumer — the mechanism is
-> built (brick #4) and ready for the intake/streaming work, but wiring it now would be speculative
-> machinery with no differential oracle. So the DRIVER-PORT arc is effectively complete.
+> **ALL SLICES DONE (2026-07-14): the arc is complete.** #5 (run_bank fixpoint → control-machine program:
+> round-counter for-guard + a `PRIM` collect-then-apply round + branch-back over a `changed?` flag + a
+> final drop-GC `PRIM`) and #4-slice (dispatch → a control-machine program; sync inline, async via
+> `SUSPEND`/`RESUME` with a simulated `AsyncTool` exercising suspend→host-answers→resume→fold end-to-end).
+> Every Python control driver named in §1 (`ITERATE`'s hidden `for`, `chain_sip`'s recursion, `run_bank`'s
+> fixpoint, `dispatch`'s loop) now runs as control-machine instructions; the seam is closed and the async
+> tool wait — the last piece with no prior consumer — has one. Suite: **385 passed** (355 baseline + 30).
 >
 > **Prerequisite reading:** `ugm/machine.py` (the match-then-apply interpreter + its docstring's
 > "reference vs optimized" note), `ugm/chain.py` (`chain_sip` — subgoals as Python recursion),
@@ -268,15 +266,19 @@ Rust story (§7); the *curve* is held by this section, unchanged. Both levers, k
    descent, ~4 frames/stratum, would `RecursionError`). This realizes the continuation via Python
    generators — the yield IS the `CALL`, the driver stack IS the control stack; a machine-level
    `SUSPEND`/`RESUME` (brick #4 mechanism) is the same shape one level down.
-4. ⏳ **Port `dispatch` (`<call>`) onto `CALL` + `SUSPEND`/`RESUME`** — retiring the `<call>` control node
-   (its record stays; its mechanics become instructions). *(PARTIAL 2026-07-14.)* The SYNCHRONOUS part is
-   already realized: `service_calls` runs inside the control-machine fixpoint (brick #5's round `PRIM`
-   services pending `<call>`s at rule-quiescence). The `<call>` RECORD stays a graph node (§6 — a rule
-   materializes it; it explains what was requested). The remaining SUSPEND/RESUME "return/resume" form is
-   for a WAITING tool (an async tool / `ask_user` — the streaming suspend/resume the intake design wants);
-   the mechanism is built (brick #4) but has NO current consumer, so wiring it now would be speculative
-   with no differential oracle. Deferred to the intake/streaming work, which supplies the async-tool
-   consumer that justifies it.
+4. ✅ **Port `dispatch` (`<call>`) onto `CALL` + `SUSPEND`/`RESUME`.** *(BUILT 2026-07-14, `ugm/dispatch.py`
+   + `tests/test_isa_dispatch_async.py`.)* The dispatcher is now a control-machine PROGRAM
+   (`_dispatch_program`/`service_calls_cm`): a `find_next` `PRIM` branches on call KIND (none/sync/async),
+   a sync tool runs inline (a `PRIM` reusing the `service_calls` helpers) and branches back, an ASYNC tool
+   computes its request, `SUSPEND`s (handing it to the host), and on resume folds the response and branches
+   back. Two host protocols: an `answer` callback drives the suspend/resume loop internally, or (omitted)
+   the dispatcher returns a `Continuation` on the first async call so the CALLER owns the wait — the true
+   streaming boundary. A simulated async tool (`AsyncTool`, a `request`/`fold` pair around the `SUSPEND`)
+   exercises it end-to-end: suspend → host answers → resume → fold, incl. mixed sync+async batches and a
+   fold that spawns a downstream call (serviced by the re-scan loop). The `<call>` RECORD stays a graph
+   node (§6); only the return/resume mechanics became instructions. `service_calls` (the flat loop) stays
+   as `run_bank`'s in-fixpoint sync servicing; `service_calls_cm`'s sync path is differential-tested to
+   match it.
 5. ✅ **Port `run_bank`'s fixpoint** onto the control machine. *(BUILT 2026-07-14, `ugm/lowering.py`.)*
    The Python `for _ in range(max_rounds)` driver loop is now a control-machine program: a round-counter
    (the `for` bound), a for-guard `BRANCH_IF`, a ROUND block whose `PRIM` runs one collect-then-apply

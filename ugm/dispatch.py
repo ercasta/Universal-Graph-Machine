@@ -29,6 +29,7 @@ discipline, lifted into the engine loop and given a uniform call shape.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable
 
 from .world_model import Graph
@@ -38,6 +39,21 @@ TOOL = "tool"
 
 # A tool: reads its call's slots, emits nodes, returns the touched node ids.
 Tool = Callable[[Graph, str], "set[str]"]
+
+
+@dataclass
+class AsyncTool:
+    """A tool that CANNOT answer synchronously — it needs the outside world (a network round-trip, an
+    `ask_user` prompt). Two halves around a `SUSPEND` (docs/isa_control_machine.md §9.4):
+      * `request(graph, call_id) -> payload` — what the world must answer (an opaque payload the host
+        services); computed from the call's argument slots (the §1/§8 calculator discipline).
+      * `fold(graph, call_id, response) -> set[str]` — apply the world's answer as result/control nodes
+        and return the touched ids (exactly a sync `Tool`'s return).
+    The control-machine dispatcher SUSPENDs between the two: it hands the request to the host, the host
+    does the wait, and `resume` folds the response — the streaming suspend/resume the intake design wants.
+    The `<call>` RECORD stays a graph node (§6); only the return/resume MECHANICS are control instructions."""
+    request: Callable[[Graph, str], object]
+    fold: Callable[[Graph, str, object], "set[str]"]
 
 
 def merge_tools(*registries: dict[str, Tool]) -> dict[str, Tool]:
@@ -128,3 +144,98 @@ def service_calls(graph: Graph, registry: dict[str, Tool]) -> set[str]:
         if graph.has(c):                             # auto-consume (handler needn't)
             consume_call(graph, c)
     return touched
+
+
+# ---------------------------------------------------------------------------
+# The dispatcher AS A CONTROL-MACHINE PROGRAM (docs/isa_control_machine.md §9.4)
+# ---------------------------------------------------------------------------
+#
+# The §9.4 port: the `<call>` servicing MECHANICS become control instructions. `service_calls` above is
+# the flat synchronous loop (still used by `run_bank`'s in-fixpoint tool servicing). This dispatcher
+# runs the same servicing as a control-machine PROGRAM, and — the piece the flat loop cannot express —
+# handles an ASYNC tool by SUSPENDing to the host and RESUMing with the answer. Sync tools run inline
+# (a `PRIM` step reusing the helpers above); async tools are a `SUSPEND` return/resume pair. The `<call>`
+# RECORD stays a graph node (a rule materializes it); only the return/resume mechanics moved (§6).
+
+
+def _dispatch_program(graph: Graph, sync_tools: dict[str, Tool],
+                      async_tools: dict[str, AsyncTool]) -> list:
+    """Build the control-machine program that services every pending `<call>`: find the next serviceable
+    call and branch on its KIND (none/sync/async); a sync tool runs inline and loops; an async tool
+    computes its request, SUSPENDs (handing it to the host), and on resume folds the response and loops."""
+    from .machine import Block, PRIM, SUSPEND, BRANCH, BRANCH_IF, HALT
+
+    def _touch(ctrl, res):
+        ctrl.setdefault("touched", set()).update(res or ())
+
+    def find_next(g, stream, ctrl):
+        # the next pending call with a REGISTERED tool; stash (call_id, tool, is_async) and report KIND
+        # (0 none / 1 sync / 2 async). Loops re-scan, so a call a handler CREATED is serviced too.
+        for c in pending_calls(g):
+            if not g.has(c):
+                continue
+            name = call_tool(g, c)
+            if name in sync_tools:
+                ctrl["call_id"], ctrl["tool"] = c, name
+                return stream, 1
+            if name in async_tools:
+                ctrl["call_id"], ctrl["tool"] = c, name
+                return stream, 2
+        return stream, 0
+
+    def run_sync(g, stream, ctrl):
+        c, name = ctrl["call_id"], ctrl["tool"]
+        _touch(ctrl, sync_tools[name](g, c))
+        if g.has(c):
+            consume_call(g, c)
+        return stream, 0
+
+    def make_request(g, stream, ctrl):
+        c, name = ctrl["call_id"], ctrl["tool"]
+        ctrl["req"] = (name, c, async_tools[name].request(g, c))    # the payload the host services
+        return stream, 0
+
+    def fold_response(g, stream, ctrl):
+        c, name = ctrl["call_id"], ctrl["tool"]
+        _touch(ctrl, async_tools[name].fold(g, c, ctrl.get("response")))
+        if g.has(c):
+            consume_call(g, c)
+        return stream, 0
+
+    return [
+        Block(label="LOOP", prim=PRIM(find_next, out="kind"),
+              term=BRANCH_IF("kind", "<=", 0, "DONE")),            # nothing serviceable -> done
+        Block(term=BRANCH_IF("kind", ">=", 2, "ASYNC")),          # kind 2 = async; else fall to sync
+        Block(prim=PRIM(run_sync), term=BRANCH("LOOP")),          # sync: run inline, re-scan
+        Block(label="ASYNC", prim=PRIM(make_request),
+              term=SUSPEND(request_reg="req")),                   # hand the request to the host, wait
+        Block(prim=PRIM(fold_response), term=BRANCH("LOOP")),     # resumed: fold the answer, re-scan
+        Block(label="DONE", term=HALT()),
+    ]
+
+
+def service_calls_cm(graph: Graph, sync_tools: dict[str, Tool],
+                     async_tools: dict[str, AsyncTool] | None = None, *,
+                     answer: Callable[[object], object] | None = None):
+    """Service pending `<call>`s via the control-machine dispatcher (§9.4). Sync tools run inline; async
+    tools SUSPEND to the host, which supplies the answer and resumes.
+
+    Two host protocols:
+      * `answer` GIVEN — a `request -> response` callback (the async world). This drives the suspend/
+        resume loop internally and returns the touched-id `set` when every call is serviced. The
+        convenience form (tests, a synchronous simulation of the async world).
+      * `answer` OMITTED — returns a `Continuation` on the FIRST async call so the CALLER owns the wait
+        (the true streaming boundary: run something else, then `ControlMachine.resume(graph, cont,
+        response={'response': ...})`); returns the touched-id `set` if there was no async call.
+
+    With `async_tools` empty and `answer` omitted this is a control-machine equivalent of `service_calls`
+    (sync only), reusing the same helpers — behaviour matches (the mode-call tests are the oracle)."""
+    from .machine import ControlMachine, Continuation
+    async_tools = async_tools or {}
+    cm = ControlMachine()
+    result = cm.run(graph, _dispatch_program(graph, sync_tools, async_tools))
+    if answer is None:
+        return result if isinstance(result, Continuation) else cm.ctrl.get("touched", set())
+    while isinstance(result, Continuation):
+        result = cm.resume(graph, result, response={"response": answer(result.request)})
+    return cm.ctrl.get("touched", set())
