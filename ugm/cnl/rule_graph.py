@@ -56,6 +56,12 @@ GRADED_ROLE = "graded"
 # (`chain._read_value_matches`/`_value_matches_ok`) can apply the DECLARED value-JOIN during matching.
 VALUE_MATCH_ROLE = "value_match"
 
+# A reified distinctness condition (feedback #11): `<rule> -[distinct]-> <distinct>` where the node
+# carries the two vars as VALUED attrs (`dn_a`/`dn_b`) — the reified form of a `Distinct`, so the
+# demand-driven firmware (`chain._read_distincts`/`_distincts_pass`) can apply `?a != ?b` during
+# matching exactly as the forward `DISTINCT` op does.
+DISTINCT_ROLE = "distinct"
+
 
 def write_rule(graph: Graph, rule: Rule) -> str:
     """Materialize `rule` into `graph` as a literal-subgraph fragment.
@@ -122,6 +128,13 @@ def write_rule(graph: Graph, rule: Rule) -> str:
         if vm.threshold is not None:
             graph.set_attr(v, "vm_threshold", valued(float(vm.threshold)))
         wire(rule_node, VALUE_MATCH_ROLE, v)
+    # Distinctness conditions (feedback #11). Reified as `<distinct>` nodes so the demand-driven
+    # firmware can apply them, exactly like the value-JOIN above.
+    for dc in rule.distinct:
+        d = graph.add_node("<distinct>", control=True)
+        graph.set_attr(d, "dn_a", valued(dc.var_a))
+        graph.set_attr(d, "dn_b", valued(dc.var_b))
+        wire(rule_node, DISTINCT_ROLE, d)
     return rule_node
 
 

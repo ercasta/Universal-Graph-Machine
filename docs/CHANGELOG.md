@@ -14,6 +14,23 @@ this log is itself a historical record.
 
 ## 2026-07-14
 
+### pystrider feedback round 3 — #9 memoized bank load, #11 distinctness (`?a != ?b`), #12 read-only `ask_goal` (442 passed)
+The three open asks from the CNL-rule-module spike (`docs/feedback_from_pystrider.md`), each fixed on the
+established mechanism rather than a bolt-on. **#11** (the headline — the single gate to porting the
+disjointness/frame-rule family to CNL): a machine-rule body clause `?a != ?b` lifts at load to a DECLARED
+`Distinct` condition on the rule (the `ValueMatch` species), reified by `write_rule` and executed by the ONE
+new `DISTINCT` op on both engines — forward lowers to it (`lower_distinct`), the demand chain runs it as an
+ephemeral program (`_distincts_pass`). Distinct = disjoint denotations (node identity; a name is a label, so
+two same-named nodes are two writers; `same_as` coref deliberately not consulted). Every unsupported shape is
+LOUD at load (head/`not` position, literal side, unbound side). **#12**: `ask_goal(..., commit=False)` is
+READ-ONLY via an ephemeral PENCIL scope (the SUPPOSE mechanism, never a `graph.copy()`) swept in a `finally`;
+`check()` gained the underlying `scope=`; why/n-ary raise (they exist to materialize/render forward);
+`ask_user` evidence still inks (an assertion, not a derivation). **#9**: `load_machine_rules` memoized on the
+normalized bank text (~19ms → ~6µs repeat; validated-once-per-text, the ISA §10 rule-set-version direction;
+failures never cached). Differential: pystrider suite green against the new ugm (227 passed; its 9
+`test_app_synthesis` failures reproduce against UNMODIFIED ugm — a missing `textual` module, environmental).
+Tests: `tests/test_feedback_fixes.py` (+12).
+
 ### Phase A / A1 first increment — the demand matcher on the shared ISA matcher (391 passed)
 "Python as firmware over ISA" (`docs/rust_engine_plan.md` §2, `docs/phase_a_demand_firmware.md`). The demand
 path's single-atom fact lookup (`chain._facts_matching`) was a SECOND matcher — a bespoke topology walk

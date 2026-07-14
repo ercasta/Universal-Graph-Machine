@@ -31,7 +31,7 @@ from .production_rule import Pat, Rule, binder, is_var, is_bound_literal, litera
 from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert, NAME, PATTERN_MARK, INERT_MARK
 from .vocabulary import MENTION
 from .machine import (
-    Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, MINT, EMIT, DROP_CTRL,
+    Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, DISTINCT, MINT, EMIT, DROP_CTRL,
     INTERPOSE, RESTORE, State,
     ControlMachine, Block, PRIM, SETI, DEC, FALL, BRANCH_IF, HALT,
 )
@@ -231,6 +231,22 @@ def lower_value_matches(rule: Rule) -> list[Instr]:
             if v not in bound:
                 raise Unlowerable(f"{rule.key}: value-match var {v!r} is not LHS-bound")
         ops.append(VMATCH(vm.var_a, vm.var_b, vm.dim, threshold=vm.threshold))
+    return ops
+
+
+def lower_distinct(rule: Rule) -> list[Instr]:
+    """Lower each declared distinctness condition to a `DISTINCT` filter (feedback #11 — the forward
+    counterpart of the demand chain's `_distincts_pass`). Both vars must be LHS-bound — DISTINCT
+    filters two ALREADY-bound registers — so an unbound var is `Unlowerable` (loud, never a silent
+    KeyError at run time). A filter op, appended after the structural LHS match, like
+    `lower_value_matches`."""
+    bound = {t for pat in rule.lhs for t in pat.tokens() if is_var(t)}
+    ops: list[Instr] = []
+    for dc in rule.distinct:
+        for v in (dc.var_a, dc.var_b):
+            if v not in bound:
+                raise Unlowerable(f"{rule.key}: distinctness var {v!r} is not LHS-bound")
+        ops.append(DISTINCT(dc.var_a, dc.var_b))
     return ops
 
 
@@ -439,7 +455,7 @@ def lower_rule(rule: Rule) -> list[Instr]:
     """The dumb `Rule` -> program lowering (LHS match ops, graded α-cut, value-JOIN, then RHS/propagate
     effects). Single-program form (no NAC — a NAC needs the driver's match-time filter, `run_bank`)."""
     _reject_unsupported(rule)
-    return (lower_lhs(rule) + lower_graded(rule) + lower_value_matches(rule)
+    return (lower_lhs(rule) + lower_graded(rule) + lower_value_matches(rule) + lower_distinct(rule)
             + lower_rhs(rule) + lower_propagate(rule))
 
 
@@ -500,6 +516,7 @@ def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset(),
     head_regs: list[str] = []             # RHS head rel nodes a firing `proves` (provenance)
     match_ops, effect_ops = Machine.split(
         lower_lhs(rule, rel_out=prem_regs) + lower_graded(rule) + lower_value_matches(rule)
+        + lower_distinct(rule)
         + lower_rhs(rule, control_preds, head_out=head_regs) + lower_propagate(rule))
     drop_match, drop_effect = lower_drop(rule)
     rewire_effect = lower_rewire(rule) if rule.rewire else []

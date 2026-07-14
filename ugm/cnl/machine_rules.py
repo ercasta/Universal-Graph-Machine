@@ -37,7 +37,7 @@ from __future__ import annotations
 from .authoring import BODY_SPINE_FORMS, expand_rules, machine_rule_defects, reject_rhs_only_head_vars
 from .forms import load_text
 from ..lowering import run_bank
-from ..production_rule import Pat, Rule
+from ..production_rule import Distinct, Pat, Rule, is_var
 from ..world_model import Graph
 
 
@@ -115,8 +115,58 @@ MACHINE_RULE_FORMS: list[Rule] = [
 ]
 
 
+# The reserved inequality predicate (feedback #11): a body clause `?a != ?b` is a DISTINCTNESS
+# condition, not a fact pattern (there is no `!=` fact to match — treated as a pattern the clause
+# went silently inert, the exact footgun the feedback names).
+NEQ = "!="
+
+
+def _lift_distinct(rules: list[Rule]) -> list[Rule]:
+    """Lift every `?a != ?b` body clause out of the folded LHS into the rule's DECLARED distinctness
+    conditions (`Rule.distinct`, feedback #11) — the join honours them via the `DISTINCT` op on both
+    engines. Loud on every unsupported shape: `!=` in a head or under `not` is not derivable/expressible,
+    and both sides must be VARIABLES bound by a positive body clause (DISTINCT filters two already-bound
+    registers)."""
+    for r in rules:
+        for role, pats in (("head", r.rhs), ("not", r.nac)):
+            if any(p.p == NEQ for p in pats):
+                raise ValueError(
+                    f"{r.key}: `!=` in a {'head clause' if role == 'head' else '`not` clause'} is not "
+                    "supported — distinctness is a body CONDITION (`... when ... and ?a != ?b`), never "
+                    "derived or negated.")
+        neqs = [p for p in r.lhs if p.p == NEQ]
+        if not neqs:
+            continue
+        r.lhs = [p for p in r.lhs if p.p != NEQ]
+        bound = {t for pat in r.lhs for t in pat.tokens() if is_var(t)}
+        for p in neqs:
+            for v in (p.s, p.o):
+                if not is_var(v) or v not in bound:
+                    raise ValueError(
+                        f"{r.key}: `{p.s} != {p.o}` needs both sides to be variables bound by a "
+                        "positive body clause — DISTINCT compares two already-matched nodes. Two "
+                        "literal names are distinct nodes by construction (no condition needed).")
+            r.distinct.append(Distinct(p.s, p.o))
+    return rules
+
+
+# Feedback #9: `load_machine_rules` VALIDATES by running the grammar bank on every call — the right
+# default for a one-time load, but a consumer that reloads one static bank per query paid it repeatedly
+# (~65% of pystrider's analyze). The parse is a PURE function of the text, so it is memoized here, keyed
+# on the normalized bank body. Callers share the cached `Rule` objects (treat them as immutable — every
+# engine path does); the returned LIST is a fresh copy per call.
+_PARSED_BANKS: dict[str, tuple[Rule, ...]] = {}
+
+
 def load_machine_rules(text: str) -> list[Rule]:
     """Parse machine rule CNL into executable `Rule`s (tokenize -> fold -> expand).
+
+    MEMOIZED on the bank text (feedback #9): the fold-validate is a pure function of the text, so a
+    reloaded static bank costs a dict hit, not a re-run of the grammar bank. The returned list is fresh
+    per call but the `Rule` objects are shared — treat them as immutable (every engine path does).
+
+    A body clause `?a != ?b` (feedback #11) is a DISTINCTNESS condition — both sides must be variables
+    bound by a positive body clause; it lifts to `Rule.distinct`, honoured by the join on both engines.
 
     Runs in a private rule-source graph (NOT canonicalized — a rule's repeated `?x` must
     stay the variable `?x`, and its `<walker>?` tokens the bound-literal `<walker>`).
@@ -135,6 +185,9 @@ def load_machine_rules(text: str) -> list[Rule]:
     (`test_isa_runbank.py`)."""
     body = "\n".join(s for line in text.splitlines()
                      if (s := line.strip()) and not s.startswith("#"))
+    cached = _PARSED_BANKS.get(body)    # feedback #9: parse+validate once per distinct bank text
+    if cached is not None:
+        return list(cached)
     rg = Graph()
     load_text(rg, body)
     run_bank(rg, MACHINE_RULE_FORMS)   # recognition on the ISA forward driver (Phase 0.2)
@@ -146,6 +199,7 @@ def load_machine_rules(text: str) -> list[Rule]:
             + ". Every head and body clause must be exactly `S P O` (or `drop S P O` / `not S P O`) — a "
             "shorter clause absorbs the following `when`/`and` or drops out. A boolean-shaped predicate "
             "needs an explicit object: write `?g guard_open yes`, not `?g guard_open`.")
-    rules = expand_rules(rg)
+    rules = _lift_distinct(expand_rules(rg))    # feedback #11: `?a != ?b` -> a declared Distinct condition
     reject_rhs_only_head_vars(rules, source="load_machine_rules")   # feedback #2 (after the clause check)
-    return rules
+    _PARSED_BANKS[body] = tuple(rules)
+    return list(rules)

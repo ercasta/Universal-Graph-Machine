@@ -291,6 +291,25 @@ class VMATCH(Instr):
     threshold: float | None = None
 
 
+@dataclass
+class DISTINCT(Instr):
+    """DISTINCTNESS filter: keep the state iff two ALREADY-bound registers denote provably DIFFERENT
+    nodes — the inequality sibling of VMATCH (which requires value AGREEMENT) and the negation of what
+    variable-reuse expresses (SAME node). The ONE op both engines run for a declared
+    `production_rule.Distinct` (feedback #11): the forward path lowers to it, and the demand chain
+    runs it as an ephemeral program (`chain._distincts_pass`).
+
+    Distinct = the two registers' DENOTATIONS (`_operand_nodes` — a value-node pointer denotes the
+    entities named its value; any other node denotes itself) are non-empty and DISJOINT. Overlap is
+    NOT distinct: the same node fails, and a name-pointer whose denotation contains the other side's
+    node fails too (not PROVABLY different — conservative, so the filter never manufactures a false
+    positive). An empty denotation on either side fails (never fire on an unevaluable condition).
+    Node identity only: `same_as` coref between two distinct nodes is bank data this op does not
+    consult. Positive, monotone (a filter, never a bind)."""
+    a: str
+    b: str
+
+
 # --- Effects (monotone facts + gated control) ------------------------------
 
 @dataclass
@@ -524,6 +543,11 @@ class Machine:
                 db = self._graded_or_none(g, cb, ins.key)
                 if da is not None and db is not None and (1.0 - abs(da - db)) >= ins.threshold:
                     yield st
+        elif isinstance(ins, DISTINCT):
+            ca = self._operand_nodes(g, st.regs[ins.a])
+            cb = self._operand_nodes(g, st.regs[ins.b])
+            if ca and cb and not (set(ca) & set(cb)):      # provably different: disjoint denotations
+                yield st
         else:
             raise ProgramError(f"{type(ins).__name__} is an effect opcode in the match phase")
 

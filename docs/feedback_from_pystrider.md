@@ -288,6 +288,15 @@ just `suppose` — and an **id-addressed goal API** (seed/query by node id, name
 retire (a) and (b) at the same time. This is the ugm-side of the "addressing" follow-on pystrider's
 own `docs/spike_findings.md` flags for a shared multi-function graph.
 
+> **FIXED (2026-07-14).** `load_machine_rules` is MEMOIZED on the normalized bank text: the fold-validate
+> is a pure function of the text, so reloading a static bank costs a dict hit (measured ~19ms first load →
+> ~6µs repeat), with no API change — this is the "validated-once handle keyed on the bank text" fitting the
+> ISA §10 rule-set-version direction, chosen over a `validate=False` flag (which would skip the very check
+> feedback #1 asked for; here nothing is skipped, just never re-paid). The returned LIST is fresh per call
+> but the `Rule` objects are shared — treat them as immutable (every engine path does). Comment/whitespace
+> variants hit the same entry (keyed on the normalized body); a defective bank re-raises on EVERY call
+> (failures are not cached). Tests in `tests/test_feedback_fixes.py` (`test_load_machine_rules_*`).
+
 ## 9. `load_machine_rules` VALIDATES by running the bank on every call — a 65% hidden cost for a consumer that reloads rules
 
 `load_machine_rules(text)` doesn't just parse — it *validates the bank by executing it*
@@ -375,6 +384,117 @@ fail with a message naming the rule) rather than iterating a `State`, and the de
 depend on a prior unrelated import having warmed a global — a cold `ask_goal` should behave identically
 to a warm one.
 
+> **FIXED (2026-07-14).** A body clause `?a != ?b` is now a DISTINCTNESS condition honoured by the join on
+> BOTH engines. It lifts at load (`machine_rules._lift_distinct`) to a DECLARED condition
+> (`production_rule.Distinct` on `Rule.distinct`, reified as `<rule> -[distinct]-> <distinct>`) executed by
+> the ONE `DISTINCT` op — the forward path lowers to it (`lowering.lower_distinct`), the demand chain runs
+> it as an ephemeral program (`chain._distincts_pass`) — the exact `ValueMatch`/`VMATCH` pattern, so
+> distinctness is rule DATA the machine runs, not a Python special case. Semantics: disjoint denotations —
+> node IDENTITY, so two same-named nodes ARE two writers (a name is a label), and a head-seeded name
+> overlapping a body-bound node correctly fails; `same_as` coref is deliberately not consulted (identity-
+> as-rules stays bank data). Unsupported shapes are LOUD at load: `!=` in a head or under `not`, a literal
+> side, or a side not bound by a positive body clause all raise. The `write_conflict` repro returns
+> `['submit']` with zero hand-authored facts — the frame-rule family ports to CNL. (The deferred
+> `functional`/`injective` relation properties can now be built on this; still open.) Tests in
+> `tests/test_feedback_fixes.py` (`test_neq_*`, `test_distinct_*`).
+
+## 11. No distinctness / inequality primitive — "no two DISTINCT S share an O" cannot be expressed as a rule
+
+Collected while spiking the grammapy-convergence question *"can a composition-soundness check be authored
+as a CNL rule-module over ugm, instead of Python?"* Reachability ported **perfectly** — a recursive
+closure + stratified negation reproduced grammapy's `Scope` verdict exactly:
+
+```python
+# a control tree as facts: ?parent parent_of ?child ; ?node emits ?sig ; ?node handles ?sig
+SCOPE = """
+?a ancestor_of ?n when ?a parent_of ?n
+?a ancestor_of ?n when ?a parent_of ?m and ?m ancestor_of ?n      # recursive closure — works
+?n handled ?sig  when ?n emits ?sig and ?a ancestor_of ?n and ?a handles ?sig
+?n unhandled ?sig when ?n emits ?sig and not ?n handled ?sig      # stratified negation — works
+"""
+```
+
+But the *disjointness*-shaped check (the frame rule: **"no two DISTINCT items write the same channel"**)
+cannot be written, because there is no way to say `?a ≠ ?b`:
+
+```python
+import ugm as h
+from ugm import load_machine_rules, ask_goal
+def g():                                   # ok & yes BOTH write confirm.submit (a real conflict);
+    G=h.Graph(); i={}                      # cancel writes only its own slot (NOT a conflict)
+    n=lambda x:i.setdefault(x, i.get(x) or G.add_node(x))
+    for s,o in [("ok","submit"),("yes","submit"),("cancel","cancel.slot")]:
+        G.add_relation(n(s),"writes",n(o))
+    return G,n
+def conflicts(rule, extra=()):
+    G,n=g()
+    for s,p,o in extra: G.add_relation(n(s),p,n(o))
+    return sorted({a.split(" ",1)[0] for a in ask_goal(G,"who write_conflict yes",load_machine_rules(rule))
+                   if a.split(" ",1)[0] in {"submit","cancel.slot"}})
+
+print(conflicts("?c write_conflict yes when ?a writes ?c and ?b writes ?c"))
+#   -> ['cancel.slot', 'submit']   FALSE POSITIVE: cancel.slot has ONE writer but self-joins
+print(conflicts("?c write_conflict yes when ?a writes ?c and ?b writes ?c and ?a != ?b"))
+#   -> []   '!=' is read as a predicate literal needing a fact '?a != ?b'; the rule goes INERT
+print(conflicts("?c write_conflict yes when ?a writes ?c and ?b writes ?c and ?a distinct_from ?b"))
+#   -> []   the clause IS enforced (needs a distinct_from fact) — but distinctness is never DERIVED
+d=[(a,"distinct_from",b) for a in ("ok","yes","cancel") for b in ("ok","yes","cancel") if a!=b]
+print(conflicts("?c write_conflict yes when ?a writes ?c and ?b writes ?c and ?a distinct_from ?b", d))
+#   -> ['submit']   CORRECT — but ONLY after materializing O(n²) hand-authored distinctness facts
+```
+
+This matches your own scoping: `rule_graph._property_rule` notes `functional`/`injective` "**DO need
+distinctness and are deferred** — see docs/consistency_design.md". So it is a known gap; this is the
+concrete consumer cost. The only faithful workaround today is to author O(n²) `distinct_from` facts,
+which defeats the point (the check exists to *scale* composition).
+
+**Ask:** a distinctness primitive honoured by the join — either a body builtin (`?a != ?b` / a reserved
+`distinct_from` that the engine satisfies for any two non-unifiable nodes), or the deferred
+`functional`/`injective` relation property (flag "≥2 distinct S for one O" without materializing pairs).
+With it, disjoint-writes — the shared frame rule behind a whole family of "no two distinct X share a Y"
+constraints — becomes a one-line CNL rule; without it, that entire class can't move out of Python.
+**Positive:** recursion + stratified negation are strong enough that the *reachability* half ported
+verdict-identically, so this one primitive is the single gate to porting the disjointness half too.
+
+> **FIXED (2026-07-14).** `ask_goal(..., commit=False)` is a READ-ONLY query, mirroring
+> `suppose(commit=False)`: reasoning runs inside an ephemeral PENCIL scope (the SUPPOSE mechanism —
+> derivations are scope-tagged control relations, never a `graph.copy()`), the answer is read in-scope,
+> and the scope is swept in a `finally`. The repro's poison test now holds: derive `c contested yes`
+> read-only, re-query with an EMPTY rulebank → `['no']`. Supported for yes/no (incl. existential) and
+> who questions; a why-question exists to MATERIALIZE the derivation it renders and n-ary renders through
+> the forward reader, so both RAISE under `commit=False` (loud, never silently committing). Two deliberate
+> boundaries: an `ask_user`-confirmed fact still inks (user-asserted EVIDENCE is new knowledge, not a
+> derivation), and a skolem-minting rule (`<foo>?`) still mints its witness entity node (only derived
+> RELATIONS are pencil). `check()` gained the underlying `scope=` parameter (threaded to its
+> `chain_sip`/`_facts_matching`), so the firmware verdict itself can run penciled. Tests in
+> `tests/test_feedback_fixes.py` (`test_ask_goal_commit_false_*`, `test_ask_goal_default_still_commits`).
+
+## 12. `ask_goal` COMMITS derived facts to the graph — no read-only mode, surprising for a "query" verb
+
+`ask_goal` materializes what it derives *onto the input graph*. Deriving a fact, then re-querying with an
+**empty** rulebank, still returns it:
+
+```python
+import ugm as h
+from ugm import load_machine_rules, ask_goal
+G=h.Graph(); i={}
+n=lambda x:i.setdefault(x, i.get(x) or G.add_node(x))
+G.add_relation(n("a"),"writes",n("c")); G.add_relation(n("b"),"writes",n("c"))
+ask_goal(G,"is c contested yes", load_machine_rules("?c contested yes when ?a writes ?c and ?b writes ?c"))
+print(ask_goal(G,"is c contested yes", load_machine_rules("")))   # -> ['yes']  (EMPTY rulebank!)
+```
+
+`suppose` has an explicit `commit=` (default-`True`) knob for exactly this; `ask_goal` has none, so it
+always inks. It bit me twice: (a) reusing one graph across several check-queries, an earlier rule's
+derived conflict *stood* and poisoned the next query (I had to build a fresh graph per query); (b) it is
+the reason pystrider's own detection goes through `suppose(commit=False)`, never `ask_goal`, against a
+shared/persistent graph. If composition checks were authored as CNL and run via `ask_goal`, each check
+would **mutate the very graph it is checking**.
+
+**Ask:** a read-only path for `ask_goal` — an `ask_goal(..., commit=False)` (or a `query`/`derive_readonly`
+sibling) that returns the derived answers without inking them, mirroring `suppose(commit=False)`. At
+minimum, document that `ask_goal` materializes, so consumers querying a persistent graph know to snapshot.
+
 ---
 
 ### Net
@@ -390,3 +510,12 @@ helper and an id-addressed goal API, with focus reaching the retrieval path, not
 #9 adds a **performance** ask distinct from the correctness ones: `load_machine_rules` validates by
 running the bank on every call, so a consumer that reloads a static bank pays it repeatedly — a
 load-without-revalidate / validated-once handle would remove a 65%-of-runtime footgun.
+
+The newest asks (#11, #12) come from a different direction — trying to **author soundness checks AS CNL
+rule-modules** rather than in Python (the grammapy convergence). The encouraging half: *reachability*
+ported verdict-identically on recursion + stratified negation, so a real static-analysis check lives
+happily in the rule language. The two gaps that stop the rest: **#11** no distinctness primitive, so any
+"no two distinct X share a Y" constraint (disjointness / a frame rule) can't be expressed without O(n²)
+hand-authored `distinct_from` facts — the single gate to porting that whole family; and **#12** `ask_goal`
+inks its derivations, so a CNL-authored check run over a persistent graph mutates what it checks — a
+read-only `ask_goal` (mirroring `suppose(commit=False)`) is wanted before checks can safely share a graph.

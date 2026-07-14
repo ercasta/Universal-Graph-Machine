@@ -45,10 +45,12 @@ UNKNOWN = "unknown"            # open-world, unprovable -> gather
 from .vocabulary import COPULA, neg_pred as _neg_pred
 
 
-def _present(fact_g: AttrGraph, goal: tuple[str, str | None, str | None]) -> bool:
-    """Is any fact matching the (possibly wildcarded) `goal` present? (∃ for a free endpoint.)"""
+def _present(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
+             scope: str | None = None) -> bool:
+    """Is any fact matching the (possibly wildcarded) `goal` present? (∃ for a free endpoint.)
+    Within a SUPPOSE/read-only `scope`, that scope's pencil facts count as present too."""
     pred, subj, obj = goal
-    return bool(_facts_matching(fact_g, pred, subj, obj))
+    return bool(_facts_matching(fact_g, pred, subj, obj, scope=scope))
 
 
 def _concept_key(pred: str, obj: str | None) -> str:
@@ -62,7 +64,7 @@ def check(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
           rules: AttrGraph | None = None,
           policy: FirmwarePolicy = DEFAULT_POLICY, open_preds: frozenset[str] | None = None,
           provenance: bool = False, max_rounds: int = 1000,
-          focus_scope: frozenset[str] | None = None) -> str:
+          focus_scope: frozenset[str] | None = None, scope: str | None = None) -> str:
     """CHECK `goal` and return one of POSITIVE / ENTAILED_NEG / ASSUMED_NO / UNKNOWN. Runs CHAIN for
     the positive (bounded); if absent, runs CHAIN for the negative; if that too is absent, the
     `policy`'s negation default holds — ASSUMED_NO (closed-world) unless the concept is OPEN under the
@@ -78,22 +80,26 @@ def check(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     not reach fixpoint within budget (or a NAC's nested negative demand didn't — the `_Exhaustion` flag
     bubbles up), absence is NOT trustworthy, so the honest verdict is UNKNOWN ("I did not finish
     looking"), NOT a decided no. This is the distinction the forward exhaustive model cannot make; it
-    is why demand-driven NAF is the agent-not-theorem-prover model, not merely an optimization."""
+    is why demand-driven NAF is the agent-not-theorem-prover model, not merely an optimization.
+
+    `scope` (feedback #12): reason inside a pencil scope — derivations are scope-tagged control
+    (visible in-scope, never ink), the same mechanism SUPPOSE uses. This is what `ask_goal`'s
+    read-only mode threads through."""
     rule_g = rules if rules is not None else fact_g        # one-graph default (the fold)
     if open_preds is not None:
         policy = replace(policy, open_preds=frozenset(open_preds))
     pred, subj, obj = goal
     fuel = _Exhaustion()
     chain_sip(fact_g, goal, rules=rule_g, provenance=provenance,    # demand-driven positive
-              max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope)
-    if _present(fact_g, goal):
+              max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope, scope=scope)
+    if _present(fact_g, goal, scope=scope):
         return POSITIVE
     if fuel.exhausted:                                              # ran out of fuel before closure ->
         return UNKNOWN                                             # honest "didn't finish", not a no
     neg = (_neg_pred(pred), subj, obj)
     chain_sip(fact_g, neg, rules=rule_g, provenance=provenance,    # is the HARD negative entailed?
-              max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope)
-    if _present(fact_g, neg):
+              max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope, scope=scope)
+    if _present(fact_g, neg, scope=scope):
         return ENTAILED_NEG
     if fuel.exhausted:
         return UNKNOWN

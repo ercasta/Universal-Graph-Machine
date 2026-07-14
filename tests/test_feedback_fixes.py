@@ -3,7 +3,10 @@
 Theme: silent failures made LOUD. A non-triple machine-rule clause (#1), a skolem RHS-only head var
 (#2), a case-folded query that silently misses (#3), a `Rule` object where a node-id is expected (#4),
 and an unrecognized fact line (#5) now signal instead of quietly doing less. Plus a session ergonomics
-gap: `suppose` now accepts `focus_scope` like `ask_goal` (#7).
+gap: `suppose` now accepts `focus_scope` like `ask_goal` (#7). Round 3 (the CNL-rule-module asks):
+`load_machine_rules` is memoized on the bank text (#9), `?a != ?b` is a declared DISTINCTNESS condition
+honoured by the join on both engines (#11), and `ask_goal(commit=False)` is a read-only query over an
+ephemeral pencil scope (#12).
 """
 import inspect
 import warnings
@@ -276,3 +279,116 @@ def test_suppose_commit_false_exposes_partial_derivations_on_inconclusive():
     assert res.status == "inconclusive"
     assert ("ada", "is", "wet") in res.derived
     assert h.ask_goal(kb, "is ada wet", rules) == ["no"]     # still read-only
+
+
+# --- #9: load_machine_rules is memoized on the bank text (was: re-fold + re-validate per call) --------
+
+def test_load_machine_rules_memoized_on_text():
+    text = "?p made child when ?p is_a parent\n?x safe yes when ?x clear yes"
+    a, b = load_machine_rules(text), load_machine_rules(text)
+    assert a is not b                                       # the LIST is fresh per call...
+    assert all(x is y for x, y in zip(a, b)) and len(a) == len(b) == 2   # ...the Rules are the memo's
+
+
+def test_load_machine_rules_memo_ignores_comments_and_blank_lines():
+    plain = "?p made child when ?p is_a parent"
+    noisy = "# the parenthood rule\n\n  ?p made child when ?p is_a parent  \n"
+    assert load_machine_rules(plain)[0] is load_machine_rules(noisy)[0]  # same normalized body
+
+
+def test_load_machine_rules_defect_raises_every_call():
+    # failures are NOT cached — each call re-raises (and the good bank is unaffected).
+    for _ in range(2):
+        with pytest.raises(ValueError, match="triple"):
+            load_machine_rules("?e reached when ?e is_a attribute")
+
+
+# --- #11: distinctness — `?a != ?b` is a declared condition the join honours (was: inexpressible) ----
+
+_CONFLICT_NEQ = "?c write_conflict yes when ?a writes ?c and ?b writes ?c and ?a != ?b"
+
+
+def _writes_world():
+    # ok & yes BOTH write submit (a real conflict); cancel writes only its own slot (NOT a conflict).
+    g = h.Graph(); ids = {}
+    n = lambda x: ids.setdefault(x, ids.get(x) or g.add_node(x))
+    for s, o in [("ok", "submit"), ("yes", "submit"), ("cancel", "cancel.slot")]:
+        g.add_relation(n(s), "writes", n(o))
+    return g
+
+
+def test_neq_lifts_to_declared_distinct_condition():
+    rule = load_machine_rules(_CONFLICT_NEQ)[0]
+    assert [(d.var_a, d.var_b) for d in rule.distinct] == [("?a", "?b")]
+    assert not any(p.p == "!=" for p in rule.lhs)           # lifted OUT of the match patterns
+
+
+def test_neq_kills_self_join_false_positive_on_demand_path():
+    # without `!=` the self-join (?a == ?b) flags EVERY written channel; with it, only the contested one.
+    answers = ask_goal(_writes_world(), "who write_conflict yes", load_machine_rules(_CONFLICT_NEQ))
+    assert answers == ["submit write_conflict yes"]         # cancel.slot's single writer stays clean
+
+
+def test_neq_forward_driver_agrees():
+    from ugm import run_bank, derived_triples
+    g = _writes_world()
+    run_bank(g, load_machine_rules(_CONFLICT_NEQ))
+    assert {t[0] for t in derived_triples(g) if t[1] == "write_conflict"} == {"submit"}
+
+
+def test_distinct_same_named_nodes_count_as_distinct():
+    # a name is a label, not an identity: two DISTINCT nodes both named 'w' are two writers.
+    g = h.Graph()
+    c = g.add_node("chan")
+    g.add_relation(g.add_node("w"), "writes", c)
+    g.add_relation(g.add_node("w"), "writes", c)            # a second, distinct 'w'
+    answers = ask_goal(g, "who write_conflict yes", load_machine_rules(_CONFLICT_NEQ))
+    assert answers == ["chan write_conflict yes"]
+
+
+def test_neq_bad_shapes_raise_loudly():
+    for bad, why in ((_CONFLICT_NEQ.replace("?a != ?b", "?a != ?z"), "bound"),       # ?z bound nowhere
+                     ("?c bad yes when ?a writes ?c and ?a != submit", "variables"),  # literal side
+                     ("?a != ?b when ?a writes ?c and ?b writes ?c", "head"),         # != as a head
+                     ("?c bad yes when ?a writes ?c and ?b writes ?c and not ?a != ?b", "not")):
+        with pytest.raises(ValueError):
+            load_machine_rules(bad)
+
+
+# --- #12: ask_goal(commit=False) is READ-ONLY — a check-query never mutates what it checks -----------
+
+def _contested_world():
+    g = h.Graph(); ids = {}
+    n = lambda x: ids.setdefault(x, ids.get(x) or g.add_node(x))
+    g.add_relation(n("a"), "writes", n("c")); g.add_relation(n("b"), "writes", n("c"))
+    return g
+
+
+_CONTESTED = "?c contested yes when ?a writes ?c and ?b writes ?c and ?a != ?b"
+
+
+def test_ask_goal_commit_false_yesno_is_read_only():
+    assert "commit" in inspect.signature(ask_goal).parameters
+    g = _contested_world()
+    assert ask_goal(g, "is c contested yes", load_machine_rules(_CONTESTED), commit=False) == ["yes"]
+    # the feedback's own poison test: with an EMPTY rulebank the derived fact must NOT still be there.
+    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["no"]
+    assert not [x for x in g.nodes() if g.name(x) == "<query>"]         # the pencil scope was swept
+
+
+def test_ask_goal_commit_false_who_is_read_only():
+    g = _contested_world()
+    assert ask_goal(g, "who contested yes", load_machine_rules(_CONTESTED), commit=False) == ["c contested yes"]
+    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["no"]
+
+
+def test_ask_goal_default_still_commits():
+    g = _contested_world()
+    assert ask_goal(g, "is c contested yes", load_machine_rules(_CONTESTED)) == ["yes"]
+    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["yes"]     # inked, as documented
+
+
+def test_ask_goal_commit_false_why_raises():
+    g = _contested_world()
+    with pytest.raises(ValueError, match="commit=False"):
+        ask_goal(g, "why c contested yes", load_machine_rules(_CONTESTED), commit=False)

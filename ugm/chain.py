@@ -26,7 +26,8 @@ from .apply import (
     _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
     _rel_in_scope, build_head_index, rules_producing, SCOPE,
 )
-from .machine import Machine, SEED, FOLLOW, SET, TEST, SAME, MEMBER, OVERLAY, GRADE, VMATCH, State
+from .machine import (Machine, SEED, FOLLOW, SET, TEST, SAME, MEMBER, OVERLAY, GRADE, VMATCH,
+                      DISTINCT, State)
 from .machine import (ControlMachine, Continuation, Block, PRIM, SETI, DEC,
                       BRANCH, BRANCH_IF, SUSPEND, HALT)
 from .production_rule import is_var, is_bound_literal, literal_name
@@ -677,6 +678,32 @@ def _vmatches_pass(fact_g: AttrGraph, vms: list[tuple[str, str, str, float | Non
     return bool(_ISA_READER.match(fact_g, prog, init=[st]))
 
 
+def _read_distincts(rule_g: AttrGraph, rule_node: str) -> list[tuple[str, str]]:
+    """The reified distinctness conditions of `rule_node` as `(var_a, var_b)` — the declared
+    inequalities `rule_graph.write_rule` accreted (`<rule> -[distinct]-> <distinct>`, feedback #11),
+    read back for match-time use (mirrors `_read_value_matches`)."""
+    out: list[tuple[str, str]] = []
+    for rel, dn in rule_g.relations_from(rule_node):
+        if not rule_g.has_key(rel, "distinct"):
+            continue
+        a, b = rule_g.get_attr(dn, "dn_a"), rule_g.get_attr(dn, "dn_b")
+        if a is not None and b is not None:
+            out.append((str(a.value), str(b.value)))
+    return out
+
+
+def _distincts_pass(fact_g: AttrGraph, dcs: list[tuple[str, str]], st: State) -> bool:
+    """The DECLARED distinctness condition during matching, as FIRMWARE: the reified `Distinct`s lower
+    to an EPHEMERAL `DISTINCT` program — the SAME op the forward path lowers to, run by the shared
+    machine over the match's register file. Distinct = disjoint denotations (the instruction resolves a
+    value-node pointer to its named entities, so a head-seeded name and a body-bound entity pin of the
+    same entity correctly fail). An unbound var fails (never fire on an unevaluable condition)."""
+    if any(v not in st.regs for va, vb in dcs for v in (va, vb)):
+        return False
+    prog = [DISTINCT(va, vb) for va, vb in dcs]
+    return bool(_ISA_READER.match(fact_g, prog, init=[st]))
+
+
 def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str, str, str]],
                 st: State, *, scope: str | None, provenance: bool,
                 focus_scope: frozenset[str] | None = None,
@@ -830,6 +857,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     skolems = _head_skolems(body, heads)   # RHS-introduced value invention (feedback #2), keyed per firing
     graded = _read_graded(rule_g, rule_node)
     value_matches = _read_value_matches(rule_g, rule_node)
+    distincts = _read_distincts(rule_g, rule_node)
     rule_key = rule_g.name(rule_node) if provenance else ""
 
     seeds: list[State] = []                                # (X): bindings live in the REGISTER FILE
@@ -860,6 +888,8 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
             if graded and not _grades_pass(fact_g, graded, st):           # α-cut: ephemeral GRADE prog
                 continue
             if value_matches and not _vmatches_pass(fact_g, value_matches, st):   # ephemeral VMATCH prog
+                continue
+            if distincts and not _distincts_pass(fact_g, distincts, st):   # ?a != ?b: ephemeral DISTINCT
                 continue
             if nac and (yield from _nac_blocks(fact_g, rule_g, nac, st, scope=scope,    # NAF: absence
                                                focus_scope=focus_scope,                 # decides — the

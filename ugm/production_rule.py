@@ -158,6 +158,26 @@ class GradedCondition:
 
 
 @dataclass
+class Distinct:
+    """A DISTINCTNESS condition on two LHS-bound variables (pystrider feedback #11): the condition
+    holds iff `var_a` and `var_b` are bound to provably DIFFERENT nodes — the inequality the join
+    language cannot otherwise express (the default topological join can only require SAMENESS, by
+    reusing a variable). This is what makes the disjointness family of constraints ("no two DISTINCT
+    S share an O" — a frame rule, `functional`/`injective`) writable as one rule instead of O(n²)
+    hand-authored `distinct_from` facts.
+
+    Like `ValueMatch` it is a DECLARED condition as DATA, executed by the one `DISTINCT` op both
+    engines run (forward lowers to it; the demand chain runs it as an ephemeral program). Semantics:
+    the two registers' DENOTATIONS must be DISJOINT — the same node (or a name-pointer overlapping
+    the other side's node) is NOT distinct, so a self-join `?a writes ?c and ?b writes ?c` stops
+    producing the ?a==?b false positive. Node IDENTITY only: two nodes coref'd by `same_as` rules
+    still count as distinct here (identity-as-rules is bank data the engine does not consult).
+    CNL surface: a machine-rule body clause `?a != ?b` lifts to this condition at load."""
+    var_a: str
+    var_b: str
+
+
+@dataclass
 class ValueMatch:
     """A value-EQUALITY (or graded 'close-enough') LHS condition joining TWO bound variables by an
     ATTRIBUTE VALUE — the substrate's first DECLARED value-join, added deliberately beside the default
@@ -197,6 +217,9 @@ class Rule:
     graded: list[GradedCondition] = field(default_factory=list)
     value_matches: list[ValueMatch] = field(default_factory=list)   # declared value-JOIN conditions
                                                         # (`ValueMatch`): the coreference-as-rules enabler.
+    distinct: list[Distinct] = field(default_factory=list)          # declared DISTINCTNESS conditions
+                                                        # (`Distinct`, feedback #11): two LHS-bound vars
+                                                        # must bind provably different nodes (`?a != ?b`).
     propagate: dict | None = None                       # e.g. {"op": "weighted_sum", "weights": [...]}
     priority: float = 0.0                               # provisional scheduling tie-break
     max_steps: int = 5
