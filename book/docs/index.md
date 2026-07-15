@@ -15,7 +15,8 @@ thinking.
 
 ## How to read this book
 
-The book comes in three parts, each building on the last:
+The book comes in four parts, each building on the last (the fourth is an
+optional deep dive):
 
 <div class="grid cards" markdown>
 
@@ -45,6 +46,15 @@ The book comes in three parts, each building on the last:
     tiny machine that powers it all.
 
     [:octicons-arrow-right-24: Part 3](advanced/09-supposing.md)
+
+- :material-numeric-4-circle:{ .lg .middle } **The internals — for the curious**
+
+    ---
+
+    Optional. The actual instruction set, the nine ways the machine thinks, and
+    the swappable "firmware" that gives it its attitude.
+
+    [:octicons-arrow-right-24: Part 4](deep/13-instruction-set.md)
 
 </div>
 
