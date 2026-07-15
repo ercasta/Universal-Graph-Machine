@@ -78,6 +78,12 @@ to believe it,"* not *"this is impossible."*** That's a humbler, more accurate
 kind of "no" than most software offers — and switching to an open mind makes the
 humility explicit by turning it into "unknown."
 
+Because that kind of "no" is held only *until better evidence turns up*, it has a
+name — a **defeasible** answer — and the machine is built to take it back cleanly
+when the evidence changes. There's [a short appendix
+note](../appendix/index.md#defeasible-reasoning) on it, and Part 4 shows the
+belief-revision machinery underneath.
+
 ??? info "Deep dive: negation-as-failure"
     The technical name for "look for a proof, and if you fail, conclude the
     opposite" is **negation-as-failure**. It's what the 🔍 checks in the

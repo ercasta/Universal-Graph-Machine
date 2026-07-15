@@ -148,5 +148,131 @@ called *habitability*).
 
 ---
 
+## Defeasible reasoning
+
+A conclusion is **defeasible** if the machine holds it only *until better
+information arrives* — a "for now," not a "forever." Most of the machine's everyday
+**no**s are defeasible: *"cy is not cleared"* means *"nothing I currently know
+points that way,"* and it will flip the moment you add a clearing fact.
+
+Contrast that with a **hard** no — one the machine can actually *prove* (e.g. from
+two incompatible categories: *a penguin is not a flyer*). A hard no is not
+defeasible; it's as trustworthy as a yes.
+
+Defeasibility is the honest partner of the [closed-world
+assumption](#closed-world-vs-open-world): if you're going to read "I couldn't prove
+it" as "false," that "false" had better be revisable when your knowledge grows.
+Because every conclusion keeps a [receipt](#provenance), the machine knows exactly
+which beliefs to withdraw when a supporting fact is removed — so revising is clean,
+not guesswork.
+
+> **Go deeper:** the terms to search are "defeasible reasoning" and "belief
+> revision" (and, for the deletion/repair mechanics, "truth maintenance system").
+
+---
+
+## The instruction set — the data path
+
+Everything the machine *does* to the graph is one of a small set of instructions.
+They divide into the **match** phase (looking — reads only) and the **apply** phase
+(writing — the only part that changes anything). A rule compiles to a short
+sequence of these. See [Chapter 13](../deep/13-instruction-set.md).
+
+**Looking (the match phase):**
+
+| Verb | Real name | What it does |
+|------|-----------|--------------|
+| find | `SEED` | Bind to every dot carrying a given mark (where a search starts). |
+| follow | `FOLLOW` | Step along an arrow to a neighbour dot. |
+| check | `TEST` | Keep the dot only if it carries a mark… |
+| check-absent | `TEST` (absent) | …or only if it does **not** — the heart of "not." |
+| join | `JOIN` | Follow an arrow *and* check the far end in one step. |
+| same? | `SAME` | Keep it only if two registers hold the **same** dot. |
+| different? | `DISTINCT` | Keep it only if two dots are **provably** different. |
+| copy / set | `DUP` / `SET` | Move a known dot into a working slot. |
+| loop | `ITERATE` | Fork the work once per item in a bounded range. |
+| in focus? | `MEMBER` / `OVERLAY` | Restrict (or extend) matching to a working set / scope. |
+| by degree | `FUZZY` / `GRADE` | Match on a *degree* rather than a plain yes/no. |
+| by value | `VMATCH` | Join two dots that **agree on a value** (e.g. the same name). |
+
+**Writing (the apply phase):**
+
+| Verb | Real name | What it does |
+|------|-----------|--------------|
+| make | `MINT` | Create a fresh dot and wire arrows to it. |
+| write | `EMIT` | Assert a fact (a mark, or a value) on a dot. |
+| hide / unhide | `INTERPOSE` / `RESTORE` | Reversibly tuck away an edge, and put it back (belief revision). |
+| drop (control) | `DROP_CTRL` | Remove a *scaffolding* edge — **refuses** to touch a fact. |
+| retire | `RETIRE` | Really delete a fact — the **privileged** deletion ordinary rules can't reach (see [Chapter 15](../deep/15-firmware.md)). |
+
+The whole list fits on a page — and there is **no** fact-deleting verb among the
+ones a rule can compile to. That's what makes the because-trail safe.
+
+---
+
+## The instruction set — the control path
+
+The verbs above are one straight run of look-then-write. To *loop*, to ask a
+sub-question mid-thought, or to pause for the outside world, the machine needs a
+**control path** — a "finger" pointing at the current instruction, and ways to move
+it (see [Chapter 13](../deep/13-instruction-set.md)).
+
+| Transfer | Real name | What it does |
+|----------|-----------|--------------|
+| fall through | `FALL` | Go to the next line (the default). |
+| jump | `BRANCH` | Move the finger to another line. |
+| jump if | `BRANCH_IF` | Jump only if a counter still qualifies (how a loop knows to stop). |
+| call / return | `CALL` / `RET` | Step into a sub-task and come back — subgoals to any depth. |
+| suspend / resume | `SUSPEND` / *resume* | **Pause the whole machine**, hand out a request, and later continue at the exact spot — the mechanism behind "let me find out" and stepping into a *suppose*. |
+| stop | `HALT` | Done. |
+| counters | `SETI` / `DEC` | Set and decrement a loop counter (control-register scratch, not facts). |
+
+The point of making control *instructions* (rather than hiding loops and recursion
+in the surrounding code) is that **how the machine thinks lives in the same visible
+place as what it thinks** — nothing about the reasoning hides in a language the
+graph can't see.
+
+---
+
+## The nine processing modes
+
+Every computation the machine performs is one of **nine** ways of thinking — or a
+knowledge-base recipe composed from them. The list is closed on purpose (see
+[Chapter 14](../deep/14-modes.md)).
+
+| # | Mode | In plain words | Where in the book |
+|---|------|----------------|-------------------|
+| 1 | **Saturate** | Work out the immediate consequences. | (used in small scoped bursts) |
+| 2 | **Iterate** | Go through a list, one at a time. | — |
+| 3 | **Chain** | "What would make this true?" — pull only the threads the question needs. | [Ch 6](../intermediate/06-only-what-you-need.md) |
+| 4 | **Check** | Look for something, ready not to find it → a defeasible "no." | [Ch 5](../intermediate/05-no-and-unknown.md) |
+| 5 | **Choose** | Compare options and pick the best. | — |
+| 6 | **Suppose** | "What if?" — reason in pencil, then ink or erase. | [Ch 9](../advanced/09-supposing.md) |
+| 7 | **Walk** | Scout a far-off connection without grinding over everything between. | — |
+| 8 | **Call** | Use a tool — a calculator, a clock, a person to ask. | [Ch 11](../advanced/11-gathering-evidence.md) |
+| 9 | **Record** | Remember what you did and why (always on, free). | [Ch 8](../intermediate/08-because.md) |
+
+And the machine's headline abilities are **compositions** of these, not separate
+engines:
+
+- **Explain** = Record, replayed.
+- **Suppose** = Suppose + Chain + Check.
+- **Gather evidence / try-check-replan** = Call + Check.
+- **"No" vs "unknown"** = Check, read under the [firmware](../deep/15-firmware.md)
+  stance.
+
+A tenth mode may be added *only* if it's nameable in plain language, keeps all its
+state visible, stops gracefully when effort runs out, journals itself, and isn't
+already expressible as a recipe over the nine. Backtracking trails, unification
+stacks, probability loops and the like each fail at least one bar — which is why
+they're deliberately kept out.
+
+> **Go deeper:** the design calls this the "closed inventory of processing modes."
+> The reasoning tradition behind Chain/Check is "logic programming" (Prolog,
+> Datalog); the pencil/ink split behind Suppose relates to "assumption-based" and
+> "hypothetical" reasoning.
+
+---
+
 *This appendix grows with the book. Spotted a concept you'd like explained here?
 The project lives on [GitHub](https://github.com/ercasta/Universal-Graph-Machine).*

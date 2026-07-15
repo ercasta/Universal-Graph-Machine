@@ -92,6 +92,10 @@ small, honest, understandable mind built from one idea applied without exception
 
 Curious to go deeper, or to build something on it yourself?
 
+- **Want to see the actual gears?** [Part 4 — The internals](../deep/13-instruction-set.md)
+  is an optional deep dive: the exact instruction set, the nine ways the machine
+  thinks, and the swappable "firmware" that gives it its attitude. Everything in
+  this chapter, one turn of the wrench further down.
 - The project lives on GitHub — the code, the design documents, and runnable
   demos: **[github.com/ercasta/Universal-Graph-Machine](https://github.com/ercasta/Universal-Graph-Machine)**.
 - The [appendix](../appendix/index.md) collects the concepts from this book with
