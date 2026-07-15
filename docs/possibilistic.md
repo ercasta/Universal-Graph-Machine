@@ -144,6 +144,51 @@ be total.
 
 ---
 
+# ⇢ HANDOFF STATUS (2026-07-15) — read this first
+
+**Where it stands:** the possibilistic layer is a complete, self-contained forward reasoner, built
+ENTIRELY ADDITIVELY (crisp `chain_sip`/`run_bank` untouched). Full suite **480 green**
+(`.venv/Scripts/python.exe -m pytest tests/ -q`). Everything from the original design is built:
+banded facts, correlated `either…or`, multi-hop min, multi-variable rules, the θ bias dial, graded
+negation, cross-fork + transitive ENVIRONMENT soundness, a banded FIXPOINT driver, and the book.
+
+**Code surface (all additive):**
+- `ugm/possibility.py` — the engine: `add_fork` / `facts_matching_banded` (wildcard, returns
+  `(s,o,band,env)`) / `possibility` / `apply_rule_banded` (join + θ-NAC + graded negation + env) /
+  `run_banded` (fixpoint) / `verdict` / `band_word`. Bands live on `<hypothesis>` scopes
+  (`<likeliness>`); `<choice>` = exclusive alternatives; `<derived-env>` = a derived fork's assumptions.
+- `ugm/machine.py` — the one new ISA op `OVERLAY_BAND` (dims the match `score` by a fork's band; min
+  t-norm ⇒ weakest-link + multi-hop for free).
+- `ugm/cnl/uncertainty.py` — CNL surface: `parse_hedge_fact` / `parse_either` / `load_uncertain` /
+  `ask`. Hedge lexicon `HEDGE_BAND` is DISJOINT from the degree adverbs.
+- Tests: `tests/test_possibility_{band,cnl,rules,fixpoint}.py` + `tests/test_possibilistic_naf.py`.
+- Book: `book/docs/advanced/uncertain-world.md`, `book/docs/deep/uncertain-world-internals.md`,
+  appendix entries (see S7.8). Builds clean.
+
+**INVARIANTS to keep (do not break):** (1) additive — the 480 crisp tests must stay green, never
+touch the hot path; (2) QUALITATIVE/ordinal only — compare bands, no probability arithmetic (the one
+sanctioned numeric is the necessity complement `1−Π`); (3) the THREE roles stay distinct (membership
+≠ likelihood ≠ world-identity, S2); (4) likeliness lives on the SCOPE, not the edge primitive (S7.0).
+
+**NEXT — polish backlog (ordered, each self-contained):**
+1. **θ into `FirmwarePolicy`** — θ is currently a call arg to `apply_rule_banded`/`run_banded`; lift it
+   to policy (with a default + range) so it's a session dial, not a per-call constant.
+2. **KB-declarable hedge lexicon** — `HEDGE_BAND` is a module dict; make `probable means 0.7` parse
+   (mirror `authoring.degree_thresholds`), so authors extend the scale like degree adverbs.
+3. **Ranked `either…or…`** — `parse_either` gives both alts `DEFAULT_ALT_BAND=0.5`; add "more likely
+   than" so alternatives can carry different bands (the doc's opening motivation).
+4. **Env-aware NAC** — `_nac_necessity` ignores env, so it may over-block (count a P reachable only via
+   a fork incompatible with the body's env). Thread env into the NAC read.
+5. **`disjoint_from`-declared exclusivity** — exclusivity is only via shared `<choice>` today; wire the
+   declared `disjoint_from` relation so two independently-authored forks can be exclusive.
+6. **Fold banded reasoning INTO `chain_sip`** — the standalone `run_banded` is a forward stand-in (no
+   demand fuel/recursion); the `OVERLAY_BAND` + score-carries-band foundation is what a demand-driven
+   fold reuses. Biggest item; do last.
+
+Everything below is the full design record (unchanged); the BUILT markers in S7 track what shipped.
+
+---
+
 # Settled architecture (2026-07-15) — likeliness on edges + pencil-scopes for write-through
 
 This supersedes the "reified disjunction node" / "phantom gate node" explorations above: both were
