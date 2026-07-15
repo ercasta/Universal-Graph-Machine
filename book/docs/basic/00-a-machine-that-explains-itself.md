@@ -16,6 +16,7 @@ ada is a suspect
 bo is a suspect
 cy is a suspect
 
+ada is nervous         # ada seems on edge
 bo in library          # bo was in the library
 ada is alibied         # ada has an alibi
 ```
@@ -50,7 +51,8 @@ step it takes:
    *not* cleared?
 3. **Who are the suspects?** → ada, bo, cy. It checks each one.
 4. **Is ada cleared?** ada is alibied → *cleared*. So ada is **not**
-   "not-cleared." **ada is out.**
+   "not-cleared." **ada is out** — never mind that she's *nervous*; an alibi is
+   an alibi, and the machine doesn't mistake a jitter for guilt.
 5. **Is bo cleared?** bo was in the library → *innocent* → *cleared*.
    **bo is out.**
 6. **Is cy cleared?** The machine looks for any reason cy is cleared… and finds
@@ -73,7 +75,7 @@ step it takes:
 Here's the part other machines can't do. Ask:
 
 ```
-why is cy the thief?
+why cy is thief
 ```
 
 and the machine hands back its actual reasoning — this is real output, exactly
@@ -101,7 +103,7 @@ But sometimes that's the wrong stance. Suppose a stranger, **zz**, wanders into
 the story — someone the machine has never heard a single fact about. We ask:
 
 ```
-is zz the thief?
+is zz thief
 ```
 
 With a **closed world**, the machine reasons "I have nothing on zz, so — no":
@@ -127,7 +129,7 @@ is what the rest of this book is about.
 [:material-play-circle: **Try the whole case live**](../playground/detective.md){ .md-button .md-button--primary }
 
 Edit a clue, re-ask, and watch the steps change. Delete `ada is alibied` and ask
-*who is the thief?* again — see what happens to ada.
+`who is thief` again — see what happens to ada.
 
 ---
 

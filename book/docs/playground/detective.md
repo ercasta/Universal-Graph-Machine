@@ -11,6 +11,7 @@ itself** along the way (like *"is cy cleared?"*) and whether it finds evidence,
 and finally its answer. Try these:
 
 - Ask `who is thief` — then **delete the line `ada is alibied`** and ask again.
+- Ask `who is nervous` to have the machine sweep the world for a plain quality.
 - Ask `why cy is thief` to see the machine's own reasoning trail.
 - Ask `is zz thief` — then tick **keep an open mind** and ask the *same*
   question again. Watch `no` become `unknown`. (It also flips `is ada thief`.)
@@ -26,11 +27,12 @@ and finally its answer. Try these:
      data-wheel="../wheels/universal_graph_machine-0.1.0-py3-none-any.whl">
 
   <label class="ugm-label" for="ugm-corpus">The world — clues and rules</label>
-  <textarea id="ugm-corpus" class="ugm-corpus" spellcheck="false" rows="12">
+  <textarea id="ugm-corpus" class="ugm-corpus" spellcheck="false" rows="13">
 ada is a suspect
 bo is a suspect
 cy is a suspect
 
+ada is nervous
 bo in library
 ada is alibied
 
@@ -56,6 +58,7 @@ ada is alibied
   <div class="ugm-quick">
     <span class="ugm-quick-label">Quick questions:</span>
     <button type="button" class="ugm-ask" data-q="who is thief">who is thief</button>
+    <button type="button" class="ugm-ask" data-q="who is nervous">who is nervous</button>
     <button type="button" class="ugm-ask" data-q="is cy thief">is cy thief</button>
     <button type="button" class="ugm-ask" data-q="is ada thief">is ada thief</button>
     <button type="button" class="ugm-ask" data-q="why cy is thief">why cy is thief</button>

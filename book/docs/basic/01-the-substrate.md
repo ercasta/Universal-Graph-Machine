@@ -41,11 +41,12 @@ Here's the whole opening of our detective case, drawn out:
       (bo)  ──is_a──▶ (suspect)
       (cy)  ──is_a──▶ (suspect)
 
+      (ada) ──is────▶ (nervous)
       (bo)  ──in────▶ (library)
       (ada) ──is────▶ (alibied)
 ```
 
-That's it. That's the entire "world" from Chapter 0 — five arrows between eight
+That's it. That's the entire "world" from Chapter 0 — six arrows between seven
 dots. Everything the machine deduced, it deduced from this little picture.
 
 !!! note "Facts you state vs. facts it works out"

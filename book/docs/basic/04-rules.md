@@ -150,6 +150,7 @@ ada is a suspect
 bo is a suspect
 cy is a suspect
 
+ada is nervous
 bo in library
 ada is alibied
 

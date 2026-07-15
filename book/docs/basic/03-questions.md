@@ -7,6 +7,7 @@ world throughout —
 ```
 ada is a suspect
 bo is a suspect
+cy is a suspect
 ada is nervous
 bo in library
 ada is alibied
@@ -37,11 +38,11 @@ Often you don't know *who* fits — that's the whole point of asking. Start with
 
 ```
 who is nervous            →  ada is nervous
-who is a suspect          →  ada is a suspect, bo is a suspect
+who is a suspect          →  ada is a suspect, bo is a suspect, cy is a suspect
 ```
 
 The machine sweeps its world and hands back **everyone** who fits. Ask
-`who is nervous` and it finds ada; ask `who is a suspect` and it finds both. This
+`who is nervous` and it finds ada; ask `who is a suspect` and it finds all three. This
 is the same kind of question we opened the book with — `who is thief` — except
 that one needed *rules* to work out the answer (that's the next chapter).
 

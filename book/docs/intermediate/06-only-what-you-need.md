@@ -25,9 +25,9 @@ normal mode.
 
 You've already seen it. When you ask `who is thief` in the playground and watch
 the step view, the machine checks each suspect's *cleared* status — because the
-thief rule demands it — and then stops. It never wonders whether ada is nervous,
-or where cy keeps her keys. Those facts are *derivable*, but nobody demanded
-them, so they're never derived.
+thief rule demands it — and then stops. It never so much as glances at whether
+ada is *nervous* (nothing in the thief rule cares), or wonders where cy keeps her
+keys. Those threads aren't on the path to the answer, so it never pulls them.
 
 That's the difference in one picture: the eager machine fills the whole
 notebook; the lazy machine writes only the lines its question needs.
