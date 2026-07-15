@@ -222,17 +222,161 @@ crisp-in-scope). The increment:
 4. verdicts gain the **likely / very-likely / unlikely / very-unlikely** band between `yes` and
    `assumed-no` — SUBSUMING today's four-verdict space (no gates ⇒ byte-identical crisp behavior).
 
-## S6. THE open question a spike must settle — assumption-relative NAF
+## S6. Assumption-relative NAF — SPIKED & RESOLVED (2026-07-15)
 
-When a query does NOT take a stance, may a gated (uncertain) fact satisfy a rule body / trip a NAC
-at all?
-- `?p is a thief when ?p has ?motive` — if `motive` is reachable only through an unlikely edge, does
-  the rule fire (conclusion marked "unlikely"), or stay silent until someone assumes the gate?
-- Dually: does `not (x is male)` hold in the certain world when `male` sits behind a gate? (Proposed:
-  yes — the certain-world NAC ignores gated facts; a NAC evaluated *under* a scope sees that scope's
-  gated facts. Stratification must hold PER assumption-set.)
+Spike (`scratchpad/naf_spike.py`) modelled `either male∧tall or female∧short` as two pencil scopes
+and probed `_facts_matching` (the exact primitive `_nac_blocks` calls, chain.py:758) under
+scope=None / male-world / female-world. Result (`not-holds` = NAF holds; `BLOCKED` = present):
 
-**Spike example** (exercises correlation AND assumption-relative NAF at once):
-`either male and tall or female and short`, then a `not` inside one branch. Probe: (a) certain-world
-verdicts for `male`/`tall`; (b) in-scope verdicts under each branch; (c) whether a NAC referencing a
-gated fact fires certain-world vs in-scope.
+| target | certain(None) | male-world | female-world |
+|---|---|---|---|
+| male   | not-holds | BLOCKED   | not-holds |
+| female | not-holds | not-holds | BLOCKED   |
+| tall   | not-holds | BLOCKED   | not-holds |
+| short  | not-holds | not-holds | BLOCKED   |
+
+**Findings:**
+1. **Assumption-relative NAF already works** — no new mechanism. `_nac_blocks` evaluates each NAC
+   via `_facts_matching(..., scope=scope)`, the SAME scope as the positive body; pencil is visible
+   only within its scope. Each world computes NAF over *ink + its own pencil*.
+   Stratification-per-assumption-set = the existing per-run stratification (each scope is its own
+   `chain_sip` pass).
+2. **The open question resolves to "SILENT UNTIL ASSUMED."** Visibility is BINARY (in-scope /
+   invisible-out), so a gated fact is *absent* in the certain world — it neither satisfies a body
+   nor trips a NAC there; it acts only under its scope. "Fire-but-marked-unlikely" is NOT in the
+   machinery today.
+3. **Correlation & exclusivity are free** — `male∧tall` joint by co-scoping (both or neither);
+   forks don't cross-contaminate; ink stays certain under every scope.
+4. **Certain world is honestly agnostic** — `not male` AND `not female` both hold there (an unentered
+   fork; incomplete, not contradictory).
+
+**Consequence — the remaining build is localized to ONE thing (the graded band, S5.3–4).** NAF,
+correlation, monotone safety: done/free. The architecture is TWO layered modes; only the second is
+new:
+- **Silent-until-assumed** (default) — already works; safe by construction (uncertain facts never
+  touch certain reasoning unless a scope is entered).
+- **Marker mode** (opt-in, NEW) — a fact visible *with a likeliness band* instead of
+  invisible-out-of-scope, so a body can fire "unlikely" without committing. = min-accumulate along
+  the traversal + band-on-visibility. This is the sole remaining increment.
+
+---
+
+# S7. Graded band — design (2026-07-15)
+
+## S7.0 The simplification the spike bought: likeliness lives on the SCOPE, not the edge primitive
+
+Entering a fork *is* crossing "the uncertain edge," and every uncertain fact already lives in a
+scope (a singleton scope for a lone uncertain relation). So **the likeliness of "the edge into a
+fork" = a band on that fork's `<hypothesis>` scope node** — a reserved graded attr `<likeliness>`,
+reusing the existing degree-adverb lexicon (`very`=0.8 / `somewhat`=0.5 / `slightly`=0.3),
+interpreted ORDINALLY (compare only, never arithmetic — decision F). Absent ⇒ CERTAIN (ink = 1.0).
+
+**Consequence: S1's "scalar on the edge primitive" is NOT required.** It is realized positionally as
+*scope-membership + scope-band*, reusing pencil + graded attrs. Altering the edge representation
+remains available as optional ergonomics, but it is not load-bearing and would still need the same
+read-program band-threading below. The honest "alter the substrate" turns out to be **a band attr on
+scope nodes + one read op**, not a change to edges.
+
+> **DECIDED (user, 2026-07-15): scope-band, not the edge primitive.** The edge-primitive version is
+> shelved as unneeded. (Aside the user noted: the reason the scope/pencil mechanism wasn't front of
+> mind is that the tutorial book under-describes it — see S7.8.)
+
+## S7.1 The seam: the OVERLAY read op (chain.py:540)
+
+Today `OVERLAY("r", CONTROL_MARK, _SCOPE_OVERLAY)` admits rel `r` iff it lacks the control marker
+(ink) OR is in `registers[_SCOPE_OVERLAY]` = the ONE active scope's pencils (`_scope_pencils`).
+Boolean. Two overlay shapes, only the second is new:
+
+- **Silent/assumed (today):** overlay = one scope's pencils (or None). Binary. Unchanged, byte-for-byte.
+- **Marker mode (new):** overlay = the UNION of ALL forks' pencils, plus a band map `{rel_id: band}`
+  (each rel → its scope's `<likeliness>`; ink → CERTAIN). A read op variant `OVERLAY_BAND` admits a
+  union-overlay rel AND annotates the match with its band. `_facts_matching` return extends
+  `(subj,obj)` → `(subj,obj,band)` in marker mode; silent mode stays `(subj,obj)` (band ≡ CERTAIN).
+
+## S7.2 Min-accumulate = environments (ATMS), qualitative
+
+A derivation using facts of bands b₁..bₙ yields a head of band **min(b₁..bₙ)** (weakest link,
+ordinal). The head is emitted into an ENVIRONMENT = the union of the used facts' scopes, whose band =
+min. Single-fork derivations stay in one scope (SLICE 1); cross-fork derivations mint a *combined*
+environment (SLICE 2 — the general ATMS assumption-set). Verdict over alternative derivations =
+**max band** (possibility = qualitative max-of-min).
+
+## S7.3 NAF with a band — the α-cut θ IS the bias dial (the key decision)
+
+Marker-mode NAF: `not P` **blocks iff P is reachable at band ≥ θ**, where θ is a metareasoning dial
+(this is open-point I, the propagation/decisiveness knob, cashed out). This θ is exactly the
+**bias-vs-decisiveness control**:
+- **high θ** → ignore low-possibility alternatives → decisive, more bias-prone (concludes from
+  `not female` even when female is merely unlikely);
+- **low θ** → refuse to conclude from `not P` when P is even slightly possible → cautious,
+  bias-averse.
+
+The `test_possibilistic_naf` gender case becomes θ-controlled: with all forks overlaid, `female` is
+visible at its band; whether the biased rule fires is precisely whether female's band clears θ. This
+is the concrete, tunable mitigation of the "premature jump" (decision 6): the prior is a visible
+band, and θ is the dial that says how sure you must be of an absence before you lean on it.
+
+*Graded negation band* (the necessity side — a NAF-derived conclusion is only as strong as the
+counter-evidence is unlikely, an ordinal complement) is a SLICE-2 refinement; SLICE 1 uses θ-crisp
+NAF and carries the min band of the POSITIVE body only.
+
+## S7.4 Verdict space (subsumes today's four)
+
+`band=CERTAIN` → **yes** · `0<band<1` (only gated derivations) → **very-likely/likely/unlikely/
+very-unlikely** (band→word) · no derivation, closed → **assumed-no** · open/fuel → **unknown**. The
+band ranks strictly between `yes` and `assumed-no`. No gates present ⇒ byte-identical to today.
+
+## S7.5 Change surface (small, additive, differential-gated)
+
+0. **CNL surface (the authoring half — new forms in `ugm/cnl/`):**
+   - hedge-on-a-fact → banded scope: `x is likely male`, `cy is unlikely a thief`
+     (`likely`/`unlikely`/`very likely`/`very unlikely` reuse the degree-adverb lexicon; the fact is
+     penned into a scope whose `<likeliness>` = the hedge's degree);
+   - correlated disjoint alternatives → two forks: `either male and tall or female and short`
+     (each conjunction co-scoped behind one fork; mutual exclusion via existing `disjoint_from`);
+   - verdict rendering gains the band words (the question forms are unchanged — only the answer
+     surface grows `likely`/`unlikely`);
+   - (optional) a meta-line for θ: `be cautious` / `be decisive` sets the NAF α-cut dial.
+1. `<hypothesis>` scope nodes carry a `<likeliness>` graded attr (authoring sets it from the hedge).
+2. `_scope_pencils` gains a marker-mode sibling `_all_fork_bands(fact_g) -> dict[rel_id, band]`.
+3. new `OVERLAY_BAND` read op (or OVERLAY extension) admitting union-overlay + annotating band;
+   `_facts_matching` marker-mode returns `(s,o,band)`.
+4. `_nac_blocks` marker-mode: block iff any match band ≥ θ (θ from `FirmwarePolicy`).
+5. `chain_sip` EMIT: head band = min(positive-body bands); emit into the environment (SLICE 1: one
+   scope; SLICE 2: combined).
+6. verdict rendering: band → word; `why` shows the band + the environment (assumption-set) crossed.
+
+The positive/crisp core is untouched: marker mode is opt-in, silent mode keeps the binary OVERLAY,
+and the `_CROSSCHECK` differential gate still guards the shared matcher.
+
+## S7.6 Two slices
+
+- **SLICE 1** — single-fork marker mode, θ-crisp NAF, conclusions carry min positive-body band.
+  Delivers "cy is unlikely a thief" and the θ-tunable bias mitigation. No environments.
+  - **ENGINE CORE BUILT 2026-07-15** — `ugm/possibility.py` (`add_fork` / `facts_matching_banded` /
+    `possibility` / `naf_holds(θ)` / `verdict`), standalone & additive (chain.py untouched), the band
+    on the fork's `<hypothesis>` scope (`<likeliness>`). Tests: `tests/test_possibility_band.py`
+    (10 green) + `tests/test_possibilistic_naf.py` (the binary silent-until-assumed default).
+    θ-as-bias-dial demonstrated (`test_theta_is_the_bias_dial`).
+  - **REMAINING in Slice 1:** (a) CNL surface (S7.5 item 0 — hedge-on-fact, `either…or…` forks, band
+    words in verdicts); (b) FOLD the standalone reader into the ISA `OVERLAY_BAND` read op so marker
+    mode runs through the one matcher (chain.py:540) and multi-hop derivations min-accumulate; (c)
+    wire `θ` into `FirmwarePolicy`.
+- **SLICE 2** — cross-fork environments (combined assumption-sets, min band) + graded negation band
+  (necessity via ordinal complement). Full ATMS.
+
+## S7.7 Still-open (non-blocking)
+
+- exact ordinal band scale + word mapping (reuse adverb lexicon vs a dedicated 5-rung enum);
+- default θ and its range (open-point I);
+- SLICE-2 combined-environment representation (a scope whose members are other scopes?) + its perf
+  (the `demand-coref-perf-wall` caution applies to cross-fork fan-out).
+
+## S7.8 Documentation follow-up (AFTER the build)
+
+- The tutorial book under-describes the SUPPOSE/pencil/scope mechanism (only `09-supposing.md`),
+  which is WHY the scope-band realization (S7.0) wasn't obvious — worth a pass to surface that
+  scopes are reusable, coexisting world-labels, not just a one-shot hypothesis test.
+- New book chapter (working title **"Living in an uncertain world"**) once SLICE 1 lands: authoring
+  banded facts, the two crossing modes (marker vs assume), reading `likely`/`unlikely` verdicts, and
+  the θ dial as the bias-vs-decisiveness control. Belongs in the advanced track near supposing.
