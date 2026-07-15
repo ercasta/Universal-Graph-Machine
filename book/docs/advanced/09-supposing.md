@@ -73,5 +73,5 @@ about the might-be — all without ever losing its grip on the is.
 
 ---
 
-**Next:** a puzzle every detective faces — when do two *names* refer to one
-*person*? [Same name, same person? →](10-identity.md)
+**Next:** clues rarely say *yes* or *no* — most whisper *probably*. How does a
+machine hold a *maybe* without fooling itself? [Living in an uncertain world →](uncertain-world.md)

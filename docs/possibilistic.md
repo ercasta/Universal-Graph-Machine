@@ -411,9 +411,15 @@ and the `_CROSSCHECK` differential gate still guards the shared matcher.
     forward applier is the safe Slice-1 stand-in — no demand-driven fuel/recursion; the OVERLAY_BAND +
     score-carries-band foundation is what a chain_sip fold would reuse). Graded negation band and
     cross-fork ENVIRONMENT consistency + forward HEAD-environment propagation (impossible-world
-    rejection, incl. transitive across a chain) are DONE (see S7.3, S7.2). Remaining Slice 2 (minor) =
-    env-aware NAC + `disjoint_from`-declared exclusivity + a banded fixpoint driver (the applier is
-    single-pass).
+    rejection, incl. transitive across a chain) are DONE (see S7.3, S7.2).
+  - **BANDED FIXPOINT DRIVER BUILT 2026-07-15** — `possibility.run_banded(g, rules, theta=)`
+    forward-chains a whole bank to a fixpoint (the banded analogue of `run_bank`, standalone/additive).
+    `apply_rule_banded` is now idempotent (a head is (re-)emitted only at a STRICTLY better band), so it
+    terminates (finite band lattice, monotone-up); head-env propagation keeps a multi-step chain sound.
+    Tests `tests/test_possibility_fixpoint.py` (4): a 3-rule chain carries the band to the transitive
+    conclusion; idempotence (a re-run emits 0); an all-ink chain stays CERTAIN/ink; an exclusive-fork
+    chain never fires `puzzling`. Full suite 480 green.
+  - **Remaining Slice 2 (minor):** env-aware NAC + `disjoint_from`-declared exclusivity.
 - **SLICE 2** — cross-fork environments (combined assumption-sets, min band) + graded negation band
   (necessity via ordinal complement). Full ATMS.
 
@@ -424,11 +430,17 @@ and the `_CROSSCHECK` differential gate still guards the shared matcher.
 - SLICE-2 combined-environment representation (a scope whose members are other scopes?) + its perf
   (the `demand-coref-perf-wall` caution applies to cross-fork fan-out).
 
-## S7.8 Documentation follow-up (AFTER the build)
+## S7.8 Documentation — BUILT 2026-07-15
 
-- The tutorial book under-describes the SUPPOSE/pencil/scope mechanism (only `09-supposing.md`),
-  which is WHY the scope-band realization (S7.0) wasn't obvious — worth a pass to surface that
-  scopes are reusable, coexisting world-labels, not just a one-shot hypothesis test.
-- New book chapter (working title **"Living in an uncertain world"**) once SLICE 1 lands: authoring
-  banded facts, the two crossing modes (marker vs assume), reading `likely`/`unlikely` verdicts, and
-  the θ dial as the bias-vs-decisiveness control. Belongs in the advanced track near supposing.
+Three book pieces landed (book builds clean, no broken links):
+- **Part 3 (concept):** `book/docs/advanced/uncertain-world.md` — "Living in an uncertain world":
+  hedged facts, doubt-travels (weakest link), the honest surgeon jump + the θ dial, correlated
+  `either…or`, impossible worlds, all still pencil. Uses GENUINE engine output. Rerouted Supposing's
+  "Next" → this chapter → Identity.
+- **Part 4 (mechanism):** `book/docs/deep/uncertain-world-internals.md` — "Shades of maybe": bands on
+  pencil scopes, `OVERLAY_BAND` dimming the match score (min = weakest link), θ as an α-cut on NAF,
+  necessity `1−Π` for graded negation, environments/ATMS — and framed as NOT a tenth mode (a
+  composition of Suppose + graded matching + Check, respecting the closed inventory). Rerouted Modes'
+  "Next" → this chapter → Firmware.
+- **Appendix:** two concept entries ("Possibility — likely and unlikely"; "Environments — worlds that
+  can't both be true") + an `OVERLAY_BAND` row in the instruction-set data-path table.

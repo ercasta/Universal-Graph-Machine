@@ -266,6 +266,8 @@ def apply_rule_banded(g: AttrGraph, body: list[Atom], nac: list[Atom], head: Ato
             best[triple] = (band, env)                           # keep the best derivation's env too
     results: list[tuple[Atom, float]] = []
     for triple, (band, env) in sorted(best.items()):             # WRITE phase
+        if possibility(g, triple[1], triple[0], triple[2]) >= band:
+            continue                                             # already derivable at ≥ band → idempotent
         if band >= CERTAIN and not env:
             from .lowering import load_fact_triples
             load_fact_triples(g, [triple])                        # certain, assumption-free → ink (as crisp)
@@ -273,6 +275,25 @@ def apply_rule_banded(g: AttrGraph, body: list[Atom], nac: list[Atom], head: Ato
             add_fork(g, band, [triple], derived_env=env)          # derived → a fork carrying its assumptions
         results.append((triple, band))
     return results
+
+
+Rule = tuple[list[Atom], list[Atom], Atom]     # (body, nac, head)
+
+
+def run_banded(g: AttrGraph, rules: list[Rule], *, theta: float, max_rounds: int = 100) -> int:
+    """Forward-chain banded `rules` [(body, nac, head), …] to a FIXPOINT (S7.6): each round applies
+    every rule (marker-mode, environment-sound) and stops when a round emits nothing NEW. Terminates
+    because emission is idempotent and monotone-up (a head is re-emitted only at a STRICTLY better band,
+    and the band lattice is finite); head-environment propagation keeps a multi-step chain sound (an
+    impossible transitive environment never fires). Returns the total number of emissions. This is the
+    banded analogue of `lowering.run_bank` — standalone/additive, so the crisp fixpoint is untouched."""
+    total = 0
+    for _ in range(max_rounds):
+        changed = sum(len(apply_rule_banded(g, body, nac, head, theta=theta)) for body, nac, head in rules)
+        total += changed
+        if changed == 0:
+            break
+    return total
 
 
 def verdict(g: AttrGraph, pred: str, s: str, o: str, *, closed: bool = True) -> str:

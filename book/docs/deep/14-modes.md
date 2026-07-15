@@ -91,6 +91,5 @@ The full list, with the rejected reflexes, is in the
 
 ---
 
-**Next:** we keep mentioning the machine's "attitude" — closed world, open mind.
-Where does an attitude *live* in a machine made of dots and arrows? In a small,
-swappable layer called firmware. [The machine's attitude →](15-firmware.md)
+**Next:** a machine that says *likely* sounds like it needs probabilities. It
+doesn't — it reuses the modes you just met. [Shades of maybe →](uncertain-world-internals.md)

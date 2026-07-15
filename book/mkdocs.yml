@@ -78,12 +78,14 @@ nav:
       - "8 · Because…": intermediate/08-because.md
   - "Part 3 — Advanced":
       - "9 · Supposing": advanced/09-supposing.md
+      - "Living in an uncertain world": advanced/uncertain-world.md
       - "10 · Same name, same person?": advanced/10-identity.md
       - "11 · Gathering evidence": advanced/11-gathering-evidence.md
       - "12 · The machine underneath": advanced/12-the-machine-underneath.md
   - "Part 4 — The internals":
       - "13 · A rule is a little program": deep/13-instruction-set.md
       - "14 · Nine ways to think": deep/14-modes.md
+      - "Shades of maybe: the machinery": deep/uncertain-world-internals.md
       - "15 · The machine's attitude": deep/15-firmware.md
   - "Playground":
       - "The detective case": playground/detective.md

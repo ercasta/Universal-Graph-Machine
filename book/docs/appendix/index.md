@@ -171,6 +171,49 @@ not guesswork.
 
 ---
 
+## Possibility — "likely" and "unlikely"
+
+Beyond **yes / no / unknown**, the machine can hold an answer *in between*: a fact
+it thinks is **likely**, or **unlikely**, or somewhere on a small scale
+(*certain · very likely · likely · unlikely · very unlikely*). A hedged fact
+(*sam is likely a spy*) is stored as a **pencil world** — like a
+[supposition](../advanced/09-supposing.md) it entertains without believing — tagged with how **possible** it
+is (its *band*).
+
+Crucially, this is **qualitative**, not probability: the machine only ever
+*compares* bands, never does arithmetic on them. Reasoning through a *likely* fact
+yields a *likely* conclusion — a chain is as strong as its **weakest link** — and a
+conclusion that leans on *"probably not P"* is only as strong as P is genuinely
+unlikely (the **possibility/necessity duality**). How boldly the machine jumps on a
+faint possibility is a single dial (a threshold, θ) you control, not a bias hidden
+in the code.
+
+> **Go deeper:** the tradition here is **possibility theory** (Dubois & Prade) and
+> **possibilistic logic** — the *qualitative* cousin of probability. See
+> [Living in an uncertain world](../advanced/uncertain-world.md) and, for the
+> machinery, [Shades of maybe](../deep/uncertain-world-internals.md).
+
+---
+
+## Environments — worlds that can't both be true
+
+When the machine reasons through possibilities, every "maybe" it derives quietly
+remembers the **set of assumptions it stands on** — its *environment*. Join two
+facts and their environments merge; draw a conclusion and it inherits the merged
+set. One rule then keeps things honest: an *either… or…* records its options as
+**mutually-exclusive alternatives**, and any environment that ends up needing *two
+alternatives of the same choice* is **impossible** and is thrown away.
+
+That's why the machine will never secretly stitch *tall-and-quiet* together with
+*short-and-loud* to reach a conclusion — even several rules later, the contradiction
+is caught the moment those environments meet. This bookkeeping-of-assumptions is what
+makes reasoning-with-maybes **sound** rather than merely suggestive.
+
+> **Go deeper:** the classic device is an **assumption-based truth maintenance
+> system (ATMS)**, due to Johan de Kleer.
+
+---
+
 ## The instruction set — the data path
 
 Everything the machine *does* to the graph is one of a small set of instructions.
@@ -193,6 +236,7 @@ sequence of these. See [Chapter 13](../deep/13-instruction-set.md).
 | loop | `ITERATE` | Fork the work once per item in a bounded range. |
 | in focus? | `MEMBER` / `OVERLAY` | Restrict (or extend) matching to a working set / scope. |
 | by degree | `FUZZY` / `GRADE` | Match on a *degree* rather than a plain yes/no. |
+| by likeliness | `OVERLAY_BAND` | Step through a pencil world's fact, dimming the running score to its likeliness (weakest-link *min*) — how a *likely* is read ([Shades of maybe](../deep/uncertain-world-internals.md)). |
 | by value | `VMATCH` | Join two dots that **agree on a value** (e.g. the same name). |
 
 **Writing (the apply phase):**
