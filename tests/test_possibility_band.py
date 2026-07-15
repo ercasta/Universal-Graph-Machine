@@ -59,11 +59,36 @@ def test_band_word_scale():
     assert band_word(0.1) == "very unlikely"
 
 
+def test_overlay_band_min_accumulates_multi_hop():
+    """The ISA fold (S7.1/S7.2): the read runs through Machine.match, and a MULTI-HOP banded path
+    min-accumulates the weakest-link band in the match score. x —is→ male (fork 0.6); male —is→
+    dangerous (fork 0.5); the 2-hop path's score = min(0.6, 0.5) = 0.5."""
+    from ugm.machine import Machine, SET, FOLLOW, TEST, OVERLAY_BAND
+    from ugm.attrgraph import CONTROL_MARK, INERT_MARK, NAME
+    from ugm.possibility import add_fork, all_fork_bands, _FORK_BANDS
+
+    g = AttrGraph()
+    add_fork(g, 0.6, [("x", "is", "male")])
+    add_fork(g, 0.5, [("male", "is", "dangerous")])
+    g.registers[_FORK_BANDS] = all_fork_bands(g)
+
+    def guard(r):
+        return [TEST(r, CONTROL_MARK, absent=True), TEST(r, INERT_MARK, absent=True)]
+
+    prog = [SET("s", min(g.nodes_named("x"))), *guard("s"),
+            FOLLOW("r1", "s", "out"), TEST("r1", "is"), OVERLAY_BAND("r1", CONTROL_MARK, _FORK_BANDS),
+            FOLLOW("m", "r1", "out"), *guard("m"), TEST("m", NAME, cmp="=", value="male"),
+            FOLLOW("r2", "m", "out"), TEST("r2", "is"), OVERLAY_BAND("r2", CONTROL_MARK, _FORK_BANDS),
+            FOLLOW("d", "r2", "out"), *guard("d"), TEST("d", NAME, cmp="=", value="dangerous")]
+    states = Machine().match(g, prog)
+    assert states and min(st.score for st in states) == 0.5
+
+
 def test_crisp_core_untouched_without_forks():
     """No forks ⇒ every fact reads CERTAIN and the marker reader agrees with a plain read."""
     g = AttrGraph()
     a = g.add_node("a")
     g.add_relation(a, "likes", g.add_node("b"))
-    assert facts_matching_banded(g, "likes", "a", "b") == [("a", "b", CERTAIN)]
+    assert facts_matching_banded(g, "likes", "a", "b") == [("a", "b", CERTAIN, frozenset())]
     assert verdict(g, "likes", "a", "b") == "certain"
     assert verdict(g, "likes", "a", "c") == "assumed-no"

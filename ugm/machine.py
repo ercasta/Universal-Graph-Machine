@@ -275,6 +275,20 @@ class OVERLAY(Instr):
 
 
 @dataclass
+class OVERLAY_BAND(Instr):
+    """The GRADED sibling of OVERLAY (docs/possibilistic.md S7.1): the possibilistic marker-mode read.
+    Like OVERLAY, keep the state iff the node in `reg` lacks `key` (the BASE — an ink/fact rel, CERTAIN,
+    score unchanged), OR it is an overlaid FORK pencil. The difference: `live` here holds a MAP
+    `{rel_id -> band}` (all forks' pencils keyed to their `<likeliness>` scope band, not a plain set),
+    and admitting a fork rel SCALES the state's score by that band (the t-norm — min — so a multi-hop
+    derivation accumulates the WEAKEST-LINK band automatically, S7.2). No map parked ⇒ only ink passes.
+    Positive/monotone: a filter that also carries a degree, exactly like GRADE."""
+    reg: str
+    key: str
+    live: str
+
+
+@dataclass
 class VMATCH(Instr):
     """Value-JOIN filter: keep the state iff two ALREADY-bound registers carry MATCHING values on
     `key` — the TWO-register sibling of GRADE (which tests one register). The ONE op both engines run
@@ -502,6 +516,14 @@ class Machine:
                 live = g.registers.get(ins.live)           # the overlay: in-scope marked nodes
                 if live is not None and nid in live:
                     yield st
+        elif isinstance(ins, OVERLAY_BAND):
+            nid = st.regs[ins.reg]
+            if not g.has_key(nid, ins.key):                # base: an ink (fact) rel -> CERTAIN
+                yield st
+            else:
+                bands = g.registers.get(ins.live)          # overlay: fork pencils -> their band
+                if bands is not None and nid in bands:
+                    yield st.scaled(bands[nid], self.tnorm)   # fold the fork band into score (min)
         elif isinstance(ins, JOIN):
             src = st.regs[ins.src]
             nbrs = g.succ(src) if ins.direction == "out" else g.pred(src)

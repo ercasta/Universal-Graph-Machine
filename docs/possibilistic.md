@@ -296,10 +296,24 @@ Boolean. Two overlay shapes, only the second is new:
 ## S7.2 Min-accumulate = environments (ATMS), qualitative
 
 A derivation using facts of bands b₁..bₙ yields a head of band **min(b₁..bₙ)** (weakest link,
-ordinal). The head is emitted into an ENVIRONMENT = the union of the used facts' scopes, whose band =
-min. Single-fork derivations stay in one scope (SLICE 1); cross-fork derivations mint a *combined*
-environment (SLICE 2 — the general ATMS assumption-set). Verdict over alternative derivations =
-**max band** (possibility = qualitative max-of-min).
+ordinal). It carries an ENVIRONMENT = the union of the used facts' fork-scopes. Verdict over
+alternative derivations = **max band** (possibility = qualitative max-of-min).
+
+**Environment consistency BUILT 2026-07-15** — `facts_matching_banded` returns `(s,o,band,env)` (env =
+the singleton fork a fact depends on, read from the matched rel's `SCOPE`); `_match_body` UNIONs env
+across the join and PRUNES any environment that combines two distinct forks of the same `<choice>`
+(mutually-exclusive `either…or` alternatives can't both hold). So `?p is male ∧ ?p is short` (two
+alternatives of one choice) is correctly IMPOSSIBLE, while `?p is male ∧ ?p is tall` (one fork) derives
+at the fork band. `_env_consistent`; `test_cross_exclusive_fork_derivation_is_impossible`.
+**Head-environment propagation BUILT 2026-07-15** — a derived head fork stores its assumption-set
+(`<derived-env>`); the read returns that TRANSITIVE env (`_scope_env`), so a rule chaining off a
+derived fact inherits its parents' forks. A two-step chain `manly ← male` then `puzzling ← manly ∧
+short` correctly finds `{forkA, forkB}` impossible → `puzzling` not derived
+(`test_head_environment_propagates_across_a_chain`). This closes the ATMS soundness loop for forward
+chaining.
+Remaining (minor): NAC is env-agnostic (may over-block); exclusivity is only via shared `<choice>`
+(declared `disjoint_from` not yet wired); the standalone applier is single-pass (no fixpoint/fuel —
+a chain is driven by calling it per rule).
 
 ## S7.3 NAF with a band — the α-cut θ IS the bias dial (the key decision)
 
@@ -317,8 +331,11 @@ is the concrete, tunable mitigation of the "premature jump" (decision 6): the pr
 band, and θ is the dial that says how sure you must be of an absence before you lean on it.
 
 *Graded negation band* (the necessity side — a NAF-derived conclusion is only as strong as the
-counter-evidence is unlikely, an ordinal complement) is a SLICE-2 refinement; SLICE 1 uses θ-crisp
-NAF and carries the min band of the POSITIVE body only.
+counter-evidence is unlikely) **BUILT 2026-07-15**: θ stays the hard gate (`Π(P) ≥ θ` blocks), and a
+surviving NAC folds `N(¬P) = 1 − Π(P)` (possibility/necessity duality, Dubois–Prade) into the head
+band, so `flagged` in the surgeon case is emitted at `min(body, 1−Π(female))` — e.g. female 0.3 ⇒
+flagged "likely" (0.7), NOT "certain". `possibility._nac_necessity`;
+`test_graded_negation_scales_with_counter_evidence`.
 
 ## S7.4 Verdict space (subsumes today's four)
 
@@ -366,11 +383,37 @@ and the `_CROSSCHECK` differential gate still guards the shared matcher.
     `test_either_or_makes_two_correlated_forks`); (3) banded yes/no verdicts (`ask`). Loader is
     additive (`load_uncertain` returns non-possibilistic lines for the ordinary loader).
     Tests: `tests/test_possibility_cnl.py` (6 green).
-  - **REMAINING in Slice 1:** (a) FOLD the standalone reader into the ISA `OVERLAY_BAND` read op so
-    marker mode runs through the one matcher (chain.py:540) and multi-hop derivations min-accumulate;
-    (b) wire `θ` into `FirmwarePolicy`; (c) make the hedge lexicon KB-declarable (`probable means
-    0.7`, mirroring `very is 0.8`); (d) ranked `either…or…` (`more likely than`) + `disjoint_from`
-    exclusion lint; (e) deep `ask_goal` integration (verdicts currently rendered by the module).
+  - **ISA FOLD BUILT 2026-07-15** — `OVERLAY_BAND` op added to `machine.py` (the graded sibling of
+    `OVERLAY`: `live` holds a `{rel_id -> band}` map; admitting a fork rel SCALES the match `score`
+    by its band via the min t-norm). `possibility.facts_matching_banded` now runs through
+    `Machine.match` (uniform with crisp reads) and the band IS the match `score`. KEY WIN: because
+    `State.score` already composes by `T_MIN`, **multi-hop min-accumulate comes for free** —
+    `test_overlay_band_min_accumulates_multi_hop` proves a 2-hop banded path = min(0.6,0.5)=0.5
+    through the real matcher. Full suite 468 green (no core regression).
+  - **BANDED RULES BUILT 2026-07-15** — `possibility.apply_rule_banded`: marker-mode application of a
+    single-variable rule. Body band = min over body atoms (a body atom reaching through a fork bands
+    the whole rule); NAC gated by θ-crisp NAF (the bias dial); a CERTAIN body writes INK (crisp
+    behaviour), an uncertain body writes the head as a FORK at the body band. Reuses `possibility`
+    (the OVERLAY_BAND read), so chain_sip is UNTOUCHED. Tests `tests/test_possibility_rules.py` (3):
+    θ gates the surgeon biased-jump; a fork-body bands the conclusion end-to-end (CNL → banded
+    verdict); a certain body stays ink. Full suite 471 green.
+  - **MULTI-VARIABLE BANDED RULES BUILT 2026-07-15** — `facts_matching_banded` now takes WILDCARD
+    endpoints (either end None), so a body atom with a free variable reads (three ISA programs: subj/
+    obj/neither-bound, all with the OVERLAY_BAND rel-guard). `apply_rule_banded` is now a general
+    nested-loop JOIN (`_match_body`) threading bindings + min-band across atoms; NAC is θ-crisp
+    (`_nac_blocks`), and across alternative derivations the BEST band wins (possibility = max-of-min).
+    Tests `tests/test_possibility_rules.py` (6): θ-gated bias, fork-body bands the head, certain body
+    → ink, a 2-variable join `?p knows ?q ∧ ?q is spy` through a fork, and max-of-min. Full suite 473
+    green. Single-var `_entity_names`/`_ground` DELETED (superseded).
+  - **REMAINING in Slice 1:** (a) wire `θ` into `FirmwarePolicy` (currently a call arg); (b) hedge
+    lexicon KB-declarable (`probable means 0.7`); (c) ranked `either…or…` (`more likely than`) +
+    `disjoint_from` exclusion lint; (d) fold banded reasoning INTO `chain_sip` proper (the standalone
+    forward applier is the safe Slice-1 stand-in — no demand-driven fuel/recursion; the OVERLAY_BAND +
+    score-carries-band foundation is what a chain_sip fold would reuse). Graded negation band and
+    cross-fork ENVIRONMENT consistency + forward HEAD-environment propagation (impossible-world
+    rejection, incl. transitive across a chain) are DONE (see S7.3, S7.2). Remaining Slice 2 (minor) =
+    env-aware NAC + `disjoint_from`-declared exclusivity + a banded fixpoint driver (the applier is
+    single-pass).
 - **SLICE 2** — cross-fork environments (combined assumption-sets, min band) + graded negation band
   (necessity via ordinal complement). Full ATMS.
 

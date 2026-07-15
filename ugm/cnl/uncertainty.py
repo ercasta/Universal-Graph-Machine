@@ -94,8 +94,9 @@ def load_line(g: AttrGraph, line: str) -> bool:
     either = parse_either(line)
     if either is not None:
         subj, alt1, alt2 = either
-        add_fork(g, DEFAULT_ALT_BAND, [(subj, "is", o) for o in alt1])   # one fork per alternative:
-        add_fork(g, DEFAULT_ALT_BAND, [(subj, "is", o) for o in alt2])   # its conjunction is co-scoped
+        choice = g.add_node("<choice>", control=True)                    # the mutually-exclusive CHOICE
+        add_fork(g, DEFAULT_ALT_BAND, [(subj, "is", o) for o in alt1], choice=choice)   # fork per alt:
+        add_fork(g, DEFAULT_ALT_BAND, [(subj, "is", o) for o in alt2], choice=choice)   # co-scoped join
         return True
     hedge = parse_hedge_fact(line)
     if hedge is not None:
