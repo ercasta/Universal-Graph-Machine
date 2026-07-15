@@ -358,10 +358,19 @@ and the `_CROSSCHECK` differential gate still guards the shared matcher.
     on the fork's `<hypothesis>` scope (`<likeliness>`). Tests: `tests/test_possibility_band.py`
     (10 green) + `tests/test_possibilistic_naf.py` (the binary silent-until-assumed default).
     θ-as-bias-dial demonstrated (`test_theta_is_the_bias_dial`).
-  - **REMAINING in Slice 1:** (a) CNL surface (S7.5 item 0 — hedge-on-fact, `either…or…` forks, band
-    words in verdicts); (b) FOLD the standalone reader into the ISA `OVERLAY_BAND` read op so marker
-    mode runs through the one matcher (chain.py:540) and multi-hop derivations min-accumulate; (c)
-    wire `θ` into `FirmwarePolicy`.
+  - **CNL SURFACE BUILT 2026-07-15** — `ugm/cnl/uncertainty.py`: (1) hedge-on-a-fact
+    `SUBJ is <hedge> [a] OBJ` → `add_fork` (`likely`/`unlikely`/`very likely`/`very unlikely`, a
+    lexicon DISJOINT from the degree adverbs so `x is very urgent` stays a membership degree —
+    proven by `test_degree_adverb_is_not_a_hedge`); (2) the FIRST disjunctive form
+    `SUBJ is either A and B or C and D` → two correlated forks (co-scoping proven,
+    `test_either_or_makes_two_correlated_forks`); (3) banded yes/no verdicts (`ask`). Loader is
+    additive (`load_uncertain` returns non-possibilistic lines for the ordinary loader).
+    Tests: `tests/test_possibility_cnl.py` (6 green).
+  - **REMAINING in Slice 1:** (a) FOLD the standalone reader into the ISA `OVERLAY_BAND` read op so
+    marker mode runs through the one matcher (chain.py:540) and multi-hop derivations min-accumulate;
+    (b) wire `θ` into `FirmwarePolicy`; (c) make the hedge lexicon KB-declarable (`probable means
+    0.7`, mirroring `very is 0.8`); (d) ranked `either…or…` (`more likely than`) + `disjoint_from`
+    exclusion lint; (e) deep `ask_goal` integration (verdicts currently rendered by the module).
 - **SLICE 2** — cross-fork environments (combined assumption-sets, min band) + graded negation band
   (necessity via ordinal complement). Full ATMS.
 
