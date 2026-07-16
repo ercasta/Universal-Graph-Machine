@@ -102,6 +102,35 @@ def _explain_rel(graph: Graph, rel: str, depth: int, seen: set[str]) -> list[str
         how = ("no evidence for it was found" if pi <= 0.0
                else f"the counter-evidence is only {band_word(pi)}")
         lines.append(f"{'  ' * (depth + 1)}assumed not: {ns} {np} {no}  ({how})")
+        # The negative's DECOMPOSITION (the linked subgoal chain, recorded under provenance): what
+        # deciding this absence actually searched — absent (a run without the chain) it adds nothing.
+        lines += _searched_lines(graph, np, ns, no, depth + 2)
+    return lines
+
+
+def _searched_lines(graph: Graph, pred: str, subj: str | None, obj: str | None,
+                    depth: int, _seen: set | None = None) -> list[str]:
+    """The 'looked for' lines under an `assumed not:` — a cycle-guarded walk of the linked subgoal
+    chain (`chain.subgoal_decomposition`): each sub-demand deciding the absence raised, indented,
+    recursively.
+
+    DOMAIN GRAIN (the same cut `on_subgoal`'s frame grain makes): the walk renders only FULLY-BOUND,
+    non-`same_as` children — the coref congruence's probes and the machinery rules' wildcard seeds
+    are real searches (and stay matchable in the graph chain), but they narrate the machinery, not
+    the case. A skipped child is not descended into (its own domain-grain searches surface via their
+    direct domain parents, which the chain also links)."""
+    from ..chain import subgoal_decomposition
+    from ..vocabulary import SAME_AS
+    seen = set() if _seen is None else _seen
+    if (pred, subj, obj) in seen:
+        return []
+    seen.add((pred, subj, obj))
+    lines: list[str] = []
+    for p, s, o in subgoal_decomposition(graph, pred, subj, obj):
+        if p == SAME_AS or s is None or o is None:         # machinery grain — recorded, not narrated
+            continue
+        lines.append(f"{'  ' * depth}looked for: {s} {p} {o}")
+        lines += _searched_lines(graph, p, s, o, depth + 1, seen)
     return lines
 
 

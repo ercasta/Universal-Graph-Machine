@@ -43,8 +43,19 @@ DEMAND = "<demand>"
 #     found nothing"), the negative-side analog of a `<j:>` proof tree. Explanation is reasoned-over, so
 #     it stays a MATCHABLE graph node — the same reason provenance does, even though only META rules
 #     touch either. (An earlier probe wrongly lifted this to a register; reverted — it was explanation,
-#     not stepping.) The visible `<demand>` node is that subgoal record; a later refinement links parent
-#     -> child demands with in-graph POINTERS to carry the chain STRUCTURE, not just the flat set.
+#     not stepping.) The visible `<demand>` node is that subgoal record. The LINKED chain (built
+#     2026-07-16, axis_b doc §5.4): under `provenance=True`, `<subgoal>` nodes in the FACT graph carry
+#     parent -[raised]-> child pointers — the chain STRUCTURE, not just the flat set — so `explain`
+#     can walk a negative's decomposition (see `subgoal_decomposition`).
+
+# The linked subgoal chain's vocabulary. The chain is EXPLANATION, so it lives in the FACT graph (the
+# Axis A hard constraint — where provenance `<j:>` nodes and `why` live), NOT in the rule graph the flat
+# `<demand>` magic set inhabits (which `ask_goal` reifies fresh per call and discards). Endpoints are
+# stored as NAMES (`_endpoint_name` — same grain as `on_subgoal` records and `<assumed>` provenance
+# records), so an `assumed not:` line joins its decomposition by simple attr equality. `raised` rels are
+# provenance-INERT (like `proves`/`uses`): visible to meta reads, never to ordinary fact matching.
+SUBGOAL = "<subgoal>"
+RAISED = "raised"
 
 
 @dataclass(frozen=True)
@@ -142,13 +153,6 @@ def _demand_endpoint(fact_g: AttrGraph, endpoint):
         v = _operand_value_of(fact_g, endpoint)
         return v if v is not None else endpoint.node_id
     return endpoint
-
-
-def _endpoint_name(fact_g: AttrGraph, endpoint):
-    """The plain NAME an `on_subgoal` record reports for a goal endpoint: a wildcard (None) stays None;
-    anything else renders through `_demand_endpoint` (value-node pointer -> its value, `ById` -> id,
-    plain name -> itself), so subgoal records read identically to the demand trace."""
-    return None if endpoint is None else _demand_endpoint(fact_g, endpoint)
 
 
 def _same_as_neighbors(fact_g: AttrGraph, n: str) -> set[str]:
@@ -304,6 +308,76 @@ def _mint_bound_demand(fact_g: AttrGraph, rule_g: AttrGraph,
     return d
 
 
+def _intern_subgoal(fact_g: AttrGraph, demand: tuple[str, str | None, str | None]) -> str:
+    """The `<subgoal>` chain node for `demand` — INTERNED (get-or-create): a repeated provenance query
+    over the same live KB reuses the tuple's existing node, so the chain never duplicates and every
+    query's `raised` edges land on ONE node per goal. The node carries `for=pred` and, when bound,
+    `subj=`/`obj=` as NAMES (`_endpoint_name` — the grain `<assumed>` records and `on_subgoal` speak,
+    so explanation joins by equality). Control-marked like every trace node; the parent -[raised]->
+    child edges are added by the chain_sip `visible` hook."""
+    pred, subj, obj = demand
+    s = _endpoint_name(fact_g, subj)
+    o = _endpoint_name(fact_g, obj)
+    existing = _subgoal_node(fact_g, pred, s, o)
+    if existing is not None:
+        return existing
+    d = fact_g.add_node(SUBGOAL, control=True)
+    fact_g.set_attr(d, "for", valued(pred))
+    if s is not None:
+        fact_g.set_attr(d, "subj", valued(s))
+    if o is not None:
+        fact_g.set_attr(d, "obj", valued(o))
+    return d
+
+
+def _raised_edge_exists(fact_g: AttrGraph, parent: str, child: str) -> bool:
+    """Whether parent -[raised]-> child is already in the graph (the cross-query edge dedupe the
+    per-call `chain_edges` set cannot see)."""
+    return any(fact_g.has_key(rn, RAISED) and child in fact_g.out(rn)
+               for rn in fact_g.out(parent))
+
+
+def _subgoal_node(fact_g: AttrGraph, pred: str, subj: str | None, obj: str | None) -> str | None:
+    """The `<subgoal>` chain node recording goal `(pred, subj, obj)` (names; None = wildcard), or None
+    when no chain was recorded (a run without `provenance=True`, or a goal never demanded)."""
+    for n in fact_g.nodes_named(SUBGOAL):
+        f = fact_g.get_attr(n, "for")
+        if f is None or str(f.value) != pred:
+            continue
+        s = fact_g.get_attr(n, "subj")
+        o = fact_g.get_attr(n, "obj")
+        if ((None if s is None else str(s.value)) == subj
+                and (None if o is None else str(o.value)) == obj):
+            return n
+    return None
+
+
+def subgoal_decomposition(fact_g: AttrGraph, pred: str, subj: str | None = None,
+                          obj: str | None = None) -> list[tuple[str, str | None, str | None]]:
+    """The sub-demands closing goal `(pred, subj, obj)` RAISED — one step of the linked subgoal chain
+    (recorded under `provenance=True`): the `raised`-children of the goal's `<subgoal>` node, as
+    `(pred, subj|None, obj|None)` NAME tuples, deterministically ordered. Empty when no chain exists.
+    This is what lets `explain` walk a negative's decomposition ("assumed not L — deciding L looked
+    for M and N") instead of only listing the flat magic set; recurse on each child for the full tree
+    (`surface._searched_lines` does, cycle-guarded)."""
+    n = _subgoal_node(fact_g, pred, subj, obj)
+    if n is None:
+        return []
+    out: set[tuple[str, str | None, str | None]] = set()
+    for rn in fact_g.out(n):                     # raw edges: `raised` rels are inert (provenance-style)
+        if fact_g.has_key(rn, RAISED):
+            for c in fact_g.out(rn):
+                f = fact_g.get_attr(c, "for")
+                if f is None:
+                    continue
+                s = fact_g.get_attr(c, "subj")
+                o = fact_g.get_attr(c, "obj")
+                out.add((str(f.value),
+                         None if s is None else str(s.value),
+                         None if o is None else str(o.value)))
+    return sorted(out, key=lambda d: (d[0], d[1] or "", d[2] or ""))
+
+
 def bound_demands(rule_g: AttrGraph) -> set[tuple[str, str | None, str | None]]:
     """The bound-tuple demands read back from the visible `<demand>` nodes (the magic set)."""
     out: set[tuple[str, str | None, str | None]] = set()
@@ -332,10 +406,12 @@ def _ptr(fact_g: AttrGraph, st: State, tok: str):
     return ById(fact_g.value_node(literal_name(tok)))
 
 
-def _endpoint_name(fact_g: AttrGraph, endpoint) -> str:
+def _endpoint_name(fact_g: AttrGraph, endpoint):
     """The NAME an endpoint denotes: a `ById` -> its node's name (a value-node pointer -> its VALUE);
-    a name -> itself. Used where a rule LITERAL (matched by name) meets a `ById` env/demand endpoint
-    (matched by id)."""
+    a name -> itself; a wildcard (None) stays None. Used where a rule LITERAL (matched by name) meets
+    a `ById` env/demand endpoint (matched by id), by `on_subgoal` records, and by the `<subgoal>`
+    chain nodes — one name grain for everything explanation-facing. (A duplicate id-grain def that
+    this one silently shadowed was deleted 2026-07-16.)"""
     if isinstance(endpoint, ById):
         v = _operand_value_of(fact_g, endpoint)
         return v if v is not None else fact_g.name(endpoint.node_id)
@@ -820,7 +896,7 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
                 focus_scope: frozenset[str] | None = None,
                 neg_stack: frozenset[tuple[str, str | None, str | None]],
                 fuel: "_Exhaustion | None", max_rounds: int, closed: set,
-                policy=None, env: frozenset = _NO_ENV
+                policy=None, env: frozenset = _NO_ENV, parent_demand=None
                 ) -> tuple[float, list[tuple[str, str, str, float]]] | None:
     """Decide the rule's NAC clauses by DEMAND-DRIVEN NEGATION-AS-FAILURE (firmware v3): return None
     iff some `not L(bound)` clause's POSITIVE holds — i.e. the rule must NOT fire for this match —
@@ -853,7 +929,7 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
 
     GENERATOR (brick #3, docs/attic/isa_control_machine.md §9.3): this is now a GENERATOR — instead of RECURSING
     into `chain_sip` to close a negative's positive, it YIELDS a subgoal request `("subgoal", neg_goal,
-    child_neg_stack)` and the driver (`chain_sip`) closes it on an EXPLICIT control stack, then resumes
+    child_neg_stack, parent_demand)` and the driver (`chain_sip`) closes it on an EXPLICIT control stack, then resumes
     here. The yield IS the `CALL`; the driver's stack IS the control stack — the subgoal descent lives in
     the machine's stack, not Python's. Operation order is unchanged (the driver services each yield
     synchronously before resuming), so the demand-driven NAF semantics are identical. Returns the block
@@ -866,7 +942,9 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
         if neg_goal in neg_stack:
             return None                        # re-entry: prune the higher-stratum rule (block env)
         if neg_goal not in closed:             # MEMO: a negative's positive is closed ONCE per session.
-            yield ("subgoal", neg_goal, neg_stack | {neg_goal})   # driver closes the positive, then resumes
+            # `parent_demand` rides the request so the child frame's goal links into the SUBGOAL CHAIN
+            # (a memoized re-encounter yields nothing — no new search happened, so no new chain link).
+            yield ("subgoal", neg_goal, neg_stack | {neg_goal}, parent_demand)   # driver closes, resumes
             closed.add(neg_goal)               # facts are monotone + stratified -> the closure is stable,
         # so re-demands (the round loop re-services this env each round) just READ absence, never re-close.
         if banded:                                         # graded absence: θ gates, necessity weighs
@@ -1058,7 +1136,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                                              focus_scope=focus_scope,                # decides — the
                                              provenance=provenance, neg_stack=neg_stack,  # subgoal is
                                              fuel=fuel, max_rounds=max_rounds, closed=closed,  # a yield
-                                             policy=policy, env=env)
+                                             policy=policy, env=env, parent_demand=demand)
                 if res is None:                            # a NAC's positive holds (or cleared θ)
                     continue
                 nec, assumed = res
@@ -1128,13 +1206,15 @@ def _round(fact_g: AttrGraph, rule_g: AttrGraph, frame: _Frame, *, neg_stack, pr
     `(fired, newly)` — the progress the loop's `BRANCH_IF` tests."""
     newly: set[tuple] = set()
 
-    def mint(d):
-        if d not in frame.agenda and d not in newly:
-            newly.add(d)
-            visible(d, neg_stack)                          # visible magic-set node (trace), minted once
-
     fired = 0
     for demand in frame.agenda:
+        def mint(d, _parent=demand):                       # the serving demand is the sub-demand's PARENT
+            if d not in frame.agenda and d not in newly:
+                newly.add(d)
+                visible(d, neg_stack, _parent)             # visible magic-set node (trace), minted once
+            elif provenance:                               # already-minted: the chain may still owe this
+                visible(d, neg_stack, _parent)             # parent a `raised` edge (multi-parent DAG)
+
         for rn in rules_producing(rule_g, demand[0]):
             fired += (yield from _solve_demand_rule(
                 fact_g, rule_g, rn, demand, mint,
@@ -1146,7 +1226,7 @@ def _round(fact_g: AttrGraph, rule_g: AttrGraph, frame: _Frame, *, neg_stack, pr
 
 def _frame_program(fact_g: AttrGraph, rule_g: AttrGraph,
                    goal: tuple[str, str | None, str | None], *, neg_stack, provenance, scope,
-                   focus_scope, fuel, max_rounds, closed, visible, policy=None):
+                   focus_scope, fuel, max_rounds, closed, visible, policy=None, parent=None):
     """Close ONE goal's positive to fixpoint — the per-goal round-loop as a CONTROL-MACHINE PROGRAM
     (Decision 3, docs/attic/firmware_over_isa_design.md §6): a `PRIM` runs (or, after a serviced subgoal,
     CONTINUES) one round; `BRANCH_IF` loops it to fixpoint under a `SETI`/`DEC` round budget — the
@@ -1155,7 +1235,7 @@ def _frame_program(fact_g: AttrGraph, rule_g: AttrGraph,
     machine as a `SUSPEND` whose `Continuation` the driver (`chain_sip`) services (brick #4 — what
     was a Python generator yield at the frame boundary is now a machine suspension). Returns
     `(program, frame)`; the frame carries the driver-owned policy state (`_Frame`)."""
-    visible(goal, neg_stack)
+    visible(goal, neg_stack, parent)      # parent = the demand whose NAC spawned this frame (None: root)
     frame = _Frame(goal)
 
     def advance(g, stream, ctrl):
@@ -1176,7 +1256,7 @@ def _frame_program(fact_g: AttrGraph, rule_g: AttrGraph,
             ctrl["progress"] = 1 if (fired or newly) else 0
             return stream, 0
         frame.gen = gen                                    # park the mid-round continuation
-        ctrl["req"] = req                                  # ("subgoal", neg_goal, child_neg_stack)
+        ctrl["req"] = req                                  # ("subgoal", neg_goal, child_neg_stack, parent)
         return stream, 1
 
     def exhaust(g, stream, ctrl):
@@ -1226,8 +1306,12 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     Python generator yield at the frame boundary is now a machine suspension (brick #4).
 
     The agenda stays LOCAL to each frame (seeded from its goal, grown only by the sub-demands its own
-    rules raise), and the visible `<demand>` trace is minted ONLY for the top-level goal (`neg_stack`
-    empty). A nested negative frame needs no trace and mints none. Self-containment (a NAC closes ONLY its
+    rules raise), and the visible flat `<demand>` trace is minted ONLY for the top-level goal (`neg_stack`
+    empty) — a nested negative frame mints no flat trace. Under `provenance=True` the LINKED SUBGOAL
+    CHAIN is additionally recorded at EVERY depth: `<subgoal>` nodes in the FACT graph with parent
+    -[raised]-> child pointers (in-frame sub-demands link under the demand being served; a NAC child
+    frame's goal links under the demand whose rule raised the NAC), so `subgoal_decomposition` /
+    `explain` can walk an assumed-no's search structure. Self-containment (a NAC closes ONLY its
     negated positive `L`, never re-entering the consumer whose NAC is being decided) is preserved: each
     frame is a distinct goal-closure on the stack; the `_closed`/`neg_stack` memo + prune keep NAF's
     'the positive failed' read from L's COMPLETE extension.
@@ -1262,13 +1346,32 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
         _closed = set()                                    # NAC-closure MEMO, shared across all frames
     # The VISIBLE `<demand>` trace is minted lazily and ONLY at the top level (`neg_stack` empty), deduped
     # by ONE set shared across frames (only the root frame ever mints — nested frames pass a non-empty
-    # neg_stack, so `visible` no-ops). A nested negative closure needs no trace and never re-scans the graph.
+    # neg_stack, so the flat half no-ops). A nested negative closure needs no flat trace.
     minted: set[tuple[str, str | None, str | None]] = set()
+    # The LINKED SUBGOAL CHAIN (axis_b §5.4) — EXPLANATION, so it is (a) recorded only under
+    # `provenance=True` (the RECORD stance, like `<j:>` nodes), (b) written into the FACT graph (where
+    # `why` reads — the flat set's rule_g is discarded by `ask_goal` per call), and (c) minted at EVERY
+    # depth (a NAC child frame's goal links under the demand whose NAC spawned it), so an assumed-no's
+    # decomposition is walkable. Deduped per tuple (a demand raised by two parents is a DAG node with
+    # two `raised` in-edges); a self-raising recursive demand adds no self-edge.
+    chain_nodes: dict[tuple, str] = {}
+    chain_edges: set[tuple] = set()
 
-    def visible(d, ns):
-        if not ns and d not in minted:                     # top-level magic set only (trace)
+    def visible(d, ns, parent=None):
+        if not ns and d not in minted:                     # top-level magic set only (the flat trace)
             minted.add(d)
             _mint_bound_demand(fact_g, rule_g, d)
+        if not provenance:
+            return
+        node = chain_nodes.get(d)
+        if node is None:
+            node = chain_nodes[d] = _intern_subgoal(fact_g, d)
+        if parent is not None and parent != d and (parent, d) not in chain_edges:
+            pn = chain_nodes.get(parent)
+            if pn is not None:
+                chain_edges.add((parent, d))
+                if not _raised_edge_exists(fact_g, pn, node):       # interned: dedupe across queries too
+                    fact_g.add_relation(pn, RAISED, node, inert=True)   # provenance-style: inert edge
 
     def _observe(g, ns, phase, found=None, band=None):     # OBSERVER only (§ on_subgoal); never mutates
         if on_subgoal is None:
@@ -1280,13 +1383,13 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
                     "band": band})                         # banded resolve: the BEST band the goal was
                                                            # found at (None crisp / enter / not found)
 
-    def start(g, ns):
+    def start(g, ns, parent=None):
         _observe(g, ns, "enter")
         cm = ControlMachine()
         program, fr = _frame_program(fact_g, rule_g, g, neg_stack=ns, provenance=provenance,
                                      scope=scope, focus_scope=focus_scope, fuel=_fuel,
                                      max_rounds=max_rounds, closed=_closed, visible=visible,
-                                     policy=policy)
+                                     policy=policy, parent=parent)
         return cm, fr, cm.run(fact_g, program), g, ns
 
     # THE CONTROL STACK: DFS over suspended frame machines. A resumed parent reads the child's result
@@ -1298,8 +1401,8 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     while stack:
         cm, fr, res, g, ns = stack[-1]
         if isinstance(res, Continuation):                  # SUSPENDed on a NAC subgoal request
-            _kind, neg_goal, child_neg_stack = res.request     # ("subgoal", goal, neg_stack|{goal})
-            stack.append(start(neg_goal, child_neg_stack))     # push the child closure; parent waits
+            _kind, neg_goal, child_neg_stack, parent = res.request   # ("subgoal", goal, ns|{goal}, parent)
+            stack.append(start(neg_goal, child_neg_stack, parent))   # push the child closure; parent waits
         else:                                              # HALT — this frame's closure is complete
             stack.pop()
             if policy is not None and policy.banded:       # did the closure derive/find the goal —

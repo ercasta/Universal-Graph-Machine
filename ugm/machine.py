@@ -241,11 +241,18 @@ class ITERATE(Instr):
     the body of iteration `i` cannot see iteration `i-1`); a stateful ACCUMULATING loop is the driver's
     fixpoint (`run_bank`/`run_to_fixpoint`), whose round counter is likewise a Python-local register.
 
-    `count` is a literal bound (the common case); reading it from a register — a dynamic trip count —
-    is a later refinement. The counter binding is a VALUED literal (an int), the same register file that
-    holds node identities and SET's literals; a body effect that wants to STAMP the index reads it there."""
+    `count` is a literal int bound (the common case) OR a register NAME (str) — the DYNAMIC trip
+    count (axis_b_control_registers.md §7 follow-on): the bound is read from the state's own binding,
+    so it can come from graph DATA matched earlier in the program. Resolution lives INSIDE the
+    instruction (isa_value_operands_design.md §3): a register holding an int literal (SET/ITERATE
+    style) counts directly; one holding a node-pointer counts by the VALUE-NODE's carried value.
+    Each incoming state resolves its OWN bound (a per-state trip count — the fork semantic extended).
+    A bound that resolves to no number is a LOUD error, never a silent empty loop; a program that
+    wants to filter instead should TEST first. The counter binding is a VALUED literal (an int), the
+    same register file that holds node identities and SET's literals; a body effect that wants to
+    STAMP the index reads it there."""
     counter: str
-    count: int
+    count: int | str
 
 
 @dataclass
@@ -470,7 +477,8 @@ class Machine:
             if st.regs[ins.a] == st.regs[ins.b]:
                 yield st
         elif isinstance(ins, ITERATE):
-            for i in range(ins.count):           # fork the stream: one successor per loop index ...
+            n = ins.count if isinstance(ins.count, int) else self._trip_count(g, st, ins.count)
+            for i in range(n):                   # fork the stream: one successor per loop index ...
                 yield st.bind(ins.counter, i)    # ... the counter is a REGISTER value, not a graph node
         elif isinstance(ins, SEED):
             # Blessed name-index fast path: an equality SEED on the reserved NAME key hits the
@@ -582,6 +590,27 @@ class Machine:
         if v is None:
             return (nid,)
         return tuple(n for n in g.nodes_named(v) if not (g.is_control(n) or g.is_inert(n)))
+
+    def _trip_count(self, g: AttrGraph, st: State, reg: str) -> int:
+        """ITERATE's DYNAMIC bound: the state's `reg` binding as a whole number. An int literal
+        (SET/ITERATE-style register content) counts directly; a node-pointer counts by its VALUE-NODE's
+        carried value (`operand_value` — interpretation inside the instruction, §3). A missing register
+        (KeyError) or a binding with no whole-number reading is a LOUD program error — a trip count that
+        isn't a number is a bug, and an empty loop would silently do less (the repo's no-silent-does-less
+        discipline). A fractional value is likewise refused, never truncated."""
+        raw = st.regs[reg]
+        v = g.operand_value(raw) if isinstance(raw, str) else raw
+        try:
+            f = float(v)                          # accepts int, integral float, and a numeric string
+        except (TypeError, ValueError):
+            raise ProgramError(
+                f"ITERATE trip-count register {reg!r} holds {raw!r} (value {v!r}), which is not a "
+                f"number — bind it to an int literal or a value-node carrying a whole number")
+        if f != int(f):
+            raise ProgramError(
+                f"ITERATE trip-count register {reg!r} resolves to fractional {v!r} — a trip count "
+                f"must be a whole number (refusing to truncate)")
+        return int(f)
 
     def _first_valued(self, g: AttrGraph, cands: tuple[str, ...], key: str) -> object:
         """The first VALUED `key` value carried across a denotation (`_MISSING` when none carries it —

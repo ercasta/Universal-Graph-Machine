@@ -53,3 +53,46 @@ def test_iterate_folds_through_an_incoming_state_stream():
     assert len(outs) == 6
     assert {st.regs["s"] for st in outs} == {a, b}
     assert {st.regs["i"] for st in outs} == {0, 1, 2}
+
+
+# --- the DYNAMIC trip count (axis_b §7 follow-on): `count` as a register NAME -----------------
+
+
+def test_iterate_dynamic_count_reads_an_int_literal_register():
+    # the bound comes from the state's own register file (SET/ITERATE-style int literal content)
+    g = AttrGraph()
+    outs = Machine().match(g, [ITERATE("i", "n")], init=[State({"n": 3})])
+    assert sorted(st.regs["i"] for st in outs) == [0, 1, 2]
+
+
+def test_iterate_dynamic_count_reads_a_value_node_pointer():
+    # a register holding a NODE-POINTER counts by the value-node's carried value — so the bound can
+    # come from graph DATA matched earlier in the program (interpretation inside the instruction, §3)
+    g = AttrGraph()
+    outs = Machine().match(g, [ITERATE("i", "n")], init=[State({"n": g.value_node(2)})])
+    assert sorted(st.regs["i"] for st in outs) == [0, 1]
+    # a numeric STRING value (the CNL-authored shape) counts too
+    outs = Machine().match(g, [ITERATE("i", "n")], init=[State({"n": g.value_node("2")})])
+    assert sorted(st.regs["i"] for st in outs) == [0, 1]
+
+
+def test_iterate_dynamic_count_is_per_state():
+    # each incoming state resolves its OWN bound: n=2 and n=3 fork to 2+3=5 successors
+    g = AttrGraph()
+    outs = Machine().match(g, [ITERATE("i", "n")], init=[State({"n": 2}), State({"n": 3})])
+    assert len(outs) == 5
+    assert sorted(st.regs["i"] for st in outs if st.regs["n"] == 2) == [0, 1]
+    assert sorted(st.regs["i"] for st in outs if st.regs["n"] == 3) == [0, 1, 2]
+
+
+def test_iterate_dynamic_count_non_numeric_is_loud_never_a_silent_empty_loop():
+    import pytest
+    from ugm.machine import ProgramError
+    g = AttrGraph()
+    entity = g.add_node({NAME: valued("ada")})            # an ENTITY node carries no operand value
+    with pytest.raises(ProgramError, match="not a number"):
+        Machine().match(g, [ITERATE("i", "n")], init=[State({"n": entity})])
+    with pytest.raises(ProgramError, match="fractional"):  # refuses to truncate, never rounds
+        Machine().match(g, [ITERATE("i", "n")], init=[State({"n": g.value_node(2.5)})])
+    with pytest.raises(ProgramError, match="unbound"):     # unbound register = program bug, loud
+        Machine().match(g, [ITERATE("i", "n")], init=[State({})])

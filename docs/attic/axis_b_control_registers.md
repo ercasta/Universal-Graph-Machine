@@ -120,11 +120,19 @@ nothing → register). It fits the machine's model exactly: the match phase is a
 fork (SEED forks over candidates), so a bounded loop is a fork over a range, and the effect phase runs the
 body once per index. This is PARALLEL/MAP iteration (each index independent); a stateful ACCUMULATING loop
 is the driver's fixpoint (`run_bank`/`run_to_fixpoint`), whose round counter is likewise a Python-local
-register. `count` is a literal (a dynamic register-read trip count is a later refinement).
+register. `count` is a literal int OR — the **dynamic trip count** (built 2026-07-16) — a register NAME:
+the bound is read from the state's own binding, so it can come from graph DATA matched earlier in the
+program. Resolution lives inside the instruction (isa_value_operands §3): an int literal counts directly,
+a node-pointer counts by its value-node's carried value (numeric strings — the CNL-authored shape —
+included). Each incoming state resolves its OWN bound (a per-state trip count, the fork semantic
+extended). A bound with no whole-number reading raises `ProgramError` — loud, never a silent empty loop,
+and a fractional value is refused rather than truncated.
 
 Tests (`tests/test_isa_iterate.py`): the fork binds a register counter and touches NO graph node; the body
-runs once per index; an empty loop is a no-op; it composes after a prior fork. Greenfield (no existing
-iteration node to retire) — mode_calls.py §19 envisions it as the plan→act→check→replan loop primitive.
+runs once per index; an empty loop is a no-op; it composes after a prior fork; the dynamic bound reads an
+int-literal register, a value-node pointer, resolves per-state, and is loud on non-numbers. Greenfield (no
+existing iteration node to retire) — mode_calls.py §19 envisions it as the plan→act→check→replan loop
+primitive.
 
 ---
 
@@ -152,10 +160,18 @@ Resolution, and the sharpened boundary:
      home as the proof tree). Arbitrary depth is a non-issue here: the graph is unbounded storage (nodes),
      the inter-frame links are edges. So the "pointer materialized in the graph" the depth question worried
      about is exactly right — not because of depth, but because the chain is explanation.
-4. **Refinement owed:** today's `<demand>` nodes are a FLAT set (top-level only), losing the parent→child
-   structure. The faithful subgoal chain links each demand to the sub-demands it raised (in-graph
-   pointers), so `explain` can walk the negative's decomposition, not just list what was looked for. That
-   linked-chain build is the natural next step for the negative-explanation story.
+4. **Refinement owed — BUILT 2026-07-16 (the linked subgoal chain):** the flat `<demand>` magic set stays
+   (rule-graph, top-level, unconditional — its consumers `bound_demands`/`render_demands`/the gather loop
+   are untouched). Under `provenance=True` the chain STRUCTURE is additionally recorded: interned
+   `<subgoal>` nodes **in the FACT graph** (explanation's home — the rule graph is discarded per
+   `ask_goal` call) with provenance-inert parent -[`raised`]-> child edges, at EVERY negation depth
+   (in-frame sub-demands link under the demand being served; a NAC child frame's goal rides the suspend
+   request's new 4th element to link under the demand whose rule raised it). `subgoal_decomposition`
+   walks one step; `surface.explain` renders an `assumed not:` line's decomposition as indented
+   `looked for:` lines at DOMAIN GRAIN (fully-bound, non-`same_as` children — the coref congruence's
+   probes stay matchable in the chain but narrate the machinery, so the renderer skips them; the same
+   cut `on_subgoal`'s frame grain makes). A memoized NAC re-encounter adds no new link (no new search
+   happened). Tests: `tests/test_subgoal_chain.py` (7).
 
 So: the AGENDA is a register; the SUBGOAL CHAIN is graph (explanation). Depth never forces graph
 materialization — being explanation does.
@@ -180,10 +196,8 @@ materialization — being explanation does.
   recognition token-chain (`<sentence>`/`first`/`next`) are NOT lifted here. `<call>` results and suppose
   pencil-facts are reasoned-over (graph); the recognition chain is data *during* parsing. Each needs the
   discriminator applied on its own; none is as cleanly pure-control as focus/demand-trace.
-- **`ITERATE` over a loop register.** §8's exemplar (a loop counter that genuinely explains nothing) —
-  a greenfield control-flow ISA op, the clean Axis B demonstration the demand trace turned out NOT to be.
-  This is the next build (in progress).
-- **The linked subgoal chain** (§5.4) — materialize parent→child demand pointers in the graph so `explain`
-  can walk the negative's decomposition. The graph-side follow-on to Probe 2's reversal.
+- ~~**`ITERATE` over a loop register.**~~ BUILT (§4b), including the dynamic register-read trip count
+  (2026-07-16).
+- ~~**The linked subgoal chain** (§5.4)~~ BUILT 2026-07-16 — see §5.4.
 - **Retiring the `is_control` flag / `<…>` convention** wholesale — a larger cleanup once enough control
   state has moved to registers that the flag is vestigial. Not yet.
