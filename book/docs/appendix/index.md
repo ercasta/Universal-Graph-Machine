@@ -176,7 +176,7 @@ not guesswork.
 Beyond **yes / no / unknown**, the machine can hold an answer *in between*: a fact
 it thinks is **likely**, or **unlikely**, or somewhere on a small scale
 (*certain · very likely · likely · unlikely · very unlikely*). A hedged fact
-(*sam is likely a spy*) is stored as a **pencil world** — like a
+(*cy is unlikely alibied*) is stored as a **pencil world** — like a
 [supposition](../advanced/09-supposing.md) it entertains without believing — tagged with how **possible** it
 is (its *band*).
 
@@ -211,6 +211,27 @@ makes reasoning-with-maybes **sound** rather than merely suggestive.
 
 > **Go deeper:** the classic device is an **assumption-based truth maintenance
 > system (ATMS)**, due to Johan de Kleer.
+
+---
+
+## Comparisons — more, less, and honest gaps
+
+*Cy is more suspicious than ada* is a ranking without a measurement: one **arrow**
+on a dimension (suspicion), where the direction *is* the meaning — *less* is the
+same arrow read backwards. Arrows chain (cy > ada and ada > bo settles cy vs bo),
+but they don't have to connect everyone: two suspects no chain joins get an honest
+**unknown**, because a comparison-order is a **partial order** and its gaps are
+real answers, not holes to fill.
+
+There's a second way to rank — put things on **rungs** with the graded words
+(*very suspicious*, *slightly suspicious*) — and the two meet: two suspects who
+were never compared directly can still be ordered by their rungs. A story that
+contradicts itself (a cycle of *more-than*s, or an arrow fighting the rungs) is
+**flagged for you to investigate**, never silently "fixed".
+
+> **Go deeper:** the underlying picture is a **strict partial order** per
+> dimension, with transitivity as an ordinary rule. See
+> [More or less](../advanced/more-or-less.md).
 
 ---
 

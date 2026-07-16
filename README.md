@@ -284,6 +284,22 @@ Key CNL concepts:
 - **Rules**: `HEAD when BODY` with `and`, `not`, graded conditions (`is very urgent`)
 - **Universals**: `if BODY then HEAD` and `ADJ things are PRED` laws
 - **Gradable dimensions**: declared with `X is gradable`; used in rules as `?x is very X`
+- **Comparatives**: `ada is more suspicious than bo` (a decomposed comparison — the dimension
+  stays first-class; *less* is the same arrow reversed); transitivity is a generated per-dimension
+  rule asked on demand; `is cy more suspicious than dan` answers `yes`/`no`/**`unknown`** — a
+  partial order's gaps are honest answers. Ranks meet the graded rungs (`fay is very suspicious`
+  outranks `gil is slightly suspicious`), and contradictory rankings are flagged
+  (`lint_comparisons`), never silently repaired (`ugm/cnl/comparative.py`)
+- **Uncertainty (possibilistic)**: hedged facts (`cy is unlikely alibied`, KB-extensible via
+  `probable means 0.7`), correlated ranked alternatives (`culprit is either bo or more likely
+  cy`), graded verdicts (`is cy thief → likely`, `who is thief → cy is thief (likely)`) under the
+  firmware stance `FirmwarePolicy(uncertainty="banded")`. Qualitative, never probability
+  arithmetic: doubt min-accumulates along a chain (weakest link), a conclusion leaning on
+  *not P* is only as strong as P is unlikely (necessity `1−Π`), mutually-exclusive scenarios are
+  never combined (ATMS environments), and the NAF jump is θ-gated — one visible
+  cautious↔decisive dial (`policy.theta`). `guess` collapses to the most-possible alternative
+  *as a recorded, retractable assumption* naming the competitors it did not rule out
+  (`docs/possibilistic.md`)
 - **Closed/open world**: CWA is the query-time default (an underivable goal is a defeasible
   `no`); a concept is opted into OWA through the firmware **stance**
   (`FirmwarePolicy(open_preds=…)` / `negation_default`), so absence stays `UNKNOWN` and defers
@@ -357,6 +373,11 @@ UGM targets a deliberately small, well-understood logic fragment:
 - **Deontic statuses** as reified ranked predicates (`forbidden` … `obligatory`)
 - **Declared congruence** (`same_as`) propagated over KB-declared predicates only
 - **Graded attributes** in `[0,1]` unified with the rule matching layer (α-cut)
+- **Gradable comparatives** as strict partial orders per dimension (transitive on demand;
+  incomparability is an honest `unknown`; conflicts lint, never ⊥)
+- **Possibilistic uncertainty** (qualitative, Dubois–Prade style): banded facts and
+  conclusions, weakest-link chains, θ-cut NAF with graded necessity, ATMS environments for
+  mutually-exclusive scenarios, and a defeasible-guess act with inspectable provenance
 - **Scoped hypothetical reasoning** (SUPPOSE) without possible-worlds machinery
 
 Formal anchors are kept for correctness; general theorem proving is not the goal.
@@ -380,6 +401,32 @@ alice gets vanilla when alice wants vanilla and vanilla is in_stock
 h.ask_goal(kb, "who gets vanilla", rules)      # ['alice gets vanilla']
 h.ask_goal(kb, "is vanilla in_stock", rules)   # ['yes']
 h.ask_goal(kb, "why alice gets vanilla", rules)  # a CNL derivation trace
+```
+
+The uncertain + comparative surfaces compose in one text through the composite loader, and
+the graded answers are a firmware **stance**:
+
+```python
+import ugm as h
+from ugm.cnl.world import load_world, ask_world
+
+kb, rules = load_world("""
+cy is a suspect
+cy is unlikely alibied
+ada is more suspicious than bo
+?p is thief when ?p is a suspect and ?p is not alibied
+""")
+
+banded = h.FirmwarePolicy(uncertainty="banded")
+ask_world(kb, rules, "is cy thief", policy=banded)                  # ['likely']
+ask_world(kb, rules, "who is thief", policy=banded)                 # ['cy is thief (likely)']
+ask_world(kb, rules, "is ada more suspicious than bo", policy=banded)   # ['yes']
+
+# A stance is a session choice: a CAUTIOUS firmware (low θ) refuses the jump.
+kb2, rules2 = load_world("cy is a suspect\ncy is unlikely alibied\n"
+                         "?p is thief when ?p is a suspect and ?p is not alibied")
+cautious = h.FirmwarePolicy(uncertainty="banded", theta=0.2)
+ask_world(kb2, rules2, "is cy thief", policy=cautious)              # ['no']
 ```
 
 Pick a reasoning stance with a `FirmwarePolicy`, register your own tools, or drop to the

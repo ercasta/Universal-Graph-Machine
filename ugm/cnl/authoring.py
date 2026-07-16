@@ -469,17 +469,20 @@ BODY_SPINE_FORMS: list[Rule] = [*_body_kw_tags("not", "kw_not"),
 
 # ---- prose copula SUGAR — the multi-token variants the generic triple can't say ----
 
-def _sugar_cond(key: str, mid: str, role: str, k_pred: str | None) -> Rule:
+def _sugar_cond(key: str, mid: str, role: str, k_pred: str | None,
+                nac: list[Pat] | None = None) -> Rule:
     """`?cs is <mid> ?o` (mid = the bound-literal `a?` / `not?` / `<adverb>?`) -> a condition folded
     under `role`, marking `?o` `body_end` so the `and` domino continues past all four tokens. is_a /
     is_not carry a bound-literal `k_pred` (a fresh rule-scope predicate node); a graded condition
-    carries `k_adv` (the adverb, read by `expand_rules` into a GradedCondition threshold)."""
+    carries `k_adv` (the adverb, read by `expand_rules` into a GradedCondition threshold). `nac`
+    lets a shorter form DEFER to a longer one (the `is not a` fix below)."""
     rhs = [Pat("?r", role, "<cond>?"), Pat("<cond>?", "k_subj", "?cs"),
            Pat("<cond>?", "k_obj", "?o"), Pat("?o", "body_end", "?r")]
     rhs.append(Pat("<cond>?", "k_pred", k_pred) if k_pred else Pat("<cond>?", "k_adv", mid))
     return Rule(key=key,
                 lhs=[Pat("?cs", "body_subj", "?r"), Pat("?cs", "next", "is?"),
                      Pat("is?", "next", mid), Pat(mid, "next", "?o")],
+                nac=list(nac) if nac else [],
                 rhs=rhs)
 
 
@@ -515,9 +518,20 @@ _VALUE_SAME = _value_match_form("rule.cond.same_value", "same", "rl_value_match"
 _VALUE_CLOSE = _value_match_form("rule.cond.close_value", "close", "rl_value_close")
 
 
-# `?cs is a O` -> is_a; `?cs is not O` -> NAC on `is`.
+# `?cs is a O` -> is_a; `?cs is not O` -> NAC on `is`; `?cs is not a O` -> NAC on `is_a`.
+# The 4-token is_not DEFERS (NAC on the article tag) when the token after `not` is `a` — without
+# the deferral it would bind ?o to the ARTICLE and silently produce `NAC (?cs, is, a)`, dropping
+# the noun (the bug that made `... and ?p is not a woman` never block; fixed 2026-07-16).
 _SUGAR_IS_A = _sugar_cond("rule.cond.is_a", "a?", "rl_lhs", "is_a?")
-_SUGAR_IS_NOT = _sugar_cond("rule.cond.is_not", "not?", "rl_nac", "is?")
+_SUGAR_IS_NOT = _sugar_cond("rule.cond.is_not", "not?", "rl_nac", "is?",
+                            nac=[Pat("?o", "is_art", "yes")])
+_SUGAR_IS_NOT_A = Rule(
+    key="rule.cond.is_not_a",
+    lhs=[Pat("?cs", "body_subj", "?r"), Pat("?cs", "next", "is?"),
+         Pat("is?", "next", "not?"), Pat("not?", "next", "a?"), Pat("a?", "next", "?o")],
+    rhs=[Pat("?r", "rl_nac", "<cond>?"), Pat("<cond>?", "k_subj", "?cs"),
+         Pat("<cond>?", "k_pred", "is_a?"), Pat("<cond>?", "k_obj", "?o"),
+         Pat("?o", "body_end", "?r")])
 # `?cs not in O` -> NAC context (the defeasible-default idiom; `form.fact.in` defeats it). Disjoint
 # from the generic `not`-led clause: the generic clause NACs `?cp is_kw`, and `not` is is_kw-tagged.
 _SUGAR_NOT_IN = Rule(
@@ -585,7 +599,9 @@ RULE_FORMS: list[Rule] = [
     # Prose copula sugar + verb negation (`does not V O`) + the DEFAULT graded conditions. A live
     # Session also adds `verb_neg_forms(self.kb)` / `degree_grammar_forms(self.kb)` so KB-declared
     # auxiliaries/adverbs parse; the static banks below carry the DEFAULT auxiliaries + degrees.
-    _SUGAR_IS_A, _SUGAR_IS_NOT, _SUGAR_NOT_IN,
+    # The article tag the is_not deferral needs (`?p is not a woman` — see the is_not_a fix above).
+    *_body_kw_tags("a", "is_art"),
+    _SUGAR_IS_A, _SUGAR_IS_NOT, _SUGAR_IS_NOT_A, _SUGAR_NOT_IN,
     *verb_neg_forms(Graph()),
     *degree_grammar_forms(_default_degree_graph()),
 ]

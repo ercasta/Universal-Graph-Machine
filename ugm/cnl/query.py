@@ -459,7 +459,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
 
         while True:
             chain_sip(graph, goal, provenance=provenance, focus_scope=focus_scope, rules=rule_g,
-                      scope=scope)
+                      scope=scope, policy=policy_)
             if _facts_matching(graph, goal[0], goal[1], goal[2], focus_scope=focus_scope, scope=scope):
                 return materialized                            # goal now derivable — done gathering
             frontier = {(p, as_name(s), as_name(o)) for (p, s, o) in bound_demands(rule_g)
@@ -488,12 +488,24 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             if q["s"] in EXISTENTIAL_SUBJECTS:
                 # `is anyone happy` is ∃ — demand the WILDCARD-subject goal, then match any witness.
                 chain_sip(graph, (q["p"], None, q["o"]), provenance=provenance, focus_scope=focus_scope,
-                          rules=rule_g, scope=scope, on_subgoal=on_subgoal)
-                found = (_facts_matching(graph, q["p"], None, q["o"], scope=scope,
-                                         focus_scope=focus_scope) if scope is not None
-                         else match(graph, [Pat("?w", q["p"], q["o"])]))
-                if found:
-                    return ["yes"]
+                          rules=rule_g, scope=scope, on_subgoal=on_subgoal, policy=policy_)
+                if policy_.banded:
+                    # BANDED ∃ (the possibilistic fold): the verdict is the BEST witness's band —
+                    # a certain witness is `yes`, a fork-only one answers with its band word.
+                    from ..possibility import band_word
+                    p = max((b for _s, _o, b, _e in
+                             _facts_matching(graph, q["p"], None, q["o"], scope=scope,
+                                             focus_scope=focus_scope, bands=True)), default=0.0)
+                    if p >= 1.0:
+                        return ["yes"]
+                    if p > 0.0:
+                        return [band_word(p)]
+                else:
+                    found = (_facts_matching(graph, q["p"], None, q["o"], scope=scope,
+                                             focus_scope=focus_scope) if scope is not None
+                             else match(graph, [Pat("?w", q["p"], q["o"])]))
+                    if found:
+                        return ["yes"]
                 return ["unknown"] if policy_.is_open(concept_key(q["p"], q["o"])) else ["no"]
             # a bound goal: the demand-driven 4-status CHECK, collapsed to yes/no/unknown. CHECK runs the
             # positive closure (POSITIVE), the negative closure (ENTAILED_NEG), else CWA-default ASSUMED_NO
@@ -521,7 +533,22 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         if q["qtype"] == "who":
             chain_sip(graph, (q["p"], None, q["o"]), # wildcard-subject goal
                       provenance=provenance, focus_scope=focus_scope, rules=rule_g, scope=scope,
-                      on_subgoal=on_subgoal)
+                      on_subgoal=on_subgoal, policy=policy_)
+            if policy_.banded:
+                # BANDED who (the possibilistic fold): each witness answers at its BEST band —
+                # a certain witness reads as today, a fork-only one wears its band word
+                # (`cy is thief (likely)`). Max-of-min over derivations, per witness.
+                from ..possibility import band_word
+                best: dict[str, float] = {}
+                for s, _o, b, _e in _facts_matching(graph, q["p"], None, q["o"], scope=scope,
+                                                    focus_scope=focus_scope, bands=True):
+                    n = ep_name(s)
+                    if b > best.get(n, 0.0):
+                        best[n] = b
+                if best:
+                    return [f"{n} {q['p']} {q['o']}" + ("" if b >= 1.0 else f" ({band_word(b)})")
+                            for n, b in sorted(best.items())]
+                return ["unknown"] if policy_.is_open(concept_key(q["p"], q["o"])) else ["(no answer)"]
             if scope is not None:                     # read-only: answer from ink + this scope's pencil
                 names = sorted({ep_name(s) for s, _o in _facts_matching(
                     graph, q["p"], None, q["o"], scope=scope, focus_scope=focus_scope)})

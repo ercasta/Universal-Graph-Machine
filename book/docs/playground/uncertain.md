@@ -9,8 +9,10 @@ even though nobody ever measured it.
 This is the real engine in your browser (first **Run** downloads it once; after
 that it's instant). Try these:
 
-- Ask `is cy thief` — the answer is **likely**, not *yes*: the conclusion leans
-  on cy's shaky alibi and honestly wears that doubt.
+- Ask `who is thief` — the answer names its confidence: **cy is thief
+  (likely)**, not a flat accusation. Then ask `is cy thief` for the plain
+  verdict: **likely**, not *yes* — the conclusion leans on cy's shaky alibi and
+  honestly wears that doubt.
 - Tick **be cautious** and ask again. Now the machine refuses to lean on an
   absence while the alibi is even *slightly* possible — **likely** becomes
   **no** (assumed). One dial, out in the open.
@@ -64,6 +66,7 @@ dan is more suspicious than bo
 
   <div class="ugm-quick">
     <span class="ugm-quick-label">Quick questions:</span>
+    <button type="button" class="ugm-ask" data-q="who is thief">who is thief</button>
     <button type="button" class="ugm-ask" data-q="is cy thief">is cy thief</button>
     <button type="button" class="ugm-ask" data-q="is ada thief">is ada thief</button>
     <button type="button" class="ugm-ask" data-q="is cy alibied">is cy alibied</button>

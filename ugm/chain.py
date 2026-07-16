@@ -1271,7 +1271,7 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
 def query_goal(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
                rules=None, commit: bool = False,
                focus_scope: frozenset[str] | None = None,
-               max_rounds: int = 1000) -> list[tuple]:
+               max_rounds: int = 1000, policy=None) -> list[tuple]:
     """Answer a BOUND-TUPLE goal and return the MATCHING FACTS — the low-fixed-overhead sibling of
     `ask_goal` (feedback #13): no CNL question parse or answer render (the ~half of `ask_goal`'s
     per-call floor the question-string layer cost), READ-ONLY by default, and the answers come back
@@ -1293,17 +1293,28 @@ def query_goal(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     `commit=False` (the default) runs the derivation in an ephemeral PENCIL scope and sweeps it —
     the graph is untouched, mirroring `ask_goal(commit=False)`/`suppose(commit=False)`; the #12
     boundary applies here too (a skolem-minting rule still mints its witness entity node — only
-    derived RELATIONS are pencil). `commit=True` materializes the derivations (monotone, §5)."""
+    derived RELATIONS are pencil). `commit=True` materializes the derivations (monotone, §5).
+
+    `policy` (the possibilistic fold): under a BANDED policy the closure reasons marker-mode and
+    the answers grow a fourth element — `(subj, pred, obj, band)`, band = the fact's BEST
+    possibility (CERTAIN for ink). Opt-in: the shape only changes for a caller that passed a banded
+    policy. Note the read-only sweep covers the `<query>` pencils; a banded run's DERIVED FORKS
+    persist (monotone + idempotent — the known slice edge)."""
     rule_g = rules
     if rules is not None and not isinstance(rules, AttrGraph):
         from .cnl.rule_graph import write_rule
         rule_g = AttrGraph()
         for r in rules:
             write_rule(rule_g, r)
+    banded = policy is not None and policy.banded
     scope = fact_g.add_node("<query>", control=True) if not commit else None
     try:
         chain_sip(fact_g, goal, rules=rule_g, scope=scope,
-                  focus_scope=focus_scope, max_rounds=max_rounds)
+                  focus_scope=focus_scope, max_rounds=max_rounds, policy=policy)
+        if banded:
+            return [(s, goal[0], o, band) for s, o, band, _e in
+                    _facts_matching(fact_g, goal[0], goal[1], goal[2],
+                                    scope=scope, focus_scope=focus_scope, bands=True)]
         return [(s, goal[0], o) for s, o in
                 _facts_matching(fact_g, goal[0], goal[1], goal[2],
                                 scope=scope, focus_scope=focus_scope)]

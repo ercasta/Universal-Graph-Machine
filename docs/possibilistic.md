@@ -227,12 +227,39 @@ open threads: abduction/possibility-ordered SUPPOSE (decision 5's first behaviou
 propagation-strength knob (open point I beyond θ), and polish (why-renders band+env,
 `be cautious`/`be decisive` CNL meta-line, band scale S7.7).
 
-**Slice edges left open (deliberate, small):** the ENTAILED_NEG closure in `check` stays crisp (no
-graded hard-negative); `ask_goal`'s who/existential branches and `query_goal` read crisp (only the
-bound yes/no path is banded); an `ask_goal(commit=False)` banded run sweeps its `<query>` pencils
-but leaves derived FORKS behind (monotone + idempotent, but a leak worth revisiting); banded+scope
-EMIT writes uncertain heads as forks (not scope pencils) — fine for `<query>` scopes, unexamined
-for user SUPPOSE scopes.
+**Slice edges left open (deliberate, small)** *(updated 2026-07-16: the who/existential branches
+and `query_goal` are NOW BANDED — see below)*: the ENTAILED_NEG closure in `check` stays crisp (no
+graded hard-negative); the `why` branch renders crisp provenance (band+env rendering is the open
+polish item); an `ask_goal(commit=False)`/`query_goal` banded run sweeps its `<query>` pencils but
+leaves derived FORKS behind (monotone + idempotent, but a leak worth revisiting); banded+scope EMIT
+writes uncertain heads as forks (not scope pencils) — fine for `<query>` scopes, unexamined for
+user SUPPOSE scopes.
+
+**CNL GRAMMAR FIX 2026-07-16 — `is not a X` NACs:** the rule grammar silently mis-lowered
+`… and ?p is not a woman` to `NAC (?p, is, a)` (the article swallowed the noun — the NAC never
+blocked). Fixed in `authoring.py`: article tokens are `is_art`-tagged, the 4-token `is not ?o`
+sugar DEFERS on an article, and a new 5-token `rule.cond.is_not_a` form lowers to a NAC on `is_a`.
+(Surfaced because the book's surgeon example used exactly this shape; `is not an X` remains
+unhandled, like the positive `is an X` — a matched pre-existing gap.)
+
+**BOOK IN THE DETECTIVE LINE + README 2026-07-16 (user-requested):** every uncertain-world example
+rewritten to the fil rouge — hedge = `cy is likely nervous`, doubt-travels = nervous→jumpy→
+suspicious, the honest jump = the SHAKY ALIBI (`cy is unlikely alibied` ⇒ decisive `likely` /
+cautious `no`, replacing the surgeon world; the riddle stays as a one-line allusion), paired
+scenarios = the glimpsed INTRUDER, plus the banded `who`/`is anyone` beat; internals chapter +
+appendix references aligned; new appendix entry "Comparisons — more, less, and honest gaps".
+Root README: comparatives + possibilistic bullets in "Key CNL concepts" and "What is expressible",
+plus a verified `load_world`/`ask_world` uncertain-detective snippet. NOTED SUBTLETY (in the
+snippet): banded derivations MATERIALIZE (commit=True), so a later ask under a STRICTER θ on the
+same kb still reads the earlier jump's fork — a stance is a session choice; change stance, fresh
+session (consistent with crisp derived facts persisting, but worth remembering).
+
+**ASK/QUERY SURFACE COMPLETED 2026-07-16 (suite 516 green):** `ask_goal`'s WHO branch is banded —
+each witness answers at its best band, a fork-only one wearing its band word (`who is thief` →
+`cy is thief (likely)`; certain witnesses read as today); the EXISTENTIAL branch (`is anyone …`)
+verdicts at the best witness's band; `query_goal(policy=banded)` returns `(subj, pred, obj, band)`
+4-tuples (opt-in shape — a crisp call keeps triples). The playground's uncertain case regained the
+`who is thief` quick button.
 
 **Code surface (post-fold, 2026-07-16):**
 - `ugm/chain.py` — THE banded engine (the fold): `_facts_matching(bands=True)` (OVERLAY_BAND read,

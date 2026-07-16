@@ -64,6 +64,21 @@ def test_guess_collapses_the_getaway_glimpse():
     assert _ask("guess nobody") == ["nothing to guess about nobody — no possibility is reachable"]
 
 
+def test_who_answers_wear_their_bands():
+    """The who-branch is banded too: a fork-only witness wears its band word; nothing certain
+    matches, so the list is exactly the honest suspects."""
+    assert _ask("who is thief") == ["cy is thief (likely)"]
+    assert _ask("who is a suspect") == ["ada is_a suspect", "bo is_a suspect", "cy is_a suspect"]
+
+
+def test_existential_answers_wear_their_bands():
+    """`is anyone …` under the banded stance: the verdict is the best witness's band —
+    a fork-only witness answers with its band word, a certain one stays `yes`."""
+    assert _ask("is anyone thief") == ["likely"]
+    assert _ask("is anyone a suspect") == ["yes"]
+    assert _ask("is anyone a wizard") == ["no"]
+
+
 def test_suspicion_is_a_partial_order():
     assert _ask("is cy more suspicious than bo") == ["yes"]        # transitive via ada
     assert _ask("is bo more suspicious than cy") == ["no"]         # the reverse is entailed

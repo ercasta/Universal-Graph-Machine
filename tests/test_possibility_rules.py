@@ -204,6 +204,22 @@ def test_disjoint_from_makes_independent_forks_exclusive():
     assert check(g, ("is", "x", "manly"), rules=rg, policy=BANDED) == "likely"        # 0.6, ¬f certain
 
 
+def test_query_goal_banded_returns_bands():
+    """`query_goal(policy=banded)` answers as `(subj, pred, obj, band)` 4-tuples — read-only, data
+    not strings, opt-in shape (a crisp call keeps today's triples)."""
+    from ugm.chain import query_goal
+
+    g = AttrGraph()
+    g.add_relation(g.add_node("alice"), "knows", g.add_node("bob"))  # ink
+    load_uncertain(g, "bob is likely spy")
+    rules = [Rule(key="s", lhs=[Pat("?p", "knows", "?q"), Pat("?q", "is", "spy")],
+                  rhs=[Pat("?p", "is", "suspicious")])]
+    out = query_goal(g, ("is", "alice", "suspicious"), rules=rules, policy=BANDED)
+    assert out == [("alice", "is", "suspicious", 0.6)]
+    crisp = query_goal(g, ("is", "alice", "suspicious"), rules=rules)
+    assert crisp == []                                    # a crisp call: silent stance, fork invisible
+
+
 # --- the conversation surface: ask_goal answers with the band words ---------------------------
 
 def test_ask_goal_answers_with_band_words():

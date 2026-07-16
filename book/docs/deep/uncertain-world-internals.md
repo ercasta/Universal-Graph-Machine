@@ -15,12 +15,12 @@ instead is reuse two things it already had: the **pencil worlds** of Supposing
 
 ## A "likely" is a pencil world with a label
 
-When you say *sam is likely a spy*, the machine does exactly what a supposition does
-— it opens a **pencil world** holding *sam is a spy* — and then pins one extra thing
-to it: a **band**, its likeliness. The band is a rung on a small scale (*very
-likely, likely, unlikely, very unlikely*), read **ordinally** — the machine only
-ever *compares* bands, never multiplies them. There's no probability being computed,
-just a shade of maybe being remembered.
+When you say *cy is likely nervous*, the machine does exactly what a supposition
+does — it opens a **pencil world** holding *cy is nervous* — and then pins one
+extra thing to it: a **band**, its likeliness. The band is a rung on a small scale
+(*very likely, likely, unlikely, very unlikely*), read **ordinally** — the machine
+only ever *compares* bands, never multiplies them. There's no probability being
+computed, just a shade of maybe being remembered.
 
 Because the possibility lives in pencil, everything from Chapter 9 comes along: it's
 invisible to the machine's ordinary "what do I actually believe" reads, it can't
@@ -58,16 +58,16 @@ The cautious/decisive knob from the last chapter has a precise meaning down here
 > Block `not P` only if P is reachable at a band **at or above θ**.
 
 Turn θ **up** and the machine ignores faint possibilities and jumps boldly (it
-flags the surgeon). Turn θ **down** and it refuses to lean on any absence while the
-opposite is even slightly possible (it holds back). The bias isn't hidden in the
+accuses cy over the shaky alibi). Turn θ **down** and it refuses to lean on any
+absence while the opposite is even slightly possible (it holds back). The bias isn't hidden in the
 code; it's this one number, out where you can set it.
 
 ## A conclusion wears its doubt
 
 When the machine *does* fire a rule that leaned on *not P*, how sure should the
-conclusion be? Only as sure as P really is **un**likely. If sam is *unlikely* a
-woman (band 0.3), then "not a woman" is worth the **complement** — necessity `1 −
-0.3` — and the flag comes out at *likely* (0.7), never *certain*. (Logicians call
+conclusion be? Only as sure as P really is **un**likely. If cy is *unlikely*
+alibied (band 0.3), then "not alibied" is worth the **complement** — necessity `1
+− 0.3` — and the accusation comes out at *likely* (0.7), never *certain*. (Logicians call
 this the **possibility/necessity duality**: being sure of *not P* is exactly being
 unsure of *P*.) It's the reason the decisive setting answered *likely* and not
 *yes* — the machine folds the doubt of its assumption into the doubt of its
