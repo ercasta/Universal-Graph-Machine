@@ -193,8 +193,13 @@ class AttrGraph:
     def __init__(self, schema: set[str] | None = None,
                  indexed_keys: set[str] | None = None) -> None:
         self._nodes: dict[str, AttrNode] = {}
-        self._out: dict[str, set[str]] = {}
-        self._in: dict[str, set[str]] = {}
+        # Adjacency and the key/value indices are dict-as-ordered-set (`dict[str, None]`), NOT
+        # `set`: iteration order is INSERTION order, never hash order. The demand engine derives
+        # while it iterates (matches, agendas, NAC closures interleave with EMITs), so hash-ordered
+        # iteration made total reasoning work vary up to ~30x with PYTHONHASHSEED (2026-07-16
+        # finding). Determinism here makes every run reproduce bit-for-bit.
+        self._out: dict[str, dict[str, None]] = {}
+        self._in: dict[str, dict[str, None]] = {}
         # Matching index: key -> {nid}. Indexes by attribute KEY only, never by value —
         # this is the structural guard that keeps valued attributes from resurrecting labels
         # (see module docstring). Seeding is over keys; values are filtered per-candidate.
@@ -263,8 +268,8 @@ class AttrGraph:
         ident = nid or node_id or f"n{next(self._counter)}"
         node = AttrNode(nid=ident)
         self._nodes[ident] = node
-        self._out.setdefault(ident, set())
-        self._in.setdefault(ident, set())
+        self._out.setdefault(ident, {})
+        self._in.setdefault(ident, {})
         if isinstance(name_or_attrs, dict):
             for key, attr in name_or_attrs.items():
                 if key in (CONTROL_MARK, INERT_MARK):   # engine marker: schema-exempt (`_set_marker`)
@@ -345,7 +350,7 @@ class AttrGraph:
         node = self._nodes[nid]
         if key not in node.attrs:
             node.attrs[key] = graded(1.0)
-            self._by_key.setdefault(key, set()).add(nid)
+            self._by_key.setdefault(key, {})[nid] = None
             self._version += 1
 
     def _clear_marker(self, nid: str, key: str) -> None:
@@ -355,7 +360,7 @@ class AttrGraph:
             del node.attrs[key]
             bucket = self._by_key.get(key)
             if bucket is not None:
-                bucket.discard(nid)
+                bucket.pop(nid, None)
                 if not bucket:
                     del self._by_key[key]
             self._version += 1
@@ -373,13 +378,13 @@ class AttrGraph:
             if old is not None and old.kind == VALUED and (attr.kind != VALUED or old.value != attr.value):
                 bucket = self._by_value[key].get(old.value)
                 if bucket is not None:
-                    bucket.discard(nid)
+                    bucket.pop(nid, None)
                     if not bucket:
                         del self._by_value[key][old.value]
             if attr.kind == VALUED:
-                self._by_value[key].setdefault(attr.value, set()).add(nid)
+                self._by_value[key].setdefault(attr.value, {})[nid] = None
         if key not in node.attrs:
-            self._by_key.setdefault(key, set()).add(nid)
+            self._by_key.setdefault(key, {})[nid] = None
         node.attrs[key] = attr
         self._version += 1
 
@@ -394,7 +399,7 @@ class AttrGraph:
         for nid in self._by_key.get(key, ()):
             a = self._nodes[nid].attrs.get(key)
             if a is not None and a.kind == VALUED:
-                idx.setdefault(a.value, set()).add(nid)
+                idx.setdefault(a.value, {})[nid] = None
 
     def nodes_with_value(self, key: str, value: object) -> list[str]:
         """Candidate nodes whose DECLARED discriminating key `key` has VALUED `value` — O(1) via the
@@ -448,13 +453,13 @@ class AttrGraph:
     # ------------------------------------------------------------------
 
     def add_edge(self, a: str, b: str) -> None:
-        self._out.setdefault(a, set()).add(b)
-        self._in.setdefault(b, set()).add(a)
+        self._out.setdefault(a, {})[b] = None
+        self._in.setdefault(b, {})[a] = None
         self._version += 1
 
     def remove_edge(self, a: str, b: str) -> None:
-        self._out.get(a, set()).discard(b)
-        self._in.get(b, set()).discard(a)
+        self._out.get(a, {}).pop(b, None)
+        self._in.get(b, {}).pop(a, None)
         self._version += 1
 
     def has_edge(self, a: str, b: str) -> bool:
@@ -462,11 +467,11 @@ class AttrGraph:
 
     def succ(self, nid: str) -> set[str]:
         """Successors (out-edges). Returns a copy — safe to mutate the graph while iterating."""
-        return set(self._out.get(nid, ()))
+        return dict(self._out.get(nid, ())).keys()
 
     def pred(self, nid: str) -> set[str]:
         """Predecessors (in-edges). Returns a copy."""
-        return set(self._in.get(nid, ()))
+        return dict(self._in.get(nid, ())).keys()
 
     def edges(self) -> list[tuple[str, str]]:
         return [(a, b) for a, bs in self._out.items() for b in bs]
@@ -533,11 +538,11 @@ class AttrGraph:
             for key, a in node.attrs.items():
                 bucket = self._by_key.get(key)
                 if bucket is not None:
-                    bucket.discard(nid)
+                    bucket.pop(nid, None)
                 if key in self._indexed_keys and a.kind == VALUED:   # value-accelerator cleanup
                     vb = self._by_value.get(key, {}).get(a.value)
                     if vb is not None:
-                        vb.discard(nid)
+                        vb.pop(nid, None)
                         if not vb:
                             del self._by_value[key][a.value]
         self._out.pop(nid, None)
@@ -546,11 +551,11 @@ class AttrGraph:
 
     def out(self, nid: str) -> set[str]:
         """Successors as a COPY (former `Graph.out`); alias of `succ`."""
-        return set(self._out.get(nid, ()))
+        return dict(self._out.get(nid, ())).keys()
 
     def into(self, nid: str) -> set[str]:
         """Predecessors as a COPY (former `Graph.into`); alias of `pred`."""
-        return set(self._in.get(nid, ()))
+        return dict(self._in.get(nid, ())).keys()
 
     def add_relation(self, subject_id: str, rel_name: str, object_id: str,
                      *, confidence: float = 1.0, control: bool = False, inert: bool = False) -> str:
@@ -607,7 +612,7 @@ class AttrGraph:
             del self._nodes[nid].attrs[key]
             b = self._by_key.get(key)
             if b is not None:
-                b.discard(nid)
+                b.pop(nid, None)
         for dim, v in embedding.items():
             self.set_attr(nid, dim, Attr(GRADED, float(v)))
 
@@ -630,7 +635,7 @@ class AttrGraph:
             nid, d = q.popleft()
             if d >= radius:
                 continue
-            for nb in self._out.get(nid, set()) | self._in.get(nid, set()):
+            for nb in {**self._out.get(nid, {}), **self._in.get(nid, {})}:
                 if nb in seen or (nb in self._nodes and self._nodes[nb].inert):
                     continue
                 seen.add(nb)
@@ -652,12 +657,12 @@ class AttrGraph:
         maxn = -1
         for nid, n in self._nodes.items():
             g._nodes[nid] = AttrNode(nid=nid, attrs=dict(n.attrs))   # markers travel IN the attrs
-            g._out[nid] = set(self._out.get(nid, ()))
-            g._in[nid] = set(self._in.get(nid, ()))
+            g._out[nid] = dict(self._out.get(nid, ()))
+            g._in[nid] = dict(self._in.get(nid, ()))
             for key, a in n.attrs.items():
-                g._by_key.setdefault(key, set()).add(nid)
+                g._by_key.setdefault(key, {})[nid] = None
                 if key in g._indexed_keys and a.kind == VALUED:
-                    g._by_value[key].setdefault(a.value, set()).add(nid)
+                    g._by_value[key].setdefault(a.value, {})[nid] = None
             if nid.startswith("n") and nid[1:].isdigit():
                 maxn = max(maxn, int(nid[1:]))
         g._counter = itertools.count(maxn + 1)

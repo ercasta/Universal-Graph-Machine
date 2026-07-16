@@ -1223,7 +1223,12 @@ class _Frame:
     __slots__ = ("agenda", "total", "gen")
 
     def __init__(self, goal) -> None:
-        self.agenda: set[tuple] = {goal}
+        # INSERTION-ORDERED (a dict-as-ordered-set): demands are served in the order they were
+        # RAISED, never in hash order. The round EMITs while the agenda is being walked, so a
+        # hash-ordered set made the mid-round graph each demand sees — and hence WHICH sub-demand
+        # tuples get raised — vary with PYTHONHASHSEED, with up to ~30x work swings between seeds
+        # (an order-flooded agenda accretes bound×wildcard demand variants; finding 2026-07-16).
+        self.agenda: dict[tuple, None] = {goal: None}
         self.total = 0
         self.gen = None
 
@@ -1234,13 +1239,13 @@ def _round(fact_g: AttrGraph, rule_g: AttrGraph, frame: _Frame, *, neg_stack, pr
     demand with the rules that produce it (raising bound sub-demands and EMITting); a NAC's negative
     subgoal is YIELDed up (the `advance` PRIM turns the yield into a machine `SUSPEND`). Returns
     `(fired, newly)` — the progress the loop's `BRANCH_IF` tests."""
-    newly: set[tuple] = set()
+    newly: dict[tuple, None] = {}                          # insertion-ordered, like the agenda
 
     fired = 0
     for demand in frame.agenda:
         def mint(d, _parent=demand):                       # the serving demand is the sub-demand's PARENT
             if d not in frame.agenda and d not in newly:
-                newly.add(d)
+                newly[d] = None
                 visible(d, neg_stack, _parent)             # visible magic-set node (trace), minted once
             elif provenance:                               # already-minted: the chain may still owe this
                 visible(d, neg_stack, _parent)             # parent a `raised` edge (multi-parent DAG)
