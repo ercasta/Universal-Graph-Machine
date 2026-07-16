@@ -12,6 +12,31 @@ this log is itself a historical record.
 
 ---
 
+## 2026-07-16 (Procedures Slice 1 — the stepping bank; 569 green)
+
+### `corpus/procedure.cnl` — procedures as a pre-made plan on the existing gate
+Slice 1 of `design/procedures_design.md` (§3). THREE content-blind machine rules, no engine
+change, no new substrate: INVOKE (`?s chosen <yes> when <run> proc ?p and ?p step ?s` — a run
+procedure's steps become the pre-made plan directly), ORDER (`?a before ?b when <run> proc ?p
+and ?a step_before ?b` — the step order lifts into the planner's `before`, honoured by
+planning_execution.cnl's waits_for gate, which existed for exactly this pure-sequencing case),
+GAP-FILL (`<need> for ?p when ?o chosen <yes> and ?o pre ?p and not <now> true ?p` — the
+resurrected bridge; an unmet precondition re-enters the planner, which synthesizes + orders a
+filler before the consumer). Procedure = pre-made plan; planner = synthesized plan; ONE gate —
+proven to compose. Representation (the shape Slice 2's `to NAME :` surface will emit): `NAME
+step S` + `A step_before B` + the request `<run> proc NAME` (flat ordered facts — composes with
+the planner's `before`, cleaner than a `next`-chain). `tests/test_procedures.py` (2 tests) is
+also the FIRST in-repo end-to-end run of `planning.cnl` + `planning_execution.cnl` (operators
+in the core `pre`/`add` vocabulary — the `needs`/`produces` surface + solve driver are
+harness-side): ordered execution + gap-fill synthesis.
+FINDINGS: (1) the planner execution gate needs a STRATIFIED ITERATIVE solve driver (`run_rules`
+looped to graph-quiescence) — raw `run_bank` RACES (`ready` before `unmet`, the NAC-over-derived
+ordering); the test carries a `_solve` loop for the harness driver. (2) ⚠ `intake._act_loop`
+uses unstratified `run_bank` — wiring procedures through the `goal …` act arm needs it to
+stratify (Slice-2 item). (3) a `ready` op acts once — the token persists across cycles, so the
+act boundary guards on `done`. Remaining: Slice 2 (`to NAME :` surface + `<run> proc` request +
+act-arm stratification).
+
 ## 2026-07-16 (procedures arc queued + tool-execution boundary ratified — design notes)
 
 ### `design/procedures_design.md` (no code)

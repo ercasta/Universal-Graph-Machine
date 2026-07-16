@@ -93,6 +93,11 @@ parked-item cleanup (demand-coref CLOSED-as-settled; INTERPOSE/RESTORE deleted).
    **`to NAME :` authoring form** (Slice-A family). TOOL BOUNDARY RATIFIED same day (design
    notes §1): UGM owns the call token + the fold, executes CALCULATORS inline, SUSPENDS world
    actions to the harness (`Event("call")` / `.send()`); failure is data rules react to.
+   **Slice 1 DONE 2026-07-16 (569 green)** — `corpus/procedure.cnl` (3 content-blind rules:
+   invoke/order/gap-fill) rides the existing planner gate unchanged; first in-repo end-to-end
+   planner run (`tests/test_procedures.py`). FINDING: `intake._act_loop` uses unstratified
+   `run_bank` and must stratify to run the NAC-heavy planner gate — a Slice-2 wiring item.
+   Remaining: Slice 2 (`to NAME :` surface + `<run> proc` request + act-arm stratification).
 4. **Phase 7b — the Rust interpreter port** (full plan `design/rust_engine_plan.md`). Fully
    unblocked: procedures became ISA firmware first (Phase A done 2026-07-14; the 2026-07-16
    compliance pass closed the driver-write gaps), so Phase B ports ONLY the interpreter and the

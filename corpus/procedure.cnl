@@ -1,0 +1,31 @@
+# The procedure stepping bank — running a NAMED procedure as a PRE-MADE plan
+# (docs/design/procedures_design.md §2). Authored in the machine-rule CNL, content-blind:
+# `<run>` / `step` / `step_before` are THIS bank's own vocabulary, and no domain word appears
+# in any rule — intake/engine never know what a procedure IS (§D litmus).
+#
+# A procedure is an ORDERED COLLECTION of operator steps, authored as KB data:
+#   brew step get_water         brew step add_beans         brew step heat
+#   get_water step_before add_beans        add_beans step_before heat
+# (the `to NAME : A then B then C` surface generates exactly these — Slice 2.)
+#
+# Running a procedure is a request `<run> proc brew`. The three rules below turn that into a
+# PRE-MADE plan the EXISTING banks execute: the steps are marked `chosen` directly (bypassing
+# the planner's goal-spray — the steps ARE the plan), the step order is lifted into the
+# planner's `before` (honoured at execution by planning_execution.cnl's waits_for gate, which
+# exists for exactly this pure-sequencing case), and a step whose precondition nothing produces
+# is GAP-FILLED back into the planner (planning.cnl synthesizes + orders a filler before the
+# step). Procedure = pre-made plan; planner = synthesized plan; ONE execution gate — they compose.
+
+# INVOKE: mark each step of a run procedure chosen (the pre-made plan).
+?s chosen <yes> when <run> proc ?p and ?p step ?s
+
+# ORDER: lift the procedure's step order into the planner's `before`. A PURE sequencing order
+# (a step need not consume what its predecessor produces) — honoured only by the waits_for gate.
+?a before ?b when <run> proc ?p and ?a step_before ?b
+
+# GAP-FILL: a chosen step's UNMET precondition becomes a need the planner fills (the resurrected
+# bridge). The `not <now> true ?p` guard fills only a GENUINELY absent precondition — one already
+# true needs no filler; one another chosen op produces is handled by commitment's one-per-need
+# guard downstream (planning.cnl). `<now> true` is tool-produced (never a rule), so this NAC adds
+# no stratification cycle.
+<need> for ?p when ?o chosen <yes> and ?o pre ?p and not <now> true ?p

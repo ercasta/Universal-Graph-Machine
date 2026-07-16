@@ -85,3 +85,52 @@ this is the "drive the execution" capability an agentic harness consumes).
 
 **Model routing:** the 3.4 collection encoding + stepping bank ⚠Opus (cursor/collection
 vision judgment); the `to NAME :` form ✓S under the Slice-A pattern.
+
+## 3. Slice 1 — the stepping bank (DONE 2026-07-16, 569 green)
+
+`corpus/procedure.cnl` — THREE content-blind machine rules, riding entirely on the existing
+planner banks (no engine change, no new substrate):
+
+- **INVOKE** `?s chosen <yes> when <run> proc ?p and ?p step ?s` — a run procedure's steps are
+  marked chosen directly (the pre-made plan; planner goal-spray never sees them).
+- **ORDER** `?a before ?b when <run> proc ?p and ?a step_before ?b` — the step order is lifted
+  into the planner's `before`, honoured at execution by `planning_execution.cnl`'s `waits_for`
+  gate (which, its own comment notes, exists for exactly this pure-sequencing case).
+- **GAP-FILL** `<need> for ?p when ?o chosen <yes> and ?o pre ?p and not <now> true ?p` — the
+  resurrected bridge; an unmet precondition re-enters the planner, which synthesizes + commits
+  a filler and orders it before the consuming step (producer/consumer). Procedure = pre-made
+  plan; planner = synthesized plan; ONE gate — proven to compose.
+
+Procedure representation (the shape Slice 2's `to NAME :` surface will generate): `NAME step S`
+(membership) + `A step_before B` (order) + the invocation request `<run> proc NAME`. This is
+the ordered-collection encoding — flat ordered facts, which compose directly with the planner's
+`before`, chosen over a literal `next`-chain (the `next`/`first` predicates are the tokenizer's
+swept control scaffolding; distinct fact predicates are cleaner and the "collection" is the
+`step_before` order).
+
+`tests/test_procedures.py` (2 tests) — also the FIRST in-repo end-to-end run of
+`planning.cnl` + `planning_execution.cnl` (the `needs`/`produces` problem surface and the solve
+driver are harness-side, so operators are authored in the core `pre`/`add` vocabulary):
+(1) ordered execution via the waits_for gate; (2) a missing precondition gap-filled by the
+planner and ordered before its consumer.
+
+### FINDINGS (carry to Slice 2 / the act-arm wiring)
+
+- **The planner execution gate needs a STRATIFIED, ITERATIVE solve driver** — `run_rules`
+  (stratified) looped to graph-quiescence. Raw `run_bank` (unstratified) RACES: `ready` fires
+  before `unmet` is derived (the NAC-over-derived-fact ordering), so a step acts before its
+  precondition holds. The test carries a `_solve` loop standing in for the harness driver.
+- **⚠ The in-repo `intake._act_loop` uses unstratified `run_bank`** — sufficient for the
+  monotone mini-act-bank it was built against, but NOT for the NAC-heavy planner execution
+  gate. **Wiring procedures through the `goal …` act arm requires `_act_loop` to stratify**
+  (run_rules per cycle, or the harness owns the solve loop). This is a Slice-2 wiring item, not
+  a Slice-1 blocker — the bank is proven with the correct driver.
+- **A `ready` op acts once** — the `<exec> ready ?o` token persists across solve cycles
+  (monotone) and fired-suppression is per-cycle, so the act boundary must guard on `done` (or
+  consume the ready token). A world action isn't repeated for a completed step — the guard is
+  realistic, not a workaround.
+
+**Remaining:** Slice 2 — the `to NAME : A then B then C` authoring surface (generates the
+`step`/`step_before`/`is a procedure` facts; the `then`-chain is already normalized by
+`form.then`) + the act-arm stratification wiring; and a `<run> proc NAME` invocation surface
+(the recognized request that seeds the stepping bank).
