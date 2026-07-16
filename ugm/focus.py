@@ -213,9 +213,10 @@ def gc_utterance_scaffolding(kb, anchor: str) -> None:
             if kb.has_key(rel, "first") or kb.has_key(rel, "next"):
                 chain_rels.append(rel)
                 frontier.append(nxt)
-    for rel in chain_rels:
-        kb.remove_node(rel)
-    kb.remove_node(anchor)
+    from .machine import Machine, SWEEP, State
+    doomed = chain_rels + [anchor]                   # all CONTROL (the token chain + <sentence>);
+    Machine().apply(kb, [SWEEP(f"_n{i}") for i in range(len(doomed))],   # SWEEP refuses anything else
+                    State({f"_n{i}": n for i, n in enumerate(doomed)}))
     kb.gc_disconnected()
 
 

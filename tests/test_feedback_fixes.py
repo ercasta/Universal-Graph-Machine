@@ -16,7 +16,7 @@ import warnings
 import pytest
 
 import ugm as h
-from ugm import (load_machine_rules, write_rule, AttrGraph, apply_rule, apply_to_fixpoint,
+from ugm import (load_machine_rules, write_rule, AttrGraph,
                  rules_in_graph, load_facts, ask_goal, suppose)
 
 
@@ -171,25 +171,6 @@ def test_assemble_facts_is_a_mint_program_and_idempotent():
     load_fact_triples(g, [("a", "r", "b")]); before = len(list(g.nodes()))
     load_fact_triples(g, [("a", "r", "b")])                              # re-load is a no-op (dedup)
     assert len(list(g.nodes())) == before
-
-
-# --- #4: apply_* give a clear error for a Rule object instead of a cryptic TypeError -----------------
-
-def test_apply_with_rule_object_gives_clear_error():
-    rule = load_machine_rules("?p made child when ?p is_a parent")[0]
-    rg = AttrGraph(); write_rule(rg, rule)
-    got_rule_obj = rules_in_graph(rg)[0]                                # a Rule, NOT a node id
-    g = h.Graph()
-    for fn in (apply_rule, apply_to_fixpoint):
-        with pytest.raises(TypeError, match="rule-NODE id"):
-            fn(g, rg, got_rule_obj)
-
-
-def test_apply_with_node_id_still_works():
-    rule = load_machine_rules("?p made child when ?p is_a parent")[0]
-    rg = AttrGraph(); node = write_rule(rg, rule)                       # the id you actually feed apply_*
-    g = h.Graph(); p = g.add_node("p"); g.add_relation(p, "is_a", g.add_node("parent"))
-    assert apply_to_fixpoint(g, rg, node) == 1
 
 
 # --- #5: load_facts(strict=True) surfaces silently-dropped lines -------------------------------------

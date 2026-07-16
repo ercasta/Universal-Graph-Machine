@@ -10,7 +10,7 @@ journal is well-formed and that a firmware derivation explains identically to th
 import ugm as h
 from ugm.cnl import surface
 from ugm import (
-    AttrGraph, run_bank, apply_to_fixpoint, chain_sip, render_demands,
+    AttrGraph, run_bank, chain_sip, render_demands,
 )
 
 
@@ -56,30 +56,6 @@ def test_chain_sip_journals_a_derivation_that_explains_as_a_cnl_proof_tree():
     assert "socrates is_a mortal  <- mortal" in text          # fired by the `mortal` rule
     assert "socrates is_a person  <- person" in text          # its premise, in turn derived
     assert "socrates is_a philosopher  (given)" in text       # grounded in the asserted base fact
-
-
-def test_apply_journal_matches_run_bank_provenance_shape():
-    # APPLY's journal is the SAME substrate shape run_bank(provenance=True) writes: a single transitive
-    # rule derives `alice is_a party`, and both engines explain it identically.
-    rule = h.Rule(key="is_a.transitive",
-                  lhs=[h.Pat("?a", "is_a", "?b"), h.Pat("?b", "is_a", "?c")],
-                  rhs=[h.Pat("?a", "is_a", "?c")])
-    facts = [("alice", "is_a", "oc"), ("oc", "is_a", "customer")]
-
-    g_rb = _facts(facts)
-    run_bank(g_rb, [rule], provenance=True)
-    want = surface.explain(g_rb, None, None, "alice", "is_a", "customer")
-
-    g_ap = _facts(facts)
-    rg = _reify([rule])
-    apply_to_fixpoint(g_ap, rg, rg.nodes_named("is_a.transitive")[0], provenance=True)
-    got = surface.explain(g_ap, None, None, "alice", "is_a", "customer")
-
-    # Same proof: same head, same rule, same premises/leaves. Compare order-independently — the order
-    # of SIBLING premises comes from `premises_of` reading `graph.out` (a set), so it varies with the
-    # process hash seed; the derivation CONTENT (each depth-prefixed line) is what must match run_bank.
-    assert set(got) == set(want)
-    assert any("<- is_a.transitive" in ln for ln in got)      # the firing is named in the trace
 
 
 def test_journaling_is_off_by_default_and_does_not_perturb_derivations():

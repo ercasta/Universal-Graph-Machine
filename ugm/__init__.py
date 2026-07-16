@@ -24,7 +24,7 @@ from .lowering import (
     derived_triples, Unlowerable, rule_touches_provenance,
     assemble_facts, load_fact_triples,
 )
-from .apply import apply_rule, apply_to_fixpoint, build_head_index, rules_producing
+from .apply import build_head_index, rules_producing
 from .chain import (
     chain_sip, query_goal, bound_demands, render_demands, subgoal_decomposition, NonStratifiable,
     ById, resolve_write_node, validate_ids,
@@ -136,7 +136,7 @@ __all__ = [
     "lower_propagate", "lower_drop", "lower_rule", "lower_nac_programs",
     "run_bank", "match_pats", "run_to_fixpoint", "derived_triples", "Unlowerable",
     "rule_touches_provenance", "assemble_facts", "load_fact_triples",
-    "apply_rule", "apply_to_fixpoint", "build_head_index", "rules_producing",
+    "build_head_index", "rules_producing",
     "chain_sip", "query_goal", "bound_demands",
     "NonStratifiable",
     "render_demands", "subgoal_decomposition", "ById", "resolve_write_node", "validate_ids",

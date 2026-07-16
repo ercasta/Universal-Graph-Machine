@@ -32,7 +32,7 @@ from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert, NAME
 from .vocabulary import MENTION
 from .machine import (
     Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, DISTINCT, MINT, EMIT, DROP_CTRL,
-    State,
+    SWEEP, State,
     ControlMachine, Block, PRIM, SETI, DEC, FALL, BRANCH_IF, HALT,
 )
 
@@ -646,9 +646,11 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
 
     def final_gc(g, stream, ctrl):
         if has_drops:                             # remove control rel nodes a DROP_CTRL orphaned
-            for nid in list(g.nodes()):           # (disconnected + control: never fact/rule structure)
-                if g.is_control(nid) and not g.succ(nid) and not g.pred(nid):
-                    g.remove_node(nid)
+            doomed = [nid for nid in g.nodes()    # (disconnected + control: never fact/rule structure)
+                      if g.is_control(nid) and not g.succ(nid) and not g.pred(nid)]
+            if doomed:                            # the deletion is the gated SWEEP opcode, not a poke
+                machine.apply(g, [SWEEP(f"_n{i}") for i in range(len(doomed))],
+                              State({f"_n{i}": n for i, n in enumerate(doomed)}))
         return stream, 0
 
     # THE FIXPOINT AS A BRANCH-BACK (docs/attic/isa_control_machine.md §9.5, brick #5). The Python

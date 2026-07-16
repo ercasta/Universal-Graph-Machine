@@ -54,12 +54,12 @@ def _hub_keys(kb, label: str) -> list[str]:
 
 
 def _clear_hub(kb, label: str) -> None:
-    for n in kb.nodes_named(label):
-        if not kb.is_control(n):
-            continue
-        for rel, _o in list(kb.relations_from(n)):
-            if kb.has_key(rel, KEY):
-                kb.remove_node(rel)                  # cut the pointer only (control-layer op, §5-safe)
+    from .machine import Machine, SWEEP, State
+    doomed = [rel for n in kb.nodes_named(label) if kb.is_control(n)
+              for rel, _o in kb.relations_from(n) if kb.has_key(rel, KEY)]
+    if doomed:                                       # cut the pointers only (control-layer op, §5-safe;
+        Machine().apply(kb, [SWEEP(f"_n{i}") for i in range(len(doomed))],   # SWEEP refuses a fact)
+                        State({f"_n{i}": r for i, r in enumerate(doomed)}))
 
 
 def mark_last_added(kb, keys) -> None:

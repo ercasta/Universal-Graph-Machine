@@ -48,6 +48,10 @@ from ..chain import resolve_write_node, ById
 # before the generic forms test their NAC — avoids a same-step race.
 _KW_FORMS: list[Rule] = [
     Rule(key="ask.kw.a", lhs=[Pat("?x", "next", "a?")], rhs=[Pat("a?", "is_kw", "yes")]),
+    # `is` mid-sentence is the copula keyword, never a subject/object name — tagging it lets the
+    # generic why form REFUSE the inverted "why is S O" reading (which used to bind s='is' and
+    # answer "(not present)"); the dedicated inverted forms below handle it.
+    Rule(key="ask.kw.is", lhs=[Pat("?x", "next", "is?")], rhs=[Pat("is?", "is_kw", "yes")]),
 ]
 
 
@@ -116,12 +120,30 @@ QUESTION_FORMS: list[Rule] = [
         rhs=[Pat("<query>?", "qtype", "why"), Pat("<query>?", "q_s", "?qs"),
              Pat("<query>?", "q_p", "is_a"), Pat("<query>?", "q_o", "?qo")],
     ),
-    # "why S P O ?"  -> a derivation request (P not the "a" marker)
+    # "why is S a O ?"  -> the INVERTED (question-order) form of the same is_a request
+    Rule(
+        key="ask.why.yesno.is_a",
+        lhs=[Pat("?s", "first", "why?"), Pat("why?", "next", "is?"),
+             Pat("is?", "next", "?qs"), Pat("?qs", "next", "a?"), Pat("a?", "next", "?qo")],
+        rhs=[Pat("<query>?", "qtype", "why"), Pat("<query>?", "q_s", "?qs"),
+             Pat("<query>?", "q_p", "is_a"), Pat("<query>?", "q_o", "?qo")],
+    ),
+    # "why is S O ?"  -> the INVERTED copula form ("why is ada thief" = "why ada is thief").
+    # Without it the generic form below bound s='is' and the trail came back "(not present)".
+    Rule(
+        key="ask.why.yesno",
+        lhs=[Pat("?s", "first", "why?"), Pat("why?", "next", "is?"),
+             Pat("is?", "next", "?qs"), Pat("?qs", "next", "?qo")],
+        nac=[Pat("?qo", "is_kw", "yes")],           # "why is S a O" belongs to the is_a form above
+        rhs=[Pat("<query>?", "qtype", "why"), Pat("<query>?", "q_s", "?qs"),
+             Pat("<query>?", "q_p", "is"), Pat("<query>?", "q_o", "?qo")],
+    ),
+    # "why S P O ?"  -> a derivation request (P not the "a" marker; S not the "is" keyword)
     Rule(
         key="ask.why",
         lhs=[Pat("?s", "first", "why?"), Pat("why?", "next", "?qs"),
              Pat("?qs", "next", "?qp"), Pat("?qp", "next", "?qo")],
-        nac=[Pat("?qo", "is_kw", "yes")],
+        nac=[Pat("?qo", "is_kw", "yes"), Pat("?qs", "is_kw", "yes")],
         rhs=[Pat("<query>?", "qtype", "why"), Pat("<query>?", "q_s", "?qs"),
              Pat("<query>?", "q_p", "?qp"), Pat("<query>?", "q_o", "?qo")],
     ),
