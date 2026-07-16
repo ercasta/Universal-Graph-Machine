@@ -109,9 +109,10 @@ def rule_support_j(graph: Graph, rel: str) -> str | None:
 
 
 def assumptions_of(graph: Graph, j: str) -> list[tuple[str, str, str, float]]:
-    """The ABSENCES the firing at `j` leaned on (possibilistic NAF — `J --assumes--> <assumed>`):
-    `(pred, subj, obj, Π)` per assumption, where Π is how possible the counter-evidence was when
-    the negation was taken. Empty for a crisp firing."""
+    """The ABSENCES the firing at `j` leaned on (NAF — `J --assumes--> <assumed>`): `(pred, subj,
+    obj, Π)` per assumption, where Π is how possible the counter-evidence was when the negation
+    was taken. A crisp firing journals its surviving NACs at Π = 0 (2026-07-16, the record half
+    of the hard-vs-assumed capstone) — these are what RECONSIDER re-checks."""
     out: list[tuple[str, str, str, float]] = []
     for a in _objects_via(graph, j, ASSUMES):
         p, s, o, pi = (graph.get_attr(a, k) for k in ("a_pred", "a_subj", "a_obj", "a_pi"))

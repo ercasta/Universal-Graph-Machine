@@ -299,9 +299,13 @@ def _materialize_fact(graph: Graph, s, p: str, o) -> None:
     """Assert the domain relation `s p o` into the KB (monotone — the ask-user acquisition path),
     reusing existing same-named nodes or minting them. An endpoint may be a `ById` (Phase 8 C, an
     id-addressed goal materializing onto a specific node); an ambiguous name WARNS before the [0]-pick
-    (the shared `chain.resolve_write_node` discipline). Never deletes (§5)."""
-    graph.add_relation(resolve_write_node(graph, s, where="ask_goal materialize"), p,
-                       resolve_write_node(graph, o, where="ask_goal materialize"))
+    (the shared `chain.resolve_write_node` discipline). Never deletes (§5). Gathered evidence is NEW
+    KNOWLEDGE, so it marks its grain for RECONSIDER (an absence assumed before this arrived may now
+    be derivable — settled at the next committed ask)."""
+    from ..reconsider import mark_dirty
+    o_id = resolve_write_node(graph, o, where="ask_goal materialize")
+    graph.add_relation(resolve_write_node(graph, s, where="ask_goal materialize"), p, o_id)
+    mark_dirty(graph, [(p, graph.name(o_id) or None)])
 
 def _warn_case_folded_mismatch(graph: Graph, q: dict) -> None:
     """Feedback #3: CNL question parsing lowercases identifiers, so a query about a case-PRESERVED node
@@ -417,6 +421,11 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         return ["(no question form recognized this)"]
     _warn_case_folded_mismatch(graph, q)             # feedback #3: no silent case-fold false negative
     _warn_name_split_join(graph, q)                  # feedback #8a: no silent name-split join (read side)
+
+    if commit:                                       # RECONSIDER (docs/design/reconsider_design.md, D1):
+        from ..reconsider import reconsider          # settle marked assumption-staleness BEFORE answering
+        reconsider(graph, rules, policy=policy_,     # (zero-cost when nothing was marked; commit=False
+                    focus_scope=focus_scope)         # keeps its no-mutation promise and may see stale ink)
 
     def concept_key(p: str, o: str | None) -> str:
         # Openness is a property of the CONCEPT: for a copula query (`is S C`) it is the object

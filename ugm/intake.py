@@ -152,7 +152,10 @@ def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace):
             subgoals.clear()              # keep only the FINAL (complete) run's subgoal trace, not the
             answer = ask_goal(kb, text, rules, policy=policy,   # partial pre-gather re-entries
                               ask_user=(handler if can_ask else None),
-                              focus_scope=fscope, provenance=trace,
+                              # provenance ALWAYS-ON for committed asks (reconsider D2, ratified
+                              # 2026-07-16): RECORD is mode 9, "always on" — and without receipts
+                              # there are no assumed-records for revision to key from.
+                              focus_scope=fscope, provenance=True,
                               on_subgoal=(subgoals.append if trace else None))
             break
         except _NeedVerdict as nv:
@@ -298,6 +301,9 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # MORE SPECIFIC form than the focus `forget that` (the trailing `rule` token disambiguates).
     if rule_control.recognize_rule_op(text) == "disable":
         disabled = rule_control.disable_last(kb)
+        if disabled:                                         # a disabled rule's conclusions are up for
+            from .reconsider import mark_dirty, rule_grains  # RECONSIDER at the next committed ask
+            mark_dirty(kb, rule_grains([r for r in rules if r.key in disabled]))
         yield Event("rule-disable", {"disabled": disabled})
         return Outcome("rule-disable", utterance, disabled_keys=disabled)
 
@@ -354,6 +360,8 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
                 return Outcome("rule", utterance, added_rules=[])
         rules.extend(new_rules)                              # commit only after the accept decision
         rule_control.mark_last_added(kb, [r.key for r in new_rules])   # 'that rule' referent (§6 disable)
+        from .reconsider import mark_dirty, rule_grains     # a new rule may make an assumed absence
+        mark_dirty(kb, rule_grains(new_rules))               # derivable — RECONSIDER at the next ask
         yield Event("rule", {"added": len(new_rules)})
         return Outcome("rule", utterance, added_rules=list(new_rules))
 
@@ -361,10 +369,16 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # a freshly minted `<goal>` node means the GOAL form fired (routing by produced structure, §D.1 —
     # the before/after delta attributes the goal to THIS utterance, no string sniff).
     goals_before = set(kb.nodes_named(GOAL))
+    nodes_before = set(kb.nodes())                   # to attribute this utterance's NEW fact relations
     anchors = load_facts(kb, text)
     anchor = anchors[0] if anchors else None
     minted_goals = [n for n in kb.nodes_named(GOAL) if n not in goals_before]
     is_fact = anchor is not None and anchor_has_content_fact(kb, anchor)
+    if is_fact:                                      # a user-asserted fact may make an assumed absence
+        from .reconsider import mark_dirty, fact_grain   # derivable — RECONSIDER at the next ask
+        mark_dirty(kb, [fact_grain(kb, n) for n in kb.nodes()
+                        if n not in nodes_before and kb.predicate(n)
+                        and not (kb.is_control(n) or kb.is_inert(n))])
     if is_fact or minted_goals:
         # IMPLICIT widen (§3): the entities the utterance is about enter the top focus frame. Never a
         # push — a topic switch is explicit. Content-blind subject extraction (`focus.utterance_subjects`).
