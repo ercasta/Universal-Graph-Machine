@@ -25,14 +25,16 @@ obvious question, it answers in kind:
 
 ```
 is cy nervous   →  likely
-is cy a monk    →  no
+is cy a monk    →  no (assumed)
 ```
 
 Notice the honesty on both lines. It won't say a flat *yes* to the nervous
 question — it only has a hedge, so it gives you back a hedge. And for the monk it
 has nothing at all, so it falls back to the ordinary defeasible *no* from
-Chapter 5. The full range of answers now runs **certain · very likely · likely ·
-unlikely · very unlikely · no · unknown** — a dial, not a switch.
+Chapter 5 — and in this world of shades it even *labels* the kind of no it is:
+**(assumed)**, "nothing supports it", a verdict new evidence could revise. The
+full range of answers now runs **certain · very likely · likely · unlikely ·
+very unlikely · no (assumed) · unknown** — a dial, not a switch.
 
 ## Doubt travels
 
@@ -124,7 +126,7 @@ two) at once —
 ```
    ?p is impossible when ?p is tall and ?p is loud
 
-is intruder impossible   →  no
+is intruder impossible   →  no (assumed)
 ```
 
 — and it declines flatly. Tall-and-quiet and short-and-loud can't both be true,

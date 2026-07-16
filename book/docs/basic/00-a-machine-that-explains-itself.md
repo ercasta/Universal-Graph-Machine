@@ -84,20 +84,32 @@ what it prints:
 ```
 cy is thief  <- rule.?someone.is.thief
   cy is_a suspect  (given)
+  assumed not: cy is cleared  (no evidence for it was found)
+    looked for: cy is alibied
+    looked for: cy is innocent
+      looked for: cy in library
 ```
 
 Read it top to bottom: *cy is the thief* — the `<-` means **"this follows
-from"** — from the **thief rule** (`rule.?someone.is.thief`). And that rule
-stood on a fact we handed it directly: *cy is a suspect* (`given` means "you
-told me this; I didn't have to work it out"). Every conclusion the machine
-reaches leaves a trail like this, and you can always pull on it.
+from"** — from the **thief rule** (`rule.?someone.is.thief`). That rule stood
+on two legs. One is a fact we handed it directly: *cy is a suspect* (`given`
+means "you told me this; I didn't have to work it out").
+
+The other leg is the remarkable one: **`assumed not`**. The rule needed cy to be
+*not cleared* — and the machine admits, right in the receipt, that it never
+*proved* that. It **assumed** it, and it shows the grounds: the indented
+`looked for:` lines are the actual search it ran — an alibi? innocence? the
+library? — each coming up empty. That's step 6 from above, on the record.
+
+Every conclusion the machine reaches leaves a trail like this — its facts, its
+rules, *and its leaps* — and you can always pull on it.
 
 ## One more thing: it knows what it *doesn't* know
 
-Step 6 hid something important. When the machine couldn't find evidence that cy
-was cleared, it made a *choice*: treat "no evidence" as "not cleared." That's
-called **closing the world** — assuming that whatever you can't prove is false.
-It's how detectives (and databases) usually work.
+That `assumed not` line deserves a pause. When the machine couldn't find
+evidence that cy was cleared, it made a *choice*: treat "no evidence" as "not
+cleared." That's called **closing the world** — assuming that whatever you can't
+prove is false. It's how detectives (and databases) usually work.
 
 But sometimes that's the wrong stance. Suppose a stranger, **zz**, wanders into
 the story — someone the machine has never heard a single fact about. We ask:

@@ -38,6 +38,13 @@ stood on *bo is innocent*; which came from the innocent-rule; which stood on the
 one thing we simply told it — *bo in library*, marked `(given)`. The explanation
 isn't a story *about* the reasoning. It **is** the reasoning, read back to you.
 
+And the receipts don't stop at what the machine *proved*. When a conclusion
+leans on an **absence** — the thief rule's *"not cleared"* — the receipt says so
+in as many words: `assumed not: cy is cleared (no evidence for it was found)`,
+followed by the indented `looked for:` lines of the search that came up empty.
+You saw this in Chapter 0's very first trail. Facts, rules, *and leaps* — all on
+the record.
+
 ## Why this matters so much
 
 Three reasons, and they're big ones.

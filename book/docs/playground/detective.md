@@ -8,7 +8,8 @@ instant).
 Edit the clues and rules, type a question, and press **Run** — then **watch the
 machine reason one step at a time**: the goal it sets, the **questions it asks
 itself** along the way (like *"is cy cleared?"*) and whether it finds evidence,
-and finally its answer. Try these:
+the facts it **works out** (each naming the rule it used), and finally its
+answer. Try these:
 
 - Ask `who is thief` — then **delete the line `ada is alibied`** and ask again.
 - Ask `who is nervous` to have the machine sweep the world for a plain quality.

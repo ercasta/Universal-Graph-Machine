@@ -23,8 +23,10 @@ that it's instant). Try these:
   most possible suspect *and tells you it's guessing*, naming the alternative it
   did **not** rule out.
 - Ask `why cy is thief` — the machine shows its work *and its leap*: the
-  premises it had, and the line **assumed not: cy is cleared (the
-  counter-evidence is only unlikely)**. The jump is on the record.
+  premises it had, the line **assumed not: cy is cleared (the counter-evidence
+  is only unlikely)**, and — indented beneath it — the `looked for:` lines of
+  the search behind that assumption. The jump, and the digging it stands on,
+  are on the record.
 - Ask `is cy more suspicious than bo` (worked out through ada), then
   `why is cy more suspicious than bo` to see the chain — and
   `is cy more suspicious than dan` for an honest **unknown**: no chain of
