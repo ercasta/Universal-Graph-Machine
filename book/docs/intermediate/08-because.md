@@ -58,8 +58,9 @@ holds — or catch it standing on a fact that's wrong.
 library,"* but bo was actually in the cellar — you know exactly which fact to fix.
 The machine even tells you which conclusions depended on it. Contrast that with a
 machine that just says "cy is the thief" and offers nothing: when it's wrong, you
-have nowhere to start. (And when you actually *withdraw* the bad clue, the machine
-uses these same receipts to take back everything that stood on it, cleanly —
+have nowhere to start. (And when the bad clue is *withdrawn* — by you, or by the
+machine noticing on its own, as the next section shows — these same receipts are
+what let it take back everything that stood on it, cleanly;
 [Chapter 19](../deep/19-firmware.md#taking-a-fact-back) shows the machinery.)
 
 **It can't bluff.** A system that generates confident-sounding text has no
@@ -67,6 +68,51 @@ built-in tether to the truth — it can be fluent and wrong. This machine's "why
 is not generated prose; it's a faithful record of steps it actually took. It can
 be *mistaken* (if you fed it a wrong fact), but it cannot **bluff** — there's no
 gap between what it did and what it says it did.
+
+## When the machine changes its own mind
+
+Here's where the receipts stop being mere bookkeeping and start doing something
+remarkable. Watch a small case unfold as a *conversation*:
+
+```
+ada is a suspect
+is ada thief                →  yes
+```
+
+A reasonable conclusion — a suspect, and nothing clears her. But remember what
+that `yes` stood on: an **absence**. Its receipt says, in as many words,
+*"assumed not: ada is cleared."* Now the case develops:
+
+```
+ada is alibied
+?x is cleared when ?x is alibied
+is ada thief                →  no (assumed)
+```
+
+Nobody told the machine to clean up after itself. When the alibi and the new
+rule arrived, it quietly noted what kind of knowledge had changed. At the next
+question — *before answering* — it went back to the recorded leaps that change
+could touch, re-asked the one in question (*is ada cleared?* — now provable),
+and found the old `yes` standing on an assumption that no longer holds. So it
+**took the conclusion back** — and, receipts in hand, everything that had been
+built on top of it — then answered the question from the revised case. That's
+the defeasible "no" of Chapter 5 keeping its promise in the other direction: a
+conclusion held *only until something better comes along* really is let go when
+something better comes along.
+
+Notice the new answer still says `(assumed)`. Ada is off the hook *on current
+knowledge* — and the machine remains exactly as ready to revise this verdict as
+the last one.
+
+??? info "Deep dive: lazy about revision, too"
+    The machine doesn't police its whole belief store every time you speak —
+    that would betray its demand-driven soul (Chapter 6). New knowledge only
+    leaves a small *mark* saying what kind of thing changed; the re-checking
+    happens at the next question, only for recorded assumptions that mark could
+    actually touch. The withdrawal itself is the retraction machinery of
+    [Chapter 19](../deep/19-firmware.md#taking-a-fact-back): the withdrawn
+    belief isn't shredded but archived, together with the assumption that broke
+    it. Nothing is ever *silently* different — it's all in the graph.
 
 ## No conclusion without a cause
 

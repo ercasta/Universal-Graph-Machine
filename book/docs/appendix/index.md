@@ -188,6 +188,11 @@ Because the archive stays in the graph, a retracted fact can later be
 pencil world or an undo-scope — it's honest deletion from the inked graph, made
 safe by the receipts. See [Chapter 19](../deep/19-firmware.md#taking-a-fact-back).
 
+Retraction also fires *automatically*: a conclusion that leaned on an absence
+(`no evidence that X`) is re-examined at the next question after knowledge
+arrives that could make X derivable — and withdrawn if its assumption broke
+([Chapter 8](../intermediate/08-because.md#when-the-machine-changes-its-own-mind)).
+
 > **Go deeper:** the tradition is "truth maintenance systems" and "belief
 > revision"; the design's own name for archive-then-delete is *copy-on-delete*.
 

@@ -89,6 +89,15 @@ And the archive isn't a graveyard. If the witness re-confirms next week, the
 fact can be **resurrected** — re-asserted straight from its historical record,
 ready to match again as if it had never left.
 
+Who invokes all this? You can, deliberately — *"strike that from the record."*
+But retraction has a second client: **the machine itself.** Every conclusion
+that leaned on an absence keeps that leap on its receipt (Chapter 8), and when
+later knowledge makes such an absence derivable after all, the next question
+triggers exactly this three-step withdrawal for the conclusions that broke —
+the self-revision you watched in [Chapter 8](../intermediate/08-because.md#when-the-machine-changes-its-own-mind).
+Same mechanism, two callers; the *policy* of when to reconsider stays as
+demand-driven as everything else (new knowledge marks, questions settle).
+
 One honest limit is worth naming. The cascade in step 1 is deliberately
 *aggressive*: a conclusion that stood on the withdrawn fact falls even if it
 also had a second, independent line of support. That's safe, not sloppy —
