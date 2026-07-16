@@ -161,6 +161,19 @@ def _slot(graph: Graph, q: str, role: str) -> str | None:
     return None
 
 
+def _kw_in_name_slot(graph: Graph, q: str, role: str) -> bool:
+    """Is the token bound into name-slot `role` of query `q` a tagged grammar KEYWORD (`is_kw`)?
+    A form that binds a keyword where a NAME belongs has read grammar as content — a MIS-PARSE,
+    e.g. `is a ada thief` binding s='a'. The habitability rule (loud walls): such a reading must
+    be REJECTED as unrecognized — never answered — because a confident answer from a mis-parse
+    ("no (assumed)" about a subject named 'a') teaches the user a false model of the language.
+    Checked on the RECOGNITION graph (the tagging is form-rule structure, no word list here)."""
+    for r, o in graph.relations_from(q):
+        if graph.has_key(r, role):
+            return any(graph.has_key(rel, "is_kw") for rel, _t in graph.relations_from(o))
+    return False
+
+
 def _parse_qevent(graph: Graph, qid: str) -> dict:
     """Read an n-ary question pattern `<qevent>` into {qtype, pred, roles, unknown}.
 
@@ -226,6 +239,12 @@ def _recognize_question(question: str, extra_forms: list[Rule] = (), *, strata=N
             return _parse_qevent(tmp, nid)
     for nid in tmp.nodes():
         if tmp.name(nid) != "<query>":
+            continue
+        # HABITABILITY LINT: a reading that bound a grammar keyword into a NAME slot is a
+        # mis-parse — skip it (a cleaner reading from a more specific form may also have fired);
+        # if every reading is tainted, the question is UNRECOGNIZED (the loud wall + nearest-forms
+        # guidance at intake), never a silent wrong answer.
+        if _kw_in_name_slot(tmp, nid, "q_s") or _kw_in_name_slot(tmp, nid, "q_o"):
             continue
         return {
             "qtype": _slot(tmp, nid, "qtype"),

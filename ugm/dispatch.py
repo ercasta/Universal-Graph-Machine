@@ -84,11 +84,14 @@ def _objs(graph: Graph, subj: str, rel: str) -> list[str]:
 
 def emit_call(graph: Graph, tool_name: str, slots: dict[str, str]) -> str:
     """Materialize a `<call>` for `tool_name` with the given argument `slots`
-    (slot-name -> node id). Driver/test helper; normally a RULE materializes a call."""
+    (slot-name -> node id). Driver/test helper; normally a RULE materializes a call.
+    The whole shape is BORN CONTROL — the call node (string-form `<…>` auto-flag) and its
+    tool/slot relations (marked here, as a rule-minted call's are via `_rule_touches_control`) —
+    so `consume_call`'s gated SWEEP can cut it and nothing here is ever read as a fact."""
     c = graph.add_node(CALL)
-    graph.add_relation(c, TOOL, _ensure(graph, tool_name))
+    graph.add_relation(c, TOOL, _ensure(graph, tool_name), control=True)
     for slot, node_id in slots.items():
-        graph.add_relation(c, slot, node_id)
+        graph.add_relation(c, slot, node_id, control=True)
     return c
 
 
@@ -115,11 +118,14 @@ def pending_calls(graph: Graph) -> list[str]:
 
 
 def consume_call(graph: Graph, call_id: str) -> None:
-    """Delete a serviced call: its argument relation nodes, then the call node itself
-    (control deletion is legal, vision §5)."""
-    for rel, _o in graph.relations_from(call_id):
-        graph.remove_node(rel)
-    graph.remove_node(call_id)
+    """Delete a serviced call — as a SWEEP program: its argument relation nodes, then the call
+    node itself. The opcode REFUSES anything non-control, so a consumed call structurally cannot
+    take a fact with it (vision §5); the call shape is born control (see `emit_call` /
+    `lowering.lower_rhs`'s token-skolem mint)."""
+    from .machine import Machine, SWEEP, State
+    doomed = [rel for rel, _o in graph.relations_from(call_id)] + [call_id]
+    Machine().apply(graph, [SWEEP(f"_n{i}") for i in range(len(doomed))],
+                    State({f"_n{i}": n for i, n in enumerate(doomed)}))
 
 
 def service_calls(graph: Graph, registry: dict[str, Tool]) -> set[str]:

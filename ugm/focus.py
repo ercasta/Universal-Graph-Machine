@@ -121,13 +121,14 @@ def gc_cold_scaffolding(kb) -> int:
     for frame in _stack(kb):
         warm.update(frame)
     swept = 0
+    from .machine import Machine, SWEEP, State
     for token in (GOAL, CALL):
         for n in list(kb.nodes_named(token)):
             named = {kb.name(o) for _rel, o in kb.relations_from(n) if kb.name(o)}
             if named and named.isdisjoint(warm):
-                for rel, _o in list(kb.relations_from(n)):
-                    kb.remove_node(rel)
-                kb.remove_node(n)
+                doomed = [rel for rel, _o in kb.relations_from(n)] + [n]
+                Machine().apply(kb, [SWEEP(f"_n{i}") for i in range(len(doomed))],   # born-control
+                                State({f"_n{i}": d for i, d in enumerate(doomed)}))  # scaffolding only
                 swept += 1
     if swept:
         kb.gc_disconnected()

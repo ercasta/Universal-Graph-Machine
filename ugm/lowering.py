@@ -292,7 +292,13 @@ def lower_rhs(rule: Rule, control_preds: frozenset[str] = frozenset(),
             # by NODE identity (a fresh node per firing splits the join, e.g. `<need> for ?c` and
             # `?o add ?c` sharing `have_valuable`). A skolem / RHS-only var stays a fresh MINT
             # (value invention, per firing).
-            prog.append(MINT(reg, attrs={"name": valued(name)}, intern=(key is None)))
+            # BORN-CONTROL (2026-07-16): a `<…>`-token name gets the string-form `add_node`
+            # treatment — the token dual-write + the CONTROL flag — so a rule-minted `<call>?` /
+            # `<goal>?` SKOLEM is scaffolding from birth (its relations already were, via
+            # `_rule_touches_control`), and the gated `SWEEP` can consume it (never a fact).
+            tok_name = name.startswith("<") and name.endswith(">")
+            attrs = {"name": valued(name), **({name: graded_attr(1.0)} if tok_name else {})}
+            prog.append(MINT(reg, attrs=attrs, control=tok_name, intern=(key is None)))
             reg_of[ident] = reg
         return reg
 

@@ -95,12 +95,14 @@ def _triple(g: AttrGraph, s: str, p: str, o: str) -> str:
 
 
 def _emit_suppose(g: AttrGraph, assumptions, predictions, label: str | None = None) -> str:
-    """Materialize a `<call> --tool--> suppose` with N `assume` + N `predict` reified triples."""
+    """Materialize a `<call> --tool--> suppose` with N `assume` + N `predict` reified triples.
+    The arg relations are CONTROL, as a rule-emitted call's are (`_rule_touches_control`) — the
+    call shape is born scaffolding, so `consume_call`'s gated SWEEP can cut it."""
     c = emit_call(g, SUPPOSE_TOOL, {LABEL: _ensure(g, label)} if label is not None else {})
     for s, p, o in assumptions:
-        g.add_relation(c, ASSUME, _triple(g, s, p, o))
+        g.add_relation(c, ASSUME, _triple(g, s, p, o), control=True)
     for s, p, o in predictions:
-        g.add_relation(c, PREDICT, _triple(g, s, p, o))
+        g.add_relation(c, PREDICT, _triple(g, s, p, o), control=True)
     return c
 
 
