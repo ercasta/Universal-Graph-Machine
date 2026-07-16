@@ -229,3 +229,117 @@ def verdict(g: AttrGraph, pred: str, s: str, o: str, *, closed: bool = True) -> 
     if p <= 0.0:
         return "assumed-no" if closed else "unknown"
     return band_word(p)
+
+
+# ---------------------------------------------------------------------------
+# DEFEASIBLE GUESS — the positive-assumption sibling of `assumed-no`
+# (docs/possibilistic.md decisions 5/6/8; open point D, built 2026-07-16)
+# ---------------------------------------------------------------------------
+#
+# The second human behaviour of decision 5: *jump to a conclusion that might be wrong* — collapse to
+# the most-possible disjunct WITHOUT opening branches. A guess is an EPISTEMIC ACT, not a derivation:
+#   * the PICK — argmax possibility over the open slot's alternatives (marker-mode read). No unique
+#     max is required (decision 8): a TIE still picks (deterministically), and the provenance simply
+#     does heavier lifting — it honestly records "guessed among equals".
+#   * the RECORD — a visible `<guess>` control node carrying the picked triple, its band, the BASIS
+#     (`clear-max` / `tie`), and every COMPETITOR with its band ("alternatives exist and were not
+#     ruled out — an assumption, not a derivation"). This is what makes the prior an inspectable,
+#     defeasible object instead of a hidden weight (the bias-mitigation of decision 6).
+#   * the ADOPTION — the guess node doubles as a PENCIL SCOPE: the picked fact and its co-scoped
+#     JOINTS (the chosen world's correlated facts — guessing `male` from the male∧tall fork brings
+#     `tall` along) are penned under it. Downstream reasoning is then plain CRISP in-scope chaining
+#     (`chain_sip(..., scope=guess_node)`) — ONE world, binary visibility, no branch opened: exactly
+#     "collapse without opening branches". Ink is never touched (the pencil/ink design rule, S3).
+#   * the RETRACTION — `retract_guess` sweeps the adopted pencils but KEEPS the record, marked
+#     retracted: the machine remembers the jumps it took back (the machine-that-explains-itself).
+
+GUESS = "<guess>"                # the visible guess-record node; doubles as the adoption scope
+_RETRACTED = "<retracted>"       # valued marker on a guess whose adoption was swept
+
+
+def guess(g: AttrGraph, goal: tuple[str, str, None]) -> dict | None:
+    """GUESS the open OBJECT slot of `goal = (pred, subj, None)`: pick the most-possible alternative,
+    mint the `<guess>` record, and ADOPT the picked world in the record's own pencil scope. Returns
+    the record as a dict — `{node, pred, subj, picked, band, basis, alternatives}` where `basis` is
+    `"certain"` (the answer is ink — nothing was guessed, no node minted, `node` is None),
+    `"clear-max"` (a unique most-possible disjunct) or `"tie"` (picked among equals — decision 8's
+    honest case); `alternatives` is the pick plus every COMPETING value with its band, best-first.
+    A COMPETITOR is a value from a world INCOMPATIBLE with the pick's (exclusive fork) — a co-scoped
+    JOINT (`tall`, riding the same world as `male`) or an independently-compatible fork is NOT an
+    alternative: it can co-hold, so there is nothing to choose between. None when the slot has NO
+    reachable value at all (there is nothing to guess — that is `assumed-no`/`unknown` territory,
+    `check`'s job). The pick is DETERMINISTIC (best band, then name order), so a tie is
+    reproducible; which one it picked is in the record, not hidden."""
+    pred, subj, obj = goal
+    if obj is not None or subj is None:
+        raise ValueError(f"guess() takes an open-object goal (pred, subj, None), got {goal!r}")
+    rows = facts_matching_banded(g, pred, subj, None)
+    if not rows:
+        return None                                        # nothing reachable: not guess territory
+    by_obj: dict[str, tuple[float, frozenset]] = {}        # value -> its BEST derivation (band, env)
+    for _s, o, band, env in rows:
+        if o not in by_obj or band > by_obj[o][0]:
+            by_obj[o] = (band, env)
+    ranked = sorted(by_obj.items(), key=lambda kv: (-kv[1][0], kv[0]))
+    picked, (band, env) = ranked[0]
+    competitors = [(o, b) for o, (b, e) in ranked[1:]      # rivals = incompatible worlds only
+                   if not _env_consistent(g, env | e)]
+    alternatives = [(picked, band)] + competitors
+    if band >= CERTAIN:                                    # the answer is certain — a read, not a jump
+        return {"node": None, "pred": pred, "subj": subj, "picked": picked, "band": band,
+                "basis": "certain", "alternatives": alternatives}
+    basis = "tie" if competitors and competitors[0][1] >= band else "clear-max"
+
+    node = g.add_node(GUESS, control=True)                 # the RECORD, visible and matchable
+    g.set_attr(node, "g_pred", valued(pred))
+    g.set_attr(node, "g_subj", valued(subj))
+    g.set_attr(node, "g_picked", valued(picked))
+    g.set_attr(node, "g_band", graded(band))
+    g.set_attr(node, "g_basis", valued(basis))
+    g.set_attr(node, "g_alternatives", valued(tuple(alternatives)))
+
+    # ADOPT the picked world: pen the best derivation's fork contents (the co-scoped joints come
+    # along — correlation is the point of co-scoping) into the guess's own scope. A derived pick's
+    # env lists its BASE forks, so the adopted world is the full assumption-set's content.
+    penned: set[tuple[str, str, str]] = set()
+    for fork in sorted(env):
+        for rel in scope_members(g, fork):
+            if not g.has(rel):
+                continue
+            p = g.predicate(rel)
+            s_id = next(iter(g.into(rel)), None)
+            o_id = next(iter(g.out(rel)), None)
+            if p and s_id is not None and o_id is not None and (s_id, p, o_id) not in penned:
+                penned.add((s_id, p, o_id))
+                _pencil(g, node, s_id, p, o_id)
+    if (pred, subj, picked) not in {(g.name(s), p, g.name(o)) for s, p, o in penned}:
+        _pencil(g, node, _entity(g, subj), pred, _entity(g, picked))   # e.g. a pick from a derived fork
+    return {"node": node, "pred": pred, "subj": subj, "picked": picked, "band": band,
+            "basis": basis, "alternatives": alternatives}
+
+
+def retract_guess(g: AttrGraph, node: str) -> None:
+    """Take the jump back: sweep the guess's adopted pencils (its scope), but KEEP the record —
+    marked retracted — so `why` can still say "I guessed male here, and withdrew it". Ink was never
+    touched, so there is nothing else to undo (the pencil/ink payoff)."""
+    for rel in scope_members(g, node):
+        if g.has(rel):
+            g.remove_node(rel)
+    g.set_attr(node, _RETRACTED, valued(True))
+
+
+def render_guess(g: AttrGraph, rec: dict) -> str:
+    """The `why` line of a guess — the inspectable prior (decision 6). `certain` renders as a plain
+    read; a real guess names the pick, its band word, the basis, and every alternative NOT ruled out."""
+    picked, band = rec["picked"], rec["band"]
+    fact = f"{rec['subj']} {rec['pred']} {picked}"
+    if rec["basis"] == "certain":
+        return f"{fact} — certain (a read, not a guess)"
+    others = [(o, b) for o, b in rec["alternatives"] if o != picked]
+    alts = ", ".join(f"{o} ({band_word(b)})" for o, b in others) if others else "none"
+    retracted = " [RETRACTED]" if (rec["node"] is not None and g.has(rec["node"])
+                                   and g.get_attr(rec["node"], _RETRACTED) is not None) else ""
+    how = ("guessed among equals" if rec["basis"] == "tie"
+           else f"guessed as the most possible ({band_word(band)})")
+    return (f"{fact} — {how}; alternatives not ruled out: {alts}. "
+            f"An assumption, not a derivation.{retracted}")

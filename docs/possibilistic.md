@@ -126,9 +126,24 @@ be total.
   comparison-node structure over a `<likelihood>`/`<possibility>` dimension — same machinery as
   beauty, qualitative, partial order OK. Feeds selection-of-assumption (decision 6/8), not a weight
   calculus. *Needs confirming as the concrete surface form.*
-- **D. `defeasible-guess` mechanics.** How it threads the provenance journal; how `why` renders it;
-  what it records in the tie/incomparable case (competitors + "guessed among equals"). **First one
-  to sketch.**
+- **D. `defeasible-guess` mechanics — ✅ BUILT 2026-07-16** (`possibility.guess` / `retract_guess` /
+  `render_guess`; `tests/test_possibility_guess.py`, 8 green). A guess is an EPISTEMIC ACT, not a
+  derivation, in four moves: (1) the PICK — argmax possibility over the open object slot
+  (marker-mode read), deterministic (band then name) so a tie is reproducible; (2) the RECORD — a
+  visible `<guess>` control node carrying the picked triple, band, BASIS (`clear-max`/`tie` — the
+  tie case honestly says "guessed among equals", decision 8) and every COMPETITOR with its band.
+  A competitor is a value from an INCOMPATIBLE world only (exclusive fork via `<choice>` or
+  `disjoint_from`) — a co-scoped JOINT (`tall` riding the male-world) or an independently-compatible
+  fork can co-hold and is NOT an alternative; (3) the ADOPTION — the guess node doubles as a pencil
+  SCOPE: the picked world's contents (joints included — correlation comes along) are penned under
+  it, so DOWNSTREAM reasoning is plain CRISP in-scope `chain_sip(scope=guess_node)` — one world,
+  binary visibility, NO branch opened (decision 5's "collapse without opening branches", realized
+  on the existing scope machinery); (4) the RETRACTION — sweep the pencils, KEEP the record marked
+  `[RETRACTED]` (the machine remembers the jumps it took back); ink was never touched, so nothing
+  else to undo. A CERTAIN answer returns basis `certain` (a read, not a guess — nothing minted);
+  an unreachable slot returns None (that is `check`'s assumed-no/unknown territory). `render_guess`
+  is the `why` line: "x is male — guessed as the most possible (likely); alternatives not ruled
+  out: female (unlikely). An assumption, not a derivation."
 - **E'. Where the effort dial lives** now that it is decoupled from likelihood (decision 9) — is it
   the existing fuel budget, exposed as an explicit metareasoning control?
 - **G. Transitivity-as-a-rule performance.** Decomposed comparisons make transitivity a 2-body rule
@@ -173,6 +188,14 @@ a partial band). `check` grows the band words between POSITIVE and ASSUMED_NO (S
 passes them through (no premature defeasible collapse), so `ask_goal` answers `likely` with the
 question forms untouched. Silent mode is byte-identical (the 450+ crisp tests are the differential
 gate; `_CROSSCHECK` still guards the crisp read against the walk oracle).
+
+**DEFEASIBLE-GUESS BUILT 2026-07-16** (open point D — see its entry in the Open list below for the
+full mechanics): `possibility.guess/retract_guess/render_guess`, suite 495 green. The remaining
+open threads after it: the OBJECT-LEVEL gradable-comparison arc (decisions 1–3 + G perf + H linter
+— a separate thread from uncertainty), abduction/possibility-ordered SUPPOSE (decision 5's first
+behaviour), the propagation-strength knob (open point I beyond θ), and the polish items (why-renders
+band+env for banded derivations, `be cautious`/`be decisive` CNL meta-line, band scale S7.7,
+cross-fork fan-out timing).
 
 **Slice edges left open (deliberate, small):** the ENTAILED_NEG closure in `check` stays crisp (no
 graded hard-negative); `ask_goal`'s who/existential branches and `query_goal` read crisp (only the
