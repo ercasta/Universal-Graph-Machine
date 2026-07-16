@@ -71,14 +71,17 @@ the machine jump to conclusions — and *you set the boldness*:
 
 ```
 decisive setting   →  is cy thief:  likely
-cautious setting   →  is cy thief:  no
+cautious setting   →  is cy thief:  no (assumed)
 ```
 
 Two things are worth pausing on. First, on the **decisive** setting it *does*
 make the leap — but it says **likely**, not *yes*. The accusation rests on
 dismissing a shaky-but-real alibi, so the conclusion wears that doubt out in the
 open. Second, on the **cautious** setting it simply **refuses**: while it's even
-a little possible that cy *is* alibied, it won't lean on "not alibied."
+a little possible that cy *is* alibied, it won't lean on "not alibied" — and
+even then it stays honest about *what kind* of no this is: **(assumed)** means
+"nothing supports the accusation", a verdict that new evidence could revise, not
+a proven innocence.
 
 That single dial is the machine's answer to jumping-to-conclusions — the same
 trap as the old surgeon riddle (*"I can't operate, he's my son"* — the silent

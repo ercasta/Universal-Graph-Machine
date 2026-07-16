@@ -401,7 +401,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     cannot express. Same yes/no/who answers as the forward path on every stratifiable bank (the step-4
     differential gate); a genuinely NON-stratifiable bank is rejected at LOAD by
     `authoring.lint_stratifiable` (object-aware), so the chain never mis-answers one."""
-    from ..check import check, collapse
+    from ..check import check, collapse, ASSUMED_NO
     from ..chain import chain_sip, bound_demands, _facts_matching
     from ..policy import DEFAULT_POLICY
     from dataclasses import replace
@@ -506,20 +506,28 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
                              else match(graph, [Pat("?w", q["p"], q["o"])]))
                     if found:
                         return ["yes"]
-                return ["unknown"] if policy_.is_open(concept_key(q["p"], q["o"])) else ["no"]
-            # a bound goal: the demand-driven 4-status CHECK, collapsed to yes/no/unknown. CHECK runs the
-            # positive closure (POSITIVE), the negative closure (ENTAILED_NEG), else CWA-default ASSUMED_NO
-            # unless the concept is OPEN (UNKNOWN) or fuel ran out before closure (also UNKNOWN).
+                if policy_.is_open(concept_key(q["p"], q["o"])):
+                    return ["unknown"]
+                return ["no (assumed)"] if policy_.banded else ["no"]
+            # a bound goal: the demand-driven 4-status CHECK, collapsed to yes/no/unknown — except under
+            # the BANDED stance, where the verdict WEARS ITS KIND (the capstone's surfacing half,
+            # 2026-07-16): an ASSUMED_NO answers `no (assumed)` — the CWA default, out in the open (the
+            # uncertain-world chapter's "likely becomes no (assumed)") — while an ENTAILED_NEG stays a
+            # plain hard `no` (as trustworthy as a yes). The crisp default keeps today's collapse.
+            def verdict(status: str) -> str:
+                if policy_.banded and status == ASSUMED_NO:
+                    return "no (assumed)"
+                return collapse(status)
             goal = (q["p"], q["s"], q["o"])
-            v = collapse(check(graph, goal, policy=policy_, provenance=provenance,
-                               focus_scope=focus_scope, rules=rule_g, scope=scope,
-                               on_subgoal=on_subgoal))
+            v = verdict(check(graph, goal, policy=policy_, provenance=provenance,
+                              focus_scope=focus_scope, rules=rule_g, scope=scope,
+                              on_subgoal=on_subgoal))
             # MID-CHAIN gather (§8.5b): only when the goal was NOT derivable — ask for the OPEN premises the
             # derivation demands, materialize the confirmed ones, and re-decide (so a rule blocked solely by a
             # gatherable fact fires instead of being wrongly assumed-no). A derivable goal pays no extra work.
             if v != "yes" and ask_user is not None and gather_open_premises(goal):
-                v = collapse(check(graph, goal, policy=policy_, provenance=provenance,
-                                   focus_scope=focus_scope, rules=rule_g, scope=scope))
+                v = verdict(check(graph, goal, policy=policy_, provenance=provenance,
+                                  focus_scope=focus_scope, rules=rule_g, scope=scope))
             # OWA evidence-gatherer: an open UNKNOWN the goal needs -> gather (never a CWA-default `no`).
             if v == "unknown" and ask_user is not None and q["o"] is not None:
                 held = ask_user(q["s"], q["p"], q["o"])

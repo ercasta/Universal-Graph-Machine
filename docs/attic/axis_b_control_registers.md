@@ -177,8 +177,10 @@ Resolution, and the sharpened boundary:
    surviving NAC now journals its leaned-on absence at Π = 0 (`_nac_blocks` appends in silent mode; the
    ink/pencil EMIT path attaches `_record_assumptions`), so a crisp `why` shows `assumed not: … (no
    evidence for it was found)` with the decomposition hanging off it — identical shape to the banded
-   story. Verdicts untouched (provenance-only). The capstone's remaining half — surfacing the
-   ENTAILED-no / ASSUMED-no / UNKNOWN kind through `ask_goal`'s answer — is still open.
+   story. Verdicts untouched (provenance-only). The capstone's SURFACING half landed the same day:
+   under the BANDED stance, `ask_goal`'s verdict wears its kind — ASSUMED_NO answers `no (assumed)`
+   (bound goals and the banded ∃), ENTAILED_NEG stays a plain hard `no`; the crisp default keeps the
+   yes/no/unknown collapse (deliberate — a crisp caller wanting the kind uses `check` directly).
 
 So: the AGENDA is a register; the SUBGOAL CHAIN is graph (explanation). Depth never forces graph
 materialization — being explanation does.

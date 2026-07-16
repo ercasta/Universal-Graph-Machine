@@ -16,8 +16,9 @@ that it's instant). Try these:
 - Tick **be cautious** and ask again. Now the machine refuses to lean on an
   absence while the alibi is even *slightly* possible — **likely** becomes
   **no** (assumed). One dial, out in the open.
-- Ask `is ada thief` — a solid alibi still clears you crisply, uncertainty or
-  not.
+- Ask `is ada thief` — a solid alibi still clears you outright: **no (assumed)**,
+  never a band word. The *(assumed)* is honesty, not doubt — every closed-world
+  "no" is a "nothing supports it", and here the machine says so.
 - Ask `guess culprit` — the machine collapses the neighbour's glimpse to the
   most possible suspect *and tells you it's guessing*, naming the alternative it
   did **not** rule out.
@@ -94,7 +95,8 @@ dan is more suspicious than bo
     (`ada is more suspicious than bo`) and comparison questions
     (`is cy more suspicious than dan`, `is fay as suspicious as gil`), and the
     collapse `guess culprit`. Yes/no answers may come back as **certain ·
-    very likely · likely · unlikely · very unlikely · no · unknown**.
+    very likely · likely · unlikely · very unlikely · no · no (assumed) ·
+    unknown**.
 
 !!! tip "Where this is explained"
     Concepts: [Living in an uncertain world](../advanced/10-uncertain-world.md)

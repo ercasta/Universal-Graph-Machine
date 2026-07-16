@@ -229,10 +229,11 @@
     });
   }
 
-  // yes/no/unknown plus the GRADED verdicts of the uncertain world (band words).
+  // yes/no/unknown plus the GRADED verdicts of the uncertain world (band words),
+  // and the kind-wearing CWA default of the banded stance.
   var VERDICTS = [
     "yes", "no", "unknown", "certain",
-    "very likely", "likely", "unlikely", "very unlikely", "assumed-no",
+    "very likely", "likely", "unlikely", "very unlikely", "no (assumed)",
   ];
 
   function renderAnswer(host, answer) {
@@ -245,7 +246,7 @@
       var body = el("div", "ugm-step-body");
       body.appendChild(el("div", "ugm-step-title", "Answer"));
       if (verdict) {
-        var cls = verdict.replace(/[^a-z]+/g, "-"); // "very likely" -> "very-likely"
+        var cls = verdict.replace(/[^a-z]+/g, "-").replace(/^-+|-+$/g, ""); // "no (assumed)" -> "no-assumed"
         body.appendChild(el("div", "ugm-verdict ugm-verdict-" + cls, verdict));
       } else {
         body.appendChild(el("pre", "ugm-answer-text", answer.join("\n")));

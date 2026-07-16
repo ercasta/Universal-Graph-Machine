@@ -46,15 +46,19 @@ def test_the_shaky_alibi_makes_cy_likely_the_thief():
 
 
 def test_hard_alibis_still_clear_crisply():
-    assert _ask("is ada thief") == ["no"]                  # certain alibi → cleared blocks, hard
-    assert _ask("is bo thief") == ["no"]                   # library → innocent → cleared
+    # a certain alibi blocks the thief rule OUTRIGHT (no fork involved) — but not-thief is still a
+    # CWA verdict, not an entailed negative, and under the banded stance it WEARS that kind
+    # (the capstone's surfacing half, 2026-07-16): `no (assumed)`, never a band word.
+    assert _ask("is ada thief") == ["no (assumed)"]        # certain alibi → cleared blocks, hard
+    assert _ask("is bo thief") == ["no (assumed)"]         # library → innocent → cleared
 
 
 def test_theta_flips_the_jump():
     """Cautious θ=0.2: cleared is 0.3-possible ≥ θ, so the machine refuses to lean on the absence —
-    no jump, plain `no` (assumed). The bias dial, live on the composite surface."""
+    no jump, `no (assumed)` with the kind out in the open. The bias dial, live on the composite
+    surface (the uncertain-world chapter's "likely becomes no (assumed)")."""
     cautious = FirmwarePolicy(uncertainty="banded", theta=0.2)
-    assert _ask("is cy thief", cautious) == ["no"]
+    assert _ask("is cy thief", cautious) == ["no (assumed)"]
 
 
 def test_guess_collapses_the_getaway_glimpse():
@@ -76,7 +80,7 @@ def test_existential_answers_wear_their_bands():
     a fork-only witness answers with its band word, a certain one stays `yes`."""
     assert _ask("is anyone thief") == ["likely"]
     assert _ask("is anyone a suspect") == ["yes"]
-    assert _ask("is anyone a wizard") == ["no"]
+    assert _ask("is anyone a wizard") == ["no (assumed)"]  # banded ∃ absence wears its kind too
 
 
 def test_suspicion_is_a_partial_order():

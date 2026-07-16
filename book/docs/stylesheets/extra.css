@@ -258,7 +258,7 @@
   color: #d84315;
 }
 
-.ugm-verdict-assumed-no {
+.ugm-verdict-no-assumed {
   background: #b71c1c22;
   color: #c62828;
 }
@@ -270,7 +270,7 @@
   color: #81c784;
 }
 [data-md-color-scheme="slate"] .ugm-verdict-no,
-[data-md-color-scheme="slate"] .ugm-verdict-assumed-no {
+[data-md-color-scheme="slate"] .ugm-verdict-no-assumed {
   color: #ef9a9a;
 }
 [data-md-color-scheme="slate"] .ugm-verdict-unknown,
