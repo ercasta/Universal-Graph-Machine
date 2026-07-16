@@ -21,8 +21,12 @@ that it's instant). Try these:
 - Ask `guess culprit` — the machine collapses the neighbour's glimpse to the
   most possible suspect *and tells you it's guessing*, naming the alternative it
   did **not** rule out.
+- Ask `why cy is thief` — the machine shows its work *and its leap*: the
+  premises it had, and the line **assumed not: cy is cleared (the
+  counter-evidence is only unlikely)**. The jump is on the record.
 - Ask `is cy more suspicious than bo` (worked out through ada), then
-  `is cy more suspicious than dan` — an honest **unknown**: no chain of
+  `why is cy more suspicious than bo` to see the chain — and
+  `is cy more suspicious than dan` for an honest **unknown**: no chain of
   comparisons connects them, and the machine won't invent one.
 
 <div class="ugm-playground" data-mode="world"
@@ -71,7 +75,9 @@ dan is more suspicious than bo
     <button type="button" class="ugm-ask" data-q="is ada thief">is ada thief</button>
     <button type="button" class="ugm-ask" data-q="is cy alibied">is cy alibied</button>
     <button type="button" class="ugm-ask" data-q="guess culprit">guess culprit</button>
+    <button type="button" class="ugm-ask" data-q="why cy is thief">why cy is thief</button>
     <button type="button" class="ugm-ask" data-q="is cy more suspicious than bo">is cy more suspicious than bo</button>
+    <button type="button" class="ugm-ask" data-q="why is cy more suspicious than bo">why is cy more suspicious than bo</button>
     <button type="button" class="ugm-ask" data-q="is cy more suspicious than dan">is cy more suspicious than dan</button>
   </div>
 

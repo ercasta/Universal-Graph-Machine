@@ -180,6 +180,70 @@ def ask_comparative(g: AttrGraph, question: str) -> str:
     return "unknown"                                       # incomparable: honest, not a gap to fill
 
 
+def _declared_path(g: AttrGraph, dim: str, x: str, y: str) -> list[str] | None:
+    """The shortest DECLARED-arrow chain x → … → y on `dim` (BFS over authored comparisons), as the
+    node names along it — the comparative proof object a `why` renders. None if no chain."""
+    succ: dict[str, set[str]] = {}
+    for s, o in _comparison_edges(g, dim):
+        succ.setdefault(s, set()).add(o)
+    frontier, parent = [x], {x: None}
+    while frontier:
+        n = frontier.pop(0)
+        if n == y:
+            path = [n]
+            while parent[path[-1]] is not None:
+                path.append(parent[path[-1]])
+            return list(reversed(path))
+        for m in sorted(succ.get(n, ())):
+            if m not in parent:
+                parent[m] = n
+                frontier.append(m)
+    return None
+
+
+def explain_comparative(g: AttrGraph, question: str) -> list[str]:
+    """The `why` of a comparative answer — the chain of declared arrows, the rung compare, or the
+    honest gap, in the same order of appeal as `ask_comparative`. `question` is the PLAIN question
+    (`is X more D than Y`), i.e. a `why …` with the `why` already stripped."""
+    q = parse_comparative_question(question)
+    if q is None:
+        raise ValueError(f"unrecognized comparative question: {question!r}")
+    mode, x, dim, y = q
+    if mode == "less":
+        mode, x, y = "more", y, x
+    dx, dy = _degree(g, x, dim), _degree(g, y, dim)
+    if mode == "as":
+        if dx is not None and dy is not None:
+            word = "the same rung" if dx == dy else "different rungs"
+            return [f"{x} and {y} sit on {word} of '{dim}' ({dx} vs {dy}) — "
+                    + ("yes" if dx == dy else "no")]
+        return [f"unknown — {x} and {y} are not both on rungs of '{dim}', so there is "
+                f"nothing to compare"]
+    path = _declared_path(g, dim, x, y)
+    if path is not None:
+        lines = [f"{a} is more {dim} than {b}  (declared)" for a, b in zip(path, path[1:])]
+        if len(path) > 2:
+            lines.append(f"→ more-than chains: {x} is more {dim} than {y} — yes")
+        else:
+            lines.append(f"→ declared directly — yes")
+        return lines
+    rev = _declared_path(g, dim, y, x)
+    if rev is not None:
+        lines = [f"{a} is more {dim} than {b}  (declared)" for a, b in zip(rev, rev[1:])]
+        lines.append(f"→ the REVERSE holds, so {x} is more {dim} than {y} — no")
+        return lines
+    if dx is not None and dy is not None:
+        if dx != dy:
+            hi, lo = (x, y) if dx > dy else (y, x)
+            return [f"no declared chain connects them, but both sit on rungs of '{dim}': "
+                    f"{x} at {dx}, {y} at {dy}",
+                    f"→ {hi} is on the higher rung — " + ("yes" if hi == x else "no")]
+        return [f"both sit on the SAME rung of '{dim}' ({dx}) — the rungs are coarse, and a finer "
+                f"difference within a rung is not ruled out — unknown"]
+    return [f"unknown — no chain of comparisons connects {x} and {y} in either direction, and they "
+            f"are not both on rungs. The order is partial: this gap is the answer, not a failure"]
+
+
 # ---------------------------------------------------------------------------
 # H — the consistency linter: conflicts are DEFEAT/LINT, never ⊥ (decision 7)
 # ---------------------------------------------------------------------------

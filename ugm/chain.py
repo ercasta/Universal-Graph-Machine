@@ -543,6 +543,38 @@ def _env_ok(fact_g: AttrGraph, env: frozenset) -> bool:
     return _env_consistent(fact_g, env)
 
 
+def _find_banded_relnode(fact_g: AttrGraph, s_id: str, pred: str, o_id: str,
+                         *, scope: str | None = None) -> str | None:
+    """The rel node of `s -[pred]-> o` for a banded firing's PREMISE record: ink (or the active
+    SUPPOSE scope's pencil) first, else any FORK pencil — a banded body may have matched through a
+    fork, and provenance should point at the actual pencil fact so the proof tree can show its band."""
+    rel = _find_fact_relnode(fact_g, s_id, pred, o_id, scope=scope)
+    if rel is not None:
+        return rel
+    for r in fact_g.succ(s_id):
+        if fact_g.has_key(r, pred) and not fact_g.is_inert(r) \
+                and fact_g.get_attr(r, SCOPE) is not None and o_id in fact_g.succ(r):
+            return r
+    return None
+
+
+def _record_assumptions(fact_g: AttrGraph, j: str,
+                        assumed: list[tuple[str, str, str, float]]) -> None:
+    """Journal the ABSENCES a banded firing leaned on: one inert `<assumed>` node per surviving NAC
+    (`a_pred`/`a_subj`/`a_obj` + `a_pi` = how possible the counter-evidence was), wired
+    `J --assumes--> <assumed>`. The positive-assumption half of the explanation (decision 6): a
+    proof tree can now say "assumed not (cy is alibied) — counter-evidence only unlikely", not just
+    show the positive premises. Inert, like all provenance — invisible to reasoning."""
+    from .provenance import ASSUMES, ASSUMED
+    for np, ns, no, pi in assumed:
+        a = fact_g.add_node({NAME: valued(ASSUMED)}, inert=True)
+        fact_g.set_attr(a, "a_pred", valued(np))
+        fact_g.set_attr(a, "a_subj", valued(ns if ns is not None else "anyone"))
+        fact_g.set_attr(a, "a_obj", valued(no if no is not None else "anything"))
+        fact_g.set_attr(a, "a_pi", valued(pi))
+        fact_g.add_relation(j, ASSUMES, a, inert=True)
+
+
 def _guard(reg: str) -> list:
     """The compiler-emitted fact-read guard (§3): a fact endpoint/rel must carry NEITHER marker
     attribute. Uniform — an author can never forget it; the substrate stays kind-less."""
@@ -788,11 +820,15 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
                 focus_scope: frozenset[str] | None = None,
                 neg_stack: frozenset[tuple[str, str | None, str | None]],
                 fuel: "_Exhaustion | None", max_rounds: int, closed: set,
-                policy=None, env: frozenset = _NO_ENV) -> float | None:
+                policy=None, env: frozenset = _NO_ENV
+                ) -> tuple[float, list[tuple[str, str, str, float]]] | None:
     """Decide the rule's NAC clauses by DEMAND-DRIVEN NEGATION-AS-FAILURE (firmware v3): return None
     iff some `not L(bound)` clause's POSITIVE holds — i.e. the rule must NOT fire for this match —
-    else the NECESSITY the conjunction contributes to the conclusion (CERTAIN in silent mode; see the
-    BANDED paragraph). Each NAC `L` is a NESTED NEGATIVE DEMAND: bind it by the register file, demand the positive `L` and run
+    else `(necessity, assumed)`: the NECESSITY the conjunction contributes to the conclusion
+    (CERTAIN in silent mode; see the BANDED paragraph) and, in banded mode, the ASSUMPTIONS the
+    firing leans on — one `(pred, subj, obj, Π)` per surviving NAC, so provenance can journal "this
+    conclusion assumed `not L`, whose counter-evidence was Π-possible" (the inspectable-jump story,
+    decision 6; empty in silent mode). Each NAC `L` is a NESTED NEGATIVE DEMAND: bind it by the register file, demand the positive `L` and run
     it to CLOSURE (a self-contained nested `chain_sip`, so "the positive failed" is read from L's
     COMPLETE extension — the goal-directed analog of stratifying L's producers BELOW this consumer),
     then read ABSENCE. Any matching L-fact -> the NAC fails -> block; none -> `not L` holds. NOTHING is
@@ -824,6 +860,7 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
     verdict via the generator's return value (`yield from` surfaces it)."""
     banded = policy is not None and policy.banded
     nec = _CERTAIN
+    assumed: list[tuple[str, str, str, float]] = []
     for ns, np, no in nac_atoms:
         neg_goal = (np, _ptr(fact_g, st, ns), _ptr(fact_g, st, no))
         if neg_goal in neg_stack:
@@ -841,11 +878,13 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
             if pi >= policy.theta:
                 return None                                # L is too possible to negate -> block
             nec = min(nec, 1.0 - pi)                       # N(¬L) = 1 − Π(L)
+            assumed.append((np, _endpoint_name(fact_g, neg_goal[1]),
+                            _endpoint_name(fact_g, neg_goal[2]), pi))
         elif _facts_matching(fact_g, np, neg_goal[1], neg_goal[2], scope=scope, focus_scope=focus_scope):
             return None                                    # L holds -> the NAC fails -> block this env
         if fuel is not None and fuel.exhausted:
             return None             # the positive is not EXHAUSTED -> the NAC is UNDECIDED; do not fire
-    return nec                                             # (the `fuel.exhausted` flag makes it UNKNOWN)
+    return nec, assumed                                    # (the `fuel.exhausted` flag makes it UNKNOWN)
 
 
 def _head_skolems(body: list[tuple[str, str, str]],
@@ -1013,14 +1052,16 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                 continue
             if distincts and not _distincts_pass(fact_g, distincts, st):   # ?a != ?b: ephemeral DISTINCT
                 continue
+            assumed: list[tuple[str, str, str, float]] = []
             if nac:
-                nec = yield from _nac_blocks(fact_g, rule_g, nac, st, scope=scope,   # NAF: absence
+                res = yield from _nac_blocks(fact_g, rule_g, nac, st, scope=scope,   # NAF: absence
                                              focus_scope=focus_scope,                # decides — the
                                              provenance=provenance, neg_stack=neg_stack,  # subgoal is
                                              fuel=fuel, max_rounds=max_rounds, closed=closed,  # a yield
                                              policy=policy, env=env)
-                if nec is None:                            # a NAC's positive holds (or cleared θ)
+                if res is None:                            # a NAC's positive holds (or cleared θ)
                     continue
+                nec, assumed = res
                 band = band if nec >= band else nec        # graded negation: fold in N(¬L)
             sk_ids = _resolve_skolems(fact_g, heads, st, skolems) if skolems else {}
             for hs, hp, ho in heads:
@@ -1040,12 +1081,15 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                     from .possibility import fork_fact
                     head_node = fork_fact(fact_g, band, s_id, hp, o_id, derived_env=env)
                     fired += 1
-                    if provenance:                         # RECORD (mode 9): journal the firing
-                        _record(fact_g, rule_key, head_node,
-                                [_find_fact_relnode(fact_g, _node_for_name(fact_g, _ptr(fact_g, st, bs)),
-                                                    bp2, _node_for_name(fact_g, _ptr(fact_g, st, bo)),
-                                                    scope=scope)
-                                 for bs, bp2, bo in body])
+                    if provenance:                         # RECORD (mode 9): journal the firing —
+                        j = _record(fact_g, rule_key, head_node,   # premises found through the forks
+                                    [_find_banded_relnode(fact_g,
+                                                          _node_for_name(fact_g, _ptr(fact_g, st, bs)),
+                                                          bp2,
+                                                          _node_for_name(fact_g, _ptr(fact_g, st, bo)),
+                                                          scope=scope)
+                                     for bs, bp2, bo in body])
+                        _record_assumptions(fact_g, j, assumed)   # "what was assumed" (decision 6)
                     continue
                 if not _fact_exists(fact_g, s_id, hp, o_id, scope=scope):
                     # EMIT: an ink fact normally, but PENCIL (control + scope tag) inside a SUPPOSE scope
@@ -1226,13 +1270,15 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
             minted.add(d)
             _mint_bound_demand(fact_g, rule_g, d)
 
-    def _observe(g, ns, phase, found=None):                # OBSERVER only (§ on_subgoal); never mutates
+    def _observe(g, ns, phase, found=None, band=None):     # OBSERVER only (§ on_subgoal); never mutates
         if on_subgoal is None:
             return
         on_subgoal({"pred": g[0],
                     "subj": _endpoint_name(fact_g, g[1]),
                     "obj": _endpoint_name(fact_g, g[2]),
-                    "depth": len(ns), "phase": phase, "found": found})
+                    "depth": len(ns), "phase": phase, "found": found,
+                    "band": band})                         # banded resolve: the BEST band the goal was
+                                                           # found at (None crisp / enter / not found)
 
     def start(g, ns):
         _observe(g, ns, "enter")
@@ -1256,10 +1302,15 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
             stack.append(start(neg_goal, child_neg_stack))     # push the child closure; parent waits
         else:                                              # HALT — this frame's closure is complete
             stack.pop()
-            _observe(g, ns, "resolve",                     # did the closure derive/find the goal?
-                     found=bool(_facts_matching(fact_g, g[0], g[1], g[2], scope=scope,
-                                                focus_scope=focus_scope,
-                                                bands=policy is not None and policy.banded)))
+            if policy is not None and policy.banded:       # did the closure derive/find the goal —
+                rows = _facts_matching(fact_g, g[0], g[1], g[2], scope=scope,   # and how POSSIBLY?
+                                       focus_scope=focus_scope, bands=True)
+                _observe(g, ns, "resolve", found=bool(rows),
+                         band=max((b for _s, _o, b, _e in rows), default=None) if rows else None)
+            else:
+                _observe(g, ns, "resolve",
+                         found=bool(_facts_matching(fact_g, g[0], g[1], g[2], scope=scope,
+                                                    focus_scope=focus_scope)))
             if not stack:
                 root_total = fr.total
             else:

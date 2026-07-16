@@ -23,6 +23,7 @@ from .uncertainty import (
 )
 from .comparative import (
     parse_comparative, add_comparison, parse_comparative_question, ask_comparative,
+    explain_comparative,
 )
 
 
@@ -62,6 +63,8 @@ def ask_world(kb: AttrGraph, rules: list[Rule], question: str, *, policy=None, *
     q = question.strip()
     if parse_comparative_question(q) is not None:
         return [ask_comparative(kb, q)]
+    if q.lower().startswith("why ") and parse_comparative_question(q[4:]) is not None:
+        return explain_comparative(kb, q[4:])              # the comparative `why`: chain / rungs / gap
     t = q.lower().split()
     if len(t) == 2 and t[0] == "guess":
         from ..possibility import guess, render_guess

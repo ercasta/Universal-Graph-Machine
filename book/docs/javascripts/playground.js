@@ -60,11 +60,14 @@
     "    except Exception as e:",
     "        return _json.dumps({'error': 'I could not read the world: ' + str(e)})",
     "    pol = _FP(uncertainty='banded', theta=0.2 if cautious else 0.5)",
+    "    from ugm.possibility import band_word as _bw",
     "    checks = []",
     "    def sg(rec):",
     "        if rec.get('phase') == 'resolve':",
+    "            b = rec.get('band')",
     "            checks.append({'subj': rec.get('subj'), 'pred': rec.get('pred'),",
-    "                           'obj': rec.get('obj'), 'found': bool(rec.get('found'))})",
+    "                           'obj': rec.get('obj'), 'found': bool(rec.get('found')),",
+    "                           'word': _bw(b) if (b is not None and b < 1.0) else None})",
     "    try:",
     "        ans = ask_world(kb, rules, question, policy=pol, on_subgoal=sg)",
     "    except Exception as e:",
@@ -178,7 +181,11 @@
         el(
           "div",
           "ugm-step-rule",
-          check.found ? "→ yes — found evidence" : "→ found no evidence"
+          check.found
+            ? check.word
+              ? "→ found something — but it's only " + check.word
+              : "→ yes — found evidence"
+            : "→ found no evidence"
         )
       );
       card.appendChild(body);

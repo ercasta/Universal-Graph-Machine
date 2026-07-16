@@ -28,11 +28,14 @@ from .world_model import Graph
 # The provenance vocabulary (all ordinary nodes; the names are the only convention).
 PROVES = "proves"
 USES = "uses"
+ASSUMES = "assumes"      # J --assumes--> <assumed> : a NAC the firing LEANED ON (possibilistic —
+                         # the absence was assumed at some necessity, not proven; docs/possibilistic.md)
 AXIOM = "<axiom>"
+ASSUMED = "<assumed>"    # the inert record of one leaned-on absence: a_pred/a_subj/a_obj + a_pi (Π)
 _J_PREFIX = "<j:"
 
 # Predicate names the matcher/locality treats as inert (kept in sync with world_model).
-PROVENANCE_PREDS: frozenset[str] = frozenset({PROVES, USES})
+PROVENANCE_PREDS: frozenset[str] = frozenset({PROVES, USES, ASSUMES})
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +82,19 @@ def rule_support_j(graph: Graph, rel: str) -> str | None:
         if is_justification(graph.name(j)):
             return j
     return None
+
+
+def assumptions_of(graph: Graph, j: str) -> list[tuple[str, str, str, float]]:
+    """The ABSENCES the firing at `j` leaned on (possibilistic NAF — `J --assumes--> <assumed>`):
+    `(pred, subj, obj, Π)` per assumption, where Π is how possible the counter-evidence was when
+    the negation was taken. Empty for a crisp firing."""
+    out: list[tuple[str, str, str, float]] = []
+    for a in _objects_via(graph, j, ASSUMES):
+        p, s, o, pi = (graph.get_attr(a, k) for k in ("a_pred", "a_subj", "a_obj", "a_pi"))
+        if p is not None and s is not None and o is not None:
+            out.append((str(p.value), str(s.value), str(o.value),
+                        float(pi.value) if pi is not None else 0.0))
+    return out
 
 
 def _objects_via(graph: Graph, subj: str, pred: str) -> list[str]:

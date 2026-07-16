@@ -67,12 +67,27 @@ def _find_rel(graph: Graph, s_id: str, pname: str, o_id: str) -> str | None:
     return None
 
 
+def _band_suffix(graph: Graph, rel: str) -> str:
+    """The possibilistic band a FORK fact carries, rendered as ` (likely)` etc — "" for ink and for
+    transient SUPPOSE pencils (no band). The proof tree shows each fact's OWN confidence (the
+    band+env half of a banded `why`, docs/possibilistic.md S7.5 step 6)."""
+    from ..apply import SCOPE
+    from ..possibility import LIKELINESS, band_word
+    a = graph.get_attr(rel, SCOPE)
+    if a is None or not graph.has(a.value):
+        return ""
+    b = graph.get_attr(a.value, LIKELINESS)
+    if b is None or float(b.value) >= 1.0:
+        return ""
+    return f" ({band_word(float(b.value))})"
+
+
 def _explain_rel(graph: Graph, rel: str, depth: int, seen: set[str]) -> list[str]:
     parts = render_relation(graph, rel)
     pad = "  " * depth
     if parts is None:
         return [f"{pad}(unreadable)"]
-    head = f"{pad}{parts}"
+    head = f"{pad}{parts}{_band_suffix(graph, rel)}"
     j = prov.rule_support_j(graph, rel)
     if j is None:
         return [f"{head}  (given)"]
@@ -82,6 +97,11 @@ def _explain_rel(graph: Graph, rel: str, depth: int, seen: set[str]) -> list[str
     seen.add(rel)
     for pre in prov.premises_of(graph, j):
         lines += _explain_rel(graph, pre, depth + 1, seen)
+    for np, ns, no, pi in prov.assumptions_of(graph, j):   # what the firing LEANED ON (decision 6)
+        from ..possibility import band_word
+        how = ("no evidence for it was found" if pi <= 0.0
+               else f"the counter-evidence is only {band_word(pi)}")
+        lines.append(f"{'  ' * (depth + 1)}assumed not: {ns} {np} {no}  ({how})")
     return lines
 
 

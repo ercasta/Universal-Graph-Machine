@@ -254,6 +254,30 @@ snippet): banded derivations MATERIALIZE (commit=True), so a later ask under a S
 same kb still reads the earlier jump's fork — a stance is a session choice; change stance, fresh
 session (consistent with crisp derived facts persisting, but worth remembering).
 
+**BANDED WHY + ASSUMPTION PROVENANCE 2026-07-16 (suite 519 green)** — the explanation side (user
+report: comparative `why` unparseable; step cards said yes/no not likely; nothing showed what was
+assumed). Four pieces:
+1. **Ink-leak FIX:** `ask_goal`'s why-branch ran its provenance closure WITHOUT the policy — in a
+   banded session `why cy is thief` derived the θ-gated jump into INK (later asks read plain
+   certain). Now threads `policy=policy_`.
+2. **Assumption provenance:** `_nac_blocks` (banded) returns `(necessity, assumed)` — one
+   `(pred, subj, obj, Π)` per surviving NAC; the banded EMIT journals them as inert `<assumed>`
+   nodes wired `J --assumes--> <assumed>` (new `provenance.ASSUMES`/`ASSUMED` + reader
+   `assumptions_of`); banded premises are found through the forks (`_find_banded_relnode`) so the
+   tree can descend into pencil facts.
+3. **Rendering:** `surface._explain_rel` shows each fact's band (`cy is thief (likely) <- rule…`,
+   fork premises `cy is alibied (unlikely) (given)`) and, after the premises, `assumed not: cy is
+   cleared (the counter-evidence is only unlikely)`. The `on_subgoal` resolve records carry `band`,
+   so the playground's "asked itself" cards read "found something — but it's only unlikely" (this
+   IS the what-was-assumed story at trace grain). This essentially closes the "why shows band+env"
+   polish item (the assumption lines + banded premises show the worlds crossed; a literal
+   environment listing is not rendered).
+4. **Comparative `why`:** `comparative.explain_comparative` — declared-chain render
+   (`cy > ada > bo → more-than chains — yes`), reverse-path `no`, rung-bridge compare, same-rung
+   honest unknown, and the gap message ("the order is partial: this gap is the answer"); routed in
+   `ask_world` (`why is X more D than Y`); playground quick buttons added (`why cy is thief`,
+   `why is cy more suspicious than bo`).
+
 **ASK/QUERY SURFACE COMPLETED 2026-07-16 (suite 516 green):** `ask_goal`'s WHO branch is banded —
 each witness answers at its best band, a fork-only one wearing its band word (`who is thief` →
 `cy is thief (likely)`; certain witnesses read as today); the EXISTENTIAL branch (`is anyone …`)

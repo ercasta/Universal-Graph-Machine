@@ -85,6 +85,54 @@ def test_suspicion_is_a_partial_order():
     assert _ask("is cy more suspicious than dan") == ["unknown"]   # honest incomparability
 
 
+def test_banded_why_shows_bands_and_assumptions():
+    """The explanation side of the fold: the proof tree wears each fact's band, AND names the
+    absence the jump leaned on with its counter-evidence strength (decision 6 — the inspectable
+    jump). And the why-closure runs under the SAME policy: no crisp ink leak."""
+    import warnings
+    from ugm.chain import _facts_matching
+
+    kb, rules = load_world(CORPUS)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        lines = ask_world(kb, rules, "why cy is thief", policy=BANDED)
+    assert lines[0].startswith("cy is thief (likely)")                 # the conclusion wears its band
+    assert any("cy is_a suspect  (given)" in ln for ln in lines)       # the positive premise
+    assert any("assumed not: cy is cleared" in ln and "only unlikely" in ln
+               for ln in lines)                                        # what was ASSUMED, and how shaky
+    assert _facts_matching(kb, "is", "cy", "thief") == []              # never inked (the leak is fixed)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        cleared = ask_world(kb, rules, "why cy is cleared", policy=BANDED)
+    assert cleared[0].startswith("cy is cleared (unlikely)")
+    assert any("cy is alibied (unlikely)  (given)" in ln for ln in cleared)   # fork premise, banded
+
+
+def test_comparative_why_renders_chain_bridge_and_gap():
+    kb, rules = load_world(CORPUS)
+    chain = ask_world(kb, rules, "why is cy more suspicious than bo", policy=BANDED)
+    assert chain[0] == "cy is more suspicious than ada  (declared)"
+    assert chain[1] == "ada is more suspicious than bo  (declared)"
+    assert "more-than chains" in chain[2] and chain[2].endswith("yes")
+    (gap,) = ask_world(kb, rules, "why is cy more suspicious than dan", policy=BANDED)
+    assert gap.startswith("unknown — no chain of comparisons connects")
+    rev = ask_world(kb, rules, "why is bo more suspicious than cy", policy=BANDED)
+    assert "REVERSE" in rev[-1] and rev[-1].endswith("no")
+
+
+def test_subgoal_records_carry_bands():
+    """The demand-side trace (on_subgoal) reports HOW POSSIBLY a check resolved — the playground's
+    'it asked itself: is cy cleared? → found something, but only unlikely' card."""
+    kb, rules = load_world(CORPUS)
+    records = []
+    assert ask_world(kb, rules, "is cy thief", policy=BANDED,
+                     on_subgoal=records.append) == ["likely"]
+    resolved = {(r["subj"], r["pred"], r["obj"]): r for r in records if r["phase"] == "resolve"}
+    cleared = resolved[("cy", "is", "cleared")]
+    assert cleared["found"] is True and cleared["band"] == 0.3         # found — but only unlikely
+
+
 def test_declared_hedge_composes_in_one_text():
     kb, rules = load_world("probable means 0.7\ncy is probable a thief")
     assert ask_world(kb, rules, "is cy a thief", policy=BANDED) == ["likely"]

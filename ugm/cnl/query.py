@@ -563,8 +563,10 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             # demand the goal WITH provenance (RECORD, mode 9) so the in-graph support is present, then
             # render the derivation trace via the existing reader. `explain` reads the in-graph proves/uses
             # support (not the journal), so an empty journal is enough to pass the reader's guard.
+            # POLICY THREADED (2026-07-16): without it a banded session's `why` closed CRISPLY —
+            # deriving the θ-gated jump into INK (a stance leak, worse than a cosmetic miss).
             chain_sip(graph, (q["p"], q["s"], q["o"]), provenance=True, focus_scope=focus_scope,
-                      rules=rule_g, on_subgoal=on_subgoal)
+                      rules=rule_g, on_subgoal=on_subgoal, policy=policy_)
             return ask(graph, question, journal=journal if journal is not None else [],
                        rules=rules, extra_forms=extra_forms, strata=strata)
 
