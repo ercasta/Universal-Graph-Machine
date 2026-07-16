@@ -129,8 +129,9 @@ Tier 1 (§2). Build only after Tier 1 proves out — it is a convenience, not a 
 
 **Exit gate (capability-shaped) — MET 2026-07-16 (Slices A+B):** a domain KB file declares a
 new sentence shape in CNL; facts and questions in that shape parse and answer; nearest-forms
-suggests it; `disable` covers it; **no Python edited**. Book: a short section in the authoring
-chapter (still owed), not a rewrite of ch. 7/15.
+suggests it; `disable` covers it; **no Python edited**. Book: DONE 2026-07-16 — ch. 7 gained a
+"You can teach it new shapes" section (main flow conceptual + a Deep-dive with the real
+`form KEY :` surface and its guard rails); ch. 15 deliberately untouched.
 
 Model routing: Slice A/B mechanical under this spec (✓S) except the intake-route judgment
 calls (⚠Opus for D3's placement edge cases); Slice C ⚠Opus.

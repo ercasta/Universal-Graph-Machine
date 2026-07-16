@@ -55,6 +55,58 @@ tells you when you've left it. (The jargon for this friendliness is
 *habitability* — the language is a place you can comfortably live because it never
 silently lies about understanding you.)
 
+## You can teach it new shapes
+
+Here's the part that surprises people. The list of accepted shapes — `X is a Y`,
+`who …`, `why …` — is **not** wired into the machine's guts. Those shapes are
+themselves just entries in the knowledge base, the same kind of thing as your
+facts and rules. Which means you can *add* to them, in the language itself,
+without anyone editing the machine.
+
+Say your world needs a question the built-in shapes don't cover — you'd like to
+ask `whether ada likes bo` instead of the usual phrasing. You teach the machine
+that shape once, and from then on it recognizes every question of that form:
+
+```
+form ask.whether : ⟨build a yes/no question⟩ when ⟨the words "whether S P O"⟩
+```
+
+After that line, `whether ada likes bo` is a sentence the machine understands —
+it parses it, answers it, and if you later type a half-formed version it will
+even suggest your new shape as one of the "did you mean…" hints. It has become a
+first-class part of *your* dialect. And if you decide you don't want it, `disable
+that rule` takes it back out, exactly like disabling any other rule.
+
+This is the same idea as the "parsing *is* reasoning" point below, followed to its
+conclusion: if recognizing a sentence is done by rules, then teaching a new
+sentence shape is just **adding a rule**. The grammar isn't a wall around the
+language — it's more knowledge, and knowledge is the thing you're allowed to grow.
+
+??? info "Deep dive: what a form actually looks like"
+    A shape is taught with a `form` line that has two halves around `when`, just
+    like an ordinary rule. The half *after* `when` is the word pattern to match —
+    the sentence's words, in order. The half *before* is what to build when that
+    pattern is seen: the internal "question" object the machine then answers. A
+    real one, spelled out, is more technical than the sketch above:
+
+    ```
+    form ask.whether :
+      <query>? qtype yesno and <query>? q_s ?qs
+      and <query>? q_p ?qp and <query>? q_o ?qo
+      when ?s first whether? and whether? next ?qs
+      and ?qs next ?qp and ?qp next ?qo
+    ```
+
+    You won't often write these by hand at this level of detail — a friendlier
+    "*a whether-question looks like whether S P O*" surface is planned to sit on
+    top. Two guard rails keep the feature safe: a new form may only read the
+    *words* of the incoming sentence (never your facts — a "form" that peeked at
+    the knowledge base would be a disguised rule, and the machine rejects it), and
+    teaching the same shape twice is fine as long as the two definitions agree,
+    while two *different* definitions under one name are flagged rather than
+    silently fighting. Whole files of facts, rules, and `form` lines load in order,
+    so a file can teach a shape and then immediately use it.
+
 ## The one boundary the machine draws on purpose
 
 You might wonder: if plain English is so troublesome, how would a *person* who

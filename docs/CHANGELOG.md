@@ -58,6 +58,16 @@ re-assertion still counts — recognition mints a fresh relation). `tests/test_i
 facts + questions in them parse and answer; nearest-forms + disable cover them; no Python
 edited.
 
+### Book: ch. 7 "You can teach it new shapes" (mkdocs --strict clean)
+The controlled-language chapter (`book/docs/intermediate/07-controlled-language.md`) gains a
+section on form authoring, following the chapter's own "parsing IS reasoning" thread to its
+conclusion (recognizing a sentence is done by rules → teaching a shape is adding a rule → the
+grammar is knowledge you can grow). Main flow stays warm/conceptual (the `whether ada likes bo`
+example, disable, nearest-forms hint); a Deep-dive admonition shows a real `form KEY :` line,
+honestly flags it as the technical surface with the friendlier exemplar surface "planned", and
+names the two guard rails (words-only lint, key-merge). Ch. 15 deliberately untouched (design
+§5). This closes the Phase 9 (Slices A+B) book debt.
+
 ## 2026-07-16 (Phase 9 Slice A — the `form KEY :` authoring surface; 554 green)
 
 ### `ugm/cnl/form_authoring.py` — forms authored in rule-source CNL, with stable keys

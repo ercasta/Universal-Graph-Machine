@@ -82,7 +82,7 @@ parked-item cleanup (demand-coref CLOSED-as-settled; INTERPOSE/RESTORE deleted).
    `rl_key`, safety lint, key-merge) + intake FORM route + D3 bank placement + `load_kb`
    (multi-KB-file, declare-before-use); nearest-forms/disable cover authored forms. Exit gate
    MET (a KB file declares new shapes; parse/answer/suggest/disable all work; no Python edited).
-   Remaining: optional Slice C (exemplar sugar) + the book authoring-chapter section.
+   Book DONE (ch. 7 "You can teach it new shapes"). Remaining: optional Slice C (exemplar sugar).
 3. **PROCEDURES (queued arc — design notes RATIFIED 2026-07-16: `design/procedures_design.md`).**
    Sequences of actions toward a goal — the agentic-harness "drive the execution" capability,
    after Phase 9 Slice B. Decomposition (all KB data + declared banks, NO engine change —
