@@ -57,12 +57,52 @@ mislead you the moment its information grows. This one keeps its defeasible
 conclusions honest about their own provisionality — which is the same humility that
 lets it say **unknown** when you ask it to keep an open mind.
 
-!!! note "Revising gracefully"
-    Because every conclusion carries a receipt (Chapter 8), the machine knows
-    *exactly* which beliefs rested on a fact you later remove or correct — so it can
-    take them back cleanly, rather than being left with orphaned conclusions whose
-    support has quietly vanished. Belief revision here isn't a bolt-on; it falls out
-    of keeping the reasons around.
+## Taking a fact back
+
+Sooner or later a clue turns out to be wrong. The witness recants: bo was never
+in the library at all. It's tempting to think the fix is easy — just erase that
+one arrow — but Chapter 8 showed why it isn't: conclusions were *built* on it.
+*bo is innocent* stood on the library fact, and *bo is cleared* stood on that.
+Erase the clue alone and you're left with orphaned conclusions whose support has
+quietly vanished — exactly the corruption a reasoning machine can't afford.
+
+So the machine has a proper **retraction** procedure, and the receipts of
+Chapter 8 are what make it possible. It runs in three strictly separated steps:
+
+1. **Decide what must go.** This is itself just reasoning — a rule that reads
+   the receipts: *any conclusion whose receipt stands on a withdrawn fact is
+   withdrawn too*, and so on down the chain, until the whole tower that rested
+   on the bad clue has been marked. Facts you plainly *stated* are never swept
+   up — a given can only be withdrawn by you. This step only reads; nothing is
+   touched yet.
+2. **Record before deleting.** For each fact marked to go, the machine first
+   copies its content — who, what, whom, together with its receipt — into a
+   **historical record** that stays *in the graph*. The record is invisible to
+   ordinary reasoning (as far as answering questions goes, the fact is truly
+   gone), but the machine's reflective side can still read it. Ask later and it
+   can tell you *what it used to believe, and why that was withdrawn* — the
+   case file keeps its crossed-out pages.
+3. **Retire.** Only now is each live fact actually deleted — by the one
+   privileged deletion instruction, which is the subject of the next section.
+
+And the archive isn't a graveyard. If the witness re-confirms next week, the
+fact can be **resurrected** — re-asserted straight from its historical record,
+ready to match again as if it had never left.
+
+One honest limit is worth naming. The cascade in step 1 is deliberately
+*aggressive*: a conclusion that stood on the withdrawn fact falls even if it
+also had a second, independent line of support. That's safe, not sloppy —
+re-running the rules re-derives anything that still has standing, so the motto
+is *forget too much and re-derive*, which is sound, rather than *forget too
+little*, which never is.
+
+??? info "Deep dive: copy-on-delete"
+    The design's name for this discipline is **copy-on-delete**: archive the
+    pre-image, then really delete — as opposed to merely *hiding* the fact
+    behind a marker (an earlier design, since retired: hidden facts have a way
+    of coming back as zombies). The wider tradition to search for is "truth
+    maintenance systems" — machinery for keeping a belief store consistent as
+    facts come and go — and "belief revision."
 
 ## Mechanism versus policy (or: why rules can't cheat)
 
@@ -74,8 +114,8 @@ no "erase" among the verbs a rule compiles to. That was true, but not the whole
 truth. A real fact-deletion instruction **does** exist down in the instruction set.
 The trick is that **ordinary rules physically cannot reach it.** The compiler that
 turns your rules into little programs simply never emits that instruction. Only one
-special client — the machinery in charge of *retraction*, when you deliberately
-remove or revise a fact — is allowed to assemble a program containing it.
+special client — the retire step of the retraction procedure you just met — is
+allowed to assemble a program containing it.
 
 That split has a name: **mechanism versus policy.** The *mechanism* is the raw
 capability (yes, the substrate can delete). The *policy* is who's allowed to invoke

@@ -171,6 +171,28 @@ not guesswork.
 
 ---
 
+## Retraction — taking a fact back
+
+Withdrawing a fact is more than erasing an arrow: conclusions were *built* on
+it, and they have to go too. The machine's **retraction** procedure uses the
+[receipts](#provenance) to do this cleanly, in three separated steps: **decide**
+(a rule cascades the withdrawal along the receipts — everything that stood on
+the retracted fact is marked, but facts you *stated* are never swept up),
+**record** (each doomed fact is first archived, content and receipt, into an
+in-graph *historical record* — invisible to ordinary reasoning, readable to
+reflection), and **retire** (only then is the live fact really deleted, by the
+one privileged instruction ordinary rules can't emit).
+
+Because the archive stays in the graph, a retracted fact can later be
+**resurrected** from its record. And note what retraction is *not*: it's not a
+pencil world or an undo-scope — it's honest deletion from the inked graph, made
+safe by the receipts. See [Chapter 19](../deep/19-firmware.md#taking-a-fact-back).
+
+> **Go deeper:** the tradition is "truth maintenance systems" and "belief
+> revision"; the design's own name for archive-then-delete is *copy-on-delete*.
+
+---
+
 ## Possibility — "likely" and "unlikely"
 
 Beyond **yes / no / unknown**, the machine can hold an answer *in between*: a fact
@@ -289,9 +311,8 @@ sequence of these. See [Chapter 16](../deep/16-instruction-set.md).
 |------|-----------|--------------|
 | make | `MINT` | Create a fresh dot and wire arrows to it. |
 | write | `EMIT` | Assert a fact (a mark, or a value) on a dot. |
-| hide / unhide | `INTERPOSE` / `RESTORE` | Reversibly tuck away an edge, and put it back (belief revision). |
 | drop (control) | `DROP_CTRL` | Remove a *scaffolding* edge — **refuses** to touch a fact. |
-| retire | `RETIRE` | Really delete a fact — the **privileged** deletion ordinary rules can't reach (see [Chapter 19](../deep/19-firmware.md)). |
+| retire | `RETIRE` | Really delete a fact — the **privileged** deletion ordinary rules can't reach; only [retraction](#retraction-taking-a-fact-back) assembles it, after archiving the fact (see [Chapter 19](../deep/19-firmware.md#taking-a-fact-back)). |
 
 The whole list fits on a page — and there is **no** fact-deleting verb among the
 ones a rule can compile to. That's what makes the because-trail safe.

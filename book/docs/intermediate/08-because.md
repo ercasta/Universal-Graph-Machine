@@ -58,7 +58,9 @@ holds — or catch it standing on a fact that's wrong.
 library,"* but bo was actually in the cellar — you know exactly which fact to fix.
 The machine even tells you which conclusions depended on it. Contrast that with a
 machine that just says "cy is the thief" and offers nothing: when it's wrong, you
-have nowhere to start.
+have nowhere to start. (And when you actually *withdraw* the bad clue, the machine
+uses these same receipts to take back everything that stood on it, cleanly —
+[Chapter 19](../deep/19-firmware.md#taking-a-fact-back) shows the machinery.)
 
 **It can't bluff.** A system that generates confident-sounding text has no
 built-in tether to the truth — it can be fluent and wrong. This machine's "why"
