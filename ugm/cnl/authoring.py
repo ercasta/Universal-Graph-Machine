@@ -1095,10 +1095,9 @@ def run_rules(graph: Graph, rules: list[Rule], *,
               tools: dict | None = None, strict: bool = False) -> list:
     """Run `rules` over `graph` stratum by stratum (stratified negation), each layer
     to fixpoint via the ISA forward Machine (`run_bank`) — the ONE production engine
-    (recognition, planner control/teardown, decide's completion/defeat, TMS retraction
-    via the INTERPOSE opcode, graded/coref passes). run_bank mints provenance when
-    asked, services `<call>` tools at fixpoint, DROP_CTRL/INTERPOSE handle control
-    deletion + reversible retraction; stratification is still done here (per layer).
+    (recognition, planner control/teardown, graded/coref passes). run_bank mints
+    provenance when asked, services `<call>` tools at fixpoint, DROP_CTRL handles
+    control deletion; stratification is still done here (per layer).
     Returns the (always-empty) journal for back-compat with callers that still
     unpack a return value.
 

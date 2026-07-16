@@ -102,7 +102,9 @@ exactly the promise Chapter 14 made about *Universal*.
 That's the machine, all the way down: a dumb, uniform substrate; a small, generic
 engine; nine ways of thinking; and a thin layer of declared attitude on top. No
 magic box in the middle — just arrows, a page of instructions, and an opinion you
-can read and change.
+can read and change. Change it *in the conversation*, even: **`be cautious`** and
+**`be decisive`** are ordinary lines the machine recognizes — the attitude is
+CNL like everything else, not a switch hidden in the code.
 
 ---
 

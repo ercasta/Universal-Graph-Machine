@@ -41,7 +41,8 @@ from .machine import Machine, RETIRE, State
 NOT_SAME_AS = "not_same_as"     # the recorded rejection (resurrection = re-derive on demand)
 RETRACT = "<retract>"           # a request marker: relation node ?rel is to be retracted
 TARGETS = "targets"
-RETRACTED = "<retracted>"       # legacy interpose marker (opcode kept; UNUSED by this TMS, see below)
+# (`RETRACTED` — the legacy interpose marker — was deleted 2026-07-16 with the INTERPOSE/RESTORE
+# opcodes; the `<retracted>` NAME survives only as dead vocabulary in the `_is_inert` lists.)
 
 # --- the in-graph historical record (copy-on-delete's archive, meta-visible / inert) ---------
 HISTORY = "<history>"           # singleton root grouping retracted-fact records
@@ -92,10 +93,9 @@ CASCADE_RULE = Rule(
     meta=True,                                       # provenance-silent (regress guard; may run in a prov-on run)
 )
 
-# NOTE — INTERPOSE_RULE is GONE. Retraction no longer HIDES a fact by splicing a `<retracted>`
-# marker into its path; it DELETES the fact (copy-on-delete, below). The `INTERPOSE`/`RESTORE`
-# opcodes + `lower_rewire` stay in the ISA for their own direct tests, just unused by the TMS
-# (docs/attic/mechanism_policy_separation.md §7 defers their removal to a post-probe cleanup).
+# NOTE — INTERPOSE_RULE is GONE, and so (2026-07-16) are the `INTERPOSE`/`RESTORE` opcodes,
+# `lower_rewire`, and `Rule.rewire` — the §7-deferred cleanup, executed. Retraction never HIDES a
+# fact by splicing a `<retracted>` marker into its path; it DELETES it (copy-on-delete, below).
 
 RETRACT_RULES: list[Rule] = [CASCADE_RULE]
 

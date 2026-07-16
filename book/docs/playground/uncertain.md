@@ -15,7 +15,9 @@ that it's instant). Try these:
   honestly wears that doubt.
 - Tick **be cautious** and ask again. Now the machine refuses to lean on an
   absence while the alibi is even *slightly* possible — **likely** becomes
-  **no** (assumed). One dial, out in the open.
+  **no (assumed)**. One dial, out in the open. And the dial speaks the language:
+  *type* `be cautious` or `be decisive` where the questions go — the machine
+  recognizes the stance line itself, and the switch below follows.
 - Ask `is ada thief` — a solid alibi still clears you outright: **no (assumed)**,
   never a band word. The *(assumed)* is honesty, not doubt — every closed-world
   "no" is a "nothing supports it", and here the machine says so.
@@ -68,7 +70,9 @@ dan is more suspicious than bo
   <label class="ugm-openmind">
     <input type="checkbox" class="ugm-cautious" />
     be cautious <span class="ugm-hint">(don't lean on an absence while the
-    opposite is even slightly possible — try it on <code>is cy thief</code>)</span>
+    opposite is even slightly possible — try it on <code>is cy thief</code>;
+    typing <code>be cautious</code> or <code>be decisive</code> above sets this
+    switch too)</span>
   </label>
 
   <div class="ugm-quick">
@@ -95,8 +99,10 @@ dan is more suspicious than bo
     (`probable means 0.7`), correlated alternatives
     (`culprit is either bo or more likely cy`), comparisons
     (`ada is more suspicious than bo`) and comparison questions
-    (`is cy more suspicious than dan`, `is fay as suspicious as gil`), and the
-    collapse `guess culprit`. Yes/no answers may come back as **certain ·
+    (`is cy more suspicious than dan`, `is fay as suspicious as gil`), the
+    collapse `guess culprit`, and the stance meta-lines `be cautious` /
+    `be decisive` (the θ dial as CNL — the checkbox follows). Yes/no answers may
+    come back as **certain ·
     very likely · likely · unlikely · very unlikely · no · no (assumed) ·
     unknown**.
 

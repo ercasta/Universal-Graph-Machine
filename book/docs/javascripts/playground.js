@@ -54,6 +54,19 @@
     "def _ugm_run_world(corpus, question, cautious):",
     "    # The COMPOSITE surface (uncertain + comparative + guess), answered under the BANDED",
     "    # firmware stance — verdicts may be 'likely'/'unlikely'/…; 'be cautious' lowers theta.",
+    "    # A STANCE META-LINE ('be cautious' / 'be decisive') is recognized by the engine itself",
+    "    # (policy.recognize_stance — a form + the declared STANCES table) and answered as a",
+    "    # 'stance' result; the page then sets the checkbox to match, so the dial IS the CNL.",
+    "    from ugm.policy import recognize_stance, STANCES",
+    "    stance = recognize_stance(question)",
+    "    if stance is not None:",
+    "        word = next((w for w, p in STANCES.items() if p == stance), 'cautious')",
+    "        note = ('I will not lean on an absence while the opposite is even slightly possible.'",
+    "                if word == 'cautious' else",
+    "                'I will make the jump when the counter-evidence is unlikely — and say so.')",
+    "        return _json.dumps({'error': None, 'kind': 'stance', 'stance': word,",
+    "                            'question': question, 'checks': [], 'derives': [],",
+    "                            'answer': ['stance set: ' + word + ' — ' + note]})",
     "    from ugm.cnl.world import load_world, ask_world",
     "    from ugm.cnl.surface import render_relation as _rr, _band_suffix as _bs",
     "    from ugm.intake import _j_nodes",
@@ -270,6 +283,14 @@
 
     if (result.error) {
       renderNote(host, result.error);
+      return;
+    }
+    if (result.kind === "stance") {
+      // The typed dial: "be cautious" / "be decisive" sets the SAME checkbox the page exposes —
+      // the stance line and the switch are one control, so the next Run reasons under it.
+      var box = container.querySelector(".ugm-cautious");
+      if (box) box.checked = result.stance === "cautious";
+      renderNote(host, (result.answer && result.answer[0]) || "Stance set.");
       return;
     }
     if (result.kind !== "answer") {

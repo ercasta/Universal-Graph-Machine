@@ -117,6 +117,55 @@ def test_goal_warm_in_a_lower_frame_survives_dropping_another_topic():
     assert ingest(kb, rules, "is ada nervous").answer == ["yes"]
 
 
+# --- the stance meta-line: `be cautious` / `be decisive` — the θ dial as CNL --------------------
+
+
+def test_stance_meta_line_governs_subsequent_turns():
+    from ugm.cnl.world import load_world
+    kb, rules = load_world("""\
+cy is a suspect
+cy is unlikely alibied
+?p is thief when ?p is a suspect and ?p is not alibied
+""")
+    # CAUTIOUS first (derives nothing — the refusal leaves no fork behind for later turns)
+    out = ingest(kb, rules, "be cautious")
+    assert out.kind == "stance"
+    assert ingest(kb, rules, "is cy thief").answer == ["no (assumed)"]
+    # flip the dial: DECISIVE makes the jump, wearing its doubt
+    assert ingest(kb, rules, "be decisive").kind == "stance"
+    assert ingest(kb, rules, "is cy thief").answer == ["likely"]
+    # an EXPLICIT policy= still wins over the session stance (the caller's override)
+    from ugm import FirmwarePolicy
+    assert ingest(kb, rules, "is cy thief", policy=FirmwarePolicy()).answer == ["yes"]
+
+
+def test_be_with_an_undeclared_word_is_not_a_stance():
+    out = ingest(AttrGraph(), [], "be silly")
+    assert out.kind != "stance"                            # falls through to ordinary routing
+
+
+def test_read_only_banded_queries_leave_no_derived_forks():
+    # the fork-leak fix (docs/possibilistic.md "slice edges"): a commit=False banded run sweeps the
+    # DERIVED forks it minted along with its <query> pencils — repeated queries neither accrete
+    # forks nor change their own answers.
+    from ugm.cnl.world import load_world
+    from ugm.possibility import LIKELINESS
+    from ugm import FirmwarePolicy, ask_goal, query_goal
+    kb, rules = load_world("""\
+cy is a suspect
+cy is unlikely alibied
+?p is thief when ?p is a suspect and ?p is not alibied
+""")
+    pol = FirmwarePolicy(uncertainty="banded")
+    base = len(list(kb.nodes_with_key(LIKELINESS)))        # the AUTHORED fork(s) stay, always
+    for _ in range(3):
+        assert ask_goal(kb, "is cy thief", rules, policy=pol, commit=False) == ["likely"]
+        assert len(list(kb.nodes_with_key(LIKELINESS))) == base
+    rows = query_goal(kb, ("is", "cy", "thief"), rules=rules, policy=pol)   # commit=False default
+    assert rows and rows[0][3] > 0
+    assert len(list(kb.nodes_with_key(LIKELINESS))) == base
+
+
 # --- §4a habitability: the rejection carries the NEAREST FORMS, computed from the banks ---------
 
 

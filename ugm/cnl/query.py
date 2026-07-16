@@ -433,6 +433,12 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             "why-question exists to materialize the derivation (provenance) it renders, and an n-ary "
             "question renders through the forward reader. Query a graph.copy() for those.")
     scope = graph.add_node("<query>", control=True) if not commit else None
+    # READ-ONLY + BANDED: snapshot fork scopes so the finally can sweep the ones this query DERIVES
+    # (the fork-leak fix — mirrors `query_goal`; see the note there).
+    pre_forks = None
+    if scope is not None and policy_.banded:
+        from ..possibility import LIKELINESS
+        pre_forks = set(graph.nodes_with_key(LIKELINESS))
 
     def gather_open_premises(goal: tuple[str, str | None, str | None]) -> bool:
         """MID-CHAIN evidence gathering (firmware v3 / §8.5b): a rule blocked ONLY by an OPEN premise the
@@ -586,3 +592,8 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         if scope is not None:                          # sweep the read-only pencil (control-only cut)
             from ..suppose import _drop_scope
             _drop_scope(graph, scope)
+        if pre_forks is not None:                      # ... and the derived forks it minted (leak fix)
+            from ..possibility import LIKELINESS
+            from ..suppose import _drop_scope
+            for f in set(graph.nodes_with_key(LIKELINESS)) - pre_forks:
+                _drop_scope(graph, f)

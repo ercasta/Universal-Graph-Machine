@@ -89,7 +89,10 @@ That single dial is the machine's answer to jumping-to-conclusions — the same
 trap as the old surgeon riddle (*"I can't operate, he's my son"* — the silent
 assumption that a surgeon is a man). This machine can make that kind of guess,
 but never silently: the guess is a visible *likely*, and how far it's willing to
-guess is a knob you control, not a bias baked in the dark.
+guess is a knob you control, not a bias baked in the dark. The knob even speaks
+the same language as everything else: tell the machine **`be cautious`** or
+**`be decisive`**, mid-conversation, and the stance changes — an attitude is a
+line you can say, not a config file.
 
 And the honesty carries into the round-up questions too. Ask *who*, and every
 name in the answer carries its own confidence:

@@ -1472,6 +1472,14 @@ def query_goal(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
             write_rule(rule_g, r)
     banded = policy is not None and policy.banded
     scope = fact_g.add_node("<query>", control=True) if not commit else None
+    # READ-ONLY + BANDED: snapshot the fork scopes, so the sweep below can drop the DERIVED forks
+    # this query minted (the leak fix, docs/possibilistic.md "slice edges": a read-only run used to
+    # sweep its `<query>` pencils but leave derived forks behind). Safe: fork pencils are control,
+    # and a swept derivation is re-derivable (monotone + idempotent).
+    pre_forks = None
+    if banded and not commit:
+        from .possibility import LIKELINESS
+        pre_forks = set(fact_g.nodes_with_key(LIKELINESS))
     try:
         chain_sip(fact_g, goal, rules=rule_g, scope=scope,
                   focus_scope=focus_scope, max_rounds=max_rounds, policy=policy)
@@ -1486,6 +1494,11 @@ def query_goal(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
         if scope is not None:
             from .suppose import _drop_scope
             _drop_scope(fact_g, scope)
+        if pre_forks is not None:
+            from .possibility import LIKELINESS
+            from .suppose import _drop_scope
+            for f in set(fact_g.nodes_with_key(LIKELINESS)) - pre_forks:
+                _drop_scope(fact_g, f)                     # a fork scope sweeps exactly like a pencil scope
 
 
 def render_demands(rule_g: AttrGraph) -> list[str]:

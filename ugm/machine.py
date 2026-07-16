@@ -394,38 +394,10 @@ class DROP_CTRL(Instr):
     is_effect = True
 
 
-@dataclass
-class INTERPOSE(Instr):
-    """Hide the edge  regs[rel] -> regs[obj]  REVERSIBLY by splicing a fresh control `marker`
-    into the path:  rel -> obj  becomes  rel -> <marker> -> obj  (obj preserved). The SOLE
-    sanctioned fact-edge mutation (isa-reference.md "Reserved: INTERPOSE / RESTORE") — §5 reframes
-    from "no opcode mutates a fact edge" to "the sole fact-edge op is a reversible interposition
-    that preserves its pre-image" (no IRREVERSIBLE loss; `RESTORE` is the exact inverse).
-
-    Obliviousness is STRUCTURAL: after the splice `out(rel) = {marker}`, so `_relation_exists(s,
-    rel, obj)` is false NATURALLY and the matcher (a dumb positive reader that skips the inert/
-    control marker) never learns what retraction is. Because interposition is reversible, it is
-    SAFE on any live edge — fact OR control (a retractable walker shortcut is control-stamped) — so
-    this asserts only that the edge exists, not that it is a fact (unlike the spec's illustrative
-    `edge_is_fact` pre-check); no reader change is needed either way. `out` (optional) binds the
-    minted marker so an inverse-op rule can find it."""
-    rel: str
-    obj: str
-    marker_name: str
-    out: str | None = None
-    is_effect = True
-
-
-@dataclass
-class RESTORE(Instr):
-    """The exact inverse of `INTERPOSE`: un-hide  rel -> marker -> obj  back to  rel -> obj,
-    dropping the marker's two bare edges and reconstructing the original edge. A `<reconsider>`
-    rule emits this on new evidence (belief revision as pure banks). `INTERPOSE ∘ RESTORE =
-    identity` on the graph's edge set — the checkable structural guarantee behind §5."""
-    rel: str
-    marker: str
-    obj: str
-    is_effect = True
+# INTERPOSE / RESTORE — DELETED 2026-07-16. The reversible edge-interposition pair was the pre-Axis-A
+# retraction mechanism (hide a fact by splicing a `<retracted>` marker into its path). Axis A replaced
+# it with honest privileged deletion (`RETIRE` + copy-on-delete `record_history`); the opcodes and
+# `lower_rewire`/`Rule.rewire` survived only for their own tests, so they went (delete-old-code rule).
 
 
 @dataclass
@@ -441,7 +413,7 @@ class RETIRE(Instr):
     and policy. The opcode just deletes.
 
     THE PRIVILEGE GATE is structural: `RETIRE` is NOT in the rule->program lowering vocabulary
-    (`lowering.lower_rhs`/`lower_rewire`/… never emit it). Only the retraction policy driver
+    (`lowering.lower_rhs`/… never emit it). Only the retraction policy driver
     assembles a program containing it, so ordinary reasoning rules CANNOT delete a fact
     (soundness-by-construction for reasoning is preserved), while the policy layer wields real
     deletion — the mechanism/policy split made concrete. By the time it runs, `record_history` has
@@ -710,26 +682,6 @@ class Machine:
                     f"DROP_CTRL refused: {a}->{b} is a fact edge (reasoning never deletes a fact)"
                 )
             g.remove_edge(a, b)
-            return st
-        if isinstance(ins, INTERPOSE):
-            rel, obj = st.regs[ins.rel], st.regs[ins.obj]
-            # CANONICALIZE the marker (rewriter.resolve_so's reuse-if-exists for a plain literal):
-            # re-interposing an already-interposed edge (a NEW candidate match forms every round
-            # otherwise, since `rel`'s new successor is a genuinely fresh node the matcher can bind
-            # `?o` to again — an unbounded interpose chain, `rel -> m1 -> m2 -> m3 -> ...`) collapses
-            # onto the SAME shared marker instead of minting a fresh one each time, so a repeat
-            # firing becomes an idempotent self-splice the fired-set then suppresses. Matches the
-            # reference oracle's behavior exactly (rewriter mints markers via `resolve_so`, which is
-            # canonicalizing for every plain-literal RHS/rewire token).
-            existing = g.nodes_named(ins.marker_name)
-            m = existing[0] if existing else g.add_node(ins.marker_name, control=True)
-            g.remove_edge(rel, obj)                          # redirect rel's object edge ...
-            g.add_edge(rel, m); g.add_edge(m, obj)           # ... through the marker (obj preserved)
-            return st.bind(ins.out, m) if ins.out is not None else st
-        if isinstance(ins, RESTORE):
-            rel, m, obj = st.regs[ins.rel], st.regs[ins.marker], st.regs[ins.obj]
-            g.remove_edge(rel, m); g.remove_edge(m, obj)     # drop the marker's two bare edges ...
-            g.add_edge(rel, obj)                             # ... reconstruct the original edge
             return st
         if isinstance(ins, RETIRE):
             # Privileged real deletion: remove the rel node and every edge touching it (its live

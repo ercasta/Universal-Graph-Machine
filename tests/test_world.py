@@ -140,3 +140,20 @@ def test_subgoal_records_carry_bands():
 def test_declared_hedge_composes_in_one_text():
     kb, rules = load_world("probable means 0.7\ncy is probable a thief")
     assert ask_world(kb, rules, "is cy a thief", policy=BANDED) == ["likely"]
+
+
+def test_why_renders_the_worlds_a_conclusion_stands_on():
+    # the ENV half of a banded why (S7.5 step 6; the band half is the ` (likely)` suffix): a derived
+    # fork names the WHOLE assumption-world it rests on — revealing the tall∧quiet correlation the
+    # premise line alone ("intruder is quiet") would hide.
+    kb, rules = load_world("""\
+intruder is either tall and quiet or short and loud
+
+?p is sneaky when ?p is quiet
+""")
+    lines = ask_world(kb, rules, "why intruder is sneaky",
+                      policy=FirmwarePolicy(uncertainty="banded"))
+    text = "\n".join(lines)
+    assert "intruder is sneaky (likely)" in text
+    assert "standing on the likely world where:" in text
+    assert "intruder is tall" in text and "intruder is quiet" in text   # the co-scoped world, whole

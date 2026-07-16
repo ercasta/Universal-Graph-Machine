@@ -12,6 +12,38 @@ this log is itself a historical record.
 
 ---
 
+## 2026-07-16
+
+### `an` article + possibilistic polish batch (538 passed)
+**`an` gap closed:** `tokenize` folds `an` → `a` (mechanical like its lowercasing, the one
+chokepoint every path shares), so `is an X` / `is not an X` work in facts, questions, rule sugar
+(incl. the `is_a` NAC), and goals with zero duplicated forms (`tests/test_cnl_articles.py`; the
+`an` token is thereby not a usable CNL entity name, like case). **Stance meta-line:** `be cautious`
+/ `be decisive` — the θ dial as CNL. Intake gains a `stance` route (form + the declared
+`policy.STANCES` table, never sniffing) setting `kb.registers["policy"]`; turns without an explicit
+`policy=` reason under the session stance, an explicit param still wins. Both stances opt into
+BANDED (a jump attitude only means something in the world of shades). **Fork-leak fix:** a
+`commit=False` banded `ask_goal`/`query_goal` now sweeps the derived forks it minted along with its
+`<query>` pencils (snapshot-diff on `LIKELINESS` scopes; `_drop_scope` per new fork) — repeated
+read-only queries neither accrete forks nor answer from their own leftovers. **Env rendering:** the
+env half of a banded `why` (S7.5 step 6) — a derived fork's proof line is followed by `standing on
+the likely world where: intruder is tall; intruder is quiet`, naming the WHOLE co-scoped
+assumption-world (the correlation the premise line alone hides). `surface._env_lines`.
+
+### Parked-item cleanup: demand-coref CLOSED; INTERPOSE/RESTORE deleted (531 passed)
+Two parked items closed out (user-ratified). **Demand-driven coref ABANDONED, architecture SETTLED:**
+the wip branch (correct but 3–6× slower — clique propagation is super-linear in either direction,
+and demand pays per query) was deleted without archiving; its motivating cost was solved by
+seed-from-focus instead, and the shipped design (mint-time same-name interning + `[new]` escape +
+guarded eager cross-name `same_as` + focus-scoping) is recorded as settled, not a compromise
+(`docs/attic/demand_driven_coref_plan.md` status header). **INTERPOSE/RESTORE retired for real:**
+the reversible-interposition opcodes, `lower_rewire`, `Rule.rewire`, and the `RETRACTED` export —
+unused since Axis A's copy-on-delete/`RETIRE` and kept only for their own tests — are deleted
+(the mechanism_policy §7-deferred cleanup, executed; `tests/test_isa_interpose.py` and
+`tests/test_rewire.py` went with them; the `<retracted>` NAME survives only as `_is_inert`
+vocabulary, pinned by a rewritten meta-provenance test). No external consumer referenced any of it
+(harneskills checked).
+
 ## 2026-07-14
 
 ### pystrider feedback round 4 — #13 the fixed per-call floor: `query_goal` + compile-once memos (449 passed)

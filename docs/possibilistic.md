@@ -223,9 +223,13 @@ suspicion is the comparative order (transitive yes + honest unknown). Book: new 
 uncertain-world → more-or-less → identity); new playground page `book/docs/playground/uncertain.md`
 (`data-mode="world"` → `_ugm_run_world` bootstrap in `playground.js`, banded policy + cautious
 checkbox, graded verdict chips in `extra.css`); wheel rebuilt (CI rebuilds on deploy). The remaining
-open threads: abduction/possibility-ordered SUPPOSE (decision 5's first behaviour), the
-propagation-strength knob (open point I beyond θ), and polish (why-renders band+env,
-`be cautious`/`be decisive` CNL meta-line, band scale S7.7).
+open threads *(updated 2026-07-16 — the polish batch landed)*: abduction/possibility-ordered
+SUPPOSE (decision 5's first behaviour), the propagation-strength knob (open point I beyond θ), and
+the band scale S7.7. DONE from the old polish list: why renders band **and env** (a derived fork
+names the whole assumption-world it stands on — `standing on the likely world where: intruder is
+tall; intruder is quiet` — `surface._env_lines`); the `be cautious`/`be decisive` CNL meta-line
+(intake `stance` route → `kb.registers["policy"]`; explicit `policy=` still wins; words are the
+declared `policy.STANCES` table).
 
 **Slice edges left open (deliberate, small)** *(updated 2026-07-16: the who/existential branches
 and `query_goal` are NOW BANDED — see below)*: the ENTAILED_NEG closure in `check` stays crisp (no
@@ -233,14 +237,18 @@ graded hard-negative); the `why` branch renders crisp provenance (band+env rende
 polish item); an `ask_goal(commit=False)`/`query_goal` banded run sweeps its `<query>` pencils but
 leaves derived FORKS behind (monotone + idempotent, but a leak worth revisiting); banded+scope EMIT
 writes uncertain heads as forks (not scope pencils) — fine for `<query>` scopes, unexamined for
-user SUPPOSE scopes.
+user SUPPOSE scopes. *(2026-07-16: the fork LEAK is FIXED — a `commit=False` banded `ask_goal`/
+`query_goal` now snapshots the fork scopes and sweeps the ones it derived in its finally, so
+repeated read-only queries neither accrete forks nor answer from their own leftovers.)*
 
 **CNL GRAMMAR FIX 2026-07-16 — `is not a X` NACs:** the rule grammar silently mis-lowered
 `… and ?p is not a woman` to `NAC (?p, is, a)` (the article swallowed the noun — the NAC never
 blocked). Fixed in `authoring.py`: article tokens are `is_art`-tagged, the 4-token `is not ?o`
 sugar DEFERS on an article, and a new 5-token `rule.cond.is_not_a` form lowers to a NAC on `is_a`.
-(Surfaced because the book's surgeon example used exactly this shape; `is not an X` remains
-unhandled, like the positive `is an X` — a matched pre-existing gap.)
+(Surfaced because the book's surgeon example used exactly this shape. The matched `an` half was
+closed the same day: `tokenize` folds `an` → `a` — mechanical like its lowercasing, at the one
+chokepoint every path shares — so `is an X` / `is not an X` now work in facts, questions, rules,
+and goals with no duplicated forms; `tests/test_cnl_articles.py`.)
 
 **BOOK IN THE DETECTIVE LINE + README 2026-07-16 (user-requested):** every uncertain-world example
 rewritten to the fil rouge — hedge = `cy is likely nervous`, doubt-travels = nervous→jumpy→

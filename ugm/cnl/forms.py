@@ -48,6 +48,12 @@ def tokenize(graph: Graph, sentence: str, *, control: bool = False) -> str:
     anchor = graph.add_node("<sentence>", control=True)   # scaffolding hub, not a fact
     prev: str | None = None
     for word in sentence.lower().split():
+        if word == "an":
+            word = "a"          # article normalization ("an owl" ≡ "a owl") — mechanical and
+                                # meaning-free like the lowercasing above, and the one chokepoint
+                                # every path (facts, questions, rules, goals) shares, so every
+                                # `a?`-anchored form handles `an` for free (gap closed 2026-07-16).
+                                # Consequence: `an` is not a usable CNL entity name (like case).
         tok = graph.add_node(word, control=control)       # a token = potential CONTENT (fact) unless it
         if prev is None:                                  # is an interaction (question) -> control
             graph.add_relation(anchor, "first", tok, control=True)

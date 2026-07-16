@@ -82,6 +82,32 @@ def _band_suffix(graph: Graph, rel: str) -> str:
     return f" ({band_word(float(b.value))})"
 
 
+def _env_lines(graph: Graph, rel: str, depth: int) -> list[str]:
+    """The WORLDS a derived fork stands on — the ENV half of a banded `why` (docs/possibilistic.md
+    S7.5 step 6; the band half is `_band_suffix`). One line per assumption-world in the fork's stored
+    ATMS environment, rendering the world's own CO-SCOPED pencil facts — so a conclusion reached
+    through `intruder is either tall and quiet or …` shows it stands on the WHOLE tall∧quiet world,
+    a correlation the premise lines alone don't reveal. Empty for ink, base forks, and crisp runs."""
+    from ..apply import SCOPE
+    from ..possibility import DERIVED_ENV, band_of_scope, band_word
+    from ..suppose import scope_members
+    a = graph.get_attr(rel, SCOPE)
+    if a is None or not graph.has(a.value):
+        return []
+    env = graph.get_attr(a.value, DERIVED_ENV)
+    if env is None or not env.value:
+        return []
+    lines: list[str] = []
+    for w in sorted(env.value):
+        if not graph.has(w):
+            continue
+        facts = sorted(f for f in (render_relation(graph, m) for m in scope_members(graph, w)) if f)
+        if facts:
+            lines.append(f"{'  ' * depth}standing on the {band_word(band_of_scope(graph, w))} "
+                         f"world where: {'; '.join(facts)}")
+    return lines
+
+
 def _explain_rel(graph: Graph, rel: str, depth: int, seen: set[str]) -> list[str]:
     parts = render_relation(graph, rel)
     pad = "  " * depth
@@ -92,6 +118,7 @@ def _explain_rel(graph: Graph, rel: str, depth: int, seen: set[str]) -> list[str
     if j is None:
         return [f"{head}  (given)"]
     lines = [f"{head}  <- {prov.rule_of_j(graph, j)}"]
+    lines += _env_lines(graph, rel, depth + 1)         # the worlds this conclusion stands on (banded)
     if rel in seen:
         return lines
     seen.add(rel)

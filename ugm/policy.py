@@ -87,3 +87,39 @@ class FirmwarePolicy:
 # The shipped default stance — importable so entry points can default to it and a `replace()` can
 # tweak one field without restating the rest.
 DEFAULT_POLICY = FirmwarePolicy()
+
+
+# --- the stance meta-lines (docs/possibilistic.md polish item, built 2026-07-16) -----------------
+#
+# `be cautious` / `be decisive` — the θ dial as CNL, the same dial the book/playground expose as a
+# checkbox. The words are DECLARED DATA (this table), never engine sniffing: intake recognizes the
+# `be <word>` FORM (§D.2, like the focus ops) and resolves the word here; an unknown word is simply
+# not a stance line and routing continues. Both stances opt into the BANDED reading — asking for a
+# jump attitude only means something in the world of shades (and its verdicts then honestly wear
+# their kind, e.g. `no (assumed)`).
+STANCES: dict[str, FirmwarePolicy] = {
+    "cautious": FirmwarePolicy(uncertainty=BANDED, theta=0.2),
+    "decisive": FirmwarePolicy(uncertainty=BANDED, theta=0.5),
+}
+
+
+def recognize_stance(utterance: str) -> FirmwarePolicy | None:
+    """If `utterance` is a stance meta-line (`be cautious` / `be decisive`), the `FirmwarePolicy` it
+    declares — else None. Recognized by which FORM fires over the token chain (never a string sniff),
+    with the word resolved through the declared `STANCES` table."""
+    from .production_rule import Pat, Rule
+    from .cnl.forms import tokenize
+    from .lowering import run_bank
+    from .world_model import Graph
+    form = Rule(key="stance.be",
+                lhs=[Pat("?s", "first", "be?"), Pat("be?", "next", "?w")],
+                rhs=[Pat("<stance>?", "word", "?w")])
+    tmp = Graph()
+    tokenize(tmp, utterance)
+    run_bank(tmp, [form])
+    for nid in tmp.nodes():
+        if tmp.name(nid) == "<stance>":
+            for rel, obj in tmp.relations_from(nid):
+                if tmp.has_key(rel, "word"):
+                    return STANCES.get(tmp.name(obj))
+    return None

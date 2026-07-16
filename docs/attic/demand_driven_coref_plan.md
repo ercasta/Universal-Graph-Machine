@@ -1,5 +1,19 @@
 # Implementation plan — make coreference fully DEMAND-DRIVEN (perf + vision)
 
+> **CLOSED (2026-07-16, user-ratified): the demand-driven direction is ABANDONED, and the coref
+> architecture is SETTLED — not a temporary compromise.** What shipped instead (2026-07-13, see
+> `indexing_and_coalescing_design.md` and the CHANGELOG): mint-time same-name INTERNING with the
+> `[new]` escape (no same-name clique, no propagation), a GUARDED eager pass for asserted cross-name
+> `same_as` (`is the same as` — pays only when identity is asserted), and focus-scoping bounding the
+> residual fan-out (seed-from-focus, flat accretion curve). The `demand-driven-coref-wip` branch was
+> deleted, deliberately unarchived: its code targets a pre-firmware-rewrite engine, and its value —
+> the measurement below (§0: correct but 3–6× slower; clique propagation is super-linear in either
+> direction, and demand pays it per QUERY) — is this document. The coref-stays-CNL principle never
+> required demand-direction, only no-engine-hardcoding, which the settled design satisfies. Any
+> future revisit starts from these findings, not from that code.
+>
+> Original record follows.
+
 Status: **the demand-driven change is CORRECT but REGRESSES performance (per-query coref blowup); it
 now lives UNCOMMITTED in the `main` working tree as the base for the real fix.** The forward plan is
 value-INDEXING (cheap value-match seeding) + defeasible NODE-COALESCING (eliminate propagation) +

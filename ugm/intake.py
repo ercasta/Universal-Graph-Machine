@@ -40,7 +40,7 @@ from .focus import GOAL  # noqa: E402
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"goal"|"unrecognized"
+    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"stance"|"goal"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
@@ -277,6 +277,9 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     from . import focus as focus_mod
     from . import rule_control
 
+    if policy is None:                                    # no explicit stance: the SESSION stance (the
+        policy = kb.registers.get("policy")               # `be cautious` register) governs, if set
+
     def _fresh_conflict(new):
         # None unless ADDING `new` to the ACTIVE theory forms a negation cycle (a fresh trial list, so a
         # rejected rule never touches `rules`; disabled rules are excluded — they neither fire nor cycle).
@@ -305,6 +308,17 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         focus_mod.apply_focus_op(kb, fop[0], fop[1])
         yield Event("focus", {"op": fop[0], "target": fop[1]})
         return Outcome("focus", utterance, focus_op=fop)
+
+    # STANCE — a policy meta-line (`be cautious` / `be decisive`): the θ dial as CNL. Sets the
+    # SESSION stance register (`kb.registers["policy"]` — execution attitude, the register home);
+    # subsequent turns without an explicit `policy=` reason under it. An explicit param still wins
+    # (the caller's override). Recognized as a form + declared table (`policy.recognize_stance`).
+    from .policy import recognize_stance
+    stance = recognize_stance(text)
+    if stance is not None:
+        kb.registers["policy"] = stance
+        yield Event("stance", {"uncertainty": stance.uncertainty, "theta": stance.theta})
+        return Outcome("stance", utterance)
 
     # ANAPHORA is a BOUNDARY concern, resolved by the external SLM on the NL->CNL side using the exposed
     # discourse state (`focus.top_centers`), NOT here (decision 2026-07-12, `cnl_intake_design.md` §4). The

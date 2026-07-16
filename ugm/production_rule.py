@@ -31,12 +31,9 @@ Firing semantics (every enabled match fires — there is NO branch selection):
        - Created-node embeddings come from `propagate` (declarative, not a closure).
        - `drop` triples are removed — control layer only (vision §5): deletion is
          permitted on control/ephemeral edges, never on monotone fact edges.
-       - `rewire` ops edit RAW EDGES between BOUND nodes — `("cut", a, b)` removes the
-         edge a->b, `("link", a, b)` adds it — the identity/provenance-preserving
-         structural edit `drop`+re-add cannot express (docs/depythonization_design.md §4).
-         Control-layer only, and it may cut BELOW the 2-hop relation shape, so it must
-         leave well-formed relations (linter-guarded) and interpose only inert nodes.
-         Used to hide a fact by splicing `<retracted>` into its path, and to resurrect it.
+       - (`rewire` — the raw cut/link edge edit behind the pre-Axis-A `<retracted>`
+         interposition — was DELETED 2026-07-16 with the INTERPOSE/RESTORE opcodes;
+         retraction is copy-on-delete + `RETIRE` now.)
 
 This module is pure data + token classification. The matcher/applier lives in
 rewriter.py.
@@ -212,7 +209,6 @@ class Rule:
     rhs: list[Pat]
     nac: list[Pat] = field(default_factory=list)        # subgraph; blocks fire if present
     drop: list[Pat] = field(default_factory=list)       # control-layer deletions only
-    rewire: list[tuple[str, str, str]] = field(default_factory=list)
     probability: float = 1.0                            # prior; flows into derived confidence
     graded: list[GradedCondition] = field(default_factory=list)
     value_matches: list[ValueMatch] = field(default_factory=list)   # declared value-JOIN conditions

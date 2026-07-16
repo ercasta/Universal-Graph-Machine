@@ -99,20 +99,10 @@ def test_inert_flag_covers_every_provenance_mint_path():
     _assert_flag_matches_prov_kind(g)
 
 
-def test_retracted_marker_from_interpose_opcode_is_not_inert_flagged():
+def test_name_inert_vocabulary_is_a_superset_of_the_flag():
     # Pins the intentional flag/name DIVERGENCE that makes `_is_inert` (name) a strict SUPERSET of
-    # the `.inert` flag: `<retracted>` IS name-inert (`_is_inert("<retracted>")` True) yet is NEVER
-    # minted `inert=True` — it is CONTROL, not inert. Retraction no longer produces the marker
-    # (copy-on-delete deletes instead of interposing), but the INTERPOSE opcode still can, so the
-    # invariant is pinned directly on the opcode that mints it.
+    # the `.inert` flag: `<retracted>` stays name-inert vocabulary (a meta rule naming it gets
+    # inert visibility) even though NOTHING mints a node so named anymore — the INTERPOSE opcode,
+    # its last minter, was deleted 2026-07-16 (retraction is copy-on-delete + RETIRE).
     from ugm.world_model import _is_inert
-    from ugm.machine import Machine, INTERPOSE, State
-    assert _is_inert(ret.RETRACTED)                    # name-inert ...
-    g = h.Graph()
-    rel = g.add_relation(g.add_node("x"), "r0", g.add_node("y"))
-    o = next(iter(g.out(rel)))
-    st = Machine().apply(g, [INTERPOSE(rel="r", obj="o", marker_name=ret.RETRACTED, out="mk")],
-                         State({"r": rel, "o": o}))
-    marker = st.regs["mk"]
-    assert g.name(marker) == ret.RETRACTED             # the marker was spliced in ...
-    assert not g.is_inert(marker)                      # ... but is NOT inert-flagged (it is control)
+    assert _is_inert("<retracted>")

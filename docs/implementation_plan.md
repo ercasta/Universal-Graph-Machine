@@ -108,9 +108,13 @@ Remaining slices:
   reasoning — the generator can't yield from inside the synchronous chain; the control machine's
   `SUSPEND` may now be the mechanism); extend mid-chain gather to who/∃/n-ary questions (v1 covers the
   yes/no-bound path); lazy (relevance-ordered) instead of eager frontier asking.
-- **8.5 async wiring:** real async tools / `ask_user` through `service_calls_cm` (see follow-ons above).
-- **Persistent `<query>`/`<goal>` control node** (deferred from 8.3a): needs the streaming consumer +
-  focus-reachability GC, vs today's per-utterance chain sweep.
+- ~~**8.5 async wiring**~~ **DONE 2026-07-16:** the GOAL/COMMAND route landed (`form.goal`-minted
+  `<goal>` triggers `intake._act_loop`); async tools suspend through `service_calls_cm` as `"call"`
+  events (wait-set = `{ask, call}`); §4a nearest-forms rejection computed from the banks; persistent
+  `<goal>`/`<call>` scaffolding gets focus-reachability GC (`focus.gc_cold_scaffolding` on narrowing
+  moves). ENGINE SIDE OF PHASE 8 COMPLETE — see `design/cnl_intake_design.md` status + §8 build map.
+  Remaining Phase 8 work is CLIENT-side (TUI+SLM in `harneskills_new`, consuming the
+  `converse`/Event/Outcome contract — UGM owns the contract, user decision 2026-07-16).
 - **8.6 perf follow-on:** INCREMENTAL head-index extend (today `_reify_rules` rebuilds per `ask_goal`;
   correctness already right — a new/disabled rule takes effect immediately).
 - **Wildcard-closure re-entry (perf lever (b), wire when it bites):** `chain_sip` re-entry redoes the

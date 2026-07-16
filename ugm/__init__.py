@@ -13,13 +13,13 @@ from .attrgraph import AttrGraph, AttrNode, Attr, GRADED, VALUED
 from .machine import (
     Machine, State, run_program,
     SEED, FOLLOW, JOIN, TEST, GRADE, FUZZY, MINT, EMIT, DROP_CTRL, SET, DUP, SAME,
-    INTERPOSE, RESTORE, RETIRE, ITERATE,
+    RETIRE, ITERATE,
     Instr, ControlEdgeError, ProgramError, SchemaError,
     T_MIN, T_PROD,
 )
 from .lowering import (
     to_attrgraph, lower_conj, lower_lhs, lower_graded, lower_rhs,
-    lower_propagate, lower_drop, lower_rewire,
+    lower_propagate, lower_drop,
     lower_rule, lower_nac_programs, run_bank, match_pats, run_to_fixpoint,
     derived_triples, Unlowerable, rule_touches_provenance,
     assemble_facts, load_fact_triples,
@@ -46,7 +46,7 @@ from .provenance import (
     derived_facts, axiomatize,
 )
 from .retraction import (
-    RETRACT, TARGETS, RETRACTED, RETRACT_RULES, seed_retract, retract, resurrect, record_history,
+    RETRACT, TARGETS, RETRACT_RULES, seed_retract, retract, resurrect, record_history,
     record_rejection, is_rejected,
 )
 from .dispatch import (
@@ -129,10 +129,10 @@ __all__ = [
     "AttrGraph", "AttrNode", "Attr", "GRADED", "VALUED",
     "Machine", "State", "run_program",
     "SEED", "FOLLOW", "JOIN", "TEST", "GRADE", "FUZZY", "MINT", "EMIT",
-    "DROP_CTRL", "SET", "DUP", "SAME", "INTERPOSE", "RESTORE", "RETIRE", "ITERATE",
+    "DROP_CTRL", "SET", "DUP", "SAME", "RETIRE", "ITERATE",
     "Instr", "ControlEdgeError", "ProgramError", "SchemaError", "T_MIN", "T_PROD",
     "to_attrgraph", "lower_conj", "lower_lhs", "lower_graded", "lower_rhs",
-    "lower_propagate", "lower_drop", "lower_rewire", "lower_rule", "lower_nac_programs",
+    "lower_propagate", "lower_drop", "lower_rule", "lower_nac_programs",
     "run_bank", "match_pats", "run_to_fixpoint", "derived_triples", "Unlowerable",
     "rule_touches_provenance", "assemble_facts", "load_fact_triples",
     "apply_rule", "apply_to_fixpoint", "build_head_index", "rules_producing",
@@ -146,7 +146,7 @@ __all__ = [
     "PROVES", "USES", "AXIOM", "j_name", "is_justification", "rule_of_j",
     "support_js", "rule_support_j", "premises_of", "proven_of", "justifications_using",
     "derived_facts", "axiomatize",
-    "RETRACT", "TARGETS", "RETRACTED", "RETRACT_RULES", "seed_retract", "retract",
+    "RETRACT", "TARGETS", "RETRACT_RULES", "seed_retract", "retract",
     "resurrect", "record_history", "record_rejection", "is_rejected",
     "CWA", "COPULA", "NEG_COPULA", "NEG_SUFFIX", "IS_A", "IS_A_NOT", "SAME_AS", "DISJOINT",
     "CLOSES", "REL_PROPERTY", "TRANSITIVE", "EVERY_IS_A", "IS_UNIQUE", "TARGET", "TYPE",

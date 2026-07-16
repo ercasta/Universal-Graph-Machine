@@ -32,7 +32,7 @@ from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert, NAME
 from .vocabulary import MENTION
 from .machine import (
     Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, DISTINCT, MINT, EMIT, DROP_CTRL,
-    INTERPOSE, RESTORE, State,
+    State,
     ControlMachine, Block, PRIM, SETI, DEC, FALL, BRANCH_IF, HALT,
 )
 
@@ -108,8 +108,8 @@ def _reject_unsupported(rule: Rule) -> None:
         raise Unlowerable(f"{rule.key}: inverted graded condition ('not at all') is a later slice")
     if rule.nac:
         raise Unlowerable(f"{rule.key}: NAC (materialized-positive lowering is a later slice)")
-    if rule.drop or rule.rewire:
-        raise Unlowerable(f"{rule.key}: drop/rewire (control layer) is out of this slice")
+    if rule.drop:
+        raise Unlowerable(f"{rule.key}: drop (control layer) is out of this slice")
 
 
 def _reach_endpoint(
@@ -400,25 +400,8 @@ def lower_drop(rule: Rule) -> tuple[list[Instr], list[Instr]]:
     return match_ops, effect_ops
 
 
-def lower_rewire(rule: Rule) -> list[Instr]:
-    """Lower a rule's `rewire` list to effect ops. The ONLY rewire in the system is the reversible
-    INTERPOSITION the TMS uses to hide a retracted fact (`retraction.INTERPOSE_RULE`): the triple
-      [("cut", rel, obj), ("link", rel, marker), ("link", marker, obj)]
-    — cut the fact's object edge and splice a fresh `<retracted>` marker into the 2-hop path. That
-    is EXACTLY the `INTERPOSE` opcode (isa-reference.md "Reserved: INTERPOSE / RESTORE"), so it lowers
-    to one INTERPOSE (rel/obj are LHS-bound; marker is the fresh skolem literal). Any OTHER rewire
-    shape (a bare cut/link — only test fixtures, never a bank) stays `Unlowerable`: raw-edge surgery
-    outside the reversible interposition is not a sanctioned ISA fact op."""
-    ops = rule.rewire
-    bound = set(rule.bound_names())
-    if (len(ops) == 3 and ops[0][0] == "cut" and ops[1][0] == "link" and ops[2][0] == "link"):
-        (_, a, b), (_, a2, m), (_, m2, b2) = ops
-        a_key, b_key = binder(a), binder(b)
-        # the interposition shape: cut(A,B); link(A,M); link(M,B), A/B LHS-bound, M a fresh skolem
-        if (a == a2 and b == b2 and m == m2 and a_key in bound and b_key in bound
-                and binder(m) is not None and binder(m) not in bound and is_bound_literal(m)):
-            return [INTERPOSE(rel=a_key, obj=b_key, marker_name=literal_name(m))]
-    raise Unlowerable(f"{rule.key}: rewire {ops} is not the reversible interposition shape")
+# `lower_rewire` — DELETED 2026-07-16 with the INTERPOSE/RESTORE opcodes and `Rule.rewire` (the
+# pre-Axis-A retraction interposition; unused since copy-on-delete/`RETIRE`, kept only for its tests).
 
 
 def rule_touches_provenance(rule: Rule) -> bool:
@@ -505,8 +488,7 @@ def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset(),
     """Structured lowering for the bank driver: (match_ops, effect_ops, nac_programs, keys). NAC is
     NOT folded into the main program (it is the driver's filter). `drop` lowers to DROP_CTRL (its
     match ops append to the LHS match, using its bindings; its DROP_CTRLs append to the effects);
-    `propagate` lowers to EMIT embedding-writes (graded rules); `rewire` lowers to INTERPOSE (the
-    reversible retraction interposition — `lower_rewire`).
+    `propagate` lowers to EMIT embedding-writes (graded rules).
     `control_preds` marks heads whose predicate is a scaffolding predicate as control-layer.
     `guard=True` emits the inert fact-read guard into the match + NAC programs (`guard_inert` —
     the compiler-emitted replacement for the retired `Machine.skip_inert` mode).
@@ -537,13 +519,12 @@ def _lower_bank_rule_uncached(rule: Rule, control_preds: frozenset[str], *, guar
         + lower_distinct(rule)
         + lower_rhs(rule, control_preds, head_out=head_regs) + lower_propagate(rule))
     drop_match, drop_effect = lower_drop(rule)
-    rewire_effect = lower_rewire(rule) if rule.rewire else []
     all_match = match_ops + drop_match
     nac_progs = lower_nac_programs(rule)
     if guard:                                              # firmware §3: the guard is in the PROGRAM
         all_match = guard_inert(all_match)
         nac_progs = [guard_inert(np) for np in nac_progs]
-    return (all_match, effect_ops + drop_effect + rewire_effect,
+    return (all_match, effect_ops + drop_effect,
             nac_progs, rule.bound_names(), prem_regs, head_regs)
 
 
