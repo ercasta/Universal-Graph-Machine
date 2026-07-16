@@ -102,6 +102,38 @@ def reenter_focus(kb, name: str) -> None:
         st.pop()
 
 
+# The discourse scaffolding tokens the focus-reachability GC may sweep — STRICTLY these two. Pattern/
+# rule wiring, provenance, suppose scopes, the head index are all control too, but none is discourse
+# scaffolding; the sweep never looks at them.
+GOAL = "<goal>"
+from .dispatch import CALL  # noqa: E402  (the `<call>` token — dispatch has no focus dependency)
+
+
+def gc_cold_scaffolding(kb) -> int:
+    """Focus-reachability GC of DISCOURSE control scaffolding (cnl_intake_design.md §3, the deferred
+    half of accretion control): sweep `<goal>` and pending `<call>` nodes whose every named neighbor
+    lies outside EVERY live focus frame — mark-and-sweep from the focus roots. Runs on the NARROWING
+    focus moves (`forget that` / `back to X`): dropping a topic lets its goals and stranded calls go,
+    so a later goal utterance's act loop does not re-trigger them. Cold scaffolding is CONTROL —
+    deleting it is §5-safe; FACTS always stay (a cold fact merely leaves the attention seed). A goal
+    sharing an entity with any live frame stays warm. Returns the number of nodes swept."""
+    warm: set[str] = set()
+    for frame in _stack(kb):
+        warm.update(frame)
+    swept = 0
+    for token in (GOAL, CALL):
+        for n in list(kb.nodes_named(token)):
+            named = {kb.name(o) for _rel, o in kb.relations_from(n) if kb.name(o)}
+            if named and named.isdisjoint(warm):
+                for rel, _o in list(kb.relations_from(n)):
+                    kb.remove_node(rel)
+                kb.remove_node(n)
+                swept += 1
+    if swept:
+        kb.gc_disconnected()
+    return swept
+
+
 # ---------------------------------------------------------------------------
 # The explicit focus control-CNL — recognized as FORMS, never string-sniffed (§D.2)
 # ---------------------------------------------------------------------------
@@ -145,13 +177,16 @@ def recognize_focus_op(utterance: str) -> tuple[str, str | None] | None:
 
 
 def apply_focus_op(kb, op: str, target: str | None) -> None:
-    """Execute a recognized focus move on the live KB."""
+    """Execute a recognized focus move on the live KB. The NARROWING moves (`drop`/`reenter`) also run
+    the focus-reachability GC — leaving a topic is the moment its discourse scaffolding goes cold."""
     if op == "push":
         push_focus(kb, [target] if target else [])
     elif op == "drop":
         drop_focus(kb)
+        gc_cold_scaffolding(kb)
     elif op == "reenter" and target is not None:
         reenter_focus(kb, target)
+        gc_cold_scaffolding(kb)
 
 
 # ---------------------------------------------------------------------------

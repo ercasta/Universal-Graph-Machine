@@ -1,7 +1,18 @@
 # CNL intake + focus working-set + streaming — design
 
-> **Status: DESIGN (2026-07-12, ratified with the user in conversation).** The spec for the first
-> UGM *client*: an **agent loop with a TUI**. Not yet built. The active plan tracks the build in
+> **Status (2026-07-16): ENGINE SIDE COMPLETE.** Every substrate-side row of the §8 build map is
+> BUILT (see the map): unified intake + routing, focus stack/centers/seed-from-focus, the event
+> stream + `converse` suspend/resume, the GOAL/command route with the act loop (wait-set = `{ask,
+> call}` — async tools suspend through `service_calls_cm`), nearest-forms rejection, and the
+> focus-reachability scaffolding GC. What remains is the CLIENT: the TUI + SLM boundary, which lives
+> in the harness project (`../harneskills_new`) — **UGM owns the `converse`/Event/Outcome contract;
+> the harness consumes it** (user decision 2026-07-16; the harness's own session/driver scaffolding
+> predates this spine and will be updated to it).
+>
+> Original design record follows.
+>
+> **DESIGN (2026-07-12, ratified with the user in conversation).** The spec for the first
+> UGM *client*: an **agent loop with a TUI**. The active plan tracks the build in
 > `../implementation_plan.md` (Phase 8); this doc is the detail that phase points at.
 >
 > Read after: `../architecture.md` (the generic→opinionated layering), `../engine_user_guide.md` (today's
@@ -250,16 +261,18 @@ tightening; if (2) fails, the demand frontier needs explicit persistence before 
 | reified rules (`write_rule`) + head index | exists | `cnl/rule_graph.py`, `apply.py` |
 | plan→act→check loop | exists (slice 4) | `mode_calls.py` |
 | RECORD/provenance trace (event substrate) | exists | `run_bank(provenance=True)`, `surface.explain` |
-| **unified intake entry + routing** | **new** | (§1) |
-| **`<query>` as live control node** | **new** | (§2) |
-| **`<focus>` stack + centers + seed-from-focus** | **new** | (§3) |
-| **explicit focus CNL** (`focus on`/`forget`/`back to`) | **new** | (§3) |
-| anaphora resolution | **NOT in substrate** — SLM does it via exposed `focus.top_centers` | (§4) |
-| **scaffolding GC (reachability from focus)** | **new** | (§3) |
-| **event-emitting + resumable driver** | **new** | (§5) |
-| **suspend/resume `ask_user`** | **new** | (§5) |
-| **incremental rule add + per-add re-lint + conflict-ask** | **partly new** (Phase 3.2) | (§6) |
-| **accretion + suspend/resume probe** | **new (first step)** | (§7) |
+| **unified intake entry + routing** | **BUILT** (`ugm/intake.py` `ingest`/`converse`) | (§1) |
+| **`<query>` as live control node** | **RESOLVED: folded into §3** — a live `<query>` had no consumer but focus | (§2) |
+| **`<focus>` stack + centers + seed-from-focus** | **BUILT** (`ugm/focus.py`; stack in `AttrGraph.registers`; `attention="focus"`) | (§3) |
+| **explicit focus CNL** (`focus on`/`forget`/`back to`) | **BUILT** | (§3) |
+| anaphora resolution | **NOT in substrate** — SLM does it via exposed `focus.top_centers` (8.4a tried, backed out) | (§4) |
+| **scaffolding GC (reachability from focus)** | **BUILT 2026-07-16** — per-utterance token-chain GC + `focus.gc_cold_scaffolding` (narrowing moves sweep cold `<goal>`/`<call>`; facts always stay) | (§3) |
+| **event-emitting + resumable driver** | **BUILT** (`Event` stream; `converse` generator) | (§5) |
+| **suspend/resume `ask_user`** | **BUILT** (incl. mid-chain gather) | (§5) |
+| **GOAL/command route + act loop + async-tool suspend** | **BUILT 2026-07-16** (`<goal>` triggers `_act_loop`; sync via `run_bank(tools=…)`, async via `service_calls_cm` surfacing as `"call"` events — wait-set = `{ask, call}`) | (§1/§5) |
+| **rejection with nearest-forms** | **BUILT 2026-07-16** (`intake._nearest_forms`: keyword coverage over the banks' own bound literals; suggestions render as each form's surface template — no canned table) | (§4a) |
+| **incremental rule add + per-add re-lint + conflict-ask** | **BUILT** (conflict-lint-as-conversation; `rule-conflict` event; `<disabled>`) | (§6) |
+| **accretion + suspend/resume probe** | **run** — found+fixed the NAF endpoint scan (40×); seed-from-focus probe flat (1361× at cliff) | (§7) |
 
 ## 9. Open / deferred
 

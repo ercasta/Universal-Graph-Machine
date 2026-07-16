@@ -17,23 +17,37 @@ ROUTING is by the graph structure recognition produces, never by sniffing the ut
 STAGING. This first slice keeps the QUESTION parse on the existing throwaway-graph path (`query.recognize`
 / `ask_goal`), which already ANSWERS over the live KB — only the PARSE is off-graph. Collapsing that parse
 into a live control-flagged `<query>` node (so asking, asserting and commanding are literally one motion)
-is Phase 8.2. GOAL/command routing (the plan→act→check trigger) and the focus control-CNL are Phase 8.3.
-So the seam is closed at the ENTRY here; the internal question-parse relocation follows.
+is Phase 8.2 (folded into 8.3: a live `<query>` has no consumer but focus).
+
+GOAL/COMMAND — the ACT arm (2026-07-16, §5 wait-set v2). A `goal …` utterance is recognized like any
+other (the `form.goal` intake form mints a `<goal>` control node — routing stays by-what-fired), and the
+minted goal TRIGGERS the forward act loop: `run_bank` over the active rules with the caller's TOOL
+registry. The KB's own rules decide everything domain-shaped (plan→act→check as declared rules — WHICH
+`<call>`s exist, what "done" means); intake only pumps. A sync tool runs inline at each quiescence
+(`run_bank(tools=…)`, the existing dispatch); an ASYNC tool suspends through the control-machine
+dispatcher (`service_calls_cm`) and surfaces as a `"call"` event whose `.send()` is the world's answer —
+the same threadless suspend/resume as `"ask"`, generalized to the tool boundary.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+# The goal control token the `form.goal` intake form mints (reserved `<…>` chokepoint, discipline §D.5).
+# One definition — `focus.py` owns it (the focus-reachability GC sweeps by it).
+from .focus import GOAL  # noqa: E402
+
 
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"unrecognized"
+    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"goal"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
     disabled_keys: list = field(default_factory=list) # RULE-DISABLE: the rule keys marked `<disabled>`
     focus_op: tuple | None = None                # FOCUS: the (op, target) move applied
+    acted: int | None = None                     # GOAL: forward firings the act loop produced
+    nearest: list = field(default_factory=list)  # UNRECOGNIZED: nearest form templates (§4a)
 
 
 @dataclass
@@ -41,9 +55,10 @@ class Event:
     """A live progress event streamed DURING `ingest` (Phase 8.5, docs/design/cnl_intake_design.md §5) so a TUI
     renders the turn as it happens instead of one final blob. Emitted at step boundaries by which FORMS
     fire — same discipline as routing (no string sniff). An `"ask"` event brackets the human-in-the-loop
-    `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). Per-EMIT reasoning
-    trace (reuse the RECORD/`<j:>` substrate) and generator-based suspend/resume are 8.5b."""
-    kind: str                # focus|question|ask|subgoal|derive|answer|fact|rule|rule-conflict|rule-disable|unrecognized
+    `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). A `"call"` event
+    is the ASYNC-TOOL suspension (§5 wait-set v2): its data carries `{tool, call, request}` and the
+    driver's `.send()` value is the world's response, folded by the tool's `fold` half."""
+    kind: str                # focus|question|ask|subgoal|derive|answer|fact|rule|rule-conflict|rule-disable|goal|call|acted|unrecognized
     data: dict = field(default_factory=dict)
 
 
@@ -167,7 +182,91 @@ def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace):
     return answer
 
 
-def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_ask=False, trace=False):
+def _form_template(form) -> str:
+    """A form's SURFACE TEMPLATE, reconstructed from its LHS token chain: a bound literal shows its
+    word, a variable shows `…` — e.g. `ask.yesno.is_a` renders "is … a …". Follows the `first`/`next`
+    chain; an unanchored form (keyed mid-chain, like `form.then`) starts at the chain's head subject."""
+    from .production_rule import is_bound_literal, literal_name
+    nxt, start = {}, None
+    for p in form.lhs:
+        if p.p == "first":
+            start = p.o
+        elif p.p == "next":
+            nxt[p.s] = p.o
+    if start is None:                                       # unanchored: the subject nothing points at
+        objs = set(nxt.values())
+        start = next((s for s in nxt if s not in objs), None)
+    words, seen = [], set()
+    tok = start
+    while tok is not None and tok not in seen:
+        seen.add(tok)
+        words.append(literal_name(tok) if is_bound_literal(tok) else "…")
+        tok = nxt.get(tok)
+    return " ".join(words)
+
+
+def _nearest_forms(text: str, top: int = 3) -> list[str]:
+    """The habitability signal (§4a): when NOTHING fires, which intake forms came CLOSEST — computed
+    from the form banks' OWN bound literals (which of each form's keyword tokens the utterance
+    contains), never a hardcoded suggestion table (discipline §D.4). Candidates are the declared
+    intake surface: the question forms, the surface `FORM_RULES` (goal/every/then/…), and the focus
+    control-CNL. Returns up to `top` surface templates, best keyword coverage first."""
+    from .production_rule import is_bound_literal, literal_name
+    from .cnl.query import QUESTION_FORMS
+    from .cnl.forms import FORM_RULES
+    from .focus import FOCUS_FORMS
+    toks = set(text.lower().split())
+    scored: list[tuple[float, str, str]] = []
+    for form in (*QUESTION_FORMS, *FORM_RULES, *FOCUS_FORMS):
+        lits = {literal_name(t) for p in form.lhs for t in (p.s, p.o) if is_bound_literal(t)}
+        hit = len(lits & toks)
+        if not hit:
+            continue
+        tpl = _form_template(form)
+        if len(tpl.split()) < 2:                            # not a renderable surface shape
+            continue
+        scored.append((hit / len(lits), tpl, form.key))
+    scored.sort(key=lambda t: (-t[0], t[2]))
+    out: list[str] = []
+    for _score, tpl, _key in scored:
+        if tpl not in out:
+            out.append(tpl)
+        if len(out) >= top:
+            break
+    return out
+
+
+def _act_loop(kb, active, sync_tools, async_tools, *, provenance=False, max_cycles=100):
+    """The ACT arm's pump (§5 wait-set v2): forward-run the `active` rules WITH the sync tool registry
+    (`run_bank(tools=…)` services sync `<call>`s at each quiescence — the existing dispatch), then run
+    the control-machine dispatcher so an ASYNC tool SUSPENDs — yielded up as an `Event("call")` whose
+    send is the world's response — and iterate until rules and calls are both quiet. Returns the total
+    forward firings. CONTENT-BLIND (discipline §D): which `<call>`s exist and what "done" means are
+    KB-declared (plan→act→check as rules); this loop only pumps. `max_cycles` is the fuel bound —
+    a KB whose rules mint calls forever terminates honestly instead of spinning."""
+    from .lowering import run_bank
+    from .dispatch import service_calls_cm
+    from .machine import ControlMachine, Continuation
+    total = 0
+    for _ in range(max_cycles):
+        fired = run_bank(kb, active, tools=(sync_tools or None), provenance=provenance)
+        total += fired
+        if not async_tools:
+            return total                        # sync-only world: run_bank's fixpoint already covers it
+        res = service_calls_cm(kb, sync_tools, async_tools)
+        folded = False
+        while isinstance(res, Continuation):    # each async call: suspend to the driver, fold, continue
+            folded = True
+            name, call_id, payload = res.request
+            response = yield Event("call", {"tool": name, "call": call_id, "request": payload})
+            res = ControlMachine().resume(kb, res, response={"response": response})
+        if not folded and not fired:
+            return total                        # a full cycle moved nothing: quiescent
+    return total                                # fuel bound reached — stop honestly
+
+
+def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_ask=False, trace=False,
+                sync_tools=None, async_tools=None):
     """The routing CORE as a generator (§5/8.5b): route ONE CNL `utterance` by which recognition forms
     fire and act on it, YIELDING an `Event` at each step boundary and RETURNING the `Outcome` (via
     `StopIteration.value`). Both `ingest` (blocking) and `converse` (non-blocking) drive this ONE core, so
@@ -244,22 +343,46 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         yield Event("rule", {"added": len(new_rules)})
         return Outcome("rule", utterance, added_rules=list(new_rules))
 
-    # FACT vs UNRECOGNIZED — recognize into the live KB; a content relation means a fact landed.
+    # FACT / GOAL / UNRECOGNIZED — recognize into the live KB. A content relation means a fact landed;
+    # a freshly minted `<goal>` node means the GOAL form fired (routing by produced structure, §D.1 —
+    # the before/after delta attributes the goal to THIS utterance, no string sniff).
+    goals_before = set(kb.nodes_named(GOAL))
     anchors = load_facts(kb, text)
     anchor = anchors[0] if anchors else None
+    minted_goals = [n for n in kb.nodes_named(GOAL) if n not in goals_before]
     is_fact = anchor is not None and anchor_has_content_fact(kb, anchor)
-    if is_fact:
+    if is_fact or minted_goals:
         # IMPLICIT widen (§3): the entities the utterance is about enter the top focus frame. Never a
         # push — a topic switch is explicit. Content-blind subject extraction (`focus.utterance_subjects`).
         focus_mod.widen(kb, focus_mod.utterance_subjects(kb, anchor))
     if anchor is not None:
         focus_mod.gc_utterance_scaffolding(kb, anchor)   # sweep the spent token chain (accretion control)
-    yield Event("fact" if is_fact else "unrecognized")
-    return Outcome("fact", utterance) if is_fact else Outcome("unrecognized", utterance)
+        # (surgical: a token holding the <goal>'s target/type relation survives the sweep)
+    if minted_goals:
+        # GOAL/COMMAND — the ACT arm: the landed goal triggers the forward act loop (KB-declared
+        # plan→act→check rules × the caller's tools). Async tools suspend as "call" events.
+        yield Event("goal", {"goals": len(minted_goals)})
+        before_j = _j_nodes(kb) if trace else set()
+        acted = yield from _act_loop(kb, rule_control.active_rules(kb, rules),
+                                     sync_tools or {}, async_tools or {}, provenance=trace)
+        if trace:
+            for rec in _derivations_since(kb, before_j):
+                yield Event("derive", rec)
+        yield Event("acted", {"fired": acted})
+        return Outcome("goal", utterance, acted=acted)
+    if is_fact:
+        yield Event("fact")
+        return Outcome("fact", utterance)
+    # UNRECOGNIZED — the habitability signal (§4a): say what was not understood AND which declared
+    # forms came closest, computed from the form banks themselves (no hardcoded suggestion table).
+    nearest = _nearest_forms(text)
+    yield Event("unrecognized", {"nearest": nearest})
+    return Outcome("unrecognized", utterance, nearest=nearest)
 
 
 def ingest(kb, rules, utterance, *, policy=None, ask_user=None, on_conflict=None,
-           attention: str = "global", on_event=None, trace: bool = False) -> Outcome:
+           attention: str = "global", on_event=None, trace: bool = False,
+           tools=None, async_tools=None, answer_call=None) -> Outcome:
     """Route ONE CNL `utterance` against the live session KB `kb` (+ accumulated `rules`) by which
     recognition forms fire, and act on it. Returns an `Outcome`. `rules` is mutated in place when the
     utterance adds a rule (so subsequent turns reason with it immediately — Phase 8.6).
@@ -277,10 +400,23 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, on_conflict=None
       - "focus"  — BOUNDED ATTENTION: a question reasons only within the current focus working set (the
         top frame's centers + their closure). Per-utterance cost then tracks the focus, not the accreted
         session, and the coref fan-out is bounded — but off-focus facts are outside attention (a SEMANTIC
-        choice, the agent-not-theorem-prover reading), so answers can differ from "global"."""
+        choice, the agent-not-theorem-prover reading), so answers can differ from "global".
+
+    `tools` / `async_tools` (the ACT arm, §5 wait-set v2): the caller's `<call>` registries
+    (`dispatch.Tool` / `dispatch.AsyncTool`), used when a `goal …` utterance triggers the forward act
+    loop. Sync tools run inline. An async tool's suspension is answered by `answer_call(request) ->
+    response` — required up front when `async_tools` is given (this driver BLOCKS; without a host
+    callback an async suspension would have no answer, and folding a silent None would be the
+    does-less failure mode). The non-blocking `converse` instead yields the `"call"` event."""
+    if async_tools and answer_call is None:
+        raise ValueError(
+            "ingest(async_tools=...) needs answer_call= (a request -> response host callback): this "
+            "driver blocks, so an async tool's suspension must have an answerer. Use converse() to "
+            "own the wait yourself.")
     emit = on_event if on_event is not None else (lambda e: None)   # §5 stream; no-op when unwired
     gen = _ingest_gen(kb, rules, utterance, policy=policy, attention=attention,
-                      can_ask=ask_user is not None, trace=trace)
+                      can_ask=ask_user is not None, trace=trace,
+                      sync_tools=tools, async_tools=async_tools)
     send_val = None
     try:
         while True:
@@ -289,27 +425,35 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, on_conflict=None
             emit(ev)                                     # stream every event (ask/rule-conflict included)
             if ev.kind == "ask":
                 send_val = ask_user(ev.data["subj"], ev.data["rel"], ev.data["obj"])
+            elif ev.kind == "call":                      # async tool boundary: the host answers
+                send_val = answer_call(ev.data["request"])
             elif ev.kind == "rule-conflict":             # §6: no handler => reject the cycle-forming rule
                 send_val = on_conflict(ev.data["detail"]) if on_conflict is not None else False
     except StopIteration as stop:
         return stop.value
 
 
-def converse(kb, rules, utterance, *, policy=None, attention: str = "global", trace: bool = False):
+def converse(kb, rules, utterance, *, policy=None, attention: str = "global", trace: bool = False,
+             tools=None, async_tools=None):
     """Non-blocking generator driver (8.5b, docs/design/cnl_intake_design.md §5): the same routing as `ingest`,
     but as a GENERATOR the caller pumps. It YIELDS an `Event` per step boundary; the caller renders each
-    and, for the single `"ask"` event, `.send()`s the human/tool verdict (True/False/None) — every other
-    event's send is ignored (send `None` / call `next`). SUSPEND/RESUME is threadless: the ask unwinds the
-    chain, and resuming re-enters the demand-driven chain over the graph (the continuation). `trace=True`
+    and answers the WAIT-POINT events via `.send()`:
+      - `"ask"`  — the human/tool verdict (True/False/None) for an open-predicate gather;
+      - `"call"` — the world's response to an ASYNC tool's request (`ev.data["request"]`), folded by
+        the tool's `fold` half (§5 wait-set v2 — the tool boundary is a suspension, same mechanism).
+    Every other event's send is ignored (send `None` / call `next`). SUSPEND/RESUME is threadless: a
+    wait-point unwinds cleanly, and resuming re-enters over the graph (the continuation). `trace=True`
     interleaves an `Event("derive", …)` per rule firing before the answer. The final `Outcome` is the
     generator's `StopIteration.value`.
 
-        gen, send = converse(kb, rules, utt), None
+        gen, send = converse(kb, rules, utt, async_tools=my_tools), None
         try:
             while True:
                 ev = gen.send(send); send = None
-                if ev.kind == "ask": send = decide(ev.data)   # else: render(ev)
+                if ev.kind == "ask":    send = decide(ev.data)
+                elif ev.kind == "call": send = do_in_world(ev.data["request"])   # else: render(ev)
         except StopIteration as stop:
             outcome = stop.value
     """
-    return _ingest_gen(kb, rules, utterance, policy=policy, attention=attention, can_ask=True, trace=trace)
+    return _ingest_gen(kb, rules, utterance, policy=policy, attention=attention, can_ask=True,
+                       trace=trace, sync_tools=tools, async_tools=async_tools)
