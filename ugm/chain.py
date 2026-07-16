@@ -1214,6 +1214,20 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     return fired
 
 
+def _generalizations(d: tuple) -> tuple:
+    """The strictly-more-general demand tuples that SUBSUME `d` (same predicate, `None` where `d`
+    is bound). Serving a generalization derives a superset of serving `d` — head-unification binds
+    fewer registers, so the body walk explores every binding `d`'s walk would (and more), recursively
+    raising generalizations of `d`'s sub-demands; EMIT is monotone. Hence a standing generalization
+    makes `d`'s own service redundant (`_round`'s skip)."""
+    pred, s, o = d
+    if s is not None and o is not None:
+        return ((pred, None, None), (pred, s, None), (pred, None, o))
+    if s is not None or o is not None:
+        return ((pred, None, None),)
+    return ()
+
+
 class _Frame:
     """The driver-owned POLICY state of one goal-closure frame (the control machine owns the LOOP):
     the frame's local agenda (its demand sub-tree), the running derivation count, and `gen` — the
@@ -1238,11 +1252,23 @@ def _round(fact_g: AttrGraph, rule_g: AttrGraph, frame: _Frame, *, neg_stack, pr
     """ONE fixpoint round over the frame's agenda, as a GENERATOR (brick #3): serve every standing
     demand with the rules that produce it (raising bound sub-demands and EMITting); a NAC's negative
     subgoal is YIELDed up (the `advance` PRIM turns the yield into a machine `SUSPEND`). Returns
-    `(fired, newly)` — the progress the loop's `BRANCH_IF` tests."""
+    `(fired, newly)` — the progress the loop's `BRANCH_IF` tests.
+
+    DEMAND SUBSUMPTION: a demand whose strict GENERALIZATION also stands in this frame (same
+    predicate, a wildcard where this one is bound — `(p, s, ·)` ⊐ `(p, s, o)`) is NOT served:
+    serving the general demand explores a superset of the bound one's matches, and derivation is
+    monotone, so the narrow service is pure re-work. Only the SERVICE is skipped — the demand tuple
+    stays in the agenda and its `<demand>`/`<subgoal>` trace was minted when raised (the question
+    was asked; it is answered through the subsumer). This is what caps the bound×wildcard agenda
+    blow-up (the 30x-seed pathology) on ANY iteration order."""
     newly: dict[tuple, None] = {}                          # insertion-ordered, like the agenda
 
     fired = 0
     for demand in frame.agenda:
+        if any(g in frame.agenda or g in newly
+               for g in _generalizations(demand)):         # a standing subsumer serves this one
+            continue
+
         def mint(d, _parent=demand):                       # the serving demand is the sub-demand's PARENT
             if d not in frame.agenda and d not in newly:
                 newly[d] = None
