@@ -17,11 +17,14 @@ matcher.
 """
 from __future__ import annotations
 
-from .attrgraph import AttrGraph, graded, valued
+from .attrgraph import AttrGraph, NAME, VALUED, GRADED, graded, valued
 from .apply import SCOPE
+from .machine import Machine, MINT, EMIT, SWEEP, State
 from .policy import FirmwarePolicy, DEFAULT_POLICY
 from .suppose import HYPOTHESIS, _pencil, scope_members
 from .vocabulary import DISJOINT, COPULA, IS_A
+
+_MACHINE = Machine()
 
 LIKELINESS = "<likeliness>"      # graded band on a fork's <hypothesis> scope node; absent ⇒ CERTAIN
 CHOICE = "<choice>"              # valued attr grouping MUTUALLY-EXCLUSIVE fork alternatives (an `either…or`)
@@ -42,13 +45,17 @@ def band_word(b: float) -> str:
 
 
 def _entity(g: AttrGraph, name: str) -> str:
-    """Reuse an existing same-named entity node or mint one (so a fork's `x` is the ink `x`)."""
+    """Reuse an existing same-named entity node or mint one (so a fork's `x` is the ink `x`).
+    The read keeps its deterministic `min` tie-break; the mint is the ISA instruction."""
     found = g.nodes_named(name)
-    return min(found) if found else g.add_node(name)
+    if found:
+        return min(found)
+    return _MACHINE.apply(g, [MINT("_e", attrs={NAME: valued(name)})], State({})).regs["_e"]
 
 
 def set_band(g: AttrGraph, scope: str, degree: float) -> None:
-    g.set_attr(scope, LIKELINESS, graded(degree))
+    _MACHINE.apply(g, [EMIT("_sc", LIKELINESS, degree, kind=GRADED, raise_degree=False)],
+                   State({"_sc": scope}))
 
 
 def band_of_scope(g: AttrGraph, scope: str) -> float:
@@ -58,13 +65,12 @@ def band_of_scope(g: AttrGraph, scope: str) -> float:
 
 def _new_fork_scope(g: AttrGraph, degree: float, *, choice: str | None = None,
                     derived_env: frozenset | None = None) -> str:
-    scope = g.add_node(HYPOTHESIS, control=True)
-    set_band(g, scope, degree)
+    attrs = {NAME: valued(HYPOTHESIS), HYPOTHESIS: graded(1.0), LIKELINESS: graded(degree)}
     if choice is not None:
-        g.set_attr(scope, CHOICE, valued(choice))
+        attrs[CHOICE] = valued(choice)
     if derived_env:
-        g.set_attr(scope, DERIVED_ENV, valued(frozenset(derived_env)))
-    return scope
+        attrs[DERIVED_ENV] = valued(frozenset(derived_env))
+    return _MACHINE.apply(g, [MINT("_f", attrs=attrs, control=True)], State({})).regs["_f"]
 
 
 def fork_fact(g: AttrGraph, degree: float, s_id: str, pred: str, o_id: str,
@@ -290,13 +296,13 @@ def guess(g: AttrGraph, goal: tuple[str, str, None]) -> dict | None:
                 "basis": "certain", "alternatives": alternatives}
     basis = "tie" if competitors and competitors[0][1] >= band else "clear-max"
 
-    node = g.add_node(GUESS, control=True)                 # the RECORD, visible and matchable
-    g.set_attr(node, "g_pred", valued(pred))
-    g.set_attr(node, "g_subj", valued(subj))
-    g.set_attr(node, "g_picked", valued(picked))
-    g.set_attr(node, "g_band", graded(band))
-    g.set_attr(node, "g_basis", valued(basis))
-    g.set_attr(node, "g_alternatives", valued(tuple(alternatives)))
+    node = _MACHINE.apply(g, [MINT("_g", control=True,     # the RECORD, visible and matchable
+                                   attrs={NAME: valued(GUESS), GUESS: graded(1.0),
+                                          "g_pred": valued(pred), "g_subj": valued(subj),
+                                          "g_picked": valued(picked), "g_band": graded(band),
+                                          "g_basis": valued(basis),
+                                          "g_alternatives": valued(tuple(alternatives))})],
+                          State({})).regs["_g"]
 
     # ADOPT the picked world: pen the best derivation's fork contents (the co-scoped joints come
     # along — correlation is the point of co-scoping) into the guess's own scope. A derived pick's
@@ -322,10 +328,11 @@ def retract_guess(g: AttrGraph, node: str) -> None:
     """Take the jump back: sweep the guess's adopted pencils (its scope), but KEEP the record —
     marked retracted — so `why` can still say "I guessed male here, and withdrew it". Ink was never
     touched, so there is nothing else to undo (the pencil/ink payoff)."""
-    for rel in scope_members(g, node):
-        if g.has(rel):
-            g.remove_node(rel)
-    g.set_attr(node, _RETRACTED, valued(True))
+    doomed = [rel for rel in scope_members(g, node) if g.has(rel)]
+    ops = [SWEEP(f"_n{i}") for i in range(len(doomed))]
+    regs = {f"_n{i}": r for i, r in enumerate(doomed)}
+    regs["_rec"] = node
+    _MACHINE.apply(g, ops + [EMIT("_rec", _RETRACTED, True, kind=VALUED)], State(regs))
 
 
 def render_guess(g: AttrGraph, rec: dict) -> str:

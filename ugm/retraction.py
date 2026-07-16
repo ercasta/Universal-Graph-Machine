@@ -35,8 +35,8 @@ from __future__ import annotations
 from . import provenance as prov
 from .production_rule import Pat, Rule
 from .world_model import Graph
-from .attrgraph import valued
-from .machine import Machine, RETIRE, State
+from .attrgraph import NAME, graded, valued
+from .machine import Machine, MINT, RETIRE, REDIRECT, State
 
 NOT_SAME_AS = "not_same_as"     # the recorded rejection (resurrection = re-derive on demand)
 RETRACT = "<retract>"           # a request marker: relation node ?rel is to be retracted
@@ -100,12 +100,19 @@ CASCADE_RULE = Rule(
 RETRACT_RULES: list[Rule] = [CASCADE_RULE]
 
 
+_MACHINE = Machine()   # this module IS the privileged client: it assembles RETIRE/REDIRECT programs
+
+
 def seed_retract(graph: Graph, rel: str) -> str:
-    """Mark relation node `rel` for retraction (`<retract> targets rel`). The cascade rule
-    propagates the marker along provenance; the driver then retires each targeted fact."""
-    r = graph.add_node(RETRACT)
-    graph.add_relation(r, TARGETS, rel, control=True)   # control scaffolding (as the cascade's is),
-    return r                                             # so it is never mistaken for rel's subject
+    """Mark relation node `rel` for retraction (`<retract> targets rel`) — as a MINT program (the
+    seed is graph-authoring, so it runs through the interpreter). The cascade rule propagates the
+    marker along provenance; the driver then retires each targeted fact. The `targets` relation is
+    control scaffolding (as the cascade's is), so it is never mistaken for rel's subject."""
+    st = _MACHINE.apply(graph, [
+        MINT("_r", attrs={NAME: valued(RETRACT), RETRACT: graded(1.0)}, control=True),
+        MINT("_t", attrs={TARGETS: graded(1.0)}, in_edges=["_r"], edges=["_rel"], control=True),
+    ], State({"_rel": rel}))
+    return st.regs["_r"]
 
 
 def _retract_targets(graph: Graph) -> set[str]:
@@ -128,8 +135,10 @@ def _obj_via(graph: Graph, node: str, key: str) -> str | None:
 
 
 def _history_root(graph: Graph) -> str:
-    found = graph.nodes_named(HISTORY)
-    return found[0] if found else graph.add_node(HISTORY, inert=True)
+    """Get-or-create the `<history>` root — the get-or-create IS the instruction (`MINT(intern=)`)."""
+    st = _MACHINE.apply(graph, [MINT("_h", attrs={NAME: valued(HISTORY), HISTORY: graded(1.0)},
+                                     inert=True, intern=True)], State({}))
+    return st.regs["_h"]
 
 
 def record_history(graph: Graph, rel: str) -> str:
@@ -151,21 +160,27 @@ def record_history(graph: Graph, rel: str) -> str:
     subj = next((s for s in graph.into(rel) if not graph.is_inert(s) and not graph.is_control(s)), None)
     obj = next((o for o in graph.out(rel) if not graph.is_inert(o) and not graph.is_control(o)), None)
     pred = graph.predicate(rel)
-    rec = graph.add_node(inert=True)
-    graph.set_attr(rec, WAS_PRED, valued(pred))
+    # The archive writes as ONE ISA program: MINT the record + its inert edges, then REDIRECT the
+    # inert proves/uses relation nodes that pointed AT `rel` onto the record, so `<j:> proves rec` /
+    # `<axiom> proves rec` / `<j:> uses rec` survive the retire (the entity subject — non-inert — is
+    # left for RETIRE to drop with the rel node). REDIRECT is privileged exactly as RETIRE is:
+    # assembled only here, never emitted by rule lowering.
+    regs = {"_rel": rel, "_hist": _history_root(graph)}
+    ops = [MINT("_rec", attrs={WAS_PRED: valued(pred)}, inert=True)]
     if subj is not None:
-        graph.add_relation(rec, WAS_SUBJ, subj, inert=True)
+        regs["_subj"] = subj
+        ops.append(MINT("_ws", attrs={WAS_SUBJ: graded(1.0)},
+                        in_edges=["_rec"], edges=["_subj"], inert=True))
     if obj is not None:
-        graph.add_relation(rec, WAS_OBJ, obj, inert=True)
-    graph.add_relation(_history_root(graph), RECORDS, rec, inert=True)
-    # Retain provenance: redirect the inert proves/uses relation nodes that pointed AT `rel` to point
-    # at the record instead, so `<j:> proves rec` / `<axiom> proves rec` / `<j:> uses rec` survive the
-    # retire (the entity subject — non-inert — is left for RETIRE to drop with the rel node).
-    for pv in list(graph.into(rel)):
-        if graph.is_inert(pv):
-            graph.remove_edge(pv, rel)
-            graph.add_edge(pv, rec)
-    return rec
+        regs["_obj"] = obj
+        ops.append(MINT("_wo", attrs={WAS_OBJ: graded(1.0)},
+                        in_edges=["_rec"], edges=["_obj"], inert=True))
+    ops.append(MINT("_rr", attrs={RECORDS: graded(1.0)},
+                    in_edges=["_hist"], edges=["_rec"], inert=True))
+    for i, pv in enumerate(pv for pv in list(graph.into(rel)) if graph.is_inert(pv)):
+        regs[f"_pv{i}"] = pv
+        ops.append(REDIRECT(f"_pv{i}", "_rel", "_rec"))
+    return _MACHINE.apply(graph, ops, State(regs)).regs["_rec"]
 
 
 def retract(graph: Graph, rel: str) -> list:
@@ -191,10 +206,10 @@ def retract(graph: Graph, rel: str) -> list:
     for t in targets:                                       # RECORD (copy every pre-image first)
         if graph.has(t):
             record_history(graph, t)
-    prog, m = [RETIRE(rel="r")], Machine()                 # RETIRE (privileged; assembled only here)
+    prog = [RETIRE(rel="r")]                               # RETIRE (privileged; assembled only here)
     for t in targets:
         if graph.has(t):
-            m.apply(graph, prog, State({"r": t}))
+            _MACHINE.apply(graph, prog, State({"r": t}))
     return []
 
 
@@ -221,10 +236,11 @@ def resurrect(graph: Graph, rec: str) -> str | None:
 
 def record_rejection(graph: Graph, a: str, b: str) -> None:
     """Stash the rejection so the same wrong link is not re-hypothesized (the resurrection
-    lean: remember only the rejection, re-derive the rest on demand)."""
-    if not any(graph.has_key(r, NOT_SAME_AS) and b in graph.out(r)
-               for r in graph.out(a)):
-        graph.add_relation(a, NOT_SAME_AS, b)
+    lean: remember only the rejection, re-derive the rest on demand). The get-or-create is the
+    instruction (`MINT(dedup=)` — re-recording the same rejection is a no-op)."""
+    _MACHINE.apply(graph, [MINT("_r", attrs={NOT_SAME_AS: graded(1.0)},
+                                in_edges=["_a"], edges=["_b"], dedup=True)],
+                   State({"_a": a, "_b": b}))
 
 
 def is_rejected(graph: Graph, a: str, b: str) -> bool:

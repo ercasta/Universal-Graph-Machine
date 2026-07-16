@@ -27,7 +27,7 @@ from .apply import (
     _rel_in_scope, build_head_index, rules_producing, SCOPE,
 )
 from .machine import (Machine, SEED, FOLLOW, SET, TEST, SAME, MEMBER, OVERLAY, OVERLAY_BAND,
-                      GRADE, VMATCH, DISTINCT, State)
+                      GRADE, VMATCH, DISTINCT, MINT, EMIT, State)
 from .machine import (ControlMachine, Continuation, Block, PRIM, SETI, DEC,
                       BRANCH, BRANCH_IF, SUSPEND, HALT)
 from .production_rule import is_var, is_bound_literal, literal_name
@@ -641,14 +641,20 @@ def _record_assumptions(fact_g: AttrGraph, j: str,
     `J --assumes--> <assumed>`. The positive-assumption half of the explanation (decision 6): a
     proof tree can now say "assumed not (cy is alibied) — counter-evidence only unlikely", not just
     show the positive premises. Inert, like all provenance — invisible to reasoning."""
+    from .attrgraph import graded
     from .provenance import ASSUMES, ASSUMED
-    for np, ns, no, pi in assumed:
-        a = fact_g.add_node({NAME: valued(ASSUMED)}, inert=True)
-        fact_g.set_attr(a, "a_pred", valued(np))
-        fact_g.set_attr(a, "a_subj", valued(ns if ns is not None else "anyone"))
-        fact_g.set_attr(a, "a_obj", valued(no if no is not None else "anything"))
-        fact_g.set_attr(a, "a_pi", valued(pi))
-        fact_g.add_relation(j, ASSUMES, a, inert=True)
+    ops = []
+    for i, (np, ns, no, pi) in enumerate(assumed):     # RECORD as an ISA program (one MINT per record)
+        ops.append(MINT(f"_a{i}", inert=True,
+                        attrs={NAME: valued(ASSUMED),
+                               "a_pred": valued(np),
+                               "a_subj": valued(ns if ns is not None else "anyone"),
+                               "a_obj": valued(no if no is not None else "anything"),
+                               "a_pi": valued(pi)}))
+        ops.append(MINT(f"_ar{i}", attrs={ASSUMES: graded(1.0)},
+                        in_edges=["_jr"], edges=[f"_a{i}"], inert=True))
+    if ops:
+        _ISA_READER.apply(fact_g, ops, State({"_jr": j}))
 
 
 def _guard(reg: str) -> list:
@@ -1035,7 +1041,14 @@ def _resolve_skolems(fact_g: AttrGraph, heads: list[tuple[str, str, str]],
             elif ho == sk and hs != sk and (a := _anchor_node(fact_g, st, hs)) is not None:
                 constraints.append((hp, a, False))
         node = _find_skolem_witness(fact_g, literal_name(sk), constraints) if constraints else None
-        out[sk] = node if node is not None else fact_g.add_node(literal_name(sk))
+        if node is None:                                   # value invention as an ISA MINT (per firing,
+            from .attrgraph import graded as _graded       # intern=False). A control skolem (`<foo>?`)
+            nm = literal_name(sk)                          # keeps the token dual-write + control flag
+            tok = nm.startswith("<") and nm.endswith(">")  # the string-form add_node applied.
+            attrs = {NAME: valued(nm), **({nm: _graded(1.0)} if tok else {})}
+            node = _ISA_READER.apply(fact_g, [MINT("_sk", attrs=attrs, control=tok)],
+                                     State({})).regs["_sk"]
+        out[sk] = node
     return out
 
 
@@ -1177,10 +1190,17 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                         _record_assumptions(fact_g, j, assumed)   # "what was assumed" (decision 6)
                     continue
                 if not _fact_exists(fact_g, s_id, hp, o_id, scope=scope):
-                    # EMIT: an ink fact normally, but PENCIL (control + scope tag) inside a SUPPOSE scope
-                    head_node = fact_g.add_relation(s_id, hp, o_id, control=(scope is not None))
+                    # EMIT as an ISA program: an ink fact normally, but PENCIL (control + scope tag)
+                    # inside a SUPPOSE scope. `dedup` stays OFF — check-before-derive is the scope-aware
+                    # `_fact_exists` guard above (a raw dedup would reuse an OTHER-scope pencil rel).
+                    from .attrgraph import graded as _graded
+                    is_ctrl = (scope is not None) or (hp.startswith("<") and hp.endswith(">"))
+                    ops = [MINT("_head", attrs={hp: _graded(1.0)},
+                                in_edges=["_s"], edges=["_o"], control=is_ctrl)]
                     if scope is not None:
-                        fact_g.set_attr(head_node, SCOPE, valued(scope))
+                        ops.append(EMIT("_head", SCOPE, scope, kind=VALUED))
+                    head_node = _ISA_READER.apply(fact_g, ops,
+                                                  State({"_s": s_id, "_o": o_id})).regs["_head"]
                     fired += 1
                     if provenance:                         # RECORD (mode 9): journal the firing
                         j = _record(fact_g, rule_key, head_node,

@@ -312,7 +312,9 @@ sequence of these. See [Chapter 16](../deep/16-instruction-set.md).
 | make | `MINT` | Create a fresh dot and wire arrows to it. |
 | write | `EMIT` | Assert a fact (a mark, or a value) on a dot. |
 | drop (control) | `DROP_CTRL` | Remove a *scaffolding* edge — **refuses** to touch a fact. |
+| sweep | `SWEEP` | Remove a whole *scaffolding* dot (a resolved what-if scope, a used-up tool call) — **refuses** a fact or a receipt. |
 | retire | `RETIRE` | Really delete a fact — the **privileged** deletion ordinary rules can't reach; only [retraction](#retraction-taking-a-fact-back) assembles it, after archiving the fact (see [Chapter 19](../deep/19-firmware.md#taking-a-fact-back)). |
+| re-anchor | `REDIRECT` | Swing an arrow's endpoint onto the archive record — retraction's other **privileged** move, so receipts survive the delete. |
 
 The whole list fits on a page — and there is **no** fact-deleting verb among the
 ones a rule can compile to. That's what makes the because-trail safe.

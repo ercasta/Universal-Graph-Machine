@@ -42,10 +42,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .attrgraph import AttrGraph, valued, NAME
+from .attrgraph import AttrGraph, VALUED, graded, valued, NAME
 from .apply import SCOPE, _fact_exists
 from .chain import chain_sip, _facts_matching, render_demands, resolve_write_node, ById
 from .check import _neg_pred
+from .machine import Machine, MINT, EMIT, SWEEP, State
+
+_MACHINE = Machine()
 
 HYPOTHESIS = "<hypothesis>"
 
@@ -82,11 +85,13 @@ def _resolve(g: AttrGraph, name) -> str:
 
 
 def _pencil(g: AttrGraph, scope: str, s_id: str, pred: str, o_id: str) -> str:
-    """Write an assumed fact `s -[pred]-> o` in PENCIL: a CONTROL rel node tagged `scope` — invisible
-    to ordinary matching, visible only within its `<hypothesis>` scope."""
-    rel = g.add_relation(s_id, pred, o_id, control=True)
-    g.set_attr(rel, SCOPE, valued(scope))
-    return rel
+    """Write an assumed fact `s -[pred]-> o` in PENCIL, as an ISA program: a CONTROL rel node tagged
+    `scope` — invisible to ordinary matching, visible only within its `<hypothesis>` scope."""
+    st = _MACHINE.apply(g, [
+        MINT("_rel", attrs={pred: graded(1.0)}, in_edges=["_s"], edges=["_o"], control=True),
+        EMIT("_rel", SCOPE, scope, kind=VALUED),
+    ], State({"_s": s_id, "_o": o_id}))
+    return st.regs["_rel"]
 
 
 def scope_members(g: AttrGraph, scope: str) -> list[str]:
@@ -121,22 +126,24 @@ def _scope_derivations(g: AttrGraph, scope: str, seed_rels: set[str]) -> list[Tr
 
 
 def _drop_scope(g: AttrGraph, scope: str) -> None:
-    """DROP the whole scope: remove every rel node tagged `scope` (the pencil assumptions + every
-    in-scope pencil derivation) and the `<hypothesis>` node itself. All are CONTROL, so this cuts only
-    control structure; the real entity endpoints and every ink fact are untouched (§5 monotone)."""
-    for rel in scope_members(g, scope):
-        if g.has(rel):
-            g.remove_node(rel)
+    """DROP the whole scope, as a SWEEP program: remove every rel node tagged `scope` (the pencil
+    assumptions + every in-scope pencil derivation) and the `<hypothesis>` node itself. All are
+    CONTROL — and the opcode REFUSES anything else — so this cuts only control structure; the real
+    entity endpoints and every ink fact are untouched (§5 monotone)."""
+    doomed = [rel for rel in scope_members(g, scope) if g.has(rel)]
     if g.has(scope):
-        g.remove_node(scope)
+        doomed.append(scope)
+    if doomed:
+        _MACHINE.apply(g, [SWEEP(f"_n{i}") for i in range(len(doomed))],
+                       State({f"_n{i}": n for i, n in enumerate(doomed)}))
 
 
 def _record_confirmed(g: AttrGraph, ink_node: str) -> None:
     """Minimal provenance for a confirmed assumption entering ink: a `<j:confirmed>` justification
-    (`proves -> the inked fact`), in the inert substrate shape `surface.explain` replays."""
-    from .provenance import PROVES
-    j = g.add_node({NAME: valued("<j:confirmed>")}, inert=True)
-    g.add_relation(j, PROVES, ink_node, inert=True)
+    (`proves -> the inked fact`), through the ONE justification-minting program (`record_firing`),
+    in the inert substrate shape `surface.explain` replays."""
+    from .provenance import record_firing
+    record_firing(g, "confirmed", [ink_node], [])
 
 
 def suppose(fact_g: AttrGraph,
@@ -168,7 +175,9 @@ def suppose(fact_g: AttrGraph,
     rule_g = rules if rules is not None else fact_g        # one-graph default (the fold)
     for s, _p, o in (*assumptions, *predictions):          # id-addressed pins must exist (silent->loud)
         validate_ids(fact_g, s, o)
-    scope = fact_g.add_node(HYPOTHESIS, control=True)
+    scope = _MACHINE.apply(fact_g, [MINT("_h", attrs={NAME: valued(HYPOTHESIS),
+                                                      HYPOTHESIS: graded(1.0)}, control=True)],
+                           State({})).regs["_h"]
     seed_rels: set[str] = set()
     for s, p, o in assumptions:
         seed_rels.add(_pencil(fact_g, scope, _resolve(fact_g, s), p, _resolve(fact_g, o)))
@@ -207,7 +216,10 @@ def suppose(fact_g: AttrGraph,
     for s, p, o in assumptions:
         s_id, o_id = _resolve(fact_g, s), _resolve(fact_g, o)
         if not _fact_exists(fact_g, s_id, p, o_id):    # scope=None: consult ink only
-            ink = fact_g.add_relation(s_id, p, o_id)   # EMIT to ink (monotone)
+            ink = _MACHINE.apply(fact_g,               # EMIT to ink (monotone), as a MINT program
+                                 [MINT("_ink", attrs={p: graded(1.0)},
+                                       in_edges=["_s"], edges=["_o"])],
+                                 State({"_s": s_id, "_o": o_id})).regs["_ink"]
             committed.append((s, p, o))
             if provenance:
                 _record_confirmed(fact_g, ink)

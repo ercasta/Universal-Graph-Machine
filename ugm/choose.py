@@ -28,7 +28,8 @@ pick (`solve._mint_chosen`) as a declared CHOOSE is the follow-on within 5.2.
 """
 from __future__ import annotations
 
-from .attrgraph import AttrGraph, valued
+from .attrgraph import AttrGraph, VALUED, graded
+from .machine import Machine, MINT, EMIT, State
 
 FIT = "fit"                      # a candidate's fit degree — a VALUED float in [0,1] (NOT an embedding dim)
 CANDIDATE = "candidate"          # goal -[candidate]-> option
@@ -36,11 +37,18 @@ SATISFIED_BY = "satisfied_by"    # goal -[satisfied_by]-> winner  (the PREFER re
 BEATEN = "beaten"                # option -[beaten]-> goal        (an eligible candidate with strictly better fit exists)
 
 
+_MACHINE = Machine()
+
+
 def set_candidate(g: AttrGraph, goal: str, option: str, fit: float) -> str:
     """Register `option` as a candidate for `goal` with graded `fit` (a VALUED float in [0,1]). Stored
-    VALUED (not GRADED) so the fit is a selection score, invisible to the embedding/similarity view."""
-    g.set_attr(option, FIT, valued(float(fit)))
-    return g.add_relation(goal, CANDIDATE, option)
+    VALUED (not GRADED) so the fit is a selection score, invisible to the embedding/similarity view.
+    The writes run as an ISA program; re-registering is idempotent (`MINT(dedup=)`), the fit updates."""
+    st = _MACHINE.apply(g, [
+        EMIT("_o", FIT, float(fit), kind=VALUED),
+        MINT("_c", attrs={CANDIDATE: graded(1.0)}, in_edges=["_g"], edges=["_o"], dedup=True),
+    ], State({"_g": goal, "_o": option}))
+    return st.regs["_c"]
 
 
 def fit_of(g: AttrGraph, option: str) -> float:
@@ -72,13 +80,20 @@ def choose(g: AttrGraph, goal: str, *, alpha: float = 0.0) -> list[str]:
         return []
     top = max(d for _opt, d in eligible)
     winners: list[str] = []
-    for opt, d in eligible:
-        if d >= top:                                               # nothing beats it (== the max) -> winner
-            winners.append(opt)
+    ops, regs = [], {"_g": goal}                                   # the MISSING marks as ONE ISA program
+    for i, (opt, d) in enumerate(eligible):                        # (the exists-read stays a driver read,
+        if d >= top:                                               # so a re-CHOOSE assembles nothing)
+            winners.append(opt)                                    # nothing beats it (== the max) -> winner
             if not _rel_exists(g, goal, SATISFIED_BY, opt):
-                g.add_relation(goal, SATISFIED_BY, opt)
+                regs[f"_o{i}"] = opt
+                ops.append(MINT(f"_w{i}", attrs={SATISFIED_BY: graded(1.0)},
+                                in_edges=["_g"], edges=[f"_o{i}"]))
         elif not _rel_exists(g, opt, BEATEN, goal):                # strictly beaten -> stays, marked
-            g.add_relation(opt, BEATEN, goal)
+            regs[f"_o{i}"] = opt
+            ops.append(MINT(f"_b{i}", attrs={BEATEN: graded(1.0)},
+                            in_edges=[f"_o{i}"], edges=["_g"]))
+    if ops:
+        _MACHINE.apply(g, ops, State(regs))
     return winners
 
 

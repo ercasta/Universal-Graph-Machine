@@ -604,20 +604,16 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
             out = machine.apply(g, effect_ops, st)           # guard — a meta rule naming proves/uses
             total += 1                                       # would else re-match the <j:> it just
             if emit_prov:                              # minted), so reasoning + TMS/retraction rules
-                from .provenance import j_name, PROVES, USES   # can share ONE run (coref-as-rules).
+                from .provenance import record_firing  # can share ONE run (coref-as-rules).
                 *_, prem_regs, head_regs = lowered[i][1]
                 # made_facts = head rel nodes this firing NEWLY created (a deduped/existing rel is not
                 # re-proven — `before` excludes it), the analog of rewriter's `if not _relation_exists`.
                 made = [n for hr in head_regs
                         if (n := out.regs.get(hr)) is not None and n not in before]
-                if made:
-                    j = g.add_node(j_name(rules[i].key), inert=True)  # Phase 2.2: inert flag
-                    for c in made:
-                        g.add_relation(j, PROVES, c, inert=True)
-                    for pr in prem_regs:              # uses each still-present LHS premise rel node
-                        pn = st.regs.get(pr)
-                        if pn is not None and g.has(pn):
-                            g.add_relation(j, USES, pn, inert=True)
+                if made:                              # RECORD as an ISA program (the one minting path)
+                    premises = [pn for pr in prem_regs
+                                if (pn := st.regs.get(pr)) is not None and g.has(pn)]
+                    record_firing(g, rules[i].key, made, premises)
         return stream, 1                              # a firing advanced the graph -> another round
 
     def final_gc(g, stream, ctrl):

@@ -52,6 +52,30 @@ def is_justification(name: str) -> bool:
     return name.startswith(_J_PREFIX)
 
 
+def record_firing(graph: Graph, rule_key: str, made: list[str], premises: list[str]) -> str:
+    """RECORD (mode 9) as an ISA program — the ONE justification-minting path, shared by the forward
+    driver (`run_bank`) and the demand driver (`apply._record`/`chain`). Mints `<j:RULEKEY>` with
+    `proves -> each made fact` and `uses -> each premise rel node`, all inert, by ASSEMBLING a MINT
+    program and running it through the interpreter (machine semantics are ISA programs — no Python
+    helper pokes the substrate; exactly `assemble_facts`' discipline applied to provenance).
+    The `<j:>` node carries its token as a GRADED key alongside its VALUED name (the `add_node`
+    string-form dual-write both paths now share). Returns the justification node id."""
+    from .attrgraph import NAME, valued, graded
+    from .machine import Machine, MINT, State
+    jn = j_name(rule_key)
+    ops = [MINT("_j", attrs={NAME: valued(jn), jn: graded(1.0)}, inert=True)]
+    regs: dict[str, str] = {}
+    for i, c in enumerate(made):
+        regs[f"_c{i}"] = c
+        ops.append(MINT(f"_pv{i}", attrs={PROVES: graded(1.0)},
+                        in_edges=["_j"], edges=[f"_c{i}"], inert=True))
+    for i, p in enumerate(premises):
+        regs[f"_u{i}"] = p
+        ops.append(MINT(f"_us{i}", attrs={USES: graded(1.0)},
+                        in_edges=["_j"], edges=[f"_u{i}"], inert=True))
+    return Machine().apply(graph, ops, State(regs)).regs["_j"]
+
+
 def rule_of_j(graph: Graph, j: str) -> str:
     """The rule key a justification node records (or '<axiom>')."""
     nm = graph.name(j)

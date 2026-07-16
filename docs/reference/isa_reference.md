@@ -1,8 +1,10 @@
 # The Rule ISA — reference semantics (the cheap experiment, built)
 
 > **Status: BUILT as a reference interpreter (2026-07-05; opcode set and conformance suite grown
-> since — 17 data-path opcodes: the matching core + `ITERATE`/`VMATCH` and the `MINT`/`EMIT`/
-> `DROP_CTRL`/`INTERPOSE`/`RESTORE`/`RETIRE` effects, plus the control path below).** This is the small-step
+> since — the matching core + `ITERATE`/`VMATCH` and the `MINT`/`EMIT`/`DROP_CTRL` effects, the
+> privileged `RETIRE`/`REDIRECT` (retraction) and the gated `SWEEP` (control-node sweep), plus the
+> control path below. `INTERPOSE`/`RESTORE` were DELETED 2026-07-16 — copy-on-delete replaced
+> interpose-hiding; see the retired section below).** This is the small-step
 > operational semantics of the label-less attribute ISA, with a runnable reference machine
 > (`ugm/`) and a hand-written conformance suite (`tests/test_isa_machine.py`,
 > no rules involved). It realizes "the cheap experiment" of
@@ -118,33 +120,58 @@ line. The whole matching core is positive and monotone.
 ### Effects (monotone facts + gated control)
 
 ```
-MINT out attrs edges [control]                         -- Skolem / reification / chunk head
-    n = fresh_node(g, control)
+MINT out attrs edges [in_edges control inert intern dedup]   -- Skolem / reification / chunk head
+    n = fresh_node(g, control, inert)                   -- inert=True mints a provenance node
     for (k,a) in attrs:  set_attr(g, n, k, a)
-    for tgt in edges:    add_edge(g, n, r[tgt])         -- bare edge back to a RETAINED node
+    for tgt in edges:    add_edge(g, n, r[tgt])         -- bare OUT-edges to RETAINED nodes
+    for src in in_edges: add_edge(g, r[src], n)         -- bare IN-edges (reified rel = in+out)
     ⇒ (g', r[out ↦ n], s)
+    intern=True: canonicalize by attrs[NAME] (get-or-create IS the instruction);
+    dedup=True:  reuse an existing subject -[pred]-> object rel node (idempotent re-assert)
 
-EMIT reg key value [kind]                               -- monotone fact write
+EMIT reg key value [kind key_reg raise_degree]          -- monotone fact write
     graded:  raise deg(g, r[reg], key) to max(old, value ⊗ s)   -- a degree only goes UP
     valued:  set_attr(g, r[reg], key, VALUED value)
 
 DROP_CTRL src dst                                       -- delete a CONTROL edge, gated
     if edge_is_fact(g, r[src], r[dst]):  raise ControlEdgeError   -- refuse a fact edge
     else remove_edge(g, r[src], r[dst])
+
+SWEEP node                                              -- delete a CONTROL node, gated
+    if not is_control(g, r[node]):  raise ControlEdgeError   -- refuse a fact / provenance node
+    else remove_node(g, r[node])                        -- scope sweeps, consumed <call>s, GC
 ```
 
 `MINT` and `EMIT` are additive/monotone: they add a node, raise a degree, or assert a value —
-they never lower a degree or delete. `DROP_CTRL` is the sole deleting opcode and it *refuses*
-a fact edge (an edge is control iff either endpoint is a control-layer node). Therefore
-**"delete a fact edge" is not expressible** — the vision.md §5 invariant is a property of the
-opcode set, not a lint pass (design payoff #1, `test_drop_ctrl_refuses_a_fact_edge`).
+they never lower a degree or delete. `DROP_CTRL` (edge) and `SWEEP` (node) are the deleting
+opcodes *available to ordinary programs*, and both *refuse* fact structure (an edge is control
+iff either endpoint is a control-layer node). Therefore **"delete a fact" is not expressible in
+the rule-lowerable vocabulary** — the vision.md §5 invariant is a property of the opcode set,
+not a lint pass (design payoff #1, `test_drop_ctrl_refuses_a_fact_edge`).
 
-### INTERPOSE / RESTORE — reversible retraction (BUILT — `tests/test_isa_interpose.py`)
+### RETIRE / REDIRECT — the privileged retraction mechanism (copy-on-delete, 2026-07-16)
 
-> **Ratified 2026-07-07 (user); implemented as the ISA-native replacement for `retraction.py`'s old
-> forward-`rewriter` `rewire cut` (which `lowering.py` refuses as `Unlowerable`).** Originally
-> designed here as a reserved, not-yet-built pair; both opcodes are now live in `ugm/machine.py`
-> and match the semantics below exactly (`out` optionally binds the minted marker for `INTERPOSE`).
+Two effects sit OUTSIDE the rule→program lowering vocabulary — only the retraction policy
+driver (`ugm/retraction.py`) assembles them, so ordinary reasoning structurally cannot reach
+them (`test_no_rule_lowering_emits_retire`):
+
+```
+RETIRE rel                                              -- PRIVILEGED real fact deletion
+    remove_node(g, r[rel])                              -- the rel node + every edge touching it
+
+REDIRECT src old new                                    -- PRIVILEGED edge re-anchoring
+    remove_edge(g, r[src], r[old]) ; add_edge(g, r[src], r[new])
+    -- the RECORD phase swings inert proves/uses rels onto the archive record before RETIRE
+```
+
+### INTERPOSE / RESTORE — reversible retraction (RETIRED 2026-07-16)
+
+> **DELETED with the copy-on-delete rework (`docs/attic/mechanism_policy_separation.md`, Probe 1).**
+> Retraction no longer HIDES a fact behind a spliced `<retracted>` marker; it ARCHIVES the pre-image
+> into an in-graph historical record (`retraction.record_history`, a MINT+`REDIRECT` program) and
+> really DELETES the live relation (`RETIRE`). `resurrect` re-materializes from the record. The
+> semantics below are kept for the design rationale trail only — the opcodes are gone from
+> `ugm/machine.py`.
 
 Truth-maintenance (retract a fact + cascade-hide its consequents) needs to *hide* a fact reversibly.
 The old `retraction.INTERPOSE_RULE` did it with a `rewire cut` — a fact-edge deletion the opcode set

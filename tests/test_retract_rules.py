@@ -154,13 +154,15 @@ def test_resurrect_restores_a_matching_fact():
 # --- NEW: the privilege gate — ordinary reasoning rules cannot emit RETIRE ---------------------
 
 def test_no_rule_lowering_emits_retire():
-    # The gate is structural: RETIRE is NOT in the rule->program lowering vocabulary. Lower a
-    # representative spread of rules (plain, drop, and the retraction cascade) and assert none
-    # produces a RETIRE — so a reasoning rule structurally cannot delete a fact.
+    # The gate is structural: RETIRE and REDIRECT are NOT in the rule->program lowering vocabulary.
+    # Lower a representative spread of rules (plain, drop, and the retraction cascade) and assert
+    # none produces either — so a reasoning rule structurally cannot delete or rewire a fact.
+    from ugm.machine import REDIRECT
     drop_rule = h.Rule(key="drop.x", lhs=[h.Pat("?a", "<mark>", "?b")], rhs=[],
                        drop=[h.Pat("?a", "gone", "?b")])
     for rule in (R1, R2, ret.CASCADE_RULE, drop_rule):
         match_ops, effect_ops, *_ = _lower_bank_rule(rule)
-        assert not any(isinstance(op, RETIRE) for op in match_ops + effect_ops), rule.key
+        assert not any(isinstance(op, (RETIRE, REDIRECT))
+                       for op in match_ops + effect_ops), rule.key
     # the single-program lowering too (no NAC path)
-    assert not any(isinstance(op, RETIRE) for op in lower_rule(R1))
+    assert not any(isinstance(op, (RETIRE, REDIRECT)) for op in lower_rule(R1))

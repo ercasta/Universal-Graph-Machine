@@ -285,13 +285,9 @@ def _record(g: AttrGraph, rule_key: str, head_node: str, body_relnodes: list[str
     `GoalSolver._justify`/`rewriter` write, so `surface.explain` replays a firmware derivation as a
     CNL proof tree with no firmware-specific renderer. Provenance nodes are INERT (invisible to
     matching, `relations_from`, `derived_triples`-as-fact)."""
-    from .provenance import PROVES, USES, j_name
-    j = g.add_node({NAME: valued(j_name(rule_key))}, inert=True)
-    g.add_relation(j, PROVES, head_node, inert=True)
-    for pnode in body_relnodes:
-        if pnode is not None:
-            g.add_relation(j, USES, pnode, inert=True)
-    return j
+    from .provenance import record_firing
+    return record_firing(g, rule_key, [head_node],
+                         [pnode for pnode in body_relnodes if pnode is not None])
 
 
 def _resolve_head(g: AttrGraph, bind: dict[str, str], tok: str) -> str | None:

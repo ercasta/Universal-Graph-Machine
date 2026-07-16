@@ -359,6 +359,7 @@ class MINT(Instr):
     edges: list[str] = field(default_factory=list)      # target register names (bare out-edges)
     in_edges: list[str] = field(default_factory=list)   # source register names (bare in-edges)
     control: bool = False
+    inert: bool = False      # provenance-layer mint (<j:…>/proves/uses records) — inert, not control
     intern: bool = False
     dedup: bool = False
     is_effect = True
@@ -420,6 +421,37 @@ class RETIRE(Instr):
     redirected `rel`'s inert provenance (proves/uses) onto the archive record, so `rel`'s only
     remaining edges are the live fact edges this drops."""
     rel: str
+    is_effect = True
+
+
+@dataclass
+class REDIRECT(Instr):
+    """PRIVILEGED edge re-anchoring: move the bare edge `regs[src] -> regs[old]` to
+    `regs[src] -> regs[new]` (same source node, new target). This is the RECORD phase's
+    provenance re-anchor (copy-on-delete): the inert `proves`/`uses` relation nodes that pointed
+    AT a doomed fact are swung onto its archive record BEFORE `RETIRE` deletes the fact, so the
+    justification graph survives the delete.
+
+    Like `RETIRE`, the privilege gate is structural: `REDIRECT` is NOT in the rule->program
+    lowering vocabulary — only the retraction policy driver assembles it, so ordinary reasoning
+    rules cannot rewire an edge. (It is the honest primitive under the old INTERPOSE/RESTORE
+    pair's one legitimate use, without their hide-a-fact semantics.)"""
+    src: str
+    old: str
+    new: str
+    is_effect = True
+
+
+@dataclass
+class SWEEP(Instr):
+    """Delete the CONTROL node in `regs[node]` (and every edge touching it) — the NODE-level
+    sibling of `DROP_CTRL`'s edge deletion. Control-layer ONLY: refuses a fact or provenance node
+    (`ControlEdgeError`), so the no-fact-deletion invariant lives in the opcode, exactly as
+    `DROP_CTRL`'s does — a driver sweeping scaffolding (a resolved `<hypothesis>` scope and its
+    pencil rels, a consumed `<call>`, a popped focus anchor, an orphaned control rel) structurally
+    CANNOT delete a fact (that stays `RETIRE`'s privilege) or explanation (inert provenance is
+    DATA, never sweepable)."""
+    node: str
     is_effect = True
 
 
@@ -656,7 +688,7 @@ class Machine:
                         if g.has_key(r, pred) and obj in g.succ(r):
                             return st.bind(ins.out, r)   # relation already present -> no new edges
             if new is None:
-                new = g.add_node(control=ins.control)
+                new = g.add_node(control=ins.control, inert=ins.inert)
                 for key, attr in ins.attrs.items():
                     g.set_attr(new, key, attr)
             for tgt in ins.edges:
@@ -688,6 +720,19 @@ class Machine:
             # subject->rel / rel->object fact edges — provenance was redirected off it first by the
             # driver's record_history). NO fact-edge refusal: deletion is the point (see RETIRE doc).
             g.remove_node(st.regs[ins.rel])
+            return st
+        if isinstance(ins, REDIRECT):
+            # Privileged edge re-anchoring (RECORD phase): swing src->old to src->new.
+            g.remove_edge(st.regs[ins.src], st.regs[ins.old])
+            g.add_edge(st.regs[ins.src], st.regs[ins.new])
+            return st
+        if isinstance(ins, SWEEP):
+            nid = st.regs[ins.node]
+            if not g.is_control(nid):
+                raise ControlEdgeError(
+                    f"SWEEP refused: {nid} is not a control node (facts are RETIRE's privilege; "
+                    "inert provenance is explanation and never swept)")
+            g.remove_node(nid)
             return st
         raise ProgramError(f"{type(ins).__name__} is a matching opcode in the apply phase")
 
