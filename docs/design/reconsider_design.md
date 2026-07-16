@@ -115,8 +115,14 @@ re-derivation (the established motto). No fixpoint loop needed.
 
 ## 6. Out of scope (named, not forgotten)
 
-- **Forward path**: `run_bank` NAC firings don't journal assumed-records; forward-derived
-  NAF conclusions stay unrevised. Same recipe applies later (journal in the NAC filter).
+- **Forward path** — DONE (2026-07-16, same day): `run_bank` firings under `provenance=True`
+  journal their survived NACs via the shared `provenance.record_assumptions` program
+  (`lowering._survived_nacs`: named under the firing's registers, unbound NAC-local vars as
+  wildcards, head-identical memo NACs and variable-predicate NACs excluded). Recognition banks
+  run provenance-off and are untouched; the sweep is J-uniform, so forward-derived conclusions
+  revise with no reconsider-side change. Cost: below CPU-timer quantization (120 NAF firings).
+  The intake ACT loop still runs `provenance=trace` — its conclusions are executed actions,
+  not beliefs to revise; flipping it is a separate decision.
 - **Banded re-weakening**: a conclusion whose assumption's Π rose but stayed < θ could
   have its band *lowered* rather than retracted — needs the propagation-strength knob
   (possibilistic open list); v1 is binary (retract at θ).

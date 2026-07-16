@@ -49,6 +49,7 @@ from .retraction import (
     RETRACT, TARGETS, RETRACT_RULES, seed_retract, retract, resurrect, record_history,
     record_rejection, is_rejected,
 )
+from .reconsider import reconsider, mark_dirty
 from .dispatch import (
     CALL, TOOL, Tool, AsyncTool, emit_call, call_tool, call_arg, call_args, pending_calls, consume_call,
     service_calls, service_calls_cm, merge_tools,
@@ -146,6 +147,7 @@ __all__ = [
     "PROVES", "USES", "AXIOM", "j_name", "is_justification", "rule_of_j",
     "support_js", "rule_support_j", "premises_of", "proven_of", "justifications_using",
     "derived_facts", "axiomatize",
+    "reconsider", "mark_dirty",
     "RETRACT", "TARGETS", "RETRACT_RULES", "seed_retract", "retract",
     "resurrect", "record_history", "record_rejection", "is_rejected",
     "CWA", "COPULA", "NEG_COPULA", "NEG_SUFFIX", "IS_A", "IS_A_NOT", "SAME_AS", "DISJOINT",

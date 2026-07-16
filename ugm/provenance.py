@@ -52,6 +52,30 @@ def is_justification(name: str) -> bool:
     return name.startswith(_J_PREFIX)
 
 
+def record_assumptions(graph: Graph, j: str,
+                       assumed: list[tuple[str, str | None, str | None, float]]) -> None:
+    """Journal the ABSENCES a firing leaned on: one inert `<assumed>` node per surviving NAC
+    (`a_pred`/`a_subj`/`a_obj` + `a_pi` = how possible the counter-evidence was; 0.0 = crisp
+    "no evidence was found"), wired `J --assumes--> <assumed>` — as a MINT program (the ONE
+    minting path, shared by the demand chain and the forward `run_bank`). A None subject/object
+    is a wildcard, recorded as `anyone`/`anything`. These records are what `why` renders as the
+    firing's leaps and what RECONSIDER re-checks (docs/design/reconsider_design.md)."""
+    from .attrgraph import NAME, valued, graded
+    from .machine import Machine, MINT, State
+    ops = []
+    for i, (np, ns, no, pi) in enumerate(assumed):
+        ops.append(MINT(f"_a{i}", inert=True,
+                        attrs={NAME: valued(ASSUMED),
+                               "a_pred": valued(np),
+                               "a_subj": valued(ns if ns is not None else "anyone"),
+                               "a_obj": valued(no if no is not None else "anything"),
+                               "a_pi": valued(pi)}))
+        ops.append(MINT(f"_ar{i}", attrs={ASSUMES: graded(1.0)},
+                        in_edges=["_jr"], edges=[f"_a{i}"], inert=True))
+    if ops:
+        Machine().apply(graph, ops, State({"_jr": j}))
+
+
 def record_firing(graph: Graph, rule_key: str, made: list[str], premises: list[str]) -> str:
     """RECORD (mode 9) as an ISA program — the ONE justification-minting path, shared by the forward
     driver (`run_bank`) and the demand driver (`apply._record`/`chain`). Mints `<j:RULEKEY>` with

@@ -103,6 +103,55 @@ def test_unrelated_fact_is_a_noop_and_clears_the_mark():
     assert not kb.registers.get(DIRTY_REG), "the sweep should clear the dirty set"
 
 
+def test_forward_naf_firing_journals_assumed_records():
+    # The FORWARD record half (design §6): a run_bank/run_rules NAF firing under provenance=True
+    # journals the absences it leaned on, exactly as the demand path does (Π = 0, wildcards named).
+    from ugm import provenance as prov
+    from ugm.cnl.authoring import run_rules
+    R = h.Rule(key="fwd.thief",
+               lhs=[h.Pat("?x", "is_a", "suspect")],
+               nac=[h.Pat("?x", "is", "cleared")],
+               rhs=[h.Pat("?x", "is", "thief")])
+    g = h.Graph()
+    g.add_relation(g.add_node("ada"), "is_a", g.add_node("suspect"))
+    run_rules(g, [R], provenance=True)
+    js = [n for n in g.nodes() if prov.is_justification(g.name(n))]
+    assert js, "the forward firing should mint a justification"
+    assert prov.assumptions_of(g, js[0]) == [("is", "ada", "cleared", 0.0)]
+
+    # provenance=False journals nothing (recognition banks stay lean).
+    g2 = h.Graph()
+    g2.add_relation(g2.add_node("bo"), "is_a", g2.add_node("suspect"))
+    run_rules(g2, [R], provenance=False)
+    assert not [n for n in g2.nodes() if prov.is_justification(g2.name(n))]
+
+
+def test_forward_derived_conclusion_is_reconsidered():
+    # End-to-end over the forward path: derive via run_rules (provenance ON), then new knowledge
+    # + the sweep withdraws the stale conclusion — J-uniform, no demand-path involvement.
+    from ugm.cnl.authoring import run_rules
+    from ugm.lowering import load_fact_triples
+    from ugm.reconsider import mark_dirty, reconsider
+
+    R = h.Rule(key="fwd.thief",
+               lhs=[h.Pat("?x", "is_a", "suspect")],
+               nac=[h.Pat("?x", "is", "cleared")],
+               rhs=[h.Pat("?x", "is", "thief")])
+    g = h.Graph()
+    load_fact_triples(g, [("ada", "is_a", "suspect")])
+    run_rules(g, [R], provenance=True)
+
+    def thief_visible():
+        return any(g.has_key(r, "is") and any(g.name(o) == "thief" for o in g.out(r))
+                   for s in g.nodes_named("ada") for r in g.out(s))
+    assert thief_visible()
+
+    load_fact_triples(g, [("ada", "is", "cleared")])     # the assumed absence becomes fact
+    mark_dirty(g, [("is", "cleared")])                    # (what intake's fact route would write)
+    assert reconsider(g, [R]) == 1
+    assert not thief_visible(), "the forward-derived NAF conclusion should be withdrawn"
+
+
 def test_read_only_ask_does_not_trigger_or_mutate():
     from ugm.cnl.query import ask_goal
     kb, rules = load_corpus(THIEF_RULE)

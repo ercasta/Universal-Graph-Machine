@@ -483,6 +483,31 @@ def lower_nac_programs(rule: Rule) -> list[list[Instr]]:
             for gi, group in enumerate(_nac_groups(rule))]
 
 
+def _survived_nacs(g: AttrGraph, rule: Rule, st: State) -> list[tuple]:
+    """The absences a FORWARD firing leaned on — one `(pred, subj, obj, 0.0)` per genuine NAC atom,
+    named under the firing's register file (a bound var -> its node's NAME; an unbound NAC-local
+    free var -> None = wildcard; a literal -> itself). The forward record half of RECONSIDER
+    (docs/design/reconsider_design.md §6): `run_bank`'s NAC filter reads absence at match time, so a
+    firing that passed it leaned on exactly these tuples, crisp (Π = 0). A NAC atom identical to a
+    head atom is the idempotency memo, not epistemic negation — excluded, as the demand path does.
+    A non-plain (variable) NAC predicate cannot be keyed for re-checking — skipped."""
+    heads = {p.tokens() for p in rule.rhs}
+
+    def nm(tok: str) -> str | None:
+        b = binder(tok)
+        if b is None:
+            return literal_name(tok)
+        nid = st.regs.get(b)
+        return g.name(nid) if nid is not None else None
+
+    out = []
+    for pat in rule.nac:
+        if pat.tokens() in heads or binder(pat.p) is not None:
+            continue
+        out.append((literal_name(pat.p), nm(pat.s), nm(pat.o), 0.0))
+    return out
+
+
 def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset(),
                      *, guard: bool = False):
     """Structured lowering for the bank driver: (match_ops, effect_ops, nac_programs, keys). NAC is
@@ -604,7 +629,7 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
             out = machine.apply(g, effect_ops, st)           # guard — a meta rule naming proves/uses
             total += 1                                       # would else re-match the <j:> it just
             if emit_prov:                              # minted), so reasoning + TMS/retraction rules
-                from .provenance import record_firing  # can share ONE run (coref-as-rules).
+                from .provenance import record_firing, record_assumptions   # share ONE run.
                 *_, prem_regs, head_regs = lowered[i][1]
                 # made_facts = head rel nodes this firing NEWLY created (a deduped/existing rel is not
                 # re-proven — `before` excludes it), the analog of rewriter's `if not _relation_exists`.
@@ -613,7 +638,10 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
                 if made:                              # RECORD as an ISA program (the one minting path)
                     premises = [pn for pr in prem_regs
                                 if (pn := st.regs.get(pr)) is not None and g.has(pn)]
-                    record_firing(g, rules[i].key, made, premises)
+                    j = record_firing(g, rules[i].key, made, premises)
+                    if rules[i].nac:                  # the forward record half (reconsider §6): the
+                        record_assumptions(           # firing leaned on its NACs' absences, crisp
+                            g, j, _survived_nacs(g, rules[i], st))
         return stream, 1                              # a firing advanced the graph -> another round
 
     def final_gc(g, stream, ctrl):

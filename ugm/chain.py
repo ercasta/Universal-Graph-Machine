@@ -641,20 +641,8 @@ def _record_assumptions(fact_g: AttrGraph, j: str,
     `J --assumes--> <assumed>`. The positive-assumption half of the explanation (decision 6): a
     proof tree can now say "assumed not (cy is alibied) — counter-evidence only unlikely", not just
     show the positive premises. Inert, like all provenance — invisible to reasoning."""
-    from .attrgraph import graded
-    from .provenance import ASSUMES, ASSUMED
-    ops = []
-    for i, (np, ns, no, pi) in enumerate(assumed):     # RECORD as an ISA program (one MINT per record)
-        ops.append(MINT(f"_a{i}", inert=True,
-                        attrs={NAME: valued(ASSUMED),
-                               "a_pred": valued(np),
-                               "a_subj": valued(ns if ns is not None else "anyone"),
-                               "a_obj": valued(no if no is not None else "anything"),
-                               "a_pi": valued(pi)}))
-        ops.append(MINT(f"_ar{i}", attrs={ASSUMES: graded(1.0)},
-                        in_edges=["_jr"], edges=[f"_a{i}"], inert=True))
-    if ops:
-        _ISA_READER.apply(fact_g, ops, State({"_jr": j}))
+    from .provenance import record_assumptions
+    record_assumptions(fact_g, j, assumed)             # the ONE minting program (provenance.py)
 
 
 def _guard(reg: str) -> list:
