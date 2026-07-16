@@ -94,6 +94,17 @@ cy is a suspect
     assert ("is", "cy", "vouched") in subgoal_decomposition(kb, "is", "cy", "doubted")
 
 
+def test_crisp_why_shows_the_leap_and_its_decomposition():
+    # the record half of the hard-vs-assumed capstone (2026-07-16): a CERTAIN firing that leaned on
+    # an absence journals it too (Π = 0), so a CRISP why shows the leap and the chain hangs off it
+    kb, rg = _world()
+    chain_sip(kb, ("is", "cy", "thief"), rules=rg, provenance=True)
+    lines = surface.explain(kb, [], [], "cy", "is", "thief")
+    text = "\n".join(lines)
+    assert "assumed not: cy is cleared  (no evidence for it was found)" in text
+    assert any("looked for: cy is alibied" in l for l in lines)
+
+
 def test_chain_interns_across_repeated_queries():
     # a second provenance query over the SAME live KB reuses the chain (node + edge dedupe is
     # graph-backed, not per-call). The first run's derivations may legitimately surface NEW demand
@@ -109,7 +120,9 @@ def test_chain_interns_across_repeated_queries():
                      for k in ("for", "subj", "obj"))
     tuples = [tup(n) for n in kb.nodes_named(SUBGOAL)]
     assert len(tuples) == len(set(tuples))                 # interned: one chain node per goal tuple
-    assert subgoal_decomposition(kb, "is", "cy", "cleared") == kids_after_first
+    # the decomposition is MONOTONE, never duplicated: run 1's derived facts may let the machinery
+    # rules raise a genuinely new probe on run 2 (seed-dependent), but nothing recorded is ever lost
+    assert set(kids_after_first) <= set(subgoal_decomposition(kb, "is", "cy", "cleared"))
 
 
 def test_check_verdict_unchanged_by_the_chain():

@@ -960,6 +960,13 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
                             _endpoint_name(fact_g, neg_goal[2]), pi))
         elif _facts_matching(fact_g, np, neg_goal[1], neg_goal[2], scope=scope, focus_scope=focus_scope):
             return None                                    # L holds -> the NAC fails -> block this env
+        else:
+            # A CRISP surviving NAC is a leaned-on absence too (2026-07-16, the hard-vs-assumed
+            # capstone's record half): journal it at Π = 0 ("no evidence for it was found"), so a
+            # crisp `why` shows the leap — and hangs the subgoal-chain decomposition off it —
+            # exactly like a banded one. Verdicts are untouched (the record is provenance-only).
+            assumed.append((np, _endpoint_name(fact_g, neg_goal[1]),
+                            _endpoint_name(fact_g, neg_goal[2]), 0.0))
         if fuel is not None and fuel.exhausted:
             return None             # the positive is not EXHAUSTED -> the NAC is UNDECIDED; do not fire
     return nec, assumed                                    # (the `fuel.exhausted` flag makes it UNKNOWN)
@@ -1176,11 +1183,14 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                         fact_g.set_attr(head_node, SCOPE, valued(scope))
                     fired += 1
                     if provenance:                         # RECORD (mode 9): journal the firing
-                        _record(fact_g, rule_key, head_node,
-                                [_find_fact_relnode(fact_g, _node_for_name(fact_g, _ptr(fact_g, st, bs)),
-                                                    bp2, _node_for_name(fact_g, _ptr(fact_g, st, bo)),
-                                                    scope=scope)
-                                 for bs, bp2, bo in body])
+                        j = _record(fact_g, rule_key, head_node,
+                                    [_find_fact_relnode(fact_g,
+                                                        _node_for_name(fact_g, _ptr(fact_g, st, bs)),
+                                                        bp2, _node_for_name(fact_g, _ptr(fact_g, st, bo)),
+                                                        scope=scope)
+                                     for bs, bp2, bo in body])
+                        if assumed:                        # a certain firing journals its leaned-on
+                            _record_assumptions(fact_g, j, assumed)   # absences too (Π = 0 included)
     return fired
 
 

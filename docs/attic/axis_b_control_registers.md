@@ -171,7 +171,14 @@ Resolution, and the sharpened boundary:
    `looked for:` lines at DOMAIN GRAIN (fully-bound, non-`same_as` children — the coref congruence's
    probes stay matchable in the chain but narrate the machinery, so the renderer skips them; the same
    cut `on_subgoal`'s frame grain makes). A memoized NAC re-encounter adds no new link (no new search
-   happened). Tests: `tests/test_subgoal_chain.py` (7).
+   happened). Tests: `tests/test_subgoal_chain.py`.
+
+   **Certain-NAF assumed-records (same day — the record half of the hard-vs-assumed capstone):** a CRISP
+   surviving NAC now journals its leaned-on absence at Π = 0 (`_nac_blocks` appends in silent mode; the
+   ink/pencil EMIT path attaches `_record_assumptions`), so a crisp `why` shows `assumed not: … (no
+   evidence for it was found)` with the decomposition hanging off it — identical shape to the banded
+   story. Verdicts untouched (provenance-only). The capstone's remaining half — surfacing the
+   ENTAILED-no / ASSUMED-no / UNKNOWN kind through `ask_goal`'s answer — is still open.
 
 So: the AGENDA is a register; the SUBGOAL CHAIN is graph (explanation). Depth never forces graph
 materialization — being explanation does.
