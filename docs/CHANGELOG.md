@@ -14,6 +14,22 @@ this log is itself a historical record.
 
 ## 2026-07-16
 
+### Docs sync + the missing "attention" chapter (book at 19 chapters)
+Gap review (user ask): the FOCUS/WORKING-SET concept — one of the system's load-bearing ideas — had
+NO book coverage (two incidental mentions), and today's intake additions had left
+`engine_user_guide.md`/`architecture.md` behind. Fixed both: the guides now document the full
+Outcome/Event vocabulary (stance/goal/call/acted/nearest), the ACT arm + tool registries, the stance
+register, and focus-as-register (architecture §8 was stale — it still said control nodes). NEW BOOK
+CHAPTER **14 · Paying attention** (`advanced/14-paying-attention.md`): the desk-and-archive story —
+working set, implicit widening (individuals not categories), explicit topic moves, bounded attention
+(cost tracks the case not the career, with the probe's flat-curve result), the honest trade
+(focused ≠ archive answers, system chooses per question), focus as the pronoun ground, scaffolding
+GC. Chapters 14–18 renumbered to 15–19 (second pass of the morning's ordered renumber method; census
+reconciled); appendix gains a "Focus — the working set" concept entry; ch6 forward-links it.
+Remaining known book gaps (deliberate, recorded): the CONVERSATION chapter (one session as a loop —
+goals/tools/runtime rules/stance; wait until the harness stabilizes the UX) and a "taking facts
+back" retraction section.
+
 ### `an` article + possibilistic polish batch (538 passed)
 **`an` gap closed:** `tokenize` folds `an` → `a` (mechanical like its lowercasing, the one
 chokepoint every path shares), so `is an X` / `is not an X` work in facts, questions, rule sugar

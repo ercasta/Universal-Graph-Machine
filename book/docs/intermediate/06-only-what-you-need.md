@@ -40,6 +40,10 @@ one small question is a colossal waste. Demand-driven reasoning does the little
 slice of work the question actually requires, and skips the rest. For most
 questions, most of the time, that's dramatically less effort.
 
+(Laziness settles *what* to think about. There's a matching discipline for
+*where to look* once a machine has lived through many conversations — that's
+[Chapter 14](../advanced/14-paying-attention.md), when we get there.)
+
 !!! note "So why keep the eager way at all?"
     Sometimes you genuinely want *everything* worked out at once — to export a
     complete picture, to inspect the whole world, or to hand a finished snapshot
