@@ -196,7 +196,7 @@ def test_gate_actually_catches_a_divergence(monkeypatch):
     dead assertion). Monkeypatch the ISA impl to drop a result and confirm `_facts_matching` raises."""
     g = _facts([("ada", "knows", "bo")])
 
-    def _broken(fact_g, pred, subj, obj, *, scope=None, focus_scope=None):
+    def _broken(fact_g, pred, subj, obj, *, scope=None, focus_scope=None, bands=False):
         return []   # deliberately wrong
 
     monkeypatch.setattr(chain, "_facts_matching_isa", _broken)

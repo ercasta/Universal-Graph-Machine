@@ -53,6 +53,15 @@ def _present(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     return bool(_facts_matching(fact_g, pred, subj, obj, scope=scope))
 
 
+def _band_present(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
+                  scope: str | None = None) -> float:
+    """The marker-mode presence of `goal`: the BEST band any matching fact is visible at (Π,
+    qualitative max-of-min over derivations), 0.0 if none — the banded sibling of `_present`."""
+    pred, subj, obj = goal
+    return max((b for _s, _o, b, _e in
+                _facts_matching(fact_g, pred, subj, obj, scope=scope, bands=True)), default=0.0)
+
+
 def _concept_key(pred: str, obj: str | None) -> str:
     """Openness is a property of the CONCEPT: for a copula goal `is(S, C)` it is the object concept C
     (`C is open world`), not the shared copula; for a relational goal it is the predicate. Mirrors
@@ -84,7 +93,16 @@ def check(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
 
     `scope` (feedback #12): reason inside a pencil scope — derivations are scope-tagged control
     (visible in-scope, never ink), the same mechanism SUPPOSE uses. This is what `ask_goal`'s
-    read-only mode threads through."""
+    read-only mode threads through.
+
+    BANDED (the possibilistic fold, docs/possibilistic.md S7.4): under
+    `policy.uncertainty="banded"` the closure reasons marker-mode (`chain_sip(policy=...)`) and the
+    verdict space grows the BAND WORDS between POSITIVE and ASSUMED_NO: a goal derivable only
+    through uncertain forks answers `very likely` / `likely` / `unlikely` / `very unlikely`
+    (`possibility.band_word` of its best band). CERTAIN stays POSITIVE; fuel-exhaustion stays
+    UNKNOWN even at a partial band (the band could still rise — "I did not finish looking"); the
+    ENTAILED_NEG check stays crisp (a graded hard-negative is out of slice). With no forks the
+    banded verdict space collapses to today's four."""
     rule_g = rules if rules is not None else fact_g        # one-graph default (the fold)
     if open_preds is not None:
         policy = replace(policy, open_preds=frozenset(open_preds))
@@ -92,8 +110,17 @@ def check(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     fuel = _Exhaustion()
     chain_sip(fact_g, goal, rules=rule_g, provenance=provenance,    # demand-driven positive
               max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope, scope=scope,
-              on_subgoal=on_subgoal)
-    if _present(fact_g, goal, scope=scope):
+              on_subgoal=on_subgoal, policy=policy)
+    if policy.banded:
+        p = _band_present(fact_g, goal, scope=scope)
+        if p >= 1.0:
+            return POSITIVE
+        if fuel.exhausted:
+            return UNKNOWN
+        if p > 0.0:                                        # derivable only through uncertain forks
+            from .possibility import band_word
+            return band_word(p)
+    elif _present(fact_g, goal, scope=scope):
         return POSITIVE
     if fuel.exhausted:                                              # ran out of fuel before closure ->
         return UNKNOWN                                             # honest "didn't finish", not a no
@@ -111,8 +138,11 @@ def check(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
 def collapse(status: str) -> str:
     """The yes/no/unknown an actor acts on — `query.ask_goal`'s verdict. The KIND (hard ENTAILED_NEG
     vs defeasible ASSUMED_NO) is the finer signal the metareasoning/escalation layer reads; both are
-    `no` to a caller that only needs the decision."""
-    return {POSITIVE: "yes", ENTAILED_NEG: "no", ASSUMED_NO: "no", UNKNOWN: "unknown"}[status]
+    `no` to a caller that only needs the decision. A BAND WORD (`likely`, `very unlikely`, … — the
+    banded verdicts) passes through UNCHANGED: collapsing it to yes/no would be the premature jump
+    the band exists to make visible (a defeasible collapse is decision 5/6 territory, not this
+    helper's)."""
+    return {POSITIVE: "yes", ENTAILED_NEG: "no", ASSUMED_NO: "no", UNKNOWN: "unknown"}.get(status, status)
 
 
 def explain_check(status: str, rule_g: AttrGraph) -> list[str]:
@@ -124,5 +154,5 @@ def explain_check(status: str, rule_g: AttrGraph) -> list[str]:
         ENTAILED_NEG: "no — the negative is entailed (a hard no)",
         ASSUMED_NO: "assumed no — closed-world default, and the goal was not derivable",
         UNKNOWN: "unknown — open-world, and neither the goal nor its negative was derivable",
-    }[status]
+    }.get(status, f"{status} — derivable only through uncertain forks (banded verdict)")
     return [head, "  looked for:"] + [f"    {ln}" for ln in render_demands(rule_g)]

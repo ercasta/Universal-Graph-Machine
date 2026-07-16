@@ -8,6 +8,10 @@ banded FORKS (`ugm.possibility.add_fork`), plus banded yes/no verdicts:
   2. CORRELATED DISJUNCTION (the FIRST disjunctive form this CNL has)
        `x is either male and tall or female and short`
        -> TWO forks, each holding a CONJUNCTION co-scoped (joints), mutually exclusive.
+       RANKED variant (the doc's opening motivation — alternatives need not be even):
+       `x is either male and tall or more likely female and short`  (also `or less likely`)
+       -> the favoured alternative carries the `likely` rung, the other the `unlikely` rung
+       (both from the lexicon in scope — ordinal, so only the ORDER and the θ-cut matter).
 
 DISAMBIGUATION (S2 three-roles): likelihood hedges (`likely`/`unlikely`/`very likely`/`very
 unlikely`) are a DISTINCT closed class from the membership degree adverbs (`very`/`somewhat`/
@@ -15,21 +19,27 @@ unlikely`) are a DISTINCT closed class from the membership degree adverbs (`very
 (unchanged, handled by the existing degree form). A degree adverb is never a hedge, so the word alone
 routes the line — the crisp/degree surface is byte-for-byte untouched.
 
-SLICE-1 limits (deliberate): single-token SUBJ/OBJ; disjunction is the copula-adjective shape and its
-alternatives default to an even band (ranking `more likely than` is a later slice); mutual exclusion
-rides the existing `disjoint_from` (not linted here); the hedge lexicon is a module default (making it
-KB-declarable — `probable means 0.7`, mirroring `very is 0.8` — is a small follow-up); deep `ask_goal`
-integration is a later slice (this module renders yes/no verdicts directly).
+SLICE-1 limits (deliberate): single-token SUBJ/OBJ; disjunction is the copula-adjective shape;
+mutual exclusion rides the existing `disjoint_from` (not linted here); deep `ask_goal` integration
+is a later slice (this module renders yes/no verdicts directly).
+
+The hedge lexicon is KB DATA, not engine config (the degree-adverb doctrine, `authoring.py` §"The
+degree scale is KB DATA"): `probable means 0.7` declares a new hedge as an ordinary ink fact, read
+back by `hedge_bands`. It deliberately uses `means`, NOT the degree form `A is <number>` — the same
+surface would silently make every declared hedge a degree adverb, collapsing the two roles the
+three-roles invariant (S2) keeps apart. `HEDGE_BAND` is only the shipped default scale.
 """
 from __future__ import annotations
 
 from ..attrgraph import AttrGraph
-from ..possibility import add_fork, verdict
+from ..possibility import add_fork, facts_matching_banded, verdict, CERTAIN
 
-# likelihood-hedge -> band. DISTINCT lexicon from the degree adverbs (three-roles). Ordinal; the exact
-# scale is S7.7-open. Two single-word rungs + the two-word `very` compositions.
-HEDGE_BAND: dict[str, float] = {"likely": 0.6, "unlikely": 0.3}
-VERY_HEDGE_BAND: dict[str, float] = {"likely": 0.85, "unlikely": 0.15}
+# likelihood-hedge -> band, the SHIPPED defaults. DISTINCT lexicon from the degree adverbs
+# (three-roles). Ordinal; the exact scale is S7.7-open. A key may be one or two words (the `very`
+# compositions are plain two-word entries — no special-cased modifier).
+HEDGE_BAND: dict[str, float] = {"likely": 0.6, "unlikely": 0.3,
+                                "very likely": 0.85, "very unlikely": 0.15}
+HEDGE_DECL_PRED = "means"               # `probable means 0.7` — the KB hedge-declaration predicate
 DEFAULT_ALT_BAND: float = 0.5           # an alternative of an unranked `either…or` (an "even" split)
 
 
@@ -39,19 +49,66 @@ def _norm(line: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# The hedge lexicon — KB-declarable, defaults overlaid (mirrors `authoring._degrees`)
+# ---------------------------------------------------------------------------
+
+def parse_hedge_decl(line: str) -> tuple[str, float] | None:
+    """`HEDGE means NUMBER` -> (hedge, band), else None. HEDGE is one or two words (the shapes
+    `parse_hedge_fact` looks up); NUMBER must be a band in (0, 1]. `probable means 0.7` adds a rung;
+    `likely means 0.8` overrides a default."""
+    t = _norm(line)
+    if HEDGE_DECL_PRED not in t:
+        return None
+    i = t.index(HEDGE_DECL_PRED)
+    if not (1 <= i <= 2) or len(t) != i + 2:
+        return None
+    try:
+        v = float(t[i + 1])
+    except ValueError:
+        return None
+    if not (0.0 < v <= 1.0):
+        return None
+    return (" ".join(t[:i]), v)
+
+
+def hedge_bands(g: AttrGraph) -> dict[str, float]:
+    """The hedge lexicon in scope: the shipped defaults, overlaid with every `HEDGE means NUMBER`
+    declared as an INK fact in `g` — the scale is KB data an author extends, exactly like the degree
+    adverbs (`authoring.degree_thresholds`). Read back through the one banded reader (a declaration
+    is an ordinary fact; only certain ones count — a hedged hedge-declaration would be a category
+    error)."""
+    out = dict(HEDGE_BAND)
+    for s, o, band, _ in facts_matching_banded(g, HEDGE_DECL_PRED, None, None):
+        if band < CERTAIN:
+            continue
+        try:
+            v = float(o)
+        except ValueError:
+            continue
+        if 0.0 < v <= 1.0:
+            out[s] = v
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Form 1 — hedge on a fact
 # ---------------------------------------------------------------------------
 
-def parse_hedge_fact(line: str) -> tuple[str, str, str, float] | None:
+def parse_hedge_fact(line: str, hedges: dict[str, float] | None = None
+                     ) -> tuple[str, str, str, float] | None:
     """`SUBJ is <hedge> [a|an] OBJ` -> (subj, pred, obj, band), else None. `pred` is `is_a` for the
-    `a OBJ` shape, else the copula `is`. Single-token SUBJ/OBJ (slice-1)."""
+    `a OBJ` shape, else the copula `is`. Single-token SUBJ/OBJ (slice-1). `hedges` is the lexicon in
+    scope (`hedge_bands`); default = the shipped scale. A two-word hedge wins over a one-word prefix
+    (`very likely male` is the 0.85 rung, not `very` + a hedge `likely`)."""
+    if hedges is None:
+        hedges = HEDGE_BAND
     t = _norm(line)
     if len(t) < 4 or t[1] != "is":
         return None
-    if t[2] == "very" and len(t) >= 5 and t[3] in VERY_HEDGE_BAND:      # "very likely" / "very unlikely"
-        band, rest = VERY_HEDGE_BAND[t[3]], t[4:]
-    elif t[2] in HEDGE_BAND:
-        band, rest = HEDGE_BAND[t[2]], t[3:]
+    if len(t) >= 5 and f"{t[2]} {t[3]}" in hedges:                     # two-word hedge first
+        band, rest = hedges[f"{t[2]} {t[3]}"], t[4:]
+    elif t[2] in hedges:
+        band, rest = hedges[t[2]], t[3:]
     else:
         return None                                                    # not a hedge (e.g. a degree adverb)
     if rest and rest[0] in ("a", "an"):
@@ -67,9 +124,11 @@ def parse_hedge_fact(line: str) -> tuple[str, str, str, float] | None:
 # Form 2 — correlated disjunction (the first disjunctive form)
 # ---------------------------------------------------------------------------
 
-def parse_either(line: str) -> tuple[str, list[str], list[str]] | None:
-    """`SUBJ is either A and B [and …] or C and D [and …]` -> (subj, [A,B,…], [C,D,…]), else None.
-    Each side is a conjunction of copula objects that share SUBJ (so each fork is a joint)."""
+def parse_either(line: str) -> tuple[str, list[str], list[str], str | None] | None:
+    """`SUBJ is either A and B [and …] or [more|less likely] C and D [and …]`
+    -> (subj, [A,B,…], [C,D,…], rank), else None. Each side is a conjunction of copula objects that
+    share SUBJ (so each fork is a joint). `rank` says how the SECOND alternative compares to the
+    first: `"more"` / `"less"` for the ranked variant, None for the even one."""
     t = _norm(line)
     if len(t) < 6 or t[1] != "is" or t[2] != "either":
         return None
@@ -77,11 +136,14 @@ def parse_either(line: str) -> tuple[str, list[str], list[str]] | None:
         or_i = t.index("or", 3)
     except ValueError:
         return None
+    rest, rank = t[or_i + 1:], None
+    if len(rest) >= 3 and rest[0] in ("more", "less") and rest[1] == "likely":
+        rank, rest = rest[0], rest[2:]
     alt1 = [w for w in t[3:or_i] if w != "and"]
-    alt2 = [w for w in t[or_i + 1:] if w != "and"]
+    alt2 = [w for w in rest if w != "and"]
     if not alt1 or not alt2:
         return None
-    return (t[0], alt1, alt2)
+    return (t[0], alt1, alt2, rank)
 
 
 # ---------------------------------------------------------------------------
@@ -90,15 +152,29 @@ def parse_either(line: str) -> tuple[str, list[str], list[str]] | None:
 
 def load_line(g: AttrGraph, line: str) -> bool:
     """Author `line` as fork(s) if it is a possibilistic form; return True iff it was consumed.
-    Tries the disjunction first (it carries `either`), then the hedge fact."""
+    Tries the hedge DECLARATION first (it carries `means` — written as an ink fact, so the lexicon
+    lives in the KB), then the disjunction (it carries `either`), then the hedge fact (against the
+    lexicon in scope, so a hedge declared earlier in the same text already parses)."""
+    decl = parse_hedge_decl(line)
+    if decl is not None:
+        from ..lowering import load_fact_triples
+        hedge, band = decl
+        load_fact_triples(g, [(hedge, HEDGE_DECL_PRED, repr(band))])     # the scale is KB data
+        return True
     either = parse_either(line)
     if either is not None:
-        subj, alt1, alt2 = either
+        subj, alt1, alt2, rank = either
+        if rank is None:
+            b1 = b2 = DEFAULT_ALT_BAND                                   # even (equally likely)
+        else:
+            hedges = hedge_bands(g)                                      # ranked: distribute the
+            hi, lo = hedges["likely"], hedges["unlikely"]                # likely/unlikely rungs
+            b1, b2 = (lo, hi) if rank == "more" else (hi, lo)
         choice = g.add_node("<choice>", control=True)                    # the mutually-exclusive CHOICE
-        add_fork(g, DEFAULT_ALT_BAND, [(subj, "is", o) for o in alt1], choice=choice)   # fork per alt:
-        add_fork(g, DEFAULT_ALT_BAND, [(subj, "is", o) for o in alt2], choice=choice)   # co-scoped join
+        add_fork(g, b1, [(subj, "is", o) for o in alt1], choice=choice)   # fork per alternative:
+        add_fork(g, b2, [(subj, "is", o) for o in alt2], choice=choice)   # co-scoped join
         return True
-    hedge = parse_hedge_fact(line)
+    hedge = parse_hedge_fact(line, hedge_bands(g))
     if hedge is not None:
         subj, pred, obj, band = hedge
         add_fork(g, band, [(subj, pred, obj)])

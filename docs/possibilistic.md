@@ -144,24 +144,60 @@ be total.
 
 ---
 
-# ⇢ HANDOFF STATUS (2026-07-15) — read this first
+# ⇢ HANDOFF STATUS (2026-07-16) — read this first
 
-**Where it stands:** the possibilistic layer is a complete, self-contained forward reasoner, built
-ENTIRELY ADDITIVELY (crisp `chain_sip`/`run_bank` untouched). Full suite **480 green**
-(`.venv/Scripts/python.exe -m pytest tests/ -q`). Everything from the original design is built:
-banded facts, correlated `either…or`, multi-hop min, multi-variable rules, the θ bias dial, graded
-negation, cross-fork + transitive ENVIRONMENT soundness, a banded FIXPOINT driver, and the book.
+**Where it stands: THE ARC IS COMPLETE.** Possibilistic reasoning now runs INSIDE the one
+demand-driven engine (`chain_sip`) as a firmware stance — `FirmwarePolicy(uncertainty="banded")` —
+and the whole design is built: banded facts, correlated + RANKED `either…or`, multi-hop min,
+multi-variable rules, the θ bias dial (a `FirmwarePolicy` session dial), graded negation,
+cross-fork + transitive ENVIRONMENT soundness (env-aware NAC; `disjoint_from` world-exclusion), a
+KB-declarable hedge lexicon, the `check`/`ask_goal` band-word verdicts, and the book. Full suite
+**487 green** (`.venv/Scripts/python.exe -m pytest tests/ -q`). Backlog items 1–5 landed
+2026-07-16 (see below); **item 6 — the `chain_sip` fold — landed 2026-07-16 too**, and the
+standalone forward reasoner (`apply_rule_banded`/`run_banded` + `possibility.py`'s own ISA matcher
+programs) was DELETED with it (user-ratified: one engine, not two; `tests/test_possibility_rules.py`
+now drives the fold; `test_possibility_fixpoint.py` deleted, its guarantees folded in).
 
-**Code surface (all additive):**
-- `ugm/possibility.py` — the engine: `add_fork` / `facts_matching_banded` (wildcard, returns
-  `(s,o,band,env)`) / `possibility` / `apply_rule_banded` (join + θ-NAC + graded negation + env) /
-  `run_banded` (fixpoint) / `verdict` / `band_word`. Bands live on `<hypothesis>` scopes
-  (`<likeliness>`); `<choice>` = exclusive alternatives; `<derived-env>` = a derived fork's assumptions.
-- `ugm/machine.py` — the one new ISA op `OVERLAY_BAND` (dims the match `score` by a fork's band; min
+**The fold in one paragraph:** banded is a GLOBAL firmware stance (user-ratified 2026-07-16: a
+session dial on `FirmwarePolicy` — never a per-call switch; and never automatic-on-forks, because
+silent-until-assumed is load-bearing). Under it, `chain_sip(policy=…)` swaps the read's binary
+`OVERLAY` for `OVERLAY_BAND` over a merged map (every fork's pencils at their band + the active
+SUPPOSE scope's pencils at CERTAIN — so banded composes with SUPPOSE for free); the band IS the
+match score (min t-norm ⇒ weakest link, multi-hop free); the body join threads `(state, band, env)`
+and prunes inconsistent environments (shared `<choice>` or declared `disjoint_from` — ATMS);
+`_nac_blocks` grades absence (Π over body-env-compatible worlds ≥ θ blocks; a survivor folds
+`N(¬P)=1−Π` into the band); EMIT is graded (CERTAIN+env-free → ink/scope-pencil exactly as today;
+uncertain → a DERIVED FORK via `possibility.fork_fact` carrying its env, re-emitted only at a
+STRICTLY better band ⇒ the rounds converge); fuel semantics unchanged (exhaustion → UNKNOWN even at
+a partial band). `check` grows the band words between POSITIVE and ASSUMED_NO (S7.4), `collapse`
+passes them through (no premature defeasible collapse), so `ask_goal` answers `likely` with the
+question forms untouched. Silent mode is byte-identical (the 450+ crisp tests are the differential
+gate; `_CROSSCHECK` still guards the crisp read against the walk oracle).
+
+**Slice edges left open (deliberate, small):** the ENTAILED_NEG closure in `check` stays crisp (no
+graded hard-negative); `ask_goal`'s who/existential branches and `query_goal` read crisp (only the
+bound yes/no path is banded); an `ask_goal(commit=False)` banded run sweeps its `<query>` pencils
+but leaves derived FORKS behind (monotone + idempotent, but a leak worth revisiting); banded+scope
+EMIT writes uncertain heads as forks (not scope pencils) — fine for `<query>` scopes, unexamined
+for user SUPPOSE scopes.
+
+**Code surface (post-fold, 2026-07-16):**
+- `ugm/chain.py` — THE banded engine (the fold): `_facts_matching(bands=True)` (OVERLAY_BAND read,
+  `(s,o,band,env)`), `_band_overlay` (fork map + scope pencils at CERTAIN), `(state,band,env)` join
+  threading with env pruning, graded `_nac_blocks` (θ gate + necessity), graded EMIT
+  (`possibility.fork_fact`, strictly-better idempotence). All gated on `policy.banded`.
+- `ugm/policy.py` — `uncertainty: "silent"|"banded"` (the GLOBAL stance) + `theta` (the α-cut dial).
+- `ugm/possibility.py` — the fork VOCABULARY + verdict reads only: `add_fork`/`fork_fact`, bands,
+  environments (`_env_consistent`, `<choice>`/`disjoint_from` exclusivity), `all_fork_bands`, and
+  name-level `facts_matching_banded`/`possibility`/`naf_holds`/`verdict` (thin wrappers over the one
+  matcher). The standalone applier/fixpoint is GONE.
+- `ugm/check.py` — band-word verdicts between POSITIVE and ASSUMED_NO; `collapse` passes them through.
+- `ugm/machine.py` — the one ISA op `OVERLAY_BAND` (dims the match `score` by a fork's band; min
   t-norm ⇒ weakest-link + multi-hop for free).
-- `ugm/cnl/uncertainty.py` — CNL surface: `parse_hedge_fact` / `parse_either` / `load_uncertain` /
-  `ask`. Hedge lexicon `HEDGE_BAND` is DISJOINT from the degree adverbs.
-- Tests: `tests/test_possibility_{band,cnl,rules,fixpoint}.py` + `tests/test_possibilistic_naf.py`.
+- `ugm/cnl/uncertainty.py` — CNL surface: hedges (KB-declarable, `probable means 0.7`), ranked
+  `either…or`, `load_uncertain`, banded `ask`. Hedge lexicon DISJOINT from the degree adverbs.
+- Tests: `tests/test_possibility_{band,cnl,rules}.py` + `tests/test_possibilistic_naf.py` (rules =
+  the fold end-to-end through `chain_sip`/`check`/`ask_goal`).
 - Book: `book/docs/advanced/uncertain-world.md`, `book/docs/deep/uncertain-world-internals.md`,
   appendix entries (see S7.8). Builds clean.
 
@@ -170,20 +206,39 @@ touch the hot path; (2) QUALITATIVE/ordinal only — compare bands, no probabili
 sanctioned numeric is the necessity complement `1−Π`); (3) the THREE roles stay distinct (membership
 ≠ likelihood ≠ world-identity, S2); (4) likeliness lives on the SCOPE, not the edge primitive (S7.0).
 
-**NEXT — polish backlog (ordered, each self-contained):**
-1. **θ into `FirmwarePolicy`** — θ is currently a call arg to `apply_rule_banded`/`run_banded`; lift it
-   to policy (with a default + range) so it's a session dial, not a per-call constant.
-2. **KB-declarable hedge lexicon** — `HEDGE_BAND` is a module dict; make `probable means 0.7` parse
-   (mirror `authoring.degree_thresholds`), so authors extend the scale like degree adverbs.
-3. **Ranked `either…or…`** — `parse_either` gives both alts `DEFAULT_ALT_BAND=0.5`; add "more likely
-   than" so alternatives can carry different bands (the doc's opening motivation).
-4. **Env-aware NAC** — `_nac_necessity` ignores env, so it may over-block (count a P reachable only via
-   a fork incompatible with the body's env). Thread env into the NAC read.
-5. **`disjoint_from`-declared exclusivity** — exclusivity is only via shared `<choice>` today; wire the
-   declared `disjoint_from` relation so two independently-authored forks can be exclusive.
-6. **Fold banded reasoning INTO `chain_sip`** — the standalone `run_banded` is a forward stand-in (no
-   demand fuel/recursion); the `OVERLAY_BAND` + score-carries-band foundation is what a demand-driven
-   fold reuses. Biggest item; do last.
+**Polish backlog — 1–5 BUILT 2026-07-16, 6 remains:**
+1. ✅ **θ into `FirmwarePolicy`** — `FirmwarePolicy.theta` (default **0.5**, range **(0, 1]**,
+   validated in `__post_init__`; rationale: blocks a negation exactly when the counter-evidence is
+   at least `likely`, so an even `either…or` alternative blocks and a merely-`unlikely` one doesn't).
+   `naf_holds` / `apply_rule_banded` / `run_banded` take `policy=` (session dial); an explicit
+   `theta=` stays as the per-call convenience override (the `check`/`open_preds=` shape).
+   `test_theta_lives_on_policy`.
+2. ✅ **KB-declarable hedge lexicon** — `probable means 0.7` parses (`parse_hedge_decl`) and is stored
+   as an ORDINARY INK FACT; `hedge_bands(g)` reads defaults + declarations back through the one banded
+   reader (the degree-adverb doctrine: the scale is KB data). Deliberately `means`, NOT the degree
+   form `A is <number>` — the same surface would collapse hedge into degree adverb (three-roles).
+   One-or-two-word hedges (`almost certain means 0.9`); `VERY_HEDGE_BAND` deleted — the `very`
+   compositions are plain two-word entries in `HEDGE_BAND`. Declarations override defaults
+   (`likely means 0.8`). Tests: `test_hedge_decl_parse` / `test_declared_hedge_*`.
+3. ✅ **Ranked `either…or…`** — `x is either male and tall or more likely female and short` (also
+   `or less likely`): the favoured alternative carries the `likely` rung, the other the `unlikely`
+   rung, both from the lexicon IN SCOPE (so a declared `likely means 0.8` re-scales it) — ordinal,
+   only the order + θ-cut matter. `parse_either` now returns `(subj, alt1, alt2, rank)`.
+   Tests: `test_ranked_either_*`.
+4. ✅ **Env-aware NAC** — `_nac_necessity` takes the BODY's env and skips any P-derivation whose fork
+   is incompatible with it (Π counts only compatible worlds): `manly ← male ∧ not female` over
+   `either male or female` now fires — within the male-worlds `not female` genuinely holds.
+   Independent (compatible) forks still block. `test_nac_is_env_aware`.
+5. ✅ **`disjoint_from`-declared exclusivity** — `_env_consistent` gains a second route: two forks
+   whose COPULA claims (`is`/`is_a` only — `x knows female` predicates nothing) about one subject
+   are ink-declared `disjoint_from` can't share an environment. Two independently-authored hedged
+   facts (`x is likely male` + `x is likely female` + `male is disjoint from female`) now exclude
+   each other in both the join and the NAC. `test_disjoint_from_makes_independent_forks_exclusive`.
+6. ✅ **Fold banded reasoning INTO `chain_sip`** — BUILT 2026-07-16 (see "The fold in one paragraph"
+   in the handoff header). Ratified at build time: (a) banded is a GLOBAL `FirmwarePolicy` stance
+   (`uncertainty="silent"|"banded"`), never per-call, never automatic-on-forks; (b) the standalone
+   forward layer was DELETED with the fold (one engine); (c) the `check`/`ask_goal` verdict surface
+   shipped in the same increment.
 
 Everything below is the full design record (unchanged); the BUILT markers in S7 track what shipped.
 
@@ -356,9 +411,9 @@ derived fact inherits its parents' forks. A two-step chain `manly ← male` then
 short` correctly finds `{forkA, forkB}` impossible → `puzzling` not derived
 (`test_head_environment_propagates_across_a_chain`). This closes the ATMS soundness loop for forward
 chaining.
-Remaining (minor): NAC is env-agnostic (may over-block); exclusivity is only via shared `<choice>`
-(declared `disjoint_from` not yet wired); the standalone applier is single-pass (no fixpoint/fuel —
-a chain is driven by calling it per rule).
+~~Remaining (minor)~~ all closed since: the NAC is ENV-AWARE (2026-07-16 — Π counts only worlds
+compatible with the body's env), declared `disjoint_from` IS wired into `_env_consistent`
+(2026-07-16), and `run_banded` drives a bank to a fixpoint (2026-07-15).
 
 ## S7.3 NAF with a band — the α-cut θ IS the bias dial (the key decision)
 
@@ -450,13 +505,10 @@ and the `_CROSSCHECK` differential gate still guards the shared matcher.
     Tests `tests/test_possibility_rules.py` (6): θ-gated bias, fork-body bands the head, certain body
     → ink, a 2-variable join `?p knows ?q ∧ ?q is spy` through a fork, and max-of-min. Full suite 473
     green. Single-var `_entity_names`/`_ground` DELETED (superseded).
-  - **REMAINING in Slice 1:** (a) wire `θ` into `FirmwarePolicy` (currently a call arg); (b) hedge
-    lexicon KB-declarable (`probable means 0.7`); (c) ranked `either…or…` (`more likely than`) +
-    `disjoint_from` exclusion lint; (d) fold banded reasoning INTO `chain_sip` proper (the standalone
-    forward applier is the safe Slice-1 stand-in — no demand-driven fuel/recursion; the OVERLAY_BAND +
-    score-carries-band foundation is what a chain_sip fold would reuse). Graded negation band and
-    cross-fork ENVIRONMENT consistency + forward HEAD-environment propagation (impossible-world
-    rejection, incl. transitive across a chain) are DONE (see S7.3, S7.2).
+  - **REMAINING in Slice 1 — NONE** *(updated 2026-07-16: (a) θ-in-policy, (b) KB hedge lexicon,
+    (c) ranked `either…or…` + `disjoint_from` exclusivity, and (d) the `chain_sip` fold are ALL
+    BUILT — see the handoff header)*. Graded negation band and cross-fork ENVIRONMENT consistency +
+    forward HEAD-environment propagation are DONE (see S7.3, S7.2).
   - **BANDED FIXPOINT DRIVER BUILT 2026-07-15** — `possibility.run_banded(g, rules, theta=)`
     forward-chains a whole bank to a fixpoint (the banded analogue of `run_bank`, standalone/additive).
     `apply_rule_banded` is now idempotent (a head is (re-)emitted only at a STRICTLY better band), so it
@@ -464,9 +516,11 @@ and the `_CROSSCHECK` differential gate still guards the shared matcher.
     Tests `tests/test_possibility_fixpoint.py` (4): a 3-rule chain carries the band to the transitive
     conclusion; idempotence (a re-run emits 0); an all-ink chain stays CERTAIN/ink; an exclusive-fork
     chain never fires `puzzling`. Full suite 480 green.
-  - **Remaining Slice 2 (minor):** env-aware NAC + `disjoint_from`-declared exclusivity.
+  - ~~Remaining Slice 2 (minor): env-aware NAC + `disjoint_from`-declared exclusivity~~ — BOTH BUILT
+    2026-07-16 (backlog items 4 & 5 above).
 - **SLICE 2** — cross-fork environments (combined assumption-sets, min band) + graded negation band
-  (necessity via ordinal complement). Full ATMS.
+  (necessity via ordinal complement). Full ATMS. **COMPLETE 2026-07-16** (env-aware NAC and declared
+  exclusivity were the last pieces).
 
 ## S7.7 Still-open (non-blocking)
 

@@ -26,8 +26,8 @@ from .apply import (
     _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
     _rel_in_scope, build_head_index, rules_producing, SCOPE,
 )
-from .machine import (Machine, SEED, FOLLOW, SET, TEST, SAME, MEMBER, OVERLAY, GRADE, VMATCH,
-                      DISTINCT, State)
+from .machine import (Machine, SEED, FOLLOW, SET, TEST, SAME, MEMBER, OVERLAY, OVERLAY_BAND,
+                      GRADE, VMATCH, DISTINCT, State)
 from .machine import (ControlMachine, Continuation, Block, PRIM, SETI, DEC,
                       BRANCH, BRANCH_IF, SUSPEND, HALT)
 from .production_rule import is_var, is_bound_literal, literal_name
@@ -495,6 +495,52 @@ _CROSSCHECK = False   # A1 differential gate: when True, every `_facts_matching`
 
 _FOCUS_LIVE = "<focus>"           # the live-set register the read program's MEMBER op points at
 _SCOPE_OVERLAY = "<scope-overlay>"   # the live-set register the read program's OVERLAY op points at
+_BAND_OVERLAY = "<fork-bands>"    # the {rel_id -> band} map register OVERLAY_BAND points at (banded mode)
+
+# --- BANDED (marker-mode) reading — the possibilistic fold (docs/possibilistic.md S7.5 step 6) -----
+#
+# When the firmware stance is `uncertainty="banded"` (`FirmwarePolicy`, the GLOBAL opt-in — never a
+# per-call switch), the demand read swaps its binary OVERLAY for OVERLAY_BAND: the overlay map holds
+# EVERY fork's pencils at their `<likeliness>` band, and (inside a SUPPOSE scope) the active scope's
+# pencils at CERTAIN — so the one map subsumes the binary scope overlay, and banded reasoning composes
+# with SUPPOSE for free. The band rides the match SCORE (min t-norm ⇒ weakest-link, multi-hop free);
+# the ENVIRONMENT (which fork-scopes a fact rests on) is read off the matched rel's `SCOPE` tag
+# (transitively for a derived fork). Silent mode (`"silent"`, the default) never enters these paths —
+# the crisp read is byte-identical. The fork/env vocabulary lives in `possibility.py`; imports are
+# lazy (possibility → suppose → check → chain would otherwise cycle).
+
+_CERTAIN = 1.0
+_NO_ENV: frozenset = frozenset()
+
+
+def _band_overlay(fact_g: AttrGraph, scope: str | None) -> dict[str, float]:
+    """The OVERLAY_BAND map for a banded read: every fork pencil at its scope band, plus the active
+    SUPPOSE scope's pencils at CERTAIN (in-scope pencil is crisp-in-scope, exactly the binary read)."""
+    from .possibility import all_fork_bands
+    bands = all_fork_bands(fact_g)
+    if scope is not None:
+        overlay = _scope_pencils(fact_g, scope)
+        if overlay:
+            bands.update((r, _CERTAIN) for r in overlay)
+    return bands
+
+
+def _rel_env(fact_g: AttrGraph, rel: str) -> frozenset:
+    """The assumption ENVIRONMENT the matched rel rests on: ∅ for ink (and for an active-scope pencil —
+    a SUPPOSE assumption is a stance already taken, not a weighed fork), else the fork's env
+    (`_scope_env`: itself for a base fork, its stored parents for a derived one)."""
+    from .possibility import _fork_scope_of, _scope_env, LIKELINESS
+    fork = _fork_scope_of(fact_g, rel)
+    if fork is None or fact_g.get_attr(fork, LIKELINESS) is None:
+        return _NO_ENV
+    return _scope_env(fact_g, fork)
+
+
+def _env_ok(fact_g: AttrGraph, env: frozenset) -> bool:
+    """Is the combined environment consistent (no two exclusive forks — shared `<choice>` or declared
+    `disjoint_from` claims)? `possibility._env_consistent`, imported lazily."""
+    from .possibility import _env_consistent
+    return _env_consistent(fact_g, env)
 
 
 def _guard(reg: str) -> list:
@@ -526,18 +572,32 @@ def _bound_endpoint_ops(fact_g: AttrGraph, reg: str, endpoint) -> list:
 def _facts_matching_isa(fact_g: AttrGraph, pred: str,
                         subj_name: str | None, obj_name: str | None,
                         *, scope: str | None = None,
-                        focus_scope: frozenset[str] | None = None) -> list[tuple[str, str]]:
+                        focus_scope: frozenset[str] | None = None,
+                        bands: bool = False) -> list[tuple]:
     """The single-atom demand fact lookup as a self-contained ephemeral ISA program (see the module
     note above). Behaviour-identical to `_facts_matching_walk` (differentially gated by
-    `_CROSSCHECK`)."""
-    out: list[tuple[str, str]] = []
+    `_CROSSCHECK`). With `bands=True` (marker mode, the possibilistic fold) the rel-guard's OVERLAY
+    becomes OVERLAY_BAND over the merged fork/scope map and every result grows to
+    `(s, o, band, env)`: `band` IS the match score (min t-norm), `env` the fork assumption-set."""
+    out: list[tuple] = []
     prev_live = fact_g.registers.get(_FOCUS_LIVE)          # park the live-sets (policy) for the ops
     prev_overlay = fact_g.registers.get(_SCOPE_OVERLAY)    # (mechanism); transitional: derived from
-    fact_g.registers[_FOCUS_LIVE] = focus_scope            # the parameters here, per call — later the
-    fact_g.registers[_SCOPE_OVERLAY] = _scope_pencils(fact_g, scope)   # drivers own them per run
+    prev_bands = fact_g.registers.get(_BAND_OVERLAY)       # the parameters here, per call — later the
+    fact_g.registers[_FOCUS_LIVE] = focus_scope            # drivers own them per run
+    fact_g.registers[_SCOPE_OVERLAY] = _scope_pencils(fact_g, scope)
+    if bands:
+        fact_g.registers[_BAND_OVERLAY] = _band_overlay(fact_g, scope)
     try:
         rel_guard = [TEST("r", pred), TEST("r", INERT_MARK, absent=True),
-                     OVERLAY("r", CONTROL_MARK, _SCOPE_OVERLAY)]
+                     OVERLAY_BAND("r", CONTROL_MARK, _BAND_OVERLAY) if bands
+                     else OVERLAY("r", CONTROL_MARK, _SCOPE_OVERLAY)]
+
+        def emit(st: State, s_val, o_val) -> None:
+            if bands:
+                out.append((s_val, o_val, st.score, _rel_env(fact_g, st.regs["r"])))
+            else:
+                out.append((s_val, o_val))
+
         if subj_name is not None:                          # (pred, subj, ?) — walk OUT of the subject
             prog = [SET("s", ""), *_guard("s"),
                     FOLLOW("r", "s", "out"), *rel_guard,
@@ -547,8 +607,8 @@ def _facts_matching_isa(fact_g: AttrGraph, pred: str,
             for s in _candidate_nodes(fact_g, subj_name):
                 prog[0] = SET("s", s)
                 for st in _ISA_READER.match(fact_g, prog):
-                    out.append((subj_name,
-                                obj_name if obj_name is not None else ById(st.regs["o"])))
+                    emit(st, subj_name,
+                         obj_name if obj_name is not None else ById(st.regs["o"]))
             return out
         if obj_name is not None:                           # (pred, ?, obj) — walk INTO the object
             prog = [SET("o", ""), *_guard("o"),
@@ -558,30 +618,35 @@ def _facts_matching_isa(fact_g: AttrGraph, pred: str,
             for o in _candidate_nodes(fact_g, obj_name):
                 prog[0] = SET("o", o)
                 for st in _ISA_READER.match(fact_g, prog):
-                    out.append((ById(st.regs["s"]), obj_name))
+                    emit(st, ById(st.regs["s"]), obj_name)
             return out
         prog = [SEED("r", pred, cmp=None), *rel_guard,     # (pred, ?, ?) — the whole-predicate scan
                 FOLLOW("s", "r", "in"), *_guard("s"),
                 FOLLOW("o", "r", "out"), *_guard("o"),
                 MEMBER(("s", "o"), _FOCUS_LIVE)]
         for st in _ISA_READER.match(fact_g, prog):
-            out.append((ById(st.regs["s"]), ById(st.regs["o"])))
+            emit(st, ById(st.regs["s"]), ById(st.regs["o"]))
         return out
     finally:
         fact_g.registers[_FOCUS_LIVE] = prev_live
         fact_g.registers[_SCOPE_OVERLAY] = prev_overlay
+        fact_g.registers[_BAND_OVERLAY] = prev_bands
 
 
 def _facts_matching(fact_g: AttrGraph, pred: str,
                     subj_name: str | None, obj_name: str | None,
                     *, scope: str | None = None,
-                    focus_scope: frozenset[str] | None = None) -> list[tuple[str, str]]:
+                    focus_scope: frozenset[str] | None = None,
+                    bands: bool = False) -> list[tuple]:
     """The single-atom demand fact lookup (SIP) — on the SHARED ISA matcher (`_facts_matching_isa`,
     A1; production swap ratified 2026-07-14): forward and demand walk topology through the ONE
     `Machine.match`. The bespoke walk (`_facts_matching_walk`) is retained ONLY as the independent
-    parity oracle: when `_CROSSCHECK` is set, every call asserts it agrees (order-insensitive)."""
-    out = _facts_matching_isa(fact_g, pred, subj_name, obj_name, scope=scope, focus_scope=focus_scope)
-    if _CROSSCHECK:
+    parity oracle: when `_CROSSCHECK` is set, every call asserts it agrees (order-insensitive).
+    `bands=True` is the marker-mode read (results grow to `(s, o, band, env)`); the walk oracle is
+    crisp-only, so the crosscheck applies to the silent read."""
+    out = _facts_matching_isa(fact_g, pred, subj_name, obj_name, scope=scope,
+                              focus_scope=focus_scope, bands=bands)
+    if _CROSSCHECK and not bands:
         walk = _facts_matching_walk(fact_g, pred, subj_name, obj_name, scope=scope, focus_scope=focus_scope)
         if Counter(out) != Counter(walk):
             raise AssertionError(
@@ -722,15 +787,25 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
                 st: State, *, scope: str | None, provenance: bool,
                 focus_scope: frozenset[str] | None = None,
                 neg_stack: frozenset[tuple[str, str | None, str | None]],
-                fuel: "_Exhaustion | None", max_rounds: int, closed: set) -> bool:
-    """Decide the rule's NAC clauses under `env` by DEMAND-DRIVEN NEGATION-AS-FAILURE (firmware v3):
-    return True iff some `not L(bound)` clause's POSITIVE holds — i.e. the rule must NOT fire for this
-    match. Each NAC `L` is a NESTED NEGATIVE DEMAND: bind it by the register file, demand the positive `L` and run
+                fuel: "_Exhaustion | None", max_rounds: int, closed: set,
+                policy=None, env: frozenset = _NO_ENV) -> float | None:
+    """Decide the rule's NAC clauses by DEMAND-DRIVEN NEGATION-AS-FAILURE (firmware v3): return None
+    iff some `not L(bound)` clause's POSITIVE holds — i.e. the rule must NOT fire for this match —
+    else the NECESSITY the conjunction contributes to the conclusion (CERTAIN in silent mode; see the
+    BANDED paragraph). Each NAC `L` is a NESTED NEGATIVE DEMAND: bind it by the register file, demand the positive `L` and run
     it to CLOSURE (a self-contained nested `chain_sip`, so "the positive failed" is read from L's
     COMPLETE extension — the goal-directed analog of stratifying L's producers BELOW this consumer),
     then read ABSENCE. Any matching L-fact -> the NAC fails -> block; none -> `not L` holds. NOTHING is
     materialized for the negative (monotone, §5-safe): the verdict is computed from the (empty) demand-
     closure — the SAME move CHECK makes at top level, pushed inside the rule body.
+
+    BANDED (marker mode — `policy.banded`, docs/possibilistic.md S7.3): the absence read is graded.
+    `Π(L)` = the best band L is reachable at over worlds COMPATIBLE with the rule body's `env`
+    (a fork exclusive with the body's own assumptions can neither block nor weaken). `Π ≥ θ`
+    (`policy.theta`, the bias-vs-decisiveness dial) blocks; a surviving clause contributes
+    `N(¬L) = 1 − Π(L)` (possibility/necessity duality — the scale involution, not probability
+    arithmetic), min-combined across clauses, so a NAF conclusion is only as strong as its
+    counter-evidence is unlikely.
 
     STRATIFICATION (see the module note): the negative goal is pushed on `neg_stack` before its positive
     closure. A re-entry (`neg_goal in neg_stack`) is a HIGHER-stratum rule reached via a demand-path
@@ -747,19 +822,30 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
     the machine's stack, not Python's. Operation order is unchanged (the driver services each yield
     synchronously before resuming), so the demand-driven NAF semantics are identical. Returns the block
     verdict via the generator's return value (`yield from` surfaces it)."""
+    banded = policy is not None and policy.banded
+    nec = _CERTAIN
     for ns, np, no in nac_atoms:
         neg_goal = (np, _ptr(fact_g, st, ns), _ptr(fact_g, st, no))
         if neg_goal in neg_stack:
-            return True                        # re-entry: prune the higher-stratum rule (block env)
+            return None                        # re-entry: prune the higher-stratum rule (block env)
         if neg_goal not in closed:             # MEMO: a negative's positive is closed ONCE per session.
             yield ("subgoal", neg_goal, neg_stack | {neg_goal})   # driver closes the positive, then resumes
             closed.add(neg_goal)               # facts are monotone + stratified -> the closure is stable,
         # so re-demands (the round loop re-services this env each round) just READ absence, never re-close.
-        if _facts_matching(fact_g, np, neg_goal[1], neg_goal[2], scope=scope, focus_scope=focus_scope):
-            return True                                    # L holds -> the NAC fails -> block this env
+        if banded:                                         # graded absence: θ gates, necessity weighs
+            pi = max((b for _s, _o, b, e in
+                      _facts_matching(fact_g, np, neg_goal[1], neg_goal[2],
+                                      scope=scope, focus_scope=focus_scope, bands=True)
+                      if not e or _env_ok(fact_g, env | e)),   # only worlds compatible with the body
+                     default=0.0)
+            if pi >= policy.theta:
+                return None                                # L is too possible to negate -> block
+            nec = min(nec, 1.0 - pi)                       # N(¬L) = 1 − Π(L)
+        elif _facts_matching(fact_g, np, neg_goal[1], neg_goal[2], scope=scope, focus_scope=focus_scope):
+            return None                                    # L holds -> the NAC fails -> block this env
         if fuel is not None and fuel.exhausted:
-            return True             # the positive is not EXHAUSTED -> the NAC is UNDECIDED; do not fire
-    return False                                           # (the `fuel.exhausted` flag makes it UNKNOWN)
+            return None             # the positive is not EXHAUSTED -> the NAC is UNDECIDED; do not fire
+    return nec                                             # (the `fuel.exhausted` flag makes it UNKNOWN)
 
 
 def _head_skolems(body: list[tuple[str, str, str]],
@@ -846,7 +932,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                        focus_scope: frozenset[str] | None = None,
                        neg_stack: frozenset[tuple[str, str | None, str | None]] = frozenset(),
                        fuel: "_Exhaustion | None" = None, max_rounds: int = 1000,
-                       closed: set = frozenset()) -> int:
+                       closed: set = frozenset(), policy=None) -> int:
     """Serve `demand` with the reified rule at `rule_node` (SIP): seed the env from the demand via
     head-unification, walk the body in SIDEWAYS-SAFE order raising a BOUND sub-demand per atom (bound
     by the env so far), read facts matching each sub-demand, DECIDE any NAC clauses by nested negative
@@ -859,7 +945,16 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     GENERATOR (brick #3): a generator — its NAC decision `yield from`s `_nac_blocks`, so a nested negative
     subgoal is a request the driver (`chain_sip`) services on the explicit control stack rather than Python
     recursion. With no NAC it yields nothing and returns the fired count (still a generator; `yield from`
-    reads its return value)."""
+    reads its return value).
+
+    BANDED (marker mode — `policy.banded`, docs/possibilistic.md S7.5 step 6): the body walk threads a
+    `(state, band, env)` triple per partial match — the band MIN-composes across atoms (weakest link),
+    the env UNIONs the fork assumption-sets and PRUNES an inconsistent combination (two exclusive
+    forks, ATMS); the NAC folds its necessity into the band; and the EMIT is graded: a CERTAIN,
+    assumption-free head writes exactly as today (ink, or scope pencil), an uncertain one writes a
+    DERIVED FORK at its band carrying its env, re-emitted only at a STRICTLY better band (monotone-up
+    on a finite lattice, so the round loop still converges). Silent mode threads the constant
+    (CERTAIN, ∅) and is behaviour-identical."""
     body = _read_atoms(rule_g, rule_node, "lhs")
     heads = _read_atoms(rule_g, rule_node, "rhs")
     # A NAC atom IDENTICAL to a head atom is an IDEMPOTENCY memo (`?a rel ?c when … and not ?a rel ?c`,
@@ -880,41 +975,77 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
         if st0 is not None and st0 not in seeds:
             seeds.append(st0)
 
+    banded = policy is not None and policy.banded
+
     fired = 0
     for st0 in seeds:
-        states = [st0]
+        states = [(st0, _CERTAIN, _NO_ENV)]                # (register file, band, environment)
         for s_tok, bp, o_tok in _sideways_order(body, set(st0.regs)):   # SIP: each atom demanded
-            nxt: list[State] = []                          # under the register file so far
-            for st in states:
+            nxt: list[tuple[State, float, frozenset]] = [] # under the register file so far
+            for st, band, env in states:
                 s_ep = _ptr(fact_g, st, s_tok)             # the endpoints as CARRIED: node-pointers
                 o_ep = _ptr(fact_g, st, o_tok)             # (a literal -> its interned value-node)
                 mint((bp, s_ep, o_ep))
-                for fs, fo in _facts_matching(fact_g, bp, s_ep, o_ep, scope=scope,
-                                              focus_scope=focus_scope):
+                for m in _facts_matching(fact_g, bp, s_ep, o_ep, scope=scope,
+                                         focus_scope=focus_scope, bands=banded):
+                    if banded:
+                        fs, fo, fb, fe = m
+                    else:
+                        (fs, fo), fb, fe = m, _CERTAIN, _NO_ENV
                     st1 = _bind_state(fact_g, st, s_tok, fs)
                     if st1 is None:
                         continue
                     st2 = _bind_state(fact_g, st1, o_tok, fo)
-                    if st2 is not None:
-                        nxt.append(st2)
+                    if st2 is None:
+                        continue
+                    if fe:
+                        ne = env | fe                      # ATMS: an env uniting exclusive forks is an
+                        if not _env_ok(fact_g, ne):        # impossible world — prune the join branch
+                            continue
+                    else:
+                        ne = env
+                    nxt.append((st2, band if fb >= band else fb, ne))   # min-band: weakest link
             states = nxt
-        for st in states:                                  # EMIT every head atom per full match
+        for st, band, env in states:                       # EMIT every head atom per full match
             if graded and not _grades_pass(fact_g, graded, st):           # α-cut: ephemeral GRADE prog
                 continue
             if value_matches and not _vmatches_pass(fact_g, value_matches, st):   # ephemeral VMATCH prog
                 continue
             if distincts and not _distincts_pass(fact_g, distincts, st):   # ?a != ?b: ephemeral DISTINCT
                 continue
-            if nac and (yield from _nac_blocks(fact_g, rule_g, nac, st, scope=scope,    # NAF: absence
-                                               focus_scope=focus_scope,                 # decides — the
-                                               provenance=provenance, neg_stack=neg_stack,  # subgoal is
-                                               fuel=fuel, max_rounds=max_rounds, closed=closed)):  # a yield
-                continue
+            if nac:
+                nec = yield from _nac_blocks(fact_g, rule_g, nac, st, scope=scope,   # NAF: absence
+                                             focus_scope=focus_scope,                # decides — the
+                                             provenance=provenance, neg_stack=neg_stack,  # subgoal is
+                                             fuel=fuel, max_rounds=max_rounds, closed=closed,  # a yield
+                                             policy=policy, env=env)
+                if nec is None:                            # a NAC's positive holds (or cleared θ)
+                    continue
+                band = band if nec >= band else nec        # graded negation: fold in N(¬L)
             sk_ids = _resolve_skolems(fact_g, heads, st, skolems) if skolems else {}
             for hs, hp, ho in heads:
                 s_id = _head_endpoint_id(fact_g, st, hs, sk_ids)
                 o_id = _head_endpoint_id(fact_g, st, ho, sk_ids)
                 if s_id is None or o_id is None:           # unbound non-skolem head slot — out of slice
+                    continue
+                if banded and (band < _CERTAIN or env):
+                    # BANDED EMIT: an uncertain conclusion is a DERIVED FORK at its band, carrying its
+                    # assumption env — never ink. Idempotence is graded: re-emit only STRICTLY better.
+                    have = max((b for _s, _o, b, _e in
+                                _facts_matching(fact_g, hp, ById(s_id), ById(o_id),
+                                                scope=scope, focus_scope=focus_scope, bands=True)),
+                               default=0.0)
+                    if have >= band:
+                        continue
+                    from .possibility import fork_fact
+                    head_node = fork_fact(fact_g, band, s_id, hp, o_id, derived_env=env)
+                    fired += 1
+                    if provenance:                         # RECORD (mode 9): journal the firing
+                        _record(fact_g, rule_key, head_node,
+                                [_find_fact_relnode(fact_g, _node_for_name(fact_g, _ptr(fact_g, st, bs)),
+                                                    bp2, _node_for_name(fact_g, _ptr(fact_g, st, bo)),
+                                                    scope=scope)
+                                 for bs, bp2, bo in body])
                     continue
                 if not _fact_exists(fact_g, s_id, hp, o_id, scope=scope):
                     # EMIT: an ink fact normally, but PENCIL (control + scope tag) inside a SUPPOSE scope
@@ -946,7 +1077,7 @@ class _Frame:
 
 
 def _round(fact_g: AttrGraph, rule_g: AttrGraph, frame: _Frame, *, neg_stack, provenance,
-           scope, focus_scope, fuel, max_rounds, closed, visible):
+           scope, focus_scope, fuel, max_rounds, closed, visible, policy=None):
     """ONE fixpoint round over the frame's agenda, as a GENERATOR (brick #3): serve every standing
     demand with the rules that produce it (raising bound sub-demands and EMITting); a NAC's negative
     subgoal is YIELDed up (the `advance` PRIM turns the yield into a machine `SUSPEND`). Returns
@@ -964,13 +1095,14 @@ def _round(fact_g: AttrGraph, rule_g: AttrGraph, frame: _Frame, *, neg_stack, pr
             fired += (yield from _solve_demand_rule(
                 fact_g, rule_g, rn, demand, mint,
                 provenance=provenance, scope=scope, focus_scope=focus_scope,
-                neg_stack=neg_stack, fuel=fuel, max_rounds=max_rounds, closed=closed))
+                neg_stack=neg_stack, fuel=fuel, max_rounds=max_rounds, closed=closed,
+                policy=policy))
     return fired, newly
 
 
 def _frame_program(fact_g: AttrGraph, rule_g: AttrGraph,
                    goal: tuple[str, str | None, str | None], *, neg_stack, provenance, scope,
-                   focus_scope, fuel, max_rounds, closed, visible):
+                   focus_scope, fuel, max_rounds, closed, visible, policy=None):
     """Close ONE goal's positive to fixpoint — the per-goal round-loop as a CONTROL-MACHINE PROGRAM
     (Decision 3, docs/attic/firmware_over_isa_design.md §6): a `PRIM` runs (or, after a serviced subgoal,
     CONTINUES) one round; `BRANCH_IF` loops it to fixpoint under a `SETI`/`DEC` round budget — the
@@ -989,7 +1121,7 @@ def _frame_program(fact_g: AttrGraph, rule_g: AttrGraph,
         if gen is None:
             gen = _round(fact_g, rule_g, frame, neg_stack=neg_stack, provenance=provenance,
                          scope=scope, focus_scope=focus_scope, fuel=fuel,
-                         max_rounds=max_rounds, closed=closed, visible=visible)
+                         max_rounds=max_rounds, closed=closed, visible=visible, policy=policy)
         try:
             req = gen.send(None)
         except StopIteration as e:
@@ -1026,7 +1158,7 @@ def _frame_program(fact_g: AttrGraph, rule_g: AttrGraph,
 def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
               rules: AttrGraph | None = None, max_rounds: int = 1000,
               provenance: bool = False, scope: str | None = None,
-              focus_scope: frozenset[str] | None = None, on_subgoal=None,
+              focus_scope: frozenset[str] | None = None, on_subgoal=None, policy=None,
               _neg_stack: frozenset[tuple[str, str | None, str | None]] = frozenset(),
               _fuel: "_Exhaustion | None" = None, _closed: set | None = None) -> int:
     """Answer a BOUND-TUPLE goal `(pred, subj|None, obj|None)` demand-driven with SIP: raise the goal
@@ -1069,7 +1201,13 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     goal and for NAC negatives (positive sub-demands and same_as coref are in-frame demand nodes, not
     frames), the callback stream is exactly "the questions the machine asked itself" — the ordered
     subgoal chain, free of coref noise. This is the demand-side companion to the provenance `derive`
-    trace (which records what was concluded); together they explain a demand-driven answer."""
+    trace (which records what was concluded); together they explain a demand-driven answer.
+
+    `policy` (the possibilistic fold, docs/possibilistic.md S7.5): a `FirmwarePolicy` whose
+    `uncertainty="banded"` turns on MARKER-MODE reasoning for the whole run (the global stance —
+    reads see every fork at its band, joins min-accumulate + track environments, NAF is the θ-cut
+    with graded necessity, uncertain conclusions emit as derived forks). None (or `"silent"`) is
+    today's behaviour, byte-identical — forks stay silent-until-assumed."""
     rule_g = rules if rules is not None else fact_g        # the fold: one graph unless split by choice
     validate_ids(fact_g, goal[1], goal[2])                 # id-addressed pins must exist (silent->loud)
     # §7.2 (value operands): the goal's NAME endpoints become value-node POINTERS at this boundary, so
@@ -1101,7 +1239,8 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
         cm = ControlMachine()
         program, fr = _frame_program(fact_g, rule_g, g, neg_stack=ns, provenance=provenance,
                                      scope=scope, focus_scope=focus_scope, fuel=_fuel,
-                                     max_rounds=max_rounds, closed=_closed, visible=visible)
+                                     max_rounds=max_rounds, closed=_closed, visible=visible,
+                                     policy=policy)
         return cm, fr, cm.run(fact_g, program), g, ns
 
     # THE CONTROL STACK: DFS over suspended frame machines. A resumed parent reads the child's result
@@ -1118,8 +1257,9 @@ def chain_sip(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
         else:                                              # HALT — this frame's closure is complete
             stack.pop()
             _observe(g, ns, "resolve",                     # did the closure derive/find the goal?
-                     found=bool(_facts_matching(fact_g, g[0], g[1], g[2],
-                                                scope=scope, focus_scope=focus_scope)))
+                     found=bool(_facts_matching(fact_g, g[0], g[1], g[2], scope=scope,
+                                                focus_scope=focus_scope,
+                                                bands=policy is not None and policy.banded)))
             if not stack:
                 root_total = fr.total
             else:

@@ -130,8 +130,9 @@ handful of things it actually *knows*.
     The in-page playground sticks to the basics — plain facts, rules, and
     questions. Likeliness is one of the machine's deeper powers, layered on top of
     supposing; the runs above are real output from the engine. If you want to drive
-    it yourself, it lives in the library as the possibility layer (`add_fork`,
-    `apply_rule_banded`, and a banded `ask`).
+    it yourself, it is a firmware stance: author forks with `add_fork` (or the hedge
+    CNL), then ask through the ordinary engine under
+    `FirmwarePolicy(uncertainty="banded")` — the same questions, graded answers.
 
 Curious how a "likely" is actually stored and carried? Part 4 opens the hood:
 [Shades of maybe →](../deep/uncertain-world-internals.md).

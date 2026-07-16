@@ -9,7 +9,7 @@ DIFFERENT firmware activates by swapping a `FirmwarePolicy`, the same way per-pr
 already data (`open_preds`). It is the "stance" extension point in the layering: generic substrate →
 generic engine → tools → rule banks → **stance**.
 
-Two opinions live here today:
+Four opinions live here today:
 
   - `negation_default` — how CHECK / `ask_goal` read an UNPROVABLE goal's absence (vision §6a,
     memory `decision-cwa-default`). `"closed"` (CWA, the default) reads absence as a defeasible
@@ -22,6 +22,25 @@ Two opinions live here today:
     degrades) drops the NAF rules and reasons with the monotone subset. NOTE: the demand-driven chain
     (`chain_sip`) assumes stratification for soundness (see `chain.py`'s module note), so `"degrade"`
     is a forward-path graceful fallback, not a licence to answer a cyclic bank on demand.
+
+  - `uncertainty` — how reasoning READS the possibilistic forks (docs/possibilistic.md S6/S7): the
+    GLOBAL opt-in for banded reasoning, a firmware stance flipped once per session, never per call
+    (ratified 2026-07-16). `"silent"` (the default) is silent-until-assumed: a fork is INVISIBLE to
+    certain-world reasoning unless its scope is entered (today's behaviour, byte-identical).
+    `"banded"` is marker mode: every read sees ink at CERTAIN plus EVERY fork's pencil at its
+    `<likeliness>` band; derivations min-accumulate the weakest link, carry their assumption
+    ENVIRONMENT, NAF becomes the θ-cut below, and uncertain conclusions are emitted as derived
+    forks. It cannot be automatic-on-forks: silent-until-assumed is load-bearing (uncertainty must
+    not leak into crisp queries just because the graph contains forks).
+
+  - `theta` — the possibilistic NAF α-cut, the BIAS-vs-DECISIVENESS dial (docs/possibilistic.md
+    S7.3; open-point I cashed out). In marker-mode reasoning (`possibility.py`) `not P` blocks iff P
+    is reachable at band ≥ θ: HIGH θ ignores low-possibility alternatives (decisive, bias-prone);
+    LOW θ refuses to lean on an absence while the positive is even slightly possible (cautious).
+    Range (0, 1]; the default 0.5 blocks a negation exactly when the counter-evidence is at least
+    `likely` — so an even `either…or` alternative (band 0.5) blocks, a merely `unlikely` one (0.3)
+    does not. Crisp reasoning never reads it (no forks ⇒ every Π is 0 or 1, and any θ in range
+    behaves classically).
 """
 from __future__ import annotations
 
@@ -30,6 +49,7 @@ from dataclasses import dataclass
 # The allowed values (kept as named constants so a linter/guide can enumerate them).
 CLOSED, OPEN = "closed", "open"          # negation_default
 RAISE, DEGRADE = "raise", "degrade"      # on_cycle
+SILENT, BANDED = "silent", "banded"      # uncertainty
 
 
 @dataclass(frozen=True)
@@ -41,6 +61,19 @@ class FirmwarePolicy:
     open_preds: frozenset[str] = frozenset()      # OWA exceptions when the default is closed
     closed_preds: frozenset[str] = frozenset()    # CWA exceptions when the default is open
     on_cycle: str = RAISE
+    uncertainty: str = SILENT                     # fork read: silent-until-assumed | banded marker mode
+    theta: float = 0.5                            # possibilistic NAF α-cut (bias dial), range (0, 1]
+
+    def __post_init__(self):
+        if self.uncertainty not in (SILENT, BANDED):
+            raise ValueError(f"uncertainty must be {SILENT!r} or {BANDED!r}, got {self.uncertainty!r}")
+        if not (0.0 < self.theta <= 1.0):
+            raise ValueError(f"theta must be in (0, 1], got {self.theta!r}")
+
+    @property
+    def banded(self) -> bool:
+        """Is marker-mode (banded) reading on under this policy? The one flag the engine branches on."""
+        return self.uncertainty == BANDED
 
     def is_open(self, concept: str) -> bool:
         """Is `concept` OPEN-world under this policy — i.e. does absence read as UNKNOWN (gather) rather

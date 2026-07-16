@@ -43,6 +43,25 @@ def test_theta_is_the_bias_dial():
     assert naf_holds(g, "is", "x", "male",   theta=0.5) is False    # male 0.7 ≥ 0.5 → blocks not-male
 
 
+def test_theta_lives_on_policy():
+    """θ is a SESSION dial on `FirmwarePolicy` (backlog item 1): the policy default (0.5) applies
+    when no θ is passed, a policy carries a custom θ, and the range (0, 1] is enforced."""
+    import pytest
+    from ugm.policy import FirmwarePolicy, DEFAULT_POLICY
+
+    g = _surgeon_graph()
+    assert DEFAULT_POLICY.theta == 0.5
+    assert naf_holds(g, "is", "x", "female") is True                # default θ=0.5: 0.3 < 0.5
+    assert naf_holds(g, "is", "x", "male") is False                 # 0.7 ≥ 0.5
+    decisive = FirmwarePolicy(theta=0.2)
+    assert naf_holds(g, "is", "x", "female", policy=decisive) is False   # 0.3 ≥ 0.2 → female blocks
+    assert naf_holds(g, "is", "x", "female", theta=0.5, policy=decisive) is True  # per-call override wins
+    with pytest.raises(ValueError):
+        FirmwarePolicy(theta=0.0)
+    with pytest.raises(ValueError):
+        FirmwarePolicy(theta=1.5)
+
+
 def test_band_verdicts():
     g = _surgeon_graph()
     assert verdict(g, "is", "x", "male") == "likely"        # 0.7
@@ -65,8 +84,9 @@ def test_overlay_band_min_accumulates_multi_hop():
     dangerous (fork 0.5); the 2-hop path's score = min(0.6, 0.5) = 0.5."""
     from ugm.machine import Machine, SET, FOLLOW, TEST, OVERLAY_BAND
     from ugm.attrgraph import CONTROL_MARK, INERT_MARK, NAME
-    from ugm.possibility import add_fork, all_fork_bands, _FORK_BANDS
+    from ugm.possibility import add_fork, all_fork_bands
 
+    _FORK_BANDS = "<test-bands>"          # any register name — the op reads whatever it points at
     g = AttrGraph()
     add_fork(g, 0.6, [("x", "is", "male")])
     add_fork(g, 0.5, [("male", "is", "dangerous")])
