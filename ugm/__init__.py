@@ -91,7 +91,7 @@ from .cnl.surface import render_relation, narrate, explain
 from .cnl.query import QUESTION_FORMS, ask, ask_goal, recognize
 from .cnl.machine_rules import MACHINE_RULE_FORMS, load_machine_rules
 from .cnl.form_authoring import load_forms, merge_forms, lint_recognition_safe, FORM_HEADER_FORMS
-from .intake import ingest, converse, Outcome, Event
+from .intake import ingest, converse, load_kb, Outcome, Event
 from . import external, provenance, retraction, dispatch
 from . import intake, focus, rule_control
 from .cnl import forms, surface, authoring, universal, machine_rules, query, rule_graph
@@ -157,7 +157,7 @@ __all__ = [
     "CALL", "TOOL", "Tool", "AsyncTool", "emit_call", "call_tool", "call_arg", "call_args",
     "pending_calls", "consume_call", "service_calls", "service_calls_cm", "merge_tools",
     "FirmwarePolicy", "DEFAULT_POLICY",
-    "ingest", "converse", "Outcome", "Event", "intake", "focus", "rule_control",
+    "ingest", "converse", "load_kb", "Outcome", "Event", "intake", "focus", "rule_control",
     "check_tool", "choose_tool", "suppose_tool", "mode_registry", "service_modes",
     "check_results", "choice_results", "suppose_results",
     "CHECK_TOOL", "CHOOSE_TOOL", "SUPPOSE_TOOL", "CHECK_RESULT", "SUPPOSE_RESULT", "STATUS",

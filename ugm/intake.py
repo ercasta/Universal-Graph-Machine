@@ -40,7 +40,7 @@ from .focus import GOAL  # noqa: E402
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"stance"|"goal"|"unrecognized"
+    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
@@ -58,7 +58,7 @@ class Event:
     `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). A `"call"` event
     is the ASYNC-TOOL suspension (§5 wait-set v2): its data carries `{tool, call, request}` and the
     driver's `.send()` value is the world's response, folded by the tool's `fold` half."""
-    kind: str                # focus|question|ask|subgoal|derive|answer|fact|rule|rule-conflict|rule-disable|goal|call|acted|unrecognized
+    kind: str                # focus|question|ask|subgoal|derive|answer|fact|rule|rule-conflict|rule-disable|form|form-conflict|goal|call|acted|unrecognized
     data: dict = field(default_factory=dict)
 
 
@@ -121,7 +121,7 @@ def _derivations_since(kb, before: set[str]) -> list[dict]:
     return out
 
 
-def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace):
+def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace, extra_forms=()):
     """Answer the recognized question. This is a GENERATOR so the ask wait-point can SUSPEND: if the
     chain hits an open-predicate UNKNOWN and `can_ask`, it yields an `Event("ask", …)` and pauses; the
     driver `.send()`s back the verdict (True/False/None), and we RESUME by re-entering `ask_goal` with
@@ -156,6 +156,7 @@ def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace):
                               # 2026-07-16): RECORD is mode 9, "always on" — and without receipts
                               # there are no assumed-records for revision to key from.
                               focus_scope=fscope, provenance=True,
+                              extra_forms=extra_forms,          # session-authored question forms
                               on_subgoal=(subgoals.append if trace else None))
             break
         except _NeedVerdict as nv:
@@ -208,19 +209,21 @@ def _form_template(form) -> str:
     return " ".join(words)
 
 
-def _nearest_forms(text: str, top: int = 3) -> list[str]:
+def _nearest_forms(text: str, top: int = 3, extra=()) -> list[str]:
     """The habitability signal (§4a): when NOTHING fires, which intake forms came CLOSEST — computed
     from the form banks' OWN bound literals (which of each form's keyword tokens the utterance
     contains), never a hardcoded suggestion table (discipline §D.4). Candidates are the declared
-    intake surface: the question forms, the surface `FORM_RULES` (goal/every/then/…), and the focus
-    control-CNL. Returns up to `top` surface templates, best keyword coverage first."""
+    intake surface: the question forms, the surface `FORM_RULES` (goal/every/then/…), the focus
+    control-CNL, and `extra` (the session's authored forms — Phase 9 Slice B: an authored shape
+    suggests exactly like a shipped one, structurally). Returns up to `top` surface templates,
+    best keyword coverage first."""
     from .production_rule import is_bound_literal, literal_name
     from .cnl.query import QUESTION_FORMS
     from .cnl.forms import FORM_RULES
     from .focus import FOCUS_FORMS
     toks = set(text.lower().split())
     scored: list[tuple[float, str, str]] = []
-    for form in (*QUESTION_FORMS, *FORM_RULES, *FOCUS_FORMS):
+    for form in (*QUESTION_FORMS, *FORM_RULES, *FOCUS_FORMS, *extra):
         lits = {literal_name(t) for p in form.lhs for t in (p.s, p.o) if is_bound_literal(t)}
         hit = len(lits & toks)
         if not hit:
@@ -326,6 +329,43 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         yield Event("stance", {"uncertainty": stance.uncertainty, "theta": stance.theta})
         return Outcome("stance", utterance)
 
+    # FORM — a grammar extension (`form KEY : HEAD when BODY`, Phase 9 Slice B,
+    # docs/design/form_authoring_design.md §2). Routed by the HEADER form having fired
+    # (`parse_form_line` is None otherwise — §D.2, never a string sniff); a fired header with a
+    # malformed body raises loudly there, like the rule route's loader. The authored form joins
+    # the SESSION GRAMMAR (`kb.registers["forms"]`), consumed at the use sites below and placed
+    # by its OWN RHS structure (D3: a `<query>`/`<qevent>` head = question form, else
+    # declarative). A key re-declared IDENTICALLY is idempotent (the multi-KB-file model makes
+    # that the NORMAL case); a DIFFERENT rule under an existing key is a CONVERSATION, exactly
+    # like rule-conflict: accept = the new definition replaces the old, reject = drop it.
+    from .cnl import form_authoring
+    new_forms = form_authoring.parse_form_line(text)
+    if new_forms is not None:
+        existing = form_authoring.session_forms(kb)
+        try:
+            merged = form_authoring.merge_forms(existing, new_forms, source="intake")
+        except ValueError as e:
+            verdict = yield Event("form-conflict", {"detail": str(e),
+                                                    "keys": [r.key for r in new_forms]})
+            if not verdict:
+                yield Event("form", {"added": 0, "rejected": True})
+                return Outcome("form", utterance, added_rules=[])
+            replaced = {r.key for r in new_forms}          # accepted: the new definition wins
+            merged = [r for r in existing if r.key not in replaced] + new_forms
+        kb.registers[form_authoring.FORMS_REGISTER] = merged
+        rule_control.mark_last_added(kb, [r.key for r in new_forms])   # 'disable that rule' referent
+        yield Event("form", {"added": len(merged) - len(existing),
+                             "keys": [r.key for r in new_forms]})
+        return Outcome("form", utterance, added_rules=list(new_forms))
+
+    # The session's authored grammar, minus disabled forms — threaded into every recognition
+    # site below (question recognition/answering, fact recognition, nearest-forms). With no
+    # authored forms these are empty and every path is byte-identical to before (including the
+    # question-recognition memo, which the empty extra_forms leaves on its static fast path).
+    session_grammar = rule_control.active_rules(kb, form_authoring.session_forms(kb))
+    question_forms = [f for f in session_grammar if form_authoring.is_question_form(f)]
+    declarative_forms = [f for f in session_grammar if not form_authoring.is_question_form(f)]
+
     # ANAPHORA is a BOUNDARY concern, resolved by the external SLM on the NL->CNL side using the exposed
     # discourse state (`focus.top_centers`), NOT here (decision 2026-07-12, `cnl_intake_design.md` §4). The
     # substrate receives already-resolved CNL and never sees a pronoun — reasoning is byte-identical whether
@@ -333,14 +373,15 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # facing; NLP stays on the SLM side of the boundary where the vision puts it.
 
     # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
-    q = recognize(text)
+    q = recognize(text, extra_forms=question_forms)
     if q is not None:
         yield Event("question", {"s": q.get("s"), "p": q.get("p"), "o": q.get("o")})
         # widen BEFORE answering so bounded attention includes what this question is about.
         focus_mod.widen(kb, _question_entities(q))
         fscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
         active = rule_control.active_rules(kb, rules)     # a `<disabled>` rule neither fires nor decides
-        answer = yield from _answer_with_ask(kb, text, active, policy, fscope, can_ask, trace)
+        answer = yield from _answer_with_ask(kb, text, active, policy, fscope, can_ask, trace,
+                                             extra_forms=question_forms)
         yield Event("answer", {"answer": answer})
         return Outcome("answer", utterance, answer=answer)
 
@@ -370,10 +411,12 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # the before/after delta attributes the goal to THIS utterance, no string sniff).
     goals_before = set(kb.nodes_named(GOAL))
     nodes_before = set(kb.nodes())                   # to attribute this utterance's NEW fact relations
-    anchors = load_facts(kb, text)
+    anchors = load_facts(kb, text, extra_forms=declarative_forms)
     anchor = anchors[0] if anchors else None
     minted_goals = [n for n in kb.nodes_named(GOAL) if n not in goals_before]
-    is_fact = anchor is not None and anchor_has_content_fact(kb, anchor)
+    # `since=nodes_before`: only a relation THIS utterance minted counts as a landed fact — an
+    # unrecognized line that merely mentions already-related entities must not misroute as one.
+    is_fact = anchor is not None and anchor_has_content_fact(kb, anchor, since=nodes_before)
     if is_fact:                                      # a user-asserted fact may make an assumed absence
         from .reconsider import mark_dirty, fact_grain   # derivable — RECONSIDER at the next ask
         mark_dirty(kb, [fact_grain(kb, n) for n in kb.nodes()
@@ -403,7 +446,8 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         return Outcome("fact", utterance)
     # UNRECOGNIZED — the habitability signal (§4a): say what was not understood AND which declared
     # forms came closest, computed from the form banks themselves (no hardcoded suggestion table).
-    nearest = _nearest_forms(text)
+    # Session-authored forms are candidates too — an authored shape suggests like a shipped one.
+    nearest = _nearest_forms(text, extra=session_grammar)
     yield Event("unrecognized", {"nearest": nearest})
     return Outcome("unrecognized", utterance, nearest=nearest)
 
@@ -455,10 +499,48 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, on_conflict=None
                 send_val = ask_user(ev.data["subj"], ev.data["rel"], ev.data["obj"])
             elif ev.kind == "call":                      # async tool boundary: the host answers
                 send_val = answer_call(ev.data["request"])
-            elif ev.kind == "rule-conflict":             # §6: no handler => reject the cycle-forming rule
+            elif ev.kind in ("rule-conflict", "form-conflict"):   # §6 (+ Phase 9 form keys): no
+                # handler => reject the conflicting rule/form, never silently admit/replace
                 send_val = on_conflict(ev.data["detail"]) if on_conflict is not None else False
     except StopIteration as stop:
         return stop.value
+
+
+def load_kb(kb, rules, text, *, policy=None, attention: str = "global",
+            on_event=None) -> list[Outcome]:
+    """Load a KB FILE: its lines are batched utterances through the ONE intake route, in order
+    (Phase 9 Slice B — the multi-KB-file model, docs/design/form_authoring_design.md D2). The
+    shipped/base grammar file is just another file loaded this way; a session composes its
+    world by loading N of them.
+
+    LOAD ORDER IS SEMANTIC — strictly declare-before-use: a `form …` (or rule, or relation
+    declaration) line extends the grammar for every LATER line, and a line using a form that
+    arrives later is unrecognized. That is the same contract as a live session (files ARE
+    batched utterances); there is no whole-file re-offer fixpoint.
+
+    LOUD WALLS (a file has no conversation partner): an UNRECOGNIZED line raises, naming the
+    line and the nearest-forms guidance; a rule/form CONFLICT raises with the conflict detail
+    instead of negotiating. Facts land monotonically as lines load, so a raise leaves earlier
+    lines standing — the KB is the session; re-loading a fixed file is idempotent for forms
+    (key-identity merge) and additive for facts. Blank/`#` lines skipped. Returns the per-line
+    `Outcome`s."""
+    def _conflict_is_fatal(detail):
+        raise ValueError(f"load_kb: conflict — {detail}")
+    outcomes: list[Outcome] = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        out = ingest(kb, rules, s, policy=policy, attention=attention,
+                     on_event=on_event, on_conflict=_conflict_is_fatal)
+        if out.kind == "unrecognized":
+            raise ValueError(
+                f"load_kb: unrecognized line '{s}'"
+                + (f" — nearest forms: {out.nearest}" if out.nearest else "")
+                + ". Load order is declare-before-use: a form/relation this line needs must "
+                "be declared on an EARLIER line (or in an earlier-loaded file).")
+        outcomes.append(out)
+    return outcomes
 
 
 def converse(kb, rules, utterance, *, policy=None, attention: str = "global", trace: bool = False,

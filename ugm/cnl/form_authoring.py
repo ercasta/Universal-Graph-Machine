@@ -177,3 +177,41 @@ def _authored_keys(rg: Graph) -> set[str]:
             if rg.has_key(rel, "rl_key"):
                 keys.add(rg.name(obj))
     return keys
+
+
+# ---------------------------------------------------------------------------
+# Slice B plumbing — the intake route discriminator, D3 placement, the session grammar
+# ---------------------------------------------------------------------------
+
+def parse_form_line(text: str) -> list[Rule] | None:
+    """None unless the `form KEY :` HEADER form fires on `text` — the intake route
+    discriminator (§D.2: routed by which form fired, never a string sniff); the fully parsed
+    form(s) otherwise. A fired header with a malformed body RAISES loudly (`load_forms`),
+    exactly like the rule route's loader — never a silent fall-through to the fact route."""
+    tmp = Graph()
+    load_text(tmp, text)
+    run_bank(tmp, FORM_HEADER_FORMS)
+    if not _authored_keys(tmp):
+        return None
+    return load_forms(text)
+
+
+def is_question_form(rule: Rule) -> bool:
+    """Does this form mint a question pattern (`<query>`/`<qevent>` head)? The D3
+    bank-placement discriminator, read from the form's OWN RHS structure (never a keyword
+    list): a question form joins recognition/answering as `extra_forms`; a declarative form
+    joins the fact-recognition bank (`load_facts(extra_forms=…)`)."""
+    return any(literal_name(p.s) in ("<query>", "<qevent>") for p in rule.rhs)
+
+
+# The session-grammar register: the authored forms of a live KB, a plain register value like
+# `kb.registers["policy"]` (mechanism side — stepping state, not explanation). Persistence is
+# the CNL lines themselves (design D4): replaying the transcript rebuilds this register.
+FORMS_REGISTER = "forms"
+
+
+def session_forms(kb) -> list[Rule]:
+    """The forms this session has authored (`form KEY : …` utterances / loaded KB-file lines),
+    in declaration order. Callers filter through `rule_control.active_rules` so a disabled
+    form neither recognizes nor suggests."""
+    return list(kb.registers.get(FORMS_REGISTER, []))

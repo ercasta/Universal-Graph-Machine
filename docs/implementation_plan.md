@@ -78,18 +78,28 @@ parked-item cleanup (demand-coref CLOSED-as-settled; INTERPOSE/RESTORE deleted).
    independence) — full reification stays a proven, parked path. Exit gate
    (capability-shaped): a domain KB file declares a new sentence shape in CNL; facts and
    questions in that shape parse; nearest-forms and disable cover it; no Python edited.
-   **Slice A DONE 2026-07-16 (554 green)** — `cnl/form_authoring.py`, proven end-to-end via
-   `extra_forms=`; remaining: Slice B (intake/KB-file plumbing), optional Slice C (exemplar).
-3. **Phase 7b — the Rust interpreter port** (full plan `design/rust_engine_plan.md`). Fully
+   **Slices A+B DONE 2026-07-16 (567 green)** — `cnl/form_authoring.py` (`form KEY :` grammar,
+   `rl_key`, safety lint, key-merge) + intake FORM route + D3 bank placement + `load_kb`
+   (multi-KB-file, declare-before-use); nearest-forms/disable cover authored forms. Exit gate
+   MET (a KB file declares new shapes; parse/answer/suggest/disable all work; no Python edited).
+   Remaining: optional Slice C (exemplar sugar) + the book authoring-chapter section.
+3. **PROCEDURES (queued arc — design notes RATIFIED 2026-07-16: `design/procedures_design.md`).**
+   Sequences of actions toward a goal — the agentic-harness "drive the execution" capability,
+   after Phase 9 Slice B. Decomposition (all KB data + declared banks, NO engine change —
+   composition ITERATE × CALL × CHECK, passes `processing_modes.md` §4): **collections 3.4**
+   (step lists as member `next`-chains — 3.4's driving workload, absorbed here) + a universal
+   **STEPPING BANK** (invoke/step/advance/discrepancy + the resurrected planner gap-fill
+   bridge; procedure = pre-made plan, planner = synthesized plan, same execution gate) + a
+   **`to NAME :` authoring form** (Slice-A family). TOOL BOUNDARY RATIFIED same day (design
+   notes §1): UGM owns the call token + the fold, executes CALCULATORS inline, SUSPENDS world
+   actions to the harness (`Event("call")` / `.send()`); failure is data rules react to.
+4. **Phase 7b — the Rust interpreter port** (full plan `design/rust_engine_plan.md`). Fully
    unblocked: procedures became ISA firmware first (Phase A done 2026-07-14; the 2026-07-16
    compliance pass closed the driver-write gaps), so Phase B ports ONLY the interpreter and the
    instruction set is the frozen contract. Measured prize: 381× on the match loop. The former
    "after Phase 9" ordering constraint DISSOLVED with the 9 re-scope (the data/interpreter
    boundary was already final — `Rule` lists are data to the lowering); start whenever a real
    target-scale workload is too slow and 7(a) is exhausted.
-4. **Collections (3.4)** — member `next`-chains + list-authoring CNL forms (the ITERATE
-   substrate). Off the critical path; decoupled from Phase 9 by the re-scope (no bank-chain
-   consumer anymore) — schedule on its own merits.
 
 Small in-repo residuals live in their homes, none blocking: the 8.5b tail + perf levers below
 ("until they bite"), the possibilistic feature threads (`possibilistic.md`: abduction SUPPOSE,
@@ -212,7 +222,9 @@ mechanical parts under the design spec.
 2. **Phase 3 remaining (rules-as-data / homoiconicity — off the critical path).**
    - ~~3.1 step 2 (one-graph fold)~~ **DONE 2026-07-14** (firmware-over-ISA arc, `PATTERN_MARK`).
    - **3.4:** collections as first-class KB structure: member `next`-chains + list-authoring CNL forms
-     (the ITERATE substrate — `reference/processing_modes.md` §1). ⚠Opus.
+     (the ITERATE substrate — `reference/processing_modes.md` §1). ⚠Opus. ABSORBED into the
+     PROCEDURES arc (Current-focus queue item 3, `design/procedures_design.md`) — step lists
+     are its driving workload.
    - Exit gate: every bank rule round-trips CNL → rule subgraph → rendered CNL.
    - NOTE: meta-circular FORM-rule authoring (the quote/eval wall) — RESOLVED 2026-07-16: the
      wall needs no new machinery (rule-source CNL already expresses forms; finding recorded in

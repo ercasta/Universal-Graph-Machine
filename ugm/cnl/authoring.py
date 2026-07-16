@@ -252,11 +252,17 @@ def _recognize(graph: Graph, sentences: list[str], forms: list[Rule]) -> list[st
     return anchors
 
 
-def anchor_has_content_fact(graph: Graph, anchor: str) -> bool:
+def anchor_has_content_fact(graph: Graph, anchor: str, since: set[str] | None = None) -> bool:
     """Did recognition give this utterance's token chain a CONTENT relation (a real fact), as opposed to
     only the control `first`/`next` scaffolding of an unrecognized line? Content-blind: a fact is a
     non-control, non-inert relation between the utterance's own (content) token nodes. Shared by
-    `load_facts(strict=…)` (feedback #5) and `intake.ingest`'s fact-vs-unrecognized routing."""
+    `load_facts(strict=…)` (feedback #5) and `intake.ingest`'s fact-vs-unrecognized routing.
+
+    `since` (a pre-utterance node-id snapshot): count only relations NEW since it. Without this, an
+    UNRECOGNIZED line that merely MENTIONS already-related entities (`whether bo is a suspect` after
+    `bo is a suspect` — interning merges its tokens onto the existing entities) reads the OLD
+    `is_a` relation between its own tokens and misroutes as a fact — the silent-wrong-routing
+    habitability trap. A genuine re-assertion still counts (recognition mints a fresh relation)."""
     seen, frontier = set(), [anchor]
     toks: list[str] = []
     while frontier:                                          # walk the first/next token chain
@@ -274,6 +280,8 @@ def anchor_has_content_fact(graph: Graph, anchor: str) -> bool:
         for rel, obj in graph.relations_from(t):
             if graph.is_control(rel) or graph.is_inert(rel):
                 continue                                     # scaffolding / provenance, not a fact
+            if since is not None and rel in since:
+                continue                                     # pre-existing ink, not THIS utterance's fact
             if graph.has_key(rel, "first") or graph.has_key(rel, "next"):
                 continue                                     # the token chain itself
             if obj in tokset:                                # a content edge between the line's tokens
@@ -281,7 +289,8 @@ def anchor_has_content_fact(graph: Graph, anchor: str) -> bool:
     return False
 
 
-def load_facts(graph: Graph, text: str, *, strict: bool = False) -> list[str]:
+def load_facts(graph: Graph, text: str, *, strict: bool = False,
+               extra_forms: list[Rule] = ()) -> list[str]:
     """Load CNL facts into `graph`: recognize -> intern same-named mentions -> graded rules.
 
     Recognition runs on the ISA forward driver (`_recognize` -> `run_bank`) — the "one engine" move
@@ -297,8 +306,13 @@ def load_facts(graph: Graph, text: str, *, strict: bool = False) -> list[str]:
     verb is not lexicon-known/declared, which otherwise stays raw tokens with no signal — RAISES,
     listing the dropped line(s). Default `False` keeps the lenient "unrecognized stays raw" behaviour, so
     a data-loading caller can opt in to detect silent loss without every consumer changing.
+
+    `extra_forms` (Phase 9 Slice B): additional recognition forms run alongside the shipped
+    banks — the session's authored DECLARATIVE forms (`form_authoring`, placed here by their
+    own RHS structure). They join `mark_mentions`' bank list too, so their predicate literals
+    are protected from mention-marking like any shipped form's.
     """
-    rules = FORM_RULES + FACT_FORMS
+    rules = FORM_RULES + FACT_FORMS + list(extra_forms)
     lines = [ln for ln in text.splitlines() if ln.strip()]
     anchors = _recognize(graph, lines, rules)
     # Mark entities `is_a <mention>`, then INTERN same-named mentions to one node (hardcoded "same name

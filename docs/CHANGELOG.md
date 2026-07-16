@@ -12,6 +12,52 @@ this log is itself a historical record.
 
 ---
 
+## 2026-07-16 (procedures arc queued + tool-execution boundary ratified — design notes)
+
+### `design/procedures_design.md` (no code)
+Two user-ratified decisions from the "should UGM execute tools?" discussion. (1) TOOL
+BOUNDARY: UGM owns the CALL TOKEN and the FOLD (a `<call>` node = name + arg slots as graph
+data; UGM knows a tool's name, slots, fold — never transport/auth/retries); it EXECUTES
+calculators inline (arithmetic, fuel `dec`, mode-calls — reasoning, not action) and SUSPENDS
+world actions to the harness (`service_calls_cm` → `Event("call")` → `.send()` → fold);
+failure is DATA rules react to, not control flow; the sync registry = a caller choosing to be
+the harness in-process. (2) PROCEDURES ARC queued after Phase 9 Slice B (plan queue item 3):
+named step-sequences as KB content = collections 3.4 (step lists as member `next`-chains —
+3.4 absorbed, finally has its driving workload) + a universal stepping bank
+(invoke/step/advance/discrepancy + the resurrected gap-fill bridge to the planner; pre-made
+plan and synthesized plan share one execution gate) + a `to NAME :` authoring form (Slice-A
+family). No engine change — composition ITERATE × CALL × CHECK, per processing_modes §4.
+History recorded: the previous generation's `procedure.py` was never re-hosted (equivalence
+non-target, no demanding workload, 3.4 queued); the orphaned `corpus/procedure.cnl` deleted.
+
+## 2026-07-16 (Phase 9 Slice B — form authoring through intake + KB-file loading; 567 green)
+
+### The FORM route, D3 bank placement, `load_kb`
+Slice B of `design/form_authoring_design.md` §5. Intake now has a FORM route
+(`_ingest_gen`, after stance / before question): routed by `form_authoring.parse_form_line`
+(the header form firing — §D.2, never a string sniff), a fired header with a malformed body
+raising loudly there. New `Outcome`/`Event` kind `"form"` + `"form-conflict"` as a
+conversation wait-point (default reject; accept = the new definition replaces the old under
+that key; identical re-declaration idempotent — the multi-KB-file NORMAL case).
+`mark_last_added` covers authored forms, so `disable that rule` disables a just-authored form.
+D3 BANK PLACEMENT by the form's OWN RHS structure (`is_question_form`: a `<query>`/`<qevent>`
+head → question recognition/answering via `extra_forms=`; else declarative → `load_facts`
+gained `extra_forms=`). Authored forms feed nearest-forms too (an authored shape suggests like
+a shipped one). Session grammar lives in `kb.registers["forms"]`; with none authored every
+path is byte-identical (the recognition memo stays on its static fast path — no version
+counter needed). NEW `load_kb(kb, rules, text)`: KB-file lines as batched utterances through
+the one route, STRICT declare-before-use (a `form …` line extends the grammar for later
+lines), loud on unrecognized lines + conflicts. Exported from `ugm`/`ugm.cnl`.
+BUG FOUND + FIXED by the new tests: an unrecognized line merely MENTIONING already-related
+entities (`whether bo is a suspect` before the form existed) misrouted as `"fact"` — interning
+merged its tokens onto existing entities and `anchor_has_content_fact` read the OLD relation.
+Now takes a `since=` node snapshot, counting only relations THIS utterance minted (a genuine
+re-assertion still counts — recognition mints a fresh relation). `tests/test_intake_forms.py`
+(13 tests, the full exit-gate story) + Slice A's 14 all green. Remaining: optional Slice C
+(exemplar sugar). CAPABILITY EXIT GATE MET: a KB file declares new sentence shapes in CNL;
+facts + questions in them parse and answer; nearest-forms + disable cover them; no Python
+edited.
+
 ## 2026-07-16 (Phase 9 Slice A — the `form KEY :` authoring surface; 554 green)
 
 ### `ugm/cnl/form_authoring.py` — forms authored in rule-source CNL, with stable keys
@@ -33,6 +79,10 @@ EXISTING `extra_forms=` hook and `recognize`/`ask` answer through it end-to-end
 (`tests/test_form_authoring.py`, 14 tests). Exported from `ugm` and `ugm.cnl`. Remaining:
 Slice B (intake route, RHS-structure bank placement, memo version counter, KB-file loading
 with declare-before-use), optional Slice C (exemplar sugar).
+
+Cleanup: deleted `corpus/procedure.cnl` (orphan — its consumers `procedure.py`/`planning.solve`
+were previous-generation, never re-hosted; zero references). Procedures-as-step-lists remain a
+future arc: collections 3.4 substrate + a stepping bank + a `to NAME :` authoring form.
 
 ## 2026-07-16 (Phase 9 design session — drafted as forms-as-KB-data, RE-SCOPED to form authoring)
 

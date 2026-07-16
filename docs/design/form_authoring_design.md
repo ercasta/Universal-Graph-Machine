@@ -115,16 +115,22 @@ Tier 1 (§2). Build only after Tier 1 proves out — it is a convenience, not a 
   `FORM_HEADER_FORMS` prior stratum + `mrule.start` NAC on `form_hdr`; `rl_key` in
   `expand_rules`; `lint_recognition_safe`; `merge_forms` (D5). Proven end-to-end through the
   existing `extra_forms=` hook (`tests/test_form_authoring.py`).
-- **Slice B — the plumbing:** intake route (new `Outcome`/`Event` kind `"form"`, routed by
-  the fold having produced an `rl_key` rule node — never a string sniff); RHS-structure bank
-  placement (D3); memo version counter; nearest-forms/disable coverage of authored forms;
-  KB-file loading path (declare-before-use).
-- **Slice C (optional) — exemplar sugar** (§4).
+- **Slice B — the plumbing — DONE 2026-07-16 (567 green):** intake FORM route (new
+  `Outcome`/`Event` kind `"form"` + `"form-conflict"` wait-point, routed by
+  `parse_form_line` — the header form firing, never a string sniff); RHS-structure bank
+  placement (D3, `is_question_form`); nearest-forms + `disable that rule` coverage of authored
+  forms; `session_forms` in `kb.registers["forms"]`; `load_kb` (declare-before-use). NOTE: the
+  planned MEMO VERSION COUNTER proved UNNEEDED — session-authored forms take the `extra_forms=`
+  path, which already bypasses the static-banks memo (`_parse_question`), and the empty-grammar
+  case leaves every path byte-identical. Fixed en route: `anchor_has_content_fact` now takes a
+  `since=` snapshot so an unrecognized line mentioning already-related entities doesn't misroute
+  as a fact. `tests/test_intake_forms.py`.
+- **Slice C (optional) — exemplar sugar** (§4). Not started.
 
-**Exit gate (capability-shaped):** a domain KB file declares a new sentence shape in CNL;
-facts and questions in that shape parse and answer; nearest-forms suggests it; `disable`
-covers it; **no Python edited**. Book: a short section in the authoring chapter, not a
-rewrite of ch. 7/15.
+**Exit gate (capability-shaped) — MET 2026-07-16 (Slices A+B):** a domain KB file declares a
+new sentence shape in CNL; facts and questions in that shape parse and answer; nearest-forms
+suggests it; `disable` covers it; **no Python edited**. Book: a short section in the authoring
+chapter (still owed), not a rewrite of ch. 7/15.
 
 Model routing: Slice A/B mechanical under this spec (✓S) except the intake-route judgment
 calls (⚠Opus for D3's placement edge cases); Slice C ⚠Opus.
