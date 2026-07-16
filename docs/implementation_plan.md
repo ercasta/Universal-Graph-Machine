@@ -29,6 +29,29 @@ explanation arc (linked subgoal chain + certain-NAF assumed-records), Phase 8's 
 (goal/act route with async-tool suspend, nearest-forms rejection, focus-reachability GC), and the
 parked-item cleanup (demand-coref CLOSED-as-settled; INTERPOSE/RESTORE deleted). The book is synced.
 
+**Also closed (2026-07-16, the compliance/revision session):**
+- **ISA-compliance pass** — every driver write is an ISA program (`provenance.record_firing` =
+  the ONE justification-minting path; retraction RECORD = MINT+`REDIRECT`; suppose/possibility/
+  choose writes lowered); new gated opcodes `REDIRECT` (privileged, retraction-only) and `SWEEP`
+  (control-node deletion, refuses facts/provenance); BORN-CONTROL token skolems
+  (`lower_rhs.resolve`), so every scaffolding deletion flows through `SWEEP`/`DROP_CTRL`; the
+  superseded APPLY frame-matcher DELETED (`apply.py` = shared readers + head index).
+- **Determinism + demand subsumption** — substrate adjacency/indices are insertion-ordered
+  dict-as-set (the 30× PYTHONHASHSEED work-variance fix; runs are bit-for-bit reproducible on the
+  fast topology); `_round` skips demands whose strict generalization stands (halves adversarial
+  topologies, +0.45% on the fast path).
+- **RECONSIDER (`design/reconsider_design.md`, BUILT)** — demand-driven revision of materialized
+  NAF conclusions: intake marks `(pred, obj)` grains in registers; the next committed ask re-checks
+  affected `<assumed>` records and withdraws broken support (cascade + copy-on-delete, history
+  stamped `broken_assumption`); forward `run_bank` journals its survived NACs too (provenance=True);
+  committed intake asks run provenance ALWAYS-ON (user-ratified; +15% heavy whole-graph ask).
+- **Hard-vs-assumed surfacing capstone** — `ask_goal` verdicts wear their kind in every stance
+  (`no` / `no (assumed)` / `unknown`); book synced (chs. 0/3/4/5/8/9/10/19 + appendix; ch. 8 tells
+  the self-revision story).
+- **Habitability hardening** — inverted why-question forms; the keyword-in-name-slot lint
+  (`query._kw_in_name_slot`): a mis-parse is UNRECOGNIZED (loud wall + nearest-forms), never a
+  silent wrong answer.
+
 **The queue, in order:**
 
 1. **The CLIENT — rebuild `harneskills_new` against the `converse`/Event/Outcome contract**
@@ -39,13 +62,34 @@ parked-item cleanup (demand-coref CLOSED-as-settled; INTERPOSE/RESTORE deleted).
    The **Phase 5 exit-gate bench half** (card-trader + coref + ProofWriter coverage) rides along —
    it runs in the harness. Nothing in this repo blocks it; engine gaps found there come back here as
    feedback items.
-2. **Phase 7b — the Rust interpreter port** (the next in-repo arc; full plan
-   `design/rust_engine_plan.md`). Fully unblocked: procedures became ISA firmware first (Phase A
-   done 2026-07-14), so Phase B ports ONLY the interpreter and the instruction set is the frozen
-   contract. Measured prize: 381× on the match loop.
-3. **Program-as-data homoiconicity + collections (3.4)** — the design track (⚠Opus), feeding the
-   ITERATE substrate and the meta-circular direction. Off the critical path; pick up between or
-   after 1–2.
+2. **CNL FORM AUTHORING (Phase 9 — RE-SCOPED + RATIFIED 2026-07-16).** ⭐ DESIGN:
+   **`design/form_authoring_design.md`** — build by its §5 slices. The original
+   "forms-as-KB-data" scope (migrate every bank to KB-resident reified rules, self-hosting
+   kernel, zero-`Rule`-literals gate) was CUT after benefit decomposition (design §6): the
+   shipped banks are frozen in practice, `Rule` lists are already DATA to the lowering (so the
+   Rust boundary was already final), habitability already derives from `Rule` structure, and
+   in-engine grammar metareasoning — the only capability reification enables — is ruled out
+   (user, 2026-07-16). What remains is the capability that was genuinely missing: **the grammar
+   is extensible from the outside, in CNL** — `form KEY : HEAD when BODY` (machine grammar +
+   new `rl_key` naming form), recognized at intake and in loaded KB files (multi-KB model,
+   strict declare-before-use), routed to its bank by its own RHS structure, disable/nearest-
+   forms covered, persisted as the CNL line itself. Enabling finding kept: rule-source CNL
+   already spans the form language (bound-literal tokens `is?`/`<query>?`; NAC-group
+   independence) — full reification stays a proven, parked path. Exit gate
+   (capability-shaped): a domain KB file declares a new sentence shape in CNL; facts and
+   questions in that shape parse; nearest-forms and disable cover it; no Python edited.
+   **Slice A DONE 2026-07-16 (554 green)** — `cnl/form_authoring.py`, proven end-to-end via
+   `extra_forms=`; remaining: Slice B (intake/KB-file plumbing), optional Slice C (exemplar).
+3. **Phase 7b — the Rust interpreter port** (full plan `design/rust_engine_plan.md`). Fully
+   unblocked: procedures became ISA firmware first (Phase A done 2026-07-14; the 2026-07-16
+   compliance pass closed the driver-write gaps), so Phase B ports ONLY the interpreter and the
+   instruction set is the frozen contract. Measured prize: 381× on the match loop. The former
+   "after Phase 9" ordering constraint DISSOLVED with the 9 re-scope (the data/interpreter
+   boundary was already final — `Rule` lists are data to the lowering); start whenever a real
+   target-scale workload is too slow and 7(a) is exhausted.
+4. **Collections (3.4)** — member `next`-chains + list-authoring CNL forms (the ITERATE
+   substrate). Off the critical path; decoupled from Phase 9 by the re-scope (no bank-chain
+   consumer anymore) — schedule on its own merits.
 
 Small in-repo residuals live in their homes, none blocking: the 8.5b tail + perf levers below
 ("until they bite"), the possibilistic feature threads (`possibilistic.md`: abduction SUPPOSE,
@@ -170,12 +214,17 @@ mechanical parts under the design spec.
    - **3.4:** collections as first-class KB structure: member `next`-chains + list-authoring CNL forms
      (the ITERATE substrate — `reference/processing_modes.md` §1). ⚠Opus.
    - Exit gate: every bank rule round-trips CNL → rule subgraph → rendered CNL.
-   - NOTE: meta-circular FORM-rule authoring (the quote/eval wall) stays DEFERRED (scoping 2026-07-09).
+   - NOTE: meta-circular FORM-rule authoring (the quote/eval wall) — RESOLVED 2026-07-16: the
+     wall needs no new machinery (rule-source CNL already expresses forms; finding recorded in
+     `design/form_authoring_design.md` §1). The authoring surface is **Phase 9 (CNL form
+     authoring)**, item 2 of the Current-focus queue; FULL bank reification was cut (design §6)
+     and stays a parked, proven path.
 
-3. **Program-as-data homoiconicity** — the next frontier the firmware arc opened: programs the machine
-   runs, represented in the graph it runs on (seed-from-focus is already in-machine as `MEMBER` over
-   `registers["<focus>"]`; value operands generalize by "just change the lowering program" —
-   `attic/isa_value_operands_design.md` §6). ⚠Opus (design work, not yet a concrete slice).
+3. **Program-as-data homoiconicity** — the wider frontier the firmware arc opened: programs the
+   machine runs, represented in the graph it runs on (seed-from-focus is already in-machine as
+   `MEMBER` over `registers["<focus>"]`; value operands generalize by "just change the lowering
+   program" — `attic/isa_value_operands_design.md` §6). Phase 9 is its first concrete slice
+   (rules-as-data was the zeroth); the rest stays design-track (⚠Opus).
 
 ## Phase 7 — PERFORMANCE track (after correctness — user standing rule)
 

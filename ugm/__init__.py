@@ -90,6 +90,7 @@ from .cnl.authoring import (
 from .cnl.surface import render_relation, narrate, explain
 from .cnl.query import QUESTION_FORMS, ask, ask_goal, recognize
 from .cnl.machine_rules import MACHINE_RULE_FORMS, load_machine_rules
+from .cnl.form_authoring import load_forms, merge_forms, lint_recognition_safe, FORM_HEADER_FORMS
 from .intake import ingest, converse, Outcome, Event
 from . import external, provenance, retraction, dispatch
 from . import intake, focus, rule_control
@@ -183,6 +184,7 @@ __all__ = [
     "render_relation", "narrate", "explain",
     "QUESTION_FORMS", "ask", "ask_goal", "recognize",
     "MACHINE_RULE_FORMS", "load_machine_rules",
+    "load_forms", "merge_forms", "lint_recognition_safe", "FORM_HEADER_FORMS",
     "external", "provenance", "retraction", "dispatch",
     "forms", "surface", "authoring", "universal", "machine_rules", "query", "rule_graph",
     "ARG", "request", "pending", "consume_request",

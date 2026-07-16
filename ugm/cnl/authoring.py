@@ -762,7 +762,12 @@ def _expand_rule_node(graph: Graph, R: str, declared: set[str] = frozenset()) ->
         [_value_match(k, DEFAULT_CLOSENESS) for k in _objs(graph, R, "rl_value_close")])
 
     prose = legacy_subj is not None and not head_conds
-    return Rule(key=_rule_key(rhs, lhs, nac, drop, prose=prose),
+    # An AUTHORED key (`form KEY :` — form_authoring's naming surface) wins over the derived
+    # one: forms carry load-bearing stable keys (disable, nearest-forms, provenance) where a
+    # digest would drift with any pattern edit.
+    key_tok = _obj(graph, R, "rl_key")
+    key = graph.name(key_tok) if key_tok is not None else _rule_key(rhs, lhs, nac, drop, prose=prose)
+    return Rule(key=key,
                 lhs=lhs, rhs=rhs, nac=nac, drop=drop, graded=graded, value_matches=value_matches)
 
 

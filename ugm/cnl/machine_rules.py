@@ -89,8 +89,13 @@ MACHINE_RULE_FORMS: list[Rule] = [
     # / `and`-domino grammar the prose surface uses (grammar unification). Only the head differs.
 
     # Create the rule node; the sentence's first token is the first HEAD clause's subject.
+    # NAC: a `form KEY :` header line already minted its rule (form_authoring's PRIOR stratum
+    # tags the leading `form` token `form_hdr`) — without the deferral this would mint a second,
+    # spurious rule whose head clause is the header itself. Inert outside `load_forms` (nothing
+    # else sets the tag), so plain machine banks are unchanged.
     Rule(key="mrule.start",
          lhs=[Pat("?s", "first", "?cs")],
+         nac=[Pat("?cs", "form_hdr", "yes")],
          rhs=[Pat("<rule>?", "owns", "?cs"), Pat("?cs", "head_subj", "<rule>?")]),
 
     # Keyword tag — distinguish a `drop`-led head clause (set at step 1, before the flow). The

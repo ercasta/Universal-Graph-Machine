@@ -12,6 +12,112 @@ this log is itself a historical record.
 
 ---
 
+## 2026-07-16 (Phase 9 Slice A — the `form KEY :` authoring surface; 554 green)
+
+### `ugm/cnl/form_authoring.py` — forms authored in rule-source CNL, with stable keys
+Slice A of `design/form_authoring_design.md` §5. `load_forms(text)` parses `form KEY : HEAD
+when BODY` lines into executable recognition `Rule`s: a PRIOR-STRATUM header form
+(`FORM_HEADER_FORMS`) folds `rl_key` onto the rule node and tags the leading `form` token
+(`form_hdr`); `mrule.start` gained a NAC on that tag (inert outside `load_forms` — plain
+machine banks unchanged, test-pinned incl. a rule whose subject is literally named `form`);
+everything after the `:` is the UNCHANGED machine grammar. `expand_rules` uses an authored
+`rl_key` over the digest key when present. Guard rails, all loud: a line without the header is
+an error (never a silently digest-keyed form); `machine_rule_defects` +
+`reject_rhs_only_head_vars` apply; NEW `lint_recognition_safe` — a form's LHS/NAC may read
+ONLY token-chain scaffolding (`SCAFFOLD_PREDS` + `is_kw`; a content or variable predicate in a
+condition is a domain rule wearing a form's clothes). `merge_forms` = design D5 key semantics:
+identical re-declaration idempotent (multi-KB-file loading makes it the NORMAL case), same key
++ different rule = loud conflict, applied both across loads and within one text. CAPABILITY
+PROVEN with zero new plumbing: an authored `whether S P O` / `whom P O` form flows through the
+EXISTING `extra_forms=` hook and `recognize`/`ask` answer through it end-to-end
+(`tests/test_form_authoring.py`, 14 tests). Exported from `ugm` and `ugm.cnl`. Remaining:
+Slice B (intake route, RHS-structure bank placement, memo version counter, KB-file loading
+with declare-before-use), optional Slice C (exemplar sugar).
+
+## 2026-07-16 (Phase 9 design session — drafted as forms-as-KB-data, RE-SCOPED to form authoring)
+
+### Design: `design/form_authoring_design.md` (no code; ratified scope)
+Queue item 2 opened design-first as full forms-as-KB-data (migrate every form bank to
+KB-resident reified rules; self-hosting kernel; banks as member-chain collections;
+zero-`Rule`-literals exit gate). First draft written, then CUT in user discussion — benefit
+decomposition showed the shipped banks are frozen in practice and every claimed benefit except
+one is already delivered: `Rule` lists are already DATA to the lowering (the Rust
+data/interpreter boundary was already final), habitability (nearest-forms/keyword lint) already
+derives from `Rule` structure, and the one capability reification genuinely enables — in-engine
+grammar METAREASONING — was ruled out by the user ("not even a hypothesis in a remote future").
+Migrating frozen working code behind a differential gate proving nothing changed = the
+equivalence-target trap (ratified against 2026-07-10). RE-SCOPED to the capability that was
+missing: **grammar extensibility in CNL** — `form KEY : HEAD when BODY` (new `rl_key` naming
+form; the rest is the machine grammar unchanged), recognized at intake AND in loaded KB files
+(multi-KB model, strict declare-before-use — load order is semantic, same contract as a live
+session), bank placement routed by the folded RHS's own structure (§D-compliant),
+key-idempotent/conflict-loud merge, disable via rule_control (already key-based), persistence =
+the CNL line itself, plus a recognition-safety lint (a form's LHS may read only the token
+chain). ENABLING FINDING (kept, verified en route): rule-source CNL already spans the form
+language — bound-literal tokens (`is?`, `<query>?`) are legal in S/P/O, and
+`lowering._nac_groups` gives independent NAC groups, so the shipped banks' guard-NAC idiom is
+expressible; full reification stays a proven, parked path. Consequences: the "Phase 9 before
+7b" ordering constraint dissolved; collections 3.4 decoupled. Plan queue re-pointed; first
+draft doc deleted.
+
+## 2026-07-16 (evening session — compliance, determinism, revision, habitability)
+
+### ISA-compliance pass + two gated opcodes + frame-matcher deletion (540 green)
+Audit (user ask): Python that pokes the substrate where machine semantics belong in instructions.
+Landed: every driver WRITE is now an ISA program — `provenance.record_firing` is the ONE
+justification-minting path (forward `run_bank` + demand `_record` + suppose's confirmed commit);
+retraction RECORD = a MINT+`REDIRECT` program; suppose pencil/ink/scope, possibility fork/guess,
+choose marks all lowered; `MINT` gained `inert=`. NEW OPCODES: `REDIRECT src old new` (privileged
+like `RETIRE` — retraction-only, gate tested) and `SWEEP node` (gated control-node deletion —
+REFUSES facts/provenance; the node-level `DROP_CTRL`). BORN-CONTROL: `lower_rhs.resolve()` mints
+`<…>`-token skolems (`<call>?`/`<goal>?`) with the string-form treatment (token key + control), so
+every scaffolding deletion (consume_call, focus sweeps, rule_control, run_bank GC) flows through
+`SWEEP`. The superseded Phase-4.2 APPLY frame-matcher DELETED (apply.py 458→164 lines; its 11
+differential tests went with it). Perf: call-count deltas +0.01–0.1% (pinned-seed method below).
+
+### Determinism (the 30× hash-seed fix) + demand subsumption
+FOUND while timing the pass: the demand path's work varied up to 30× with PYTHONHASHSEED (3.2M–103M
+calls for the same ask; fast seeds were the MINORITY). Root cause: the engine derives while it
+iterates, and hash-ordered `set` iteration (substrate adjacency/index buckets, frame agendas)
+steered which sub-demand tuples got raised — slow seeds accreted bound×wildcard agenda floods (avg
+165.8 vs 7.8). FIX: substrate `_out`/`_in`/`_by_key`/`_by_value` are dict-as-ordered-set;
+`succ/pred/out/into` return ordered set-like keys-views; agendas insertion-ordered. Runs are now
+bit-for-bit identical on every seed, ON the fast topology (~14× typical / 30× tail win; suite ~20%
+faster). Plus DEMAND SUBSUMPTION in `_round`: a demand whose strict generalization stands is not
+served (halves adversarial topologies; +0.45% fast path). `memory/perf-hash-seed-sensitivity`.
+
+### RECONSIDER — the machine takes back broken assumed conclusions (`design/reconsider_design.md`)
+Gap (found validating runtime rule authoring): a NAF conclusion MATERIALIZED by an earlier ask
+survived later facts/rules contradicting its recorded absence (`is ada thief`→yes; alibi + clearing
+rule arrive; re-ask stayed yes). BUILT same day, demand-driven (user-ratified shape: mark at
+intake, settle at question time): intake marks `(pred, object)` grains in `registers["reconsider"]`
+(O(1); rule/fact/disable routes + ask_user evidence); the next COMMITTED ask closes the grains over
+the bank's body→head edges, re-asks each affected `<assumed>` record's positive (banded = the same
+θ-gate), and withdraws broken justifications' conclusions via the cascade + copy-on-delete, stamping
+history `broken_assumption` (over-retraction re-derives on demand). Forward `run_bank` journals its
+survived NACs too (`_survived_nacs`, shared `record_assumptions` program) — revision is J-uniform.
+D2 user-ratified: committed intake asks run provenance ALWAYS-ON (+15% heavy whole-graph ask,
+~27ms/utterance sessions). `tests/test_reconsider.py` ×10; public `reconsider`/`mark_dirty`.
+
+### Hard-vs-assumed surfacing capstone + book revision story
+`ask_goal` verdicts wear their kind in EVERY stance: `no` (entailed, hard) / `no (assumed)` (CWA
+default — exactly what reconsider may take back) / `unknown`; ∃-failure is always assumed;
+ask_user-testified False stays plain `no`; `check.collapse` remains the actor-level fold (~28 test
+expectations updated, each verified for kind). BOOK: chapters 0/3/4/5/9/10 + detective playground
+transcripts show the tag (ch. 3 introduces it); NEW ch. 8 section "When the machine changes its own
+mind" (the live-verified self-revision transcript) + ch. 19 "who invokes retraction" (two clients)
++ appendix. Also: ch. 19 gained "Taking a fact back" (copy-on-delete, resurrect) earlier this
+session; stale INTERPOSE/RESTORE rows purged from the appendix/isa_reference.
+
+### Habitability hardening (loud walls)
+Bug: `why is ada thief` (question-order) mis-parsed s='is' and answered "(not present)" even for
+facts on record ("why ada is thief" worked). Fix — all FORM RULES, no string parsing: `ask.kw.is`
+keyword tagging + two inverted why forms + NAC guards. Then the CLASS: the keyword-in-name-slot
+lint (`query._kw_in_name_slot`) skips keyword-tainted readings (cleaner form preferred) and treats
+an all-tainted question as UNRECOGNIZED → nearest-forms guidance ("is a ada thief" used to answer
+`no (assumed)` about a subject named 'a'). `tests/test_habitability.py`. Plan re-pointed: next
+in-repo arc = **Phase 9 forms-as-KB-data** (the un-deferred quote/eval wall), then Rust 7b.
+
 ## 2026-07-16
 
 ### Docs sync + the missing "attention" chapter (book at 19 chapters)
