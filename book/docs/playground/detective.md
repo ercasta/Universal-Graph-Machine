@@ -76,3 +76,9 @@ ada is alibied
     **Questions** are things like `who is thief`, `is cy thief`, or `why cy is
     thief`. If you type something the machine doesn't understand, it will say so
     rather than guess — that's the point.
+
+!!! tip "The case continues"
+    Real clues are rarely certain. In [the uncertain case →](uncertain.md) the
+    same detective world gains shaky alibis, a half-remembered glimpse, and
+    suspicion rankings — and the answers gain shades: *likely*, *unlikely*, and
+    an honest *unknown*.

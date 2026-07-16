@@ -190,12 +190,42 @@ question forms untouched. Silent mode is byte-identical (the 450+ crisp tests ar
 gate; `_CROSSCHECK` still guards the crisp read against the walk oracle).
 
 **DEFEASIBLE-GUESS BUILT 2026-07-16** (open point D — see its entry in the Open list below for the
-full mechanics): `possibility.guess/retract_guess/render_guess`, suite 495 green. The remaining
-open threads after it: the OBJECT-LEVEL gradable-comparison arc (decisions 1–3 + G perf + H linter
-— a separate thread from uncertainty), abduction/possibility-ordered SUPPOSE (decision 5's first
-behaviour), the propagation-strength knob (open point I beyond θ), and the polish items (why-renders
-band+env for banded derivations, `be cautious`/`be decisive` CNL meta-line, band scale S7.7,
-cross-fork fan-out timing).
+full mechanics): `possibility.guess/retract_guess/render_guess`, suite 495 green.
+
+**GRADABLE-COMPARATIVE ARC BUILT 2026-07-16** (decisions 1–3 + open points G/H; suite 513 green) —
+`ugm/cnl/comparative.py` + `tests/test_comparative.py` (12):
+- Decision 1: a comparison is the DECOMPOSED relation `x -[dim]-> y` + a `<comparison>` class marker
+  on the rel (a `<…>` key, so `predicate()` still reads the DIMENSION); direction carries more/less
+  (`less` authors the reversed arrow); transitivity = a 2-body rule PER DIMENSION generated from the
+  KB (`comparison_rules`, the §8 tools-from-data pattern), run DEMAND-DRIVEN and READ-ONLY
+  (`query_goal` — asking leaks no facts).
+- Decision 2: the degree BRIDGE — `ask_comparative` falls back to the rung embeddings (the EXISTING
+  `very`/`slightly` surface, nothing re-implemented): strictly higher rung `yes`, lower `no`,
+  EQUAL rungs honest `unknown` for the strict question (rungs are coarse). A declared path beats
+  the bridge (it refines within a rung).
+- Decision 3: incomparability = honest UNKNOWN, never completed, never CWA'd to no; the reverse
+  path is the entailed `no` of the strict order.
+- H: `lint_comparisons` — cycles (`ada > bo > cy > ada`) and comparative-vs-degree conflicts
+  (declared more but strictly lower rung; equal rungs do NOT conflict) as WARNINGS, never ⊥.
+- G MEASURED 2026-07-16: end-to-end transitive ask over an n-link chain = 0.07s @10 / 0.7s @20 /
+  3.3s @30 / 10.5s @40 — SUPERLINEAR (the demand round-loop re-serves every standing demand; the
+  `demand-coref-perf-wall` shape). Session-sized chains are comfortably sub-second; revisit with
+  the focus/Rust work, not with a bespoke closure.
+
+**COMPOSITE SURFACE + BOOK/PLAYGROUND SURFACED 2026-07-16** — `ugm/cnl/world.py`
+(`load_world`/`ask_world`: one CNL text mixing plain facts, rules, hedges, `either…or`, and
+comparisons; questions route to comparative / `guess X` / banded `ask_goal`;
+`tests/test_world.py`). The demo world is the UNCERTAIN DETECTIVE (the book's fil rouge, per user):
+cy's shaky alibi (`cy is unlikely alibied`) makes `is cy thief` → **likely** (N(¬cleared)=0.7);
+"be cautious" (θ=0.2) flips it to `no`; `guess culprit` collapses the ranked `either…or` glimpse;
+suspicion is the comparative order (transitive yes + honest unknown). Book: new Part-3 chapter
+`book/docs/advanced/more-or-less.md` (detective-flavoured comparatives; Next-chain rerouted
+uncertain-world → more-or-less → identity); new playground page `book/docs/playground/uncertain.md`
+(`data-mode="world"` → `_ugm_run_world` bootstrap in `playground.js`, banded policy + cautious
+checkbox, graded verdict chips in `extra.css`); wheel rebuilt (CI rebuilds on deploy). The remaining
+open threads: abduction/possibility-ordered SUPPOSE (decision 5's first behaviour), the
+propagation-strength knob (open point I beyond θ), and polish (why-renders band+env,
+`be cautious`/`be decisive` CNL meta-line, band scale S7.7).
 
 **Slice edges left open (deliberate, small):** the ENTAILED_NEG closure in `check` stays crisp (no
 graded hard-negative); `ask_goal`'s who/existential branches and `query_goal` read crisp (only the

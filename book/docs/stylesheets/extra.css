@@ -240,13 +240,42 @@
   color: #ef6c00;
 }
 
-[data-md-color-scheme="slate"] .ugm-verdict-yes {
+/* the graded (possibilistic) verdicts — greens for the likely side, reds for the unlikely side */
+.ugm-verdict-certain {
+  background: #1b5e2033;
+  color: #1b5e20;
+}
+
+.ugm-verdict-very-likely,
+.ugm-verdict-likely {
+  background: #1b5e2022;
+  color: #388e3c;
+}
+
+.ugm-verdict-unlikely,
+.ugm-verdict-very-unlikely {
+  background: #b71c1c1a;
+  color: #d84315;
+}
+
+.ugm-verdict-assumed-no {
+  background: #b71c1c22;
+  color: #c62828;
+}
+
+[data-md-color-scheme="slate"] .ugm-verdict-yes,
+[data-md-color-scheme="slate"] .ugm-verdict-certain,
+[data-md-color-scheme="slate"] .ugm-verdict-very-likely,
+[data-md-color-scheme="slate"] .ugm-verdict-likely {
   color: #81c784;
 }
-[data-md-color-scheme="slate"] .ugm-verdict-no {
+[data-md-color-scheme="slate"] .ugm-verdict-no,
+[data-md-color-scheme="slate"] .ugm-verdict-assumed-no {
   color: #ef9a9a;
 }
-[data-md-color-scheme="slate"] .ugm-verdict-unknown {
+[data-md-color-scheme="slate"] .ugm-verdict-unknown,
+[data-md-color-scheme="slate"] .ugm-verdict-unlikely,
+[data-md-color-scheme="slate"] .ugm-verdict-very-unlikely {
   color: #ffb74d;
 }
 

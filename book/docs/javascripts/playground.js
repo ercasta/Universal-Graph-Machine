@@ -51,6 +51,27 @@
     "                        'open_mind': bool(open_mind), 'checks': checks, 'derives': derives,",
     "                        'answer': list(out.answer) if out.answer else []})",
     "",
+    "def _ugm_run_world(corpus, question, cautious):",
+    "    # The COMPOSITE surface (uncertain + comparative + guess), answered under the BANDED",
+    "    # firmware stance — verdicts may be 'likely'/'unlikely'/…; 'be cautious' lowers theta.",
+    "    from ugm.cnl.world import load_world, ask_world",
+    "    try:",
+    "        kb, rules = load_world(corpus)",
+    "    except Exception as e:",
+    "        return _json.dumps({'error': 'I could not read the world: ' + str(e)})",
+    "    pol = _FP(uncertainty='banded', theta=0.2 if cautious else 0.5)",
+    "    checks = []",
+    "    def sg(rec):",
+    "        if rec.get('phase') == 'resolve':",
+    "            checks.append({'subj': rec.get('subj'), 'pred': rec.get('pred'),",
+    "                           'obj': rec.get('obj'), 'found': bool(rec.get('found'))})",
+    "    try:",
+    "        ans = ask_world(kb, rules, question, policy=pol, on_subgoal=sg)",
+    "    except Exception as e:",
+    "        return _json.dumps({'error': 'I could not make sense of that question: ' + str(e)})",
+    "    return _json.dumps({'error': None, 'kind': 'answer', 'question': question,",
+    "                        'checks': checks, 'derives': [], 'answer': list(ans)})",
+    "",
   ].join("\n");
 
   var enginePromise = null; // shared across all playgrounds on the page
@@ -177,10 +198,15 @@
     });
   }
 
+  // yes/no/unknown plus the GRADED verdicts of the uncertain world (band words).
+  var VERDICTS = [
+    "yes", "no", "unknown", "certain",
+    "very likely", "likely", "unlikely", "very unlikely", "assumed-no",
+  ];
+
   function renderAnswer(host, answer) {
     var single = answer.length === 1 ? answer[0].trim() : null;
-    var verdict =
-      single === "yes" || single === "no" || single === "unknown" ? single : null;
+    var verdict = single && VERDICTS.indexOf(single) >= 0 ? single : null;
     addCard(host, "answer", function (card) {
       card.appendChild(
         el("span", "ugm-step-icon", verdict === "unknown" ? "❔" : "✅")
@@ -188,7 +214,8 @@
       var body = el("div", "ugm-step-body");
       body.appendChild(el("div", "ugm-step-title", "Answer"));
       if (verdict) {
-        body.appendChild(el("div", "ugm-verdict ugm-verdict-" + verdict, verdict));
+        var cls = verdict.replace(/[^a-z]+/g, "-"); // "very likely" -> "very-likely"
+        body.appendChild(el("div", "ugm-verdict ugm-verdict-" + cls, verdict));
       } else {
         body.appendChild(el("pre", "ugm-answer-text", answer.join("\n")));
       }
@@ -258,8 +285,11 @@
     var host = stepsEl(container);
     var question = container.querySelector(".ugm-question").value.trim();
     var corpus = container.querySelector(".ugm-corpus").value;
+    var world = container.getAttribute("data-mode") === "world"; // the uncertain-case page
     var openBox = container.querySelector(".ugm-open");
     var openMind = openBox && openBox.checked;
+    var cautiousBox = container.querySelector(".ugm-cautious");
+    var cautious = cautiousBox && cautiousBox.checked;
 
     if (!question) {
       host.innerHTML = "";
@@ -283,8 +313,8 @@
         status.textContent = msg;
       });
       if (runTokens.get(container) !== token) return;
-      var fn = pyodide.globals.get("_ugm_run");
-      var json = fn(corpus, question, !!openMind);
+      var fn = pyodide.globals.get(world ? "_ugm_run_world" : "_ugm_run");
+      var json = fn(corpus, question, world ? !!cautious : !!openMind);
       fn.destroy();
       var result = JSON.parse(json);
       await animate(container, result, token);

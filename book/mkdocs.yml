@@ -79,6 +79,7 @@ nav:
   - "Part 3 — Advanced":
       - "9 · Supposing": advanced/09-supposing.md
       - "Living in an uncertain world": advanced/uncertain-world.md
+      - "More or less": advanced/more-or-less.md
       - "10 · Same name, same person?": advanced/10-identity.md
       - "11 · Gathering evidence": advanced/11-gathering-evidence.md
       - "12 · The machine underneath": advanced/12-the-machine-underneath.md
@@ -89,4 +90,5 @@ nav:
       - "15 · The machine's attitude": deep/15-firmware.md
   - "Playground":
       - "The detective case": playground/detective.md
+      - "The uncertain case": playground/uncertain.md
   - "Appendix — concepts": appendix/index.md

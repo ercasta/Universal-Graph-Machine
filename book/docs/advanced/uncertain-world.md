@@ -139,5 +139,6 @@ Curious how a "likely" is actually stored and carried? Part 4 opens the hood:
 
 ---
 
-**Next:** a puzzle every detective faces — when do two *names* refer to one
-*person*? [Same name, same person? →](10-identity.md)
+**Next:** clues don't only whisper *probably* — they also say *more* and *less*.
+How does the machine rank suspects it has never measured?
+[More or less →](more-or-less.md)
