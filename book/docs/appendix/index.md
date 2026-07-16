@@ -191,7 +191,7 @@ in the code.
 > **Go deeper:** the tradition here is **possibility theory** (Dubois & Prade) and
 > **possibilistic logic** — the *qualitative* cousin of probability. See
 > [Living in an uncertain world](../advanced/10-uncertain-world.md) and, for the
-> machinery, [Shades of maybe](../deep/17-uncertain-world-internals.md).
+> machinery, [Shades of maybe](../deep/18-uncertain-world-internals.md).
 
 ---
 
@@ -235,12 +235,35 @@ contradicts itself (a cycle of *more-than*s, or an arrow fighting the rungs) is
 
 ---
 
+## Focus — the working set
+
+A long conversation accretes knowledge; a machine that re-reads *everything it
+has ever learned* to answer *today's* question gets slower with every topic it
+closes. The **focus** is the answer: a small, visible **working set** of the
+entities currently in play — the case file open on the desk, while the archive
+stays in the room.
+
+Mentioning something puts it in play (individuals, never categories — a shared
+category would drag the whole archive back). Topic *switches* are explicit CNL
+(`focus on X` / `forget that` / `back to X`), never guessed. Answering with
+**bounded attention** reasons only within the focus and what connects to it, so
+per-question cost tracks the *case*, not the *career* — and the trade is honest:
+an off-focus fact is genuinely out of mind, so a focused answer can differ from
+a whole-archive one, and the system using the machine chooses the mode per
+question. The focus doubles as the conversation's *who-are-we-talking-about* —
+the plain-data ground for resolving "he" and "it". Leaving a topic sweeps its
+conversational scaffolding (stale goals, pending calls); **facts always stay**.
+
+> **Go deeper:** [Paying attention](../advanced/14-paying-attention.md).
+
+---
+
 ## The instruction set — the data path
 
 Everything the machine *does* to the graph is one of a small set of instructions.
 They divide into the **match** phase (looking — reads only) and the **apply** phase
 (writing — the only part that changes anything). A rule compiles to a short
-sequence of these. See [Chapter 15](../deep/15-instruction-set.md).
+sequence of these. See [Chapter 16](../deep/16-instruction-set.md).
 
 **Looking (the match phase):**
 
@@ -257,7 +280,7 @@ sequence of these. See [Chapter 15](../deep/15-instruction-set.md).
 | loop | `ITERATE` | Fork the work once per item in a bounded range. |
 | in focus? | `MEMBER` / `OVERLAY` | Restrict (or extend) matching to a working set / scope. |
 | by degree | `FUZZY` / `GRADE` | Match on a *degree* rather than a plain yes/no. |
-| by likeliness | `OVERLAY_BAND` | Step through a pencil world's fact, dimming the running score to its likeliness (weakest-link *min*) — how a *likely* is read ([Shades of maybe](../deep/17-uncertain-world-internals.md)). |
+| by likeliness | `OVERLAY_BAND` | Step through a pencil world's fact, dimming the running score to its likeliness (weakest-link *min*) — how a *likely* is read ([Shades of maybe](../deep/18-uncertain-world-internals.md)). |
 | by value | `VMATCH` | Join two dots that **agree on a value** (e.g. the same name). |
 
 **Writing (the apply phase):**
@@ -268,7 +291,7 @@ sequence of these. See [Chapter 15](../deep/15-instruction-set.md).
 | write | `EMIT` | Assert a fact (a mark, or a value) on a dot. |
 | hide / unhide | `INTERPOSE` / `RESTORE` | Reversibly tuck away an edge, and put it back (belief revision). |
 | drop (control) | `DROP_CTRL` | Remove a *scaffolding* edge — **refuses** to touch a fact. |
-| retire | `RETIRE` | Really delete a fact — the **privileged** deletion ordinary rules can't reach (see [Chapter 18](../deep/18-firmware.md)). |
+| retire | `RETIRE` | Really delete a fact — the **privileged** deletion ordinary rules can't reach (see [Chapter 19](../deep/19-firmware.md)). |
 
 The whole list fits on a page — and there is **no** fact-deleting verb among the
 ones a rule can compile to. That's what makes the because-trail safe.
@@ -280,7 +303,7 @@ ones a rule can compile to. That's what makes the because-trail safe.
 The verbs above are one straight run of look-then-write. To *loop*, to ask a
 sub-question mid-thought, or to pause for the outside world, the machine needs a
 **control path** — a "finger" pointing at the current instruction, and ways to move
-it (see [Chapter 15](../deep/15-instruction-set.md)).
+it (see [Chapter 16](../deep/16-instruction-set.md)).
 
 | Transfer | Real name | What it does |
 |----------|-----------|--------------|
@@ -303,7 +326,7 @@ graph can't see.
 
 Every computation the machine performs is one of **nine** ways of thinking — or a
 knowledge-base recipe composed from them. The list is closed on purpose (see
-[Chapter 16](../deep/16-modes.md)).
+[Chapter 17](../deep/17-modes.md)).
 
 | # | Mode | In plain words | Where in the book |
 |---|------|----------------|-------------------|
@@ -323,7 +346,7 @@ engines:
 - **Explain** = Record, replayed.
 - **Suppose** = Suppose + Chain + Check.
 - **Gather evidence / try-check-replan** = Call + Check.
-- **"No" vs "unknown"** = Check, read under the [firmware](../deep/18-firmware.md)
+- **"No" vs "unknown"** = Check, read under the [firmware](../deep/19-firmware.md)
   stance.
 
 A tenth mode may be added *only* if it's nameable in plain language, keeps all its

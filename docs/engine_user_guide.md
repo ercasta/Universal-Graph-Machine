@@ -185,8 +185,20 @@ h.ingest(kb, rules, "?x is watched when ?x is a suspect")     # kind="rule" — 
 h.ingest(kb, rules, "is ada watched").answer                 # ["yes"]
 ```
 
-`Outcome.kind` is one of `fact | answer | rule | rule-disable | focus | unrecognized`. An unrecognized
-utterance is a clean rejection (`kind="unrecognized"`), not a crash — the habitability signal.
+`Outcome.kind` is one of `fact | answer | rule | rule-disable | focus | stance | goal | unrecognized`.
+An unrecognized utterance is a clean rejection (`kind="unrecognized"`), not a crash — and it carries
+the habitability signal: `Outcome.nearest` lists the closest declared form templates (computed from
+the form banks' own keywords, e.g. `goal ada winner` → `["goal … is a …"]`).
+
+**Stance meta-lines.** `be cautious` / `be decisive` set the SESSION policy (`kind="stance"`): the θ
+dial as CNL, stored in `kb.registers["policy"]`. Later turns without an explicit `policy=` reason
+under it; an explicit `policy=` always wins. The words are the declared `ugm.policy.STANCES` table.
+
+**Goals and tools (the ACT arm).** A `goal ada is a target` utterance (`kind="goal"`) triggers the
+forward act loop: the KB's own plan→act→check rules run against your tool registries. Sync tools
+(`tools={name: handler}`, `dispatch.Tool`) run inline; an ASYNC tool (`async_tools=`,
+`dispatch.AsyncTool`) suspends — under blocking `ingest` you must supply `answer_call(request) ->
+response`; under `converse` you `.send()` the response at the `"call"` event.
 
 **Stream a turn (`on_event`, `trace`).** Pass `on_event` to watch a turn unfold live (a TUI renders each
 event as it happens); `trace=True` adds one `derive` event per rule firing — the reasoning trace, read from
@@ -199,7 +211,10 @@ h.ingest(kb, rules, "is bo watched", on_event=print, trace=True)
 # Event("question", …) -> Event("derive", {"rule":…, "fact":"bo is watched"}) -> Event("answer", {"answer":["yes"]})
 ```
 
-Event kinds: `focus, question, ask, derive, answer, fact, rule, rule-conflict, rule-disable, unrecognized`.
+Event kinds: `focus, stance, question, ask, subgoal, derive, answer, fact, rule, rule-conflict,
+rule-disable, goal, call, acted, unrecognized`. The wait-point events (whose `.send()` under
+`converse` carries an answer) are `ask` (a True/False/None verdict) and `call` (an async tool's
+response); `rule-conflict` waits for the accept/reject bool.
 
 **Non-blocking, human-in-the-loop (`converse`).** `ingest` *blocks* (it calls `ask_user` / `on_conflict`
 synchronously). For a UI that cannot block, `converse` is a generator you pump: it yields events and you
@@ -241,7 +256,10 @@ h.focus.top_centers(kb)                                   # the entities current
 ```
 
 Off-focus facts are outside attention *by design* (an agent reasons about what is in play), so a `"focus"`
-answer can differ from the whole-KB `"global"` default — you choose the mode per call.
+answer can differ from the whole-KB `"global"` default — you choose the mode per call. Leaving a topic
+also tidies it: the narrowing moves (`forget that`, `back to X`) sweep the departed topic's cold
+discourse scaffolding (`<goal>`/`<call>` control nodes whose entities are in no live frame) — facts
+always stay.
 
 ## 6. Plug in your own tools
 

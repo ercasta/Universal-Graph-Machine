@@ -1,6 +1,6 @@
 # Implementation Plan — Universal Graph Machine (ACTIVE / remaining work)
 
-> **Status: THE ACTIVE PLAN (2026-07-14, post doc-reorganization).** This file holds ONLY remaining
+> **Status: THE ACTIVE PLAN (re-pointed 2026-07-16 — see "Current focus").** This file holds ONLY remaining
 > work. Everything landed lives in `CHANGELOG.md` (dated entries + the phase appendix at its end);
 > the as-built system is described by `architecture.md` and the reference docs. The harness (planning
 > rule banks, SLM, session, TUI) has its own plan in `harneskills`.
@@ -20,11 +20,42 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## Current state (2026-07-14)
+## Current focus (re-pointed 2026-07-16 — Phase 8's engine side is COMPLETE)
 
-**Suite: 442 passed, 0 failed** (`.venv/Scripts/python.exe -m pytest -q`, ~14s). Production runtime is
+Every substrate-side arc that was in flight is now closed (see CHANGELOG 2026-07-16 entries and the
+per-arc docs): mechanism/policy BOTH AXES (incl. the discriminator audit), the possibilistic layer
+(incl. the polish batch: kind-wearing verdicts, env-rendering, stance CNL, fork-leak fix), the whole
+explanation arc (linked subgoal chain + certain-NAF assumed-records), Phase 8's engine side
+(goal/act route with async-tool suspend, nearest-forms rejection, focus-reachability GC), and the
+parked-item cleanup (demand-coref CLOSED-as-settled; INTERPOSE/RESTORE deleted). The book is synced.
+
+**The queue, in order:**
+
+1. **The CLIENT — rebuild `harneskills_new` against the `converse`/Event/Outcome contract**
+   (external repo; UGM owns the contract — user decision 2026-07-16, recorded in
+   `design/cnl_intake_design.md`). The harness's own session/driver/interaction scaffolding predates
+   the intake spine and duplicates it; the end-state is a `Session` that only drives `converse` and
+   renders events (TUI), with the SLM at the NL→CNL boundary (anaphora via `focus.top_centers`).
+   The **Phase 5 exit-gate bench half** (card-trader + coref + ProofWriter coverage) rides along —
+   it runs in the harness. Nothing in this repo blocks it; engine gaps found there come back here as
+   feedback items.
+2. **Phase 7b — the Rust interpreter port** (the next in-repo arc; full plan
+   `design/rust_engine_plan.md`). Fully unblocked: procedures became ISA firmware first (Phase A
+   done 2026-07-14), so Phase B ports ONLY the interpreter and the instruction set is the frozen
+   contract. Measured prize: 381× on the match loop.
+3. **Program-as-data homoiconicity + collections (3.4)** — the design track (⚠Opus), feeding the
+   ITERATE substrate and the meta-circular direction. Off the critical path; pick up between or
+   after 1–2.
+
+Small in-repo residuals live in their homes, none blocking: the 8.5b tail + perf levers below
+("until they bite"), the possibilistic feature threads (`possibilistic.md`: abduction SUPPOSE,
+propagation-strength knob, S7.7 band scale), and the Phase 3 leftovers (below).
+
+## Current state (2026-07-16)
+
+**Suite: 538 passed, 0 failed.** Production runtime is
 100% the ISA engine — no second engine anywhere in the repo. The big arcs are COMPLETE (see CHANGELOG
-2026-07-14 for each):
+for each):
 
 - **Firmware over ISA** — the demand solver's work runs as ISA programs (one matcher, `State.regs`
   bindings, ephemeral `GRADE`/`VMATCH`, compiler-emitted visibility guards, `MEMBER`/`OVERLAY`
@@ -85,13 +116,14 @@
   (already deleted along with `wire_same_as` — interning at the CNL reader replaced them, see
   `attic/indexing_and_coalescing_design.md`).
 
-## Phase 8 — CLIENT: unified CNL intake + focus + streaming (ACTIVE — remaining tail)
+## Phase 8 — CLIENT: unified CNL intake + focus + streaming (ENGINE SIDE COMPLETE 2026-07-16 — residuals only)
 
-> The primary track (ratified 2026-07-12): the first UGM *client* is an **agent loop with a TUI**,
-> driven by CNL (the NL→CNL SLM is external; the system boundary is CNL). Load-bearing goal:
-> **seamlessness** — the utterance's own structure drives the loop, NO intent-recognition dispatcher.
-> Full spec: **`design/cnl_intake_design.md`**. 8.1/8.3/8.5a/8.5b/8.6 are functionally COMPLETE
-> (CHANGELOG 2026-07-12); anaphora (8.4) is OFF the roadmap (boundary concern, SLM-side).
+> The first UGM *client* is an **agent loop with a TUI**, driven by CNL (the NL→CNL SLM is external;
+> the system boundary is CNL). Load-bearing goal: **seamlessness** — the utterance's own structure
+> drives the loop, NO intent-recognition dispatcher. Full spec: **`design/cnl_intake_design.md`** —
+> its §8 build map shows every substrate row BUILT; what remains of Phase 8 is the CLIENT itself
+> (queue item 1 above, in `harneskills_new`). The slices below are non-blocking residuals.
+> Anaphora (8.4) is OFF the roadmap (boundary concern, SLM-side).
 
 **INTAKE-SPINE DISCIPLINE (anti-hardcoding — any session on Phase 8 MUST obey; reviewers reject diffs
 that break one).** Full list: `design/cnl_intake_design.md` §D. In brief: (1) route by which FORMS

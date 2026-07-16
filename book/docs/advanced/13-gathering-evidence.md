@@ -77,5 +77,6 @@ and deliberately crosses it to get the job done.
 
 ---
 
-**Next:** the grand reveal — the tiny machine that's been running under
-*everything* you've seen. [The machine underneath →](14-the-machine-underneath.md)
+**Next:** a machine that keeps learning has another problem — after months of
+cases, how does it stay *fast*, and how does it know what a conversation is
+even about? [Paying attention →](14-paying-attention.md)

@@ -109,4 +109,4 @@ dan is more suspicious than bo
 !!! tip "Where this is explained"
     Concepts: [Living in an uncertain world](../advanced/10-uncertain-world.md)
     and [More or less](../advanced/11-more-or-less.md). Machinery:
-    [Shades of maybe](../deep/17-uncertain-world-internals.md).
+    [Shades of maybe](../deep/18-uncertain-world-internals.md).
