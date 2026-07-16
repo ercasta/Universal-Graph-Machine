@@ -10,8 +10,8 @@
  *   - `derive`  : a fact it worked out and the rule it used;
  *   - `answer`  : the verdict.
  * We animate that stream so you literally watch it reason. NAF checks tell the
- * cleanest story, so we lead with them and fall back to derived facts when a
- * question needs no negative check.
+ * cleanest story, so we lead with them, then show the facts it worked out
+ * (each naming the rule that produced it).
  *
  * Document-level event delegation keeps this working under Material's
  * `navigation.instant` (SPA-style) page swaps.
@@ -55,25 +55,48 @@
     "    # The COMPOSITE surface (uncertain + comparative + guess), answered under the BANDED",
     "    # firmware stance — verdicts may be 'likely'/'unlikely'/…; 'be cautious' lowers theta.",
     "    from ugm.cnl.world import load_world, ask_world",
+    "    from ugm.cnl.surface import render_relation as _rr, _band_suffix as _bs",
+    "    from ugm.intake import _j_nodes",
+    "    from ugm.possibility import band_word as _bw",
+    "    from ugm import provenance as _prov",
     "    try:",
     "        kb, rules = load_world(corpus)",
     "    except Exception as e:",
     "        return _json.dumps({'error': 'I could not read the world: ' + str(e)})",
     "    pol = _FP(uncertainty='banded', theta=0.2 if cautious else 0.5)",
-    "    from ugm.possibility import band_word as _bw",
-    "    checks = []",
-    "    def sg(rec):",
-    "        if rec.get('phase') == 'resolve':",
-    "            b = rec.get('band')",
-    "            checks.append({'subj': rec.get('subj'), 'pred': rec.get('pred'),",
-    "                           'obj': rec.get('obj'), 'found': bool(rec.get('found')),",
-    "                           'word': _bw(b) if (b is not None and b < 1.0) else None})",
+    "    subgoals, before = [], _j_nodes(kb)",
     "    try:",
-    "        ans = ask_world(kb, rules, question, policy=pol, on_subgoal=sg)",
+    "        ans = ask_world(kb, rules, question, policy=pol, provenance=True,",
+    "                        on_subgoal=lambda rec: subgoals.append(dict(rec)))",
     "    except Exception as e:",
     "        return _json.dumps({'error': 'I could not make sense of that question: ' + str(e)})",
+    "    # Same collapse as ingest's trace stream: only the NAF checks (resolve phase, depth>=1;",
+    "    # the depth-0 record is the goal itself — a WILDCARD subject for wh-questions, which",
+    "    # would render as 'null is thief'), ONE entry per distinct check in first-seen order,",
+    "    # `found` monotone across re-entries (the chain may resolve the same check twice).",
+    "    seen, checks = {}, []",
+    "    for rec in subgoals:",
+    "        if rec.get('phase') != 'resolve' or rec.get('depth', 0) < 1:",
+    "            continue",
+    "        key = (rec.get('pred'), rec.get('subj'), rec.get('obj'))",
+    "        b = rec.get('band')",
+    "        w = _bw(b) if (b is not None and b < 1.0) else None",
+    "        if key not in seen:",
+    "            seen[key] = {'subj': rec.get('subj'), 'pred': rec.get('pred'),",
+    "                         'obj': rec.get('obj'), 'found': bool(rec.get('found')), 'word': w}",
+    "            checks.append(seen[key])",
+    "        elif rec.get('found') and not seen[key]['found']:",
+    "            seen[key]['found'], seen[key]['word'] = True, w",
+    "    # What it worked out, each fact wearing its OWN band and naming its rule: the",
+    "    # provenance J-nodes this question added, in creation (= derivation) order.",
+    "    derives = []",
+    "    for j in sorted(_j_nodes(kb) - before, key=lambda n: (len(n), n)):",
+    "        for fact in _prov.proven_of(kb, j):",
+    "            r = _rr(kb, fact)",
+    "            if r is not None:",
+    "                derives.append({'rule': _prov.rule_of_j(kb, j), 'fact': r + _bs(kb, fact)})",
     "    return _json.dumps({'error': None, 'kind': 'answer', 'question': question,",
-    "                        'checks': checks, 'derives': [], 'answer': list(ans)})",
+    "                        'checks': checks, 'derives': derives, 'answer': list(ans)})",
     "",
   ].join("\n");
 
@@ -175,7 +198,8 @@
       var body = el("div", "ugm-step-body");
       body.appendChild(el("div", "ugm-step-title", "It asked itself"));
       body.appendChild(
-        el("div", "ugm-step-fact", check.subj + " " + check.pred + " " + check.obj + " ?")
+        el("div", "ugm-step-fact",
+          (check.subj || "someone") + " " + check.pred + " " + (check.obj || "anything") + " ?")
       );
       body.appendChild(
         el(
@@ -265,20 +289,18 @@
     var checks = result.checks || [];
     if (subj) checks = checks.filter(function (c) { return c.subj === subj; });
 
-    if (checks.length) {
-      for (var i = 0; i < checks.length; i++) {
-        await sleep(STEP_DELAY_MS);
-        if (runTokens.get(container) !== token) return;
-        renderCheck(host, checks[i]);
-      }
-    } else {
-      // No negative check was needed — show the facts it worked out instead.
-      var derives = result.derives || [];
-      for (var j = 0; j < derives.length; j++) {
-        await sleep(STEP_DELAY_MS);
-        if (runTokens.get(container) !== token) return;
-        renderDerive(host, derives[j]);
-      }
+    for (var i = 0; i < checks.length; i++) {
+      await sleep(STEP_DELAY_MS);
+      if (runTokens.get(container) !== token) return;
+      renderCheck(host, checks[i]);
+    }
+
+    // Then the facts it worked out — each names the rule that produced it.
+    var derives = result.derives || [];
+    for (var j = 0; j < derives.length; j++) {
+      await sleep(STEP_DELAY_MS);
+      if (runTokens.get(container) !== token) return;
+      renderDerive(host, derives[j]);
     }
 
     await sleep(STEP_DELAY_MS);
