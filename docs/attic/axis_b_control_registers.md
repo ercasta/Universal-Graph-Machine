@@ -1,6 +1,15 @@
 # Mechanism / Policy Separation — Axis B: control state → machine registers
 
-> **Status:** ✅ **Mechanism + Probe 1 built; Probe 2 attempted and REVERTED (2026-07-14).** The
+> **Status (2026-07-16): ARC COMPLETE.** Everything below stands, plus: the dynamic ITERATE trip
+> count (§4b), the linked subgoal chain + certain-NAF assumed-records + kind-wearing banded verdicts
+> (§5.4), and the closing DISCRIMINATOR AUDIT over the remaining `<…>` state (§8) — which found
+> every remaining item already on the right side of the line and RESOLVED the `is_control`
+> retirement question by reversal (the marker is load-bearing visibility mechanism for
+> graph-resident explanation/pencil/pattern, not a vestige). Suite: **531 passed**.
+>
+> Original probe record follows.
+>
+> ✅ **Mechanism + Probe 1 built; Probe 2 attempted and REVERTED (2026-07-14).** The
 > control-register file (`AttrGraph.registers`) landed, and the discourse **focus stack** moved into it.
 > A second lift (the demand **search trace**) was tried and REVERTED: the demand/subgoal chain turned out
 > to be *explanation* (the negative's provenance), not mechanical stepping, so it stays a matchable graph
@@ -201,12 +210,58 @@ materialization — being explanation does.
 
 ## 7. Out of scope / next
 
-- **Other `<…>` control state.** `<call>` (dispatch), `<hypothesis>`/suppose scope, and the
-  recognition token-chain (`<sentence>`/`first`/`next`) are NOT lifted here. `<call>` results and suppose
-  pencil-facts are reasoned-over (graph); the recognition chain is data *during* parsing. Each needs the
-  discriminator applied on its own; none is as cleanly pure-control as focus/demand-trace.
+- ~~**Other `<…>` control state.**~~ AUDITED 2026-07-16 — see §8. Every remaining item is already on
+  the right side of the register/graph line; nothing to lift.
 - ~~**`ITERATE` over a loop register.**~~ BUILT (§4b), including the dynamic register-read trip count
   (2026-07-16).
 - ~~**The linked subgoal chain** (§5.4)~~ BUILT 2026-07-16 — see §5.4.
-- **Retiring the `is_control` flag / `<…>` convention** wholesale — a larger cleanup once enough control
-  state has moved to registers that the flag is vestigial. Not yet.
+- ~~**Retiring the `is_control` flag / `<…>` convention**~~ RESOLVED BY REVERSAL 2026-07-16 — see §8.5.
+
+---
+
+## 8. The closing discriminator audit (2026-07-16)
+
+The arc's final pass: apply the §4 discriminator — *"does ANYTHING reason about it (incl.
+reasoning-about-reasoning)? → graph; only 'how did the machine step?' → register"* — to every `<…>`
+state the probes deferred. Verdicts, with the load-bearing reason each:
+
+**8.1 `<call>` / dispatch (`dispatch.py`) — ALREADY SPLIT CORRECTLY.** The `<call>` record, its
+argument slots, and tool results are GRAPH: rules *materialize* calls and *read* results — the
+record is the reasoned-over coupling surface (the §8 hard rule: rules and tools couple only through
+nodes). The servicing MECHANICS are already control-machine registers (`ctrl["call_id"]`,
+`ctrl["tool"]`, `ctrl["req"]`, `ctrl["touched"]`, the `kind` scalar) since the §9.4 port
+(`service_calls_cm`). Exactly the §6 sentence already in the module: "the `<call>` RECORD stays a
+graph node; only the return/resume mechanics moved." Nothing to do.
+
+**8.2 `<hypothesis>` / suppose scope (`suppose.py`) — GRAPH, deliberately.** Pencil rels are
+matched in-scope (OVERLAY) — reasoned-over by construction. The scope NODE itself carries semantic
+content: a possibilistic fork scope wears `LIKELINESS` (read by `_band_suffix`, `_env_ok` — the
+band and world-exclusivity ARE reasoning inputs), so the scope node is a fact about the hypothesis,
+not a stepping cursor. The ACTIVE-scope pointer is a threaded Python parameter (`scope=`) — per-query
+and re-entrant (nested queries carry different scopes); the Python call frame IS its register file,
+and a persistent `kb.registers` slot would *break* re-entrancy. The in-scope working set OVERLAY
+reads is already a driver-parked register (`registers[live]`). Nothing to do.
+
+**8.3 Recognition token-chain (`<sentence>`/`first`/`next`) — GRAPH.** The chain is DATA while the
+forms run: `QUESTION_FORMS`/surface strata match it. Reasoned-over, ephemeral by lifecycle (throwaway
+parse graphs), not by home. Nothing to do.
+
+**8.4 `<head-index>` (`apply.build_head_index`) — GRAPH, considered and kept.** It is derived/
+mechanical (an index), which *sounds* register-shaped — but it is derived data ABOUT RULES, queryable
+through the substrate (`rules_producing`, "no Python dict" by explicit earlier decision), and "which
+rules could produce X" is exactly what means-ends / program-as-data reasoning asks. The register home
+is for stepping state, not for materialized views of graph data.
+
+**8.5 `is_control` / the `<…>` convention — RETIREMENT RESOLVED BY REVERSAL.** The premise of the
+retirement item was that once control STATE moved to registers, control-marked NODES would become
+rare and the flag vestigial. The Probe 2 reversal (and everything it seeded: the subgoal chain,
+assumed-records) established the opposite: explanation, pencil, pattern-space, and trace are
+*permanent graph residents*, and the marker attribute is the visibility MECHANISM that keeps them
+out of fact reads (firmware §3: marker attrs are the truth; the boolean field is already gone —
+`is_control` reads `CONTROL_MARK in attrs`). The convention is load-bearing mechanism, not a
+vestige. CLOSED, not deferred.
+
+**Arc verdict:** the two homes hold — GRAPH: facts + everything reasoned-over (explanation,
+provenance, subgoal chain, pencil, pattern, call records, rule wiring); REGISTERS: stepping
+(agenda/fuel/loop counters/PC/control stack/focus working-set/dispatch mechanics). Every deferred
+item audited; no further lifts owed. Axis B is COMPLETE.
