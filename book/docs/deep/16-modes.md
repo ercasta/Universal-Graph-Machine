@@ -45,7 +45,7 @@ met it in this book.
 8. **Call** — *use a tool.* Fingers, paper, a calculator, a clock, a person to
    ask. When a value has to be *computed* or *fetched* rather than reasoned out,
    the machine reaches for a tool — the "let me find out" of
-   [Chapter 11](../advanced/11-gathering-evidence.md).
+   [Chapter 13](../advanced/13-gathering-evidence.md).
 9. **Record** — *remember what you did and why.* Every firing leaves a receipt.
    This is the **because-trail** of [Chapter 8](../intermediate/08-because.md), and
    it's the one mode that's always on and costs nothing.
@@ -70,7 +70,7 @@ an "ask engine" bolted on the side. It has nine verbs, and:
   loop — is **Call + Check.** Do the thing (or ask), then check whether the world
   came out as expected.
 - **"No" versus "I don't know"** is **Check** read under an attitude. Same search;
-  what a failed search *means* is the firmware setting of the next chapter.
+  what a failed search *means* is the firmware setting of Chapter 18.
 
 This is why the machine stays small and trustworthy. New abilities come from
 composing old verbs in the knowledge base — recipes an author writes in plain
@@ -92,4 +92,4 @@ The full list, with the rejected reflexes, is in the
 ---
 
 **Next:** a machine that says *likely* sounds like it needs probabilities. It
-doesn't — it reuses the modes you just met. [Shades of maybe →](uncertain-world-internals.md)
+doesn't — it reuses the modes you just met. [Shades of maybe →](17-uncertain-world-internals.md)

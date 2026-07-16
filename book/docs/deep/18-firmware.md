@@ -69,7 +69,7 @@ lets it say **unknown** when you ask it to keep an open mind.
 There's a second, subtler place the same discipline shows up, and it's worth seeing
 because it's what keeps the reasoning *sound*.
 
-Back in Chapter 13 we said ordinary reasoning can only ever *add* facts — there's
+Back in Chapter 15 we said ordinary reasoning can only ever *add* facts — there's
 no "erase" among the verbs a rule compiles to. That was true, but not the whole
 truth. A real fact-deletion instruction **does** exist down in the instruction set.
 The trick is that **ordinary rules physically cannot reach it.** The compiler that
@@ -97,7 +97,7 @@ The reasoning core — the part that's hard to get right — never moves.
 is generic and the opinions live in a small, separate stance, the instruction set
 is a *contract*. Reimplement the interpreter in a faster language, and as long as it
 honours the same instructions, it gives the same dish from a different kitchen —
-exactly the promise Chapter 12 made about *Universal*.
+exactly the promise Chapter 14 made about *Universal*.
 
 That's the machine, all the way down: a dumb, uniform substrate; a small, generic
 engine; nine ways of thinking; and a thin layer of declared attitude on top. No

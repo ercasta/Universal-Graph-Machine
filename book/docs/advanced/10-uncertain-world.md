@@ -150,10 +150,10 @@ handful of things it actually *knows*.
     with graded answers.)
 
 Curious how a "likely" is actually stored and carried? Part 4 opens the hood:
-[Shades of maybe →](../deep/uncertain-world-internals.md).
+[Shades of maybe →](../deep/17-uncertain-world-internals.md).
 
 ---
 
 **Next:** clues don't only whisper *probably* — they also say *more* and *less*.
 How does the machine rank suspects it has never measured?
-[More or less →](more-or-less.md)
+[More or less →](11-more-or-less.md)

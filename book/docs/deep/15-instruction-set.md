@@ -6,7 +6,7 @@
     one more turn and shows the actual gears. Nothing here changes how you *use* the
     machine; it's here because some people can't help but ask "yes, but how, really?"
 
-In Chapter 12 we said a rule becomes a tiny two-step program — **match**, then
+In Chapter 14 we said a rule becomes a tiny two-step program — **match**, then
 **apply** — running on a small set of instructions. That was true, but we waved a
 hand at what the instructions actually *are*. Let's name them. There aren't many,
 and once you've seen them, the phrase "it's all just dots and arrows" stops being
@@ -39,7 +39,7 @@ The match phase is built from a handful of verbs. In plain language:
   That one little inversion is the whole engine of "not": when the machine decides
   cy is **not** cleared, it's a check-absent that came up empty.
 - **same? / different?** — are these two dots actually the same one? Or provably
-  different ones? (`SAME` / `DISTINCT`.) This is how identity (Chapter 10) is
+  different ones? (`SAME` / `DISTINCT`.) This is how identity (Chapter 12) is
   enforced down at the metal.
 
 There are a few more for shades of grey — matching a degree rather than a plain
@@ -62,7 +62,7 @@ is no "erase a fact" verb in this vocabulary at all. Ordinary reasoning can only
 ever *add* — which is exactly why the because-trail (Chapter 8) never has to worry
 about a fact quietly vanishing out from under it. (There *is* a real deletion
 instruction, but ordinary rules can't reach it — that's a firmware matter we'll
-get to in Chapter 15.)
+get to in Chapter 18.)
 
 So our familiar rule —
 
@@ -92,7 +92,7 @@ move the finger:
 
 That last pair is quietly the most important. **Suspend/resume is the mechanism
 behind "let me find out."** When the machine hits a fact it doesn't have
-(Chapter 11), it doesn't crash and it doesn't guess — it suspends, states exactly
+(Chapter 13), it doesn't crash and it doesn't guess — it suspends, states exactly
 what it needs, and waits. Give it the answer and it resumes as if nothing
 happened. The same trick lets it duck into a "suppose" and come back.
 
@@ -115,4 +115,4 @@ transfer — fits comfortably on one page. You'll find it laid out in the
 
 **Next:** we've named the instructions. But *when* does the machine reach for
 each — when does it loop, when does it suppose, when does it just look? That turns
-out to be a short, closed list too. [Nine ways to think →](14-modes.md)
+out to be a short, closed list too. [Nine ways to think →](16-modes.md)

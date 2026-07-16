@@ -114,4 +114,4 @@ reasoning.
 ---
 
 **Next:** a puzzle every detective faces — when do two *names* refer to one
-*person*? [Same name, same person? →](10-identity.md)
+*person*? [Same name, same person? →](12-identity.md)

@@ -54,7 +54,7 @@ optional deep dive):
     Optional. The actual instruction set, the nine ways the machine thinks, and
     the swappable "firmware" that gives it its attitude.
 
-    [:octicons-arrow-right-24: Part 4](deep/13-instruction-set.md)
+    [:octicons-arrow-right-24: Part 4](deep/15-instruction-set.md)
 
 </div>
 

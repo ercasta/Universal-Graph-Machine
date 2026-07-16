@@ -85,4 +85,4 @@ seen the knowledge flow across.
 ---
 
 **Next:** what happens when the machine needs a fact it simply doesn't have?
-[Gathering evidence →](11-gathering-evidence.md)
+[Gathering evidence →](13-gathering-evidence.md)

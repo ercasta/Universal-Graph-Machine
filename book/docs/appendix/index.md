@@ -190,8 +190,8 @@ in the code.
 
 > **Go deeper:** the tradition here is **possibility theory** (Dubois & Prade) and
 > **possibilistic logic** — the *qualitative* cousin of probability. See
-> [Living in an uncertain world](../advanced/uncertain-world.md) and, for the
-> machinery, [Shades of maybe](../deep/uncertain-world-internals.md).
+> [Living in an uncertain world](../advanced/10-uncertain-world.md) and, for the
+> machinery, [Shades of maybe](../deep/17-uncertain-world-internals.md).
 
 ---
 
@@ -231,7 +231,7 @@ contradicts itself (a cycle of *more-than*s, or an arrow fighting the rungs) is
 
 > **Go deeper:** the underlying picture is a **strict partial order** per
 > dimension, with transitivity as an ordinary rule. See
-> [More or less](../advanced/more-or-less.md).
+> [More or less](../advanced/11-more-or-less.md).
 
 ---
 
@@ -240,7 +240,7 @@ contradicts itself (a cycle of *more-than*s, or an arrow fighting the rungs) is
 Everything the machine *does* to the graph is one of a small set of instructions.
 They divide into the **match** phase (looking — reads only) and the **apply** phase
 (writing — the only part that changes anything). A rule compiles to a short
-sequence of these. See [Chapter 13](../deep/13-instruction-set.md).
+sequence of these. See [Chapter 15](../deep/15-instruction-set.md).
 
 **Looking (the match phase):**
 
@@ -257,7 +257,7 @@ sequence of these. See [Chapter 13](../deep/13-instruction-set.md).
 | loop | `ITERATE` | Fork the work once per item in a bounded range. |
 | in focus? | `MEMBER` / `OVERLAY` | Restrict (or extend) matching to a working set / scope. |
 | by degree | `FUZZY` / `GRADE` | Match on a *degree* rather than a plain yes/no. |
-| by likeliness | `OVERLAY_BAND` | Step through a pencil world's fact, dimming the running score to its likeliness (weakest-link *min*) — how a *likely* is read ([Shades of maybe](../deep/uncertain-world-internals.md)). |
+| by likeliness | `OVERLAY_BAND` | Step through a pencil world's fact, dimming the running score to its likeliness (weakest-link *min*) — how a *likely* is read ([Shades of maybe](../deep/17-uncertain-world-internals.md)). |
 | by value | `VMATCH` | Join two dots that **agree on a value** (e.g. the same name). |
 
 **Writing (the apply phase):**
@@ -268,7 +268,7 @@ sequence of these. See [Chapter 13](../deep/13-instruction-set.md).
 | write | `EMIT` | Assert a fact (a mark, or a value) on a dot. |
 | hide / unhide | `INTERPOSE` / `RESTORE` | Reversibly tuck away an edge, and put it back (belief revision). |
 | drop (control) | `DROP_CTRL` | Remove a *scaffolding* edge — **refuses** to touch a fact. |
-| retire | `RETIRE` | Really delete a fact — the **privileged** deletion ordinary rules can't reach (see [Chapter 15](../deep/15-firmware.md)). |
+| retire | `RETIRE` | Really delete a fact — the **privileged** deletion ordinary rules can't reach (see [Chapter 18](../deep/18-firmware.md)). |
 
 The whole list fits on a page — and there is **no** fact-deleting verb among the
 ones a rule can compile to. That's what makes the because-trail safe.
@@ -280,7 +280,7 @@ ones a rule can compile to. That's what makes the because-trail safe.
 The verbs above are one straight run of look-then-write. To *loop*, to ask a
 sub-question mid-thought, or to pause for the outside world, the machine needs a
 **control path** — a "finger" pointing at the current instruction, and ways to move
-it (see [Chapter 13](../deep/13-instruction-set.md)).
+it (see [Chapter 15](../deep/15-instruction-set.md)).
 
 | Transfer | Real name | What it does |
 |----------|-----------|--------------|
@@ -303,7 +303,7 @@ graph can't see.
 
 Every computation the machine performs is one of **nine** ways of thinking — or a
 knowledge-base recipe composed from them. The list is closed on purpose (see
-[Chapter 14](../deep/14-modes.md)).
+[Chapter 16](../deep/16-modes.md)).
 
 | # | Mode | In plain words | Where in the book |
 |---|------|----------------|-------------------|
@@ -314,7 +314,7 @@ knowledge-base recipe composed from them. The list is closed on purpose (see
 | 5 | **Choose** | Compare options and pick the best. | — |
 | 6 | **Suppose** | "What if?" — reason in pencil, then ink or erase. | [Ch 9](../advanced/09-supposing.md) |
 | 7 | **Walk** | Scout a far-off connection without grinding over everything between. | — |
-| 8 | **Call** | Use a tool — a calculator, a clock, a person to ask. | [Ch 11](../advanced/11-gathering-evidence.md) |
+| 8 | **Call** | Use a tool — a calculator, a clock, a person to ask. | [Ch 11](../advanced/13-gathering-evidence.md) |
 | 9 | **Record** | Remember what you did and why (always on, free). | [Ch 8](../intermediate/08-because.md) |
 
 And the machine's headline abilities are **compositions** of these, not separate
@@ -323,7 +323,7 @@ engines:
 - **Explain** = Record, replayed.
 - **Suppose** = Suppose + Chain + Check.
 - **Gather evidence / try-check-replan** = Call + Check.
-- **"No" vs "unknown"** = Check, read under the [firmware](../deep/15-firmware.md)
+- **"No" vs "unknown"** = Check, read under the [firmware](../deep/18-firmware.md)
   stance.
 
 A tenth mode may be added *only* if it's nameable in plain language, keeps all its

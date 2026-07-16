@@ -74,4 +74,4 @@ about the might-be — all without ever losing its grip on the is.
 ---
 
 **Next:** clues rarely say *yes* or *no* — most whisper *probably*. How does a
-machine hold a *maybe* without fooling itself? [Living in an uncertain world →](uncertain-world.md)
+machine hold a *maybe* without fooling itself? [Living in an uncertain world →](10-uncertain-world.md)
