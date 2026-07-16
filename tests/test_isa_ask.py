@@ -45,10 +45,12 @@ def test_ask_goal_matches_forward_ask_on_the_defeasible_graded_bank():
     kb_goal, rules_g = h.load_corpus(ICE_CREAM)          # NOT run_rules'd — ask_goal reasons on demand
     backward = [h.ask_goal(kb_goal, q, rules_g) for q in YESNO]   # CWA-default (matches forward `ask`)
 
-    assert backward == forward
+    # ask_goal's verdicts wear their kind ("no (assumed)"); the forward reader keeps its simple
+    # yes/no contract — the differential compares under the actor-level collapse.
+    assert [["no"] if a == ["no (assumed)"] else a for a in backward] == forward
     assert backward[0] == ["yes"]                         # alice -> express (graded)
-    assert backward[2] == ["no"]                          # bob NOT express (NAC-completed defeat)
-    assert backward[3] == ["no"]                          # alice NOT regular (NAC-completed defeat)
+    assert backward[2] == ["no (assumed)"]                # bob NOT express (NAC-completed defeat)
+    assert backward[3] == ["no (assumed)"]                # alice NOT regular (NAC-completed defeat)
 
 
 # RETIRED (Phase 6.1): `test_ask_goal_is_goal_directed_materializes_less_than_the_full_closure` —
@@ -63,7 +65,7 @@ def test_cwa_default_no_vs_owa_optin_unknown():
     # (act on the best of current knowledge). OWA opt-in (`served` declared open): `unknown` —
     # absence != false, for the predicates where CWA is unsafe.
     kb1, rules1 = h.load_corpus(ICE_CREAM)
-    assert h.ask_goal(kb1, "is bob served express", rules1) == ["no"]                       # CWA default
+    assert h.ask_goal(kb1, "is bob served express", rules1) == ["no (assumed)"]                       # CWA default
 
     kb2, rules2 = h.load_corpus(ICE_CREAM)
     assert h.ask_goal(kb2, "is bob served express", rules2,
@@ -99,7 +101,7 @@ def test_closed_world_elimination_via_demand_driven_naf():
     kb, rules = h.load_corpus(THIEF_CW)
     answers = [h.ask_goal(kb, q, rules)
                for q in ("is cy thief", "is ada thief", "is bo thief", "who is thief")]
-    assert answers == [["yes"], ["no"], ["no"], ["cy is thief"]]
+    assert answers == [["yes"], ["no (assumed)"], ["no (assumed)"], ["cy is thief"]]
 
 
 ASK_USER_KB = """
@@ -136,7 +138,7 @@ def test_ask_user_is_never_consulted_for_a_cwa_default_predicate():
     def boom(s, p, o):
         raise AssertionError("ask_user must not be consulted for a CWA-default predicate")
 
-    assert h.ask_goal(kb, "is alice likes bob", rules, ask_user=boom) == ["no"]
+    assert h.ask_goal(kb, "is alice likes bob", rules, ask_user=boom) == ["no (assumed)"]
 
 
 # RETIRED (Phase 6.1): `test_expand_rules_goal_form_keeps_closed_world_negation_as_a_nac` pinned the

@@ -27,7 +27,7 @@ bo is a person
 """)
     assert h.ask_goal(kb, "is ada hooty", rules) == ["yes"]     # positive `is an X` condition
     assert h.ask_goal(kb, "is bo grounded", rules) == ["yes"]   # `is not an X` lowers to the is_a NAC
-    assert h.ask_goal(kb, "is ada grounded", rules) == ["no"]   # ... and actually blocks (the owl)
+    assert h.ask_goal(kb, "is ada grounded", rules) == ["no (assumed)"]   # ... and actually blocks (the owl)
 
 
 def test_an_goal_routes_as_goal():

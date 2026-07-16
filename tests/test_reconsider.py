@@ -29,7 +29,7 @@ def test_new_rule_flips_materialized_naf_conclusion():
     assert _ingest(kb, rules, "is ada thief").answer == ["yes"]      # NAF: nothing clears ada
     _ingest(kb, rules, "ada is alibied")
     _ingest(kb, rules, "?x is cleared when ?x is alibied")
-    assert _ingest(kb, rules, "is ada thief").answer == ["no"]       # RECONSIDERED
+    assert _ingest(kb, rules, "is ada thief").answer == ["no (assumed)"]       # RECONSIDERED
     assert _ingest(kb, rules, "is ada cleared").answer == ["yes"]    # the broken absence, now ink
 
     # The withdrawal is archived, not shredded: a history record stamped with the broken assumption.
@@ -48,7 +48,7 @@ def test_new_fact_alone_breaks_through_rule_dependency():
     _ingest(kb, rules, "bo is a suspect")
     assert _ingest(kb, rules, "is bo thief").answer == ["yes"]
     _ingest(kb, rules, "bo is alibied")
-    assert _ingest(kb, rules, "is bo thief").answer == ["no"]
+    assert _ingest(kb, rules, "is bo thief").answer == ["no (assumed)"]
 
 
 def test_direct_fact_breaks_assumption():
@@ -57,7 +57,7 @@ def test_direct_fact_breaks_assumption():
     _ingest(kb, rules, "cy is a suspect")
     assert _ingest(kb, rules, "is cy thief").answer == ["yes"]
     _ingest(kb, rules, "cy is cleared")
-    assert _ingest(kb, rules, "is cy thief").answer == ["no"]
+    assert _ingest(kb, rules, "is cy thief").answer == ["no (assumed)"]
 
 
 def test_multi_support_conclusion_is_rederived():
@@ -80,8 +80,8 @@ def test_cascade_reaches_dependents_of_the_stale_conclusion():
     _ingest(kb, rules, "cy is a suspect")
     assert _ingest(kb, rules, "is cy alerted").answer == ["yes"]      # thief -> alerted, both inked
     _ingest(kb, rules, "cy is cleared")
-    assert _ingest(kb, rules, "is cy alerted").answer == ["no"]
-    assert _ingest(kb, rules, "is cy thief").answer == ["no"]
+    assert _ingest(kb, rules, "is cy alerted").answer == ["no (assumed)"]
+    assert _ingest(kb, rules, "is cy thief").answer == ["no (assumed)"]
 
 
 def test_disable_withdraws_materialized_conclusions():
@@ -90,7 +90,7 @@ def test_disable_withdraws_materialized_conclusions():
     _ingest(kb, rules, "?x is watched when ?x is a suspect")
     assert _ingest(kb, rules, "is bo watched").answer == ["yes"]
     _ingest(kb, rules, "forget that rule")
-    assert _ingest(kb, rules, "is bo watched").answer == ["no"]       # support gone by fiat
+    assert _ingest(kb, rules, "is bo watched").answer == ["no (assumed)"]       # support gone by fiat
 
 
 def test_unrelated_fact_is_a_noop_and_clears_the_mark():
@@ -163,4 +163,4 @@ def test_read_only_ask_does_not_trigger_or_mutate():
         stale = ask_goal(kb, "is ada thief", rules, commit=False)
     assert stale == ["yes"], "a read-only ask answers over the graph as-is (documented)"
     assert kb.registers.get(DIRTY_REG), "commit=False must not consume the mark"
-    assert _ingest(kb, rules, "is ada thief").answer == ["no"]        # the committed ask settles it
+    assert _ingest(kb, rules, "is ada thief").answer == ["no (assumed)"]        # the committed ask settles it

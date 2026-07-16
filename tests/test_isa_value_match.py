@@ -194,13 +194,13 @@ def test_coref_as_a_declared_rule_composes_close_entities():
     kb, _ = load_corpus(_COREF_FACTS)
     rules = load_rules(_COREF_RULE) + same_as_rules(["is", "same_as"])
     assert ask_goal(kb.copy(), "is eveningstar visible", rules) == ["yes"]
-    assert ask_goal(kb.copy(), "is pluto visible", rules) == ["no"]     # too far -> no coref
+    assert ask_goal(kb.copy(), "is pluto visible", rules) == ["no (assumed)"]     # too far -> no coref
 
 
 def test_coref_gate_no_rule_no_composition():
     # the SAME facts, but WITHOUT the coref rule, do not compose — coref-following is DATA, not baked in.
     kb, _ = load_corpus(_COREF_FACTS)
-    assert ask_goal(kb.copy(), "is eveningstar visible", same_as_rules(["is", "same_as"])) == ["no"]
+    assert ask_goal(kb.copy(), "is eveningstar visible", same_as_rules(["is", "same_as"])) == ["no (assumed)"]
 
 
 def test_asserted_identity_composes_across_names_via_load_corpus():

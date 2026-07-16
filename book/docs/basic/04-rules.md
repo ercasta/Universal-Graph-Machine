@@ -20,7 +20,7 @@ are nervous."* Now, in a world where `ada is nervous`, watch what happens:
 
 ```
 is ada watched            →  yes
-is bo watched             →  no
+is bo watched             →  no (assumed)
 ```
 
 We never wrote `ada is watched` anywhere. The machine **derived** it — it applied

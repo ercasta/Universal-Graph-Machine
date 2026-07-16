@@ -102,8 +102,8 @@ def test_contract_closed_world_elimination():
     # solved by elimination, and UNIQUELY — one demand-driven `ask_goal` per question.
     assert h.ask_goal(kb, "who is thief", rules) == ["cy is thief"]
     assert h.ask_goal(kb, "is cy thief", rules) == ["yes"]
-    assert h.ask_goal(kb, "is ada thief", rules) == ["no"]
-    assert h.ask_goal(kb, "is bo thief", rules) == ["no"]
+    assert h.ask_goal(kb, "is ada thief", rules) == ["no (assumed)"]
+    assert h.ask_goal(kb, "is bo thief", rules) == ["no (assumed)"]
 
     # the explanation grounds `cy is thief` on the given suspect premise. Under demand-driven NAF the
     # trace has NO `is_not`/completion step — the elimination is the ABSENCE of a `cleared(cy)`

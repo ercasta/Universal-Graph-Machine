@@ -33,7 +33,7 @@ innocent, therefore cleared* — and confirmed the prediction. And then the cruc
 part:
 
 ```
-back in the real world:   is dz cleared?   →  no
+back in the real world:   is dz cleared?   →  no (assumed)
 ```
 
 Nothing stuck. dz isn't really cleared, isn't even really in the story. The

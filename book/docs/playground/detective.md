@@ -15,7 +15,8 @@ answer. Try these:
 - Ask `who is nervous` to have the machine sweep the world for a plain quality.
 - Ask `why cy is thief` to see the machine's own reasoning trail.
 - Ask `is zz thief` — then tick **keep an open mind** and ask the *same*
-  question again. Watch `no` become `unknown`. (It also flips `is ada thief`.)
+  question again. Watch `no (assumed)` become `unknown`. (It also flips
+  `is ada thief`.)
 
 !!! tip "About *keep an open mind*"
     This switch only changes answers the machine **can't prove** — a defeasible

@@ -144,7 +144,7 @@ def test_thief_riddle_answers_the_question():
     g, rules = _solve(THIEF_RIDDLE)
     assert ask_goal(g, THIEF_RIDDLE["question"], rules) == THIEF_RIDDLE["answer"]   # cy is thief
     # and it is the UNIQUE answer (no other suspect is the thief)
-    assert ask_goal(g, "is ada thief", rules) == ["no"]
+    assert ask_goal(g, "is ada thief", rules) == ["no (assumed)"]
     assert ask_goal(g, "is cy thief", rules) == ["yes"]
 
 
@@ -177,7 +177,7 @@ def test_vase_riddle_yesno_and_why_not():
     g, rules = _solve(VASE_RIDDLE)
     assert ask_goal(g, VASE_RIDDLE["question"], rules) == VASE_RIDDLE["answer"]
     assert ask_goal(g, "is tia culprit", rules) == ["yes"]
-    assert ask_goal(g, "is rex culprit", rules) == ["no"]
+    assert ask_goal(g, "is rex culprit", rules) == ["no (assumed)"]
     # "rex is NOT the culprit" bottoms out at a real derivation: rex was cleared (in the yard).
     assert ask_goal(g, "is rex cleared", rules) == ["yes"]
     why = "\n".join(ask_goal(g, "why tia is culprit", rules))

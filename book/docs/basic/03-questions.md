@@ -22,14 +22,16 @@ world and answers:
 
 ```
 is ada a suspect          →  yes
-is bo nervous             →  no
+is bo nervous             →  no (assumed)
 is bo in library          →  yes
-is ada in library         →  no
+is ada in library         →  no (assumed)
 ```
 
 Notice the pattern: a yes/no question is just a *fact with a question mark*.
 `ada is nervous` is a statement; `is ada nervous` asks whether that statement
-holds. If the machine can establish it, you get **yes**; if not, **no**.
+holds. If the machine can establish it, you get **yes**; if not, **no** — and
+look closely at how it says no: **`no (assumed)`**. That little tag is the
+machine being honest about *what kind* of no this is. We'll come back to it.
 
 ## "Who" questions — let the machine find them
 
@@ -71,10 +73,12 @@ one of the most important ideas in the whole book:
 | **no** | It could not — *as far as it knows*. |
 | **unknown** | It has no basis to decide either way, and won't guess. |
 
-That middle row hides a subtlety. When the machine says **no**, it usually
-doesn't mean *"this is impossible"* — it means *"I found no reason to believe
-it."* Ask `is bo nervous` and you get `no`, not because bo is provably calm, but
-because nothing in the world says he's nervous.
+That middle row hides a subtlety — and the machine wears it on its sleeve. When
+it says **`no (assumed)`**, it doesn't mean *"this is impossible"* — it means
+*"I found no reason to believe it."* Ask `is bo nervous` and you get
+`no (assumed)`, not because bo is provably calm, but because nothing in the
+world says he's nervous. (A **plain `no`** is reserved for the rarer, harder
+case: when the machine can actually *prove* the opposite.)
 
 And sometimes even that "no" is too strong. If the machine is told to keep an
 open mind — because its information might be incomplete — it will say

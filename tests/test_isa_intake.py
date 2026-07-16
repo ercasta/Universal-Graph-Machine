@@ -38,7 +38,7 @@ def test_question_negative():
     ingest(kb, rules, "bo in library")     # -> innocent -> cleared
     out = ingest(kb, rules, "is bo thief")
     assert out.kind == "answer"
-    assert out.answer == ["no"]
+    assert out.answer == ["no (assumed)"]
 
 
 def test_rule_routes_to_rule_and_reasons_immediately():
@@ -106,7 +106,7 @@ def test_forget_that_rule_disables_last_rule():
     # the disabled rule no longer fires for a NOT-yet-derived subject -> CWA-default no. (Monotone: `ada
     # watched`, materialized by the earlier query, persists — disable stops future derivations, §5 no
     # retraction.) The rule OBJECT still lives in `rules`; only the `<disabled>` marker excludes it.
-    assert ingest(kb, rules, "is bo watched").answer == ["no"]
+    assert ingest(kb, rules, "is bo watched").answer == ["no (assumed)"]
 
 
 def test_forget_that_rule_is_not_focus_drop():

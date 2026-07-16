@@ -371,8 +371,11 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     there mice in the cellar" — no sighting != no mice; "no test failure" != no bug). The three
     negatives an agent should distinguish — ENTAILED-no (a derivable `is_not`, as trustworthy as a
     yes), ASSUMED-no (CWA default, the defeasible one), and UNKNOWN (open predicate, unprovable) —
-    collapse to `no`/`no`/`unknown` here; surfacing the hard-vs-assumed KIND for the metareasoning
-    escalation policy (deontics-over-epistemic-acts) is the capstone follow-up.
+    each WEAR THEIR KIND here (the hard-vs-assumed capstone, completed 2026-07-16): `no` / `no
+    (assumed)` / `unknown`. The assumed form is exactly the answer RECONSIDER may later take back
+    (docs/design/reconsider_design.md); an actor that only needs the decision collapses both `no`s
+    with `check.collapse`. (An `ask_user`-testified False stays a plain `no` — user testimony, not
+    a CWA default; the forward reader `ask` keeps its simple yes/no contract over materialized ink.)
 
     ASK-USER (the OWA evidence-gatherer): when a yes/no goal on an OPEN predicate is `unknown` and an
     `ask_user(subj, rel, obj) -> bool | None` handler is given, the engine gathers evidence from it
@@ -523,14 +526,14 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
                         return ["yes"]
                 if policy_.is_open(concept_key(q["p"], q["o"])):
                     return ["unknown"]
-                return ["no (assumed)"] if policy_.banded else ["no"]
-            # a bound goal: the demand-driven 4-status CHECK, collapsed to yes/no/unknown — except under
-            # the BANDED stance, where the verdict WEARS ITS KIND (the capstone's surfacing half,
-            # 2026-07-16): an ASSUMED_NO answers `no (assumed)` — the CWA default, out in the open (the
-            # uncertain-world chapter's "likely becomes no (assumed)") — while an ENTAILED_NEG stays a
-            # plain hard `no` (as trustworthy as a yes). The crisp default keeps today's collapse.
+                return ["no (assumed)"]                    # ∃-failure is always the CWA default
+            # a bound goal: the demand-driven 4-status CHECK, and the verdict WEARS ITS KIND (the
+            # capstone's surfacing half, completed for the crisp stance 2026-07-16): an ASSUMED_NO
+            # answers `no (assumed)` — the CWA default, out in the open, the "no" that RECONSIDER
+            # may later take back — while an ENTAILED_NEG stays a plain hard `no` (as trustworthy
+            # as a yes). Actors that only need the decision use `check.collapse` (both are no).
             def verdict(status: str) -> str:
-                if policy_.banded and status == ASSUMED_NO:
+                if status == ASSUMED_NO:
                     return "no (assumed)"
                 return collapse(status)
             goal = (q["p"], q["s"], q["o"])

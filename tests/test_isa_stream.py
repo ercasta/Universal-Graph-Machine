@@ -113,7 +113,7 @@ def test_midchain_denied_premise_is_not_derivable():
     ingest(kb, rules, "bo is a suspect")
     pol = FirmwarePolicy(open_preds=frozenset({"cleared"}))
     out = ingest(kb, rules, "is bo safe", policy=pol, ask_user=lambda s, r, o: False)
-    assert out.answer == ["no"]                                 # premise denied -> goal not derivable
+    assert out.answer == ["no (assumed)"]                                 # premise denied -> goal not derivable
 
 
 def test_midchain_no_ask_when_already_derivable():

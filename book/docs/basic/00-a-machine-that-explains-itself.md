@@ -118,10 +118,11 @@ the story — someone the machine has never heard a single fact about. We ask:
 is zz thief
 ```
 
-With a **closed world**, the machine reasons "I have nothing on zz, so — no":
+With a **closed world**, the machine reasons "I have nothing on zz, so — no" —
+and it is honest that this is an assumption, not a proof:
 
 ```
-→ no
+→ no (assumed)
 ```
 
 But if we tell it the clue list might be *incomplete* and it should **keep an

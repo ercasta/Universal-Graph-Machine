@@ -42,7 +42,7 @@ Meet **zz**, a name the machine has never heard a single fact about. Ask the sam
 question two ways:
 
 ```
-is zz thief          (closed world)   →  no
+is zz thief          (closed world)   →  no (assumed)
 is zz thief          (open mind)      →  unknown
 ```
 
@@ -54,9 +54,10 @@ nothing on zz, and I won't pretend otherwise."*
     The playground's **keep an open mind** switch flips exactly this. But watch
     carefully — it only changes answers the machine **couldn't prove anyway**:
 
-    - `is zz thief` and `is ada thief` → **`no` becomes `unknown`** ✅
+    - `is zz thief` and `is ada thief` → **`no (assumed)` becomes `unknown`** ✅
     - `who is thief` and `is cy thief` → **no change** — the machine can *prove*
-      these, and proof doesn't care about your attitude toward absence.
+      these, and proof doesn't care about your attitude toward absence. (The
+      `(assumed)` tag is the tell: only tagged answers can flip.)
 
     So if you toggle it on a question the machine can already answer and nothing
     happens — that's not a bug, that's the point. Open-mindedness only matters
@@ -112,10 +113,11 @@ every answer it gives.
 
 ## Try it
 
-In the playground, ask `is ada thief`. Note the `no`. Now tick **keep an open
-mind** and ask again — watch it become `unknown`. Then try the same toggle on
-`who is thief` and confirm it *doesn't* change. Feel the difference between
-"proven" and "assumed."
+In the playground, ask `is ada thief`. Note the `no (assumed)`. Now tick **keep
+an open mind** and ask again — watch it become `unknown`. Then try the same
+toggle on `who is thief` and confirm it *doesn't* change. Feel the difference
+between "proven" and "assumed" — the machine is already telling you which is
+which.
 
 [:material-play-circle: **Open the playground**](../playground/detective.md){ .md-button .md-button--primary }
 

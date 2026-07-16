@@ -218,7 +218,7 @@ def test_case_folded_query_warns_on_variant_node():
     g = h.Graph(); e = g.add_node("eB"); g.add_relation(e, "is_a", g.add_node("attribute"))
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        assert ask_goal(g, "is eB a attribute", []) == ["no"]          # still the folded miss...
+        assert ask_goal(g, "is eB a attribute", []) == ["no (assumed)"]          # still the folded miss...
     assert any("case-variant" in str(rec.message) for rec in w)        # ...but no longer SILENT
 
 
@@ -262,7 +262,7 @@ def test_suppose_commit_false_is_read_only_and_returns_derivations():
     assert res.committed == []                               # a READ-ONLY run inks NOTHING
     assert ("ada", "is", "wet") in res.derived              # the in-scope consequence, for inspection
     # the KB is unmutated: the assumption never entered ink, so the conclusion does not re-derive
-    assert h.ask_goal(kb, "is ada wet", rules) == ["no"]
+    assert h.ask_goal(kb, "is ada wet", rules) == ["no (assumed)"]
 
 
 def test_suppose_default_still_commits_to_ink():
@@ -280,7 +280,7 @@ def test_suppose_commit_false_exposes_partial_derivations_on_inconclusive():
     res = suppose(kb, [("ada", "is", "rained_on")], [("is", "ada", "wet"), ("is", "ada", "happy")], commit=False, rules=rg)
     assert res.status == "inconclusive"
     assert ("ada", "is", "wet") in res.derived
-    assert h.ask_goal(kb, "is ada wet", rules) == ["no"]     # still read-only
+    assert h.ask_goal(kb, "is ada wet", rules) == ["no (assumed)"]     # still read-only
 
 
 # --- #9: load_machine_rules is memoized on the bank text (was: re-fold + re-validate per call) --------
@@ -374,14 +374,14 @@ def test_ask_goal_commit_false_yesno_is_read_only():
     g = _contested_world()
     assert ask_goal(g, "is c contested yes", load_machine_rules(_CONTESTED), commit=False) == ["yes"]
     # the feedback's own poison test: with an EMPTY rulebank the derived fact must NOT still be there.
-    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["no"]
+    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["no (assumed)"]
     assert not [x for x in g.nodes() if g.name(x) == "<query>"]         # the pencil scope was swept
 
 
 def test_ask_goal_commit_false_who_is_read_only():
     g = _contested_world()
     assert ask_goal(g, "who contested yes", load_machine_rules(_CONTESTED), commit=False) == ["c contested yes"]
-    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["no"]
+    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["no (assumed)"]
 
 
 def test_ask_goal_default_still_commits():
@@ -404,7 +404,7 @@ def test_query_goal_returns_matching_facts_read_only():
     # bound goal: the yes/no shape — the matching fact comes back as data, nothing is inked.
     assert query_goal(g, ("contested", "c", "yes"), rules=load_machine_rules(_CONTESTED)) == \
         [("c", "contested", "yes")]
-    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["no"]      # poison test (#12)
+    assert ask_goal(g, "is c contested yes", load_machine_rules("")) == ["no (assumed)"]      # poison test (#12)
     assert not [x for x in g.nodes() if g.name(x) == "<query>"]         # the pencil scope was swept
 
 
