@@ -14,13 +14,17 @@ back** a hasty accusation.
 Try these:
 
 - Ask `is ada thief` with the box **unticked** — the machine runs out of budget
-  partway down her alibi and answers `unknown`. Now **tick the box** and ask
-  again: her CCTV alibi checks out four steps deep, and the answer becomes `no`.
+  partway along her alibi and answers `unknown`. Now **tick the box** and ask
+  again: her chain of vouching witnesses checks out all the way back to the
+  stage, and the answer becomes `no`.
 - Ask `who is thief` **unticked** — a quick glance can't finish clearing ada, so
   it **over-accuses** her (lists her *and* cy). **Tick the box** and ask again:
   it clears ada and names only `cy`.
 - Ask `is cy thief` both ways. Even a *definite* answer needs enough budget to
-  finish looking for — and failing to find — a way to clear cy.
+  finish looking for — and failing to find — anyone who'll vouch for cy.
+- Add a witness to ada's chain — e.g. `sam vouches lee` above, and change
+  `sam vouches ada` to `lee vouches ada`. Now even *think it through* has more
+  to trace. **Depth is data:** the longer the chain, the harder it has to think.
 
 !!! tip "About the budget"
     A bigger budget never *changes* a fact — it only lets the machine **finish**.
@@ -33,18 +37,24 @@ Try these:
      data-wheel="../wheels/universal_graph_machine-0.1.0-py3-none-any.whl">
 
   <label class="ugm-label" for="ugm-corpus">The world — clues and rules</label>
-  <textarea id="ugm-corpus" class="ugm-corpus" spellcheck="false" rows="16">
+  <textarea id="ugm-corpus" class="ugm-corpus" spellcheck="false" rows="18">
 ada is a suspect
 bo is a suspect
 cy is a suspect
 
-ada is filmed
-bo is alibied
+vouches is a relation
 
-?p is cleared      when ?p is alibied
-?p is alibied      when ?p is corroborated
-?p is corroborated when ?p is timestamped
-?p is timestamped  when ?p is filmed
+vic is onstage
+vic vouches uma
+uma vouches rex
+rex vouches sam
+sam vouches ada
+
+tom is onstage
+tom vouches bo
+
+?p is cleared when ?p is onstage
+?p is cleared when ?w vouches ?p and ?w is cleared
 ?p is thief when ?p is a suspect and ?p is not cleared
 </textarea>
 
@@ -75,12 +85,15 @@ bo is alibied
 </div>
 
 !!! question "Why does clearing ada take so long?"
-    Her alibi is a **chain**: she was `filmed` by a camera, which makes her
-    `timestamped`, which makes her `corroborated`, which makes her `alibied`,
-    which finally makes her `cleared`. That's four links to follow before the
-    machine can rule her out. bo is `alibied` outright — one link — so a quick
-    glance clears him. Lengthen ada's chain (add another rule) and even "think
-    it through" will eventually need a bigger budget still.
+    Her alibi is a **chain of vouching**. Only `vic` has a rock-solid alibi —
+    `vic is onstage`, in front of the whole audience. From there, clearance has
+    to *travel*: `vic vouches uma`, `uma vouches rex`, `rex vouches sam`,
+    `sam vouches ada`. To rule ada out, the machine must follow that chain of
+    witnesses all the way back to the stage — four hops. bo is vouched for
+    *directly* by `tom` (who's also onstage) — one hop — so a quick glance clears
+    him. And because the depth is just how many `vouches` lines sit between ada
+    and an anchored alibi, **you** control it: add a witness and even "think it
+    through" has further to walk.
 
 !!! tip "Where this fits"
     This is the same honest-`unknown` you met in

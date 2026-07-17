@@ -46,21 +46,22 @@ ran out."*
 ## Watch it happen — the hard case
 
 Take the detective world one turn harder. This time **ada** has a real alibi, but
-a *deep* one: a camera **filmed** her across town, which makes her account
-**timestamped**, which makes it **corroborated**, which makes her **alibied**,
-which finally makes her **cleared**. Five ideas, four links to follow before the
-machine can rule her out. **bo**, by contrast, is `alibied` outright — one link.
-And **cy** has nothing.
+a *deep* one — a **chain of vouching witnesses**. Only **vic** has a rock-solid
+alibi: she was **onstage**, in front of the whole audience. From there, clearance
+has to *travel*: vic vouches for **uma**, uma for **rex**, rex for **sam**, and sam
+for **ada**. Four hops back to the stage before the machine can rule ada out.
+**bo**, by contrast, is vouched for *directly* by an anchored witness — one hop.
+And **cy** has nobody.
 
 Ask **`is ada thief`** on a small budget:
 
-> **unknown** — *the machine set off down ada's alibi, got a few steps in, and ran
-> out of budget before reaching "cleared." It won't guess.*
+> **unknown** — *the machine set off along ada's alibi, traced a witness or two, and
+> ran out of budget before it reached the stage. It won't guess.*
 
 Now hand it a bigger budget — *think harder* — and ask again:
 
-> **no** — *this time it followed the chain all the way: filmed → timestamped →
-> corroborated → alibied → cleared. Her alibi holds. She isn't the thief.*
+> **no** — *this time it followed the chain all the way: vic (onstage) → uma → rex →
+> sam → ada. Her alibi holds. She isn't the thief.*
 
 The bigger budget didn't *change* anything about ada. It only let the machine
 **finish** a walk it had already started correctly. The answer it reaches with more

@@ -118,34 +118,46 @@ def test_contract_closed_world_elimination():
 # ===========================================================================
 # Scenario 3 — compositional code hazard (the extraction + composition seam)
 # ===========================================================================
-# The Stage-1 queryset-mutation-during-iteration hazard, authored ENTIRELY through the CNL surface
-# via the interactive `Session` (definite `the` merges each mention to one node, standing in for a
-# real extractor's stable ids). The hazard is DERIVED by composing two mechanism rules. This is the
-# behavior a Joern-fed engine must reproduce; the contract is the yes/no answer, not how the frames
-# are stored.
+# The Stage-1 queryset-mutation-during-iteration hazard, authored ENTIRELY through the CNL surface.
+# It composes FOUR declared relations (`iterate`/`mutate`/`consume`/`contain`) through a two-rule
+# derivation. This is the behavior a Joern-fed engine must reproduce; the contract is the yes/no
+# answer, not how the frames are stored.
 #
-# NB: this scenario uses `Session.submit` line-by-line rather than `load_corpus`, because the
-# declared-relation catalog (`iterate is a relation`) is currently applied only on the SEQUENTIAL
-# path — the batch loaders do not sequence declaration-before-use (a known NL-front-end gap, see
-# docs/handoff_redesign.md). `Session.submit` is equally a public, representation-independent surface.
+# Declaration-before-use in the BATCH loader: `load_corpus` now sequences `R is a relation` ahead of
+# the `X R Y` facts that use it (recognition folds declared-relation edges in a second pass — see
+# `authoring._recognize`), so this scenario loads as an ordinary corpus. Plain stable ids
+# (`loop1`/`del1`/`qs1`) stand in for a real extractor's node ids; definite-article merging
+# (`the loop` across lines) is a SEPARATE, still-open batch-loader coreference gap, deliberately
+# avoided here so this case pins the relation composition alone.
 
-def _hazard_session(mutation_target):
-    s = h.Session()
-    for line in (
-        "the is a definite",
+def _hazard_corpus(mutation_target):
+    return "\n".join((
         "iterate is a relation", "mutate is a relation",
         "consume is a relation", "contain is a relation",
-        "the loop is a iteration",
-        "the loop iterate the queryset",
-        "the deletion is a mutation",
-        f"the deletion mutate the {mutation_target}",
-        "the loop contain the deletion",
+        "loop1 is a iteration",
+        "loop1 iterate qs1",
+        "del1 is a mutation",
+        f"del1 mutate {mutation_target}",
+        "loop1 contain del1",
         "?loop consume ?c when ?loop is a iteration and ?loop iterate ?c",
         "?m is unsafe when ?m is a mutation and ?m mutate ?c "
         "and ?loop contain ?m and ?loop consume ?c",
-    ):
-        s.submit(line)
-    return s
+    ))
+
+
+def test_contract_declared_relation_hazard_composes_in_batch():
+    # UNSAFE: the deletion mutates the very collection the loop iterates -> the two mechanism rules
+    # compose and the hazard is DERIVED. This only works because the batch loader recognized the four
+    # `is a relation` declarations BEFORE the `X R Y` facts that use them (the fix this scenario guards).
+    kb, rules = h.load_corpus(_hazard_corpus("qs1"))
+    assert h.ask_goal(kb, "is del1 unsafe", rules) == ["yes"]
+
+    # SAFE: mutate a DIFFERENT collection and the composition no longer fires -> defeasible no.
+    kb2, rules2 = h.load_corpus(_hazard_corpus("logfile"))
+    assert h.ask_goal(kb2, "is del1 unsafe", rules2) == ["no (assumed)"]
+
+    # And the declared relation is a first-class fact on the demand path (not just raw tokens):
+    assert h.ask_goal(kb, "does loop1 iterate qs1", rules) == ["yes"]
 
 
 

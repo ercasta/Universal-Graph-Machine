@@ -32,7 +32,7 @@ import zlib
 from .forms import (
     FORM_RULES, _predicate_literals, declared_auxiliaries, declared_prepositions,
     declared_relations, declared_rule_variables, declared_univ_nouns, load_text, normalize_lexical,
-    propagate_embeddings, relation_predicates, rule_var_name, tokenize, mark_mentions,
+    propagate_embeddings, relation_forms, relation_predicates, rule_var_name, tokenize, mark_mentions,
     intern_mentions,
 )
 from .universal import same_as_rules
@@ -246,6 +246,17 @@ def _recognize(graph: Graph, sentences: list[str], forms: list[Rule]) -> list[st
     are two), which `wire_same_as` would otherwise coref-link spuriously. Returns the anchor ids."""
     anchors = [tokenize(graph, s) for s in sentences]
     run_bank(graph, forms)
+    # DECLARATION-BEFORE-USE for declared relations (closing the batch-loader gap noted in
+    # test_contract / docs/handoff_redesign.md). A line `R is a relation` is recognized by the pass
+    # above, but the per-relation fact form it licenses (`X R Y -> X --R--> Y`, `relation_forms`) can
+    # only be GENERATED once that declaration is in the graph — a chicken-and-egg within one batch. So
+    # fold the relation-fact edges in a SECOND pass over the already-tokenized lines. NO-OP when nothing
+    # declares a relation, so the `_ALL_FORMS`-only path stays byte-identical (the rewriter differential
+    # of this function's contract). Recognition is monotone-add (the token chain is read, not consumed),
+    # so re-running is safe and order-free.
+    rel_forms = relation_forms(graph)
+    if rel_forms:
+        run_bank(graph, rel_forms)
     for r in list(graph.nodes_named("yes")):         # ephemeral NAC-guard scaffolding, not a fact
         graph.remove_node(r)
     graph.gc_disconnected()
