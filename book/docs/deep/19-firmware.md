@@ -157,17 +157,10 @@ CNL like everything else, not a switch hidden in the code.
 
 ---
 
-## The end of Part 4
-
 You've now seen not just *what* the machine does, but *how* — the instructions, the
-nine modes, and the swappable stance that gives it its temperament. There genuinely
-is nothing left hidden.
+nine modes, and the swappable stance that gives it its temperament. One knob on that
+stance is still worth a chapter of its own: not *how* it reasons, but *how hard* —
+and what it does when the effort runs out.
 
-- The [appendix](../appendix/index.md) collects every concept, including the full
-  [instruction set](../appendix/index.md#the-instruction-set-the-data-path) and
-  the [nine modes](../appendix/index.md#the-nine-processing-modes) as reference
-  tables.
-- The project — code, design notes, and all — lives on
-  **[GitHub](https://github.com/ercasta/Universal-Graph-Machine)**.
-
-[:material-play-circle: **Back to the playground**](../playground/detective.md){ .md-button .md-button--primary }
+**Next:** the machine that knows when it hasn't finished thinking.
+[Thinking harder →](20-thinking-harder.md)

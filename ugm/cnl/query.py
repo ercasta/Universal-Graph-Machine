@@ -397,7 +397,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
              policy=None, open_preds: frozenset[str] | None = None, ask_user=None,
              extra_forms: list[Rule] = (), strata=None, journal: list | None = None,
              focus_scope: frozenset[str] | None = None, provenance: bool = False,
-             on_subgoal=None, commit: bool = True) -> list[str]:
+             on_subgoal=None, commit: bool = True, max_rounds: int = 1000) -> list[str]:
     """Answer a CNL `question` GOAL-DIRECTED: demand just the question's goal through the ISA
     machine (`GoalSolver`), materializing only the facts that goal needs — NOT a forward pass over
     the whole rule set. This is the backward face of the engine (`decision-attrgraph-rehost`
@@ -448,7 +448,13 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     for the RIGHT reason (the model), and making fuel-exhaustion an honest `unknown` the forward model
     cannot express. Same yes/no/who answers as the forward path on every stratifiable bank (the step-4
     differential gate); a genuinely NON-stratifiable bank is rejected at LOAD by
-    `authoring.lint_stratifiable` (object-aware), so the chain never mis-answers one."""
+    `authoring.lint_stratifiable` (object-aware), so the chain never mis-answers one.
+
+    `max_rounds` is the reasoning BUDGET ("think harder" = a bigger budget, §14 fuel): each demand
+    closure runs at most this many saturation rounds, so a chain deeper than the budget can leave the
+    positive closure short of fixpoint. That fuel exhaustion surfaces as an honest UNKNOWN ("I did not
+    finish looking"), never a confident guess (`check` FUEL → UNKNOWN) — the distinction an exhaustive
+    forward model cannot make. Threaded to every `check`/`chain_sip` demand below."""
     from ..check import check, collapse, ASSUMED_NO
     from ..chain import chain_sip, bound_demands, _facts_matching
     from ..policy import DEFAULT_POLICY
@@ -518,7 +524,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
 
         while True:
             chain_sip(graph, goal, provenance=provenance, focus_scope=focus_scope, rules=rule_g,
-                      scope=scope, policy=policy_)
+                      scope=scope, policy=policy_, max_rounds=max_rounds)
             if _facts_matching(graph, goal[0], goal[1], goal[2], focus_scope=focus_scope, scope=scope):
                 return materialized                            # goal now derivable — done gathering
             frontier = {(p, as_name(s), as_name(o)) for (p, s, o) in bound_demands(rule_g)
@@ -547,7 +553,8 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             if q["s"] in EXISTENTIAL_SUBJECTS:
                 # `is anyone happy` is ∃ — demand the WILDCARD-subject goal, then match any witness.
                 chain_sip(graph, (q["p"], None, q["o"]), provenance=provenance, focus_scope=focus_scope,
-                          rules=rule_g, scope=scope, on_subgoal=on_subgoal, policy=policy_)
+                          rules=rule_g, scope=scope, on_subgoal=on_subgoal, policy=policy_,
+                          max_rounds=max_rounds)
                 if policy_.banded:
                     # BANDED ∃ (the possibilistic fold): the verdict is the BEST witness's band —
                     # a certain witness is `yes`, a fork-only one answers with its band word.
@@ -580,13 +587,14 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             goal = (q["p"], q["s"], q["o"])
             v = verdict(check(graph, goal, policy=policy_, provenance=provenance,
                               focus_scope=focus_scope, rules=rule_g, scope=scope,
-                              on_subgoal=on_subgoal))
+                              on_subgoal=on_subgoal, max_rounds=max_rounds))
             # MID-CHAIN gather (§8.5b): only when the goal was NOT derivable — ask for the OPEN premises the
             # derivation demands, materialize the confirmed ones, and re-decide (so a rule blocked solely by a
             # gatherable fact fires instead of being wrongly assumed-no). A derivable goal pays no extra work.
             if v != "yes" and ask_user is not None and gather_open_premises(goal):
                 v = verdict(check(graph, goal, policy=policy_, provenance=provenance,
-                                  focus_scope=focus_scope, rules=rule_g, scope=scope))
+                                  focus_scope=focus_scope, rules=rule_g, scope=scope,
+                                  max_rounds=max_rounds))
             # OWA evidence-gatherer: an open UNKNOWN the goal needs -> gather (never a CWA-default `no`).
             if v == "unknown" and ask_user is not None and q["o"] is not None:
                 held = ask_user(q["s"], q["p"], q["o"])
@@ -600,7 +608,7 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
         if q["qtype"] == "who":
             chain_sip(graph, (q["p"], None, q["o"]), # wildcard-subject goal
                       provenance=provenance, focus_scope=focus_scope, rules=rule_g, scope=scope,
-                      on_subgoal=on_subgoal, policy=policy_)
+                      on_subgoal=on_subgoal, policy=policy_, max_rounds=max_rounds)
             if policy_.banded:
                 # BANDED who (the possibilistic fold): each witness answers at its BEST band —
                 # a certain witness reads as today, a fork-only one wears its band word
@@ -633,13 +641,14 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             # POLICY THREADED (2026-07-16): without it a banded session's `why` closed CRISPLY —
             # deriving the θ-gated jump into INK (a stance leak, worse than a cosmetic miss).
             chain_sip(graph, (q["p"], q["s"], q["o"]), provenance=True, focus_scope=focus_scope,
-                      rules=rule_g, on_subgoal=on_subgoal, policy=policy_)
+                      rules=rule_g, on_subgoal=on_subgoal, policy=policy_, max_rounds=max_rounds)
             return ask(graph, question, journal=journal if journal is not None else [],
                        rules=rules, extra_forms=extra_forms, strata=strata)
 
         # n-ary: demand the event predicate, then render via the reader (event-role reads stay in `ask`).
         if q.get("pred") is not None:
-            chain_sip(graph, (q["pred"], None, None), provenance=provenance, focus_scope=focus_scope, rules=rule_g)
+            chain_sip(graph, (q["pred"], None, None), provenance=provenance, focus_scope=focus_scope,
+                      rules=rule_g, max_rounds=max_rounds)
         return ask(graph, question, journal=journal, rules=rules, extra_forms=extra_forms, strata=strata)
     finally:
         if scope is not None:                          # sweep the read-only pencil (control-only cut)

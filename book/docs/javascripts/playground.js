@@ -29,7 +29,10 @@
     "import ugm as _h, json as _json",
     "from ugm import FirmwarePolicy as _FP, DEFAULT_POLICY as _DP",
     "",
-    "def _ugm_run(corpus, question, open_mind):",
+    "def _ugm_run(corpus, question, open_mind, max_rounds=1000):",
+    "    # `max_rounds` is the reasoning BUDGET (\"think harder\" = a bigger budget, ugm.intake §14 fuel):",
+    "    # a chain deeper than the budget leaves the closure short of fixpoint, and that surfaces as an",
+    "    # honest `unknown` rather than a confident guess. Default 1000 = plenty (the detective page).",
     "    try:",
     "        kb, rules = _h.load_corpus(corpus)",
     "    except Exception as e:",
@@ -44,7 +47,8 @@
     "        elif ev.kind == 'derive':",
     "            derives.append({'rule': ev.data.get('rule',''), 'fact': ev.data.get('fact','')})",
     "    try:",
-    "        out = _h.ingest(kb, rules, question, on_event=cap, trace=True, policy=pol)",
+    "        out = _h.ingest(kb, rules, question, on_event=cap, trace=True, policy=pol,",
+    "                        max_rounds=int(max_rounds))",
     "    except Exception as e:",
     "        return _json.dumps({'error': 'I could not make sense of that question: ' + str(e)})",
     "    return _json.dumps({'error': None, 'kind': out.kind, 'question': question,",
@@ -336,11 +340,16 @@
     var host = stepsEl(container);
     var question = container.querySelector(".ugm-question").value.trim();
     var corpus = container.querySelector(".ugm-corpus").value;
-    var world = container.getAttribute("data-mode") === "world"; // the uncertain-case page
+    var mode = container.getAttribute("data-mode");
+    var world = mode === "world"; // the uncertain-case page
+    var harder = mode === "harder"; // the think-harder page (a reasoning-budget dial)
     var openBox = container.querySelector(".ugm-open");
     var openMind = openBox && openBox.checked;
     var cautiousBox = container.querySelector(".ugm-cautious");
     var cautious = cautiousBox && cautiousBox.checked;
+    // "think it through" = a bigger budget; unchecked = a quick glance that may run out of budget.
+    var thinkBox = container.querySelector(".ugm-think");
+    var budget = thinkBox && thinkBox.checked ? 1000 : 3;
 
     if (!question) {
       host.innerHTML = "";
@@ -365,7 +374,11 @@
       });
       if (runTokens.get(container) !== token) return;
       var fn = pyodide.globals.get(world ? "_ugm_run_world" : "_ugm_run");
-      var json = fn(corpus, question, world ? !!cautious : !!openMind);
+      var json = world
+        ? fn(corpus, question, !!cautious)
+        : harder
+          ? fn(corpus, question, false, budget) // the think-harder dial: budget from the checkbox
+          : fn(corpus, question, !!openMind);
       fn.destroy();
       var result = JSON.parse(json);
       await animate(container, result, token);

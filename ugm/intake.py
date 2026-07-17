@@ -121,7 +121,7 @@ def _derivations_since(kb, before: set[str]) -> list[dict]:
     return out
 
 
-def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace, extra_forms=()):
+def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace, extra_forms=(), max_rounds=1000):
     """Answer the recognized question. This is a GENERATOR so the ask wait-point can SUSPEND: if the
     chain hits an open-predicate UNKNOWN and `can_ask`, it yields an `Event("ask", …)` and pauses; the
     driver `.send()`s back the verdict (True/False/None), and we RESUME by re-entering `ask_goal` with
@@ -151,6 +151,7 @@ def _answer_with_ask(kb, text, rules, policy, fscope, can_ask, trace, extra_form
         try:
             subgoals.clear()              # keep only the FINAL (complete) run's subgoal trace, not the
             answer = ask_goal(kb, text, rules, policy=policy,   # partial pre-gather re-entries
+                              max_rounds=max_rounds,            # the "think harder" budget (§14 fuel)
                               ask_user=(handler if can_ask else None),
                               # provenance ALWAYS-ON for committed asks (reconsider D2, ratified
                               # 2026-07-16): RECORD is mode 9, "always on" — and without receipts
@@ -272,7 +273,7 @@ def _act_loop(kb, active, sync_tools, async_tools, *, provenance=False, max_cycl
 
 
 def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_ask=False, trace=False,
-                sync_tools=None, async_tools=None):
+                sync_tools=None, async_tools=None, max_rounds=1000):
     """The routing CORE as a generator (§5/8.5b): route ONE CNL `utterance` by which recognition forms
     fire and act on it, YIELDING an `Event` at each step boundary and RETURNING the `Outcome` (via
     `StopIteration.value`). Both `ingest` (blocking) and `converse` (non-blocking) drive this ONE core, so
@@ -381,7 +382,7 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         fscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
         active = rule_control.active_rules(kb, rules)     # a `<disabled>` rule neither fires nor decides
         answer = yield from _answer_with_ask(kb, text, active, policy, fscope, can_ask, trace,
-                                             extra_forms=question_forms)
+                                             extra_forms=question_forms, max_rounds=max_rounds)
         yield Event("answer", {"answer": answer})
         return Outcome("answer", utterance, answer=answer)
 
@@ -454,7 +455,7 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
 
 def ingest(kb, rules, utterance, *, policy=None, ask_user=None, on_conflict=None,
            attention: str = "global", on_event=None, trace: bool = False,
-           tools=None, async_tools=None, answer_call=None) -> Outcome:
+           tools=None, async_tools=None, answer_call=None, max_rounds: int = 1000) -> Outcome:
     """Route ONE CNL `utterance` against the live session KB `kb` (+ accumulated `rules`) by which
     recognition forms fire, and act on it. Returns an `Outcome`. `rules` is mutated in place when the
     utterance adds a rule (so subsequent turns reason with it immediately — Phase 8.6).
@@ -466,6 +467,11 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, on_conflict=None
     conflict handler => REJECT the cycle-forming rule (never silently admit a cycle). The non-blocking
     generator driver is `converse` (8.5b). `trace=True` streams an `Event("derive", {rule, fact})` per
     rule firing (the reasoning trace) before the answer — additive, off by default.
+
+    `max_rounds` is the reasoning BUDGET ("think harder" = a bigger budget, §14 fuel): the demand
+    closure answering a question runs at most this many saturation rounds. A chain deeper than the
+    budget leaves the closure short of fixpoint, and that shortfall surfaces as an honest `unknown`
+    ("I did not finish looking"), never a confident guess — threaded to `ask_goal` (see there).
 
     `attention` (EXPOSED so the consuming system picks the reasoning mode, docs/design/cnl_intake_design.md §3):
       - "global" (default) — reason over the whole KB (behaviour-identical to a bare `ask_goal`).
@@ -488,7 +494,7 @@ def ingest(kb, rules, utterance, *, policy=None, ask_user=None, on_conflict=None
     emit = on_event if on_event is not None else (lambda e: None)   # §5 stream; no-op when unwired
     gen = _ingest_gen(kb, rules, utterance, policy=policy, attention=attention,
                       can_ask=ask_user is not None, trace=trace,
-                      sync_tools=tools, async_tools=async_tools)
+                      sync_tools=tools, async_tools=async_tools, max_rounds=max_rounds)
     send_val = None
     try:
         while True:
@@ -544,7 +550,7 @@ def load_kb(kb, rules, text, *, policy=None, attention: str = "global",
 
 
 def converse(kb, rules, utterance, *, policy=None, attention: str = "global", trace: bool = False,
-             tools=None, async_tools=None):
+             tools=None, async_tools=None, max_rounds: int = 1000):
     """Non-blocking generator driver (8.5b, docs/design/cnl_intake_design.md §5): the same routing as `ingest`,
     but as a GENERATOR the caller pumps. It YIELDS an `Event` per step boundary; the caller renders each
     and answers the WAIT-POINT events via `.send()`:
@@ -566,4 +572,4 @@ def converse(kb, rules, utterance, *, policy=None, attention: str = "global", tr
             outcome = stop.value
     """
     return _ingest_gen(kb, rules, utterance, policy=policy, attention=attention, can_ask=True,
-                       trace=trace, sync_tools=tools, async_tools=async_tools)
+                       trace=trace, sync_tools=tools, async_tools=async_tools, max_rounds=max_rounds)

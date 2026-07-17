@@ -89,7 +89,9 @@ nav:
       - "17 · Nine ways to think": deep/17-modes.md
       - "18 · Shades of maybe: the machinery": deep/18-uncertain-world-internals.md
       - "19 · The machine's attitude": deep/19-firmware.md
+      - "20 · Thinking harder": deep/20-thinking-harder.md
   - "Playground":
       - "The detective case": playground/detective.md
       - "The uncertain case": playground/uncertain.md
+      - "The hard case": playground/harder.md
   - "Appendix — concepts": appendix/index.md
