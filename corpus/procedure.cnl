@@ -29,3 +29,31 @@
 # guard downstream (planning.cnl). `<now> true` is tool-produced (never a rule), so this NAC adds
 # no stratification cycle.
 <need> for ?p when ?o chosen <yes> and ?o pre ?p and not <now> true ?p
+
+# DISCREPANCY: a step FINISHED but its declared effect never showed in the observed state — a
+# mismatch between what the plan expected and what the world did. Expose it as a FACT (vision §1(b):
+# failure is DATA, not control flow), so the replan below reacts and a domain rule can also match
+# `discrepancy` for a bespoke policy (retry N times / escalate / choose differently). `done` and
+# `<now> true` are BOTH tool-produced (the act handler sets them together on success), never rule
+# heads, so the NAF adds no stratification cycle and a SUCCESSFUL step (effect observed) is never a
+# false discrepancy.
+?o discrepancy ?e when ?o done <yes> and ?o add ?e and not <now> true ?e
+
+# EXCLUDE the failed means: a durable record that this step's action failed (data for reflection and
+# for a domain retry policy to match), and a guard so the replan below does not re-pick it.
+?o excluded <yes> when ?o discrepancy ?e
+
+# REPLAN (the default reaction): the unmet effect is re-achieved by an ALTERNATIVE producer — any op
+# that adds ?e and has not itself been tried (not the failed step: it is `done` AND `excluded`). The
+# EXISTING execution gate runs it and GAP-FILL supplies any precondition it has, so a pre-made plan
+# and its recovery share one gate. Deliberately NOT routed through the planner's `<need>`/commit path
+# — that would push `chosen` past `ready` in the stratifier and re-open the ready-before-unmet race;
+# choosing the alternative directly keeps INVOKE's `chosen` in the base stratum. One untried producer
+# per cycle; if it too fails it is excluded and the next is tried; when none remain the effect
+# honestly stays unachieved (escalate), never a false success. Failure folds to facts, rules recover
+# — the post-hoc mismatch analogue of GAP-FILL's missing precondition.
+?alt chosen <yes> when ?o discrepancy ?e and ?alt add ?e and not ?alt done <yes> and not ?alt excluded <yes>
+
+# CLEAR: once the effect is achieved (by the alternative), the mismatch is resolved — drop the
+# discrepancy so it stops re-triggering. The step stays `excluded` (a failed means is not retried).
+drop ?o discrepancy ?e when ?o discrepancy ?e and <now> true ?e

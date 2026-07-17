@@ -40,7 +40,7 @@ from .focus import GOAL  # noqa: E402
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"unrecognized"
+    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
@@ -58,7 +58,7 @@ class Event:
     `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). A `"call"` event
     is the ASYNC-TOOL suspension (§5 wait-set v2): its data carries `{tool, call, request}` and the
     driver's `.send()` value is the world's response, folded by the tool's `fold` half."""
-    kind: str                # focus|question|ask|subgoal|derive|answer|fact|rule|rule-conflict|rule-disable|form|form-conflict|goal|call|acted|unrecognized
+    kind: str                # focus|question|ask|subgoal|derive|answer|fact|rule|rule-conflict|rule-disable|form|form-conflict|procedure|goal|call|acted|unrecognized
     data: dict = field(default_factory=dict)
 
 
@@ -376,6 +376,36 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         yield Event("form", {"added": len(merged) - len(existing),
                              "keys": [r.key for r in new_forms]})
         return Outcome("form", utterance, added_rules=list(new_forms))
+
+    # PROCEDURE — `to NAME : A then B then C` authors a named step sequence (Procedures arc Slice 2,
+    # docs/design/procedures_design.md §2). A HEADER route, sibling to `form KEY :` above: the `to … :`
+    # header is recognized here (not as a fact-form), so it emits PROCEDURE-SCOPED `step_before` and
+    # never races `form.then`'s global `before` in the fact bank (procedure_surface.py). The facts it
+    # stages are exactly the stepping bank's vocabulary — running is a separate `<run> proc NAME` route.
+    from .cnl import procedure_surface
+    defined = procedure_surface.parse_define(text)
+    if defined is not None:
+        name, steps = defined
+        procedure_surface.stage_procedure(kb, name, steps)
+        yield Event("procedure", {"name": name, "steps": steps})
+        return Outcome("procedure", utterance)
+
+    # PROCEDURE RUN — `run NAME` seeds `<run> proc NAME` (the stepping bank's INVOKE request) and drives
+    # the SAME act arm a `goal …` does: a pre-made plan and a synthesized one execute through one gate
+    # (§2). Recognized as a keyword-led COMMAND here — before the fact route, which would not know the
+    # `run` verb. The act loop is the stratified `_act_loop` (Slice 2); world steps suspend as `call` events.
+    invoked = procedure_surface.parse_run(text)
+    if invoked is not None:
+        procedure_surface.stage_run(kb, invoked)
+        yield Event("goal", {"procedure": invoked})
+        before_j = _j_nodes(kb) if trace else set()
+        acted = yield from _act_loop(kb, rule_control.active_rules(kb, rules),
+                                     sync_tools or {}, async_tools or {}, provenance=trace)
+        if trace:
+            for rec in _derivations_since(kb, before_j):
+                yield Event("derive", rec)
+        yield Event("acted", {"fired": acted})
+        return Outcome("goal", utterance, acted=acted)
 
     # The session's authored grammar, minus disabled forms — threaded into every recognition
     # site below (question recognition/answering, fact recognition, nearest-forms). With no
