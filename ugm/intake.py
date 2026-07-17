@@ -244,22 +244,40 @@ def _nearest_forms(text: str, top: int = 3, extra=()) -> list[str]:
 
 
 def _act_loop(kb, active, sync_tools, async_tools, *, provenance=False, max_cycles=100):
-    """The ACT arm's pump (§5 wait-set v2): forward-run the `active` rules WITH the sync tool registry
-    (`run_bank(tools=…)` services sync `<call>`s at each quiescence — the existing dispatch), then run
-    the control-machine dispatcher so an ASYNC tool SUSPENDs — yielded up as an `Event("call")` whose
-    send is the world's response — and iterate until rules and calls are both quiet. Returns the total
-    forward firings. CONTENT-BLIND (discipline §D): which `<call>`s exist and what "done" means are
-    KB-declared (plan→act→check as rules); this loop only pumps. `max_cycles` is the fuel bound —
-    a KB whose rules mint calls forever terminates honestly instead of spinning."""
-    from .lowering import run_bank
+    """The ACT arm's pump (§5 wait-set v2): forward-run the `active` rules STRATIFIED (`run_rules` —
+    stratified negation, each layer to fixpoint, servicing sync `<call>`s at each layer via the existing
+    dispatch), then run the control-machine dispatcher so an ASYNC tool SUSPENDs — yielded up as an
+    `Event("call")` whose send is the world's response — and iterate until the graph AND the calls are
+    both quiet. Returns the number of productive forward cycles (>=1 when the loop did work).
+
+    Why stratified-and-iterated, not a single `run_bank` (procedures FINDING, docs/design/procedures_design.md
+    §Slice-2): the planner gate RACES under one unstratified bank — `ready` fires before a drop-rule clears
+    an `unmet`/`waits_for`. And acting mutates the `<now>` state, so the drop-rules and the act-emit (which
+    lags `ready` by a stratum) only re-fire on the NEXT whole-bank pass. So we loop `run_rules` to GRAPH
+    quiescence (a full pass that derives no new triple — the same convergence `plan.solve` uses), not just to
+    a single fixpoint. This makes `_act_loop` a strict superset of the test's in-line `_solve` (stratified
+    forward + async `<call>` suspension) — the ONE act driver, UGM-side of the tool boundary.
+
+    CONTENT-BLIND (discipline §D): which `<call>`s exist and what "done" means are KB-declared (plan→act→check
+    as rules); this loop only pumps. `max_cycles` is the fuel bound — a KB whose rules never settle (mints
+    calls forever / oscillates) terminates honestly instead of spinning."""
+    from .cnl.authoring import run_rules
+    from .lowering import derived_triples
     from .dispatch import service_calls_cm
     from .machine import ControlMachine, Continuation
     total = 0
+    prev = frozenset(derived_triples(kb))       # pre-image, so a no-op goal reports 0 (not a phantom cycle)
     for _ in range(max_cycles):
-        fired = run_bank(kb, active, tools=(sync_tools or None), provenance=provenance)
-        total += fired
-        if not async_tools:
-            return total                        # sync-only world: run_bank's fixpoint already covers it
+        run_rules(kb, active, tools=(sync_tools or None), provenance=provenance)
+        cur = frozenset(derived_triples(kb))
+        moved = cur != prev                     # did this stratified pass derive anything new?
+        prev = cur
+        if moved:
+            total += 1
+        if not async_tools:                     # sync-only world: loop the stratified pass to graph quiescence
+            if not moved:
+                return total
+            continue
         res = service_calls_cm(kb, sync_tools, async_tools)
         folded = False
         while isinstance(res, Continuation):    # each async call: suspend to the driver, fold, continue
@@ -267,7 +285,7 @@ def _act_loop(kb, active, sync_tools, async_tools, *, provenance=False, max_cycl
             name, call_id, payload = res.request
             response = yield Event("call", {"tool": name, "call": call_id, "request": payload})
             res = ControlMachine().resume(kb, res, response={"response": response})
-        if not folded and not fired:
+        if not folded and not moved:
             return total                        # a full cycle moved nothing: quiescent
     return total                                # fuel bound reached — stop honestly
 
