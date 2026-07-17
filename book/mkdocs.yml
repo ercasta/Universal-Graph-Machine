@@ -83,15 +83,17 @@ nav:
       - "12 · Same name, same person?": advanced/12-identity.md
       - "13 · Gathering evidence": advanced/13-gathering-evidence.md
       - "14 · Paying attention": advanced/14-paying-attention.md
-      - "15 · The machine underneath": advanced/15-the-machine-underneath.md
+      - "15 · Getting things done": advanced/15-getting-things-done.md
+      - "16 · The machine underneath": advanced/16-the-machine-underneath.md
   - "Part 4 — The internals":
-      - "16 · A rule is a little program": deep/16-instruction-set.md
-      - "17 · Nine ways to think": deep/17-modes.md
-      - "18 · Shades of maybe: the machinery": deep/18-uncertain-world-internals.md
-      - "19 · The machine's attitude": deep/19-firmware.md
-      - "20 · Thinking harder": deep/20-thinking-harder.md
+      - "17 · A rule is a little program": deep/17-instruction-set.md
+      - "18 · Nine ways to think": deep/18-modes.md
+      - "19 · Shades of maybe: the machinery": deep/19-uncertain-world-internals.md
+      - "20 · The machine's attitude": deep/20-firmware.md
+      - "21 · Thinking harder": deep/21-thinking-harder.md
   - "Playground":
       - "The detective case": playground/detective.md
       - "The uncertain case": playground/uncertain.md
       - "The hard case": playground/harder.md
+      - "The procedures case": playground/procedures.md
   - "Appendix — concepts": appendix/index.md

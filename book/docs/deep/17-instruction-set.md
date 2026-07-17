@@ -6,7 +6,7 @@
     one more turn and shows the actual gears. Nothing here changes how you *use* the
     machine; it's here because some people can't help but ask "yes, but how, really?"
 
-In Chapter 15 we said a rule becomes a tiny two-step program — **match**, then
+In Chapter 16 we said a rule becomes a tiny two-step program — **match**, then
 **apply** — running on a small set of instructions. That was true, but we waved a
 hand at what the instructions actually *are*. Let's name them. There aren't many,
 and once you've seen them, the phrase "it's all just dots and arrows" stops being
@@ -62,7 +62,7 @@ is no "erase a fact" verb in this vocabulary at all. Ordinary reasoning can only
 ever *add* — which is exactly why the because-trail (Chapter 8) never has to worry
 about a fact quietly vanishing out from under it. (There *is* a real deletion
 instruction, but ordinary rules can't reach it — that's a firmware matter we'll
-get to in Chapter 19.)
+get to in Chapter 20.)
 
 So our familiar rule —
 
@@ -115,4 +115,4 @@ transfer — fits comfortably on one page. You'll find it laid out in the
 
 **Next:** we've named the instructions. But *when* does the machine reach for
 each — when does it loop, when does it suppose, when does it just look? That turns
-out to be a short, closed list too. [Nine ways to think →](17-modes.md)
+out to be a short, closed list too. [Nine ways to think →](18-modes.md)

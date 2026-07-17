@@ -70,7 +70,7 @@ an "ask engine" bolted on the side. It has nine verbs, and:
   loop — is **Call + Check.** Do the thing (or ask), then check whether the world
   came out as expected.
 - **"No" versus "I don't know"** is **Check** read under an attitude. Same search;
-  what a failed search *means* is the firmware setting of Chapter 19.
+  what a failed search *means* is the firmware setting of Chapter 20.
 
 This is why the machine stays small and trustworthy. New abilities come from
 composing old verbs in the knowledge base — recipes an author writes in plain
@@ -92,4 +92,4 @@ The full list, with the rejected reflexes, is in the
 ---
 
 **Next:** a machine that says *likely* sounds like it needs probabilities. It
-doesn't — it reuses the modes you just met. [Shades of maybe →](18-uncertain-world-internals.md)
+doesn't — it reuses the modes you just met. [Shades of maybe →](19-uncertain-world-internals.md)

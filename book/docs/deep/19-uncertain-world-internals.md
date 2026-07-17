@@ -7,7 +7,7 @@
     how, **really**?" The surprising answer: the machine barely needed new parts.
 
 A machine that can say **likely** sounds like it must carry probabilities and do
-arithmetic on them. This one doesn't — and deliberately so (Chapter 17's closed
+arithmetic on them. This one doesn't — and deliberately so (Chapter 18's closed
 list of ways-to-think has no "probability loop" in it, on purpose). What it does
 instead is reuse two things it already had: the **pencil worlds** of Supposing
 (Chapter 9) and the **degree** that matching already carries. Put them together and
@@ -29,7 +29,7 @@ pollute the ink, and a whole fistful of these worlds can sit side by side.
 ## Reading through the fog
 
 Now, how does a *likely* fact get *used*? Here's the neat part. The match phase
-(Chapter 16 — *find, follow, check*) already carries a running **score** as it
+(Chapter 17 — *find, follow, check*) already carries a running **score** as it
 walks: the graded layer uses it to match "how *urgent*?" rather than a plain
 yes/no. Reading a possibility rides that same rail.
 
@@ -93,7 +93,7 @@ merely suggestive.
 
 Step back and notice what *didn't* happen. No probability arithmetic, no new
 search, no backtracking trail — and, pointedly, **no tenth processing mode**.
-"Likely" is a **composition** of things already on Chapter 17's closed list:
+"Likely" is a **composition** of things already on Chapter 18's closed list:
 **Suppose** (the pencil worlds) + **graded matching** (the score) + **Check** read
 through an α-cut (the θ dial). That's the whole discipline of this machine in one
 example: a new power has to earn its place by being *nameable and visible in terms
@@ -104,4 +104,4 @@ was made to pay that price — and it could.
 
 **Next:** we've seen the machine's parts and its ways of thinking. The last chapter
 is about its *character* — the attitude that ties it all together. [The machine's
-attitude →](19-firmware.md)
+attitude →](20-firmware.md)

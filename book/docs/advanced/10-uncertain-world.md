@@ -158,7 +158,7 @@ handful of things it actually *knows*.
     with graded answers.)
 
 Curious how a "likely" is actually stored and carried? Part 4 opens the hood:
-[Shades of maybe →](../deep/18-uncertain-world-internals.md).
+[Shades of maybe →](../deep/19-uncertain-world-internals.md).
 
 ---
 

@@ -1,6 +1,6 @@
 # Thinking harder
 
-Back in [Chapter 17](17-modes.md) we let a phrase slip by with barely a comment:
+Back in [Chapter 18](18-modes.md) we let a phrase slip by with barely a comment:
 eight of the nine ways of thinking **spend effort**, and *"think harder" means
 more of it.* That sounds like a throwaway line about speed. It isn't. It's one of
 the most important honesty features in the whole machine — and it's worth a chapter
@@ -92,7 +92,7 @@ checking"* — and won't let the second masquerade as an accusation.
 Notice where the dial sits. The budget isn't wired into any particular rule, and
 it isn't part of what the facts *mean*. It's a setting **handed to** the reasoner
 from outside — a sibling of the swappable *attitude* from
-[Chapter 19](19-firmware.md). "Open-minded or closed," "cautious or decisive," and
+[Chapter 20](20-firmware.md). "Open-minded or closed," "cautious or decisive," and
 "how hard to think" are all knobs on the *stance*, not surgery on the *engine*.
 That's why turning the dial can never corrupt an answer: the machinery underneath
 is identical; it simply gets to run longer.

@@ -24,10 +24,45 @@
     "https://cdn.jsdelivr.net/pyodide/v" + PYODIDE_VERSION + "/full/";
   var STEP_DELAY_MS = 750; // pause between reasoning steps
 
+  // The shipped planner banks the procedures playground runs on (corpus/procedure.cnl +
+  // planning.cnl + planning_execution.cnl, comments stripped — the wheel doesn't bundle the .cnl
+  // files). Kept in sync with those files; content-blind (no domain word appears here).
+  var PROC_BANKS = [
+    "?s chosen <yes> when <run> proc ?p and ?p step ?s",
+    "?a before ?b when <run> proc ?p and ?a step_before ?b",
+    "<need> for ?p when ?o chosen <yes> and ?o pre ?p and not <now> true ?p",
+    "?o discrepancy ?e when ?o done <yes> and ?o add ?e and not <now> true ?e",
+    "?o excluded <yes> when ?o discrepancy ?e",
+    "?alt chosen <yes> when ?o discrepancy ?e and ?alt add ?e and not ?alt done <yes> and not ?alt excluded <yes>",
+    "drop ?o discrepancy ?e when ?o discrepancy ?e and <now> true ?e",
+    "<need> for ?c when <goal> want ?c",
+    "?o candidate ?c when <need> for ?c and ?o add ?c and not ?o excluded <yes>",
+    "<need> for ?p when ?o candidate ?c and ?o pre ?p",
+    "?c reachable <yes> when <now> true ?c",
+    "?o blocked_by ?p when ?o candidate ?g and ?o pre ?p and not ?p reachable <yes>",
+    "drop ?o blocked_by ?p when ?o blocked_by ?p and ?p reachable <yes>",
+    "?o viable <yes> when ?o candidate ?g and not ?o blocked_by ?anyp",
+    "?c reachable <yes> when ?o viable <yes> and ?o add ?c",
+    "?o cost_settled <yes> when ?o price_known <yes>",
+    "?o cost_settled <yes> when ?o viable <yes> and not ?o needs_price <yes>",
+    "<call>? tool rank and <call>? arg ?o when ?o cost_settled <yes> and not ?o ranked <yes>",
+    "?o dominated <yes> when ?o viable <yes> and ?o cost_settled <yes> and ?o add ?c and ?x viable <yes> and ?x cost_settled <yes> and ?x add ?c and ?x cheaper_than ?o",
+    "?o best <yes> when ?o viable <yes> and ?o cost_settled <yes> and not ?o dominated <yes>",
+    "?o chosen <yes> when <need> for ?c and ?o best <yes> and ?o add ?c and not ?x chosen <yes> and not ?x add ?c",
+    "?o1 before ?o2 when ?o1 chosen <yes> and ?o2 chosen <yes> and ?o1 add ?c and ?o2 pre ?c",
+    "?o unmet ?p when ?o chosen <yes> and ?o pre ?p and not <now> true ?p",
+    "drop ?o unmet ?p when ?o unmet ?p and <now> true ?p",
+    "?o waits_for ?b when ?o chosen <yes> and ?b before ?o and not ?b done <yes>",
+    "drop ?o waits_for ?b when ?o waits_for ?b and ?b done <yes>",
+    "<exec> ready ?o when ?o chosen <yes> and not ?o unmet ?anyp and not ?o waits_for ?anyb and not ?o done <yes>",
+    "<call>? tool act and <call>? arg ?o when <exec> ready ?o",
+  ].join("\n");
+
   // Defined once after install. Returns a JSON string (avoids proxy fiddliness).
   var BOOTSTRAP = [
     "import ugm as _h, json as _json",
     "from ugm import FirmwarePolicy as _FP, DEFAULT_POLICY as _DP",
+    "from ugm.dispatch import call_arg as _call_arg",
     "",
     "def _ugm_run(corpus, question, open_mind, max_rounds=1000):",
     "    # `max_rounds` is the reasoning BUDGET (\"think harder\" = a bigger budget, ugm.intake §14 fuel):",
@@ -115,7 +150,67 @@
     "    return _json.dumps({'error': None, 'kind': 'answer', 'question': question,",
     "                        'checks': checks, 'derives': derives, 'answer': list(ans)})",
     "",
-  ].join("\n");
+    // The PROCEDURES surface: author a routine + operators, run it, execute steps via a sim tool.
+    "def _ugm_run_procedure(corpus, command, fail):",
+    "    # Author operators + the routine from the corpus, then RUN it, executing each step through a",
+    "    # simulated world (`act` tool): materialize its declared effects, unless it is the `fail` step —",
+    "    # which finishes but achieves nothing, so the machine detects a discrepancy and replans. The",
+    "    # planner banks (procedure/planning/execution) are inlined as _PROC_BANKS.",
+    "    try:",
+    "        kb = _h.AttrGraph()",
+    "        banks = _h.load_machine_rules(_PROC_BANKS)",
+    "        for line in corpus.splitlines():",
+    "            s = line.strip()",
+    "            if s:",
+    "                _h.ingest(kb, [], s)",
+    "    except Exception as e:",
+    "        return _json.dumps({'error': 'I could not read the routine: ' + str(e)})",
+    "    order = []",
+    "    def _ens(g, n):",
+    "        f = g.nodes_named(n)",
+    "        return f[0] if f else g.add_node(n)",
+    "    def _act(g, cid):",
+    "        o = _call_arg(g, cid, 'arg')",
+    "        if o is None or any(g.has_key(r, 'done') for r, _ in g.relations_from(o)):",
+    "            return set()",
+    "        nm = g.name(o); order.append(nm); touched = set()",
+    "        now, yes = _ens(g, '<now>'), _ens(g, '<yes>')",
+    "        if nm != fail:",
+    "            for r, e in list(g.relations_from(o)):",
+    "                if g.has_key(r, 'add'): touched.add(g.add_relation(now, 'true', e))",
+    "        touched.add(g.add_relation(o, 'done', yes)); return touched",
+    "    def _rank(g, cid):",
+    "        o = _call_arg(g, cid, 'arg')",
+    "        return {g.add_relation(o, 'ranked', _ens(g, '<yes>'))} if o else set()",
+    "    try:",
+    "        _h.ingest(kb, banks, command, tools={'act': _act, 'rank': _rank})",
+    "    except Exception as e:",
+    "        return _json.dumps({'error': 'I could not run that: ' + str(e)})",
+    "    authored = {kb.name(o) for p in kb.nodes() for r, o in kb.relations_from(p) if kb.predicate(r) == 'step'}",
+    "    def _marked(nm, key):",
+    "        n = kb.nodes_named(nm)",
+    "        return bool(n) and any(kb.predicate(r) == key for r, _ in kb.relations_from(n[0]))",
+    "    def _adds(nm):",
+    "        n = kb.nodes_named(nm)",
+    "        return {kb.name(o) for r, o in kb.relations_from(n[0]) if kb.predicate(r) == 'add'} if n else set()",
+    "    failed_effects = set()",
+    "    for nm in order:",
+    "        if _marked(nm, 'excluded') or _marked(nm, 'discrepancy'): failed_effects |= _adds(nm)",
+    "    steps = []",
+    "    for nm in order:",
+    "        if _marked(nm, 'excluded') or _marked(nm, 'discrepancy'):",
+    "            steps.append({'op': nm, 'status': 'failed', 'effect': ', '.join(sorted(_adds(nm)))})",
+    "        elif nm in authored:",
+    "            steps.append({'op': nm, 'status': 'did'})",
+    "        elif _adds(nm) & failed_effects:",
+    "            steps.append({'op': nm, 'status': 'recovered', 'effect': ', '.join(sorted(_adds(nm)))})",
+    "        else:",
+    "            steps.append({'op': nm, 'status': 'planned', 'effect': ', '.join(sorted(_adds(nm)))})",
+    "    now = kb.nodes_named('<now>')",
+    "    achieved = sorted(set(kb.name(o) for r, o in kb.relations_from(now[0]) if kb.has_key(r, 'true'))) if now else []",
+    "    return _json.dumps({'error': None, 'kind': 'procedure', 'command': command, 'steps': steps, 'achieved': achieved})",
+    "",
+  ].join("\n") + "\n_PROC_BANKS = " + JSON.stringify(PROC_BANKS);
 
   var enginePromise = null; // shared across all playgrounds on the page
   var runTokens = new WeakMap(); // per-container animation cancellation
@@ -281,6 +376,59 @@
     });
   }
 
+  // --- procedures: what the machine DID, step by step ---------------------
+
+  function renderCommand(host, command) {
+    addCard(host, "goal", function (card) {
+      card.appendChild(el("span", "ugm-step-icon", "▶️"));
+      var body = el("div", "ugm-step-body");
+      body.appendChild(el("div", "ugm-step-title", "The routine"));
+      body.appendChild(el("div", "ugm-step-fact", command));
+      card.appendChild(body);
+    });
+  }
+
+  // status -> {css kind, icon, title, note(step)}. `did` = a step you wrote; `planned` = one the
+  // machine slipped in to fill a gap; `failed` = it ran but the effect never appeared; `recovered`
+  // = an alternative it reached for after a failure.
+  var PROC_STEP = {
+    did: { kind: "derive", icon: "✔️", title: "Did the step",
+      note: function () { return "a step you wrote"; } },
+    planned: { kind: "check-yes", icon: "🧩", title: "Planned a step you didn't write",
+      note: function (s) { return "to get " + (s.effect || "what came next") + " — the gap filled itself"; } },
+    failed: { kind: "check-no", icon: "⚠️", title: "Ran — but nothing happened",
+      note: function (s) { return "expected " + (s.effect || "an effect") + ", the world didn't deliver"; } },
+    recovered: { kind: "check-yes", icon: "♻️", title: "Tried another way",
+      note: function (s) { return "reached for this to get " + (s.effect || "the effect") + " instead"; } },
+  };
+
+  function renderProcStep(host, step) {
+    var spec = PROC_STEP[step.status] || PROC_STEP.did;
+    addCard(host, spec.kind, function (card) {
+      card.appendChild(el("span", "ugm-step-icon", spec.icon));
+      var body = el("div", "ugm-step-body");
+      body.appendChild(el("div", "ugm-step-title", spec.title));
+      body.appendChild(el("div", "ugm-step-fact", step.op));
+      body.appendChild(el("div", "ugm-step-rule", "→ " + spec.note(step)));
+      card.appendChild(body);
+    });
+  }
+
+  function renderAchieved(host, achieved) {
+    var done = achieved && achieved.length;
+    addCard(host, done ? "answer" : "check-no", function (card) {
+      card.appendChild(el("span", "ugm-step-icon", done ? "✅" : "❔"));
+      var body = el("div", "ugm-step-body");
+      body.appendChild(el("div", "ugm-step-title", "In the end"));
+      body.appendChild(
+        el("div", "ugm-step-fact",
+          done ? "the world now shows: " + achieved.join(", ")
+               : "nothing was achieved — and the machine says so, rather than pretend")
+      );
+      card.appendChild(body);
+    });
+  }
+
   async function animate(container, result, token) {
     var host = stepsEl(container);
     host.innerHTML = "";
@@ -295,6 +443,19 @@
       var box = container.querySelector(".ugm-cautious");
       if (box) box.checked = result.stance === "cautious";
       renderNote(host, (result.answer && result.answer[0]) || "Stance set.");
+      return;
+    }
+    if (result.kind === "procedure") {
+      renderCommand(host, result.command);
+      var steps = result.steps || [];
+      for (var s = 0; s < steps.length; s++) {
+        await sleep(STEP_DELAY_MS);
+        if (runTokens.get(container) !== token) return;
+        renderProcStep(host, steps[s]);
+      }
+      await sleep(STEP_DELAY_MS);
+      if (runTokens.get(container) !== token) return;
+      renderAchieved(host, result.achieved);
       return;
     }
     if (result.kind !== "answer") {
@@ -343,6 +504,7 @@
     var mode = container.getAttribute("data-mode");
     var world = mode === "world"; // the uncertain-case page
     var harder = mode === "harder"; // the think-harder page (a reasoning-budget dial)
+    var procedure = mode === "procedure"; // the procedures page (run a routine, fail a step)
     var openBox = container.querySelector(".ugm-open");
     var openMind = openBox && openBox.checked;
     var cautiousBox = container.querySelector(".ugm-cautious");
@@ -353,7 +515,9 @@
 
     if (!question) {
       host.innerHTML = "";
-      renderNote(host, "Type a question first — e.g. who is thief");
+      renderNote(host, procedure
+        ? "Type a command first — e.g. run brew"
+        : "Type a question first — e.g. who is thief");
       return;
     }
 
@@ -373,12 +537,18 @@
         status.textContent = msg;
       });
       if (runTokens.get(container) !== token) return;
-      var fn = pyodide.globals.get(world ? "_ugm_run_world" : "_ugm_run");
+      var fn = pyodide.globals.get(
+        world ? "_ugm_run_world" : procedure ? "_ugm_run_procedure" : "_ugm_run"
+      );
+      var failInput = container.querySelector(".ugm-fail");
+      var failStep = failInput ? failInput.value.trim() : "";
       var json = world
         ? fn(corpus, question, !!cautious)
-        : harder
-          ? fn(corpus, question, false, budget) // the think-harder dial: budget from the checkbox
-          : fn(corpus, question, !!openMind);
+        : procedure
+          ? fn(corpus, question, failStep) // question field holds the command (`run brew`)
+          : harder
+            ? fn(corpus, question, false, budget) // the think-harder dial: budget from the checkbox
+            : fn(corpus, question, !!openMind);
       fn.destroy();
       var result = JSON.parse(json);
       await animate(container, result, token);
@@ -416,6 +586,11 @@
       if (c2) {
         var q = c2.querySelector(".ugm-question");
         q.value = askBtn.getAttribute("data-q") || q.value;
+        // procedures: a quick button may also set which step fails (data-fail; "" clears it)
+        var failField = c2.querySelector(".ugm-fail");
+        if (failField && askBtn.hasAttribute("data-fail")) {
+          failField.value = askBtn.getAttribute("data-fail");
+        }
         run(c2);
       }
     }

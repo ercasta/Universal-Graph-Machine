@@ -100,6 +100,6 @@ learned (a promise the internals chapters make precise); only the
 
 ---
 
-**Next:** the grand reveal — the tiny machine that's been running under
-*everything* you've seen.
-[The machine underneath →](15-the-machine-underneath.md)
+**Next:** the machine stops merely *answering* and starts *doing* — following a
+routine, planning around gaps, and coping when the world doesn't deliver.
+[Getting things done →](15-getting-things-done.md)

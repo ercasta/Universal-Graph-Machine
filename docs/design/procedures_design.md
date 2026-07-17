@@ -1,12 +1,19 @@
 # Procedures + the tool-execution boundary — design notes (2026-07-16, ratified)
 
-> **Status: RATIFIED decisions + a QUEUED arc** (design notes recorded from user discussion
-> 2026-07-16; not yet an active build — slotted after Phase 9 Slice B in
-> `implementation_plan.md`). Context: UGM supports agentic harnesses that drive execution —
-> following procedures and defining action sequences toward a goal is in scope. Read with:
+> **Status: RATIFIED decisions + a COMPLETE arc** (design notes from user discussion 2026-07-16;
+> BUILT 2026-07-16/17, Slices 1–3, suite green). Context: UGM supports agentic harnesses that drive
+> execution — following procedures and defining action sequences toward a goal is in scope. Read with:
 > `reference/processing_modes.md` (§1 ITERATE, §3 compositions, §4 acceptance test),
 > `design/cnl_intake_design.md` §5 (the call/ask wait-set), `design/form_authoring_design.md`
 > (the Slice-A form family the surface reuses).
+>
+> **Arc summary (as built):** the stepping bank is `corpus/procedure.cnl` (content-blind machine
+> rules riding the existing planner). Slice 1 = INVOKE/ORDER/GAP-FILL on a pre-made plan. Slice 2 =
+> the intake surface — `to NAME : A then B then C` authors + `run NAME` invokes (both HEADER/COMMAND
+> ROUTES in `ugm/cnl/procedure_surface.py`, siblings of `form KEY :`, NOT fact-forms), driven by the
+> now-stratified `intake._act_loop` (§Slice-2 finding below, realized). Slice 3 = DISCREPANCY/replan
+> (a step finished but its effect never showed → mismatch fact → an untried alternative producer runs
+> through the same gate). Tests: `tests/test_procedures.py` (author + invoke through real `ingest`).
 
 ## 1. The tool-execution boundary (RATIFIED)
 
@@ -38,7 +45,7 @@ actions to the harness.**
 - The sync tool registry is NOT a counterexample: a caller passing Python callables is
   *choosing to be the harness in-process* — the caller's identity, not UGM growing arms.
 
-## 2. The Procedures arc (QUEUED)
+## 2. The Procedures arc (BUILT — Slices 1–3, see §3–§5)
 
 **The capability:** a named, remembered sequence of steps toward a goal — a PRE-MADE plan the
 KB carries as content, invoked like any goal, executed through the one call loop, gap-filled
@@ -130,7 +137,38 @@ planner and ordered before its consumer.
   consume the ready token). A world action isn't repeated for a completed step — the guard is
   realistic, not a workaround.
 
-**Remaining:** Slice 2 — the `to NAME : A then B then C` authoring surface (generates the
-`step`/`step_before`/`is a procedure` facts; the `then`-chain is already normalized by
-`form.then`) + the act-arm stratification wiring; and a `<run> proc NAME` invocation surface
-(the recognized request that seeds the stepping bank).
+### Slice 2 — the intake surface + act-arm stratification (DONE 2026-07-17)
+
+- **Act-arm stratification (the ⚠ finding above, realized).** `intake._act_loop` now forward-runs
+  STRATIFIED (`run_rules` per pass) and loops to GRAPH quiescence (`derived_triples` snapshot equality),
+  keeping its async `<call>` suspension. It is now a strict superset of the test's old `_solve` — the ONE
+  act driver, UGM-side of the tool boundary (the solve-to-quiescence loop is pure reasoning; only the
+  `<call>` suspends to the harness). The `_solve` crutch is deleted.
+- **Authoring surface `to NAME : A then B then C`** and **invocation surface `run NAME`** — both are
+  intake ROUTES (`ugm/cnl/procedure_surface.py`), siblings of the `form KEY :` header route, NOT
+  `FACT_FORM`s. Why not fact-forms: the fact bank is one non-stratified `run_bank` where a procedure
+  span-tag would RACE `form.then` (`X then Y -> before`) to the `then` tokens, and `form.then` emits the
+  planner's GLOBAL `before`, whereas a procedure needs PROCEDURE-SCOPED `step_before` (lifted to `before`
+  only on `<run>`, so a step name shared by two procedures is not ordered globally by one). The routes
+  emit `step`/`step_before`/`is_a procedure` directly; `run NAME` seeds `<run> proc NAME` and drives the
+  same `_act_loop` a `goal` does. New Outcome/Event kind `"procedure"`.
+
+### Slice 3 — discrepancy / replan (DONE 2026-07-17)
+
+Post-hoc effect-mismatch recovery — §1(b) "failure is data" made concrete. Four rules in
+`corpus/procedure.cnl`: DISCREPANCY (`?o done and ?o add ?e and not <now> true ?e` — a step finished but
+its effect never showed; `done`+`<now>` are both tool-set together on success, so no false positive and
+no strat cycle), EXCLUDE (a durable failed-means record + guard), REPLAN (`?alt chosen when ?o
+discrepancy ?e and ?alt add ?e and not ?alt done and not ?alt excluded` — an untried alternative producer
+runs through the existing gate + gap-fill), CLEAR (drop the discrepancy once the effect is achieved).
+
+**Stratification finding (load-bearing):** INVOKE's `chosen` MUST stay in the base stratum. The first
+design gated INVOKE with `not ?s excluded` (+ drop `chosen`, + route recovery through the planner's
+`<need>`/commit) and BROKE gap-fill: any NAC on `excluded` in a `chosen`-producing rule pushes `chosen`
+to a stratum after `excluded`(str0), but its consumers `unmet`/`waits_for`/`before` sit in str0 and the
+stratifier does not lift a positive consumer to its producer's stratum — so `unmet` under-derives and
+`ready` fires before it (the Slice-2 race, re-opened). Fix: don't gate INVOKE, don't drop `chosen`, don't
+route recovery through the planner's commit (which pushes `chosen` past `ready`); the stepping bank picks
+the alternative DIRECTLY (`done` alone already prevents retrying the failed step). MVP limitation: the
+direct rule chooses ALL untried producers of `?e` at once (no cost-ranking); fine for the single-
+alternative case, and the planner-routed minimal-recovery path stays blocked by the strat hazard above.

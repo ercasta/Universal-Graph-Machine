@@ -30,7 +30,7 @@ Try these:
     A bigger budget never *changes* a fact — it only lets the machine **finish**.
     That's the whole point: an answer it reaches with more thinking is one it
     would always have reached; the small budget just wasn't enough to get there.
-    When it can't finish, it tells you so rather than pretending. (Chapter 20
+    When it can't finish, it tells you so rather than pretending. (Chapter 21
     explains why this honesty is the heart of the design.)
 
 <div class="ugm-playground" data-mode="harder"
@@ -100,5 +100,5 @@ tom vouches bo
     [the very first detective case](detective.md) — there it came from *missing*
     evidence, here from *unfinished* looking. Both are the machine refusing to
     turn "I don't know yet" into a confident "no." The
-    [modes chapter](../deep/17-modes.md) names the budget: eight of the nine ways
+    [modes chapter](../deep/18-modes.md) names the budget: eight of the nine ways
     of thinking spend it, and "think harder" just means *more*.

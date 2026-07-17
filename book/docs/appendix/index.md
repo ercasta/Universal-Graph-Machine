@@ -186,7 +186,7 @@ one privileged instruction ordinary rules can't emit).
 Because the archive stays in the graph, a retracted fact can later be
 **resurrected** from its record. And note what retraction is *not*: it's not a
 pencil world or an undo-scope — it's honest deletion from the inked graph, made
-safe by the receipts. See [Chapter 19](../deep/19-firmware.md#taking-a-fact-back).
+safe by the receipts. See [Chapter 20](../deep/20-firmware.md#taking-a-fact-back).
 
 Retraction also fires *automatically*: a conclusion that leaned on an absence
 (`no evidence that X`) is re-examined at the next question after knowledge
@@ -218,7 +218,7 @@ in the code.
 > **Go deeper:** the tradition here is **possibility theory** (Dubois & Prade) and
 > **possibilistic logic** — the *qualitative* cousin of probability. See
 > [Living in an uncertain world](../advanced/10-uncertain-world.md) and, for the
-> machinery, [Shades of maybe](../deep/18-uncertain-world-internals.md).
+> machinery, [Shades of maybe](../deep/19-uncertain-world-internals.md).
 
 ---
 
@@ -290,7 +290,7 @@ conversational scaffolding (stale goals, pending calls); **facts always stay**.
 Everything the machine *does* to the graph is one of a small set of instructions.
 They divide into the **match** phase (looking — reads only) and the **apply** phase
 (writing — the only part that changes anything). A rule compiles to a short
-sequence of these. See [Chapter 16](../deep/16-instruction-set.md).
+sequence of these. See [Chapter 17](../deep/17-instruction-set.md).
 
 **Looking (the match phase):**
 
@@ -307,7 +307,7 @@ sequence of these. See [Chapter 16](../deep/16-instruction-set.md).
 | loop | `ITERATE` | Fork the work once per item in a bounded range. |
 | in focus? | `MEMBER` / `OVERLAY` | Restrict (or extend) matching to a working set / scope. |
 | by degree | `FUZZY` / `GRADE` | Match on a *degree* rather than a plain yes/no. |
-| by likeliness | `OVERLAY_BAND` | Step through a pencil world's fact, dimming the running score to its likeliness (weakest-link *min*) — how a *likely* is read ([Shades of maybe](../deep/18-uncertain-world-internals.md)). |
+| by likeliness | `OVERLAY_BAND` | Step through a pencil world's fact, dimming the running score to its likeliness (weakest-link *min*) — how a *likely* is read ([Shades of maybe](../deep/19-uncertain-world-internals.md)). |
 | by value | `VMATCH` | Join two dots that **agree on a value** (e.g. the same name). |
 
 **Writing (the apply phase):**
@@ -318,7 +318,7 @@ sequence of these. See [Chapter 16](../deep/16-instruction-set.md).
 | write | `EMIT` | Assert a fact (a mark, or a value) on a dot. |
 | drop (control) | `DROP_CTRL` | Remove a *scaffolding* edge — **refuses** to touch a fact. |
 | sweep | `SWEEP` | Remove a whole *scaffolding* dot (a resolved what-if scope, a used-up tool call) — **refuses** a fact or a receipt. |
-| retire | `RETIRE` | Really delete a fact — the **privileged** deletion ordinary rules can't reach; only [retraction](#retraction-taking-a-fact-back) assembles it, after archiving the fact (see [Chapter 19](../deep/19-firmware.md#taking-a-fact-back)). |
+| retire | `RETIRE` | Really delete a fact — the **privileged** deletion ordinary rules can't reach; only [retraction](#retraction-taking-a-fact-back) assembles it, after archiving the fact (see [Chapter 20](../deep/20-firmware.md#taking-a-fact-back)). |
 | re-anchor | `REDIRECT` | Swing an arrow's endpoint onto the archive record — retraction's other **privileged** move, so receipts survive the delete. |
 
 The whole list fits on a page — and there is **no** fact-deleting verb among the
@@ -331,7 +331,7 @@ ones a rule can compile to. That's what makes the because-trail safe.
 The verbs above are one straight run of look-then-write. To *loop*, to ask a
 sub-question mid-thought, or to pause for the outside world, the machine needs a
 **control path** — a "finger" pointing at the current instruction, and ways to move
-it (see [Chapter 16](../deep/16-instruction-set.md)).
+it (see [Chapter 17](../deep/17-instruction-set.md)).
 
 | Transfer | Real name | What it does |
 |----------|-----------|--------------|
@@ -354,7 +354,7 @@ graph can't see.
 
 Every computation the machine performs is one of **nine** ways of thinking — or a
 knowledge-base recipe composed from them. The list is closed on purpose (see
-[Chapter 17](../deep/17-modes.md)).
+[Chapter 18](../deep/18-modes.md)).
 
 | # | Mode | In plain words | Where in the book |
 |---|------|----------------|-------------------|
@@ -374,7 +374,7 @@ engines:
 - **Explain** = Record, replayed.
 - **Suppose** = Suppose + Chain + Check.
 - **Gather evidence / try-check-replan** = Call + Check.
-- **"No" vs "unknown"** = Check, read under the [firmware](../deep/19-firmware.md)
+- **"No" vs "unknown"** = Check, read under the [firmware](../deep/20-firmware.md)
   stance.
 
 A tenth mode may be added *only* if it's nameable in plain language, keeps all its
