@@ -17,7 +17,6 @@ v0 SCOPE (differentially gated against `run_bank` over the full bank):
 from __future__ import annotations
 
 import warnings
-from collections import Counter
 from dataclasses import dataclass
 
 from .attrgraph import AttrGraph
@@ -519,85 +518,17 @@ def _rel_matches_pred(g: AttrGraph, rel: str, pred: str, scope: str | None) -> b
     return True
 
 
-def _facts_matching_walk(fact_g: AttrGraph, pred: str,
-                         subj_name: str | None, obj_name: str | None,
-                         *, scope: str | None = None,
-                         focus_scope: frozenset[str] | None = None) -> list[tuple[str, str]]:
-    """The `(subj_name, obj_name)` of every FACT `pred` whose bound endpoints match the demand (a
-    None endpoint is a wildcard). The bound-tuple analog of APPLY's whole-predicate scan — SIP
-    prunes to the demanded subject/object. Within a SUPPOSE `scope`, this scope's pencil is visible too.
-
-    ENDPOINT-DRIVEN (Phase-7-adjacent perf, the demand-driven-negation weak spot): when an endpoint is
-    BOUND, reach the matching facts THROUGH that endpoint's node — the bound name resolves to candidate
-    nodes via the `name` value-accelerator (a candidate SET to test, never identity — the label-less
-    discipline holds), then local topology gives the (pred,subj)/(pred,obj) facts directly. SIP makes a
-    bound endpoint almost always available, so the whole-predicate scan (which recomputed every `pred`
-    fact's endpoint names to discard all but one subject) is the fallback ONLY for a fully-unbound demand.
-    Behaviour-identical to the old scan; it just stops touching off-goal tuples.
-
-    FOCUS-SCOPE (Phase 8.3b, docs/design/cnl_intake_design.md §3) — BOUNDED ATTENTION, opt-in and caller-selected
-    (default None = whole-graph, behaviour-identical). When `focus_scope` is a set of in-play entity names
-    (the top focus frame's centers), a fact is visible iff it TOUCHES the working set (either endpoint in
-    scope). Reasoning then follows edges out of focus entities but cannot start from / jump to an entity
-    disconnected from focus — so per-utterance cost tracks the focus closure, not the accreted session, and
-    the coref fan-out is bounded to what is in play. This is a SEMANTIC scope, not a neutral perf tweak:
-    off-focus facts leave the agent's attention (the agent-not-theorem-prover reading of §14)."""
-    out: list[tuple[str, str]] = []
-
-    def keep(s: str, o: str) -> bool:                     # bounded-attention: a fact is in scope iff it
-        return focus_scope is None or s in focus_scope or o in focus_scope   # touches the working set
-
-    # A BOUND slot returns its GIVEN endpoint (a name, or a `ById` — so a var bound to an id stays
-    # pinned through `_bind`/EMIT); a FREE slot returns the discovered node's `ById` (the id-addressed
-    # core, Stage 3 — so two DISTINCT same-named nodes bind to DISTINCT vars, which is what lets a
-    # same-name value-match relate them instead of collapsing to one binding). The focus-scope test
-    # always uses names (`_scope_key` unwraps a `ById`; free nodes read `fact_g.name` for the keep()).
-    if subj_name is not None:                              # (pred, subj, ?) — walk OUT of the subject
-        subj_key = _scope_key(fact_g, subj_name)
-        for s in _candidate_nodes(fact_g, subj_name):
-            if fact_g.is_control(s) or fact_g.is_inert(s):
-                continue
-            for rel in fact_g.succ(s):
-                if not _rel_matches_pred(fact_g, rel, pred, scope):
-                    continue
-                for o in fact_g.succ(rel):
-                    if fact_g.is_control(o) or fact_g.is_inert(o):
-                        continue
-                    if obj_name is not None and not _endpoint_matches(fact_g, o, obj_name):
-                        continue
-                    on = fact_g.name(o)
-                    if keep(subj_key, on):
-                        out.append((subj_name, obj_name if obj_name is not None else ById(o)))
-        return out
-    if obj_name is not None:                               # (pred, ?, obj) — walk INTO the object
-        obj_key = _scope_key(fact_g, obj_name)
-        for o in _candidate_nodes(fact_g, obj_name):
-            if fact_g.is_control(o) or fact_g.is_inert(o):
-                continue
-            for rel in fact_g.pred(o):
-                if not _rel_matches_pred(fact_g, rel, pred, scope):
-                    continue
-                for s in fact_g.pred(rel):
-                    if fact_g.is_control(s) or fact_g.is_inert(s):
-                        continue
-                    sn = fact_g.name(s)
-                    if keep(sn, obj_key):
-                        out.append((ById(s), obj_name))
-        return out
-    for rel in _fact_relnodes(fact_g, pred, scope=scope):  # (pred, ?, ?) — the whole-predicate scan
-        for s, o in _endpoints(fact_g, rel):
-            sn, on = fact_g.name(s), fact_g.name(o)
-            if keep(sn, on):
-                out.append((ById(s), ById(o)))
-    return out
-
-
-# --- A1 + firmware §3/§5: the demand lookup as a SELF-CONTAINED ISA program ------------------------
+# --- firmware §3/§5: the demand lookup as a SELF-CONTAINED ISA program -----------------------------
 #
-# The bespoke `_facts_matching_walk` above is a SECOND matcher (a hand-written topology walk). A1's
-# thesis: that walk IS the ISA matcher's walk — SET the bound endpoint node, FOLLOW to the rel, TEST
-# the predicate key, FOLLOW to the other endpoint. `_facts_matching_isa` does exactly that through the
-# ONE `Machine.match`. The VISIBILITY that used to be Python post-filters is now IN the program:
+# The demand read walks topology through the ONE `Machine.match`, exactly as the forward path does:
+# SET the bound endpoint node, FOLLOW to the rel, TEST the predicate key, FOLLOW to the other
+# endpoint. (A1 reached this by differentially gating it against a second, hand-written topology walk
+# — `_facts_matching_walk`, deleted 2026-07-18 once the swap had been production for good: an oracle
+# frozen at the moment of the swap decays into a tax as the engine grows past it, and this one was
+# crisp-only, so it never covered the banded read at all. Forward/demand PARITY is the differential
+# that still earns its keep — see tests/test_forward_demand_parity.py — because that is where the
+# real divergences have actually been found.) The VISIBILITY that used to be Python post-filters is
+# now IN the program:
 #   * the fact-read guard — control/inert as MARKER ATTRIBUTES (`CONTROL_MARK`/`INERT_MARK`, dual-
 #     written with the legacy flags), tested by compiler-emitted `TEST(..., absent=True)` ops (§3:
 #     uniform, never per-rule, never a privileged matcher skip);
@@ -614,11 +545,7 @@ def _facts_matching_walk(fact_g: AttrGraph, pred: str,
 # A free slot wraps to `ById(node)` — native here, since the register already holds the node id.
 
 _ISA_READER = Machine()   # skip_inert OFF: visibility lives in the PROGRAM (marker-attribute guards),
-# never in a privileged machine mode — the walk (the oracle) applies the same skips by flag.
-
-_CROSSCHECK = False   # A1 differential gate: when True, every `_facts_matching` asserts the ISA path
-# agrees with the bespoke walk on that call (order-insensitive). The reference oracle (the walk) is
-# retained; the production SWAP to the ISA path is the user's ratified gate (doc §4). Tests flip it on.
+# never in a privileged machine mode.
 
 _FOCUS_LIVE = "<focus>"           # the live-set register the read program's MEMBER op points at
 _SCOPE_OVERLAY = "<scope-overlay>"   # the live-set register the read program's OVERLAY op points at
@@ -722,16 +649,17 @@ def _bound_endpoint_ops(fact_g: AttrGraph, reg: str, endpoint) -> list:
     return [TEST(reg, NAME, cmp="=", value=v if v is not None else endpoint)]
 
 
-def _facts_matching_isa(fact_g: AttrGraph, pred: str,
-                        subj_name: str | None, obj_name: str | None,
-                        *, scope: str | None = None,
-                        focus_scope: frozenset[str] | None = None,
-                        bands: bool = False) -> list[tuple]:
-    """The single-atom demand fact lookup as a self-contained ephemeral ISA program (see the module
-    note above). Behaviour-identical to `_facts_matching_walk` (differentially gated by
-    `_CROSSCHECK`). With `bands=True` (marker mode, the possibilistic fold) the rel-guard's OVERLAY
-    becomes OVERLAY_BAND over the merged fork/scope map and every result grows to
-    `(s, o, band, env)`: `band` IS the match score (min t-norm), `env` the fork assumption-set."""
+def _facts_matching(fact_g: AttrGraph, pred: str,
+                    subj_name: str | None, obj_name: str | None,
+                    *, scope: str | None = None,
+                    focus_scope: frozenset[str] | None = None,
+                    bands: bool = False) -> list[tuple]:
+    """The single-atom demand fact lookup (SIP) as a self-contained ephemeral ISA program (see the
+    module note above) — forward and demand walk topology through the ONE `Machine.match`.
+
+    With `bands=True` (marker mode, the possibilistic fold) the rel-guard's OVERLAY becomes
+    OVERLAY_BAND over the merged fork/scope map and every result grows to `(s, o, band, env)`:
+    `band` IS the match score (min t-norm), `env` the fork assumption-set."""
     out: list[tuple] = []
     prev_live = fact_g.registers.get(_FOCUS_LIVE)          # park the live-sets (policy) for the ops
     prev_overlay = fact_g.registers.get(_SCOPE_OVERLAY)    # (mechanism); transitional: derived from
@@ -784,28 +712,6 @@ def _facts_matching_isa(fact_g: AttrGraph, pred: str,
         fact_g.registers[_FOCUS_LIVE] = prev_live
         fact_g.registers[_SCOPE_OVERLAY] = prev_overlay
         fact_g.registers[_BAND_OVERLAY] = prev_bands
-
-
-def _facts_matching(fact_g: AttrGraph, pred: str,
-                    subj_name: str | None, obj_name: str | None,
-                    *, scope: str | None = None,
-                    focus_scope: frozenset[str] | None = None,
-                    bands: bool = False) -> list[tuple]:
-    """The single-atom demand fact lookup (SIP) — on the SHARED ISA matcher (`_facts_matching_isa`,
-    A1; production swap ratified 2026-07-14): forward and demand walk topology through the ONE
-    `Machine.match`. The bespoke walk (`_facts_matching_walk`) is retained ONLY as the independent
-    parity oracle: when `_CROSSCHECK` is set, every call asserts it agrees (order-insensitive).
-    `bands=True` is the marker-mode read (results grow to `(s, o, band, env)`); the walk oracle is
-    crisp-only, so the crosscheck applies to the silent read."""
-    out = _facts_matching_isa(fact_g, pred, subj_name, obj_name, scope=scope,
-                              focus_scope=focus_scope, bands=bands)
-    if _CROSSCHECK and not bands:
-        walk = _facts_matching_walk(fact_g, pred, subj_name, obj_name, scope=scope, focus_scope=focus_scope)
-        if Counter(out) != Counter(walk):
-            raise AssertionError(
-                f"A1 demand-matcher divergence for ({pred!r},{subj_name!r},{obj_name!r}) "
-                f"scope={scope!r} focus_scope={focus_scope!r}:\n  walk={walk!r}\n  isa ={out!r}")
-    return out
 
 
 def _node_for_name(fact_g: AttrGraph, name) -> str:

@@ -266,6 +266,83 @@ class Rule:
 
 
 # ---------------------------------------------------------------------------
+# Mint keys — what a skolem head is a FUNCTION of (feedback #21, a diagnostic)
+# ---------------------------------------------------------------------------
+# A bound-literal skolem head (`n?`) mints one node per LHS MATCH, so its arity is the rule's whole
+# positive body — not its head. Nothing in a rule's TEXT shows that, and a body atom added for an
+# unrelated reason silently multiplies the mint:
+#
+#     n? is_a made and n? of ?x when ?x is_a thing                   -> one node per (?x)
+#     n? is_a made and n? of ?x when ?x is_a thing and ?x tag ?y     -> one node per (?x, ?y)
+#
+# `?y` is in no head atom and is used for nothing; it still multiplies. The duplicates are then
+# interchangeable (the head names no `?y`), so nothing fails — the emitted result is correct while
+# the graph is quietly wrong, and a later rule that DOES mention `?y` turns nondeterministic.
+# This is reporting only: the semantics are correct and deliberately unchanged.
+
+
+@dataclass(frozen=True)
+class MintKey:
+    """What one skolem head mints, and per what. `key` is the tuple of LHS-bound variables the mint
+    is a function of, in first-appearance order. `unused_in_head` are those key variables that
+    appear in NO head atom — a variable that can only multiply the mint, never distinguish its
+    results.
+
+    `unused_in_head` is REPORTED, never warned on, because it does not separate the accidental case
+    from the ANCHOR IDIOM: a body variable binding the sentence/statement a mint belongs to is
+    deliberately absent from the head, and ugm's own recognition banks use it 24 times
+    (`RULE_FORMS`, `QUESTION_FORMS`, `MACHINE_RULE_FORMS`). So it is a thing worth SEEING when you
+    go looking, not a signal worth interrupting on."""
+    rule: str
+    head: str                          # the skolem token, e.g. 'n?'
+    key: tuple[str, ...]
+    unused_in_head: tuple[str, ...]
+
+    def describe(self) -> str:
+        per = f"({', '.join(self.key)})" if self.key else "firing"
+        line = f"rule {self.rule!r}: mints `{self.head}` — one node per {per}"
+        if self.unused_in_head:
+            names = ", ".join(self.unused_in_head)
+            line += (f"   [{names} appear{'s' if len(self.unused_in_head) == 1 else ''} in no head "
+                     f"atom — multiplies the mint without distinguishing it]")
+        return line
+
+
+def mint_keys(rule: Rule) -> list[MintKey]:
+    """The skolem heads `rule` mints, and what each is keyed on. Empty for a rule that mints nothing.
+
+    A skolem head is a bound-literal token (`n?`) in a head ENDPOINT slot that appears nowhere in
+    the body — the runtime twin of `chain._head_skolems`, which decides the same question over
+    lowered triples rather than `Pat`s. An RHS-only VARIABLE is not a skolem (it is unsound and
+    rejected at authoring by `reject_rhs_only_head_vars`); a plain RHS literal is not one either
+    (it interns to its graph-wide node)."""
+    body_toks = {t for pats in (rule.lhs, rule.nac) for pat in pats for t in pat.tokens()}
+    heads = [t for pat in rule.rhs for t in (pat.s, pat.o)
+             if is_bound_literal(t) and t not in body_toks]
+    if not heads:
+        return []
+
+    key: list[str] = []                        # LHS variables, first-appearance order (the match)
+    for pat in rule.lhs:
+        for tok in pat.tokens():
+            if is_var(tok) and tok not in key:
+                key.append(tok)
+    head_toks = {t for pat in rule.rhs for t in pat.tokens()}
+    unused = tuple(v for v in key if v not in head_toks)
+
+    out: list[MintKey] = []
+    for h in dict.fromkeys(heads):             # dedupe, preserve order
+        out.append(MintKey(rule=rule.key, head=h, key=tuple(key), unused_in_head=unused))
+    return out
+
+
+def describe_rules(rules: list[Rule]) -> list[str]:
+    """One human-readable line per skolem head across `rules` — the authoring-time answer to
+    'what is this mint a function of?'. Rules that mint nothing produce no line."""
+    return [mk.describe() for rule in rules for mk in mint_keys(rule)]
+
+
+# ---------------------------------------------------------------------------
 # Firing — one journal entry (vision §9). Lives here (a shared, engine-neutral type) so the
 # journal consumers (surface.explain, driver, session) do not import the reference `rewriter`.
 # ---------------------------------------------------------------------------

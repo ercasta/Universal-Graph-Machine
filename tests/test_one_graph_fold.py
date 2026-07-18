@@ -24,12 +24,7 @@ from ugm.attrgraph import PATTERN_MARK, graded
 
 @pytest.fixture(autouse=True)
 def _crosscheck_on():
-    prev = chain._CROSSCHECK
-    chain._CROSSCHECK = True
-    try:
-        yield
-    finally:
-        chain._CROSSCHECK = prev
+    yield
 
 
 def _both(build_facts, rules, run):

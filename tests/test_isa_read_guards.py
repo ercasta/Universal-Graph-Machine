@@ -8,8 +8,7 @@ Three layers pinned here:
      enabler. The two representations may never diverge.
   2. The machine primitives: `TEST(..., absent=True)` (the fact-read attribute guard, A5) and
      `MEMBER(regs, live)` (register-pointed live-set restriction, A5) — small, dumb, reusable.
-  3. The demand read (`chain._facts_matching_isa`) is a SELF-CONTAINED program built from them —
-     its walk-parity is asserted call-by-call by `chain._CROSSCHECK` in the differential suites;
+  3. The demand read (`chain._facts_matching`) is a SELF-CONTAINED program built from them —
      here we pin the register-pointed focus mechanism end-to-end.
 """
 import ugm as h
@@ -148,26 +147,21 @@ def test_overlay_extends_the_base_with_a_live_set():
 def test_scope_pencil_visibility_is_the_overlay_op():
     """End-to-end: a pencil (control rel tagged with a scope) is invisible to a plain read, visible
     to a read within ITS scope, and invisible within ANOTHER scope — all in-program, no post-filter
-    (cross-checked against the walk oracle)."""
+    — all in-program, no post-filter."""
     g = AttrGraph()
     ada, bo = g.add_node("ada"), g.add_node("bo")
     rel = g.add_relation(ada, "suspects", bo, control=True)   # a pencil ...
     g.set_attr(rel, SCOPE, valued("<hyp1>"))                  # ... of scope <hyp1>
-    prev = chain._CROSSCHECK
-    chain._CROSSCHECK = True
-    try:
-        assert chain._facts_matching(g, "suspects", "ada", None) == []
-        assert len(chain._facts_matching(g, "suspects", "ada", None, scope="<hyp1>")) == 1
-        assert chain._facts_matching(g, "suspects", "ada", None, scope="<hyp2>") == []
-    finally:
-        chain._CROSSCHECK = prev
+    assert chain._facts_matching(g, "suspects", "ada", None) == []
+    assert len(chain._facts_matching(g, "suspects", "ada", None, scope="<hyp1>")) == 1
+    assert chain._facts_matching(g, "suspects", "ada", None, scope="<hyp2>") == []
 
 
 # --- 3. the read program end-to-end ----------------------------------------------------------------
 
 def test_focus_scope_flows_through_the_live_set_register():
     """`focus_scope` reaches the read as MEMBER-over-register (transitionally parked by
-    `_facts_matching_isa` itself), and the register is restored afterwards."""
+    `_facts_matching` itself), and the register is restored afterwards."""
     g = AttrGraph()
     ids = {nm: g.add_node(nm) for nm in ("ada", "bo", "cy", "dee")}
     g.add_relation(ids["ada"], "knows", ids["bo"])
@@ -180,7 +174,7 @@ def test_focus_scope_flows_through_the_live_set_register():
 
 def test_guarded_read_skips_marked_twins_end_to_end():
     """The in-program guard reproduces the old post-filter: same-named control/inert twins are
-    invisible to a demand read (cross-checked against the walk oracle by the differential suite)."""
+    invisible to a demand read."""
     g = AttrGraph()
     ada = g.add_node("ada")
     bo = g.add_node("bo")
@@ -189,12 +183,7 @@ def test_guarded_read_skips_marked_twins_end_to_end():
     g.add_relation(ada, "knows", bo)
     g.add_relation(ctrl, "knows", bo)                      # control subject -> invisible
     g.add_relation(ada, "knows", inert)                    # inert object -> invisible
-    prev = chain._CROSSCHECK
-    chain._CROSSCHECK = True
-    try:
-        out = chain._facts_matching(g, "knows", "ada", None)
-    finally:
-        chain._CROSSCHECK = prev
+    out = chain._facts_matching(g, "knows", "ada", None)
     assert len(out) == 1
 
 

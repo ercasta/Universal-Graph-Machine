@@ -881,3 +881,45 @@ def test_self_extinguishing_rule_needs_forward_provenance():
         warnings.simplefilter("ignore")
         lines = ask_goal(g2, "why l1 repaired yes", rules)
     assert "(given)" in lines[0]                            # the documented limit, pinned
+
+
+# --- #21: a mint head's SKOLEM KEY is invisible at authoring time -----------------------------------
+#
+# The semantics are correct and unchanged; this is purely a diagnostic. A skolem head mints one node
+# per LHS MATCH, so a body atom added for an unrelated reason silently multiplies the mint.
+
+def test_mint_key_reports_what_a_skolem_head_is_a_function_of():
+    from ugm import describe_rules
+    lines = describe_rules(load_machine_rules("n? is_a made and n? of ?x when ?x is_a thing"))
+    assert len(lines) == 1
+    assert lines[0].endswith("mints `n?` — one node per (?x)")
+
+
+def test_an_unrelated_body_atom_multiplies_the_mint_key():
+    # The exact repro from the report: `?y` is in no head atom and is used for nothing, but the mint
+    # becomes one node PER TAG. That arity is what was invisible.
+    from ugm import describe_rules
+    line = describe_rules(load_machine_rules(
+        "n? is_a made and n? of ?x when ?x is_a thing and ?x tag ?y"))[0]
+    assert "one node per (?x, ?y)" in line
+    assert "?y appears in no head atom" in line
+
+
+def test_mint_keys_are_empty_for_a_rule_that_mints_nothing():
+    from ugm import mint_keys, describe_rules
+    rules = load_machine_rules("?x out yes when ?x tag yes")
+    assert mint_keys(rules[0]) == [] and describe_rules(rules) == []
+
+
+def test_unused_in_head_is_reported_but_never_warned_on():
+    # It does NOT separate the accidental case from the ANCHOR IDIOM — a body var binding the
+    # sentence a mint belongs to, deliberately absent from the head. ugm's OWN recognition banks use
+    # that idiom, so a load-time warning would fire on correct core banks. Pinned so nobody promotes
+    # this to a warning without re-measuring.
+    from ugm import mint_keys, QUESTION_FORMS
+    anchored = [mk for r in QUESTION_FORMS for mk in mint_keys(r) if mk.unused_in_head]
+    assert anchored, "expected the anchor idiom in the built-in question forms"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")                       # any warning here fails the test
+        load_machine_rules("n? is_a made and n? of ?x when ?x is_a thing and ?x tag ?y")

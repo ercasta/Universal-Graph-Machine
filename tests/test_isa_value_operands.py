@@ -9,8 +9,7 @@ Step 2 + (X): the demand solver carries ONLY node-pointers (`ById` — an entity
 for a name/literal endpoint) and binds them in the machine's REGISTER FILE (`State.regs`, not a dict);
 graded α-cuts and declared value-joins run as EPHEMERAL `GRADE`/`VMATCH` programs on the shared
 machine, which interprets a value-node register by aggregating over its coref class
-(`Machine._operand_nodes`). These tests drive every demand shape with the A1 walk/ISA cross-check ON
-(`chain._CROSSCHECK` — the retained independent matcher oracle) and assert the solver's contract
+(`Machine._operand_nodes`). These tests drive every demand shape and assert the solver's contract
 directly: correct derivations, name-identical `<demand>` traces, pointer-only carriage, and writes
 that land on entities, never on operand data.
 """
@@ -22,18 +21,6 @@ from ugm import (AttrGraph, Pat, Rule, ValueMatch, GradedCondition, chain_sip, c
 from ugm import chain
 from ugm.attrgraph import ISA_OPERAND_VALUE, graded
 from ugm.chain import ById, _facts_matching
-
-
-@pytest.fixture(autouse=True)
-def _crosscheck_on():
-    """Every demand run here also asserts the bespoke-walk oracle agrees with the shared ISA matcher
-    on each `_facts_matching` call (the retained A1 differential)."""
-    prev = chain._CROSSCHECK
-    chain._CROSSCHECK = True
-    try:
-        yield
-    finally:
-        chain._CROSSCHECK = prev
 
 
 # --- helpers ---------------------------------------------------------------------------------------

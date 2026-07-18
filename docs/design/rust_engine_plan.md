@@ -86,14 +86,16 @@ randomized sweeps are the oracle):
   construction (it becomes a seed-set on the matcher). ⚠ the subtle part: `ById` free-slot binding + coref
   fan-out semantics must survive the switch.
   - **▶ FIRST INCREMENT LANDED 2026-07-14** (`docs/attic/phase_a_demand_firmware.md`). The single-atom demand
-    lookup now has a shared-ISA-matcher implementation (`chain._facts_matching_isa`: SET the bound endpoint
+    lookup now has a shared-ISA-matcher implementation (`chain._facts_matching`: SET the bound endpoint
     → FOLLOW to the rel → predicate-key TEST → FOLLOW to the other endpoint, through the ONE `Machine.match`;
-    free slots wrap `ById` natively — the register holds the node id). ADDITIVE: the bespoke walk
-    (`_facts_matching_walk`) stays the reference oracle; `chain._CROSSCHECK` makes every `_facts_matching`
-    call assert the two agree (order-insensitive). Proven equal across the WHOLE reasoning suite with the
-    gate globally ON (391 green) + a targeted differential test (`tests/test_isa_demand_matcher_differential.py`,
-    9) covering every shape (bound-subj/wildcard, bound-obj/wildcard, both-bound, whole-predicate, nested-NAF,
-    coref `same_as`, SUPPOSE scope pencils, focus attention, `ById`). KEY FINDING (feeds A5): the walk
+    free slots wrap `ById` natively — the register holds the node id). It was landed ADDITIVELY, gated by a
+    bespoke-walk oracle (`_facts_matching_walk` + `chain._CROSSCHECK`) proven equal across the whole
+    reasoning suite (391 green) and a targeted differential covering every shape. Both the walk and the
+    gate were DELETED 2026-07-18 once the swap was long settled: a frozen oracle decays as the engine grows
+    past it, and this one never covered the banded read. Parity is now gated where divergences actually
+    occur — forward vs demand (`tests/test_forward_demand_parity.py`).
+    ⚠ NOTE FOR THE PORT: a Rust matcher is a genuinely new implementation, so it needs its OWN differential
+    against the Python one — but a fresh one covering the banded read too, not a revival of this walk. KEY FINDING (feeds A5): the walk
     decomposes into (a) an ISA-structural topology walk (moved to the shared matcher) + (b) THREE irreducible
     visibility filters that are runtime POLICY, not graph structure — fact-layer endpoint/rel visibility
     (skip control/inert scaffolding), SUPPOSE scope-pencil visibility, focus attention. The FORK for where

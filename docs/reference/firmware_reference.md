@@ -20,7 +20,7 @@ Four layers, bottom-up:
    `DISTINCT`/`MEMBER`/`OVERLAY`/`ITERATE`/`MINT`/`EMIT`/`RETIRE`/… + the control transfers
    `BRANCH`/`BRANCH_IF`/`CALL`/`RET`/`SUSPEND`/`HALT`/`SETI`/`DEC`/`PRIM`). See `isa_reference.md`.
 3. **Firmware programs** — DATA: lists of instruction instances produced by lowering compilers
-   (`ugm/lowering.py` for rule banks; inline builders like `chain._facts_matching_isa` and
+   (`ugm/lowering.py` for rule banks; inline builders like `chain._facts_matching` and
    `chain._frame_program` for the demand path). Ephemeral compilation artifacts, never graph nodes.
 4. **Drivers** — thin Python orchestration that loops rounds and manages agendas: `run_bank`
    (forward), `chain_sip` (demand). Legitimately Python; they contain no matching, binding, or
@@ -68,7 +68,7 @@ bound tuple goal `(pred, subj|None, obj|None)` demand-driven:
 
 ## 3. The fact read is a self-contained program
 
-A single-atom fact lookup (`_facts_matching_isa`) is an ephemeral ISA program — the same `Machine`
+A single-atom fact lookup (`chain._facts_matching`) is an ephemeral ISA program — the same `Machine`
 the forward path runs, with zero Python post-filters:
 
 - `SET` the bound endpoint (or `SEED` from the predicate key) → `FOLLOW` to the rel →
@@ -84,8 +84,11 @@ the forward path runs, with zero Python post-filters:
   with a set (SUPPOSE scope pencils, derived per lookup from `SCOPE` tags by `_scope_pencils` — the
   tag stays the pencil's persistent explanation). With no set parked both degenerate to the plain
   guard, so ONE program shape serves scoped and unscoped reads.
-- The bespoke topology walk (`_facts_matching_walk`) survives ONLY as the `_CROSSCHECK` differential
-  oracle.
+- The bespoke topology walk (`_facts_matching_walk`) and its `_CROSSCHECK` gate were DELETED
+  2026-07-18: the oracle had earned the A1 swap, but a frozen reimplementation decays as the engine
+  grows past it (this one was crisp-only, so it never covered the banded read), and it could only
+  check one atom's lookup. The differential that replaced it gates the seam where divergences have
+  actually been found — forward vs demand, swept over worlds (`tests/test_forward_demand_parity.py`).
 
 ## 4. Bindings, values, and thresholds
 

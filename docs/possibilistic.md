@@ -187,7 +187,7 @@ STRICTLY better band ⇒ the rounds converge); fuel semantics unchanged (exhaust
 a partial band). `check` grows the band words between POSITIVE and ASSUMED_NO (S7.4), `collapse`
 passes them through (no premature defeasible collapse), so `ask_goal` answers `likely` with the
 question forms untouched. Silent mode is byte-identical (the 450+ crisp tests are the differential
-gate; `_CROSSCHECK` still guards the crisp read against the walk oracle).
+gate).
 
 **DEFEASIBLE-GUESS BUILT 2026-07-16** (open point D — see its entry in the Open list below for the
 full mechanics): `possibility.guess/retract_guess/render_guess`, suite 495 green.
@@ -576,7 +576,7 @@ band ranks strictly between `yes` and `assumed-no`. No gates present ⇒ byte-id
 6. verdict rendering: band → word; `why` shows the band + the environment (assumption-set) crossed.
 
 The positive/crisp core is untouched: marker mode is opt-in, silent mode keeps the binary OVERLAY,
-and the `_CROSSCHECK` differential gate still guards the shared matcher.
+and forward/demand parity is gated by `tests/test_forward_demand_parity.py`.
 
 ## S7.6 Two slices
 

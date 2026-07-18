@@ -8,7 +8,8 @@ from .vocabulary import (
     SUBSTRATE_COREF_PREDS, neg_pred, is_neg_pred,
 )
 from .world_model import Graph, Node, WorldModel
-from .production_rule import Pat, Rule, GradedCondition, ValueMatch, Distinct
+from .production_rule import (Pat, Rule, GradedCondition, ValueMatch, Distinct,
+                              MintKey, mint_keys, describe_rules)
 from .attrgraph import AttrGraph, AttrNode, Attr, GRADED, VALUED
 from .machine import (
     Machine, State, run_program,
@@ -130,6 +131,7 @@ def __getattr__(name: str):
 __all__ = [
     "Graph", "Node", "WorldModel",
     "Pat", "Rule", "GradedCondition", "ValueMatch", "Distinct",
+    "MintKey", "mint_keys", "describe_rules",
     "AttrGraph", "AttrNode", "Attr", "GRADED", "VALUED",
     "Machine", "State", "run_program",
     "SEED", "FOLLOW", "JOIN", "TEST", "GRADE", "FUZZY", "MINT", "EMIT",
