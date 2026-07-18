@@ -299,3 +299,114 @@ def near_rules(graph, rules: list["Rule"], locus: str) -> list["Rule"]:
     near-rule set, so two walkers with different tokens get DIFFERENT near-rules automatically."""
     nm = graph.name(locus)
     return [r for r in rules if nm in _anchor_names(r)]
+
+
+# ---------------------------------------------------------------------------
+# Stratification — a STATIC property of a rule bank (Datalog stratified negation)
+# ---------------------------------------------------------------------------
+# Lives here, next to `Rule`, rather than in the CNL authoring layer: it is pure rule analysis
+# (no graph, no surface), and the forward driver `lowering.run_bank` must be able to call it
+# WITHOUT importing the CNL layer — recognition banks are built and run at import time, so an
+# upward import would be circular (feedback #18).
+
+_WILD = object()   # sentinel: a producer with a variable object (a wildcard for any NAC on its pred)
+
+
+def _prod_key(pat: Pat):
+    """The producer key a head pattern registers: `(pred, obj)`, or `(pred, _WILD)` for a variable
+    object. Uniform over all predicates — no relation name is special-cased."""
+    return (pat.p, _WILD if is_var(pat.o) else literal_name(pat.o))
+
+
+def stratify(rules: list[Rule]) -> list[list[Rule]]:
+    """Partition `rules` into strata so a rule's NAC is evaluated only AFTER every
+    rule that could PRODUCE the negated predicate has reached fixpoint.
+
+    This is Datalog's stratified negation (vision §11), the static-analysis cure for
+    the order-dependence of NAC over a *derived* fact (e.g. `serve_regular`'s
+    `is not urgent` must see the `mark`-derived `is urgent`). Positive dependencies
+    need no stratum — same-stratum forward chaining resolves them. Keyed OBJECT-AWARE on
+    `(pred, literal-obj)` (`_prod_key`) — uniformly, no relation name special-cased — so `P young`
+    and `P rough` don't falsely cycle. Sound (it only ever delays, never reorders wrongly). Raises
+    if negation is cyclic. The scheduler stays dumb (vision §6): within a stratum every rule fires.
+    """
+    producers: dict = {}
+    for i, r in enumerate(rules):
+        for pat in r.rhs:                                # EVERY head atom produces (a multi-head
+            producers.setdefault(_prod_key(pat), set()).add(i)   # skolem rule produces all of them)
+
+    def deps_of(pat: Pat) -> set[int]:
+        """The rules that could PRODUCE a fact matching this body/NAC atom."""
+        if is_var(pat.o):                                # variable object: any producer of the pred
+            return set().union(*(v for k, v in producers.items() if k[0] == pat.p), set())
+        return (producers.get((pat.p, literal_name(pat.o)), set())
+                | producers.get((pat.p, _WILD), set()))
+
+    # Dependency edges i -> (j, negated): rule j must reach fixpoint BEFORE i is decided —
+    # at the SAME stratum for a positive premise, a STRICTLY EARLIER one for a negated premise.
+    edges: list[list[tuple[int, bool]]] = []
+    for i, r in enumerate(rules):
+        e: set[tuple[int, bool]] = set()
+        for pat in r.lhs:
+            e |= {(j, False) for j in deps_of(pat) if j != i}   # positive: same-or-earlier
+        for pat in r.nac:
+            e |= {(j, True) for j in deps_of(pat) if j != i}    # negated: strictly earlier
+        edges.append(sorted(e))
+
+    # Longest-path relaxation (a bank is tens of rules; this is simpler than condensing SCCs and
+    # handles positive RECURSION naturally — a positive cycle relaxes to one shared stratum, while a
+    # cycle through a NEGATED edge grows without bound and is caught by the round cap).
+    strata_of = [0] * len(rules)
+    for _round in range(len(rules) + 1):
+        changed = False
+        for i, e in enumerate(edges):
+            want = max((strata_of[j] + (1 if neg else 0) for j, neg in e), default=0)
+            if want > strata_of[i]:
+                strata_of[i] = want
+                changed = True
+        if not changed:
+            break
+    else:
+        # No fixpoint: a dependency cycle passes through a NEGATED edge. Strict Datalog calls that
+        # unstratifiable, but ugm banks legitimately contain them (a recursively-derived predicate
+        # that is also negated somewhere), and the engines cope — the demand chain has its own NAF
+        # cycle guard, and the forward path has run them flat for as long as they have existed. So do
+        # NOT newly reject them here: fall back to the historical NAC-only ordering, which ignores
+        # positive edges and therefore cannot diverge on a positive cycle. Every bank that worked keeps
+        # working, while a bank WITHOUT such a cycle gets the positive-dependency ordering above (which
+        # is what stops a producer being scheduled after its consumer).
+        return _stratify_nac_only(rules, deps_of)
+
+    layers: dict[int, list[Rule]] = {}
+    for i, s in enumerate(strata_of):
+        layers.setdefault(s, []).append(rules[i])
+    return [layers[s] for s in sorted(layers)]
+
+
+def _stratify_nac_only(rules: list[Rule], deps_of) -> list[list[Rule]]:
+    """The HISTORICAL stratification: order by NEGATED dependencies only, ignoring positive ones.
+
+    Retained as `stratify`'s fallback for a bank whose dependency graph cycles through a negated edge.
+    It cannot diverge, because it never follows a positive edge — which is also precisely its weakness:
+    a producer pushed into a later stratum than its positive CONSUMER starves that consumer (the
+    consumer reaches fixpoint before the fact it needs exists, and nothing re-runs it). That is why
+    `stratify` prefers the sound ordering and only falls back here."""
+    memo: dict[int, int] = {}
+
+    def stratum(i: int, stack: tuple[int, ...]) -> int:
+        if i in memo:
+            return memo[i]
+        if i in stack:
+            raise ValueError("rules are not stratifiable (negation cycle)")
+        deps = set().union(*(deps_of(pat) for pat in rules[i].nac)) if rules[i].nac else set()
+        deps.discard(i)                                  # self-NAC (idempotency) is fine
+        s = 1 + max((stratum(d, stack + (i,)) for d in deps), default=-1)
+        memo[i] = s
+        return s
+
+    for i in range(len(rules)):
+        stratum(i, ())
+    layers: dict[int, list[Rule]] = {}
+    for i, s in memo.items():
+        layers.setdefault(s, []).append(rules[i])
+    return [layers[s] for s in sorted(layers)]

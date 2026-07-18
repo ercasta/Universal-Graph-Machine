@@ -131,6 +131,17 @@ check-before-derive is idempotent and agrees with forward.
   wiring, `ugm/provenance.py`); `why`/`explain` and the trace event stream read this record — the
   trace renderer is an OBSERVER of the substrate, never a control-flow hook. The demand/subgoal
   chain is the analogous record for negatives.
+- **A `why` over an already-materialized fact BACKFILLS its support**: check-before-derive suppresses
+  the re-EMIT, so the chain records the justification onto the existing rel node instead (guarded by
+  "no rule support yet"). This is what makes structure built by an earlier pass explainable.
+- **CAPTURE PROVENANCE FORWARD FOR A SELF-EXTINGUISHING RULE.** The backfill can only record what the
+  chain can RE-DERIVE. A rule whose own effect falsifies its body cannot be re-derived — the shape
+  every REPAIR rule has: it fires *because* something is wrong, and its effect makes it right, so the
+  NAC no longer holds and `why` collapses to `(given)`. Run those banks with
+  `run_bank(..., provenance=True)` (or `run_rules`, which defaults it on), which journals the
+  justification at firing time, while the body still held. The resulting trace threads back through
+  the minted structure to the originating facts, with a conjunctive NAC rendered jointly
+  (`assumed not: … (together)`).
 - **Retraction is copy-on-delete** (`ugm/retraction.py`): **decide** (CASCADE rules, read-only) →
   **record** (`record_history`: copy the pre-image into an inert, meta-visible `<history>` record,
   redirecting `proves`/`uses` so explanation survives) → **retire** (the privileged `RETIRE` opcode,

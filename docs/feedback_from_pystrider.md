@@ -792,6 +792,116 @@ h.run_to_fixpoint(g, h.load_machine_rules(RULES))
 which reads as "you forgot an argument" rather than "you want the other function". A line in the
 docstring pointing rule-bank users at `run_bank` would save the detour.
 
+> **FIXED (2026-07-18) — and fixing it uncovered a second, opposite bug in `stratify` itself.** You
+> asked for option 1 (stratify inside `run_bank`), which is now what happens. Getting there was not
+> mechanical, and the detour is the interesting part.
+>
+> **First attempt failed loudly, which was lucky.** Simply calling `stratify` inside `run_bank` broke CNL
+> RECOGNITION — `load_machine_rules` started rejecting valid banks, because the recognition forms were
+> being scheduled differently. Cause: **`stratify` ranked rules by NEGATED dependencies only.** Standard
+> stratification also requires a rule to sit at or above its POSITIVE dependencies; without that, a
+> PRODUCER can be pushed into a later stratum than its positive CONSUMER, and the consumer reaches
+> fixpoint before the fact it needs exists — with nothing to re-run it. Minimal repro, where `out` is
+> derived flat and LOST when stratified:
+>
+> ```
+> D:  ?y z yes      when ?y is_a other
+> B:  ?x tag yes    when ?x is_a seed and not ?x z yes     # NAC over D's head -> B is pushed later
+> A:  ?x out yes    when ?x tag yes                        # no NAC -> stratum 1, runs BEFORE B
+> ```
+>
+> So `run_bank` was unsound for derived negation (your #18) and `run_rules` was unsound for positive
+> dependencies crossing a stratum boundary — the two forward entry points were wrong in opposite
+> directions. `stratify` now builds the full dependency graph (every head atom registers as a producer,
+> not just `rhs[0]`) and relaxes strata with positive edges at +0 and negated edges at +1.
+>
+> **One deliberate concession.** The sound ordering makes cycles through a negated edge detectable, and
+> real ugm banks contain them (a recursively-derived predicate that is also negated somewhere) — banks
+> both engines handle fine today. Newly REJECTING them would have been a regression dressed up as
+> rigour, so `stratify` falls back to the historical NAC-only ordering for exactly those banks
+> (`_stratify_nac_only`) and applies the sound ordering everywhere else. Nothing that worked stops
+> working; everything without such a cycle gets correct scheduling.
+>
+> **Result on your repro:** `unmet_at -> ['i0']`, `satisfied -> []`. The forward and demand engines now
+> agree (the demand chain was always right here — its NAF subgoal closes the negative's positive first),
+> which is the same forward/demand parity theme as #16. `run_bank(..., stratified=False)` keeps the raw
+> one-stratum primitive for a caller that has already stratified. `stratify` moved from
+> `cnl/authoring.py` down to `production_rule.py` (it is pure rule analysis, and `run_bank` must call it
+> without importing the CNL layer — recognition banks are built at import time); `authoring` re-exports
+> it, so every existing import is unaffected.
+>
+> Tests: `test_run_bank_stratifies_negation_over_a_derived_fact`,
+> `test_run_bank_and_demand_engine_agree_on_derived_negation`,
+> `test_stratify_orders_a_producer_before_its_positive_consumer`,
+> `test_stratify_falls_back_rather_than_rejecting_a_cyclic_bank`,
+> `test_run_bank_stratified_false_keeps_the_raw_primitive`. Suite 610 green.
+
+## 18. `run_bank` does not stratify, so negation over a DERIVED fact is silently wrong — and permanent
+
+Cost a real bug: a build loop reported a demonstrably wrong program as OK. `run_bank` applies a
+match-time NAC filter but evaluates rules in whatever order the round reaches them, so a rule whose
+`not` ranges over a predicate ANOTHER rule in the same bank produces can be decided before that rule has
+fired. Because the graph is monotone, the wrong answer is then **permanent** — nothing retracts it.
+
+```python
+BANK = ("?st unmet_at ?i when ?st is_a step and ?st at ?i and ?st wants ?x "
+        "and not ?o is_a observation and not ?o at ?i and not ?o text ?x\n"
+        "?p satisfied yes when ?p is_a procedure "
+        "and not ?st unmet_at ?i and not ?st of_procedure ?p")
+# facts: report is_a procedure; st0 is_a step, of_procedure report, at i0, wants hello_bob;
+#        o0 is_a observation, at i0, text bob        <- the expectation is NOT met
+
+run_bank(g, load_machine_rules(BANK))
+#   unmet_at  -> ['i0']      (correct)
+#   satisfied -> ['yes']     (WRONG — and it sticks)
+
+for stratum in stratify(load_machine_rules(BANK)):    # the cure
+    run_bank(g, stratum)
+#   satisfied -> []          (correct)
+```
+
+`stratify` exists, is documented, and does exactly the right thing — it just is not applied by
+`run_bank`, and nothing warns. The `run_bank` docstring mentions the NAC filter but not the stratum
+requirement, so the natural reading ("forward-chain these rules to fixpoint") is a trap for any bank
+with derived negation. **Ask:** either stratify inside `run_bank` by default (it is a static property of
+the bank, and `load_machine_rules` already validates), or raise/warn when a bank contains a NAC over a
+predicate the same bank derives, with the fix in the message. A silent wrong answer that then becomes
+unretractable is the worst shape this could take. Pinned our side in
+`tests/test_build_procedure.py::test_a_bank_with_negation_over_a_DERIVED_fact_must_be_stratified`.
+
+> **DOCUMENTED + PINNED (2026-07-18).** Agreed on all counts — nothing to fix in the engine, and your
+> diagnosis is exactly right: the backfill can only record what the chain can RE-DERIVE, and a rule whose
+> effect falsifies its own body cannot be. It is now stated where each audience will meet it: in
+> `docs/reference/firmware_reference.md` §7 (the provenance section, as a rule for choosing the capture
+> mode) and at the backfill itself in `chain._solve_demand_rule`, so the next reader of that code sees the
+> limit next to the mechanism. Pinned as behaviour by
+> `test_self_extinguishing_rule_needs_forward_provenance`, which asserts BOTH halves — forward
+> `provenance=True` records the justification, and the backfill alone leaves `(given)` — so the limit
+> cannot silently drift into looking like a bug later. Thanks for writing it up rather than filing it as
+> one; "self-extinguishing rule" is the right name for the class and we have adopted it.
+
+## 19. (not a bug — a note) Provenance must be captured FORWARD for self-extinguishing rules
+
+The #15 backfill works well, but it necessarily depends on the demand chain being able to RE-DERIVE the
+fact. A large and interesting class of rule cannot be: one whose own effect destroys its firing
+condition. Repair rules are exactly this shape —
+
+```
+gc? is_a ast_call and gc? callee greet and ... and ?pr version arg_v2
+  when ?pr is_a emit_print and ?pr arg_v1 ?v
+       and <no observation at ?i shows the wanted text>      <- unmet
+```
+
+— fires *because* a line is wrong, and its effect makes the line right, so the NAC no longer holds and
+`why` collapses to `(given)`. Running the bank with `run_bank(..., provenance=True)` records the
+justification at firing time and the trace is then complete, threading back through the minted structure
+to the original spec fact, with the conjunctive NAC rendered jointly (`assumed not: … (together)` — the
+#16 explanation fix, which reads very well here).
+
+Worth a line in the docs: *if a rule's effect can falsify its own body, capture provenance forward; the
+demand path cannot reconstruct it.* Nothing to fix in the engine as far as we can tell — but it took a
+failing `why` to notice, and it is the audit trail for the most interesting facts in our system.
+
 ---
 
 ### Net

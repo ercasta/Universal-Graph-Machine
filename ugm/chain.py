@@ -1325,6 +1325,13 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                     # was filed under. Record the support onto the EXISTING rel node: additive, inert
                     # (explanation, never a fact), and guarded by "has no rule support yet" so a re-served
                     # demand does not pile up duplicate justifications.
+                    #
+                    # LIMIT (feedback #19): the backfill can only record what the chain can RE-DERIVE.
+                    # A SELF-EXTINGUISHING rule — one whose effect falsifies its own body, which is the
+                    # shape every REPAIR rule has ("fire BECAUSE this line is wrong" → the line is now
+                    # right, so the NAC no longer holds) — is not re-derivable, and its `why` stays
+                    # `(given)`. For that class capture provenance FORWARD (`run_bank(…, provenance=True)`),
+                    # which journals the justification at firing time, while the body still held.
                     from .provenance import rule_support_j as _rule_support_j
                     rel = _find_fact_relnode(fact_g, s_id, hp, o_id, scope=scope)
                     if rel is not None and _rule_support_j(fact_g, rel) is None:

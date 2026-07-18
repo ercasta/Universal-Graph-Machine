@@ -1029,58 +1029,7 @@ def _head_pred(rule: Rule) -> str | None:
 # WILDCARD every `P`-NAC depends on. This only REFINES deps (never adds a cycle), so it is safe for
 # every bank; where a predicate always uses one object (planning's `?o viable <yes>`) it collapses
 # to the old name-keying. Cures the copula `is`-overload false cycle without hardcoding `is`.
-_WILD = object()   # sentinel: a producer with a variable object (a wildcard for any NAC on its pred)
-
-
-def _prod_key(pat: Pat):
-    """The producer key a head pattern registers: `(pred, obj)`, or `(pred, _WILD)` for a variable
-    object. Uniform over all predicates — no relation name is special-cased."""
-    return (pat.p, _WILD if _is_var(pat.o) else literal_name(pat.o))
-
-
-def stratify(rules: list[Rule]) -> list[list[Rule]]:
-    """Partition `rules` into strata so a rule's NAC is evaluated only AFTER every
-    rule that could PRODUCE the negated predicate has reached fixpoint.
-
-    This is Datalog's stratified negation (vision §11), the static-analysis cure for
-    the order-dependence of NAC over a *derived* fact (e.g. `serve_regular`'s
-    `is not urgent` must see the `mark`-derived `is urgent`). Positive dependencies
-    need no stratum — same-stratum forward chaining resolves them. Keyed OBJECT-AWARE on
-    `(pred, literal-obj)` (`_prod_key`) — uniformly, no relation name special-cased — so `P young`
-    and `P rough` don't falsely cycle. Sound (it only ever delays, never reorders wrongly). Raises
-    if negation is cyclic. The scheduler stays dumb (vision §6): within a stratum every rule fires.
-    """
-    producers: dict = {}
-    for i, r in enumerate(rules):
-        if r.rhs:
-            producers.setdefault(_prod_key(r.rhs[0]), set()).add(i)
-
-    def nac_deps(pat: Pat) -> set[int]:
-        if _is_var(pat.o):                               # variable-obj NAC: all producers of pred
-            return set().union(*(v for k, v in producers.items() if k[0] == pat.p), set())
-        return (producers.get((pat.p, literal_name(pat.o)), set())
-                | producers.get((pat.p, _WILD), set()))
-
-    memo: dict[int, int] = {}
-
-    def stratum(i: int, stack: tuple[int, ...]) -> int:
-        if i in memo:
-            return memo[i]
-        if i in stack:
-            raise ValueError("rules are not stratifiable (negation cycle)")
-        deps = set().union(*(nac_deps(pat) for pat in rules[i].nac)) \
-            if rules[i].nac else set()
-        deps.discard(i)                                  # self-NAC (idempotency) is fine
-        s = 1 + max((stratum(d, stack + (i,)) for d in deps), default=-1)
-        memo[i] = s
-        return s
-
-    for i in range(len(rules)):
-        stratum(i, ())
-    layers: dict[int, list[Rule]] = {}
-    for i, s in memo.items():
-        layers.setdefault(s, []).append(rules[i])
-    return [layers[s] for s in sorted(layers)]
+from ..production_rule import _WILD, _prod_key, stratify  # noqa: E402  (moved; re-exported)
 
 
 def lint_stratifiable(rules: list[Rule], *, source: str = "<bank>") -> None:

@@ -767,3 +767,117 @@ def test_banded_and_crisp_who_agree_on_certain_facts():
         warnings.simplefilter("ignore")
         assert (ask_goal(g, "who is_a ast_call", rules)
                 == ask_goal(g, "who is_a ast_call", rules, policy=_banded()))
+
+
+# --- #18: run_bank must stratify — negation over a DERIVED fact was silently wrong, and permanent --
+
+_PROC_BANK = ("?st unmet_at ?i when ?st is_a step and ?st at ?i and ?st wants ?x "
+              "and not ?o is_a observation and not ?o at ?i and not ?o text ?x\n"
+              "?p satisfied yes when ?p is_a procedure "
+              "and not ?st unmet_at ?i and not ?st of_procedure ?p")
+
+
+def _procedure_world():
+    # the expectation is NOT met: o0 is at i0 but says 'bob', while st0 wants 'hello_bob'
+    g = h.Graph(); ids = {}
+    n = lambda x: ids.setdefault(x, ids.get(x) or g.add_node(x))
+    g.add_relation(n("report"), "is_a", n("procedure"))
+    g.add_relation(n("st0"), "is_a", n("step"))
+    g.add_relation(n("st0"), "of_procedure", n("report"))
+    g.add_relation(n("st0"), "at", n("i0"))
+    g.add_relation(n("st0"), "wants", n("hello_bob"))
+    g.add_relation(n("o0"), "is_a", n("observation"))
+    g.add_relation(n("o0"), "at", n("i0"))
+    g.add_relation(n("o0"), "text", n("bob"))
+    return g
+
+
+def test_run_bank_stratifies_negation_over_a_derived_fact():
+    # `satisfied` negates `unmet_at`, which the SAME bank derives. Flat evaluation could conclude
+    # `satisfied` before `unmet_at` existed — and monotonicity makes that wrong answer permanent.
+    rules = load_machine_rules(_PROC_BANK)
+    g = _procedure_world(); h.run_bank(g, rules)
+    assert [t for t in h.derived_triples(g) if t[1] == "unmet_at"] == [("st0", "unmet_at", "i0")]
+    assert [t for t in h.derived_triples(g) if t[1] == "satisfied"] == []      # was ['yes'] — WRONG
+
+
+def test_run_bank_and_demand_engine_agree_on_derived_negation():
+    # The forward/demand disagreement this closed: the demand chain was always right here (a NAF
+    # subgoal closes the negative's positive first), so the engines now give the same verdict.
+    rules = load_machine_rules(_PROC_BANK)
+    g = _procedure_world(); h.run_bank(g, rules)
+    forward_satisfied = bool([t for t in h.derived_triples(g) if t[1] == "satisfied"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        demand = ask_goal(_procedure_world(), "is report satisfied yes", rules)
+    assert forward_satisfied is False
+    assert demand == ["no (assumed)"]
+
+
+def test_stratify_orders_a_producer_before_its_positive_consumer():
+    # The bug that made auto-stratification unsafe until now: `stratify` ranked rules by NEGATED
+    # dependencies only. A producer pushed into a later stratum than its positive CONSUMER starved
+    # that consumer — it reached fixpoint before the fact it needed existed, and nothing re-ran it.
+    from ugm.production_rule import Rule, Pat, stratify
+    d = Rule(key="D", lhs=[Pat("?y", "is_a", "other")], rhs=[Pat("?y", "z", "yes")])
+    b = Rule(key="B", lhs=[Pat("?x", "is_a", "seed")],      # NAC over D's head -> D must precede B
+             nac=[Pat("?x", "z", "yes")], rhs=[Pat("?x", "tag", "yes")])
+    a = Rule(key="A", lhs=[Pat("?x", "tag", "yes")], rhs=[Pat("?x", "out", "yes")])   # consumes B
+    layers = [{r.key for r in layer} for layer in stratify([a, b, d])]
+    assert layers.index(next(l for l in layers if "D" in l)) < \
+           layers.index(next(l for l in layers if "B" in l))          # negated dep: strictly earlier
+    assert next(l for l in layers if "A" in l) == next(l for l in layers if "B" in l)  # positive: together
+
+    g = h.Graph(); g.add_relation(g.add_node("s"), "is_a", g.add_node("seed"))
+    h.run_bank(g, [a, b, d])
+    assert [t for t in h.derived_triples(g) if t[1] == "out"] == [("s", "out", "yes")]
+
+
+def test_stratify_falls_back_rather_than_rejecting_a_cyclic_bank():
+    # A dependency cycle through a negated edge is strictly unstratifiable, but ugm banks contain
+    # them and both engines cope. `stratify` must not newly REJECT such a bank — it degrades to the
+    # historical NAC-only ordering. (The real corpus banks exercise this; here, directly.)
+    from ugm.production_rule import Rule, Pat, stratify
+    p = Rule(key="P", lhs=[Pat("?x", "a", "yes")], rhs=[Pat("?x", "b", "yes")])
+    q = Rule(key="Q", lhs=[Pat("?x", "b", "yes")], nac=[Pat("?x", "c", "yes")],
+             rhs=[Pat("?x", "a", "yes")])                  # a -> b -> a, with a negated edge
+    layers = stratify([p, q])
+    assert sum(len(l) for l in layers) == 2                # every rule still scheduled, no raise
+
+
+def test_run_bank_stratified_false_keeps_the_raw_primitive():
+    rules = load_machine_rules(_PROC_BANK)
+    g = _procedure_world(); h.run_bank(g, rules, stratified=False)
+    assert [t for t in h.derived_triples(g) if t[1] == "satisfied"]   # the old flat (wrong) result
+
+
+# --- #19: a SELF-EXTINGUISHING rule needs provenance captured FORWARD --------------------------------
+#
+# Not a bug — a real limit of the #15 backfill, worth pinning. The backfill records what the demand
+# chain can RE-DERIVE; a rule whose effect falsifies its own body (every repair rule) cannot be.
+
+_REPAIR = "?p repaired yes when ?p is_a line and not ?p ok yes"
+
+
+def _broken_line():
+    g = h.Graph()
+    g.add_relation(g.add_node("l1"), "is_a", g.add_node("line"))
+    return g
+
+
+def test_self_extinguishing_rule_needs_forward_provenance():
+    from ugm import rule_support_j
+    rules = load_machine_rules(_REPAIR + "\n?p ok yes when ?p repaired yes")   # effect kills the NAC
+
+    # FORWARD with provenance=True: the justification is journaled while the body still held.
+    g = _broken_line(); h.run_bank(g, rules, provenance=True)
+    rel = next(r for r in g.nodes() if g.has_key(r, "repaired"))
+    assert rule_support_j(g, rel) is not None                # the derivation is on the record
+
+    # The backfill alone cannot reconstruct it: once `ok yes` holds, the rule's own NAC blocks it, so
+    # a later demand re-derives nothing and `why` has nothing to attach.
+    g2 = _broken_line(); h.run_bank(g2, rules)               # provenance OFF -> nothing recorded
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        lines = ask_goal(g2, "why l1 repaired yes", rules)
+    assert "(given)" in lines[0]                            # the documented limit, pinned

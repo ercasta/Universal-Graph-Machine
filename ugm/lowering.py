@@ -560,10 +560,42 @@ def _lower_bank_rule_uncached(rule: Rule, control_preds: frozenset[str], *, guar
             nac_progs, rule.bound_names(), prem_regs, head_regs)
 
 
+def _strata_for(rules: list[Rule]) -> list[list[Rule]]:
+    """`stratify(rules)`, or a single flat stratum when the bank's negation is CYCLIC. A driver must
+    not acquire a new failure mode: an unstratifiable bank keeps its historical flat behaviour here and
+    is reported where reporting belongs (`run_rules`' degradation warning,
+    `authoring.lint_stratifiable` at load)."""
+    from .production_rule import stratify
+    try:
+        return stratify(list(rules))
+    except ValueError:
+        return [list(rules)]
+
+
 def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
              tools: dict | None = None, control_preds: frozenset[str] = frozenset(),
-             provenance: bool = False) -> int:
-    """Forward-chain `rules` over `ag` (in place) to fixpoint — the ISA forward driver at BANK level
+             provenance: bool = False, stratified: bool = True) -> int:
+    """Forward-chain `rules` over `ag` (in place) to fixpoint, STRATUM BY STRATUM — the ISA forward
+    driver at BANK level.
+
+    STRATIFIED NEGATION IS APPLIED HERE (feedback #18). A rule whose `not` ranges over a predicate
+    ANOTHER rule in the same bank derives must not be decided before that rule reaches fixpoint —
+    otherwise the NAC reads a not-yet-derived absence, fires, and because the graph is MONOTONE the
+    wrong conclusion is permanent (nothing retracts it). `run_bank` used to evaluate every rule in one
+    flat round loop, so `?p satisfied yes when … and not ?st unmet_at ?i` could conclude `satisfied`
+    before `unmet_at` was derived — a silently wrong, unretractable answer, and a DISAGREEMENT with the
+    demand engine, which decides the same bank correctly by construction (a NAF subgoal closes the
+    negative's positive first). It now partitions the bank with `stratify` and runs each stratum to
+    fixpoint in order, which is what `run_rules` has always done one level up — the two forward entry
+    points no longer differ in whether negation is sound.
+
+    A single-stratum bank (the overwhelmingly common case, and every per-layer call from `run_rules`)
+    takes the identical path it always did. `stratified=False` opts out for a caller that has already
+    stratified and wants the raw one-stratum primitive. A bank with CYCLIC negation cannot be stratified;
+    rather than introduce a new failure mode in a driver, it falls back to the flat run (`run_rules`
+    degrades with a warning, and `authoring.lint_stratifiable` already rejects such banks at load).
+
+    Per stratum: match every rule on the current graph, suppress already-fired bindings (keyed over
     (the recognition/control engine, the forward face of the re-host, replacing `rewriter.run`).
     Each round: match every rule on the current graph, suppress already-fired bindings (keyed over
     the rule's LHS binders — the `fired` set that terminates recursive rules), apply the match-time
@@ -581,6 +613,13 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
     relations gets a `<j:RULEKEY>` node with `proves`->each new fact and `uses`->each LHS premise it
     matched (provenance.py). J/proves/uses nodes are inert (their NAMEs), so a later round skips them
     in matching — hence provenance forces `skip_inert` ON from the start (the J's it mints accrue)."""
+    if stratified:
+        strata = _strata_for(rules)
+        if len(strata) > 1:                    # negation over a DERIVED predicate — order matters
+            return sum(run_bank(ag, layer, max_rounds=max_rounds, tools=tools,
+                                control_preds=control_preds, provenance=provenance,
+                                stratified=False)
+                       for layer in strata)
     # Skip provenance-inert nodes in matching (cf. rewriter._match) when the graph already carries
     # provenance OR this run will MINT it — a fresh recognition graph with provenance OFF pays nothing
     # (common path); a graph that reasoned (e.g. `normalize_surface`'s `<j:…>`/`uses`) or a provenance
