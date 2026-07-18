@@ -12,6 +12,71 @@ this log is itself a historical record.
 
 ---
 
+## 2026-07-18 (Learning arc + the real-corpus redirect; 683 green)
+
+### The arc: a rule that writes a rule, and elimination that judges it
+Design `design/learning_design.md`; spikes in `bench/spike_rule_learning.py`,
+`spike_predicate_reification.py`, `spike_k2_intersection.py`, `spike_discriminating_question.py`.
+Built: **S1** loudness for the fact-shaped reader (`rule_graph._atom_defect` — three prior failure
+modes: a missing endpoint raised a bare `IndexError`, a DUPLICATED endpoint silently kept the first
+and dropped the rest, a non-relation middle silently yielded `Pat('','','')`); **S1b** the same for
+the FLAT reader (`authoring.flat_rule_defects`, called from `expand_rules`) — S1 had hardened the
+schema learning does NOT use; **S3a** predicate reification; **S5** the learner (`ugm/learner.py`);
+**S6** discrepancy → learning + `ugm/licensing.py`. `tests/test_rule_fragment_loudness.py`,
+`test_learner.py`, `test_learned_support.py`, `test_licensing.py`.
+
+KEY FINDINGS (each cost a spike):
+- **Two rule reifications exist and only the FLAT one is learner-writable.** An RHS cannot NAME the
+  relation node it creates, so it can never wire the fact-shaped `rule --lhs--> relnode`.
+- **Writing a bound RELATION NODE as an object never reaches fixpoint** — a pattern's subject is
+  FOLLOW-in from its relation node, so the new edge also binds as that pattern's subject: +1
+  binding per round, stopped only by fuel, silently producing garbage. Not fixed by `control_preds`
+  nor `provenance`. NOT learning-specific — a general consequence of reified relations.
+- **Tools are serviced only at QUIESCENCE**, so a runaway starves the dispatcher; termination must
+  be structural, never a guard depending on the tool's own output.
+- **S3a: to attach metadata to a relation node, use a VALUED attribute + a declared `ValueMatch`,
+  NEVER an edge.** Measured: an edge is readable-and-polluting or (inert) invisible to the reader
+  too — no flag setting works. An attribute is not an edge, so `FOLLOW` never traverses it.
+- **The numeric confidence channel is DEAD engine-wide** — `Rule.probability` is read by nothing
+  (1.0/0.5/0.1 give an identical graph) and `CONF` is written but only ever EXCLUDED. So "born
+  hedged" was re-grounded on query-time provenance (`ugm/learned.py`), verdict vocabulary unchanged.
+- **Licensing is ELIMINATION, not counting** (`spike_k2_intersection.py`): k=1 leaves both
+  directions of a regularity, k=2 refutes one, with the substrate's own `contradictions()` giving
+  the reason. But **the bootstrapping paradox**: with no declared constraint NOTHING is refutable,
+  and counting cannot help because the bad rule has the SAME support as the good one.
+- **The discriminating question is DERIVABLE** (`spike_discriminating_question.py`): instantiate each
+  candidate's BODY as a critical instance, run every candidate on it, and where predictions differ
+  you have both the question and the hypotheses it splits. `suppose(commit=False)` agrees with the
+  forward run and is the production home — as a CHECK of a known head, never an enumerator.
+
+### Intake — surface normalization wired onto the FACT path
+`authoring._recognize` now runs `surface_forms`/`normalize_surface` (memoized via
+`_surface_strata`), which the QUESTION and loose-rule paths already did. `the lion is a cat` and
+multi-word noun phrases now fold. 7.1 → 11.2 ms/utterance.
+`tests/test_intake_surface_facts.py`, which also PINS two silent defects: an undeclared verb with a
+preposition ROUTES as a fact and folds to `('lives','is','lion')`, and an unrecognized line can
+still leave a partial fact behind.
+
+### The real-corpus test, and the redirect
+`bench/spike_loudon.py` + `loudon_lion_corpus.py` — 50 VERBATIM sentences of Mrs. Loudon's
+*Entertaining Naturalist*, fixed contiguous span, every sentence recorded (the translator is an LLM
+and would otherwise bias the coverage figure). Real prose is **26% facts**; intake was **0%**,
+**79% routed** after the wiring fix. Real data also found a bug green tests had missed: `<mention>`
+leaked into learned rules, because the SCAFFOLD filter was predicate-based and the coref marker
+lives in the OBJECT slot — the toy fixtures never went through `ingest`.
+
+**THE RESULT THAT RE-POINTS THE PLAN: partial intake coverage is NOT neutral.** Exceptions are
+LINGUISTICALLY MARKED ("without any mane", "no", "unlike"), which is exactly what a bare S-P-O form
+bank drops. The corpus states a generalization AND its exception; the learner proposed the
+generalization and the exception never reached the KB. So a partial parser loses the EXCEPTIONS and
+keeps the GENERALIZATIONS, biasing everything downstream toward confident over-generalization.
+=> INTAKE BEFORE MORE LEARNING. Next task: the **homoiconic-grammar** spike
+(`design/homoiconic_grammar.md`) — express the grammar in CNL and interpret it with rules, as the
+project already does for word classes; the crux to settle is AMBIGUITY versus the vision's
+no-branch-selection commitment (proposed answer: refuse and ask, not select).
+
+---
+
 ## 2026-07-16 (Procedures Slice 1 — the stepping bank; 569 green)
 
 ### `corpus/procedure.cnl` — procedures as a pre-made plan on the existing gate

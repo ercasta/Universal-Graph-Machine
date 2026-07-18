@@ -228,6 +228,24 @@ def _coref_propagation(graph: Graph) -> list[Rule]:
     return same_as_rules(sorted(preds))
 
 
+_SURFACE_STRATA_MEMO: dict[tuple[str, ...], list] = {}
+
+
+def _surface_strata(forms: list[Rule]) -> list:
+    """`surface_forms(form_keywords(forms))`, memoized on the bank's key signature.
+
+    The banks are stable and treated as frozen everywhere else (cf. the `load_machine_rules` memo),
+    and rebuilding cost ~1.2ms on every `_recognize` — invisible per utterance, but `_recognize` is
+    called constantly across a batch load and a test suite."""
+    sig = tuple(r.key for r in forms)
+    hit = _SURFACE_STRATA_MEMO.get(sig)
+    if hit is None:
+        from .forms import form_keywords, surface_forms
+        hit = surface_forms(form_keywords(forms))
+        _SURFACE_STRATA_MEMO[sig] = hit
+    return hit
+
+
 def _recognize(graph: Graph, sentences: list[str], forms: list[Rule]) -> list[str]:
     """Tokenize `sentences` into `graph` and recognize them on the ISA FORWARD driver `run_bank`.
 
@@ -244,7 +262,21 @@ def _recognize(graph: Graph, sentences: list[str], forms: list[Rule]) -> list[st
     NAC-guard scaffolding consumed DURING recognition (real yes-facts use the inert `<yes>`), so they
     must not persist — and `run_bank` MINTs a FRESH `yes` per firing (label-less: two same-named nodes
     are two), which `wire_same_as` would otherwise coref-link spuriously. Returns the anchor ids."""
-    anchors = [tokenize(graph, s) for s in sentences]
+    # SURFACE NORMALIZATION ON THE FACT PATH (2026-07-18). The determiner/noun-phrase bank
+    # (`surface_forms`) was already applied on the QUESTION path (`cnl/query.py`) and the loose-rule
+    # path, but not here — so `the lion is a cat` was unrecognized while `lion is a cat` folded, and
+    # a multi-word noun phrase never decomposed. Measured on a real book corpus
+    # (`bench/spike_loudon.py`): those two gaps alone accounted for 63 points of intake coverage,
+    # 0% -> 63%, and dropping those sentences was NOT neutral — exceptions are linguistically marked
+    # ("without a mane"), so a partial parser loses exceptions and keeps generalizations.
+    # The forms already existed; only the wiring was missing.
+    from .forms import normalize_surface
+    strata = _surface_strata(forms)
+    anchors = []
+    for s in sentences:
+        anchor = tokenize(graph, s)
+        normalize_surface(graph, anchor, strata)
+        anchors.append(anchor)
     run_bank(graph, forms)
     # DECLARATION-BEFORE-USE for declared relations (closing the batch-loader gap noted in
     # test_contract / docs/handoff_redesign.md). A line `R is a relation` is recognized by the pass

@@ -20,7 +20,51 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## Current focus (re-pointed 2026-07-16 — Phase 8's engine side is COMPLETE)
+## Current focus (re-pointed 2026-07-18 — INTAKE GRAMMAR, ahead of more learning)
+
+**NEXT TASK: the HOMOICONIC GRAMMAR spike (`design/homoiconic_grammar.md`).** Wall-first, as with
+every slice of the learning arc.
+
+Why this and not the next learning slice — a real-corpus test redirected the plan. The learning arc
+landed (S1, S1b, S3a, S5, S6; `design/learning_design.md`), and was then run against 50 verbatim
+sentences of a real natural-history book (`bench/spike_loudon.py`, `bench/loudon_lion_corpus.py`).
+Three results, in ascending order of importance:
+
+1. **Real prose is 26% facts.** 13/50 sentences assert anything extractable; the rest is anecdote,
+   quoted narrative, hedged attribution. That is the SOURCE's property, not a defect.
+2. **Intake was 0%, and it was a WIRING gap.** `surface_forms` (determiner stripping + noun-phrase
+   decomposition) ran on the question path and the loose-rule path but never on the FACT path.
+   Wiring it into `authoring._recognize` took routed coverage 0% → 79%; 7.1 → 11.2 ms/utterance
+   after memoizing the strata. `tests/test_intake_surface_facts.py`.
+3. **PARTIAL INTAKE COVERAGE IS NOT NEUTRAL — this is what re-points the plan.** Exceptions are
+   LINGUISTICALLY MARKED ("without any mane", "no", "unlike", "except"), and those are exactly the
+   constructions a bare S-P-O form bank drops. The corpus states a real generalization (lions have
+   manes) AND its real exception (the Lion of Guzerat has none); the learner proposed the
+   generalization and the exception never reached the KB, because that sentence is the one that
+   would not parse. A partially-covering parser does not lose sentences at random: it loses the
+   EXCEPTIONS and keeps the GENERALIZATIONS, biasing everything downstream toward confident
+   over-generalization.
+
+So more learning machinery on top of partial intake produces optimistically-biased results, and the
+defeasible-exception work has no data to run on. **Intake first.**
+
+And 79% is ROUTING, not correctness — two silent defects are pinned as tests:
+`the lion lives in africa` ROUTES as a fact and folds to `('lives','is','lion')` (an undeclared verb
+absorbed by NP-decomposition — worse than the unrecognized case it replaced), and
+`the guzerat lion has no mane` is unrecognized yet still writes `lion is guzerat` (an unrecognized
+line is not inert, and the dropped part is the negation). Both are the "quietly does something
+wrong" class that S1/S1b spent the session eliminating — which is the argument for the grammar.
+
+### Then (unblocked, in the learning arc)
+- **§7.3 rule revision** + the **defeasible-exception model** (user-agreed: refutation should record
+  an exception, not delete a good rule). Blocked on intake for DATA, not for mechanism.
+- **Promotion by survival** — counting survived/failed discriminating questions as rule attributes
+  (user's idea; auditable, unlike frequency). Decide defeasible-vs-fatal refutation FIRST, or the
+  fatal model gets baked in.
+- **S2/S2b/S2c** — the dialogue surfaces (Caveman CNL T1, the T3 alignment spike, and the
+  discriminating question, which is the bootstrapping engine and serves both halves of the arc).
+
+## Current focus (SUPERSEDED — re-pointed 2026-07-16, Phase 8's engine side is COMPLETE)
 
 Every substrate-side arc that was in flight is now closed (see CHANGELOG 2026-07-16 entries and the
 per-arc docs): mechanism/policy BOTH AXES (incl. the discriminator audit), the possibilistic layer

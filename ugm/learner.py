@@ -134,6 +134,23 @@ COOCCURRENCE = Rule(
 LEARNER_BANK: list[Rule] = [REIFY, COOCCURRENCE]
 
 
+# A DISCREPANCY invokes learning on the step that failed (S6). `discrepancy` is already a fact the
+# planner derives (corpus/procedure.cnl) — "this step reported done but its effect never
+# materialized" — so failure becomes a learning trigger with one rule and no new signal.
+#
+# THIS IS A TRIGGER, NOT A LEARNER, AND ON ITS OWN IT IS NOT ENOUGH. Measured: generalizing from a
+# failed step ALONE yields 12 candidates, all junk ("anything done has a discrepancy"), because one
+# failure has no CONTRAST — everything true of the failed step looks equally implicated. Contrast
+# with a succeeded step refutes a third of them (`ugm/licensing.py`), and the remainder are
+# genuinely undecidable on that evidence: closing THAT gap is the discriminating question. So use
+# this with `licensing.refute` and expect to still be asking.
+DISCREPANCY_TRIGGER = Rule(
+    key="learn.on_discrepancy",
+    lhs=[Pat("?o", "discrepancy", "?e")],
+    rhs=[Pat("?o", OBSERVE, "<observed>?")],
+)
+
+
 # ---------------------------------------------------------------------------
 # The entry point
 # ---------------------------------------------------------------------------
@@ -167,7 +184,7 @@ def learn(graph: AttrGraph, *, max_rounds: int = 80, dedupe: bool = True) -> lis
     them is idempotent rather than lossy (§5.2)."""
     prepare(graph)
     run_bank(graph, LEARNER_BANK, max_rounds=max_rounds, tools={TOOL_NAME: pred_tok_tool})
-    rules = [r for r in expand_rules(graph) if r.learned]
+    rules = [r for r in expand_rules(graph) if r.learned and not _touches_scaffolding(r)]
     if not dedupe:
         return rules
     out, seen = [], set()
@@ -179,6 +196,19 @@ def learn(graph: AttrGraph, *, max_rounds: int = 80, dedupe: bool = True) -> lis
         seen.add(shape)
         out.append(r)
     return out
+
+
+def _touches_scaffolding(rule: Rule) -> bool:
+    """Does any slot of `rule` mention a reserved `<…>` token?
+
+    The SCAFFOLD predicate list is not sufficient on its own, and real data is what showed it: the
+    coreference layer marks entities `is_a <mention>`, whose PREDICATE (`is_a`) is perfectly
+    ordinary and whose scaffolding lives in the OBJECT. Learning over a graph built by `ingest`
+    therefore proposed `?x is_a <mention> when …` until this filter existed. The toy fixtures never
+    caught it because they were built with raw `add_relation` and never went through intake —
+    a reminder that hand-built fixtures agree with whatever you assumed while building them."""
+    return any(t.startswith("<") and t.endswith(">")
+               for p in list(rule.lhs) + list(rule.rhs) for t in p.tokens())
 
 
 def accept(existing: list[Rule], learned: list[Rule]) -> tuple[list[Rule], list[Rule]]:

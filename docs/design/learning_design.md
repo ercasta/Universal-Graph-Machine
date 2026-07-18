@@ -451,6 +451,33 @@ Gated on §4: a discrepancy is *about* an observed predicate, so a learner over 
 predicate vocabulary fixed at authoring time. (This corrects an earlier reading in which this
 loop looked independent of the primitive.)
 
+### 7.2a What S6 measured (partly negative, and the useful part is a new concept)
+
+**Learning from a failure ALONE is useless.** Generalizing from the failed step produced **12
+candidates, all junk** — `?x done yes => ?x discrepancy hot_coffee` ("anything completed has a
+discrepancy"), `?x add hot_coffee => ?x excluded yes`. The reason is structural: **one failure has
+no contrast**, so everything true of the failed step looks equally implicated. A trigger alone was
+never going to be enough, and it is worth saying so plainly rather than shipping the trigger and
+calling §7.2 done.
+
+**Contrast with a SUCCEEDED step eliminates part of it: 12 → 8.** The catastrophic ones die, and
+the genuinely useful `discrepancy => excluded` survives. The 8 that remain are *honestly*
+undecidable on that evidence — `microwave` is both `done` and `add hot_coffee`, so those two
+instances cannot separate the two directions. Closing that needs an instance that is `done`
+WITHOUT `add hot_coffee`: exactly what the discriminating question (§6.2c) asks for. This is the
+third independent place the same eliminative shape has appeared.
+
+**THE NEW CONCEPT: completeness.** Elimination by over-prediction needs to know which entities are
+FULLY DESCRIBED (`licensing.mark_complete` / the `fully_described` marker). Deriving a new fact
+about a novel entity is the POINT of a rule (`robin flies`); deriving a new fact about an entity we
+already know everything about is a false prediction. **Without the qualifier the two are
+indistinguishable and elimination cannot run at all** — the same shape as §6.2b's bootstrapping
+paradox, where refutation needed declared constraints a sparse KB lacks. Pinned by a test: with no
+complete entity, `refute` refutes NOTHING and says so, rather than silently passing everything.
+
+**Separation kept:** `learner.py` proposes and never judges; `licensing.py` judges and never ranks
+or promotes. A survivor is merely *unrefuted*.
+
 ### 7.3 Rule revision from broken assumptions
 
 Already-built machinery, new subject: when `broken_assumption` fires on a conclusion whose
@@ -587,7 +614,58 @@ Ordered so each lands green and nothing waits on an unbuilt primitive:
   learner+learned coexist with no runaway; a conclusion on a learned rule reports provisional.
   Gate note, checked while building: `stratify` refuses MUTUAL negation; a one-way negative
   dependency stratifies fine, and a rule NACing its own head is accepted (the fire-once idiom).
-- **S6 — Discrepancy → learned rule (§7.2)** and **revision (§7.3).** The loop closes.
+- **S6 — Discrepancy → learned rule (§7.2). DONE 2026-07-18** — `learner.DISCREPANCY_TRIGGER` +
+  `ugm/licensing.py`, `tests/test_licensing.py` ×8, suite **673 green**. See §7.2a for the
+  measured result, which is partly negative. **Revision (§7.3) remains open.**
+
+## 10a. THE REAL-CORPUS RESULT — and why it re-points the plan (2026-07-18)
+
+> `bench/spike_loudon.py` + `bench/loudon_lion_corpus.py` — 50 VERBATIM consecutive sentences of
+> Mrs. Loudon's *Entertaining Naturalist*. Everything before this was measured on 2–4 hand-built
+> entities, and three slices in a row had ended with "the remainder is undecidable on this
+> evidence": the instrument was exhausted.
+
+**Protocol matters here.** The translator is an LLM, which would otherwise keep the sentences that
+parse and drop the ones that do not, making any coverage figure meaningless. So: the span is FIXED
+and CONTIGUOUS and was chosen before translating; EVERY sentence is recorded with its verbatim
+text; a sentence yielding no CNL records WHY and stays in the list.
+
+| measurement | result |
+|---|---|
+| translatability (sentences asserting an extractable fact) | **26%** (13/50) — the rest is anecdote, quoted narrative, hedged attribution |
+| intake coverage, before | **0%** |
+| intake coverage, after wiring `normalize_surface` into the fact path | **79% routed** |
+| cost | 7.1 → 17.7 ms/utterance, back to **11.2** after memoizing the strata |
+
+**Two bugs found by real data that green tests had missed:**
+
+- **`<mention>` leaked into learned rules** (`?x is_a <mention>`). The SCAFFOLD filter was
+  PREDICATE-based, but the coref layer marks entities `is_a <mention>` — ordinary predicate,
+  scaffolding in the OBJECT slot. Fixed (`learner._touches_scaffolding`). The §5 tests missed it
+  because they build graphs with raw `add_relation` and never go through `ingest`. **Hand-built
+  fixtures agree with whatever you assumed while building them.**
+- **79% is ROUTING, not correctness.** `the lion lives in africa` ROUTES as a fact and folds to
+  `('lives','is','lion')`; `the guzerat lion has no mane` is unrecognized yet still writes
+  `lion is guzerat`. Both pinned as tests so a fix flips them loudly.
+
+### The finding that re-points the plan
+
+**Partial intake coverage is NOT neutral.** The corpus states a real defeasible generalization
+(lions have manes) AND its real exception — *"the Lion of Guzerat is of a reddish brown, WITHOUT ANY
+MANE"*. The learner proposed `?x has mane when ?x is_a lion`, and the exception is ABSENT from the
+KB, because that sentence is exactly the one the grammar could not parse (negation).
+
+This is systematic, not luck. **Exceptions are linguistically marked** — *without, no, unlike,
+except, only…that* — and those are precisely the constructions a bare S-P-O form bank drops. A
+partially-covering parser loses the EXCEPTIONS and keeps the GENERALIZATIONS.
+
+**Consequences for this design:**
+
+- Every learning result over real prose is optimistically biased while the intake gaps stand.
+- §6.1's defeasible-exception work has no data to run on — the exceptions never get in.
+- Therefore INTAKE comes before further learning machinery. Next task is the homoiconic-grammar
+  spike (`homoiconic_grammar.md`), whose central argument is the same loudness discipline as §9:
+  the current failure mode is a form bank GUESSING rather than REFUSING.
 
 ## 11. Open (named, not forgotten)
 
