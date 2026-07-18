@@ -13,10 +13,11 @@ from .attrgraph import AttrGraph, AttrNode, Attr, GRADED, VALUED
 from .machine import (
     Machine, State, run_program,
     SEED, FOLLOW, JOIN, TEST, GRADE, FUZZY, MINT, EMIT, DROP_CTRL, SET, DUP, SAME,
-    RETIRE, ITERATE,
+    RETIRE, ITERATE, RECALL,
     Instr, ControlEdgeError, ProgramError, SchemaError,
     T_MIN, T_PROD,
 )
+from .recall import near, cosine, Hit
 from .lowering import (
     to_attrgraph, lower_conj, lower_lhs, lower_graded, lower_rhs,
     lower_propagate, lower_drop,
@@ -132,7 +133,8 @@ __all__ = [
     "AttrGraph", "AttrNode", "Attr", "GRADED", "VALUED",
     "Machine", "State", "run_program",
     "SEED", "FOLLOW", "JOIN", "TEST", "GRADE", "FUZZY", "MINT", "EMIT",
-    "DROP_CTRL", "SET", "DUP", "SAME", "RETIRE", "ITERATE",
+    "DROP_CTRL", "SET", "DUP", "SAME", "RETIRE", "ITERATE", "RECALL",
+    "near", "cosine", "Hit",
     "Instr", "ControlEdgeError", "ProgramError", "SchemaError", "T_MIN", "T_PROD",
     "to_attrgraph", "lower_conj", "lower_lhs", "lower_graded", "lower_rhs",
     "lower_propagate", "lower_drop", "lower_rule", "lower_nac_programs",

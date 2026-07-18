@@ -44,6 +44,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Iterator
 
 from .attrgraph import AttrGraph, Attr, GRADED, VALUED, NAME, CONF
+from .recall import near
 
 
 def _pred_key(attrs: dict) -> str | None:
@@ -202,6 +203,30 @@ class FUZZY(Instr):
     reg: str
     key: str
     threshold: float = 0.0
+
+
+@dataclass
+class RECALL(Instr):
+    """Associative candidate introduction — the WHOLE-VECTOR sibling of FUZZY (recall.py).
+
+    FUZZY seeds by ONE dimension ("find things that are angry"); RECALL seeds by a probe node's
+    ENTIRE sparse embedding ("find things like *this*"), binding `reg` to each node whose cosine
+    similarity to the node in `probe` is >= `threshold`, best first, composing that similarity
+    into `score` by the t-norm. `top_k` truncates after ranking. The probe itself is never
+    recalled. Positive and monotone: a fork over candidates, exactly like SEED — it introduces
+    CANDIDATES for later ops to verify, and concludes nothing on its own.
+
+    EXPLICITLY INVOKED, NEVER AN AUTOMATIC FALLBACK (bench/recall_autofire.py). No SEED or demand
+    lookup silently escalates to RECALL on a miss: under negation-as-failure a miss is not a
+    failure to be rescued, it is the ANSWER ("I looked and found nothing"). An automatic fallback
+    would let every `?x is not cleared` find something merely cleared-ish and flip the negation —
+    so recall is reached only where a program/rule asked for it by name, and its reach stays
+    exactly as wide as an author made it.
+    """
+    reg: str
+    probe: str                   # register holding the node to be similar TO
+    threshold: float = 0.0
+    top_k: int | None = None
 
 
 @dataclass
@@ -504,6 +529,9 @@ class Machine:
                 deg = self._graded_degree(g, nid, ins.key)
                 if deg >= ins.threshold and deg > 0.0:
                     yield st.bind(ins.reg, nid).scaled(deg, self.tnorm)
+        elif isinstance(ins, RECALL):
+            for hit in near(g, st.regs[ins.probe], threshold=ins.threshold, top_k=ins.top_k):
+                yield st.bind(ins.reg, hit.nid).scaled(hit.score, self.tnorm)
         elif isinstance(ins, FOLLOW):
             src = st.regs[ins.src]
             nbrs = g.succ(src) if ins.direction == "out" else g.pred(src)
