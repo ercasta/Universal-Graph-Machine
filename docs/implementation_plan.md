@@ -20,6 +20,54 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
+## ▶ PICK UP HERE (handoff 2026-07-18, suite 706 green, working tree clean of blockers)
+
+**STATE.** The homoiconic grammar arc is spiked, integrated as modules, and validated on a real
+corpus. Integration steps 1 and 3 are DONE; steps 2, 4, 5 remain. Everything below in "Current
+focus" is the narrative; this block is the resume point.
+
+**Where the code is:** `ugm/cnl/grammar.py` (declarations → `Grammar` → `GrammarBanks` → `parse` /
+`parse_batch`), `ugm/interpretation.py` (scope, `denotes`/`interprets`, `discard_scope`,
+`<contradiction>`, `describe`/`intern_described`), grammars as KB files
+(`corpus/lion_grammar.cnl`, `corpus/loudon_grammar.cnl`), tests `tests/test_grammar.py` (24),
+benches `bench/spike_homoiconic_grammar.py`, `bench/spike_interpretation_scope.py`,
+`bench/spike_loudon_grammar.py`. Designs: `design/homoiconic_grammar.md` (READ ITS §0 FIRST — §§8-12
+are spike evidence), `design/surface_interpretation.md`.
+
+**⚠ THE NEXT ACTION NEEDS A DECISION FROM THE USER — ask before building.** Integration step 2
+(wire the grammar as an opt-in intake route) hits the **token/entity duality**: today the token node
+IS the entity (`focus.utterance_subjects`, `anchor_has_content_fact`, `gc_utterance_scaffolding`,
+every `nodes_named` lookup depend on it, and `intern_mentions` maintains it by destructively folding
+same-named mentions). But `interpretation.interpret_mentions` mints a SEPARATE entity node named
+`lion` beside the token also named `lion` — two nodes, one name, ambiguous lookups. Two options:
+
+- **(a) grammar route, DIRECT fold — ~1 hour.** Lexical head is the token itself, no interpretation
+  scope; facts land exactly where they do today so nothing downstream changes. Ships the coverage
+  win (intransitive / negation / comparative / prepositional + REFUSE + ambiguity detection) into
+  production intake. Drops the defeasible-denotation layer. **Recommended** — the hook is one block
+  at `intake.py:462-468` (`_ingest_gen`'s FACT/GOAL/UNRECOGNIZED route), and exercising the grammar
+  from real intake paths should surface more of what step 3 surfaced.
+- **(b) grammar route WITH the interpretation scope — a session or more.** Requires resolving the
+  duality across intake/focus/query, in code with no grammar tests protecting it. NOTE: a middle
+  path (make the representative TOKEN be the entity, so no duplicate names) was explored and
+  collapses back into (b) — it needs a consistent representative across mentions, which is exactly
+  what destructive `intern_mentions` provides today and what the scope is meant to make revisable.
+
+If (a): also decide what an AMBIGUOUS utterance returns — a new `Outcome` kind, or `unrecognized`
+with distinct guidance. It should ultimately become a discriminating question via `can_ask`.
+
+**Alternative if the user prefers not to split the layer:** skip to step 4 (optimization) and return
+to integration once the duality has a plan. Step 4's measured levers: materialize the parse tree
+(slot stage 81.7 → 21.7 ms, 3.8×, MEASURED) and RHS variable predicates (assert bank 86 → ~6 rules;
+**the learning arc wants the same primitive**, `predicates-are-keys`). Note the 29× `load_facts` fix
+below already changed the cost picture — RE-MEASURE before optimizing further.
+
+**Not blocking but owed:** `<contradiction>` derivation is still a local stand-in
+(`interpretation.contradiction_bank`); `consistency_design.md` designs the real one and remains a
+SKETCH. The interpretation loop depends on it. Also `authoring.load_facts` does not strip `#`
+comments though every other CNL loader does (worked around in `grammar.load_grammar`) — fix at
+source.
+
 ## Current focus (re-pointed 2026-07-18 — INTAKE GRAMMAR, ahead of more learning)
 
 **SPIKE DONE 2026-07-18, GREEN — the arc is buildable** (`bench/spike_homoiconic_grammar.py`,
