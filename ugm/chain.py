@@ -73,6 +73,57 @@ class ById:
     node_id: str
 
 
+@dataclass(frozen=True)
+class ByDesc:
+    """A DEFINITE DESCRIPTION endpoint: identify a node the way the ENGINE does — by the relations it
+    stands in — rather than by a name or a raw id (feedback #15, ask 1).
+
+    `ByDesc("c", (("for_step", "s2"),))` denotes *the* node named `c` whose `for_step` is `s2`. The name
+    is optional (`ByDesc(None, …)` describes purely relationally); the constraints are `(predicate,
+    object-name)` pairs on OUTGOING relations.
+
+    This is `_find_skolem_witness`'s own identity law promoted to the query surface, so it introduces no
+    new substrate concept: a rule-MINTED node has no name of its own to be addressed by (N firings share
+    the head's literal name — correctly, since a name is a label and never an identity), but it always
+    has the defining relations it was minted with. Those are what `query._witness_answers` renders when
+    it enumerates same-named witnesses, so an answer's parenthetical feeds straight back in here as the
+    description — enumerate, then ask about one.
+
+    A description that is not DEFINITE is an error, never a silent pick: `resolve_description` raises
+    when it matches zero nodes or more than one (the latter naming how many, so the caller can add a
+    constraint). That is deliberate — silently taking `[0]` is the #8a failure this document is about."""
+    name: str | None = None
+    facts: tuple[tuple[str, str], ...] = ()
+
+
+def resolve_description(fact_g: AttrGraph, desc: "ByDesc") -> str:
+    """The single node `desc` denotes, as a node id. Raises `ValueError` unless exactly one matches."""
+    if desc.name is None and not desc.facts:
+        raise ValueError("ByDesc needs a name or at least one (predicate, object) constraint")
+    cands = (fact_g.nodes_named(desc.name) if desc.name is not None
+             else [n for n in fact_g.nodes()
+                   if not (fact_g.is_control(n) or fact_g.is_inert(n))])
+    for pred, obj in desc.facts:
+        cands = [n for n in cands
+                 if any(fact_g.predicate(rel) == pred and fact_g.name(o) == obj
+                        for rel, o in fact_g.relations_from(n))]
+    described = desc.name or "the node"
+    if desc.facts:
+        described += " (" + ", ".join(f"{p} {o}" for p, o in desc.facts) + ")"
+    if not cands:
+        raise ValueError(f"description {described!r} matches no node")
+    if len(cands) > 1:
+        raise ValueError(
+            f"description {described!r} is not definite — it matches {len(cands)} nodes; "
+            "add a distinguishing (predicate, object) constraint, or pin one with ById")
+    return cands[0]
+
+
+def as_pin(fact_g: AttrGraph, endpoint):
+    """A goal endpoint with any `ByDesc` resolved to the `ById` it denotes; anything else unchanged."""
+    return ById(resolve_description(fact_g, endpoint)) if isinstance(endpoint, ByDesc) else endpoint
+
+
 def validate_ids(fact_g: AttrGraph, *endpoints) -> None:
     """Silent->loud (Phase 8 C): a `ById` endpoint pinning a node that is NOT in the graph is a caller
     bug (a stale/typo'd id), so raise at the boundary rather than seed an empty demand or write a phantom
@@ -1177,6 +1228,27 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                                      for bs, bp2, bo in body])
                         _record_assumptions(fact_g, j, assumed)   # "what was assumed" (decision 6)
                     continue
+                if provenance and _fact_exists(fact_g, s_id, hp, o_id, scope=scope):
+                    # PROVENANCE BACKFILL (feedback #15). Check-before-derive suppresses the EMIT for a
+                    # fact that is already materialized — correct for the FACT (monotone, no duplicate),
+                    # but it also meant the firing's SUPPORT was never recorded, so anything a prior pass
+                    # had already built (a forward `run_bank`, an earlier committing query) could never be
+                    # explained: `why` found the fact present, unproven, and rendered `(given)`. That is
+                    # the real cause of "no provenance over generated code" — NOT the name-degeneracy it
+                    # was filed under. Record the support onto the EXISTING rel node: additive, inert
+                    # (explanation, never a fact), and guarded by "has no rule support yet" so a re-served
+                    # demand does not pile up duplicate justifications.
+                    from .provenance import rule_support_j as _rule_support_j
+                    rel = _find_fact_relnode(fact_g, s_id, hp, o_id, scope=scope)
+                    if rel is not None and _rule_support_j(fact_g, rel) is None:
+                        j = _record(fact_g, rule_key, rel,
+                                    [_find_fact_relnode(fact_g,
+                                                        _node_for_name(fact_g, _ptr(fact_g, st, bs)),
+                                                        bp2, _node_for_name(fact_g, _ptr(fact_g, st, bo)),
+                                                        scope=scope)
+                                     for bs, bp2, bo in body])
+                        if assumed:
+                            _record_assumptions(fact_g, j, assumed)
                 if not _fact_exists(fact_g, s_id, hp, o_id, scope=scope):
                     # EMIT as an ISA program: an ink fact normally, but PENCIL (control + scope tag)
                     # inside a SUPPOSE scope. `dedup` stays OFF — check-before-derive is the scope-aware

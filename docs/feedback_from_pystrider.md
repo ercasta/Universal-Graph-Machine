@@ -600,6 +600,143 @@ shared literal, which for a yes/no policy is always.
 
 ---
 
+> **FIXED (2026-07-18) — both asks built, and the headline symptom turned out to be a THIRD bug.** Your
+> reframing is the right one and we took it: the substrate and the mint behaviour stay exactly as they are;
+> the addressing VOCABULARY was what was missing. (An earlier draft's fabricated-name ask would have re-seated
+> identity in the label — the move the #8 arc spent itself undoing — so rejecting it was correct.)
+>
+> **(1) Definite-description addressing — the preferred ask, built.** `ByDesc(name, ((pred, obj), …))` is a
+> goal endpoint that identifies a node BY ITS RELATIONS: `ByDesc("c", (("for_step", "s2"),))` is *the* `c`
+> whose `for_step` is `s2`. It is `_find_skolem_witness`'s identity law promoted to the query surface, so it
+> adds no substrate concept — `chain.resolve_description` filters the candidates by the described relations
+> and RAISES unless exactly one survives (naming the count, so you know what constraint to add). Never a
+> silent `[0]`-pick.
+>
+> **Enumeration is well-defined again, and it feeds (1).** `who` now answers per WITNESS NODE, not per
+> witness NAME (`query._witness_answers`), disambiguating genuinely-distinct same-named nodes by the
+> outgoing facts their siblings lack: `c (ast_arg world, for_step s2) is_a ast_call`. Each answer is thus
+> *described* though none can be *named* — exactly your (1) — and the parenthetical round-trips straight back
+> in as the `ByDesc`. Enumerate, then ask about one, with no id ever surfacing. Co-named nodes that are ONE
+> coref identity (`_one_identity`) still render as a single line, so no ordinary CNL answer changed shape.
+>
+> **(2) `ById` through the tuple path — also built**, for the programmatic case. `ask_goal` accepts a
+> structured goal `(qtype, s, p, o)` whose endpoints may be names, `ById` pins, `ByDesc` descriptions, or
+> `None` (`query._tuple_query`), and `surface.explain` addresses `ById` endpoints instead of iterating
+> `nodes_named`. Malformed tuples RAISE (arity, unknown qtype, empty predicate, non-endpoint, and a `why`
+> with a free slot — which would otherwise explain whichever fact was found first).
+>
+> **(3) The headline loss was a separate bug, and it is fixed.** `why … (given)` was NOT the name-degeneracy
+> it was filed under — the demand chain threads that rule correctly on a fresh graph. The real cause:
+> check-before-derive suppresses the EMIT for an already-materialized fact (right for the FACT), but the
+> firing's SUPPORT was never recorded either — so anything built by a PRIOR pass (a forward `run_bank`, an
+> earlier committing query) was *permanently* unexplainable. Since you build AST structure with `run_bank`
+> and then ask about it, you would have hit `(given)` no matter how the node was addressed.
+> `chain._solve_demand_rule` now BACKFILLS provenance under `provenance=True`: it records the justification
+> onto the EXISTING rel node, guarded by "has no rule support yet" (additive, inert, no duplicate
+> justifications). This also generalizes the doc-note flagged under #14. *"Why is this line here?"* is now
+> answerable about generated code, including structure built forward.
+>
+> Tests in `tests/test_feedback_fixes.py` (`test_who_enumerates_each_minted_witness`,
+> `test_who_coref_mentions_still_render_once`, `test_tuple_why_over_byid_threads_the_rule`,
+> `test_tuple_goal_supports_who_and_yesno`, `test_tuple_goal_rejects_malformed_loudly`,
+> `test_bydesc_addresses_a_minted_node_structurally`, `test_bydesc_round_trips_from_the_enumeration`,
+> `test_bydesc_that_is_not_definite_raises`). Suite 591 green.
+>
+> Two known edges, neither blocking: `ByDesc` constrains on OUTGOING relations only (an inbound-constraint
+> form is easy to add if you need it); and the BANDED `who` fold still keys answers by name, so a
+> possibilistic session enumerating minted witnesses would want the same treatment.
+
+## 15. The QUESTION surface is name-addressed, but minted nodes are (correctly) nameless-by-design
+
+**The most significant open ask** — it comes from the good news that #2 is fixed. Now that `name?`
+skolem heads mint, we build real AST structure with rules (`experiments/ast_representation.py` in
+pystrider: ordered statements, loop bodies, versioned repairs).
+
+To be clear about where the problem is *not*: the substrate is supposed to be made of **nameless
+nodes**, and `_find_skolem_witness` already states the law — *"a minted node is identified by how it
+relates to the LHS match, not by a raw id or a fabricated name."* We agree with that, and the mint
+behaviour follows it correctly. The gap is one layer up: **the CNL question surface is name-addressed**,
+so it cannot ask about a node whose identity is structural. N minted nodes share one literal name, and
+the question layer has no other handle to offer.
+
+```python
+RULES = "c? is_a ast_call and c? for_step ?s and c? ast_arg ?m when ?s says ?m"
+FACTS = [("s1","says","hello"), ("s2","says","world"), ("s3","says","bye")]
+# ... build g, run_bank(g, rules) ...
+
+g.nodes_named("c")                      # ['n9', 'n14', 'n18']  -- three real, distinct nodes
+ask_goal(g, "who is_a ast_call", rules) # ['c is_a ast_call']   <-- ONE answer for three nodes
+ask_goal(g, "why c ast_arg world", rules)
+                                        # ['c ast_arg world  (given)']  <-- not the derivation
+ask_goal(g, ("why", ById('n14'), "ast_arg", "world"), rules)
+                                        # AttributeError: 'tuple' object has no attribute 'lower'
+```
+
+Three separate problems fall out of the one cause:
+
+- **Enumeration collapses.** `who is_a ast_call` reports a single answer for three nodes, because the
+  answers are rendered by name. There is no CNL-level way to see that three things were built.
+- **No provenance over generated code.** `why c ast_arg world` answers `(given)` rather than threading
+  the rule that minted it. For this project that is the headline loss: the whole value proposition is
+  *derived code you can ask "why is this line here?"* about, and that question is currently unaskable
+  about anything a rule built.
+- **`ById` doesn't reach this path.** It's the documented escape hatch for id-addressing, but
+  `ask_goal` wants a question *string* here, so there's no way to say "why THIS node".
+
+To be fair: ugm is **loud**, not silent — it emits a clear `UserWarning` ("names 'c', which resolves to
+3 distinct nodes… address the intended node by id"). The warning is right, but it points at a remedy
+(intern the name / address by id) that the query API doesn't currently offer for minted nodes.
+
+**Asks, in preference order.** We deliberately are *not* asking for fabricated per-node names (an
+earlier draft of this item did; it contradicts the nameless-substrate law above). The substrate is
+right — the addressing vocabulary is what's missing:
+
+1. **Structural / definite-description addressing in questions.** Let a question identify a node the
+   same way the engine already does — by its relations rather than by a name. Something with the force
+   of *"why does the `emit_call` whose `for_step` is `s2` have `ast_arg world`"*. This is exactly
+   `_find_skolem_witness`'s own identity rule promoted to the query surface, so it needs no new
+   substrate concept, and it makes enumeration (`who is_a ast_call` collapsing to one answer)
+   well-defined again because each answer can be *described* even though none can be *named*.
+2. **`why` / n-ary render over a `ById` endpoint**, so the tuple path can at least address a specific
+   minted node programmatically. Lower-level and less pleasant than (1) — ids are the "raw id" the law
+   warns against — but it would unblock us immediately.
+
+Either unblocks provenance over generated code; (1) is the one we'd build on, and we think it's the
+one consistent with the design.
+
+## 16. Independent NACs — not blocking yet, but the next expected wall
+
+Documented limit: all `not` clauses fold into ONE conjunctive NAC. That happened to be exactly right
+for us — "the first statement of THIS body" needs the conjunction, and the scoped form works:
+
+```
+?c body_first ?l when ?l body_has ?c and not ?x stmt_before ?c and not ?l body_has ?x
+```
+
+(correctly ignoring a statement that precedes `?c` but lives in another scope). But two *independent*
+negations — "is the body head" AND "has not already been emitted" — aren't expressible, and the
+navigate/check/recover loop we're building will want exactly that shape (a guard on progress plus a
+guard on scope). Filing it now as a known-limit heads-up rather than a request; if independent NACs are
+cheap, they'd be welcome.
+
+> **FIXED (2026-07-18).** `run_to_fixpoint`'s docstring now says it takes a lowered ISA program, names the
+> arity failure as the misleading symptom, and points rule-bank callers at `run_bank(ag, rules)`.
+
+## 17. (minor) `run_to_fixpoint` vs `run_bank` — the names invite the wrong call
+
+`run_to_fixpoint(ag, program, keys)` takes a lowered ISA program; running a *rule bank* to fixpoint is
+`run_bank(ag, rules)`. The obvious-sounding call fails on arity, not on type:
+
+```python
+h.run_to_fixpoint(g, h.load_machine_rules(RULES))
+# TypeError: run_to_fixpoint() missing 1 required positional argument: 'keys'
+```
+
+which reads as "you forgot an argument" rather than "you want the other function". A line in the
+docstring pointing rule-bank users at `run_bank` would save the detour.
+
+---
+
 ### Net
 
 The spike succeeded and the model (SUPPOSE + CHAIN over reified semantics, RECORD as the

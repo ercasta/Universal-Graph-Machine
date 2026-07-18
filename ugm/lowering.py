@@ -757,7 +757,12 @@ def run_to_fixpoint(
     """Apply `program` to `ag` (in place) until no NEW firing is possible, reusing the engine's
     fired-suppression: a firing is keyed by its binding over `keys` (the rule's binding-keys),
     and a key already fired is skipped — the analog of `rewriter`'s `fired` set, which is what
-    makes a recursive (e.g. transitive) rule terminate. Returns the number of firings applied."""
+    makes a recursive (e.g. transitive) rule terminate. Returns the number of firings applied.
+
+    Takes a LOWERED ISA PROGRAM, not a rule bank (feedback #17: the names invite the wrong call, and
+    passing a bank fails on arity — "missing argument 'keys'" — which reads as a typo rather than as
+    "you want the other function"). To run a bank of `Rule`s to fixpoint, call `run_bank(ag, rules)`,
+    which lowers each rule and drives this per rule with its own binding-keys."""
     machine = Machine()
     match_ops, effect_ops = Machine.split(program)
     fired: set[frozenset] = set()

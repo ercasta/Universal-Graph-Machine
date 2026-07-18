@@ -393,6 +393,100 @@ def _warn_name_split_join(graph: Graph, q: dict) -> None:
                 stacklevel=3)
 
 
+_TUPLE_QTYPES = {"why": "why", "who": "who", "is": "yesno", "yesno": "yesno"}
+
+
+def _tuple_query(question: tuple, graph: Graph) -> dict:
+    """A STRUCTURED goal for `ask_goal`, bypassing the CNL question string: `(qtype, s, p, o)` where
+    either endpoint may be a `ById` node pin (feedback #15, ask 2).
+
+    A CNL question addresses its endpoints BY NAME, which cannot reach one of several same-named nodes —
+    precisely the case a rule-minted skolem head creates (N firings, N nodes, one literal name). `ById`
+    is the sanctioned escape hatch for that (chain/`query_goal` have taken it since Phase 8 C) but the
+    question-STRING layer had no way to carry one, so "why THIS node" was unaskable. This is the
+    label-less-substrate answer to #15: address the node, rather than teach heads to fabricate
+    distinguishing names (which would re-seat identity in the label — see the arc of #8).
+
+    An endpoint may also be a `ByDesc` DEFINITE DESCRIPTION (`ByDesc("c", (("for_step", "s2"),))` — "the
+    `c` whose `for_step` is `s2`"), resolved here to the node it denotes. That is the preferred form: it
+    identifies a node the way the engine itself does, by its relations, so a nameless minted node is
+    addressable without the caller ever handling a raw id.
+
+    Raises `ValueError` (never a silent mis-read) on a malformed tuple, an unknown qtype, or a
+    description that is not definite."""
+    if len(question) != 4:
+        raise ValueError(
+            f"a tuple goal is (qtype, s, p, o) — 4 items, got {len(question)}: {question!r}. "
+            'e.g. ("why", ById("n14"), "ast_arg", "world")')
+    qtype, s, p, o = question
+    if qtype not in _TUPLE_QTYPES:
+        raise ValueError(f"tuple goal qtype {qtype!r} is not one of {sorted(_TUPLE_QTYPES)}")
+    if not isinstance(p, str) or not p:
+        raise ValueError(f"tuple goal predicate must be a non-empty name, got {p!r}")
+    from ..chain import as_pin
+    s, o = as_pin(graph, s), as_pin(graph, o)        # a definite description denotes ONE node
+    for slot, v in (("s", s), ("o", o)):
+        if not (v is None or isinstance(v, (str, ById))):
+            raise ValueError(
+                f"tuple goal {slot} must be a name, a ById, a ByDesc, or None — got {v!r}")
+        # `why` explains ONE fact, so it needs both endpoints; a free slot would silently explain
+        # whichever fact happened to be found first (the very ambiguity #15 is about).
+        if qtype == "why" and v is None:
+            raise ValueError(
+                f"a why-goal must bind both endpoints (it explains one fact); {slot} is None. "
+                'Ask `("who", None, p, o)` to enumerate witnesses, then `why` each by ById.')
+    return {"qtype": _TUPLE_QTYPES[qtype], "s": s, "p": p, "o": o}
+
+
+def _witness_answers(graph: Graph, nodes: list[str], pred: str, obj: str) -> list[str]:
+    """Render one `who` answer per genuinely-distinct WITNESS, not per witness NAME (feedback #15).
+
+    A rule-minted skolem head (`c?`) mints one node per firing, every one carrying the head's literal
+    name, so a name-keyed answer set collapses N built things into ONE line — "the enumeration is
+    invisible" half of #15. Names cannot fix this: the substrate is LABEL-LESS on purpose (a name is a
+    label, never an identity), so we DISAMBIGUATE THE WAY THE ENGINE ITSELF DOES — by the node's
+    defining relations, the same structural identity `chain._find_skolem_witness` uses to re-find a
+    skolem. Each ambiguous witness renders with the outgoing facts that its same-named siblings do NOT
+    have (`c (for_step s1) is_a ast_call`), which is also exactly the provenance a reader wants: what
+    this node was minted FROM.
+
+    Co-named nodes that are ONE coref identity (`_one_identity` — repeated mentions, the ordinary CNL
+    case) still render as a single line, so no existing answer changes shape; only a genuine
+    name-degenerate split expands."""
+    from ..chain import _one_identity
+    by_name: dict[str, list[str]] = {}
+    for n in nodes:
+        by_name.setdefault(graph.name(n), []).append(n)
+    out: list[str] = []
+    for nm, group in by_name.items():
+        if len(group) == 1 or _one_identity(graph, group):
+            out.append(f"{nm} {pred} {obj}")
+            continue
+        facts = {n: _defining_facts(graph, n, skip=(pred, obj)) for n in group}
+        for n in group:
+            others: set = set()
+            for m in group:
+                if m != n:
+                    others |= facts[m]
+            uniq = sorted(facts[n] - others) or sorted(facts[n])
+            disc = ", ".join(f"{p} {o}" for p, o in uniq[:2])
+            out.append(f"{nm} ({disc}) {pred} {obj}" if disc else f"{nm} {pred} {obj}")
+    return sorted(out)
+
+
+def _defining_facts(graph: Graph, node: str, *, skip: tuple[str, str]) -> set[tuple[str, str]]:
+    """The (predicate, object-name) pairs this node stands in — its structural identity, minus the
+    relation being asked about (which every witness shares, so it discriminates nothing)."""
+    out: set[tuple[str, str]] = set()
+    for rel, obj in graph.relations_from(node):
+        if graph.is_control(rel) or graph.is_inert(rel):
+            continue
+        p, o = graph.predicate(rel), graph.name(obj)
+        if p and (p, o) != skip:
+            out.add((p, o))
+    return out
+
+
 def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
              policy=None, open_preds: frozenset[str] | None = None, ask_user=None,
              extra_forms: list[Rule] = (), strata=None, journal: list | None = None,
@@ -466,7 +560,8 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     if open_preds is not None:
         policy_ = replace(policy_, open_preds=frozenset(open_preds))
 
-    q = _parse_question(question, extra_forms, strata=strata)
+    q = _tuple_query(question, graph) if isinstance(question, tuple) else \
+        _parse_question(question, extra_forms, strata=strata)
     if q is None or q.get("qtype") is None:
         return ["(no question form recognized this)"]
     _warn_case_folded_mismatch(graph, q)             # feedback #3: no silent case-fold false negative
@@ -624,14 +719,20 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
                     return [f"{n} {q['p']} {q['o']}" + ("" if b >= 1.0 else f" ({band_word(b)})")
                             for n, b in sorted(best.items())]
                 return ["unknown"] if policy_.is_open(concept_key(q["p"], q["o"])) else ["(no answer)"]
+            # Witness NODES, not witness names: same-named-but-distinct nodes (a rule-minted skolem
+            # head) each get their own answer, disambiguated structurally (feedback #15).
             if scope is not None:                     # read-only: answer from ink + this scope's pencil
-                names = sorted({ep_name(s) for s, _o in _facts_matching(
-                    graph, q["p"], None, q["o"], scope=scope, focus_scope=focus_scope)})
+                wit = [s for s, _o in _facts_matching(
+                    graph, q["p"], None, q["o"], scope=scope, focus_scope=focus_scope)]
+                nodes = [w.node_id for w in wit if isinstance(w, ById)]
+                loose = sorted({w for w in wit if not isinstance(w, ById)})   # name-only reads
             else:
-                names = sorted({graph.name(b["?x"])
-                                for b in match(graph, [Pat("?x", q["p"], q["o"])])})
-            if names:
-                return [f"{n} {q['p']} {q['o']}" for n in names]
+                nodes = [b["?x"] for b in match(graph, [Pat("?x", q["p"], q["o"])])]
+                loose = []
+            answers = _witness_answers(graph, list(dict.fromkeys(nodes)), q["p"], q["o"])
+            answers += [f"{n} {q['p']} {q['o']}" for n in loose]
+            if answers:
+                return sorted(set(answers))
             return ["unknown"] if policy_.is_open(concept_key(q["p"], q["o"])) else ["(no answer)"]
 
         if q["qtype"] == "why":
@@ -642,6 +743,12 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
             # deriving the θ-gated jump into INK (a stance leak, worse than a cosmetic miss).
             chain_sip(graph, (q["p"], q["s"], q["o"]), provenance=True, focus_scope=focus_scope,
                       rules=rule_g, on_subgoal=on_subgoal, policy=policy_, max_rounds=max_rounds)
+            if isinstance(question, tuple):
+                # A structured goal has no question string to re-read: render the trace straight from
+                # the endpoints (which may be `ById` pins — `explain` addresses those, feedback #15).
+                from .surface import explain
+                return explain(graph, journal if journal is not None else [], rules,
+                               q["s"], q["p"], q["o"])
             return ask(graph, question, journal=journal if journal is not None else [],
                        rules=rules, extra_forms=extra_forms, strata=strata)
 

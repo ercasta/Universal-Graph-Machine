@@ -27,7 +27,7 @@ from .lowering import (
 from .apply import build_head_index, rules_producing
 from .chain import (
     chain_sip, query_goal, bound_demands, render_demands, subgoal_decomposition, NonStratifiable,
-    ById, resolve_write_node, validate_ids,
+    ById, ByDesc, resolve_description, as_pin, resolve_write_node, validate_ids,
 )
 from .check import (
     check, collapse, explain_check,
@@ -140,7 +140,8 @@ __all__ = [
     "build_head_index", "rules_producing",
     "chain_sip", "query_goal", "bound_demands",
     "NonStratifiable",
-    "render_demands", "subgoal_decomposition", "ById", "resolve_write_node", "validate_ids",
+    "render_demands", "subgoal_decomposition", "ById", "ByDesc", "resolve_description",
+    "as_pin", "resolve_write_node", "validate_ids",
     "check", "collapse", "explain_check", "POSITIVE", "ENTAILED_NEG", "ASSUMED_NO", "UNKNOWN",
     "choose", "set_candidate", "candidates", "winners_of", "fit_of", "explain_choice", "SATISFIED_BY",
     "suppose", "explain_suppose", "scope_members", "SupposeResult",

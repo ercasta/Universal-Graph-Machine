@@ -13,6 +13,7 @@ re-rendering of logic into English.
 from __future__ import annotations
 
 from .. import provenance as prov
+from ..chain import ById
 from ..production_rule import Firing
 from ..world_model import Graph
 
@@ -176,12 +177,24 @@ def explain(
 
     Each line is the fact and the rule that produced it; preconditions are indented
     beneath. Leaves are '(given)' (asserted / tokenized) or '(not present)'.
+
+    ID-ADDRESSED ENDPOINTS (feedback #15). Either endpoint may be a `ById` instead of a name, which
+    PINS it to exactly that node rather than iterating the same-named candidate set. This is what makes
+    a rule-MINTED node explainable: a skolem head (`c?`) mints one node per firing, all carrying the
+    head's literal name, so `nodes_named('c')` is a set of genuinely-distinct nodes and a name can only
+    ever reach the first one that happens to carry the relation. The substrate is LABEL-LESS by design —
+    a name is a label, never an identity — so the fix is to address the node, not to fabricate
+    distinguishing names for it.
     """
     seen = set() if _seen is None else _seen
     pad = "  " * depth
+    s_cands = [s_name.node_id] if isinstance(s_name, ById) else graph.nodes_named(s_name)
+    o_cands = [o_name.node_id] if isinstance(o_name, ById) else graph.nodes_named(o_name)
+    s_name = graph.name(s_name.node_id) if isinstance(s_name, ById) else s_name
+    o_name = graph.name(o_name.node_id) if isinstance(o_name, ById) else o_name
     rel = None
-    for si in graph.nodes_named(s_name):
-        for oi in graph.nodes_named(o_name):
+    for si in s_cands:
+        for oi in o_cands:
             r = _find_rel(graph, si, pname, oi)
             if r is not None:
                 rel = r

@@ -475,3 +475,128 @@ def test_split_join_guard_tolerates_phantom_endpoint():
     alice = g.add_node("alice")
     g.add_relation(alice, "premium", "yes")              # 'yes' passed as a raw label — never minted
     assert _is_fact_entity(g, alice) is False            # the sole neighbour is a phantom -> no crash
+
+
+# --- #15: rule-minted nodes are name-degenerate — enumerate and explain them STRUCTURALLY -----------
+#
+# The filed ask #1 (let a skolem head derive its name from LHS bindings, `c_?s?` -> `c_s1`) is
+# REJECTED on principle: the substrate is label-less, a name is a label and never an identity, and
+# fabricating identity-bearing names re-seats identity in the label — the exact thing the #8 arc moved
+# away from (interning, `assemble_facts`) and the law `chain._find_skolem_witness` already states ("a
+# minted node is identified by how it relates to the LHS match, not by a raw id or a fabricated name").
+# Ask #2 is built instead, and the enumeration half is fixed the same structural way.
+
+_AST_RULES = "c? is_a ast_call and c? for_step ?s and c? ast_arg ?m when ?s says ?m"
+
+
+def _ast_world():
+    g = h.Graph(); ids = {}
+    n = lambda x: ids.setdefault(x, ids.get(x) or g.add_node(x))
+    for s, o in (("s1", "hello"), ("s2", "world"), ("s3", "bye")):
+        g.add_relation(n(s), "says", n(o))
+    return g
+
+
+def test_who_enumerates_each_minted_witness():
+    # Three firings mint three DISTINCT nodes all named 'c'. A name-keyed answer set collapsed them to
+    # one line ("the enumeration is invisible"); each witness now answers for itself, disambiguated by
+    # its defining relations — which is also what it was minted FROM.
+    g, rules = _ast_world(), load_machine_rules(_AST_RULES)
+    h.run_bank(g, rules)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        answers = ask_goal(g, "who is_a ast_call", rules)
+    assert len(g.nodes_named("c")) == 3
+    assert len(answers) == 3                             # one per NODE, not one per NAME
+    assert all(a.startswith("c (") and a.endswith("is_a ast_call") for a in answers)
+    assert {"for_step s1", "for_step s2", "for_step s3"} <= {p for a in answers for p in a.split("(")[1].split(")")[0].split(", ")}
+
+
+def test_who_coref_mentions_still_render_once():
+    # The disambiguation must fire ONLY on genuinely-distinct identities: repeated mentions that are
+    # `same_as`-linked are ONE entity, and their answer keeps its plain single-line shape.
+    from ugm.vocabulary import SAME_AS
+    g = h.Graph()
+    a, b = g.add_node("bob"), g.add_node("bob")
+    thing = g.add_node("happy")
+    g.add_relation(a, "is_a", thing); g.add_relation(b, "is_a", thing)
+    g.add_relation(a, SAME_AS, b)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert ask_goal(g, "who is_a happy", []) == ["bob is_a happy"]
+
+
+def test_tuple_why_over_byid_threads_the_rule():
+    # Ask #2: a structured goal carries a `ById`, so "why THIS minted node" is finally askable — and it
+    # threads the rule + its premise instead of collapsing onto a same-named sibling.
+    from ugm import ById
+    g, rules = _ast_world(), load_machine_rules(_AST_RULES)
+    ask_goal(g, ("who", None, "is_a", "ast_call"), rules)
+    minted = g.nodes_named("c")
+    assert len(minted) == 3
+    traced = 0
+    for c in minted:
+        for word in ("hello", "world", "bye"):
+            lines = ask_goal(g, ("why", ById(c), "ast_arg", word), rules)
+            if "(not present)" in lines[0]:
+                continue
+            traced += 1
+            assert "<-" in lines[0]                      # the rule that minted it, not '(given)'
+            assert any("says " + word in l for l in lines[1:])   # ...and the premise it fired on
+    assert traced == 3                                   # each minted node explains its OWN fact
+
+
+def test_tuple_goal_supports_who_and_yesno():
+    from ugm import ById
+    g, rules = _ast_world(), load_machine_rules(_AST_RULES)
+    assert ask_goal(g, ("who", None, "is_a", "ast_call"), rules)
+    assert ask_goal(g, ("is", ById(g.nodes_named("s2")[0]), "says", "world"), rules) == ["yes"]
+
+
+@pytest.mark.parametrize("goal, msg", [
+    (("why", "c", "ast_arg"), "4 items"),                       # wrong arity
+    (("wat", "c", "ast_arg", "world"), "qtype"),                # unknown qtype
+    (("why", "c", "", "world"), "predicate"),                   # empty predicate
+    (("why", "c", "ast_arg", None), "both endpoints"),          # why needs a bound fact
+    (("who", 7, "ast_arg", "world"), "must be a name"),         # non-endpoint
+])
+def test_tuple_goal_rejects_malformed_loudly(goal, msg):
+    # The whole point of #15's family is that ugm signals rather than quietly doing less.
+    with pytest.raises(ValueError, match=msg):
+        ask_goal(_ast_world(), goal, load_machine_rules(_AST_RULES))
+
+
+def test_bydesc_addresses_a_minted_node_structurally():
+    # #15 ask 1 (the preferred form): identify a node the way the ENGINE does — by the relations it
+    # stands in — so a nameless minted node is askable-about without the caller touching a raw id.
+    from ugm import ByDesc
+    g, rules = _ast_world(), load_machine_rules(_AST_RULES)
+    h.run_bank(g, rules)
+    lines = ask_goal(g, ("why", ByDesc("c", (("for_step", "s2"),)), "ast_arg", "world"), rules)
+    assert "<-" in lines[0]                              # the rule that minted it
+    assert any("s2 says world" in l for l in lines[1:])  # ...on THIS node's own premise
+
+
+def test_bydesc_round_trips_from_the_enumeration():
+    # The two halves compose: `who` renders each witness's discriminator, and that discriminator is
+    # exactly a description you can feed back in to ask about that one witness.
+    from ugm import ByDesc
+    g, rules = _ast_world(), load_machine_rules(_AST_RULES)
+    h.run_bank(g, rules)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        answers = ask_goal(g, "who is_a ast_call", rules)
+    for a in answers:
+        desc = tuple(tuple(p.split(" ", 1)) for p in a.split("(")[1].split(")")[0].split(", "))
+        assert "<-" in ask_goal(g, ("why", ByDesc("c", desc), "is_a", "ast_call"), rules)[0]
+
+
+def test_bydesc_that_is_not_definite_raises():
+    # A definite description that isn't definite is an error, never a silent [0]-pick (the #8a lesson).
+    from ugm import ByDesc
+    g, rules = _ast_world(), load_machine_rules(_AST_RULES)
+    h.run_bank(g, rules)
+    with pytest.raises(ValueError, match="not definite"):
+        ask_goal(g, ("why", ByDesc("c", ()), "ast_arg", "world"), rules)
+    with pytest.raises(ValueError, match="matches no node"):
+        ask_goal(g, ("why", ByDesc("c", (("for_step", "s9"),)), "ast_arg", "world"), rules)
