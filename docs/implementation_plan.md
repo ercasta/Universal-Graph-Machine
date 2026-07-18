@@ -64,15 +64,43 @@ the counterpart to the name-keyed `intern_mentions`, which is structurally blind
 nodes) — and that is REQUIRED for correctness, not tidiness, because RHS-only value invention
 re-mints on every bank run (10 nodes → 1 on a 3-sentence corpus).
 
-**NEXT, in order:** (1) **memoize the generated banks and re-measure** — full pipeline is 89 ms
-mean vs a ~12 ms budget, but nothing is algorithmic (banks regenerate per sentence, no stage
-memoized), so the cost story is unmeasured rather than bad; (2) ambiguity → discriminating question
+**NEXT, in order:** (1) **materialize the parse tree** — the 89 ms is pure execution (banks are
+built once, so memoizing buys nothing), and profiling puts 82 of it in the slot stage, where all
+32 slot rules redo the same 6-way parent/child join; writing `?p kidL/kidR` once per production
+makes every slot rule a 2-premise lookup and takes the stage to 21.7 ms, MEASURED. Second lever:
+the assert stage is 86 rules only because a slot-valued predicate expands per lexicon word
+(`lower_rhs` rejects non-plain RHS predicates) — RHS variable predicates would make it ~6, and the
+LEARNING ARC WANTS THE SAME PRIMITIVE (`predicates-are-keys`); (2) ambiguity → discriminating question
 via `can_ask`; (3) restrictive vs non-restrictive modification — minting is currently unconditional,
 which is weaker rather than wrong but loses the merge's free coreference; route on the existing
 `declared_definites`/`is_unique` machinery (UNTESTED); (4) declaration loudness (a malformed `slot`
 line still fails silently); (5) compare against `comparative.py` before claiming full subsumption.
 
-**Substrate layering (user question, 2026-07-18):** this slice hit TWO accidental cross-layer
+**SURFACE / INTERPRETATION SPLIT — spiked 2026-07-18** (`bench/spike_interpretation_scope.py`,
+design §11; user proposal). The sentence's nodes are the permanent monotone record; every
+JUDGEMENT about what it MEANS (denotation, coreference, subkind-vs-same-entity) lives in a SCOPE of
+COPIES with provenance back to the surface. **Inside the scope the merge stays destructive** — one
+node per entity, no `same_as` clique, no representative hop — because reversal is never needed:
+discard and re-derive. Demonstrated end to end: 2 sentences parsed ONCE (231 surface nodes) →
+interpretation A percolates → `lion has mane` + `lion has_not mane` → `<contradiction>` derived →
+provenance shows the entity came from 2 surface mentions, so a JUDGEMENT is in the support → ASK →
+discard scope (90 nodes, 231/231 surface intact) → interpretation B mints a subkind → 0
+contradictions, no re-parse. **The system discovers the reading was wrong instead of being told** —
+which removes §10's requirement that the domain author know the right reading in advance.
+
+**This is also the answer to the substrate-layering question.** A `<stratum>` node attribute was
+the wrong shape because the strata on offer were ENGINEERING distinctions (control vs fact) while
+the failures were reading rules over legitimately shared nodes. Observation vs inference is
+EPISTEMIC, is exactly two layers, and decides membership unambiguously. Key finding: the line is
+not "which node it hangs on" but "structure vs denotation" — the surface is tokens, chains and
+`cat`/`begin`/`end`, and every slot/`denotes` edge is interpretation even when written onto a
+surface span. Open before this is production: copy-on-WRITE scope (materialized today — at session
+scale it must be a delta over `OVERLAY` or it shadows the whole KB); PROMOTION of uncontested
+interpretations (same mechanism as promotion-by-survival for rules); enforcing ONE live
+interpretation (else branch selection returns); culprit selection when the support holds several
+judgements; and reusing `suppose`/`SCOPE` (noting this is a STANDING scope, not a hypothesis fork).
+
+**Substrate layering (user question, 2026-07-18):** the fold slice hit TWO accidental cross-layer
 reads — `is_a <mention>` polluting the lexicon (152 rules instead of 30, ~80% of runtime) and a
 CNL `yes` token being deleted by `authoring._recognize`'s scaffolding strip. Both are name-keyed
 GLOBAL partitions leaking into user data (a shared PREDICATE; a reserved NAME). Neither would have

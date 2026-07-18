@@ -30,7 +30,9 @@ session-sized, judged per-utterance, and decides negation by asking the positive
 | **Mechanism/policy: two homes** (2026-07-14) | GRAPH = facts + explanation (matchable, reasoned-over; the demand trace is a negative's provenance and stays a node); REGISTERS (`AttrGraph.registers`, `State.regs`) = execution state; depth never forces graph materialization — being explanation does | `attic/mechanism_policy_separation.md`, `attic/axis_b_control_registers.md` |
 | **ISA value operands are regular nodes** (2026-07-14) | Registers hold only node-pointers; a value like `ada` is a regular node carrying `<isa_operand_value>="ada"`, interpreted by instructions | `attic/isa_value_operands_design.md` |
 | **Rust = port the interpreter only** (2026-07-14) | Procedures were made firmware first, so the Rust core is one fetch-decode-execute loop; measured constant ~381×; magic-set rewrite REJECTED | `design/rust_engine_plan.md` |
-| **Same-name interning at the CNL reader** (2026-07-13) | Same-named `<mention>` entities coalesce to ONE node at ingest (hardcoded reader policy); the demand-driven coref alternative was CORRECT but 3–6× slower — rejected | `attic/indexing_and_coalescing_design.md`, `attic/demand_driven_coref_plan.md` |
+| **Surface / interpretation split** (2026-07-18, SPIKED not integrated) | The sentence's nodes are the permanent monotone record; every JUDGEMENT about what it means (denotation, coreference, subkind-vs-same-entity) lives in a discardable SCOPE of copies with provenance. The merge stays DESTRUCTIVE inside the scope — reversal is never needed, you discard and re-derive. Membership is "structure vs denotation", not which node it hangs on | `design/surface_interpretation.md` |
+| **Grammar as CNL data, interpreted by rules** (2026-07-18, SPIKED not integrated) | Lexicon + productions + slot/assert semantics all declared in CNL and generating rules; token-passing IS chart parsing (so no branch selection); ambiguity DETECTED (usefulness pass + `Distinct`) and asked about, never resolved; unparseable = REFUSE | `design/homoiconic_grammar.md` |
+| **Same-name interning at the CNL reader** (2026-07-13) | Same-named `<mention>` entities coalesce to ONE node at ingest (hardcoded reader policy); the demand-driven coref alternative was CORRECT but 3–6× slower — rejected. STATUS AMENDED 2026-07-18: interning stays and stays destructive, but becomes a defeasible commitment inside an interpretation scope rather than an irreversible reader policy | `attic/indexing_and_coalescing_design.md`, `attic/demand_driven_coref_plan.md`, `design/surface_interpretation.md` |
 | **S-P-O is a directed 2-hop path** (2026-07-12) | Direction carries the roles; role-labeled / Davidsonian edges REJECTED | memory `spo-directed-path-no-labeled-edges` |
 | **Coreference as declared rules; anaphora off-roadmap** (2026-07-12) | Asserted/derived identity (`same_as`) is core reasoning; same-name linking is a boundary policy (now interning); anaphora belongs to the SLM via exposed `focus.top_centers` | `attic/coreference_as_rules_design.md` |
 | **Client = agent loop + TUI over seamless CNL intake** (2026-07-12) | The utterance's own structure drives the loop — no intent dispatcher; seed-from-focus is the accretion answer (bounded attention) | `design/cnl_intake_design.md` |
@@ -77,7 +79,11 @@ raw performance**; **delete superseded code aggressively**.
 **`design/` — active designs (not yet built, or partially built):**
 - `cnl_intake_design.md` — the agent-loop client spec (Phase 8; spine built, tail remains).
 - `rust_engine_plan.md` — Phase 7b (Rust interpreter port; deferred until perf bites).
-- `consistency_design.md` — universal conflict-lint / constraint schemas (sketch).
+- `homoiconic_grammar.md` — the intake grammar as CNL data (4 spikes green; NOT integrated). Read
+  its §0 for the design; §§8-11 are the spike evidence.
+- `surface_interpretation.md` — the surface/interpretation substrate split (spiked; NOT integrated).
+- `consistency_design.md` — universal conflict-lint / constraint schemas (sketch). The
+  `<contradiction>` marker `surface_interpretation.md` depends on lives here and is UNBUILT.
 - `validation_experiments.md` — proposed value-and-risk experiments (not ratified).
 
 **`attic/` — honest historical records, never authoritative.** Design docs for work that is now

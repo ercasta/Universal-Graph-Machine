@@ -11,7 +11,52 @@
 >
 > Evidence base: `bench/spike_loudon.py` + `bench/loudon_lion_corpus.py` (50 verbatim sentences of
 > Mrs. Loudon's *Entertaining Naturalist*). Companion: `learning_design.md` (the arc this
-> unblocks), `../vision.md` §10 (what was rejected, and why this is not that).
+> unblocks), `../vision.md` §10 (what was rejected, and why this is not that),
+> `surface_interpretation.md` (the substrate split §11 produced).
+
+## 0. THE DESIGN AS IT NOW STANDS (read this first)
+
+Four spikes produced this; §§8-11 are their narrative results, in order, and should be read as
+evidence rather than as the spec. The system they describe:
+
+**Everything is declared in CNL and generates rules; no Python is edited to add a shape.**
+
+    lion is a noun                                          -- LEXICON (shipped `X is a Y` surface)
+    np expands to determiner plus np                        -- PRODUCTION (binary / unary = CNF)
+    slot head in np from determiner plus np is right head   -- how a parent's slot is filled
+    mint head in np from modifier plus np under right head  -- ... or is a FRESH described entity
+    clause asserts subj pred obj unless neg                 -- which slots become a fact
+    clause denies  subj pred obj when   neg                 -- ... and which become a negative one
+
+**A span is a relation, not a node.** `a --span_np--> b` runs from the span's first token to the
+token just past its last (a `<eos>` sentinel gives the last token a successor), so composition is a
+plain two-premise join. The chart is what "every enabled rule fires, nothing selects" builds —
+**token-passing IS chart parsing**, which is why the ambiguity crux (§3) dissolved.
+
+**Ambiguity is detected, never resolved.** A top-down USEFULNESS pass marks the spans a complete
+parse actually uses (a chart also holds dead constituents), and a `Distinct` on the split point
+flags a useful span built two ways. No parse → REFUSE. Two parses → ASK. One parse → fold.
+
+**Identity is minted only for what survives.** The chart stays packed while parsing; span NODES are
+minted only for useful spans (O(n), not the chart), which is what gives slots somewhere to hang
+without paying for an unpacked forest (measured: 4.7 s at 11 tokens).
+
+**A modified NP denotes a fresh NAMELESS entity described by its parts** (`<e> is_a lion`,
+`<e> is guzerat`) — decomposition fully intact, only the carrying node changes; nameless per the
+`ByDesc` identity law. This is what stops one `lion` node carrying both `has mane` and
+`has_not mane`.
+
+**Denotation is defeasible.** The parse is the permanent record; every judgement about what it MEANS
+(coreference, denotation, subkind-vs-same-entity) lives in a discardable scope of copies, so a
+contradiction defeats the READING rather than corrupting the KB. Full design:
+**`surface_interpretation.md`**.
+
+    tokenize -> chart -> useful+ambiguity -> [REFUSE | ASK] -> mint spans
+             -> interpret (entities, coreference) -> slots -> assert -> contradiction
+
+**Status: all of it lives in `bench/spike_*.py`. None of it is integrated.** Coverage is measured
+on 7 hand-picked sentences chosen to exercise known gaps, NOT on the 50-sentence corpus that
+motivated the arc.
 
 ## 1. Half of it already exists, and is proven
 
@@ -328,15 +373,26 @@ had no business seeing it.
 
 ### 9.6 Cost, and the open items
 
-Full pipeline: **mean 89 ms**, max 173 ms — 7× the budget, and the honest headline of this slice.
-Where it goes: refusal is 1.3 ms (fails at the chart), ambiguity 33 ms (fails before minting), and
-folding is the expensive tail. Nothing here is algorithmic — the banks are regenerated per
-sentence and none of the four fold stages is memoized (`_surface_strata` is the pattern). Optimize
-before drawing conclusions.
+Full pipeline: **mean 89 ms**, max 173 ms — 7× the budget. This is pure EXECUTION: the banks are
+generated once and reused across sentences, so memoizing them buys nothing (an earlier note here
+claimed otherwise and was wrong). Profiled per stage on `the guzerat lion has no mane`:
+
+    chart        5.8 ms      slots       81.7 ms   <- the cost
+    useful+amb  13.8 ms      assert      30.8 ms
+    mint         3.0 ms
+
+The slot stage dominates because all 32 slot rules independently redo the SAME 6-way parent/child
+structural join. Materializing the parse tree once — one rule per production writing `?p kidL ?l` /
+`?p kidR ?r`, after which every slot rule is a 2-premise lookup — takes the stage from **81.7 ms to
+21.7 ms (3.8×)** with 13 extra rules. Measured, not projected.
+
+The `assert` stage's 86 rules are 86 only because a slot-valued predicate must be expanded per
+lexicon word (`lower_rhs` rejects a non-plain RHS predicate as "a later slice"). With RHS variable
+predicates it is ~6 rules. Worth noting that **the learning arc wants the same primitive**
+(`predicates-are-keys`, `learning_design.md`) — two arcs converge on one engine change.
 
 Open, in order:
-1. **Memoize the generated banks**, then re-measure. Do this before anything else — the cost story
-   is currently unmeasured, not bad.
+1. **Materialize the parse tree** (3.8× on the dominant stage, measured) and re-profile.
 2. **Ambiguity → discriminating question** (`can_ask`); today the pipeline returns `ambiguous` and
    the driver decides.
 3. ~~**§7: mint a distinct entity for a modified NP?**~~ **RESOLVED — see §10.**
@@ -410,3 +466,80 @@ real driver (focus-scoped re-running would cut the re-firing, not the requiremen
   interned node carries N copies of `is_a lion`. Harmless to the triple view (a set), untidy in
   the graph, and deleting them would be fact deletion (§5) — needs the retraction path, not a
   loader.
+
+> **SUPERSEDED IN PART by §11.** The restrictive/non-restrictive question above assumes the
+> reading must be settled at authoring time. It need not be: §11 makes it a defeasible commitment.
+
+## 11. SURFACE / INTERPRETATION — the split (2026-07-18) — `bench/spike_interpretation_scope.py`
+
+> User proposal. §10 left mint-vs-percolate as a per-production DECLARATION, which asks the domain
+> author to know the right reading in advance. This removes that requirement.
+
+### 11.1 The proposal
+
+The nodes representing the SENTENCE are never touched — they are the permanent, monotone record of
+what was said. Every JUDGEMENT about what it MEANS — which entity a mention denotes, whether two
+mentions corefer, whether a modified NP is a subkind — lives in a SCOPE holding COPIES, with
+provenance back to the surface. **Inside the scope the merge may be destructive** (one node per
+entity: the fast representation, no `same_as` clique, no representative hop), because reversal is
+never needed — you discard the scope and re-derive.
+
+That is what makes it affordable. The earlier objection to defeasible coreference was that
+reversing an in-place merge is impossible once `_fold_node` has deleted the victim; copying moves
+the problem out of existence rather than solving it.
+
+### 11.2 The loop, demonstrated end to end
+
+    surface: 2 sentences parsed ONCE -> 231 nodes (tokens, chains, spans; no entity, no denotation)
+      -> interpretation A (percolate):  lion has mane / lion has_not mane / lion is guzerat
+      -> <contradiction> about `lion` because `mane`          [derived, paraconsistent marker]
+      -> provenance: that entity was interpreted from 2 surface mentions -> a JUDGEMENT is in the
+         support, so ASK, do not pick
+      -> discard scope: 90 nodes gone, 231/231 surface nodes intact, 0 contradictions
+      -> interpretation B (mint): lion has mane / <is guzerat & is_a lion> has_not mane / is guzerat
+      -> 0 contradictions, NO RE-PARSE
+
+**The system discovers the reading was wrong instead of being told.** That is the capability §10
+could not offer.
+
+### 11.3 Why this is the answer to the substrate-layering question
+
+The earlier proposal was a `<stratum>` attribute on nodes; the objection (§9.5) was that the strata
+on offer were ENGINEERING distinctions (control vs fact) while the actual failures were reading
+rules over legitimately shared nodes. **Observation vs inference is not an engineering
+distinction.** It is epistemic, it is exactly two layers, and it decides membership unambiguously:
+what the sentence said never changes, what it means is always revisable. That is a stratification
+with a defensible basis.
+
+### 11.4 Two findings that cost bugs
+
+1. **The interpretation is not only the ENTITIES.** Every derived denotation edge — `denotes`, and
+   every slot (`head`, `subj`, `pred`, …) — is a judgement too, even though it is written ONTO a
+   surface span node. Leaving them behind left spans holding stale heads pointing at deleted
+   entities, and the second interpretation silently inherited the first one's decisions. **The line
+   between the layers is not "which node it hangs on", it is "structure vs denotation":** the
+   surface is tokens, chains, and `cat`/`begin`/`end`, and nothing else.
+2. **A scope node has no name to be addressed by.** Marking membership with a rule
+   (`Pat(scope_id, "member", "?e")`) silently marked nothing — `Pat` reads its subject as a NAME,
+   so it interned a node named `n417`. Defining the scope as the DELTA against a pre-interpretation
+   snapshot needs no bookkeeping and cannot miss a node. Addressing a scope from inside a rule
+   would need `ByDesc` — the same nameless-identity law §10 relies on.
+
+### 11.5 What this spike did NOT do
+
+- **The scope is materialized, not copy-on-write.** Fine for one utterance; at session scale the
+  scope must hold only the DELTA and fall through to the base, or it grows into a full KB shadow.
+  `OVERLAY` is the existing mechanism.
+- **No promotion.** An interpretation that survives uncontested should collapse into the base and
+  stop costing. This is the same "promotion by survival" queued for rules — the mechanism
+  generalizes, which is some evidence it is the right shape.
+- **One live interpretation is assumed, not enforced.** If two can coexist, reads become ambiguous
+  and branch selection returns through the back door.
+- **Culprit selection is demonstrated on a case with exactly one judgement in the support.** Real
+  contradictions will have several, and choosing among them is the hard part — the answer here is
+  the same as everywhere else in this project (ask), but it is untested at that scale.
+- **`suppose`/`SCOPE`/`OVERLAY` were not used**; the spike hand-rolls the scope. The production
+  path should reuse them, noting that this is a STANDING scope (the default read context) rather
+  than a hypothesis fork, which may not want identical semantics.
+- **Re-interpretation re-derives everything.** `reconsider`'s dirty-grain cascade is the obvious
+  way to scope it to the affected region.
