@@ -979,6 +979,139 @@ would rather author it than hardcode an order.
 Our side is pinned either way (`test_rank_is_a_real_calculator_but_does_NOT_order_replan_alternatives`),
 so if this gains cost-ordering the pin fails loudly and we update.
 
+> **BUILT (2026-07-18) — the primary ask; the STRONGER form measured and deliberately NOT shipped as a
+> warning.** `describe_rules(rules)` returns exactly the line you specified, and `mint_keys(rule)` returns
+> it as data (`MintKey(rule, head, key, unused_in_head)`). Your two repros:
+>
+> ```
+> rule '…': mints `n?` — one node per (?x)
+> rule '…': mints `n?` — one node per (?x, ?y)   [?y appears in no head atom — multiplies the mint
+>                                                 without distinguishing it]
+> ```
+>
+> No semantic change; the key is computed from the rule's positive LHS variables in first-appearance
+> order, which is what "keyed on the whole match" means operationally. Lives in `production_rule.py`
+> (pure rule analysis, where `stratify` moved for the same reason), exported from the package root.
+>
+> **On the optional warning — we measured before wiring it, and the measurement said don't.** Your
+> stronger form ("warn when a mint head's key includes a variable that appears in no head atom") fires
+> **24 times on ugm's own recognition banks** — `RULE_FORMS` 6, `QUESTION_FORMS` 10/10,
+> `MACHINE_RULE_FORMS` 7, `FORM_RULES` 1 — all of them believed correct. The reason is a legitimate
+> pattern your own note anticipates: the **anchor idiom**, where a body variable binds the
+> sentence/statement the mint belongs to and is deliberately absent from the head (`ask.yesno.is_a`
+> mints `<query>?` per `(?s, ?qs, ?qo)` with `?s` the sentence anchor). So `unused_in_head` does not
+> separate the accidental case from the intentional one, and as a default warning it would train people
+> to ignore it. It is reported in the line when you go looking, which is where it is useful.
+>
+> If you want it as a gate on YOUR banks, `mint_keys` gives you the datum:
+> `[mk for r in rules for mk in mint_keys(r) if mk.unused_in_head]` — a one-line assertion in your suite,
+> where you know the anchor idiom isn't in play. That seemed better than us guessing a heuristic that
+> distinguishes the two, since we don't think a reliable one exists.
+>
+> Tests in `tests/test_feedback_fixes.py` (`test_mint_key_reports_what_a_skolem_head_is_a_function_of`,
+> `test_an_unrelated_body_atom_multiplies_the_mint_key`,
+> `test_mint_keys_are_empty_for_a_rule_that_mints_nothing`,
+> `test_unused_in_head_is_reported_but_never_warned_on` — which pins the no-warning decision so nobody
+> promotes it without re-measuring). Suite 632 green.
+>
+> ---
+>
+> **A calibration note, now that there are four instances of it.** Your reports are consistently
+> excellent at locating *where* the problem is and consistently unreliable about *which direction* it
+> runs — and the second half is worth you knowing, because it changes how much weight to put on your
+> own diagnosis when you file.
+>
+> - **#16.** You filed independent NACs as the gap and said the conjunctive form "works". Inverted:
+>   independent NACs already worked on both engines; the CONJUNCTIVE form — the one you reported
+>   working — was silently broken on the demand chain. It held on the forward path you happened to be
+>   exercising and would have failed the moment you asked it as a question.
+> - **#18.** You filed `run_bank` as failing to stratify. True, but fixing it exposed the opposite bug
+>   in `stratify` itself: it ranked by NEGATED dependencies only, so a producer could be scheduled
+>   after its positive consumer. The two forward entry points were wrong in opposite directions, and
+>   only one of those directions was the one you saw.
+> - **#15.** You filed the `why … (given)` loss under name-degeneracy. The addressing gap was real and
+>   we built for it, but it was not the cause: provenance was never recorded for facts built by a prior
+>   pass, so you would have hit `(given)` however the node was addressed.
+> - **#21.** "Almost always accidental" is confidently wrong against our own banks — 24 correct uses of
+>   exactly that shape.
+>
+> The pattern isn't carelessness; it's structural. You are reasoning from one engine's observed
+> behaviour, and this codebase has two engines — a forward driver (`run_bank`) and a demand chain
+> (`chain_sip`) — with a parity contract between them. So "X works, Y doesn't" is very often "X and Y
+> disagree, and the one you tested is either the wrong one or accidentally right." You cannot see that
+> from outside, and frankly we did not see it from inside either.
+>
+> **The ask is NOT to omit the diagnosis — keep making it, but mark it as a hypothesis.** We want to
+> be precise here, because the obvious lesson ("just report symptoms") is the wrong one and we nearly
+> wrote it: your wrong premise in #16 is exactly what found that bug. Saying "the conjunctive form
+> works" is what sent us to look at the conjunctive form; falsifying it is where the parity bug was.
+> A bare symptom would probably have left it buried. Same in #18 — the mechanism you named was right
+> enough to make us look at `stratify`, which is where the *opposite* bug was sitting.
+>
+> So the diagnoses are load-bearing even when inverted. What costs time is when they arrive stated as
+> fact, because we then start from your model instead of testing it. **#20 is the format that works
+> best** ("we may be holding it wrong… (1) is this intended? (2) are we missing an authoring step?") —
+> it was the easiest item in the batch to answer well, and it still carried your full analysis. Your
+> `not-a-bug` notes (#19) are the same shape and equally valuable. One sentence of hedging is the whole
+> difference; you lose nothing by adding it.
+>
+> None of this is a request to file less. The four inversions above are four real correctness bugs that
+> exist in ugm only because you went looking — the parity bug in #16 in particular was invisible from
+> inside this repo and is the most serious thing found in the whole arc.
+
+## 21. (question) Is a mint head's SKOLEM KEY meant to be discoverable at authoring time?
+
+REWRITTEN after your note above, and the note was right about this item specifically — see the
+retraction at the end. Filed in the #20 shape: here is our model, we may be holding it wrong.
+
+Not a bug: the semantics are right, documented, and we depend on them. What we are asking about is
+**discoverability**, because this is the one mistake we keep making, it never errors, and the symptom
+appears far from the cause. It cost us three bugs in one day.
+
+A skolem is keyed on the **whole match**, not on the head. That is correct — it is what makes the minted
+node a genuine Skolem function of the variables it depends on, and `_find_skolem_witness` says so ("a
+minted node is identified by how it relates to the LHS match"). But nothing about a rule's *text* makes
+its arity visible, and a body atom added for a completely unrelated reason silently multiplies the mint:
+
+```
+n? is_a made and n? of ?x when ?x is_a thing                       -> 1 node
+n? is_a made and n? of ?x when ?x is_a thing and ?x tag ?y         -> 1 node PER TAG
+```
+
+`?y` is not in the head and is not used for anything; it still multiplies. In our case the body atom was
+`?st wants ?x` inside a shared "is this line unmet?" condition, composed into a repair rule. A statement
+with one expectation minted one node; a statement inside a `for` loop wants one text per element, so the
+same rule minted N structurally-identical nodes and gave one statement N `arg_v2` values. Nothing failed
+— the duplicates were interchangeable because the head names no `?y`, so the emitted program was correct
+while the graph was quietly wrong, and a later rule that *did* mention `?y` would have made it
+nondeterministic.
+
+**The ask:** at `load_machine_rules` time (or behind a flag / a `describe_rules` helper), report each
+mint head's key — the tuple of variables the skolem is a function of:
+
+```
+rule '…': mints `n?` — one node per (?x, ?y)
+```
+
+**RETRACTED — the part of this we stated as fact.** An earlier draft proposed a stronger form: warn
+when a mint key includes a variable appearing in no head atom, "since that is the shape that is almost
+always accidental". You have 24 correct uses of exactly that shape, so that claim is simply false, and
+a warning built on it would have been noise you would rightly have ignored. We had a sample of two —
+both of them our own bugs — and generalized from it. Withdrawn; please do not build the warning.
+
+**What survives, as a question rather than a request:** (1) is a mint head's key meant to be something
+an author reasons about explicitly, or is it meant to stay implicit because in practice the body IS the
+intended scope and our two cases were just wrong rules? (2) if the former, is there an existing way to
+inspect it that we have missed — something already in the CNL tooling or a debugging entry point? (3)
+if it is genuinely absent and you think it is worth having, we would use it, but we no longer have a
+basis for saying how often it would fire on real banks. Ours is not a representative sample.
+
+Related, and offered only as an observation: `reject_rhs_only_head_vars` refuses an *ill-founded* head
+and that check is genuinely useful — we tripped it while perturbing a pattern and it was right to stop
+us. Whether the same spirit extends one step earlier ("this head means more than you may think") is
+your call, not ours; we cannot see the false-positive rate from out here, which is precisely the thing
+we got wrong above.
+
 ---
 
 ### Net
