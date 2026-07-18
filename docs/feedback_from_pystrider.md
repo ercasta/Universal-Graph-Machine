@@ -1114,6 +1114,54 @@ we got wrong above.
 
 ---
 
+## 22. (question) Should an untried-but-INAPPLICABLE alternative be able to OUTRANK a costlier one?
+
+We may well be holding this wrong, so this is a question rather than a report — and given how #20 went
+(our confident causal story was inverted and yours was the right one), please read the diagnosis below as
+our current hypothesis, not as a claim about your engine.
+
+**What we hit.** We added a fourth recovery operator to the build loop in `experiments/build_procedure.py`
+— it restructures the program (wraps statements in a missing guard) rather than editing a payload, so
+under our "how much does this edit disturb" pricing it is the most expensive at `cost 4`. It never runs.
+The planner stops after the two cheaper repairs that do not apply, and the build refuses.
+
+    repair_greet  cost 1   ran, did not apply
+    repair_audit  cost 2   ran, did not apply
+    repair_shout  cost 3   NEVER RAN - its `payload_greeted` precondition cannot hold on this spec
+    repair_guard  cost 4   never reached
+
+**Our hypothesis.** `procedure.cnl` derives exclusion from having FAILED:
+
+    ?o excluded <yes> when ?o discrepancy ?e
+
+`repair_shout` never runs, so it is never `done`; it never fails, so it is never `excluded`. Both drop
+rules for `?alt outranked_by ?x` are therefore never satisfied, and the block it places on `repair_guard`
+is permanent. The cascade seems to assume every cheaper rival will eventually be TRIED — which holds when
+alternatives differ only in cost, and stops holding once one of them declares a precondition that the
+current world cannot satisfy.
+
+**Why we think it is the cost and not our rule.** Varying that one number and changing nothing else: at
+`cost 3` or below `repair_guard` runs and the build verifies; at `4` it is stranded. The operator itself
+is fine — applied directly it produces the intended program and both our oracles pass.
+
+**What we are unsure about, i.e. where we may be holding it wrong:**
+
+1. Is an operator whose precondition cannot currently hold meant to be `excluded` (or simply not to
+   participate in `outranked_by` at all)? A clause like `?x applicable` on the `outranked_by` rule would
+   do it, but we cannot tell whether "applicable" is a notion the planner deliberately keeps out of the
+   ranking layer.
+2. Is declaring `needs=("payload_greeted",)` on an alternative producer the intended way to order two
+   repairs at all? We introduced it in the compose slice so that `repair_shout` could not run before
+   `repair_greet`. If preconditions on ALTERNATIVES are not really meant to gate replan candidates, the
+   authoring fix is ours and the ranking layer is innocent.
+3. We have only exercised this forward (`run_bank`); we have not checked whether the demand engine agrees
+   about `outranked_by` here, and per #16 that is exactly where our reasoning has been wrong before.
+
+**What we did on our side, for now:** kept `cost 4` (it is the honest number under our stated principle)
+and pinned the stranding, so if this ever gains a fix the pin fails loudly and we come back to it. We
+deliberately did not re-price to 3 — that would only work by winning an alphabetical tiebreak, and our own
+notes say the tiebreak carries no meaning.
+
 ### Net
 
 The spike succeeded and the model (SUPPOSE + CHAIN over reified semantics, RECORD as the

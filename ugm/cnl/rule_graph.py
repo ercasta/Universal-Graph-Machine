@@ -138,8 +138,40 @@ def write_rule(graph: Graph, rule: Rule) -> str:
     return rule_node
 
 
+def _atom_defect(graph: Graph, pred: str, role_node: str) -> str | None:
+    """Why `pred` is not a well-formed pattern atom, or None if it is.
+
+    A pattern atom is the 2-hop path  subj --> [relation node carrying the predicate] --> obj,
+    with EXACTLY one subject and one object (`write_rule`'s mint-time invariant: predicate nodes
+    are fresh per Pat, so each has one non-role in-edge and one out-edge). Reading a fragment that
+    breaks the invariant used to fail three ways, all quiet or unhelpful (see `rules_in_graph`):
+    a missing endpoint raised a bare `IndexError`; a duplicated endpoint silently kept the first
+    and DROPPED the rest; a middle node that is not a relation silently yielded `Pat('', '', '')`.
+    Each is a rule that means something other than what the graph says, with no diagnostic."""
+    if not graph.predicate(pred):
+        return ("the role edge points at a node that carries no predicate, so it is not a "
+                "relation node (a pattern atom's middle node must be one)")
+    ins = [n for n in graph.into(pred) if n != role_node]
+    outs = list(graph.out(pred))
+    for endpoint, nodes in (("subject", ins), ("object", outs)):
+        if not nodes:
+            return (f"its relation node has no {endpoint}"
+                    + (" (no in-edge besides the role edge)" if endpoint == "subject" else ""))
+        if len(nodes) > 1:
+            shown = ", ".join(sorted(repr(graph.name(n)) for n in nodes))
+            return (f"its relation node has {len(nodes)} {endpoint}s ({shown}) — exactly one is "
+                    "required, or the atom's reading would depend on edge order")
+        if not graph.name(nodes[0]):
+            return (f"its {endpoint} node is unnamed, so it yields no pattern token "
+                    "(subject/object nodes are named by the token they stand for)")
+    return None
+
+
 def _read_pat(graph: Graph, pred: str, role_node: str) -> Pat:
-    """Reconstruct a Pat from its predicate node (pred's single non-role in/out edges)."""
+    """Reconstruct a Pat from its predicate node (pred's single non-role in/out edges).
+
+    Callers MUST have cleared `_atom_defect` first — `rules_in_graph` does, and reports every
+    defect at once rather than raising on the first."""
     ins = [n for n in graph.into(pred) if n != role_node]
     outs = list(graph.out(pred))
     return Pat(graph.name(ins[0]), graph.predicate(pred), graph.name(outs[0]))
@@ -154,16 +186,38 @@ def rules_in_graph(graph: Graph) -> list[Rule]:
 
     A rule node is identified as the subject of any role relation. Pats are sorted
     within each role for deterministic output (order is irrelevant to matching).
+
+    A fragment that is not a well-formed rule is a loud `ValueError` naming every defect
+    (`_atom_defect`), never a crash and never a silently-different rule. This matters because
+    `write_rule` is no longer the only way fragments arise: rule-writing rules (the learning
+    arc, docs/design/learning_design.md) make malformed fragments an ORDINARY authoring error,
+    and the failure has to read like one.
     """
     by_rule: dict[str, dict[str, list[Pat]]] = {}
+    defects: list[str] = []
     for nid in graph.nodes():
         for role_node, pred in graph.relations_from(nid):
             role = graph.predicate(role_node)
             if role not in ROLE_NAMES:
                 continue
+            defect = _atom_defect(graph, pred, role_node)
+            if defect is not None:
+                rule_name = graph.name(nid) or f"<unnamed node {nid}>"
+                defects.append(f"rule '{rule_name}', role '{role}': {defect}")
+                continue
             by_rule.setdefault(nid, {}).setdefault(role, []).append(
                 _read_pat(graph, pred, role_node)
             )
+    if defects:
+        raise ValueError(
+            "rules_in_graph: malformed rule fragment(s) — "
+            + "; ".join(sorted(defects))
+            + ". A pattern atom must be the 2-hop path  subj --> [relation node carrying the "
+              "predicate] --> obj, exactly the shape `write_rule` builds; the role edge "
+              "(lhs/rhs/nac/drop) points at the MIDDLE node. Note that a rule's RHS cannot "
+              "build this shape directly — it has no way to name the relation node it creates "
+              "— so a rule-writing rule should target the FLAT schema that `expand_rules` "
+              "reads (`<cond>` + k_subj/k_pred/k_obj) instead.")
 
     rules: list[Rule] = []
     for rid in sorted(by_rule, key=graph.name):
