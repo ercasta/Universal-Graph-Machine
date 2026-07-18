@@ -219,6 +219,62 @@ the flat schema has no `rl_prob` role. `rl_graded` is NOT this: it is a per-cond
 `Rule.probability`. Small and local, but it is a real prerequisite for §6.1 and must not be
 discovered during the build.
 
+> **S4 INVESTIGATION, 2026-07-18 — THE WHOLE NUMERIC CONFIDENCE CHANNEL IS DEAD.** Encoding
+> `rl_prob` would have been cosmetic **twice over**:
+>
+> - **`Rule.probability` is never read.** Package-wide it appears only as the dataclass field, a
+>   module docstring promising `confidence = matched ⊗ probability ⊗ graded-degree`, and
+>   `rule_graph.py:34`'s note that it is unencoded. Measured: setting it to 1.0 / 0.5 / 0.1
+>   produces an identical graph, and the derived fact carries **no confidence attribute at all**.
+> - **`CONF` is written but never read.** `add_relation(confidence=)` stores it; the only other
+>   reference in the package is `machine.py:51` EXCLUDING it when identifying a predicate key.
+>   Nothing reasons over it and no verdict surface renders it.
+>
+> So wiring probability → CONF would still change nothing observable. The working uncertainty
+> mechanism is the possibilistic FORK path — a `<hypothesis>` scope carrying `<likeliness>`
+> (`possibility.py`) — which is a different representation, not a number on a rule. `guess`
+> picks among EXISTING banded alternatives; it does not create hedging.
+>
+> **Consequence: §6.1's "born hedged" has no mechanism in the form this design assumed.** It must
+> be re-grounded — see §6.1a. S4 is superseded.
+
+### 6.1a Provisionality is answered at QUERY TIME from provenance (BUILT, supersedes S4)
+
+> **Status: BUILT 2026-07-18** — `ugm/learned.py`, `Rule.learned`, the `rl_learned` flat-schema
+> role; `tests/test_learned_support.py` ×9, suite **654 green**. User-ratified after the §6.2
+> dead-channel finding.
+
+Since the numeric channel is inert (§6.2), a learned rule is not marked with a confidence. It is
+marked as LEARNED (`Rule.learned`, carried through the flat schema as the marker role
+`rl_learned`, so a learner stamps its own output and the mark survives the round-trip). Then:
+
+```python
+learned_support(fact_g, goal, learned=learned_keys(bank), rules=rg)
+   -> ["learned.fly"]      # the learned rules this answer stands on, or [] if none
+render_provisional(POSITIVE, used)
+   -> "positive (assuming 1 learned rule(s): learned.fly)"
+```
+
+Design points, each deliberate:
+
+- **The verdict vocabulary is UNCHANGED.** `check` still returns POSITIVE / ENTAILED_NEG /
+  ASSUMED_NO / UNKNOWN, so no existing caller learns a fifth value. Provisionality is
+  EXPLANATION, asked separately when it matters — the two-homes discipline.
+- **TRANSITIVE support is followed**, not just the answer's own justification: a conclusion is
+  provisional if ANY step used a learned rule. Pinned by a test where a learned rule derives an
+  intermediate fact and an authored rule derives the goal from it — reading only the top
+  justification would miss it.
+- **Nothing is stored per fact.** The question is answered by walking provenance on demand, which
+  is why it costs nothing until asked (it runs the chain with `provenance=True`, so call it when
+  you intend to render support).
+- **It reuses the surface's existing habit** of a verdict wearing its kind (`no (assumed)` vs a
+  hard `no`) rather than inventing a parallel notion of doubt.
+
+**"Promoted by survival" (§6.1 step 2) is now the open half.** Nothing yet strengthens a learned
+rule over time; today a rule is learned-or-not, binary. Given §6.2b/§6.2c, the natural promotion
+signal is *survived a discriminating question* rather than *used N times* — but that is
+unspecified and should be settled by watching S5 behave.
+
 ### 6.2b k>=2 by ELIMINATION — measured (`bench/spike_k2_intersection.py`)
 
 Two axes, and conflating them was the muddle in the first draft of this section:
@@ -431,7 +487,58 @@ All three now raise a `ValueError` naming the rule and the role, and ALL defects
 reported in one raise (a learner emits many fragments at once; raise-fix-raise would be its own
 usability failure).
 
-### 9.1 S1b — the FLAT reader still needs it (prerequisite, not polish)
+### 9.1 S1b — loudness for the FLAT reader (BUILT)
+
+> **Status: BUILT 2026-07-18** — `flat_rule_defects` / `_clause_defect` in `ugm/cnl/authoring.py`,
+> called from `expand_rules`; `tests/test_rule_fragment_loudness.py` ×12, suite **645 green**.
+> No existing CNL rule tripped it, confirming that unnamed pattern tokens were never legitimate.
+
+`expand_rules` now REFUSES any clause whose `k_subj`/`k_pred`/`k_obj` is missing or points at an
+unnamed node (it would reflect to the empty token `''`, matching nothing), and any explicit
+`rl_key` pointing at an unnamed node. All defects are reported in one raise.
+
+**It immediately earned its keep, in the way loudness is supposed to.** Run against the §4.1
+learner it reported **66 defects** where 24 broken rules had previously passed silently — and in
+doing so promoted finding E from a cosmetic residue to a **BLOCKING** defect. The learner now
+lifts nothing at all rather than quietly producing garbage. That is the correct outcome and it is
+why S1b was a prerequisite rather than polish.
+
+**Scope note:** `rl_graded` / `rl_value_match` / `rl_value_close` carry different slots and are
+deliberately not covered; this validates the structural pattern every rule has.
+
+#### 9.1a Finding E — RESOLVED by S3a: join by VALUE, not by edge
+
+> **Status: RESOLVED 2026-07-18** (`bench/spike_predicate_reification.py`). **No engine change.**
+
+The link `rel --pred_tok--> token` had to be READ by the learner (subject position) while NOT
+binding in the OBJECT position of `?s ?p ?o`. **No flag achieves that** — measured, with and
+without provenance:
+
+| link written as | learner can READ it | pollutes `?o` |
+|---|---|---|
+| plain / `control=True` / predicate `<pred_tok>` | yes | **yes** |
+| `inert=True` (with or without `<…>`) | **no** — learner stops firing (0 rules) | no |
+
+Readable ⟺ polluting, always. The cause is structural: the link is an EDGE on a relation node,
+and an object is reached by following a relation's out-edges.
+
+**THE FIX.** Tag the relation AND its token with the same VALUED `pred_name`, and bind them with
+a declared `ValueMatch`. **A valued attribute is not an edge**, so `FOLLOW` never traverses it —
+the join is a filter and cannot pollute by construction. `ValueMatch` already exists as the
+declared value-JOIN (the coreference-as-rules enabler), so this needed nothing new.
+
+**The general principle, worth stating beyond this arc:** to associate metadata with a relation
+node, use a VALUED attribute plus a declared join — never an edge. An edge on a relation node
+changes what patterns traversing that relation can bind, which is the same root cause as §4.1's
+non-termination wall. Edges on relation nodes are the hazard; attributes are safe.
+
+**Result:** the learner lifts 4 rules (2 distinct shapes), all well-formed under S1b, keyed off
+OBSERVED predicates, and learner + learned still coexist in one stratum deriving `robin flies`.
+It also settles the earlier correction: the "32 rules from 2 observations" figure was **entirely**
+the pollution artefact. The genuine over-generalization is exactly the two directions — which is
+what §6.2b's k>=2 result halves.
+
+### 9.1b The original S1b argument (retained)
 
 **S1 hardened the wrong reader for learning's purposes.** `rules_in_graph` reads the FACT-SHAPED
 schema; the learning target is the FLAT schema, whose reader `expand_rules` has no equivalent
@@ -460,15 +567,26 @@ Ordered so each lands green and nothing waits on an unbuilt primitive:
 - **S2b — T3 alignment spike (§7.1).** Given an unrecognized utterance and the structure its
   rephrasing produced, can shared-mention alignment mint a correct form? This is the slice that
   makes form learning real rather than cosmetic; spike the alignment before designing it.
-- **S1b — loudness for the FLAT reader (§9.1).** Prerequisite for S5, same argument as S1.
+- **S1b — loudness for the FLAT reader (§9.1). DONE 2026-07-18** (645 green). Promoted finding E
+  to blocking, which is what it was for.
+- **S3a — resolve finding E (§9.1a). DONE 2026-07-18.** Join by VALUE, not by edge; no engine
+  change. S5 is unblocked.
 - **S2c — the discriminating question (§6.2c).** De-risked by spike: derivation works and
   `suppose(commit=False)` is the home. This is the BOOTSTRAPPING engine and serves both halves
   of the arc; rank candidate questions by whether their `no` branch is live.
 - **S3 — Predicate reification (§4, option B).** The `pred_tok(ENTITY)` calculator + interning.
   De-risked by spike: buildable, with the §4.1 discipline.
-- **S4 — `rl_prob` (§6.2).** The encoding gap for born-hedged.
-- **S5 — The learner (§5).** Flat-schema learner rules, keyed by generalization, gated by
-  stratification. Promote the spike's L3/L4 into `tests/test_learning.py`.
+- **S4 — ~~`rl_prob`~~ SUPERSEDED 2026-07-18.** The numeric channel is dead engine-wide (§6.2);
+  replaced by query-time provisionality (§6.1a, DONE, 654 green).
+- **S5 — The learner (§5). DONE 2026-07-18** — `ugm/learner.py`, `tests/test_learner.py` ×11,
+  suite **665 green**. `observe(g, …)` marks subjects, `learn(g)` returns rules already stamped
+  `learned=True`, `accept(existing, learned)` is the per-candidate stratification gate.
+  Pinned: predicates come from the GRAPH (tested on a vocabulary absent from the module source);
+  learning is INVOKED, not ambient; scaffolding cannot leak (the calculator reifies only domain
+  predicates, so the value-join finds nothing for it — ONE place decides what is learnable);
+  learner+learned coexist with no runaway; a conclusion on a learned rule reports provisional.
+  Gate note, checked while building: `stratify` refuses MUTUAL negation; a one-way negative
+  dependency stratifies fine, and a rule NACing its own head is accepted (the fire-once idiom).
 - **S6 — Discrepancy → learned rule (§7.2)** and **revision (§7.3).** The loop closes.
 
 ## 11. Open (named, not forgotten)

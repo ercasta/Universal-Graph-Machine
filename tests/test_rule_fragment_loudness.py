@@ -113,3 +113,91 @@ def test_folded_one_graph_with_facts_is_not_a_false_positive():
     h.write_rule(g, Rule(key="ok", lhs=[Pat("?x", "is_a", "bird")], rhs=[Pat("?x", "flies", "yes")]))
 
     assert [r.key for r in h.rules_in_graph(g)] == ["ok"]
+
+
+# ---------------------------------------------------------------------------
+# S1b — the same treatment for the FLAT reader (`expand_rules`), which is what
+# rule LEARNING targets. `rules_in_graph` above guards the fact-shaped schema;
+# a learner never writes that one (it cannot name the relation node it creates).
+# ---------------------------------------------------------------------------
+
+from ugm.cnl.authoring import expand_rules, flat_rule_defects
+
+
+def _flat_rule(g, key_named=True, obj_named=True):
+    """A folded FLAT-schema fragment: <rule> -rl_head-> <cond> -k_subj/k_pred/k_obj-> tokens."""
+    R = g.add_node("<lrule>", control=True)
+    cond = g.add_node("<cond>", control=True)
+    g.add_relation(R, "rl_head", cond, control=True)
+    g.add_relation(cond, "k_subj", g.add_node("?x", control=True), control=True)
+    g.add_relation(cond, "k_pred", g.add_node("flies", control=True), control=True)
+    obj = g.add_node("yes", control=True) if obj_named else g.add_node("", control=True)
+    g.add_relation(cond, "k_obj", obj, control=True)
+    key = g.add_node("bird", control=True) if key_named else g.add_node("", control=True)
+    g.add_relation(R, "rl_key", key, control=True)
+    return R
+
+
+def test_flat_unnamed_object_token_is_loud():
+    """An unnamed k_obj reflects to `Pat('?x','flies','')` — a rule matching nothing. The
+    learning spikes produced 24 of these out of 32 and nothing complained."""
+    g = AttrGraph()
+    _flat_rule(g, obj_named=False)
+    with pytest.raises(ValueError) as e:
+        expand_rules(g)
+    msg = str(e.value)
+    assert "k_obj" in msg
+    assert "<lrule>" in msg
+
+
+def test_flat_unnamed_rl_key_is_loud():
+    g = AttrGraph()
+    _flat_rule(g, key_named=False)
+    with pytest.raises(ValueError) as e:
+        expand_rules(g)
+    assert "rl_key" in str(e.value)
+
+
+def test_flat_missing_slot_is_loud():
+    """A clause with no k_obj edge at all — the slot is absent rather than unnamed.
+
+    The clause must hang off a HEAD role: `expand_rules` identifies rule nodes by
+    rl_head/rl_drop/rl_pred, so a fragment carrying only `rl_lhs` is not a rule at all and is
+    correctly skipped rather than reported (checked below)."""
+    g = AttrGraph()
+    R = g.add_node("<lrule>", control=True)
+    cond = g.add_node("<cond>", control=True)
+    g.add_relation(R, "rl_head", cond, control=True)
+    g.add_relation(cond, "k_subj", g.add_node("?x", control=True), control=True)
+    g.add_relation(cond, "k_pred", g.add_node("flies", control=True), control=True)
+    with pytest.raises(ValueError) as e:
+        expand_rules(g)
+    assert "k_obj" in str(e.value)
+
+
+def test_flat_body_only_fragment_is_not_a_rule():
+    """A fragment with a body but NO head/drop is not a rule node; it is skipped, not reported.
+    Guards the new validation against widening what counts as a rule."""
+    g = AttrGraph()
+    R = g.add_node("<lrule>", control=True)
+    cond = g.add_node("<cond>", control=True)
+    g.add_relation(R, "rl_lhs", cond, control=True)
+    g.add_relation(cond, "k_subj", g.add_node("?x", control=True), control=True)
+    assert expand_rules(g) == []
+
+
+def test_flat_reports_every_defect_at_once():
+    g = AttrGraph()
+    _flat_rule(g, obj_named=False)
+    _flat_rule(g, key_named=False)
+    defects = flat_rule_defects(g, [n for n in g.nodes() if g.name(n) == "<lrule>"])
+    assert len(defects) >= 2, defects
+
+
+def test_flat_well_formed_fragment_still_expands():
+    g = AttrGraph()
+    _flat_rule(g)
+    rules = expand_rules(g)
+    assert len(rules) == 1
+    assert rules[0].key == "bird"
+    assert [p.tokens() for p in rules[0].rhs] == [("?x", "flies", "yes")]

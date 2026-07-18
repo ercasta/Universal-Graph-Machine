@@ -19,6 +19,10 @@ from .machine import (
     T_MIN, T_PROD,
 )
 from .recall import near, cosine, Hit
+from .learned import (learned_support, learned_keys, rules_supporting,
+                      render_provisional, LEARNED_ROLE)
+from .learner import (learn, observe, accept, prepare, pred_tok_tool,
+                      LEARNER_BANK, REIFY, COOCCURRENCE)
 from .lowering import (
     to_attrgraph, lower_conj, lower_lhs, lower_graded, lower_rhs,
     lower_propagate, lower_drop,
@@ -156,6 +160,10 @@ __all__ = [
     "assumptions_of", "assumption_groups",
     "derived_facts", "axiomatize",
     "reconsider", "mark_dirty",
+    "learned_support", "learned_keys", "rules_supporting", "render_provisional",
+    "LEARNED_ROLE",
+    "learn", "observe", "accept", "prepare", "pred_tok_tool",
+    "LEARNER_BANK", "REIFY", "COOCCURRENCE",
     "RETRACT", "TARGETS", "RETRACT_RULES", "seed_retract", "retract",
     "resurrect", "record_history", "record_rejection", "is_rejected",
     "CWA", "COPULA", "NEG_COPULA", "NEG_SUFFIX", "IS_A", "IS_A_NOT", "SAME_AS", "DISJOINT",

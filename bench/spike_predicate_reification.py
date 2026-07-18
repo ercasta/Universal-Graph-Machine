@@ -35,29 +35,49 @@ FINDINGS
      never invoked at all. Any guard that depends on a tool's output therefore cannot fix a
      runaway that precedes it (chicken-and-egg); the termination has to be structural.
 
-  E. THE TOOL'S OWN WRITE POLLUTES THE OBJECT POSITION — a MILDER instance of A, and the
-     residue the workaround leaves behind. `rel --pred_tok--> token` gives the relation node an
-     out-edge, so `g.out(is_a_rel)` becomes {bird, pred_tok_rel} and any pattern reading
-     `?s ?p ?o` binds `?o` to the (unnamed) pred_tok relation node as well as to `bird`.
-     Bounded, not runaway — but it silently yields learned rules with EMPTY tokens
-     (`('?x','flies','')`), visible in section C's output.
+  E. THE TOOL'S OWN WRITE POLLUTED THE OBJECT POSITION — **RESOLVED, S3a.** An edge-based link
+     `rel --pred_tok--> token` gives the relation node an out-edge, so `g.out(is_a_rel)` becomes
+     {bird, link_rel} and any pattern reading `?s ?p ?o` binds `?o` to the unnamed link relation
+     as well as to `bird`. Bounded, not runaway — but it silently produced learned rules with
+     EMPTY tokens, and once S1b made `expand_rules` loud it became a BLOCKING error (66 defects,
+     0 rules lifted).
 
-     And `expand_rules` emits those without complaint. **S1 hardened `rules_in_graph` (the
-     FACT-SHAPED reader) but the learning target is the FLAT schema, whose reader has no
-     equivalent validation.** The loudness work is therefore only half done; the flat reader
-     needs the same treatment (call it S1b) BEFORE a learner ships, or every learner bug will
-     surface as a silently-empty pattern token.
+     No flag resolves it. Measured matrix, with and without provenance:
+
+         link written as        learner can READ it     pollutes ?o
+         plain                          yes                 yes
+         control=True                   yes                 yes
+         inert=True                     NO                  no
+         predicate <pred_tok>           yes                 yes
+         <pred_tok> + inert             NO                  no
+
+     Readable <=> polluting, always. The cause is structural: the link is an EDGE on a relation
+     node, and an object is reached by following a relation's out-edges.
+
+     THE FIX (S3a) — JOIN BY VALUE, NOT BY EDGE. Tag the relation AND its token with the same
+     VALUED `pred_name`, and let the learner bind them with a declared `ValueMatch`. A valued
+     attribute is not an edge, so `FOLLOW` never traverses it: the join is a filter and CANNOT
+     pollute by construction. No engine change — `ValueMatch` already exists as the declared
+     value-JOIN (the coreference-as-rules enabler).
+
+     Result: the learner lifts 4 rules (2 distinct shapes), all well-formed under S1b, keyed off
+     OBSERVED predicates — and the "32 rules from 2 observations" figure is revealed to have been
+     ENTIRELY the pollution artefact. The genuine over-generalization is exactly the 2 directions.
 """
 from __future__ import annotations
 
 import ugm as h
-from ugm import AttrGraph, Pat, Rule, Distinct, derived_triples
+from ugm import AttrGraph, Pat, Rule, Distinct, ValueMatch, derived_triples
+from ugm.attrgraph import valued
 from ugm.cnl.authoring import expand_rules
 from ugm.dispatch import call_arg
 from ugm.lowering import run_bank
 from ugm.production_rule import stratify
 
-PRED_TOK = "pred_tok"
+PRED_TOK = "pred_tok"      # (legacy: the edge-based link that finding E ruled out)
+PRED_NAME = "pred_name"    # the VALUED join dimension carried by BOTH a relation and its token
+PAT_TOK = "pat_tok"        # marker relation that puts a token in the bindable pool
+TOK_MARKER = "<tokpool>"
 
 
 def hdr(s: str) -> None:
@@ -118,23 +138,44 @@ def wall_isolation() -> None:
 # ---------------------------------------------------------------------------
 
 def pred_tok_tool(graph, call_id):
-    """`pred_tok(entity)` — mint/intern a node NAMED after each predicate the entity participates
-    in, and wire `rel --pred_tok--> token`. Takes an ENTITY, never a relation node (finding A).
+    """`pred_tok(entity)` — intern a node NAMED after each predicate the entity participates in,
+    and tag BOTH the relation and its token with the same VALUED `pred_name`, so a rule can join
+    them by declared value-match. Takes an ENTITY, never a relation node (finding A).
+
+    NO EDGE IS EVER ADDED TO A RELATION NODE — that is the whole point (finding E / S3a). An edge
+    on a relation node is visible-and-polluting (`?s ?p ?o` binds `?o` to the link) or, marked
+    inert, invisible to the learner's own read as well; the measured matrix has no third option.
+    A VALUED attribute is not an edge, so `FOLLOW` never traverses it: the join is a filter, and
+    it cannot pollute by construction.
 
     The interning matters: `add_node` always mints, so without the reuse scan every call would
     make a fresh `is_a` node and learned rules would not converge on one token."""
     ent = call_arg(graph, call_id, "arg")
     if ent is None:
         return set()
+    marker = _marker(graph)
     touched: set[str] = set()
     for rel, _obj in list(graph.relations_from(ent)):
         pred = graph.predicate(rel)
-        if not pred or pred == PRED_TOK:
+        if not pred:
             continue
+        graph.set_attr(rel, PRED_NAME, valued(pred))
         existing = [n for n in graph.nodes_named(pred) if graph.is_control(n)]
-        tok = existing[0] if existing else graph.add_node(pred, control=True)
-        touched |= {tok, graph.add_relation(rel, PRED_TOK, tok, control=True)}
+        if existing:
+            tok = existing[0]
+        else:
+            tok = graph.add_node(pred, control=True)
+            graph.set_attr(tok, PRED_NAME, valued(pred))
+            graph.add_relation(tok, PAT_TOK, marker, control=True)
+        touched |= {tok, rel}
     return touched
+
+
+def _marker(graph):
+    """The single interned node every predicate token is marked against (so a rule can bind the
+    token pool with `?t pat_tok ?m`)."""
+    existing = [n for n in graph.nodes_named(TOK_MARKER) if graph.is_control(n)]
+    return existing[0] if existing else graph.add_node(TOK_MARKER, control=True)
 
 
 ASK = Rule(key="ask.predtok",
@@ -158,13 +199,16 @@ def calculator_works() -> AttrGraph:
 # C — a learner keyed off an OBSERVED predicate
 # ---------------------------------------------------------------------------
 
-# Reads relation nodes (safe), writes only TOKEN nodes (the discipline finding A imposes).
+# Reads relation nodes (safe), writes only TOKEN nodes (the discipline finding A imposes), and
+# reaches each relation's predicate token by VALUE-JOIN rather than by edge (S3a / finding E).
 LEARNER = Rule(
     key="learn.observed",
     lhs=[Pat("?s", "is_a", "?k"),                       # ground anchor
-         Pat("?s", "?p1", "?k1"), Pat("?p1", PRED_TOK, "?t1"),
-         Pat("?s", "?p2", "?o"), Pat("?p2", PRED_TOK, "?t2"),
+         Pat("?s", "?p1", "?k1"), Pat("?t1", PAT_TOK, "?m1"),
+         Pat("?s", "?p2", "?o"), Pat("?t2", PAT_TOK, "?m2"),
          Pat("?v", "pat_var", "slot1")],
+    value_matches=[ValueMatch("?p1", "?t1", PRED_NAME),  # the token OF this relation
+                   ValueMatch("?p2", "?t2", PRED_NAME)],
     distinct=[Distinct("?p1", "?p2")],
     rhs=[Pat("<lrule>?", "rl_key", "?k1"),
          Pat("<lrule>?", "rl_lhs", "<cbody>?"),

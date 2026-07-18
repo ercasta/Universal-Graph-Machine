@@ -90,10 +90,31 @@ def _shape(r: Rule) -> tuple:
     return (tuple(sorted(p.tokens() for p in r.lhs)), tuple(sorted(p.tokens() for p in r.rhs)))
 
 
-def learn(*, with_plane: bool) -> list[Rule]:
+# The two hypotheses birds-that-fly leaves open. Used as a FALLBACK when the learner is blocked
+# (see `learn`) so this experiment — which is about LICENSING, not about learning mechanics —
+# keeps measuring what it is meant to measure.
+_CANDIDATES: list[Rule] = [
+    Rule(key="cand.fwd", lhs=[Pat("?x", "is_a", "bird")], rhs=[Pat("?x", "flies", "yes")]),
+    Rule(key="cand.rev", lhs=[Pat("?x", "flies", "yes")], rhs=[Pat("?x", "is_a", "bird")]),
+]
+
+
+def learn(*, with_plane: bool) -> tuple[list[Rule], list[Rule]]:
+    """The learned candidate set — or the hand-written equivalent when the learner is blocked.
+
+    Since S1b, `expand_rules` REFUSES the learner's output: finding E's object-position pollution
+    puts empty tokens in every learned clause, and that is now a loud error rather than a silent
+    corruption. Until finding E is resolved (spike_predicate_reification, E1) this experiment
+    falls back to `_CANDIDATES`, which is exactly the pair the learner produced back when the
+    corruption passed silently. The fallback announces itself, and disappears on its own once
+    the learner is fixed."""
     g = learning_graph(with_plane=with_plane)
     run_bank(g, [ASK, LEARNER], max_rounds=80, tools={"pt": pred_tok_tool})
-    raw = expand_rules(g)
+    try:
+        raw = expand_rules(g)
+    except ValueError:
+        print("  [learner blocked by finding E — using the hand-written candidate pair]")
+        return list(_CANDIDATES), list(_CANDIDATES)
     kept, seen = [], set()
     for r in raw:
         if not _well_formed(r):

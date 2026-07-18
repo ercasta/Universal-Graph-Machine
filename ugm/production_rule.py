@@ -223,6 +223,16 @@ class Rule:
                                                         # prov-on run (the regress guard — a meta-rule that
                                                         # names proves/uses would else re-match its own <j:>).
                                                         # Lets reasoning + TMS rules share ONE run().
+    learned: bool = False                               # DECLARED role: this rule was LEARNED, not
+                                                        # authored (docs/design/learning_design.md
+                                                        # §6.1a). Read by `learned.learned_support`
+                                                        # so a conclusion standing on it can be
+                                                        # rendered wearing its kind. Carried through
+                                                        # the flat schema as `rl_learned`. NOT a
+                                                        # confidence: `Rule.probability` below is a
+                                                        # dead field (nothing in the package reads
+                                                        # it), and provisionality is answered from
+                                                        # PROVENANCE at query time, not stored.
     coref_prop: bool = False                            # DECLARED role (Phase 5.4): a `same_as`
                                                         # coreference-propagation rule (`universal.same_as_rules`).
                                                         # Its PRESENCE is the DATA that turns coref-following ON

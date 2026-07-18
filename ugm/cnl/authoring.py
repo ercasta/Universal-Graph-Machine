@@ -792,7 +792,11 @@ def _expand_rule_node(graph: Graph, R: str, declared: set[str] = frozenset()) ->
     # digest would drift with any pattern edit.
     key_tok = _obj(graph, R, "rl_key")
     key = graph.name(key_tok) if key_tok is not None else _rule_key(rhs, lhs, nac, drop, prose=prose)
-    return Rule(key=key,
+    # `rl_learned` is a MARKER role (presence is the mark; the object is not read), so a learner can
+    # stamp its own output and the mark survives the graph round-trip like `rl_key` does. Read by
+    # `learned.learned_support` to render a conclusion wearing its kind — never a confidence.
+    learned = _obj(graph, R, "rl_learned") is not None
+    return Rule(key=key, learned=learned,
                 lhs=lhs, rhs=rhs, nac=nac, drop=drop, graded=graded, value_matches=value_matches)
 
 
@@ -811,6 +815,60 @@ def _rule_key(rhs: list[Pat], lhs: list[Pat], nac: list[Pat], drop: list[Pat],
                    for role, pats in (("h", rhs), ("l", lhs), ("n", nac), ("d", drop))
                    for p in sorted(pats, key=_pat_key))
     return f"rule.{label}.{zlib.crc32(sig.encode()) & 0xFFFFFF:06x}"
+
+
+# The pattern-bearing roles of the FLAT reification and the three slots each clause carries.
+# (`rl_graded` / `rl_value_match` / `rl_value_close` carry different slots and are deliberately
+# out of scope here — this checks the structural pattern that every rule has.)
+_PAT_ROLES: tuple[str, ...] = ("rl_head", "rl_lhs", "rl_nac", "rl_drop")
+_PAT_SLOTS: tuple[str, ...] = ("k_subj", "k_pred", "k_obj")
+
+
+def _clause_defect(graph: Graph, cond: str, role: str) -> str | None:
+    """Why this folded clause yields no usable pattern, or None if it is fine.
+
+    A slot that is MISSING, or that points at an UNNAMED node, reflects to the empty token `''`
+    (`_cond_pat` -> `graph.name`), producing a `Pat('?x', 'flies', '')` that matches nothing.
+    Silently. That was unreachable while the CNL grammar was the only producer of these
+    fragments; rule-writing rules (docs/design/learning_design.md) make it ordinary — the
+    learning spikes produced 24 such rules out of 32 and nothing complained."""
+    shown, bad = [], []
+    for slot in _PAT_SLOTS:
+        tok = _obj(graph, cond, slot)
+        if tok is None:
+            shown.append(f"<no {slot}>")
+            bad.append(slot)
+        elif not graph.name(tok):
+            shown.append(f"<unnamed node {tok}>")
+            bad.append(slot)
+        else:
+            shown.append(graph.name(tok))
+    if not bad:
+        return None
+    return (f"role '{role}': clause ({', '.join(shown)}) — {', '.join(bad)} "
+            "resolve(s) to no token")
+
+
+def flat_rule_defects(graph: Graph, rule_nodes: list[str]) -> list[str]:
+    """Every reason a folded rule fragment would reflect to a silently-broken `Rule`.
+
+    The FLAT-schema counterpart of `rule_graph._atom_defect` (which guards the fact-shaped
+    schema). Reports ALL defects rather than the first: a learner emits many fragments at once,
+    so raise-fix-raise would be its own usability failure."""
+    out: list[str] = []
+    for R in rule_nodes:
+        label = graph.name(R) or f"<unnamed rule node {R}>"
+        for role in _PAT_ROLES:
+            for cond in _objs(graph, R, role):
+                defect = _clause_defect(graph, cond, role)
+                if defect is not None:
+                    out.append(f"rule '{label}': {defect}")
+        key_tok = _obj(graph, R, "rl_key")
+        if key_tok is not None and not graph.name(key_tok):
+            out.append(f"rule '{label}': `rl_key` points at an unnamed node ({key_tok}) — an "
+                       "authored key must be a word (a keyless rule omits `rl_key` entirely and "
+                       "gets a derived digest key)")
+    return out
 
 
 def _frame_body_tokens(graph: Graph) -> set[str]:
@@ -840,6 +898,14 @@ def expand_rules(rule_graph: Graph) -> list[Rule]:
             or _objs(rule_graph, R, "rl_drop"))
         and _obj(rule_graph, R, "rl_subj") not in skip
     ]
+    defects = flat_rule_defects(rule_graph, rule_nodes)
+    if defects:
+        raise ValueError(
+            "expand_rules: rule fragment(s) that would reflect to a silently-broken rule — "
+            + "; ".join(sorted(defects))
+            + ". Every clause must resolve all three of k_subj/k_pred/k_obj to a NAMED node; a "
+              "slot that is missing or unnamed becomes the empty pattern token '', which matches "
+              "nothing and would fail silently at run time.")
     rules = [_expand_rule_node(rule_graph, R, declared) for R in rule_nodes]
     return sorted(rules, key=lambda r: r.key)
 

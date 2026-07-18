@@ -33,7 +33,12 @@ still pass a dedicated rule-graph (the classic layout) — both are correct, par
 Limitations (b1): only the structural fields (lhs/rhs/nac/drop) round-trip. The
 graded layer (`probability`, `graded`, `priority`, `propagate`) is not yet encoded
 as nodes — that needs the datum-node encodings and is deliberately deferred so the
-first slice stays minimal.
+first slice stays minimal. `Rule.learned` likewise does NOT round-trip here (verified);
+the FLAT schema carries it as `rl_learned`, which is where learned rules live anyway
+(a learner cannot write this schema at all — it has no way to name the relation node
+it creates; see docs/design/learning_design.md §3). Note also that `probability` is a
+DEAD field engine-wide: nothing in the package reads it, so encoding it here would
+change no behaviour (§6.2 of the learning design).
 """
 from __future__ import annotations
 
