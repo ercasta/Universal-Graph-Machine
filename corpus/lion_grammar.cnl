@@ -1,0 +1,87 @@
+# The intake grammar for the lion/taxonomy domain, declared entirely in CNL.
+#
+# Design: docs/design/homoiconic_grammar.md (read its section 0). Nothing in Python knows these
+# words: the lexicon, the productions, how each slot is filled, and which slots become a fact are
+# all declared here and GENERATE the recognition rules.
+#
+# Coverage target: the residual failures the Loudon corpus left behind (bench/spike_loudon.py) --
+# intransitive, negation, prepositional, comparative -- plus the shapes the shipped form bank
+# already handles, so subsumption can be checked.
+#
+# ONE LINE decides whether a modified noun phrase denotes the SAME entity as its head or a distinct
+# described subkind (docs/design/homoiconic_grammar.md section 10):
+#
+#     slot head in np from modifier plus np is right head      -- percolate (this file)
+#     mint head in np from modifier plus np under right head   -- mint a described subkind
+#
+# The surface/interpretation split (docs/design/surface_interpretation.md) makes that a defeasible
+# commitment rather than a choice the author must get right in advance.
+
+the is a determiner
+a is a determiner
+no is a negator
+guzerat is a modifier
+lion is a noun
+mane is a noun
+tiger is a noun
+africa is a noun
+fish is a noun
+has is a transitive
+eats is a transitive
+roars is a intransitive
+lives is a intransitive
+is is a copula
+smaller is a comparative
+than is a comparator
+in is a preposition
+np expands to noun
+np expands to determiner plus np
+np expands to modifier plus np
+np expands to negator plus np
+np expands to np plus pp
+pp expands to preposition plus np
+vp expands to intransitive
+vp expands to transitive plus np
+vp expands to vp plus pp
+cp expands to comparator plus np
+ap expands to comparative plus cp
+vp expands to copula plus ap
+clause expands to np plus vp
+slot head in np from noun is only head
+slot head in np from determiner plus np is right head
+slot head in np from modifier plus np is right head
+slot attr in np from modifier plus np is left head
+slot head in np from negator plus np is right head
+slot neg in np from negator plus np is left head
+slot head in np from np plus pp is left head
+slot prep in np from np plus pp is right prep
+slot pobj in np from np plus pp is right pobj
+slot prep in pp from preposition plus np is left head
+slot pobj in pp from preposition plus np is right head
+slot pred in vp from intransitive is only head
+slot pred in vp from transitive plus np is left head
+slot obj in vp from transitive plus np is right head
+slot neg in vp from transitive plus np is right neg
+slot pred in vp from vp plus pp is left pred
+slot obj in vp from vp plus pp is left obj
+slot prep in vp from vp plus pp is right prep
+slot pobj in vp from vp plus pp is right pobj
+slot cobj in cp from comparator plus np is right head
+slot comp in ap from comparative plus cp is left head
+slot cobj in ap from comparative plus cp is right cobj
+slot comp in vp from copula plus ap is right comp
+slot cobj in vp from copula plus ap is right cobj
+slot subj in clause from np plus vp is left head
+slot pred in clause from np plus vp is right pred
+slot obj in clause from np plus vp is right obj
+slot neg in clause from np plus vp is right neg
+slot prep in clause from np plus vp is right prep
+slot pobj in clause from np plus vp is right pobj
+slot comp in clause from np plus vp is right comp
+slot cobj in clause from np plus vp is right cobj
+np asserts head is attr
+clause asserts subj pred obj unless neg
+clause denies subj pred obj when neg
+clause asserts subj pred true unless obj
+clause asserts subj prep pobj when pobj
+clause asserts subj comp cobj when cobj

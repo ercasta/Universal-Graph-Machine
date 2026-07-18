@@ -54,9 +54,21 @@ contradiction defeats the READING rather than corrupting the KB. Full design:
     tokenize -> chart -> useful+ambiguity -> [REFUSE | ASK] -> mint spans
              -> interpret (entities, coreference) -> slots -> assert -> contradiction
 
-**Status: all of it lives in `bench/spike_*.py`. None of it is integrated.** Coverage is measured
-on 7 hand-picked sentences chosen to exercise known gaps, NOT on the 50-sentence corpus that
-motivated the arc.
+**Status (2026-07-18): STEP 1 OF INTEGRATION DONE.** The machinery is in `ugm/cnl/grammar.py` +
+`ugm/interpretation.py`, the grammar itself is `corpus/lion_grammar.cnl`, and the behaviours are
+pinned by `tests/test_grammar.py` (22 tests; suite 705 green). The benches keep only the
+MEASUREMENTS that decided design questions, and import the modules — the two spikes whose entire
+content had moved were deleted. **No existing path changed**: nothing calls the grammar yet.
+
+Remaining integration, in order: (2) wire it as an OPT-IN intake route (a KB that declares a
+grammar gets the grammar path; everything else keeps the shipped forms — the declare-before-use
+discipline, so the suite stays green by construction); (3) run the real corpora, Loudon's 50
+sentences first; (4) optimize (§9.6); (5) retire what it subsumes.
+
+**Coverage is still measured on 7 hand-picked sentences chosen to exercise known gaps, NOT on the
+50-sentence corpus that motivated the arc.** Step 3 is the honest instrument, and it needs
+`<contradiction>` derivation, which `consistency_design.md` still sketches rather than builds
+(`interpretation.contradiction_bank` is a local stand-in).
 
 ## 1. Half of it already exists, and is proven
 

@@ -64,7 +64,24 @@ the counterpart to the name-keyed `intern_mentions`, which is structurally blind
 nodes) — and that is REQUIRED for correctness, not tidiness, because RHS-only value invention
 re-mints on every bank run (10 nodes → 1 on a 3-sentence corpus).
 
-**NEXT, in order:** (1) **materialize the parse tree** — the 89 ms is pure execution (banks are
+**INTEGRATION STEP 1 DONE 2026-07-18 (suite 705 green).** The machinery moved out of `bench/` into
+`ugm/cnl/grammar.py` (declaration forms, `Grammar`/`GrammarBanks`, chart/ambiguity/span/slot/assert
+generation, `parse`) and `ugm/interpretation.py` (scope, `denotes`/`interprets`, `discard_scope`,
+contradiction marker, `describe`/`intern_described`); the grammar itself is now a real KB file,
+`corpus/lion_grammar.cnl`; behaviours pinned by `tests/test_grammar.py` (22 tests). The two spikes
+whose content had entirely moved were DELETED; the two that remain keep only the measurements that
+decided design questions and import the modules (output verified byte-identical). **No existing
+path changed** — nothing calls the grammar yet, which is why the suite stayed green.
+
+**Integration steps 2-5:** (2) wire as an OPT-IN intake route — a KB that declares a grammar gets
+the grammar path, everything else keeps the shipped forms (declare-before-use, so the suite stays
+green by construction); (3) **run the real corpora** — Loudon's 50 sentences first: all coverage so
+far is on 7 hand-picked sentences chosen to exercise known gaps, so expect this to be sobering, and
+it will force the question of WHO WRITES THE GRAMMAR for open prose (loops back to the learning
+arc's T3 form learning); (4) optimize; (5) retire what it subsumes. Step 3 needs `<contradiction>`
+derivation, which `consistency_design.md` sketches but does not build.
+
+**Optimizations, when step 4 arrives:** (1) **materialize the parse tree** — the 89 ms is pure execution (banks are
 built once, so memoizing buys nothing), and profiling puts 82 of it in the slot stage, where all
 32 slot rules redo the same 6-way parent/child join; writing `?p kidL/kidR` once per production
 makes every slot rule a 2-premise lookup and takes the stage to 21.7 ms, MEASURED. Second lever:
