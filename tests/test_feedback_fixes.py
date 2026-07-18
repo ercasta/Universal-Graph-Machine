@@ -600,3 +600,170 @@ def test_bydesc_that_is_not_definite_raises():
         ask_goal(g, ("why", ByDesc("c", ()), "ast_arg", "world"), rules)
     with pytest.raises(ValueError, match="matches no node"):
         ask_goal(g, ("why", ByDesc("c", (("for_step", "s9"),)), "ast_arg", "world"), rules)
+
+
+# --- #16: NAC GROUPING — `not (A and B)` vs `not A and not B`, and the two engines must agree -------
+#
+# Filed as "independent NACs aren't expressible; all `not` clauses fold into ONE conjunctive NAC".
+# The premise was inverted. The FORWARD engine has always partitioned NACs into independent groups by
+# their shared NAC-local FREE vars (`lowering._nac_groups`), so BOTH forms were already expressible
+# there. The demand chain decided every atom SEPARATELY, which silently collapses the conjunctive form
+# into the independent one — so the engines DISAGREED, and it was the conjunctive form (the one the
+# report said "works") that was broken on `ask_goal`.
+
+_SCOPED = "?c ok yes when ?l has ?c and not ?x before ?c and not ?l has ?x"
+_MIXED = ("?c ok yes when ?l has ?c and not ?x before ?c and not ?l has ?x "
+          "and not ?c emitted yes")
+
+
+def _scoped_world(emitted=()):
+    #  body l1 holds c1;  z lives in ANOTHER body l2 and precedes c1 — so z must NOT disqualify c1
+    g = h.Graph(); ids = {}
+    n = lambda x: ids.setdefault(x, ids.get(x) or g.add_node(x))
+    g.add_relation(n("l1"), "has", n("c1"))
+    g.add_relation(n("l2"), "has", n("z"))
+    g.add_relation(n("z"), "before", n("c1"))
+    for e in emitted:
+        g.add_relation(n(e), "emitted", n("yes"))
+    return g
+
+
+def test_conjunctive_nac_agrees_across_engines():
+    # The regression: `not ?x before ?c and not ?l has ?x` means "no predecessor INSIDE ?l". The demand
+    # chain blocked on ANY predecessor anywhere, so run_bank derived the fact and ask_goal did not.
+    rules = load_machine_rules(_SCOPED)
+    g = _scoped_world(); h.run_bank(g, rules)
+    forward = sorted({t[0] for t in h.derived_triples(g) if t[1] == "ok"})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        demand = sorted({a.split(" ")[0] for a in ask_goal(_scoped_world(), "who ok yes", rules)})
+    assert forward == ["c1", "z"]                        # z's predecessor is in another body
+    assert demand == forward                             # ...and the demand chain now agrees
+
+
+def test_independent_nacs_each_block_alone():
+    # #16's actual ask: a guard on SCOPE (conjunctive) plus a guard on PROGRESS (independent) in one
+    # rule. The independent NAC must block on its own, without joining the conjunctive group.
+    rules = load_machine_rules(_MIXED)
+    for emitted, expected in ((), ["c1", "z"]), (("c1",), ["z"]):
+        g = _scoped_world(emitted); h.run_bank(g, rules)
+        forward = sorted({t[0] for t in h.derived_triples(g) if t[1] == "ok"})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            demand = sorted({a.split(" ")[0] for a in
+                             ask_goal(_scoped_world(emitted), "who ok yes", rules)})
+        assert forward == expected, (emitted, forward)
+        assert demand == expected, (emitted, demand)
+
+
+@pytest.mark.parametrize("rule", [
+    "?c ok yes when ?l has ?c and not ?x before ?c and not ?l has ?x",       # conjunctive
+    "?c ok yes when ?l has ?c and not ?x before ?c",                         # single existential
+    "?c ok yes when ?l has ?c and not ?c emitted yes",                       # ground
+    "?c ok yes when ?l has ?c and not ?x before ?c and not ?c emitted yes",  # independent pair
+    "?c ok yes when ?l has ?c and not ?x before ?c and not ?y before ?x",    # chained free vars
+    "?c ok yes when ?l has ?c and not ?c before ?c",                         # self-loop
+])
+def test_nac_engines_agree_differentially(rule):
+    # The gate that would have caught the original divergence: forward vs demand over EVERY subset of a
+    # small fact pool. (With the pre-fix per-atom decision this sweep reports 560 divergences.)
+    edges = [("l1", "has", "c1"), ("l1", "has", "c2"), ("l2", "has", "z"),
+             ("c1", "before", "c2"), ("z", "before", "c1"), ("c2", "before", "z"),
+             ("c1", "emitted", "yes")]
+    rules = load_machine_rules(rule)
+
+    def world(mask):
+        g = h.Graph(); ids = {}
+        n = lambda x: ids.setdefault(x, ids.get(x) or g.add_node(x))
+        for k, (s, p, o) in enumerate(edges):
+            if mask >> k & 1:
+                g.add_relation(n(s), p, n(o))
+        return g
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for mask in range(1 << len(edges)):
+            g = world(mask); h.run_bank(g, rules)
+            forward = sorted({t[0] for t in h.derived_triples(g) if t[1] == "ok"})
+            demand = sorted({a.split(" ")[0] for a in ask_goal(world(mask), "who ok yes", rules)
+                             if a != "(no answer)"})
+            assert forward == demand, (rule, mask, forward, demand)
+
+
+def test_conjunctive_nac_explains_jointly_not_per_atom():
+    # A conjunctive NAC's atoms are assumed absent TOGETHER. Rendering them separately would state a
+    # falsehood — 'l1 has anything' when l1 demonstrably has c1 — so `why` joins them.
+    rules = load_machine_rules(_MIXED)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        lines = ask_goal(_scoped_world(), "why c1 ok yes", rules)
+    joint = [l for l in lines if "together" in l]
+    assert len(joint) == 1
+    assert "l1 has anything and anyone before c1" in joint[0]
+    assert ["c1 emitted yes" in l for l in lines].count(True) == 1   # the independent one stands alone
+    assert not any("assumed not: l1 has anything  (" in l for l in lines)   # never claimed on its own
+
+
+def test_assumption_groups_recorded_by_both_engines():
+    from ugm import assumption_groups, rule_support_j
+    rules = load_machine_rules(_MIXED)
+    g = _scoped_world(); h.run_bank(g, rules, provenance=True)
+    rel = next(r for r in g.nodes() if g.has_key(r, "ok"))
+    groups = assumption_groups(g, rule_support_j(g, rel))
+    assert sorted(len(x) for x in groups) == [1, 2]      # one independent atom + one joined pair
+
+
+# --- #15 (banded half): the possibilistic `who` fold collapsed witnesses by name too ----------------
+
+def _banded():
+    from ugm.policy import FirmwarePolicy
+    return FirmwarePolicy(uncertainty="banded")
+
+
+_MINT2 = "c? is_a ast_call and c? for_step ?s when ?s says ?m"
+
+
+def test_banded_who_enumerates_witnesses_with_their_own_bands():
+    # The banded fold keyed answers by NAME, so distinct minted witnesses collapsed exactly as the
+    # crisp path used to — and worse, their BANDS merged: one verdict reported for several things.
+    from ugm.possibility import add_fork
+    g = h.Graph(); ids = {}
+    n = lambda x: ids.setdefault(x, ids.get(x) or g.add_node(x))
+    g.add_relation(n("s1"), "says", n("hello"))          # CERTAIN premise
+    add_fork(g, 0.6, [("s2", "says", "world")])          # only LIKELY premise
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        answers = ask_goal(g, "who is_a ast_call", load_machine_rules(_MINT2), policy=_banded())
+    assert len(answers) == 2
+    certain = [a for a in answers if "(likely)" not in a]
+    likely = [a for a in answers if "(likely)" in a]
+    assert len(certain) == 1 and "for_step s1" in certain[0]   # each witness wears its OWN band
+    assert len(likely) == 1 and "for_step s2" in likely[0]
+
+
+def test_banded_discriminator_sees_fork_facts():
+    # A derived FORK fact is a control-tagged rel, so the plain control filter hid exactly the
+    # relations an UNCERTAIN witness was built from — two forked witnesses got empty discriminators
+    # and collapsed again. Under banded reads a genuine fork rel counts as a defining fact.
+    from ugm.possibility import add_fork
+    g = h.Graph()
+    add_fork(g, 0.6, [("s1", "says", "hello")])
+    add_fork(g, 0.6, [("s2", "says", "world")])          # BOTH witnesses uncertain, same band
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        answers = ask_goal(g, "who is_a ast_call", load_machine_rules(_MINT2), policy=_banded())
+    assert len(answers) == 2                             # distinguished despite identical bands
+    assert {"for_step s1", "for_step s2"} <= {p for a in answers for p in
+                                              a.split("(")[1].split(")")[0].split(", ")}
+    assert all("(likely)" in a for a in answers)
+
+
+def test_banded_and_crisp_who_agree_on_certain_facts():
+    # A fully-certain graph must answer identically under both stances (the banded path is a
+    # generalization, not a different renderer).
+    g, rules = _ast_world(), load_machine_rules(_AST_RULES)
+    h.run_bank(g, rules)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert (ask_goal(g, "who is_a ast_call", rules)
+                == ask_goal(g, "who is_a ast_call", rules, policy=_banded()))

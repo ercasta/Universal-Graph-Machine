@@ -438,7 +438,8 @@ def _tuple_query(question: tuple, graph: Graph) -> dict:
     return {"qtype": _TUPLE_QTYPES[qtype], "s": s, "p": p, "o": o}
 
 
-def _witness_answers(graph: Graph, nodes: list[str], pred: str, obj: str) -> list[str]:
+def _witness_answers(graph: Graph, nodes: list[str], pred: str, obj: str, *,
+                     bands: dict[str, float] | None = None) -> list[str]:
     """Render one `who` answer per genuinely-distinct WITNESS, not per witness NAME (feedback #15).
 
     A rule-minted skolem head (`c?`) mints one node per firing, every one carrying the head's literal
@@ -452,17 +453,31 @@ def _witness_answers(graph: Graph, nodes: list[str], pred: str, obj: str) -> lis
 
     Co-named nodes that are ONE coref identity (`_one_identity` — repeated mentions, the ordinary CNL
     case) still render as a single line, so no existing answer changes shape; only a genuine
-    name-degenerate split expands."""
+    name-degenerate split expands.
+
+    BANDED (`bands`: node id -> its best band): each witness wears its OWN band word, since the whole
+    point of enumerating per node is that the nodes are different things — collapsing them by name would
+    also collapse a `likely` witness onto a certain one. A group that renders as a single line reports
+    the BEST band across its members (they are one identity, so its best evidence is the answer)."""
     from ..chain import _one_identity
     by_name: dict[str, list[str]] = {}
     for n in nodes:
         by_name.setdefault(graph.name(n), []).append(n)
+
+    def suffix(members: list[str]) -> str:
+        if bands is None:
+            return ""
+        from ..possibility import band_word
+        b = max((bands.get(m, 0.0) for m in members), default=0.0)
+        return "" if b >= 1.0 else f" ({band_word(b)})"
+
     out: list[str] = []
     for nm, group in by_name.items():
         if len(group) == 1 or _one_identity(graph, group):
-            out.append(f"{nm} {pred} {obj}")
+            out.append(f"{nm} {pred} {obj}{suffix(group)}")
             continue
-        facts = {n: _defining_facts(graph, n, skip=(pred, obj)) for n in group}
+        facts = {n: _defining_facts(graph, n, skip=(pred, obj), banded=bands is not None)
+                 for n in group}
         for n in group:
             others: set = set()
             for m in group:
@@ -470,16 +485,27 @@ def _witness_answers(graph: Graph, nodes: list[str], pred: str, obj: str) -> lis
                     others |= facts[m]
             uniq = sorted(facts[n] - others) or sorted(facts[n])
             disc = ", ".join(f"{p} {o}" for p, o in uniq[:2])
-            out.append(f"{nm} ({disc}) {pred} {obj}" if disc else f"{nm} {pred} {obj}")
+            head = f"{nm} ({disc})" if disc else nm
+            out.append(f"{head} {pred} {obj}{suffix([n])}")
     return sorted(out)
 
 
-def _defining_facts(graph: Graph, node: str, *, skip: tuple[str, str]) -> set[tuple[str, str]]:
+def _defining_facts(graph: Graph, node: str, *, skip: tuple[str, str],
+                    banded: bool = False) -> set[tuple[str, str]]:
     """The (predicate, object-name) pairs this node stands in — its structural identity, minus the
-    relation being asked about (which every witness shares, so it discriminates nothing)."""
+    relation being asked about (which every witness shares, so it discriminates nothing).
+
+    BANDED: a derived FORK fact is carried as a control-tagged rel with a fork scope, so the plain
+    control filter would hide exactly the relations an UNCERTAIN witness was built from — leaving two
+    forked witnesses with empty discriminators and collapsing them again. Under `banded` a control rel
+    that is a genuine fork fact (`_fork_scope_of`) counts; ordinary scaffolding (SUPPOSE pencils,
+    machinery) still does not."""
+    from ..possibility import _fork_scope_of
     out: set[tuple[str, str]] = set()
     for rel, obj in graph.relations_from(node):
-        if graph.is_control(rel) or graph.is_inert(rel):
+        if graph.is_inert(rel):
+            continue
+        if graph.is_control(rel) and not (banded and _fork_scope_of(graph, rel) is not None):
             continue
         p, o = graph.predicate(rel), graph.name(obj)
         if p and (p, o) != skip:
@@ -708,16 +734,22 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
                 # BANDED who (the possibilistic fold): each witness answers at its BEST band —
                 # a certain witness reads as today, a fork-only one wears its band word
                 # (`cy is thief (likely)`). Max-of-min over derivations, per witness.
+                # Keyed by NODE, not by name (feedback #15): the banded fold collapsed distinct minted
+                # witnesses onto one name exactly as the crisp path used to — and worse, it merged
+                # their bands, reporting one verdict for several different things.
                 from ..possibility import band_word
-                best: dict[str, float] = {}
+                best: dict[str, float] = {}                # node id -> best band
+                loose: dict[str, float] = {}               # name-only rows (no node to disambiguate)
                 for s, _o, b, _e in _facts_matching(graph, q["p"], None, q["o"], scope=scope,
                                                     focus_scope=focus_scope, bands=True):
-                    n = ep_name(s)
-                    if b > best.get(n, 0.0):
-                        best[n] = b
-                if best:
-                    return [f"{n} {q['p']} {q['o']}" + ("" if b >= 1.0 else f" ({band_word(b)})")
-                            for n, b in sorted(best.items())]
+                    into, key = ((best, s.node_id) if isinstance(s, ById) else (loose, s))
+                    if b > into.get(key, 0.0):
+                        into[key] = b
+                answers = _witness_answers(graph, list(best), q["p"], q["o"], bands=best)
+                answers += [f"{n} {q['p']} {q['o']}" + ("" if b >= 1.0 else f" ({band_word(b)})")
+                            for n, b in sorted(loose.items())]
+                if answers:
+                    return sorted(set(answers))
                 return ["unknown"] if policy_.is_open(concept_key(q["p"], q["o"])) else ["(no answer)"]
             # Witness NODES, not witness names: same-named-but-distinct nodes (a rule-minted skolem
             # head) each get their own answer, disambiguated structurally (feedback #15).

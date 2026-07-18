@@ -59,16 +59,24 @@ def record_assumptions(graph: Graph, j: str,
     "no evidence was found"), wired `J --assumes--> <assumed>` — as a MINT program (the ONE
     minting path, shared by the demand chain and the forward `run_bank`). A None subject/object
     is a wildcard, recorded as `anyone`/`anything`. These records are what `why` renders as the
-    firing's leaps and what RECONSIDER re-checks (docs/design/reconsider_design.md)."""
+    firing's leaps and what RECONSIDER re-checks (docs/design/reconsider_design.md).
+
+    An entry may carry a 5th element, the NAC GROUP tag (feedback #16): atoms of one conjunctive NAC
+    were assumed absent JOINTLY, not each on its own, and saying "assumed not: l1 has anything" about a
+    `l1` that demonstrably HAS something would be simply false. The tag is recorded as `a_group` so
+    `assumption_groups` can render them as one joint clause; entries without it are their own group."""
     from .attrgraph import NAME, valued, graded
     from .machine import Machine, MINT, State
     ops = []
-    for i, (np, ns, no, pi) in enumerate(assumed):
+    for i, entry in enumerate(assumed):
+        np, ns, no, pi = entry[:4]
+        group = entry[4] if len(entry) > 4 else i
         ops.append(MINT(f"_a{i}", inert=True,
                         attrs={NAME: valued(ASSUMED),
                                "a_pred": valued(np),
                                "a_subj": valued(ns if ns is not None else "anyone"),
                                "a_obj": valued(no if no is not None else "anything"),
+                               "a_group": valued(group),
                                "a_pi": valued(pi)}))
         ops.append(MINT(f"_ar{i}", attrs={ASSUMES: graded(1.0)},
                         in_edges=["_jr"], edges=[f"_a{i}"], inert=True))
@@ -144,6 +152,23 @@ def assumptions_of(graph: Graph, j: str) -> list[tuple[str, str, str, float]]:
             out.append((str(p.value), str(s.value), str(o.value),
                         float(pi.value) if pi is not None else 0.0))
     return out
+
+
+def assumption_groups(graph: Graph, j: str) -> list[list[tuple[str, str, str, float]]]:
+    """The firing's leaned-on absences GROUPED by the NAC they came from (feedback #16). A group with
+    one atom is an ordinary independent negation; a group with several is ONE conjunctive NAC whose
+    atoms were assumed jointly absent — `why` must render those together, since no individual atom is
+    being claimed absent. Order-preserving; an old record with no `a_group` is its own group."""
+    groups: dict[str, list[tuple[str, str, str, float]]] = {}
+    for i, a in enumerate(_objects_via(graph, j, ASSUMES)):
+        p, s, o, pi, gp = (graph.get_attr(a, k)
+                           for k in ("a_pred", "a_subj", "a_obj", "a_pi", "a_group"))
+        if p is None or s is None or o is None:
+            continue
+        key = str(gp.value) if gp is not None else f"_{i}"
+        groups.setdefault(key, []).append(
+            (str(p.value), str(s.value), str(o.value), float(pi.value) if pi is not None else 0.0))
+    return list(groups.values())
 
 
 def _objects_via(graph: Graph, subj: str, pred: str) -> list[str]:

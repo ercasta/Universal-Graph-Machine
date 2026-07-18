@@ -936,6 +936,88 @@ def _distincts_pass(fact_g: AttrGraph, dcs: list[tuple[str, str]], st: State) ->
     return bool(_ISA_READER.match(fact_g, prog, init=[st]))
 
 
+def _nac_free(fact_g: AttrGraph, st: State, atom: tuple[str, str, str]) -> set[str]:
+    """The NAC-LOCAL FREE var tokens of `atom` — variables the positive body did not bind, so they are
+    existentially quantified INSIDE the negation."""
+    return {t for t in (atom[0], atom[2]) if is_var(t) and _ptr(fact_g, st, t) is None}
+
+
+def _nac_atom_groups(fact_g: AttrGraph, st: State,
+                     nac_atoms: list[tuple[str, str, str]]) -> list[list[tuple[str, str, str]]]:
+    """Partition the NAC atoms into INDEPENDENT groups joined by shared NAC-local free vars — the
+    demand-side twin of `lowering._nac_groups`, which the FORWARD engine has always applied.
+
+    This is the distinction between `not (A and B)` and `not A and not B`, and it is carried by the
+    variables, not by syntax: atoms sharing a free var are ONE existential
+    (`¬∃x. A(x) ∧ B(x)` — blocked only by a JOINED witness), atoms sharing none are INDEPENDENT
+    negations (`¬∃x.A(x) ∧ ¬∃y.B(y)` — either blocks alone). The demand chain used to decide every atom
+    separately, which silently collapses the first form into the second: `not ?x stmt_before ?c and not
+    ?l body_has ?x` blocked on ANY predecessor of `?c` anywhere, instead of only one inside `?l`. That
+    made the two engines DISAGREE — `run_bank` derived the fact, `ask_goal` returned nothing (feedback
+    #16's premise, inverted: the conjunctive form was the broken one, not the independent form).
+
+    Boundness is read from the REGISTER FILE at decision time (`_ptr(...) is None`) rather than from the
+    rule's declared `bound_names`, so the partition reflects what this firing's SIP actually bound."""
+    groups: list[tuple[set[str], list[tuple[str, str, str]]]] = []
+    for atom in nac_atoms:
+        fv = _nac_free(fact_g, st, atom)
+        cur_vars, cur_atoms = set(fv), [atom]
+        merged: list[tuple[set[str], list[tuple[str, str, str]]]] = []
+        for gv, ga in groups:
+            if fv and gv & fv:                   # shares a free var -> the same existential
+                cur_vars |= gv
+                cur_atoms = ga + cur_atoms
+            else:
+                merged.append((gv, ga))
+        merged.append((cur_vars, cur_atoms))
+        groups = merged
+    return [atoms for _, atoms in groups]
+
+
+def _nac_group_witnesses(fact_g: AttrGraph, atoms: list[tuple[str, str, str]], st: State, *,
+                         scope: str | None, focus_scope: frozenset[str] | None,
+                         bands: bool, env: frozenset) -> list[tuple[float, frozenset]]:
+    """The COMPLETE witnesses of a conjunctive NAC group, as `(band, env)` — empty iff the group's
+    joined pattern has no witness (so `not (A and B and …)` holds).
+
+    A backtracking join over the group's atoms: each atom is read with its already-bound endpoints, and
+    a free slot's discovered node (a `ById`, so identity is preserved across atoms — two same-named
+    nodes stay distinct) BINDS that var for the remaining atoms. Groups are tiny (the atoms of one
+    `not`), so the naive nested loop is the right shape. The band of a witness is the MIN across its
+    atoms (weakest link, the t-norm the rest of the banded path uses); the caller takes the MAX across
+    witnesses as Π(group)."""
+    out: list[tuple[float, frozenset]] = []
+
+    def endpoint(tok: str, binding: dict):
+        if is_var(tok):
+            pinned = _ptr(fact_g, st, tok)
+            return pinned if pinned is not None else binding.get(tok)
+        return _ptr(fact_g, st, tok)
+
+    def walk(i: int, binding: dict, band: float, acc_env: frozenset) -> None:
+        if i == len(atoms):
+            out.append((band, acc_env))
+            return
+        ns, np, no = atoms[i]
+        for row in _facts_matching(fact_g, np, endpoint(ns, binding), endpoint(no, binding),
+                                   scope=scope, focus_scope=focus_scope, bands=bands):
+            s_val, o_val = row[0], row[1]
+            b, e = (row[2], row[3]) if bands else (_CERTAIN, _NO_ENV)
+            if bands and e and not _env_ok(fact_g, env | acc_env | e):
+                continue                          # a world exclusive with the body's own assumptions
+            nxt = dict(binding)
+            for tok, val in ((ns, s_val), (no, o_val)):
+                if is_var(tok) and _ptr(fact_g, st, tok) is None:
+                    if tok in nxt and nxt[tok] != val:
+                        break                     # a var repeated in this atom must take ONE value
+                    nxt[tok] = val
+            else:
+                walk(i + 1, nxt, min(band, b), acc_env | e)
+
+    walk(0, {}, _CERTAIN, _NO_ENV)
+    return out
+
+
 def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str, str, str]],
                 st: State, *, scope: str | None, provenance: bool,
                 focus_scope: frozenset[str] | None = None,
@@ -982,36 +1064,41 @@ def _nac_blocks(fact_g: AttrGraph, rule_g: AttrGraph, nac_atoms: list[tuple[str,
     banded = policy is not None and policy.banded
     nec = _CERTAIN
     assumed: list[tuple[str, str, str, float]] = []
-    for ns, np, no in nac_atoms:
-        neg_goal = (np, _ptr(fact_g, st, ns), _ptr(fact_g, st, no))
-        if neg_goal in neg_stack:
-            return None                        # re-entry: prune the higher-stratum rule (block env)
-        if neg_goal not in closed:             # MEMO: a negative's positive is closed ONCE per session.
-            # `parent_demand` rides the request so the child frame's goal links into the SUBGOAL CHAIN
-            # (a memoized re-encounter yields nothing — no new search happened, so no new chain link).
-            yield ("subgoal", neg_goal, neg_stack | {neg_goal}, parent_demand)   # driver closes, resumes
-            closed.add(neg_goal)               # facts are monotone + stratified -> the closure is stable,
-        # so re-demands (the round loop re-services this env each round) just READ absence, never re-close.
+    # GROUPED (feedback #16): atoms sharing a NAC-local free var are ONE existential and are decided by
+    # their JOINED witness; atoms sharing none stay independent negations, each blocking alone. A
+    # single-atom group is exactly the historical path, so only the conjunctive case changes.
+    for gi, group in enumerate(_nac_atom_groups(fact_g, st, nac_atoms)):
+        goals = []
+        for ns, np, no in group:
+            neg_goal = (np, _ptr(fact_g, st, ns), _ptr(fact_g, st, no))
+            if neg_goal in neg_stack:
+                return None                    # re-entry: prune the higher-stratum rule (block env)
+            if neg_goal not in closed:         # MEMO: a negative's positive is closed ONCE per session.
+                # `parent_demand` rides the request so the child frame's goal links into the SUBGOAL
+                # CHAIN (a memoized re-encounter yields nothing — no new search, so no new chain link).
+                yield ("subgoal", neg_goal, neg_stack | {neg_goal}, parent_demand)  # driver closes
+                closed.add(neg_goal)           # facts are monotone + stratified -> the closure is stable,
+            # so re-demands (the round loop re-services each round) just READ absence, never re-close.
+            goals.append(neg_goal)
+        # Π of the GROUP: the best band its joined pattern is witnessed at (0.0 = no witness at all).
+        # For a single atom this is the atom's own band, i.e. the previous behaviour exactly.
+        wits = _nac_group_witnesses(fact_g, group, st, scope=scope, focus_scope=focus_scope,
+                                    bands=banded, env=env)
+        pi = max((b for b, _e in wits), default=0.0)
         if banded:                                         # graded absence: θ gates, necessity weighs
-            pi = max((b for _s, _o, b, e in
-                      _facts_matching(fact_g, np, neg_goal[1], neg_goal[2],
-                                      scope=scope, focus_scope=focus_scope, bands=True)
-                      if not e or _env_ok(fact_g, env | e)),   # only worlds compatible with the body
-                     default=0.0)
             if pi >= policy.theta:
                 return None                                # L is too possible to negate -> block
             nec = min(nec, 1.0 - pi)                       # N(¬L) = 1 − Π(L)
-            assumed.append((np, _endpoint_name(fact_g, neg_goal[1]),
-                            _endpoint_name(fact_g, neg_goal[2]), pi))
-        elif _facts_matching(fact_g, np, neg_goal[1], neg_goal[2], scope=scope, focus_scope=focus_scope):
+        elif wits:
             return None                                    # L holds -> the NAC fails -> block this env
-        else:
-            # A CRISP surviving NAC is a leaned-on absence too (2026-07-16, the hard-vs-assumed
-            # capstone's record half): journal it at Π = 0 ("no evidence for it was found"), so a
-            # crisp `why` shows the leap — and hangs the subgoal-chain decomposition off it —
-            # exactly like a banded one. Verdicts are untouched (the record is provenance-only).
-            assumed.append((np, _endpoint_name(fact_g, neg_goal[1]),
-                            _endpoint_name(fact_g, neg_goal[2]), 0.0))
+        # A surviving NAC is a leaned-on absence: journal each of its atoms (crisp Π = 0 — "no evidence
+        # for it was found", 2026-07-16's hard-vs-assumed record half) so a `why` shows the leap and
+        # hangs the subgoal-chain decomposition off it. Verdicts are untouched (provenance-only).
+        # The GROUP tag rides along so `why` renders a conjunctive NAC's atoms as one joint clause
+        # rather than asserting each is individually absent (which can be plainly false).
+        for (np, s_ep, o_ep) in goals:
+            assumed.append((np, _endpoint_name(fact_g, s_ep), _endpoint_name(fact_g, o_ep),
+                            pi if banded else 0.0, gi))
         if fuel is not None and fuel.exhausted:
             return None             # the positive is not EXHAUSTED -> the NAC is UNDECIDED; do not fire
     return nec, assumed                                    # (the `fuel.exhausted` flag makes it UNKNOWN)

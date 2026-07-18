@@ -43,6 +43,7 @@ from .suppose import (
 from .provenance import (
     PROVES, USES, AXIOM, j_name, is_justification, rule_of_j,
     support_js, rule_support_j, premises_of, proven_of, justifications_using,
+    assumptions_of, assumption_groups,
     derived_facts, axiomatize,
 )
 from .retraction import (
@@ -148,6 +149,7 @@ __all__ = [
     "CONFIRMED", "REFUTED", "INCONCLUSIVE", "HYPOTHESIS",
     "PROVES", "USES", "AXIOM", "j_name", "is_justification", "rule_of_j",
     "support_js", "rule_support_j", "premises_of", "proven_of", "justifications_using",
+    "assumptions_of", "assumption_groups",
     "derived_facts", "axiomatize",
     "reconsider", "mark_dirty",
     "RETRACT", "TARGETS", "RETRACT_RULES", "seed_retract", "retract",

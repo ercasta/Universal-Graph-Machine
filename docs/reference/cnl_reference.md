@@ -90,8 +90,13 @@ H1 and H2 and drop S P O   when   B1 and not B2 and ?a != ?b
   `name?` — every `<walker>?` in a rule binds to the SAME node. A non-bracket bound literal in a
   head (`s2?`) is a **skolem**: mints one node per LHS match, anchored to LHS-bound endpoints
   (the only supported node invention; a bare RHS-only `?x` head variable is rejected at load).
-- All `not` clauses fold into ONE conjunctive NAC (shared with prose — independent NACs are not
-  expressible; a known limit).
+- `not` clauses are partitioned into **independent NAC groups by their shared NAC-LOCAL FREE
+  variables** (variables the positive body does not bind). Atoms sharing one are a single existential
+  — `not ?x before ?c and not ?l has ?x` blocks only on a JOINED witness (`¬∃x. before(x,c) ∧
+  has(l,x)`, "no predecessor *inside this body*"); atoms sharing none are independent negations, each
+  blocking on its own (`¬∃x.A(x) ∧ ¬B`). So both forms are expressible, and which one you get is
+  carried by the variables, not by clause order. Both engines apply the same partition
+  (`lowering._nac_groups` forward, `chain._nac_atom_groups` on demand).
 
 **Semantics reminders** (contract in `logic_fragment.md`): rule negation is stratified NAF —
 a cyclic bank is rejected at load (`on_cycle="raise"`) or degraded to its monotone subset

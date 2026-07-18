@@ -507,10 +507,11 @@ def _survived_nacs(g: AttrGraph, rule: Rule, st: State) -> list[tuple]:
         return g.name(nid) if nid is not None else None
 
     out = []
-    for pat in rule.nac:
-        if pat.tokens() in heads or binder(pat.p) is not None:
-            continue
-        out.append((literal_name(pat.p), nm(pat.s), nm(pat.o), 0.0))
+    for gi, group in enumerate(_nac_groups(rule)):       # tag the NAC group (feedback #16) so `why`
+        for pat in group:                                # renders a conjunctive NAC's atoms jointly
+            if pat.tokens() in heads or binder(pat.p) is not None:
+                continue
+            out.append((literal_name(pat.p), nm(pat.s), nm(pat.o), 0.0, gi))
     return out
 
 

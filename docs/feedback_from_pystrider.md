@@ -642,9 +642,20 @@ shared literal, which for a yes/no policy is always.
 > `test_bydesc_addresses_a_minted_node_structurally`, `test_bydesc_round_trips_from_the_enumeration`,
 > `test_bydesc_that_is_not_definite_raises`). Suite 591 green.
 >
-> Two known edges, neither blocking: `ByDesc` constrains on OUTGOING relations only (an inbound-constraint
-> form is easy to add if you need it); and the BANDED `who` fold still keys answers by name, so a
-> possibilistic session enumerating minted witnesses would want the same treatment.
+> **BANDED PARITY (also 2026-07-18).** The possibilistic `who` fold keyed answers by name too, so a banded
+> session collapsed minted witnesses exactly as the crisp path had — and worse, it MERGED their bands,
+> reporting one verdict for several different things. It now keys by node and renders each witness with its
+> OWN band (`c (for_step s1) is_a ast_call` / `c (for_step s2) is_a ast_call (likely)`). That exposed a
+> second layer: a derived FORK fact is carried as a CONTROL-tagged rel, so the discriminator's control
+> filter hid precisely the relations an uncertain witness was built from — two forked witnesses got empty
+> discriminators and collapsed again. Under a banded read a genuine fork rel (`possibility._fork_scope_of`)
+> now counts as a defining fact, while ordinary scaffolding still does not. A fully-certain graph answers
+> identically under both stances (asserted directly). Tests:
+> `test_banded_who_enumerates_witnesses_with_their_own_bands`, `test_banded_discriminator_sees_fork_facts`,
+> `test_banded_and_crisp_who_agree_on_certain_facts`. Suite 604 green.
+>
+> One known edge remains, not blocking: `ByDesc` constrains on OUTGOING relations only (an
+> inbound-constraint form is easy to add if you need it).
 
 ## 15. The QUESTION surface is name-addressed, but minted nodes are (correctly) nameless-by-design
 
@@ -703,6 +714,52 @@ right — the addressing vocabulary is what's missing:
 
 Either unblocks provenance over generated code; (1) is the one we'd build on, and we think it's the
 one consistent with the design.
+
+> **FIXED (2026-07-18) — and the premise was INVERTED: independent NACs already worked; the CONJUNCTIVE
+> form (the one you said "works") was silently broken on the demand engine.** Thank you for filing this —
+> chasing it turned up a real correctness bug, not the feature gap it was filed as.
+>
+> **What was actually true.** The FORWARD engine has always partitioned `not` clauses into independent
+> groups by their shared NAC-LOCAL FREE variables (`lowering._nac_groups`): atoms sharing one are a single
+> existential (`¬∃x. A(x) ∧ B(x)`), atoms sharing none are independent negations that each block alone. So
+> `run_bank` could express BOTH forms all along, and the "all `not` clauses fold into ONE conjunctive NAC"
+> line in `cnl_reference.md` was simply wrong (now corrected). The DEMAND chain, however, decided every NAC
+> atom SEPARATELY — which collapses the conjunctive form into the independent one.
+>
+> **So the two engines disagreed, on your exact rule.** With `?c body_first ?l when ?l body_has ?c and not
+> ?x stmt_before ?c and not ?l body_has ?x` and a statement `z` that precedes `c1` but lives in ANOTHER
+> body: `run_bank` derives `c1 body_first l1` (correct — the scoping works, as you observed), while
+> `ask_goal` returned `(no answer)` — it blocked on `∃?x stmt_before(?x, c1)` alone, ignoring the `?l`
+> constraint. Your report says the scoped form works; that held on the forward path you were exercising,
+> and would have silently failed the moment you asked it as a question.
+>
+> **Fixed** by giving the demand chain the same partition (`chain._nac_atom_groups`, the twin of
+> `lowering._nac_groups`) and deciding each group by a JOINED witness (`_nac_group_witnesses` — a small
+> backtracking join over the group's atoms; a free slot's discovered node binds that var by `ById`, so
+> identity is preserved across atoms). Boundness is read from the register file at decision time, so the
+> partition reflects what this firing's SIP actually bound. A single-atom group is byte-for-byte the old
+> path, so the blast radius is exactly the conjunctive case. Banded mode folds in: Π(group) is the best band
+> its joined pattern is witnessed at, θ gates on that, and `N(¬group) = 1 − Π`.
+>
+> **Explanation fidelity, which the fix exposed.** A conjunctive NAC's atoms are assumed absent JOINTLY, so
+> rendering them separately states a falsehood — "assumed not: l1 has anything" about an `l1` that
+> demonstrably has something. Assumption records now carry an `a_group` tag (both engines), and `why`
+> renders a group as one clause: `assumed not: l1 has anything and anyone before c1  (together)`. Additive —
+> `assumptions_of` is unchanged, so RECONSIDER's per-atom dirty grains keep working (conservative, still
+> correct); the new `provenance.assumption_groups` is what the renderer uses.
+>
+> **Gated differentially.** Forward vs demand over every subset of a small fact pool, across 7 NAC shapes
+> (conjunctive, single existential, ground, independent pair, chained free vars, self-loop): **1792
+> (rule, world) pairs, 0 divergences**. The same sweep against the pre-fix decision reports **560**
+> divergences, so the gate is not vacuous. Tests in `tests/test_feedback_fixes.py`
+> (`test_conjunctive_nac_agrees_across_engines`, `test_independent_nacs_each_block_alone`,
+> `test_nac_engines_agree_differentially`, `test_conjunctive_nac_explains_jointly_not_per_atom`,
+> `test_assumption_groups_recorded_by_both_engines`). Suite 601 green.
+>
+> **What this means for your navigate/check/recover loop:** the shape you expected to be the next wall — a
+> guard on progress plus a guard on scope — works today on both engines, and is covered by
+> `test_independent_nacs_each_block_alone`. Which form you get is carried by the VARIABLES, not by clause
+> order or syntax: share a free var for a joint negation, use disjoint ones for independent negations.
 
 ## 16. Independent NACs — not blocking yet, but the next expected wall
 

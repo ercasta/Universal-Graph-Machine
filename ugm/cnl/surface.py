@@ -125,14 +125,20 @@ def _explain_rel(graph: Graph, rel: str, depth: int, seen: set[str]) -> list[str
     seen.add(rel)
     for pre in prov.premises_of(graph, j):
         lines += _explain_rel(graph, pre, depth + 1, seen)
-    for np, ns, no, pi in prov.assumptions_of(graph, j):   # what the firing LEANED ON (decision 6)
+    for group in prov.assumption_groups(graph, j):         # what the firing LEANED ON (decision 6)
         from ..possibility import band_word
+        pi = max((p for *_r, p in group), default=0.0)
         how = ("no evidence for it was found" if pi <= 0.0
                else f"the counter-evidence is only {band_word(pi)}")
-        lines.append(f"{'  ' * (depth + 1)}assumed not: {ns} {np} {no}  ({how})")
+        # A CONJUNCTIVE NAC (feedback #16) was assumed absent JOINTLY — no single atom is claimed
+        # absent, and saying so could be flatly false (`l1 has anything` when l1 demonstrably does).
+        clause = " and ".join(f"{ns} {np} {no}" for np, ns, no, _pi in group)
+        joint = "  (together)" if len(group) > 1 else ""
+        lines.append(f"{'  ' * (depth + 1)}assumed not: {clause}{joint}  ({how})")
         # The negative's DECOMPOSITION (the linked subgoal chain, recorded under provenance): what
         # deciding this absence actually searched — absent (a run without the chain) it adds nothing.
-        lines += _searched_lines(graph, np, ns, no, depth + 2)
+        for np, ns, no, _pi in group:
+            lines += _searched_lines(graph, np, ns, no, depth + 2)
     return lines
 
 
