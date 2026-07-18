@@ -1,6 +1,11 @@
 # Homoiconic grammar — the intake grammar as CNL data, interpreted by rules
 
-> **Status: PROPOSED, spike not yet run (2026-07-18).** User proposal, arrived at from the
+> **Status: SPIKE RUN, GREEN (2026-07-18) — `bench/spike_homoiconic_grammar.py`.** All four §5
+> questions answered; the §3 crux answered POSITIVELY and in-engine. Results in §8 below; the
+> arc is buildable. Original proposal text (§1-§7) kept verbatim — it was written before the
+> spike and the spike did not contradict it.
+>
+> User proposal, arrived at from the
 > book-corpus evidence: *"express the grammar in CNL and have rules that process the grammar to
 > intake sentences in that grammar, instead of hardcoding forms."*
 >
@@ -101,3 +106,307 @@ collapses onto ONE `lion` node, so `lion has mane` (from the Bengal lion) and th
 manelessness would land on the SAME entity — a contradiction manufactured by the grammar, not by
 the source. Whether composition should be able to MINT a distinct entity is a real question the
 grammar arc has to answer.
+
+## 8. SPIKE RESULTS (2026-07-18) — `bench/spike_homoiconic_grammar.py`
+
+### 8.0 The mechanism that was tried
+
+A grammar declared in CNL as a LEXICON (`lion is a noun` — the shipped `X is a <class>` surface,
+unchanged) plus PRODUCTIONS (`np expands to determiner plus np` — ONE new form pair, binary +
+unary). A §8 tool generates recognition rules from those declarations, exactly the established
+`relation_forms`/`nary_forms` gradient. The generated rules build a CHART, where a span is a
+RELATION named for its category, running from its first token to the token just past its last:
+
+    lexical  `w is a C`             :  w --next--> u                       =>  w --span_C--> u
+    unary    `Z expands to X`       :  a --span_X--> b                     =>  a --span_Z--> b
+    binary   `Z expands to X plus Y`:  a --span_X--> m, m --span_Y--> b    =>  a --span_Z--> b
+
+A sentence is accepted iff `clause` spans it end to end (a `<eos>` sentinel gives the last token a
+successor, so every span is `[begin, end)` and composition is a plain two-premise join with no
+adjacency arithmetic). 30 CNL lines generated 152 rules.
+
+**No engine change. Nothing new in the substrate.** It ran on `run_bank` first try.
+
+### 8.1 The headline: token-passing IS chart parsing
+
+The §3 crux assumed ambiguity forces branch selection. It does not, because a CHART is precisely
+"every enabled rule fires, nothing selects": the chart holds ALL constituents of ALL parses at
+once. The engine's core commitment is not something the grammar has to survive — it is the
+control regime chart parsing already wanted. This was the spike's one genuinely load-bearing
+finding, and it was cheap to get.
+
+### 8.2 Coverage — every residual Loudon failure parses (§5.3)
+
+| sentence | grammar | shipped bank today |
+|---|---|---|
+| `the lion has a mane` | parsed | `fact: (lion has mane)` ✓ |
+| `the lion roars` (intransitive) | **parsed** | unrecognized |
+| `the guzerat lion has no mane` (**the exception-bearing sentence**) | **parsed** | unrecognized, but still writes `lion is guzerat` |
+| `the lion lives in africa` (prepositional) | **parsed** | `fact: (lives is lion), (lives in africa)` — GARBAGE |
+| `the lion is smaller than the tiger` (comparative) | **parsed** | unrecognized |
+| `the lion eats the fish in africa` | parsed (ambiguous, see 8.3) | `(fish is eats), (fish is lion), (fish in africa)` — GARBAGE |
+| `glorp the flarn` | **REFUSED** | unrecognized |
+
+The two silent mis-parses pinned in the plan are exactly the two the grammar gets right, and it
+REFUSES gibberish rather than folding a neighbouring pattern onto it. §4's argument holds:
+"does not conform" is a diagnostic this architecture can produce and the form bank cannot.
+
+### 8.3 The crux, answered: ambiguity is detectable in-engine, with no selector (§5.1)
+
+Three representations were measured on the PP-attachment sentence (3 parses):
+
+1. **Count root spans** — the obvious detector. **FAILS.** `root=1` for the 3-parse sentence,
+   because packing is exactly the erasure of derivation identity. Worth recording: this is the
+   detector one would reach for first, and it silently reports "unambiguous".
+2. **Unpacked forest** (every derivation mints its own `<span>` node with child pointers).
+   Ambiguity becomes one `Distinct` rule — two span nodes, same cat/begin/end. **Correct, and
+   unaffordable**: 5.2 s at 11 tokens (189 span nodes) against 27 ms packed. The derivation count
+   is Catalan; representing it is representing every parse.
+3. **Packed chart + a USEFULNESS pass** — the answer. Two generated rule families, both ordinary
+   rules: (a) top-down, the root span is useful and a useful span makes the children of every
+   production licensing it useful; (b) a USEFUL span of category Z licensed two ways — different
+   split (`Distinct` on the midpoint) or different production at the same split — is `ambiguous`.
+   **Flags exactly the ambiguous sentence, zero false positives on the other six, and names the
+   two ambiguous spans** (the `vp` and the `np` "the fish in africa"). 41 generated rules.
+
+The usefulness pass is what separates real ambiguity from a locally-ambiguous DEAD constituent — a
+chart holds constituents no complete parse uses, so detecting ambiguity anywhere in the chart would
+cry wolf. Top-down usefulness is the ordinary fix and it is rule-shaped.
+
+**So refuse-and-ask is available at the price of one extra generated pass**, and the §3 answer
+stands: do not select, ask. (Fifth independent time that shape has fallen out of this work.)
+
+### 8.4 The lexicon wall, and that refusal survives it (a §5 question that was not asked)
+
+A chart grammar needs every word classified; real prose does not oblige. The default tried: a word
+in NO declared closed class also spans as `noun` — ONE rule with a NAC over a declared tag, no
+hardcoded stop-list (closed classes are themselves CNL data). Results:
+
+- gibberish is **still refused** (`glorp the flarn` → noun det noun, no `clause`), which was the
+  thing at risk — the open default could have destroyed the loudness the whole arc is for;
+- undeclared content words parse (`the bramble is smaller than the tiger`, `the lion eats the
+  bramble`), each with exactly 1 tree;
+- it is **cheaper** (one rule instead of one per lexicon word): 15 ms vs 33 ms mean.
+
+This matters more than it looks: it means the grammar does not need a closed vocabulary to be
+loud, so the closed-class function words are the only lexicon a domain must declare.
+
+### 8.5 Cost (§5.2)
+
+Mean per sentence over the 7 cases, unoptimized Python, bank REGENERATED per parse:
+
+    packed, closed lexicon    6.2 ms      packed + ambiguity pass    23.7 ms
+    packed, open vocabulary   5.3 ms      unpacked (derivations)     32.1 ms
+
+**Parsing fits the ~12 ms/utterance budget with room to spare**; the ambiguity pass is 2× over it
+and is the thing to optimize (it is also skippable when only acceptance is wanted). Scaling in
+sentence length (packed, open vocabulary), the number that decides viability:
+
+     5 tok   3.9 ms   14 spans    1 tree
+     9 tok   8.4 ms   34 spans    9 trees
+    13 tok  15.3 ms   62 spans   90 trees
+
+> These numbers are 5× better than the first measurement, and the reason is worth recording: the
+> original run read the lexicon naively and picked up `is_a <mention>` (written on every entity by
+> `mark_mentions`), declaring all 36 words members of a bogus `<mention>` category and generating
+> 152 chart rules instead of 30. An accidental cross-layer read was ~80% of the runtime. See §9.4.
+
+**Spans grow polynomially while trees explode.** That is the whole argument for the packed
+representation in one line, and the reason the answer to ambiguity must be ASK, never enumerate.
+Cost is a real but ordinary problem: linear in tokens on this grammar, and the bank is rebuilt
+every parse (the `_surface_strata` memo is the obvious fix, worth most of the constant).
+
+### 8.6 What the spike did NOT settle
+
+- **THE FOLD — parse → facts is not built.** The spike measures ACCEPTANCE only, deliberately:
+  acceptance is what discriminates "guesses" from "refuses", which was the argument. Subsumption
+  of `FACT_FORMS` (§5.4) is therefore *unanswered*, and it is the next slice's real content —
+  production-attached semantics is where a second system would show up if there is going to be one.
+- **§7's entity-minting tension is now actionable but undecided.** A parse gives `guzerat lion` a
+  span of its own, which is exactly the place a distinct entity could be minted. Nothing decided.
+- **Ambiguity → discriminating question** is unwired (the `can_ask` wait-set exists; the spike only
+  produces the `ambiguous` marker).
+- **Grammar authoring loudness** — a bad production declaration currently fails silently as
+  "sentence does not parse", which is the same defect class one level up.
+
+### 8.7 Build order this implies
+
+1. **The fold** (production-attached semantics), against `FACT_FORMS` as the subsumption gate.
+   — **DONE, see §9.**
+2. **Ambiguity → discriminating question**, reusing `can_ask`.
+3. **Memoize the generated bank**, then re-measure against the 12 ms budget.
+4. Only then: retire the surface-pattern forms it subsumes.
+
+## 9. SLICE 1 — THE FOLD (2026-07-18) — `bench/spike_grammar_fold.py`
+
+### 9.1 The surface: semantics is CNL too
+
+Semantics attached in Python would BE the second system §5.4 asks about, so the fold is declared
+in CNL — two more form families and nothing else:
+
+    slot head in np from determiner plus np is right head    -- how a parent's slot is filled
+    slot pred in vp from intransitive is only head           -- (unary productions use `only`)
+    np     asserts head is   attr                            -- which slots become a FACT
+    clause asserts subj pred obj  unless neg
+    clause denies  subj pred obj  when   neg                 -- ... and which become a NEGATIVE one
+
+The predicate position is read as a SLOT if it names a declared slot, else as a literal word —
+data-driven, not string-sniffing. `when`/`unless` guards are a positive premise / a NAC. The whole
+grammar + semantics for the test domain is **68 CNL lines**, generating 206 rules (30 chart, 41
+usefulness/ambiguity, 17 mint, 32 slot, 86 assert).
+
+### 9.2 The one architectural move: mint identity only for the parse that survives
+
+Slots need something to hang on, and a packed span is a relation triple with no node a rule can
+bind. Minting per DERIVATION is the unpacked forest measured at 4.7 s/11 tokens. The resolution:
+**the chart stays packed while parsing; identity is minted only for the spans that survive.** The
+usefulness pass built for ambiguity detection already names exactly the spans a complete parse
+uses — O(n), not the whole chart — so minting after it is linear-ish, and the slots hang on those
+nodes. Parsing and denotation are separated by which spans EXIST as nodes, not by a phase wall.
+
+Pipeline, each stage a bank run to fixpoint (the `normalize_surface` strata shape):
+
+    tokenize -> chart -> useful + ambiguity -> [REFUSE | ASK] -> mint useful spans -> slots -> assert
+
+### 9.3 What it writes
+
+| sentence | grammar | today |
+|---|---|---|
+| `the lion has a mane` | `(lion has mane)` | `(lion has mane)` — **identical** |
+| `the lion roars` | `(lion roars true)` | unrecognized |
+| `the guzerat lion has no mane` | **`(lion has_not mane)`**, `(lion is guzerat)` | unrecognized, but writes `(lion is guzerat)` anyway |
+| `the lion lives in africa` | `(lion lives true)`, `(lion in africa)` | `(lives is lion)`, `(lives in africa)` |
+| `the lion is smaller than the tiger` | `(lion smaller tiger)` | unrecognized |
+| `glorp the flarn` | **refused** (1.3 ms — fails fast) | unrecognized |
+| `the lion eats the fish in africa` | **ambiguous → ask** | `(fish is eats)`, `(fish is lion)`, `(fish in africa)` |
+
+**The exception-bearing sentence now writes its exception.** That was the whole point of the
+re-point: `has_not` is the fact the learner needed and never got, and the reason
+`bench/spike_loudon.py` §4 could report an unrefutable over-generalization.
+
+The two silent mis-parses are gone in the two available ways: one becomes a correct fold, the
+other becomes a QUESTION. Note the shape of the last row — today's bank produces three facts, all
+wrong, from a sentence it cannot actually parse; the grammar declines to write anything and asks
+which reading was meant.
+
+### 9.4 Subsumption (§5.4 — the question this slice existed to answer)
+
+**No second system, on the evidence available.** The baseline shape folds to the byte-identical
+triple; the shapes today rejects fold sensibly; nothing needed a Python escape hatch. Three
+qualifications, all real:
+
+- **Dynamic predicates must be in the lexicon.** The ISA rejects a non-plain RHS predicate
+  (`lower_rhs`: "RHS non-plain predicate is a later slice"), so a slot-valued predicate generates
+  one rule per lexicon word. That is *exactly* `relation_forms`' existing discipline — declare the
+  relation and a form is generated for it — arrived at independently. Consequence worth stating:
+  open vocabulary works for ENTITIES but not for PREDICATES, which is the same controlled-CNL
+  boundary the project already draws.
+- **`comparative.py` was not compared against.** `(lion smaller tiger)` is plausible but the
+  shipped comparative surface has its own encoding; subsumption there is UNTESTED.
+- **§7's tension is now visible as data, and is unresolved.** The fold writes
+  `(lion has_not mane)` and `(lion is guzerat)` — i.e. the Guzerat lion's manelessness lands on the
+  SAME `lion` node that carries every other lion's mane, manufacturing the contradiction §7
+  predicted. The span for `guzerat lion` now EXISTS as a node, so it is the obvious place to mint a
+  distinct entity; nothing was decided.
+
+### 9.5 Two accidental cross-layer reads, in one slice
+
+Both are evidence for the substrate-layering question, and neither was hypothetical:
+
+1. **`is_a <mention>` polluted the lexicon.** `mark_mentions` writes `is_a <mention>` on every
+   entity, and the lexicon reader uses the same `is_a` predicate — so every word was declared a
+   `<mention>` and got a chart rule. 152 rules instead of 30; ~80% of runtime (§8.5).
+2. **A `yes` in a declaration was DELETED.** `authoring._recognize` strips nodes named `yes` as
+   ephemeral NAC scaffolding, so the CNL line `clause asserts subj pred yes unless obj` silently
+   lost its object and read back as a malformed declaration.
+
+Both are name-keyed global partitions leaking into user data: one shares a PREDICATE (`is_a`)
+between engine bookkeeping and domain vocabulary, the other reserves a NAME (`yes`) engine-wide.
+Note that neither is a node-visibility failure — a node-level `<stratum>` tag would not have caught
+either, because in both cases the node was legitimately shared and it was the *reading rule* that
+had no business seeing it.
+
+### 9.6 Cost, and the open items
+
+Full pipeline: **mean 89 ms**, max 173 ms — 7× the budget, and the honest headline of this slice.
+Where it goes: refusal is 1.3 ms (fails at the chart), ambiguity 33 ms (fails before minting), and
+folding is the expensive tail. Nothing here is algorithmic — the banks are regenerated per
+sentence and none of the four fold stages is memoized (`_surface_strata` is the pattern). Optimize
+before drawing conclusions.
+
+Open, in order:
+1. **Memoize the generated banks**, then re-measure. Do this before anything else — the cost story
+   is currently unmeasured, not bad.
+2. **Ambiguity → discriminating question** (`can_ask`); today the pipeline returns `ambiguous` and
+   the driver decides.
+3. ~~**§7: mint a distinct entity for a modified NP?**~~ **RESOLVED — see §10.**
+4. **Declaration loudness** — a malformed `slot`/`asserts` line still fails silently as "does not
+   parse". Same defect class, one level up.
+5. **Compare against `comparative.py`** before claiming full subsumption.
+
+## 10. §7 RESOLVED (2026-07-18) — `bench/spike_grammar_subkind.py`
+
+### 10.1 The dichotomy was false
+
+§7 framed it as "decompose onto the head" vs "mint an opaque `african_lion` entity", and the
+second was rightly rejected — structure must stay exposed to reasoning, not hidden in a string.
+But there is a third option that keeps decomposition **completely intact** and only changes WHICH
+NODE carries it: mint a distinct node and write the decomposition as its DESCRIPTION.
+
+    <e> is_a    lion       <- the head, still exposed, now as subsumption
+    <e> is      guzerat    <- the modifier, still exposed as an attribute
+    <e> has_not mane       <- the exception, on its own entity
+
+Nothing is opaque; "is it a lion?" and "what is guzerat about it?" both still answer. And the node
+is **NAMELESS**, per the precedent already set in feedback #15 ("the substrate is supposed to be
+nameless" — no fabricated `guzerat_lion` skolem names): its identity is its defining relations,
+which is exactly `ByDesc`/`_find_skolem_witness`'s existing identity law. No new concept.
+
+One declaration line carries the whole change, and no other declaration moves:
+
+    -  slot head in np from modifier plus np is right head
+    +  mint head in np from modifier plus np under right head
+
+### 10.2 Before and after, on the corpus that produced the problem
+
+    BEFORE (decompose onto head)            AFTER (mint a described subkind)
+      lion has     mane                       lion                     has     mane
+      lion has_not mane   <- CONTRADICTION    <is guzerat & is_a lion>  has_not mane
+      lion is      guzerat                    <is guzerat & is_a lion>  is      guzerat
+                                              <is guzerat & is_a lion>  is_a    lion
+
+### 10.3 Why it matters beyond tidiness
+
+The generalization and its counterexample now stand on **different nodes, linked by `is_a`**. So
+for the candidate law `?x has mane when ?x is_a lion`, the minted subkind IS a witness of the
+body and carries `has_not mane` — a reachable counterexample. Under decomposition there was no
+second entity to be a counterexample *at all*: the exception overwrote the generalization on one
+node and the learner saw a flat contradiction instead of a defeasible rule. **This is the
+structure the defeasible-exception arc has been missing, and it was a grammar problem.**
+
+### 10.4 Cross-sentence identity: interning has to become description-keyed
+
+A nameless node is minted PER FIRING, so two mentions of `the guzerat lion` are two nodes, and
+name-keyed `intern_mentions` is structurally blind to them (there is no name to key on). The
+counterpart is `intern_described`: group nameless entities by their DEFINING relations only — not
+by everything they have since acquired, or two mentions that learned different facts would never
+merge — and fold. On the 3-sentence corpus it folds 10 nodes to 1 and the KB reads correctly.
+
+Note *why* it was 10 and not 2: an RHS-only `?e` is VALUE INVENTION, minted fresh on every bank
+run, and this pipeline re-runs the banks over the accumulating graph per sentence. So
+**description-interning is not a tidy-up, it is required for correctness in an accumulating KB.**
+That is a genuine cost of the minting design and the main thing to watch when wiring it into a
+real driver (focus-scoped re-running would cut the re-firing, not the requirement).
+
+### 10.5 What is still open here
+
+- **Restrictive vs non-restrictive modification.** `the guzerat lion` restricts a KIND; `the bald
+  eagle` may just describe an individual. This slice mints in both cases, which is *weaker* rather
+  than wrong (it declines to assert that the entity called `eagle` is bald) — but it does break
+  the automatic coreference the old merge gave for free. The existing definiteness machinery
+  (`declared_definites` / `is_unique` / `_merge_unique`) is the obvious signal to route on, and is
+  already opt-in per domain. UNTESTED.
+- **Duplicate defining relations survive folding.** `_fold_node` rewires without deduping, so an
+  interned node carries N copies of `is_a lion`. Harmless to the triple view (a set), untidy in
+  the graph, and deleting them would be fact deletion (§5) — needs the retraction path, not a
+  loader.

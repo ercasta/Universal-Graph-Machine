@@ -22,8 +22,65 @@
 
 ## Current focus (re-pointed 2026-07-18 — INTAKE GRAMMAR, ahead of more learning)
 
-**NEXT TASK: the HOMOICONIC GRAMMAR spike (`design/homoiconic_grammar.md`).** Wall-first, as with
-every slice of the learning arc.
+**SPIKE DONE 2026-07-18, GREEN — the arc is buildable** (`bench/spike_homoiconic_grammar.py`,
+results in `design/homoiconic_grammar.md` §8). **NEXT TASK: slice 1, THE FOLD** (parse → facts,
+production-attached semantics), gated on subsuming `FACT_FORMS`.
+
+What the spike settled, in one paragraph. A grammar declared in CNL (lexicon `lion is a noun`,
+unchanged shipped surface + ONE new production form pair `np expands to determiner plus np`)
+generates chart rules that run on `run_bank` with NO engine change. **Token-passing IS chart
+parsing** — a chart is exactly "every enabled rule fires, nothing selects" — so the §3 crux was a
+false alarm at the level of the control regime. All five residual Loudon failures now parse
+(intransitive, negation+modifier, prepositional, comparative), including `the guzerat lion has no
+mane` — the exception-bearing sentence the whole re-point was about — and `glorp the flarn` is
+REFUSED. **Ambiguity is detectable in-engine with no branch selection**: not by counting root
+spans (that silently reports "unambiguous" — packing erases derivation identity), and not by an
+unpacked forest (correct but 5.2 s at 11 tokens), but by a generated top-down USEFULNESS pass plus
+a `Distinct` on the split point — exact on the PP-attachment case, zero false positives, 41 rules.
+Open vocabulary works and refusal survives it (one NAC rule over declared closed classes; also
+cheaper). Cost 15-41 ms/utterance against a ~12 ms budget, on an unmemoized bank.
+
+**SLICE 1 (THE FOLD) DONE 2026-07-18** — `bench/spike_grammar_fold.py`, design §9. Semantics is
+CNL too (`slot head in np from determiner plus np is right head`; `clause denies subj pred obj
+when neg`) — 68 CNL lines, 206 generated rules, no Python escape hatch, so **§5.4 answers "no
+second system"** on the evidence available. The architectural move: the chart stays PACKED while
+parsing and identity is minted only for the spans the usefulness pass says survive — O(n), so
+slots get nodes to hang on without paying for the unpacked forest. `the guzerat lion has no mane`
+now writes **`(lion has_not mane)`** — the exception the learner needed and never got. The
+ambiguous sentence writes NOTHING and asks, where today's bank writes three wrong facts.
+
+**§7 RESOLVED 2026-07-18** — `bench/spike_grammar_subkind.py`, design §10. The dichotomy was
+FALSE: the choice was never "decompose onto the head" vs "an opaque `african_lion` string". A
+modified NP mints a distinct NAMELESS node whose identity is its DESCRIPTION — `<e> is_a lion`,
+`<e> is guzerat` — so decomposition stays completely intact (both questions still answer) and only
+the node carrying it changes. Nameless is the precedent, not an exception: feedback #15's
+`ByDesc`/`_find_skolem_witness` identity law already says a minted node has no name, only its
+defining relations. **One declaration line** carries it (`mint head in np from modifier plus np
+under right head`). Payoff beyond tidiness: `lion has mane` and `<e> has_not mane` now stand on
+different nodes linked by `is_a`, so the exception is a REACHABLE counterexample to
+`?x has mane when ?x is_a lion` — the structure the defeasible-exception arc has been missing was
+a grammar problem all along. Cost: interning must become description-keyed (`intern_described`,
+the counterpart to the name-keyed `intern_mentions`, which is structurally blind to nameless
+nodes) — and that is REQUIRED for correctness, not tidiness, because RHS-only value invention
+re-mints on every bank run (10 nodes → 1 on a 3-sentence corpus).
+
+**NEXT, in order:** (1) **memoize the generated banks and re-measure** — full pipeline is 89 ms
+mean vs a ~12 ms budget, but nothing is algorithmic (banks regenerate per sentence, no stage
+memoized), so the cost story is unmeasured rather than bad; (2) ambiguity → discriminating question
+via `can_ask`; (3) restrictive vs non-restrictive modification — minting is currently unconditional,
+which is weaker rather than wrong but loses the merge's free coreference; route on the existing
+`declared_definites`/`is_unique` machinery (UNTESTED); (4) declaration loudness (a malformed `slot`
+line still fails silently); (5) compare against `comparative.py` before claiming full subsumption.
+
+**Substrate layering (user question, 2026-07-18):** this slice hit TWO accidental cross-layer
+reads — `is_a <mention>` polluting the lexicon (152 rules instead of 30, ~80% of runtime) and a
+CNL `yes` token being deleted by `authoring._recognize`'s scaffolding strip. Both are name-keyed
+GLOBAL partitions leaking into user data (a shared PREDICATE; a reserved NAME). Neither would have
+been caught by a node-level `<stratum>` tag — in both cases the node was legitimately shared and
+the *reading rule* had no business seeing it. Design note in §9.5; decide after the memoization
+pass, against this incident list rather than speculatively.
+
+Original framing of the task, kept because the argument is what selected it:
 
 Why this and not the next learning slice — a real-corpus test redirected the plan. The learning arc
 landed (S1, S1b, S3a, S5, S6; `design/learning_design.md`), and was then run against 50 verbatim
