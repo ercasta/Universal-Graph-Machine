@@ -159,8 +159,19 @@ Post-hoc effect-mismatch recovery — §1(b) "failure is data" made concrete. Fo
 `corpus/procedure.cnl`: DISCREPANCY (`?o done and ?o add ?e and not <now> true ?e` — a step finished but
 its effect never showed; `done`+`<now>` are both tool-set together on success, so no false positive and
 no strat cycle), EXCLUDE (a durable failed-means record + guard), REPLAN (`?alt chosen when ?o
-discrepancy ?e and ?alt add ?e and not ?alt done and not ?alt excluded` — an untried alternative producer
-runs through the existing gate + gap-fill), CLEAR (drop the discrepancy once the effect is achieved).
+discrepancy ?e and ?alt add ?e and not ?alt done and not ?alt excluded and not ?alt outranked_by ?anyx` —
+the CHEAPEST untried alternative producer runs through the existing gate + gap-fill), CLEAR (drop the
+discrepancy once the effect is achieved).
+
+**Cost governs recovery, not only the initial plan (pystrider #20).** Because REPLAN bypasses the
+planner's `<need>`/`cost_settled` path, its alternatives were never priced — and `cheaper_than` is the
+banks' ONLY narrowing criterion, so *every* untried producer committed and acted. `corpus\procedure.cnl`
+now emits the same §8 `rank` call for the untried producers of an unmet effect, and blocks an alternative
+per cheaper untried rival (`outranked_by`, the Phase-B block/unblock idiom). The drops are load-bearing:
+the block is monotone, so a cheaper alternative that then FAILS would strand the next-cheapest and leave
+the effect silently unachieved. Limit, pinned: with no cost knowledge staged nothing is `cheaper_than`
+anything and every untried producer still commits — a rank calculator imposing a TOTAL order (ties broken
+deterministically) is what keeps commitment to one, on this path and on the planner's.
 
 **Stratification finding (load-bearing):** INVOKE's `chosen` MUST stay in the base stratum. The first
 design gated INVOKE with `not ?s excluded` (+ drop `chosen`, + route recovery through the planner's

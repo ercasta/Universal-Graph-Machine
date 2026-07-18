@@ -35,13 +35,15 @@ def _ensure(g, name):
     return found[0] if found else g.add_node(name)
 
 
-def _op(g, name, *, pre=(), add=()):
-    """A planner operator authored in the core vocabulary: `op pre P`, `op add E`."""
+def _op(g, name, *, pre=(), add=(), cost=None):
+    """A planner operator authored in the core vocabulary: `op pre P`, `op add E`, `op cost C`."""
     o = _ensure(g, name)
     for p in pre:
         g.add_relation(o, "pre", _ensure(g, p))
     for e in add:
         g.add_relation(o, "add", _ensure(g, e))
+    if cost is not None:
+        g.add_relation(o, "cost", _ensure(g, str(cost)))
     return o
 
 
@@ -79,6 +81,37 @@ def _rank_noop():
         if op is None:
             return set()
         return {g.add_relation(op, "ranked", _ensure(g, "<yes>"))}
+    return handler
+
+
+def _rank_by_cost():
+    """A REAL `rank` calculator (the §8 comparison boundary): costs are staged as `?o cost ?c`
+    KNOWLEDGE, the tool only does the arithmetic — deriving the `cheaper_than` FACTS the banks
+    select on. A TOTAL order (ties broken by name), which is what keeps commitment to one op:
+    `dominated`/`best` and REPLAN's `outranked_by` narrow on `cheaper_than` and nothing else."""
+    def cost_of(g, op):
+        for r, o in g.relations_from(op):
+            if g.has_key(r, "cost"):
+                try:
+                    return float(g.name(o))
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    def handler(g, call_id):
+        op = call_arg(g, call_id, "arg")
+        if op is None:
+            return set()
+        touched, c = set(), cost_of(g, op)
+        if c is not None:
+            for other in list(g.nodes()):
+                oc = None if other == op else cost_of(g, other)
+                if oc is None:
+                    continue
+                near, far = (op, other) if (c, g.name(op)) < (oc, g.name(other)) else (other, op)
+                touched.add(g.add_relation(near, "cheaper_than", far))
+        touched.add(g.add_relation(op, "ranked", _ensure(g, "<yes>")))
+        return touched
     return handler
 
 
@@ -222,3 +255,66 @@ def test_successful_step_has_no_discrepancy():
     assert ("<now>", "true", "hot_coffee") in _now(g)
     warm = g.nodes_named("warm")[0]
     assert not any(g.predicate(r) == "excluded" for r, _ in g.relations_from(warm))
+
+
+# ---------------------------------------------------------------------------
+# 5. Cost governs RECOVERY too — "try the smallest edit first" as authored knowledge
+# ---------------------------------------------------------------------------
+
+def _brew_with_alternatives(costs, fail):
+    """One failing procedure step (`warm`) plus several rival producers of its effect, each with
+    staged `cost` knowledge. Returns the ACT order — which ops the world actually ran."""
+    rules = _load("procedure.cnl", "planning.cnl", "planning_execution.cnl")
+    g = AttrGraph()
+    _op(g, "warm", add=["hot_coffee"], cost=1)
+    for name, c in costs.items():
+        _op(g, name, add=["hot_coffee"], cost=c)
+    h.ingest(g, [], "to brew : warm")
+
+    order = []
+    h.ingest(g, rules, "run brew",
+             tools={"act": _act_tool(order, fail=set(fail)), "rank": _rank_by_cost()})
+    return order, g
+
+
+def test_replan_tries_the_cheapest_alternative_not_the_first_staged():
+    """The recovery path is COST-RANKED, not staging-ordered. Proven by INVERTING the declared costs
+    and observing the choice invert — staging order is identical in both runs, so only the `cost`
+    knowledge can explain the difference (agreement between cost and staging order proves nothing)."""
+    order, _ = _brew_with_alternatives({"alt_a": 5, "alt_b": 3, "alt_c": 9}, fail=["warm"])
+    assert order == ["warm", "alt_b"]                        # cheapest, though staged second
+
+    order, _ = _brew_with_alternatives({"alt_a": 9, "alt_b": 7, "alt_c": 1}, fail=["warm"])
+    assert order == ["warm", "alt_c"]                        # costs inverted -> choice inverts
+
+    # and ONLY the chosen one ran: recovery commits one alternative, not every untried producer
+    assert len(order) == 2
+
+
+def test_replan_falls_through_to_the_next_cheapest_when_the_cheapest_also_fails():
+    """`outranked_by` is a BLOCK, retracted once the blocking rival has been tried — so a cheaper
+    alternative that itself fails does not strand the next-cheapest. Without the drop rules the
+    block is monotone and the effect would silently stay unachieved."""
+    order, g = _brew_with_alternatives({"alt_a": 5, "alt_b": 3, "alt_c": 9}, fail=["warm", "alt_b"])
+
+    assert order == ["warm", "alt_b", "alt_a"]               # cheapest first, then the next cheapest
+    assert ("<now>", "true", "hot_coffee") in _now(g)        # the effect was achieved in the end
+    assert "alt_c" not in order                              # the dearest was never needed
+
+
+def test_replan_without_cost_knowledge_commits_every_untried_producer():
+    """The documented LIMIT, pinned honestly: `cheaper_than` is the bank's only narrowing criterion,
+    so with no cost staged the alternatives are unordered and every untried producer commits. This
+    is why a rank calculator should impose a TOTAL order (see corpus/planning.cnl's commit note)."""
+    rules = _load("procedure.cnl", "planning.cnl", "planning_execution.cnl")
+    g = AttrGraph()
+    _op(g, "warm", add=["hot_coffee"])                       # no `cost` anywhere
+    for name in ("alt_a", "alt_b", "alt_c"):
+        _op(g, name, add=["hot_coffee"])
+    h.ingest(g, [], "to brew : warm")
+
+    order = []
+    h.ingest(g, rules, "run brew",
+             tools={"act": _act_tool(order, fail={"warm"}), "rank": _rank_by_cost()})
+
+    assert order == ["warm", "alt_a", "alt_b", "alt_c"]      # unordered -> all of them run

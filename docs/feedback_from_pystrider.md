@@ -902,6 +902,83 @@ Worth a line in the docs: *if a rule's effect can falsify its own body, capture 
 demand path cannot reconstruct it.* Nothing to fix in the engine as far as we can tell — but it took a
 failing `why` to notice, and it is the audit trail for the most interesting facts in our system.
 
+> **ANSWERED + FIXED (2026-07-18). You were not holding it wrong, and the symptom was worse than you
+> measured: replan did not pick in staging order — it picked ALL of them.** Your three repairs did not
+> race and lose; every one of them was committed and every one of them ran. So the pin you wrote is
+> true but under-states it, and it will now fail — please update it.
+>
+> **(1) Is cost-ranking intended to govern replan?** It is intended to govern COMMITMENT, and replan is
+> commitment, so yes. Worth stating plainly because it is the load-bearing fact behind all three of your
+> questions: `dominated`/`best` — i.e. the `cheaper_than` facts your `rank` tool derives — is the banks'
+> **only** narrowing criterion. Nothing else in `planning.cnl` picks one op over another. (The
+> "conjunctive NAC keeps it to ONE per need" comment on the commit rule was wrong and is corrected: a
+> forward round collects all its matches before any fires, so two equally-cheap *or* two unpriced `best`
+> ops both commit and both act. Your `rank` should impose a TOTAL order — break ties deterministically —
+> which is the §8 calculator's job, not the bank's.)
+>
+> **(2) Were you missing an authoring step?** No. `add` + `pre` + `cost` is exactly right. The gap was
+> ours: REPLAN deliberately bypasses the planner's `<need>`/commit path (`procedure.cnl` documents why —
+> routing recovery through commitment pushes INVOKE's `chosen` past `ready` in the stratifier and
+> re-opens the ready-before-unmet race), and `cost_settled` — hence the whole rank call — lives only on
+> that path. So the alternatives were never priced at all. That is precisely what your trace shows: rank
+> fired for `['expand','lower','emit','repair_greet']` because those reached commitment through
+> `<need>`; the DISCREPANCY-selected ones never could. With no `cheaper_than` between them, the sole
+> criterion was absent and the REPLAN rule matched every untried producer at once.
+>
+> **(3) "Try the smallest edit first" — now authorable, and it is just the costs you already stage.**
+> `corpus/procedure.cnl` gained three things: the same `rank` call emitted for the untried producers of
+> an unmet effect; an `outranked_by` block per cheaper untried rival (Phase B's block/unblock idiom); and
+> the REPLAN rule gated on having no such block. Verified by INVERTING the declared costs — the choice
+> inverts, and only the chosen alternative runs. The two `drop ?alt outranked_by ?x` rules are
+> load-bearing, and cost us a wrong first cut: the block is monotone, so without them a cheaper
+> alternative that ITSELF fails strands the next-cheapest forever and the effect stays silently
+> unachieved — the exact shape of failure this arc exists to prevent. Cascade is now covered.
+>
+> **What still holds, pinned honestly:** with no cost staged, nothing is `cheaper_than` anything and
+> every untried producer still commits. We did not invent a tiebreak for that case — the bank has no
+> basis for one, and a total-order `rank` supplies it where it belongs.
+> `test_replan_without_cost_knowledge_commits_every_untried_producer` states the limit so it cannot
+> drift into looking like a bug.
+>
+> Tests in `tests/test_procedures.py` (`test_replan_tries_the_cheapest_alternative_not_the_first_staged`,
+> `test_replan_falls_through_to_the_next_cheapest_when_the_cheapest_also_fails`, and the limit pin
+> above); design note in `docs/design/procedures_design.md` §Slice 3. Suite 613 green.
+
+## 20. (question) Are replan-selected ALTERNATIVE PRODUCERS meant to be cost-ranked? They are not today
+
+Not filed as a bug — we may be holding it wrong, and the answer changes how we author repair operators.
+
+`planning.cnl` makes ranking the §8 comparison-as-calculator boundary: the `rank` tool derives
+`cheaper_than`, and `dominated`/`best`/`chosen` select on it. We built a real `rank` tool (costs staged
+as `?o cost ?c` knowledge; the tool only does the arithmetic) expecting it to order the repair attempts
+in a navigate/check/recover loop, where several operators all `add` the same effect (`output_ok`) and
+differ only in how invasive the edit is.
+
+It does not order them. Verified by INVERTING the declared costs and observing the attempt order
+unchanged — worth stressing, because the costs initially agreed with staging order, so the first
+"working" run proved nothing. Tracing the tool shows it is invoked for the ordinary plan steps and the
+FIRST repair, and never for the later alternatives:
+
+```
+rank tool invoked for: ['expand', 'lower', 'emit', 'repair_greet']
+repairs actually run:  ['repair_greet', 'repair_shout', 'repair_audit']    # staging order, not cost
+```
+
+So the alternatives reached through DISCREPANCY -> REPLAN never reach `cost_settled` and are never
+ranked; their order is whatever order they were staged in. `planning_teardown.cnl` does drop `ranked` /
+`cost_settled` / `best` / `chosen` / `done` on `<replan> active`, which reads as "re-plan from scratch,
+so re-rank" — but in our runs the ops do not appear to come back round through Phase C.
+
+**Questions:** (1) is cost-ranking intended to govern which alternative producer replan picks, or only
+the initial plan? (2) if intended, is there an authoring step we are missing — do alternatives need to
+become `candidate`s of the need in some way our staging (`add` + `pre` + `cost`) does not establish?
+(3) if not intended, is there a supported way to express "try the smallest edit first" over a set of
+operators that all achieve the same effect? That preference is real knowledge in a repair loop, and we
+would rather author it than hardcode an order.
+
+Our side is pinned either way (`test_rank_is_a_real_calculator_but_does_NOT_order_replan_alternatives`),
+so if this gains cost-ordering the pin fails loudly and we update.
+
 ---
 
 ### Net

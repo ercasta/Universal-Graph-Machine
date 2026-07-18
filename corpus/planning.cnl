@@ -39,7 +39,12 @@ drop ?o blocked_by ?p when ?o blocked_by ?p and ?p reachable <yes>
 # dominated: a cheaper viable rival (both costs settled) produces the same need.
 ?o dominated <yes> when ?o viable <yes> and ?o cost_settled <yes> and ?o add ?c and ?x viable <yes> and ?x cost_settled <yes> and ?x add ?c and ?x cheaper_than ?o
 ?o best <yes> when ?o viable <yes> and ?o cost_settled <yes> and not ?o dominated <yes>
-# commit the best viable op per need; the conjunctive NAC keeps it to ONE per need.
+# commit the best viable op per need. NOTE what does the narrowing: `dominated`/`best` — i.e. the
+# `cheaper_than` facts the rank calculator derives — is the bank's ONLY selection criterion. The
+# conjunctive NAC below does NOT serialize commitment: a forward round collects all its matches before
+# any fires, so two equally-cheap (or two UNPRICED) `best` ops both commit and both act. A rank tool
+# that imposes a TOTAL order — breaking ties deterministically, the §8 calculator's job — is what keeps
+# commitment to one op per need. Same criterion governs recovery (procedure.cnl's REPLAN).
 ?o chosen <yes> when <need> for ?c and ?o best <yes> and ?o add ?c and not ?x chosen <yes> and not ?x add ?c
 # order chosen steps: a producer of ?c comes before a consumer of ?c.
 ?o1 before ?o2 when ?o1 chosen <yes> and ?o2 chosen <yes> and ?o1 add ?c and ?o2 pre ?c
