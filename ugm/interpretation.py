@@ -30,6 +30,7 @@ defeasible commitment carrying provenance.
 """
 from __future__ import annotations
 
+from .attrgraph import valued
 from .production_rule import Pat, Rule
 from .lowering import run_bank
 from .vocabulary import neg_pred
@@ -185,13 +186,30 @@ def culprits(g, entity: str) -> list[str]:
 # Reading a nameless entity back: description, not name
 # ---------------------------------------------------------------------------
 
+#: Valued attribute holding a minted entity's description, stamped when identity is settled.
+DESCR_ATTR = "<descr>"
+
+
+def _description(g, n: str, defining: tuple[str, ...]) -> list[str]:
+    return sorted({f"{g.predicate(r)} {g.name(o)}" for r, o in g.relations_from(n)
+                   if g.predicate(r) in defining and g.name(o)})
+
+
 def describe(g, n: str, defining: tuple[str, ...] = DEFINING) -> str:
-    """A node's name, or — for a minted entity — its defining DESCRIPTION."""
+    """A node's name, or — for a minted entity — its defining DESCRIPTION.
+
+    Prefers the description STAMPED when identity was settled (`intern_described`). Recomputing it
+    live would fold in everything the entity has since acquired: after `the african lion is strong`
+    it rendered `<is african & is strong & is_a lion>`, describing an entity by something we merely
+    learned about it rather than by what it IS. Identity is settled once; the description is a
+    record of that moment, not a live view."""
     nm = g.name(n)
     if nm:
         return nm
-    parts = sorted({f"{g.predicate(r)} {g.name(o)}" for r, o in g.relations_from(n)
-                    if g.predicate(r) in defining and g.name(o)})
+    stamped = g.get_attr(n, DESCR_ATTR) if hasattr(g, "get_attr") else None
+    if stamped is not None:
+        return str(stamped.value)
+    parts = _description(g, n, defining)
     return f"<{' & '.join(parts)}>" if parts else "<anon>"
 
 
@@ -215,10 +233,19 @@ def intern_described(g, defining: tuple[str, ...] = DEFINING) -> int:
         if desc:
             groups.setdefault(desc, []).append(n)
     folded = 0
-    for members in groups.values():
+    for desc, members in groups.items():
+        rep = members[0]
         for victim in members[1:]:
-            _fold_node(g, members[0], victim)
+            _fold_node(g, rep, victim)
             folded += 1
+        # Stamp the description AT THE MOMENT IDENTITY IS SETTLED. Everything the entity acquires
+        # afterwards is something we learned ABOUT it, not part of who it is, so `describe` must not
+        # recompute it live (see `describe`).
+        # Never RE-stamp: identity is settled once. A later call would recompute the description
+        # from everything acquired since and overwrite the record of that moment.
+        if hasattr(g, "set_attr") and rep in g.nodes() and g.get_attr(rep, DESCR_ATTR) is None:
+            rendered = " & ".join(sorted(f"{p} {o}" for p, o in desc))
+            g.set_attr(rep, DESCR_ATTR, valued(f"<{rendered}>"))
     return folded
 
 
@@ -234,6 +261,15 @@ def interpret(g, banks, scope: str) -> set[str]:
     interpret_mentions(g, scope)
     run_bank(g, HEAD_BRIDGE + banks.slots,
              control_preds=banks.slot_preds | {"head", DENOTES})
+    # IDENTITY BEFORE PREDICATION. The DEFINING assertions (what a minted entity IS) run first, then
+    # description-keyed interning settles which entities there are, and only then does anything get
+    # said ABOUT them. Interning after the ordinary assertions instead folds acquired facts into the
+    # description — `the african lion is strong` became `<is african & is strong & is_a lion>` and
+    # failed to intern with `<is african & is_a lion>` from another sentence. Found on the Loudon
+    # corpus; see `homoiconic_grammar.md` §12.
+    if banks.defining_asserts:
+        run_bank(g, banks.defining_asserts)
+        intern_described(g)
     run_bank(g, banks.asserts)
     run_bank(g, contradiction_bank(set(banks.grammar.lexicon)))
     close_scope(g, scope, before)

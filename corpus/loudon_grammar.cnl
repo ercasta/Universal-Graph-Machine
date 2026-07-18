@@ -1,0 +1,109 @@
+# The intake grammar for the Loudon lion corpus (bench/loudon_lion_corpus.py) -- 50 verbatim
+# sentences of Mrs. Loudon's *Entertaining Naturalist*, translated to CNL by an LLM with every
+# sentence recorded (nothing silently dropped).
+#
+# Design: docs/design/homoiconic_grammar.md. This file is the honest test of the arc: the lion
+# grammar in corpus/lion_grammar.cnl was written against 7 sentences chosen to exercise gaps we
+# already knew about. This one is written against a corpus nobody wrote for us.
+#
+# PROTOCOL: written in ONE pass from the corpus VOCABULARY plus ordinary English constructions,
+# before running it. Whatever it fails to cover is a real finding, not a grammar bug to quietly
+# patch. bench/spike_loudon_grammar.py records the first-pass number.
+#
+# Beyond corpus/lion_grammar.cnl this adds: predicative adjectives (`the lion is strong`),
+# copula-with-noun-phrase subsumption (`the lion is a cat`), and a second preposition (`at`).
+
+# ---- lexicon: closed classes ----
+the is a determiner
+a is a determiner
+no is a negator
+is is a copula
+than is a comparator
+in is a preposition
+at is a preposition
+
+# ---- lexicon: content words ----
+african is a modifier
+asiatic is a modifier
+bengal is a modifier
+persian is a modifier
+guzerat is a modifier
+lion is a noun
+cat is a noun
+mane is a noun
+tail is a noun
+africa is a noun
+asia is a noun
+jungles is a noun
+night is a noun
+strong is a adj
+smaller is a comparative
+has is a transitive
+roars is a intransitive
+lives is a intransitive
+hunts is a intransitive
+
+# ---- productions ----
+np expands to noun
+np expands to determiner plus np
+np expands to modifier plus np
+np expands to negator plus np
+np expands to np plus pp
+pp expands to preposition plus np
+vp expands to intransitive
+vp expands to transitive plus np
+vp expands to vp plus pp
+vp expands to copula plus adj
+vp expands to copula plus np
+vp expands to copula plus ap
+cp expands to comparator plus np
+ap expands to comparative plus cp
+clause expands to np plus vp
+
+# ---- how each slot is filled ----
+slot head in np from noun is only head
+slot head in np from determiner plus np is right head
+slot head in np from modifier plus np is right head
+slot attr in np from modifier plus np is left head
+slot head in np from negator plus np is right head
+slot neg in np from negator plus np is left head
+slot head in np from np plus pp is left head
+slot prep in np from np plus pp is right prep
+slot pobj in np from np plus pp is right pobj
+slot prep in pp from preposition plus np is left head
+slot pobj in pp from preposition plus np is right head
+slot pred in vp from intransitive is only head
+slot pred in vp from transitive plus np is left head
+slot obj in vp from transitive plus np is right head
+slot neg in vp from transitive plus np is right neg
+slot pred in vp from vp plus pp is left pred
+slot obj in vp from vp plus pp is left obj
+slot prep in vp from vp plus pp is right prep
+slot pobj in vp from vp plus pp is right pobj
+slot adjc in vp from copula plus adj is right head
+slot kind in vp from copula plus np is right head
+slot cobj in cp from comparator plus np is right head
+slot comp in ap from comparative plus cp is left head
+slot cobj in ap from comparative plus cp is right cobj
+slot comp in vp from copula plus ap is right comp
+slot cobj in vp from copula plus ap is right cobj
+slot subj in clause from np plus vp is left head
+slot pred in clause from np plus vp is right pred
+slot obj in clause from np plus vp is right obj
+slot neg in clause from np plus vp is right neg
+slot prep in clause from np plus vp is right prep
+slot pobj in clause from np plus vp is right pobj
+slot comp in clause from np plus vp is right comp
+slot cobj in clause from np plus vp is right cobj
+slot adjc in clause from np plus vp is right adjc
+slot kind in clause from np plus vp is right kind
+
+# ---- which slots become facts ----
+np asserts head is attr
+clause asserts subj pred obj unless neg
+clause denies subj pred obj when neg
+clause asserts subj pred true unless obj
+clause asserts subj prep pobj when pobj
+clause asserts subj comp cobj when cobj
+clause asserts subj is adjc when adjc
+clause asserts subj is_a kind when kind

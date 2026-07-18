@@ -555,3 +555,70 @@ with a defensible basis.
   than a hypothesis fork, which may not want identical semantics.
 - **Re-interpretation re-derives everything.** `reconsider`'s dirty-grain cascade is the obvious
   way to scope it to the affected region.
+
+## 12. INTEGRATION STEP 3 — the Loudon corpus (2026-07-18) — `bench/spike_loudon_grammar.py`
+
+> The first time this met prose nobody wrote for it. Everything before ran on 7 sentences chosen
+> to exercise gaps we already knew about.
+>
+> PROTOCOL: `corpus/loudon_grammar.cnl` was written in ONE pass from the corpus VOCABULARY plus
+> ordinary English constructions, BEFORE running it. A grammar iterated against its own failures
+> would measure nothing.
+
+### 12.1 Coverage: 19/19 on the first pass
+
+    parsed    19/19  (100%)      ambiguous 0/19      refused 0/19      28.5 ms/line
+
+Better than predicted. The grammar needed three constructions beyond `corpus/lion_grammar.cnl` —
+predicative adjectives (`the lion is strong`), copula-with-NP subsumption (`the lion is a cat`),
+and a second preposition — all expressible as declarations, no Python touched. For comparison,
+`spike_loudon.py` measured the shipped bank at 0% before the surface-normalization wiring and 79%
+"routed" after, where routed included two silent mis-parses.
+
+**Caveat that keeps this honest:** these are the 19 CNL lines an LLM produced from 50 sentences,
+not the 50 sentences. The corpus is 26% facts by construction (`spike_loudon.py` §1) and the
+translation already targeted a controlled subset.
+
+### 12.2 The exception, finally in the KB
+
+    <is bengal & is_a lion>   has     mane
+    <is persian & is_a lion>  has     mane
+    <is guzerat & is_a lion>  has_not mane
+    lion                      has     mane
+
+The generalization and its counterexample now coexist on distinct entities linked by `is_a`. Under
+the PERCOLATING reading the same corpus derives **1 contradiction** (`about 'lion' because 'mane'`,
+25 surface mentions behind it); under MINTING, **0**. That is the whole arc in two numbers.
+
+### 12.3 Three real defects, and only one was in the new code
+
+1. **`load_facts` was QUADRATIC in batch size** — `authoring._recognize` called
+   `normalize_surface` once per sentence, but that function ignores its `anchor` and runs each
+   stratum over the WHOLE graph to fixpoint. N sentences = N global fixpoints over a graph growing
+   with N. Measured on the simplest possible CNL: 26 ms/line at 10 lines, **161 ms/line at 80**; an
+   85-line KB file took 24 s. Fixed by hoisting to ONE batch pass (the content forms already ran
+   whole-batch for exactly this reason): per-line cost is now FLAT at ~5 ms, 80 lines went
+   **12.9 s → 0.44 s (29×)**, grammar load **24.3 s → 1.1 s**, and the test suite 78 s → 42 s.
+   **This is shipped-code debt the grammar arc merely exposed** — it bites `load_facts`,
+   `load_corpus`, and `load_kb` equally.
+2. **The same defect shape in the new code.** `parse` runs its banks over the whole graph, so
+   calling it per sentence into an accumulating KB was quadratic too. Added `parse_batch`. Worth
+   noting as a PATTERN: "run_bank over the whole graph, once per utterance" is quadratic by
+   construction, and it is an easy thing to write without noticing.
+3. **Identity must be settled before predication.** `the african lion is strong` produced an entity
+   described as `<is african & is strong & is_a lion>`, which then failed to intern with
+   `<is african & is_a lion>` from another sentence — an ACQUIRED fact had entered the IDENTITY,
+   because the NP-level attribute assertion and the clause-level predicative assertion both write
+   the predicate `is`, and a description keyed on predicate NAMES cannot tell them apart. Fixed
+   structurally: assertions whose category is a MINTING category are DEFINING and run first, then
+   description-keyed interning settles which entities exist, and only then does anything get said
+   about them. The description is additionally STAMPED at that moment (`DESCR_ATTR`), because
+   recomputing it live re-introduces the same leak.
+
+### 12.4 Still not answered
+
+- **Who writes the grammar for open prose?** This one was hand-written from a known vocabulary. The
+  open-class default covers ENTITIES but not PREDICATES, so a new corpus needs its verbs declared.
+  That is the learning arc's T3 form learning, now with a concrete target.
+- **The 31 sentences that yield no facts** are untouched by any of this: they are anecdote, quoted
+  narrative, and hedged attribution — a property of the SOURCE, not of the grammar.

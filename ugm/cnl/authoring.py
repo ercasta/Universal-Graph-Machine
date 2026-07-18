@@ -272,11 +272,18 @@ def _recognize(graph: Graph, sentences: list[str], forms: list[Rule]) -> list[st
     # The forms already existed; only the wiring was missing.
     from .forms import normalize_surface
     strata = _surface_strata(forms)
-    anchors = []
-    for s in sentences:
-        anchor = tokenize(graph, s)
-        normalize_surface(graph, anchor, strata)
-        anchors.append(anchor)
+    anchors = [tokenize(graph, s) for s in sentences]
+    # ONE normalization pass for the WHOLE BATCH, not one per sentence (fixed 2026-07-18).
+    # `normalize_surface` ignores its `anchor` — it runs each stratum over the whole graph to
+    # fixpoint — so calling it per sentence ran N global fixpoints over a graph growing with N:
+    # load_facts was QUADRATIC in batch size (measured on the simplest possible CNL: 26 ms/line at
+    # 10 lines, 161 ms/line at 80; an 85-line KB file took 24 s). The normalization forms match
+    # WITHIN a token chain, and the content forms below already run whole-batch for exactly this
+    # reason ("recognizes WHOLE-BATCH ... no per-sentence isolation needed"), so the loop was pure
+    # repetition. Found by loading a grammar file (`cnl/grammar.py`), but it bites every batch
+    # loader — `load_facts`, `load_corpus`, `load_kb`.
+    if anchors:
+        normalize_surface(graph, anchors[0], strata)
     run_bank(graph, forms)
     # DECLARATION-BEFORE-USE for declared relations (closing the batch-loader gap noted in
     # test_contract / docs/handoff_redesign.md). A line `R is a relation` is recognized by the pass

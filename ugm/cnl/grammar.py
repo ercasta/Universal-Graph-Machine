@@ -252,6 +252,7 @@ class GrammarBanks:
     slots: list[Rule]
     slot_preds: frozenset[str]
     asserts: list[Rule]
+    defining_asserts: list[Rule]
     grammar: Grammar
 
 
@@ -395,8 +396,19 @@ def slot_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
     return rules, frozenset(gram.slot_names)
 
 
-def assert_bank(gram: Grammar) -> list[Rule]:
+def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
     """A fact-emitting rule per assertion declaration.
+
+    `defining` splits the bank by whether an assertion contributes to a minted entity's IDENTITY —
+    i.e. whether its category is one that MINTS. `np asserts head is attr` is defining (it says what
+    the minted subkind IS); `clause asserts subj is adjc` is not (it says something ABOUT it).
+
+    The split exists because both write the predicate `is`, so a description keyed on predicate
+    NAMES cannot tell them apart — and `the african lion is strong` then described an entity as
+    `<is african & is strong & is_a lion>`, which failed to intern with `<is african & is_a lion>`
+    from another sentence. **Identity must be settled before predication**: run the defining
+    assertions, intern by description, and only then say things about the entities. Found on the
+    Loudon corpus (`homoiconic_grammar.md` §12).
 
     The PREDICATE position reads as a SLOT if it names a declared slot, else as a literal word —
     data-driven, not string-sniffing. A slot predicate is DYNAMIC, and the ISA rejects a non-plain
@@ -406,10 +418,13 @@ def assert_bank(gram: Grammar) -> list[Rule]:
     not for PREDICATES, the same controlled-CNL boundary the project already draws."""
     rules: list[Rule] = []
     names = gram.slot_names
+    minting = {d["mcat"] for d in gram.mints}
     for i, d in enumerate(gram.assertions):
         z, mode = d["acat"], d["amode"]
         subj, pred, obj = d["asubj"], d["apred"], d.get("aobj")
         if obj is None:
+            continue
+        if defining is not None and (z in minting) != defining:
             continue
         guards = [Pat("?p", d["awhen"], "?gw")] if "awhen" in d else []
         nacs = [Pat("?p", d["aunless"], "?gu")] if "aunless" in d else []
@@ -437,7 +452,8 @@ def compile_grammar(gram: Grammar, *, open_class: str | None = None,
     slots, spreds = slot_bank(gram)
     return GrammarBanks(chart=chart, chart_preds=cpreds, ambiguity=amb, ambiguity_preds=apreds,
                         spans=spans, span_preds=sppreds, slots=slots, slot_preds=spreds,
-                        asserts=assert_bank(gram), grammar=gram)
+                        asserts=assert_bank(gram, defining=False),
+                        defining_asserts=assert_bank(gram, defining=True), grammar=gram)
 
 
 # ---------------------------------------------------------------------------
@@ -469,6 +485,46 @@ def parse(g, sentence: str, banks: GrammarBanks, root: str = ROOT) -> tuple[str,
         return AMBIGUOUS, toks, eos
     run_bank(g, banks.spans, control_preds=banks.span_preds)
     return PARSED, toks, eos
+
+
+def _tokenize_with_sentinel(g, sentence: str) -> tuple[list[str], str]:
+    anchor = tokenize(g, sentence)
+    toks = _chain_tokens(g, anchor)
+    if not toks:
+        return [], ""
+    eos = g.add_node("<eos>", control=True)
+    # Spans are [begin, end), so every token needs a successor — including the last.
+    g.add_relation(toks[-1], "next", eos, control=True)
+    g.add_relation(eos, "is_eos", g.add_node("yes"), control=True)
+    return toks, eos
+
+
+def _outcome(g, toks, eos, root) -> str:
+    if not toks:
+        return REFUSED
+    if not any(g.has_key(r, sp(root)) and o == eos for r, o in g.relations_from(toks[0])):
+        return REFUSED
+    if any(g.has_key(r, "ambiguous") for t in toks for r, _o in g.relations_from(t)):
+        return AMBIGUOUS
+    return PARSED
+
+
+def parse_batch(g, sentences, banks: GrammarBanks, root: str = ROOT) -> list[str]:
+    """Parse MANY sentences into `g` with ONE pass of each bank. Returns per-sentence outcomes.
+
+    Use this for corpus loading. `parse` runs every bank over the WHOLE graph, so calling it per
+    sentence into an accumulating graph is QUADRATIC in corpus size — the same defect that made
+    `authoring._recognize` take 24 s on an 85-line file (fixed 2026-07-18 the same way). The chart
+    rules match within a token chain, so one global pass does every sentence.
+
+    NOTE: spans are minted for every sentence with a complete parse, INCLUDING ambiguous ones.
+    Callers that fold must filter to `PARSED` first — an ambiguous sentence is a question, not
+    input."""
+    pairs = [_tokenize_with_sentinel(g, s) for s in sentences]
+    run_bank(g, banks.chart, control_preds=banks.chart_preds)
+    run_bank(g, banks.ambiguity, control_preds=banks.ambiguity_preds)
+    run_bank(g, banks.spans, control_preds=banks.span_preds)
+    return [_outcome(g, toks, eos, root) for toks, eos in pairs]
 
 
 def ambiguous_spans(g, toks) -> list[tuple[str, str]]:

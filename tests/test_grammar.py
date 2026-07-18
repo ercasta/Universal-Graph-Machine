@@ -180,17 +180,31 @@ def test_exception_is_reachable_from_the_generalization(subkind_banks):
 
 
 def test_description_keyed_interning_folds_repeat_mentions(subkind_banks):
-    # Name-keyed `intern_mentions` is structurally blind to nameless nodes. This is REQUIRED for
-    # correctness, not tidiness: value invention re-mints on every bank run.
-    g, _s, _f = _fold(subkind_banks, "the guzerat lion has no mane",
-                      "the guzerat lion is smaller than the tiger")
-    def _anon():
-        return [n for n in g.nodes()
-                if not g.name(n) and not g.is_control(n) and not g.is_inert(n)
-                and any(g.predicate(r) == "is_a" for r, _o in g.relations_from(n))]
-    assert len(_anon()) > 1
-    intern_described(g)
-    assert len(_anon()) == 1
+    # Name-keyed `intern_mentions` is structurally blind to nameless nodes, so `interpret` runs the
+    # description-keyed counterpart as part of the pass. REQUIRED for correctness, not tidiness:
+    # value invention re-mints on every bank run.
+    g, _s, facts = _fold(subkind_banks, "the guzerat lion has no mane",
+                         "the guzerat lion is smaller than the tiger")
+    anon = [n for n in g.nodes()
+            if not g.name(n) and not g.is_control(n) and not g.is_inert(n)
+            and any(g.predicate(r) == "is_a" for r, _o in g.relations_from(n))]
+    assert len(anon) == 1, "two mentions of one subkind must land on ONE entity"
+    sub = "<is guzerat & is_a lion>"
+    assert (sub, "has_not", "mane") in facts        # both sentences' facts, on that one entity
+    assert (sub, "smaller", "tiger") in facts
+
+
+def test_identity_is_settled_before_predication(subkind_banks):
+    # An ACQUIRED fact must not enter the description, or the entity fails to intern with the same
+    # subkind mentioned elsewhere. `the african lion is strong` described its subject as
+    # `<is african & is strong & is_a lion>` until the defining assertions were split out and run
+    # first. Found on the Loudon corpus (`homoiconic_grammar.md` §12).
+    g, _s, facts = _fold(subkind_banks, "the guzerat lion is smaller than the tiger",
+                         "the guzerat lion has no mane")
+    sub = "<is guzerat & is_a lion>"
+    assert any(t[0] == sub for t in facts), f"expected the subkind described as {sub}: {facts}"
+    assert not any("smaller" in t[0] or "has_not" in t[0] for t in facts), \
+        "an acquired fact leaked into the entity's description"
 
 
 # ---------------------------------------------------------------------------

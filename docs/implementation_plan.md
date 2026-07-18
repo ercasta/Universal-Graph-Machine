@@ -73,7 +73,30 @@ whose content had entirely moved were DELETED; the two that remain keep only the
 decided design questions and import the modules (output verified byte-identical). **No existing
 path changed** — nothing calls the grammar yet, which is why the suite stayed green.
 
-**Integration steps 2-5:** (2) wire as an OPT-IN intake route — a KB that declares a grammar gets
+**INTEGRATION STEP 3 DONE 2026-07-18 (suite 706 green)** — the grammar met the Loudon corpus
+(`bench/spike_loudon_grammar.py`, `corpus/loudon_grammar.cnl`, design §12). **19/19 (100%) parsed
+on the FIRST pass**, 0 refused, 0 ambiguous, 28.5 ms/line; the grammar needed three new
+constructions (predicative adjective, copula+NP subsumption, a second preposition), all
+declarations, no Python. The KB now holds the generalization AND its counterexample on distinct
+`is_a`-linked entities; the same corpus derives **1 contradiction under the percolating reading and
+0 under minting**. Caveat: these are the 19 CNL lines an LLM produced from the 50 sentences, not
+the sentences.
+
+**⚠ SHIPPED-CODE DEFECT FOUND AND FIXED: `load_facts` was QUADRATIC in batch size.**
+`authoring._recognize` ran `normalize_surface` once per sentence, but that ignores its `anchor` and
+runs each stratum over the WHOLE graph to fixpoint — N sentences = N global fixpoints over a graph
+growing with N. 26 ms/line at 10 lines, 161 ms/line at 80; an 85-line KB file took 24 s. Hoisted to
+ONE batch pass: per-line cost FLAT ~5 ms, 80 lines **12.9 s → 0.44 s (29×)**, and the whole test
+suite 78 s → 42 s. This bites `load_facts`/`load_corpus`/`load_kb` equally — the grammar arc only
+exposed it. GENERAL LESSON (it recurred immediately in the new code, fixed with `parse_batch`):
+**"run_bank over the whole graph, once per utterance" is quadratic by construction.**
+
+Also fixed: **identity must be settled before predication** — an acquired fact (`the african lion
+is strong`) leaked into a minted entity's DESCRIPTION and stopped it interning with the same
+subkind elsewhere, because NP-level attribution and clause-level predication both write `is`.
+Assertions in a MINTING category are now DEFINING, run first, then interning, then everything else.
+
+**Integration steps 2, 4, 5:** (2) wire as an OPT-IN intake route — a KB that declares a grammar gets
 the grammar path, everything else keeps the shipped forms (declare-before-use, so the suite stays
 green by construction); (3) **run the real corpora** — Loudon's 50 sentences first: all coverage so
 far is on 7 hand-picked sentences chosen to exercise known gaps, so expect this to be sobering, and
