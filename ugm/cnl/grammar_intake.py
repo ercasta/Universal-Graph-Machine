@@ -1,0 +1,240 @@
+"""The GRAMMAR intake route — integration step 2, built toward the interpretation-node target.
+
+This is a FORK of the shipped fact route, not a replacement (user decision 2026-07-19: the target is
+interpretation nodes, and going red for a while beats entrenching the token/entity duality). A KB
+that DECLARES a grammar sends its FACT/UNRECOGNIZED tail through here; everything else — questions,
+rules, focus moves, forms, procedures — stays on the shipped path untouched. Two intake paths coexist
+on purpose until slice 4 converges them.
+
+THE DUALITY, AND WHY THIS PATH EXISTS. On the shipped path the token node IS the entity: facts hang
+off the tokens, and `intern_mentions` folds same-named mentions DESTRUCTIVELY, so the coreference
+judgement can never be revised. Here the surface (tokens, chains, `cat`/`begin`/`end`) is a permanent
+monotone record, and every judgement about what it MEANS lives in a discardable SCOPE of copies
+reached through `denotes`. That is what makes contradiction -> ask -> re-interpret possible without
+re-parsing (`design/surface_interpretation.md`).
+
+CONSEQUENCE FOR DOWNSTREAM READERS: `focus.utterance_subjects` and
+`authoring.anchor_has_content_fact` both walk the token chain and read content relations ON THE
+TOKENS. That assumption is false here — the relations are on the entities, one `denotes` hop away.
+The entity-aware counterparts live below rather than as edits to the originals, so the shipped path
+keeps working while this one moves.
+"""
+from __future__ import annotations
+
+import os
+
+from ..interpretation import (DENOTES, SURFACE_PREDS, close_scope, contradictions, culprits,
+                              describe, discard_scope, interpret, open_scope, scope_members)
+from ..lowering import run_bank
+from .grammar import (AMBIGUOUS, PARSED, REFUSED, REMINT, Grammar, compile_grammar, load_grammar,
+                      load_grammar_file, parse)
+
+#: Mechanism state, so it lives in a register beside `forms`/`policy` — not as a graph node.
+GRAMMAR_REGISTER = "grammar"
+#: The ONE live interpretation of the session's standing surface (a scope node id).
+SCOPE_REGISTER = "interpretation"
+
+
+def declare_grammar(kb, grammar) -> None:
+    """Give `kb` a grammar, compiling its banks ONCE. `grammar` is a `Grammar`, CNL text, or a path.
+
+    Compilation is per-grammar, not per-utterance: `compile_grammar` generates ~200 rules and the
+    banks are reused across every parse in the session."""
+    if isinstance(grammar, Grammar):
+        gram = grammar
+    elif isinstance(grammar, (str, os.PathLike)) and os.path.exists(grammar):
+        gram = load_grammar_file(grammar)
+    else:
+        gram = load_grammar(str(grammar))
+    kb.registers[GRAMMAR_REGISTER] = compile_grammar(gram)
+
+
+def session_banks(kb):
+    """The declared `GrammarBanks`, or None if this KB has no grammar (=> the shipped route)."""
+    return kb.registers.get(GRAMMAR_REGISTER)
+
+
+def live_scope(kb) -> str:
+    """The session's ONE live interpretation scope, opened on first use.
+
+    ONE, not one per utterance: enforcing a single live interpretation is what keeps branch selection
+    out (`surface_interpretation.md`). Re-interpretation replaces this scope rather than adding one.
+    """
+    scope = kb.registers.get(SCOPE_REGISTER)
+    if scope is None or scope not in kb.nodes():
+        scope = open_scope(kb)
+        kb.registers[SCOPE_REGISTER] = scope
+    return scope
+
+
+# ---------------------------------------------------------------------------
+# Entity-aware counterparts of the token-chain readers
+# ---------------------------------------------------------------------------
+
+def denotata(kb, toks) -> list[str]:
+    """The entities this utterance's tokens are taken to denote — the `denotes` hop.
+
+    The counterpart of "the content tokens of the chain": on the shipped path those two sets are the
+    same nodes, which is exactly the duality this route splits apart."""
+    seen: dict[str, None] = {}
+    for t in toks:
+        for r, o in kb.relations_from(t):
+            if kb.has_key(r, DENOTES):
+                seen.setdefault(o, None)
+    return list(seen)
+
+
+def _content_relations(kb, n, *, since: set[str] | None = None):
+    for r, o in kb.relations_from(n):
+        p = kb.predicate(r)
+        if kb.is_control(r) or kb.is_inert(r) or not p:
+            continue
+        if p in SURFACE_PREDS or p in ("head", "about", "because"):
+            continue
+        if since is not None and r in since:
+            continue                                 # not minted by THIS utterance
+        yield r, o
+
+
+def has_content_fact(kb, toks, *, since: set[str] | None = None) -> bool:
+    """Did interpreting this utterance put a CONTENT relation on any entity it mentions?
+
+    The entity-side answer to `authoring.anchor_has_content_fact`. `since` plays the same role it
+    does there — a pre-utterance node snapshot, so an utterance that merely MENTIONS already-related
+    entities does not misroute as a fact."""
+    return any(True for e in denotata(kb, toks)
+               for _ in _content_relations(kb, e, since=since))
+
+
+def utterance_centers(kb, toks) -> set[str]:
+    """The entities this utterance PREDICATES ABOUT, as focus centers.
+
+    Rendered by `describe`, so a minted subkind enters focus by its DESCRIPTION rather than by a name
+    it does not have (`ByDesc` — a minted node has no name, only its defining relations)."""
+    out: set[str] = set()
+    for e in denotata(kb, toks):
+        if any(True for _ in _content_relations(kb, e)):
+            out.add(describe(kb, e))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# The route
+# ---------------------------------------------------------------------------
+
+def route(kb, utterance: str, banks) -> tuple[str, dict]:
+    """Parse and interpret ONE utterance. Returns `(kind, data)`.
+
+    `kind` is `fact` / `ambiguous` / `unrecognized`, mirroring the shipped route's vocabulary plus
+    the one genuinely new outcome. AMBIGUOUS is its OWN kind, not a flavour of unrecognized: "I
+    cannot parse this" and "I parsed it two ways" call for different responses, and only the second
+    can become a discriminating question (`can_ask`) — which is where this is headed.
+
+    An ambiguous or refused utterance writes NO facts. The surface it did produce STAYS: it is the
+    permanent record, and a later re-interpretation (or a discriminating answer) reads it without
+    re-parsing."""
+    # DISCARD BEFORE PARSING. The chart bank keys on NAMES, and `interpret_mentions` mints entity
+    # nodes carrying the same name as the tokens they were derived from — so a standing
+    # interpretation makes the next parse see a second `lion` "token" and the chart explodes
+    # combinatorially (a 3-sentence session did not finish). This is the token/entity duality biting
+    # exactly where the plan warned it would: two nodes, one name, ambiguous lookups. The layering
+    # answers it — parse reads SURFACE ONLY, so the interpretation comes down first and is rebuilt
+    # after. Marks live on spans, so the judgements survive the discard.
+    _discard_live(kb, banks)
+    before = set(kb.nodes())
+    outcome, toks, _eos = parse(kb, utterance, banks)
+    if outcome == REFUSED:
+        return "unrecognized", {"tokens": toks}
+    if outcome == AMBIGUOUS:
+        from .grammar import ambiguous_spans
+        spans = ambiguous_spans(kb, toks)
+        return "ambiguous", {"tokens": toks,
+                             "spans": [(kb.name(a), kb.name(b)) for a, b in spans]}
+
+    scope = reinterpret(kb, banks)
+    return ("fact" if has_content_fact(kb, toks, since=before) else "unrecognized",
+            {"tokens": toks, "scope": scope, "centers": utterance_centers(kb, toks)})
+
+
+def _discard_live(kb, banks) -> None:
+    """Take down the live interpretation, leaving the surface (and any re-minting marks) standing."""
+    scope = kb.registers.get(SCOPE_REGISTER)
+    if scope is not None and scope in kb.nodes():
+        discard_scope(kb, scope, banks.reinterp_slot_preds)
+    kb.registers.pop(SCOPE_REGISTER, None)
+
+
+def reinterpret(kb, banks) -> str:
+    """Discard the live interpretation and read the WHOLE standing surface afresh. Returns the scope.
+
+    Replace, never accumulate. Interpreting each new utterance on top of the previous scope layers
+    readings over one another: `interpret_mentions` re-runs across a graph that already holds the last
+    pass's entities, and every derived marker is re-minted, so three sentences produced FIVE duplicate
+    contradiction markers. One live interpretation means exactly one, rebuilt.
+
+    Always on `reinterp_slots`, never the plain slot bank — with no span marked the two are
+    equivalent (the percolation NAC and the mint premise both test a marker that is not there), so
+    one bank covers both readings and the marks alone decide. This is also what makes a re-minting
+    judgement DURABLE: marks live on the surface, so they survive the discard that clears the
+    entities, and every later utterance is read under them."""
+    _discard_live(kb, banks)
+    fresh = live_scope(kb)
+    interpret(kb, banks, fresh,
+              slots=banks.reinterp_slots, slot_preds=banks.reinterp_slot_preds)
+    return fresh
+
+
+# ---------------------------------------------------------------------------
+# The revision loop — contradiction -> re-interpret -> ask (slice 3)
+# ---------------------------------------------------------------------------
+
+#: What `reconsider` concluded. `clean` = nothing to revise. `revised` = re-interpretation cleared
+#: the contradiction. `ask` = it did not, so the human decides. `rule` = no interpretation is at
+#: fault, so this is a RULE problem (the learning arc's defeasible-exception model), not ours.
+CLEAN, REVISED, ASK, RULE = "clean", "revised", "ask", "rule"
+
+
+def reconsider(kb, banks) -> tuple[str, list]:
+    """Try to REVISE the live interpretation in the light of any contradiction it derived.
+
+    THE DISCRIMINATOR (`surface_interpretation.md`): one derived contradiction is the same signal for
+    two very different faults — "you merged two entities that are not the same" and "your rule needs
+    an exception" — and they live in different layers with different persistence. The support tells
+    them apart. If a coreference JUDGEMENT is load-bearing (the entity was interpreted from more than
+    one surface mention), the cheap revisable thing is at fault: discard and re-derive, costing
+    nothing and leaving the surface intact. If not, no interpretation is to blame and this is a
+    durable knowledge problem — return `RULE` and do NOT touch anything.
+
+    Try the revisable thing first, because being wrong about it is free.
+
+    Re-interpretation is EVIDENCE-DRIVEN: it mints only at the spans a contradiction actually
+    implicated, which is what stops minting from being the unconditional (and for a non-restrictive
+    modifier, wrong) move it is when a grammar simply declares it."""
+    scope = kb.registers.get(SCOPE_REGISTER)
+    if scope is None or scope not in kb.nodes():
+        return CLEAN, []
+    cs = contradictions(kb)
+    if not cs:
+        return CLEAN, []
+    if not any(len(culprits(kb, about)) > 1 for about, _because in cs):
+        return RULE, cs                              # no judgement in the support — not ours to fix
+
+    run_bank(kb, banks.remint_marks, control_preds=banks.remint_preds)
+    if not any(kb.has_key(r, REMINT) for n in kb.nodes() for r, _o in kb.relations_from(n)):
+        return ASK, cs                               # a judgement is at fault but no site to re-read
+
+    reinterpret(kb, banks)
+    remaining = contradictions(kb)
+    return (REVISED, []) if not remaining else (ASK, remaining)
+
+
+def facts(kb) -> list[tuple[str, str, str]]:
+    """The facts the live interpretation commits to — the entity-side `derived_triples`."""
+    from ..interpretation import scope_facts
+    scope = kb.registers.get(SCOPE_REGISTER)
+    return scope_facts(kb, scope) if scope is not None and scope in kb.nodes() else []
+
+
+__all__ = ["GRAMMAR_REGISTER", "SCOPE_REGISTER", "declare_grammar", "session_banks", "live_scope",
+           "denotata", "has_content_fact", "utterance_centers", "route", "facts",
+           "close_scope", "scope_members", "PARSED", "AMBIGUOUS", "REFUSED"]

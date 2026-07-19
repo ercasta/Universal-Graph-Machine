@@ -131,16 +131,32 @@ def discard_scope(g, scope: str, interp_preds) -> int:
     behind leaves surface spans holding stale heads that point at deleted entities, and the next
     interpretation silently inherits this one's decisions."""
     gone = 0
-    for m in scope_members(g, scope):
+    members = scope_members(g, scope)                # READ the membership before unlinking it
+    # The scope's OWN `member` relations. `remove_node` does not clean up a node's INCOMING
+    # relations, so removing a member left the `scope --member--> member` rel node behind as an
+    # orphan — one per member, every cycle. That is a LEAK in the operation the whole architecture
+    # rests on being free: three utterances grew the graph to 501 nodes and each pass got slower,
+    # because "discard and re-derive" was quietly not discarding. Take the scope node with it; a
+    # discarded interpretation has no scope, and callers open a fresh one.
+    for r, _o in list(g.relations_from(scope)):
+        if g.has_key(r, MEMBER) and r in g.nodes():
+            g.remove_node(r)
+            gone += 1
+    for m in members:
         if m in g.nodes():
             g.remove_node(m)
             gone += 1
     preds = set(interp_preds) | {DENOTES, "head"}
     for t in list(g.nodes()):
+        if t not in g.nodes():                       # a rel node may go with the member it left
+            continue
         for r, _o in list(g.relations_from(t)):
             if g.predicate(r) in preds and r in g.nodes():
                 g.remove_node(r)
                 gone += 1
+    if scope in g.nodes():
+        g.remove_node(scope)
+        gone += 1
     return gone
 
 
@@ -253,14 +269,20 @@ def intern_described(g, defining: tuple[str, ...] = DEFINING) -> int:
 # The interpretation pass
 # ---------------------------------------------------------------------------
 
-def interpret(g, banks, scope: str) -> set[str]:
+def interpret(g, banks, scope: str, *, slots=None, slot_preds=None) -> set[str]:
     """Run ONE interpretation over the standing surface. Returns the scope's members.
 
-    `banks` is a `cnl.grammar.GrammarBanks`. Assumes `parse` has already written the surface."""
+    `banks` is a `cnl.grammar.GrammarBanks`. Assumes `parse` has already written the surface.
+
+    `slots`/`slot_preds` override the percolation bank — how a RE-interpretation reads the same
+    surface differently (`banks.reinterp_slots`, which mints at marked spans). The override is the
+    ONLY difference between readings: same surface, same assertions, same interning."""
+    slots = banks.slots if slots is None else slots
+    slot_preds = banks.slot_preds if slot_preds is None else slot_preds
     before = set(g.nodes())
     interpret_mentions(g, scope)
-    run_bank(g, HEAD_BRIDGE + banks.slots,
-             control_preds=banks.slot_preds | {"head", DENOTES})
+    run_bank(g, HEAD_BRIDGE + slots,
+             control_preds=slot_preds | {"head", DENOTES})
     # IDENTITY BEFORE PREDICATION. The DEFINING assertions (what a minted entity IS) run first, then
     # description-keyed interning settles which entities there are, and only then does anything get
     # said ABOUT them. Interning after the ordinary assertions instead folds acquired facts into the

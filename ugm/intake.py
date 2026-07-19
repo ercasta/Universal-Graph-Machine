@@ -40,7 +40,7 @@ from .focus import GOAL  # noqa: E402
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"unrecognized"
+    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"ambiguous"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
@@ -458,6 +458,31 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # FACT / GOAL / UNRECOGNIZED — recognize into the live KB. A content relation means a fact landed;
     # a freshly minted `<goal>` node means the GOAL form fired (routing by produced structure, §D.1 —
     # the before/after delta attributes the goal to THIS utterance, no string sniff).
+    # THE GRAMMAR FORK (integration step 2). A KB that DECLARES a grammar takes the declarative tail
+    # through parse -> interpretation scope instead of `load_facts`, so its facts land on ENTITY
+    # nodes reached by `denotes` rather than on the tokens themselves. Routed by a declared
+    # register, never by sniffing the utterance (§D.1). Everything above this line — questions,
+    # rules, focus, forms, procedures — is untouched and shared by both paths.
+    # This fork is TEMPORARY and deliberately duplicative (user decision 2026-07-19): the target is
+    # interpretation nodes everywhere, and the duplication buys the freedom to move this path
+    # without holding the token-is-entity path green in lockstep.
+    from .cnl import grammar_intake
+    gbanks = grammar_intake.session_banks(kb)
+    if gbanks is not None:
+        kind, data = grammar_intake.route(kb, text, gbanks)
+        if kind == "ambiguous":
+            # AMBIGUOUS IS ITS OWN OUTCOME, not a flavour of unrecognized: "I cannot parse this" and
+            # "I parsed it two ways" want different responses, and only the second can become a
+            # discriminating question (`can_ask`) — which is where this is headed.
+            yield Event("ambiguous", {"spans": data["spans"]})
+            return Outcome("ambiguous", utterance, nearest=data["spans"])
+        if kind == "unrecognized":
+            yield Event("unrecognized", {"nearest": []})
+            return Outcome("unrecognized", utterance)
+        focus_mod.widen(kb, data["centers"])
+        yield Event("fact", {"centers": sorted(data["centers"])})
+        return Outcome("fact", utterance)
+
     goals_before = set(kb.nodes_named(GOAL))
     nodes_before = set(kb.nodes())                   # to attribute this utterance's NEW fact relations
     anchors = load_facts(kb, text, extra_forms=declarative_forms)

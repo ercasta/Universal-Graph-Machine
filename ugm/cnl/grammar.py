@@ -254,6 +254,11 @@ class GrammarBanks:
     asserts: list[Rule]
     defining_asserts: list[Rule]
     grammar: Grammar
+    #: The revision loop's two extra banks (see `remint_mark_bank` / `reinterpretation_slots`).
+    remint_marks: list[Rule] = field(default_factory=list)
+    remint_preds: frozenset[str] = frozenset()
+    reinterp_slots: list[Rule] = field(default_factory=list)
+    reinterp_slot_preds: frozenset[str] = frozenset()
 
 
 def chart_bank(gram: Grammar, *, open_class: str | None = None,
@@ -443,6 +448,118 @@ def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
     return rules
 
 
+# ---------------------------------------------------------------------------
+# 3b. EVIDENCE-DRIVEN RE-MINTING — the mechanism behind the revision loop
+# ---------------------------------------------------------------------------
+
+#: Marker written onto ONE span that a contradiction implicates, gating that span's mint rule.
+REMINT = "<remint>"
+
+#: The slot that IS a span's denotation (`Grammar.slot_names` seeds it, `HEAD_BRIDGE` writes it).
+HEAD_SLOT = "head"
+
+
+def mintable_slots(gram: Grammar) -> list[dict]:
+    """The head-slot declarations at which minting a subkind would be MEANINGFUL.
+
+    Minting is meaningful exactly where the parent gets a DESCRIPTION from its other child, and the
+    grammar already says where that is: a category declares an assertion whose subject is a head slot
+    and whose object is another slot **from the same production**. `np asserts head is attr`, with
+    `head` and `attr` both filled from `np from modifier plus np`, is the case — the minted entity
+    gets `is_a lion` from the head and `is guzerat` from the attr.
+
+    Derived, never sniffed. Reading it off category NAMES ("mint under a `modifier`") would hardcode
+    one grammar's vocabulary into the engine, which the standing rule forbids. Note what this
+    correctly EXCLUDES: `np from determiner plus np` has a head slot but no companion slot feeding an
+    assertion, so `the lion` mints nothing — there is no description to distinguish.
+
+    The subject slot must be the span's `head`, not merely SOME slot. Minting replaces what a span
+    DENOTES, so it is only meaningful at the slot that is the denotation. Without this,
+    `clause asserts subj pred obj` qualifies — subj and obj both come from `clause from np plus vp` —
+    and a re-interpretation mints an entity at every CLAUSE, which is both meaningless and
+    explosive (a 3-sentence session stopped terminating). `head` is already the system-level slot
+    name (`Grammar.slot_names` seeds it, `HEAD_BRIDGE` writes it), not a new magic string."""
+    by_name: dict[str, list[dict]] = {}
+    for d in gram.slots:
+        if "sonly" not in d:                         # binary productions only
+            by_name.setdefault(d["sname"], []).append(d)
+    out: list[dict] = []
+    seen: set[tuple] = set()
+    for a in gram.assertions:
+        subj, obj = a.get("asubj"), a.get("aobj")
+        if obj is None or subj != HEAD_SLOT:         # only at the span's DENOTATION slot
+            continue
+        for h in by_name.get(subj, []):
+            if h["scat"] != a["acat"]:
+                continue
+            prod = (h["scat"], h["sleft"], h["sright"])
+            if any((c["scat"], c["sleft"], c["sright"]) == prod for c in by_name.get(obj, [])):
+                if prod not in seen:
+                    seen.add(prod)
+                    out.append(h)
+    return out
+
+
+def _production_lhs(d: dict) -> tuple[list, str]:
+    """The parent/left/right span premises of a binary slot declaration, and its head-side child."""
+    return ([Pat("?p", "cat", d["scat"]), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b"),
+             Pat("?l", "cat", d["sleft"]), Pat("?l", "begin", "?a"), Pat("?l", "end", "?m"),
+             Pat("?r", "cat", d["sright"]), Pat("?r", "begin", "?m"), Pat("?r", "end", "?b")],
+            "?l" if d["sside"] == "left" else "?r")
+
+
+def remint_mark_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
+    """Mark the spans a contradiction implicates — the CULPRIT SELECTION, as rules.
+
+    Fires while the contradicted interpretation is still LIVE, so `head` is available: a span whose
+    head-side child percolated the contradicted entity up is a site where the merge happened, and
+    marking it says "mint here next time". Structural — it re-derives the contradiction condition
+    inline (like `contradiction_bank`) rather than addressing the `<contradiction>` node, which has
+    no stable identity to match on.
+
+    Marks only MODIFIED spans, which is why the bare `the lion` mention survives re-interpretation
+    unsplit: it heads no mintable production."""
+    rules: list[Rule] = []
+    for d in mintable_slots(gram):
+        prem, src = _production_lhs(d)
+        for w in sorted(gram.lexicon):
+            rules.append(Rule(
+                key=f"remint.mark.{d['scat']}.{d['sleft']}.{w}",
+                lhs=[Pat("?e", w, "?x"), Pat("?e", neg_pred(w), "?x"),
+                     *prem, Pat(src, d["scslot"], "?e")],
+                # A PLAIN literal, which the lowering interns graph-wide — NOT a bound literal
+                # (`<remint>?`), which mints a fresh node per firing. The mark is a flag on the span,
+                # so it must be ONE node: with a bound literal every mark rule that fired left its
+                # own marker, and the mint rule then matched once per marker and minted a separate
+                # entity for each — 35 marks and a 5x node blowup on three sentences.
+                rhs=[Pat("?p", REMINT, REMINT)]))
+    return rules, frozenset({REMINT})
+
+
+def reinterpretation_slots(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
+    """The slot bank as re-read under the marks: percolate everywhere EXCEPT a marked span, and mint
+    there instead.
+
+    The two rules are exclusive by construction — the percolation rule for a mintable head slot
+    carries the mark as a NAC, the mint rule carries it as a premise — so a re-interpretation is
+    still ONE reading, not a branch."""
+    base, preds = slot_bank(gram)
+    marked = {f"fold.slot.{i}.{d['scat']}.{d['sname']}"
+              for i, d in enumerate(gram.slots) if d in mintable_slots(gram)}
+    gate = [Pat("?p", REMINT, "?g")]
+    rules = [Rule(key=r.key, lhs=r.lhs, nac=[*r.nac, *gate], rhs=r.rhs) if r.key in marked else r
+             for r in base]
+    for i, d in enumerate(mintable_slots(gram)):
+        prem, src = _production_lhs(d)
+        rules.append(Rule(
+            key=f"remint.mint.{i}.{d['scat']}",
+            # `?e` is RHS-only, which is what makes the minted node NAMELESS — its identity is its
+            # description (`ByDesc`), settled afterwards by `intern_described`.
+            lhs=[*prem, *gate, Pat(src, d["scslot"], "?v")],
+            rhs=[Pat("?e", "is_a", "?v"), Pat("?p", d["sname"], "?e")]))
+    return rules, preds | {REMINT}
+
+
 def compile_grammar(gram: Grammar, *, open_class: str | None = None,
                     closed: tuple[str, ...] = CLOSED_CLASSES) -> GrammarBanks:
     """Generate every bank from `gram`. Do this ONCE per grammar and reuse across sentences."""
@@ -450,10 +567,14 @@ def compile_grammar(gram: Grammar, *, open_class: str | None = None,
     amb, apreds = ambiguity_bank(gram)
     spans, sppreds = span_bank(gram)
     slots, spreds = slot_bank(gram)
+    marks, mpreds = remint_mark_bank(gram)
+    rslots, rpreds = reinterpretation_slots(gram)
     return GrammarBanks(chart=chart, chart_preds=cpreds, ambiguity=amb, ambiguity_preds=apreds,
                         spans=spans, span_preds=sppreds, slots=slots, slot_preds=spreds,
                         asserts=assert_bank(gram, defining=False),
-                        defining_asserts=assert_bank(gram, defining=True), grammar=gram)
+                        defining_asserts=assert_bank(gram, defining=True), grammar=gram,
+                        remint_marks=marks, remint_preds=mpreds,
+                        reinterp_slots=rslots, reinterp_slot_preds=rpreds)
 
 
 # ---------------------------------------------------------------------------

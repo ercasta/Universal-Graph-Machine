@@ -20,11 +20,111 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶ PICK UP HERE (handoff 2026-07-18, suite 706 green, working tree clean of blockers)
+## ▶ PICK UP HERE (handoff 2026-07-19, suite 715 green)
 
-**STATE.** The homoiconic grammar arc is spiked, integrated as modules, and validated on a real
-corpus. Integration steps 1 and 3 are DONE; steps 2, 4, 5 remain. Everything below in "Current
-focus" is the narrative; this block is the resume point.
+**STATE.** Integration steps 1, 2 and 3 are DONE; steps 4, 5 remain.
+
+**STEP 2 LANDED 2026-07-19 AS OPTION (b), VIA A DELIBERATE FORK.** User decision: option (a)'s
+direct fold was rejected as a target because it entrenches the token/entity duality —
+**the target is interpretation nodes**, and "going red for a while" plus duplicated intake paths is
+acceptable to get there. Built:
+
+- `ugm/cnl/grammar_intake.py` — the grammar route. `declare_grammar` parks compiled banks in
+  `kb.registers["grammar"]` (mechanism state, beside `forms`/`policy`); `route()` runs
+  parse → `live_scope` → `interpretation.interpret`, so **facts land on ENTITY nodes reached by
+  `denotes`, never on the tokens**. ONE live scope per session (`registers["interpretation"]`) —
+  enforcing a single live interpretation is what keeps branch selection out.
+- **Entity-aware counterparts of the three duality-dependent readers**, written beside the
+  originals rather than as edits to them: `denotata` (the `denotes` hop), `has_content_fact`
+  (counterpart of `authoring.anchor_has_content_fact`), `utterance_centers` (counterpart of
+  `focus.utterance_subjects`, rendering centers via `describe` so a minted subkind enters focus by
+  its DESCRIPTION — it has no name).
+- **The fork point** is one block at `ugm/intake.py:461`, routed by the declared register (§D.1, no
+  string sniff). Questions, rules, focus moves, forms and procedures are UNTOUCHED and shared by
+  both paths. Declare-before-use means the suite stayed green by construction: **715 passed, 0
+  failed** — no KB in the repo declares a grammar yet.
+- **`Outcome("ambiguous")` is a new kind** (not a flavour of `unrecognized`): "I cannot parse this"
+  and "I parsed it two ways" want different responses, and only the second becomes a discriminating
+  question. An ambiguous utterance commits NOTHING (pinned by test) where today's bank writes three
+  wrong facts.
+- `tests/test_grammar_intake.py` (10) pins the contract: fact-on-entity-not-token, surface survives
+  `discard_scope`, the exception sentence lands as `has_not`, refused ≠ ambiguous, and a KB with no
+  grammar is unaffected.
+
+**SLICE 3 (THE REVISION LOOP) DONE 2026-07-19 (suite 721 green).** `grammar_intake.reconsider`.
+The design question below DISSOLVED: the answer is not "declare alternative readings" but
+**evidence-driven re-minting** — the contradiction itself says where to re-read.
+
+- **THE DISCRIMINATOR** (user's framing, and the key architectural point): one derived contradiction
+  is the same signal for two faults in different layers — "you merged two entities" (a JUDGEMENT:
+  defeasible, session-scoped, discardable) vs "your rule needs an exception" (KNOWLEDGE: structural,
+  persists across sessions). The support tells them apart: if the contradicted entity was
+  interpreted from >1 surface mention, a coreference judgement is load-bearing → re-interpret. If
+  not, `reconsider` returns `RULE` and touches NOTHING — that case belongs to the learning arc's
+  defeasible-exception model (§7.3), not here. **Try the revisable thing first, because being wrong
+  about it is free.**
+- **Mechanism, all in rules:** `remint_mark_bank` marks the spans a contradiction implicates (it
+  re-derives the contradiction condition inline, like `contradiction_bank`, since the
+  `<contradiction>` node has no stable identity to match on); `reinterpretation_slots` percolates
+  everywhere EXCEPT a marked span and mints there instead (NAC / premise on the same marker, so a
+  re-interpretation is still ONE reading, never a branch). `mintable_slots` derives WHERE minting is
+  meaningful from the grammar's own declarations — a `head`-slot whose category asserts a
+  description built from another slot of the same production — never from category names.
+- **Result on the real case** (`bengal`/`guzerat`/bare `lion`): 1 contradiction → `REVISED`, 0
+  remaining, and the facts are `<is bengal & is_a lion> has mane`, `<is guzerat & is_a lion> has_not
+  mane`, **`lion has mane`**. The bare mention stays unsplit because it heads no mintable production
+  — which is exactly what makes minting evidence-driven rather than the unconditional (and for a
+  non-restrictive modifier, wrong) move a declared `mint` grammar makes. This closes the plan's open
+  item "restrictive vs non-restrictive modification" by a route it did not anticipate.
+- Marks live on SPANS (surface), so they survive the discard that clears the entities: a re-minting
+  judgement is DURABLE and every later utterance is read under it.
+
+**FOUR BUGS FOUND BUILDING IT — three were pre-existing, and two are the duality biting.**
+1. **`discard_scope` leaked one orphan `member` rel per member** — `remove_node` does not clean up a
+   node's INCOMING relations. The operation the whole architecture rests on being free was quietly
+   not discarding. (Then I broke it worse: reading `scope_members` AFTER unlinking them discarded
+   NOTHING. Order matters — snapshot membership first.)
+2. **A standing interpretation makes the next `parse` explode.** The chart bank keys on NAMES and
+   `interpret_mentions` mints entities carrying their token's name, so a second `lion` "token"
+   appears and the chart goes combinatorial (a 3-sentence session stopped terminating). Fixed by
+   layering: `route` DISCARDS before parsing — parse reads surface only. **This is precisely the
+   duality the step-2 decision was about**, and it would have been invisible under option (a).
+3. **`route` accumulated interpretations instead of replacing one** — 3 sentences produced 5
+   duplicate contradiction markers. One live interpretation means exactly one, rebuilt.
+4. **A bound-literal marker mints a fresh node per firing**, so the mint rule matched once per mark
+   and minted an entity for each (35 marks, 5× node blowup). The mark is a flag: it must be a PLAIN
+   literal, which the lowering interns graph-wide.
+
+**⚠ OWED BEFORE THIS IS PRODUCTION — PERF, and it is not a detail.** The route is
+`4.2 s` on the THIRD sentence (0.2 / 1.1 / 4.2) and the graph still grows across cycles
+(765 → 1497 through one `reconsider`), so something is still not being reclaimed. Two known causes,
+both already named in this plan: `route` calls `parse` (not `parse_batch`) and `interpret` re-reads
+the WHOLE standing surface per utterance — "run_bank over the whole graph, once per utterance is
+quadratic by construction", the same defect as the 29× `load_facts` fix. The discard-before-parse
+layering makes a full re-interpretation per utterance STRUCTURAL, so this needs an incremental
+answer (interpret the delta; or keep the scope and re-interpret only on contradiction), not just
+tuning. The test file alone is 55 s of the suite's 97 s. **Do this before step 4's other levers** —
+it dominates them.
+
+**Superseded design question (kept — the argument is why the answer is better):** The loop
+contradiction → ask → `discard_scope` → re-interpret is what interpretation nodes are FOR, and three
+of its four pieces already exist (`contradiction_bank` runs inside `interpret`; `discard_scope`;
+`culprits`). The missing piece is **how a KB declares ALTERNATIVE READINGS**. The Loudon bench gets
+its two readings by string-substituting one declaration line
+(`slot head in np from modifier plus np is right head` → `mint head in np from modifier plus np
+under right head`), which is a bench trick, not a surface. Options to decide between: a declared
+ranked list of readings in the grammar file; a reading as a named variant bank the re-interpretation
+selects; or the discriminating question choosing the slot declaration directly. Do NOT invent this
+silently — it decides what "re-interpret" even means.
+
+**Then step 4 (optimize) and step 5 (retire what the fork subsumes).** Note the grammar route
+inherits the "run_bank over the whole graph, once per utterance" quadratic shape — `route()` calls
+`parse` (not `parse_batch`) and `interpret` re-runs over the standing surface. Fine at session
+scale; MEASURE before step 4, and re-measure the step-4 levers below since the 29× `load_facts` fix
+already changed the cost picture.
+
+**Superseded resume block (2026-07-18) follows** — its option (a)/(b) question is CLOSED by the
+above.
 
 **Where the code is:** `ugm/cnl/grammar.py` (declarations → `Grammar` → `GrammarBanks` → `parse` /
 `parse_batch`), `ugm/interpretation.py` (scope, `denotes`/`interprets`, `discard_scope`,
