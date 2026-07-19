@@ -200,3 +200,40 @@ def test_lowering_refuses_inverted_graded_and_nac():
                nac=[Pat("?c", "banned", "?f")])
     with pytest.raises(Unlowerable):
         lower_rule(nac)
+
+
+# ---------------------------------------------------------------------------
+# Variable RHS predicates — the dynamic-key MINT (`predicates-are-keys`, first slice)
+# ---------------------------------------------------------------------------
+
+DYN_FACTS = [("utt1", "says", "barks"), ("utt1", "about", "rex"),
+             ("utt2", "says", "purrs"), ("utt2", "about", "tom")]
+
+#: The predicate comes from the MATCHED node, not from the rule text.
+DYN_RULE = Rule(key="dyn", lhs=[Pat("?p", "says", "?w"), Pat("?p", "about", "?o")],
+                rhs=[Pat("?o", "?w", "yes")])
+
+
+def test_a_variable_rhs_predicate_writes_the_matched_word_as_the_predicate():
+    derived = _machine_derived(_build(DYN_FACTS), DYN_RULE)
+    assert ("rex", "barks", "yes") in derived
+    assert ("tom", "purrs", "yes") in derived
+
+
+def test_a_dynamic_key_head_still_dedups():
+    """`dedup` must resolve the DYNAMIC key, or a variable-predicate rule mints a fresh relation
+    node on every firing and the graph never reaches a fixpoint -- exactly the accretion `dedup`
+    exists to prevent, reintroduced through the back door."""
+    ag, _ = to_attrgraph(_build(DYN_FACTS))
+    program = lower_rule(DYN_RULE)
+    run_to_fixpoint(ag, program, DYN_RULE.bound_names())
+    settled = len(list(ag.nodes()))
+    for _ in range(3):
+        run_to_fixpoint(ag, program, DYN_RULE.bound_names())
+    assert len(list(ag.nodes())) == settled, "re-running a variable-predicate rule must add nothing"
+
+
+def test_an_rhs_only_predicate_variable_is_still_rejected():
+    """Predicate INVENTION stays out: with no LHS binding there is no node to take a name from."""
+    with pytest.raises(Unlowerable, match="not bound by the LHS"):
+        lower_rule(Rule(key="bad", lhs=[Pat("?s", "is", "?o")], rhs=[Pat("?s", "?w", "?o")]))

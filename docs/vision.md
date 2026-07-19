@@ -183,9 +183,11 @@ and a right-hand side (the rewrite). Rules:
   refer to it and act on it.
 - **Create new nodes.** Rules (and tools) generate fresh nodes.
 - Come in two disciplines, mirroring the two layers (§5):
-  - **Reasoning rules** are monotone: they never delete a fact. Changes in truth are
-    expressed by *adding* marker nodes (e.g. a `<retracted>` node wired to the fact),
-    read through a guarded filter.
+  - **Reasoning rules** never delete a fact relation — there is no fact-deleting opcode they
+    can lower to. Withdrawal is not a rule's move: it is the privileged, between-pass retraction
+    driver (`RETIRE`, copy-on-delete into `<history>`). (The old `<retracted>` marker-plus-
+    guarded-filter scheme is GONE — deleted 2026-07-16 with `INTERPOSE`/`RESTORE`; retraction
+    now really deletes and archives rather than hiding behind a splice.)
   - **Control rules** may delete — but only control/ephemeral edges (§5).
 
 There is no separate rule language with its own syntax that creates a rule/graph
@@ -200,12 +202,26 @@ The single graph is partitioned — by node/edge convention, not by storage — 
 disciplines. This partition is the *one* deliberate seam we keep: the line between
 ink and pencil.
 
-**Monotone fact layer** — knowledge and its derivations.
-- Facts are never deleted by reasoning.
+**Fact layer** — knowledge and its derivations.
+- **No fact relation is deleted by reasoning *within a pass*.** This is the invariant that
+  survives, and it is a property of the opcode set, not a convention (`isa_reference.md`).
 - Evaluated by semi-naive forward chaining (§11).
 - Indexed lexically on keyword / head-word nodes.
 - Normalization rules live here; they are additive (they annotate the surface with
-  canonical nodes, never erase it), so they are monotone by construction.
+  canonical nodes, never erase it), so they are additive by construction.
+
+**Where this layer is NOT monotone** (stated plainly — the looser claim stood here until
+2026-07-19 and was wrong on all three counts):
+- **Between passes, facts are really deleted.** `RETIRE` + the cascade is a genuine truth-
+  maintenance retraction (`ugm/retraction.py`), mitigated by copy-on-delete (an in-graph
+  `<history>` record), not forbidden.
+- **Attribute writes overwrite and keep no history.** `EMIT` VALUED → `AttrGraph.set_attr`
+  replaces the previous value with no record and no provenance. An attribute is a
+  *current-value cell*. The graded case is genuinely monotone (degrees only rise); the valued
+  case is the substrate's one forgetting write.
+- **Interpretation scopes merge destructively** (§ the surface/interpretation split): inside a
+  scope, coreference collapses nodes outright, because reversal is never needed — the scope is
+  discarded and re-derived from the immutable surface.
 
 **Non-monotone control layer** — the scratchpad of computation.
 - Control tokens (`<current>`, frames, markers) and ephemeral scaffolding.
@@ -220,9 +236,31 @@ invisible. GC is operational, never a step of reasoning.
 
 The reason for the partition: dropping monotonicity is all-or-nothing for the
 property it protects (confluence, termination, "every fact has a derivation"). You do
-not get partial confluence by deleting "only sometimes." So we do not *weaken*
-monotonicity — we *partition* it: facts stay monotone and debuggable; control is
-free to mutate. The subtlety lives in the partition, not in a fuzzy guarantee.
+not get partial confluence by deleting "only sometimes."
+
+**But note precisely what that argument protects: the FIXPOINT.** Confluence and termination are
+properties of a running pass, so a *within-pass* mechanism is exactly enough to secure them —
+and between passes there is no fixpoint to be non-confluent about. That is why the partition is
+temporal as much as it is structural (`ugm/machine.py`, `ugm/retraction.py`): monotonicity is
+MECHANISM within a pass (unrepresentable to violate) and POLICY between passes (a driver
+imposes it, and retraction deliberately does not).
+
+So we do not claim a monotone fact layer. We claim a narrow, enforceable invariant, and we pay
+for what it does not cover:
+- **Auditability** is bought by provenance (§9's append-only rewrite journal — `proves`/`uses`,
+  `record_firing`), NOT by absence of deletion. Provenance is what survived; monotonicity is not.
+- **Reversibility**, where it is wanted, is bought by RE-DERIVATION from an immutable record
+  (discard the scope, derive again) — never by storing inverse deltas, which can drift from the
+  thing they claim to undo.
+- **History of a changing value** is bought by explicit VERSIONING IN THE KB when a domain needs
+  it: a reified version node wired to its constituents plus a movable `current` pointer, so an
+  edit mints the next version and moves the pointer instead of mutating in place (git's object
+  store + moving HEAD, as graph nodes). Validated in ../pystrider
+  (`experiments/versioned_software.py`), which gets undo, time travel and `revised_from`
+  provenance out of it. This is OPT-IN and lives in the KB — the substrate does not version
+  anything for you, and an attribute will not remember its past for you.
+
+The subtlety lives in the partition, not in a fuzzy guarantee.
 
 ---
 
@@ -259,7 +297,7 @@ hand-rolled per case.
 
 Everything the agent does is goal-directed: no rule fires "just
 because it matched." **Goal-pull is the default driver; forward saturation is the
-exception**, confined to the monotone fact layer within whatever scope a goal opens.
+exception**, confined to the fact layer within whatever scope a goal opens.
 This makes explicit what §6 and §11 already carry — goals are nodes that trigger rules,
 and a rule with no ground anchor is demand-driven (the magic-sets rule).
 
@@ -406,8 +444,8 @@ them, on the monotone fact layer:
 - **Semi-naive evaluation** — join only against newly derived facts each round.
 - **Lexical indexing** — a hash index per keyword/head-word node so an unconstrained
   match never scans the whole graph.
-- **Stratified negation** — the discipline behind monotone retraction (the
-  `<retracted>`-marker filter sits in a lower stratum than its consumers).
+- **Stratified negation** — a NAC must sit in a lower stratum than its consumers, so a
+  negative is never read before its predicate is complete (`stratify`; both engines).
 
 We keep the engine lessons; we drop the language.
 

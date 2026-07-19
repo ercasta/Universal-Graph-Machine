@@ -35,17 +35,40 @@ GRAMMAR_REGISTER = "grammar"
 SCOPE_REGISTER = "interpretation"
 
 
+def _looks_like_a_path(grammar: str) -> bool:
+    """A one-line string with a separator or a `.cnl` suffix was MEANT as a path."""
+    return "\n" not in grammar and (os.sep in grammar or "/" in grammar
+                                    or grammar.endswith(".cnl"))
+
+
 def declare_grammar(kb, grammar) -> None:
     """Give `kb` a grammar, compiling its banks ONCE. `grammar` is a `Grammar`, CNL text, or a path.
 
     Compilation is per-grammar, not per-utterance: `compile_grammar` generates ~200 rules and the
-    banks are reused across every parse in the session."""
+    banks are reused across every parse in the session.
+
+    LOUD ON A BAD PATH. This used to fall through to `load_grammar(str(grammar))`, so a mistyped or
+    non-existent path was parsed AS GRAMMAR TEXT: every line failed to match a declaration form, the
+    result was an empty grammar, and the KB then silently refused every sentence. Cost a bogus
+    benchmark run before it was noticed — the failure looked like "the grammar is fast" rather than
+    "there is no grammar". A path that does not resolve now raises, and so does a grammar with no
+    lexicon and no productions, whatever it was built from — the backstop that also catches text
+    which parsed to nothing."""
     if isinstance(grammar, Grammar):
         gram = grammar
-    elif isinstance(grammar, (str, os.PathLike)) and os.path.exists(grammar):
+    elif isinstance(grammar, os.PathLike) or (isinstance(grammar, str)
+                                              and _looks_like_a_path(grammar)):
+        if not os.path.exists(grammar):
+            raise FileNotFoundError(
+                f"grammar file not found: {os.fspath(grammar)!r} — pass an existing path, a "
+                f"`Grammar`, or multi-line CNL declaration text")
         gram = load_grammar_file(grammar)
     else:
         gram = load_grammar(str(grammar))
+    if not (gram.lexicon or gram.binary or gram.unary):
+        raise ValueError(
+            "grammar declares no lexicon and no productions — nothing would ever parse. "
+            "Check the declaration forms (`X is a noun`, `np expands to determiner plus np`).")
     kb.registers[GRAMMAR_REGISTER] = compile_grammar(gram)
 
 

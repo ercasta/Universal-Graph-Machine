@@ -25,18 +25,28 @@ effect opcodes for each surviving state, in state order, mutating the graph. So 
 state is visible to a following EMIT in the SAME state (they share that state's regs), and no
 effect perturbs matching.
 
-THE INVARIANT AS A PROPERTY OF THE OPCODE SET (rule-isa-design.md payoff #1).  The
-monotone mutating opcodes are `EMIT`/`MINT` (add a node, raise a graded degree, assert a
-value — never lower or delete) and `DROP_CTRL` (delete a bare edge, but it consults
-`AttrGraph.edge_is_fact` and REFUSES a fact edge). Fact deletion is not expressible from
-ordinary reasoning: there is no fact-deleting opcode in the rule->program lowering vocabulary.
-The ONE fact-deletion opcode, `RETIRE`, is the PRIVILEGED mechanism of the retraction/GC policy
-(mechanism_policy_separation.md): it really deletes a reified relation, but `lowering` never
-emits it — only the retraction driver assembles a program containing it (the privilege gate),
-so monotonicity is now a POLICY the driver imposes between passes, not an opcode refusal within
-a pass. There is also NO `CHECK-ABSENT`/NAC opcode: the matching core is purely positive
-(negation is materialized as a positive attribute and matched positively — the decide/
-de-pythonization line).
+THE INVARIANT AS A PROPERTY OF THE OPCODE SET (rule-isa-design.md payoff #1).  Stated
+PRECISELY, because the loose version ("the fact layer is monotone") is FALSE and was written
+down here for a while (see vision.md §5):
+
+  * WITHIN A PASS, no program can delete a fact RELATION. `MINT` adds; `EMIT` graded raises a
+    degree (max, never lowers); `DROP_CTRL` deletes a bare edge but consults
+    `AttrGraph.edge_is_fact` and REFUSES a fact edge; `SWEEP` refuses a fact/provenance node.
+    There is no fact-deleting opcode in the rule->program lowering vocabulary at all. THIS is
+    the invariant that survives, and it is the one buying confluence + termination of the
+    fixpoint — which is a within-pass property, so a within-pass mechanism is exactly enough.
+  * BETWEEN PASSES, facts really are deleted. `RETIRE` is the PRIVILEGED mechanism of the
+    retraction/GC policy (mechanism_policy_separation.md); `lowering` never emits it, only the
+    retraction driver assembles it (the privilege gate). Monotonicity here is a POLICY the
+    driver imposes, not an opcode refusal — and copy-on-delete means the deletion leaves an
+    in-graph `<history>` record.
+  * `EMIT` VALUED IS DESTRUCTIVE AND KEEPS NO HISTORY, within a pass or between them. It is a
+    plain overwrite (`AttrGraph.set_attr` — see its ⚠ note). This is the one place the substrate
+    forgets something. Deliberate; when the old value must survive, version it in the KB
+    (build-DAG + `current` pointer) rather than expecting the attribute to remember.
+
+There is also NO `CHECK-ABSENT`/NAC opcode: the matching core is purely positive (negation is
+materialized as a positive attribute and matched positively — the decide/de-pythonization line).
 """
 from __future__ import annotations
 
@@ -378,7 +388,15 @@ class MINT(Instr):
     object, a NAME) reuses an existing `subject -> [name] -> object` instead of minting a
     duplicate, reproducing `rewriter.apply_rule`'s `_relation_exists` guard. Without it a fresh
     rel node per firing accretes across outer control cycles, so the graph's EDGE set (identity,
-    not triples) never reaches a fixpoint and the planner's `_fingerprint` loop never settles."""
+    not triples) never reaches a fixpoint and the planner's `_fingerprint` loop never settles.
+
+    `key_reg` is the DYNAMIC PREDICATE (the `EMIT(key_reg=)` mechanism, for a reified relation): the
+    minted rel node's graded predicate key is the NAME of the node in that register, resolved at
+    apply time, instead of a static `attrs` key. This is what lets a rule write a head whose
+    PREDICATE is an LHS-bound variable — `?s ?w ?o` — and `dedup` honours it, matching on the
+    resolved key, so the write stays idempotent. Without it a variable-predicate rule has to be
+    expanded into one rule per possible predicate word (`grammar.assert_bank` did exactly that:
+    133 rules from 8 declarations)."""
     out: str
     attrs: dict[str, Attr] = field(default_factory=dict)
     edges: list[str] = field(default_factory=list)      # target register names (bare out-edges)
@@ -387,13 +405,16 @@ class MINT(Instr):
     inert: bool = False      # provenance-layer mint (<j:…>/proves/uses records) — inert, not control
     intern: bool = False
     dedup: bool = False
+    key_reg: str | None = None      # dynamic predicate: key = name of the node in this register
     is_effect = True
 
 
 @dataclass
 class EMIT(Instr):
-    """Assert a fact attribute on the node in `reg` (monotone). Graded: raise `key` to
-    max(old, value (x) score) — a degree only goes up. Valued: assert `key = value` (data).
+    """Assert a fact attribute on the node in `reg`. Graded: raise `key` to max(old, value (x)
+    score) — a degree only goes up, so the graded case IS monotone. Valued: set `key = value`
+    (data) — ⚠ a plain OVERWRITE that drops the previous value with no history (module docstring;
+    `AttrGraph.set_attr`). Do not describe this instruction as monotone without that split.
 
     DYNAMIC KEY: when `key_reg` is set the attribute key is the NAME of the node in that register
     (resolved at apply time), not the static `key`. This is how a `propagate` embedding-write whose
@@ -688,6 +709,9 @@ class Machine:
     def _apply(self, g: AttrGraph, ins: Instr, st: State) -> State:
         if isinstance(ins, MINT):
             new = None
+            attrs = ins.attrs
+            if ins.key_reg is not None:          # DYNAMIC PREDICATE: key = name of the bound node
+                attrs = {**attrs, g.name(st.regs[ins.key_reg]): Attr(GRADED, 1.0)}
             if ins.intern:                       # canonicalize a plain literal to its graph-wide node
                 name_attr = ins.attrs.get(NAME)  # (rewriter.resolve_so: reuse nodes_named(nm)[0])
                 if name_attr is not None:
@@ -709,7 +733,7 @@ class Machine:
                             new = cand
                             break
             if ins.dedup and new is None:        # reuse an existing subject -[pred]-> object
-                pred = _pred_key(ins.attrs)      # Phase 2.3: match on the predicate KEY, not VALUED name
+                pred = _pred_key(attrs)          # Phase 2.3: match on the predicate KEY, not VALUED name
                 if pred is not None and ins.in_edges and ins.edges:
                     subj, obj = st.regs[ins.in_edges[0]], st.regs[ins.edges[0]]
                     for r in g.succ(subj):
@@ -717,7 +741,7 @@ class Machine:
                             return st.bind(ins.out, r)   # relation already present -> no new edges
             if new is None:
                 new = g.add_node(control=ins.control, inert=ins.inert)
-                for key, attr in ins.attrs.items():
+                for key, attr in attrs.items():
                     g.set_attr(new, key, attr)
             for tgt in ins.edges:
                 g.add_edge(new, st.regs[tgt])

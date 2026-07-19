@@ -117,10 +117,10 @@ There is **no `CHECK-ABSENT` / NAC** opcode. Negation is materialized as a posit
 attribute (`is_not`-style) and matched with `TEST`/`SEED` — the decide / de-pythonization
 line. The whole matching core is positive and monotone.
 
-### Effects (monotone facts + gated control)
+### Effects (no fact DELETION within a pass + gated control)
 
 ```
-MINT out attrs edges [in_edges control inert intern dedup]   -- Skolem / reification / chunk head
+MINT out attrs edges [in_edges control inert intern dedup key_reg]  -- Skolem / reification / head
     n = fresh_node(g, control, inert)                   -- inert=True mints a provenance node
     for (k,a) in attrs:  set_attr(g, n, k, a)
     for tgt in edges:    add_edge(g, n, r[tgt])         -- bare OUT-edges to RETAINED nodes
@@ -128,10 +128,12 @@ MINT out attrs edges [in_edges control inert intern dedup]   -- Skolem / reifica
     ⇒ (g', r[out ↦ n], s)
     intern=True: canonicalize by attrs[NAME] (get-or-create IS the instruction);
     dedup=True:  reuse an existing subject -[pred]-> object rel node (idempotent re-assert)
+    key_reg:     DYNAMIC PREDICATE — the graded key is name(r[key_reg]), resolved at apply time,
+                 instead of a static attrs key; dedup matches on the RESOLVED key
 
-EMIT reg key value [kind key_reg raise_degree]          -- monotone fact write
+EMIT reg key value [kind key_reg raise_degree]          -- fact write (graded monotone / valued NOT)
     graded:  raise deg(g, r[reg], key) to max(old, value ⊗ s)   -- a degree only goes UP
-    valued:  set_attr(g, r[reg], key, VALUED value)
+    valued:  set_attr(g, r[reg], key, VALUED value)             -- ⚠ OVERWRITE, no history kept
 
 DROP_CTRL src dst                                       -- delete a CONTROL edge, gated
     if edge_is_fact(g, r[src], r[dst]):  raise ControlEdgeError   -- refuse a fact edge
@@ -142,12 +144,34 @@ SWEEP node                                              -- delete a CONTROL node
     else remove_node(g, r[node])                        -- scope sweeps, consumed <call>s, GC
 ```
 
-`MINT` and `EMIT` are additive/monotone: they add a node, raise a degree, or assert a value —
-they never lower a degree or delete. `DROP_CTRL` (edge) and `SWEEP` (node) are the deleting
-opcodes *available to ordinary programs*, and both *refuse* fact structure (an edge is control
-iff either endpoint is a control-layer node). Therefore **"delete a fact" is not expressible in
-the rule-lowerable vocabulary** — the vision.md §5 invariant is a property of the opcode set,
-not a lint pass (design payoff #1, `test_drop_ctrl_refuses_a_fact_edge`).
+`MINT` adds; `EMIT` graded raises a degree and never lowers it. `DROP_CTRL` (edge) and `SWEEP`
+(node) are the deleting opcodes *available to ordinary programs*, and both *refuse* fact
+structure (an edge is control iff either endpoint is a control-layer node). Therefore **"delete
+a fact relation" is not expressible in the rule-lowerable vocabulary** — the vision.md §5
+invariant is a property of the opcode set, not a lint pass (design payoff #1,
+`test_drop_ctrl_refuses_a_fact_edge`).
+
+**Variable RHS predicates (2026-07-19).** `lower_rhs` used to reject any non-plain RHS predicate
+("a later slice"). An **LHS-BOUND** predicate variable now lowers to `MINT(key_reg=…)`: `?s ?w ?o`
+writes a relation whose predicate is the NAME of whatever `?w` matched. An **RHS-ONLY** predicate
+variable is still rejected — there is no node to take a name from, and inventing one is predicate
+invention (the `predicates-are-keys` primitive the learning arc wants, deliberately not smuggled in
+through the lowering). First payoff: `grammar.assert_bank` went 133 rules → 33, because a
+slot-valued predicate no longer has to expand into one rule per lexicon word.
+
+**Two exceptions, stated here so the invariant is not overclaimed** (it was, until 2026-07-19):
+
+1. **`EMIT` VALUED is a destructive overwrite** and keeps NO history — no `<history>` record, no
+   provenance for the displaced value. The graded case is monotone; the valued case is not. An
+   attribute is a *current-value cell*, not a record.
+2. **Fact deletion happens BETWEEN passes**, via privileged `RETIRE` (below). That is real
+   deletion, mitigated by copy-on-delete rather than forbidden.
+
+So the honest one-liner is **"no fact-relation deletion *within a reasoning pass*"** — which is
+the property that matters, since confluence and termination are properties of the fixpoint and
+nothing is running between passes. When a *value's* history must survive, that is a KB-level
+concern: version it (reified version node + movable `current` pointer), do not expect the
+substrate to remember.
 
 ### RETIRE / REDIRECT — the privileged retraction mechanism (copy-on-delete, 2026-07-16)
 
@@ -308,9 +332,10 @@ Building the reference interpreter, the split is:
   - The **positive matching core** (`SEED`/`FOLLOW`/`TEST`/`JOIN`) is small and closed. It is
     a reification of what `rewriter._match` already does (seed-from-ground + pairwise joins),
     which is why it ported with no surprises.
-  - The **two-layer monotonicity invariant** falls out exactly as predicted: with `EMIT`/`MINT`
-    monotone and `DROP_CTRL` fact-refusing, illegal fact deletion is unrepresentable. This is
-    the strongest result and the clearest win.
+  - The **two-layer invariant** falls out much as predicted: with `MINT`/`EMIT`-graded additive
+    and `DROP_CTRL` fact-refusing, illegal fact-relation deletion is unrepresentable *within a
+    pass*. Still the clearest win — but narrower than first written: it does not cover `EMIT`
+    VALUED (a destructive overwrite) or between-pass `RETIRE`. See the two exceptions above.
   - **Existentials** are just `MINT` (a fresh identity is a Skolem witness) — the fact-side
     existentials gap folds into an opcode already needed for reification and chunking. No new
     primitive. This is a genuinely encouraging sign against the "premature" worry.

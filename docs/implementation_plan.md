@@ -133,6 +133,75 @@ surface per utterance, so cost is still linear-per-utterance = quadratic per ses
 discarding before parsing is gone, the incremental path is open: keep the scope and interpret only
 the new spans, re-interpreting wholesale only when a contradiction demands it.
 
+**STEP 4, FIRST LEVER LANDED 2026-07-19 (suite 723 green): THE PARSE TREE IS MATERIALIZED.**
+Measured first, and the measurement redirected the work twice — record this, because the plan's
+stated priorities were wrong in a specific, repeatable way.
+
+- **What the 8-sentence session actually cost:** `parse` 0.66 s / `interpret` 10.75 s. So
+  **`parse_batch` — the lever this section owed — is 6% of the problem**, and `interpret` is 94%.
+  One level down, `interpret`'s five whole-graph banks split **88.5% slots**, 11% asserts, and
+  ~0% for the other three.
+- **The fix** (the "materialize the parse tree" lever below, confirmed still dominant): a new
+  `decomposition_bank` reifies ONE `<dec>` node per (parent, children) decomposition, and every
+  slot rule now seeds on a `dprod` literal and does two pointer hops instead of redoing the same
+  9-premise `cat`/`begin`/`end` join. `_production_lhs` is the single chokepoint, so `slot_bank`,
+  `remint_mark_bank` and `reinterpretation_slots` all got it at once.
+- **A REIFIED decomposition node, not flat `kidl`/`kidr` edges** — the chart is PACKED, so one span
+  can carry several decompositions, and two flat edge sets would let the left child of one reading
+  pair with the right child of another and feed a slot from a tree that was never parsed. Pinned by
+  `test_decompositions_tile_their_parent`.
+- The bank runs in `parse` (it is SURFACE — spans and their tree, no denotation) and is
+  **idempotent by NAC**, the `span_bank` lesson applied one layer up.
+- **MEASURED:** slot stage 9.39 → 0.54 s (**17×**), interpret 10.75 → 1.67 s (**6.4×**), session
+  11.41 → 3.11 s (**3.7×**), suite 66.7 → 53.1 s. Work moved INTO parse (0.66 → 1.44 s), which is
+  the right trade: derived once per decomposition instead of 32 times per interpretation.
+
+**WHERE THE COST SITS NOW** (re-measure again before the next lever — that is twice this section's
+stated priority has been wrong):
+- `parse` **1.44 s (46%)**, now the steeper curve: `decomposition_bank` still runs its 9-premise
+  join over the WHOLE standing surface every utterance. Idempotent, so it accretes nothing — but it
+  still pays the match. This is the natural landing site for the incremental fix, and the cost is
+  now concentrated in ONE bank instead of smeared across 32 slot rules.
+- `interpret` **1.67 s (54%)**, now dominated by **`asserts` (1.02 s, 63% of interpretation)** —
+  which is lever (2) below (86 rules only because a slot-valued predicate expands per lexicon word;
+  RHS variable predicates take it to ~6, and the LEARNING ARC WANTS THE SAME PRIMITIVE).
+- So the ordering from here is: **(a) RHS variable predicates** (biggest single stage, and shared
+  with the learning arc), then **(b) incremental surface** (the remaining curve, both banks).
+
+**STEP 4, SECOND LEVER LANDED 2026-07-19 (suite 728 green): RHS VARIABLE PREDICATES.** The
+`predicates-are-keys` primitive the learning arc also wants, built as its first slice.
+
+- **`MINT` gained `key_reg`** — a DYNAMIC PREDICATE for a reified relation, the same mechanism
+  `EMIT` already had. The mechanism existing on `EMIT` but not `MINT` is the whole reason this was
+  blocked: a fact head is a MINTED rel node, so `EMIT`'s dynamic key could not reach it.
+  **`dedup` resolves the dynamic key too** — without that, a variable-predicate rule mints a fresh
+  rel node per firing and never reaches a fixpoint (the accretion `dedup` exists to prevent, back
+  through the door). Pinned by `test_a_dynamic_key_head_still_dedups`.
+- **`lower_rhs` now accepts an LHS-BOUND predicate variable** and still rejects an RHS-ONLY one:
+  with no LHS binding there is no node to take a name from, and inventing one is predicate
+  INVENTION — the rest of `predicates-are-keys`, deliberately NOT smuggled in through the lowering.
+- **`assert_bank` 133 rules → 33.** A slot-valued predicate no longer expands per lexicon word.
+- **DENY still expands** (26 of the remaining 33 rules): its head is `neg_pred(?w)`, a STRING
+  derivation from the matched word, and the ISA has no string ops. Collapsing it needs the
+  positive/negative pairing to exist as GRAPH DATA (`w -[neg_of]-> w_not`) so the rule can BIND the
+  negative instead of computing it — a vocabulary change, not a lowering one. Cheap and worth doing;
+  it would take the bank to ~8.
+- **MEASURED:** asserts stage 1.02 → 0.28 s (**3.6×**), interpret 1.67 → 1.03 s, session
+  3.11 → 2.50 s. **Cumulative across both levers: 11.41 → 2.50 s (4.6×)**, suite 97 → 52 s.
+
+**NOW: `parse` is 1.48 s = 59% of the session and is the whole remaining curve.** It is
+`decomposition_bank` re-joining over the WHOLE standing surface every utterance — idempotent, so it
+accretes nothing, but it still pays the match. Both remaining levers are the SAME fix now
+(incremental surface: keep the scope, process only new spans), and the cost is concentrated in one
+bank, which is the best shape it has been in for that work. **Re-measure first — the stated lever
+has been wrong twice in this section.**
+
+**Also fixed 2026-07-19: `declare_grammar` failed SILENTLY on a bad path.** A non-existent path fell
+through to `load_grammar(str(...))` and was parsed AS GRAMMAR TEXT, giving an empty grammar that
+refused every sentence — the failure looked like "the grammar is fast", and it cost one bogus
+benchmark run before being noticed. Now raises on an unresolvable path, plus a backstop `ValueError`
+for any grammar with no lexicon and no productions whatever it was built from.
+
 **Superseded design question (kept — the argument is why the answer is better):** The loop
 contradiction → ask → `discard_scope` → re-interpret is what interpretation nodes are FOR, and three
 of its four pieces already exist (`contradiction_bank` runs inside `interpret`; `discard_scope`;
@@ -279,13 +348,17 @@ it will force the question of WHO WRITES THE GRAMMAR for open prose (loops back 
 arc's T3 form learning); (4) optimize; (5) retire what it subsumes. Step 3 needs `<contradiction>`
 derivation, which `consistency_design.md` sketches but does not build.
 
-**Optimizations, when step 4 arrives:** (1) **materialize the parse tree** — the 89 ms is pure execution (banks are
-built once, so memoizing buys nothing), and profiling puts 82 of it in the slot stage, where all
-32 slot rules redo the same 6-way parent/child join; writing `?p kidL/kidR` once per production
-makes every slot rule a 2-premise lookup and takes the stage to 21.7 ms, MEASURED. Second lever:
-the assert stage is 86 rules only because a slot-valued predicate expands per lexicon word
-(`lower_rhs` rejects non-plain RHS predicates) — RHS variable predicates would make it ~6, and the
-LEARNING ARC WANTS THE SAME PRIMITIVE (`predicates-are-keys`); (2) ambiguity → discriminating question
+**Optimizations, when step 4 arrives:** (1) ~~**materialize the parse tree**~~ **DONE 2026-07-19 —
+see the step-4 block above.** Diagnosis confirmed (all 32 slot rules redid the same 6-way
+parent/child join; the stage was 88.5% of interpretation), but the prescription needed one change:
+NOT flat `?p kidL/kidR` edges, which mispair children of a packed span, but a REIFIED decomposition
+node. Result 17× on the stage, better than the 3.8× predicted here. ~~Second lever: the assert stage
+is 86 rules only because a slot-valued predicate expands per lexicon word~~ **ALSO DONE 2026-07-19
+(133 → 33 on the Loudon grammar; see the second-lever block above)** — `MINT.key_reg` plus
+`lower_rhs` accepting an LHS-BOUND predicate variable. Landed the LEARNING ARC's shared primitive
+(`predicates-are-keys`) in its first slice; predicate INVENTION (an RHS-only predicate variable)
+stays rejected. The DENY case still expands per word and needs the negative-predicate pairing as
+graph data to finish; (2) ambiguity → discriminating question
 via `can_ask`; (3) restrictive vs non-restrictive modification — minting is currently unconditional,
 which is weaker rather than wrong but loses the merge's free coreference; route on the existing
 `declared_definites`/`is_unique` machinery (UNTESTED); (4) declaration loudness (a malformed `slot`

@@ -162,3 +162,19 @@ def test_reconsider_does_not_touch_the_surface(kb):
     surface = {n for n in kb.nodes() if any(kb.has_key(r, "cat") for r, _ in kb.relations_from(n))}
     gi.reconsider(kb, banks(kb))
     assert surface <= set(kb.nodes()), "re-interpretation must re-read the SAME surface"
+
+
+def test_a_missing_grammar_path_raises_instead_of_parsing_as_text():
+    """The trap: a non-existent path used to be parsed AS GRAMMAR TEXT, yielding an empty grammar
+    that silently refused every sentence. The failure LOOKED like "the grammar is fast"."""
+    with pytest.raises(FileNotFoundError):
+        gi.declare_grammar(AttrGraph(), CORPUS / "no_such_grammar.cnl")
+    with pytest.raises(FileNotFoundError):
+        gi.declare_grammar(AttrGraph(), "corpus/no_such_grammar.cnl")
+
+
+def test_a_grammar_that_declares_nothing_raises():
+    """The backstop, independent of where the grammar came from: text that parsed to nothing is
+    just as silent a failure as a bad path."""
+    with pytest.raises(ValueError, match="no lexicon and no productions"):
+        gi.declare_grammar(AttrGraph(), "this text declares nothing\nand neither does this")

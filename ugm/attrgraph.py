@@ -366,7 +366,20 @@ class AttrGraph:
             self._version += 1
 
     def set_attr(self, nid: str, key: str, attr: Attr) -> None:
-        """Write `key -> attr` on a node. Off-schema keys raise (closed keys)."""
+        """Write `key -> attr` on a node. Off-schema keys raise (closed keys).
+
+        ⚠ THIS OVERWRITES AND DOES NOT PRESERVE HISTORY. A VALUED attribute written twice keeps
+        only the second value; the first is GONE, with no `<history>` record and no provenance —
+        unlike relation retraction, which is copy-on-delete (`retraction.py`). Attributes are the
+        one destructive write in the substrate, and it is deliberate (the value index below is
+        maintained precisely FOR the change case), not an oversight.
+
+        So: an attribute is a CURRENT-VALUE cell, not a record. If a caller needs the old value
+        back — undo, time travel, "why does it say this now" — attributes are the wrong home:
+        version it explicitly (a reified version node + a movable `current` pointer, the
+        build-DAG idiom validated in ../pystrider `experiments/versioned_software.py`), which
+        keeps every past value reachable and its transition explainable. Versioning is OPT-IN and
+        lives in the KB, never in this method."""
         if self._schema is not None and key not in self._schema:
             raise KeyError(f"attribute key {key!r} not in closed schema {sorted(self._schema)}")
         node = self._nodes[nid]

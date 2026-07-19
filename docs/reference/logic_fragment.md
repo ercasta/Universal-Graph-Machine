@@ -76,7 +76,10 @@ realization.
   **elimination over a closed, declared candidate set** — the riddles mechanism — which is
   system-2 case-analysis, not disjunctive model theory. A rule wanting more calls clingo.
 - **Proof by contradiction / refutation.** Conflict is handled by DEFEAT (priorities), not by
-  deriving ⊥ and backtracking a world. There is no world to backtrack — facts are monotone.
+  deriving ⊥ and backtracking a world. There is no world to backtrack: reasoning never deletes
+  a fact relation mid-pass, so no trail is accumulated to unwind. (Retraction between passes and
+  scope discard are real state changes, but neither is a backtrack — the first is truth
+  maintenance with an archive, the second re-derives from an immutable surface. See vision §5.)
 - **Full FOL unification.** Matching binds node instances against attribute patterns; there
   are no function terms to unify, no occurs-check, no most-general unifiers.
 - **Paraconsistency machinery.** Contradiction between rules = a defeat question (which rule

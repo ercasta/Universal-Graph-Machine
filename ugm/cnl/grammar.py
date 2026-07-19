@@ -379,31 +379,75 @@ def span_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
              for c in sorted(gram.categories)], frozenset({"cat", "begin", "end"}))
 
 
-def slot_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
-    """A percolation rule per declared slot, plus a minting rule per declared `mint`."""
+#: The materialized parse tree — one node per DECOMPOSITION of a span into its children.
+DEC_PREDS = frozenset({"dprod", "dparent", "dleft", "dright", "donly"})
+
+
+def _prod_key(z: str, x: str, y: str | None = None) -> str:
+    """A production's identity as a literal, so a slot rule can SEED on it."""
+    return f"{z}<-{x}" if y is None else f"{z}<-{x}+{y}"
+
+
+def decomposition_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
+    """Materialize the parse tree: one `<dec>` node per (parent, children) decomposition.
+
+    WHY THIS EXISTS — it is 88.5% of a session, measured. Every slot rule used to carry the SAME
+    6-way parent/left/right join over `cat`/`begin`/`end` (9 premises), and all 32 of them redid it
+    from scratch, once per utterance, over the whole standing surface. Deriving each decomposition
+    ONCE turns every slot rule into a 4-premise pointer hop seeded on `dprod`.
+
+    WHY A REIFIED NODE AND NOT `?p kidl ?l` / `?p kidr ?r`: the chart is PACKED, so one span can
+    have SEVERAL decompositions (that is exactly what ambiguity is). Two flat edge sets would let
+    the left child of one reading pair with the right child of another and derive a slot value from
+    a tree that was never parsed. The decomposition node keeps a pairing atomic.
+
+    IDEMPOTENT BY NAC, the `span_bank` lesson applied one layer up: `<dec>?` is a BOUND literal, so
+    it mints fresh per firing, and this bank runs over the whole graph every utterance. Without the
+    self-guard it would re-mint every earlier decomposition each time — quadratic accretion, the
+    defect this bank exists to remove.
+
+    This is SURFACE structure (spans and their tree, no denotation), so it runs in `parse` beside
+    `span_bank` and never sees the interpretation layer."""
     rules: list[Rule] = []
-    for i, d in enumerate(gram.slots):
-        s, z, side, cs = d["sname"], d["scat"], d["sside"], d["scslot"]
-        parent = [Pat("?p", "cat", z), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b")]
-        if "sonly" in d:
-            kids = [Pat("?q", "cat", d["sonly"]), Pat("?q", "begin", "?a"), Pat("?q", "end", "?b")]
-            src = "?q"
-        else:
-            kids = [Pat("?l", "cat", d["sleft"]), Pat("?l", "begin", "?a"), Pat("?l", "end", "?m"),
-                    Pat("?r", "cat", d["sright"]), Pat("?r", "begin", "?m"), Pat("?r", "end", "?b")]
-            src = "?l" if side == "left" else "?r"
-        rules.append(Rule(key=f"fold.slot.{i}.{z}.{s}",
-                          lhs=[*parent, *kids, Pat(src, cs, "?v")],
-                          rhs=[Pat("?p", s, "?v")]))
-    for i, d in enumerate(gram.mints):
-        z, x, y = d["mcat"], d["mleft"], d["mright"]
-        src = "?l" if d["mside"] == "left" else "?r"
+    for z, x, y in sorted(set(gram.binary)):
         rules.append(Rule(
-            key=f"fold.mint_entity.{i}.{z}",
+            key=f"surf.dec.{z}.{x}.{y}",
             lhs=[Pat("?p", "cat", z), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b"),
                  Pat("?l", "cat", x), Pat("?l", "begin", "?a"), Pat("?l", "end", "?m"),
-                 Pat("?r", "cat", y), Pat("?r", "begin", "?m"), Pat("?r", "end", "?b"),
-                 Pat(src, d["mcslot"], "?v")],
+                 Pat("?r", "cat", y), Pat("?r", "begin", "?m"), Pat("?r", "end", "?b")],
+            nac=[Pat("?d", "dparent", "?p"), Pat("?d", "dleft", "?l"), Pat("?d", "dright", "?r")],
+            rhs=[Pat("<dec>?", "dprod", _prod_key(z, x, y)), Pat("<dec>?", "dparent", "?p"),
+                 Pat("<dec>?", "dleft", "?l"), Pat("<dec>?", "dright", "?r")]))
+    for z, x in sorted(set(gram.unary)):
+        rules.append(Rule(
+            key=f"surf.dec.{z}.{x}",
+            lhs=[Pat("?p", "cat", z), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b"),
+                 Pat("?q", "cat", x), Pat("?q", "begin", "?a"), Pat("?q", "end", "?b")],
+            nac=[Pat("?d", "dparent", "?p"), Pat("?d", "donly", "?q")],
+            rhs=[Pat("<dec>?", "dprod", _prod_key(z, x)), Pat("<dec>?", "dparent", "?p"),
+                 Pat("<dec>?", "donly", "?q")]))
+    return rules, DEC_PREDS
+
+
+def slot_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
+    """A percolation rule per declared slot, plus a minting rule per declared `mint`.
+
+    Reads the materialized parse tree (`decomposition_bank`), so each rule is a seek on `dprod` plus
+    two pointer hops — not the 6-way `begin`/`end` join it used to redo per rule."""
+    rules: list[Rule] = []
+    for i, d in enumerate(gram.slots):
+        s, z, cs = d["sname"], d["scat"], d["scslot"]
+        prem, src = _production_lhs(d)
+        rules.append(Rule(key=f"fold.slot.{i}.{z}.{s}",
+                          lhs=[*prem, Pat(src, cs, "?v")],
+                          rhs=[Pat("?p", s, "?v")]))
+    for i, d in enumerate(gram.mints):
+        side = "dleft" if d["mside"] == "left" else "dright"
+        rules.append(Rule(
+            key=f"fold.mint_entity.{i}.{d['mcat']}",
+            lhs=[Pat("?d", "dprod", _prod_key(d["mcat"], d["mleft"], d["mright"])),
+                 Pat("?d", "dparent", "?p"), Pat("?d", side, "?c"),
+                 Pat("?c", d["mcslot"], "?v")],
             # `?e` is an RHS-only variable, which is what makes it NAMELESS: `lower_rhs` gives a
             # bound literal a name and a plain literal graph-wide interning, but a bare `?e` mints
             # an unnamed node per firing. That is the `ByDesc` identity law.
@@ -445,12 +489,22 @@ def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
         nacs = [Pat("?p", d["aunless"], "?gu")] if "aunless" in d else []
         base = [Pat("?p", "cat", z), Pat("?p", subj, "?s"), *guards]
         obj_prem, obj_tok = ([Pat("?p", obj, "?o")], "?o") if obj in names else ([], obj)
-        if pred in names:
+        if pred in names and mode != "deny":
+            # ONE rule, with the predicate as an LHS-bound VARIABLE — the slot's filler names the
+            # predicate, resolved at apply time by the dynamic-key MINT (`lower_rhs`/`MINT.key_reg`).
+            rules.append(Rule(key=f"fold.assert.{i}.{z}",
+                              lhs=[*base, Pat("?p", pred, "?w"), *obj_prem],
+                              nac=nacs, rhs=[Pat("?s", "?w", obj_tok)]))
+        elif pred in names:
+            # DENY still expands per word: the head predicate is `neg_pred(?w)`, a STRING derivation
+            # from the matched word, and the ISA has no string ops. Collapsing this too needs the
+            # positive/negative pairing to exist as graph data (`w -[neg_of]-> w_not`) so the rule
+            # can BIND the negative rather than compute it — worth doing, but it is a vocabulary
+            # change, not a lowering one.
             for w in sorted(gram.lexicon):
-                p = neg_pred(w) if mode == "deny" else w
                 rules.append(Rule(key=f"fold.assert.{i}.{z}.{w}",
                                   lhs=[*base, Pat("?p", pred, f"{w}?"), *obj_prem],
-                                  nac=nacs, rhs=[Pat("?s", p, obj_tok)]))
+                                  nac=nacs, rhs=[Pat("?s", neg_pred(w), obj_tok)]))
         else:
             p = neg_pred(pred) if mode == "deny" else pred
             rules.append(Rule(key=f"fold.assert.{i}.{z}.{p}",
@@ -511,11 +565,19 @@ def mintable_slots(gram: Grammar) -> list[dict]:
 
 
 def _production_lhs(d: dict) -> tuple[list, str]:
-    """The parent/left/right span premises of a binary slot declaration, and its head-side child."""
-    return ([Pat("?p", "cat", d["scat"]), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b"),
-             Pat("?l", "cat", d["sleft"]), Pat("?l", "begin", "?a"), Pat("?l", "end", "?m"),
-             Pat("?r", "cat", d["sright"]), Pat("?r", "begin", "?m"), Pat("?r", "end", "?b")],
-            "?l" if d["sside"] == "left" else "?r")
+    """The premises binding a slot declaration's parent `?p` and its head-side child, and that
+    child's register.
+
+    Reads the materialized parse tree rather than re-joining spans on `cat`/`begin`/`end`: seed on
+    the production's `dprod` literal, hop to the parent, hop to the declared side. The unused
+    sibling is not bound at all — `dprod` already pins which production this is, so nothing is lost
+    by not matching it. THE one chokepoint for the shape (`slot_bank`, `remint_mark_bank`,
+    `reinterpretation_slots` all come through here)."""
+    only = "sonly" in d
+    key = _prod_key(d["scat"], d["sonly"]) if only else \
+        _prod_key(d["scat"], d["sleft"], d["sright"])
+    side = "donly" if only else ("dleft" if d["sside"] == "left" else "dright")
+    return ([Pat("?d", "dprod", key), Pat("?d", "dparent", "?p"), Pat("?d", side, "?c")], "?c")
 
 
 def remint_mark_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
@@ -576,11 +638,15 @@ def compile_grammar(gram: Grammar, *, open_class: str | None = None,
     chart, cpreds = chart_bank(gram, open_class=open_class, closed=closed)
     amb, apreds = ambiguity_bank(gram)
     spans, sppreds = span_bank(gram)
+    decs, dpreds = decomposition_bank(gram)
     slots, spreds = slot_bank(gram)
     marks, mpreds = remint_mark_bank(gram)
     rslots, rpreds = reinterpretation_slots(gram)
+    # The decomposition bank runs with the spans (both are surface), so its rules ride the span
+    # bank's slot in `parse` and its predicates join the span predicates.
     return GrammarBanks(chart=chart, chart_preds=cpreds, ambiguity=amb, ambiguity_preds=apreds,
-                        spans=spans, span_preds=sppreds, slots=slots, slot_preds=spreds,
+                        spans=spans + decs, span_preds=sppreds | dpreds,
+                        slots=slots, slot_preds=spreds,
                         asserts=assert_bank(gram, defining=False),
                         defining_asserts=assert_bank(gram, defining=True), grammar=gram,
                         remint_marks=marks, remint_preds=mpreds,

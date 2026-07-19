@@ -250,6 +250,35 @@ def test_surface_carries_no_denotation(banks):
                    for n in g.nodes() for r, _o in g.relations_from(n))
 
 
+def test_decompositions_tile_their_parent(banks):
+    """Every materialized decomposition's children EXACTLY tile the parent's extent.
+
+    This is the invariant that makes the parse tree safe to read as pointer hops. The chart is
+    PACKED, so one span can carry several decompositions; a flat `?p kidl ?l` / `?p kidr ?r` pair
+    would let the left child of one reading pair with the right child of another and feed a slot
+    from a tree that was never parsed. Reifying the decomposition keeps a pairing atomic — and this
+    test is what says so, since a mispairing shows up precisely as children that do not tile."""
+    g = AttrGraph()
+    parse(g, "the guzerat lion has no mane", banks)
+
+    def slot(n, key):
+        return next((o for r, o in g.relations_from(n) if g.has_key(r, key)), None)
+
+    decs = [n for n in g.nodes() if slot(n, "dparent") is not None]
+    assert decs, "the parse must materialize decompositions"
+    for d in decs:
+        p = slot(d, "dparent")
+        only = slot(d, "donly")
+        if only is not None:                          # unary: child covers the parent exactly
+            assert (slot(only, "begin"), slot(only, "end")) == (slot(p, "begin"), slot(p, "end"))
+            continue
+        left, right = slot(d, "dleft"), slot(d, "dright")
+        assert left is not None and right is not None, "a binary decomposition needs both children"
+        assert slot(left, "begin") == slot(p, "begin")
+        assert slot(left, "end") == slot(right, "begin"), "children must MEET at one split point"
+        assert slot(right, "end") == slot(p, "end")
+
+
 def test_parse_banks_are_idempotent(banks):
     """Re-running the parse banks over an UNCHANGED graph must add nothing.
 

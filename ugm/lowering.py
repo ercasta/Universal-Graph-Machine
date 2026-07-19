@@ -303,22 +303,33 @@ def lower_rhs(rule: Rule, control_preds: frozenset[str] = frozenset(),
         return reg
 
     for k, pat in enumerate(rule.rhs):
-        if binder(pat.p) is not None:
-            raise Unlowerable(f"{rule.key}: RHS non-plain predicate {pat.tokens()} is a later slice")
+        # A VARIABLE RHS PREDICATE (`?s ?w ?o`) lowers to a dynamic-key MINT, provided the LHS bound
+        # it — the predicate is then the NAME of the matched node, resolved at apply time, and
+        # `dedup` matches on that resolved key so the write stays idempotent. An RHS-ONLY predicate
+        # variable is still unlowerable: there is no node to take a name from, and inventing one
+        # would be predicate invention (the `predicates-are-keys` primitive the LEARNING ARC wants,
+        # deliberately not smuggled in here).
+        pred_reg = binder(pat.p)
+        if pred_reg is not None and pred_reg not in bound:
+            raise Unlowerable(
+                f"{rule.key}: RHS predicate {pat.tokens()} is not bound by the LHS — a variable "
+                f"predicate must name a matched node")
         s_reg, o_reg = resolve(pat.s), resolve(pat.o)
         # PER-ATOM control-ness: a control-gated rule (`ctrl`) mints control, AND — independently —
         # a head whose PREDICATE is a scaffolding predicate (`control_preds`, e.g. surface
         # `next`/`first`) is control REGARDLESS of the rule, so a recognition form can read the
         # scaffolding chain and mint CONTENT facts (fact) while its `next`/`first` BRIDGE stays
         # control (a later strip's `DROP_CTRL` then permits deleting it).
-        head_ctrl = ctrl or literal_name(pat.p) in control_preds
+        # A variable predicate has no static name, so it cannot be recognized as a scaffolding
+        # predicate — it falls back to the rule-level control flag, which is the conservative read.
+        head_ctrl = ctrl or (pred_reg is None and literal_name(pat.p) in control_preds)
         pred = literal_name(pat.p)
         # Phase 2.1/2.3: the head rel node's predicate is the SOLE graded key `pred: 1.0` (canonical).
         # The TEMPORARY BRIDGE's VALUED `name` dual-write is retired (`name_demotion_design.md`):
         # MINT.dedup now matches on the predicate KEY (`_pred_key`/`has_key`), not `attrs[NAME]`, so a
         # predicate literally named `name` is sound as `{name: 1.0}` (no reserved-key collision).
-        head_attrs = {pred: graded_attr(1.0)}
-        prog.append(MINT(f"_head{k}", attrs=head_attrs,
+        head_attrs = {} if pred_reg is not None else {pred: graded_attr(1.0)}
+        prog.append(MINT(f"_head{k}", attrs=head_attrs, key_reg=pred_reg,
                          in_edges=[s_reg], edges=[o_reg], control=head_ctrl, dedup=True))
         if head_out is not None:
             head_out.append(f"_head{k}")
