@@ -116,13 +116,32 @@ per-predicate contradiction bank.
 - **Promotion.** An interpretation that survives uncontested should collapse into the base and stop
   costing. This is the same "promotion by survival" queued for rules — the mechanism generalizes,
   which is some evidence the shape is right.
-- **Enforce invariant 2** (one live interpretation); today it is assumed.
+- ~~**Enforce invariant 2** (one live interpretation)~~ **DONE 2026-07-19** — `grammar_intake`
+  keeps ONE scope in `registers["interpretation"]` and REPLACES it (`reinterpret`) rather than
+  layering. Accumulating instead produced 5 duplicate contradiction markers on 3 sentences.
 - **Culprit selection at realistic scale.** The spike demonstrates a contradiction with exactly ONE
   judgement in its support. Real ones will have several, and choosing among them is the hard part.
+  PARTIAL ANSWER 2026-07-19 (`homoiconic_grammar.md` §13.3): selection need not be a ranking —
+  `remint_mark_bank` marks every span the contradiction structurally implicates, and
+  `mintable_slots` restricts that to sites where minting is MEANINGFUL, which on the Loudon case
+  narrowed 3 mentions to the 2 modified ones with no choice made. Whether that survives contact
+  with several competing judgements is untested.
 - **A property is given up:** today the token node IS the entity ("canonical structure accretes on
   the same nodes the surface chain uses — the no-seam payoff"). Under this split the token stops
   doubling as the entity. The no-compile-seam property survives (both layers are graph-resident and
   rule-written), but that identification does not, and a lot of existing code assumes it.
+
+- **The DISCRIMINATOR this design needs, added 2026-07-19** (user's framing): a derived contradiction
+  is the same signal for a wrong COREFERENCE JUDGEMENT (this layer — defeasible, session-scoped) and
+  for a rule that needs an EXCEPTION (the learning arc — structural, persists across sessions). Read
+  the support: >1 surface mention behind the entity ⇒ a judgement is load-bearing ⇒ re-interpret;
+  otherwise this layer is not at fault and must not act. Try the revisable thing first, because being
+  wrong about it is free. Built as `grammar_intake.reconsider` (`RULE` is its hand-off verdict).
+- **Not a perf lever.** Marking discourse tokens as a partition distinct from interpretation nodes
+  was considered on 2026-07-19 to stop entity nodes colliding with tokens by NAME during parse. That
+  collision does not happen — chart lexicon rules require `?t next ?u` and entity nodes have no
+  `next`. The epistemic split still stands on §6's grounds, but it must be argued there; it buys no
+  performance.
 
 ## 9. Evidence
 

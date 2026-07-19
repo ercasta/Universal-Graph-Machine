@@ -133,14 +133,6 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
     An ambiguous or refused utterance writes NO facts. The surface it did produce STAYS: it is the
     permanent record, and a later re-interpretation (or a discriminating answer) reads it without
     re-parsing."""
-    # DISCARD BEFORE PARSING. The chart bank keys on NAMES, and `interpret_mentions` mints entity
-    # nodes carrying the same name as the tokens they were derived from — so a standing
-    # interpretation makes the next parse see a second `lion` "token" and the chart explodes
-    # combinatorially (a 3-sentence session did not finish). This is the token/entity duality biting
-    # exactly where the plan warned it would: two nodes, one name, ambiguous lookups. The layering
-    # answers it — parse reads SURFACE ONLY, so the interpretation comes down first and is rebuilt
-    # after. Marks live on spans, so the judgements survive the discard.
-    _discard_live(kb, banks)
     before = set(kb.nodes())
     outcome, toks, _eos = parse(kb, utterance, banks)
     if outcome == REFUSED:

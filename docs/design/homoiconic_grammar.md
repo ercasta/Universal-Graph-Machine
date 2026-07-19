@@ -622,3 +622,129 @@ the PERCOLATING reading the same corpus derives **1 contradiction** (`about 'lio
   That is the learning arc's T3 form learning, now with a concrete target.
 - **The 31 sentences that yield no facts** are untouched by any of this: they are anecdote, quoted
   narrative, and hedged attribution — a property of the SOURCE, not of the grammar.
+
+## 13. INTEGRATION STEP 2 + THE REVISION LOOP (2026-07-19) — `ugm/cnl/grammar_intake.py`
+
+Step 2 was the decision point recorded in `implementation_plan.md`: wire the grammar into intake
+either by a DIRECT FOLD (lexical head = the token, facts land where they do today, ~1 hour) or WITH
+the interpretation scope. **The user chose the scope, explicitly accepting a temporary fork and a
+period of red**, on the grounds that the direct fold entrenches the token/entity duality it would
+later have to undo. Both paths now exist; convergence is step 5.
+
+### 13.1 The fork
+
+`declare_grammar` parks compiled banks in `kb.registers["grammar"]`; `route()` = parse → interpret,
+and facts land on ENTITY nodes reached by `denotes`, never on tokens. Routed at ONE block
+(`intake.py:461`) by the declared register — declare-before-use, so every KB without a grammar keeps
+the shipped path and the suite stayed green by construction. `Outcome("ambiguous")` joins the
+vocabulary: "I cannot parse this" and "I parsed it two ways" want different responses, and only the
+second can become a discriminating question.
+
+The three duality-dependent readers got entity-side counterparts written BESIDE the originals
+(`denotata`, `has_content_fact`, `utterance_centers`) rather than edits to them, so neither path
+constrains the other while they coexist.
+
+### 13.2 The revision loop — the discriminator
+
+One derived contradiction is the SAME SIGNAL for two faults that live in different layers:
+
+| | coreference / interpretation | rule amendment / exception |
+|---|---|---|
+| question | "is *the guzerat lion* the same entity as *the lion*?" | "does *lions have manes* need an exception?" |
+| status | a JUDGEMENT — defeasible, revisable | KNOWLEDGE — structural |
+| lives in | the discardable scope of copies | the rule bank |
+| survives the session | no (re-derived from surface) | yes |
+
+**The support tells them apart.** If the contradicted entity was interpreted from more than one
+surface mention, a coreference judgement is load-bearing → re-interpret. If not, `reconsider` returns
+`RULE` and touches NOTHING: that case belongs to the learning arc's defeasible-exception model
+(§7.3). The ordering principle is **try the revisable thing first, because being wrong about it is
+free** — discard and re-derive costs nothing and leaves the surface intact, whereas amending a rule
+is a durable change to knowledge.
+
+### 13.3 Evidence-driven re-minting (this replaced "declare alternative readings")
+
+The obvious design — let a grammar declare a ranked list of readings and swap between them — is the
+wrong GRANULARITY. A global switch throws away what the contradiction actually tells you (which
+entity, which mentions), and global minting is the unconditional move that is wrong for a
+NON-restrictive modifier. So:
+
+- `remint_mark_bank` marks the spans a contradiction implicates. It re-derives the contradiction
+  condition inline (like `contradiction_bank`) because the `<contradiction>` node has no stable
+  identity to match on.
+- `reinterpretation_slots` percolates everywhere EXCEPT a marked span and mints there instead — NAC
+  and premise on the same marker, so a re-interpretation is still ONE reading, never a branch.
+- `mintable_slots` derives WHERE minting is meaningful from the grammar's own declarations: a `head`
+  slot whose category asserts a description built from another slot of the SAME production
+  (`np asserts head is attr` over `np from modifier plus np`). Never from category names — that
+  would hardcode one grammar's vocabulary into the engine. The subject must be the span's `head`,
+  because minting replaces what a span DENOTES; without that constraint
+  `clause asserts subj pred obj` qualifies and a re-interpretation mints at every clause.
+
+Marks live on SPANS (surface), so they survive the discard that clears the entities: a re-minting
+judgement is DURABLE and every later utterance is read under it. Only `reinterp_slots` is ever run —
+with nothing marked it is equivalent to the plain slot bank, so one bank covers both readings.
+
+**Result** on `the bengal lion has a mane` / `the guzerat lion has no mane` / `the lion has a mane`:
+1 contradiction → `REVISED`, 0 remaining, facts `<is bengal & is_a lion> has mane`,
+`<is guzerat & is_a lion> has_not mane`, and **`lion has mane`**. The bare mention stays unsplit
+because it heads no mintable production — which is what makes minting evidence-driven rather than
+unconditional, closing the plan's open "restrictive vs non-restrictive modification" item by a route
+it did not anticipate.
+
+### 13.4 `span_bank` was not idempotent — a shipped defect making session accretion QUADRATIC
+
+`<span>?` is a BOUND literal: it gets a name but is minted FRESH per firing. `parse` runs every bank
+over the WHOLE graph, so each utterance re-minted all of the session's earlier spans. Re-running the
+banks on an UNCHANGED graph added 52 nodes every time; parsing one sentence five times grew the graph
+by 104, 149, 201, 253, 305 instead of a flat 97.
+
+Fixed with a self-guarding NAC ("unless a span with this cat/begin/end already stands"). This is the
+structural counterpart of `intern_described`, which fixes exactly this re-minting for minted
+ENTITIES — the same defect in the other layer. Pinned by `test_parse_banks_are_idempotent`.
+
+> **GENERAL LESSON, alongside the `load_facts` one.** "run_bank over the whole graph, once per
+> utterance" is quadratic by construction — AND that bank must be IDEMPOTENT, or repetition is
+> quadratic even when the work is not. When something is superlinear, test bank idempotency FIRST:
+> re-run the bank on an unchanged graph and count nodes. Two lines, and it found a shipped bug.
+
+Measured, 3-sentence session: route `0.23 / 0.60 / 1.07 s` (was 0.21 / 1.14 / 4.41), `reconsider`
+**0.91 s** (was 6.65), graph 508 nodes (was 1497), suite 97 s → 63 s. Repeated interpret/discard
+cycles show ZERO drift — there is no leak in the interpretation layer.
+
+### 13.5 Other bugs, and one FALSE finding that was briefly recorded
+
+- `discard_scope` leaked one orphan `member` rel per member (`remove_node` does not clean up INCOMING
+  relations). Then it was broken worse: reading `scope_members` AFTER unlinking them discarded
+  NOTHING — snapshot membership first.
+- `route` accumulated interpretations instead of replacing one (3 sentences → 5 duplicate
+  contradiction markers).
+- A BOUND-literal marker mints a fresh node per firing, so the mint rule matched once per mark and
+  minted an entity for each (35 marks, 5x blowup). A flag must be a PLAIN literal (interned
+  graph-wide).
+
+**FALSE, and corrected here because the wrong version reached the plan:** "a standing interpretation
+makes the next `parse` explode, because the chart keys on NAMES and `interpret_mentions` mints
+entities carrying their token's name." Measured: parsing with a live interpretation costs 0.06 s and
+the chart does not grow — the lexicon rules require `?t next ?u` and entity nodes have no `next`, so
+they cannot match. The apparent explosion was the broken `discard_scope`. The
+`route`-discards-before-parsing layering built on this premise was REMOVED; results and timings are
+identical without it.
+
+**Consequence for the token/entity partition question:** distinguishing discourse tokens from
+interpretation nodes would NOT have fixed performance, because the bug motivating it does not exist.
+The epistemic split may still be right on the grounds `surface_interpretation.md` §6 gives — but it
+must be decided there, not sold as a perf fix. The real lever was idempotency.
+
+### 13.6 Still open
+
+- **Incremental interpretation.** `route` calls `parse` (not `parse_batch`) and `interpret` re-reads
+  the whole standing surface per utterance, so cost is linear-per-utterance = quadratic per session.
+  Now that discarding before parsing is gone, the path is open: keep the scope, interpret only the
+  new spans, re-interpret wholesale only when a contradiction demands it.
+- **The ASK arm.** `reconsider` returns `ASK` when re-interpretation does not clear the
+  contradiction, but nothing yet turns that into a discriminating question via `can_ask`.
+- **`RULE` has no consumer** — it is the correct hand-off to the defeasible-exception arc, which is
+  not built.
+- Step 5: retire what the fork subsumes, and converge query/`nodes_named` onto `describe`-addressed
+  entities.

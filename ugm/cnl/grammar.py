@@ -361,9 +361,19 @@ def span_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
     """One span NODE per USEFUL span — the parse, not the chart.
 
     Deliberately writes NO `head`: a head is already a DENOTATION, and denotation belongs to the
-    interpretation layer (`surface_interpretation.md` §2)."""
+    interpretation layer (`surface_interpretation.md` §2).
+
+    IDEMPOTENT BY NAC. `<span>?` is a BOUND literal: it gets a name but is minted FRESH per firing,
+    so re-running this bank over an unchanged graph re-minted every span — 52 nodes per run, turning
+    session-long surface accretion QUADRATIC (parsing one sentence five times: +104, +149, +201,
+    +253, +305). Every `parse` runs the banks over the WHOLE graph, so every utterance paid to
+    re-mint all of the session's earlier spans. The NAC says "unless a span with this cat/begin/end
+    already stands", which makes the rule self-guarding and the bank re-runnable. This is the
+    structural counterpart of `intern_described`, which fixes exactly this re-minting for minted
+    ENTITIES — the same defect, the other layer."""
     return ([Rule(key=f"surf.span.{c}",
                   lhs=[Pat("?a", f"useful_{c}", "?b")],
+                  nac=[Pat("?s", "cat", c), Pat("?s", "begin", "?a"), Pat("?s", "end", "?b")],
                   rhs=[Pat("<span>?", "cat", c), Pat("<span>?", "begin", "?a"),
                        Pat("<span>?", "end", "?b")])
              for c in sorted(gram.categories)], frozenset({"cat", "begin", "end"}))

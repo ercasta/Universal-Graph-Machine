@@ -248,3 +248,25 @@ def test_surface_carries_no_denotation(banks):
     parse(g, "the lion has a mane", banks)
     assert not any(g.predicate(r) in ("head", "subj", "denotes")
                    for n in g.nodes() for r, _o in g.relations_from(n))
+
+
+def test_parse_banks_are_idempotent(banks):
+    """Re-running the parse banks over an UNCHANGED graph must add nothing.
+
+    `parse` runs every bank over the WHOLE graph, so a non-idempotent surface rule makes a session's
+    accretion QUADRATIC: `<span>?` is a bound literal (named, but minted fresh per firing), so before
+    the span rule's NAC every re-run re-minted all 13 spans — parsing one sentence five times grew
+    the graph by 104, 149, 201, 253, 305 instead of a flat 97."""
+    g = AttrGraph()
+    parse(g, "the lion has a mane", banks)
+    settled = len(list(g.nodes()))
+    for _ in range(3):
+        parse(g, "the lion has a mane", banks)   # re-parsing writes a new chain...
+    grown = len(list(g.nodes()))
+    assert (grown - settled) % 3 == 0
+    per_sentence = (grown - settled) // 3
+    g2 = AttrGraph()
+    parse(g2, "the lion has a mane", banks)
+    base = len(list(g2.nodes()))
+    parse(g2, "the lion has a mane", banks)
+    assert len(list(g2.nodes())) - base == per_sentence, "accretion must be FLAT per sentence"
