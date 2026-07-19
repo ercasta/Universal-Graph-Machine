@@ -12,8 +12,8 @@ import pytest
 
 from ugm import AttrGraph
 from ugm.cnl import grammar_intake as gi
-from ugm.cnl.grammar import compile_grammar, load_grammar
-from ugm.interpretation import DENOTES, discard_scope
+from ugm.cnl.grammar import compile_grammar, load_grammar, parse
+from ugm.interpretation import DENOTES, contradictions, discard_scope, interpret
 
 CORPUS = pathlib.Path(__file__).resolve().parent.parent / "corpus"
 
@@ -253,3 +253,41 @@ def test_a_minted_subkind_is_reported_as_a_fact():
     kind, _data = gi.route(g, "the african lion has a mane", gi.session_banks(g))
     assert kind == "fact"
     assert ("<is african & is_a lion>", "has", "mane") in gi.facts(g)
+
+
+def test_extending_the_scope_equals_rebuilding_it():
+    """Keeping ONE interpretation and growing it must agree with tearing it down every utterance.
+
+    This is the gate on incremental interpretation. `route` rebuilds today (`reinterpret` discards
+    and re-reads the whole standing surface), which is correct but costs a whole-session pass per
+    utterance. Extending is only admissible if it lands in the same place.
+
+    It did NOT, at first, and both failures were LATENT IDEMPOTENCY DEFECTS that discard-first was
+    silently paying for -- three utterances gave 5 contradiction markers instead of 1 and 872 nodes
+    instead of 612:
+      * `contradiction_bank`'s `<contradiction>?` is a BOUND literal, minted fresh per firing, so
+        re-running the bank duplicated the marker (the `span_bank` defect, fourth of its family).
+      * `interpret_mentions` called `add_node(name)` unconditionally, minting a parallel entity per
+        name on every pass.
+    Both are fixed at the source rather than worked around here, so the equivalence is a property of
+    the banks, not of this test's setup."""
+    def rebuilt():
+        g = AttrGraph()
+        g.registers[gi.GRAMMAR_REGISTER] = bank = _order_banks(False)
+        for s in CONTRA:
+            gi.route(g, s, bank)
+        return g
+
+    def extended():
+        g = AttrGraph()
+        g.registers[gi.GRAMMAR_REGISTER] = bank = _order_banks(False)
+        for s in CONTRA:                            # a corpus that CONTRADICTS, so the marker
+            parse(g, s, bank)                       # duplication is actually exercised
+            interpret(g, bank, gi.live_scope(g),
+                      slots=bank.reinterp_slots, slot_preds=bank.reinterp_slot_preds)
+        return g
+
+    a, b = rebuilt(), extended()
+    assert sorted(gi.facts(a)) == sorted(gi.facts(b))
+    assert len(contradictions(a)) == len(contradictions(b)), "a kept scope must not duplicate markers"
+    assert len(list(a.nodes())) == len(list(b.nodes())), "a kept scope must not accrete nodes"

@@ -69,7 +69,15 @@ def interpret_mentions(g, scope: str) -> dict[str, str]:
     and their chain — nothing about the sentence is touched.
 
     This is where `intern_mentions` differs: it folds the surface mentions together and DELETES the
-    victims, which is why that decision can never be revised."""
+    victims, which is why that decision can never be revised.
+
+    IDEMPOTENT: an entity already in the scope under this name is REUSED, and an existing
+    `denotes`/`interprets` pair is not re-wired. Under discard-first this was invisible (the scope
+    was always empty, so `add_node` per name was correct); keeping the scope instead, a second call
+    minted a parallel entity for every name and re-wired every edge — 872 nodes against 612 for
+    three utterances. Find-or-create is what makes ONE live interpretation survivable across
+    utterances rather than something that has to be torn down to stay correct."""
+    existing = {g.name(m): m for m in scope_members(g, scope) if g.name(m)}
     lex_heads: dict[str, list[str]] = {}
     for p in list(g.nodes()):
         if not any(g.has_key(r, "cat") for r, _o in g.relations_from(p)):
@@ -83,9 +91,14 @@ def interpret_mentions(g, scope: str) -> dict[str, str]:
     ents: dict[str, str] = {}
     for nm, dups in sorted(lex_heads.items()):
         toks = list(dict.fromkeys(dups))            # a token may head spans of several categories
-        e = g.add_node(nm)
-        g.add_relation(scope, MEMBER, e, control=True)
+        e = existing.get(nm)
+        if e is None:
+            e = g.add_node(nm)
+            g.add_relation(scope, MEMBER, e, control=True)
+        already = {o for r, o in g.relations_from(e) if g.has_key(r, INTERPRETS)}
         for t in toks:
+            if t in already:
+                continue                            # this mention is already interpreted onto `e`
             g.add_relation(e, INTERPRETS, t, control=True)
             g.add_relation(t, DENOTES, e, control=True)
         ents[nm] = e
@@ -167,11 +180,21 @@ def discard_scope(g, scope: str, interp_preds) -> int:
 def contradiction_bank(predicates) -> list[Rule]:
     """`X p Y` and `X not-p Y` on ONE entity derives a `<contradiction>` marker.
 
-    Monotone and PARACONSISTENT: it marks itself and does not explode the KB. This is a local
-    stand-in for `consistency_design.md`'s universal conflict lint, which is still a SKETCH — the
-    marker convention is designed there, but nothing derives it yet."""
+    PARACONSISTENT: it marks itself and does not explode the KB. This is a local stand-in for
+    `consistency_design.md`'s universal conflict lint, which is still a SKETCH — the marker
+    convention is designed there, but nothing derives it yet.
+
+    IDEMPOTENT BY NAC — the `span_bank` lesson, and this is the FOURTH member of the family
+    (`<span>?`, the remint mark, `intern_described`, this). `<contradiction>?` is a BOUND literal:
+    named, but minted FRESH per firing. Re-running this bank over an unchanged graph therefore
+    minted a duplicate marker every time, which is what made three utterances produce FIVE
+    contradiction markers when the interpretation was kept instead of rebuilt. Under discard-first
+    that never showed, because nothing survived to be duplicated — the defect was latent, paid for
+    by the discard. The NAC ("unless a marker about this entity for this reason already stands")
+    makes the bank re-runnable, which is what an incrementally maintained interpretation needs."""
     return [Rule(key=f"contra.{w}",
                  lhs=[Pat("?e", w, "?x"), Pat("?e", neg_pred(w), "?x")],
+                 nac=[Pat("?c", "about", "?e"), Pat("?c", "because", "?x")],
                  rhs=[Pat(f"{CONTRADICTION}?", "about", "?e"),
                       Pat(f"{CONTRADICTION}?", "because", "?x")])
             for w in sorted(predicates)]

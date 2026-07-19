@@ -268,10 +268,48 @@ mint).
 - Guard: `test_interpretation_does_not_depend_on_utterance_order` (parametrized over both readings,
   trimmed to 3 sentences / 6 orders for suite time) + `test_a_minted_subkind_is_reported_as_a_fact`.
   RE-BREAK VERIFIED: restoring the old verdict fails both; reverting passes.
-- **Consequence for extend mode: it now has a CORRECTNESS motive, not just a performance one.**
-  Under extend, node identity would be stable across utterances and "new this utterance" would mean
-  something again. The earlier framing here — that extend RISKS introducing order dependence — was
-  backwards: rebuild is what causes the order dependence that exists.
+- **Consequence for extend mode:** the earlier framing here — that extend RISKS introducing order
+  dependence — was backwards. Rebuild caused the order dependence that existed. After the fix the
+  verdict no longer depends on identity at all, which is the better outcome: the semantics stopped
+  caring about the optimization.
+- **`authoring.anchor_has_content_fact` (the shipped-path original of the same snapshot proxy) is
+  CLEAN — checked, not assumed.** 0 disagreements over its permutations, and the trap its docstring
+  names (`whether bo is a suspect` after `bo is a suspect`) correctly returns `unrecognized`. The
+  defect really was specific to discard-and-rebuild: with nothing deleted, `MINT(dedup=True)` reuses
+  the existing rel node on re-derivation, so identity stays stable and `since` means what it says.
+
+**EXTEND ≡ REBUILD: THE SEMANTIC GATE IS GREEN AND PINNED (2026-07-19, suite 734).** Before building
+any delta machinery, the semantic question was isolated from the performance one: what happens if we
+simply STOP DISCARDING? Answer: the FACTS were identical immediately — but three utterances gave
+**5 contradiction markers instead of 1 and 872 nodes instead of 612**. That is the plan's own
+"bug 2", and it was NOT a reason extend is unsound. Both causes were **latent idempotency defects
+that discard-first was silently paying for**:
+
+- **`contradiction_bank`'s `<contradiction>?` is a BOUND literal** — minted fresh per firing, so
+  re-running the bank duplicated the marker. THE FOURTH MEMBER OF THIS FAMILY (`<span>?`, the remint
+  mark, `intern_described`, this). Fixed with a self-guarding NAC.
+- **`interpret_mentions` called `add_node(name)` unconditionally**, minting a parallel entity per
+  name on every pass, and re-wiring every `denotes`/`interprets` edge. Now find-or-create against
+  the scope's existing members.
+
+Both fixed AT THE SOURCE, so the equivalence is a property of the banks rather than of a test
+harness. After the fixes: same facts, same 1 contradiction, same 612 nodes. Pinned by
+`test_extending_the_scope_equals_rebuilding_it`, **re-break verified on BOTH halves** (removing
+either fix fails it) and pointed at `CONTRA` rather than `ORDER_CORPUS` — the first version passed
+for the wrong reason because its corpus derives no contradiction at all.
+
+**GENERAL LESSON, and the reason this took four instances to see: discard-first HIDES
+non-idempotency.** A bank that is re-run over surviving state must be idempotent; a bank that is
+only ever run over freshly-discarded state can be non-idempotent for years without a symptom. Every
+such defect is a bill the discard was paying. Expect more of them the moment any other scope stops
+being torn down.
+
+**NEXT (performance, now unblocked):** `extend` is semantically admissible, so the remaining work is
+the DELTA — seed the slot/assert banks on the new utterance's spans, the same trick as
+`decomposition_bank`, plus an `extend`/`rebuild` split in `grammar_intake` (`reconsider` keeps
+rebuild, which must re-mark all spans). Expect roughly the interpret half (0.93 s) to become
+proportional to the new sentence. No speedup yet from the above — extend still runs the banks over
+the whole graph (0.47 s vs rebuild's 0.50 s); the correctness gate simply came first.
 
 **Also fixed 2026-07-19: `declare_grammar` failed SILENTLY on a bad path.** A non-existent path fell
 through to `load_grammar(str(...))` and was parsed AS GRAMMAR TEXT, giving an empty grammar that
