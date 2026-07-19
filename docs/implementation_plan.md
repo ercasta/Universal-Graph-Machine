@@ -189,12 +189,89 @@ stated priority has been wrong):
 - **MEASURED:** asserts stage 1.02 → 0.28 s (**3.6×**), interpret 1.67 → 1.03 s, session
   3.11 → 2.50 s. **Cumulative across both levers: 11.41 → 2.50 s (4.6×)**, suite 97 → 52 s.
 
-**NOW: `parse` is 1.48 s = 59% of the session and is the whole remaining curve.** It is
-`decomposition_bank` re-joining over the WHOLE standing surface every utterance — idempotent, so it
-accretes nothing, but it still pays the match. Both remaining levers are the SAME fix now
-(incremental surface: keep the scope, process only new spans), and the cost is concentrated in one
-bank, which is the best shape it has been in for that work. **Re-measure first — the stated lever
-has been wrong twice in this section.**
+**STEP 4, THIRD LEVER LANDED 2026-07-19 (suite 730 green): THE INCREMENTAL SURFACE DELTA.**
+Re-measured first, as promised, and this time the inference held: within `parse`, `spans+decs` was
+71.5%, `ambiguity` 19.2%, `chart` 9.3%.
+
+- **The root cause is one documented sentence in `run_bank`: "Naive — no semi-naive delta /
+  df-seeding (correctness-first)."** Every bank re-matches every rule against the whole graph on
+  every call. And `lower_conj` seeds each rule from its FIRST pattern, so leading a decomposition
+  rule with `?p cat np` seeded EVERY span in the session and then joined. The NAC stopped the
+  re-MINT but not the re-JOIN — which is why the idempotency fix made accretion flat without making
+  the cost flat.
+- **The fix is a DELTA carried as declared rule structure, not an engine change.** `span_bank` now
+  also marks each span it mints with `<fresh>` (its NAC means that is exactly the new sentence's
+  spans), and every `decomposition_bank` rule LEADS with `?p <fresh> ?fr` so the seed set is the new
+  sentence rather than the session. This is the semi-naive delta `run_bank` does not have, obtained
+  without touching `run_bank`.
+- **SOUND because a span never crosses a sentence** — spans are bounded by `begin`/`end` within one
+  token chain, so a new span's decomposition can only involve spans of the same sentence, which are
+  fresh too. Pinned by `test_the_fresh_delta_skips_no_work` (a sentence must materialize the same
+  tree parsed alone or as the third utterance of a session).
+- **`clear_fresh` is LOAD-BEARING and its absence is SILENT** — leave the marks standing and every
+  answer is still correct, the seed set just grows with the session and the optimization undoes
+  itself. Observed accidentally while measuring (stage went 0.51 s back to 1.55 s in a profiling
+  harness that omitted the call). Guarded by `test_fresh_marks_do_not_survive_a_parse`. It is
+  O(marked) via the key index, never a graph sweep — a sweep would reintroduce exactly the
+  per-utterance whole-graph cost it exists to remove.
+- **MEASURED:** spans+decs 1.38 → 0.51 s (**2.7×**), parse 1.48 → 0.87 s, session 2.50 → 1.80 s.
+
+**CUMULATIVE ACROSS THE THREE LEVERS: session 11.41 → 1.80 s (6.3×), suite 97 → 54 s.**
+
+**WHERE IT SITS NOW — roughly balanced, no single dominant stage:**
+- `parse` **0.87 s (48%)**: spans+decs 0.51, **`ambiguity` 0.36 (now comparable, and NOT delta-
+  scoped)**, chart 0.18. The obvious next lever is extending the same delta to chart + ambiguity —
+  their rules are per-sentence local by the same argument, but they write onto TOKENS, so the mark
+  goes on the new sentence's tokens (available in `parse` before the banks run) rather than on
+  spans. Should be quick and would take ~30% off the session.
+- `interpret` **0.93 s (52%)**: slots 0.52, asserts 0.26. Needs the real incremental-interpretation
+  design — keep the scope, interpret only new spans, re-interpret wholesale only when a
+  contradiction demands it. NOTE the "this is cross-sentence so the delta cannot apply" claim was
+  WRONG (see below): the expensive stages are anchored on a single span and the genuinely
+  cross-sentence pieces (`interpret_mentions`, `intern_described`, `contradiction_bank`) measured at
+  7% of the stage. The blocker is not cross-sentence-ness, it is that `reinterpret` unconditionally
+  DISCARDS, so nothing is ever "already done".
+
+**ORDER INDEPENDENCE MEASURED 2026-07-19 — and it found a REAL defect, not the predicted one
+(suite 733 green).** User challenge: "if two sentences speak about the same thing, their order
+should not matter." Swept all 24 orders of a 4-sentence corpus, under BOTH readings (percolate and
+mint).
+
+- **The FACTS are order-independent — 0 disagreements in all 48 runs.** Every design argument in the
+  thread about description-key drift breaking `intern_described` was WRONG: the two `african lion`
+  mentions intern cleanly even when one has already acquired `is strong`, because `interpret` stages
+  all defining assertions before interning and `route` always rebuilds. Recorded because the wrong
+  version was argued at length.
+- **The ROUTING VERDICT was order-dependent in 22 of 24 orders**, and wrong in both directions —
+  the quietly-does-something-wrong class. `route` asked `has_content_fact(since=<pre-utterance node
+  ids>)`:
+  * **False negative:** `denotata` reaches entities by the `denotes` hop from tokens, so a MINTED
+    subkind — which hangs off the span's `head` slot and is reachable from NO token — is invisible.
+    `the african lion has a mane` wrote three facts and returned `unrecognized`.
+  * **False positive / the order dependence:** `lion` IS in that sentence's denotata, so once any
+    earlier utterance gave `lion` a fact, the same sentence reports `fact` for someone else's
+    content. The `since` snapshot does not filter it because **`reinterpret` re-mints the whole
+    interpretation every utterance — a re-derived relation is a NEW NODE ID, so rebuild makes
+    everything look new.**
+- **FIXED by asking a structural question instead of an identity one** (`grammar_intake.
+  asserts_content`): does this utterance's parse contain a span in a category that DECLARES a
+  predication (`asserting_categories` = exactly `assert_bank(defining=False)`'s selection, read off
+  the same declarations)? That reads the SURFACE and the GRAMMAR only, never enters the
+  interpretation layer, and so cannot be perturbed by rebuilding or by what other sentences said.
+  Order-independent by construction, and it routes by WHICH FORMS FIRED rather than by inspecting
+  results (§D.1). 48/48 agree after the fix, and the mint reading now reports `fact` correctly.
+- **KEY LESSON, and the reason this belongs in the plan:** node-identity stability was doing
+  load-bearing semantic work it should never have carried (user's question: "is node identity really
+  important, or only something we need to make the system testable?" — the answer was neither; it
+  was a proxy for a question that has a direct structural answer). **Grep intake for other
+  `since=`/snapshot-diff verdicts — the same proxy is likely used elsewhere.**
+- Guard: `test_interpretation_does_not_depend_on_utterance_order` (parametrized over both readings,
+  trimmed to 3 sentences / 6 orders for suite time) + `test_a_minted_subkind_is_reported_as_a_fact`.
+  RE-BREAK VERIFIED: restoring the old verdict fails both; reverting passes.
+- **Consequence for extend mode: it now has a CORRECTNESS motive, not just a performance one.**
+  Under extend, node identity would be stable across utterances and "new this utterance" would mean
+  something again. The earlier framing here — that extend RISKS introducing order dependence — was
+  backwards: rebuild is what causes the order dependence that exists.
 
 **Also fixed 2026-07-19: `declare_grammar` failed SILENTLY on a bad path.** A non-existent path fell
 through to `load_grammar(str(...))` and was parsed AS GRAMMAR TEXT, giving an empty grammar that

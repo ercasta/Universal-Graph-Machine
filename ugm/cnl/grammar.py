@@ -374,13 +374,20 @@ def span_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
     return ([Rule(key=f"surf.span.{c}",
                   lhs=[Pat("?a", f"useful_{c}", "?b")],
                   nac=[Pat("?s", "cat", c), Pat("?s", "begin", "?a"), Pat("?s", "end", "?b")],
+                  # FRESH marks the spans this parse actually minted — the NAC above means that is
+                  # exactly the new sentence's spans. `decomposition_bank` SEEDS on it, so the tree
+                  # is built over the new sentence instead of the whole session (`clear_fresh`).
                   rhs=[Pat("<span>?", "cat", c), Pat("<span>?", "begin", "?a"),
-                       Pat("<span>?", "end", "?b")])
-             for c in sorted(gram.categories)], frozenset({"cat", "begin", "end"}))
+                       Pat("<span>?", "end", "?b"), Pat("<span>?", FRESH, "<yes>")])
+             for c in sorted(gram.categories)], frozenset({"cat", "begin", "end", FRESH}))
 
 
 #: The materialized parse tree — one node per DECOMPOSITION of a span into its children.
 DEC_PREDS = frozenset({"dprod", "dparent", "dleft", "dright", "donly"})
+
+#: Marks a span minted by the CURRENT parse. The semi-naive delta `run_bank` does not have, carried
+#: as declared rule structure instead of an engine change (`clear_fresh` retires it per utterance).
+FRESH = "<fresh>"
 
 
 def _prod_key(z: str, x: str, y: str | None = None) -> str:
@@ -407,12 +414,27 @@ def decomposition_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
     defect this bank exists to remove.
 
     This is SURFACE structure (spans and their tree, no denotation), so it runs in `parse` beside
-    `span_bank` and never sees the interpretation layer."""
+    `span_bank` and never sees the interpretation layer.
+
+    SEEDED ON `FRESH`, WHICH IS WHAT MAKES IT PER-UTTERANCE. `lower_conj` seeds each rule from its
+    FIRST pattern, so leading with `?p cat np` seeded EVERY span in the session and then joined —
+    the bank was 71.5% of `parse` and `parse` 59% of a session, all of it re-deriving decompositions
+    that already stood (the NAC stopped the re-MINT, but the join still ran). Leading with the
+    `FRESH` mark instead seeds only the spans this parse minted. This is the semi-naive delta
+    `run_bank` explicitly does not have ("Naive — no semi-naive delta / df-seeding"), carried as
+    DECLARED rule structure rather than an engine change.
+
+    SOUND because a span never crosses a sentence: spans are bounded by `begin`/`end` within one
+    token chain, so a decomposition of a new span can only involve other spans of the SAME sentence,
+    which are fresh too. The NAC stays as defence in depth (re-parsing a sentence re-marks spans
+    whose decompositions already stand)."""
+    fresh = [Pat("?p", FRESH, "?fr")]
     rules: list[Rule] = []
     for z, x, y in sorted(set(gram.binary)):
         rules.append(Rule(
             key=f"surf.dec.{z}.{x}.{y}",
-            lhs=[Pat("?p", "cat", z), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b"),
+            lhs=[*fresh,
+                 Pat("?p", "cat", z), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b"),
                  Pat("?l", "cat", x), Pat("?l", "begin", "?a"), Pat("?l", "end", "?m"),
                  Pat("?r", "cat", y), Pat("?r", "begin", "?m"), Pat("?r", "end", "?b")],
             nac=[Pat("?d", "dparent", "?p"), Pat("?d", "dleft", "?l"), Pat("?d", "dright", "?r")],
@@ -421,12 +443,28 @@ def decomposition_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
     for z, x in sorted(set(gram.unary)):
         rules.append(Rule(
             key=f"surf.dec.{z}.{x}",
-            lhs=[Pat("?p", "cat", z), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b"),
+            lhs=[*fresh,
+                 Pat("?p", "cat", z), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b"),
                  Pat("?q", "cat", x), Pat("?q", "begin", "?a"), Pat("?q", "end", "?b")],
             nac=[Pat("?d", "dparent", "?p"), Pat("?d", "donly", "?q")],
             rhs=[Pat("<dec>?", "dprod", _prod_key(z, x)), Pat("<dec>?", "dparent", "?p"),
                  Pat("<dec>?", "donly", "?q")]))
-    return rules, DEC_PREDS
+    return rules, DEC_PREDS | {FRESH}
+
+
+def clear_fresh(g) -> int:
+    """Retire the `FRESH` marks once the tree is built. Returns how many went.
+
+    The mark is a per-utterance delta, so it MUST NOT survive the utterance: left standing, the seed
+    set grows with the session and the optimization silently undoes itself (the whole point is that
+    the seed stays small). O(marked), via the key index — not a graph sweep, which would reintroduce
+    the per-utterance whole-graph cost this exists to remove."""
+    gone = 0
+    for r in list(g.nodes_with_key(FRESH)):
+        if r in g.nodes():
+            g.remove_node(r)
+            gone += 1
+    return gone
 
 
 def slot_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
@@ -681,6 +719,7 @@ def parse(g, sentence: str, banks: GrammarBanks, root: str = ROOT) -> tuple[str,
     if any(g.has_key(r, "ambiguous") for t in toks for r, _o in g.relations_from(t)):
         return AMBIGUOUS, toks, eos
     run_bank(g, banks.spans, control_preds=banks.span_preds)
+    clear_fresh(g)                                   # the delta is per-utterance; see `clear_fresh`
     return PARSED, toks, eos
 
 
@@ -721,6 +760,7 @@ def parse_batch(g, sentences, banks: GrammarBanks, root: str = ROOT) -> list[str
     run_bank(g, banks.chart, control_preds=banks.chart_preds)
     run_bank(g, banks.ambiguity, control_preds=banks.ambiguity_preds)
     run_bank(g, banks.spans, control_preds=banks.span_preds)
+    clear_fresh(g)                                   # the delta is per-utterance; see `clear_fresh`
     return [_outcome(g, toks, eos, root) for toks, eos in pairs]
 
 

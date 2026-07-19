@@ -124,9 +124,62 @@ def has_content_fact(kb, toks, *, since: set[str] | None = None) -> bool:
 
     The entity-side answer to `authoring.anchor_has_content_fact`. `since` plays the same role it
     does there — a pre-utterance node snapshot, so an utterance that merely MENTIONS already-related
-    entities does not misroute as a fact."""
+    entities does not misroute as a fact.
+
+    ⚠ ORDER-DEPENDENT AND WRONG IN BOTH DIRECTIONS ON THIS ROUTE — kept only for the callers that
+    still pass a snapshot. Use `asserts_content` instead; see its docstring for the measurements."""
     return any(True for e in denotata(kb, toks)
                for _ in _content_relations(kb, e, since=since))
+
+
+def asserting_categories(gram) -> set[str]:
+    """The categories whose declared assertions PREDICATE rather than DESCRIBE.
+
+    Exactly `assert_bank(defining=False)`'s selection, read off the same declarations: a category
+    that MINTS is settling what an entity IS (`np asserts head is attr` describing a subkind), and
+    saying `the african lion` is referring, not asserting. A non-minting category's assertion is
+    predication (`clause asserts subj pred obj`) — that is content."""
+    minting = {d["mcat"] for d in gram.mints}
+    return {d["acat"] for d in gram.assertions
+            if d.get("aobj") is not None and d["acat"] not in minting}
+
+
+def asserts_content(kb, toks, banks) -> bool:
+    """Does THIS utterance's parse predicate anything? A question about the SURFACE and the GRAMMAR.
+
+    WHY THIS REPLACED THE SNAPSHOT (measured 2026-07-19, 24-order permutation sweep). `route` used
+    to answer this with `has_content_fact(since=<pre-utterance node ids>)` — "does any entity this
+    utterance mentions carry a content relation that did not exist before". Two independent defects,
+    both of the quietly-does-something-wrong class:
+
+    * **False negative.** `denotata` reaches entities by the `denotes` hop from tokens, i.e. the
+      LEXICAL entities. A MINTED subkind hangs off the span's `head` slot and is reachable from no
+      token at all, so `the african lion has a mane` wrote three facts and reported `unrecognized`.
+    * **False positive, and the order dependence.** `lion` is in that sentence's denotata, so once
+      any earlier utterance gave `lion` a fact, the same sentence reports `fact` — for someone
+      else's content. The `since` snapshot does not filter it, because `reinterpret` re-mints the
+      WHOLE interpretation every utterance: a re-derived relation is a NEW NODE ID, so rebuild makes
+      everything look new. 22 of 24 orders disagreed on the verdict while the FACTS agreed in all 24.
+
+    The repair is to stop asking a question about node identity. Whether an utterance asserts is
+    decided by its parse: does it contain a span in a category that DECLARES a predication
+    (`asserting_categories`)? That reads the surface and the grammar only — it never enters the
+    interpretation layer, so it cannot be perturbed by rebuilding, re-minting, or what other
+    sentences happened to say. Order-independent by construction, and it routes by WHICH FORMS FIRED
+    rather than by inspecting results (intake discipline §D.1)."""
+    cats = asserting_categories(banks.grammar)
+    if not cats:
+        return False
+    toks = set(toks)
+    for t in toks:
+        for r in kb.into(t):                          # a `begin` relation lands on its token ...
+            if not kb.has_key(r, "begin"):
+                continue
+            for span in kb.into(r):                   # ... and its subject is the span
+                for cr, co in kb.relations_from(span):
+                    if kb.has_key(cr, "cat") and kb.name(co) in cats:
+                        return True
+    return False
 
 
 def utterance_centers(kb, toks) -> set[str]:
@@ -156,7 +209,6 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
     An ambiguous or refused utterance writes NO facts. The surface it did produce STAYS: it is the
     permanent record, and a later re-interpretation (or a discriminating answer) reads it without
     re-parsing."""
-    before = set(kb.nodes())
     outcome, toks, _eos = parse(kb, utterance, banks)
     if outcome == REFUSED:
         return "unrecognized", {"tokens": toks}
@@ -167,7 +219,7 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
                              "spans": [(kb.name(a), kb.name(b)) for a, b in spans]}
 
     scope = reinterpret(kb, banks)
-    return ("fact" if has_content_fact(kb, toks, since=before) else "unrecognized",
+    return ("fact" if asserts_content(kb, toks, banks) else "unrecognized",
             {"tokens": toks, "scope": scope, "centers": utterance_centers(kb, toks)})
 
 

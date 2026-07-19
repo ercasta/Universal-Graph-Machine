@@ -299,3 +299,41 @@ def test_parse_banks_are_idempotent(banks):
     base = len(list(g2.nodes()))
     parse(g2, "the lion has a mane", banks)
     assert len(list(g2.nodes())) - base == per_sentence, "accretion must be FLAT per sentence"
+
+
+def _dec_count(g):
+    return sum(1 for n in g.nodes() if g.has_key(n, "dparent"))
+
+
+def test_fresh_marks_do_not_survive_a_parse(banks):
+    """`FRESH` is a per-utterance delta and MUST be retired.
+
+    This is a guard against a SILENT regression, which is why it is worth its own test: if
+    `clear_fresh` stops being called, every answer stays correct and the system merely gets slower
+    and slower, because the seed set the delta exists to keep small now grows with the session.
+    Measured while building it -- leaving the marks standing took the span/decomposition stage from
+    0.51s back up to 1.55s over eight sentences."""
+    from ugm.cnl.grammar import FRESH
+    g = AttrGraph()
+    for s in ("the lion has a mane", "the lion roars", "the lion lives in africa"):
+        parse(g, s, banks)
+        assert not g.nodes_with_key(FRESH), "the FRESH delta must not outlive its utterance"
+
+
+def test_the_fresh_delta_skips_no_work(banks):
+    """Seeding decompositions on FRESH must not make a later sentence get LESS structure.
+
+    The delta is sound only because a span never crosses a sentence boundary. If that ever stops
+    holding, this is where it shows: the same sentence must materialize the same parse tree whether
+    it is parsed alone or as the third utterance of a session."""
+    alone = AttrGraph()
+    assert parse(alone, "the lion lives in africa", banks)[0] == PARSED
+    expected = _dec_count(alone)
+    assert expected, "the sentence must materialize decompositions at all"
+
+    session = AttrGraph()
+    parse(session, "the lion has a mane", banks)
+    parse(session, "the lion roars", banks)
+    before = _dec_count(session)
+    assert parse(session, "the lion lives in africa", banks)[0] == PARSED
+    assert _dec_count(session) - before == expected

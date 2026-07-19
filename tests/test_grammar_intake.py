@@ -5,12 +5,14 @@ scoped, and the three outcomes are distinguishable.
 """
 from __future__ import annotations
 
+import itertools
 import pathlib
 
 import pytest
 
 from ugm import AttrGraph
 from ugm.cnl import grammar_intake as gi
+from ugm.cnl.grammar import compile_grammar, load_grammar
 from ugm.interpretation import DENOTES, discard_scope
 
 CORPUS = pathlib.Path(__file__).resolve().parent.parent / "corpus"
@@ -178,3 +180,76 @@ def test_a_grammar_that_declares_nothing_raises():
     just as silent a failure as a bad path."""
     with pytest.raises(ValueError, match="no lexicon and no productions"):
         gi.declare_grammar(AttrGraph(), "this text declares nothing\nand neither does this")
+
+
+# ---------------------------------------------------------------------------
+# Order independence -- the epistemic invariant, swept over permutations
+# ---------------------------------------------------------------------------
+
+PERCOLATE = "slot head in np from modifier plus np is right head"
+MINT = "mint head in np from modifier plus np under right head"
+
+#: Mixes MODIFIED noun phrases (which can mint a subkind) with a BARE one, and gives the same
+#: subkind facts across two sentences -- the case where individuation has to agree.
+#: THREE sentences, not four: 6 orders instead of 24, and the structure that found the defect is
+#: fully preserved -- two mentions of the SAME subkind (individuation must agree) plus a bare `lion`
+#: sentence whose fact is what leaked into the other sentences' verdicts. The 4th sentence added 18
+#: orders and 30s of suite time without adding a case.
+ORDER_CORPUS = [
+    "the african lion has a mane",
+    "the african lion is strong",
+    "the lion has a tail",
+]
+
+
+def _grammar_text(minting):
+    text = (CORPUS / "loudon_grammar.cnl").read_text(encoding="utf-8")
+    if not minting:
+        return text
+    assert PERCOLATE in text, "the percolate line must be present to be swapped"
+    return text.replace(PERCOLATE, MINT)
+
+
+#: Compiled ONCE per reading. `declare_grammar` generates ~200 rules, and the sweep opens 48
+#: sessions -- recompiling per session cost 86s of suite time for no coverage.
+_ORDER_BANKS: dict = {}
+
+
+def _order_banks(minting):
+    if minting not in _ORDER_BANKS:
+        _ORDER_BANKS[minting] = compile_grammar(load_grammar(_grammar_text(minting)))
+    return _ORDER_BANKS[minting]
+
+
+def _session(order, minting):
+    g = AttrGraph()
+    g.registers[gi.GRAMMAR_REGISTER] = bank = _order_banks(minting)
+    verdicts = frozenset((s, gi.route(g, s, bank)[0]) for s in order)
+    return frozenset(gi.facts(g)), verdicts
+
+
+@pytest.mark.parametrize("minting", [False, True], ids=["percolate", "mint"])
+def test_interpretation_does_not_depend_on_utterance_order(minting):
+    """If two sentences speak about the same thing, the order they arrived in must not change what
+    the system believes -- NOR what it reports believing.
+
+    Both halves matter and only the second has ever been broken. Sweeping all 24 orders of a
+    4-sentence corpus (since trimmed to 3; see ORDER_CORPUS) found the FACTS identical in every order, while the ROUTING VERDICT disagreed
+    in 22 of 24: `route` asked "does an entity this utterance mentions carry a content relation that
+    is new by NODE ID", which (a) cannot see a minted subkind, reachable from no token, and (b)
+    counts another sentence's fact, because `reinterpret` re-mints everything so re-derived looks
+    new. Fixed by deciding from the PARSE (`asserts_content`); this is the guard."""
+    orders = list(itertools.permutations(ORDER_CORPUS))
+    baseline = _session(orders[0], minting)
+    for order in orders[1:]:
+        assert _session(order, minting) == baseline, f"order changed the outcome: {order}"
+
+
+def test_a_minted_subkind_is_reported_as_a_fact():
+    """The false NEGATIVE on its own: facts landed on the minted entity while the caller was told
+    `unrecognized`, because the subkind hangs off the span's `head` slot and no token denotes it."""
+    g = AttrGraph()
+    g.registers[gi.GRAMMAR_REGISTER] = _order_banks(True)
+    kind, _data = gi.route(g, "the african lion has a mane", gi.session_banks(g))
+    assert kind == "fact"
+    assert ("<is african & is_a lion>", "has", "mane") in gi.facts(g)
