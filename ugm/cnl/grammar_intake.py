@@ -27,7 +27,7 @@ from ..interpretation import (DENOTES, SURFACE_PREDS, close_scope, contradiction
                               describe, discard_scope, interpret, open_scope, scope_members)
 from ..lowering import run_bank
 from .grammar import (AMBIGUOUS, PARSED, REFUSED, REMINT, Grammar, compile_grammar, load_grammar,
-                      load_grammar_file, parse)
+                      load_grammar_file, mark_all_spans, parse)
 
 #: Mechanism state, so it lives in a register beside `forms`/`policy` — not as a graph node.
 GRAMMAR_REGISTER = "grammar"
@@ -218,7 +218,7 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
         return "ambiguous", {"tokens": toks,
                              "spans": [(kb.name(a), kb.name(b)) for a, b in spans]}
 
-    scope = reinterpret(kb, banks)
+    scope = extend(kb, banks)
     return ("fact" if asserts_content(kb, toks, banks) else "unrecognized",
             {"tokens": toks, "scope": scope, "centers": utterance_centers(kb, toks)})
 
@@ -231,24 +231,48 @@ def _discard_live(kb, banks) -> None:
     kb.registers.pop(SCOPE_REGISTER, None)
 
 
-def reinterpret(kb, banks) -> str:
-    """Discard the live interpretation and read the WHOLE standing surface afresh. Returns the scope.
+def _fold(kb, banks, scope) -> str:
+    """Run the fold over whatever is currently marked `UNINTERPRETED`. Returns the scope.
 
-    Replace, never accumulate. Interpreting each new utterance on top of the previous scope layers
-    readings over one another: `interpret_mentions` re-runs across a graph that already holds the last
-    pass's entities, and every derived marker is re-minted, so three sentences produced FIVE duplicate
-    contradiction markers. One live interpretation means exactly one, rebuilt.
-
-    Always on `reinterp_slots`, never the plain slot bank — with no span marked the two are
-    equivalent (the percolation NAC and the mint premise both test a marker that is not there), so
-    one bank covers both readings and the marks alone decide. This is also what makes a re-minting
-    judgement DURABLE: marks live on the surface, so they survive the discard that clears the
-    entities, and every later utterance is read under them."""
-    _discard_live(kb, banks)
-    fresh = live_scope(kb)
-    interpret(kb, banks, fresh,
+    Always on `reinterp_slots`, never the plain slot bank — with no span marked for RE-MINTING the
+    two are equivalent (the percolation NAC and the mint premise both test a marker that is not
+    there), so one bank covers both readings and the re-minting marks alone decide. That is also
+    what makes a re-minting judgement DURABLE: those marks live on the SURFACE, so they survive the
+    discard that clears the entities, and every later utterance is read under them."""
+    interpret(kb, banks, scope,
               slots=banks.reinterp_slots, slot_preds=banks.reinterp_slot_preds)
-    return fresh
+    return scope
+
+
+def extend(kb, banks) -> str:
+    """Fold the NEW spans into the standing interpretation. The per-utterance path.
+
+    ONE live interpretation, GROWN — not torn down and rebuilt. The banks are seeded on the
+    `UNINTERPRETED` mark that `span_bank` writes, so this reads only what this utterance parsed while
+    reaching entities earlier utterances already established.
+
+    EQUIVALENT TO `rebuild`, and that is a tested property, not an assumption
+    (`test_extending_the_scope_equals_rebuilding_it`). It was NOT true at first: keeping the scope
+    exposed two latent idempotency defects that discard-first had been paying for — a bound-literal
+    `<contradiction>?` duplicating its marker, and `interpret_mentions` minting a parallel entity per
+    name on every pass. Both are fixed at the source, so the equivalence belongs to the banks."""
+    return _fold(kb, banks, live_scope(kb))
+
+
+def rebuild(kb, banks) -> str:
+    """Discard the live interpretation and re-read the WHOLE standing surface. The revision path.
+
+    What `reconsider` needs after a contradiction: the re-minting marks changed, so every earlier
+    utterance must be re-read under them. Expressed in the SAME vocabulary as `extend` — mark all
+    the spans, then fold — so the two paths run identical banks and differ only in how much they
+    mark. Nothing here can drift from the common path, because there is no separate code path."""
+    _discard_live(kb, banks)
+    mark_all_spans(kb)
+    return _fold(kb, banks, live_scope(kb))
+
+
+#: Back-compat alias — `reinterpret` was the only mode before the split, and it was a rebuild.
+reinterpret = rebuild
 
 
 # ---------------------------------------------------------------------------
@@ -290,7 +314,7 @@ def reconsider(kb, banks) -> tuple[str, list]:
     if not any(kb.has_key(r, REMINT) for n in kb.nodes() for r, _o in kb.relations_from(n)):
         return ASK, cs                               # a judgement is at fault but no site to re-read
 
-    reinterpret(kb, banks)
+    rebuild(kb, banks)
     remaining = contradictions(kb)
     return (REVISED, []) if not remaining else (ASK, remaining)
 

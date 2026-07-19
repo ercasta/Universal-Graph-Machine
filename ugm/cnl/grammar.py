@@ -378,8 +378,10 @@ def span_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
                   # exactly the new sentence's spans. `decomposition_bank` SEEDS on it, so the tree
                   # is built over the new sentence instead of the whole session (`clear_fresh`).
                   rhs=[Pat("<span>?", "cat", c), Pat("<span>?", "begin", "?a"),
-                       Pat("<span>?", "end", "?b"), Pat("<span>?", FRESH, "<yes>")])
-             for c in sorted(gram.categories)], frozenset({"cat", "begin", "end", FRESH}))
+                       Pat("<span>?", "end", "?b"), Pat("<span>?", FRESH, "<yes>"),
+                       Pat("<span>?", UNINTERPRETED, "<yes>")])
+             for c in sorted(gram.categories)],
+            frozenset({"cat", "begin", "end", FRESH, UNINTERPRETED}))
 
 
 #: The materialized parse tree — one node per DECOMPOSITION of a span into its children.
@@ -388,6 +390,19 @@ DEC_PREDS = frozenset({"dprod", "dparent", "dleft", "dright", "donly"})
 #: Marks a span minted by the CURRENT parse. The semi-naive delta `run_bank` does not have, carried
 #: as declared rule structure instead of an engine change (`clear_fresh` retires it per utterance).
 FRESH = "<fresh>"
+
+#: Marks a span the INTERPRETATION has not folded yet — the same delta, for the other layer.
+#:
+#: TWO MARKS, NOT ONE, because the two layers consume the delta at different moments and must clear
+#: it at different moments: `FRESH` dies at the end of `parse` (its consumer, `decomposition_bank`,
+#: is done), while this one must survive into `interpret` and dies there. Sharing a single mark
+#: would couple the two lifecycles and make `parse` unusable on its own. Both are written by the
+#: same rule at the same instant (`span_bank`), so nothing is derived twice — only retired twice.
+#:
+#: REBUILD re-marks EVERY span (`mark_all_spans`), which is exactly what makes "discard and re-read
+#: the whole surface" still expressible: the delta is "what to interpret", and for a rebuild that is
+#: everything.
+UNINTERPRETED = "unfolded"
 
 
 def _prod_key(z: str, x: str, y: str | None = None) -> str:
@@ -459,12 +474,42 @@ def clear_fresh(g) -> int:
     set grows with the session and the optimization silently undoes itself (the whole point is that
     the seed stays small). O(marked), via the key index — not a graph sweep, which would reintroduce
     the per-utterance whole-graph cost this exists to remove."""
+    return _retire_mark(g, FRESH)
+
+
+def clear_uninterpreted(g) -> int:
+    """Retire the interpretation delta once `interpret` has folded it. Same contract as
+    `clear_fresh`, and the same silent-failure mode: leave these standing and every answer is still
+    right, the seed set just grows with the session until the delta buys nothing."""
+    return _retire_mark(g, UNINTERPRETED)
+
+
+def _retire_mark(g, key: str) -> int:
+    """Drop every relation node carrying `key`. O(marked) via the key index — NOT a graph sweep,
+    which would reintroduce the per-utterance whole-graph cost these marks exist to remove."""
     gone = 0
-    for r in list(g.nodes_with_key(FRESH)):
+    for r in list(g.nodes_with_key(key)):
         if r in g.nodes():
             g.remove_node(r)
             gone += 1
     return gone
+
+
+def mark_all_spans(g) -> int:
+    """Mark EVERY standing span uninterpreted — what a REBUILD means, expressed as the delta.
+
+    `reinterpret` discards the live interpretation and re-reads the whole standing surface; with the
+    fold now seeded on `UNINTERPRETED`, "the whole standing surface" is spelled "mark all of it".
+    So rebuild and extend run the SAME banks and differ only in how much they mark, which is what
+    keeps the two paths from drifting apart."""
+    marked = 0
+    yes = g.add_node("<yes>", control=True)
+    for s in list(g.nodes_with_key("cat")):
+        for span in list(g.into(s)):                  # `cat` hangs on a rel node; its subject is the span
+            if not any(g.has_key(r, UNINTERPRETED) for r, _o in g.relations_from(span)):
+                g.add_relation(span, UNINTERPRETED, yes, control=True)
+                marked += 1
+    return marked
 
 
 def slot_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
@@ -483,9 +528,10 @@ def slot_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
         side = "dleft" if d["mside"] == "left" else "dright"
         rules.append(Rule(
             key=f"fold.mint_entity.{i}.{d['mcat']}",
-            lhs=[Pat("?d", "dprod", _prod_key(d["mcat"], d["mleft"], d["mright"])),
-                 Pat("?d", "dparent", "?p"), Pat("?d", side, "?c"),
-                 Pat("?c", d["mcslot"], "?v")],
+            lhs=[Pat("?p", UNINTERPRETED, "?u"),
+                 Pat("?d", "dparent", "?p"),
+                 Pat("?d", "dprod", _prod_key(d["mcat"], d["mleft"], d["mright"])),
+                 Pat("?d", side, "?c"), Pat("?c", d["mcslot"], "?v")],
             # `?e` is an RHS-only variable, which is what makes it NAMELESS: `lower_rhs` gives a
             # bound literal a name and a plain literal graph-wide interning, but a bare `?e` mints
             # an unnamed node per firing. That is the `ByDesc` identity law.
@@ -525,7 +571,9 @@ def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
             continue
         guards = [Pat("?p", d["awhen"], "?gw")] if "awhen" in d else []
         nacs = [Pat("?p", d["aunless"], "?gu")] if "aunless" in d else []
-        base = [Pat("?p", "cat", z), Pat("?p", subj, "?s"), *guards]
+        # Led by the mark, so an assert rule seeds the new sentence's spans rather than every span
+        # carrying `cat` (see `_production_lhs` on premise order being the join plan).
+        base = [Pat("?p", UNINTERPRETED, "?u"), Pat("?p", "cat", z), Pat("?p", subj, "?s"), *guards]
         obj_prem, obj_tok = ([Pat("?p", obj, "?o")], "?o") if obj in names else ([], obj)
         if pred in names and mode != "deny":
             # ONE rule, with the predicate as an LHS-bound VARIABLE — the slot's filler names the
@@ -602,7 +650,7 @@ def mintable_slots(gram: Grammar) -> list[dict]:
     return out
 
 
-def _production_lhs(d: dict) -> tuple[list, str]:
+def _production_lhs(d: dict, *, delta: bool = True) -> tuple[list, str]:
     """The premises binding a slot declaration's parent `?p` and its head-side child, and that
     child's register.
 
@@ -615,7 +663,21 @@ def _production_lhs(d: dict) -> tuple[list, str]:
     key = _prod_key(d["scat"], d["sonly"]) if only else \
         _prod_key(d["scat"], d["sleft"], d["sright"])
     side = "donly" if only else ("dleft" if d["sside"] == "left" else "dright")
-    return ([Pat("?d", "dprod", key), Pat("?d", "dparent", "?p"), Pat("?d", side, "?c")], "?c")
+    if not delta:
+        # WHOLE-GRAPH variant, for a bank that must see spans the fold has already consumed —
+        # `remint_mark_bank` runs AFTER `interpret` has retired the delta marks, and has to find
+        # contradiction sites anywhere in the session. Delta-seeding it makes it match NOTHING, which
+        # is silent: `reconsider` simply reports ASK forever because it never finds a site to re-read.
+        return ([Pat("?d", "dprod", key), Pat("?d", "dparent", "?p"),
+                 Pat("?d", side, "?c")], "?c")
+    # PREMISE ORDER IS THE JOIN PLAN. `lower_conj` seeds from the first pattern and thereafter drives
+    # from whichever endpoint is already bound, so leading with the mark seeds the new sentence's
+    # spans and every later premise is a pointer hop off it. Putting `?d dprod KEY` first instead
+    # would seed EVERY decomposition in the session — the exact cost this is removing.
+    return ([Pat("?p", UNINTERPRETED, "?u"),      # seed: spans still to fold
+             Pat("?d", "dparent", "?p"),          # ?p bound -> follow IN to its decompositions
+             Pat("?d", "dprod", key),             # ?d bound -> test the production
+             Pat("?d", side, "?c")], "?c")
 
 
 def remint_mark_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
@@ -631,7 +693,7 @@ def remint_mark_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
     unsplit: it heads no mintable production."""
     rules: list[Rule] = []
     for d in mintable_slots(gram):
-        prem, src = _production_lhs(d)
+        prem, src = _production_lhs(d, delta=False)
         for w in sorted(gram.lexicon):
             rules.append(Rule(
                 key=f"remint.mark.{d['scat']}.{d['sleft']}.{w}",

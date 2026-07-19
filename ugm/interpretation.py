@@ -45,7 +45,8 @@ CONTRADICTION = "<contradiction>"
 DEFINING: tuple[str, ...] = ("is_a", "is")
 
 #: Predicates that are SURFACE structure. Everything else a fold writes is interpretation.
-SURFACE_PREDS: frozenset[str] = frozenset({"cat", "begin", "end", "next", "first", "is_eos"})
+SURFACE_PREDS: frozenset[str] = frozenset({"cat", "begin", "end", "next", "first",
+                                            "is_eos", "unfolded"})
 
 
 def _slot(g, n, key):
@@ -105,12 +106,19 @@ def interpret_mentions(g, scope: str) -> dict[str, str]:
     return ents
 
 
+#: The interpretation-layer delta mark (`cnl.grammar.UNINTERPRETED`), spelled here to keep this
+#: module free of a `cnl` import. The constant lives with `span_bank`, which writes it.
+UNINTERPRETED = "unfolded"
+
 HEAD_BRIDGE: list[Rule] = [
     # The bridge from surface to interpretation: a one-token span's `head` is the ENTITY its token
     # is taken to denote, not the token. Every slot downstream therefore carries entities, and the
     # whole fold writes into the scope without knowing it.
+    # Led by the delta mark like every other fold rule, so it seeds the spans still to fold rather
+    # than every span in the session.
     Rule(key="interp.lexhead",
-         lhs=[Pat("?p", "cat", "?c"), Pat("?p", "begin", "?t"), Pat("?p", "end", "?u"),
+         lhs=[Pat("?p", UNINTERPRETED, "?un"),
+              Pat("?p", "cat", "?c"), Pat("?p", "begin", "?t"), Pat("?p", "end", "?u"),
               Pat("?t", "next", "?u"), Pat("?t", DENOTES, "?e")],
          rhs=[Pat("?p", "head", "?e")]),
 ]
@@ -170,6 +178,12 @@ def discard_scope(g, scope: str, interp_preds) -> int:
     if scope in g.nodes():
         g.remove_node(scope)
         gone += 1
+    # Discarding the interpretation invalidates the WHOLE fold, so every span is unfolded again.
+    # Re-marking here rather than in the callers keeps the invariant self-maintaining: with the fold
+    # seeded on the delta mark, a discard that forgot to re-mark would make the next `interpret` a
+    # silent no-op. This is what makes "discard and re-derive" still mean what it says.
+    from .cnl.grammar import mark_all_spans
+    mark_all_spans(g)
     return gone
 
 
@@ -317,6 +331,10 @@ def interpret(g, banks, scope: str, *, slots=None, slot_preds=None) -> set[str]:
         intern_described(g)
     run_bank(g, banks.asserts)
     run_bank(g, contradiction_bank(set(banks.grammar.lexicon)))
+    # The fold is done with this delta. Contradiction detection ran over the WHOLE graph on purpose
+    # (it must see facts an earlier utterance put on a shared entity) and is cheap enough to.
+    from .cnl.grammar import clear_uninterpreted
+    clear_uninterpreted(g)
     close_scope(g, scope, before)
     return scope_members(g, scope)
 

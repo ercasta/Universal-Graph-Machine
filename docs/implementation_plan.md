@@ -20,16 +20,74 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶ PICK UP HERE (handoff 2026-07-19, suite 721 green, working tree clean of blockers)
+## ▶ PICK UP HERE (handoff 2026-07-19 evening, suite 734 green, UNCOMMITTED work in the tree)
 
-**STATE.** Integration steps 1, 2, 3 are DONE and the revision loop (slice 3) is built; steps 4, 5
-remain. Design: `design/homoiconic_grammar.md` §13, `design/surface_interpretation.md`.
+**STATE.** Integration steps 1, 2, 3 DONE; the revision loop (slice 3) built; **step 4 (optimize)
+substantially DONE — four levers, session 11.41 s → 1.39 s (8.2×)**. Step 5 (retire what the fork
+subsumes) NOT started. Design: `design/homoiconic_grammar.md` §13,
+`design/surface_interpretation.md`.
 
-**Where the new code is:** `ugm/cnl/grammar_intake.py` (the forked route + `reconsider`),
-`ugm/cnl/grammar.py` (`mintable_slots` / `remint_mark_bank` / `reinterpretation_slots`, and the span
-rule's idempotency NAC), `ugm/interpretation.py` (`interpret(slots=…)` override, `discard_scope`
-fixes), the fork block at `ugm/intake.py:461`, tests `tests/test_grammar_intake.py` (15) +
-`test_parse_banks_are_idempotent` in `tests/test_grammar.py`.
+**⚠ WORKING TREE.** `e19e356 "wip"` holds the first half (monotonicity docs, parse-tree
+materialization, `MINT.key_reg`). Everything after it is UNCOMMITTED: `ugm/cnl/grammar.py`,
+`ugm/cnl/grammar_intake.py`, `ugm/interpretation.py`, `tests/test_grammar.py`,
+`docs/implementation_plan.md`. Suite is green — commit before continuing.
+
+**WHAT THIS SESSION DID, newest first** (each has its own dated block below, with measurements):
+
+1. **Incremental interpretation** — `extend`/`rebuild` split on a second delta mark (`unfolded`).
+   interpret 0.93 → 0.52 s and FLAT (0.014 s/utterance late in a session).
+2. **Order-independence measured, and a REAL defect found** — facts were order-independent all
+   along, but `route`'s fact/unrecognized VERDICT disagreed in 22 of 24 orders and was wrong in both
+   directions. Fixed by asking the PARSE (`asserts_content`), not a node-id snapshot.
+3. **`extend ≡ rebuild` proven** — the gate on all of the above. Blocked by two LATENT idempotency
+   defects that discard-first had been silently paying for.
+4. **RHS variable predicates** (`MINT.key_reg`) — `assert_bank` 133 → 33 rules. First slice of the
+   learning arc's `predicates-are-keys`.
+5. **Parse tree materialized** (`decomposition_bank`) — slot stage 17×.
+6. **The monotonicity claim DROPPED** (user decision) — docs now say "no fact-relation deletion
+   WITHIN a pass"; `EMIT` VALUED documented as a destructive overwrite; versioning is opt-in KB data.
+
+**NEXT, in order:**
+
+- **Commit.** Then: the remaining curve is `parse` at 0.87 s (63% of the session) — `chart` and
+  `ambiguity` are still whole-graph per utterance. Same delta treatment, but the mark goes on the
+  new sentence's TOKENS rather than its spans (they write onto tokens). Well-worn pattern by now;
+  **re-measure first**, the stated lever in this arc has been wrong three times.
+- **Step 5** — retire what the fork subsumes (`ugm/intake.py:461` still forks; `has_content_fact` is
+  kept only for snapshot-passing callers and is marked as defective).
+- **The DENY collapse** — 26 of `assert_bank`'s remaining 33 rules; needs the positive/negative
+  pairing as graph data (`w -[neg_of]-> w_not`) so the rule BINDS the negative instead of computing
+  a string. Vocabulary change, not a lowering one; would take the bank to ~8.
+
+**FOUR SILENT-FAILURE LESSONS FROM THIS SESSION — read before touching the fold:**
+
+1. **A `<…>`-named premise turns a fact-writing rule into a control-writing one** (vision §5,
+   working as designed). Cost: the whole fold produced ZERO facts while every rule fired correctly.
+   A delta mark consumed by fact-writing rules needs a PLAIN name + `SURFACE_PREDS` membership.
+2. **Discard-first HIDES non-idempotency.** A bank only ever run over freshly-discarded state can be
+   non-idempotent for years without a symptom; the discard is paying the bill. Two surfaced the
+   instant the scope was kept.
+3. **A delta mark's CLEARING is load-bearing and its absence is silent** — everything stays correct,
+   the seed set just grows until the optimization undoes itself. Every delta needs a test asserting
+   the marks do not outlive their phase.
+4. **Re-break every parity test.** The first `extend ≡ rebuild` test passed for the WRONG REASON —
+   its corpus derived no contradiction, so the defect it existed to catch was never exercised.
+
+**Where the new code is:** `ugm/cnl/grammar_intake.py` (the forked route, `extend`/`rebuild`,
+`reconsider`, `asserts_content`/`asserting_categories`, loud `declare_grammar`), `ugm/cnl/grammar.py`
+(`decomposition_bank` + `_prod_key`, `FRESH`/`UNINTERPRETED` marks + `clear_fresh`/
+`clear_uninterpreted`/`mark_all_spans`, `mintable_slots` / `remint_mark_bank` /
+`reinterpretation_slots`, the span rule's idempotency NAC), `ugm/interpretation.py` (idempotent
+`interpret_mentions` + `contradiction_bank`, delta-led `HEAD_BRIDGE`, `discard_scope` re-marking),
+`ugm/machine.py` + `ugm/lowering.py` (`MINT.key_reg` + LHS-bound RHS predicate variables), the fork
+block at `ugm/intake.py:461`.
+
+**Tests worth knowing about:** `tests/test_grammar_intake.py` (21 — incl. the order-permutation
+sweep over both readings, `extend ≡ rebuild`, the minted-subkind verdict, and the two
+`declare_grammar` loudness tests), `tests/test_grammar.py` (27 — incl.
+`test_parse_banks_are_idempotent`, `test_decompositions_tile_their_parent`,
+`test_fresh_marks_do_not_survive_a_parse`, `test_the_fresh_delta_skips_no_work`),
+`tests/test_isa_lowering.py` (the dynamic-key MINT trio).
 
 **STEP 2 LANDED 2026-07-19 AS OPTION (b), VIA A DELIBERATE FORK.** User decision: option (a)'s
 direct fold was rejected as a target because it entrenches the token/entity duality —
@@ -304,12 +362,47 @@ only ever run over freshly-discarded state can be non-idempotent for years witho
 such defect is a bill the discard was paying. Expect more of them the moment any other scope stops
 being torn down.
 
-**NEXT (performance, now unblocked):** `extend` is semantically admissible, so the remaining work is
-the DELTA — seed the slot/assert banks on the new utterance's spans, the same trick as
-`decomposition_bank`, plus an `extend`/`rebuild` split in `grammar_intake` (`reconsider` keeps
-rebuild, which must re-mark all spans). Expect roughly the interpret half (0.93 s) to become
-proportional to the new sentence. No speedup yet from the above — extend still runs the banks over
-the whole graph (0.47 s vs rebuild's 0.50 s); the correctness gate simply came first.
+**INCREMENTAL INTERPRETATION LANDED 2026-07-19 (suite 734 green).** The fold is seeded on a second
+delta mark, `UNINTERPRETED` (`unfolded`), written by `span_bank` beside `FRESH`.
+
+- **TWO marks, not one, because the LIFECYCLES differ:** `FRESH` dies at the end of `parse` (its
+  consumer, `decomposition_bank`, is done); `unfolded` must survive into `interpret` and dies there.
+  Sharing one would couple the phases and make `parse` unusable standalone. Both are written by the
+  same rule at the same instant, so nothing is derived twice — only retired twice.
+- **`extend` / `rebuild` split** in `grammar_intake`: `route` extends (fold what is marked),
+  `reconsider` rebuilds (discard, `mark_all_spans`, fold). **Expressed in the SAME vocabulary** — the
+  two paths run identical banks and differ only in how much they mark, so they cannot drift apart.
+  `reinterpret` stays as an alias for `rebuild`.
+- **`discard_scope` re-marks every span**, so the invariant is self-maintaining: discarding
+  invalidates the whole fold, and a caller that forgot to re-mark would make the next `interpret` a
+  SILENT no-op.
+- **MEASURED:** interpret **0.93 → 0.52 s**, and the CURVE IS FLAT — later sentences cost
+  0.014-0.016 s against 0.109 s for sentence 4, i.e. proportional to the new sentence rather than to
+  the session. Session **1.80 → 1.39 s**. Validated on the full 8-sentence session: extend and
+  rebuild give identical facts and identical contradiction counts (extend has 15 FEWER nodes —
+  rebuild's repeated discard leaves orphans; extend is the cleaner path, not the lossy one).
+
+**CUMULATIVE ACROSS ALL FOUR LEVERS: session 11.41 → 1.39 s (8.2×).**
+
+**TWO DEFECTS FOUND BUILDING IT, both silent, both worth remembering:**
+
+1. **⭐ A `<…>`-NAMED PREMISE TURNS A FACT-WRITING RULE INTO A CONTROL-WRITING ONE.** The mark was
+   first called `<uninterpreted>`; `_rule_touches_control` then flagged every fold rule, so
+   `lower_rhs` minted every head with `control=True` and `scope_facts` filtered them all out —
+   **the fold produced ZERO facts while every rule fired correctly.** This is vision §5 working as
+   designed (a rule gated by a control token produces control-layer output); the lesson is that the
+   `<…>` convention is LOAD-BEARING and a delta mark consumed by fact-writing rules must have a
+   PLAIN name. Renamed to `unfolded` and added to `SURFACE_PREDS` beside `cat`/`begin`/`end`, which
+   is exactly the precedent (surface scaffolding with plain names, skipped by readers).
+2. **`remint_mark_bank` must NOT be delta-seeded.** It shares `_production_lhs` with the fold, but it
+   runs AFTER `interpret` has retired the marks and has to find contradiction sites anywhere in the
+   session. Delta-seeding made it match nothing — silently, with `reconsider` reporting ASK forever
+   instead of REVISED. `_production_lhs(delta=False)` is the whole-graph variant.
+
+**WHERE IT SITS NOW:** `parse` **0.87 s (63%)** is the remaining curve — `chart` and `ambiguity` are
+still whole-graph per utterance (`spans+decs` is already delta-seeded). Same treatment applies: their
+rules are per-sentence local, but they write onto TOKENS, so the mark goes on the new sentence's
+tokens. `interpret` **0.52 s (37%)** and flat.
 
 **Also fixed 2026-07-19: `declare_grammar` failed SILENTLY on a bad path.** A non-existent path fell
 through to `load_grammar(str(...))` and was parsed AS GRAMMAR TEXT, giving an empty grammar that

@@ -14,8 +14,9 @@ import pytest
 from ugm import AttrGraph
 from ugm.cnl.grammar import (AMBIGUOUS, PARSED, REFUSED, compile_grammar, load_grammar,
                              load_grammar_file, ambiguous_spans, parse)
-from ugm.interpretation import (contradictions, culprits, describe, discard_scope, interpret,
-                                intern_described, open_scope, scope_facts)
+from ugm.interpretation import (UNINTERPRETED, contradictions, culprits, describe,
+                                discard_scope, interpret, intern_described, open_scope,
+                                scope_facts)
 
 CORPUS = pathlib.Path(__file__).resolve().parent.parent / "corpus"
 GRAMMAR_FILE = CORPUS / "lion_grammar.cnl"
@@ -225,7 +226,10 @@ def test_interpretation_is_discardable_and_the_surface_survives(banks, subkind_b
     g = AttrGraph()
     for s in ("the lion has a mane", "the guzerat lion has no mane"):
         assert parse(g, s, banks)[0] == PARSED
-    surface = set(g.nodes())
+    # The delta marks (`unfolded`) are TRANSIENT scaffolding that the fold consumes and retires --
+    # they are not part of the surface record, so they are excluded from what must survive. Tokens,
+    # chains and spans are.
+    surface = {n for n in g.nodes() if not g.has_key(n, UNINTERPRETED)}
 
     scope_a = open_scope(g)
     interpret(g, banks, scope_a)
