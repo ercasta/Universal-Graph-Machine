@@ -231,11 +231,27 @@ class Band:
     A scope has NEITHER existing identity — no NAME to intern by, no subject/object edges to dedup
     on — which is why `MINT` gained `reuse_attr_of`: the scope's identity is the `<scope>` tag its
     own penned fact already carries, so a found head yields a found scope. Pinned by
-    `test_a_band_is_idempotent_across_runs` (re-break verified)."""
+    `test_a_band_is_idempotent_across_runs` (re-break verified).
+
+    GENERALIZED 2026-07-20: THE DEGREE IS AN OPTIONAL DECORATION ON "PEN THESE HEADS BEHIND THIS
+    NODE". The core effect is the SCOPE — mint a node and write the named RHS relations in pencil
+    behind it. A graded attribute is one thing you may then say ABOUT that node, and it is what a
+    possibilistic fork happens to need; it is not what makes the primitive.
+
+    Attribution is the second user and is why this was generalized before it landed: *some
+    naturalists consider the lion a cat* needs the same pencil scope MINUS the degree, plus an
+    ordinary `held_by` triple the RHS can already write. Leaving `key`/`degree` mandatory would have
+    forced attribution to invent a meaningless degree — and a fabricated 0.5 is exactly the "silent
+    default" the hedge path refuses to make. With both omitted this pens without grading, which is
+    the general case; `possibility` remains the decorated one.
+
+    (The name stays `Band` deliberately. Renaming to `Scope` is SURFACE — churn across the lowering,
+    the grammar and the tests for no change in what any rule can express. The mandatory graded key
+    was the real entrenchment, and that is what came off.)"""
     var: str                          # RHS token naming the node (a skolem, or an LHS-bound var)
-    key: str                          # graded attribute key, e.g. `<likeliness>`
-    degree: float
     scope: tuple[str, ...] = ()       # RHS subject tokens whose relations are penned behind `var`
+    key: str | None = None            # graded attribute key, e.g. `<likeliness>` — OPTIONAL
+    degree: float | None = None       # its degree; omit BOTH to pen without grading
 
 
 # ---------------------------------------------------------------------------

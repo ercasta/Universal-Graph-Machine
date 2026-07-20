@@ -386,7 +386,10 @@ def _lower_bands(rule: Rule, reg_of: dict[str, str], head_regs: dict[str, list[s
             prog.append(MINT(reg, attrs=attrs, control=True,
                              reuse_attr_of=(heads[0] if heads else None), reuse_key=SCOPE))
             reg_of[ident] = reg
-        prog.append(EMIT(reg=reg, key=b.key, value=float(b.degree), raise_degree=False))
+        # THE GRADED WRITE IS OPTIONAL — the core effect is the pencil scope below. Attribution pens
+        # without a degree (there is no meaningful one to state, and defaulting would fabricate it).
+        if b.key is not None and b.degree is not None:
+            prog.append(EMIT(reg=reg, key=b.key, value=float(b.degree), raise_degree=False))
         for hreg in heads:
             prog.append(EMIT(reg=hreg, key=SCOPE, value="", kind=VALUED, value_reg=reg))
     return prog

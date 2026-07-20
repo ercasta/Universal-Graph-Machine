@@ -384,3 +384,64 @@ def test_the_fresh_delta_skips_no_work(banks):
     before = _dec_count(session)
     assert parse(session, "the lion lives in africa", banks)[0] == PARSED
     assert _dec_count(session) - before == expected
+
+
+# ---------------------------------------------------------------------------
+# THE OPEN-VOCABULARY DEFAULT IS FOR *UNDECLARED* WORDS
+# ---------------------------------------------------------------------------
+
+_LOUDON = pathlib.Path(__file__).resolve().parent.parent / "corpus" / "loudon_grammar.cnl"
+
+
+def _open_banks(extra: str = ""):
+    from ugm.cnl.grammar import compile_grammar, load_grammar
+    return compile_grammar(load_grammar(_LOUDON.read_text(encoding="utf-8") + extra),
+                           open_class="noun")
+
+
+def _outcome(sentence: str, banks) -> str:
+    from ugm.attrgraph import AttrGraph
+    from ugm.cnl.grammar import parse
+    g = AttrGraph()
+    return parse(g, sentence, banks)[0]
+
+
+def test_opening_the_vocabulary_does_not_make_declared_words_ambiguous():
+    """⭐ THE BLOCKER FOR MAKING THE GRAMMAR ROUTE THE DEFAULT INTAKE PATH, and it was found by
+    measuring that migration rather than by any parse failure.
+
+    The open-class default used to exclude only `CLOSED_CLASSES`, so a word declared `adj` was STILL
+    eligible as an open noun — two categories, two readings. Opening the vocabulary therefore
+    MANUFACTURED ambiguity in sentences that already parsed, and an ambiguous utterance commits
+    NOTHING. Measured on the shipped corpus before the fix: `the lion is strong` went from `parsed`
+    (closed vocabulary) to `ambiguous`. So the grammar did not degrade gracefully as vocabulary grew
+    — it degraded into silence, and the two ways to widen coverage pulled against each other."""
+    banks = _open_banks()
+    assert _outcome("the lion is strong", banks) == PARSED
+    assert _outcome("the african lion is strong", banks) == PARSED
+
+
+def test_the_open_default_still_refuses_gibberish():
+    """Refusal must survive the open vocabulary — otherwise the default is just 'accept everything'."""
+    banks = _open_banks()
+    for junk in ("glorp the flarn", "flarn glorp zibble"):
+        assert _outcome(junk, banks) == REFUSED
+
+
+def test_a_word_needing_two_categories_must_DECLARE_both():
+    """THE TRADE, pinned in both directions — the capability is not lost, it MOVED to a declaration.
+
+    A nominalized adjective (`the strong …`) refuses while `strong` is declared only `adj`, and parses
+    once the grammar also says `strong is a noun` — at which point `the lion is strong` becomes
+    ambiguous HONESTLY, because the grammar really has said the word is two things. Declaring is how
+    a grammar says what a word can be; the default only fills in for words it has not spoken about.
+
+    Note the loss case is a REFUSAL — loud and countable — where the old behaviour's cost was
+    silence. That is the direction this project trades in."""
+    adj_only = _open_banks()
+    assert _outcome("the strong is smaller than the lion", adj_only) == REFUSED
+
+    both = _open_banks("strong is a noun\n")
+    assert _outcome("the strong is smaller than the lion", both) == PARSED
+    assert _outcome("the lion is strong", both) == AMBIGUOUS, (
+        "with two DECLARED categories the ambiguity is earned and must be reported")

@@ -21,7 +21,7 @@ import time
 import ugm as h
 from ugm import AttrGraph, Pat, Rule, derived_triples, run_bank
 from ugm.cnl.forms import _chain_tokens, tokenize
-from ugm.cnl.grammar import (AMBIGUOUS, CLOSED_CLASSES, PARSED, REFUSED, ROOT, ambiguity_bank,
+from ugm.cnl.grammar import (AMBIGUOUS, PARSED, REFUSED, ROOT, ambiguity_bank,
                              chart_bank, compile_grammar, load_grammar_file, parse, sp)
 
 CORPUS = pathlib.Path(__file__).resolve().parent.parent / "corpus"
@@ -80,15 +80,20 @@ def spans(g, toks, eos) -> dict[tuple[str, int, int], int]:
     return out
 
 
-def lexical_spans(gram, names, *, open_class=None, closed=CLOSED_CLASSES) -> set[tuple[str, int]]:
+def lexical_spans(gram, names, *, open_class=None) -> set[tuple[str, int]]:
     """{(cat, i)} — categories token `i` carries DIRECTLY from the lexicon: the base case of the
-    derivation count (a width-1 span reached by a unary production is not one of these)."""
+    derivation count (a width-1 span reached by a unary production is not one of these).
+
+    MIRRORS `chart_bank`'s open-class rule and must be re-checked whenever that changes — this
+    harness duplicating the pipeline is the trap the plan has recorded twice. Updated 2026-07-20:
+    the default applies to words the grammar declares NOTHING about, not to every word outside a
+    closed class."""
     out: set[tuple[str, int]] = set()
     for i, nm in enumerate(names):
         cs = gram.lexicon.get(nm, [])
         for c in cs:
             out.add((c, i))
-        if open_class and not any(c in closed for c in cs):
+        if open_class and not cs:
             out.add((open_class, i))
     return out
 

@@ -41,9 +41,17 @@ from .forms import _chain_tokens, tokenize
 
 ROOT = "clause"
 
-#: Word classes that are FUNCTION words: a word declared one of these is not eligible for the
-#: open-vocabulary default. Data, overridable per call — it should itself become a CNL declaration.
+#: Word classes that are FUNCTION words. NO LONGER GATES the open-vocabulary default — ANY declared
+#: category does (see `DECLARED` / `chart_bank`), because gating on function words alone left every
+#: declared content word doubling as an open noun. Retained as linguistic data (and used by
+#: `bench/spike_homoiconic_grammar.py`); it should itself become a CNL declaration.
 CLOSED_CLASSES: tuple[str, ...] = ("determiner", "negator", "comparator", "preposition", "copula")
+
+#: Marks a token the grammar DECLARES something about, gating the open-vocabulary default so it
+#: applies only to words the grammar has not spoken about. Was `closed_class`, and the rename is the
+#: fix: it used to mark only FUNCTION words, which left every declared content word ALSO eligible as
+#: an open noun and so silently ambiguous. See `chart_bank`.
+DECLARED = "declared"
 
 
 def sp(cat: str) -> str:
@@ -342,14 +350,34 @@ class GrammarBanks:
     reinterp_slot_preds: frozenset[str] = frozenset()
 
 
-def chart_bank(gram: Grammar, *, open_class: str | None = None,
-               closed: tuple[str, ...] = CLOSED_CLASSES) -> tuple[list[Rule], frozenset[str]]:
+def chart_bank(gram: Grammar, *, open_class: str | None = None) -> tuple[list[Rule], frozenset[str]]:
     """The chart rules: one per lexicon entry, per unary production, per binary production.
 
-    `open_class`: with it set, any token NOT declared in a closed class also spans as that category
-    — the open-vocabulary default. It is one rule with a NAC over a DECLARED tag (no hardcoded
-    stop-list), REFUSAL SURVIVES IT (gibberish still fails to parse), and it is cheaper than
-    one lexical rule per word. See `homoiconic_grammar.md` §8.4.
+    `open_class`: with it set, any token the grammar declares NOTHING about also spans as that
+    category — the open-vocabulary default. One rule with a NAC over a DECLARED tag (no hardcoded
+    stop-list), REFUSAL SURVIVES IT (gibberish still fails to parse), and cheaper than one lexical
+    rule per word. See `homoiconic_grammar.md` §8.4.
+
+    ⭐ THE DEFAULT IS FOR *UNDECLARED* WORDS — NOT AN EXTRA CATEGORY STAPLED ONTO DECLARED ONES
+    (fixed 2026-07-20; it used to exclude only `CLOSED_CLASSES`). Under the old rule a word declared
+    `adj` was STILL also eligible as an open noun, so it carried two categories and its sentences
+    parsed two ways. Measured: with `open_class="noun"` the shipped Loudon corpus dropped from 23/23
+    to 21 parsed + **2 AMBIGUOUS** — `the lion is strong` and `the african lion is strong` — and an
+    ambiguous utterance commits NOTHING. So opening the vocabulary MANUFACTURED silence in sentences
+    that already worked, and the two obvious ways to widen coverage (declare more words / open the
+    vocabulary) pulled against each other. This is the blocker for making the grammar route the
+    default intake path, found by measuring that migration rather than by a parse failure.
+
+    THE CAPABILITY IS NOT LOST, IT MOVED TO AN EXPLICIT DECLARATION — which is the point.
+    `the strong is smaller than the lion` (a nominalized adjective) now REFUSES with `strong`
+    declared only `adj`, and parses again once the grammar says `strong is a noun` — at which point
+    `the lion is strong` becomes ambiguous HONESTLY, because the grammar really has said the word is
+    two things. Declaring is how a grammar says what a word can be; the default only fills in for
+    words it has not spoken about. And the loss case is a REFUSAL — loud and countable — where the
+    old behaviour's cost was silence.
+
+    MEASURED AFTER: Loudon 23/23 with the vocabulary open, gibberish still refused, closed-vocabulary
+    behaviour bit-identical.
 
     EVERY RULE LEADS WITH `UNPARSED` so the chart is built over the NEW SENTENCE rather than the
     whole session — see that constant for why this is the lever and why it is sound. The mark binds
@@ -365,13 +393,13 @@ def chart_bank(gram: Grammar, *, open_class: str | None = None,
                               rhs=[Pat(f"{w}?", sp(c), "?u")]))
     if open_class:
         for w, cs in sorted(gram.lexicon.items()):
-            if any(c in closed for c in cs):
-                rules.append(Rule(key=f"chart.closed.{w}",
+            if cs:                      # ANY declared category, not merely a closed one — see above
+                rules.append(Rule(key=f"chart.declared.{w}",
                                   lhs=[Pat(f"{w}?", UNPARSED, "?up"), Pat(f"{w}?", "next", "?u")],
-                                  rhs=[Pat(f"{w}?", "closed_class", "yes")]))
+                                  rhs=[Pat(f"{w}?", DECLARED, "yes")]))
         rules.append(Rule(key=f"chart.open.{open_class}",
                           lhs=[Pat("?t", UNPARSED, "?up"), Pat("?t", "next", "?u")],
-                          nac=[Pat("?t", "closed_class", "yes")],
+                          nac=[Pat("?t", DECLARED, "yes")],
                           rhs=[Pat("?t", sp(open_class), "?u")]))
         cats.add(open_class)
     for z, x in gram.unary:
@@ -383,7 +411,7 @@ def chart_bank(gram: Grammar, *, open_class: str | None = None,
                           lhs=[Pat("?a", UNPARSED, "?up"),
                                Pat("?a", sp(x), "?m"), Pat("?m", sp(y), "?b")],
                           rhs=[Pat("?a", sp(z), "?b")]))
-    return rules, frozenset({"next", "first", "closed_class", UNPARSED}
+    return rules, frozenset({"next", "first", DECLARED, UNPARSED}
                             | {sp(c) for c in cats})
 
 
@@ -1007,10 +1035,13 @@ def reinterpretation_slots(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
     return rules, preds | {REMINT}
 
 
-def compile_grammar(gram: Grammar, *, open_class: str | None = None,
-                    closed: tuple[str, ...] = CLOSED_CLASSES) -> GrammarBanks:
-    """Generate every bank from `gram`. Do this ONCE per grammar and reuse across sentences."""
-    chart, cpreds = chart_bank(gram, open_class=open_class, closed=closed)
+def compile_grammar(gram: Grammar, *, open_class: str | None = None) -> GrammarBanks:
+    """Generate every bank from `gram`. Do this ONCE per grammar and reuse across sentences.
+
+    (`closed=` removed 2026-07-20 — the open-vocabulary default is now gated by whether the grammar
+    declares ANYTHING about a word, so a closed-class list no longer enters into it. Dead parameters
+    rot; see `chart_bank`.)"""
+    chart, cpreds = chart_bank(gram, open_class=open_class)
     amb, apreds = ambiguity_bank(gram)
     spans, sppreds = span_bank(gram)
     decs, dpreds = decomposition_bank(gram)

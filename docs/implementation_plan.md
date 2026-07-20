@@ -855,16 +855,112 @@ and the probe killed the feature and found a defect underneath it instead.
 - Probes: scratch `probe_cond.py` / `probe_explicit.py` / `probe_duality.py` (the last reads the
   NODES, which is what separated "works" from "right by luck").
 
-**SEQUENCE: domination gating FIRST — DONE. Conditionality — DONE, by deletion plus the fix above.**
-Next, in order:
+**ATTRIBUTION'S SUBSTRATE PROBED END TO END — SOUND, AND `Band` GENERALIZED (2026-07-20, suite 758
+green).** Held to the rule the duality bug just produced: probe a "mechanism exists" entry through
+the REAL route before calling it cheap. Hedging is the cheap proxy, since it already drives the same
+pencil scope THROUGH THE FOLD.
+
+- **The pencil mechanism is reachable end to end, and for the right reason.** Under the default crisp
+  stance a hedged premise answers `no (assumed)` and a rule does NOT reason through it — correct,
+  that IS the non-veridicality attribution wants. Under a banded stance (`be decisive`) the hedged
+  fact answers `likely` AND a rule reasons through it, with the band PROPAGATING to the conclusion
+  at 0.75.
+- **Verified at NODE level, not from the reader's number** — the lesson from the duality bug, where
+  the reader was right by luck. Both the hedged premise and the derived conclusion are pencil
+  relations **on the ENTITY** (`n168`); the surface token carries nothing. So the possibilistic
+  layer, the rule layer and the grammar route all meet on the entity side. **Attribution inherits a
+  working substrate**, and the plan's "mostly declaration work" now has evidence behind it.
+- **`Band` GENERALIZED, per its own design note ("generalize when the second user arrives — do not
+  entrench the graded key as mandatory"). The second user has arrived.** `key`/`degree` are now
+  OPTIONAL: the primitive is "pen these heads behind this node", and the graded attribute is one
+  optional thing you may say about that node. Attribution needs the scope MINUS the degree — and had
+  they stayed mandatory it would have had to **fabricate a degree**, which is exactly the silent
+  default the hedge path refuses to make (an undeclared band is SKIPPED there, never defaulted).
+- **THE NAME STAYS `Band`, deliberately, and that is this session's principle applied to itself.**
+  The design note said "the right primitive is `Scope`, not `Band`". Renaming is SURFACE — churn
+  across the lowering, the grammar and the tests for no change in what any rule can express. The
+  mandatory graded key was the real entrenchment; that is what came off. Spend on the epistemic
+  column, not the baroque one.
+- Pinned by `test_a_band_can_pen_without_a_degree`, which asserts BOTH halves (the head is penned and
+  `<scope>`-tagged; no degree is fabricated on the scope node). **Re-break verified** — forcing the
+  graded write back on fails it.
+- Probe: scratch `probe_attribution.py`.
+
+**⭐⭐ WHAT BREAKS IF THE GRAMMAR ROUTE BECOMES THE DEFAULT — MEASURED 2026-07-20 (user question).**
+Answer: **not the client. The CNL surface.** And the blocker is not coverage, it is a scaling hazard
+that only appears when you fix coverage.
+
+- **`../pystrider` IS ESSENTIALLY UNAFFECTED, measured: 388 passed / 0 failed against this tree**
+  (which also clears my `_through_denotation` change — inert on a client that never writes `denotes`,
+  as designed). The SHIPPED packages (`pystrider/`, `grammapy/`) call `ingest` **zero times**; the
+  only 6 calls are in `experiments/` and are ALL `to NAME :` / `run NAME` — **procedure routes, which
+  sit ABOVE the fork** along with questions, rules, focus, stance and forms. pystrider is a
+  graph+rules+reasoning client (`AttrGraph`, `load_machine_rules`, `ask_goal`, `suppose`,
+  `set_candidate`), not a natural-language one. NOTE the stale memory: the "14 pre-existing failures"
+  baseline is gone, it is now fully green.
+- **The exposure is the FACT tail, and it is large in the REPO: 79 of 152 non-comment lines across
+  the shipped `corpus/*.cnl` are fact-route lines** that would hit the fork.
+- **THREE BREAKING CLASSES, measured on real corpus lines** (`get_beans produces beans`,
+  `we want have_coffee`, `charizard is rare`, `buy_charizard is a buy`, `ada visits dog`,
+  `don't sell rare cards`):
+  * **Closed vocabulary: 0/6.** Every word must be in a declared lexicon with a declared category.
+  * **+ open vocabulary for ENTITIES: 2/6.** Fixes nouns, not predicates.
+  * **+ predicates declared `transitive`: 5/6.** So arbitrary binary relations DO work — but each
+    predicate needs a lexicon line, the grammar-route counterpart of the shipped `relation_forms`
+    "declare the relation and a form is generated". Comparable burden, NOT a blocker.
+  * **1/6 never parses: `don't sell rare cards`** — an imperative/policy line. A genuinely absent
+    construction, not a vocabulary gap.
+- **⭐ THE REAL BLOCKER, AND IT IS THE OPPOSITE OF WHAT COVERAGE WORK ASSUMES: OPENING THE VOCABULARY
+  MANUFACTURES AMBIGUITY IN SENTENCES THAT ALREADY WORKED.** `charizard is rare` parses cleanly with
+  open nouns, and goes AMBIGUOUS once `rare` is declared an `adj` — because `chart_bank`'s
+  open-class NAC excludes only `CLOSED_CLASSES` (`determiner`/`negator`/`comparator`/`preposition`/
+  `copula`), so a declared CONTENT word is still ALSO eligible as an open noun. Two categories, two
+  readings. **Reproduced on the shipped corpus: `the lion is strong` is `parsed` closed-vocabulary
+  and `ambiguous` with `open_class="noun"`.** The Loudon 19/19 baseline never saw this because it
+  runs closed.
+- **WHY THAT IS THE DECISION-RELEVANT PART.** An ambiguous utterance commits NOTHING (by design). So
+  the grammar does not degrade GRACEFULLY as vocabulary grows — it degrades into silence, and the two
+  fixes for coverage (declare more words / open the vocabulary) pull against each other. Any
+  "make it the default" plan must resolve this FIRST, or every KB gets quieter as it gets bigger.
+- **⭐ FIXED 2026-07-20 (suite 761 green) — AND THE INTUITION WAS RIGHT THIS TIME, WHICH IS ITSELF
+  WORTH RECORDING** after four consecutive mis-scopings. The probe confirmed it rather than
+  overturning it: **the open-class default now applies to words the grammar declares NOTHING about**,
+  not to every word outside a closed class. `chart_bank`'s marker renamed `closed_class` ->
+  `DECLARED` (the rename IS the fix — the old name marked only function words).
+  * **MEASURED:** Loudon corpus with `open_class="noun"` goes **21 parsed + 2 ambiguous -> 23/23**;
+    gibberish still REFUSED; closed-vocabulary behaviour bit-identical. The corpus sample goes 5/6
+    with no ambiguity (`don't sell rare cards` still refuses — a genuinely absent construction).
+  * **THE TRADE, MEASURED IN BOTH DIRECTIONS RATHER THAN ASSERTED.** A nominalized adjective
+    (`the strong is smaller than the lion`) parsed under the old rule and now REFUSES — **but the
+    capability MOVED to an explicit declaration rather than being lost**: add `strong is a noun` and
+    it parses again, at which point `the lion is strong` is ambiguous HONESTLY, because the grammar
+    really has said the word is two things. **Declaring is how a grammar says what a word can be; the
+    default only fills in for words it has not spoken about.** And the loss case is a REFUSAL — loud
+    and countable — where the old behaviour's cost was silence. That is the direction this project
+    trades in.
+  * `CLOSED_CLASSES` no longer gates anything and `chart_bank`/`compile_grammar` lost their dead
+    `closed=` parameter. **`bench/spike_homoiconic_grammar.py`'s `lexical_spans` REIMPLEMENTED the
+    old rule** and was updated in the same change — the "harness that duplicates a pipeline" trap
+    this file has now recorded three times.
+  * Pinned by `test_opening_the_vocabulary_does_not_make_declared_words_ambiguous`,
+    `test_the_open_default_still_refuses_gibberish` and
+    `test_a_word_needing_two_categories_must_DECLARE_both` (which pins the LOSS case too, so the
+    trade cannot be quietly reversed). **RE-BREAK VERIFIED WITH THE RIGHT ASYMMETRY:** restoring the
+    old gating fails the two behaviour tests and leaves the gibberish one passing — correct, since
+    that one guards a property the fix PRESERVES rather than one it introduces.
+- **NOT CHECKED, and owed before any migration:** `focus.utterance_subjects` and
+  `authoring.anchor_has_content_fact` are the two token-chain readers `grammar_intake` wrote
+  counterparts for rather than edits; the book/playground surface; and whether `load_kb` corpora would
+  each need a grammar file. The 54 `nodes_named` read sites (above) are in the same bucket.
+
+**SEQUENCE: domination gating FIRST — DONE. Conditionality — DONE, by deletion plus the fix above.
+Attribution's substrate — PROBED AND GENERALIZED.** Next, in order:
 1. ~~**Conditionals** — an `implies` verb~~ **DROPPED 2026-07-20, and that is the RESULT, not a
    deferral.** The explicit core form already ships and routes correctly; `implies` would be sugar
    over it. Revisit only if the residue log shows a translator wanting it.
-2. **Attribution** — a clause-as-complement production plus a holder-keyed scope; non-veridicality
-   is already free (`check` returns `assumed-no` for a penned proposition). **⚠ PROBE IT END TO END
-   FIRST** — assert one through the real route and then ASK, per the duality lesson above. Its
-   mechanism is written by the fold, so it should be on the entity side already; measure, do not
-   assume.
+2. **Attribution** — a clause-as-complement production plus a holder-keyed scope. **SUBSTRATE PROBED
+   END TO END AND VERIFIED SOUND 2026-07-20** (see the block below), so what remains really is
+   declarations. `Band` generalized ahead of it (also below).
 3. **Multi-guard `unless`** — INDEPENDENT cleanup that would retire `hclause`. `hclause` is not
    wrong, just duplicative, so this can wait.
 4. **Make READS structural, if any reader starts caring.** 54 `nodes_named` sites resolve by name and

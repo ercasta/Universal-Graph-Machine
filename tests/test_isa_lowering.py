@@ -336,3 +336,40 @@ def test_a_band_is_idempotent_across_runs():
     assert len(set(counts)) == 1, f"re-running a band rule must be FLAT; got {counts}"
     assert len(all_fork_bands(g)) == 1
     assert possibility(g, "has", "lion", "mane") == 0.7, "and still answers after N runs"
+
+
+def test_a_band_can_pen_without_a_degree():
+    """GENERALIZATION (2026-07-20): the degree is an optional DECORATION on "pen these heads behind
+    this node" — the pencil SCOPE is the primitive.
+
+    Attribution is the second user and the reason this came off before it landed: *some naturalists
+    consider the lion a cat* wants the same scope MINUS the degree, plus an ordinary `held_by`
+    triple. Had `key`/`degree` stayed mandatory, attribution would have had to invent a degree it has
+    no basis for — a fabricated 0.5, which is precisely the silent default the hedge path refuses to
+    make (an undeclared band is SKIPPED there, never defaulted).
+
+    Pins BOTH halves: the head is penned (control + `<scope>`-tagged, so it is not ink), and NO
+    graded attribute is written onto the scope node."""
+    from ugm import AttrGraph
+    from ugm.apply import SCOPE
+    from ugm.lowering import run_bank
+    from ugm.production_rule import Band
+
+    g = _seeded()
+    run_bank(g, [Rule(key="attrib", lhs=[Pat("?s", "hedged_has", "?o")],
+                      rhs=[Pat("?s", "has", "?o")],
+                      bands=[Band(var="<attribution>?", scope=("?s",))])])
+
+    penned = [(r, o) for n in g.nodes_named("lion") for r, o in g.relations_from(n)
+              if g.predicate(r) == "has"]
+    assert penned, "the head was not written at all"
+    rel, _o = penned[0]
+    assert g.is_control(rel), "an ungraded Band must still PEN — a penned fact is not ink"
+    assert g.has_key(rel, SCOPE), (
+        "the penned head carries no `<scope>` tag, so it belongs to no scope")
+
+    scope_node = g.nodes_named("<attribution>")
+    assert scope_node, "no scope node was minted"
+    from ugm.possibility import LIKELINESS
+    assert not g.has_key(scope_node[0], LIKELINESS), (
+        "an ungraded Band fabricated a degree on its scope node")
