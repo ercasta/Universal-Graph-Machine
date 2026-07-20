@@ -644,7 +644,7 @@ def _strata_for(rules: list[Rule]) -> list[list[Rule]]:
 
 def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
              tools: dict | None = None, control_preds: frozenset[str] = frozenset(),
-             provenance: bool = False, stratified: bool = True) -> int:
+             provenance: bool = False, stratified: bool = True, semi_naive: bool = True) -> int:
     """Forward-chain `rules` over `ag` (in place) to fixpoint, STRATUM BY STRATUM — the ISA forward
     driver at BANK level.
 
@@ -688,7 +688,7 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
         if len(strata) > 1:                    # negation over a DERIVED predicate — order matters
             return sum(run_bank(ag, layer, max_rounds=max_rounds, tools=tools,
                                 control_preds=control_preds, provenance=provenance,
-                                stratified=False)
+                                stratified=False, semi_naive=semi_naive)
                        for layer in strata)
     # Skip provenance-inert nodes in matching (cf. rewriter._match) when the graph already carries
     # provenance OR this run will MINT it — a fresh recognition graph with provenance OFF pays nothing
@@ -713,6 +713,46 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
     has_drops = any(r.drop for r in rules)   # a drop orphans its rel node -> gc it (vision §5)
     total = 0
 
+    # ---- SEMI-NAIVE ROUNDS (2026-07-20) -----------------------------------------------------
+    # Profiled on the grammar fold: the slot bank ran 5.1 rounds x 59 rules = ~301 match calls to
+    # produce ~20 firings. The ROUNDS are legitimate (slot percolation genuinely cascades: np inside
+    # np inside clause) — re-matching EVERY rule in each of them is not. So after a round, only rules
+    # whose LHS mentions a predicate something actually WROTE are re-matched.
+    #
+    # SOUNDNESS, and the NAC case is the easy direction: within a bank run the graph is MONOTONE, so
+    # adding facts can only make a NAC's witness MORE likely to exist — a NAC can never ENABLE a rule
+    # it previously blocked. (A blocked match is deliberately NOT added to `fired`, so it is retried
+    # each round; that retry is only useful if a premise predicate changed.) DROPS break monotonicity,
+    # so a bank containing any `drop` opts out entirely.
+    #
+    # Conservative on WRITES: a rule whose head predicate is a VARIABLE, or that carries `bands` /
+    # `propagate` (which write graded attrs and scope tags no `Pat` names), is treated as writing
+    # EVERYTHING — `dirty = None`, i.e. next round matches all rules. Being wrong in that direction
+    # only costs speed. `tools` servicing does the same, since it mutates outside rule firing.
+    def _pats_preds(pats) -> tuple[set[str], bool]:
+        """(plain predicate names, any-predicate-is-a-variable)."""
+        names, wild = set(), False
+        for p in pats:
+            if is_var(p.p):
+                wild = True
+            else:
+                names.add(literal_name(p.p))
+        return names, wild
+
+    semi = semi_naive and not has_drops
+    lhs_preds: list[set[str]] = []
+    always_match: list[bool] = []
+    rhs_preds: list[set[str]] = []
+    wildcard_writer: list[bool] = []
+    for r in rules:
+        lp, lwild = _pats_preds(r.lhs)
+        lhs_preds.append(lp)
+        always_match.append(lwild)
+        rp, rwild = _pats_preds(r.rhs)
+        rhs_preds.append(rp)
+        wildcard_writer.append(rwild or bool(r.bands) or r.propagate is not None)
+    dirty: set[str] | None = None            # None => match every rule (first round / unsummarizable)
+
     def one_round(g, stream, ctrl):
         """One fixpoint ROUND (a §10 PRIM interpreter step): collect-then-apply, returning a 'changed?'
         flag — 1 if a firing (or a serviced tool `<call>`) advanced the graph, else 0 (quiesced). The
@@ -723,8 +763,12 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
         # a guard tag (`a is_kw yes`) and the clause it gates (matchable only once its `body_subj` is
         # set) can never race within a round — the clause first becomes matchable the round AFTER the
         # tag is applied, so its NAC sees the tag. This is the stratified reading recognition relies on.
+        nonlocal dirty
         pending: list[tuple[int, list, State]] = []
         for i, (match_ops, effect_ops, nac_progs, keys, prem_regs, head_regs) in lowered:
+            if (semi and dirty is not None and not always_match[i]
+                    and not (lhs_preds[i] & dirty)):
+                continue                    # nothing this rule reads has changed since it last ran
             for st in machine.match(g, match_ops):         # visibility rides IN the lowered program
                 sig = (rules[i].key, frozenset((k, st.regs[k]) for k in keys if k in st.regs))
                 if sig in fired:
@@ -737,9 +781,16 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
             if tools:                                 # rules quiesced: service <call>s, re-run
                 from .dispatch import service_calls  # lazy (dispatch -> world_model import cycle)
                 if service_calls(g, tools):
+                    dirty = None                      # a tool mutated outside rule firing: re-match all
                     return stream, 1                  # tool progress -> another round (was `continue`)
             return stream, 0                          # quiesced -> exit (was `break`)
+        wrote: set[str] = set()
+        wildcard = False
         for i, effect_ops, st in pending:
+            if wildcard_writer[i]:
+                wildcard = True
+            else:
+                wrote |= rhs_preds[i]
             emit_prov = provenance and not rules[i].meta   # META rules stay PROVENANCE-SILENT even
             before = set(g.nodes()) if emit_prov else None   # in a provenance=True run (the regress
             out = machine.apply(g, effect_ops, st)           # guard — a meta rule naming proves/uses
@@ -758,6 +809,7 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
                     if rules[i].nac:                  # the forward record half (reconsider §6): the
                         record_assumptions(           # firing leaned on its NACs' absences, crisp
                             g, j, _survived_nacs(g, rules[i], st))
+        dirty = None if wildcard else wrote
         return stream, 1                              # a firing advanced the graph -> another round
 
     def final_gc(g, stream, ctrl):

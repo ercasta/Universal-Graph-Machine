@@ -373,3 +373,65 @@ def test_a_band_can_pen_without_a_degree():
     from ugm.possibility import LIKELINESS
     assert not g.has_key(scope_node[0], LIKELINESS), (
         "an ungraded Band fabricated a degree on its scope node")
+
+
+# ---------------------------------------------------------------------------
+# SEMI-NAIVE ROUNDS — the fixpoint must be identical, only cheaper
+# ---------------------------------------------------------------------------
+
+def _cascade_bank():
+    """A bank that genuinely CASCADES: each rule's premise is the previous rule's head, so reaching
+    the fixpoint REQUIRES several rounds. This is the shape semi-naive must not truncate — a version
+    that simply stopped re-matching would pass any single-round test."""
+    return [
+        Rule(key="c1", lhs=[Pat("?x", "a", "?y")], rhs=[Pat("?x", "b", "?y")]),
+        Rule(key="c2", lhs=[Pat("?x", "b", "?y")], rhs=[Pat("?x", "c", "?y")]),
+        Rule(key="c3", lhs=[Pat("?x", "c", "?y")], rhs=[Pat("?x", "d", "?y")]),
+        Rule(key="c4", lhs=[Pat("?x", "d", "?y")], rhs=[Pat("?x", "e", "?y")]),
+    ]
+
+
+def _seeded_cascade():
+    from ugm import AttrGraph
+    g = AttrGraph()
+    for n in ("p", "q"):
+        g.add_relation(g.add_node(n), "a", g.add_node(f"{n}_o"))
+    return g
+
+
+def test_semi_naive_reaches_the_same_fixpoint_as_the_naive_loop():
+    """⭐ THE DIFFERENTIAL GATE for the round-level optimization.
+
+    `run_bank` re-matched EVERY rule in EVERY round. Profiled on the grammar fold: the slot bank ran
+    5.1 rounds x 59 rules = ~301 match calls to produce ~20 firings. The rounds are legitimate (slot
+    percolation cascades); re-matching every rule in each is not. Semi-naive re-matches only rules
+    whose LHS mentions a predicate something actually wrote.
+
+    SOUNDNESS rests on MONOTONICITY: adding facts can only make a NAC's witness more likely, so a NAC
+    can never ENABLE a rule it previously blocked. A bank with `drop` breaks that and opts out.
+
+    This asserts the FIXPOINT, not the speed: the full cascade must be derived either way."""
+    from ugm.lowering import run_bank, derived_triples
+    a, b = _seeded_cascade(), _seeded_cascade()
+    fa = run_bank(a, _cascade_bank(), semi_naive=False)
+    fb = run_bank(b, _cascade_bank(), semi_naive=True)
+    assert sorted(derived_triples(a)) == sorted(derived_triples(b)), "semi-naive changed the fixpoint"
+    assert fa == fb, f"firing counts differ: naive {fa} vs semi {fb}"
+    # ... and the cascade really did run to the end (guards the test itself).
+    assert ("p", "e", "p_o") in derived_triples(b), "the cascade did not reach its fixpoint"
+
+
+def test_semi_naive_still_fires_a_rule_whose_premise_appears_later():
+    """The precise failure a naive 'only match once' optimization would have: a rule whose premise
+    predicate is written by a LATER rule in bank order. It must still fire, which means the dirty-set
+    has to survive across rounds rather than being consulted only on the first pass."""
+    from ugm.lowering import run_bank, derived_triples
+    from ugm import AttrGraph
+    g = AttrGraph()
+    g.add_relation(g.add_node("p"), "a", g.add_node("o"))
+    # deliberately REVERSED bank order: the consumer is listed before its producer
+    bank = [Rule(key="consumer", lhs=[Pat("?x", "mid", "?y")], rhs=[Pat("?x", "final", "?y")]),
+            Rule(key="producer", lhs=[Pat("?x", "a", "?y")], rhs=[Pat("?x", "mid", "?y")])]
+    run_bank(g, bank, semi_naive=True)
+    assert ("p", "final", "o") in derived_triples(g), (
+        "a consumer listed before its producer never re-ran — the dirty set is not surviving rounds")

@@ -1054,7 +1054,30 @@ further?"). YES, AND THE LEVER IS SEMI-NAIVE `run_bank`, NOT ANY BANK.**
   rules whose premises nothing has touched since the last round. Rounds are legitimate (slot
   percolation genuinely cascades: np inside np inside clause) — re-matching *all* 59 rules per round
   is not.
-- **THE PROPOSED LEVER, ranked first: PREDICATE-LEVEL SEMI-NAIVE ROUNDS.** After each round, collect
+- **⭐⭐ DONE 2026-07-20 (suite 772 green): PREDICATE-LEVEL SEMI-NAIVE ROUNDS. Grammar session
+  218 → 135 ms/utt (1.62×); THE WHOLE SUITE 78 s → 51 s (1.5×); pystrider 388 green.** The
+  `"Naive — no semi-naive delta"` note in `run_bank`'s own docstring, finally addressed — and the
+  win is system-wide, not grammar-only, because EVERY bank pays this.
+  * **THE MECHANISM:** after a round, collect the predicates actually written; next round, match only
+    rules whose LHS mentions one of them. Per-rule LHS/RHS predicate sets computed once.
+  * **SOUNDNESS RESTS ON MONOTONICITY, and the NAC case is the EASY direction:** adding facts can
+    only make a NAC's witness MORE likely, so a NAC can never ENABLE a rule it previously blocked.
+    (A blocked match is deliberately not added to `fired`, so it retries each round — and that retry
+    is only useful if a premise predicate changed.) **`drop` breaks monotonicity, so a bank
+    containing any drop opts out entirely.**
+  * **CONSERVATIVE ON WRITES:** a variable head predicate, `bands`, or `propagate` writes things no
+    `Pat` names, so those rules set `dirty = None` (match everything next round). Tool servicing does
+    the same, since it mutates outside rule firing. Being wrong in that direction only costs speed.
+  * **GATED ON A DIFFERENTIAL, not on the argument above:** identical triples/nodes/scope-facts on a
+    full grammar session, then the whole 772-test suite (planning, procedures, possibility, coref,
+    deontic, learning), then the pystrider client. `semi_naive=False` remains as the escape hatch and
+    as the differential's other arm.
+  * **PINNED BY A CASCADE, deliberately** — `test_semi_naive_reaches_the_same_fixpoint_as_the_naive_loop`
+    (4-deep chain, so several rounds are REQUIRED) and
+    `test_semi_naive_still_fires_a_rule_whose_premise_appears_later` (a consumer listed BEFORE its
+    producer, which is what a dirty set that does not survive rounds gets wrong). **Re-break verified:
+    making the dirty set not carry what was written fails both.**
+- **~~THE PROPOSED LEVER~~, ranked first: PREDICATE-LEVEL SEMI-NAIVE ROUNDS.** After each round, collect
   the predicates actually written; in the next round only match rules whose LHS mentions one of them
   (plus rules not yet matched). **Sound on a monotone bank, and the NAC case is the easy direction**:
   adding facts can only make a NAC *more* restrictive, so a NAC can never ENABLE a rule that was
