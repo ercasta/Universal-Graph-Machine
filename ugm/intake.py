@@ -52,7 +52,7 @@ COMMAND_ACTS: dict[str, str] = {"focus": "focus", "be": "stance", "run": "run"}
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"ambiguous"|"unrecognized"
+    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"vocabulary"|"ambiguous"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
@@ -467,6 +467,13 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
             # discriminating question (`can_ask`) — which is where this is headed.
             yield Event("ambiguous", {"spans": data["spans"]})
             return Outcome("ambiguous", utterance, nearest=data["spans"])
+        if kind == "vocabulary":
+            # ⭐ L0 — a declaration ABOUT the language (the LEVEL axis, `form_inventory.md`). It
+            # commits no fact and changes no belief; it changes what can be SAID next. Landing in a
+            # register rather than the graph is what stops it leaking into reasoning, colliding with
+            # an entity of the same name, or being destroyed by its own effect.
+            yield Event("vocabulary", {"word": data["word"]})
+            return Outcome("vocabulary", utterance)
         if kind == "command":
             # ⭐ THE `command` FORCE — the SPEECH ACTS. It commits no fact and, unlike a goal, what
             # it leaves behind is STEPPING state (a focus frame, the policy register, a `<run>`

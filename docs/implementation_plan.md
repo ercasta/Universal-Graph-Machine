@@ -155,6 +155,131 @@ the default).** Declaring a word as a relation makes the DECLARATION SENTENCE IT
   surface, letting a declared word keep its noun reading in subject position, or exempting the
   declaration forms from the grammar route the way the authoring cluster already is.
 
+**⭐⭐⭐ LEVEL IS A THIRD AXIS — HYPOTHESIS CONFIRMED BY PROBE 2026-07-20 (user proposal).** The
+question: should parsing/understanding be explicitly LAYERED, from the layer that declares rules and
+vocabulary up to the interpretation that uses them — since a language able to express rules has a
+META level. Probed before scoping, and it held.
+
+- **THE AXIS.** `form_inventory.md` has CONTENT (*what is claimed*) and FORCE (*what is being done
+  with the claim*). LEVEL is a third: **what the claim is ABOUT — the world (L2), the theory (L1),
+  or the language itself (L0).** Orthogonal to both, and MEASURED so: `is produces a relation`
+  routes as a question (force) about the language (level), i.e. the axes compose.
+- **THE FALSIFIABLE TEST, and it passed cleanly:** if the use-mention defect is a LAYER VIOLATION
+  rather than a missing form, the non-idempotent surfaces should be exactly the L0 ones. Round-
+  tripped 12 surfaces (ingest the same line twice into one KB): **every L1 and L2 surface routes
+  identically twice; the ONLY failure is L0 (`produces is a relation` → `fact`, then
+  `unrecognized`).** The axis predicts the defect exactly.
+- **THE ASSIGNMENT NEVER FAILED** on the 15 surfaces tried. ⚠ Weak evidence — I chose them; an
+  adversarial attempt to find an unclassifiable surface has NOT been made and should be.
+- **⭐ THE FINDING I DID NOT PREDICT, and it is worse than the use-mention bug because it is
+  SILENT: L0 BARELY EXISTS AT INTAKE.** Of four L0 surfaces:
+  * `R is a relation` — the only one that WORKS (and the one that breaks on re-declaration).
+  * `np expands to noun`, `rarely means 0.15` — **NOT INGESTIBLE.** Loader-only, so a session
+    cannot declare a production or a hedge band at all.
+  * **`wolf is a noun` — routes `fact` and EXTENDS NOTHING. Measured: `wolf` is absent from the
+    lexicon before and after.** A user declaring a word gets a success verdict and an inert fact.
+    This is §8's "understanding ≠ parsing" at the META level.
+- **⚠ THE SMUGGLING IS BY DESIGN AND LOAD-BEARING, which is what makes the fix a refactor rather
+  than a routing tweak.** `forms.declared_relations` reads `R is_a relation` OUT OF THE GRAPH, so
+  L0 is deliberately implemented AS L2 and `sync_vocabulary` depends on it. Relocating L0 means
+  relocating that read. Also: **the token/entity duality reaches the meta level** — after the
+  declaration, `produces` resolves to 2 nodes.
+- **CONSEQUENCE FOR `form_inventory.md`:** the `use vs mention` entry added earlier today should be
+  RE-DIAGNOSED as a layer violation, not a missing quoting form. Kept for now with this note,
+  because the entry's OBSERVATION is right even though its diagnosis was wrong.
+- **⚠ THIS BLOCKS STEP 2 MORE FIRMLY THAN THE USE-MENTION NOTE DID.** Flipping the default sends
+  every corpus's declarations through the grammar route, where re-declaration is the normal case
+  under the multi-KB-file model.
+**⭐⭐ OPTION C BUILT 2026-07-20 (user decision; suite 811 green). L0 IS NOW A REGISTER.**
+`grammar_intake.VOCABULARY_FORMS` / `recognize_vocabulary` / `VOCABULARY_REGISTER`, routed as the
+first thing `route` does, plus a `vocabulary` Outcome kind.
+
+- **TWO INDEPENDENT DESIGN RULES, and re-breaking proved they are separable** (each fixes a
+  different defect, which is why the comparison of options B and C turned on the second):
+  * **(1) recognized by a FIXED form, never the object grammar** → re-declaration is idempotent.
+    Re-break: routing L0 through the parse restores `fact` → `unrecognized`.
+  * **(2) stored in a REGISTER, never as graph facts** → no leak, no duality. Re-break: writing the
+    fact as well (i.e. option B without scope-filtering) restores BOTH `?y is meta when ?y is a
+    relation` firing AND `produces` resolving to two nodes, while idempotency stays fixed.
+- **MEASURED:** `produces is a relation` twice → `vocabulary`/`vocabulary` (was `fact`/
+  `unrecognized`); 0 nodes named `produces` (was 2); 0 L0 facts in the graph; and the word is usable
+  by the very next utterance (`get_beans produces beans` → `fact`). Corpus still **19/19**.
+  Force coverage **80% → 86%** (44/51), real gaps 10 → 7.
+- **THE FORK IS DELIBERATE AND SCOPED:** only the GRAMMAR route uses the register. The shipped route
+  is untouched, because `load_corpus` bypasses intake entirely (`_recognize` over `_ALL_FORMS`) and
+  `forms.relation_forms` rebuilds from the graph per batch — so its `R is_a relation` facts must
+  stay. `sync_vocabulary` therefore reads the UNION, and the two readers are kept separate so the
+  graph half can be retired without touching the register half.
+- **⚠ HARNESS TRAP, FOURTH TIME IN THIS ARC** (after `clear_fresh`, `mark_tokens`, the relation
+  regex): `spike_force_coverage.py` calls `parse` directly, so it did not know L0 is now recognized
+  BEFORE the parse and reported a 4-point coverage DROP that was purely the harness. Fixed by
+  mirroring `route`'s L0 check. **A harness that duplicates a pipeline must be re-checked every time
+  the pipeline gains a step — this is now a standing rule, not an observation.**
+- **PYSTRIDER 388 GREEN on this slice** — no fix needed. The prediction (it touches `grammar_intake`
+  and one `intake` branch, neither of which pystrider reaches) held, and is now a measurement rather
+  than an argument.
+- **⭐ THE LEXICON NO-OP FIXED 2026-07-20 (suite 817 green), immediately after** — `wolf is a noun`
+  routed `fact` and extended NOTHING, i.e. a success verdict plus an inert fact. The worst of the
+  L0 defects because it was SILENT rather than refused, and it became visibly inconsistent the
+  moment `produces is a relation` started returning `vocabulary`.
+  * ONE form covers the family: `W is a K` with the kind BOUND, not literal. `resolve_vocabulary`
+    then asks the LIVE GRAMMAR (`vocabulary_categories` = production categories ∪ lexicon values)
+    whether `K` names a category — data, never a keyword list.
+  * **⚠ THE RISK IT INTRODUCED, and why the grammar check is load-bearing:** a bound kind makes the
+    form fire on EVERY bare `W is a K`, including ordinary facts. **Re-break verified — drop the
+    category check and `ada is a suspect` silently becomes a lexicon declaration committing no
+    fact.** The SHAPE match is not the decision; the grammar is.
+  * MEASURED: `wolf is a noun` / `snarls is a intransitive` → `vocabulary` + lexicon entry, and
+    `the wolf snarls` then lands `('wolf','snarls','true')`. `lion is a cat` / `ada is a suspect`
+    still route `fact`. Corpus 19/19; force coverage 46/54 (85%), `vocabulary` now 10 utterances.
+- **⭐ SETTLED (user, 2026-07-20): A SESSION MUST NOT EXTEND THE GRAMMAR STRUCTURE AT RUNTIME.**
+  So L0 has THREE tiers, not two, and the runtime line is **structure vs vocabulary** — NOT
+  schema vs instances, which is how this plan and `form_inventory.md` first drew it and is wrong
+  (a production is an instance of the schema and still must not grow).
+  * **schema** (what kinds of declaration exist) — Python, never grows.
+  * **structure** (which productions/slots/force verbs the language has) — grammar file, load-time
+    only. **Frozen at runtime by decision.**
+  * **vocabulary** (which words are in which category) — grammar file OR live session. Grows.
+  * **THE REASONS, recorded because the behaviour previously had none:** (1) TRANSLATOR STABILITY —
+    new vocabulary does not change the language's SHAPE, so an SLM needs no re-briefing; a new
+    production does. (2) AMBIGUITY BLAST RADIUS — a new word can only create ambiguity in sentences
+    containing THAT word, while a new production can make sentences ambiguous that contain no new
+    token at all, and ambiguity here is detected but deliberately never auto-resolved.
+  * **ZERO WORK — verified, not assumed.** `np expands to noun`, `slot … is only head`,
+    `clause asserts …`, `qclause asks …` all route `unrecognized`, and `load_kb` RAISES naming the
+    line. The decision ratifies the status quo; what changed is that it now has a stated reason.
+    "It happens not to work" is not the same as "it must not work."
+- **⚠ THE ONE INCONSISTENCY THE DECISION EXPOSES: hedge bands.** `rarely means 0.15` is VOCABULARY
+  by the tiering above (a word and the degree it denotes — no production, no shape change), so it
+  SHOULD be runtime-declarable; it currently routes `unrecognized`, i.e. is treated as structure.
+  Cheap to move if wanted (`sync_vocabulary` already recompiles, which is what a new band needs
+  since the fold takes the band as a compile-time constant). Flagged, not decided.
+- **⭐ OPTION D IS DROPPED, and that is a RESULT rather than a deferral** (user challenge: "why do we
+  have option D as next? I thought we chose C"). Both of its justifications died under checking:
+  * **"It makes `sync_vocabulary`'s ordering explicit"** — killed by C itself. L0 is now recognized
+    by a fixed form BEFORE the parse, so the declaration cannot be affected by what it declares, in
+    any order. The ordering it was meant to expose no longer exists.
+  * **"The grammar route is order-dependent where the shipped route is not"** — measured TRUE
+    (declaration-after-use: `load_corpus` derives the fact, the grammar route loses it) but
+    MIS-FRAMED as a regression. **`load_kb`'s docstring makes declare-before-use the DELIBERATE
+    contract** — "a line using a form that arrives later is unrecognized … there is no whole-file
+    re-offer fixpoint" — with a LOUD WALL behind it (`load_kb` raises, naming the line and the
+    nearest forms). D would have contradicted a settled decision, not fixed a defect.
+  * **The real residue is an inconsistency worth NAMING, not fixing here:** two batch loaders with
+    different contracts — `load_corpus` (legacy, whole-batch, 2-pass `_recognize`) vs `load_kb`
+    (intake, declare-before-use). That is a convergence question for the step-2 flip, not a bug.
+  * **LESSON: "complementary, do it anyway" is where unjustified work hides.** D survived two
+    review passes as a parenthetical because nobody asked it to justify itself; one direct challenge
+    killed it in two checks.
+
+- **~~THE OPEN DECISION~~ (settled — C):** where do L0 declarations LIVE? (a) graph facts in a
+  control/meta scope — smallest change, fixes the duality, keeps `declared_relations`' read shape;
+  (b) a register beside `forms`/`policy`/`grammar` — cleanest separation, `sync_vocabulary` must
+  change; (c) an L0 recognizer in the authoring cluster writing to a register — matches the cluster
+  precedent exactly and is the recommendation, since that cluster is already "utterances that do
+  not describe the world".
+- Probe: `scratchpad/probe_levels.py`.
+
 **⚠ THE EOL TRAP BIT AGAIN, TWICE MORE** (`focus.py`, `rule_control.py`). The normalizer now reads
 `git diff --name-only` instead of a hand-kept path list, so it covers whatever was touched:
 `scratchpad/fix_eol.py`. **Run it before every commit on this repo.**

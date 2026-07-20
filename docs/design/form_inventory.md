@@ -72,6 +72,7 @@ This is why entries get PROBED, never assigned by intuition (five for five wrong
 |---|---|---|
 | **CONTENT** (§4a) | *what is claimed?* | degree, negation, conditionality, tense, quantification |
 | **FORCE** (§4b) | *what is being DONE with the claim?* | assert, ask, command, author, retract |
+| **LEVEL** (§4d) | *what is the claim ABOUT?* | the world (L2), the theory (L1), the language (L0) |
 
 **They are ORTHOGONAL, and that is why they cannot share a table.** Any content can carry any force:
 *the lion generally has a mane* (hedged assertion) vs *does the lion generally have a mane?* (hedged
@@ -141,7 +142,7 @@ the layer boundary.
 
 | form | example | note |
 |---|---|---|
-| **use vs mention** | *produces is a relation* | ⭐ ADDED 2026-07-20 by `bench/spike_force_coverage.py`, and it is the first entry the system found in ITSELF rather than in a corpus. A word declared as a verb can no longer head an np, so **the grammar cannot talk about its own vocabulary**: the declaration sentence parses while the word is unknown and REFUSES once it is declared. Measured through real `ingest`, the same line twice routes `fact` then `unrecognized`. Fundamental under §1's test — quoting is not paraphrasable into use |
+| ~~use vs mention~~ | *produces is a relation* | **RE-DIAGNOSED AND FIXED 2026-07-20 — it was never a missing CONTENT form.** Found by `bench/spike_force_coverage.py`, and it is the first entry the system found in ITSELF rather than in a corpus. The OBSERVATION was right (the declaration sentence parses while the word is unknown and REFUSES once declared, because a verb-category word cannot head an np) but the diagnosis was wrong: it is a **LEVEL violation** (§4d), not a gap in what can be said. An L0 declaration was being read by the very grammar it modifies. Kept here as the worked example of §3 — a fundamental-looking gap that was a layering fault |
 | tense | *were formerly found … now confined to* | nothing exists. Expensive. |
 | exclusivity / *only* | *confined to Africa* | CWA/NAF exist; no surface, and no way to say "only" |
 | quantification | *all the varieties*, *some naturalists* | partial |
@@ -218,6 +219,92 @@ aesthetic one (matching the existing three) but a structural one that only appea
 construction: **a force needs to say WHICH SLOTS carry its triple**, and the assertion surface
 already has exactly that shape, including the `when`/`unless` guards. A category property would have
 needed a second declaration to carry the slots, i.e. the verb surface again under another name.
+
+### 4d. LEVEL — what the claim is ABOUT
+
+**BUILT 2026-07-20 (user proposal, option C).** A claim is about the **WORLD** (L2 — *the lion has a
+mane*), the **THEORY** (L1 — *?x is dangerous when ?x is hungry*, a form, a procedure), or the
+**LANGUAGE ITSELF** (L0 — *produces is a relation*). L0 does not describe anything; it constitutes
+what can be said next.
+
+**ORTHOGONAL TO BOTH OTHER AXES, and measured so:** `is produces a relation` is a QUESTION (force)
+about the LANGUAGE (level). Any level can carry any force. Three axes enumerate the sum where one
+would have to enumerate the product — the same argument §4 makes for separating content from force.
+
+**THE FALSIFIABLE TEST THAT ESTABLISHED IT.** If the use-mention defect was a LAYER violation rather
+than a missing form, then the non-idempotent surfaces should be *exactly* the L0 ones. Round-tripped
+12 surfaces (same line ingested twice): **every L1 and L2 surface routed identically twice; the only
+failure was L0.** The axis predicted the defect exactly. ⚠ The *assignment* never failed across 15
+surfaces, but those were hand-chosen — no adversarial attempt to find an unclassifiable surface has
+been made, and that is the test that would put the axis at risk.
+
+**THE TWO DESIGN RULES, and they are independent — each has its own failure mode:**
+
+1. **L0 is recognized by a FIXED form, never by the object grammar.** Otherwise a declaration is
+   destroyed by its own effect. This is what makes re-declaration idempotent.
+2. **L0 lives in a REGISTER, never as graph facts.** As facts it LEAKED (`?y is meta when ?y is a
+   relation` derived `produces is meta`) and it hit the token/entity duality at the meta level
+   (`produces` resolved to two nodes). A meta *scope* in the graph would make the leak avoidable
+   only by discipline in every present and future reader; a register makes it impossible.
+
+Re-breaking confirms they are separable: restoring (1) alone fixes idempotency but not the leak;
+restoring (2) alone fixes the leak but not idempotency.
+
+**L0 HAS THREE TIERS, AND THE RUNTIME LINE SITS BETWEEN THE SECOND AND THIRD** (user decision,
+2026-07-20: *"a session should not be able to extend the grammar structure at runtime"*). An earlier
+draft of this section drew the line as schema-vs-instances, which is WRONG — a production is an
+instance of the schema and still must not grow at runtime.
+
+| tier | what it is | where it lives | grows at runtime? |
+|---|---|---|---|
+| **schema** | what KINDS of declaration exist | Python (`DECLARATION_FORMS`, `VOCABULARY_FORMS`) | **never** — not even at load time |
+| **structure** | which productions / slots / force verbs this language HAS | the grammar `.cnl` file, load-time | **no** (user decision) |
+| **vocabulary** | which WORDS are in which category | grammar file *or* a live session | **yes** — the register |
+
+**WHY THE LINE IS THERE, and it is not arbitrary:**
+
+- **Translator stability.** New vocabulary does not change the SHAPE of the language: an SLM told
+  what the constructions are can handle a new noun without being retold. A new production changes
+  which sentences are grammatical, so the translator would have to be re-briefed — and the plan's
+  settled position is that *"the target language must be FIXED AND KNOWN for a translator to aim
+  at it."* Vocabulary is safe to grow; structure is not.
+- **Blast radius of ambiguity.** Adding a word can only make existing productions apply to more
+  strings — any ambiguity it creates involves *that word*. Adding a production can make sentences
+  ambiguous that contain no new token at all. Ambiguity is DETECTED here but deliberately never
+  auto-resolved, so the second kind silently widens what must be asked about.
+- **The schema tier is what bounds the regress** at two levels: the metalanguage cannot be extended
+  from inside the object language, so there is no meta-meta.
+
+**ALREADY ENFORCED, verified rather than assumed.** `np expands to noun`, `slot … is only head`,
+`clause asserts …` and `qclause asks …` all route `unrecognized` in a session, and `load_kb` RAISES
+on them, naming the line. The decision therefore ratifies the status quo and costs nothing — but it
+is recorded because the behaviour previously had no stated reason, and "it happens not to work" is
+not the same as "it must not work".
+
+**⚠ ONE INCONSISTENCY THE DECISION EXPOSES: hedge bands.** `rarely means 0.15` is VOCABULARY by this
+table (a word and the degree it denotes — it adds no production and changes no sentence's shape), so
+the line above says it *should* be runtime-declarable. It currently routes `unrecognized`, i.e. it is
+treated as structure. Not resolved here; flagged so the tiering stays honest.
+
+**WHAT IT COST, honestly:** `is produces a relation` no longer answers. Nothing else — the grammar
+itself was never in the graph, and the parse surface, the interpretation, its facts and all
+provenance are untouched. Querying the language belongs back as a deliberate §8 READER over the
+register, not as a side effect of leaving L0 in the reasoning graph.
+
+**THE LEXICON NO-OP, FIXED 2026-07-20.** `wolf is a noun` used to route `fact` and extend nothing —
+a success verdict and an inert fact, §8's "understanding ≠ parsing" at the meta level and the worst
+of the L0 defects because it was *silent* rather than refused. One form now covers the family
+(`W is a K`, kind BOUND rather than literal), and `resolve_vocabulary` asks the LIVE GRAMMAR whether
+`K` names a category — so `wolf is a noun` and `snarls is a intransitive` declare, while
+`ada is a suspect` stays a fact. **The shape match is deliberately NOT the decision**: dropping the
+category check makes `ada is a suspect` a silent lexicon declaration committing no fact (re-break
+verified). `relation` is the one kind word that is not itself a category — it is the KB-level
+spelling the shipped route has always used, and it means a transitive verb.
+
+**STILL OPEN AT L0.** `np expands to noun` and `X means N` remain loader-only — a session can
+declare WORDS but not PRODUCTIONS or bands. The shipped (non-grammar) route still lands
+`R is_a relation` as a graph fact, because `load_corpus` bypasses intake and `forms.relation_forms`
+rebuilds from the graph; `sync_vocabulary` reads the union of both homes until that half is retired.
 
 ### 4c. BAROQUE — desugar, never represent
 

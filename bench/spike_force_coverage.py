@@ -116,6 +116,13 @@ def classify(text: str) -> tuple[str, str]:
     from ugm.cnl.grammar import compile_grammar
     banks = compile_grammar(banks.grammar, open_class=banks.open_class)
     kb.registers[gi.GRAMMAR_REGISTER] = banks
+    # ⚠ L0 FIRST, exactly as `route` does — and this bench got it wrong once, which is the FOURTH
+    # time in this arc a measurement harness that duplicates a pipeline fell behind it (after
+    # `clear_fresh`, `mark_tokens`, and the relation-extraction regex). An L0 declaration is
+    # RECOGNIZED before the parse and the object grammar refuses it BY DESIGN, so scoring it on
+    # `parse` reported a 4-point coverage drop that was purely the harness.
+    if gi.recognize_vocabulary(text) is not None:
+        return PARSED, "vocabulary"
     try:
         outcome, toks, _eos = parse(kb, text, banks)
     except Exception as e:                      # a raise is a refusal with a reason worth seeing

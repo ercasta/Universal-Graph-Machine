@@ -331,6 +331,116 @@ def test_an_undeclared_focus_surface_still_falls_through(kb):
 
 
 # ---------------------------------------------------------------------------
+# L0 — the METALANGUAGE (the LEVEL axis, 2026-07-20). A declaration ABOUT the
+# language lives in a register, never as a graph fact.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def okb():
+    """A grammar KB with OPEN vocabulary — undeclared words default to nouns, so these tests turn
+    on the relation declaration rather than on the lexicon wall."""
+    g = AttrGraph()
+    gi.declare_grammar(g, CORPUS / "loudon_grammar.cnl", open_class="noun")
+    return g
+
+
+def test_a_vocabulary_declaration_is_idempotent(okb):
+    """⭐ THE DEFECT THIS SLICE EXISTS TO FIX. Read by the OBJECT grammar, a declaration was
+    destroyed by its own effect: `produces is a relation` parsed while `produces` was unknown and
+    REFUSED once it had become a `transitive`, because a verb-category word cannot head an np.
+    Measured through real `ingest`, the same line twice routed `fact` then `unrecognized`.
+
+    Re-declaration is the NORMAL case under the multi-KB-file model, so this is not an edge case."""
+    import ugm as h
+    assert h.ingest(okb, [], "produces is a relation").kind == "vocabulary"
+    assert h.ingest(okb, [], "produces is a relation").kind == "vocabulary"
+
+
+def test_a_vocabulary_declaration_writes_no_graph_fact(okb):
+    """L0 is REGISTER state, not a claim about the world. Two consequences pinned at once: the
+    declaration leaves no fact, and it mints no node — so the token/entity duality (which reached
+    the meta level: `produces` used to resolve to TWO nodes) cannot arise."""
+    import ugm as h
+    from ugm import derived_triples
+    h.ingest(okb, [], "produces is a relation")
+    assert okb.registers["vocabulary"] == {"produces": "transitive"}
+    assert not [t for t in derived_triples(okb) if "relation" in t]
+    assert not [n for n in okb.nodes() if okb.name(n) == "produces"]
+
+
+def test_a_declared_relation_is_usable_by_the_next_utterance(okb):
+    """The declaration must still DO its job — the register is a different home, not a weaker one."""
+    import ugm as h
+    h.ingest(okb, [], "produces is a relation")
+    assert gi.session_banks(okb).grammar.lexicon.get("produces") == ["transitive"]
+    assert h.ingest(okb, [], "get_beans produces beans").kind == "fact"
+    assert ("get_beans", "produces", "beans") in gi.facts(okb)
+
+
+def test_a_vocabulary_declaration_cannot_be_reasoned_over(okb):
+    """⭐ THE ARGUMENT FOR A REGISTER RATHER THAN A META SCOPE IN THE GRAPH.
+
+    As a graph fact, an L0 declaration was ordinary content that any domain rule could match —
+    measured: `?y is meta when ?y is a relation` derived `produces is meta`. A meta scope would make
+    that avoidable only BY DISCIPLINE, in every present and future reader; a register makes it
+    structurally impossible. This codebase's own history (five idempotency defects of the
+    'a discipline nobody restated' shape) is the argument against relying on discipline."""
+    import ugm as h
+    rules = []
+    h.ingest(okb, rules, "produces is a relation")
+    assert h.ingest(okb, rules, "?y is meta when ?y is a relation").kind == "rule"
+    assert h.ingest(okb, rules, "is produces meta").answer == ["no (assumed)"]
+
+
+def test_the_l0_form_is_not_reachable_from_the_object_grammar(okb):
+    """The SCHEMA is hardcoded (Python forms, like `grammar.DECLARATION_FORMS`), which is what
+    bounds the regress at two levels: the metalanguage cannot be extended from inside the object
+    language. Pinned by the recognizer working on a KB whose grammar knows none of these words."""
+    assert gi.recognize_vocabulary("produces is a relation") == ("produces", "relation")
+    assert gi.recognize_vocabulary("the lion has a mane") is None
+    # the NAC: a trailing word means this is NOT the declaration form
+    assert gi.recognize_vocabulary("produces is a relation of sorts") is None
+
+
+@pytest.mark.parametrize("text,category", [
+    ("produces is a relation", "transitive"),      # the KB-level spelling, not a category itself
+    ("wolf is a noun", "noun"),
+    ("snarls is a intransitive", "intransitive"),
+])
+def test_a_lexicon_declaration_reaches_the_grammar(okb, text, category):
+    """⭐ THE SILENT NO-OP, FIXED. `wolf is a noun` used to route `fact` and extend NOTHING — a user
+    declaring a word got a success verdict and an inert fact. Measured: `wolf` was absent from the
+    lexicon before and after. That is §8's "understanding ≠ parsing" at the META level, and it was
+    the worst of the L0 defects precisely because it was silent rather than refused."""
+    import ugm as h
+    assert h.ingest(okb, [], text).kind == "vocabulary"
+    word = text.split()[0]
+    assert gi.session_banks(okb).grammar.lexicon.get(word) == [category]
+
+
+def test_a_declared_noun_is_usable_immediately(okb):
+    import ugm as h
+    h.ingest(okb, [], "wolf is a noun")
+    h.ingest(okb, [], "snarls is a intransitive")
+    assert h.ingest(okb, [], "the wolf snarls").kind == "fact"
+    assert ("wolf", "snarls", "true") in gi.facts(okb)
+
+
+@pytest.mark.parametrize("text", ["lion is a cat", "ada is a suspect"])
+def test_an_ordinary_is_a_fact_is_not_mistaken_for_a_declaration(okb, text):
+    """⚠ THE RISK THIS SLICE INTRODUCED, and the reason the shape match is NOT the decision.
+
+    Binding the kind means the L0 form now fires on EVERY bare `W is a K` — including ordinary
+    facts. What separates them is `resolve_vocabulary` asking the LIVE GRAMMAR whether `K` names a
+    category. `cat` and `suspect` do not, so these fall through to the fact route. Were the check
+    dropped, `ada is a suspect` would silently become a lexicon declaration and commit no fact."""
+    import ugm as h
+    assert h.ingest(okb, [], text).kind == "fact"
+    subj, kind = text.split()[0], text.split()[-1]
+    assert (subj, "is_a", kind) in gi.facts(okb)
+
+
+# ---------------------------------------------------------------------------
 # Slice 3 — the revision loop
 # ---------------------------------------------------------------------------
 

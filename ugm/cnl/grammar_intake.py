@@ -33,6 +33,129 @@ from .grammar import (AMBIGUOUS, PARSED, REFUSED, REMINT, Grammar, compile_gramm
 GRAMMAR_REGISTER = "grammar"
 #: The ONE live interpretation of the session's standing surface (a scope node id).
 SCOPE_REGISTER = "interpretation"
+#: L0 — the words this session has declared to BE part of the language (user decision 2026-07-20,
+#: option C). A REGISTER and not graph facts; see `VOCABULARY_FORMS` for the full argument.
+VOCABULARY_REGISTER = "vocabulary"
+
+
+# ---------------------------------------------------------------------------
+# L0 — the METALANGUAGE. Declarations ABOUT the language, not about the world.
+# ---------------------------------------------------------------------------
+#
+# ⭐ LEVEL IS A THIRD AXIS, beside CONTENT and FORCE (`design/form_inventory.md`; user proposal
+# 2026-07-20, confirmed by probe). A claim is about the WORLD (L2), the THEORY (L1), or the LANGUAGE
+# itself (L0). `produces is a relation` is L0: it does not describe anything, it constitutes what can
+# be said next.
+#
+# WHY L0 IS RECOGNIZED BY A FIXED FORM AND NEVER BY THE OBJECT GRAMMAR — this is the defect being
+# fixed, not a style choice. Read by the object grammar, a declaration is destroyed by its own
+# effect: `produces is a relation` parses while `produces` is unknown and REFUSES once it is a
+# `transitive`, because a verb-category word can no longer head an np. Measured through real
+# `ingest`, the same line twice routed `fact` then `unrecognized`. A fixed recognizer cannot be
+# perturbed by what it declares.
+#
+# WHY A REGISTER AND NOT GRAPH FACTS (the mechanism/policy split: GRAPH = reasoned-over facts +
+# explanation, REGISTERS = stepping state). Three measured reasons:
+#   1. **It LEAKED.** As a graph fact, `produces is_a relation` is ordinary content and any domain
+#      rule matches it — confirmed: `?y is meta when ?y is a relation` derives `produces is meta`.
+#      A meta scope would only make the leak avoidable BY DISCIPLINE, in every present and future
+#      reader; a register makes it impossible.
+#   2. **The duality reached the meta level** — after intake, `produces` resolved to TWO nodes, so a
+#      join over it silently derived nothing (the `UserWarning` was the only trace).
+#   3. **Re-declaration is the NORMAL case** under the multi-KB-file model, and it was not
+#      idempotent. A dict assignment is.
+# Precedent, not invention: `forms` (authored recognition forms) and `grammar` (compiled banks)
+# already live in registers for the same reason — they are not claims about the world.
+#
+# WHAT IS LOST, STATED HONESTLY: `is produces a relation` no longer answers. Nothing else — the
+# grammar itself was never in the graph (`load_grammar` returns a `Grammar`; `declare_grammar` parks
+# banks in a register), and the parse surface, the interpretation, its facts and all provenance are
+# untouched. If querying the language is wanted back, it belongs as a deliberate §8 READER over this
+# register — not as a side effect of leaving L0 in the reasoning graph.
+#
+# THE SCHEMA IS HARDCODED AND THAT IS THE POINT (user, 2026-07-20). These forms are Python, not CNL,
+# exactly like `grammar.DECLARATION_FORMS` — so the meta level cannot be extended from inside the
+# object language and the tower terminates at two. Same constraint the plan reached from the other
+# direction: "the target language must be FIXED AND KNOWN for a translator to aim at it." What grows
+# at runtime is L0 INSTANCES (which words are relations), never the L0 SCHEMA (what kinds of
+# declaration exist).
+VOCABULARY_FORMS = None          # built lazily below, after Pat/Rule are importable
+
+
+def _vocabulary_forms():
+    from ..production_rule import Pat, Rule
+    return [
+        # `W is a K` — bare, nothing before the word and nothing after the kind. The KIND IS BOUND,
+        # not literal, so ONE form covers `produces is a relation` and `wolf is a noun`. Whether `K`
+        # actually names something declarable is decided by `resolve_vocabulary` against the live
+        # grammar — data, not a keyword list — so `lion is a cat` falls through to the fact route.
+        Rule(key="vocab.declare",
+             lhs=[Pat("?s", "first", "?w"), Pat("?w", "next", "is?"),
+                  Pat("is?", "next", "a?"), Pat("a?", "next", "?k")],
+             nac=[Pat("?k", "next", "?more")],
+             rhs=[Pat("<vocab>?", "word", "?w"), Pat("<vocab>?", "kind", "?k")]),
+    ]
+
+
+def recognize_vocabulary(utterance: str) -> tuple[str, str] | None:
+    """If `utterance` has the shape `W is a K`, the pair `(W, K)` — else None.
+
+    SHAPE ONLY. Whether `K` names a declarable category is a question about the live grammar and is
+    answered by `resolve_vocabulary`; splitting the two is what keeps this a pure, fixed recognizer.
+
+    Recognized in a SCRATCH graph, exactly as `focus.recognize_focus_op` and
+    `rule_control.recognize_rule_op` are. The scratch graph is what keeps an L0 declaration out of
+    the KB entirely: nothing about it is ever a fact."""
+    global VOCABULARY_FORMS
+    if VOCABULARY_FORMS is None:
+        VOCABULARY_FORMS = _vocabulary_forms()
+    from ..world_model import Graph
+    from .forms import tokenize
+    tmp = Graph()
+    tokenize(tmp, utterance)
+    run_bank(tmp, VOCABULARY_FORMS)
+    for nid in tmp.nodes():
+        if tmp.name(nid) == "<vocab>":
+            slots = {tmp.predicate(rel): tmp.name(obj) for rel, obj in tmp.relations_from(nid)}
+            if slots.get("word") and slots.get("kind"):
+                return slots["word"], slots["kind"]
+    return None
+
+
+def vocabulary_categories(gram) -> set[str]:
+    """The category names a runtime declaration may name — READ OFF THE GRAMMAR, never a list.
+
+    Both halves matter: `categories` covers everything the productions mention (`noun`, `adj`,
+    `transitive`), and the lexicon's own values cover a class declared but not yet used in any
+    production. A word the grammar has never heard of is not a category, so `lion is a cat` is an
+    ordinary fact rather than a declaration."""
+    return set(gram.categories) | {c for cs in gram.lexicon.values() for c in cs}
+
+
+def resolve_vocabulary(banks, kind: str) -> str | None:
+    """The LEXICON CATEGORY a declared `kind` word means, or None if it declares nothing.
+
+    `relation` is the one word that is not itself a category: it is the KB-level spelling that the
+    shipped route has always used (`R is a relation`), and it means a transitive verb. Everything
+    else must name a category the grammar actually has."""
+    if kind == "relation":
+        return RELATION_CATEGORY
+    return kind if kind in vocabulary_categories(banks.grammar) else None
+
+
+def declare_vocabulary(kb, word: str, category: str) -> None:
+    """Record an L0 declaration in the register. Idempotent BY CONSTRUCTION — a dict assignment."""
+    kb.registers.setdefault(VOCABULARY_REGISTER, {})[word] = category
+
+
+def declared_vocabulary(kb) -> dict[str, str]:
+    """The words declared to THIS session at L0, as `{word: category}` (register-side only).
+
+    Deliberately NOT merged with `forms.declared_relations` here: that reader walks the GRAPH and
+    serves the shipped route, whose corpora still land `R is_a relation` as a fact via `load_corpus`
+    (which bypasses intake entirely). `sync_vocabulary` unions the two; keeping the readers separate
+    is what lets the graph half be retired later without touching this one."""
+    return dict(kb.registers.get(VOCABULARY_REGISTER, {}))
 
 
 def _looks_like_a_path(grammar: str) -> bool:
@@ -113,11 +236,18 @@ def sync_vocabulary(kb) -> bool:
         return False
     from .forms import declared_relations
     gram = banks.grammar
-    fresh = sorted(r for r in declared_relations(kb) if r and r not in gram.lexicon)
+    # TWO SOURCES, and the split is the L0 migration in progress (option C, 2026-07-20). The
+    # REGISTER is the new home — an L0 declaration reaching intake never becomes a fact. The GRAPH
+    # read stays for the shipped route: `load_corpus` bypasses intake entirely (`_recognize` over
+    # `_ALL_FORMS`), so a corpus's `R is a relation` still lands as `R is_a relation`, and
+    # `forms.relation_forms` rebuilds from the graph per batch. Union means a KB that was loaded
+    # from a corpus AND then talked to keeps both halves of its vocabulary.
+    known = {**{r: RELATION_CATEGORY for r in declared_relations(kb)}, **declared_vocabulary(kb)}
+    fresh = sorted(w for w, _c in known.items() if w and w not in gram.lexicon)
     if not fresh:
         return False
     for r in fresh:
-        gram.lexicon[r] = [RELATION_CATEGORY]
+        gram.lexicon[r] = [known[r]]
     kb.registers[GRAMMAR_REGISTER] = compile_grammar(gram, open_class=banks.open_class)
     return True
 
@@ -388,6 +518,22 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
     later utterance happened to run. Reading the register first is what keeps a caller's stale
     `banks` reference harmless, since a sync RECOMPILES and replaces them."""
     banks = kb.registers.get(GRAMMAR_REGISTER, banks)
+
+    # ⭐ L0 FIRST — a declaration ABOUT the language, recognized by a FIXED form and never by the
+    # object grammar (see `VOCABULARY_FORMS`). It must precede the parse for the reason the whole
+    # level axis exists: parsing it with the grammar it modifies is what made it self-destroying.
+    # Nothing here touches the KB graph, so it cannot leak into reasoning or collide with an entity.
+    declaration = recognize_vocabulary(utterance)
+    if declaration is not None:
+        word, kind = declaration
+        category = resolve_vocabulary(banks, kind)
+        if category is not None:
+            declare_vocabulary(kb, word, category)
+            sync_vocabulary(kb)                  # the word is usable by the VERY NEXT utterance
+            return "vocabulary", {"word": word, "category": category}
+        # `K` names no category, so this is not a declaration at all — `lion is a cat`. Fall
+        # through to the ordinary parse; the SHAPE matching is not the decision, the grammar is.
+
     outcome, toks, _eos = parse(kb, utterance, banks)
     if outcome == REFUSED:
         return "unrecognized", {"tokens": toks}
