@@ -364,3 +364,72 @@ def test_extending_the_scope_equals_rebuilding_it():
     assert sorted(gi.facts(a)) == sorted(gi.facts(b))
     assert len(contradictions(a)) == len(contradictions(b)), "a kept scope must not duplicate markers"
     assert len(list(a.nodes())) == len(list(b.nodes())), "a kept scope must not accrete nodes"
+
+
+# ---------------------------------------------------------------------------
+# CONTEXT-GATED ASSERTION — a span inside a suppressing context asserts nothing
+# ---------------------------------------------------------------------------
+
+#: A conditional, declared on top of the shipped grammar. Its two halves genuinely ARE clauses,
+#: which is the whole point: the non-asserting CATEGORY trick that works for hedging cannot work
+#: here without duplicating every clause production.
+_COND = """
+when is a subordinator
+dangerous is a adj
+hungry is a adj
+sub expands to subordinator plus clause
+ccl expands to clause plus sub
+clause expands to ccl
+"""
+_SUPPRESS = "ccl suppresses\n"
+
+_CONDITIONAL = "a lion is dangerous when a lion is hungry"
+
+
+def _kb(extra: str):
+    g = AttrGraph()
+    gi.declare_grammar(g, (CORPUS / "loudon_grammar.cnl").read_text(encoding="utf-8") + extra)
+    return g
+
+
+def test_without_gating_a_conditional_asserts_both_halves():
+    """PINS THE DEFECT the gate exists to fix, so the gate cannot be quietly removed.
+
+    `a lion is dangerous when a lion is hungry` asserts NEITHER half — but each half is a `clause`
+    span, so `clause asserts subj is adjc when adjc` fires on both and writes two claims the
+    sentence does not make. Parsed, reported `fact`, committed falsehoods."""
+    kb = _kb(_COND)
+    gi.route(kb, _CONDITIONAL, gi.session_banks(kb))
+    facts = gi.facts(kb)
+    assert ("lion", "is", "dangerous") in facts and ("lion", "is", "hungry") in facts
+
+
+def test_a_suppressing_context_blocks_assertion():
+    """`ccl suppresses` — one declaration — and the conditional commits nothing."""
+    kb = _kb(_COND + _SUPPRESS)
+    gi.route(kb, _CONDITIONAL, gi.session_banks(kb))
+    assert gi.facts(kb) == [] or not any(
+        t in gi.facts(kb) for t in [("lion", "is", "dangerous"), ("lion", "is", "hungry")])
+
+
+def test_gating_leaves_ordinary_sentences_alone():
+    """The gate must be CONTEXTUAL, not a blanket off-switch: a clause outside any suppressing
+    span still asserts, in either utterance order."""
+    for order in ([_CONDITIONAL, "the lion has a mane"],
+                  ["the lion has a mane", _CONDITIONAL]):
+        kb = _kb(_COND + _SUPPRESS)
+        b = gi.session_banks(kb)
+        for s in order:
+            gi.route(kb, s, b)
+        assert ("lion", "has", "mane") in gi.facts(kb), f"lost the plain fact in order {order}"
+        assert ("lion", "is", "hungry") not in gi.facts(kb)
+
+
+def test_a_grammar_declaring_no_suppression_is_unaffected(kb):
+    """Declare-before-use: the gate costs a grammar that does not use it nothing at all — not even
+    an extra NAC premise on every assert rule."""
+    from ugm.cnl.grammar import SUPPRESSED
+    banks = gi.session_banks(kb)
+    assert not any(p.p == SUPPRESSED for r in banks.asserts for p in r.nac)
+    gi.route(kb, "the lion has a mane", banks)
+    assert ("lion", "has", "mane") in gi.facts(kb)

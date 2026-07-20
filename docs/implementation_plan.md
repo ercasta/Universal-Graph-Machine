@@ -657,10 +657,115 @@ lowering executes — never by sniffing a Pat):
   wrong in one direction only). Worth noting it appeared here from an INTERACTION between two
   correct-in-isolation mechanisms — pencil-vs-ink and dedup — rather than from either being wrong.
 
-**HEDGING IS COMPLETE** (concept-inventory gap 1 of 3). Remaining from the audit: **attribution /
-clausal complement** (`some naturalists consider the lion a cat`) and **conditional / subordination**
-(`the lion is dangerous when the lion is hungry`). Neither has an engine-side representation waiting
-the way hedging had, so both are likely larger than this was.
+**HEDGING IS COMPLETE** (concept-inventory gap 1 of 3). The other two were PROBED 2026-07-20, and the
+guess written here first — "neither has an engine-side representation waiting, so both are likely
+larger" — **was wrong for both**, in the same direction as every other mis-sizing this session:
+
+- **ATTRIBUTION (`some naturalists consider the lion a cat`) IS MOSTLY DECLARATION WORK.** The
+  pencil mechanism hedging uses already gives NON-VERIDICALITY FOR FREE: pen the proposition behind
+  a scope keyed by its HOLDER (`<attribution>` node + `held_by` relation) and `check` returns
+  **`assumed-no`** for it while an ordinary ink fact returns `positive`. So "recorded but not
+  asserted" — the thing that looked like the hard part — already works. What is needed is
+  declarations (a clause-as-complement production) plus a penning verb.
+  * **DESIGN NOTE THIS SURFACED: the right primitive is `Scope`, not `Band`.** `Band` mints a scope,
+    sets a GRADED attr, and pens heads. Attribution needs the same minus the degree, plus an
+    ordinary `held_by` triple the RHS can already write. So the band is one optional DECORATION on a
+    more general "pen these heads behind this node". Generalize when the second user arrives — but
+    know that it is coming, and do not entrench `Band`'s graded key as mandatory.
+- **CONDITIONAL (`the lion is dangerous when the lion is hungry`) IS A REAL DESIGN QUESTION — BUT
+  NOT A GRAMMAR ONE.** Both halves already exist: `load_machine_rules` accepts `HEAD when BODY`, and
+  the shipped intake ALREADY routes `?x is dangerous when ?x is hungry` to **`rule`** (the grammar
+  fork left the rule route untouched). The gap is exactly one step: the natural sentence names `the
+  lion` twice where the rule needs `?x`. **The question is WHO DECIDES WHAT VARIES** — (i) treat it
+  as a GROUND conditional about the kind node (safe, invents nothing, but does not reach individual
+  lions without an `is_a`-inheritance rule); (ii) variabilize the repeated subject (the system
+  inventing a generalization); (iii) ask, via the discriminating question. **That is the LEARNING
+  ARC's licensing question (§6.3, promotion by survival), not the grammar's** — a grammar cannot
+  safely decide that `the lion` becomes `?x`. Route it there rather than answering it in
+  `assert_bank`.
+- **THE META-PATTERN, now three-for-three: gap sizing from intuition has been wrong every time this
+  session, always by assuming depth where there was declaration work** (part-properties and
+  captive-vs-wild in the audit; both of these). The probe is cheap — parse the sentence, check what
+  the readers say — and it has changed the plan every time. Probe before scoping.
+
+**⭐⭐ PROBED 2026-07-20, AND IT RELOCATED THE DESIGN QUESTION ONE LEVEL DOWN.** Two results, the
+second more important than the question that prompted it:
+
+1. **GENERICITY IS ONE DECLARATION LINE.** `slot det in np from determiner plus np is left head`
+   keeps the determiner the grammar currently discards, and `a lion` / `the lion` become
+   distinguishable (`det=a` vs `det=the`) with the corpus baseline unmoved at 19/19 and no ambiguity
+   introduced. So the "who decides what varies" question does NOT need the discriminating question
+   as its default answer: **English already marks the distinction, and the form set can carry it** —
+   the same pattern as the marked exception (`no`) and the marked hedge (`generally`). User's
+   instinct was `ask`; the probe says ask should be the ESCALATION (absent determiner, contested
+   reading, or a `reconsider` contradiction implicating the choice), never the default, because
+   batch corpus reading cannot afford a question per conditional and the answer is predictable
+   almost always. **Silent variabilization stays rejected.**
+2. **⚠ THE CONDITIONAL PARSES COMPLETELY AND WRITES TWO FALSE FACTS.**
+   `a lion is dangerous when a lion is hungry` yields the full structure
+   (`hsubj/hadjc/hdet` + `bsubj/badjc/bdet`, both readings distinguished) — and
+   `facts = [(lion,is,dangerous), (lion,is,hungry)]`. **The sentence asserts NEITHER.** It parsed,
+   reported `fact`, and committed two falsehoods: the quietly-does-something-wrong class.
+   Cause: the two halves ARE `clause` spans, so `clause asserts subj is adjc when adjc` fires on
+   each independently.
+
+**THE REAL DESIGN QUESTION, and it is shared by all three remaining constructions: ASSERTION MUST BE
+GATED BY CONTEXT, NOT BY CATEGORY.** Hedging avoided this by making `hclause` its own category, so
+`clause asserts …` structurally cannot fire on it — **but that trick does not COMPOSE.** A
+conditional's halves genuinely are clauses; giving them a non-asserting category means duplicating
+every clause production, and attribution's complement needs the same again. Each non-asserting
+context multiplies the grammar.
+
+**BUILT 2026-07-20 (suite 751 green).** `<cat> suppresses` is a declaration; `suppression_bank`
+marks every span the category dominates; `assert_bank` NACs on the mark. NO engine change — the
+closure runs over the tree `decomposition_bank` already reifies: two rule families per child edge
+(`dleft`/`dright`/`donly`), a base case (direct child of a suppressing span) and a transitive case.
+
+- Conditional **2 false facts → 0**; plain sentences untouched in BOTH utterance orders; Loudon
+  corpus still **19/19**; accretion FLAT (292 nodes per utterance, constant across repeats).
+- **Delta-seeded on `FRESH` and idempotent by NAC**, following `decomposition_bank` exactly — sound
+  on the same argument (a span's dominators are spans of the same sentence). Premise order is the
+  join plan: `?p` is bound by the mark first, so `cat`/`dparent`/the child edge are all FOLLOWs.
+- **DECLARE-BEFORE-USE: a grammar that declares no suppression pays nothing** — not even the extra
+  NAC premise, which is only added when `gram.suppressing` is non-empty. Pinned.
+- **⚠ THE PLAIN NAME WAS LOAD-BEARING, AND THIS WAS NEARLY THE SIXTH INSTANCE.**
+  `_rule_touches_control` inspects the **NAC** as well as the LHS, so naming the mark
+  `<suppressed>` would have flagged every assert rule as control-writing and the fold would have
+  produced ZERO facts while every rule fired correctly. Checked before writing it rather than after
+  — the one time this session the trap was avoided rather than survived.
+- Pinned by four tests including `test_without_gating_a_conditional_asserts_both_halves`, which
+  pins the DEFECT so the gate cannot be quietly removed.
+
+**⚠ CORRECTION TO THIS SECTION'S FIRST DRAFT: it does NOT retire `hclause`.** The claim was that one
+mechanism covers all three. The probe says there are TWO gates, because the two shapes differ:
+- **DOMINATION gating** (a descendant of a suppressing span does not assert) — what conditionals and
+  attribution need, since their content is a NESTED clause. This is what was just probed.
+- **SELF gating** (this span asserts hedged rather than plainly) — what hedging needs. `hclause`
+  contains no inner `clause` span, so nothing dominates anything; the hedged clause must suppress
+  its OWN plain assertion. That is `clause asserts subj pred obj unless hedge` — which the
+  declaration surface CANNOT express today, because it allows only ONE guard and
+  `unless neg` already occupies it. So retiring `hclause` needs MULTI-GUARD `unless`, a different
+  (also small) change — not this one.
+
+**SEQUENCE: domination gating FIRST — DONE.** Next, in order:
+1. **Conditionals** — the productions above plus an `implies` verb writing to the RULE layer
+   (`load_machine_rules` already accepts `HEAD when BODY`, and intake already routes an explicit
+   `?x …` rule), gated on the genericity decision: route on the `det` slot, ask only as escalation.
+   The suppression declaration is what makes the halves safe to parse meanwhile.
+2. **Attribution** — a clause-as-complement production plus a holder-keyed scope; non-veridicality
+   is already free (`check` returns `assumed-no` for a penned proposition).
+3. **Multi-guard `unless`** — INDEPENDENT cleanup that would retire `hclause`. `hclause` is not
+   wrong, just duplicative, so this can wait.
+
+NOT YET SHIPPED IN `corpus/loudon_grammar.cnl`: the conditional productions live only in the tests.
+Shipping them before `implies` exists would make the grammar accept a conditional, report `fact`,
+and commit nothing — the mismatch flagged below. Land them WITH the verb.
+
+**Follow-up noted, not a defect yet:** under gating the conditional reports `fact` while writing
+nothing (the same honest intermediate state hedged sentences had before slice 2b). Once an `implies`
+verb writes the rule it will assert content and the verdict will be right; if that slips,
+`asserts_content` needs to respect suppression, or it reverts to the "reports fact, commits nothing"
+mismatch that the order-independence fix removed once already.
 
 **Superseded — the decision this replaced (kept for the argument):** The
 possibilistic layer already has the target representation (a `<hypothesis>` scope carrying a graded

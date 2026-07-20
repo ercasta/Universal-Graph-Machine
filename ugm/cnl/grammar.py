@@ -141,6 +141,17 @@ HEDGE_BAND_FORMS: list[Rule] = [
 ]
 
 
+#: `<cat> suppresses` — spans this category dominates do not assert (see `SUPPRESSED`).
+SUPPRESS_FORMS: list[Rule] = [
+    Rule(
+        key="gram.suppresses",
+        lhs=[Pat("?s", "first", "?z"), Pat("?z", "next", "suppresses?")],
+        nac=[Pat("suppresses?", "next", "?more")],
+        rhs=[Pat("<sup>?", "supcat", "?z")],
+    ),
+]
+
+
 def _assert_forms() -> list[Rule]:
     """`<cat> asserts|denies|hedges A B C [when|unless G]` — nine shapes, generated over the three
     verbs and the three guard shapes rather than written out.
@@ -170,12 +181,12 @@ ASSERT_FORMS: list[Rule] = _assert_forms()
 
 #: Every declaration form, for loading a grammar file.
 DECLARATION_FORMS: list[Rule] = (PRODUCTION_FORMS + SLOT_FORMS + MINT_FORMS + ASSERT_FORMS
-                                 + HEDGE_BAND_FORMS)
+                                 + HEDGE_BAND_FORMS + SUPPRESS_FORMS)
 
 _DECL_KEYS = ("sname", "scat", "sleft", "sright", "sonly", "sside", "scslot",
               "acat", "amode", "asubj", "apred", "aobj", "awhen", "aunless",
               "mname", "mcat", "mleft", "mright", "mside", "mcslot",
-              "hword", "hband")
+              "hword", "hband", "supcat")
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +205,8 @@ class Grammar:
     #: hedge word -> the band it denotes (`generally means 0.7`). Overlays the shipped
     #: `uncertainty.HEDGE_BAND` defaults, exactly as `uncertainty.hedge_bands` overlays them for a KB.
     hedge_bands: dict[str, float] = field(default_factory=dict)
+    #: categories that SUPPRESS assertion in everything they dominate (`ccl suppresses`).
+    suppressing: set[str] = field(default_factory=set)
 
     @property
     def categories(self) -> set[str]:
@@ -259,6 +272,8 @@ def read_grammar(g) -> Grammar:
             gram.mints.append(d)
         elif "acat" in d:
             gram.assertions.append(d)
+        elif "supcat" in d:
+            gram.suppressing.add(d["supcat"])
         elif "hword" in d and "hband" in d:
             try:                                   # a non-numeric band is not a declaration
                 v = float(d["hband"])
@@ -495,6 +510,25 @@ UNINTERPRETED = "unfolded"
 #: surface scaffolding with a plain name, listed in `SURFACE_PREDS` so every reader skips it.
 UNPARSED = "unparsed"
 
+#: Marks a span whose content must NOT be asserted, because it sits inside a suppressing context.
+#:
+#: ASSERTION IS GATED BY CONTEXT, NOT BY CATEGORY. The first non-asserting construction (hedging)
+#: got its own category, `hclause`, so that `clause asserts …` structurally could not fire on it.
+#: That works but DOES NOT COMPOSE: a conditional's two halves genuinely ARE clauses, so giving them
+#: a non-asserting category means duplicating every clause production, and an attributed complement
+#: needs the same again — each non-asserting context multiplying the grammar. Measured before the
+#: fix: `a lion is dangerous when a lion is hungry` parsed, reported `fact`, and wrote
+#: `(lion is dangerous)` AND `(lion is hungry)` — two claims the sentence does not make.
+#:
+#: This mark is the general form: a category DECLARES that it suppresses (`ccl suppresses`), and
+#: every span it dominates is marked. The assert rules NAC on it. No engine change is needed because
+#: `decomposition_bank` already reifies the parse tree, so domination is an ordinary closure.
+#:
+#: PLAIN-NAMED, AND THAT IS LOAD-BEARING: `_rule_touches_control` inspects the NAC too, so a
+#: `<…>`-named mark here would turn every assert rule into a control-writing one and the fold would
+#: produce ZERO facts while firing correctly — the same silent failure that hit the `unfolded` delta.
+SUPPRESSED = "suppressed"
+
 
 def _prod_key(z: str, x: str, y: str | None = None) -> str:
     """A production's identity as a literal, so a slot rule can SEED on it."""
@@ -566,6 +600,39 @@ def decomposition_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
             rhs=[Pat("<dec>?", "dprod", _prod_key(z, x)), Pat("<dec>?", "dparent", "?p"),
                  Pat("<dec>?", "donly", "?q")]))
     return rules, DEC_PREDS | {FRESH}
+
+
+def suppression_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
+    """Mark every span DOMINATED by a declared suppressing category (see `SUPPRESSED`).
+
+    A base case per child edge (a direct child of a suppressing span) plus a transitive case (a
+    direct child of an already-suppressed span) — an ordinary closure over the reified parse tree,
+    which is exactly why this needs no engine change. It is SURFACE (it reads `cat` and the
+    decomposition tree, never a denotation), so it runs in `parse` beside `decomposition_bank`.
+
+    IDEMPOTENT BY NAC (`unless already suppressed`), and DELTA-SEEDED on `FRESH` for the same
+    reason `decomposition_bank` is: without the seed the closure re-walks every suppressed span in
+    the session on every utterance. SOUND on the same argument — a span's dominators are spans of
+    the same sentence, which are fresh too. Premise order is the join plan: `?p` is bound by the
+    mark first, so `cat` / `dparent` / the child edge are all FOLLOWs from a bound endpoint."""
+    cats = sorted(gram.suppressing)
+    if not cats:
+        return [], frozenset()
+    rules: list[Rule] = []
+    fresh = [Pat("?p", FRESH, "?fr")]
+    guard = [Pat("?c", SUPPRESSED, "?s")]
+    for edge in ("dleft", "dright", "donly"):
+        for c in cats:
+            rules.append(Rule(
+                key=f"surf.supp.{c}.{edge}",
+                lhs=[*fresh, Pat("?p", "cat", c), Pat("?d", "dparent", "?p"), Pat("?d", edge, "?c")],
+                nac=guard, rhs=[Pat("?c", SUPPRESSED, "<yes>")]))
+        rules.append(Rule(
+            key=f"surf.supp.trans.{edge}",
+            lhs=[*fresh, Pat("?p", SUPPRESSED, "?y"), Pat("?d", "dparent", "?p"),
+                 Pat("?d", edge, "?c")],
+            nac=guard, rhs=[Pat("?c", SUPPRESSED, "<yes>")]))
+    return rules, frozenset({SUPPRESSED})
 
 
 def clear_fresh(g) -> int:
@@ -702,6 +769,11 @@ def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
             continue
         guards = [Pat("?p", d["awhen"], "?gw")] if "awhen" in d else []
         nacs = [Pat("?p", d["aunless"], "?gu")] if "aunless" in d else []
+        # CONTEXT GATE: a span inside a suppressing context asserts nothing, whatever its category
+        # says (see `SUPPRESSED`). Added only when some category actually suppresses, so a grammar
+        # that declares none pays no extra premise.
+        if gram.suppressing:
+            nacs = [*nacs, Pat("?p", SUPPRESSED, "?sup")]
         # Led by the mark, so an assert rule seeds the new sentence's spans rather than every span
         # carrying `cat` (see `_production_lhs` on premise order being the join plan).
         base = [Pat("?p", UNINTERPRETED, "?u"), Pat("?p", "cat", z), Pat("?p", subj, "?s"), *guards]
@@ -913,13 +985,14 @@ def compile_grammar(gram: Grammar, *, open_class: str | None = None,
     amb, apreds = ambiguity_bank(gram)
     spans, sppreds = span_bank(gram)
     decs, dpreds = decomposition_bank(gram)
+    supp, suppreds = suppression_bank(gram)
     slots, spreds = slot_bank(gram)
     marks, mpreds = remint_mark_bank(gram)
     rslots, rpreds = reinterpretation_slots(gram)
     # The decomposition bank runs with the spans (both are surface), so its rules ride the span
     # bank's slot in `parse` and its predicates join the span predicates.
     return GrammarBanks(chart=chart, chart_preds=cpreds, ambiguity=amb, ambiguity_preds=apreds,
-                        spans=spans + decs, span_preds=sppreds | dpreds,
+                        spans=spans + decs + supp, span_preds=sppreds | dpreds | suppreds,
                         slots=slots, slot_preds=spreds,
                         asserts=assert_bank(gram, defining=False),
                         defining_asserts=assert_bank(gram, defining=True), grammar=gram,
