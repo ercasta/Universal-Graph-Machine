@@ -153,7 +153,17 @@ clause asserts subj pred true unless obj
 clause asserts subj prep pobj when pobj
 clause asserts subj comp cobj when cobj
 clause asserts subj is adjc when adjc
-clause asserts subj is_a kind when kind
+# ---- KIND vs PROPERTY is decided by the DETERMINER (2026-07-20) ----
+# `the lion is a cat` is a KIND assertion; `bo is cleared` is a PROPERTY. English marks the
+# difference with the determiner and the surface carries it -- the grammar used to throw it away,
+# because `copula plus np` fires whether or not a determiner is present. With an OPEN vocabulary
+# (an undeclared word defaults to `noun`) that made every predicative adjective a kind: measured,
+# `bo is cleared` committed `bo is_a cleared` where the shipped route commits `bo is cleared`.
+# Parsed, routed `fact`, wrong predicate, no complaint -- form_inventory 8's "misunderstanding is a
+# MIS-MAPPING". Guarding on the `det` slot needs NO new category.
+# The subject's own determiner cannot interfere: a clause takes `det` from its RIGHT child (the vp).
+clause asserts subj is_a kind when det
+clause asserts subj is kind unless det
 # The hedged counterparts. `hedges under hedge` says WHICH slot carries the band, once, so each
 # line's own `when`/`unless` guard is free -- which is what lets the intransitive and prepositional
 # shapes exist at all. These mirror the `clause asserts ...` lines above ONE FOR ONE: a hedged
@@ -200,7 +210,13 @@ slot obj in qclause from copula plus qbody is right obj
 
 qclause asks subj pred obj when obj
 qclause asks subj is adjc when adjc
-qclause asks subj is_a kind when kind
+# THE QUESTION SIDE MUST AGREE WITH THE ASSERTION SIDE, and this half is the one that matters most:
+# it was 25 of the 44 failures when the step-2 flip was simulated. Patching only `clause` fixed
+# ZERO, because `is ada watched` still ASKED `('ada','is_a','watched')` while the rule had derived
+# `('ada','is','watched')` -- so every derived PROPERTY answered `no (assumed)`. A question and an
+# assertion that disagree about the predicate are a silent mismatch in both directions.
+qclause asks subj is_a kind when det
+qclause asks subj is kind unless det
 
 # `whether P` embeds a real `clause`, so `clause asserts ...` would fire on it and the QUESTION would
 # assert its own content (measured: `whether lion is huge` wrote `lion is_a huge`). That is the force
@@ -227,6 +243,22 @@ slot subj in gclause from goalmark plus clause is right subj
 slot kind in gclause from goalmark plus clause is right kind
 
 gclause intends subj is_a kind when kind
+
+# ---- the DETERMINER slot, percolated to every category that carries a `kind` ----
+# `det` is present ONLY when an np was built from `determiner plus np`, so its PRESENCE is the
+# discriminator the `when det` / `unless det` guards above read. It must reach every path a `kind`
+# slot reaches, or the guard silently falls to the `unless` branch and a kind becomes a property.
+slot det in np from determiner plus np is left head
+slot det in vp from copula plus np is right det
+slot det in clause from np plus vp is right det
+slot det in hvp from hedge plus vp is right det
+slot det in hclause from np plus hvp is right det
+# the question side
+slot det in qbody from np plus np is right det
+slot det in qbody from np plus vp is right det
+slot det in qclause from copula plus qbody is right det
+slot det in qclause from copula plus np is right det
+slot det in qclause from qmark plus clause is right det
 
 # ---- FORCE: commands (2026-07-20, design/form_inventory.md 4b) ----
 # The SPEECH ACTS -- `focus on lion`, `be cautious`, `run build`. Like `asks` and `intends` these

@@ -105,8 +105,17 @@ into exactly TWO causes, neither of which is on the plan's prerequisite list:
      `('ada','is_a','watched')` while the rule derived `('ada','is','watched')`: the question and the
      assertion must agree on the predicate, or every derived property answers `no (assumed)`. Same
      two lines on `qclause` (+ `det` slots through `qbody`).
-   * **MEASURED (`scratchpad/probe_det.py`): 5/5 discrimination, Loudon corpus still 19/19 with zero
-     ambiguity, no existing corpus line changes meaning, flip 44 → 19.** Ready to apply; NOT applied.
+   * **⭐ APPLIED to `corpus/loudon_grammar.cnl` 2026-07-20 (suite 818 green, pystrider 388 green).**
+     MEASURED on the shipped grammar: **5/5 discrimination, corpus still 19/19 with zero ambiguity,
+     flip 44 → 20**, and the question side now AGREES with the assertion side (`bo is cleared` then
+     `is bo cleared` → `yes`; `bo is a suspect` then `is bo a suspect` → `yes`).
+   * **ONE LINE CORRECTED vs the probe, deliberately.** The probe had
+     `slot det in qclause from copula plus np is right head`, which takes the np's HEAD as the
+     determiner — always present, so that production would always read KIND. Shipped as
+     `is right det`, which is what the guard actually means. **Cost: flip 19 → 20**, with the
+     failure mix redistributed (`intake_forms` 4→3, `reconsider` 4→5, `surface_facts` 2→3) rather
+     than one clean regression. Taking the semantically-correct line over the one-test-better one;
+     the +1 was not chased further, which is recorded rather than hidden.
    * **THE REMAINING 19 ARE NOT ARCHITECTURE** — sampled: tests asserting `unrecognized` for shapes
      the grammar legitimately PARSES (they encode the shipped route's limits and would be rewritten
      by the flip), plus corpus vocabulary the lion grammar lacks (`alice likes bob`). Neither blocks.

@@ -976,10 +976,17 @@ def test_retract_withdraws_derived_consequences():
 # they tested the retired `rewriter.Rewriter`'s own internal optimization — anchor-delta rule
 # activation / semi-naive matching, toggled via `activation=`/`semi_naive=` kwargs and inspected via
 # `rewriter._rule_anchors`/`rewriter.match_with_premises` — an implementation detail of that ONE
-# engine. `run_bank` has no such toggles (no `activation`/`semi_naive` params, no anchor-predicate
-# cache to inspect): it is not a dual-mode (naive vs optimized) engine, so there is nothing on the
-# ISA side for these tests to pin. The underlying PROPERTY (seed-from-ground avoids an unbounded
-# scan) is still covered below via the ISA's own one-shot matcher, `lowering.match_pats`.
+# engine, with no anchor-predicate cache on the ISA side for these tests to inspect. The underlying
+# PROPERTY (seed-from-ground avoids an unbounded scan) is covered below via the ISA's own one-shot
+# matcher, `lowering.match_pats`.
+#
+# ⚠ STALE CLAUSE CORRECTED 2026-07-20: this used to add "`run_bank` has no such toggles (no
+# `activation`/`semi_naive` params) … it is not a dual-mode engine". `run_bank` GAINED
+# `semi_naive=` when semi-naive rounds landed, and `test_isa_lowering.py` pins the two modes
+# against each other — so it IS dual-mode now. Same staleness class as `run_bank`'s own docstring,
+# which kept claiming "Naive — no semi-naive delta" long after the delta shipped and was then
+# quoted as a live root cause in `implementation_plan.md`. A comment asserting the ABSENCE of a
+# feature is the kind that rots silently: nothing fails when it becomes false.
 
 def test_seed_from_ground_never_scans_for_a_free_pattern():
     """Seed-from-ground (docs/attic/walkers_and_locality.md §1): a pattern with NO ground position
