@@ -165,9 +165,9 @@ router.** The forms below are what that ladder implements.
 | ASSERT | *the lion has a mane* | the fact route / `clause asserts …` | **FORM** — the only one that is |
 | DENY | *the lion has no mane* | `clause denies …` | **FORM** |
 | HEDGE | *the lion generally has a mane* | `hclause hedges …` | **FORM** (2026-07-20) |
-| ASK | *is the lion dangerous* | intake route → `ask_goal` | route only |
-| GOAL | *goal ada is a target* | intake route → `<goal>` node | route only |
-| COMMAND | *focus on ada*, *be cautious*, *run build* | intake routes → registers / `<run>` | route only |
+| ASK | *is the lion dangerous* | `qclause asks …` | **FORM** (2026-07-20) |
+| GOAL | *goal ada is a target* | `gclause intends …` | **FORM** (2026-07-20) |
+| COMMAND | *focus on ada*, *be cautious*, *run build* | `iclause commands …` → registers / `<run>` | **FORM** (2026-07-20) |
 | AUTHOR | *?x is dangerous when ?x is hungry*, *form K : …*, *to N : …* | intake route → `Rule` / procedure | route only |
 | RETRACT | *forget that rule* | `rule_control` | route only |
 | NORM | *don't sell rare cards* | `deontic._mint_object_norm` | route only |
@@ -176,6 +176,18 @@ router.** The forms below are what that ladder implements.
 exactly one thing — WHAT THEY COMMIT — which is the definition of force. So the declaration axis
 already exists and is one third built; `asks` / `authors` / `commands` extend it rather than
 introducing a new mechanism.
+
+**STATUS 2026-07-20: THE AXIS IS BUILT EXCEPT FOR AUTHORING.** Six verbs now share one `(verb, mode)`
+table in `grammar._assert_forms` — `asserts` / `denies` / `hedges` commit (ink, ink-negative, pencil);
+`asks` / `intends` / `commands` commit nothing and generate no fold rule at all, differing only in
+what they LEAVE BEHIND (nothing / a `<goal>` node / a change of stepping state). The prediction above
+held exactly: each was a table entry plus declarations, never a new mechanism.
+
+**AUTHOR and RETRACT are deliberately NOT verbs, and this is the settled boundary.** They author a
+BANK — a `Rule`, a form, a procedure — which the fold structurally cannot produce (class (b) below).
+They stay as intake routes ahead of the grammar, recognized by their own forms. Measured, not
+assumed: the grammar refuses every authoring surface, so their position ahead of the dispatch is not
+a routing decision. That is also what keeps conditionals reaching the rule layer.
 
 **MEASURED 2026-07-20, and this is why force is the priority rather than a curiosity.** Over the 68
 unique CNL utterances the repo's own tests actually ingest, a canonical grammar covers 37 (54%), and
@@ -198,10 +210,13 @@ imperative/prohibitive/copula in initial position is unambiguous against a fact 
 The root category (`clause` / `qclause` / `iclause` / `pclause`) then recovers the force, so routing
 can become declarative rather than an ordered ladder.
 
-**WHAT IS STILL OPEN.** Whether force should be a VERB on the assertion declaration
-(`qclause asks subj pred obj`) or a CATEGORY property (`qclause is interrogative`). The verb form
-matches the existing three and keeps one surface; the category form matches how `hclause` already
-works. Not yet decided, and it should be probed rather than argued.
+**~~WHAT IS STILL OPEN.~~ SETTLED 2026-07-20 BY BUILDING IT: force is a VERB.** The question was
+whether force should be a verb on the assertion declaration (`qclause asks subj pred obj`) or a
+CATEGORY property (`qclause is interrogative`). The verb won, and the deciding argument was not the
+aesthetic one (matching the existing three) but a structural one that only appeared under
+construction: **a force needs to say WHICH SLOTS carry its triple**, and the assertion surface
+already has exactly that shape, including the `when`/`unless` guards. A category property would have
+needed a second declaration to carry the slots, i.e. the verb surface again under another name.
 
 ### 4c. BAROQUE — desugar, never represent
 

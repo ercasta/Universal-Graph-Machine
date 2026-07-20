@@ -36,6 +36,18 @@ from dataclasses import dataclass, field
 # One definition — `focus.py` owns it (the focus-reachability GC sweeps by it).
 from .focus import GOAL  # noqa: E402
 
+#: The imperative WORD -> the stepping act it performs, for the `command` force (`iclause commands
+#: imp does target`, `design/form_inventory.md` §4b).
+#:
+#: DECLARED DATA, exactly like `policy.STANCES`, and the split of labour is the point: the GRAMMAR
+#: says only what it can see — "this utterance is a command, and this is its verb" — while what a
+#: given verb DOES stays in the module that already owns it (`focus`, `policy`, `procedure_surface`).
+#: Declaring one force verb per act instead would have put domain behaviour in the grammar file.
+#:
+#: A LOOKUP, NOT AN ORDERED LADDER: an unlisted verb names no act this system performs, so the
+#: utterance is refused rather than being guessed into the nearest act.
+COMMAND_ACTS: dict[str, str] = {"focus": "focus", "be": "stance", "run": "run"}
+
 
 @dataclass
 class Outcome:
@@ -318,9 +330,24 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         yield Event("unrecognized")
         return Outcome("unrecognized", utterance)
 
+    # ── THE AUTHORING CLUSTER: disable / form / procedure / rule ────────────────────────────────
+    # These four sit ahead of the DECLARATIVE ROUTING block below, and the reason is structural
+    # rather than historical: each of them AUTHORS A BANK — it must yield a `Rule`, a form, or a
+    # procedure, which the grammar's fold cannot produce at all (`form_inventory.md` §4b class (b),
+    # deliberately hand-authored). They route by their own FORMS firing, so they are declarative
+    # too; they are simply declared somewhere other than the grammar.
+    #
+    # THEIR POSITION IS NOT A ROUTING DECISION, and that is MEASURED rather than assumed: the
+    # grammar REFUSES all four surfaces under both `open_class` settings, so this order and the
+    # reverse agree. Pinned by `test_the_authoring_cluster_is_refused_by_the_grammar`, which exists
+    # to fail loudly if a future grammar ever starts parsing one of them.
+
     # RULE DISABLE — `forget that rule` / `disable that rule` marks the last-authored rule `<disabled>`
     # (additive, no deletion §5). Recognized as a FORM (§D.2) and checked BEFORE the focus forms: it is a
     # MORE SPECIFIC form than the focus `forget that` (the trailing `rule` token disambiguates).
+    # ⚠ THE ONE GENUINELY ORDER-DEPENDENT PAIR LEFT: both this and the focus `forget that` recognizer
+    # fire on `forget that rule`, so position alone separates them. Deliberate and documented, but it
+    # is the last place in this router where order carries meaning.
     if rule_control.recognize_rule_op(text) == "disable":
         disabled = rule_control.disable_last(kb)
         if disabled:                                         # a disabled rule's conclusions are up for
@@ -328,25 +355,6 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
             mark_dirty(kb, rule_grains([r for r in rules if r.key in disabled]))
         yield Event("rule-disable", {"disabled": disabled})
         return Outcome("rule-disable", utterance, disabled_keys=disabled)
-
-    # FOCUS — an explicit focus move (`focus on X` / `forget that` / `back to X`), recognized as a FORM
-    # (not a string sniff, §D.2). Checked first: these are control-CNL, never facts/questions.
-    fop = focus_mod.recognize_focus_op(text)
-    if fop is not None and fop[0] is not None:
-        focus_mod.apply_focus_op(kb, fop[0], fop[1])
-        yield Event("focus", {"op": fop[0], "target": fop[1]})
-        return Outcome("focus", utterance, focus_op=fop)
-
-    # STANCE — a policy meta-line (`be cautious` / `be decisive`): the θ dial as CNL. Sets the
-    # SESSION stance register (`kb.registers["policy"]` — execution attitude, the register home);
-    # subsequent turns without an explicit `policy=` reason under it. An explicit param still wins
-    # (the caller's override). Recognized as a form + declared table (`policy.recognize_stance`).
-    from .policy import recognize_stance
-    stance = recognize_stance(text)
-    if stance is not None:
-        kb.registers["policy"] = stance
-        yield Event("stance", {"uncertainty": stance.uncertainty, "theta": stance.theta})
-        return Outcome("stance", utterance)
 
     # FORM — a grammar extension (`form KEY : HEAD when BODY`, Phase 9 Slice B,
     # docs/design/form_authoring_design.md §2). Routed by the HEADER form having fired
@@ -390,53 +398,12 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         yield Event("procedure", {"name": name, "steps": steps})
         return Outcome("procedure", utterance)
 
-    # PROCEDURE RUN — `run NAME` seeds `<run> proc NAME` (the stepping bank's INVOKE request) and drives
-    # the SAME act arm a `goal …` does: a pre-made plan and a synthesized one execute through one gate
-    # (§2). Recognized as a keyword-led COMMAND here — before the fact route, which would not know the
-    # `run` verb. The act loop is the stratified `_act_loop` (Slice 2); world steps suspend as `call` events.
-    invoked = procedure_surface.parse_run(text)
-    if invoked is not None:
-        procedure_surface.stage_run(kb, invoked)
-        yield Event("goal", {"procedure": invoked})
-        before_j = _j_nodes(kb) if trace else set()
-        acted = yield from _act_loop(kb, rule_control.active_rules(kb, rules),
-                                     sync_tools or {}, async_tools or {}, provenance=trace)
-        if trace:
-            for rec in _derivations_since(kb, before_j):
-                yield Event("derive", rec)
-        yield Event("acted", {"fired": acted})
-        return Outcome("goal", utterance, acted=acted)
-
-    # The session's authored grammar, minus disabled forms — threaded into every recognition
-    # site below (question recognition/answering, fact recognition, nearest-forms). With no
-    # authored forms these are empty and every path is byte-identical to before (including the
-    # question-recognition memo, which the empty extra_forms leaves on its static fast path).
-    session_grammar = rule_control.active_rules(kb, form_authoring.session_forms(kb))
-    question_forms = [f for f in session_grammar if form_authoring.is_question_form(f)]
-    declarative_forms = [f for f in session_grammar if not form_authoring.is_question_form(f)]
-
-    # ANAPHORA is a BOUNDARY concern, resolved by the external SLM on the NL->CNL side using the exposed
-    # discourse state (`focus.top_centers`), NOT here (decision 2026-07-12, `cnl_intake_design.md` §4). The
-    # substrate receives already-resolved CNL and never sees a pronoun — reasoning is byte-identical whether
-    # the CNL says "she" or "ada", so a pronoun resolver bought nothing structural. Intake stays reasoning-
-    # facing; NLP stays on the SLM side of the boundary where the vision puts it.
-
-    # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
-    q = recognize(text, extra_forms=question_forms)
-    if q is not None:
-        yield Event("question", {"s": q.get("s"), "p": q.get("p"), "o": q.get("o")})
-        # widen BEFORE answering so bounded attention includes what this question is about.
-        focus_mod.widen(kb, _question_entities(q))
-        fscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
-        active = rule_control.active_rules(kb, rules)     # a `<disabled>` rule neither fires nor decides
-        answer = yield from _answer_with_ask(kb, text, active, policy, fscope, can_ask, trace,
-                                             extra_forms=question_forms, max_rounds=max_rounds)
-        yield Event("answer", {"answer": answer})
-        return Outcome("answer", utterance, answer=answer)
-
     # RULE — a `HEAD when …` line reflects to executable rule(s); none => not a rule line. Parse WITHOUT
     # linting (`lint=False`): runtime authoring owns the stratification check so a mid-session negation
     # cycle becomes a CONVERSATION, not a raise (§6/Phase 8.6).
+    # THE LAST OF THE AUTHORING CLUSTER. Keeping it here is also what keeps CONDITIONALS working —
+    # `?x is dangerous when ?x is hungry` reaches the rule layer, which `form_inventory.md` records
+    # as their correct route (`when` is undeclared, so the grammar refuses them anyway).
     new_rules = load_rules(text, policy=policy, lint=False)
     if new_rules:
         conflict = _fresh_conflict(new_rules)
@@ -455,17 +422,39 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         yield Event("rule", {"added": len(new_rules)})
         return Outcome("rule", utterance, added_rules=list(new_rules))
 
-    # FACT / GOAL / UNRECOGNIZED — recognize into the live KB. A content relation means a fact landed;
-    # a freshly minted `<goal>` node means the GOAL form fired (routing by produced structure, §D.1 —
-    # the before/after delta attributes the goal to THIS utterance, no string sniff).
-    # THE GRAMMAR FORK (integration step 2). A KB that DECLARES a grammar takes the declarative tail
-    # through parse -> interpretation scope instead of `load_facts`, so its facts land on ENTITY
-    # nodes reached by `denotes` rather than on the tokens themselves. Routed by a declared
-    # register, never by sniffing the utterance (§D.1). Everything above this line — questions,
-    # rules, focus, forms, procedures — is untouched and shared by both paths.
-    # This fork is TEMPORARY and deliberately duplicative (user decision 2026-07-19): the target is
-    # interpretation nodes everywhere, and the duplication buys the freedom to move this path
-    # without holding the token-is-entity path green in lockstep.
+    # The session's authored grammar, minus disabled forms — threaded into every recognition
+    # site below (question recognition/answering, fact recognition, nearest-forms). With no
+    # authored forms these are empty and every path is byte-identical to before (including the
+    # question-recognition memo, which the empty extra_forms leaves on its static fast path).
+    session_grammar = rule_control.active_rules(kb, form_authoring.session_forms(kb))
+    question_forms = [f for f in session_grammar if form_authoring.is_question_form(f)]
+    declarative_forms = [f for f in session_grammar if not form_authoring.is_question_form(f)]
+
+    # ANAPHORA is a BOUNDARY concern, resolved by the external SLM on the NL->CNL side using the exposed
+    # discourse state (`focus.top_centers`), NOT here (decision 2026-07-12, `cnl_intake_design.md` §4). The
+    # substrate receives already-resolved CNL and never sees a pronoun — reasoning is byte-identical whether
+    # the CNL says "she" or "ada", so a pronoun resolver bought nothing structural. Intake stays reasoning-
+    # facing; NLP stays on the SLM side of the boundary where the vision puts it.
+
+    # ═══ DECLARATIVE ROUTING (2026-07-20) ═══════════════════════════════════════════════════════
+    # A KB that DECLARES a grammar dispatches on WHICH FORCE ITS PARSE RECOVERED — `qclause` asks,
+    # `gclause` intends, `iclause` commands, `clause` asserts — instead of on position in an ordered
+    # if-ladder. That is §D.1 ("route by which forms fired, not by sniffing the utterance") applied
+    # to the router itself, and it is why this block sits ABOVE focus/stance/run/question rather
+    # than below them: those four surfaces are now things the grammar RECOGNIZES, so letting a
+    # string recognizer see them first would put the answer back in the ordering.
+    #
+    # WHAT STAYS ABOVE, AND WHY IT IS NOT A COMPROMISE. The authoring cluster (disable / form /
+    # procedure / rule) is BANK AUTHORING — it must yield a `Rule`, which the fold structurally
+    # cannot produce (`form_inventory.md` §4b class (b), deliberately hand-authored). Those are
+    # recognized by their own FORMS, so they are declarative too; they are simply declared
+    # elsewhere. MEASURED, not assumed: the grammar REFUSES every one of those surfaces under both
+    # `open_class` settings, so this ordering and the reverse agree — which is exactly what makes
+    # the cluster's position not a routing decision.
+    #
+    # A REFUSED PARSE FALLS THROUGH to the ladder below rather than returning, so a grammar that
+    # does not yet declare a surface (`forget that`, `back to X`) still reaches the shipped
+    # recognizer for it. What it must NEVER reach is `load_facts` — see the guard on the fact route.
     from .cnl import grammar_intake
     gbanks = grammar_intake.session_banks(kb)
     if gbanks is not None:
@@ -476,7 +465,41 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
             # discriminating question (`can_ask`) — which is where this is headed.
             yield Event("ambiguous", {"spans": data["spans"]})
             return Outcome("ambiguous", utterance, nearest=data["spans"])
-        if kind == "unrecognized":
+        if kind == "command":
+            # ⭐ THE `command` FORCE — the SPEECH ACTS. It commits no fact and, unlike a goal, what
+            # it leaves behind is STEPPING state (a focus frame, the policy register, a `<run>`
+            # request), never a belief. The grammar reports the imperative WORD; `COMMAND_ACTS`
+            # resolves it to the act, and each act is performed by the module that already owns it,
+            # so nothing about focus/stance/running moved into the grammar.
+            op, target = data["command"]
+            act = COMMAND_ACTS.get(op)
+            if act == "focus":
+                focus_mod.apply_focus_op(kb, "push", target)
+                yield Event("focus", {"op": "push", "target": target})
+                return Outcome("focus", utterance, focus_op=("push", target))
+            if act == "stance":
+                from .policy import STANCES
+                stance = STANCES.get(target)
+                if stance is not None:
+                    kb.registers["policy"] = stance
+                    yield Event("stance", {"uncertainty": stance.uncertainty,
+                                           "theta": stance.theta})
+                    return Outcome("stance", utterance)
+            elif act == "run":
+                from .cnl import procedure_surface as _ps
+                _ps.stage_run(kb, target)
+                yield Event("goal", {"procedure": target})
+                before_j = _j_nodes(kb) if trace else set()
+                acted = yield from _act_loop(kb, rule_control.active_rules(kb, rules),
+                                             sync_tools or {}, async_tools or {}, provenance=trace)
+                if trace:
+                    for rec in _derivations_since(kb, before_j):
+                        yield Event("derive", rec)
+                yield Event("acted", {"fired": acted})
+                return Outcome("goal", utterance, acted=acted)
+            # A command shape whose verb names no act this system performs (`be tuesday`). Refusing
+            # is the honest outcome: it PARSED, so the nearest-forms machinery has nothing useful to
+            # add, but guessing an act would be the exception-dropping failure in another costume.
             yield Event("unrecognized", {"nearest": []})
             return Outcome("unrecognized", utterance)
         if kind == "question":
@@ -511,10 +534,77 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
                     yield Event("derive", rec)
             yield Event("acted", {"fired": acted})
             return Outcome("goal", utterance, acted=acted)
-        focus_mod.widen(kb, data["centers"])
-        yield Event("fact", {"centers": sorted(data["centers"])})
-        return Outcome("fact", utterance)
+        if kind == "fact":
+            focus_mod.widen(kb, data["centers"])
+            yield Event("fact", {"centers": sorted(data["centers"])})
+            return Outcome("fact", utterance)
+        # kind == "unrecognized": the grammar could not parse it. FALL THROUGH to the recognizers
+        # below — a grammar need not declare every surface, and the ones it does not declare must
+        # still reach the shipped form that handles them.
 
+    # FOCUS — an explicit focus move (`focus on X` / `forget that` / `back to X`), recognized as a FORM
+    # (not a string sniff, §D.2). These are control-CNL, never facts/questions.
+    # For a grammar KB this is now the FALLBACK: `focus on X` is recognized above by the `command`
+    # force, and only the surfaces the grammar does not declare (`forget that`, `back to X`) reach here.
+    fop = focus_mod.recognize_focus_op(text)
+    if fop is not None and fop[0] is not None:
+        focus_mod.apply_focus_op(kb, fop[0], fop[1])
+        yield Event("focus", {"op": fop[0], "target": fop[1]})
+        return Outcome("focus", utterance, focus_op=fop)
+
+    # STANCE — a policy meta-line (`be cautious` / `be decisive`): the θ dial as CNL. Sets the
+    # SESSION stance register (`kb.registers["policy"]` — execution attitude, the register home);
+    # subsequent turns without an explicit `policy=` reason under it. An explicit param still wins
+    # (the caller's override). Recognized as a form + declared table (`policy.recognize_stance`).
+    from .policy import recognize_stance
+    stance = recognize_stance(text)
+    if stance is not None:
+        kb.registers["policy"] = stance
+        yield Event("stance", {"uncertainty": stance.uncertainty, "theta": stance.theta})
+        return Outcome("stance", utterance)
+
+    # PROCEDURE RUN — `run NAME` seeds `<run> proc NAME` (the stepping bank's INVOKE request) and drives
+    # the SAME act arm a `goal …` does: a pre-made plan and a synthesized one execute through one gate
+    # (§2). Recognized as a keyword-led COMMAND here — before the fact route, which would not know the
+    # `run` verb. The act loop is the stratified `_act_loop` (Slice 2); world steps suspend as `call` events.
+    invoked = procedure_surface.parse_run(text)
+    if invoked is not None:
+        procedure_surface.stage_run(kb, invoked)
+        yield Event("goal", {"procedure": invoked})
+        before_j = _j_nodes(kb) if trace else set()
+        acted = yield from _act_loop(kb, rule_control.active_rules(kb, rules),
+                                     sync_tools or {}, async_tools or {}, provenance=trace)
+        if trace:
+            for rec in _derivations_since(kb, before_j):
+                yield Event("derive", rec)
+        yield Event("acted", {"fired": acted})
+        return Outcome("goal", utterance, acted=acted)
+
+    # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
+    q = recognize(text, extra_forms=question_forms)
+    if q is not None:
+        yield Event("question", {"s": q.get("s"), "p": q.get("p"), "o": q.get("o")})
+        # widen BEFORE answering so bounded attention includes what this question is about.
+        focus_mod.widen(kb, _question_entities(q))
+        fscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
+        active = rule_control.active_rules(kb, rules)     # a `<disabled>` rule neither fires nor decides
+        answer = yield from _answer_with_ask(kb, text, active, policy, fscope, can_ask, trace,
+                                             extra_forms=question_forms, max_rounds=max_rounds)
+        yield Event("answer", {"answer": answer})
+        return Outcome("answer", utterance, answer=answer)
+
+    if gbanks is not None:
+        # ⚠ A GRAMMAR KB MUST NEVER REACH `load_facts`. Its facts belong on ENTITY nodes reached by
+        # `denotes`; letting an unparsed line fall into the shipped fact route would write them onto
+        # the TOKENS instead and reintroduce exactly the duality this route exists to split apart —
+        # silently, since the line would route as `fact` and look successful.
+        nearest = _nearest_forms(text, extra=session_grammar)
+        yield Event("unrecognized", {"nearest": nearest})
+        return Outcome("unrecognized", utterance, nearest=nearest)
+
+    # FACT / GOAL / UNRECOGNIZED — recognize into the live KB. A content relation means a fact landed;
+    # a freshly minted `<goal>` node means the GOAL form fired (routing by produced structure, §D.1 —
+    # the before/after delta attributes the goal to THIS utterance, no string sniff).
     goals_before = set(kb.nodes_named(GOAL))
     nodes_before = set(kb.nodes())                   # to attribute this utterance's NEW fact relations
     anchors = load_facts(kb, text, extra_forms=declarative_forms)

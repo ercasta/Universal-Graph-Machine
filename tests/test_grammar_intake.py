@@ -183,6 +183,154 @@ def test_ingest_without_a_grammar_is_unaffected():
 
 
 # ---------------------------------------------------------------------------
+# DECLARATIVE ROUTING (2026-07-20) — the router dispatches on the FORCE the parse
+# recovered, not on position in an ordered if-ladder. `design/form_inventory.md` §4b.
+# ---------------------------------------------------------------------------
+
+#: One surface per FORCE the grammar declares, and the `Outcome.kind` each must produce.
+#: The whole claim of declarative routing is that this table is decided by the PARSE.
+FORCES = [
+    ("the lion has a mane", "fact"),        # clause  asserts
+    ("is lion strong", "answer"),           # qclause asks
+    ("focus on lion", "focus"),             # iclause commands -> focus
+    ("be cautious", "stance"),              # iclause commands -> stance
+]
+
+
+def _token_side_content(kb):
+    """CONTENT relations standing on SURFACE tokens — what `load_facts` would have written.
+
+    The discriminator matters: a refused parse legitimately leaves its surface behind (the token
+    chain, `cat`/`begin`/`end`, the span scaffolding), and that is the permanent record this route
+    is built on. What must never appear is a CONTENT relation on a token, since content belongs on
+    the entities one `denotes` hop away. So this filters the surface out rather than comparing
+    whole-graph triples, which would fail on the scaffolding and hide the real property."""
+    from ugm.interpretation import SURFACE_PREDS
+    surface = {n for n in kb.nodes()
+               if any(kb.has_key(r, "first") or kb.has_key(r, "next")
+                      for r, _ in kb.relations_from(n))
+               or any(kb.has_key(r, "next") for r in kb.into(n))}
+    out = []
+    for n in surface:
+        for r, o in kb.relations_from(n):
+            p = kb.predicate(r)
+            if not p or kb.is_control(r) or kb.is_inert(r):
+                continue
+            if p in SURFACE_PREDS or p.startswith("span_") or p in ("head", "about", "because"):
+                continue
+            out.append((kb.name(n), p, kb.name(o)))
+    return out
+
+
+@pytest.mark.parametrize("text,kind", FORCES)
+def test_each_force_routes_by_its_parse(kb, text, kind):
+    """Every force reaches its own route through the REAL `ingest`, i.e. through the restructured
+    router rather than through `gi.route` in isolation."""
+    import ugm as h
+    assert h.ingest(kb, [], text).kind == kind
+
+
+def test_the_parse_and_not_the_ladder_decided_the_command(kb):
+    """⭐ THE DISCRIMINATING TEST, and the reason the outcome table above is not enough.
+
+    `test_each_force_routes_by_its_parse` passes whether the GRAMMAR or the shipped string
+    recognizer decided, because both produce `Outcome("focus")` — it cannot see the property this
+    slice exists to establish. (Lesson 4: a test that passes under the defect it was written for.)
+
+    The structural discriminator: the shipped `recognize_focus_op` runs its forms in a SCRATCH
+    graph and leaves the KB untouched, while the grammar route parses into the KB and leaves the
+    utterance's SURFACE standing. So an `iclause` span in the KB proves the parse decided. Fails
+    the moment the dispatch is moved back below the focus recognizer."""
+    import ugm as h
+    h.ingest(kb, [], "focus on lion")
+    cats = {kb.name(o) for n in kb.nodes() for r, o in kb.relations_from(n)
+            if kb.has_key(r, "cat")}
+    assert "iclause" in cats, (
+        f"no iclause span — the ladder, not the parse, routed the command (saw {sorted(cats)})")
+
+
+def test_a_command_commits_no_fact(kb):
+    """A command changes STEPPING state, never a belief. `asks`/`intends`/`commands` all commit
+    nothing; what separates a command is only what it leaves behind."""
+    import ugm as h
+    h.ingest(kb, [], "focus on lion")
+    h.ingest(kb, [], "be cautious")
+    assert not gi.facts(kb), "a command must not write a fact"
+
+
+def test_a_command_actually_performs_its_act(kb):
+    """Routing to `focus`/`stance` is not enough — the act the module owns must have happened, or
+    the force would be recognized and then dropped."""
+    import ugm as h
+    from ugm import focus as focus_mod
+    h.ingest(kb, [], "focus on lion")
+    assert "lion" in set(focus_mod.top_centers(kb))
+    h.ingest(kb, [], "be cautious")
+    assert kb.registers["policy"].theta == 0.2
+
+
+def test_a_command_verb_naming_no_act_is_refused(kb):
+    """`COMMAND_ACTS` is a LOOKUP, not an ordered ladder: an imperative that names no act this
+    system performs is refused rather than guessed into the nearest one."""
+    import ugm as h
+    assert h.ingest(kb, [], "be strong").kind == "unrecognized"
+
+
+def test_the_authoring_cluster_is_refused_by_the_grammar(kb):
+    """⭐ WHY THE AUTHORING CLUSTER'S POSITION IS NOT A ROUTING DECISION.
+
+    disable / form / procedure / rule sit ABOVE the grammar dispatch because they are BANK
+    AUTHORING, which the fold structurally cannot express. That is only harmless if the grammar
+    would refuse them anyway — otherwise the ordering, not the declaration, is deciding. Measured
+    here rather than assumed, because if a future grammar ever DID parse one of these surfaces the
+    router would silently start answering a different question."""
+    from ugm.cnl.grammar import PARSED
+    for text in ("forget that rule",
+                 "form k : <thing>? big ?x when ?x next ?y",
+                 "to build : get wood",
+                 "?x is dangerous when ?x is strong"):
+        outcome, _toks, _eos = parse(AttrGraph(), text, banks(kb))
+        assert outcome != PARSED, f"the grammar now parses an authoring surface: {text!r}"
+
+
+def test_conditionals_still_reach_the_rule_layer(kb):
+    """The authoring cluster's reason for existing, on the surface that motivated it. A conditional
+    must not be read as a fact by the grammar — `form_inventory.md` records the rule layer as its
+    correct route."""
+    import ugm as h
+    out = h.ingest(kb, [], "?x is dangerous when ?x is strong")
+    assert out.kind == "rule" and out.added_rules
+
+
+def test_a_grammar_kb_never_reaches_the_token_fact_route(kb):
+    """⚠ THE REGRESSION THIS SLICE COULD MOST EASILY CAUSE, and it would be SILENT.
+
+    A refused parse now FALLS THROUGH to the recognizers below it. If it kept falling all the way
+    into `load_facts`, the line would route as `fact` and look successful while writing its
+    relations onto the TOKENS — reintroducing exactly the duality the grammar route exists to split
+    apart. An unparsed line must end as `unrecognized` with nothing on the token side.
+
+    ⚠ THE INPUT IS THE WHOLE TEST, and the first version got it wrong. `glorp the flarn quux` is
+    refused by the shipped fact forms TOO, so it passed with the guard deleted — it could not tell
+    the two paths apart (lesson 4 again, caught by re-breaking). `zork is a cat` is the
+    discriminating shape: the grammar refuses it because `zork` is undeclared, while `load_facts`
+    recognizes it perfectly and would write `zork is_a cat` onto the token."""
+    import ugm as h
+    out = h.ingest(kb, [], "zork is a cat")
+    assert out.kind == "unrecognized"
+    assert not _token_side_content(kb), (
+        "a grammar KB must never write token-side facts — it fell through to `load_facts`")
+
+
+def test_an_undeclared_focus_surface_still_falls_through(kb):
+    """The fall-through's REASON: a grammar need not declare every surface. `forget that` is not in
+    the iclause productions, so it must still reach the shipped focus recognizer."""
+    import ugm as h
+    h.ingest(kb, [], "focus on lion")
+    assert h.ingest(kb, [], "forget that").kind == "focus"
+
+
+# ---------------------------------------------------------------------------
 # Slice 3 — the revision loop
 # ---------------------------------------------------------------------------
 

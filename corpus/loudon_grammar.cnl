@@ -227,3 +227,41 @@ slot subj in gclause from goalmark plus clause is right subj
 slot kind in gclause from goalmark plus clause is right kind
 
 gclause intends subj is_a kind when kind
+
+# ---- FORCE: commands (2026-07-20, design/form_inventory.md 4b) ----
+# The SPEECH ACTS -- `focus on lion`, `be cautious`, `run build`. Like `asks` and `intends` these
+# commit no fact; unlike either, what they leave behind is a change of STEPPING state (a focus
+# frame, the policy register, a `<run>` request) rather than anything the KB believes.
+#
+# WHY THIS COMPOSES WITHOUT AMBIGUITY, and it is structural rather than lucky: English marks force
+# POSITIONALLY, at the LEFT EDGE. An imperative in initial position cannot collide with a fact,
+# because every fact production starts with an np and there is no `np plus np` to give the noun
+# reading anywhere to go. Measured, not assumed -- declaring these words as nouns TOO still parses
+# every surface unambiguously.
+#
+# `iclause` needs no `suppresses`. `qclause`/`gclause` suppress because they embed a whole `clause`
+# that `clause asserts ...` would fire on; an iclause embeds only an np/pp/adj, which predicates
+# nothing. Declaring it anyway would add a premise to every assert rule for no gain.
+focus is a imperative
+be is a imperative
+run is a imperative
+on is a preposition
+cautious is a adj
+decisive is a adj
+
+iclause expands to imperative plus np
+iclause expands to imperative plus pp
+iclause expands to imperative plus adj
+clause expands to iclause
+
+slot imp in iclause from imperative plus np is left head
+slot target in iclause from imperative plus np is right head
+slot imp in iclause from imperative plus pp is left head
+slot target in iclause from imperative plus pp is right pobj
+slot imp in iclause from imperative plus adj is left head
+slot target in iclause from imperative plus adj is right head
+
+# `does` is a LITERAL in the predicate position (it names no slot), exactly as `is_a` is in the
+# lines above -- the declaration surface already reads an unrecognized predicate as a literal word,
+# so the command triple needs no new mechanism. The router reads (imperative-word, target).
+iclause commands imp does target

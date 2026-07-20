@@ -247,6 +247,21 @@ def goal_of(kb, toks, banks):
     return force_triple(kb, toks, banks, "goal")
 
 
+def command_of(kb, toks, banks):
+    """The `(imperative_word, _, target)` this utterance COMMANDS, or None.
+
+    The `command` force — the speech acts (`focus on lion`, `be cautious`, `run build`). Like `ask`
+    and `goal` it commits no fact; what separates it is that it changes STEPPING state (a focus
+    frame, the policy register, a `<run>` request) rather than anything the KB believes.
+
+    THE OP IS THE IMPERATIVE WORD ITSELF, and the router maps it to a handler through a declared
+    table. That keeps the grammar saying only what it can see — this utterance is a command, and
+    this is the verb — while what a given verb DOES stays where it already lives (`focus`,
+    `policy.STANCES`, `procedure_surface`). The alternative, declaring one force verb per act, would
+    put domain behaviour in the grammar file."""
+    return force_triple(kb, toks, banks, "command")
+
+
 def mint_goal(kb, target: str, gtype: str) -> str:
     """Mint the `<goal>` node the act loop runs on — the `goal` force's reification.
 
@@ -397,6 +412,10 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
     wanted = goal_of(kb, toks, banks)
     if wanted is not None:
         return "goal", {"tokens": toks, "goal": (wanted[0], wanted[2]), "scope": scope}
+
+    ordered = command_of(kb, toks, banks)
+    if ordered is not None:
+        return "command", {"tokens": toks, "command": (ordered[0], ordered[2]), "scope": scope}
 
     verdict = "fact" if asserts_content(kb, toks, banks) else "unrecognized"
     sync_vocabulary(kb)                # this utterance may have DECLARED a relation — see above

@@ -207,16 +207,22 @@ SUPPRESS_FORMS: list[Rule] = [
 
 
 def _assert_forms() -> list[Rule]:
-    """`<cat> asserts|denies|hedges A B C [when|unless G]` — nine shapes, generated over the three
-    verbs and the three guard shapes rather than written out.
+    """`<cat> asserts|denies|hedges|asks|intends|commands A B C [when|unless G]` — generated over the
+    verbs × the three guard shapes rather than written out.
 
-    `hedges` is the possibilistic verb: the triple is written in PENCIL behind a fork banded by the
-    guard slot's hedge word, so a hedged sentence commits no INK. It is a VERB and not a flavour of
-    `asserts` for the same reason `denies` is one — the three differ in what they commit, which is
-    exactly what a declaration should say."""
+    THE VERB IS THE FORCE AXIS (`design/form_inventory.md` §4b). All six say WHICH SLOTS carry the
+    triple; they differ in WHAT THEY COMMIT, which is the definition of force and exactly what a
+    declaration should say:
+
+    * `asserts` / `denies` — ink, positive and negative.
+    * `hedges` — PENCIL behind a fork banded by the hedge word, so a hedged sentence commits no ink.
+    * `asks` — nothing at all; answering changes no beliefs (`assert_bank` generates no rule).
+    * `intends` — no fact, but a `<goal>` node the act loop runs on: it leaves something behind.
+    * `commands` — no fact either; it names an ACT (`focus on lion`, `be cautious`, `run build`),
+      so what it leaves behind is a change of STEPPING state rather than a belief."""
     forms: list[Rule] = []
     for verb, mode in (("asserts", "assert"), ("denies", "deny"), ("hedges", "hedge"),
-                       ("asks", "ask"), ("intends", "goal")):
+                       ("asks", "ask"), ("intends", "goal"), ("commands", "command")):
         head = [Pat("?s", "first", "?z"), Pat("?z", "next", f"{verb}?"),
                 Pat(f"{verb}?", "next", "?a"), Pat("?a", "next", "?b"), Pat("?b", "next", "?c")]
         core = [Pat("<ass>?", "acat", "?z"), Pat("<ass>?", "amode", mode),
@@ -893,7 +899,7 @@ def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
         subj, pred, obj = d["asubj"], d["apred"], d.get("aobj")
         if obj is None:
             continue
-        if mode in ("ask", "goal"):
+        if mode in ("ask", "goal", "command"):
             # ⭐ FORCE, not content: these COMMIT NO FACT, so it generates no fact rule at all.
             # The declaration still records WHICH SLOTS carry the asked triple, and the ROUTER reads
             # them (`grammar_intake.question_of`). This is the `<cat> asks subj pred obj` half of the
@@ -901,7 +907,10 @@ def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
             # they commit, and `asks` commits nothing — which is a difference in force, exactly what
             # a declaration verb is for. `intends` is the same shape one step along: it commits no
             # fact either, but unlike a question it LEAVES SOMETHING BEHIND (a `<goal>` node driving
-            # the act loop), so the router reifies rather than merely answering.
+            # the act loop), so the router reifies rather than merely answering. `commands` is the
+            # third of the same family and the one that asserts LEAST about the world: it names an
+            # ACT to perform (`focus on lion`, `be cautious`, `run build`), so what it leaves behind
+            # is a change of stepping state, never a belief.
             continue
         if defining is not None and (z in minting) != defining:
             continue

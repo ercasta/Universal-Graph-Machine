@@ -20,17 +20,123 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶ PICK UP HERE (handoff 2026-07-19 evening, suite 734 green, UNCOMMITTED work in the tree)
+## ▶ PICK UP HERE (handoff 2026-07-20 late, suite 793 green, pystrider 388 green)
 
-**STATE.** Integration steps 1, 2, 3 DONE; the revision loop (slice 3) built; **step 4 (optimize)
-substantially DONE — four levers, session 11.41 s → 1.39 s (8.2×)**. Step 5 (retire what the fork
-subsumes) NOT started. Design: `design/homoiconic_grammar.md` §13,
-`design/surface_interpretation.md`.
+**⭐⭐ STEP 1 IS DONE: DECLARATIVE ROUTING + THE `command` FORCE LANDED 2026-07-20.** The router
+dispatches on WHICH FORCE THE PARSE RECOVERED, not on position in an ordered if-ladder. Built as one
+slice with the COMMAND force, because router-only would have left focus/stance/run in a positional
+ladder and made "routing is no longer order-dependent" only half-true.
 
-**⚠ WORKING TREE.** `e19e356 "wip"` holds the first half (monotonicity docs, parse-tree
-materialization, `MINT.key_reg`). Everything after it is UNCOMMITTED: `ugm/cnl/grammar.py`,
-`ugm/cnl/grammar_intake.py`, `ugm/interpretation.py`, `tests/test_grammar.py`,
-`docs/implementation_plan.md`. Suite is green — commit before continuing.
+- **`commands` is the sixth force verb**, one tuple in `_assert_forms`' `(verb, mode)` table plus
+  declarations — the fourth time that prediction has held. `iclause` productions in
+  `loudon_grammar.cnl` cover `focus on X` / `be cautious` / `run build`; `COMMAND_ACTS`
+  (`intake.py`) resolves the imperative WORD to the act, as declared data beside `policy.STANCES`.
+  **The grammar says only what it can see** — this is a command, this is its verb — while what each
+  verb DOES stays in the module that owns it. No focus/stance/running logic moved into the grammar.
+- **`iclause` needs no `suppresses`**, unlike `qclause`/`gclause`: it embeds an np/pp/adj, not a
+  whole `clause`, so nothing inside it predicates. Declaring it anyway would put a premise on every
+  assert rule for nothing.
+- **THE AUTHORING CLUSTER STAYS ABOVE THE DISPATCH — and it is not a compromise.** disable / form /
+  procedure / rule must yield a `Rule`, which the fold structurally cannot produce (§4b class (b)).
+  MEASURED: the grammar refuses all four surfaces under both `open_class` settings, so this order
+  and the reverse agree — which is exactly what makes their position not a routing decision. Pinned
+  by `test_the_authoring_cluster_is_refused_by_the_grammar`, which fails loudly if a future grammar
+  starts parsing one. This is also what keeps conditionals on the rule route.
+- **A REFUSED PARSE FALLS THROUGH** to the remaining recognizers, so a grammar need not declare
+  every surface (`forget that` still reaches the shipped focus form). **What it must never reach is
+  `load_facts`** — that would write content onto TOKENS and silently reintroduce the duality while
+  routing as `fact`. Explicit guard, pinned.
+- **MEASURED:** suite 781 → **793 green** (12 new), **pystrider 388 green**, Loudon corpus still
+  **19/19, 0 ambiguous, 0 refused** at 107 ms/line. The plan's "expect red" did not materialize, and
+  the probe said in advance that it would not.
+
+**⭐ THE PROBE CHANGED THE PLAN TWICE, BEFORE ANY CODE WAS WRITTEN** (method: PROBE BEFORE SCOPING).
+1. **The ladder was NOT actually order-dependent** — exactly one recognizer fires on every surface
+   tried, with ONE exception (`forget that rule` fires both `disable` and `focus`). So this was an
+   architecture fix, not a bug fix; the urgency was lower and the risk lower than the plan assumed.
+2. **Hoisting would steal nothing.** I predicted it would break conditionals, since `?x is dangerous
+   when ?x is strong` looked parseable under `open_class="noun"`. It is not — `when` is undeclared,
+   so the grammar refuses it. **That prediction was wrong and the probe cost two minutes.**
+
+**⭐⭐ TWO LESSON-4 NEAR-MISSES, BOTH CAUGHT BY RE-BREAKING, AND THE SECOND IS THE INSTRUCTIVE ONE.**
+Re-break verified on all three axes; two tests passed under the defect they were written for.
+1. **The force-routing table could not see its own property.** `focus on lion` yields
+   `Outcome("focus")` whether the GRAMMAR or the shipped string recognizer decided, so the obvious
+   test was blind to the entire slice. Fixed with a STRUCTURAL discriminator:
+   `recognize_focus_op` runs in a SCRATCH graph, so an `iclause` span standing in the KB proves the
+   parse decided. Fails the moment the dispatch moves back below the focus recognizer.
+2. **⭐ THE INPUT WAS THE TEST.** `test_a_grammar_kb_never_reaches_the_token_fact_route` passed with
+   its guard DELETED, because `glorp the flarn quux` is refused by the shipped fact forms too — the
+   input could not tell the two paths apart. The discriminating shape is `zork is a cat`: the
+   grammar refuses it (undeclared word) while `load_facts` recognizes it perfectly. **A fall-through
+   test is only as good as an input the two paths disagree about** — pick the input from the
+   DISAGREEMENT, not from what looks unparseable.
+
+**⚠ A TOOLING TRAP THAT COST A REVIEWABLE DIFF, worth knowing about:** editing rewrote
+`intake.py`, `grammar.py` and `grammar_intake.py` from LF to CRLF, turning a 414-line diff into a
+4,500-line whole-file rewrite. Caught because the stat showed `implementation_plan.md` at 3,589
+changed lines when it had not been touched. Normalized back per file against HEAD (never a blanket
+conversion). **Check `git diff --stat` against `--ignore-cr-at-eol` before committing on this
+repo** — the working tree is LF and Windows editing drifts it.
+
+**NEXT, in order:**
+1. **Flip the default** (step 2, unchanged) — a KB with no declared grammar gets the canonical one.
+   Still owed first: `focus.utterance_subjects`, `authoring.anchor_has_content_fact` (both walk the
+   token chain), the book/playground surface, and the 54 `nodes_named` read sites.
+   **And the grammar files should converge to ONE canonical file now** — `loudon_grammar.cnl` has
+   quietly become it (facts + hedging + questions + goals + commands) while still being named after
+   a bench corpus.
+2. **The deferred slice: make `disable` vs `focus` structural.** The one place in the router where
+   ORDER still carries meaning (`forget that rule` fires both). Deliberately split out of this slice
+   because it touches `recognize_focus_op` at `intake.py:334` — the SHIPPED path every KB and
+   pystrider uses — where this slice touched only a route nothing shipped reaches.
+3. **The long tail**: degree adverbs (`very risky`), `every person is a mortal`, PP attachment.
+
+**⚠ PRE-EXISTING, NOT MINE: `bench/coverage_audit.py` is broken** — it calls `h.lint_rules`, which
+does not exist in `ugm` (only in `consistency_design.md` and the bench itself). So the 54% coverage
+figure in `form_inventory.md` §4b cannot currently be re-measured. Worth fixing before step 2, since
+that number is the one that would show the force work paying off.
+
+## ▶ PREVIOUS HANDOFF (2026-07-20 evening, suite 781 green)
+
+**THE ARC IS NOW "THE GRAMMAR SUBSUMES CNL".** Read `design/form_inventory.md` §4 FIRST — it gained a
+second AXIS today (CONTENT vs FORCE) and is the spec the remaining work follows.
+
+**WHERE IT STANDS.**
+- **FORCE is a form, not a route, for the whole fact tail.** ASSERT/DENY/HEDGE/ASK/GOAL are declared
+  verbs; COMMAND/RETRACT/NORM already work ABOVE the fork and are not gaps.
+  **SUPERSEDED 2026-07-20 (see the current handoff): COMMAND became a declared verb too.** The
+  "not a gap" call was right about RETRACT/NORM and wrong about COMMAND — moving it onto the
+  grammar is what let routing stop being positional for focus/stance/run.
+- **Migration cost of making the grammar the default is ~ZERO on vocabulary** — `sync_vocabulary`
+  DERIVES the grammar lexicon from a KB's existing `R is a relation` declarations.
+- **Performance is no longer the blocker**: 237 → **135 ms/utt**, suite 156 s → **51 s**,
+  `load_grammar` 1402 → **13 ms warm**. pystrider (the only client) **388 green** throughout.
+
+**~~⚠ WORKING TREE: UNCOMMITTED~~ — STALE, and it was stale when read.** Everything listed here had
+in fact landed in `3e387e6 wip grammar`; only `docs/implementation_plan.md` was actually modified.
+**Verify with `git status` rather than trusting a handoff's tree note** — a warning that outlives
+its commit costs a re-check every session.
+
+**NEXT, in order (staging settled with the user):**
+1. ~~**DECLARATIVE ROUTING — the payoff, and the riskiest thing left.**~~ **DONE 2026-07-20 — see
+   the current handoff.** Landed together with the COMMAND force. The two predictions in this item
+   were both wrong in the safe direction: it did NOT go red (781 → 793, pystrider 388 throughout),
+   because nothing shipped declares a grammar, and the ordered ladder turned out not to be
+   order-dependent in practice except for one pair.
+2. **Flip the default** — a KB with no declared grammar gets the canonical one. Still owed first:
+   `focus.utterance_subjects`, `authoring.anchor_has_content_fact` (both walk the token chain), the
+   book/playground surface, and the 54 `nodes_named` read sites (currently harmless by ABSENCE, not
+   by redirect).
+3. **The long tail**: degree adverbs (`very risky` — the hedging family again, 5 of 7 corpus
+   refusals), `every person is a mortal`, PP attachment.
+
+**METHOD THAT PAID ALL DAY, and the reason to keep it:** PROBE BEFORE SCOPING. Gap sizing from
+intuition was wrong ~6 times today and right once; the probe is cheap and changed the plan every
+time. Twice the MEASUREMENT HARNESS was itself the bug (a predicate extractor that declared `ada` a
+verb; a core grammar that stripped the verbs) — re-check a harness that duplicates a pipeline.
+And **RE-BREAK EVERY TEST on its intended axis**: the DENY collapse's behavioural tests both passed
+under the defect, and only the rule-COUNT test caught it.
 
 **WHAT THIS SESSION DID, newest first** (each has its own dated block below, with measurements):
 
