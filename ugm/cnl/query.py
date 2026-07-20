@@ -377,14 +377,21 @@ def _warn_name_split_join(graph: Graph, q: dict) -> None:
     path. Warn where it BITES: when a goal/query name denotes >1 distinct IDENTITY — not mere coref
     mentions of one entity (`_one_identity`), and counting only real fact entities (`_is_fact_entity`, so
     reified rule/clause vocabulary carrying the name does not inflate the count)."""
-    from ..chain import _one_identity, _is_fact_entity
+    from ..chain import _one_identity, _is_fact_entity, _through_denotation
     names = {v for k in ("s", "o") if isinstance((v := q.get(k)), str)}
     names |= {v for v in (q.get("roles") or {}).values() if isinstance(v, str)}
     for nm in names:
         if not nm or nm in EXISTENTIAL_SUBJECTS or nm == WH:
             continue                                     # a wildcard subject/object is not an entity name
-        entities = [n for n in graph.nodes_named(nm)
-                    if not (graph.is_control(n) or graph.is_inert(n)) and _is_fact_entity(graph, n)]
+        # COLLAPSE SURFACE INTO ITS DENOTATION FIRST, exactly as the write path does. On the grammar
+        # route a discourse token and the entity it denotes share a name, and warning about them was
+        # crying wolf: they are ONE identity split across the surface/interpretation boundary, not two
+        # copies a join could scatter facts across. Content only ever lands on the entity (the fold
+        # writes there, and `resolve_write_node` now redirects derived writes there), so the split this
+        # warning exists to catch cannot happen between them.
+        entities = _through_denotation(graph, [
+            n for n in graph.nodes_named(nm)
+            if not (graph.is_control(n) or graph.is_inert(n)) and _is_fact_entity(graph, n)])
         if len(entities) > 1 and not _one_identity(graph, entities):
             warnings.warn(
                 f"CNL query names '{nm}', which resolves to {len(entities)} distinct nodes; a rule join "

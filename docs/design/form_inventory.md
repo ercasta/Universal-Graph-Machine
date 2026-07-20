@@ -74,8 +74,41 @@ This is why entries get PROBED, never assigned by intuition (five for five wrong
 | form | example | mechanism | note |
 |---|---|---|---|
 | attribution | *some naturalists consider the lion a cat* | holder-keyed pencil scope | non-veridicality already free: `check` returns `assumed-no` for a penned proposition |
-| conditionality | *a lion is dangerous when a lion is hungry* | the rule layer (`load_machine_rules`) | needs the genericity call (`det` slot); suppression built |
-| genericity | *a lion* vs *the lion* | `det` slot | one declaration line, probed |
+| genericity | *a lion* vs *the lion* | `det` slot | one declaration line, probed. But see conditionality below: the determiner is a BAROQUE carrier for a FUNDAMENTAL distinction (the definite generic — *the lion is dangerous* — is standard English), so it belongs in the sugar layer over an explicit core form, never as the thing the engine keys on |
+
+### Fundamental — REPRESENTED, but the layers did not meet
+
+| form | example | mechanism | state |
+|---|---|---|---|
+| conditionality | *?x is dangerous when ?x is hungry* | the rule layer (`load_machine_rules`) | **surface and mechanism BOTH already existed — and did not meet.** FIXED 2026-07-20 |
+
+**The 2026-07-20 probe, and why it is the sharpest instance of §3 so far.** Conditionality was scoped
+as "mechanism exists, surface unbuilt", needing an `implies` verb. Both halves of that were wrong:
+
+- **The explicit core surface already ships.** `?x is dangerous when ?x is hungry` is unambiguous by
+  construction and intake routes it to the rule layer *ahead of* the grammar fork. So no new
+  fundamental form was needed — and `a lion is dangerous when a lion is hungry` is **T1 sugar** over
+  it, which by §5's criterion must be justified from the residue log, not built speculatively.
+- **But the rule layer and the grammar route did not actually meet.** The rule MATCHED its premise on
+  the interpretation entity and EMITted its conclusion onto the discourse TOKEN, so the derived fact
+  landed outside the interpretation scope — unattributable, undiscardable, and outliving the premise
+  that produced it. The query answered `yes` only because name resolution also picked the token
+  first. Right by luck, with a `UserWarning` as the only trace.
+
+**THE LESSON FOR THIS DOC, and it is a new one: "the mechanism exists" is not the same as "the
+mechanism is REACHABLE from the surface".** §2(c) says a fundamental form is cheap iff a substrate
+mechanism already exists. That is necessary and not sufficient — the mechanism and the surface must
+land in the same LAYER, and here they did not. Every entry in the "mechanism exists" table above
+should be probed end to end (assert through the real route, then *ask*) before being called cheap.
+Attribution is next and has exactly this shape: its mechanism (the pencil scope) is written by the
+fold, so it is on the entity side — but that must be measured, not assumed.
+
+**And it is a distinction question, which is why it belongs here.** The epistemic question was never
+"which determiner marks generality". It was *"when the system derives through a conditional, what
+does it believe, and in which layer does that belief live?"* No surface choice could fix an answer of
+"an ink fact on a discourse token". Surface/epistemic separation is what surfaced it: asking which of
+the design decisions were paraphrasable is what moved attention off the declaration syntax and onto
+the layer boundary.
 
 ### Fundamental — NO MECHANISM
 

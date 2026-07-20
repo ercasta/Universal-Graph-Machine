@@ -35,6 +35,16 @@ MENTION = "<mention>"         # universal surface-mention marker (coreference-as
                               # coref rule seeds BOTH vars from — so coref binds any entity regardless of
                               # its structural position, without a per-domain type. Filtered from output.
 
+# --- surface vs interpretation ----------------------------------------------
+DENOTES = "denotes"           # surface token -> the entity it is TAKEN to denote (the judgement).
+                              # STRUCTURAL, not domain: it is the substrate's answer to "is this node
+                              # discourse or is it the world". A node carrying it is SURFACE, so content
+                              # addressed by its NAME belongs to its denotation, not to it
+                              # (`chain.resolve_write_node`). Defined here rather than in
+                              # `interpretation` because `chain` must see it and this is the leaf.
+                              # Nothing on the token-is-entity route writes it, so that route is
+                              # unaffected BY CONSTRUCTION — declare-before-use, as with the fork.
+
 # --- closed-world policy ----------------------------------------------------
 CLOSES = "closes"             # P closes <closed_world>  (P is closed-world DATA)
 CWA = "<closed_world>"        # the closed-world marker node

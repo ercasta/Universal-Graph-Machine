@@ -30,7 +30,7 @@ from .machine import (Machine, SEED, FOLLOW, SET, TEST, SAME, MEMBER, OVERLAY, O
 from .machine import (ControlMachine, Continuation, Block, PRIM, SETI, DEC,
                       BRANCH, BRANCH_IF, SUSPEND, HALT)
 from .production_rule import is_var, is_bound_literal, literal_name
-from .vocabulary import SAME_AS
+from .vocabulary import DENOTES, SAME_AS
 
 DEMAND = "<demand>"
 # AXIS B BOUNDARY (ratified 2026-07-14): the demand/subgoal CHAIN stays IN THE GRAPH — it is NOT
@@ -256,6 +256,40 @@ def _one_identity(fact_g: AttrGraph, nodes: list[str]) -> bool:
     return set(nodes) <= seen
 
 
+def _through_denotation(fact_g: AttrGraph, nodes: list[str]) -> list[str]:
+    """Map every SURFACE token in `nodes` to what it DENOTES, preserving order and deduplicating.
+
+    THE TOKEN/ENTITY DUALITY, RESOLVED AT THE ONE PLACE A NAME BECOMES A WRITE TARGET. On the grammar
+    route the discourse token `lion` and the interpretation entity `lion` are two nodes with one name
+    (`grammar_intake`'s module docstring). A rule then MATCHED its premise on the entity — where the
+    fold puts content — and EMITted its conclusion to the token, because `nodes_named` returns the
+    token first. Measured: `?x is dangerous when ?x is hungry` + `the lion is hungry` put `is hungry`
+    on the entity and `is dangerous` on the TOKEN, so the derived fact fell OUTSIDE the interpretation
+    scope entirely — invisible to `scope_facts`, uncleared by `discard_scope`, unrevisable by
+    `reconsider`, and surviving a re-reading that invalidates its own premise. The query answered
+    `yes` only because name resolution also happened to pick the token first: right by luck, with a
+    `UserWarning` as the only trace.
+
+    Following `denotes` is the structural answer rather than a special case. `resolve_write_node`
+    already says a write must land on a real ENTITY node; a token that denotes something is precisely
+    not one, and its denotation is the node the interpretation layer has designated for exactly this.
+    It also RETIRES the ambiguity warning honestly — the two nodes were never two identities, they
+    were one identity split across the layer boundary.
+
+    INERT ON THE SHIPPED ROUTE BY CONSTRUCTION: there the token IS the entity and nothing writes
+    `denotes`, so no node maps and this is the identity function. Declare-before-use, the same
+    discipline the intake fork itself uses."""
+    out: dict[str, None] = {}
+    for n in nodes:
+        target = n
+        for rel, obj in fact_g.relations_from(n):
+            if fact_g.has_key(rel, DENOTES):
+                target = obj
+                break
+        out.setdefault(target, None)
+    return list(out)
+
+
 def resolve_write_node(fact_g: AttrGraph, endpoint, *, where: str) -> str:
     """Resolve a WRITE/seed endpoint to a node id — the SINGLE discipline for turning a goal endpoint
     into a write target (EMIT, ask-user materialize, SUPPOSE pencil). A `ById` PINS to its node; a name
@@ -274,6 +308,7 @@ def resolve_write_node(fact_g: AttrGraph, endpoint, *, where: str) -> str:
     # provenance) that the matcher already skips — a write must land on a real entity node.
     ex = [n for n in fact_g.nodes_named(endpoint)
           if not (fact_g.is_control(n) or fact_g.is_inert(n))]
+    ex = _through_denotation(fact_g, ex)
     # AMBIGUITY is judged over genuine fact-layer ENTITIES (a node only reachable through control clause
     # vocabulary carries the name but is not an entity a write competes for), and only when they are not
     # one coref identity — so repeated mentions (`same_as`-linked) and reified call args stay quiet.

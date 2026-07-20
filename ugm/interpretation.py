@@ -33,10 +33,11 @@ from __future__ import annotations
 from .attrgraph import valued
 from .production_rule import Pat, Rule
 from .lowering import run_bank
-from .vocabulary import neg_pred
+from .vocabulary import DENOTES, neg_pred
 
 SCOPE = "<interpretation>"
-DENOTES = "denotes"          # surface token -> the entity it is TAKEN to denote (the judgement)
+#: Re-exported: the canonical definition is `vocabulary.DENOTES`, because `chain` needs it too and
+#: this module is not a leaf. Surface token -> the entity it is TAKEN to denote (the judgement).
 INTERPRETS = "interprets"    # entity -> every surface mention it was derived from (provenance)
 MEMBER = "member"
 CONTRADICTION = "<contradiction>"

@@ -800,25 +800,88 @@ mechanism covers all three. The probe says there are TWO gates, because the two 
   `unless neg` already occupies it. So retiring `hclause` needs MULTI-GUARD `unless`, a different
   (also small) change — not this one.
 
-**SEQUENCE: domination gating FIRST — DONE.** Next, in order:
-1. **Conditionals** — the productions above plus an `implies` verb writing to the RULE layer
-   (`load_machine_rules` already accepts `HEAD when BODY`, and intake already routes an explicit
-   `?x …` rule), gated on the genericity decision: route on the `det` slot, ask only as escalation.
-   The suppression declaration is what makes the halves safe to parse meanwhile.
+**⭐⭐ THE DUALITY BIT, AND IT WAS SILENT AND RIGHT-BY-LUCK (2026-07-20, suite 757 green).** Set out to
+build `implies` (sequence item 1 below). Probed first, per this file's own three-for-three lesson —
+and the probe killed the feature and found a defect underneath it instead.
+
+- **`implies` IS NOT NEEDED, AND WOULD HAVE BEEN BUILT ON SAND.** The explicit core surface for
+  conditionality ALREADY SHIPS: `?x is dangerous when ?x is hungry` is unambiguous by construction
+  and intake routes it to the rule layer **ahead of the grammar fork**. Measured working on the
+  grammar route in all four shapes (universal, ground, rule-before-fact, fact-before-rule).
+  `a lion is dangerous when a lion is hungry` is therefore **T1 SUGAR**, and this plan's own
+  criterion says sugar is justified from the residue log, never speculatively. Not built.
+- **⭐ BUT THE RULE LAYER AND THE GRAMMAR ROUTE DID NOT MEET.** A rule MATCHED its premise on the
+  interpretation ENTITY (where the fold writes content) and EMITted its conclusion onto the discourse
+  TOKEN, because `nodes_named` returns the token first and `resolve_write_node` takes `[0]`.
+  Measured: `is hungry` on the entity, `is dangerous` on the token. **The derived fact fell OUTSIDE
+  the interpretation scope** — invisible to `scope_facts`, uncleared by `discard_scope`, unrevisable
+  by `reconsider`, and surviving a re-reading that invalidates its own premise. **The question still
+  answered `yes`**, because name resolution also happened to pick the token first. The
+  quietly-does-something-wrong class, with a `UserWarning` as its only trace.
+- **THE FIX IS STRUCTURAL AND AT ONE CHOKEPOINT:** `chain._through_denotation` — **a node that
+  `denotes` something is SURFACE, so content addressed by its name belongs to its denotation.** This
+  is the discipline `resolve_write_node` already stated ("a write must land on a real entity node");
+  a token that denotes something is precisely not one. `DENOTES` moved to `vocabulary.py` (the leaf)
+  so `chain` can see it without a cycle. **All three write paths go through `resolve_write_node`**
+  (`chain EMIT`, `ask_goal materialize`, `suppose assumption`), so one fix covers every place a name
+  becomes a write target — the chokepoint its docstring claimed, and it held.
+- **INERT ON THE SHIPPED ROUTE BY CONSTRUCTION** — nothing there writes `denotes`, so nothing maps
+  and it is the identity function. Declare-before-use, the same discipline the fork uses. Confirmed:
+  the suite was 755 green before and after, with the change in.
+- The read-side `_warn_name_split_join` now collapses through denotation too: a token and its
+  denotation were never two identities, they were **one identity split across the layer boundary**,
+  so warning about them was crying wolf.
+- Pinned by `test_a_derived_fact_lands_in_the_interpretation_not_on_the_token` and
+  `test_a_derived_fact_is_discardable_like_any_other_judgement` (the second is the POINT, not a
+  tidier address: a conclusion derived from an interpretation is itself a judgement and must be
+  takeable-back). **RE-BREAK VERIFIED on both** — removing the one line fails both on the intended
+  axis. Note the assertion is on `gi.facts` and NOT on the answer: the answer was already `yes` while
+  the belief lived in the wrong layer, which is exactly why a test on the answer would have passed.
+- **⚠ READS ARE NOT YET PRINCIPLED, only harmless.** 54 `nodes_named` sites across 23 modules still
+  resolve by name. They work because reading a TOKEN now finds no content — an absence, not a
+  redirect. That is fine while the fold is the only writer, and it is the next thing to make
+  structural if any reader starts caring which node it got.
+- **THE LESSON, and it generalizes past this bug: "the mechanism exists" ≠ "the mechanism is
+  REACHABLE from the surface".** `form_inventory.md` §2(c) prices a fundamental form as cheap iff a
+  substrate mechanism already exists; that is necessary, not sufficient — mechanism and surface must
+  land in the SAME LAYER. **Probe every "mechanism exists" entry end to end (assert through the real
+  route, then ASK) before calling it cheap.** Attribution is next and has exactly this shape.
+- **METHOD NOTE: the surface/epistemic split is what found it.** The user's question — "can we
+  distinguish what is surface and what is epistemic, since surface may be managed by SLM/LLM
+  conversion later?" — moved attention off the declaration syntax (all baroque) and onto the real
+  commitment: *when the system derives through a conditional, what does it believe and in which layer
+  does that belief live?* The answer was "an ink fact on a discourse token", which no surface choice
+  could have fixed. **Classify the decision list before building it.**
+- Probes: scratch `probe_cond.py` / `probe_explicit.py` / `probe_duality.py` (the last reads the
+  NODES, which is what separated "works" from "right by luck").
+
+**SEQUENCE: domination gating FIRST — DONE. Conditionality — DONE, by deletion plus the fix above.**
+Next, in order:
+1. ~~**Conditionals** — an `implies` verb~~ **DROPPED 2026-07-20, and that is the RESULT, not a
+   deferral.** The explicit core form already ships and routes correctly; `implies` would be sugar
+   over it. Revisit only if the residue log shows a translator wanting it.
 2. **Attribution** — a clause-as-complement production plus a holder-keyed scope; non-veridicality
-   is already free (`check` returns `assumed-no` for a penned proposition).
+   is already free (`check` returns `assumed-no` for a penned proposition). **⚠ PROBE IT END TO END
+   FIRST** — assert one through the real route and then ASK, per the duality lesson above. Its
+   mechanism is written by the fold, so it should be on the entity side already; measure, do not
+   assume.
 3. **Multi-guard `unless`** — INDEPENDENT cleanup that would retire `hclause`. `hclause` is not
    wrong, just duplicative, so this can wait.
+4. **Make READS structural, if any reader starts caring.** 54 `nodes_named` sites resolve by name and
+   currently work by ABSENCE (a token carries no content) rather than by redirect. Harmless while
+   the fold is the only writer; the same `_through_denotation` collapse is the fix if that changes.
 
-NOT YET SHIPPED IN `corpus/loudon_grammar.cnl`: the conditional productions live only in the tests.
-Shipping them before `implies` exists would make the grammar accept a conditional, report `fact`,
-and commit nothing — the mismatch flagged below. Land them WITH the verb.
+STILL NOT SHIPPED IN `corpus/loudon_grammar.cnl`, and now permanently: the conditional productions
+live only in the tests, and with `implies` dropped there is no reason to move them. A conditional is
+said in the CORE rule surface (`?x is dangerous when ?x is hungry`), which never enters the grammar
+route at all. **The suppression gate stays** — it is built, tested, and attribution needs it, since
+attribution's complement genuinely is a nested clause.
 
-**Follow-up noted, not a defect yet:** under gating the conditional reports `fact` while writing
-nothing (the same honest intermediate state hedged sentences had before slice 2b). Once an `implies`
-verb writes the rule it will assert content and the verdict will be right; if that slips,
-`asserts_content` needs to respect suppression, or it reverts to the "reports fact, commits nothing"
-mismatch that the order-independence fix removed once already.
+**Follow-up CLOSED by the drop:** the note here said a gated conditional reports `fact` while writing
+nothing, and that `implies` would fix the verdict. With conditionals handled on the rule route ahead
+of the fork, the grammar never sees one, so the mismatch cannot arise. It WOULD return if the
+conditional productions were ever shipped into the grammar file without a verb — which is the reason
+not to.
 
 **Superseded — the decision this replaced (kept for the argument):** The
 possibilistic layer already has the target representation (a `<hypothesis>` scope carrying a graded

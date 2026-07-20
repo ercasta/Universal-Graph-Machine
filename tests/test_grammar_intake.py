@@ -464,3 +464,65 @@ def test_every_plain_shape_has_a_hedged_counterpart(kb, plain, hedged, pred, obj
     assert gi.facts(kb2) == [], f"a hedge must commit no ink: {hedged!r}"
     assert possibility(kb2, pred, "lion", obj) == 0.75, (
         f"hedged shape committed NOTHING (the silent gap): {hedged!r}")
+
+
+# ---------------------------------------------------------------------------
+# THE TOKEN/ENTITY DUALITY — a DERIVED fact must land in the interpretation
+# ---------------------------------------------------------------------------
+
+_ADJ = "dangerous is a adj\nhungry is a adj\n"
+
+#: The explicit, unambiguous core form for conditionality. It needs no grammar support: intake routes
+#: a `HEAD when BODY` line to the rule layer BEFORE the grammar fork, so this is the shipped surface.
+_RULE = "?x is dangerous when ?x is hungry"
+
+
+def test_a_derived_fact_lands_in_the_interpretation_not_on_the_token():
+    """⭐ THE DUALITY, WHERE IT ACTUALLY BIT — and it was silent, and right by luck.
+
+    A rule MATCHED its premise on the interpretation entity (where the fold writes content) and
+    EMITted its conclusion to the TOKEN, because `nodes_named` returns the token first and
+    `resolve_write_node` took `[0]`. Measured before the fix: `is hungry` on the entity, `is
+    dangerous` on the token — so the derived fact fell OUTSIDE the interpretation scope entirely.
+    Invisible to `scope_facts`, uncleared by `discard_scope`, unrevisable by `reconsider`, and
+    surviving a re-reading that invalidates its own premise. The question still answered `yes`,
+    because name resolution also happened to pick the token first.
+
+    That is why the assertion here is on `gi.facts` (the SCOPE) and not on the answer: the answer was
+    already `yes` while the system believed it in the wrong layer. Asking `is lion dangerous` first
+    is what forces the derivation to materialize."""
+    from ugm.intake import ingest
+    kb = _kb(_ADJ)
+    rules = []
+    ingest(kb, rules, _RULE)
+    ingest(kb, rules, "the lion is hungry")
+    ingest(kb, rules, "is lion dangerous")
+
+    assert ("lion", "is", "dangerous") in gi.facts(kb), (
+        "a derived fact escaped the interpretation scope — it landed on the discourse token, where "
+        "nothing can discard or revise it")
+    # ... and the surface stayed surface: the token carries no content, only its denotation.
+    for t in kb.nodes_named("lion"):
+        if any(kb.has_key(r, DENOTES) for r, _o in kb.relations_from(t)):
+            preds = {kb.predicate(r) for r, _o in kb.relations_from(t)}
+            assert "is" not in preds, "content landed on a surface token"
+
+
+def test_a_derived_fact_is_discardable_like_any_other_judgement():
+    """The POINT of landing it in the scope, not merely a tidier address.
+
+    A conclusion derived from an interpretation is itself a judgement about this reading, so a
+    re-interpretation must be able to take it back. When the conclusion sat on the token it outlived
+    the premise that produced it — permanent, and attributable to nothing."""
+    from ugm.intake import ingest
+    kb = _kb(_ADJ)
+    rules = []
+    ingest(kb, rules, _RULE)
+    ingest(kb, rules, "the lion is hungry")
+    ingest(kb, rules, "is lion dangerous")
+    assert ("lion", "is", "dangerous") in gi.facts(kb)
+
+    gi.rebuild(kb, gi.session_banks(kb))            # discard the reading and re-read the surface
+    assert ("lion", "is", "dangerous") not in gi.facts(kb), (
+        "a derived fact survived the discard of the interpretation it was derived from")
+    assert ("lion", "is", "hungry") in gi.facts(kb), "re-reading lost the asserted premise"
