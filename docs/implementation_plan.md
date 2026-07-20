@@ -130,6 +130,54 @@ NOT per-KB.** It holds for RELATIONS (`sync_vocabulary` derives them). Adjective
 declarable on the shipped route — but the determiner discriminator removes that burden entirely
 rather than shifting it onto each KB, which is what makes it the right fix rather than a workaround.
 
+**⭐⭐ `parse` IS NOW AN ISA CONTROL PROGRAM 2026-07-20 (suite 818 green, corpus 19/19, 109 ms/line).**
+User question: "are we wrestling with homoiconicity / would an ISA program be easier?" The
+investigation it triggered is worth more than the change.
+
+- **THE DIAGNOSIS: `parse` was a PYTHON CONTROL DRIVER — a regression against a COMPLETED arc.** It
+  sequenced three banks with `if`/`return`/`try-finally`, which is exactly what the ISA control-machine
+  arc retired everywhere else (`run_bank`'s fixpoint, `_act_loop`, `dispatch` all became
+  `ControlMachine` programs). The grammar arc then reintroduced one. **The banks always ran on the
+  machine; only the SEQUENCING did not** — so "2300 lines of Python in the parser" was really ~20
+  lines of driver plus a compile-time rule generator.
+- **THE THREE-WAY OUTCOME IS NOW A BRANCH, not a `return`**, and **the `finally` became a JOIN BLOCK**
+  — every outcome branches to one `RETIRE` block, which is the only thing making `UNPARSED` retire on
+  all paths. **RE-BREAK VERIFIED on exactly that axis**: routing the REFUSED exit around the join
+  fails `test_unparsed_marks_do_not_survive_a_parse` with the marks still standing. The guard written
+  for the Python `finally` transfers to the branch program unchanged — evidence the conversion
+  preserved the invariant rather than the syntax.
+- **STILL PYTHON: `parse_batch`** — same three banks plus a `try/finally`, but STRAIGHT-LINE (no
+  conditionals), so it is sequencing rather than control flow. Low value; listed for completeness.
+
+**⚠⚠ THE INVESTIGATION CORRECTED TWO THINGS IN THIS FILE, AND ONE HAD ALREADY MISLED A DESIGN
+DISCUSSION.**
+1. **SEMI-NAIVE ROUNDS WERE ALREADY BUILT** (same day, second-lever block) — but `run_bank`'s
+   docstring still said *"Naive — no semi-naive delta / df-seeding"*, this file quoted that stale
+   sentence as a LIVE root cause, and it was then offered as the argument for building it again.
+   Docstring corrected at source. **The day's third instance of trusting a summary over the source.**
+2. **SEMI-NAIVE COULD NEVER HAVE RETIRED THE DELTA MARKS** — a CATEGORY ERROR between two kinds of
+   incrementality. Semi-naive scopes rounds 2..n WITHIN one `run_bank` call; round 1 still matches the
+   whole graph. The marks exist for CROSS-CALL scoping, since `parse` re-runs the banks per utterance
+   over a graph holding every earlier sentence and nothing remembers the previous fixpoint.
+   **Retiring them needs PERSISTENT cross-call deltas** — real, unbuilt, and the honest target if the
+   delta machinery is ever attacked. Value is lower than it looks: the three marks are built, tested
+   and guarded; the hazard is mainly a FOURTH one.
+
+**THE ARCHITECTURAL QUESTION, ANSWERED WITH ITS REASONS (so it is not re-litigated).** "Would a
+hand-written / ISA parser be easier than grammar-as-rules?"
+- **The declared grammar is earning its keep and is NOT the cost.** Hedging landed declarations-only;
+  COMMAND was declarations plus one table entry; the determiner discriminator is pure declarations.
+  The 2300 lines of bank generation are a FIXED cost, already paid and generic over the grammar — new
+  grammar features do not touch them.
+- **The real tax was fixpoint semantics** — ~10 silent defects (6 bound-literal/idempotency, 3 delta
+  lifecycles, 1 join order) — and its root is the ENGINE, not the formulation. Parsing-as-deduction is
+  a known-good technique.
+- **The chart does NOT have to be DERIVED by rules to LIVE in the graph.** If a rewrite is ever
+  wanted, a purpose-built parser can WRITE the chart and everything downstream (slots, fold,
+  re-minting, interpretation) survives untouched — which keeps the option open at low cost.
+- **TRIGGERS that would justify it:** parse perf becoming a blocker again, a fourth delta mark, or the
+  Rust port (where the plan already says firmware-as-ISA first, then port the interpreter).
+
 **NEXT, in order:**
 1. **Flip the default** (step 2 — cost MEASURED: 44/818, and **19/818 once the determiner
    discriminator is applied to BOTH the assert and the ask side**. The remaining 19 are test

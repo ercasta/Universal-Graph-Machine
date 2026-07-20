@@ -1181,30 +1181,91 @@ def compile_grammar(gram: Grammar, *, open_class: str | None = None) -> GrammarB
 PARSED, REFUSED, AMBIGUOUS = "parsed", "refused", "ambiguous"
 
 
+#: Outcome codes for the parse program's `outcome` control register. Scalar, because control
+#: registers hold integers — the string outcome is recovered from this table on the way out.
+_OUTCOME_CODES = {0: REFUSED, 1: AMBIGUOUS, 2: PARSED}
+_REFUSED_C, _AMBIGUOUS_C, _PARSED_C = 0, 1, 2
+
+
 def parse(g, sentence: str, banks: GrammarBanks, root: str = ROOT) -> tuple[str, list[str], str]:
     """Tokenize and parse `sentence` into `g`. Returns (outcome, tokens, eos).
 
     Outcome is `parsed` / `refused` (no complete parse — the diagnostic a bank of independent
     surface patterns structurally cannot produce) / `ambiguous` (two readings; ASK, do not pick).
-    Writes only SURFACE structure: tokens, chains, and span `cat`/`begin`/`end`."""
-    toks, eos = _tokenize_with_sentinel(g, sentence)
-    if not toks:
-        return REFUSED, [], ""
-    # The token delta: all three surface banks below are seeded on it, so it must be written before
-    # the first of them runs and retired however this function exits (see `clear_unparsed`).
-    mark_tokens(g, toks)
-    try:
-        run_bank(g, banks.chart, control_preds=banks.chart_preds)
-        if not any(g.has_key(r, sp(root)) and o == eos for r, o in g.relations_from(toks[0])):
-            return REFUSED, toks, eos
-        run_bank(g, banks.ambiguity, control_preds=banks.ambiguity_preds)
-        if any(g.has_key(r, "ambiguous") for t in toks for r, _o in g.relations_from(t)):
-            return AMBIGUOUS, toks, eos
-        run_bank(g, banks.spans, control_preds=banks.span_preds)
-    finally:
-        clear_unparsed(g)
-    clear_fresh(g)                                   # the delta is per-utterance; see `clear_fresh`
-    return PARSED, toks, eos
+    Writes only SURFACE structure: tokens, chains, and span `cat`/`begin`/`end`.
+
+    ⭐ THE CONTROL PATH IS AN ISA PROGRAM, NOT PYTHON (2026-07-20). This used to sequence the three
+    banks with Python `if`/`return`/`try-finally`, which is precisely the class of driver the ISA
+    control-machine arc retired everywhere else (`docs/attic/isa_control_machine.md` §9) — `run_bank`'s
+    own fixpoint, `_act_loop` and `dispatch` all became `ControlMachine` programs, and then the grammar
+    arc quietly reintroduced one. The banks always ran on the machine; only the SEQUENCING did not.
+
+    The shape is the same one `run_bank` uses: each phase is a `PRIM` (an upper-level interpreter step
+    the control machine sequences but does not decode), reporting a scalar flag that a `BRANCH_IF`
+    dispatches on. THE THREE-WAY OUTCOME IS THEREFORE A BRANCH, not a `return` — refused, ambiguous
+    and parsed are three exits of one program.
+
+    ⚠ AND THE `finally` BECOMES A JOIN BLOCK, which is the part worth reading twice. `UNPARSED` is
+    written BEFORE the banks run and must be retired on EVERY exit path — that is what the
+    `try/finally` bought, and a branch program gets it only because all three outcomes branch to the
+    SAME `RETIRE` block. `clear_fresh` stays on the parsed path alone (only `span_bank` mints those
+    marks, and it runs only there), which is now visible as a branch rather than as statement order."""
+    from ..machine import BRANCH, BRANCH_IF, HALT, PRIM, SETI, Block, ControlMachine
+    carry: dict = {"toks": [], "eos": ""}
+
+    def _tokenize_step(g_, stream, ctrl):
+        toks, eos = _tokenize_with_sentinel(g_, sentence)
+        carry["toks"], carry["eos"] = toks, eos
+        if toks:
+            # The token delta: all three surface banks are seeded on it, so it must be written
+            # before the first of them runs — and retired at RETIRE however the program exits.
+            mark_tokens(g_, toks)
+        return stream, len(toks)
+
+    def _chart_step(g_, stream, ctrl):
+        run_bank(g_, banks.chart, control_preds=banks.chart_preds)
+        toks, eos = carry["toks"], carry["eos"]
+        rooted = any(g_.has_key(r, sp(root)) and o == eos
+                     for r, o in g_.relations_from(toks[0]))
+        return stream, (1 if rooted else 0)
+
+    def _ambiguity_step(g_, stream, ctrl):
+        run_bank(g_, banks.ambiguity, control_preds=banks.ambiguity_preds)
+        amb = any(g_.has_key(r, "ambiguous")
+                  for t in carry["toks"] for r, _o in g_.relations_from(t))
+        return stream, (1 if amb else 0)
+
+    def _spans_step(g_, stream, ctrl):
+        run_bank(g_, banks.spans, control_preds=banks.span_preds)
+        return stream, 0
+
+    def _retire_unparsed(g_, stream, ctrl):
+        clear_unparsed(g_)
+        return stream, 0
+
+    def _retire_fresh(g_, stream, ctrl):
+        clear_fresh(g_)                              # per-utterance delta; see `clear_fresh`
+        return stream, 0
+
+    program = [
+        Block(prim=PRIM(_tokenize_step, out="ntok"), control=[SETI("outcome", _REFUSED_C)],
+              term=BRANCH_IF("ntok", "<=", 0, "EMPTY")),          # nothing to parse: no marks written
+        Block(prim=PRIM(_chart_step, out="rooted"),
+              term=BRANCH_IF("rooted", "<=", 0, "RETIRE")),       # no root span -> REFUSED
+        Block(prim=PRIM(_ambiguity_step, out="amb"),
+              term=BRANCH_IF("amb", ">", 0, "AMBIG")),            # two readings -> ASK, never pick
+        Block(prim=PRIM(_spans_step), control=[SETI("outcome", _PARSED_C)], term=BRANCH("RETIRE")),
+        Block(label="AMBIG", control=[SETI("outcome", _AMBIGUOUS_C)], term=BRANCH("RETIRE")),
+        # THE JOIN — every outcome reaches this block, which is what replaces the `finally`.
+        Block(label="RETIRE", prim=PRIM(_retire_unparsed),
+              term=BRANCH_IF("outcome", "=", _PARSED_C, "FRESH")),
+        Block(term=HALT()),
+        Block(label="FRESH", prim=PRIM(_retire_fresh), term=HALT()),
+        Block(label="EMPTY", term=HALT()),
+    ]
+    cm = ControlMachine()
+    cm.run(g, program)
+    return _OUTCOME_CODES[cm.ctrl["outcome"]], carry["toks"], carry["eos"]
 
 
 def _tokenize_with_sentinel(g, sentence: str) -> tuple[list[str], str]:
