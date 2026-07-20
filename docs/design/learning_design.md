@@ -372,6 +372,27 @@ graded attrs, so generalization is over `pred:object` participation, not over en
 
 ### 7.1 Form learning — "Caveman CNL"
 
+> **⭐ RE-POINTED 2026-07-20 (user decision) — READ THIS BEFORE THE TIERS. "Caveman CNL" NAMES THE
+> FORM SET ITSELF**: the caveman SPEAKS these forms. The goal is a MINIMUM set of forms adequate to
+> represent the concepts, plus this grammar saying how they COMPOSE; an LLM/SLM translates prose
+> into it. Raw prose is not an intake target (measured: the grammar scores **0/50** on verbatim book
+> prose, gap 100% constructional — `bench/spike_loudon_prose.py`).
+>
+> The tiers below all survive, but their STATUS inverts — do not read them as a learning ladder:
+> * **T1 (alias) = THE SYNTACTIC SUGAR LAYER, promoted.** "Adds no expressive power" is written
+>   below as a limitation; under the new architecture it is the SAFETY PROPERTY. Sugar desugars to
+>   core, so it is meaning-preserving by construction and a learned sugar form is CHECKABLE. This is
+>   where learning form variations legitimately lives — surface is verifiable, semantics is not.
+> * **T2 (authored) = how the CORE set grows.** Deliberate, human, already shipped.
+> * **T3 (induced semantics) = DISPLACED, parked with its reason.** A learnable form set is in
+>   TENSION WITH A STABLE TRANSLATION TARGET: a runtime-invented form is one the SLM does not know,
+>   so it cannot translate into it. T3 also cannot be the route to prose — alignment needs structure
+>   to align against, and the chart covers ~13% of a prose sentence.
+>
+> Full reasoning, the concept-inventory audit (3 missing constructions), the translator-refusal
+> contract and the adequacy stopping criterion: `docs/implementation_plan.md`, the 2026-07-20
+> re-point block.
+
 > **REVISED 2026-07-18 after a correct objection from the user: the first version of this
 > section designed an ALIAS mechanism and called it form learning.** `_nearest_forms` can only
 > ever propose shapes ALREADY in the grammar, so "did you mean `… gives … to …`?" mints a form

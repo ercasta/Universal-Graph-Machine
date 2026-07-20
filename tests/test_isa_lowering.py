@@ -237,3 +237,102 @@ def test_an_rhs_only_predicate_variable_is_still_rejected():
     """Predicate INVENTION stays out: with no LHS binding there is no node to take a name from."""
     with pytest.raises(Unlowerable, match="not bound by the LHS"):
         lower_rule(Rule(key="bad", lhs=[Pat("?s", "is", "?o")], rhs=[Pat("?s", "?w", "?o")]))
+
+
+# ---------------------------------------------------------------------------
+# `Band` — the declared RHS effect that authors a possibilistic fork FROM A RULE
+# ---------------------------------------------------------------------------
+
+def _banded_rule(degree=0.7):
+    from ugm.production_rule import Band
+    return Rule(key="hedge", lhs=[Pat("?s", "hedged_has", "?o")], rhs=[Pat("?s", "has", "?o")],
+                bands=[Band(var="<hypothesis>?", key="<likeliness>", degree=degree, scope=("?s",))])
+
+
+def _seeded():
+    from ugm import AttrGraph
+    g = AttrGraph()
+    g.add_relation(g.add_node("lion"), "hedged_has", g.add_node("mane"))
+    return g
+
+
+def test_a_rule_can_author_a_banded_fork():
+    """THE POINT OF `Band`: a rule RHS is triples, so it could not write the GRADED attribute a
+    possibilistic fork is made of — hedged facts were reachable only from a Python driver.
+
+    The acceptance criterion is PARITY, not merely 'a band appears': the rule must land the SAME
+    representation `possibility.add_fork` does, so the banded readers cannot tell them apart. A
+    parallel-but-different encoding would be worse than no feature."""
+    from ugm import AttrGraph
+    from ugm.lowering import run_bank
+    from ugm.possibility import add_fork, possibility, all_fork_bands
+
+    authored = AttrGraph()
+    add_fork(authored, 0.7, [("lion", "has", "mane")])
+
+    derived = _seeded()
+    run_bank(derived, [_banded_rule()])
+
+    assert sorted(all_fork_bands(derived).values()) == sorted(all_fork_bands(authored).values())
+    assert possibility(derived, "has", "lion", "mane") == possibility(authored, "has", "lion", "mane")
+    assert possibility(derived, "has", "lion", "mane") == 0.7
+
+
+def test_a_penned_head_is_control_and_scope_tagged():
+    """A hedged claim must not be INK. The penned relation is a CONTROL node carrying the `<scope>`
+    tag pointing at the fork — `suppose._pencil`'s shape, reached declaratively."""
+    from ugm.apply import SCOPE
+    from ugm.lowering import run_bank
+    g = _seeded()
+    run_bank(g, [_banded_rule()])
+    rel = next(n for n in g.nodes() if g.has_key(n, "has"))
+    assert g.get_attr(rel, SCOPE) is not None, "a penned head must carry its scope tag"
+    scope = g.get_attr(rel, SCOPE).value
+    assert g.get_attr(scope, "<likeliness>").value == 0.7
+
+
+def test_emit_value_reg_is_valued_only():
+    """A node id is DATA, never a degree — the guard exists so a graded misuse fails loudly rather
+    than coercing an id into a float."""
+    from ugm import AttrGraph
+    from ugm.machine import EMIT, State, ProgramError
+    g = AttrGraph()
+    n = g.add_node("x")
+    with pytest.raises(ProgramError):
+        Machine().apply(g, [EMIT("_a", "<likeliness>", "", value_reg="_b")],
+                        State({"_a": n, "_b": n}))
+
+
+def test_a_band_scope_naming_no_rhs_subject_is_unlowerable():
+    """Loud rather than silent: penning behind a token the RHS never writes would quietly author a
+    fork holding nothing."""
+    from ugm.production_rule import Band
+    r = Rule(key="bad", lhs=[Pat("?s", "hedged_has", "?o")], rhs=[Pat("?s", "has", "?o")],
+             bands=[Band(var="<hypothesis>?", key="<likeliness>", degree=0.5, scope=("?nope",))])
+    with pytest.raises(Unlowerable):
+        lower_rule(r)
+
+
+def test_a_band_is_idempotent_across_runs():
+    """A bank that re-runs must not accrete — and `Band` mints a SCOPE, which has neither of the two
+    existing identities (no NAME to intern by, no subject/object edges to dedup on).
+
+    This was the family's FIFTH instance (`<span>?`, the remint mark, `intern_described`,
+    `<contradiction>?`): the scope skolem minted fresh per firing and orphaned one node per pass
+    (5 -> 6 -> 7 -> 8). It was SILENT — the penned head deduped, so the fork count stayed right and
+    every band reader still answered correctly. It mattered because the grammar fold re-runs its
+    banks over the whole graph on every utterance.
+
+    Fixed at the source by `MINT(reuse_attr_of=)`: the scope's identity is the `<scope>` tag its own
+    penned fact already carries, so a found head yields a found scope. (This test previously pinned
+    the defect and said to invert it once fixed — this is that inversion.)"""
+    from ugm.lowering import run_bank
+    from ugm.possibility import all_fork_bands, possibility
+    g = _seeded()
+    counts = []
+    for _ in range(4):
+        run_bank(g, [_banded_rule()])
+        counts.append(len(list(g.nodes())))
+    assert len(set(counts)) == 1, f"re-running a band rule must be FLAT; got {counts}"
+    assert len(all_fork_bands(g)) == 1
+    assert possibility(g, "has", "lion", "mane") == 0.7, "and still answers after N runs"

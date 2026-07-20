@@ -324,6 +324,49 @@ def test_fresh_marks_do_not_survive_a_parse(banks):
         assert not g.nodes_with_key(FRESH), "the FRESH delta must not outlive its utterance"
 
 
+def test_unparsed_marks_do_not_survive_a_parse(banks):
+    """Same contract as `test_fresh_marks_do_not_survive_a_parse`, for the TOKEN delta -- plus the
+    trap that is specific to it.
+
+    `FRESH` is written by a rule at the end of a successful parse, so it can only leak on the happy
+    path. `UNPARSED` is written BEFORE the first bank runs, and `parse` can return REFUSED or
+    AMBIGUOUS from the middle of the pipeline -- so it has to be retired on EVERY exit path, which is
+    why `parse` clears it in a `finally`. A refused sentence that left its tokens marked would
+    silently enlarge the seed set of every later parse: the exact failure mode this delta exists to
+    remove, reintroduced by an early return."""
+    from ugm.cnl.grammar import UNPARSED
+    g = AttrGraph()
+    assert parse(g, "glorp the flarn", banks)[0] == REFUSED
+    assert not g.nodes_with_key(UNPARSED), "a REFUSED parse must still retire the token delta"
+    assert parse(g, "the lion has a mane", banks)[0] == PARSED
+    assert not g.nodes_with_key(UNPARSED), "the UNPARSED delta must not outlive its utterance"
+
+
+def test_the_token_delta_skips_no_work(banks):
+    """The chart/usefulness/span banks are seeded on the new sentence's TOKENS, and that is sound
+    only because a span never crosses a sentence -- every derivation a parse can add BEGINS at a
+    token of that sentence.
+
+    If it ever stops holding, a later sentence gets LESS chart than the same sentence parsed alone.
+    This is the token-level counterpart of `test_the_fresh_delta_skips_no_work`, and it is a
+    separate test because the two deltas are seeded on different layers: that one could pass while
+    this one fails (spans built, tree not), and vice versa."""
+    def _span_count(g):
+        return sum(1 for n in g.nodes() if g.has_key(n, "cat"))
+
+    alone = AttrGraph()
+    assert parse(alone, "the lion lives in africa", banks)[0] == PARSED
+    expected = _span_count(alone)
+    assert expected, "the sentence must materialize spans at all"
+
+    session = AttrGraph()
+    parse(session, "the lion has a mane", banks)
+    parse(session, "the lion roars", banks)
+    before = _span_count(session)
+    assert parse(session, "the lion lives in africa", banks)[0] == PARSED
+    assert _span_count(session) - before == expected
+
+
 def test_the_fresh_delta_skips_no_work(banks):
     """Seeding decompositions on FRESH must not make a later sentence get LESS structure.
 

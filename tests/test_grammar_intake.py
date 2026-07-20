@@ -65,6 +65,41 @@ def test_the_exception_sentence_lands_negated(kb):
     assert any(p == "has_not" and o == "mane" for _s, p, o in gi.facts(kb))
 
 
+def test_a_hedged_clause_parses_and_commits_no_ink(kb):
+    """HEDGING, slice 1 (the grammar half). The concept-inventory audit's most frequent gap.
+
+    A hedged sentence must parse — dropping it is the §10a exception-dropping failure in another
+    costume — but it must NOT write an ink fact, because `generally` is a claim about a BAND and
+    ink means certain. `hclause` being its own category is what enforces that: `clause asserts subj
+    pred obj` cannot fire on it. Authoring the banded fork is the interpretation layer's remaining
+    half; until it lands, the honest state is parsed-with-slots-and-no-fact.
+    """
+    before = set(gi.facts(kb))
+    kind, _ = gi.route(kb, "the lion generally has a mane", banks(kb))
+    assert kind != "unrecognized", "a hedged sentence must not be refused"
+    assert set(gi.facts(kb)) == before, "a hedge is not certain — it must commit no ink fact"
+
+    # ...while the UNhedged counterpart still does, i.e. the new category stole nothing.
+    gi.route(kb, "the lion has a mane", banks(kb))
+    assert ("lion", "has", "mane") in gi.facts(kb)
+
+
+def test_the_hedge_word_is_recoverable_from_the_parse(kb):
+    """The fork-authoring half needs (subj, pred, obj, hedge) off the span — pin that they are all
+    there, so the remaining work is authoring and not re-parsing."""
+    gi.route(kb, "the lion generally has a mane", banks(kb))
+    found = {}
+    for n in kb.nodes():
+        cat = next((kb.name(o) for r, o in kb.relations_from(n) if kb.has_key(r, "cat")), None)
+        if cat != "hclause":
+            continue
+        found = {kb.predicate(r): kb.name(o) for r, o in kb.relations_from(n)}
+    assert found.get("hedge") == "generally"
+    assert found.get("subj") == "lion"
+    assert found.get("pred") == "has"
+    assert found.get("obj") == "mane"
+
+
 def test_centers_are_described_not_named(kb):
     _kind, data = gi.route(kb, "the guzerat lion has no mane", banks(kb))
     assert data["centers"], "an assertion must yield focus centers"

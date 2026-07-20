@@ -268,34 +268,42 @@ def chart_bank(gram: Grammar, *, open_class: str | None = None,
     `open_class`: with it set, any token NOT declared in a closed class also spans as that category
     — the open-vocabulary default. It is one rule with a NAC over a DECLARED tag (no hardcoded
     stop-list), REFUSAL SURVIVES IT (gibberish still fails to parse), and it is cheaper than
-    one lexical rule per word. See `homoiconic_grammar.md` §8.4."""
+    one lexical rule per word. See `homoiconic_grammar.md` §8.4.
+
+    EVERY RULE LEADS WITH `UNPARSED` so the chart is built over the NEW SENTENCE rather than the
+    whole session — see that constant for why this is the lever and why it is sound. The mark binds
+    the token (or the span's begin token), so each remaining premise is a FOLLOW from a bound
+    endpoint instead of a SEED over every `next`/`span_*` node standing in the session."""
     rules: list[Rule] = []
     cats = set(gram.categories)
     for w, cs in sorted(gram.lexicon.items()):
         for c in sorted(cs):
             cats.add(c)
             rules.append(Rule(key=f"chart.lex.{c}.{w}",
-                              lhs=[Pat(f"{w}?", "next", "?u")],
+                              lhs=[Pat(f"{w}?", UNPARSED, "?up"), Pat(f"{w}?", "next", "?u")],
                               rhs=[Pat(f"{w}?", sp(c), "?u")]))
     if open_class:
         for w, cs in sorted(gram.lexicon.items()):
             if any(c in closed for c in cs):
                 rules.append(Rule(key=f"chart.closed.{w}",
-                                  lhs=[Pat(f"{w}?", "next", "?u")],
+                                  lhs=[Pat(f"{w}?", UNPARSED, "?up"), Pat(f"{w}?", "next", "?u")],
                                   rhs=[Pat(f"{w}?", "closed_class", "yes")]))
         rules.append(Rule(key=f"chart.open.{open_class}",
-                          lhs=[Pat("?t", "next", "?u")],
+                          lhs=[Pat("?t", UNPARSED, "?up"), Pat("?t", "next", "?u")],
                           nac=[Pat("?t", "closed_class", "yes")],
                           rhs=[Pat("?t", sp(open_class), "?u")]))
         cats.add(open_class)
     for z, x in gram.unary:
         rules.append(Rule(key=f"chart.un.{z}.{x}",
-                          lhs=[Pat("?a", sp(x), "?b")], rhs=[Pat("?a", sp(z), "?b")]))
+                          lhs=[Pat("?a", UNPARSED, "?up"), Pat("?a", sp(x), "?b")],
+                          rhs=[Pat("?a", sp(z), "?b")]))
     for z, x, y in gram.binary:
         rules.append(Rule(key=f"chart.bin.{z}.{x}.{y}",
-                          lhs=[Pat("?a", sp(x), "?m"), Pat("?m", sp(y), "?b")],
+                          lhs=[Pat("?a", UNPARSED, "?up"),
+                               Pat("?a", sp(x), "?m"), Pat("?m", sp(y), "?b")],
                           rhs=[Pat("?a", sp(z), "?b")]))
-    return rules, frozenset({"next", "first", "closed_class"} | {sp(c) for c in cats})
+    return rules, frozenset({"next", "first", "closed_class", UNPARSED}
+                            | {sp(c) for c in cats})
 
 
 def ambiguity_bank(gram: Grammar, root: str = ROOT) -> tuple[list[Rule], frozenset[str]]:
@@ -311,24 +319,31 @@ def ambiguity_bank(gram: Grammar, root: str = ROOT) -> tuple[list[Rule], frozens
 
     Counting root spans instead DOES NOT WORK: packing erases derivation identity, so a 3-parse
     sentence reports one root span. The unpacked alternative is correct but costs 4.7 s at 11
-    tokens. See `homoiconic_grammar.md` §8.3."""
+    tokens. See `homoiconic_grammar.md` §8.3.
+
+    DELTA-SEEDED ON `UNPARSED` like the chart, and on the same anchor: every rule here is about a
+    span, and a span's BEGIN (`?a`) is always a real token of its sentence — never `<eos>`, which
+    begins nothing. So leading with the mark on `?a` scopes the whole usefulness pass to the new
+    sentence without changing what it derives."""
+    delta = [Pat("?a", UNPARSED, "?up")]
     rules: list[Rule] = [
         Rule(key="amb.useful.root",
-             lhs=[Pat("?s", "first", "?a"), Pat("?a", sp(root), "?b"), Pat("?b", "is_eos", "yes")],
+             lhs=[*delta,
+                  Pat("?s", "first", "?a"), Pat("?a", sp(root), "?b"), Pat("?b", "is_eos", "yes")],
              rhs=[Pat("?a", f"useful_{root}", "?b")]),
     ]
     for z, x in gram.unary:
         rules.append(Rule(key=f"amb.down.{z}.{x}",
-                          lhs=[Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?b")],
+                          lhs=[*delta, Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?b")],
                           rhs=[Pat("?a", f"useful_{x}", "?b")]))
     for z, x, y in gram.binary:
         rules.append(Rule(key=f"amb.down.{z}.{x}.{y}",
-                          lhs=[Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?m"),
+                          lhs=[*delta, Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?m"),
                                Pat("?m", sp(y), "?b")],
                           rhs=[Pat("?a", f"useful_{x}", "?m"), Pat("?m", f"useful_{y}", "?b")]))
     for i, (z, x, y) in enumerate(gram.binary):
         rules.append(Rule(key=f"amb.split.{z}.{x}.{y}",
-                          lhs=[Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?m"),
+                          lhs=[*delta, Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?m"),
                                Pat("?m", sp(y), "?b"), Pat("?a", sp(x), "?n"),
                                Pat("?n", sp(y), "?b")],
                           distinct=[Distinct("?m", "?n")],
@@ -336,25 +351,25 @@ def ambiguity_bank(gram: Grammar, root: str = ROOT) -> tuple[list[Rule], frozens
         for z2, x2, y2 in gram.binary[i + 1:]:
             if z2 == z:
                 rules.append(Rule(key=f"amb.prod.{z}.{x}.{y}.{x2}.{y2}",
-                                  lhs=[Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?m"),
+                                  lhs=[*delta, Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?m"),
                                        Pat("?m", sp(y), "?b"), Pat("?a", sp(x2), "?n"),
                                        Pat("?n", sp(y2), "?b")],
                                   rhs=[Pat("?a", "ambiguous", "?b")]))
         for z2, x2 in gram.unary:
             if z2 == z:
                 rules.append(Rule(key=f"amb.mixed.{z}.{x}.{y}.{x2}",
-                                  lhs=[Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?m"),
+                                  lhs=[*delta, Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?m"),
                                        Pat("?m", sp(y), "?b"), Pat("?a", sp(x2), "?b")],
                                   rhs=[Pat("?a", "ambiguous", "?b")]))
     for i, (z, x) in enumerate(gram.unary):
         for z2, x2 in gram.unary[i + 1:]:
             if z2 == z:
                 rules.append(Rule(key=f"amb.un.{z}.{x}.{x2}",
-                                  lhs=[Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?b"),
+                                  lhs=[*delta, Pat("?a", f"useful_{z}", "?b"), Pat("?a", sp(x), "?b"),
                                        Pat("?a", sp(x2), "?b")],
                                   rhs=[Pat("?a", "ambiguous", "?b")]))
     cats = gram.categories | {c for cs in gram.lexicon.values() for c in cs}
-    return rules, frozenset({"is_eos", "ambiguous"} | {f"useful_{c}" for c in cats})
+    return rules, frozenset({"is_eos", "ambiguous", UNPARSED} | {f"useful_{c}" for c in cats})
 
 
 def span_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
@@ -370,10 +385,20 @@ def span_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
     re-mint all of the session's earlier spans. The NAC says "unless a span with this cat/begin/end
     already stands", which makes the rule self-guarding and the bank re-runnable. This is the
     structural counterpart of `intern_described`, which fixes exactly this re-minting for minted
-    ENTITIES — the same defect, the other layer."""
+    ENTITIES — the same defect, the other layer.
+
+    DELTA-SEEDED ON `UNPARSED` too, and THAT IS A SEPARATE FIX FROM THE NAC ABOVE. The NAC stops the
+    re-MINT; it does not stop the re-JOIN, so this bank still walked every `useful_*` span in the
+    session on every utterance — measured as the STEEPEST curve of the three surface banks (4.3 →
+    179 ms across 7 sentences, 42×) while accreting nothing. Same distinction as
+    `decomposition_bank`: idempotency makes accretion flat, the delta makes COST flat. The NAC
+    remains, as defence in depth for a re-parse of an already-parsed sentence."""
     return ([Rule(key=f"surf.span.{c}",
-                  lhs=[Pat("?a", f"useful_{c}", "?b")],
-                  nac=[Pat("?s", "cat", c), Pat("?s", "begin", "?a"), Pat("?s", "end", "?b")],
+                  lhs=[Pat("?a", UNPARSED, "?up"), Pat("?a", f"useful_{c}", "?b")],
+                  # NAC premise order matters for the same reason the LHS's does in
+                  # `decomposition_bank`: `?s cat c` first has no bound endpoint and SEEDs every
+                  # `cat` node in the session, so lead with the boundary token the LHS already bound.
+                  nac=[Pat("?s", "begin", "?a"), Pat("?s", "cat", c), Pat("?s", "end", "?b")],
                   # FRESH marks the spans this parse actually minted — the NAC above means that is
                   # exactly the new sentence's spans. `decomposition_bank` SEEDS on it, so the tree
                   # is built over the new sentence instead of the whole session (`clear_fresh`).
@@ -381,7 +406,7 @@ def span_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
                        Pat("<span>?", "end", "?b"), Pat("<span>?", FRESH, "<yes>"),
                        Pat("<span>?", UNINTERPRETED, "<yes>")])
              for c in sorted(gram.categories)],
-            frozenset({"cat", "begin", "end", FRESH, UNINTERPRETED}))
+            frozenset({"cat", "begin", "end", FRESH, UNINTERPRETED, UNPARSED}))
 
 
 #: The materialized parse tree — one node per DECOMPOSITION of a span into its children.
@@ -403,6 +428,29 @@ FRESH = "<fresh>"
 #: the whole surface" still expressible: the delta is "what to interpret", and for a rebuild that is
 #: everything.
 UNINTERPRETED = "unfolded"
+
+#: Marks a TOKEN of the sentence currently being parsed — the same delta again, one layer BELOW the
+#: spans. `FRESH`/`UNINTERPRETED` hang on span nodes and so can only seed the banks that run once
+#: spans exist (`decomposition_bank`, the fold). The three banks that BUILD the spans — `chart_bank`,
+#: `ambiguity_bank`, `span_bank` — have no span to seed from, so their delta has to hang on the one
+#: thing that exists before them: the tokens `tokenize` just emitted.
+#:
+#: WHY IT IS THE LEVER. `lower_conj` drives each join from a BOUND endpoint and, with no endpoint
+#: bound, SEEDs the whole predicate class — so `?a span_np ?m` seeded EVERY `span_np` in the session
+#: and `{w}? next ?u` seeded every `next`. Leading each rule with this mark binds the span's BEGIN
+#: token first, and every later premise becomes a FOLLOW from it. Measured: all three banks grew with
+#: the session (`span_bank` steepest at 42× over 7 sentences) even though nothing was re-derived.
+#:
+#: SOUND for the same reason `FRESH` is: a span never crosses a sentence, so every derivation this
+#: parse can add BEGINS at a token of this sentence, and all of those are marked. Earlier sentences
+#: reached their own fixpoint when they were parsed.
+#:
+#: PLAIN-NAMED, DELIBERATELY. A `<…>`-named premise turns a fact-writing rule into a control-writing
+#: one (`_rule_touches_control`), which is how the fold once produced zero facts while every rule
+#: fired. These three banks write control/surface predicates only, so `<…>` would be safe here — but
+#: the mark is one edit away from a fact-writing rule at all times, and `unfolded` is the precedent:
+#: surface scaffolding with a plain name, listed in `SURFACE_PREDS` so every reader skips it.
+UNPARSED = "unparsed"
 
 
 def _prod_key(z: str, x: str, y: str | None = None) -> str:
@@ -442,16 +490,26 @@ def decomposition_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
     SOUND because a span never crosses a sentence: spans are bounded by `begin`/`end` within one
     token chain, so a decomposition of a new span can only involve other spans of the SAME sentence,
     which are fresh too. The NAC stays as defence in depth (re-parsing a sentence re-marks spans
-    whose decompositions already stand)."""
+    whose decompositions already stand).
+
+    AND THE PREMISE ORDER MATTERS AS MUCH AS THE SEED — the delta alone left this bank still growing
+    with the session (27.7 → 86 ms over 7 sentences) and the biggest stage in `parse`. `lower_conj`
+    drives a join from a BOUND endpoint and otherwise SEEDs the whole predicate class, so leading a
+    child with `?l cat np` seeded EVERY `cat` node in the session and then filtered. Reaching the
+    child from the boundary token instead (`?l begin ?a`, which FOLLOWs from the already-bound `?a`)
+    starts from the handful of spans at that position. The conjunction is IDENTICAL either way —
+    this is join order, not semantics — which is exactly what makes it easy to regress silently."""
     fresh = [Pat("?p", FRESH, "?fr")]
     rules: list[Rule] = []
     for z, x, y in sorted(set(gram.binary)):
         rules.append(Rule(
             key=f"surf.dec.{z}.{x}.{y}",
+            # PREMISE ORDER IS LOAD-BEARING (see the join-order note in the docstring): reach each
+            # child from the boundary token already bound, never by its category.
             lhs=[*fresh,
                  Pat("?p", "cat", z), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b"),
-                 Pat("?l", "cat", x), Pat("?l", "begin", "?a"), Pat("?l", "end", "?m"),
-                 Pat("?r", "cat", y), Pat("?r", "begin", "?m"), Pat("?r", "end", "?b")],
+                 Pat("?l", "begin", "?a"), Pat("?l", "cat", x), Pat("?l", "end", "?m"),
+                 Pat("?r", "begin", "?m"), Pat("?r", "cat", y), Pat("?r", "end", "?b")],
             nac=[Pat("?d", "dparent", "?p"), Pat("?d", "dleft", "?l"), Pat("?d", "dright", "?r")],
             rhs=[Pat("<dec>?", "dprod", _prod_key(z, x, y)), Pat("<dec>?", "dparent", "?p"),
                  Pat("<dec>?", "dleft", "?l"), Pat("<dec>?", "dright", "?r")]))
@@ -460,7 +518,7 @@ def decomposition_bank(gram: Grammar) -> tuple[list[Rule], frozenset[str]]:
             key=f"surf.dec.{z}.{x}",
             lhs=[*fresh,
                  Pat("?p", "cat", z), Pat("?p", "begin", "?a"), Pat("?p", "end", "?b"),
-                 Pat("?q", "cat", x), Pat("?q", "begin", "?a"), Pat("?q", "end", "?b")],
+                 Pat("?q", "begin", "?a"), Pat("?q", "cat", x), Pat("?q", "end", "?b")],
             nac=[Pat("?d", "dparent", "?p"), Pat("?d", "donly", "?q")],
             rhs=[Pat("<dec>?", "dprod", _prod_key(z, x)), Pat("<dec>?", "dparent", "?p"),
                  Pat("<dec>?", "donly", "?q")]))
@@ -477,6 +535,29 @@ def clear_fresh(g) -> int:
     return _retire_mark(g, FRESH)
 
 
+def mark_tokens(g, toks) -> int:
+    """Mark this sentence's tokens `UNPARSED` — the seed for the three surface banks.
+
+    Written from Python rather than derived by a rule because it is the delta's BASE CASE: it must
+    exist before the first bank runs, and the tokens are exactly what `tokenize` just returned.
+    Guarded so re-parsing a sentence does not stack duplicate marks."""
+    marked = 0
+    yes = g.add_node("<yes>", control=True)
+    for t in toks:
+        if not any(g.has_key(r, UNPARSED) for r, _o in g.relations_from(t)):
+            g.add_relation(t, UNPARSED, yes, control=True)
+            marked += 1
+    return marked
+
+
+def clear_unparsed(g) -> int:
+    """Retire the token delta once the spans are built. Same contract as `clear_fresh`, same silent
+    failure mode — and one extra trap: `parse` can return REFUSED before the banks finish, so this
+    has to run on EVERY exit path, not just the successful one (hence the `try/finally` there).
+    A refused sentence that left its tokens marked would enlarge every later parse's seed set."""
+    return _retire_mark(g, UNPARSED)
+
+
 def clear_uninterpreted(g) -> int:
     """Retire the interpretation delta once `interpret` has folded it. Same contract as
     `clear_fresh`, and the same silent-failure mode: leave these standing and every answer is still
@@ -486,13 +567,20 @@ def clear_uninterpreted(g) -> int:
 
 def _retire_mark(g, key: str) -> int:
     """Drop every relation node carrying `key`. O(marked) via the key index — NOT a graph sweep,
-    which would reintroduce the per-utterance whole-graph cost these marks exist to remove."""
-    gone = 0
-    for r in list(g.nodes_with_key(key)):
-        if r in g.nodes():
-            g.remove_node(r)
-            gone += 1
-    return gone
+    which would reintroduce the per-utterance whole-graph cost these marks exist to remove.
+
+    DELETES VIA THE GATED `SWEEP` OPCODE, not a raw `remove_node`: control-node deletion is an ISA
+    privilege (the lowering-compliance pass), and every other driver that retires scaffolding
+    (`focus`, `dispatch`, `possibility`) goes through it. Not box-ticking — `SWEEP` REFUSES a fact or
+    provenance node, so if a delta mark ever lands somewhere it should not, this fails LOUDLY instead
+    of quietly deleting content. The marks are born control (`add_relation(..., control=True)`), so
+    the gate passes by construction."""
+    from ..machine import Machine, SWEEP, State
+    doomed = [r for r in g.nodes_with_key(key) if r in g.nodes()]
+    if doomed:
+        Machine().apply(g, [SWEEP(f"_n{i}") for i in range(len(doomed))],
+                        State({f"_n{i}": n for i, n in enumerate(doomed)}))
+    return len(doomed)
 
 
 def mark_all_spans(g) -> int:
@@ -766,21 +854,22 @@ def parse(g, sentence: str, banks: GrammarBanks, root: str = ROOT) -> tuple[str,
     Outcome is `parsed` / `refused` (no complete parse — the diagnostic a bank of independent
     surface patterns structurally cannot produce) / `ambiguous` (two readings; ASK, do not pick).
     Writes only SURFACE structure: tokens, chains, and span `cat`/`begin`/`end`."""
-    anchor = tokenize(g, sentence)
-    toks = _chain_tokens(g, anchor)
+    toks, eos = _tokenize_with_sentinel(g, sentence)
     if not toks:
         return REFUSED, [], ""
-    eos = g.add_node("<eos>", control=True)
-    # Spans are [begin, end), so every token needs a successor — including the last.
-    g.add_relation(toks[-1], "next", eos, control=True)
-    g.add_relation(eos, "is_eos", g.add_node("yes"), control=True)
-    run_bank(g, banks.chart, control_preds=banks.chart_preds)
-    if not any(g.has_key(r, sp(root)) and o == eos for r, o in g.relations_from(toks[0])):
-        return REFUSED, toks, eos
-    run_bank(g, banks.ambiguity, control_preds=banks.ambiguity_preds)
-    if any(g.has_key(r, "ambiguous") for t in toks for r, _o in g.relations_from(t)):
-        return AMBIGUOUS, toks, eos
-    run_bank(g, banks.spans, control_preds=banks.span_preds)
+    # The token delta: all three surface banks below are seeded on it, so it must be written before
+    # the first of them runs and retired however this function exits (see `clear_unparsed`).
+    mark_tokens(g, toks)
+    try:
+        run_bank(g, banks.chart, control_preds=banks.chart_preds)
+        if not any(g.has_key(r, sp(root)) and o == eos for r, o in g.relations_from(toks[0])):
+            return REFUSED, toks, eos
+        run_bank(g, banks.ambiguity, control_preds=banks.ambiguity_preds)
+        if any(g.has_key(r, "ambiguous") for t in toks for r, _o in g.relations_from(t)):
+            return AMBIGUOUS, toks, eos
+        run_bank(g, banks.spans, control_preds=banks.span_preds)
+    finally:
+        clear_unparsed(g)
     clear_fresh(g)                                   # the delta is per-utterance; see `clear_fresh`
     return PARSED, toks, eos
 
@@ -819,9 +908,17 @@ def parse_batch(g, sentences, banks: GrammarBanks, root: str = ROOT) -> list[str
     Callers that fold must filter to `PARSED` first — an ambiguous sentence is a question, not
     input."""
     pairs = [_tokenize_with_sentinel(g, s) for s in sentences]
-    run_bank(g, banks.chart, control_preds=banks.chart_preds)
-    run_bank(g, banks.ambiguity, control_preds=banks.ambiguity_preds)
-    run_bank(g, banks.spans, control_preds=banks.span_preds)
+    # ONE delta covering the whole batch — the same "the delta is what to (re-)read" move
+    # `mark_all_spans` makes for a rebuild. Marking every batched sentence at once is what keeps
+    # this a single pass while still excluding whatever the session already parsed.
+    for toks, _eos in pairs:
+        mark_tokens(g, toks)
+    try:
+        run_bank(g, banks.chart, control_preds=banks.chart_preds)
+        run_bank(g, banks.ambiguity, control_preds=banks.ambiguity_preds)
+        run_bank(g, banks.spans, control_preds=banks.span_preds)
+    finally:
+        clear_unparsed(g)
     clear_fresh(g)                                   # the delta is per-utterance; see `clear_fresh`
     return [_outcome(g, toks, eos, root) for toks, eos in pairs]
 

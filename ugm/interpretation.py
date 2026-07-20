@@ -46,7 +46,7 @@ DEFINING: tuple[str, ...] = ("is_a", "is")
 
 #: Predicates that are SURFACE structure. Everything else a fold writes is interpretation.
 SURFACE_PREDS: frozenset[str] = frozenset({"cat", "begin", "end", "next", "first",
-                                            "is_eos", "unfolded"})
+                                            "is_eos", "unfolded", "unparsed"})
 
 
 def _slot(g, n, key):

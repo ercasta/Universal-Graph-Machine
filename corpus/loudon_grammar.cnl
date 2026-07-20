@@ -13,6 +13,13 @@
 # Beyond corpus/lion_grammar.cnl this adds: predicative adjectives (`the lion is strong`),
 # copula-with-noun-phrase subsumption (`the lion is a cat`), and a second preposition (`at`).
 
+# HEDGING (2026-07-20, the concept-inventory audit's most frequent gap -- sentences 8/12/13/18/24/37).
+# A hedged clause is its OWN category (`hclause`), which is what keeps `clause asserts ...` from
+# firing on it: a hedged sentence must NOT write an ink fact. `clause expands to hclause` only makes
+# it reachable from the root and deliberately percolates NO slots. The band the hedge word denotes
+# is NOT declared here -- it is the KB-level hedge lexicon (`uncertainty.hedge_bands`, `X means N`),
+# the same scale the possibilistic layer already reads.
+
 # ---- lexicon: closed classes ----
 the is a determiner
 a is a determiner
@@ -21,6 +28,10 @@ is is a copula
 than is a comparator
 in is a preposition
 at is a preposition
+generally is a hedge
+usually is a hedge
+sometimes is a hedge
+occasionally is a hedge
 
 # ---- lexicon: content words ----
 african is a modifier
@@ -59,6 +70,9 @@ vp expands to copula plus ap
 cp expands to comparator plus np
 ap expands to comparative plus cp
 clause expands to np plus vp
+hvp expands to hedge plus vp
+hclause expands to np plus hvp
+clause expands to hclause
 
 # ---- how each slot is filled ----
 slot head in np from noun is only head
@@ -98,7 +112,24 @@ slot cobj in clause from np plus vp is right cobj
 slot adjc in clause from np plus vp is right adjc
 slot kind in clause from np plus vp is right kind
 
+# the hedge itself, plus the ordinary clause slots carried through the hedged shape
+slot hedge in hvp from hedge plus vp is left head
+slot pred in hvp from hedge plus vp is right pred
+slot obj in hvp from hedge plus vp is right obj
+slot adjc in hvp from hedge plus vp is right adjc
+slot kind in hvp from hedge plus vp is right kind
+slot subj in hclause from np plus hvp is left head
+slot hedge in hclause from np plus hvp is right hedge
+slot pred in hclause from np plus hvp is right pred
+slot obj in hclause from np plus hvp is right obj
+slot adjc in hclause from np plus hvp is right adjc
+slot kind in hclause from np plus hvp is right kind
+
 # ---- which slots become facts ----
+# NOTE: `hclause` deliberately declares NO assertion. A hedged sentence commits nothing to the ink
+# layer; authoring it as a banded fork is the interpretation layer's job (it needs the hedge->band
+# scale, which is KB data). Until that lands, a hedged sentence parses and exposes its slots and
+# writes no fact -- which is the honest behaviour, not a silent drop: `route` still reports it.
 np asserts head is attr
 clause asserts subj pred obj unless neg
 clause denies subj pred obj when neg

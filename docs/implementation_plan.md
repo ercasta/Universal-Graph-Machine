@@ -49,10 +49,15 @@ materialization, `MINT.key_reg`). Everything after it is UNCOMMITTED: `ugm/cnl/g
 
 **NEXT, in order:**
 
-- **Commit.** Then: the remaining curve is `parse` at 0.87 s (63% of the session) — `chart` and
-  `ambiguity` are still whole-graph per utterance. Same delta treatment, but the mark goes on the
-  new sentence's TOKENS rather than its spans (they write onto tokens). Well-worn pattern by now;
-  **re-measure first**, the stated lever in this arc has been wrong three times.
+- ~~**Commit**, then the token delta on `chart`/`ambiguity`~~ **BOTH DONE 2026-07-20 — see the
+  fifth-lever block below.** And re-measuring paid AGAIN (fourth time): the stated lever was wrong
+  in two ways at once. `span_bank` was NOT delta-seeded as claimed and had the steepest curve of
+  all; and the biggest remaining stage afterwards turned out to be a JOIN-ORDER defect, not a
+  seeding one.
+- **⚠ FIRST, READ THE RAW-PROSE RESULT BELOW (2026-07-20) — it re-points the arc.** The grammar
+  scores **0/50 on verbatim book prose** and the gap is 100% constructional, not clerical. Two
+  roadmap items are measured as not-viable-as-stated. Decide the scope question there before
+  spending anything on step 5 or on more coverage.
 - **Step 5** — retire what the fork subsumes (`ugm/intake.py:461` still forks; `has_content_fact` is
   kept only for snapshot-passing callers and is marked as defective).
 - **The DENY collapse** — 26 of `assert_bank`'s remaining 33 rules; needs the positive/negative
@@ -382,7 +387,8 @@ delta mark, `UNINTERPRETED` (`unfolded`), written by `span_bank` beside `FRESH`.
   rebuild give identical facts and identical contradiction counts (extend has 15 FEWER nodes —
   rebuild's repeated discard leaves orphans; extend is the cleaner path, not the lossy one).
 
-**CUMULATIVE ACROSS ALL FOUR LEVERS: session 11.41 → 1.39 s (8.2×).**
+**CUMULATIVE ACROSS ALL FOUR LEVERS: session 11.41 → 1.39 s (8.2×).** (Fifth lever 2026-07-20 below;
+its numbers are on a different 8-sentence corpus, so compare within that block, not against these.)
 
 **TWO DEFECTS FOUND BUILDING IT, both silent, both worth remembering:**
 
@@ -403,6 +409,258 @@ delta mark, `UNINTERPRETED` (`unfolded`), written by `span_bank` beside `FRESH`.
 still whole-graph per utterance (`spans+decs` is already delta-seeded). Same treatment applies: their
 rules are per-sentence local, but they write onto TOKENS, so the mark goes on the new sentence's
 tokens. `interpret` **0.52 s (37%)** and flat.
+
+**STEP 4, FIFTH LEVER LANDED 2026-07-20 (suite 736 green): THE TOKEN DELTA + A JOIN-ORDER FIX.**
+Re-measured first, and the measurement corrected the plan's own prescription TWICE. Session on an
+8-sentence corpus **2.68 → 1.42 s**, `parse` **1.89 → 0.72 s (2.6×)**, and EVERY parse stage is now
+flat in session length (it was the only remaining curve).
+
+- **`UNPARSED` (`unparsed`), the THIRD delta mark**, on the new sentence's TOKENS. `FRESH` and
+  `UNINTERPRETED` hang on span nodes, so they can only seed banks that run once spans exist; the
+  three banks that BUILD spans (`chart_bank`, `ambiguity_bank`, `span_bank`) had no span to seed
+  from. Written by `mark_tokens` right after `tokenize`, retired by `clear_unparsed`.
+- **THE PLAN'S STATED LEVER WAS WRONG AGAIN, in a new way: `span_bank` was never delta-seeded.**
+  This file asserted "`spans+decs` is already delta-seeded" — only `decomposition_bank` was.
+  `span_bank` had the STEEPEST curve of all four stages (4.3 → 179 ms over 7 sentences, 42×). Its
+  idempotency NAC (integration step 1's fix) stopped the re-MINT but never the re-JOIN, so it
+  accreted nothing while paying session-wide match cost every utterance. **Idempotency makes
+  ACCRETION flat; only a delta makes COST flat** — they are different fixes and the first one
+  reads like the second.
+- **⭐ AND THE SECOND HALF WAS NOT A DELTA PROBLEM AT ALL — IT WAS JOIN ORDER.** After the token
+  delta, `decomposition_bank` was still growing (27.7 → 86 ms) and had become the LARGEST stage,
+  despite having been delta-seeded since the third lever. Cause: `lower_conj` drives a join from a
+  BOUND endpoint and, with neither endpoint bound, SEEDs the whole predicate class — so a child
+  premise led by `?l cat np` seeded EVERY `cat` node in the session and filtered afterwards.
+  Reaching the child from the boundary token instead (`?l begin ?a`, a FOLLOW from the already-bound
+  `?a`) starts from the handful of spans at that position. Same fix in `span_bank`'s NAC.
+  **The conjunction is IDENTICAL either way — this is join order, not semantics**, which is exactly
+  what makes it invisible in review and easy to regress. Stage 0.37 → 0.17 s and flat.
+- **A THIRD LESSON ABOUT THE SEED, ALONGSIDE THE OTHER TWO:** a bank can be idempotent AND
+  delta-seeded and still be quadratic, if its premise order throws the seed away on the next join.
+  Worth grepping the other generated banks for a premise led by a category/predicate literal with
+  no bound endpoint.
+- **`_retire_mark` now deletes via the gated `SWEEP` opcode** instead of raw `remove_node` — the
+  lowering-compliance path every other scaffolding-retiring driver (`focus`, `dispatch`,
+  `possibility`) already uses. Not box-ticking: `SWEEP` REFUSES a fact or provenance node, so a
+  delta mark landing where it should not now fails LOUDLY. Covers all three marks at one chokepoint.
+- **Guards, per this section's own lessons 3 and 4:**
+  `test_unparsed_marks_do_not_survive_a_parse` (the NEW trap this mark has and the other two do not:
+  `UNPARSED` is written BEFORE the banks run and `parse` can return REFUSED/AMBIGUOUS from the
+  middle, so it must clear on EVERY exit path — hence the `finally`) and
+  `test_the_token_delta_skips_no_work`. **RE-BREAK VERIFIED ON THE INTENDED AXIS FOR BOTH** — and
+  the second one's first re-break was a lesson-4 near-miss: under-marking made it fail at the
+  STANDALONE baseline, i.e. for a reason every other test already catches. Re-broken instead as
+  "seed only the session's first sentence", which leaves the baseline passing and fails on the
+  session-vs-alone property the test actually exists for.
+- **A measurement-harness trap, the same one this section recorded for `clear_fresh`:** the
+  profiling harness reimplements `parse`'s body, so it did not call `mark_tokens` and reported every
+  sentence REFUSED at 0.012 s — i.e. "a 100× speedup". A harness that duplicates a pipeline must be
+  re-checked against it whenever the pipeline gains a step.
+
+**⭐ RAW-PROSE MEASUREMENT 2026-07-20 — THE GRAMMAR SCORES 0/50 ON THE ACTUAL BOOK, AND THE GAP IS
+100% CONSTRUCTIONAL** (`bench/spike_loudon_prose.py`). The arc's headline number ("19/19, 100%
+parsed, first pass") was always measured on **the 19 CNL lines an LLM produced from the 50
+sentences** — the caveat was recorded but kept getting dropped. This runs the same grammar on the
+VERBATIM text, which the arc had deferred since 2026-07-18.
+
+- **0/50 as printed. 0/50 de-punctuated. 0/50 with the vocabulary wall lifted entirely**
+  (`open_class="noun"`). So the decomposition this bench was built to produce came back DEGENERATE:
+  the tokenizer contributes NOTHING (whitespace-only splitting was the suspected culprit and is
+  not), the lexicon contributes NOTHING, and **the entire gap is construction**.
+- **It is not a near miss, and that is the decision-changing part.** The chart is built even when
+  the parse fails, so the longest constituent it derives is a distance metric: **mean 13% of the
+  sentence, best case 31% (4 tokens of 13), and ZERO sentences within 80% of a full span.** The
+  grammar builds 3-4 token fragments inside 13-22 token sentences. 80% of prose tokens are outside
+  the 26-word declared lexicon; median sentence is 29 tokens against a CNL median of 5.
+- **CONSEQUENCE 1 — growing `loudon_grammar.cnl` toward prose is not an incremental path.** Real
+  prose here is subordination, coordination, quoted speech, passives, relatives and possessives, all
+  at once, in nearly every sentence.
+- **⭐ CONSEQUENCE 2 — FORM LEARNING BY ALIGNMENT (§7.1 / slice S2b) IS NOT THE ROUTE TO PROSE.**
+  Alignment mints a form by matching an unrecognized utterance against the structure its rephrasing
+  produced. At 13% coverage **there is no structure to align against**. S2b may still be right for
+  CNL-adjacent input; it cannot get from here to books. This matters because S2b was queued as
+  exactly that bridge — building it first and discovering this would have been expensive.
+- **WHAT THE ARCHITECTURE ALREADY SAYS, and the scope question to settle.** The NL→CNL boundary is
+  ALREADY assigned to an SLM in the Phase 8 client design, and `loudon_lion_corpus.py` is that step
+  done by hand. Read that way the run is not a failure — it says the LLM translation is
+  **LOAD-BEARING, not scaffolding to be removed**, and the grammar's real value is what it does ON
+  the CNL: refusing cleanly instead of writing three wrong facts, detecting ambiguity instead of
+  guessing, landing the linguistically-marked EXCEPTION (`has no mane`) a form bank drops, and
+  supporting contradiction-driven re-interpretation. **Those were the things biasing the learner
+  (§10a), and they are fixed.** OPEN, AND A USER DECISION: does "learn by reading books" mean raw
+  prose in, or CNL-from-an-LLM in? Everything downstream (S2b's value, whether coverage work is
+  worth anything, what the exit gate for the learning arc even is) hangs on it. **Do not answer it
+  by building.**
+
+**⭐⭐ THE RE-POINT THIS PRODUCED (user decision, 2026-07-20): THE TARGET IS A MINIMUM FORM SET, NOT
+FORM LEARNING.** Settled in conversation after the 0/50 result. `"learn by reading books"` means
+**CNL-from-an-LLM in** — raw prose is NOT the intake target and never needs to parse.
+
+- **THE GOAL: a minimum set of forms adequate to represent the concepts, plus a CNL-encoded grammar
+  saying how they COMPOSE.** An LLM/SLM translates prose into that set. Parsing coverage of English
+  is not a target and never was the useful measurement.
+- **WHY THIS IS FORCED, not merely convenient: a learnable form set is in tension with a stable
+  translation target.** If forms can be invented at runtime the SLM does not know them; if it does
+  not know them it cannot translate into them; so a runtime-invented form is useless for reading
+  books. The target language must be FIXED AND KNOWN for a translator to aim at it.
+- **COMPOSITION IS WHY A MINIMUM SET IS VIABLE AT ALL** — and it is why the CNL grammar beats a flat
+  form bank, for a reason better than elegance: a form bank scales LINEARLY in sentence shapes (one
+  form per shape), a grammar scales COMBINATORIALLY (productions compose). Bounded form set,
+  unbounded sentences. The homoiconic grammar arc already built this; its value is here, not in
+  prose coverage.
+- **"CAVEMAN CNL" IS THE FORM SET ITSELF** (user, correcting this plan's first draft of the
+  re-point): the caveman SPEAKS these forms. `learning_design.md` §7.1's tiers survive, but their
+  STATUS inverts — read them against the new architecture, not as a learning ladder:
+  * **T1 (alias — new surface, EXISTING semantics) = THE SYNTACTIC SUGAR LAYER. Survives and is
+    PROMOTED.** §7.1 records "adds no expressive power" as a limitation the design must not overstate.
+    **Under this architecture that is precisely the SAFETY PROPERTY**: sugar desugars to core, so it
+    is meaning-preserving BY CONSTRUCTION and a learned sugar form is CHECKABLE (does it produce the
+    same graph structure as the core form it aliases?). **This is where "learning variations of
+    forms" legitimately survives** — learning SURFACE is verifiable, learning SEMANTICS is not.
+  * **T2 (authored — new semantics, no learning) = HOW THE CORE SET GROWS.** Deliberate, human,
+    already shipped (`form KEY : HEAD when BODY`). This is the mechanism for adding the three
+    missing constructions below.
+  * **T3 (induced semantics from a rephrasing) = THE DISPLACED ONE.** It mints semantics at runtime
+    that no translator knows and nothing can check — exactly the tension above. Already ruled out as
+    the route to prose by the 13%-coverage result (nothing to align against). Not deleted; parked
+    with its reason.
+- **SUGAR HELPS THE SLM, BUT MUST EARN ITS PLACE EMPIRICALLY.** It shortens the distance between
+  prose and target (fewer translation errors, fewer spurious refusals) while adding no
+  expressiveness — so it cannot enable silent approximation. But every sugar form is surface the SLM
+  must know. Criterion: a sugar form is justified when it MEASURABLY reduces translation error or
+  refusal rate, never speculatively.
+- **⚠ THE FAILURE MODE MOVES TO THE TRANSLATOR, AND IT IS THE ORIGINAL ONE.** §10a's finding was
+  that partial intake systematically drops EXCEPTIONS because exceptions are linguistically marked.
+  A parser lacking a form REFUSES — loudly, countably. **An LLM lacking a form does not refuse; it
+  paraphrases into the nearest available form.** The output parses cleanly, the bias is identical,
+  and it is now INVISIBLE ("...without any mane" → `the guzerat lion is a lion`, exception gone, no
+  trace). **CONTRACT: the translator must be able to say "I cannot say this in this language."**
+  `bench/loudon_lion_corpus.py`'s protocol — every sentence yields CNL OR a recorded reason, never
+  silence — is a human doing exactly this, and should become the boundary contract. This makes
+  minimality a SAFETY property: every missing form is a place the translator quietly approximates.
+- **THE STOPPING CRITERION (or "minimal" degenerates into bikeshedding):** the form set is adequate
+  when a corpus audit yields ZERO "we had no form for it" reasons. Falsifiable, not a taste call.
+- **AND IT MUST BE CORPUS-DERIVED, NOT DESIGNED A PRIORI.** The audit below found 3 real gaps and
+  DISPROVED 2 suspected ones. Designing from intuition would have gotten both wrong.
+
+**THE AUDIT — THE FIRST ENTRIES IN THE CONCEPT INVENTORY (2026-07-20).** Classified the 37
+untranslated Loudon sentences by their recorded `reason-if-empty`, then probed each candidate gap
+with vocabulary added, to separate FORM gaps from LEXICON/convention gaps:
+
+- **~31 of 37 are "the source asserts nothing extractable"** — anecdote, quoted narrative,
+  bibliographic, about hunters rather than lions. A property of the SOURCE (§10a's 26% finding), not
+  of the form set. Nothing to fix.
+- **NOT gaps, though they looked like them** (both parse once the words are declared):
+  `the mane is thick` (a property of a PART — a translation CONVENTION that facts are about animals,
+  not an expressiveness limit) and `the captive lion has a mane` (`captive lion` is modifier+np,
+  identical to `african lion`, and the existing minting handles it as a subkind).
+  `the mane is a part of the lion` comes back AMBIGUOUS — the form exists, the PP attachment is
+  flagged rather than guessed, which is the grammar working as designed.
+- **~6 sentences are real expressiveness failures, needing THREE constructions:**
+  1. **HEDGING / FREQUENCY** (`the lion sometimes has a mane`) — sentences 8, 12, 13, 18, 24, 37.
+     **The most frequent gap, and the cheapest: UGM ALREADY HAS THE SEMANTICS** (the possibilistic
+     banded layer, θ dial, defeasible-guess — arc complete 2026-07-16). The gap is PURELY the CNL
+     surface. Note the naive fix is wrong: declaring `generally` a modifier parses but asserts
+     `lion is generally` — it needs a real adverbial slot.
+  2. **ATTRIBUTION / clausal complement** (`some naturalists consider the lion a cat`) — 8, 23.
+  3. **CONDITIONAL / subordination** (`the lion is dangerous when the lion is hungry`) — 18.
+- **CONSEQUENCE FOR THE LEARNING ARC: §7.3 IS UNBLOCKED.** Rule learning (S5/S6 built; §7.3 rule
+  revision, the defeasible-exception model, promotion by survival) was blocked on intake for DATA,
+  not for mechanism. The intake fix landed. That half is the actual goal and is now the live work.
+  **S2c (the discriminating question) survives and is promoted** — it serves the rule half plus
+  ambiguity resolution, independent of form learning.
+- **CONSEQUENCE FOR THE GRAMMAR FILES:** `corpus/lion_grammar.cnl` and `corpus/loudon_grammar.cnl`
+  are per-corpus BENCH artifacts today. Under this framing they should converge to ONE canonical
+  grammar that IS the specification of the target language — versioned, normative, and the thing the
+  SLM prompt is written against. Nothing in the repo treats either as normative yet.
+- Evidence: `bench/spike_loudon_prose.py` (the 0/50 run + the audit probes).
+
+**HEDGING SLICE 1 (THE GRAMMAR HALF) DONE 2026-07-20 (suite 738 green).** First entry of the concept
+inventory built. `corpus/loudon_grammar.cnl` gains a `hedge` closed class (`generally`/`usually`/
+`sometimes`/`occasionally`) and three productions: `hvp expands to hedge plus vp`, `hclause expands
+to np plus hvp`, `clause expands to hclause`.
+
+- **A hedged clause is its OWN CATEGORY, and that is the load-bearing choice.** `clause asserts subj
+  pred obj` structurally cannot fire on an `hclause`, so a hedged sentence **commits no ink**
+  — correct, because ink means CERTAIN and `generally` is a claim about a band. `clause expands to
+  hclause` only makes it root-reachable and percolates NO slots. **Declarations only, no Python.**
+- **19/19 CNL corpus baseline preserved, no ambiguity introduced** (the new productions need a hedge
+  token, which no existing corpus line has). Hedged sentences parse and expose
+  `subj`/`pred`/`obj`/`hedge` on the span; pinned by `test_a_hedged_clause_parses_and_commits_no_ink`
+  (which also checks the unhedged counterpart still writes its fact — the new category stole nothing)
+  and `test_the_hedge_word_is_recoverable_from_the_parse`.
+- **Parsed-with-no-fact is the HONEST intermediate state, not a silent drop** — `route` still reports
+  the utterance. Refusing it would be §10a's exception-dropping failure in another costume.
+
+**SLICE 2a LANDED 2026-07-20 — OPTION B CHOSEN (user): RULES CAN NOW AUTHOR A BANDED FORK
+(suite 742 green).** "Expanding what rules can do" rather than adding a Python driver. Two
+primitives, both in the established shape (rule expressiveness grows by a DECLARED structure the
+lowering executes — never by sniffing a Pat):
+
+- **`production_rule.Band`** — a declared RHS EFFECT beside `GradedCondition`/`ValueMatch`/
+  `Distinct`: write a GRADED attribute at a fixed degree on an RHS node, and optionally PEN named
+  RHS relations behind it as a scope. A triple-only RHS could not write a graded attribute at all,
+  which is why the whole possibilistic representation was unreachable from rules.
+- **`EMIT.value_reg`** — dynamic VALUE (the node id in a register), symmetric with the existing
+  `key_reg`, because a scope tag points at a node minted by the SAME firing and so has no
+  compile-time id. VALUED-only, guarded: a node id is data, never a degree.
+- **THE ACCEPTANCE CRITERION WAS PARITY, NOT "a band appears"** — the rule must land the SAME
+  representation `possibility.add_fork` does, so the banded readers cannot tell them apart. Verified
+  identical (bands, `possibility`, reader output) against the Python path; a parallel-but-different
+  encoding would have been worse than no feature. Pinned by `test_a_rule_can_author_a_banded_fork`
+  and `test_a_penned_head_is_control_and_scope_tagged`.
+- **⚠ THE FAMILY'S FIFTH INSTANCE, FOUND AND FIXED IN THE SAME SESSION.** `Band`'s scope skolem is a
+  bound literal, so the first version minted FRESH PER FIRING: re-running the bank over an unchanged
+  graph went 5 → 6 → 7 → 8 nodes, orphaning a `<hypothesis>` per pass. **Silent** — the penned head
+  dedups, so the fork count stayed right and every band reader still answered correctly. It would
+  have reintroduced precisely the session-long accretion the step-4 arc removed, because the grammar
+  fold re-runs its banks over the whole graph every utterance.
+- **THE FIX NEEDED A NEW MECHANISM, WHICH IS THE INTERESTING PART: a scope has NEITHER existing
+  identity.** `intern` canonicalizes by NAME; `dedup` reuses by relation TOPOLOGY. A scope has no
+  name and no subject/object edges, so neither applies — which is *why* it re-minted. So `MINT`
+  gained a THIRD find-or-create mode, **`reuse_attr_of` + `reuse_key`**: reuse the node an existing
+  BACK-REFERENCE points at. The scope's identity is the `<scope>` tag its own penned fact already
+  carries, so a found (deduped) head yields a found scope. Node count now FLAT across runs, parity
+  with `add_fork` preserved. Pinned by `test_a_band_is_idempotent_across_runs`, **re-break verified**
+  (removing the reuse reproduces 5 → 6 → 7 → 8 exactly).
+- **GENERAL LESSON, now on its fifth recurrence — worth a LINT rather than a sixth discovery:** a
+  bound-literal skolem in a bank that re-runs is non-idempotent BY CONSTRUCTION. The three
+  find-or-create modes now cover the three identities a minted node can have (name / topology /
+  back-reference), so the lint has something to prescribe.
+
+**SLICE 2b (STILL OWED): the `hedges` verb.** With the primitive in place and idempotent, this is
+declaration work — a third assertion verb beside `asserts`/`denies` (`hclause hedges subj pred obj
+when hedge`), generating one rule per hedge word so the band is a COMPILE-TIME constant (the same
+per-word expansion `deny` already uses, and no runtime numeric lookup). No longer gated.
+
+**Superseded — the decision this replaced (kept for the argument):** The
+possibilistic layer already has the target representation (a `<hypothesis>` scope carrying a graded
+`<likeliness>`, holding pencil facts) and the scale is already KB data (`uncertainty.hedge_bands`,
+`X means N`). The open question is WHO turns the hedged span into a fork:
+
+- **A rule cannot do it today.** A fork scope is `MINT` with GRADED ATTRIBUTES
+  (`LIKELINESS: graded(0.7)`); a rule RHS is `Pat(s, p, o)` triples and has no way to write a graded
+  attribute with a numeric value. So a `hedges` verb in the assert-declaration surface would need a
+  lowering extension first.
+- **Option A — a driver in the interpretation layer** calling the existing `possibility.fork_fact`.
+  COMPLIANT (that helper is already an ISA program, not raw substrate poking) and small. COST: the
+  slots→triple mapping (`subj pred obj` / `subj is adjc` / `subj is_a kind`) would be re-derived in
+  Python, duplicating what the `clause asserts …` declarations already say — the one real smell.
+- **Option B — extend the declaration surface with a `hedges` verb** (`hclause hedges subj pred obj
+  when hedge`), symmetric with `asserts`/`denies`, generating one rule per hedge word (band known at
+  COMPILE time from the declarations, so no runtime numeric lookup — the same per-word expansion
+  `deny` already uses). Keeps ALL the fact-shaping in declarations. COST: needs the lowering to mint
+  a scope with a graded attr from a rule RHS.
+- **Option C — fold the hedge into the existing `either…or`/fork authoring path** in `world.py`, and
+  treat the grammar route as producing input to it rather than authoring directly.
+- RECOMMENDATION: **B if the lowering extension is small, else A with the mapping read off
+  `gram.assertions` rather than hardcoded.** B is the only one that keeps the "domain logic ONLY in
+  banks" rule intact, and a graded-attr RHS is plausibly wanted by other banded work anyway.
+
+**WHERE THE COST SITS AFTER IT** — `parse` **0.72 s (51%)**: `ambiguity` 0.35 (48% of parse, and now
+the largest single stage), `decs` 0.17, `chart` 0.12, `spans` 0.07. `interpret` **0.70 s (49%)**.
+Both halves are flat per utterance now, so the session is LINEAR rather than quadratic and the next
+gain is a constant-factor one — measure before assuming `ambiguity` is the target.
 
 **Also fixed 2026-07-19: `declare_grammar` failed SILENTLY on a bad path.** A non-existent path fell
 through to `load_grammar(str(...))` and was parsed AS GRAMMAR TEXT, giving an empty grammar that

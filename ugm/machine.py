@@ -396,7 +396,20 @@ class MINT(Instr):
     PREDICATE is an LHS-bound variable — `?s ?w ?o` — and `dedup` honours it, matching on the
     resolved key, so the write stays idempotent. Without it a variable-predicate rule has to be
     expanded into one rule per possible predicate word (`grammar.assert_bank` did exactly that:
-    133 rules from 8 declarations)."""
+    133 rules from 8 declarations).
+
+    `reuse_attr_of` + `reuse_key` are the THIRD find-or-create mode, beside `intern` (canonicalize by
+    NAME) and `dedup` (reuse by relation TOPOLOGY): reuse the node an existing BACK-REFERENCE already
+    points at. If the node in register `reuse_attr_of` carries a VALUED attribute `reuse_key` whose
+    value is a live node id, bind `out` to THAT node instead of minting.
+
+    It exists because a SCOPE has neither of the other two identities — it has no name to intern by
+    and no subject/object edges to dedup on — so a rule minting one re-minted it on every pass, the
+    non-idempotency family's fifth instance (`Band`; see `production_rule.Band`). The scope's real
+    identity is "the scope this already-deduped fact is penned behind", which is exactly what its
+    `<scope>` tag records — so the fact's own back-reference IS the dedup key. Pairing it with a
+    `dedup=True` head is what makes the whole write idempotent: the head is found, so its tag is
+    found, so the scope is reused."""
     out: str
     attrs: dict[str, Attr] = field(default_factory=dict)
     edges: list[str] = field(default_factory=list)      # target register names (bare out-edges)
@@ -406,6 +419,8 @@ class MINT(Instr):
     intern: bool = False
     dedup: bool = False
     key_reg: str | None = None      # dynamic predicate: key = name of the node in this register
+    reuse_attr_of: str | None = None   # find-or-create: reuse the node this register's VALUED
+    reuse_key: str = ""                # `reuse_key` attr already points at (see class doc)
     is_effect = True
 
 
@@ -421,12 +436,21 @@ class EMIT(Instr):
     dimension is a BOUND variable (`?adj` -> "urgent") lowers — the write target is `reg`, the dim
     is `name(regs[key_reg])`. `raise_degree=False` SETS the graded attr (overwrite, ignoring score),
     the embedding-write semantics `rewriter`'s `set_embedding` gives; the default `True` is the
-    monotone max-raise a derived degree uses."""
+    monotone max-raise a derived degree uses.
+
+    DYNAMIC VALUE: when `value_reg` is set the attribute VALUE is the NODE ID held in that register
+    (resolved at apply time), not the static `value`. Symmetric with `key_reg`, and it exists for the
+    same reason: a scope TAG points at a node that is minted by the same firing, so its id cannot be
+    a compile-time constant. `suppose._pencil` writes exactly this shape by hand
+    (`EMIT(rel, SCOPE, scope, kind=VALUED)` where `scope` is a node id) — `value_reg` is what lets a
+    RULE express it, which is what a rule authoring a banded fork needs (see `production_rule.Band`).
+    VALUED only: a node id is data, never a degree."""
     reg: str
     key: str
     value: object
     kind: str = GRADED
     key_reg: str | None = None
+    value_reg: str | None = None
     raise_degree: bool = True
     is_effect = True
 
@@ -712,7 +736,15 @@ class Machine:
             attrs = ins.attrs
             if ins.key_reg is not None:          # DYNAMIC PREDICATE: key = name of the bound node
                 attrs = {**attrs, g.name(st.regs[ins.key_reg]): Attr(GRADED, 1.0)}
-            if ins.intern:                       # canonicalize a plain literal to its graph-wide node
+            if ins.reuse_attr_of is not None:    # reuse the node an existing back-reference names
+                anchor = st.regs.get(ins.reuse_attr_of)
+                if anchor is not None:
+                    a = g.get_attr(anchor, ins.reuse_key)
+                    # Only a LIVE id: a stale tag (its scope swept) must fall through to a fresh mint
+                    # rather than bind a dangling register.
+                    if a is not None and a.value in g.nodes():
+                        new = a.value
+            if new is None and ins.intern:       # canonicalize a plain literal to its graph-wide node
                 name_attr = ins.attrs.get(NAME)  # (rewriter.resolve_so: reuse nodes_named(nm)[0])
                 if name_attr is not None:
                     nm = str(name_attr.value)
@@ -752,12 +784,17 @@ class Machine:
             nid = st.regs[ins.reg]
             key = g.name(st.regs[ins.key_reg]) if ins.key_reg is not None else ins.key
             if ins.kind == GRADED:
+                if ins.value_reg is not None:
+                    raise ProgramError(
+                        f"EMIT value_reg is VALUED-only: a node id is data, not a degree ({key})")
                 if ins.raise_degree:
                     g.raise_graded(nid, key, self.tnorm(st.score, float(ins.value)))
                 else:                                    # embedding-write SET (rewriter.set_embedding)
                     g.set_attr(nid, key, Attr(GRADED, float(ins.value)))
             else:
-                g.set_attr(nid, key, Attr(VALUED, ins.value))
+                # A dynamic value is the NODE ID in the register — the scope-tag shape (see EMIT).
+                val = st.regs[ins.value_reg] if ins.value_reg is not None else ins.value
+                g.set_attr(nid, key, Attr(VALUED, val))
             return st
         if isinstance(ins, DROP_CTRL):
             a, b = st.regs[ins.src], st.regs[ins.dst]

@@ -276,6 +276,10 @@ def lower_rhs(rule: Rule, control_preds: frozenset[str] = frozenset(),
     ctrl = _rule_touches_control(rule)   # a control-gated rule mints CONTROL-layer relations (§5)
     prog: list[Instr] = []
     reg_of: dict[str, str] = {}          # value-invention identity -> register minted for it
+    # A `Band` may pen some of the RHS behind a scope. Those relations are PENCIL — control-layer,
+    # visible only inside their scope — so their control-ness must be known before they are minted.
+    scoped_subjects = {tok for b in rule.bands for tok in b.scope}
+    head_regs: dict[str, list[str]] = {}                # RHS subject token -> its minted head regs
 
     def resolve(tok: str) -> str:
         key = binder(tok)
@@ -322,7 +326,8 @@ def lower_rhs(rule: Rule, control_preds: frozenset[str] = frozenset(),
         # control (a later strip's `DROP_CTRL` then permits deleting it).
         # A variable predicate has no static name, so it cannot be recognized as a scaffolding
         # predicate — it falls back to the rule-level control flag, which is the conservative read.
-        head_ctrl = ctrl or (pred_reg is None and literal_name(pat.p) in control_preds)
+        head_ctrl = (ctrl or (pred_reg is None and literal_name(pat.p) in control_preds)
+                     or pat.s in scoped_subjects)       # penned behind a `Band` scope => pencil
         pred = literal_name(pat.p)
         # Phase 2.1/2.3: the head rel node's predicate is the SOLE graded key `pred: 1.0` (canonical).
         # The TEMPORARY BRIDGE's VALUED `name` dual-write is retired (`name_demotion_design.md`):
@@ -333,6 +338,57 @@ def lower_rhs(rule: Rule, control_preds: frozenset[str] = frozenset(),
                          in_edges=[s_reg], edges=[o_reg], control=head_ctrl, dedup=True))
         if head_out is not None:
             head_out.append(f"_head{k}")
+        head_regs.setdefault(pat.s, []).append(f"_head{k}")
+    prog.extend(_lower_bands(rule, reg_of, head_regs))
+    return prog
+
+
+def _lower_bands(rule: Rule, reg_of: dict[str, str], head_regs: dict[str, list[str]]) -> list[Instr]:
+    """Lower `rule.bands` — the declared RHS effects a triple-only RHS cannot express.
+
+    Two writes per `Band`, both already-existing instructions:
+      1. the GRADED attribute at its fixed degree (`EMIT(raise_degree=False)` — a SET, because a band
+         is a stated degree, not a derived one that should max-raise with the match score);
+      2. for each penned subject, the `<scope>` VALUED tag pointing at the band's node — which needs
+         `EMIT(value_reg=)`, since the scope is minted by this same firing and has no compile-time
+         id. That pair is exactly `possibility._new_fork_scope` + `suppose._pencil`, which is the
+         point: the rule reaches the SAME representation the Python authoring path does, rather than
+         a parallel one.
+
+    IDEMPOTENT BY `MINT(reuse_attr_of=)`. The band's node is minted FIND-OR-CREATE against the
+    `<scope>` tag of the first relation it pens: on a re-run the penned head is found by its own
+    `dedup`, so its tag is found, so the SAME scope is reused. Without that the scope skolem minted
+    fresh every pass and orphaned one node per run (5 -> 6 -> 7 -> 8 over four runs) — silent,
+    because the head deduped so every band reader still answered correctly. That is the fifth
+    instance of this family, and it matters here because the grammar fold re-runs its banks over the
+    whole graph on every utterance."""
+    from .apply import SCOPE
+    from .attrgraph import VALUED
+    prog: list[Instr] = []
+    for i, b in enumerate(rule.bands):
+        heads: list[str] = []
+        for tok in b.scope:
+            got = head_regs.get(tok)
+            if not got:
+                raise Unlowerable(
+                    f"{rule.key}: Band scope {tok!r} names no RHS subject — nothing to pen")
+            heads.extend(got)
+        key = binder(b.var)
+        ident = key if key is not None else "=" + literal_name(b.var)
+        reg = reg_of.get(ident)
+        if reg is None:
+            reg = f"_bnd{i}"
+            name = literal_name(b.var)
+            tok_name = name.startswith("<") and name.endswith(">")
+            attrs = {"name": valued(name), **({name: graded_attr(1.0)} if tok_name else {})}
+            # A scope has no NAME to intern by and no edges to dedup on — its identity is the tag
+            # its own penned fact already carries, which is what `reuse_attr_of` reads.
+            prog.append(MINT(reg, attrs=attrs, control=True,
+                             reuse_attr_of=(heads[0] if heads else None), reuse_key=SCOPE))
+            reg_of[ident] = reg
+        prog.append(EMIT(reg=reg, key=b.key, value=float(b.degree), raise_degree=False))
+        for hreg in heads:
+            prog.append(EMIT(reg=hreg, key=SCOPE, value="", kind=VALUED, value_reg=reg))
     return prog
 
 

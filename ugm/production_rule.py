@@ -197,6 +197,47 @@ class ValueMatch:
     threshold: float | None = None
 
 
+@dataclass(frozen=True)
+class Band:
+    """A declared RHS EFFECT: set a GRADED attribute on an RHS node to a fixed degree, and
+    (optionally) tag other RHS-minted relations as belonging to it.
+
+    THE GAP IT CLOSES. A rule RHS is a conjunction of `Pat` TRIPLES, so it can mint relations but has
+    no way to write an ATTRIBUTE with a numeric degree. That made one whole representation
+    unreachable from rules: a possibilistic FORK is a `<hypothesis>` scope carrying a graded
+    `<likeliness>` band (`possibility._new_fork_scope`), so authoring a hedged fact — "the lion
+    GENERALLY has a mane" — could only ever be done by a Python driver. This is the declared-data
+    counterpart, in the same family as `GradedCondition` / `ValueMatch` / `Distinct`: rule
+    expressiveness grows by adding a DECLARED structure the lowering executes, never by sniffing a
+    Pat's shape (a numeric-looking object token stays an ordinary node literal).
+
+    `scope` (optional): the RHS tokens whose minted relations are written in PENCIL behind this
+    scope — the `<scope>` VALUED tag `suppose._pencil` writes by hand. Those relations become
+    scope-visible rather than ink, which is the point: a hedged claim must NOT be a certain fact.
+
+    A `<…>`-named bound-literal skolem already mints `{name: valued(n), n: graded(1.0)}`, so
+    `Band(var="<hypothesis>?", key="<likeliness>", degree=0.7)` completes exactly the three-attribute
+    shape `_new_fork_scope` builds.
+
+    IDEMPOTENT ACROSS RUNS — but only because it is minted FIND-OR-CREATE, and that took a new
+    mechanism. A bound-literal skolem mints FRESH PER FIRING, so the first version re-minted the
+    scope every pass: 5 -> 6 -> 7 -> 8 nodes over four runs of the same bank on an unchanged graph.
+    It was SILENT, because the penned HEAD dedups (`MINT(dedup=True)`) so the fork count stayed right
+    and every band reader still answered correctly — the FIFTH member of the family that has bitten
+    `<span>?`, the remint mark, `intern_described` and `<contradiction>?`. It mattered here because
+    the grammar FOLD re-runs its banks over the whole graph on every utterance, so it would have
+    reintroduced exactly the accretion the step-4 optimization arc removed.
+
+    A scope has NEITHER existing identity — no NAME to intern by, no subject/object edges to dedup
+    on — which is why `MINT` gained `reuse_attr_of`: the scope's identity is the `<scope>` tag its
+    own penned fact already carries, so a found head yields a found scope. Pinned by
+    `test_a_band_is_idempotent_across_runs` (re-break verified)."""
+    var: str                          # RHS token naming the node (a skolem, or an LHS-bound var)
+    key: str                          # graded attribute key, e.g. `<likeliness>`
+    degree: float
+    scope: tuple[str, ...] = ()       # RHS subject tokens whose relations are penned behind `var`
+
+
 # ---------------------------------------------------------------------------
 # Rule
 # ---------------------------------------------------------------------------
@@ -216,6 +257,11 @@ class Rule:
     distinct: list[Distinct] = field(default_factory=list)          # declared DISTINCTNESS conditions
                                                         # (`Distinct`, feedback #11): two LHS-bound vars
                                                         # must bind provably different nodes (`?a != ?b`).
+    bands: list[Band] = field(default_factory=list)     # declared RHS EFFECTS (`Band`): write a graded
+                                                        # attribute at a fixed degree, and optionally pen
+                                                        # RHS relations behind it as a scope. The
+                                                        # fork-authoring primitive — the one representation
+                                                        # a triple-only RHS could not reach.
     propagate: dict | None = None                       # e.g. {"op": "weighted_sum", "weights": [...]}
     priority: float = 0.0                               # provisional scheduling tie-break
     max_steps: int = 5
