@@ -1113,6 +1113,50 @@ further?"). YES, AND THE LEVER IS SEMI-NAIVE `run_bank`, NOT ANY BANK.**
   attacked. Measure it before assuming — this file's stated lever has been wrong four times.
 - **NOT a lever: `load_grammar`.** Solved by the cache above (13 ms warm).
 
+**⭐⭐ FORCE, SLICE 1: QUESTIONS LAND 2026-07-20 (suite 778 green).** The first non-assert force to
+become a FORM rather than an intake route. `design/form_inventory.md` §4b is the spec; it was written
+BEFORE the build, deliberately (user: "we need the inventory of epistemic forms to be a valid
+reference"), so this was a spec-follow rather than an invention.
+
+- **`asks` IS THE FOURTH FORCE VERB, and the one that COMMITS NOTHING** — `<cat> asks subj pred obj`
+  generates **no fold rule at all**. `_assert_forms`' `(verb, mode)` table gained one tuple; the
+  declaration records only WHICH SLOTS carry the asked triple, and `grammar_intake.question_of`
+  reads them. That is the whole point of force as a declaration axis: `asserts`/`denies`/`hedges`/
+  `asks` differ in WHAT THEY COMMIT, and asks commits nothing.
+- **ROUTED BY THE PARSE, NOT BY POSITION IN THE LADDER.** `route` returns `question` because the
+  root span is in a category declaring `asks` — no string sniffing (§D.1). This is the first
+  concrete piece of DECLARATIVE ROUTING replacing `_ingest_gen`'s ordered if-ladder.
+- **ANSWERING IS UNCHANGED, deliberately:** the same `_answer_with_ask` the shipped route uses,
+  handed the STRUCTURED goal `("yesno", s, p, o)` (`_tuple_query` already accepted tuples) instead of
+  a question string. Moving force onto the grammar must not fork the answering machinery.
+- **⚠ A QUESTION ASSERTED ITS OWN CONTENT — found while building, and it is §8's failure exactly.**
+  `whether P` embeds a genuine `clause` span, so `clause asserts …` fired on it: measured,
+  `whether lion is huge` wrote `lion is_a huge`. **Perfect content mapping, zero force.** Fixed with
+  `qclause suppresses` — the domination gate built for CONDITIONALS, reused rather than duplicated,
+  which is evidence that gate generalises beyond the case it was built for.
+- **A READER, NOT A REIFIED `<question>` NODE — and the discriminator is worth recording:** an
+  answer is a VALUE returned to the caller, not graph state, and reading the parse is what
+  `asserts_content` already does for the assert force. Reified intent (`run NAME` → `<run> proc NAME`)
+  is the right shape for forces that LEAVE SOMETHING BEHIND; ASK leaves nothing.
+- **SEQUENCING CORRECTED MID-BUILD:** the first version read slots BEFORE `extend` and found nothing,
+  because slot percolation runs in `interpret`, not `parse`. Folding the question first turns out to
+  be RIGHT rather than a compromise — `interpret_mentions` resolves the question's words to the SAME
+  entities the facts were written on, which is what makes the question REFER.
+- **MEASURED:** all six question shapes route correctly (`is X adj`, `is X a Y`, `is X P Y`,
+  `whether …` ×3) and the answers come back `yes` / `no (assumed)` through real `ingest`, with facts
+  UNCHANGED. Loudon fact corpus still 23/23, no ambiguity introduced.
+- Pinned by `test_a_question_routes_by_its_parse_and_commits_nothing` (parametrized over shapes),
+  `test_a_whether_question_does_not_assert_its_own_complement` (pins the DEFECT), and
+  `test_a_question_is_answered_through_the_shipped_machinery`. **RE-BROKEN ON BOTH HALVES
+  INDEPENDENTLY:** removing `qclause suppresses` fails the complement test; making `asks` generate a
+  fact rule like `asserts` fails it AND the commits-nothing case.
+- **ONE SHIPPED TEST NEEDED FIXING FOR THE RIGHT REASON.**
+  `test_a_grammar_declaring_no_suppression_is_unaffected` used `loudon_grammar.cnl` as its example of
+  a suppression-free grammar; questions made that false. It now BUILDS its own un-declaring grammar —
+  a declare-before-use test must supply the un-declaring case itself rather than assume the shipped
+  file stays that way.
+- **REMAINING FORCE GAP: 7 of the original 31** (4 goals, 3 speech acts) once questions are counted.
+
 **⭐⭐⭐ CAN THE GRAMMAR SUBSUME CNL? PROBED 2026-07-20 (user question) — YES FOR TWO OF THE THREE
 CLASSES, AND THE MAIN RISK DID NOT MATERIALIZE.**
 

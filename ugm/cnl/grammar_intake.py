@@ -232,6 +232,111 @@ def asserts_content(kb, toks, banks) -> bool:
     return False
 
 
+def question_of(kb, toks, banks):
+    """The triple this utterance ASKS about, or None. See `force_triple`."""
+    return force_triple(kb, toks, banks, "ask")
+
+
+def goal_of(kb, toks, banks):
+    """The `(target, _, type)` this utterance sets as a GOAL, or None.
+
+    The `goal` force. Like `ask` it commits no FACT — `gclause` declares no `asserts` — but unlike a
+    question it LEAVES SOMETHING BEHIND: a `<goal>` node the act loop runs on. The router therefore
+    REIFIES it (via the shipped goal path, so the node is structurally identical to the one the form
+    route mints) rather than just answering and forgetting."""
+    return force_triple(kb, toks, banks, "goal")
+
+
+def mint_goal(kb, target: str, gtype: str) -> str:
+    """Mint the `<goal>` node the act loop runs on — the `goal` force's reification.
+
+    PARITY WITH THE SHIPPED FORM IS THE ACCEPTANCE CRITERION, exactly as it was for `Band` vs
+    `possibility.add_fork`: the node must be structurally identical to the one `form.goal` mints
+    (`<goal> -[target]-> X`, `<goal> -[type]-> Y`), so `intake`'s `nodes_named(GOAL)` diff and the act
+    loop cannot tell the two routes apart. A parallel-but-different encoding would be worse than no
+    feature.
+
+    THE GOAL NODE IS MINTED FRESH, ITS ENDPOINTS ARE INTERNED, and the asymmetry is load-bearing:
+    interning the `<goal>` too would make a second goal REUSE the first node and hang a second
+    `target` on it — one goal with two targets, rather than two goals. The endpoints must intern for
+    the opposite reason: the goal has to be ABOUT the entity everything else is about.
+
+    Authored as an ISA program through the interpreter rather than by poking the substrate — the same
+    discipline `assemble_facts` follows (`machine_semantics_are_isa_programs`)."""
+    from ..attrgraph import graded as graded_attr, valued
+    from ..focus import GOAL
+    from ..machine import MINT, Machine
+    prog = [
+        MINT("_g", attrs={"name": valued(GOAL)}, control=True),
+        MINT("_t", attrs={"name": valued(target)}, intern=True),
+        MINT("_k", attrs={"name": valued(gtype)}, intern=True),
+        MINT("_r1", attrs={"target": graded_attr(1.0)}, in_edges=["_g"], edges=["_t"], dedup=True),
+        MINT("_r2", attrs={"type": graded_attr(1.0)}, in_edges=["_g"], edges=["_k"], dedup=True),
+    ]
+    states = Machine().run(kb, prog)          # `run` returns the post-apply state STREAM
+    return states[0].regs["_g"]
+
+
+def _utterance_spans(kb, toks):
+    """(span, category-name) for every span this utterance's tokens begin. The walk `asserts_content`
+    does, factored out so the force readers share one traversal."""
+    for t in set(toks):
+        for r in kb.into(t):
+            if not kb.has_key(r, "begin"):
+                continue
+            for span in kb.into(r):
+                for cr, co in kb.relations_from(span):
+                    if kb.has_key(cr, "cat"):
+                        yield span, kb.name(co)
+
+
+def _slot_filler(kb, span, slot: str) -> str | None:
+    for r, o in kb.relations_from(span):
+        if kb.predicate(r) == slot:
+            return o
+    return None
+
+
+def force_triple(kb, toks, banks, mode: str) -> tuple[str, str, str] | None:
+    """The `(subject, predicate, object)` this utterance ASKS about, or None if it asks nothing.
+
+    ⭐ THE `ask` FORCE, read off the parse (`design/form_inventory.md` §4b). A question is not a
+    weaker assertion — it COMMITS NOTHING and changes no beliefs — so `<cat> asks subj pred obj`
+    generates no fold rule at all. The declaration records only WHICH SLOTS carry the asked triple,
+    and this reads them.
+
+    WHY A READER RATHER THAN A REIFIED `<question>` NODE, for now: the answer is not graph state, it
+    is a value returned to the caller, and reading the parse is exactly what `asserts_content` already
+    does for the assert force — surface plus grammar, never the interpretation layer. A reified intent
+    node is the right shape for forces that leave something behind (`run NAME` seeds `<run> proc NAME`
+    for precisely that reason); ASK leaves nothing.
+
+    Guards are honoured exactly as `assert_bank` honours them, so one declaration surface means one
+    reading of it: `when G` requires slot G present, `unless G` requires it absent."""
+    gram = banks.grammar
+    asks = [d for d in gram.assertions if d.get("amode") == mode and d.get("aobj") is not None]
+    if not asks:
+        return None
+    names = gram.slot_names
+    for span, cat in _utterance_spans(kb, toks):
+        for d in asks:
+            if d["acat"] != cat:
+                continue
+            if "awhen" in d and _slot_filler(kb, span, d["awhen"]) is None:
+                continue
+            if "aunless" in d and _slot_filler(kb, span, d["aunless"]) is not None:
+                continue
+            subj = _slot_filler(kb, span, d["asubj"])
+            obj = (_slot_filler(kb, span, d["aobj"]) if d["aobj"] in names else None)
+            pred = (_slot_filler(kb, span, d["apred"]) if d["apred"] in names else None)
+            if subj is None or (d["aobj"] in names and obj is None):
+                continue
+            return (kb.name(subj),
+                    kb.name(pred) if pred is not None else d["apred"],
+                    kb.name(obj) if obj is not None else d["aobj"])
+    return None
+
+
 def utterance_centers(kb, toks) -> set[str]:
     """The entities this utterance PREDICATES ABOUT, as focus centers.
 
@@ -278,6 +383,21 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
                              "spans": [(kb.name(a), kb.name(b)) for a, b in spans]}
 
     scope = extend(kb, banks)
+
+    # ⭐ FORCE, decided from the folded parse. A question COMMITS NOTHING — `qclause` declares no
+    # `asserts`, so folding one writes no fact — but it IS folded, and that is deliberate rather than
+    # a compromise: `interpret_mentions` resolves the question's words to the SAME entities the facts
+    # were written on, which is what makes the question REFER. Reading slots before the fold was the
+    # first attempt and found nothing, because slot percolation runs in `interpret`, not `parse`.
+    # What a question must not do is change beliefs, and it does not (asserted by test).
+    asked = question_of(kb, toks, banks)
+    if asked is not None:
+        return "question", {"tokens": toks, "query": asked, "scope": scope}
+
+    wanted = goal_of(kb, toks, banks)
+    if wanted is not None:
+        return "goal", {"tokens": toks, "goal": (wanted[0], wanted[2]), "scope": scope}
+
     verdict = "fact" if asserts_content(kb, toks, banks) else "unrecognized"
     sync_vocabulary(kb)                # this utterance may have DECLARED a relation — see above
     return (verdict,

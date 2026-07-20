@@ -166,3 +166,64 @@ hclause hedges subj prep pobj when pobj
 hclause hedges subj comp cobj when cobj
 hclause hedges subj is adjc when adjc
 hclause hedges subj is_a kind when kind
+
+# ---- FORCE: questions (2026-07-20, design/form_inventory.md 4b) ----
+# `asks` is the third force verb beside `asserts`/`denies`/`hedges`, and the one that commits
+# NOTHING: it generates no fold rule at all. The declaration says only WHICH SLOTS carry the asked
+# triple; `grammar_intake.question_of` reads them and the router answers. A question is not a weaker
+# assertion -- answering it changes no beliefs -- which is why it is a difference in FORCE, not in
+# content, and why `qclause` must be its own category (so `clause asserts ...` cannot fire on it).
+whether is a qmark
+
+qbody expands to np plus adj
+qbody expands to np plus np
+qbody expands to np plus vp
+qclause expands to copula plus qbody
+qclause expands to copula plus np
+qclause expands to qmark plus clause
+clause expands to qclause
+
+slot subj in qbody from np plus adj is left head
+slot adjc in qbody from np plus adj is right head
+slot subj in qbody from np plus np is left head
+slot kind in qbody from np plus np is right head
+slot subj in qbody from np plus vp is left head
+slot pred in qbody from np plus vp is right pred
+slot obj in qbody from np plus vp is right obj
+slot adjc in qbody from np plus vp is right adjc
+
+slot subj in qclause from copula plus qbody is right subj
+slot adjc in qclause from copula plus qbody is right adjc
+slot kind in qclause from copula plus qbody is right kind
+slot pred in qclause from copula plus qbody is right pred
+slot obj in qclause from copula plus qbody is right obj
+
+qclause asks subj pred obj when obj
+qclause asks subj is adjc when adjc
+qclause asks subj is_a kind when kind
+
+# `whether P` embeds a real `clause`, so `clause asserts ...` would fire on it and the QUESTION would
+# assert its own content (measured: `whether lion is huge` wrote `lion is_a huge`). That is the force
+# failure form_inventory 8 describes -- perfect content mapping, zero force. The domination gate built
+# for conditionals is exactly the mechanism, so questions reuse it rather than adding a second one.
+qclause suppresses
+
+slot subj in qclause from qmark plus clause is right subj
+slot adjc in qclause from qmark plus clause is right adjc
+slot kind in qclause from qmark plus clause is right kind
+slot pred in qclause from qmark plus clause is right pred
+slot obj in qclause from qmark plus clause is right obj
+
+# ---- FORCE: goals (2026-07-20) ----
+# `intends` is the force that commits no FACT but LEAVES SOMETHING BEHIND -- a `<goal>` node the act
+# loop runs on. Like `qclause`, `gclause` suppresses its complement: `goal lion is a target` must not
+# ASSERT that the lion is a target, it must ask for it to become one.
+goal is a goalmark
+gclause expands to goalmark plus clause
+clause expands to gclause
+gclause suppresses
+
+slot subj in gclause from goalmark plus clause is right subj
+slot kind in gclause from goalmark plus clause is right kind
+
+gclause intends subj is_a kind when kind

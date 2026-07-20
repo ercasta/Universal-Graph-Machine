@@ -479,6 +479,38 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         if kind == "unrecognized":
             yield Event("unrecognized", {"nearest": []})
             return Outcome("unrecognized", utterance)
+        if kind == "question":
+            # ⭐ THE `ask` FORCE, ROUTED BY THE PARSE rather than by position in this ladder
+            # (`design/form_inventory.md` §4b). The grammar decided this is a question because its
+            # root span is in a category declaring `asks`; nothing sniffed the utterance string.
+            # ANSWERING IS UNCHANGED — the same `_answer_with_ask` the shipped route uses, handed the
+            # STRUCTURED goal (`("yesno", s, p, o)`) the grammar read off the slots instead of a
+            # question string. Moving force onto the grammar must not fork the answering machinery.
+            s, p, o = data["query"]
+            focus_mod.widen(kb, {s, o})
+            fscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
+            active = rule_control.active_rules(kb, rules)
+            answer = yield from _answer_with_ask(kb, ("yesno", s, p, o), active, policy, fscope,
+                                                 can_ask, trace, max_rounds=max_rounds)
+            yield Event("answer", {"answer": answer})
+            return Outcome("answer", utterance, answer=answer)
+        if kind == "goal":
+            # ⭐ THE `goal` FORCE. Unlike a question it LEAVES SOMETHING BEHIND, so the router
+            # REIFIES it — and then hands off to the SAME act loop the shipped route drives, on a
+            # `<goal>` node structurally identical to the one `form.goal` mints (parity is the
+            # acceptance criterion, per `grammar_intake.mint_goal`).
+            target, gtype = data["goal"]
+            grammar_intake.mint_goal(kb, target, gtype)
+            focus_mod.widen(kb, {target})
+            yield Event("goal", {"goals": 1})
+            before_j = _j_nodes(kb) if trace else set()
+            acted = yield from _act_loop(kb, rule_control.active_rules(kb, rules),
+                                         sync_tools or {}, async_tools or {}, provenance=trace)
+            if trace:
+                for rec in _derivations_since(kb, before_j):
+                    yield Event("derive", rec)
+            yield Event("acted", {"fired": acted})
+            return Outcome("goal", utterance, acted=acted)
         focus_mod.widen(kb, data["centers"])
         yield Event("fact", {"centers": sorted(data["centers"])})
         return Outcome("fact", utterance)

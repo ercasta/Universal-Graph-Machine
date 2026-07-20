@@ -17,6 +17,12 @@ synonyms, clefts, passives, `not only … but`, `an` vs `a`, `are` vs `is`. Unbo
 **EPISTEMICALLY FUNDAMENTAL** — it carries a *kind of commitment* the substrate has no way to hold.
 Degree, attribution, negation, conditionality, quantification, tense, causation. Small in number.
 
+**"Commitment" has TWO dimensions, and §4 is organised by them:** *what* is claimed (CONTENT) and
+*what is being done* with the claim (FORCE — asserting it, asking it, commanding it, authoring it).
+Asking is not a weaker way of asserting; it commits to nothing and changes no beliefs. This document
+listed only the first dimension until 2026-07-20, which made it incomplete as a reference in a way
+that was invisible precisely because every *content* entry was correct.
+
 **The test — and it is a real test, not a vibe:**
 
 > Can it be paraphrased into existing forms **without changing what the system believes**?
@@ -58,6 +64,27 @@ This is why entries get PROBED, never assigned by intuition (five for five wrong
   produced garbage precisely because the distinction was epistemic. It needed bands, a fork, a scope.
 
 ## 4. The inventory
+
+**⚠ READ THIS FIRST: THE INVENTORY HAS TWO AXES, AND EVERY ENTRY BELONGS TO EXACTLY ONE.** Until
+2026-07-20 this document listed only the first, which made it silently incomplete as a reference.
+
+| axis | question it answers | examples |
+|---|---|---|
+| **CONTENT** (§4a) | *what is claimed?* | degree, negation, conditionality, tense, quantification |
+| **FORCE** (§4b) | *what is being DONE with the claim?* | assert, ask, command, author, retract |
+
+**They are ORTHOGONAL, and that is why they cannot share a table.** Any content can carry any force:
+*the lion generally has a mane* (hedged assertion) vs *does the lion generally have a mane?* (hedged
+question) vs *assume the lion generally has a mane* (hedged supposition). A single list would have to
+enumerate the product; two axes enumerate the sum.
+
+**Do not confuse ATTRIBUTION (content) with FORCE.** *Some naturalists consider the lion a cat*
+REPORTS someone else's assertion — the force of THIS utterance is still plain assertion, and what is
+asserted is a proposition about a holder. Force is a property of the utterance being made, never of
+the proposition inside it. The two feel similar because both involve "who is committing to what";
+the discriminator is whose act is being performed rather than described.
+
+### 4a. CONTENT — what is claimed
 
 `mechanism` = does the substrate already have somewhere to put it.
 
@@ -120,7 +147,67 @@ the layer boundary.
 | causation | *indebted to*, *therefore* | nothing |
 | resemblance-in-a-respect | *resembles a cat in his mode of stealing* | distinct from `is_a`; conflating them produced a real distortion (Loudon 39). cf. Brachman, "What IS-A is and isn't" |
 
-### Baroque — desugar, never represent
+### 4b. FORCE — what is being done with the claim
+
+**FORCE IS EPISTEMICALLY FUNDAMENTAL under §1's own test, and it is the axis this document was
+missing.** *Is the lion dangerous?* cannot be paraphrased into an assertion without changing what the
+system does — it requests rather than commits, and answering it changes no beliefs. Likewise *focus
+on ada* moves attention, *forget that rule* retracts a licence, *to build : …* authors a procedure.
+None of these is a claim about the world at all.
+
+**UGM HAS ALWAYS HAD FORCE. It is simply not represented as FORM** — it lives in the ordered if-ladder
+of intake routes in `intake._ingest_gen` (question → rule → form → procedure → focus → stance → fact).
+That is why the grammar does not subsume CNL: **the grammar models content; force lives in the
+router.** The forms below are what that ladder implements.
+
+| force | example | where it lives today | state |
+|---|---|---|---|
+| ASSERT | *the lion has a mane* | the fact route / `clause asserts …` | **FORM** — the only one that is |
+| DENY | *the lion has no mane* | `clause denies …` | **FORM** |
+| HEDGE | *the lion generally has a mane* | `hclause hedges …` | **FORM** (2026-07-20) |
+| ASK | *is the lion dangerous* | intake route → `ask_goal` | route only |
+| GOAL | *goal ada is a target* | intake route → `<goal>` node | route only |
+| COMMAND | *focus on ada*, *be cautious*, *run build* | intake routes → registers / `<run>` | route only |
+| AUTHOR | *?x is dangerous when ?x is hungry*, *form K : …*, *to N : …* | intake route → `Rule` / procedure | route only |
+| RETRACT | *forget that rule* | `rule_control` | route only |
+| NORM | *don't sell rare cards* | `deontic._mint_object_norm` | route only |
+
+**⭐ THE THREE COMMITMENT VERBS ARE ALREADY FORCE MARKERS.** `asserts` / `denies` / `hedges` differ in
+exactly one thing — WHAT THEY COMMIT — which is the definition of force. So the declaration axis
+already exists and is one third built; `asks` / `authors` / `commands` extend it rather than
+introducing a new mechanism.
+
+**MEASURED 2026-07-20, and this is why force is the priority rather than a curiosity.** Over the 68
+unique CNL utterances the repo's own tests actually ingest, a canonical grammar covers 37 (54%), and
+**25 of the 31 failures are force** (18 questions, 4 goals, 3 speech acts). The remainder is a genuine
+long tail (one quantifier, one degree adverb, one PP attachment). **The migration to a
+grammar-subsumes-CNL intake is not blocked by a breadth of constructions; it is blocked by one
+missing axis.**
+
+**MECHANISM: `run NAME` is the precedent, and it means force needs no new fold capability.** It
+already works by seeding a reified `<run> proc NAME` node that a driver acts on. So the fold writes a
+REIFIED INTENT (graph data, which it can already write) and the ROUTE dispatches on it. Classes (a)
+graph-writes and (c) speech acts are reachable that way; only (b) authoring a `Rule` needs machinery
+the fold does not have, and that is deliberately hand-authored (T2).
+
+**PROBED: syntax is not the obstacle.** Given productions, the grammar parses *is lion dangerous*,
+*be cautious*, *focus on lion*, *run build* and *don't sell rare cards* from DECLARATIONS ONLY, with
+zero ambiguity against the fact corpus (which stays 23/23). **And force composes cleanly for a
+structural reason worth recording: English marks it POSITIONALLY, at the LEFT EDGE.** An
+imperative/prohibitive/copula in initial position is unambiguous against a fact beginning with an np.
+The root category (`clause` / `qclause` / `iclause` / `pclause`) then recovers the force, so routing
+can become declarative rather than an ordered ladder.
+
+**WHAT IS STILL OPEN.** Whether force should be a VERB on the assertion declaration
+(`qclause asks subj pred obj`) or a CATEGORY property (`qclause is interrogative`). The verb form
+matches the existing three and keeps one surface; the category form matches how `hclause` already
+works. Not yet decided, and it should be probed rather than argued.
+
+### 4c. BAROQUE — desugar, never represent
+
+Applies to BOTH axes: a construction can be an ornamental way of saying something already sayable
+(content) or an ornamental way of performing an act already performable (force — *could you tell me
+whether…* is a baroque question).
 
 Already normalized mechanically: `an`→`a` (`forms.tokenize`), `are`→`is` (`uncertainty._norm`).
 Both docstrings call this "mechanical and meaning-free", which is this distinction operating before
@@ -271,6 +358,22 @@ So §4's fundamental column is literally *the list of things this system can und
 "no mechanism" rows (tense, exclusivity, quantification, causation, resemblance) are a precise
 statement of its ceiling. UGM can learn facts and learn rules; it **cannot expand its own modes of
 understanding**. That is deliberate, not an oversight.
+
+**⭐ AND UNDERSTANDING REQUIRES BOTH AXES — CONTENT MAPPING ALONE IS NOT IT (added 2026-07-20 with
+§4b).** Map *is the lion dangerous?* onto the proposition `lion is dangerous` with perfect fidelity,
+then ASSERT it, and every content check passes while the utterance has been comprehensively
+misunderstood — a question was taken for a claim, and the KB now believes something nobody said.
+So the definition is:
+
+> X is understood iff its CONTENT maps onto held epistemic forms, unambiguously and
+> status-preservingly, **AND its FORCE is recognised** — what the utterance is *doing*, not merely
+> what it is about.
+
+This is not hypothetical: it is exactly the failure the conditional probe found in the wild. `a lion
+is dangerous when a lion is hungry` parsed perfectly, mapped both halves to correct propositions, and
+**asserted both** — because the grammar read content and had no notion that a conditional's halves are
+not being asserted. Perfect content mapping, zero force. The suppression gate (`<cat> suppresses`) is
+a force mechanism arrived at before force had a name here.
 
 **Two limits of the definition, recorded so they are not discovered later.** (1) It is INDEXED TO A
 REPERTOIRE — understanding is relative to the form set held, which is the evidentiality point

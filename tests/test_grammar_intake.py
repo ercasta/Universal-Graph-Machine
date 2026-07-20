@@ -425,14 +425,30 @@ def test_gating_leaves_ordinary_sentences_alone():
         assert ("lion", "is", "hungry") not in gi.facts(kb)
 
 
-def test_a_grammar_declaring_no_suppression_is_unaffected(kb):
+def test_a_grammar_declaring_no_suppression_is_unaffected():
     """Declare-before-use: the gate costs a grammar that does not use it nothing at all — not even
-    an extra NAC premise on every assert rule."""
+    an extra NAC premise on every assert rule.
+
+    Builds its OWN suppression-free grammar rather than using the shipped one. It used to rely on
+    `loudon_grammar.cnl` declaring no suppression, which stopped being true the moment questions
+    landed (`qclause suppresses`) — the test then failed for a reason that had nothing to do with the
+    property it exists to check. A declare-before-use test must supply the un-declaring case itself.
+
+    Strips EVERY suppression declaration rather than a named one: the first repair removed only
+    `qclause suppresses` and broke again one force later when goals added `gclause suppresses`. A
+    fixture that enumerates what it must exclude will keep breaking as the grammar grows; one that
+    describes it does not."""
     from ugm.cnl.grammar import SUPPRESSED
-    banks = gi.session_banks(kb)
+    plain = "\n".join(line for line in (CORPUS / "loudon_grammar.cnl")
+                      .read_text(encoding="utf-8").splitlines()
+                      if not line.strip().endswith(" suppresses"))
+    g = AttrGraph()
+    gi.declare_grammar(g, plain)
+    banks = gi.session_banks(g)
+    assert not banks.grammar.suppressing, "this grammar was supposed to declare no suppression"
     assert not any(p.p == SUPPRESSED for r in banks.asserts for p in r.nac)
-    gi.route(kb, "the lion has a mane", banks)
-    assert ("lion", "has", "mane") in gi.facts(kb)
+    gi.route(g, "the lion has a mane", banks)
+    assert ("lion", "has", "mane") in gi.facts(g)
 
 
 @pytest.mark.parametrize("plain,hedged,pred,obj", [
@@ -609,3 +625,123 @@ def test_an_explicit_grammar_declaration_beats_the_derived_default():
     ingest(kb, [], "roars is a relation")
     gi.sync_vocabulary(kb)
     assert gi.session_banks(kb).grammar.lexicon["roars"] == ["intransitive"]
+
+
+# ---------------------------------------------------------------------------
+# THE `ask` FORCE — a question routed by the GRAMMAR, committing nothing
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("question,expected", [
+    ("is lion strong",         ("lion", "is",   "strong")),
+    ("is lion has mane",       ("lion", "has",  "mane")),
+    ("is lion a cat",          ("lion", "is_a", "cat")),
+    ("whether lion is strong", ("lion", "is",   "strong")),
+])
+def test_a_question_routes_by_its_parse_and_commits_nothing(question, expected):
+    """⭐ FORCE, not content (`design/form_inventory.md` §4b). A question is not a weaker assertion:
+    it commits NOTHING and changes no beliefs, so `<cat> asks subj pred obj` generates no fold rule
+    at all — the declaration only says which slots carry the asked triple, and the router reads them.
+
+    Routed by WHICH CATEGORY THE PARSE PRODUCED (`qclause`, which declares `asks`), never by sniffing
+    the utterance string — the declarative replacement for intake's ordered if-ladder (§D.1)."""
+    kb = AttrGraph()
+    gi.declare_grammar(kb, CORPUS / "loudon_grammar.cnl", open_class="noun")
+    b = gi.session_banks(kb)
+    gi.route(kb, "the lion has a mane", b)
+    gi.route(kb, "the lion is strong", b)
+    before = sorted(gi.facts(kb))
+
+    kind, data = gi.route(kb, question, b)
+    assert kind == "question", f"{question!r} was not recognised as a question"
+    assert data["query"] == expected
+    assert sorted(gi.facts(kb)) == before, "a question changed what the system believes"
+
+
+def test_a_whether_question_does_not_assert_its_own_complement():
+    """PINS A REAL DEFECT, found while building this: `whether P` embeds a genuine `clause` span, so
+    `clause asserts …` fired on it and the QUESTION ASSERTED ITS OWN CONTENT — measured, `whether lion
+    is huge` wrote `lion is_a huge`.
+
+    That is exactly the failure `form_inventory.md` §8 describes: perfect content mapping, zero
+    force. The domination gate built for conditionals (`qclause suppresses`) is the mechanism, reused
+    rather than duplicated — which is evidence the gate generalises beyond the case it was built for."""
+    kb = AttrGraph()
+    gi.declare_grammar(kb, CORPUS / "loudon_grammar.cnl", open_class="noun")
+    b = gi.session_banks(kb)
+    kind, _d = gi.route(kb, "whether lion is huge", b)
+    assert kind == "question"
+    assert gi.facts(kb) == [], f"a question asserted its complement: {gi.facts(kb)}"
+
+
+def test_a_question_is_answered_through_the_shipped_machinery():
+    """END TO END through real `ingest`: the grammar decides FORCE, but ANSWERING is unchanged — the
+    same `_answer_with_ask` the shipped route uses, handed the structured goal `("yesno", s, p, o)`
+    the grammar read off the slots. Moving force onto the grammar must not fork the answering path."""
+    from ugm.intake import ingest
+    kb = AttrGraph()
+    gi.declare_grammar(kb, CORPUS / "loudon_grammar.cnl", open_class="noun")
+    rules = []
+    ingest(kb, rules, "the lion has a mane")
+    assert ingest(kb, rules, "is lion has mane").answer == ["yes"]
+    assert ingest(kb, rules, "is lion a cat").answer == ["no (assumed)"]
+    assert ("lion", "has", "mane") in gi.facts(kb), "answering disturbed the facts"
+
+
+def test_a_goal_reifies_and_commits_no_fact():
+    """⭐ THE `goal` FORCE. Like `ask` it commits no FACT — `gclause` declares no `asserts`, and
+    suppresses its complement so `goal lion is a target` does not ASSERT that the lion IS one. Unlike
+    `ask` it LEAVES SOMETHING BEHIND: a `<goal>` node the act loop runs on, which is why the router
+    reifies rather than merely answering.
+
+    That difference is the reason `form_inventory.md` §4b distinguishes forces that return a value
+    from forces that change state — it decides reader-vs-reification, not taste."""
+    kb = AttrGraph()
+    gi.declare_grammar(kb, CORPUS / "loudon_grammar.cnl", open_class="noun")
+    b = gi.session_banks(kb)
+    gi.route(kb, "the lion has a mane", b)
+    before = sorted(gi.facts(kb))
+
+    kind, data = gi.route(kb, "goal lion is a target", b)
+    assert kind == "goal"
+    assert data["goal"] == ("lion", "target")
+    assert sorted(gi.facts(kb)) == before, "a goal asserted its own content"
+
+
+def test_a_grammar_minted_goal_is_identical_to_the_shipped_one():
+    """PARITY IS THE ACCEPTANCE CRITERION, as it was for `Band` vs `possibility.add_fork`: the act
+    loop and `intake`'s `nodes_named(GOAL)` diff must not be able to tell the two routes apart. A
+    parallel-but-different encoding would be worse than no feature."""
+    from ugm.focus import GOAL
+    from ugm.intake import ingest
+
+    def goal_shape(g):
+        return sorted(sorted((g.predicate(r), g.name(o)) for r, o in g.relations_from(n))
+                      for n in g.nodes_named(GOAL))
+
+    viaGrammar = AttrGraph()
+    gi.declare_grammar(viaGrammar, CORPUS / "loudon_grammar.cnl", open_class="noun")
+    out = ingest(viaGrammar, [], "goal lion is a target")
+    assert out.kind == "goal"
+
+    shipped = AttrGraph()
+    ingest(shipped, [], "goal lion is a target")
+
+    assert goal_shape(viaGrammar) == goal_shape(shipped) != [], (
+        "the grammar route minted a goal the shipped machinery would not recognise")
+
+
+def test_two_goals_do_not_collapse_into_one():
+    """The `<goal>` node is minted FRESH while its endpoints INTERN, and the asymmetry is
+    load-bearing: interning the goal too would make a second goal reuse the first node and hang a
+    second `target` on it — one goal with two targets rather than two goals."""
+    from ugm.focus import GOAL
+    from ugm.intake import ingest
+    kb = AttrGraph()
+    gi.declare_grammar(kb, CORPUS / "loudon_grammar.cnl", open_class="noun")
+    ingest(kb, [], "goal lion is a target")
+    ingest(kb, [], "goal mane is a target")
+    goals = kb.nodes_named(GOAL)
+    assert len(goals) == 2, f"two goals collapsed into {len(goals)}"
+    for n in goals:
+        targets = [o for r, o in kb.relations_from(n) if kb.predicate(r) == "target"]
+        assert len(targets) == 1, "a goal ended up with more than one target"

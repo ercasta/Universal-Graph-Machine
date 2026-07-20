@@ -215,7 +215,8 @@ def _assert_forms() -> list[Rule]:
     `asserts` for the same reason `denies` is one — the three differ in what they commit, which is
     exactly what a declaration should say."""
     forms: list[Rule] = []
-    for verb, mode in (("asserts", "assert"), ("denies", "deny"), ("hedges", "hedge")):
+    for verb, mode in (("asserts", "assert"), ("denies", "deny"), ("hedges", "hedge"),
+                       ("asks", "ask"), ("intends", "goal")):
         head = [Pat("?s", "first", "?z"), Pat("?z", "next", f"{verb}?"),
                 Pat(f"{verb}?", "next", "?a"), Pat("?a", "next", "?b"), Pat("?b", "next", "?c")]
         core = [Pat("<ass>?", "acat", "?z"), Pat("<ass>?", "amode", mode),
@@ -891,6 +892,16 @@ def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
         z, mode = d["acat"], d["amode"]
         subj, pred, obj = d["asubj"], d["apred"], d.get("aobj")
         if obj is None:
+            continue
+        if mode in ("ask", "goal"):
+            # ⭐ FORCE, not content: these COMMIT NO FACT, so it generates no fact rule at all.
+            # The declaration still records WHICH SLOTS carry the asked triple, and the ROUTER reads
+            # them (`grammar_intake.question_of`). This is the `<cat> asks subj pred obj` half of the
+            # force axis (`design/form_inventory.md` §4b): `asserts`/`denies`/`hedges` differ in what
+            # they commit, and `asks` commits nothing — which is a difference in force, exactly what
+            # a declaration verb is for. `intends` is the same shape one step along: it commits no
+            # fact either, but unlike a question it LEAVES SOMETHING BEHIND (a `<goal>` node driving
+            # the act loop), so the router reifies rather than merely answering.
             continue
         if defining is not None and (z in minting) != defining:
             continue
