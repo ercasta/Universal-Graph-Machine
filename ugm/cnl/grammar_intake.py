@@ -543,7 +543,18 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
         return "ambiguous", {"tokens": toks,
                              "spans": [(kb.name(a), kb.name(b)) for a, b in spans]}
 
+    # ⭐ WHAT THIS UTTERANCE COMMITTED, as a CONTENT diff around the fold — the entity-side input to
+    # `reconsider`'s dirty grains (a grain is `(predicate, object-name)`, never a node id).
+    #
+    # A CONTENT DIFF RATHER THAN A NODE SNAPSHOT, and that is the whole design. The shipped route
+    # selects "relations not in `nodes_before`", which is the proxy already measured DEFECTIVE on this
+    # route: a re-derived relation is a NEW NODE ID, so any rebuild makes everything look new (see
+    # `asserts_content`). Grains are content, so diffing content is stable under re-minting,
+    # re-interpretation and `reconsider`'s rebuild alike — the same repair, applied to the second
+    # reader that was leaning on identity.
+    committed_before = set(facts(kb))
     scope = extend(kb, banks)
+    committed = set(facts(kb)) - committed_before
 
     # ⭐ FORCE, decided from the folded parse. A question COMMITS NOTHING — `qclause` declares no
     # `asserts`, so folding one writes no fact — but it IS folded, and that is deliberate rather than
@@ -566,7 +577,8 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
     verdict = "fact" if asserts_content(kb, toks, banks) else "unrecognized"
     sync_vocabulary(kb)                # this utterance may have DECLARED a relation — see above
     return (verdict,
-            {"tokens": toks, "scope": scope, "centers": utterance_centers(kb, toks)})
+            {"tokens": toks, "scope": scope, "centers": utterance_centers(kb, toks),
+             "committed": committed})
 
 
 def _discard_live(kb, banks) -> None:

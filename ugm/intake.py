@@ -549,6 +549,16 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
             yield Event("acted", {"fired": acted})
             return Outcome("goal", utterance, acted=acted)
         if kind == "fact":
+            # RECONSIDER, entity-side. A user-asserted fact may make an assumed ABSENCE derivable,
+            # so its grains go on the dirty register exactly as the shipped tail does — otherwise a
+            # stale NAF conclusion is never revisited and the KB keeps answering `no (assumed)` to
+            # something it can now prove. Missing until 2026-07-20; found by triaging the step-2
+            # flip, where it accounted for the whole `test_reconsider` cluster.
+            # THE GRAINS COME FROM A CONTENT DIFF (`data["committed"]`), never a node snapshot —
+            # see `grammar_intake.route`; identity is not stable across this route's re-minting.
+            if data["committed"]:
+                from .reconsider import mark_dirty
+                mark_dirty(kb, [(p, o) for _s, p, o in data["committed"]])
             focus_mod.widen(kb, data["centers"])
             yield Event("fact", {"centers": sorted(data["centers"])})
             return Outcome("fact", utterance)

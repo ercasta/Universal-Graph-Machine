@@ -20,7 +20,45 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶ PICK UP HERE (handoff 2026-07-20 late, suite 806 green, pystrider 388 green)
+## ▶ PICK UP HERE (handoff 2026-07-20 END OF SESSION — suite **818 green**, pystrider **388 green**)
+
+**STATE IN ONE PARAGRAPH.** The grammar route now carries every FORCE as a declared verb
+(assert/deny/hedge/ask/goal/command), routes DECLARATIVELY on the force its parse recovered, keeps
+its metalanguage (L0) in a register, parses under an ISA control program rather than a Python driver,
+and discriminates kind-from-property by the determiner. Step 2 (flip the default) is **measured at 18
+failing tests of 818** and is an INTEGRATION slice, not a rewrite — see the triage below.
+
+**⚠ UNCOMMITTED AT HANDOFF — verified against `git status`, not from memory:**
+`ugm/cnl/grammar_intake.py`, `ugm/intake.py`, `docs/implementation_plan.md`. That is the
+entity-side reconsider wiring plus this handoff. Everything earlier in the session was committed as
+it went. `docs/design/inference_inventory.md` (from the `/btw` fork) may still be UNTRACKED — check.
+**Re-verify with `git status` rather than trusting this line**: the previous handoff's tree note was
+stale and cost a re-check at the start of this session.
+
+**⚠ RUN THE EOL NORMALIZER BEFORE COMMITTING** (`scratchpad/fix_eol.py`, driven off
+`git diff --name-only`). Windows editing silently rewrites LF files as CRLF and turns a 400-line diff
+into a whole-file rewrite; it bit five files this session.
+
+**NEXT, IN ORDER (all four are step 2's integration work; see the full triage lower down):**
+1. **Decide the GC contract** — does the grammar route want `gc_utterance_scaffolding`? Its surface
+   is DELIBERATELY permanent (the re-interpretation loop re-reads it), so "sweep the spent token
+   chain" may be exactly wrong here. **A decision, not a patch.** Gates ~5 of the 18.
+2. **Fix `SWEEP refused: not a control node`** (2 in `test_intake_act`) — the `forget that` GC
+   (`gc_cold_scaffolding`) reaches interpretation entities and the guard correctly refuses. Guard
+   working, caller wrong.
+3. **Decide whether authored forms (`form K : …`) should reach the grammar route** — they extend the
+   SHIPPED recognizer only (1 real failure).
+4. **Then** rewrite the ~5 expectation tests (they pin the shipped route's LIMITS) and flip.
+
+**THREE STANDING RULES THIS SESSION EARNED — read before measuring anything:**
+- **Run a measurement harness TWICE and compare before quoting its number.** Five harness bugs this
+  arc; the flip harness was nondeterministic (`id(kb)` reuse) and every number it produced before the
+  fix (44/20/19/17) was junk. Only 18 is confirmed.
+- **Read ONE failure to its mechanism rather than summarising N.** Sampling misclassified the step-2
+  failures three separate times; the full read found ~11 real gaps where the sample said "test
+  expectations".
+- **A trace that CONFIRMS your current hypothesis is the one to distrust.** Both wrong diagnoses this
+  session stopped at the first observation consistent with what was already believed.
 
 **⭐⭐ STEP 1 IS DONE: DECLARATIVE ROUTING + THE `command` FORCE LANDED 2026-07-20.** The router
 dispatches on WHICH FORCE THE PARSE RECOVERED, not on position in an ordered if-ladder. Built as one
@@ -116,9 +154,9 @@ into exactly TWO causes, neither of which is on the plan's prerequisite list:
      failure mix redistributed (`intake_forms` 4→3, `reconsider` 4→5, `surface_facts` 2→3) rather
      than one clean regression. Taking the semantically-correct line over the one-test-better one;
      the +1 was not chased further, which is recorded rather than hidden.
-   * **THE REMAINING 19 ARE NOT ARCHITECTURE** — sampled: tests asserting `unrecognized` for shapes
-     the grammar legitimately PARSES (they encode the shipped route's limits and would be rewritten
-     by the flip), plus corpus vocabulary the lion grammar lacks (`alice likes bob`). Neither blocks.
+   * **~~THE REMAINING 19 ARE NOT ARCHITECTURE~~ — WRONG, AND THE FULL TRIAGE PROVED IT.** That
+     conclusion came from sampling FIVE of them. **Reading all 20 found ~11 REAL integration gaps.**
+     Third time in one day that a sample beat me; see the triage below.
 
 **⚠⚠ THREE DIAGNOSES, TWO WRONG — RECORDED IN FULL BECAUSE THE METHOD LESSON IS THE DELIVERABLE.**
 1. "It's adjectives" — from two sampled error strings. **Right about the CONCEPT, incomplete as a
@@ -186,6 +224,71 @@ hand-written / ISA parser be easier than grammar-as-rules?"
   re-minting, interpretation) survives untouched — which keeps the option open at low cost.
 - **TRIGGERS that would justify it:** parse perf becoming a blocker again, a fourth delta mark, or the
   Rust port (where the plan already says firmware-as-ISA first, then port the interpreter).
+
+**⭐⭐ THE FULL STEP-2 TRIAGE (all 20 read, 2026-07-20) — THE FLIP IS NOT A TEST REWRITE.**
+I twice reported these as "test expectations plus vocabulary" from a sample of five. Reading every
+one classifies them as:
+
+**⭐ REAL, AND MOSTLY ONE CAUSE (~8): the grammar route's fact branch omits the shipped route's
+POST-FACT BOOKKEEPING.** Verified structurally — the whole grammar branch is:
+`focus_mod.widen(...)` / `yield Event("fact")` / `return`. The shipped tail additionally does
+  * `mark_dirty([fact_grain(kb, n) for n in <nodes minted by this utterance>])` — so a user-asserted
+    fact makes a stale NAF conclusion revisable. **Missing ⇒ 5 `test_reconsider` failures**
+    (`['yes'] == ['no (assumed)']`, "the fact should have marked its grain"), plus
+    `test_isa_intake::test_question_negative` and `test_think_harder`'s crash, which depend on the
+    same revision path.
+  * `focus_mod.gc_utterance_scaffolding(kb, anchor)` — accretion control. **Missing ⇒ 2
+    `test_isa_focus` failures.** ⚠ BUT THIS ONE IS A DESIGN QUESTION, NOT A PATCH: the grammar
+    route keeps its surface DELIBERATELY (it is the permanent record the re-interpretation loop
+    re-reads), so "sweep the spent token chain" is not obviously wanted here. Decide the contract
+    before copying the call.
+  * ⚠ AND `mark_dirty` CANNOT BE COPIED VERBATIM: the shipped version selects "nodes not in
+    `nodes_before`", the SNAPSHOT PROXY already measured defective on this route (it is what
+    `asserts_content` replaced). The entity-side grain needs deriving, not porting.
+**REAL, separate (2): `SWEEP refused: nNNN is not a control node`** in `test_intake_act` — the focus
+GC (`gc_cold_scaffolding`, the `forget that` path) reaches interpretation entities and the SWEEP
+guard correctly refuses. The guard is working; the caller is wrong.
+**REAL, separate (1): authored forms do not reach the grammar route** —
+`test_intake_forms::test_authored_declarative_form_lands_facts` goes `'unrecognized'` where the
+shipped route lands a fact. `form K : …` extends the SHIPPED recognizer only.
+**TEST EXPECTATIONS to rewrite (5):** `test_habitability`, `test_intake_act::…nearest_forms`,
+`test_intake_forms::{unknown_shape_unrecognized_before_declaration, key_conflict_accepted_replaces}`,
+`test_intake_surface_facts::test_undeclared_verb_with_preposition_MIS_PARSES`. All assert
+`unrecognized`/a known MIS-PARSE for shapes the grammar legitimately handles — they pin the SHIPPED
+route's limits, and the flip makes them false by making the system better.
+**VOCABULARY, expected (2):** `alice likes bob` (no `likes`), `this lion is a cat` (no `this`).
+**HARNESS ARTIFACT (1):** `test_no_grammar_declared_means_no_banks` — the flip plugin gives every KB
+a grammar, so it defeats this test by construction. Not a signal.
+
+**CONSEQUENCE: step 2 is an INTEGRATION slice, not a rewrite slice.** The honest order is: wire
+reconsider grains to the entity side → decide the GC contract → decide whether authored forms should
+reach the grammar route → then rewrite the 5 expectation tests and flip.
+
+**⭐ STEP ONE OF THAT ORDER IS DONE 2026-07-20 (suite 818 green): RECONSIDER IS WIRED TO THE ENTITY
+SIDE — `test_reconsider` 5 → 1, flip 20 → 18.** Corpus still 19/19 at 108 ms/line (was 109).
+
+- **A CONTENT DIFF, NOT A NODE SNAPSHOT, and that is the whole design.** A grain is
+  `(predicate, object-NAME)` — content, never identity — so `route` diffs `facts(kb)` around
+  `extend` and hands the result to intake as `data["committed"]`. Copying the shipped selector
+  ("relations not in `nodes_before`") would have re-imported the proxy this route already measured
+  DEFECTIVE, since a re-derived relation is a new node id and any rebuild makes everything look new.
+  **The same repair as `asserts_content`, applied to the second reader that leaned on identity.**
+- ⚠ COST NOTED, NOT YET A PROBLEM: the diff walks the scope twice per utterance, i.e. O(session) —
+  the shape this arc has fought five times. Measured flat so far (108 ms/line on 19 lines); if a long
+  session ever bends, derive the grains from the PARSE instead (the declared assertion slots, as
+  `force_triple` does) rather than from the fold's output.
+- **1 `test_reconsider` failure REMAINS** and has not been diagnosed.
+
+**⚠⚠ AND EVERY EARLIER FLIP NUMBER IN THIS FILE WAS UNRELIABLE — THE HARNESS AGAIN, FIFTH TIME.**
+`scratchpad/flipdefault.py` recorded "already tried" in a dict keyed by `id(kb)`, and **CPython
+REUSES ids after GC**, so a fresh KB could inherit a dead one's flag and silently never get a
+grammar. Symptom: the same file reported 3, 4 and 5 failures across runs, and the totals 44 / 20 /
+19 / 17 were all taken with it. Fixed by marking on the KB itself (`kb.registers`); **18 is the first
+number confirmed by two identical consecutive runs**, and it is the one to trust.
+**THE LESSON HAS NOW EARNED ITS OWN RULE: a measurement harness needs a DETERMINISM CHECK — run it
+twice and compare — before any number it produces is quoted.** Every instance this arc
+(`clear_fresh`, `mark_tokens`, the relation regex, the L0 parse order, this) was a harness that
+silently disagreed with the pipeline it duplicated.
 
 **NEXT, in order:**
 1. **Flip the default** (step 2 — cost MEASURED: 44/818, and **19/818 once the determiner
