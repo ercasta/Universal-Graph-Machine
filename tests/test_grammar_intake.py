@@ -433,3 +433,34 @@ def test_a_grammar_declaring_no_suppression_is_unaffected(kb):
     assert not any(p.p == SUPPRESSED for r in banks.asserts for p in r.nac)
     gi.route(kb, "the lion has a mane", banks)
     assert ("lion", "has", "mane") in gi.facts(kb)
+
+
+@pytest.mark.parametrize("plain,hedged,pred,obj", [
+    ("the lion has a mane",       "the lion generally has a mane",       "has",   "mane"),
+    ("the lion is strong",        "the lion generally is strong",        "is",    "strong"),
+    ("the lion roars",            "the lion generally roars",            "roars", "true"),
+    ("the lion hunts at night",   "the lion generally hunts at night",   "at",    "night"),
+])
+def test_every_plain_shape_has_a_hedged_counterpart(kb, plain, hedged, pred, obj):
+    """REGRESSION, and it was SILENT. `clause` declares several assertion shapes; the first hedging
+    slice mirrored only the three it had tests for (transitive, adjective, kind) and missed the
+    INTRANSITIVE and PREPOSITIONAL ones. Those sentences parsed, routed as `fact`, and committed
+    NOTHING — no ink and no fork.
+
+    Root cause: the band was taken from the assertion's own `when` guard, and the declaration
+    surface allows ONE guard, so any shape needing its own (`unless obj`, `when pobj`) was
+    unwritable. Fixed by declaring the band slot once per category (`hclause hedges under hedge`).
+
+    Found by a cold-context translator reading the declarations — NOT by the tests, which only
+    exercised the shapes that had been built. Hence this parametrization over shapes rather than
+    another example of the two that already worked."""
+    from ugm.possibility import possibility
+    b = banks(kb)
+    gi.route(kb, plain, b)
+    assert (("lion", pred, obj)) in gi.facts(kb), f"plain shape broken: {plain!r}"
+
+    kb2 = _kb("")
+    gi.route(kb2, hedged, banks(kb2))
+    assert gi.facts(kb2) == [], f"a hedge must commit no ink: {hedged!r}"
+    assert possibility(kb2, pred, "lion", obj) == 0.75, (
+        f"hedged shape committed NOTHING (the silent gap): {hedged!r}")

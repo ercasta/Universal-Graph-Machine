@@ -125,12 +125,22 @@ slot pred in hvp from hedge plus vp is right pred
 slot obj in hvp from hedge plus vp is right obj
 slot adjc in hvp from hedge plus vp is right adjc
 slot kind in hvp from hedge plus vp is right kind
+slot neg in hvp from hedge plus vp is right neg
+slot prep in hvp from hedge plus vp is right prep
+slot pobj in hvp from hedge plus vp is right pobj
+slot comp in hvp from hedge plus vp is right comp
+slot cobj in hvp from hedge plus vp is right cobj
 slot subj in hclause from np plus hvp is left head
 slot hedge in hclause from np plus hvp is right hedge
 slot pred in hclause from np plus hvp is right pred
 slot obj in hclause from np plus hvp is right obj
 slot adjc in hclause from np plus hvp is right adjc
 slot kind in hclause from np plus hvp is right kind
+slot neg in hclause from np plus hvp is right neg
+slot prep in hclause from np plus hvp is right prep
+slot pobj in hclause from np plus hvp is right pobj
+slot comp in hclause from np plus hvp is right comp
+slot cobj in hclause from np plus hvp is right cobj
 
 # ---- which slots become facts ----
 # `hedges` is the possibilistic verb: the triple goes in PENCIL behind a fork banded by the hedge
@@ -144,6 +154,15 @@ clause asserts subj prep pobj when pobj
 clause asserts subj comp cobj when cobj
 clause asserts subj is adjc when adjc
 clause asserts subj is_a kind when kind
-hclause hedges subj pred obj when hedge
-hclause hedges subj is adjc when hedge
-hclause hedges subj is_a kind when hedge
+# The hedged counterparts. `hedges under hedge` says WHICH slot carries the band, once, so each
+# line's own `when`/`unless` guard is free -- which is what lets the intransitive and prepositional
+# shapes exist at all. These mirror the `clause asserts ...` lines above ONE FOR ONE: a hedged
+# sentence must be able to say everything a plain one can, or the gap is silent (the sentence
+# parses, routes as `fact`, and commits nothing).
+hclause hedges under hedge
+hclause hedges subj pred obj unless neg
+hclause hedges subj pred true unless obj
+hclause hedges subj prep pobj when pobj
+hclause hedges subj comp cobj when cobj
+hclause hedges subj is adjc when adjc
+hclause hedges subj is_a kind when kind

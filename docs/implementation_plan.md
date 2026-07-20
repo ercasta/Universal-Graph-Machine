@@ -657,6 +657,48 @@ lowering executes — never by sniffing a Pat):
   wrong in one direction only). Worth noting it appeared here from an INTERACTION between two
   correct-in-isolation mechanisms — pencil-vs-ink and dedup — rather than from either being wrong.
 
+**⭐ THE REFUSAL EXPERIMENT 2026-07-20 — THE CONTRACT HOLDS, AND IT FOUND TWO SILENT DEFECTS IN THE
+HEDGING SHIPPED THE SAME DAY (suite 755 green).** A cold-context subagent got ONLY the
+comment-stripped form set (the shipped file's comments name the audit and list the gap sentence
+numbers — that would have handed over the answer) and the 50 VERBATIM sentences, with the corpus
+protocol: every sentence yields CNL, NOTHING-TO-ASSERT, or CANNOT-EXPRESS, never silence.
+
+- **THE LOAD-BEARING ASSUMPTION HELD.** Zero manufactured facts; every produced CNL line parses;
+  and **all 10 disagreements with the hand translation run the same way — hand=CNL, agent=refused.**
+  Not one case of extracting where the human declined. The failure mode the whole re-point worried
+  about (silent paraphrase into the nearest available form) **did not occur at all**.
+- **BUT COVERAGE COLLAPSED: 3/50 vs the hand translation's 13/50**, refusing 26. The principle
+  underneath is consistent and is the REAL finding: **the agent treats "weaker than the source" as
+  grounds for refusal; the human treated it as acceptable partial capture.** Sentence 1's
+  `the lion is strong` is a presupposition inside a causal explanation, not the assertion; sentence
+  3's `lives in africa` drops "CONFINED to" — true but weaker. **OPEN CONTRACT QUESTION, and it
+  sets the coverage ceiling for everything downstream: is weakening allowed, forbidden, or
+  allowed-but-flagged?** Forbidden gives 6% translatability; allowed stops the KB faithfully
+  reflecting the source. NOT a question to answer by building.
+- **⚠ TWO SILENT DEFECTS IN SLICE 2b, FOUND BY READING THE DECLARATIONS:** `the lion generally
+  hunts at night` and `the lion generally roars` PARSED, routed as `fact`, and committed
+  **NOTHING** — no ink, no fork. `clause` declares several assertion shapes and slice 2b mirrored
+  only the three it had tests for; the INTRANSITIVE (`unless obj`) and PREPOSITIONAL (`when pobj`)
+  shapes were missing. **The tests covered exactly the shapes that had been built** — testing what
+  was written rather than what the grammar can say. Also inflated the experiment's own numbers:
+  2 of the 26 refusals were these defects, not the language's limits.
+- **ROOT CAUSE AND FIX: the band was taken from the assertion's own `when` guard**, and the
+  declaration surface allows ONE — so any hedged shape needing its own guard was UNWRITABLE. Fixed
+  by `<cat> hedges under <slot>`, declaring the band slot ONCE PER CATEGORY so each line's guard
+  stays free. All seven `clause` shapes now have hedged counterparts, pinned by
+  `test_every_plain_shape_has_a_hedged_counterpart` (parametrized over SHAPES, deliberately, since
+  the defect was shape-coverage); **re-break verified with the right asymmetry** — removing the two
+  declarations fails the intransitive and prepositional cases and passes the two that always worked.
+- **METHOD NOTE: a cold context was the POINT, not a convenience.** The subagent found by
+  inspection what the author's tests missed, because it did not know which shapes had been built.
+  This is the one task in the session where spawning an agent was right; the FIX was done inline,
+  because there cold context is a liability (the `<…>` control-flag trap, delta seeding, join order,
+  bound-literal skolems are all silent and specific).
+- **CAVEAT, RECORDED SO THE RESULT IS NOT OVERSOLD:** the subagent is the SAME MODEL, so this
+  controls for the session's context, not for model-level bias. A real SLM at the NL→CNL boundary
+  may behave very differently — likely worse, since the discipline shown here is not cheap.
+- Artifacts: scratch `refusal/` (leak-free inputs, `score.py`, `translation.json`).
+
 **HEDGING IS COMPLETE** (concept-inventory gap 1 of 3). The other two were PROBED 2026-07-20, and the
 guess written here first — "neither has an engine-side representation waiting, so both are likely
 larger" — **was wrong for both**, in the same direction as every other mis-sizing this session:

@@ -141,6 +141,24 @@ HEDGE_BAND_FORMS: list[Rule] = [
 ]
 
 
+#: `<cat> hedges under <slot>` — which slot of this category carries the hedge WORD.
+#:
+#: A PROPERTY OF THE CATEGORY, not of each assertion, and that is what makes the hedged forms
+#: complete. The first version took the band from the assertion's own `when` guard
+#: (`hclause hedges subj pred obj when hedge`), which works for the shapes that need no other
+#: guard — and SILENTLY EXCLUDES the ones that do. The declaration surface allows ONE guard, so the
+#: hedged INTRANSITIVE (`… subj pred true unless obj`) and PREPOSITIONAL (`… subj prep pobj when
+#: pobj`) could not be written at all, and their sentences parsed while committing nothing.
+#: Declaring the hedge slot once frees every assertion's guard for its own job.
+HEDGE_SLOT_FORMS: list[Rule] = [
+    Rule(
+        key="gram.hedgeslot",
+        lhs=[Pat("?s", "first", "?z"), Pat("?z", "next", "hedges?"),
+             Pat("hedges?", "next", "under?"), Pat("under?", "next", "?slot")],
+        rhs=[Pat("<hu>?", "hucat", "?z"), Pat("<hu>?", "huslot", "?slot")],
+    ),
+]
+
 #: `<cat> suppresses` — spans this category dominates do not assert (see `SUPPRESSED`).
 SUPPRESS_FORMS: list[Rule] = [
     Rule(
@@ -181,12 +199,12 @@ ASSERT_FORMS: list[Rule] = _assert_forms()
 
 #: Every declaration form, for loading a grammar file.
 DECLARATION_FORMS: list[Rule] = (PRODUCTION_FORMS + SLOT_FORMS + MINT_FORMS + ASSERT_FORMS
-                                 + HEDGE_BAND_FORMS + SUPPRESS_FORMS)
+                                 + HEDGE_BAND_FORMS + HEDGE_SLOT_FORMS + SUPPRESS_FORMS)
 
 _DECL_KEYS = ("sname", "scat", "sleft", "sright", "sonly", "sside", "scslot",
               "acat", "amode", "asubj", "apred", "aobj", "awhen", "aunless",
               "mname", "mcat", "mleft", "mright", "mside", "mcslot",
-              "hword", "hband", "supcat")
+              "hword", "hband", "supcat", "hucat", "huslot")
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +225,9 @@ class Grammar:
     hedge_bands: dict[str, float] = field(default_factory=dict)
     #: categories that SUPPRESS assertion in everything they dominate (`ccl suppresses`).
     suppressing: set[str] = field(default_factory=set)
+    #: category -> the slot carrying its hedge WORD (`hclause hedges under hedge`). Declared once
+    #: per category so each hedged assertion's own `when`/`unless` guard stays free.
+    hedge_slots: dict[str, str] = field(default_factory=dict)
 
     @property
     def categories(self) -> set[str]:
@@ -272,6 +293,8 @@ def read_grammar(g) -> Grammar:
             gram.mints.append(d)
         elif "acat" in d:
             gram.assertions.append(d)
+        elif "hucat" in d and "huslot" in d:
+            gram.hedge_slots[d["hucat"]] = d["huslot"]
         elif "supcat" in d:
             gram.suppressing.add(d["supcat"])
         elif "hword" in d and "hband" in d:
@@ -820,25 +843,31 @@ def _hedge_rules(gram: Grammar, i: int, d: dict, z: str, base, obj_prem, obj_tok
 
     A hedge with no declared band is SKIPPED rather than defaulted — a silent 0.5 for a word nobody
     scaled would be inventing a degree, and `declare_grammar`'s loudness rule says a malformed
-    declaration must not pass quietly."""
-    guard = d.get("awhen")
-    if guard is None:
+    declaration must not pass quietly.
+
+    THE BAND SLOT COMES FROM THE CATEGORY (`hclause hedges under hedge`), NOT from this assertion's
+    guard. Taking it from the guard silently excluded every hedged shape that needs a guard of its
+    own: the declaration surface allows ONE, so the hedged INTRANSITIVE (`unless obj`) and
+    PREPOSITIONAL (`when pobj`) were unwritable, and their sentences parsed while committing
+    nothing. Found by a cold-context translator reading the declarations — not by the tests, which
+    only covered the two shapes that had been built."""
+    hslot = gram.hedge_slots.get(z)
+    if hslot is None:
         raise ValueError(
-            f"`{z} hedges …` needs a `when <slot>` naming the hedge slot — without it there is no "
-            f"word to take a band from")
+            f"`{z} hedges …` needs a `{z} hedges under <slot>` declaration naming the slot that "
+            f"carries the hedge word — without it there is no word to take a band from")
     out: list[Rule] = []
     words = sorted({w for w, cs in gram.lexicon.items() if "hedge" in cs} | set(gram.hedge_bands))
     for w in words:
         band = hedge_band_of(gram, w)
         if band is None:
             continue                       # undeclared scale: skip loudly-by-absence, never default
-        # The guard premise is pinned to THIS word, replacing the generic `?p <guard> ?gw` in `base`.
-        pinned = [p for p in base if not (p.s == "?p" and p.p == guard)]
-        pinned.append(Pat("?p", guard, f"{w}?"))
         pred_prem, head_pred = ([Pat("?p", pred, "?w")], "?w") if pred in names else ([], pred)
         out.append(Rule(
             key=f"fold.hedge.{i}.{z}.{w}",
-            lhs=[*pinned, *pred_prem, *obj_prem], nac=nacs,
+            # `base` already carries this assertion's own `when` guard; the band slot is pinned to
+            # THIS word separately, which is what lets the two coexist.
+            lhs=[*base, Pat("?p", hslot, f"{w}?"), *pred_prem, *obj_prem], nac=nacs,
             rhs=[Pat("?s", head_pred, obj_tok)],
             bands=[Band(var="<hypothesis>?", key=LIKELINESS, degree=band, scope=("?s",))]))
     return out
