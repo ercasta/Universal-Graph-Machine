@@ -948,10 +948,200 @@ that only appears when you fix coverage.
     trade cannot be quietly reversed). **RE-BREAK VERIFIED WITH THE RIGHT ASYMMETRY:** restoring the
     old gating fails the two behaviour tests and leaves the gibberish one passing — correct, since
     that one guards a property the fix PRESERVES rather than one it introduces.
+- **⭐⭐ THE DECLARATION BURDEN IS ~ZERO, AND IT IS NOW DERIVED (2026-07-20, suite 765 green).** User's
+  challenge ("the burden should be easily fixable, we don't have thousands of lines of KB") — correct,
+  and the measurement found something stronger than "small":
+  * **THE BURDEN ALREADY EXISTS AND IS ALREADY PAID.** The SHIPPED route refuses `get_beans produces
+    beans` outright until the KB says `produces is a relation` (measured). So the grammar route's
+    `produces is a transitive` was NEVER a new burden — **same line count, same `X is a Y` shape,
+    only the category word differs.** There is no migration cost here, only a rename.
+  * **SIZE: 9 distinct predicates across EVERY shipped corpus** (`acts_on`/`costs`/`have`/`needs`/
+    `outranks`/`produces`/`want`/`wants`/`is`), 1-5 per KB; the 54 entity words are free under open
+    vocabulary.
+  * **SO IT IS DERIVED, NOT WRITTEN: `grammar_intake.sync_vocabulary`** reads `declared_relations`
+    and adds each as `RELATION_CATEGORY = "transitive"`. **An existing KB migrates without editing
+    its corpus.** My worry that `relation` -> `transitive` might be silently wrong for some predicate
+    was UNFOUNDED, and measured so: a purely derived grammar (domain-neutral core + open nouns +
+    derived relations) parses **69 of 76 corpus fact lines with ZERO mis-mappings**.
+  * **RUNTIME GROWTH WAS THE REAL REQUIREMENT**, not a read at declaration time: a corpus declares
+    its relations in its own text, so on this route `produces is a relation` is itself parsed by the
+    grammar and the vocabulary arrives DURING ingestion. `route` syncs first and re-reads the banks
+    (the sync recompiles, so a caller holding pre-sync banks would parse with a stale lexicon).
+  * **CHEAP ONLY BECAUSE IT RECOMPILES RATHER THAN RE-READS — and the measurement is a surprise
+    worth its own line: `load_grammar` is 1678 ms against `compile_grammar`'s 13 ms (126×).** The
+    text->`Grammar` parse is the expensive half, and it is LONGER THAN AN ENTIRE 8-SENTENCE SESSION
+    (1.39 s). Syncing by re-reading source text would have cost 1.7 s per utterance. **`load_grammar`
+    is now the single largest cost in a grammar session and nothing has ever profiled it.**
+  * **`declare_grammar` GAINED `open_class=`** — the route shipped with CLOSED vocabulary, so the
+    open-class fix above was not even reachable from intake. `GrammarBanks` remembers `open_class` so
+    a recompile cannot silently drop it.
+  * **THE SAFETY PROPERTY IS PRESERVED AND PINNED**: an undeclared predicate is still REFUSED, not
+    guessed. Deriving must not degrade into "accept any three words". Four tests incl.
+    `test_an_undeclared_predicate_is_still_refused` and
+    `test_an_explicit_grammar_declaration_beats_the_derived_default` (the derivation fills a gap, it
+    never re-categorises hand-written vocabulary).
+- **THE REMAINING GAP IS TWO CONSTRUCTIONS, NOT A LONG TAIL.** The 7 refusals out of 76 are:
+  1. **DEGREE ADVERBS — 5 of 7** (`buy_online is somewhat risky`, `trade_at_club is very risky`,
+     `alice is very urgent`). **This is the hedging family again** — an adverbial slot on an
+     ADJECTIVE where `generally` was one on a VP, and **UGM already has the semantics** (bands, θ).
+     Cheapest remaining inventory entry by some distance, and it is a FORM_INVENTORY entry
+     (`degree`) already listed as REPRESENTED — the surface just does not cover the adjectival case.
+  2. **IMPERATIVES — 2 of 7** (`don't sell rare cards`, `serve urgent customers first`). Genuinely
+     absent; these are policy/preference lines, arguably not fact-route content at all.
 - **NOT CHECKED, and owed before any migration:** `focus.utterance_subjects` and
   `authoring.anchor_has_content_fact` are the two token-chain readers `grammar_intake` wrote
   counterparts for rather than edits; the book/playground surface; and whether `load_kb` corpora would
   each need a grammar file. The 54 `nodes_named` read sites (above) are in the same bucket.
+
+**⭐⭐ `load_grammar` PROFILED AND CACHED 2026-07-20 (suite 767 green) — SUITE 156 s → 77 s (2×).**
+Nothing had ever profiled it; it was the largest single cost in a grammar session.
+
+- **`read_grammar` WAS QUADRATIC IN A PLAIN PYTHON SWEEP** — not in any bank. It made **3,278,010
+  `has_key` calls** on the 124-line Loudon grammar (30 candidate declaration keys probed against
+  every relation in the graph), and grew **122× for 8.3× more input** (3.9 ms at 15 lines → 476 ms at
+  124). Fixed by taking candidates from the O(1) KEY INDEX (`nodes_with_key`) instead:
+  **476 → 33 ms (14×)**. Iteration ORDER deliberately unchanged — `slot_bank`/`assert_bank` derive
+  rule keys from list POSITION, so reordering `gram.slots` would silently rename every generated
+  rule. **Verified IDENTICAL output (order included) against the old implementation on both shipped
+  grammars**, not merely faster.
+- **THE REST IS `load_facts` (1424 ms), THE NAIVE `run_bank` SHAPE** — 863k matcher steps running 17
+  declaration forms over the whole graph. NOT fixed; cached around instead.
+- **CACHED, because grammar text → `Grammar` is PURE.** Measured before: **47 calls totalling 59.2 s
+  across the two grammar test modules alone** — 63% of their runtime re-parsing two unchanging files.
+  Now **1402 ms cold / 13 ms warm (108×)**; bounded `lru_cache` rather than unbounded, since benches
+  and probes generate grammars programmatically.
+- **⚠ THE CACHE HAD TO RETURN COPIES, AND THAT IS LOAD-BEARING.** `Grammar` is MUTABLE and is mutated
+  in normal operation — `sync_vocabulary` writes derived relations into `lexicon`. Sharing the cached
+  instance would leak one KB's vocabulary into every other KB built from the same file: **"a word
+  parses in a test only when some earlier test ran"** — order-dependent and silent, this session's
+  signature failure mode. Pinned by `test_loading_the_same_grammar_twice_does_not_share_mutable_state`
+  and the end-to-end `test_two_kbs_from_one_grammar_file_do_not_share_derived_vocabulary`;
+  **re-break verified** (both fail without the `deepcopy`).
+- **SEQUENCING CORRECTED WHILE PINNING IT:** `route` now reads the banks from the REGISTER (live
+  source of truth, so a caller's stale reference is harmless) and syncs vocabulary AFTER the fold, so
+  the register reflects everything declared the instant the call returns. Syncing only before it left
+  the register lying about what the KB knew until some later utterance happened to run — found by a
+  test failing for the right reason.
+- **`declared_relations` de-sweeped** (same key-index fix): `sync_vocabulary` calls it per utterance,
+  so a whole-graph sweep would make a session quadratic in its own length. Only 0.22 ms at 1445 nodes
+  today — fixed before it was not.
+- **⭐ THE VIABILITY NUMBER THE PROFILING WAS FOR, and it is the honest blocker for subsumption:
+  ~240 ms/utterance on the grammar route** (route closed 237, open vocabulary 261, full `ingest` 266
+  — so open vocabulary costs ~10% and `ingest`'s other routes ~7%; the cost is the grammar route
+  itself). **Against the ~12 ms/utterance the shipped path budgets, that is ~20×.** Grammar LOADING is
+  now a solved cost (13 ms warm); PER-UTTERANCE is not. **Subsumption would apply that 240 ms to
+  every question and every stance line too**, which is the trade to decide before moving surfaces
+  onto it. The remaining lever is the one this file already names: `load_facts`/`run_bank` is naive,
+  and `parse`+`interpret` were last optimized to a LINEAR-but-constant-heavy shape.
+
+**⭐⭐ WHERE THE 240 ms/UTTERANCE ACTUALLY SITS — PROFILED 2026-07-20 (user: "could it be optimized
+further?"). YES, AND THE LEVER IS SEMI-NAIVE `run_bank`, NOT ANY BANK.**
+
+- **STAGE SPLIT (8-sentence session, 256 ms/utt):** `interpret` **56.4%**, `ambiguity` 21.5%,
+  `spans+decs+supp` 15.3%, `chart` 6.8%, tokenize 0.1%. Inside `interpret`: **`slots` 59.9%**,
+  `asserts` 29.5%, `contradiction` 8.1%, mentions 2.0%, defining_asserts 0.3%, intern 0.2%.
+  **So `slots` alone is ~33% of the whole session** and is the single biggest stage.
+- **⭐ IT IS FLAT, NOT GROWING — so this is a CONSTANT-FACTOR problem and every delta/seeding lever is
+  ALREADY SPENT.** Measured over 8 utterances while the graph went 192 → 1406 nodes: slots stayed
+  45-103 ms and asserts 25-49 ms, varying with SENTENCE COMPLEXITY rather than session length. The
+  step-4 arc's work holds; there is no seeding defect left to find here.
+- **⭐⭐ THE REAL FINDING: ~300 MATCH CALLS TO PRODUCE ~20 FIRINGS.** The slot bank runs **5.1 fixpoint
+  rounds × 59 rules = ~301 match calls** and fires 16/19/22 times. `cProfile` confirms the cost is
+  purely the matcher (593k `_match_step`, 2.3M `isinstance` = 17% on its own) — **not** re-lowering
+  (already cached per-rule on `rule.__dict__["_lowered_bank"]`) and not stratification.
+- **THE CAUSE IS THE ONE THIS FILE ALREADY DOCUMENTS IN `run_bank`'s OWN DOCSTRING: "Naive — no
+  semi-naive delta / df-seeding (correctness-first)."** Every round re-matches EVERY rule, including
+  rules whose premises nothing has touched since the last round. Rounds are legitimate (slot
+  percolation genuinely cascades: np inside np inside clause) — re-matching *all* 59 rules per round
+  is not.
+- **THE PROPOSED LEVER, ranked first: PREDICATE-LEVEL SEMI-NAIVE ROUNDS.** After each round, collect
+  the predicates actually written; in the next round only match rules whose LHS mentions one of them
+  (plus rules not yet matched). **Sound on a monotone bank, and the NAC case is the easy direction**:
+  adding facts can only make a NAC *more* restrictive, so a NAC can never ENABLE a rule that was
+  previously blocked. Estimated ~3× on the two dominant stages, i.e. session ~256 → ~150 ms/utt.
+  **⚠ ENGINE CHANGE to the core forward driver used by every bank — gate it on the existing
+  forward/demand differential sweep, and expect the standing rule ("correctness before raw
+  performance") to apply.**
+- **SECOND LEVER — ⭐ DONE 2026-07-20 (suite 770 green): THE DENY COLLAPSE. `assert_bank` 61 → 32
+  rules; session 237 → 221 ms/utt (7%, as estimated).** The pairing predicted by this file
+  (`w -[neg_of]-> w_not`) now exists as GRAPH DATA, authored once per graph by
+  `author_negative_pairing` through the ISA (`load_fact_triples`, so interned + deduped), and the
+  rule BINDS the negative as an ordinary LHS-bound predicate variable. **The vocabulary became DATA
+  (looked up) instead of RULES (re-matched every round) — that is the whole saving.**
+  * **⚠ THE TOKEN/ENTITY DUALITY BIT AGAIN, ONE LAYER ALONG, and the first version silently DROPPED
+    THE EXCEPTION** (`the guzerat lion has no mane` parsed, routed `fact`, and wrote no `has_not`).
+    `author_negative_pairing` interns by NAME and the TOKEN is created first, so the `neg_of` edge
+    landed on the token — while the `pred` slot binds the ENTITY (`HEAD_BRIDGE` resolves a one-token
+    span's head to what its token denotes). Same name, different node, no match. **Fixed by having
+    the rule hop back across the layer explicitly via `interprets`** (the entity's own provenance to
+    its mention), which also keeps the vocabulary on the PERMANENT SURFACE rather than inside the
+    discardable interpretation. `INTERPRETS` joined `DENOTES` in `vocabulary.py` (the leaf) for it.
+  * `NEG_OF` is a PLAIN name and is in `SURFACE_PREDS`: a `<...>` name would have made
+    `_rule_touches_control` classify every deny rule as control-writing and the fold would have
+    produced zero facts while firing correctly (lesson 1, checked before writing rather than after).
+  * **THE TEST THAT MATTERS IS ON RULE COUNT vs LEXICON SIZE, NOT ON BEHAVIOUR** — and the re-break
+    proved why: restoring the per-word expansion leaves BOTH behavioural tests passing (the exception
+    still lands) and fails only `test_the_deny_bank_does_not_grow_with_the_lexicon` (61 → 86 with 25
+    extra words). A behavioural test structurally cannot see this regression.
+  * Also pinned: `test_the_negative_pairing_is_authored_once` (the fold re-runs over the whole graph
+    every utterance, so non-idempotent authoring would accrete — the bound-literal family's sixth
+    would-be instance, guarded by the key index).
+- **THIRD: `ambiguity` at 21.5%** is now the largest stage OUTSIDE interpret and has never been
+  attacked. Measure it before assuming — this file's stated lever has been wrong four times.
+- **NOT a lever: `load_grammar`.** Solved by the cache above (13 ms warm).
+
+**⭐⭐⭐ CAN THE GRAMMAR SUBSUME CNL? PROBED 2026-07-20 (user question) — YES FOR TWO OF THE THREE
+CLASSES, AND THE MAIN RISK DID NOT MATERIALIZE.**
+
+- **THE DIAGNOSIS FIRST, because it is a MODELLING gap and not an implementation one. The grammar
+  models propositional CONTENT; ILLOCUTIONARY FORCE lives in the router.** Every `form_inventory.md`
+  entry (degree, negation, attribution, conditionality, genericity, tense, quantification, causation,
+  resemblance) is about WHAT IS CLAIMED. **There is no entry for FORCE** — assert / ask / command /
+  author — yet UGM has always had it, implemented as the ordered if-ladder of intake ROUTES in
+  `_ingest_gen`. Apply the doc's own test: `is lion dangerous` cannot be paraphrased into an
+  assertion without changing what the system DOES. **So force is epistemically FUNDAMENTAL and is the
+  one fundamental thing missing from the inventory.** That is why the grammar does not subsume CNL.
+- **THE AXIS IS ALREADY HALF-BUILT.** `asserts`/`denies`/`hedges` ARE force markers — they differ
+  precisely in WHAT THEY COMMIT. `asks`/`authors`/`commands` extend the same declaration axis
+  (`_assert_forms`' `(verb, mode)` table), not a new mechanism.
+- **SYNTAX IS NOT THE BLOCKER — MEASURED.** Given productions, the grammar parses every surface
+  tried, **declarations only, no Python**: question (`is lion dangerous`), stance (`be cautious`),
+  focus (`focus on lion`), run (`run build`), norm (`don't sell rare cards`). The gap is entirely in
+  what the FOLD CAN PRODUCE.
+- **THREE OUTPUT CLASSES, and only one is hard:**
+  * **(a) GRAPH WRITES — reachable today.** A norm reifies as a `<norm>` node plus relations, which
+    is what `Band` already does.
+  * **(b) BANK AUTHORING — rules / forms / procedures** must yield a `Rule`, not a triple. This is
+    the `implies` problem generalized. **USER DECISION: handled by HAND-AUTHORING one "universal"
+    grammar** (T2-authored, the normative spec of the target language — the convergence this file
+    already called for). Not learned.
+  * **(c) SPEECH ACTS — question / stance / focus / run / disable.** They do not add knowledge, they
+    DO something.
+- **THE BRIDGE HAS A PRECEDENT IN-CODEBASE: REIFIED INTENT.** `run NAME` already works by seeding a
+  `<run> proc NAME` node a driver then acts on. So the fold writes a reified intent (graph data,
+  which it can already do) and the ROUTE dispatches on it. That covers (a) and (c) with NO new fold
+  capability.
+- **MEASURED: ONE grammar carrying facts + all five force surfaces gives ZERO ambiguity, and the
+  Loudon fact corpus stays 23/23.** The risk this probe existed to find did not appear.
+- **⚠ AND MY STATED REASON WHY WAS WRONG — CHECKED, AND DISPROVED.** I predicted the open-class fix
+  was a PREREQUISITE (that force words doubling as nouns would collapse it). Simulated the old
+  behaviour by declaring `be`/`focus`/`run` as nouns TOO: **everything still parses unambiguously.**
+  The real reason is better and more robust: **English marks force POSITIONALLY at the LEFT EDGE** —
+  an imperative/prohibitive/copula in initial position is structurally unambiguous against a fact
+  that starts with an np, and there is no `np plus np` production for the noun reading to use. Force
+  composes cleanly because of where it sits, not because of the lexicon.
+- **FORCE IS RECOVERABLE FROM THE PARSE**, so routing can become DECLARATIVE: the root category
+  distinguishes `clause` / `qclause` / `iclause` / `pclause`. That is a WIN over today's ordered
+  if-ladder (try question, then rule, then fact), which is order-dependent by construction, and it is
+  exactly §D.1 ("route by which forms fired, not by sniffing the utterance"). NOTE `iclause`
+  currently conflates stance/focus/run — they need a SLOT (the imperative word) to separate, which is
+  ordinary declaration work.
+- **THE ARGUMENT FOR, in this project's own terms:** forms FAIL SILENTLY by not matching; the grammar
+  REFUSES loudly and detects ambiguity. Nine surfaces on forms is nine places a near-miss quietly
+  does nothing — §10a's exception-dropping bias in another costume.
+- **STILL TO WEIGH: COST.** Forms are cheap; the grammar costs a `load_grammar` (see the profiling
+  block) plus ms/utterance. Every surface moved onto it pays that.
+- Probe: scratch (surface sweep + combined-grammar ambiguity run).
 
 **SEQUENCE: domination gating FIRST — DONE. Conditionality — DONE, by deletion plus the fix above.
 Attribution's substrate — PROBED AND GENERALIZED.** Next, in order:

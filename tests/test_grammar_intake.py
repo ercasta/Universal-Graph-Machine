@@ -526,3 +526,86 @@ def test_a_derived_fact_is_discardable_like_any_other_judgement():
     assert ("lion", "is", "dangerous") not in gi.facts(kb), (
         "a derived fact survived the discard of the interpretation it was derived from")
     assert ("lion", "is", "hungry") in gi.facts(kb), "re-reading lost the asserted premise"
+
+
+# ---------------------------------------------------------------------------
+# DERIVED VOCABULARY — a KB's `R is a relation` IS its grammar lexicon entry
+# ---------------------------------------------------------------------------
+
+def _core_grammar() -> str:
+    """The Loudon grammar with its lion-domain CONTENT words dropped — productions, closed classes
+    and slots only. A domain-neutral core, so these tests exercise DERIVED vocabulary rather than
+    vocabulary that happened to be declared already."""
+    import re
+    src = (CORPUS / "loudon_grammar.cnl").read_text(encoding="utf-8")
+    content = {"modifier", "noun", "adj", "comparative", "transitive", "intransitive", "hedge"}
+    out = []
+    for line in src.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        m = re.match(r"^(\S+) is a (\S+)$", s)
+        if m and m.group(2) in content:
+            continue
+        out.append(s)
+    return "\n".join(out)
+
+
+def _open_kb():
+    g = AttrGraph()
+    gi.declare_grammar(g, _core_grammar(), open_class="noun")
+    return g
+
+
+def test_a_declared_relation_becomes_grammar_vocabulary():
+    """⭐ WHY MAKING THIS ROUTE THE DEFAULT COSTS ~NOTHING TO MIGRATE.
+
+    A predicate has ALWAYS needed a declaration: the shipped route refuses `get_beans produces beans`
+    until the KB says `produces is a relation`. So the grammar route's `produces is a transitive` was
+    never a new burden — it is the SAME declaration respelled, and therefore derivable. An existing
+    KB migrates without editing its corpus.
+
+    Measured across every shipped corpus: 9 distinct predicates, and the derived grammar parses 69 of
+    76 fact lines with ZERO mis-mappings."""
+    from ugm.intake import ingest
+    kb, rules = _open_kb(), []
+    ingest(kb, rules, "produces is a relation")
+    assert ingest(kb, rules, "get_beans produces beans").kind == "fact"
+    assert ("get_beans", "produces", "beans") in gi.facts(kb)
+
+
+def test_an_undeclared_predicate_is_still_refused():
+    """THE SAFETY PROPERTY THE DERIVATION MUST NOT DISSOLVE. Deriving vocabulary must not become
+    'accept any three words' — declare-before-use is what makes a refusal mean something. An
+    undeclared predicate is REFUSED (loud, countable), not guessed at."""
+    from ugm.intake import ingest
+    kb, rules = _open_kb(), []
+    assert ingest(kb, rules, "grind_beans needs beans").kind == "unrecognized"
+    assert gi.facts(kb) == []
+
+
+def test_vocabulary_declared_mid_session_takes_effect():
+    """RUNTIME GROWTH IS THE REAL REQUIREMENT, not a one-off read when the grammar is declared.
+
+    A corpus declares its relations in its OWN text, so on this route `needs is a relation` is itself
+    parsed by the grammar — the vocabulary arrives DURING ingestion, after the banks were compiled.
+    A sync that only ran at `declare_grammar` time would leave every such corpus refusing its own
+    content."""
+    from ugm.intake import ingest
+    kb, rules = _open_kb(), []
+    assert ingest(kb, rules, "grind_beans needs beans").kind == "unrecognized"
+    ingest(kb, rules, "needs is a relation")
+    assert ingest(kb, rules, "grind_beans needs beans").kind == "fact"
+    assert ("grind_beans", "needs", "beans") in gi.facts(kb)
+
+
+def test_an_explicit_grammar_declaration_beats_the_derived_default():
+    """The derivation fills a GAP; it never overrides what a grammar actually says. `roars` declared
+    `intransitive` must stay intransitive even if the KB also calls it a relation — otherwise
+    deriving would silently re-categorise hand-written vocabulary."""
+    from ugm.intake import ingest
+    kb = AttrGraph()
+    gi.declare_grammar(kb, _core_grammar() + "\nroars is a intransitive\n", open_class="noun")
+    ingest(kb, [], "roars is a relation")
+    gi.sync_vocabulary(kb)
+    assert gi.session_banks(kb).grammar.lexicon["roars"] == ["intransitive"]

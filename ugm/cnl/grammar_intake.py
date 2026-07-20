@@ -41,8 +41,13 @@ def _looks_like_a_path(grammar: str) -> bool:
                                     or grammar.endswith(".cnl"))
 
 
-def declare_grammar(kb, grammar) -> None:
+def declare_grammar(kb, grammar, *, open_class: str | None = None) -> None:
     """Give `kb` a grammar, compiling its banks ONCE. `grammar` is a `Grammar`, CNL text, or a path.
+
+    `open_class`: the category an UNDECLARED word defaults to (`"noun"`), i.e. open vocabulary. Off by
+    default, which is why this route required every word declared. Safe to switch on since
+    `chart_bank`'s default was narrowed to words the grammar says nothing about — before that, opening
+    the vocabulary made every declared content word ALSO a noun and quietly ambiguous.
 
     Compilation is per-grammar, not per-utterance: `compile_grammar` generates ~200 rules and the
     banks are reused across every parse in the session.
@@ -69,7 +74,52 @@ def declare_grammar(kb, grammar) -> None:
         raise ValueError(
             "grammar declares no lexicon and no productions — nothing would ever parse. "
             "Check the declaration forms (`X is a noun`, `np expands to determiner plus np`).")
-    kb.registers[GRAMMAR_REGISTER] = compile_grammar(gram)
+    kb.registers[GRAMMAR_REGISTER] = compile_grammar(gram, open_class=open_class)
+    sync_vocabulary(kb)                    # a KB may already have declared relations before this
+
+
+#: The grammar category a KB's declared relation (`R is a relation`) contributes to the lexicon.
+#: MEASURED, not assumed: all 9 distinct predicates across every shipped corpus (`acts_on`, `costs`,
+#: `have`, `needs`, `outranks`, `produces`, `want`, `wants`) are used in `S P O` position, and the
+#: derived grammar parses 69 of 76 corpus fact lines with ZERO mis-mappings. The 7 refusals are two
+#: genuinely-absent constructions (degree adverbs `very risky`, imperatives `don't sell …`), not
+#: mis-categorised relations.
+RELATION_CATEGORY = "transitive"
+
+
+def sync_vocabulary(kb) -> bool:
+    """Extend the live grammar's lexicon with relations the KB has DECLARED. Returns True if it grew.
+
+    ⭐ THE MIGRATION COST OF MAKING THIS ROUTE THE DEFAULT IS ~ZERO, AND THIS IS WHY. A predicate has
+    always needed a declaration: the SHIPPED route refuses `get_beans produces beans` outright until
+    the KB says `produces is a relation` (measured). So the grammar route's `produces is a transitive`
+    was never a NEW burden — it is the SAME declaration in a different spelling, and therefore it can
+    be DERIVED rather than written twice. An existing KB migrates without editing its corpus.
+
+    RUNTIME GROWTH IS THE REAL REQUIREMENT, not a one-off read at declaration time. A corpus declares
+    its relations in its own text, so on this route `produces is a relation` is itself parsed by the
+    grammar (as `clause asserts subj is_a kind`) — the vocabulary therefore arrives DURING ingestion,
+    after the banks were compiled. Hence a sync per utterance rather than a single pass.
+
+    CHEAP BECAUSE IT RECOMPILES, NEVER RE-READS. Measured: `compile_grammar` is 13 ms while
+    `load_grammar` is 1678 ms (126×) — the text-to-`Grammar` parse is the expensive half. This mutates
+    the already-parsed `Grammar` and recompiles, so growth costs ~13 ms and only when the vocabulary
+    actually changed. Re-reading the source text per utterance would have cost 1.7 s each.
+
+    A relation already declared in the grammar is LEFT ALONE — an explicit `R is a intransitive`
+    beats the derived default, so a grammar can always override what this infers."""
+    banks = kb.registers.get(GRAMMAR_REGISTER)
+    if banks is None:
+        return False
+    from .forms import declared_relations
+    gram = banks.grammar
+    fresh = sorted(r for r in declared_relations(kb) if r and r not in gram.lexicon)
+    if not fresh:
+        return False
+    for r in fresh:
+        gram.lexicon[r] = [RELATION_CATEGORY]
+    kb.registers[GRAMMAR_REGISTER] = compile_grammar(gram, open_class=banks.open_class)
+    return True
 
 
 def session_banks(kb):
@@ -208,7 +258,16 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
 
     An ambiguous or refused utterance writes NO facts. The surface it did produce STAYS: it is the
     permanent record, and a later re-interpretation (or a discriminating answer) reads it without
-    re-parsing."""
+    re-parsing.
+
+    THE REGISTER IS THE LIVE SOURCE OF TRUTH FOR THE BANKS, and vocabulary is synced AFTER the fold.
+    A KB declares its relations in its own text (`produces is a relation`), so on this route that
+    declaration is itself parsed here — the vocabulary therefore arrives DURING ingestion. Syncing
+    after the fold means the register reflects everything declared SO FAR the instant this call
+    returns; syncing only before it would leave the register lying about what the KB knows until some
+    later utterance happened to run. Reading the register first is what keeps a caller's stale
+    `banks` reference harmless, since a sync RECOMPILES and replaces them."""
+    banks = kb.registers.get(GRAMMAR_REGISTER, banks)
     outcome, toks, _eos = parse(kb, utterance, banks)
     if outcome == REFUSED:
         return "unrecognized", {"tokens": toks}
@@ -219,7 +278,9 @@ def route(kb, utterance: str, banks) -> tuple[str, dict]:
                              "spans": [(kb.name(a), kb.name(b)) for a, b in spans]}
 
     scope = extend(kb, banks)
-    return ("fact" if asserts_content(kb, toks, banks) else "unrecognized",
+    verdict = "fact" if asserts_content(kb, toks, banks) else "unrecognized"
+    sync_vocabulary(kb)                # this utterance may have DECLARED a relation — see above
+    return (verdict,
             {"tokens": toks, "scope": scope, "centers": utterance_centers(kb, toks)})
 
 

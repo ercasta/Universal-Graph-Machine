@@ -45,6 +45,10 @@ DENOTES = "denotes"           # surface token -> the entity it is TAKEN to denot
                               # Nothing on the token-is-entity route writes it, so that route is
                               # unaffected BY CONSTRUCTION — declare-before-use, as with the fork.
 
+INTERPRETS = "interprets"     # entity -> every surface mention it was derived from (provenance).
+                              # The inverse of DENOTES, and the hop a rule uses to reach SURFACE data
+                              # from an interpretation node — see `assert_bank`'s deny rule.
+
 # --- closed-world policy ----------------------------------------------------
 CLOSES = "closes"             # P closes <closed_world>  (P is closed-world DATA)
 CWA = "<closed_world>"        # the closed-world marker node

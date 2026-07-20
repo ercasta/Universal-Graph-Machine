@@ -30,12 +30,14 @@ derivation forest (measured at 4.7 s/11 tokens; see §8.3).
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from ..production_rule import Band, Distinct, Pat, Rule
 from ..lowering import run_bank
 from ..possibility import LIKELINESS
-from ..vocabulary import neg_pred
+from ..vocabulary import INTERPRETS, neg_pred
 from ..world_model import Graph
 from .forms import _chain_tokens, tokenize
 
@@ -52,6 +54,32 @@ CLOSED_CLASSES: tuple[str, ...] = ("determiner", "negator", "comparator", "prepo
 #: fix: it used to mark only FUNCTION words, which left every declared content word ALSO eligible as
 #: an open noun and so silently ambiguous. See `chart_bank`.
 DECLARED = "declared"
+
+
+#: `has -[neg_of]-> has_not` — the positive/negative predicate pairing, as GRAPH DATA.
+#:
+#: Exists so a `denies` rule can BIND its negative predicate instead of computing the string
+#: `neg_pred(w)` at compile time, which forced ONE RULE PER LEXICON WORD (26 of `assert_bank`'s 61).
+#: A PLAIN name, deliberately: a `<...>`-named premise would make `_rule_touches_control` classify
+#: every deny rule as control-writing and the fold would produce zero facts while firing correctly
+#: (this file's lesson 1). Skipped by entity-side readers via `SURFACE_PREDS`, like `cat`/`begin`.
+NEG_OF = "neg_of"
+
+
+def author_negative_pairing(g, lexicon) -> None:
+    """Write `w -[neg_of]-> w_not` for each lexicon word, ONCE per graph.
+
+    The DENY collapse's data half. Authored through the ISA (`load_fact_triples` -> `assemble_facts`
+    -> `Machine.run`), not by poking the substrate: intern + dedup make it idempotent, which matters
+    because the fold re-runs over the whole graph every utterance.
+
+    Guarded on the key index so it is authored once and then costs an O(1) lookup — the vocabulary is
+    static, and re-running a 2N-instruction program per utterance would give back part of what the
+    collapse just won."""
+    if g.nodes_with_key(NEG_OF):
+        return
+    from ..lowering import load_fact_triples
+    load_fact_triples(g, [(w, NEG_OF, neg_pred(w)) for w in sorted(lexicon)])
 
 
 def sp(cat: str) -> str:
@@ -248,18 +276,43 @@ class Grammar:
         return {d["sname"] for d in self.slots} | {d["mname"] for d in self.mints} | {"head"}
 
 
+@lru_cache(maxsize=32)
+def _parse_grammar(body: str) -> Grammar:
+    """Comment-stripped declaration text -> `Grammar`. PURE, hence cacheable.
+
+    THE EXPENSIVE HALF, AND BY A LONG WAY. Profiled 2026-07-20: 1424 ms for the 124-line Loudon
+    grammar against `compile_grammar`'s 13 ms (108×) — i.e. loading a grammar cost MORE THAN AN
+    ENTIRE 8-SENTENCE SESSION (1.39 s). The cost is `load_facts` running the 17 declaration forms
+    over the whole graph on the naive `run_bank` (863k matcher steps), which is the documented
+    whole-graph-bank shape and NOT fixed here.
+
+    Cached instead, because the same static grammar file is re-read constantly: measured **47 calls
+    totalling 59.2 s** across the two grammar test modules alone — 63% of their runtime spent
+    re-parsing two unchanging files. Bounded (`maxsize`) rather than unbounded: callers can generate
+    grammars programmatically (benches and probes do), and an unbounded text-keyed cache would be a
+    leak."""
+    from ..attrgraph import AttrGraph
+    from .authoring import load_facts
+    g = AttrGraph()
+    load_facts(g, body, extra_forms=DECLARATION_FORMS)
+    return read_grammar(g)
+
+
 def load_grammar(text: str) -> Grammar:
     """Load CNL grammar declarations and read the grammar back out of the resulting graph.
 
     `#` comments are stripped, matching every other CNL file loader (`load_machine_rules`,
-    `load_kb`, intake) — `load_facts` itself does not strip them."""
-    from ..attrgraph import AttrGraph
-    from .authoring import load_facts
-    g = AttrGraph()
+    `load_kb`, intake) — `load_facts` itself does not strip them.
+
+    ⚠ RETURNS A COPY, AND THAT IS LOAD-BEARING, NOT HYGIENE. `Grammar` is MUTABLE and is mutated in
+    normal operation: `grammar_intake.sync_vocabulary` adds each of a KB's declared relations to
+    `lexicon` as the session runs. Handing out the cached instance would let one KB's derived
+    vocabulary appear in every other KB built from the same file — a cross-contamination bug that
+    would surface as "a word parses in a test only when some earlier test ran", i.e. order-dependent
+    and silent. The copy is what makes caching a pure optimization."""
     body = "\n".join(s for line in text.splitlines()
                      if (s := line.strip()) and not s.startswith("#"))
-    load_facts(g, body, extra_forms=DECLARATION_FORMS)
-    return read_grammar(g)
+    return deepcopy(_parse_grammar(body))
 
 
 def load_grammar_file(*paths) -> Grammar:
@@ -269,21 +322,40 @@ def load_grammar_file(*paths) -> Grammar:
 
 
 def read_grammar(g) -> Grammar:
-    """Read a `Grammar` out of a graph the declaration forms have already run over."""
+    """Read a `Grammar` out of a graph the declaration forms have already run over.
+
+    THE KEY INDEX DECIDES WHICH RELATIONS TO LOOK AT, rather than probing every relation for every
+    declaration key. Profiled 2026-07-20: this function made **3,278,010 `has_key` calls** on the
+    124-line Loudon grammar — 30 candidate keys against every relation in the graph — and its cost
+    grew 122× for 8.3× more input (3.9 ms at 15 lines, 476 ms at 124), i.e. QUADRATIC in a plain
+    Python sweep rather than in any bank. `nodes_with_key` is O(1) off an always-maintained index, so
+    the candidate sets below turn the 30-key probe into a set membership test and it is only paid on
+    relations that actually carry a declaration.
+
+    ITERATION ORDER IS DELIBERATELY UNCHANGED — still `g.nodes()` then `relations_from`, with
+    non-candidates skipped. `slot_bank`/`assert_bank` derive RULE KEYS from list POSITION
+    (`fold.slot.{i}`), so reordering `gram.slots` would silently rename every generated rule."""
     gram = Grammar()
+    decl_keys = ("gcat", "gleft", "gright", "gonly", *_DECL_KEYS)
+    isa_rels = set(g.nodes_with_key("is_a"))
+    decl_rels: set[str] = set()
+    for k in decl_keys:
+        decl_rels.update(g.nodes_with_key(k))
     for n in g.nodes():
         for r, o in g.relations_from(n):
             # `<...>` categories are ENGINE bookkeeping riding the same `is_a` predicate the lexicon
             # uses (`mark_mentions` writes `is_a <mention>` on every entity). Reading them as
             # lexicon entries declares every word a `<mention>` and generates a chart rule for it —
             # measured at ~80% of parse runtime before this filter. See `homoiconic_grammar.md` §9.5.
-            if g.has_key(r, "is_a") and not g.name(o).startswith("<"):
+            if r in isa_rels and not g.name(o).startswith("<"):
                 gram.lexicon.setdefault(g.name(n), []).append(g.name(o))
     seen_u, seen_b = set(), set()
     for n in g.nodes():
         d = {}
         for r, o in g.relations_from(n):
-            for k in ("gcat", "gleft", "gright", "gonly", *_DECL_KEYS):
+            if r not in decl_rels:
+                continue
+            for k in decl_keys:
                 if g.has_key(r, k):
                     d[k] = g.name(o)
         if "gcat" in d and "gonly" in d:
@@ -348,6 +420,10 @@ class GrammarBanks:
     remint_preds: frozenset[str] = frozenset()
     reinterp_slots: list[Rule] = field(default_factory=list)
     reinterp_slot_preds: frozenset[str] = frozenset()
+    #: The open-vocabulary default these banks were built with, REMEMBERED so a recompile (when the
+    #: session's vocabulary grows — `grammar_intake.sync_vocabulary`) reproduces the same grammar
+    #: instead of silently dropping open vocabulary.
+    open_class: str | None = None
 
 
 def chart_bank(gram: Grammar, *, open_class: str | None = None) -> tuple[list[Rule], frozenset[str]]:
@@ -838,15 +914,32 @@ def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
                               lhs=[*base, Pat("?p", pred, "?w"), *obj_prem],
                               nac=nacs, rhs=[Pat("?s", "?w", obj_tok)]))
         elif pred in names:
-            # DENY still expands per word: the head predicate is `neg_pred(?w)`, a STRING derivation
-            # from the matched word, and the ISA has no string ops. Collapsing this too needs the
-            # positive/negative pairing to exist as graph data (`w -[neg_of]-> w_not`) so the rule
-            # can BIND the negative rather than compute it — worth doing, but it is a vocabulary
-            # change, not a lowering one.
-            for w in sorted(gram.lexicon):
-                rules.append(Rule(key=f"fold.assert.{i}.{z}.{w}",
-                                  lhs=[*base, Pat("?p", pred, f"{w}?"), *obj_prem],
-                                  nac=nacs, rhs=[Pat("?s", neg_pred(w), obj_tok)]))
+            # ⭐ THE DENY COLLAPSE (2026-07-20): ONE rule, not one per lexicon word.
+            #
+            # This used to expand per word because the head predicate is `neg_pred(?w)` — a STRING
+            # derivation from the matched word — and the ISA has no string ops. The fix is the one
+            # this file predicted: put the positive/negative pairing in the GRAPH as data
+            # (`has -[neg_of]-> has_not`, authored by `author_negative_pairing`) so the rule BINDS
+            # the negative instead of computing it. `?wn` is then an ordinary LHS-BOUND predicate
+            # variable, which `lower_rhs`/`MINT.key_reg` already support (the second step-4 lever).
+            #
+            # The vocabulary is now DATA (one fact per word, minted once per session, interned and
+            # deduped) rather than RULES (matched every round of every fixpoint). That is the whole
+            # saving: facts are looked up, rules are re-matched.
+            # ⚠ THE PAIRING IS ON THE SURFACE TOKEN, SO THE RULE HOPS BACK ACROSS THE LAYER.
+            # `?w` is an ENTITY (the `pred` slot is filled through `HEAD_BRIDGE`, which resolves a
+            # one-token span's head to what its token DENOTES). `author_negative_pairing` interns by
+            # NAME, and the token was created first, so the `neg_of` edge lands on the TOKEN — the
+            # token/entity duality again, one layer along from the `resolve_write_node` fix. Rather
+            # than duplicate the pairing onto entities that are minted per session, the rule reaches
+            # the surface explicitly via `interprets` (the entity's own provenance to its mention).
+            # This keeps the vocabulary where it belongs — on the permanent surface record, authored
+            # once — instead of inside the discardable interpretation.
+            rules.append(Rule(key=f"fold.assert.{i}.{z}.deny",
+                              lhs=[*base, Pat("?p", pred, "?w"),
+                                   Pat("?w", INTERPRETS, "?t"), Pat("?t", NEG_OF, "?wn"),
+                                   *obj_prem],
+                              nac=nacs, rhs=[Pat("?s", "?wn", obj_tok)]))
         else:
             p = neg_pred(pred) if mode == "deny" else pred
             rules.append(Rule(key=f"fold.assert.{i}.{z}.{p}",
@@ -1057,7 +1150,8 @@ def compile_grammar(gram: Grammar, *, open_class: str | None = None) -> GrammarB
                         asserts=assert_bank(gram, defining=False),
                         defining_asserts=assert_bank(gram, defining=True), grammar=gram,
                         remint_marks=marks, remint_preds=mpreds,
-                        reinterp_slots=rslots, reinterp_slot_preds=rpreds)
+                        reinterp_slots=rslots, reinterp_slot_preds=rpreds,
+                        open_class=open_class)
 
 
 # ---------------------------------------------------------------------------

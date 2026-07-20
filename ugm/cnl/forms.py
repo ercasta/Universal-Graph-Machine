@@ -701,9 +701,16 @@ FORM_RULES: list[Rule] = [
 # expand). So only declared relations parse; `glorp the flarn` still does not.
 
 def declared_relations(graph: Graph) -> set[str]:
-    """Relation words declared via `R is a relation` (i.e. `R --is_a--> relation`)."""
+    """Relation words declared via `R is a relation` (i.e. `R --is_a--> relation`).
+
+    Candidates come from the KEY INDEX, not a whole-graph sweep: `grammar_intake.sync_vocabulary`
+    calls this once per utterance, so a sweep would make a session quadratic in its own length — the
+    defect family this codebase has recorded repeatedly. Small today (0.22 ms at 1445 nodes) and
+    fixed before it is not."""
     rels: set[str] = set()
-    for r in graph.nodes():
+    candidates = (graph.nodes_with_key("is_a") if hasattr(graph, "nodes_with_key")
+                  else graph.nodes())
+    for r in candidates:
         if not graph.has_key(r, "is_a"):
             continue
         # skip provenance in-edges (a `proves` node points into this relation, vision §9)

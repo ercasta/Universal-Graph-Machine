@@ -445,3 +445,103 @@ def test_a_word_needing_two_categories_must_DECLARE_both():
     assert _outcome("the strong is smaller than the lion", both) == PARSED
     assert _outcome("the lion is strong", both) == AMBIGUOUS, (
         "with two DECLARED categories the ambiguity is earned and must be reported")
+
+
+def test_loading_the_same_grammar_twice_does_not_share_mutable_state():
+    """⚠ THE HAZARD THE GRAMMAR CACHE INTRODUCES, pinned because it would fail SILENTLY.
+
+    `load_grammar` is cached (measured 1493× warm, and 47 calls / 59.2 s across the grammar test
+    modules alone before it). But `Grammar` is MUTABLE and is mutated in normal operation:
+    `grammar_intake.sync_vocabulary` adds a KB's declared relations to `lexicon` as the session runs.
+    Handing out the cached instance would let one KB's derived vocabulary appear in every other KB
+    built from the same file — surfacing as "a word parses in a test only when some earlier test
+    ran": order-dependent, silent, and maddening. The copy is what makes the cache a pure
+    optimization rather than a semantic change."""
+    from ugm.cnl.grammar import load_grammar
+    src = _LOUDON.read_text(encoding="utf-8")
+    a, b = load_grammar(src), load_grammar(src)
+    assert a is not b, "the cache handed out a shared mutable Grammar"
+    assert a.slots == b.slots and a.binary == b.binary, "the copies must be equal"
+
+    a.lexicon["contaminant"] = ["transitive"]
+    assert "contaminant" not in load_grammar(src).lexicon, "mutation leaked into the cache"
+
+
+def test_two_kbs_from_one_grammar_file_do_not_share_derived_vocabulary():
+    """The end-to-end form of the same hazard, through the REAL path that mutates: two KBs built
+    from the same grammar file, where only ONE declares a relation. The other must not inherit it —
+    otherwise a sentence would parse for reasons belonging to a different KB."""
+    from ugm.attrgraph import AttrGraph
+    from ugm.cnl import grammar_intake as gi
+    from ugm.intake import ingest
+    src = _LOUDON.read_text(encoding="utf-8")
+
+    a, b = AttrGraph(), AttrGraph()
+    gi.declare_grammar(a, src, open_class="noun")
+    gi.declare_grammar(b, src, open_class="noun")
+    ingest(a, [], "outranks is a relation")           # only KB `a` learns this predicate
+    assert "outranks" in gi.session_banks(a).grammar.lexicon
+    assert "outranks" not in gi.session_banks(b).grammar.lexicon, (
+        "one KB's derived vocabulary leaked into another built from the same grammar file")
+
+
+# ---------------------------------------------------------------------------
+# THE DENY COLLAPSE — the negative predicate is BOUND from data, not compiled per word
+# ---------------------------------------------------------------------------
+
+def test_the_deny_bank_does_not_grow_with_the_lexicon():
+    """⭐ THE COLLAPSE PROPERTY, and the one a "does the exception still land" test would MISS.
+
+    `denies` used to emit ONE RULE PER LEXICON WORD, because its head predicate is `neg_pred(?w)` — a
+    STRING derived from the matched word, and the ISA has no string ops. 26 of `assert_bank`'s 61
+    rules were that expansion, re-matched every round of every fixpoint.
+
+    Now the positive/negative pairing is GRAPH DATA (`has -[neg_of]-> has_not`, authored once by
+    `author_negative_pairing`) and the rule BINDS the negative as an ordinary LHS-bound predicate
+    variable. So the vocabulary became DATA (looked up) instead of RULES (re-matched) — which is the
+    whole saving.
+
+    Asserting on rule COUNT vs lexicon SIZE is what pins it: the per-word version passes any
+    behavioural test, and only the count shows the expansion is gone."""
+    from ugm.cnl.grammar import assert_bank, load_grammar
+    src = _LOUDON.read_text(encoding="utf-8")
+    small = assert_bank(load_grammar(src), defining=False)
+    extra = "".join(f"widget{i} is a noun\n" for i in range(25))
+    big = assert_bank(load_grammar(src + extra), defining=False)
+    assert len(small) == len(big), (
+        f"the assert bank grew with the lexicon ({len(small)} -> {len(big)}): "
+        "a per-word expansion is back")
+    assert sum(r.key.endswith(".deny") for r in small) == 1, "deny must be exactly one rule"
+
+
+def test_a_negated_sentence_still_lands_as_has_not():
+    """The behaviour the collapse must preserve: the linguistically-marked EXCEPTION, which is the
+    whole reason the grammar arc exists (a form bank drops it, and §10a showed that biases the
+    learner because to a learner absence looks like confirmation)."""
+    from ugm.attrgraph import AttrGraph
+    from ugm.cnl import grammar_intake as gi
+    kb = AttrGraph()
+    gi.declare_grammar(kb, _LOUDON.read_text(encoding="utf-8"))
+    b = gi.session_banks(kb)
+    gi.route(kb, "the lion has a mane", b)
+    gi.route(kb, "the guzerat lion has no mane", b)
+    facts = gi.facts(kb)
+    assert ("lion", "has_not", "mane") in facts, f"the exception was dropped: {facts}"
+    assert ("lion", "has", "mane") in facts, "the positive was lost"
+
+
+def test_the_negative_pairing_is_authored_once():
+    """`author_negative_pairing` runs inside every `interpret`, and the fold re-runs over the whole
+    graph each utterance — so a non-idempotent authoring would accrete a node per word per utterance,
+    which is the bound-literal family this codebase has hit six times. Guarded by the key index."""
+    from ugm.attrgraph import AttrGraph
+    from ugm.cnl import grammar_intake as gi
+    from ugm.cnl.grammar import NEG_OF
+    kb = AttrGraph()
+    gi.declare_grammar(kb, _LOUDON.read_text(encoding="utf-8"))
+    b = gi.session_banks(kb)
+    gi.route(kb, "the lion has a mane", b)
+    after_first = len(kb.nodes_with_key(NEG_OF))
+    for s in ["the lion is strong", "the lion roars", "the lion is a cat"]:
+        gi.route(kb, s, b)
+    assert len(kb.nodes_with_key(NEG_OF)) == after_first, "the pairing re-authored per utterance"

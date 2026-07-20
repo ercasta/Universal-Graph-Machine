@@ -33,12 +33,11 @@ from __future__ import annotations
 from .attrgraph import valued
 from .production_rule import Pat, Rule
 from .lowering import run_bank
-from .vocabulary import DENOTES, neg_pred
+from .vocabulary import DENOTES, INTERPRETS, neg_pred
 
 SCOPE = "<interpretation>"
 #: Re-exported: the canonical definition is `vocabulary.DENOTES`, because `chain` needs it too and
 #: this module is not a leaf. Surface token -> the entity it is TAKEN to denote (the judgement).
-INTERPRETS = "interprets"    # entity -> every surface mention it was derived from (provenance)
 MEMBER = "member"
 CONTRADICTION = "<contradiction>"
 
@@ -46,7 +45,7 @@ CONTRADICTION = "<contradiction>"
 DEFINING: tuple[str, ...] = ("is_a", "is")
 
 #: Predicates that are SURFACE structure. Everything else a fold writes is interpretation.
-SURFACE_PREDS: frozenset[str] = frozenset({"cat", "begin", "end", "next", "first",
+SURFACE_PREDS: frozenset[str] = frozenset({"cat", "begin", "end", "next", "first", "neg_of",
                                             "is_eos", "unfolded", "unparsed", "suppressed"})
 
 
@@ -330,7 +329,13 @@ def interpret(g, banks, scope: str, *, slots=None, slot_preds=None) -> set[str]:
     if banks.defining_asserts:
         run_bank(g, banks.defining_asserts)
         intern_described(g)
-    run_bank(g, banks.asserts)
+    # The DENY collapse's data half: `has -[neg_of]-> has_not` for each lexicon word, so a `denies`
+    # rule BINDS its negative predicate instead of needing one rule per word. Authored here because
+    # this is where the assert bank runs; idempotent and guarded, so it costs a lookup after the
+    # first call (see `author_negative_pairing`).
+    from .cnl.grammar import author_negative_pairing
+    author_negative_pairing(g, banks.grammar.lexicon)
+    run_bank(g, banks.asserts, control_preds=frozenset({INTERPRETS}))
     run_bank(g, contradiction_bank(set(banks.grammar.lexicon)))
     # The fold is done with this delta. Contradiction detection ran over the WHOLE graph on purpose
     # (it must see facts an earlier utterance put on a shared entity) and is cheap enough to.
