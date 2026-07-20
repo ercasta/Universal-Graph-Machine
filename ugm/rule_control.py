@@ -125,9 +125,14 @@ def _slot(graph, node: str, role: str) -> str | None:
 
 def recognize_rule_op(utterance: str) -> str | None:
     """If `utterance` is an explicit rule-control move, its `op` (`"disable"`) — else None. Recognized by
-    which RULE_FORM fires in a scratch scope, NOT a Python word list. Checked BEFORE the focus forms in
-    intake because `forget that rule` is a MORE SPECIFIC form than the focus `forget that` (the trailing
-    `rule` token disambiguates — grammar precedence, not a string sniff)."""
+    which RULE_FORM fires in a scratch scope, NOT a Python word list.
+
+    MUTUALLY EXCLUSIVE WITH THE FOCUS FORMS BY STRUCTURE (2026-07-20). This used to rely on intake
+    checking it BEFORE `focus.drop`, since `forget that rule` fired both and only ladder position
+    picked the winner — a routing decision made by ordering rather than by declaration. `focus.drop`
+    now carries a NAC saying nothing follows `that`, so the two forms genuinely disagree and either
+    check order gives the same answer. Pinned by
+    `test_the_disable_and_focus_forms_are_mutually_exclusive`."""
     from .cnl.forms import tokenize
     from .lowering import run_bank
     from .world_model import Graph

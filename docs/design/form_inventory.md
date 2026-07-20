@@ -141,6 +141,7 @@ the layer boundary.
 
 | form | example | note |
 |---|---|---|
+| **use vs mention** | *produces is a relation* | ⭐ ADDED 2026-07-20 by `bench/spike_force_coverage.py`, and it is the first entry the system found in ITSELF rather than in a corpus. A word declared as a verb can no longer head an np, so **the grammar cannot talk about its own vocabulary**: the declaration sentence parses while the word is unknown and REFUSES once it is declared. Measured through real `ingest`, the same line twice routes `fact` then `unrecognized`. Fundamental under §1's test — quoting is not paraphrasable into use |
 | tense | *were formerly found … now confined to* | nothing exists. Expensive. |
 | exclusivity / *only* | *confined to Africa* | CWA/NAF exist; no surface, and no way to say "only" |
 | quantification | *all the varieties*, *some naturalists* | partial |

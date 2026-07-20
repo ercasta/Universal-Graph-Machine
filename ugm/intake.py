@@ -345,9 +345,11 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # RULE DISABLE — `forget that rule` / `disable that rule` marks the last-authored rule `<disabled>`
     # (additive, no deletion §5). Recognized as a FORM (§D.2) and checked BEFORE the focus forms: it is a
     # MORE SPECIFIC form than the focus `forget that` (the trailing `rule` token disambiguates).
-    # ⚠ THE ONE GENUINELY ORDER-DEPENDENT PAIR LEFT: both this and the focus `forget that` recognizer
-    # fire on `forget that rule`, so position alone separates them. Deliberate and documented, but it
-    # is the last place in this router where order carries meaning.
+    # ~~THE ONE GENUINELY ORDER-DEPENDENT PAIR~~ FIXED 2026-07-20: `focus.drop` now carries a NAC
+    # ("nothing follows `that`"), so the two forms disagree on STRUCTURE and this check's position
+    # no longer decides anything. Pinned at the recognizer level by
+    # `test_the_disable_and_focus_forms_are_mutually_exclusive`. With that, NO check in this router
+    # depends on its order for its meaning.
     if rule_control.recognize_rule_op(text) == "disable":
         disabled = rule_control.disable_last(kb)
         if disabled:                                         # a disabled rule's conclusions are up for

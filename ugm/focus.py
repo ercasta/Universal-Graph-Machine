@@ -144,9 +144,18 @@ FOCUS_FORMS: list[Rule] = [
     Rule(key="focus.push",
          lhs=[Pat("?s", "first", "focus?"), Pat("focus?", "next", "on?"), Pat("on?", "next", "?x")],
          rhs=[Pat(FOCUS_OP + "?", "op", "push"), Pat(FOCUS_OP + "?", "target", "?x")]),
-    # "forget that"  -> drop the top frame
+    # "forget that"  -> drop the top frame.
+    # ⭐ THE NAC IS WHAT MAKES THIS FORM AND `rule_control`'s `forget that rule` MUTUALLY EXCLUSIVE
+    # BY STRUCTURE rather than by position in the intake ladder (2026-07-20). Without it BOTH forms
+    # fire on `forget that rule`, and the only thing selecting the rule-disable reading is that
+    # intake happens to check it first — the last place in the router where ORDER carried meaning.
+    # "nothing follows `that`" says exactly what the more-specific form's extra token contradicts,
+    # so the two now disagree on structure and either check order gives the same answer.
+    # (The same `next`-absence NAC as `grammar.SUPPRESS_FORMS`; `cnl.forms.tokenize` appends no
+    # end marker, so a final token simply has no `next`.)
     Rule(key="focus.drop",
          lhs=[Pat("?s", "first", "forget?"), Pat("forget?", "next", "that?")],
+         nac=[Pat("that?", "next", "?more")],
          rhs=[Pat(FOCUS_OP + "?", "op", "drop")]),
     # "back to X"  -> re-enter the frame centered on X
     Rule(key="focus.reenter",

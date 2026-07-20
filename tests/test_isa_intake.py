@@ -2,6 +2,8 @@
 
 One entry `ingest(kb, rules, utterance)`; the route EMERGES from which forms fire, not a string sniff.
 """
+import pytest
+
 from ugm.intake import ingest
 from ugm.world_model import Graph
 
@@ -119,6 +121,93 @@ def test_forget_that_rule_is_not_focus_drop():
     ev = []
     ingest(kb, rules, "forget that rule", on_event=ev.append)
     assert [e.kind for e in ev] == ["rule-disable"]
+
+
+def test_the_disable_and_focus_forms_are_mutually_exclusive():
+    """⭐ THE RECOGNIZERS DISAGREE ON STRUCTURE, so intake's check ORDER carries no meaning.
+
+    `test_forget_that_rule_is_not_focus_drop` above goes through `ingest`, so it passes whether the
+    forms are exclusive or whether ladder POSITION is silently picking the winner — it cannot see
+    this property. Until 2026-07-20 both forms fired on `forget that rule` and only the order
+    decided; `focus.drop`'s NAC ("nothing follows `that`") is what makes them genuinely exclusive.
+
+    Asserted at the RECOGNIZER level, which is the only place the difference is visible."""
+    from ugm.focus import recognize_focus_op
+    from ugm.rule_control import recognize_rule_op
+
+    # the more specific surface: ONLY the rule form fires
+    assert recognize_rule_op("forget that rule") == "disable"
+    assert recognize_focus_op("forget that rule") is None, (
+        "the focus drop form still fires on `forget that rule` — routing depends on ladder order")
+
+    # the general surface: ONLY the focus form fires, and the NAC did not over-reach
+    assert recognize_rule_op("forget that") is None
+    assert recognize_focus_op("forget that") == ("drop", None)
+
+    # and no surface is claimed by both
+    for text in ("forget that", "forget that rule", "disable that rule",
+                 "focus on ada", "back to ada"):
+        fired = [n for n, hit in (("rule", recognize_rule_op(text)),
+                                  ("focus", recognize_focus_op(text))) if hit]
+        assert len(fired) <= 1, f"{text!r} is claimed by both recognizers: {fired}"
+
+
+#: One representative surface per intake route, plus plain facts. Extend it when a route is added.
+ROUTER_SURFACES = [
+    "forget that rule",                          # rule-disable
+    "disable that rule",                         # rule-disable
+    "forget that",                               # focus (drop)
+    "focus on ada",                              # focus (push)
+    "back to ada",                               # focus (reenter)
+    "be cautious",                               # stance
+    "to build : get wood",                       # procedure
+    "run build",                                 # procedure run
+    "is ada watched",                            # question
+    "?x is watched when ?x is a suspect",        # rule
+    "ada is a suspect",                          # fact
+    "ada is happy",                              # fact
+]
+
+
+def _recognizers_firing(text):
+    """Which of the router's recognizers claim `text`. One entry per route it dispatches on."""
+    from ugm import focus as focus_mod, rule_control
+    from ugm.cnl import form_authoring, procedure_surface
+    from ugm.cnl.authoring import load_rules
+    from ugm.cnl.query import recognize
+    from ugm.policy import recognize_stance
+
+    def _try(fn):
+        try:
+            return fn()
+        except Exception:
+            return None          # a malformed surface for THIS route is not a claim on it
+
+    fop = _try(lambda: focus_mod.recognize_focus_op(text))
+    checks = {
+        "rule-disable": _try(lambda: rule_control.recognize_rule_op(text)),
+        "focus": fop[0] if fop else None,
+        "stance": _try(lambda: recognize_stance(text)),
+        "form": _try(lambda: form_authoring.parse_form_line(text)),
+        "procedure": _try(lambda: procedure_surface.parse_define(text)),
+        "run": _try(lambda: procedure_surface.parse_run(text)),
+        "question": _try(lambda: recognize(text)),
+        "rule": _try(lambda: load_rules(text, lint=False)),
+    }
+    return sorted(n for n, hit in checks.items() if hit)
+
+
+@pytest.mark.parametrize("text", ROUTER_SURFACES)
+def test_at_most_one_router_recognizer_claims_a_surface(text):
+    """⭐ THE §D.1 PROPERTY FOR THE WHOLE ROUTER: routing is decided by WHICH FORM FIRED, so no
+    surface may be claimed by two routes — otherwise the answer comes from the order of the checks
+    rather than from the declarations, and reordering the router silently changes behaviour.
+
+    Held for every surface here EXCEPT `forget that rule` until 2026-07-20, which is exactly why
+    that pair needed a structural fix rather than a comment. This is the standing guard that the
+    next route added does not quietly reintroduce an ordered ladder."""
+    fired = _recognizers_firing(text)
+    assert len(fired) <= 1, f"{text!r} is claimed by {fired} — routing would depend on check order"
 
 
 def test_forget_that_rule_with_no_rule_authored_is_noop():

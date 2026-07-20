@@ -20,7 +20,7 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶ PICK UP HERE (handoff 2026-07-20 late, suite 793 green, pystrider 388 green)
+## ▶ PICK UP HERE (handoff 2026-07-20 late, suite 806 green, pystrider 388 green)
 
 **⭐⭐ STEP 1 IS DONE: DECLARATIVE ROUTING + THE `command` FORCE LANDED 2026-07-20.** The router
 dispatches on WHICH FORCE THE PARSE RECOVERED, not on position in an ordered if-ladder. Built as one
@@ -86,16 +86,96 @@ repo** — the working tree is LF and Windows editing drifts it.
    **And the grammar files should converge to ONE canonical file now** — `loudon_grammar.cnl` has
    quietly become it (facts + hedging + questions + goals + commands) while still being named after
    a bench corpus.
-2. **The deferred slice: make `disable` vs `focus` structural.** The one place in the router where
-   ORDER still carries meaning (`forget that rule` fires both). Deliberately split out of this slice
-   because it touches `recognize_focus_op` at `intake.py:334` — the SHIPPED path every KB and
-   pystrider uses — where this slice touched only a route nothing shipped reaches.
+2. ~~**The deferred slice: make `disable` vs `focus` structural.**~~ **DONE 2026-07-20 — see below.**
 3. **The long tail**: degree adverbs (`very risky`), `every person is a mortal`, PP attachment.
 
-**⚠ PRE-EXISTING, NOT MINE: `bench/coverage_audit.py` is broken** — it calls `h.lint_rules`, which
-does not exist in `ugm` (only in `consistency_design.md` and the bench itself). So the 54% coverage
-figure in `form_inventory.md` §4b cannot currently be re-measured. Worth fixing before step 2, since
-that number is the one that would show the force work paying off.
+**⭐ THE DEFERRED SLICE LANDED 2026-07-20 (suite 806 green): NO CHECK IN THE ROUTER DEPENDS ON ITS
+ORDER ANY MORE.** Split out of the declarative-routing slice deliberately, and the split was the
+right call for a reason worth keeping: **the two slices had different blast radii.** Declarative
+routing touched only the grammar route, which nothing shipped reaches (`declare_grammar` appears in
+6 files, all grammar modules/tests/docs). This one touches `focus.FOCUS_FORMS`, which every KB and
+pystrider run through on every utterance. Bundling them would have put the one change that could
+break pystrider in the same commit as two that structurally could not.
+
+- **ONE NAC IS THE WHOLE FIX.** `focus.drop` matched `forget ? that ?` with no constraint on what
+  FOLLOWS, so it fired on `forget that rule` alongside `rule_control`'s more specific form, and only
+  intake's check order picked the winner. Adding `nac=[Pat("that?", "next", "?more")]` — "nothing
+  follows `that`" — states exactly what the more specific form's extra token contradicts. The same
+  `next`-absence NAC `grammar.SUPPRESS_FORMS` already uses; verified first that `cnl.forms.tokenize`
+  appends no end marker, so a final token genuinely has no `next`.
+- **THE EXISTING TEST WAS BLIND, which is why a comment was not enough.**
+  `test_forget_that_rule_is_not_focus_drop` goes through `ingest`, so it passes whether the forms
+  are exclusive or whether LADDER POSITION is silently deciding — re-break confirmed it stays green
+  with the NAC removed. The property is only visible at the RECOGNIZER level
+  (`test_the_disable_and_focus_forms_are_mutually_exclusive`). **Third lesson-4 near-miss of the
+  day; all three were "the test observes an outcome both paths produce".**
+- **GENERALIZED INTO A STANDING GUARD:** `test_at_most_one_router_recognizer_claims_a_surface`
+  sweeps all 8 router recognizers over one representative surface per route (12 surfaces). That is
+  the §D.1 property stated for the whole router rather than for one pair, and it is the thing that
+  will catch the next route quietly reintroducing an ordered ladder. It held for every surface
+  except `forget that rule` before this fix — i.e. the sweep would have found this defect.
+
+**⭐⭐ FORCE COVERAGE RE-DERIVED 2026-07-20 (`bench/spike_force_coverage.py`) — 80%, AND IT FOUND A
+REAL DEFECT.** The §4b claim ("68 utterances, 54%, 25 of 31 failures are force") came from a scratch
+probe that no longer existed, so it could not be checked after the force work. Now extracted from
+`tests/` rather than hand-listed, because a hand-kept list drifts toward what we know works.
+
+- **61 unique utterances, 40 parsed (66% raw).** By force: **ask 16, assert 13, command 8, goal 3**
+  — i.e. **27 of 40 covered utterances are a force that did not exist as a form this morning.**
+- **THE RAW NUMBER OVERSTATES THE GAP AND THE HEADLINE UNDERSTATES IT**, so the bench separates
+  three things the first run conflated: 7 refusals are BANK AUTHORING (deliberately not in the
+  grammar), 4 are DELIBERATE NEGATIVE FIXTURES (gibberish whose refusal is the behaviour under
+  test — scoring those as failures penalises the grammar for working). **Against what the language
+  is actually meant to say: 40/50 = 80%.**
+- **THE NEGATIVE-FIXTURE LIST IS HAND-JUSTIFIED ON PURPOSE.** Nothing in the string separates
+  "gibberish by design" from "a construction we cannot yet say", and automating that judgement is
+  precisely how a coverage number becomes self-congratulatory.
+- **THE HARNESS WAS THE BUG ONCE MORE — THIRD TIME IN THIS ARC** (after `clear_fresh` and
+  `mark_tokens`). The relation-vocabulary extractor anchored `$` to end-of-line, but the
+  declarations sit INSIDE string literals so a quote follows; it silently matched nothing and the
+  vocabulary fix looked ineffective. **Re-check any harness that duplicates a pipeline.**
+
+**⭐⭐⭐ THE DEFECT THE BENCH FOUND — USE vs MENTION, and it BLOCKS STEP 2 (verify before flipping
+the default).** Declaring a word as a relation makes the DECLARATION SENTENCE ITSELF unparseable.
+
+- `produces is a relation` **parses while `produces` is unknown and REFUSES once it is a
+  `transitive`** — a verb-category word can no longer head an np, so it cannot be a subject.
+  `roars is a relation` already refuses today (`roars` is declared intransitive in the grammar
+  file); `lion is a relation` parses. **The grammar cannot talk ABOUT its own vocabulary.**
+- **MEASURED THROUGH REAL `ingest`, and this is the live consequence: the SAME declaration ingested
+  TWICE routes `fact` then `unrecognized`.** `sync_vocabulary` is correct only because it syncs
+  AFTER the fold, so the declaration is read while the word is still unknown — the mechanism is
+  load-bearing on ORDERING, which nothing states or tests.
+- **WHY IT BLOCKS THE FLIP:** `form_authoring` already records that re-declaration is the NORMAL
+  case under the multi-KB-file model ("a key re-declared IDENTICALLY is idempotent"). Making the
+  grammar the default route makes every corpus's relation declarations subject to this. It is the
+  intake-layer twin of the idempotency family this plan has hit five times.
+- **NOT FIXED — it is a DESIGN question, not a patch** (a use-mention/quoting form is a new
+  fundamental entry, now recorded in `form_inventory.md` §4a). Options not yet weighed: a quoting
+  surface, letting a declared word keep its noun reading in subject position, or exempting the
+  declaration forms from the grammar route the way the authoring cluster already is.
+
+**⚠ THE EOL TRAP BIT AGAIN, TWICE MORE** (`focus.py`, `rule_control.py`). The normalizer now reads
+`git diff --name-only` instead of a hand-kept path list, so it covers whatever was touched:
+`scratchpad/fix_eol.py`. **Run it before every commit on this repo.**
+
+**⚠ TWO MEASUREMENT-INFRASTRUCTURE GAPS, both found by trying to re-measure and worth fixing before
+step 2 — a claim you cannot re-run is a claim you cannot defend.**
+
+1. **`bench/coverage_audit.py` is BROKEN (pre-existing):** it calls `h.lint_rules`, which does not
+   exist in `ugm` (the name appears only in `consistency_design.md` and the bench itself);
+   `h.stratify` beside it does exist. ⚠ **AND IT IS NOT THE CNL BENCH** — I first recorded it here
+   as blocking the §4b coverage figure, which was WRONG and is corrected rather than deleted: it
+   audits CODE bug-detection rule coverage for the ugm-for-code arc (resource/collection hazards,
+   miss taxonomy). Unrelated to forms. Fixing it belongs to that project, not this one.
+2. ~~**⭐ THE 54% FORCE-COVERAGE FIGURE IS NOT REPRODUCIBLE.**~~ **FIXED — `bench/spike_force_coverage.py`
+   now re-derives it, and it found a REAL DEFECT on its first honest run (see below).** `form_inventory.md` §4b states "over
+   the 68 unique CNL utterances the repo's own tests actually ingest, a canonical grammar covers 37
+   (54%), and 25 of the 31 failures are force" — and **no checked-in bench produces it.** It came
+   from a scratch probe that is gone. That number is the whole justification for the force arc, so
+   it is exactly the one that should be re-runnable now that ASK/GOAL/COMMAND have all landed. **A
+   small `bench/spike_force_coverage.py` re-deriving it is the natural first task of step 2**, and
+   would say concretely how much of the 31 the three force slices actually closed.
 
 ## ▶ PREVIOUS HANDOFF (2026-07-20 evening, suite 781 green)
 
