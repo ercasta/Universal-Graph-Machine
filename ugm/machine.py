@@ -769,8 +769,18 @@ class Machine:
                 if pred is not None and ins.in_edges and ins.edges:
                     subj, obj = st.regs[ins.in_edges[0]], st.regs[ins.edges[0]]
                     for r in g.succ(subj):
-                        if g.has_key(r, pred) and obj in g.succ(r):
-                            return st.bind(ins.out, r)   # relation already present -> no new edges
+                        if not (g.has_key(r, pred) and obj in g.succ(r)):
+                            continue
+                        # LAYER-AWARE: a control relation and a fact relation are different
+                        # ASSERTIONS about the same triple, so dedup must not collapse them. Found
+                        # via hedging: a PENCIL `lion has mane` (control, scope-tagged, band 0.75)
+                        # made a later CERTAIN `lion has mane` reuse the pencil and write no ink —
+                        # the certain fact silently vanished, and only in that ORDER (asserting
+                        # first then hedging was fine). Order-dependent silent loss, the class the
+                        # `asserts_content` fix already removed once.
+                        if g.is_control(r) != ins.control:
+                            continue
+                        return st.bind(ins.out, r)   # relation already present -> no new edges
             if new is None:
                 new = g.add_node(control=ins.control, inert=ins.inert)
                 for key, attr in attrs.items():

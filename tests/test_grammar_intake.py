@@ -84,6 +84,44 @@ def test_a_hedged_clause_parses_and_commits_no_ink(kb):
     assert ("lion", "has", "mane") in gi.facts(kb)
 
 
+def test_a_hedged_sentence_lands_as_a_banded_fork(kb):
+    """HEDGING slice 2b: `hedges` writes the triple in PENCIL behind a fork banded by the hedge
+    word — so the claim is REPRESENTED at its degree instead of being dropped or over-claimed."""
+    from ugm.possibility import possibility
+    gi.route(kb, "the lion generally has a mane", banks(kb))
+    assert possibility(kb, "has", "lion", "mane") == 0.75
+    assert ("lion", "has", "mane") not in gi.facts(kb), "a hedge must not commit ink"
+
+
+def test_different_hedges_give_different_bands(kb):
+    """The band comes from the DECLARED scale (`generally means 0.75` / `sometimes means 0.4`), so
+    two hedges must not collapse to one degree — that is the whole point of declaring a scale."""
+    from ugm.possibility import possibility
+    gi.route(kb, "the lion generally has a mane", banks(kb))
+    gi.route(kb, "the lion sometimes is strong", banks(kb))
+    assert possibility(kb, "has", "lion", "mane") == 0.75
+    assert possibility(kb, "is", "lion", "strong") == 0.4
+
+
+@pytest.mark.parametrize("order", [
+    ["the lion has a mane", "the lion generally has a mane"],
+    ["the lion generally has a mane", "the lion has a mane"],
+])
+def test_hedging_and_asserting_the_same_triple_is_order_independent(kb, order):
+    """REGRESSION, and it was a silent one. `MINT(dedup=True)` matched on (subject, predicate,
+    object) and ignored LAYER, so a PENCIL `lion has mane` made a later CERTAIN `lion has mane`
+    reuse the pencil and write no ink — **the certain fact vanished**, and only in that order.
+
+    Both are legitimate and distinct assertions ("lions generally have manes" / "the lion has a
+    mane"), so both must survive, whichever came first. Fixed in `MINT`'s dedup scan by requiring
+    the candidate's control-ness to match."""
+    from ugm.possibility import possibility
+    for s in order:
+        gi.route(kb, s, banks(kb))
+    assert ("lion", "has", "mane") in gi.facts(kb), f"the certain fact was lost in order {order}"
+    assert possibility(kb, "has", "lion", "mane") == 1.0
+
+
 def test_the_hedge_word_is_recoverable_from_the_parse(kb):
     """The fork-authoring half needs (subj, pred, obj, hedge) off the span — pin that they are all
     there, so the remaining work is authoring and not re-parsing."""

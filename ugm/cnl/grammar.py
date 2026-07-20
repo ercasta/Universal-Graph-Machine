@@ -32,8 +32,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..production_rule import Distinct, Pat, Rule
+from ..production_rule import Band, Distinct, Pat, Rule
 from ..lowering import run_bank
+from ..possibility import LIKELINESS
 from ..vocabulary import neg_pred
 from ..world_model import Graph
 from .forms import _chain_tokens, tokenize
@@ -123,11 +124,33 @@ MINT_FORMS: list[Rule] = [
 ]
 
 
+#: `HEDGE means NUMBER` — the band a hedge word denotes, e.g. `generally means 0.7`.
+#:
+#: DECLARED IN THE GRAMMAR because the band has to be a COMPILE-TIME constant: `assert_bank` emits
+#: one rule per hedge word so the degree is a literal in the rule's `Band`, with no runtime numeric
+#: lookup (the same per-word expansion `deny` already uses). Deliberately the SAME SURFACE as the
+#: KB-level hedge lexicon (`uncertainty.parse_hedge_decl`, `HEDGE means NUMBER`) so there is one
+#: syntax for "what degree does this word mean", not two.
+HEDGE_BAND_FORMS: list[Rule] = [
+    Rule(
+        key="gram.hedgeband",
+        lhs=[Pat("?s", "first", "?w"), Pat("?w", "next", "means?"),
+             Pat("means?", "next", "?n")],
+        rhs=[Pat("<hb>?", "hword", "?w"), Pat("<hb>?", "hband", "?n")],
+    ),
+]
+
+
 def _assert_forms() -> list[Rule]:
-    """`<cat> asserts|denies A B C [when|unless G]` — six shapes, generated over the two verbs and
-    the three guard shapes rather than written out."""
+    """`<cat> asserts|denies|hedges A B C [when|unless G]` — nine shapes, generated over the three
+    verbs and the three guard shapes rather than written out.
+
+    `hedges` is the possibilistic verb: the triple is written in PENCIL behind a fork banded by the
+    guard slot's hedge word, so a hedged sentence commits no INK. It is a VERB and not a flavour of
+    `asserts` for the same reason `denies` is one — the three differ in what they commit, which is
+    exactly what a declaration should say."""
     forms: list[Rule] = []
-    for verb, mode in (("asserts", "assert"), ("denies", "deny")):
+    for verb, mode in (("asserts", "assert"), ("denies", "deny"), ("hedges", "hedge")):
         head = [Pat("?s", "first", "?z"), Pat("?z", "next", f"{verb}?"),
                 Pat(f"{verb}?", "next", "?a"), Pat("?a", "next", "?b"), Pat("?b", "next", "?c")]
         core = [Pat("<ass>?", "acat", "?z"), Pat("<ass>?", "amode", mode),
@@ -146,11 +169,13 @@ def _assert_forms() -> list[Rule]:
 ASSERT_FORMS: list[Rule] = _assert_forms()
 
 #: Every declaration form, for loading a grammar file.
-DECLARATION_FORMS: list[Rule] = PRODUCTION_FORMS + SLOT_FORMS + MINT_FORMS + ASSERT_FORMS
+DECLARATION_FORMS: list[Rule] = (PRODUCTION_FORMS + SLOT_FORMS + MINT_FORMS + ASSERT_FORMS
+                                 + HEDGE_BAND_FORMS)
 
 _DECL_KEYS = ("sname", "scat", "sleft", "sright", "sonly", "sside", "scslot",
               "acat", "amode", "asubj", "apred", "aobj", "awhen", "aunless",
-              "mname", "mcat", "mleft", "mright", "mside", "mcslot")
+              "mname", "mcat", "mleft", "mright", "mside", "mcslot",
+              "hword", "hband")
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +191,9 @@ class Grammar:
     slots: list[dict] = field(default_factory=list)
     assertions: list[dict] = field(default_factory=list)
     mints: list[dict] = field(default_factory=list)
+    #: hedge word -> the band it denotes (`generally means 0.7`). Overlays the shipped
+    #: `uncertainty.HEDGE_BAND` defaults, exactly as `uncertainty.hedge_bands` overlays them for a KB.
+    hedge_bands: dict[str, float] = field(default_factory=dict)
 
     @property
     def categories(self) -> set[str]:
@@ -231,9 +259,24 @@ def read_grammar(g) -> Grammar:
             gram.mints.append(d)
         elif "acat" in d:
             gram.assertions.append(d)
+        elif "hword" in d and "hband" in d:
+            try:                                   # a non-numeric band is not a declaration
+                v = float(d["hband"])
+            except ValueError:
+                continue
+            if 0.0 < v <= 1.0:                     # same admissible range as `parse_hedge_decl`
+                gram.hedge_bands[d["hword"]] = v
     gram.unary.sort()
     gram.binary.sort()
     return gram
+
+
+def hedge_band_of(gram: Grammar, word: str) -> float | None:
+    """The band `word` denotes: the grammar's own declarations over the shipped defaults."""
+    from .uncertainty import HEDGE_BAND
+    if word in gram.hedge_bands:
+        return gram.hedge_bands[word]
+    return HEDGE_BAND.get(word)
 
 
 # ---------------------------------------------------------------------------
@@ -663,7 +706,9 @@ def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
         # carrying `cat` (see `_production_lhs` on premise order being the join plan).
         base = [Pat("?p", UNINTERPRETED, "?u"), Pat("?p", "cat", z), Pat("?p", subj, "?s"), *guards]
         obj_prem, obj_tok = ([Pat("?p", obj, "?o")], "?o") if obj in names else ([], obj)
-        if pred in names and mode != "deny":
+        if mode == "hedge":
+            rules.extend(_hedge_rules(gram, i, d, z, base, obj_prem, obj_tok, pred, names, nacs))
+        elif pred in names and mode != "deny":
             # ONE rule, with the predicate as an LHS-bound VARIABLE — the slot's filler names the
             # predicate, resolved at apply time by the dynamic-key MINT (`lower_rhs`/`MINT.key_reg`).
             rules.append(Rule(key=f"fold.assert.{i}.{z}",
@@ -684,6 +729,47 @@ def assert_bank(gram: Grammar, *, defining: bool | None = None) -> list[Rule]:
             rules.append(Rule(key=f"fold.assert.{i}.{z}.{p}",
                               lhs=[*base, *obj_prem], nac=nacs, rhs=[Pat("?s", p, obj_tok)]))
     return rules
+
+
+def _hedge_rules(gram: Grammar, i: int, d: dict, z: str, base, obj_prem, obj_tok,
+                 pred: str, names, nacs) -> list[Rule]:
+    """`<cat> hedges subj pred obj when hedge` — the triple in PENCIL behind a banded fork.
+
+    ONE RULE PER HEDGE WORD, which is what makes the band a COMPILE-TIME literal: the guard slot is
+    pinned to a specific word (`Pat("?p", guard, "generally?")`) so that rule's `Band` carries that
+    word's degree directly. The alternative — one rule reading the degree at apply time — would need
+    a numeric lookup the ISA has no operation for. This is exactly the expansion `deny` already
+    does, and the cost is the same shape: bounded by the DECLARED hedge vocabulary (4 words here),
+    not by the lexicon.
+
+    A hedged clause writes NO ink: `Band.scope` pens the head, so the relation is a control node
+    tagged into the fork (`suppose._pencil`'s shape). The band readers see it at its degree;
+    the certain layer does not see it at all.
+
+    A hedge with no declared band is SKIPPED rather than defaulted — a silent 0.5 for a word nobody
+    scaled would be inventing a degree, and `declare_grammar`'s loudness rule says a malformed
+    declaration must not pass quietly."""
+    guard = d.get("awhen")
+    if guard is None:
+        raise ValueError(
+            f"`{z} hedges …` needs a `when <slot>` naming the hedge slot — without it there is no "
+            f"word to take a band from")
+    out: list[Rule] = []
+    words = sorted({w for w, cs in gram.lexicon.items() if "hedge" in cs} | set(gram.hedge_bands))
+    for w in words:
+        band = hedge_band_of(gram, w)
+        if band is None:
+            continue                       # undeclared scale: skip loudly-by-absence, never default
+        # The guard premise is pinned to THIS word, replacing the generic `?p <guard> ?gw` in `base`.
+        pinned = [p for p in base if not (p.s == "?p" and p.p == guard)]
+        pinned.append(Pat("?p", guard, f"{w}?"))
+        pred_prem, head_pred = ([Pat("?p", pred, "?w")], "?w") if pred in names else ([], pred)
+        out.append(Rule(
+            key=f"fold.hedge.{i}.{z}.{w}",
+            lhs=[*pinned, *pred_prem, *obj_prem], nac=nacs,
+            rhs=[Pat("?s", head_pred, obj_tok)],
+            bands=[Band(var="<hypothesis>?", key=LIKELINESS, degree=band, scope=("?s",))]))
+    return out
 
 
 # ---------------------------------------------------------------------------

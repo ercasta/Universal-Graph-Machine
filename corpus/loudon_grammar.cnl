@@ -33,6 +33,13 @@ usually is a hedge
 sometimes is a hedge
 occasionally is a hedge
 
+# ...and the band each one denotes. Same surface as the KB hedge lexicon (`X means N`), and it must
+# be declared HERE because the fold needs it as a compile-time constant (one rule per hedge word).
+generally means 0.75
+usually means 0.75
+sometimes means 0.4
+occasionally means 0.25
+
 # ---- lexicon: content words ----
 african is a modifier
 asiatic is a modifier
@@ -126,10 +133,9 @@ slot adjc in hclause from np plus hvp is right adjc
 slot kind in hclause from np plus hvp is right kind
 
 # ---- which slots become facts ----
-# NOTE: `hclause` deliberately declares NO assertion. A hedged sentence commits nothing to the ink
-# layer; authoring it as a banded fork is the interpretation layer's job (it needs the hedge->band
-# scale, which is KB data). Until that lands, a hedged sentence parses and exposes its slots and
-# writes no fact -- which is the honest behaviour, not a silent drop: `route` still reports it.
+# `hedges` is the possibilistic verb: the triple goes in PENCIL behind a fork banded by the hedge
+# word, so a hedged sentence commits NO ink. `hclause` being its own category is what keeps the
+# plain `clause asserts ...` lines from firing on it as well.
 np asserts head is attr
 clause asserts subj pred obj unless neg
 clause denies subj pred obj when neg
@@ -138,3 +144,6 @@ clause asserts subj prep pobj when pobj
 clause asserts subj comp cobj when cobj
 clause asserts subj is adjc when adjc
 clause asserts subj is_a kind when kind
+hclause hedges subj pred obj when hedge
+hclause hedges subj is adjc when hedge
+hclause hedges subj is_a kind when hedge

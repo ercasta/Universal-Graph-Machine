@@ -628,10 +628,39 @@ lowering executes — never by sniffing a Pat):
   find-or-create modes now cover the three identities a minted node can have (name / topology /
   back-reference), so the lint has something to prescribe.
 
-**SLICE 2b (STILL OWED): the `hedges` verb.** With the primitive in place and idempotent, this is
-declaration work — a third assertion verb beside `asserts`/`denies` (`hclause hedges subj pred obj
-when hedge`), generating one rule per hedge word so the band is a COMPILE-TIME constant (the same
-per-word expansion `deny` already uses, and no runtime numeric lookup). No longer gated.
+**SLICE 2b LANDED 2026-07-20 — HEDGING WORKS END TO END (suite 747 green, Loudon CNL still 19/19).**
+`the lion generally has a mane` now lands as a fork at band 0.75 and commits NO ink.
+
+- **`hedges`, a third assertion verb beside `asserts`/`denies`.** `_assert_forms` already generated
+  over `(verb, mode)` pairs, so the declaration surface cost one tuple entry; the grammar file says
+  `hclause hedges subj pred obj when hedge`. It is a VERB, not a flavour of `asserts`, for the same
+  reason `denies` is one: the three differ in WHAT THEY COMMIT, which is what a declaration should
+  say.
+- **`HEDGE means NUMBER` as a grammar declaration** (`generally means 0.75`, `sometimes means 0.4`),
+  read into `Grammar.hedge_bands`. Declared in the GRAMMAR because the band must be a COMPILE-TIME
+  constant: `_hedge_rules` emits ONE RULE PER HEDGE WORD with the degree as a literal in its `Band`,
+  since reading a degree at apply time would need a numeric lookup the ISA has no operation for.
+  Same per-word expansion `deny` uses, and bounded by the DECLARED hedge vocabulary (4 words), not
+  by the lexicon. Deliberately the SAME SURFACE as `uncertainty.parse_hedge_decl` so there is one
+  syntax for "what degree does this word mean". An undeclared band is SKIPPED, never defaulted —
+  a silent 0.5 would be inventing a degree.
+- **⭐ A SILENT, ORDER-DEPENDENT FACT LOSS FOUND AND FIXED: `MINT(dedup=True)` WAS NOT LAYER-AWARE.**
+  It matched on (subject, predicate, object) and ignored whether the candidate was a PENCIL, so a
+  hedged `lion has mane` (control, scope-tagged, 0.75) made a LATER certain `lion has mane` reuse
+  the pencil and write no ink — **the certain fact vanished**. Only in that order: assert-then-hedge
+  was fine, hedge-then-assert lost it. A hedged claim and a certain claim are DIFFERENT assertions
+  about the same triple and both must stand. Fixed by requiring the dedup candidate's control-ness
+  to match. Pinned by `test_hedging_and_asserting_the_same_triple_is_order_independent`
+  (parametrized over both orders), **re-break verified with the right asymmetry** — removing the
+  guard fails `order1` and passes `order0`.
+- **This is the same class the `asserts_content` fix removed once already** (order-dependent, silent,
+  wrong in one direction only). Worth noting it appeared here from an INTERACTION between two
+  correct-in-isolation mechanisms — pencil-vs-ink and dedup — rather than from either being wrong.
+
+**HEDGING IS COMPLETE** (concept-inventory gap 1 of 3). Remaining from the audit: **attribution /
+clausal complement** (`some naturalists consider the lion a cat`) and **conditional / subordination**
+(`the lion is dangerous when the lion is hungry`). Neither has an engine-side representation waiting
+the way hedging had, so both are likely larger than this was.
 
 **Superseded — the decision this replaced (kept for the argument):** The
 possibilistic layer already has the target representation (a `<hypothesis>` scope carrying a graded
