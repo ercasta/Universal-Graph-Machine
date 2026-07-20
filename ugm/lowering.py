@@ -665,13 +665,26 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
     rather than introduce a new failure mode in a driver, it falls back to the flat run (`run_rules`
     degrades with a warning, and `authoring.lint_stratifiable` already rejects such banks at load).
 
-    Per stratum: match every rule on the current graph, suppress already-fired bindings (keyed over
-    (the recognition/control engine, the forward face of the re-host, replacing `rewriter.run`).
-    Each round: match every rule on the current graph, suppress already-fired bindings (keyed over
-    the rule's LHS binders — the `fired` set that terminates recursive rules), apply the match-time
-    NAC filter, and fire the survivors' effects (mutating `ag`, so later rules this round see the new
-    facts). Iterate until no rule produces a NEW firing. Naive — no semi-naive delta / df-seeding
-    (correctness-first). Returns the number of firings applied.
+    Per stratum (the recognition/control engine, the forward face of the re-host, replacing
+    `rewriter.run`). Each round: match the ELIGIBLE rules on the current graph, suppress already-fired
+    bindings (keyed over the rule's LHS binders — the `fired` set that terminates recursive rules),
+    apply the match-time NAC filter, and fire the survivors' effects (mutating `ag`, so later rules
+    this round see the new facts). Iterate until no rule produces a NEW firing. Returns the number of
+    firings applied.
+
+    SEMI-NAIVE ROUNDS ARE ON (`semi_naive=True`, built 2026-07-20 — see the block below for the
+    soundness argument): after a round, only rules whose LHS mentions a predicate something actually
+    WROTE are re-matched. `semi_naive=False` restores the flat every-rule-every-round loop, which is
+    what the differential test compares against.
+
+    ⚠ THIS IS *WITHIN-CALL* INCREMENTALITY ONLY, and the distinction is load-bearing — the docstring
+    here claimed "Naive — no semi-naive delta" for months AFTER semi-naive landed, `implementation_plan`
+    quoted that stale sentence as a live root cause, and it was then repeated as an argument for work
+    that was already done. Semi-naive scopes ROUNDS 2..n inside one `run_bank` call; it does NOT scope
+    ROUND 1, which still matches the whole graph. **Cross-CALL scoping is a separate problem and is why
+    the grammar's three delta marks (`FRESH` / `UNPARSED` / `UNINTERPRETED`) exist** — `parse` re-runs
+    these banks per utterance over a graph holding every earlier sentence, and nothing in the engine
+    remembers the previous fixpoint. Retiring those marks needs PERSISTENT cross-call deltas, not this.
 
     `tools` (a {name -> handler} registry, dispatch.py) services materialized `<call>` nodes at each
     rule-fixpoint (exactly `rewriter.run`'s tool loop): when the rules quiesce, run every pending call

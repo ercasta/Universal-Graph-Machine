@@ -519,6 +519,11 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
             # STRUCTURED goal (`("yesno", s, p, o)`) the grammar read off the slots instead of a
             # question string. Moving force onto the grammar must not fork the answering machinery.
             s, p, o = data["query"]
+            # The `question` event BEFORE the answer, exactly as the shipped route emits it. Missing
+            # here until 2026-07-20: a streaming consumer saw `['answer']` where the shipped route
+            # gives `['question', 'answer']`, so a TUI could not render the question it was
+            # answering. Found by simulating the step-2 flip over the suite, not by reading the code.
+            yield Event("question", {"s": s, "p": p, "o": o})
             focus_mod.widen(kb, {s, o})
             fscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
             active = rule_control.active_rules(kb, rules)

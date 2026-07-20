@@ -79,8 +79,62 @@ changed lines when it had not been touched. Normalized back per file against HEA
 conversion). **Check `git diff --stat` against `--ignore-cr-at-eol` before committing on this
 repo** — the working tree is LF and Windows editing drifts it.
 
+**⭐⭐ STEP 2's COST MEASURED 2026-07-20 — 44 of 818, and the prerequisite list was WRONG.**
+Simulated the flip instead of working through a list written several slices earlier
+(`scratchpad/flipdefault.py`, a pytest plugin lazily giving every grammar-less KB the canonical
+grammar). **95% of the suite passes with the grammar as the default route.** The failures decompose
+into exactly TWO causes, neither of which is on the plan's prerequisite list:
+
+1. **THE `question` EVENT WAS MISSING on the grammar route — a real defect, now FIXED (suite 818).**
+   A grammar question streamed `['answer']` where the shipped route streams
+   `['question', 'answer']`, so a TUI could not render the question it was answering. Accounted for
+   3 failures. Pinned by `test_a_grammar_question_emits_the_question_event_before_the_answer`.
+   **Found by simulating the flip, not by reading the code** — the grammar route is exercised by so
+   few tests today that an event-level gap sat unnoticed through three slices.
+2. **⭐ THE REMAINING 44 WERE A KIND-vs-PROPERTY PREDICATE MISMATCH, and the DETERMINER fixes it:
+   44 → 19.** `open_class="noun"` makes a bare post-copula word an np, so the grammar commits and
+   asks `is_a` (a KIND) where the shipped route uses `is` (a PROPERTY). English already marks the
+   distinction with the DETERMINER (*is a cat* vs *is clean*) and the surface carries it — the
+   grammar was discarding it, because `copula plus np` fires whether or not a determiner is present.
+   * **THE FIX NEEDS NO NEW CATEGORY:** capture `det` as a slot, percolate it, and guard the
+     assertions on its presence — `clause asserts subj is_a kind when det` /
+     `clause asserts subj is kind unless det`. The subject's own determiner cannot interfere,
+     because a clause takes `det` from its RIGHT child.
+   * **⚠ AND IT MUST BE DONE ON THE QUESTION SIDE TOO — that half is 25 of the 44.** The first
+     version patched only `clause` and **fixed 0**. `is ada watched` was ASKING
+     `('ada','is_a','watched')` while the rule derived `('ada','is','watched')`: the question and the
+     assertion must agree on the predicate, or every derived property answers `no (assumed)`. Same
+     two lines on `qclause` (+ `det` slots through `qbody`).
+   * **MEASURED (`scratchpad/probe_det.py`): 5/5 discrimination, Loudon corpus still 19/19 with zero
+     ambiguity, no existing corpus line changes meaning, flip 44 → 19.** Ready to apply; NOT applied.
+   * **THE REMAINING 19 ARE NOT ARCHITECTURE** — sampled: tests asserting `unrecognized` for shapes
+     the grammar legitimately PARSES (they encode the shipped route's limits and would be rewritten
+     by the flip), plus corpus vocabulary the lion grammar lacks (`alice likes bob`). Neither blocks.
+
+**⚠⚠ THREE DIAGNOSES, TWO WRONG — RECORDED IN FULL BECAUSE THE METHOD LESSON IS THE DELIVERABLE.**
+1. "It's adjectives" — from two sampled error strings. **Right about the CONCEPT, incomplete as a
+   FIX** (assertions only): 0 of 44.
+2. "It's the token/entity name-resolution duality, i.e. `_through_denotation`" — from tracing ONE
+   failure. **Wrong**, and it looked authoritative: the rule fires on the entity, the token is
+   empty, so a name read "obviously" hits the empty token. **It does not** — `_candidate_nodes`
+   returns BOTH nodes and both are fact entities. I stopped the trace one step early, at the fact
+   that fit the story.
+3. Tracing the QUESTION path — the actual cause, and it was never on the assertion side at all.
+
+**THE RULE THIS YIELDS: a trace that CONFIRMS the current hypothesis is the one to distrust.** Both
+wrong diagnoses ended at the first observation consistent with what I already believed. The third
+only appeared by asking what the QUESTION resolved to, which no summary of the failures suggested.
+
+**⚠ THE "MIGRATION COST IS ~ZERO ON VOCABULARY" CLAIM: still false as written, but the burden is
+NOT per-KB.** It holds for RELATIONS (`sync_vocabulary` derives them). Adjectives were never
+declarable on the shipped route — but the determiner discriminator removes that burden entirely
+rather than shifting it onto each KB, which is what makes it the right fix rather than a workaround.
+
 **NEXT, in order:**
-1. **Flip the default** (step 2, unchanged) — a KB with no declared grammar gets the canonical one.
+1. **Flip the default** (step 2 — cost MEASURED: 44/818, and **19/818 once the determiner
+   discriminator is applied to BOTH the assert and the ask side**. The remaining 19 are test
+   expectations and lion-grammar vocabulary, not architecture. Apply `scratchpad/probe_det.py`'s
+   patch to `corpus/loudon_grammar.cnl` first — it is validated and orthogonal to the flip.) — a KB with no declared grammar gets the canonical one.
    Still owed first: `focus.utterance_subjects`, `authoring.anchor_has_content_fact` (both walk the
    token chain), the book/playground surface, and the 54 `nodes_named` read sites.
    **And the grammar files should converge to ONE canonical file now** — `loudon_grammar.cnl` has
@@ -567,6 +621,14 @@ stated priority has been wrong):
 Re-measured first, as promised, and this time the inference held: within `parse`, `spans+decs` was
 71.5%, `ambiguity` 19.2%, `chart` 9.3%.
 
+- **⚠ THE QUOTE BELOW WENT STALE AND THEN MISLED A DESIGN DISCUSSION (2026-07-20).** Semi-naive
+  rounds LANDED later the same day (see the second-lever block), but `run_bank`'s docstring still
+  carried the old "Naive" sentence, so this file kept quoting it as a LIVE root cause — and it was
+  duly repeated as the argument for building something already built. Docstring now corrected at
+  source. **AND THE DEEPER POINT, which survives: semi-naive is WITHIN-CALL only.** It scopes rounds
+  2..n; round 1 still matches the whole graph. The delta marks exist for CROSS-CALL scoping, which no
+  engine feature provides — so semi-naive never could have retired them, and any claim that it would
+  is a category error between the two kinds of incrementality.
 - **The root cause is one documented sentence in `run_bank`: "Naive — no semi-naive delta /
   df-seeding (correctness-first)."** Every bank re-matches every rule against the whole graph on
   every call. And `lower_conj` seeds each rule from its FIRST pattern, so leading a decomposition

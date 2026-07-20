@@ -249,6 +249,19 @@ def test_the_parse_and_not_the_ladder_decided_the_command(kb):
         f"no iclause span — the ladder, not the parse, routed the command (saw {sorted(cats)})")
 
 
+def test_a_grammar_question_emits_the_question_event_before_the_answer(kb):
+    """STREAM PARITY WITH THE SHIPPED ROUTE. A consumer renders the turn from these events, so a
+    grammar question yielding only `['answer']` leaves a TUI unable to show what it answered.
+
+    Found by SIMULATING THE STEP-2 FLIP over the whole suite rather than by reading the code — the
+    grammar route is exercised by so few tests today that an event-level gap could sit unnoticed."""
+    import ugm as h
+    h.ingest(kb, [], "the lion is strong")
+    ev = []
+    h.ingest(kb, [], "is lion strong", on_event=ev.append)
+    assert [e.kind for e in ev] == ["question", "answer"]
+
+
 def test_a_command_commits_no_fact(kb):
     """A command changes STEPPING state, never a belief. `asks`/`intends`/`commands` all commit
     nothing; what separates a command is only what it leaves behind."""
