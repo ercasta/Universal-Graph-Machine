@@ -492,6 +492,17 @@ VERBATIM text, which the arc had deferred since 2026-07-18.
   worth anything, what the exit gate for the learning arc even is) hangs on it. **Do not answer it
   by building.**
 
+**⭐⭐⭐ FOUNDATIONAL, AND IT NOW HAS ITS OWN DOC: `design/form_inventory.md` (user, 2026-07-20).**
+A construction is either **BAROQUE** (ornamental variation on a commitment the substrate can already
+hold — unbounded) or **EPISTEMICALLY FUNDAMENTAL** (a KIND of commitment it cannot hold — small and
+roughly enumerable). Test: can it be paraphrased into existing forms WITHOUT CHANGING WHAT THE
+SYSTEM BELIEVES? This is why "minimum form set + LLM translator" is viable rather than wishful (the
+translator absorbs the unbounded half); it is the SAME line as "learning surface is verifiable,
+learning semantics is not", reached independently from epistemology; and it predicts cost (a
+fundamental form is cheap iff a substrate mechanism already exists — hedging landed in a day because
+the possibilistic layer existed; tense would not). The doc carries the TYPED INVENTORY and the
+four-outcome translation contract that generates it. **Read it before adding to any grammar file.**
+
 **⭐⭐ THE RE-POINT THIS PRODUCED (user decision, 2026-07-20): THE TARGET IS A MINIMUM FORM SET, NOT
 FORM LEARNING.** Settled in conversation after the 0/50 result. `"learn by reading books"` means
 **CNL-from-an-LLM in** — raw prose is NOT the intake target and never needs to parse.
