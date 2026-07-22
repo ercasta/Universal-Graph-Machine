@@ -105,6 +105,47 @@ def test_a_banded_question_wears_its_doubt_over_a_hedged_premise(gkb):
     assert ingest(kb, rules, "is cy thief", policy=BANDED).answer == ["likely"]
 
 
+def test_a_propositional_cause_link_derives_over_grammar_folded_propositions(gkb):
+    # THE NODE-BOUND-JOIN case (the write-side of the token/entity duality). A `that A causes that B`
+    # link emits content-keyed HANDLES whose `subj`/`obj` edges intern to the proposition's entities;
+    # on the grammar route those names are surface TOKENS denoting the interpretation ENTITIES the fold
+    # wrote to, so the handle must intern THROUGH `denotes` to the entity (`assemble_facts(...,
+    # intern_denoted=True)`) — else the reify-bridge's node-bound `?s` binds the content-free token and
+    # the consequent never derives. Regression gate for the re-derived propositional-cause fix (the
+    # narrow write-side alternative to the reverted read-path slice-1c, which broke comparative order).
+    kb, rules = gkb
+    _ingest_all(kb, rules, ["door1 is open", "that door1 is open causes that cat is scared"])
+    assert ingest(kb, rules, "is cat scared").answer == ["yes"]
+
+
+def test_a_propositional_cause_link_alone_does_not_assert_the_consequent(gkb):
+    # The re-break of the test above: with the antecedent NOT stated, the link derives nothing — the
+    # consequent is a CONSEQUENCE of A holding, not a free-standing assertion (soundness).
+    kb, rules = gkb
+    ingest(kb, rules, "that door1 is open causes that cat is scared")
+    assert ingest(kb, rules, "is cat scared").answer == ["no (assumed)"]
+
+
+def test_a_define_schema_materialises_over_the_grammar_route(gkb):
+    # THE FORWARD-MATCH CONTROL-GUARD case. `define schema ?r is transitive : …` then the trigger fact
+    # `ancestor is transitive` (folded on the grammar route) fires the schema meta-bank FORWARD to
+    # materialise the transitivity rule. On the grammar route the folded fact leaves its `is_a` content
+    # on BOTH the entity AND an interpretation CONTROL node; forward matching keeps control nodes visible
+    # (unlike the demand `_guard`), so before the `fact_only` guard the meta-rule bound the unnamed
+    # control node too and reflected a MALFORMED rule -> `expand_rules` CRASHED (`k_pred resolves to no
+    # token`). With the guard the meta-bank matches facts only, and the concrete rule derives correctly.
+    from ugm.lowering import assemble_facts
+    from ugm.machine import Machine
+    from ugm.cnl.query import ask_goal
+    kb, rules = gkb
+    ingest(kb, rules, "define schema ?r is transitive : ?a ?r ?c when ?a ?r ?b and ?b ?r ?c")
+    Machine().run(kb, assemble_facts([("alice", "ancestor", "bob"), ("bob", "ancestor", "carol"),
+                                      ("carol", "ancestor", "dave")]))
+    ingest(kb, rules, "ancestor is transitive")            # grammar route — was the crash
+    assert ask_goal(kb, ("yesno", "alice", "ancestor", "dave"), rules) == ["yes"]   # transitive
+    assert ask_goal(kb, ("yesno", "dave", "ancestor", "alice"), rules) != ["yes"]   # not symmetric
+
+
 def test_a_why_question_traces_the_derivation(gkb):
     # `why` returns the derivation trace (rule + given premise + NAF leap), not a yes/no, over the
     # grammar route's interpretation — no surface artifacts in the trace.

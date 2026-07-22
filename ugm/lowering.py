@@ -28,7 +28,8 @@ binding a fresh variable, or SAME-checking an already-bound one, or TEST-ing a l
 from __future__ import annotations
 
 from .production_rule import Pat, Rule, binder, is_var, is_bound_literal, literal_name
-from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert, NAME, PATTERN_MARK, INERT_MARK
+from .attrgraph import (AttrGraph, valued, graded as graded_attr, _is_inert, NAME, PATTERN_MARK,
+                        INERT_MARK, CONTROL_MARK)
 from .vocabulary import MENTION, HYPOTHESIS
 from .machine import (
     Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, DISTINCT, MINT, EMIT, DROP_CTRL,
@@ -526,6 +527,32 @@ def guard_inert(prog: list[Instr]) -> list[Instr]:
     return out
 
 
+def guard_fact(prog: list[Instr]) -> list[Instr]:
+    """`guard_inert` PLUS the CONTROL guard — the full fact-read guard the DEMAND path emits
+    (`chain._guard`: CONTROL_MARK and INERT_MARK both absent), for a FORWARD run that must see only
+    genuine facts, never interpretation/control scaffolding.
+
+    WHY THIS IS OPT-IN (not the default forward guard). A control node normally STAYS matchable on the
+    forward path (`AttrGraph.set_inert` docstring): a control RELATION like the planner's `chosen` is
+    read by forward control rules by design, so a blanket control-guard would break them. But a bank
+    that materialises DOMAIN rules from FACT triggers — the `define schema` meta-bank — must match facts
+    only: on the grammar route a folded fact leaves its content on BOTH the entity AND an interpretation
+    CONTROL node, and the demand path guards the latter while `run_bank` did not, so the meta-rule bound
+    the unnamed control node and reflected a malformed rule (`expand_rules` crash). Emitting the same
+    fact-guard the demand path uses, ONLY for that bank, closes the forward/demand divergence without
+    touching control-rule forward runs. INERT on the shipped route (no interpretation control nodes)."""
+    out: list[Instr] = []
+    for op in prog:
+        out.append(op)
+        if isinstance(op, SEED):
+            out.append(TEST(op.reg, INERT_MARK, absent=True))
+            out.append(TEST(op.reg, CONTROL_MARK, absent=True))
+        elif isinstance(op, FOLLOW):
+            out.append(TEST(op.dst, INERT_MARK, absent=True))
+            out.append(TEST(op.dst, CONTROL_MARK, absent=True))
+    return out
+
+
 def lower_rule(rule: Rule) -> list[Instr]:
     """The dumb `Rule` -> program lowering (LHS match ops, graded α-cut, value-JOIN, then RHS/propagate
     effects). Single-program form (no NAC — a NAC needs the driver's match-time filter, `run_bank`)."""
@@ -602,7 +629,7 @@ def _survived_nacs(g: AttrGraph, rule: Rule, st: State) -> list[tuple]:
 
 
 def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset(),
-                     *, guard: bool = False):
+                     *, guard: bool = False, fact_only: bool = False):
     """Structured lowering for the bank driver: (match_ops, effect_ops, nac_programs, keys). NAC is
     NOT folded into the main program (it is the driver's filter). `drop` lowers to DROP_CTRL (its
     match ops append to the LHS match, using its bindings; its DROP_CTRLs append to the effects);
@@ -620,14 +647,15 @@ def _lower_bank_rule(rule: Rule, control_preds: frozenset[str] = frozenset(),
     op lists). The cache lives on the rule's own `__dict__` (not a module dict keyed on `id()`), so its
     lifetime is exactly the rule's and a `dataclasses.replace` copy starts fresh."""
     cache = rule.__dict__.setdefault("_lowered_bank", {})
-    hit = cache.get((control_preds, guard))
+    hit = cache.get((control_preds, guard, fact_only))
     if hit is None:
-        cache[(control_preds, guard)] = hit = _lower_bank_rule_uncached(
-            rule, control_preds, guard=guard)
+        cache[(control_preds, guard, fact_only)] = hit = _lower_bank_rule_uncached(
+            rule, control_preds, guard=guard, fact_only=fact_only)
     return hit
 
 
-def _lower_bank_rule_uncached(rule: Rule, control_preds: frozenset[str], *, guard: bool):
+def _lower_bank_rule_uncached(rule: Rule, control_preds: frozenset[str], *, guard: bool,
+                              fact_only: bool = False):
     if any(c.inverted for c in rule.graded):
         raise Unlowerable(f"{rule.key}: inverted graded condition is a later slice")
     prem_regs: list[str] = []             # LHS body rel nodes a firing `uses` (provenance)
@@ -639,7 +667,13 @@ def _lower_bank_rule_uncached(rule: Rule, control_preds: frozenset[str], *, guar
     drop_match, drop_effect = lower_drop(rule)
     all_match = match_ops + drop_match
     nac_progs = lower_nac_programs(rule)
-    if guard:                                              # firmware §3: the guard is in the PROGRAM
+    # `fact_only` emits the FULL fact-guard (control + inert) — the meta-bank matches facts only, never
+    # interpretation/control scaffolding; supersedes the inert-only `guard`. Otherwise `guard` keeps the
+    # provenance-driven inert-only guard (control stays matchable for forward control rules).
+    if fact_only:
+        all_match = guard_fact(all_match)
+        nac_progs = [guard_fact(np) for np in nac_progs]
+    elif guard:                                            # firmware §3: the guard is in the PROGRAM
         all_match = guard_inert(all_match)
         nac_progs = [guard_inert(np) for np in nac_progs]
     return (all_match, effect_ops + drop_effect,
@@ -660,7 +694,8 @@ def _strata_for(rules: list[Rule]) -> list[list[Rule]]:
 
 def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
              tools: dict | None = None, control_preds: frozenset[str] = frozenset(),
-             provenance: bool = False, stratified: bool = True, semi_naive: bool = True) -> int:
+             provenance: bool = False, stratified: bool = True, semi_naive: bool = True,
+             fact_only: bool = False) -> int:
     """Forward-chain `rules` over `ag` (in place) to fixpoint, STRATUM BY STRATUM — the ISA forward
     driver at BANK level.
 
@@ -717,7 +752,7 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
         if len(strata) > 1:                    # negation over a DERIVED predicate — order matters
             return sum(run_bank(ag, layer, max_rounds=max_rounds, tools=tools,
                                 control_preds=control_preds, provenance=provenance,
-                                stratified=False, semi_naive=semi_naive)
+                                stratified=False, semi_naive=semi_naive, fact_only=fact_only)
                        for layer in strata)
     # Skip provenance-inert nodes in matching (cf. rewriter._match) when the graph already carries
     # provenance OR this run will MINT it — a fresh recognition graph with provenance OFF pays nothing
@@ -731,7 +766,8 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
     # provenance. A fresh guard-free graph pays nothing — the same profile as the retired machine
     # mode, but the visibility now lives in the PROGRAM (firmware §3), never a privileged flag.
     prov_aware = [rule_touches_provenance(r) for r in rules]
-    lowered = [(i, _lower_bank_rule(r, control_preds, guard=has_prov and not prov_aware[i]))
+    lowered = [(i, _lower_bank_rule(r, control_preds, guard=has_prov and not prov_aware[i],
+                                    fact_only=fact_only))
                for i, r in enumerate(rules)]
     # Fired-suppression keyed by (rule KEY, binding-sig) — NOT per rule-index — exactly `rewriter`'s
     # `set[(rule.key, frozenset(bindings))]`. So a rule that appears TWICE in the bank (form generators
@@ -905,7 +941,7 @@ def match_pats(ag: AttrGraph, pats: list[Pat], *,
 # Fact authoring: (subject, predicate, object) name triples -> an ISA MINT program
 # ---------------------------------------------------------------------------
 
-def assemble_facts(facts: list[tuple[str, str, str]]) -> list[Instr]:
+def assemble_facts(facts: list[tuple[str, str, str]], *, intern_denoted: bool = False) -> list[Instr]:
     """Lower `(subject, predicate, object)` NAME triples to an ISA program of MINT effects — the
     vision-aligned way to BUILD a graph. In a machine, state is written by INSTRUCTIONS, not by Python
     functions that poke the substrate: authoring is assembling a program and running it through the one
@@ -917,7 +953,13 @@ def assemble_facts(facts: list[tuple[str, str, str]]) -> list[Instr]:
     Python twin is needed. Each relation becomes a deduped reified rel node `subject -[predicate]-> object`
     (`MINT(dedup=True)`, exactly `lower_rhs`), so re-asserting a fact is idempotent. Endpoints thread
     through registers, so every fact assembles into ONE program applied in a single pass (`Machine.run` /
-    `load_fact_triples`)."""
+    `load_fact_triples`).
+
+    `intern_denoted` (opt-in): a DEFERRED recognizer (propositional-cause handle) authoring INTO a KB the
+    grammar route has already folded must canonicalize each endpoint name to the interpretation ENTITY it
+    denotes, not the discourse token that shares the name — otherwise its handle's `subj door1` binds the
+    content-free token and the bridge join reads nothing. Inert where there are no `denotes` edges (the
+    shipped route, or a name the grammar has not folded)."""
     prog: list[Instr] = []
     reg_of: dict[str, str] = {}
 
@@ -925,7 +967,8 @@ def assemble_facts(facts: list[tuple[str, str, str]]) -> list[Instr]:
         reg = reg_of.get(name)
         if reg is None:
             reg = f"_e{len(reg_of)}"
-            prog.append(MINT(reg, attrs={NAME: valued(name)}, intern=True))   # get-or-create = the instruction
+            prog.append(MINT(reg, attrs={NAME: valued(name)}, intern=True,   # get-or-create = the instruction
+                             intern_denoted=intern_denoted))
             reg_of[name] = reg
         return reg
 

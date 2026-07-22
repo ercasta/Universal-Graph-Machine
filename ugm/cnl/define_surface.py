@@ -180,7 +180,13 @@ def apply_schemas(kb, rules: list[Rule]) -> list[Rule]:
         return []
     from .authoring import expand_rules
     from ..lowering import run_bank
-    run_bank(kb, list(schemas))
+    # `fact_only`: the meta-bank matches FACT triggers only. On the grammar route a folded fact
+    # (`ancestor is transitive`) leaves its `is_a` content on BOTH the entity AND an interpretation
+    # CONTROL node; forward matching keeps control nodes visible (unlike the demand `_guard`), so without
+    # this the trigger `?r is_a transitive` also bound the unnamed control node and reflected a malformed
+    # rule (`expand_rules`: `k_pred resolves to no token`). Emitting the full fact-guard for THIS bank
+    # only closes the forward/demand divergence; inert on the shipped route (no interpretation controls).
+    run_bank(kb, list(schemas), fact_only=True)
     harvested = kb.registers.setdefault(_HARVESTED, set())
     known = harvested | {r.key for r in rules}
     new = [r for r in expand_rules(kb) if r.key not in known]

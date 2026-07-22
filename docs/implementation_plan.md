@@ -158,7 +158,215 @@ routes `why` with the trace in `.explanation`, not overloaded into `.answer` (`t
     `Outcome("cause")` + `Event("cause"/"cause-done")`; `tests/test_propositional_cause.py` (8, incl.
     order-independence, chaining, negative control, the `that`-nominalizer boundary). Clause menu mirrors
     `suppose_surface` (`S P O` / `S is O` / `S is a O`) + a 2-token intransitive `S P` → `S P yes`.
-## ▶▶ PICK UP HERE — SESSION-END HANDOFF 2026-07-22 (suite **961 green**)
+## ▶▶ PICK UP HERE — SESSION-END HANDOFF 2026-07-22 (suite **973 green**)
+
+**═══ START-HERE (fresh-session summary; details in the dated blocks below) ═══**
+
+**ONE-LINE STATE.** The flip-default arc is proceeding **validation-first, internals-first**: three
+committed fixes landed this session (all shipped-green), the flip debt is down to **45 fails / 973**, and a
+spike settled HOW the deep consolidation must be done. The remaining internal work is understood and bounded.
+
+**⚠ UNCOMMITTED WORKING TREE (verified `git status`, NOT from memory — re-verify at session start). KEEP ALL:**
+- `M ugm/machine.py` — step-2 `MINT.intern_denoted` (write-side token→entity for deferred recognizers).
+- `M ugm/intake.py` — step-2 propositional-cause emit uses `intern_denoted=True`.
+- `M ugm/lowering.py` — schema fix: `guard_fact` + `fact_only` plumbing through `run_bank`/`_lower_bank_rule`.
+- `M ugm/cnl/define_surface.py` — `apply_schemas` calls `run_bank(..., fact_only=True)`.
+- `M tests/test_grammar_route_reasoning.py` — grammar-route reasoning gate (+propositional-cause, +schema tests).
+- `?? tests/test_grammar_shipped_agreement.py` — NEW shipped-vs-grammar agreement harness (9 scenarios).
+- `M docs/implementation_plan.md` — this handoff.
+- Nothing committed by the assistant (standing rule). Run the EOL check before any commit (all LF now).
+
+**WHAT LANDED THIS SESSION (all shipped 973-green, flip 51→45):**
+1. **Validation infra** — `test_grammar_route_reasoning.py` (grammar-route REASONING gate) + NEW
+   `test_grammar_shipped_agreement.py` (parametrized: both routes must reason IDENTICALLY + hit the answer).
+   These gate the exact regression class the shipped suite structurally can't catch.
+2. **Step 2 — propositional-cause WRITE-SIDE duality fix** (the proper re-derivation of reverted slice-1c):
+   opt-in `MINT.intern_denoted` (deferred recognizers intern handle endpoints THROUGH `denotes` to the
+   ENTITY, not the token). Strictly better than slice-1c — no read-path change, comparative order untouched.
+3. **Schema forward-match control guard** (Option A, scoped): `guard_fact`/`fact_only` — the meta-bank matches
+   FACTS only (control+inert guarded), closing the forward-vs-demand guard divergence for that one bank.
+
+**THE CONSOLIDATION SPIKE VERDICT (the strategic result — read the two ◆ blocks below).** The recurring
+corner cases are NOT the ISA/firmware or the S-P-O rule shape (every fix was small+local, all cases are
+GRAMMAR-ROUTE-ONLY; shipped is 973-green throughout). Two real causes: (1) a layered identity model (one
+referent → token+entity+copies+control-mirror) with no single enforced invariant; (2) forward vs demand
+disagree on "what is a fact." The spike PROVED the fix for (2) must be a **PER-CALL contract**, not per-rule
+(per-rule breaks recognition — the forward path is dual-purpose). Mechanism = tag REASONING `run_bank` calls
+with `fact_only=True`; `guard_fact`/`fact_only` is already its first instance.
+
+**NEXT, IN ORDER (internals-first):**
+1. **The consolidation (real fix for divergence class):** audit `run_bank` call sites; tag the REASONING ones
+   (`run_rules` forward snapshots, comparison-rule runs, any reasoning bank) `fact_only=True`; measure each.
+   Low-risk, one site at a time. Retires the schema/enumeration divergence class at the reasoning boundary.
+2. **Hedge dual-store** — extend `intern_denoted` (proven pattern) to the hedge/uncertainty emit path; the
+   test_world banded misses are this (validate on a morphology-clean scenario, NOT test_world — it's
+   entangled with the `X prep Y` surface gap).
+3. **THEN surface + integration** (deliberately last): `X prep Y` predicating clause (riddles/new_core),
+   existentials, intake_forms/act/surface_facts rewrites, the `SWEEP refused` caller.
+
+**RE-MEASURE THE FLIP:** scratchpad `flipplugin.py` (a pytest plugin patching `grammar_intake.session_banks`
+to declare-on-first-use, `open_class="noun"`) — run `-p flipplugin` with the scratchpad dir on `PYTHONPATH`.
+Current: **45 fails / 973**. ~4.5 min; run in background.
+
+**═══ (dated detail blocks follow) ═══**
+
+**⭐⭐ SCHEMA FORWARD-MATCH CONTROL GUARD — LANDED 2026-07-22 (suite 973 green). Option A, scoped, the
+principled fix.** The `test_schema_surface` flip crash (5 tests) was `define schema ?r is transitive` +
+`ancestor is transitive` → `expand_rules` CRASH (`k_pred resolves to no token`). ROOT CAUSE: `apply_schemas`
+runs the schema meta-bank FORWARD via `run_bank`, and the forward path keeps CONTROL nodes matchable BY
+DESIGN (`AttrGraph.set_inert` docstring: a control relation like the planner's `chosen` must be read by
+forward control rules) — only the DEMAND path's `_guard` excludes them. On the grammar route a folded fact
+leaves its `is_a` content on BOTH the entity AND an interpretation control node, so the trigger `?r is_a
+transitive` bound the unnamed control node too and reflected a malformed rule. Same forward-vs-demand guard
+divergence as the slice-1a enumeration leak. FIX (chosen with the user, Option A over the surgical Option B):
+an OPT-IN full fact-guard for the meta-bank only — `lowering.guard_fact` (control + inert absent, the same
+pair `chain._guard` emits) threaded through `run_bank(..., fact_only=True)` → `_lower_bank_rule` (cache key
+extended) → used ONLY by `apply_schemas`. NOT a blanket forward guard (Option C) — that would break forward
+control rules; scoping keeps the default forward path (control stays matchable) untouched. Inert on the
+shipped route (no interpretation control nodes). Validated: shipped 973 green (hot-path `run_bank`/lowering
+touched, suite time flat ~94s), `test_schema_surface` 8/8 under the flip (was 5 failing), + committed gate
+`test_grammar_route_reasoning::test_a_define_schema_materialises_over_the_grammar_route` (reproducible with a
+plain `declare_grammar`, no harness). Files: `lowering.py` (guard_fact + fact_only plumbing),
+`define_surface.py` (the one call site). **FLIP RE-MEASURED: 50 → 45 fails** (the schema cluster cleared,
+zero new failures).
+
+**◆ THE DEEPER DIAGNOSIS (user's question 2026-07-22 — why we keep hitting corner cases).** Every flip
+corner case this session (propositional-cause token/entity, comparative regression, schema control-mirror,
+enumeration leak, order-independence) is GRAMMAR-ROUTE-ONLY — the shipped route (one referent = one node) is
+973 green throughout. So the mechanism (ISA/firmware, S-P-O rule shape) is NOT the culprit: every fix was
+small + local, nothing cascaded (the firmware bet paying off), and no case was a rule-expressiveness or
+join-semantics failure. The real cause is TWO unreconciled things: (1) the grammar route runs a LAYERED
+identity model (one referent → token + entity + copies + control-mirror) over a substrate that assumes "a
+node IS a thing," with NO single enforced invariant — we resolve identity CASE BY CASE (`_through_denotation`
+at N sites, a guard here) instead of at one boundary; (2) TWO fact-matchers (forward `run_bank` vs demand
+`chain`) that must agree but DRIFT (the control-guard divergence was today's schema + earlier enumeration
+bug). "Doing it right" = two CONSOLIDATIONS, not a new formalism: (a) one identity boundary (canonical `ById`
+by construction, denotation as a substrate primitive); (b) one guarded fact-view shared by forward+demand so
+they cannot diverge. Both are the deferred UNIFICATION ARC (retiring the duality fights the deliberately-kept
+surface/interpretation split) — we are paying it in installments, one corner case each. HIGHEST-LEVERAGE
+next: spike consolidation (b) — smaller than full identity-unification, retires the whole forward/demand
+guard-divergence CLASS (schema + enumeration were both it).
+
+**◆ CONSOLIDATION SPIKE (b) — DONE 2026-07-22. VERDICT: the shared fact-view is real, but PER-CALL, NOT
+per-rule.** Hypothesis tested: derive the fact-guard PER RULE (from what it READS, split from the producer-
+side `_rule_touches_control` which includes the head) and apply it on the forward path so a fact rule matches
+identically to the demand engine. RESULT: **per-rule auto-derivation is a hard NO-GO.**
+- Attempt 1 (LHS/NAC has a `<…>` control token ⇒ reads control, else fact-rule ⇒ full guard): **401 fails,
+  grammar DECLARATION itself errors** ("no lexicon"). `compile_grammar` parses via `run_bank`, and
+  recognition/parse rules read control scaffolding (spans, `next`-chains) WITHOUT a `<…>` gate token, so they
+  were misclassified as fact rules and guarded → parsing produced nothing.
+- Attempt 2 (also treat a LHS predicate in the caller's `control_preds` as a control read): **still empty
+  grammar** — `compile_grammar`'s vocabulary parse (`run_bank(tmp, VOCABULARY_FORMS)`) passes NO
+  `control_preds`, so those parse rules' control reads are undeclarable at that granularity.
+- ROOT: the forward path is DUAL-PURPOSE (recognition READS control scaffolding + reasoning reads facts), and
+  "control visible by default" is LOAD-BEARING for recognition. There is NO per-rule SYNTACTIC signal that
+  reliably separates the two — the layer is a property of the CALLER/bank, not the rule.
+- **VERDICT: GO on the consolidation, expressed as a PER-CALL contract.** The reliable signal is the caller:
+  REASONING `run_bank` calls opt into the fact-guard (`fact_only=True` — `apply_schemas` already does, and the
+  schema fix's `guard_fact`/`fact_only` machinery IS the first instance of this contract); RECOGNITION calls
+  keep the default (control visible). This gives "forward reasoning == demand" (the meaningful half; recognition
+  has no demand counterpart, so no divergence there to close). Fully reverted, suite back to **973 green**.
+- **THE REAL FIX (post-spike, incremental, low-risk):** audit the `run_bank` call sites, tag the REASONING
+  ones (`run_rules` forward snapshots, comparison-rule runs, any reasoning bank) with `fact_only=True`, measure
+  each. That retires the forward/demand guard-divergence class at the reasoning boundary WITHOUT touching
+  recognition. Each call site is one small, independently-measurable step.
+
+**⭐⭐ STEP 2 (re-derive slice-1c PROPERLY) — DONE 2026-07-22 (suite 972 green), and the re-derivation is
+STRICTLY BETTER than the reverted slice-1c.** The reverted slice-1c resolved node identity THROUGH `denotes`
+on the READ path (`_candidate_nodes`/`_bound_endpoint_ops`/`resolve_write_node`), which fixed
+propositional-cause but REGRESSED comparative partial-order under the flip (`is cy more suspicious than bo`
+→ `unknown`, because the transitive rule's bound middle-variable got resolved to the entity while the
+comparison fact — authored by the DEFERRED comparison recognizer, which interns by name to the TOKEN — sat
+on the token). REPRODUCED both directions this session (scratchpad `repro_slice1c.py` under a rebuilt flip
+harness). **THE ROOT CAUSE is a DUAL FACT STORE, and the fix is on the WRITE side, opt-in, not the read
+path:** the grammar route folds a proposition's content onto the interpretation ENTITY, but a deferred
+recognizer's `assemble_facts` interns its handle endpoints by name to the TOKEN (inserted first ⇒
+`nodes_named[0]`), so a node-bound bridge join reads the content-free token → `no (assumed)`. FIX = an
+opt-in `intern_denoted` mode: `MINT.intern_denoted` (machine intern branch follows `denotes` on the chosen
+canonical node), threaded through `assemble_facts(..., intern_denoted=True)`, set ONLY at the
+propositional-cause emit site (`intake.py` ~797). Inert on the shipped route (no `denotes`) and GATED, so
+the grammar route's own duality-preserving interning is untouched.
+- **WHY NOT the global machine intern branch:** tried it un-gated first — broke 10 grammar-route tests
+  (contradiction / discardable-interpretation / reconsider / negation folding), because the grammar route's
+  OWN folding interns through that branch and DELIBERATELY keeps token≠entity ([[surface-interpretation-split]]).
+  The gate is load-bearing: the fix must reach only the deferred recognizers, never the fold.
+- **VALIDATED against BOTH gates + a new committed test.** `test_grammar_route_reasoning.py` gained
+  `test_a_propositional_cause_link_derives_over_grammar_folded_propositions` (+ its no-antecedent re-break),
+  reproducible with a plain `declare_grammar(open_class="noun")` — NO scratchpad harness. Full suite 972
+  green (was 970), shipped time flat (~84s ⇒ no hot-path regression), comparative partial-order UNTOUCHED.
+- **KNOWN LIMIT (deliberately not chased): order-independence under the flip.** `that A causes that B`
+  stated BEFORE its antecedent `A` still answers `no (assumed)` under the flip, because at intern time the
+  entity `A` denotes does not exist yet, so the handle interns to an orphan node. The SHIPPED route is
+  order-independent (rules live in the LIST, reified at query time); the flip's break is the same
+  entity-doesn't-exist-yet family as the link-first riddle. Small follow-up, not this slice.
+- **UNCOMMITTED at this handoff:** `M ugm/machine.py ugm/lowering.py ugm/intake.py`,
+  `M tests/test_grammar_route_reasoning.py`, `?? tests/test_grammar_shipped_agreement.py`, `M docs/…`. KEEP.
+
+**⭐ FRESH FULL FLIP MEASUREMENT 2026-07-22 (with the write-side fix in place): 50 fail / 922 pass** (was
+51 at revert, pre-fix). Rebuilt harness = a pytest plugin patching `grammar_intake.session_banks` to
+declare-on-first-use (`open_class="noun"`) — catches EVERY ingest path incl. name-imported `ingest` and
+`load_corpus("")`, no per-module patching (scratchpad `flipplugin.py`/`conftest.py`; run `-p flipplugin`
+with the scratchpad on `PYTHONPATH`). Fail clusters, MECHANISM-VERIFIED by reading each (not sampled):
+- **test_schema_surface (5) — PURE INTERNAL, a CRASH, the cleanest next target. DIAGNOSED.** `define schema
+  ?r is transitive` + `ancestor is transitive` CRASHES in `expand_rules` (`k_pred resolves to no token`).
+  ROOT CAUSE: the schema meta-rule runs FORWARD via `run_bank` (in `apply_schemas`), and forward matching
+  does NOT apply the demand path's control/inert `_guard` — so `?r` binds to BOTH the genuine entity
+  (n-named "ancestor") AND a grammar-route interpretation CONTROL node (unnamed, ctrl=True) that also
+  carries the `is_a transitive` edge. The control-bound fragment reflects to a malformed rule (unnamed
+  predicate) → crash. SAME CLASS as the slice-1a enumeration leak (forward vs demand guard divergence). FIX
+  = guard control/inert nodes in the schema meta-rule's forward run — SCOPE IT to `apply_schemas`'s
+  `run_bank` (a run-bank control-skip option, or a meta-rule trigger guard), NOT a blanket forward-matcher
+  change (the grammar route's own forward passes legitimately touch control nodes — the risk the unification
+  probe flagged). This is a deliberate 1-slice fix, deferred to start fresh (long session).
+- **test_world (4) — HETEROGENEOUS (surface + internal), do NOT treat as one.** `is bo thief → yes` (should
+  be `no (assumed)`) is the `X prep Y` GRAMMAR GAP: `bo in library` doesn't parse → bo never innocent/cleared
+  → thief. That is SURFACE (`.cnl`). The cy/banded misses (`is anyone thief → yes` not `likely`; `why cy is
+  cleared` missing the `cy is alibied (unlikely)` premise) are HEDGE DUAL-STORE — the hedge (`cy is unlikely
+  alibied`, a deferred recognizer) interning to the token, the same family `intern_denoted` fixed for
+  propositional-cause. The hedge dual-store is the natural EXTENSION of the write-side fix (apply the pattern
+  to the hedge/uncertainty emit path) — but it is entangled with the `in library` surface gap in these tests,
+  so validate on a morphology-clean scenario, not test_world directly.
+- **Grammar coverage / surface (riddles 3, new_core 3, isa_value_match 2, some world/isa_ask): the `X prep Y`
+  predicating clause + existentials.** `.cnl`-file work, deliberately LAST.
+- **Integration (intake_forms 5, intake_act 3, intake_surface_facts 3, + singles): authored-forms routing,
+  the `SWEEP refused` caller, accretion/harness test rewrites.** The plan's originals.
+
+**NEXT (recommended order, internals-first per the user's steer):** (1) the **schema forward-match control
+guard** — pure internal, a crash, fully diagnosed, ~1 slice; (2) the **hedge dual-store** `intern_denoted`
+extension (write-side, proven pattern) validated on a clean banded scenario; (3) THEN the surface bucket
+(`X prep Y` grammar coverage) + integration. The engine/reasoning core of the flip is sound (enumeration
+guard + coref + banded/`why` + propositional-cause write-side fix); the remaining internal work is the
+forward-match guard divergence (schema) and the hedge dual-store, both understood.
+
+---
+
+
+
+**⭐ STEP 1 (broaden the validation gate) — DONE 2026-07-22 (suite 970 green). The AGREEMENT HARNESS
+`tests/test_grammar_shipped_agreement.py` (9 parametrized scenarios).** The complement to the fixed-answer
+gate: each morphology-clean reasoning scenario runs through BOTH routes — shipped (plain KB) and grammar
+(`open_class="noun"`) — and asserts (a) the two routes reason IDENTICALLY and (b) both land on the intended
+answer (so agreement on a WRONG answer is caught too). Shapes: stored copula fact→yesno, copula-rule
+derivation, multi-hop chain, two-premise join across mentions, NAF defeasible + clearance re-break, negative
+control, wh-enumeration, banded-over-hedge. This is the gate step 2 validates slice-1c against — assert both
+routes still agree AFTER the `denotes` change, not a scratchpad harness.
+- **A REAL FINDING while building it (settled, do not re-litigate):** the shipped route recognizes ONLY
+  copula (`is`) facts — arbitrary S-V-O (`lion has mane`, `eats`, `likes`, `owns`) is `unrecognized` on the
+  shipped `load_facts` path. So S-V-O intake is a grammar-route CAPABILITY, not a shared reasoning shape;
+  agreement scenarios use copula facts (an S-V-O yes/no would compare against a route that never stored the
+  fact). S-V-O agreement, if wanted, belongs in the grammar-ONLY gate (`test_grammar_route_reasoning.py`),
+  not the cross-route harness. (This is why the first draft's `has`-scenario diverged `yes` vs `no
+  (assumed)` — not an engine bug.)
+- **UNCOMMITTED at this sub-handoff:** `?? tests/test_grammar_shipped_agreement.py` (NEW, 9 green). KEEP.
+
+**NEXT (unchanged order):** step 2 = re-derive slice-1c PROPERLY (the `chain.py` `denotes`-resolution that
+fixes propositional-cause node-bound joins) and validate against BOTH grammar gates — it must keep the
+agreement harness green (that is where the original slice-1c regression, banded partial-order, would show).
+Then step 3 grammar coverage. Full pre-step-1 story below.
+
+---
+
+
 
 **ONE-LINE STATE.** The grammar flip-default was re-investigated end-to-end this session; the reasoning
 side is essentially SOUND, the remaining work is grammar-coverage + surface-specific integration, and the

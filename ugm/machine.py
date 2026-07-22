@@ -55,6 +55,7 @@ from typing import Callable, Iterator
 
 from .attrgraph import AttrGraph, Attr, GRADED, VALUED, NAME, CONF
 from .recall import near
+from .vocabulary import DENOTES
 
 
 def _pred_key(attrs: dict) -> str | None:
@@ -429,6 +430,10 @@ class MINT(Instr):
     control: bool = False
     inert: bool = False      # provenance-layer mint (<j:…>/proves/uses records) — inert, not control
     intern: bool = False
+    intern_denoted: bool = False    # `intern`, then follow `denotes`: a DEFERRED recognizer canonicalizes
+                                    # a name to the ENTITY it denotes, not the discourse token (write-side
+                                    # of the token/entity duality — see the intern branch). Opt-in, so the
+                                    # grammar route's own duality-preserving interning is untouched.
     dedup: bool = False
     key_reg: str | None = None      # dynamic predicate: key = name of the node in this register
     reuse_attr_of: str | None = None   # find-or-create: reuse the node this register's VALUED
@@ -778,6 +783,19 @@ class Machine:
                         if not is_domain_rel:
                             new = cand
                             break
+                    # TOKEN->ENTITY, opt-in (2026-07-22, the write-side of the token/entity duality). A
+                    # DEFERRED recognizer (propositional-cause handle, …) interns its endpoints by name
+                    # AFTER the grammar has folded the proposition, so the name exists as BOTH a discourse
+                    # TOKEN (inserted first, so the loop above picks it) and the interpretation ENTITY it
+                    # denotes — where the folded content lives. Canonicalizing the name means canonicalizing
+                    # to that ENTITY, or a node-bound bridge join reads the content-free token and derives
+                    # nothing (`is cat scared` -> no). GATED by `intern_denoted` so the grammar route's own
+                    # duality-preserving interning is untouched; INERT anyway where there are no `denotes`.
+                    if ins.intern_denoted and new is not None:
+                        for rel, obj in g.relations_from(new):
+                            if g.has_key(rel, DENOTES):
+                                new = obj
+                                break
             if ins.dedup and new is None:        # reuse an existing subject -[pred]-> object
                 pred = _pred_key(attrs)          # Phase 2.3: match on the predicate KEY, not VALUED name
                 if pred is not None and ins.in_edges and ins.edges:
