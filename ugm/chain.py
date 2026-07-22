@@ -22,8 +22,8 @@ from dataclasses import dataclass
 from .attrgraph import AttrGraph
 from .attrgraph import valued, GRADED, VALUED, NAME, CONTROL_MARK, INERT_MARK
 from .apply import (
-    _read_atoms, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode, _record,
-    _rel_in_scope, build_head_index, rules_producing, SCOPE,
+    _read_atoms, _read_atoms_rel, _fact_relnodes, _endpoints, _fact_exists, _find_fact_relnode,
+    _record, _rel_in_scope, build_head_index, rules_producing, SCOPE,
 )
 from .machine import (Machine, SEED, FOLLOW, SET, TEST, SAME, MEMBER, OVERLAY, OVERLAY_BAND,
                       GRADE, VMATCH, DISTINCT, MINT, EMIT, State)
@@ -675,6 +675,91 @@ def _scope_pencils(fact_g: AttrGraph, scope: str | None) -> frozenset[str] | Non
                      if (a := fact_g.get_attr(r, SCOPE)) is not None and a.value == scope)
 
 
+# --- Scope-variable rules (relativized atoms `@?t`, scope_generalization.md §6) -------------------
+# A relativized atom is matched/written RELATIVIZED to the temporal scope KEYED to its `@?t` index. The
+# read ranges across ALL temporal scopes binding the index; the write pens into the keyed scope. Kept
+# entirely off the ordinary `_facts_matching` hot path — an atom with no relativizer is unaffected.
+
+def _index_entity(fact_g: AttrGraph, index_name: str) -> str | None:
+    """The canonical ENTITY node the ordering facts (`t1 before t2`) and the temporal scope agree on for
+    `index_name` — name-interned, so one node. None if it does not exist (never mints in a read)."""
+    found = fact_g.nodes_named(index_name)
+    return min(found) if found else None
+
+
+def _run_scope_index_node(fact_g: AttrGraph, scope: str | None) -> str | None:
+    """The index ENTITY node of the RUN-LEVEL `scope` if it is a temporal scope, else None. A
+    relativized head is demanded RELATIVE to this scope's index (a timed fact is non-veridical globally),
+    so `?t` on the head binds here."""
+    from .suppose import SCOPE_KIND, KIND_TEMPORAL, INDEX
+    if scope is None:
+        return None
+    k = fact_g.get_attr(scope, SCOPE_KIND)
+    if k is None or k.value != KIND_TEMPORAL:
+        return None
+    idx = fact_g.get_attr(scope, INDEX)
+    return _index_entity(fact_g, idx.value) if idx is not None else None
+
+
+def _scope_for_index(fact_g: AttrGraph, index_name: str, *, create: bool) -> str | None:
+    """The temporal scope keyed to `index_name` (`<temporal-index>`), minted kinded on `create`. The
+    write side of a relativized head; mirrors `temporal.temporal_scope_of` (inlined to avoid the
+    suppose↔chain import cycle)."""
+    from .suppose import HYPOTHESIS, SCOPE_KIND, KIND_TEMPORAL, INDEX
+    from .attrgraph import NAME, valued, graded
+    for n in fact_g.nodes_with_key(INDEX):
+        a = fact_g.get_attr(n, INDEX)
+        if a is not None and a.value == index_name:
+            return n
+    if not create:
+        return None
+    resolve_write_node(fact_g, index_name, where="relativized head index")   # the orderable entity
+    return _ISA_READER.apply(fact_g, [MINT("_ts", attrs={NAME: valued(HYPOTHESIS),
+                                                         HYPOTHESIS: graded(1.0),
+                                                         SCOPE_KIND: valued(KIND_TEMPORAL),
+                                                         INDEX: valued(index_name)}, control=True)],
+                             State({})).regs["_ts"]
+
+
+def _relativized_matching(fact_g: AttrGraph, pred: str, s_ep, o_ep, rel_ep):
+    """Every TEMPORAL-scope pencil `(s, p, o)` for `pred` matching the (possibly bound) endpoints, as
+    `(s_out, o_out, index_out)` — the relativized fact read, binding the index. Mirrors `_facts_matching`
+    exactly on identity: a BOUND endpoint is ECHOED (so it stays the pointer the register file already
+    holds — a demand-seeded value-node, not the fact's entity node), a FREE endpoint (`None`) is bound
+    to the fact's entity / the scope's index. Only temporal scopes participate; ink and epistemic forks
+    never do."""
+    from .suppose import SCOPE_KIND, KIND_TEMPORAL, INDEX
+
+    def cand(ep):                                          # the entity nodes a bound endpoint denotes
+        return None if ep is None else set(_candidate_nodes(fact_g, ep))
+    s_c, o_c, r_c = cand(s_ep), cand(o_ep), cand(rel_ep)
+
+    out: list[tuple] = []
+    for rel in fact_g.nodes_with_key(pred):
+        if not fact_g.is_control(rel) or fact_g.is_inert(rel):
+            continue
+        a = fact_g.get_attr(rel, SCOPE)
+        if a is None:
+            continue
+        sc = a.value
+        k = fact_g.get_attr(sc, SCOPE_KIND)
+        if k is None or k.value != KIND_TEMPORAL:
+            continue
+        idx = fact_g.get_attr(sc, INDEX)
+        if idx is None:
+            continue
+        idx_node = _index_entity(fact_g, idx.value)
+        if idx_node is None or (r_c is not None and idx_node not in r_c):
+            continue
+        for s, o in _endpoints(fact_g, rel):
+            if (s_c is not None and s not in s_c) or (o_c is not None and o not in o_c):
+                continue
+            out.append((s_ep if s_ep is not None else ById(s),
+                        o_ep if o_ep is not None else ById(o),
+                        rel_ep if rel_ep is not None else ById(idx_node)))
+    return out
+
+
 def _bound_endpoint_ops(fact_g: AttrGraph, reg: str, endpoint) -> list:
     """The in-program test that register `reg` matches a BOUND second endpoint: an entity pin
     unifies registers (`SET` the pin + `SAME`); a name / value-node pointer tests the NAME value."""
@@ -756,25 +841,32 @@ def _node_for_name(fact_g: AttrGraph, name) -> str:
     return resolve_write_node(fact_g, name, where="chain EMIT")
 
 
-def _sideways_order(body: list[tuple[str, str, str]], bound: set[str]) -> list[tuple[str, str, str]]:
+def _sideways_order(body: list[tuple[str, str, str, str]], bound: set[str]
+                    ) -> list[tuple[str, str, str, str]]:
     """Order the body atoms SIDEWAYS-SAFE from the initially-`bound` variables: at each step take an
     atom that already has a pruning endpoint — a literal, or a variable bound by the head-unify or an
     earlier atom — so its sub-demand carries a bound endpoint and SIP prunes. (A df sort by predicate
     selectivity would instead front-load the most-selective atom, which — if its join var is not yet
     bound — raises an UNBOUND sub-demand `(pred, None, None)` that floods in every off-goal tuple; the
     binding order, not raw selectivity, is what keeps the magic set scoped.) A disconnected remainder
-    (no bound/literal endpoint) falls back to input order — an unavoidable full scan, still correct."""
+    (no bound/literal endpoint) falls back to input order — an unavoidable full scan, still correct.
+
+    Atoms are `(s, p, o, rel)` (`rel` the optional `@?t` relativizer, "" if none). The relativizer
+    variable both COUNTS as a pruning endpoint (a bound `@?t` scopes the read) and is BOUND once the
+    atom is taken (a free `@?t` binds the matched fact's index), so it joins the ordering exactly like
+    the s/o endpoints."""
     def ready(tok: str) -> bool:
-        return (not is_var(tok)) or (tok in bound)          # a literal prunes; a var only once bound
+        return bool(tok) and ((not is_var(tok)) or (tok in bound))   # a literal prunes; a var once bound
 
     bound = set(bound)
     remaining = list(body)
-    order: list[tuple[str, str, str]] = []
+    order: list[tuple[str, str, str, str]] = []
     while remaining:
-        idx = next((i for i, (s, _p, o) in enumerate(remaining) if ready(s) or ready(o)), 0)
-        s_tok, p, o_tok = remaining.pop(idx)
-        order.append((s_tok, p, o_tok))
-        for t in (s_tok, o_tok):
+        idx = next((i for i, (s, _p, o, r) in enumerate(remaining)
+                    if ready(s) or ready(o) or ready(r)), 0)
+        s_tok, p, o_tok, rel_tok = remaining.pop(idx)
+        order.append((s_tok, p, o_tok, rel_tok))
+        for t in (s_tok, o_tok, rel_tok):
             if is_var(t):
                 bound.add(t)
     return order
@@ -1052,8 +1144,8 @@ def _head_skolems(body: list[tuple[str, str, str]],
     the skolem FUNCTION `f(args)` the forward path mints one-per-firing (`lowering.lower_rhs`). A plain
     RHS literal is NOT a skolem (it interns to its graph-wide node); an RHS-only VARIABLE is not one either
     (it is unsound — rejected at authoring, `reject_rhs_only_head_vars`). Only the bound-literal binder is."""
-    body_toks = {t for atom in body for t in atom}
-    return {t for hs, _hp, ho in heads for t in (hs, ho)
+    body_toks = {t for atom in body for t in atom}   # 4-tuples: relativizer tokens included (harmless)
+    return {t for hs, _hp, ho, _hr in heads for t in (hs, ho)
             if is_bound_literal(t) and t not in body_toks}
 
 
@@ -1102,7 +1194,7 @@ def _resolve_skolems(fact_g: AttrGraph, heads: list[tuple[str, str, str]],
     out: dict[str, str] = {}
     for sk in skolems:
         constraints: list[tuple[str, str, bool]] = []
-        for hs, hp, ho in heads:
+        for hs, hp, ho, _hr in heads:
             if hs == sk and ho != sk and (a := _anchor_node(fact_g, st, ho)) is not None:
                 constraints.append((hp, a, True))
             elif ho == sk and hs != sk and (a := _anchor_node(fact_g, st, hs)) is not None:
@@ -1159,14 +1251,16 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     DERIVED FORK at its band carrying its env, re-emitted only at a STRICTLY better band (monotone-up
     on a finite lattice, so the round loop still converges). Silent mode threads the constant
     (CERTAIN, ∅) and is behaviour-identical."""
-    body = _read_atoms(rule_g, rule_node, "lhs")
-    heads = _read_atoms(rule_g, rule_node, "rhs")
+    body = _read_atoms_rel(rule_g, rule_node, "lhs")       # `(s, p, o, rel)` — `rel` = `@?t` or ""
+    heads = _read_atoms_rel(rule_g, rule_node, "rhs")
     # A NAC atom IDENTICAL to a head atom is an IDEMPOTENCY memo (`?a rel ?c when … and not ?a rel ?c`,
     # the check-before-derive guard on a recursive/transitive rule), NOT epistemic negation. The monotone
     # chain already refuses to re-derive an existing fact (`_fact_exists` before EMIT), so it is subsumed
     # — and treating it as NAF would (correctly, but uselessly) flag the rule's head as depending
     # negatively on itself. Drop it; only GENUINE NACs (on another tuple) get the nested-negative-demand.
-    nac = [n for n in _read_atoms(rule_g, rule_node, "nac") if n not in heads]
+    # NACs stay UN-relativized (3-tuples) — a relativized NAC is out of this slice.
+    head_spo = {(hs, hp, ho) for hs, hp, ho, _hr in heads}
+    nac = [n for n in _read_atoms(rule_g, rule_node, "nac") if n not in head_spo]
     skolems = _head_skolems(body, heads)   # RHS-introduced value invention (feedback #2), keyed per firing
     graded = _read_graded(rule_g, rule_node)
     value_matches = _read_value_matches(rule_g, rule_node)
@@ -1174,9 +1268,22 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     rule_key = rule_g.name(rule_node) if provenance else ""
 
     seeds: list[State] = []                                # (X): bindings live in the REGISTER FILE
-    for hs, hp, ho in heads:
+    for hs, hp, ho, hrel in heads:
         st0 = _unify_head_with_demand(fact_g, demand, hs, hp, ho)
-        if st0 is not None and st0 not in seeds:
+        if st0 is None:
+            continue
+        if hrel and is_var(hrel):
+            # A relativized head `@?t` is demanded RELATIVE to the run-level scope's index (a timed
+            # fact is non-veridical globally): bind `?t` to that index, so the body's cross-index join
+            # (`?t1 before ?t`) and the head's pen both target the demanded scope.
+            idx_node = _run_scope_index_node(fact_g, scope)
+            if idx_node is None:
+                continue                                   # no keyed run-level scope ⇒ not derivable
+            held = st0.regs.get(hrel)
+            if held is not None and held != idx_node:
+                continue
+            st0 = st0.bind(hrel, idx_node)
+        if st0 not in seeds:
             seeds.append(st0)
 
     banded = policy is not None and policy.banded
@@ -1184,11 +1291,27 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
     fired = 0
     for st0 in seeds:
         states = [(st0, _CERTAIN, _NO_ENV)]                # (register file, band, environment)
-        for s_tok, bp, o_tok in _sideways_order(body, set(st0.regs)):   # SIP: each atom demanded
+        for s_tok, bp, o_tok, rel_tok in _sideways_order(body, set(st0.regs)):   # SIP: each atom demanded
             nxt: list[tuple[State, float, frozenset]] = [] # under the register file so far
             for st, band, env in states:
                 s_ep = _ptr(fact_g, st, s_tok)             # the endpoints as CARRIED: node-pointers
                 o_ep = _ptr(fact_g, st, o_tok)             # (a literal -> its interned value-node)
+                if rel_tok:
+                    # RELATIVIZED atom `@?t`: range over temporal-scope pencils, binding the index too.
+                    # `_bind_state` filters s/o/rel exactly as it filters a free-endpoint fact row.
+                    rel_ep = _ptr(fact_g, st, rel_tok)
+                    for fs, fo, fidx in _relativized_matching(fact_g, bp, s_ep, o_ep, rel_ep):
+                        st1 = _bind_state(fact_g, st, s_tok, fs)
+                        if st1 is None:
+                            continue
+                        st2 = _bind_state(fact_g, st1, o_tok, fo)
+                        if st2 is None:
+                            continue
+                        st3 = _bind_state(fact_g, st2, rel_tok, fidx)
+                        if st3 is None:
+                            continue
+                        nxt.append((st3, band, env))       # ontological: no band discount, no env
+                    continue
                 mint((bp, s_ep, o_ep))
                 for m in _facts_matching(fact_g, bp, s_ep, o_ep, scope=scope,
                                          focus_scope=focus_scope, bands=banded):
@@ -1229,12 +1352,20 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                 nec, assumed = res
                 band = band if nec >= band else nec        # graded negation: fold in N(¬L)
             sk_ids = _resolve_skolems(fact_g, heads, st, skolems) if skolems else {}
-            for hs, hp, ho in heads:
+            for hs, hp, ho, hrel in heads:
                 s_id = _head_endpoint_id(fact_g, st, hs, sk_ids)
                 o_id = _head_endpoint_id(fact_g, st, ho, sk_ids)
                 if s_id is None or o_id is None:           # unbound non-skolem head slot — out of slice
                     continue
-                if banded and (band < _CERTAIN or env):
+                # RELATIVIZED head `@?t`: pen into the temporal scope KEYED to the bound index (minted
+                # if new), not the run-level scope. `?t` was bound at seed time to the demanded index.
+                head_scope = scope
+                if hrel:
+                    hid = st.regs.get(hrel)
+                    if hid is None:
+                        continue                            # relativizer never bound — cannot place it
+                    head_scope = _scope_for_index(fact_g, fact_g.name(hid), create=True)
+                if banded and (band < _CERTAIN or env) and not hrel:
                     # BANDED EMIT: an uncertain conclusion is a DERIVED FORK at its band, carrying its
                     # assumption env — never ink. Idempotence is graded: re-emit only STRICTLY better.
                     have = max((b for _s, _o, b, _e in
@@ -1253,10 +1384,10 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                                                           bp2,
                                                           _node_for_name(fact_g, _ptr(fact_g, st, bo)),
                                                           scope=scope)
-                                     for bs, bp2, bo in body])
+                                     for bs, bp2, bo, _br in body])
                         _record_assumptions(fact_g, j, assumed)   # "what was assumed" (decision 6)
                     continue
-                if provenance and _fact_exists(fact_g, s_id, hp, o_id, scope=scope):
+                if provenance and _fact_exists(fact_g, s_id, hp, o_id, scope=head_scope):
                     # PROVENANCE BACKFILL (feedback #15). Check-before-derive suppresses the EMIT for a
                     # fact that is already materialized — correct for the FACT (monotone, no duplicate),
                     # but it also meant the firing's SUPPORT was never recorded, so anything a prior pass
@@ -1274,26 +1405,26 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                     # `(given)`. For that class capture provenance FORWARD (`run_bank(…, provenance=True)`),
                     # which journals the justification at firing time, while the body still held.
                     from .provenance import rule_support_j as _rule_support_j
-                    rel = _find_fact_relnode(fact_g, s_id, hp, o_id, scope=scope)
+                    rel = _find_fact_relnode(fact_g, s_id, hp, o_id, scope=head_scope)
                     if rel is not None and _rule_support_j(fact_g, rel) is None:
                         j = _record(fact_g, rule_key, rel,
                                     [_find_fact_relnode(fact_g,
                                                         _node_for_name(fact_g, _ptr(fact_g, st, bs)),
                                                         bp2, _node_for_name(fact_g, _ptr(fact_g, st, bo)),
                                                         scope=scope)
-                                     for bs, bp2, bo in body])
+                                     for bs, bp2, bo, _br in body])
                         if assumed:
                             _record_assumptions(fact_g, j, assumed)
-                if not _fact_exists(fact_g, s_id, hp, o_id, scope=scope):
+                if not _fact_exists(fact_g, s_id, hp, o_id, scope=head_scope):
                     # EMIT as an ISA program: an ink fact normally, but PENCIL (control + scope tag)
-                    # inside a SUPPOSE scope. `dedup` stays OFF — check-before-derive is the scope-aware
-                    # `_fact_exists` guard above (a raw dedup would reuse an OTHER-scope pencil rel).
+                    # inside a SUPPOSE / relativized scope. `dedup` stays OFF — check-before-derive is the
+                    # scope-aware `_fact_exists` guard above (a raw dedup would reuse an OTHER-scope pencil).
                     from .attrgraph import graded as _graded
-                    is_ctrl = (scope is not None) or (hp.startswith("<") and hp.endswith(">"))
+                    is_ctrl = (head_scope is not None) or (hp.startswith("<") and hp.endswith(">"))
                     ops = [MINT("_head", attrs={hp: _graded(1.0)},
                                 in_edges=["_s"], edges=["_o"], control=is_ctrl)]
-                    if scope is not None:
-                        ops.append(EMIT("_head", SCOPE, scope, kind=VALUED))
+                    if head_scope is not None:
+                        ops.append(EMIT("_head", SCOPE, head_scope, kind=VALUED))
                     head_node = _ISA_READER.apply(fact_g, ops,
                                                   State({"_s": s_id, "_o": o_id})).regs["_head"]
                     fired += 1
@@ -1303,7 +1434,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                                                         _node_for_name(fact_g, _ptr(fact_g, st, bs)),
                                                         bp2, _node_for_name(fact_g, _ptr(fact_g, st, bo)),
                                                         scope=scope)
-                                     for bs, bp2, bo in body])
+                                     for bs, bp2, bo, _br in body])
                         if assumed:                        # a certain firing journals its leaned-on
                             _record_assumptions(fact_g, j, assumed)   # absences too (Π = 0 included)
     return fired

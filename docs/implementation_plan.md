@@ -20,7 +20,7 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶ CURRENT ARC (2026-07-22) — COMPOSITION CLOSURE → SCOPE GENERALIZATION (suite **818 green**)
+## ▶ CURRENT ARC (2026-07-22) — COMPOSITION CLOSURE → SCOPE GENERALIZATION (suite **848 green**)
 
 **THE ARC IN ONE PARAGRAPH.** The grammar arc's real question — "are the fundamental epistemic blocks
 enough?" — became: are they REASONED-OVER (not just mapped), and CLOSED under composition, at arbitrary
@@ -56,14 +56,80 @@ BOTH polarities"). Guards: `tests/test_possibility_band.py::test_banded_negation
 (+ crisp-path-unchanged), re-breakable. `collapse`/`explain_check` pass the new verdict through as a
 band word (verified: `.get(status, status)` + banded fallback).
 
-**NEXT, IN ORDER (`scope_generalization.md` §5):**
-1. **Slice 1 — the `holder` scope KIND (attribution).** Add a scope `kind` (fork: attr vs marker —
-   recommend a `kind` attr); ONTOLOGICAL read (no possibility discount; global check non-veridical /
-   assumed-no for a penned proposition). No ordering, no scope-variable rules. Delivers a §4a block and
-   validates kind dispatch.
-2. **Slice 2 — `temporal` ontological ordered scopes + SCOPE-VARIABLE rules (tense).** The ordering is
-   native (spike O1); the NEW mechanism is a rule binding a scope variable and relating two scopes
-   (`fact @?s1 ∧ ?s1 before ?s2 ⇒ fact @?s2`). The one deep open fork (syntax + matching); do last.
+**⭐ SLICE 1 LANDED 2026-07-22 (suite 831 green): the `holder` scope KIND (attribution).**
+The kind-representation fork is DECIDED — a **`kind` valued attr on the scope node**
+(`suppose.SCOPE_KIND`, default-absent ⇒ `epistemic`), NOT distinct marker names. Reasons: additive
+(joins the `<likeliness>`/`<choice>`/`<derived-env>` attr family on `<hypothesis>`); uniform dispatch
+(`suppose.scope_kind` = one attr read); and all the scope machinery (`scope_members`, `all_fork_bands`,
+`_drop_scope`) keys on the `SCOPE` tag + `<hypothesis>`-ness, never the marker name, so a holder scope
+is penned/swept identically and ONLY the read dispatches on kind.
+- **⭐ THE READ IS ALREADY ONTOLOGICAL AND NON-VERIDICAL — probe-confirmed BEFORE building.** A crisp
+  `check(scope=holder)` sees the pencil via `_scope_pencils` ⇒ POSITIVE; a global `check` never sees a
+  control pencil ⇒ ASSUMED_NO; under banded policy the holder scope carries NO `<likeliness>` so it is
+  never discounted (and merges at CERTAIN when active). So Slice 1 was NOT a read-engine change — it is
+  the KIND + KEYING + AUTHORING layer (`ugm/attribution.py`): `SCOPE_KIND=holder`, a `<holder>` key
+  (one reused scope per party), `consider(g, N, triple)`, `holds_for(g, N, goal)`, `holders_considering`.
+- **Acceptance MET:** *N considers the lion a cat* ⇒ `is the lion a cat` → **no globally / yes relative
+  to N**. Guards in `tests/test_attribution.py` (11), re-broken on both load-bearing axes: `holds_for`
+  not relativizing → the yes vanishes; a holder scope carrying a band → it leaks into the global banded
+  read (non-veridicality broken).
+- **ADDITIVITY VERIFIED:** existing forks carry no kind attr and dispatch as `epistemic` — no scope was
+  retroactively kinded. `KIND_EPISTEMIC` is the read-time default, not a stored value.
+
+**⭐ SLICE 2 PART (a) LANDED 2026-07-22 (suite 840 green): the `temporal` ordered ontological scope.**
+`ugm/temporal.py` — the SECOND ontological kind, mirroring attribution exactly (`KIND_TEMPORAL`, keyed
+to an index entity by `<temporal-index>`; `at_time` / `holds_at` / `temporal_scope_of` / `order` /
+`indices_holding`). Ontological at its index, non-veridical globally, same as holder. The ORDER is
+ordinary INK relational content between the index entities (`order` writes `t1 before t2`), traversed by
+an ordinary recursive rule (spike O1 — NATIVE, tested). `tests/test_temporal.py` (9), incl. the O2a
+unary-state frame axiom ranging natively. **This validated that kind dispatch generalizes past holder
+with zero read-engine change** — the same conclusion as Slice 1, now confirmed on a second kind.
+
+**⭐⭐ PART (b) SEMANTICS PROVEN NATIVE — the wall is ONLY the rule language (probe, 2026-07-22).**
+Hand-simulated the BINARY-fact frame axiom (`has(x,y)@t1 ∧ t1 before t2 ⇒ has(x,y)@t2` — the O2b wall)
+with a Python driver over the scope helpers (`indices_holding` binds the index; the ink `before` read;
+`at_time` pens into the later index's scope). It WORKS: `holds_at(t2)` flips assumed-no → positive,
+stays non-veridical globally. So the O2b "binary fact is 4-place" wall is DISSOLVED by the scope
+encoding — no reification, no 4th S-P-O slot. **The entire remaining gap is expressing this AS A RULE**
+(binding the relativizing index/scope as a variable), i.e. the §6 open fork, now the only work left in
+Slice 2.
+
+**◆ THE OPEN FORK IS NOW LIVE — scope-variable rule SYNTAX + MATCHING (`scope_generalization.md` §6).**
+The probe reframed it: because the scope is KEYED to an ordinary index entity (Slice 1's pattern), the
+frame axiom is cleanest RANGED OVER THE INDEX ENTITY, not the scope node — `has(x,y)@?t1 ∧ ?t1 before
+?t2 ⇒ has(x,y)@?t2` where `?t` is an ordinary variable and `@?t` says "relativized to the scope keyed
+to ?t". So the new mechanism = a per-atom RELATIVIZER (`@?t`): match binds/uses the index like any var
+(free ⇒ bind from the matched fact's scope; bound ⇒ resolve to its scope), head pens into the keyed
+scope (what `Band` already nearly does). The remaining engine change is per-atom scope resolution in the
+body-atom loop (today `scope=` is run-level, `chain.py:~1195`). The fork is which SURFACE + matcher
+integration — pending a user decision before build.
+
+**⭐⭐ SLICE 2 PART (b) — SCOPE-VARIABLE RULE ENGINE LANDED 2026-07-22 (suite 848 green): the one
+genuinely new mechanism of the whole arc.** User picked the per-atom `@?t` relativizer (general
+scope-variable rules) over a built-in closure. A rule ATOM now carries an optional RELATIVIZER
+(`Pat.rel`, `@?t`): matched / written RELATIVIZED to the temporal scope KEYED to `?t`. The frame axiom
+`has(?x,?y)@?t1 ∧ ?t1 before ?t2 ⇒ has(?x,?y)@?t2` PERSISTS A BINARY FACT across time — the O2b "4-place"
+wall, dissolved. `tests/test_scope_variable_rules.py` (8).
+- **DEMAND-PATH, additive.** `Pat` gained a `rel` slot (default ""); `write_rule` stores it on the
+  atom's pred node (`apply.ATOM_REL`); `apply._read_atoms_rel` reads 4-tuples for the demand chain. In
+  `chain._apply_rule_demand`: a relativized BODY atom ranges temporal-scope pencils binding the index
+  (`_relativized_matching`, echoing bound endpoints exactly as `_facts_matching` does — the identity bug
+  that cost the first debug), a relativized HEAD pens into the scope keyed to its bound index
+  (`_scope_for_index`, mint-on-demand), and the head's `?t` binds at seed time to the RUN-LEVEL scope's
+  index (a timed fact is non-veridical globally, so it is only derivable relative to a keyed scope).
+  `holds_at` now MATERIALIZES the queried index's scope (you must have a context to reason in).
+- **KEY DESIGN POINTS (settled):** ranged over the INDEX ENTITY, not the scope node (the probe's
+  reframing); un-relativized atoms are wholly unaffected (**848 green, zero hot-path regressions**);
+  multi-hop persistence uses a transitive `precedes` (spike O1) — a relativized body atom READS pencils,
+  it does not recursively demand them (a direct-`before` axiom persists one hop unless intermediates are
+  materialized). Kind fixed at `temporal` for now (head-mint needs a kind); holder-inheritance can reuse
+  the machinery with a kind tag later.
+
+**NEXT: the CNL `@?t` SURFACE — the only remaining Slice-2 piece.** The engine mechanism is complete and
+tested via `write_rule`/`Pat.rel`; what's left is parsing `@?t` in the machine-rule grammar
+(`machine_rules.py` / `BODY_SPINE_FORMS`): tokenize the `@?t` suffix on a clause, fold a `k_rel` onto the
+`<cond>` flat schema, and read it into `Pat.rel` in `authoring._expand_rule_node`. A clean, separable
+slice — the intricate grammar-as-rules fold, deliberately not rushed into the engine change's commit.
 3. **Independent, off the critical path:** causation's entity-level core is NATIVE now (build on it);
    propositional causation (② C3) is a declared ceiling.
 

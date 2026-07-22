@@ -45,6 +45,7 @@ from __future__ import annotations
 from ..production_rule import Pat, Rule
 from ..world_model import Graph
 from ..attrgraph import valued, graded, PATTERN_MARK
+from ..apply import ATOM_REL
 
 # The role relations that wire a rule node to the predicate node of each Pat.
 ROLE_NAMES: tuple[str, ...] = ("lhs", "rhs", "nac", "drop")
@@ -104,6 +105,8 @@ def write_rule(graph: Graph, rule: Rule) -> str:
             s = so_node(pat.s)
             o = so_node(pat.o)
             p = wire(s, pat.p, o)                    # pattern atom in fact shape (keyed pred)
+            if pat.rel:                              # scope-variable relativizer `@?t` (§6): a VALUED
+                graph.set_attr(p, ATOM_REL, valued(pat.rel))   # tag on the atom's predicate node
             wire(rule_node, role, p)                 # rule --[role]--> pred
     # Graded conditions (the α-cut match filter). Reified as `<graded>` nodes so the demand-driven
     # firmware can apply them; one per (var, dim) — mirroring `lowering.lower_graded`'s one-GRADE-per-dim.
@@ -179,7 +182,9 @@ def _read_pat(graph: Graph, pred: str, role_node: str) -> Pat:
     defect at once rather than raising on the first."""
     ins = [n for n in graph.into(pred) if n != role_node]
     outs = list(graph.out(pred))
-    return Pat(graph.name(ins[0]), graph.predicate(pred), graph.name(outs[0]))
+    a = graph.get_attr(pred, ATOM_REL)
+    return Pat(graph.name(ins[0]), graph.predicate(pred), graph.name(outs[0]),
+               rel=a.value if a is not None else "")
 
 
 def _pat_key(p: Pat) -> tuple[str, str, str]:

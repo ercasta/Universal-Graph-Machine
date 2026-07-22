@@ -33,6 +33,13 @@ ROLES = ("lhs", "rhs", "nac", "drop")
 # that scope's pencil visible WITHIN it (`scope=` passed) and nothing extra when no scope is active.
 SCOPE = "scope"
 
+# Slice 2 part (b) — scope-variable rules (docs/design/scope_generalization.md §6). A rule ATOM may
+# carry a RELATIVIZER token `@?t`: the atom is matched/written RELATIVIZED to the scope KEYED to `?t`
+# (a temporal index), so a rule can bind and relate scopes (`has(x,y)@?t1 ∧ ?t1 before ?t2 ⇒
+# has(x,y)@?t2`). Stored as a VALUED attr on the atom's reified predicate node (write_rule); read back
+# by `_read_atoms_rel`. Absent ⇒ the ordinary un-relativized atom (ink / run-level scope), unchanged.
+ATOM_REL = "<atom-rel>"
+
 
 def rule_nodes(rule_g: AttrGraph) -> list[str]:
     """The reified rule nodes in `rule_g`: a rule node is the subject of any role relation
@@ -88,6 +95,23 @@ def _read_atoms(rule_g: AttrGraph, rule_node: str, role: str) -> list[tuple[str,
         subj_slots = [n for n in rule_g.pred(patom) if n != role_rel]
         obj_slots = list(rule_g.succ(patom))
         atoms.append((rule_g.name(subj_slots[0]), rule_g.predicate(patom), rule_g.name(obj_slots[0])))
+    return atoms
+
+
+def _read_atoms_rel(rule_g: AttrGraph, rule_node: str, role: str) -> list[tuple[str, str, str, str]]:
+    """`_read_atoms` plus each atom's RELATIVIZER token (`ATOM_REL` on the atom's predicate node), as
+    `(s_tok, pred, o_tok, rel_tok)` — `rel_tok` is "" for an ordinary un-relativized atom. Same order
+    as `_read_atoms`, so the two stay aligned. The demand chain uses this; the un-relativized callers
+    keep `_read_atoms` (3-tuples) unchanged."""
+    atoms: list[tuple[str, str, str, str]] = []
+    for role_rel, patom in rule_g.relations_from(rule_node):
+        if not rule_g.has_key(role_rel, role):
+            continue
+        subj_slots = [n for n in rule_g.pred(patom) if n != role_rel]
+        obj_slots = list(rule_g.succ(patom))
+        a = rule_g.get_attr(patom, ATOM_REL)
+        atoms.append((rule_g.name(subj_slots[0]), rule_g.predicate(patom),
+                      rule_g.name(obj_slots[0]), a.value if a is not None else ""))
     return atoms
 
 

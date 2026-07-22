@@ -57,6 +57,9 @@ class Pat:
     s: str
     p: str
     o: str
+    rel: str = ""     # optional RELATIVIZER (`@?t`): match/write this atom in the scope KEYED to `rel`
+                      # (scope-variable rules, scope_generalization.md §6). "" = ordinary un-relativized
+                      # atom (ink / run-level scope). Not an S-P-O slot — `tokens()` stays (s, p, o).
 
     def __post_init__(self) -> None:
         # Precompute each slot's classification ONCE — kind (1=var, 2=bound-literal, 0=plain),

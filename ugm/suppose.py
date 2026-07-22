@@ -52,6 +52,26 @@ _MACHINE = Machine()
 
 HYPOTHESIS = "<hypothesis>"
 
+# SCOPE KIND (scope_generalization.md §4). A scope is a KINDED relativizer: a fact holds RELATIVE TO
+# the scope, and the KIND says how the read treats that relativity. The kind lives as a VALUED attr on
+# the scope node — extending the `<likeliness>`-on-`<hypothesis>` pattern (a `kind` attr, not distinct
+# marker names, so every scope stays a `<hypothesis>` and only the READ dispatches on kind). An ABSENT
+# kind = `epistemic` (today's fork/suppose scopes, untouched — the generalization is additive).
+SCOPE_KIND = "<scope-kind>"      # valued attr on the scope node; absent ⇒ epistemic
+KIND_EPISTEMIC = "epistemic"     # a possibility (fork = discounted; suppose = a stance entertained)
+KIND_HOLDER = "holder"           # attribution: the fact holds DEFINITELY for a holder, non-veridical globally
+KIND_TEMPORAL = "temporal"       # tense: the fact holds DEFINITELY at an ordered index, non-veridical globally
+HOLDER = "<holder>"              # valued attr on a holder scope: WHO holds it (keys the scope to a party)
+INDEX = "<temporal-index>"       # valued attr on a temporal scope: WHICH ordered index it relativizes to
+
+
+def scope_kind(g: AttrGraph, scope: str) -> str:
+    """The KIND of `scope` — the value of its `<scope-kind>` attr, defaulting to `epistemic` (an
+    unkinded fork/suppose scope). The single dispatch point for a kind-parameterized read."""
+    a = g.get_attr(scope, SCOPE_KIND)
+    return a.value if a is not None else KIND_EPISTEMIC
+
+
 # The three SUPPOSE verdicts.
 CONFIRMED = "confirmed"          # every prediction held in-scope, no contradiction -> committed to ink
 REFUTED = "refuted"              # a contradiction: the supposition entails a prediction's negation -> dropped
