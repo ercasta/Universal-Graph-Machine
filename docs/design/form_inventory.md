@@ -662,4 +662,69 @@ claim #2. #1 (annotation composition) is correct as a per-fact frame and nearly 
 (binding) is an explicit DECISION — generalize the rule binder along those axes, or declare the
 shape-classes that need it OUT OF SCOPE as a stated ceiling (§7-style honest bound). The value of the
 stress-test is that it pulled that decision into the open instead of leaving it as an assumption.
-**The in-scope/out-of-scope decision itself is §9.2 (open).**
+**The in-scope/out-of-scope decision itself is §9.2.**
+
+### 9.2 In-scope is a CORE/COMPLETION line per block, not a block-level in/out (SETTLED 2026-07-22)
+
+**THE QUESTION.** Given the system's goal is AGENTIC reasoning — not theorem proving; the commitment
+is demand-driven, fuel-bounded, honest-`UNKNOWN` ([[agent-not-theorem-prover]], §7) — are the binding
+shape-classes (tense, causation, quantification) REQUIRED, or can they be declared out of scope?
+
+**THE ANSWER: required, but the agentic lens draws the boundary INSIDE each block, not around it.** The
+tempting reading is that "agentic, not theorem-proving" is an exemption that lets these be dropped. It
+is the opposite. An agent is defined by acting in a world it does not fully control, and each block is
+load-bearing for a specific agentic competence:
+- **tense/change** — an ACTION IS A CHANGE; you cannot represent an action's EFFECT without before/after.
+- **causation** — means-ends is causal BOTH directions: forward for planning ("do A because A brings
+  about G"), backward for diagnosis ("that effect was caused by this"). No diagnosis ⇒ no recovery.
+- **existential quantification** — INCOMPLETE KNOWLEDGE is the agent's normal condition ("*some* key
+  opens this, find it"). Not a logician's flourish; it is what partial observability IS.
+
+**WHY THE LINE IS INSIDE THE BLOCK.** These looked "expensive / no mechanism" in §4a because they were
+implicitly costed at THEOREM-PROVER completeness (decide *all* temporal formulae, enumerate *all*
+witnesses, identify the *full* causal model) — which is undecidable-hard and genuinely out of scope.
+But that is not the version an agent needs. Re-costed at AGENTIC completeness — reason TO THE GOAL,
+bounded, `UNKNOWN` on exhaustion — each block splits into a required CORE and a droppable COMPLETION:
+
+| block | AGENTIC CORE — in scope | THEOREM-PROVER COMPLETION — the honest ceiling, OUT |
+|---|---|---|
+| tense | state-transition / before-after / "became"; reason over the steps the goal touches | full temporal logic over arbitrary time points; interval algebra |
+| causation | forward (plan) / backward (diagnose) / counterfactual (`SUPPOSE`) over the chain the question asks | complete causal-model identification / do-calculus |
+| quantification | existential-under-uncertainty (a witness exists; resolve ON DEMAND); universal (already native) | decidable quantifier elimination; general counting/cardinality; arbitrary nesting |
+
+**THE CORE COLUMN COMPOSES WITH WHAT EXISTS BY CONSTRUCTION**, because the fold is ALREADY lazy and
+demand-driven. A demand-driven binder reasons to the witnesses / time-steps / causal-links the current
+goal needs and returns `UNKNOWN` on fuel-out — the SAME model as the existing NAF. So the binder
+generalizes as a LAZY binder, not a complete one: the agentic commitment is what makes it both cheaper
+AND natively composable, rather than a second engine. This is the general re-reading of §2(c): a
+fundamental form's cost is set by which COMPLETENESS you cost it at, and the agentic one is the right
+meter.
+
+**AND THIS RE-READS A DECISION ALREADY MADE.** [[monotonicity-claim-dropped]] — destructive `EMIT`,
+current-state-not-history, versioning opt-in — is ALREADY an agentic stance on tense: track the current
+state, not the full timeline. So bounded tense (state-transition) is CONSISTENT with what is decided;
+full temporal logic would CONTRADICT it. The system is less far from a tense slice than "nothing
+exists / expensive" implied.
+
+**SEQUENCING — required does NOT mean "build all three now"; by ROI against what is already built:**
+1. **Causation first** — shortest reach: the substrate already reifies facts (rel-nodes), relates
+   derivations (provenance / `<j:>`), and has counterfactuals (`SUPPOSE`). It is what diagnosis/replan
+   already gesture at ([[procedures-tool-boundary]]).
+2. **Existential second** — it IS the agent's epistemic condition, and a demand-driven "mint the
+   witness when a goal forces resolution, LHS-keyed to the goal" is COMPATIBLE with the no-RHS-skolem
+   decision ([[skolem-minting-lhs-keyed]]) rather than blocked by it.
+3. **Bounded tense last** — genuinely hardest: two of its three routes are closed by settled decisions
+   (epistemic-scope semantics clash with ontological time; no event reification —
+   [[spo-directed-path-no-labeled-edges]]), so it likely needs a NEW scope KIND (ontological, ordered),
+   which is real new mechanism.
+
+**WHAT IS NOT YET COMMITTED (the one open implementation fork).** Whether the binder LITERALLY
+generalizes the rule layer's `?x`, or gets a PARALLEL lazy-binder mechanism beside it. The audit has not
+measured this; it is an implementation decision for when causation is actually built, not a scope
+decision. Recorded so §9.2 is not read as settling more than it does.
+
+**CONSEQUENCE FOR §4a.** The "no mechanism" rows (tense, causation, quantification) are NOT a flat
+ceiling. Each is now a CORE (in scope, required, demand-driven, composes with the lazy fold) plus a
+COMPLETION (the declared out-of-scope bound, §7-honest). The ceiling moved from "these blocks" to "the
+theorem-prover completion of these blocks", and that is the line the agentic commitment was always
+implicitly drawing.
