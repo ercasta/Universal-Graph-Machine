@@ -13,7 +13,7 @@ from ugm.check import check, collapse, POSITIVE, ASSUMED_NO
 from ugm.machine import Machine
 from ugm.policy import FirmwarePolicy
 from ugm.suppose import SCOPE_KIND, KIND_TEMPORAL, INDEX, scope_kind
-from ugm.temporal import temporal_scope_of, at_time, holds_at, order, indices_holding
+from ugm.scope_kinds import temporal_scope_of, at_time, holds_at, order, indices_holding
 
 BANDED = FirmwarePolicy(uncertainty="banded")
 

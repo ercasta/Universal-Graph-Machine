@@ -50,5 +50,8 @@ def test_clean_readings_are_untouched_and_preferred():
     _ingest(kb, rules, "ada is a suspect")
     assert _ingest(kb, rules, "is ada a suspect").answer == ["yes"]
     assert _ingest(kb, rules, "is ada thief").answer == ["yes"]
-    trail = _ingest(kb, rules, "why is ada thief").answer
-    assert any("assumed not: ada is cleared" in ln for ln in trail)
+    # `why …` now has its own route + field (backward diagnosis, test_why_diagnosis): the derivation
+    # trace lands in `.explanation` (a trace is not a yes/no `.answer`), and the kind is `why`.
+    out = _ingest(kb, rules, "why is ada thief")
+    assert out.kind == "why"
+    assert any("assumed not: ada is cleared" in ln for ln in out.explanation)

@@ -9,7 +9,7 @@ from ugm.attrgraph import AttrGraph
 from ugm.production_rule import Pat, Rule
 from ugm.cnl.rule_graph import write_rule, rules_in_graph
 from ugm.check import check, POSITIVE, ASSUMED_NO
-from ugm.temporal import at_time, holds_at, order, indices_holding
+from ugm.scope_kinds import at_time, holds_at, order, indices_holding
 
 
 def _frame_kb():

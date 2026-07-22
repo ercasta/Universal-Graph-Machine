@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import warnings
 
-from .forms import WH, normalize_surface, tokenize
+from .forms import WH, normalize_surface, tokenize, normalize_lexical
 from ..production_rule import Pat, Rule
 from ..lowering import match_pats as match, run_bank
 from .surface import explain
@@ -107,6 +107,27 @@ QUESTION_FORMS: list[Rule] = [
     Rule(
         key="ask.who",
         lhs=[Pat("?s", "first", "who?"), Pat("who?", "next", "?qp"),
+             Pat("?qp", "next", "?qo")],
+        nac=[Pat("?qo", "is_kw", "yes")],
+        rhs=[Pat("<query>?", "qtype", "who"),
+             Pat("<query>?", "q_p", "?qp"), Pat("<query>?", "q_o", "?qo")],
+    ),
+    # "what is a O ?" / "what P O ?"  -> the person/thing TWIN of the two `who` forms above. `what` is a
+    # SUBJECT wh for a NON-PERSON unknown (`what causes aggression` — causes are usually things), and it
+    # maps to the SAME qtype `who`: the substrate is LABEL-LESS, so the person/thing split carries no
+    # query difference (both enumerate `?x` with `?x P O`). The n-ary OBJECT `what` (`SUBJ V what P ARG`,
+    # forms.py) is a DIFFERENT, non-leading construction and is untouched. Without these, `what causes X`
+    # mis-routes to the FACT path and silently asserts a bogus `what causes X` fact.
+    Rule(
+        key="ask.what.is_a",
+        lhs=[Pat("?s", "first", "what?"), Pat("what?", "next", "is?"),
+             Pat("is?", "next", "a?"), Pat("a?", "next", "?qo")],
+        rhs=[Pat("<query>?", "qtype", "who"),
+             Pat("<query>?", "q_p", "is_a"), Pat("<query>?", "q_o", "?qo")],
+    ),
+    Rule(
+        key="ask.what",
+        lhs=[Pat("?s", "first", "what?"), Pat("what?", "next", "?qp"),
              Pat("?qp", "next", "?qo")],
         nac=[Pat("?qo", "is_kw", "yes")],
         rhs=[Pat("<query>?", "qtype", "who"),
@@ -229,7 +250,10 @@ def _parse_question(question: str, extra_forms: list[Rule] = (), *, strata=None)
 
 def _recognize_question(question: str, extra_forms: list[Rule] = (), *, strata=None) -> dict | None:
     tmp = Graph()
-    anchor = tokenize(tmp, question)
+    # Morphology fold BEFORE tokenizing — the question-side twin of the assertion tokenize
+    # (`authoring` does `tokenize(rg, normalize_lexical(s))`). Without it the two paths normalized
+    # differently, so `does X have Y` asked `have` while `X has Y` stored `has` (confluence gap).
+    anchor = tokenize(tmp, normalize_lexical(question))
     if strata:
         normalize_surface(tmp, anchor, strata)
     run_bank(tmp, _KW_FORMS)          # tag keywords first (no NAC race)

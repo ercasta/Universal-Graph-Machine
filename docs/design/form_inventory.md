@@ -819,6 +819,35 @@ agentic core's critical path.**
   derivation must go through `record_firing` with its scope intact, so it stays explainable. The
   scope-generalization design is `docs/design/scope_generalization.md`.
 
+**⭐ CAUSATION CORE — BACKWARD DIAGNOSIS SURFACED 2026-07-22 (suite 909 green).** A probe confirmed C1
+is native THROUGH REAL INTAKE (`causes` relation + propagation rule; forward/plan needs no build), so
+the first causation-core slice was the missing BACKWARD (diagnosis) direction — and it was surface
+wiring, not reasoning: `why S P O` on the `ingest` route (`cnl/why_surface.py` + a `why` intake route)
+answers via the structured tuple goal `ask_goal(("why", …))`, which runs the closure with provenance
+always-on and renders `surface.explain` — the rule, its premises, the `causes` link, AND the NAF leaps.
+This is exactly ②'s RELATING half in use (explanation reads `proves`/`uses`; no C3). The probe also found
+a `has`/`have` confluence gap (`does X have Y` asked `have` while `X has Y` stored `has`) — **FIXED as
+SUGAR** (`baroque-vs-fundamental`): verb-agreement inflection is meaning-free morphology, the same
+category as the existing `are`->`is` fold, and the bug was that the question tokenize skipped the fold
+the assertion tokenize applied (`forms.normalize_lexical` generalized to `have`->`has`; `had` left for
+the temporal arc). What it protects is fundamental — both surfaces of a relation canonicalize to ONE
+predicate. `what causes X` (variable-binding backward — ENUMERATE the causes, the counterpart to `why`)
+also landed as sugar: `who causes X` already worked, `what` just needed recognizing as a subject-wh (a
+person/thing split with no query difference). FORWARD-SUGAR also landed with NO engine code: causal
+propagation is the EXISTING `define schema` meta-pattern — `define schema ?r propagates ?base : ?x ?base
+?e when ?x ?base ?c and ?c ?r ?e`, then `causes propagates has` materialises the rule (like `ancestor is
+transitive`). Causation is thus not privileged; it validated multi-parameter schemas. The COUNTERFACTUAL (third
+direction) also landed as a surface over `suppose(commit=False)` — `suppose A : P` / `what if A : P`
+reads whether P would hold under A, inking nothing (the ADDITIVE counterfactual, native; the subtractive
+one needs non-monotone retraction, out of core). **Causation core is COMPLETE** (forward + both backward
+forms + counterfactual), and the whole arc was overwhelmingly SUGAR / declared-data / surface-wiring — a
+strong confirmation of the agentic-core-is-native thesis. The EXISTENTIAL core (§9.2 #2) was then
+CONFIRMED NATIVE through intake (2026-07-22, suite 934): the LHS-keyed skolem head + existential
+questions + downstream composition all work with no build (`tests/test_existential.py`). Out: general
+verb inflection (translator's job) and the direct existential ASSERTION (out-of-core — no LHS to key the
+witness on). **§9.2's three agentic cores (causation, existential, ordered-ranging) are all reached** —
+what remains is the theorem-prover COMPLETIONS (declared ceilings) and ② facts-as-truth-bearers.
+
 So every agentic CORE is reachable with native ranging plus primitive ①, and the only fundamental
 build the whole binding programme requires is scope generalization. Primitive ② is a completion,
 sequenceable last or declared out. That is the de-risking the user asked for, concluded: the ripple is

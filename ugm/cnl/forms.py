@@ -194,11 +194,32 @@ def declared_univ_nouns(graph: Graph) -> set[str]:
 # lets one copula grammar handle `X is Y` and `they are Y` alike.
 DEFAULT_COPULA_SYNONYMS: tuple[str, ...] = ("are",)
 
+# Possession-verb agreement, the SAME meaning-free category as `are`->`is`: the base form `have` (as
+# it surfaces after do-support, `does X have Y`) folds to its canonical 3sg `has` — the predicate the
+# assertion `X has Y` stores. Without this, a QUESTION asks `have` where the fact is `has`, so even a
+# stored fact answers `no (assumed)` — a confluence GAP in the surface map (the assertion and question
+# surfaces of one relation must reach ONE predicate, else a derived fact silently mis-answers). `had` is
+# DELIBERATELY not folded: past tense belongs to the temporal arc, and collapsing it here would erase
+# the very distinction that work needs. General (open-class) verb inflection is the prose->CNL
+# translator's job, never the engine's — this is only the closed-class `have`, the twin of `are`.
+DEFAULT_VERB_SYNONYMS: dict[str, str] = {"have": "has"}
+
+
+def _lexical_map() -> dict[str, str]:
+    """Surface morphology -> canonical form: copula agreement (`are`->`is`) + possession agreement
+    (`have`->`has`). The ONE map both the assertion tokenize (`authoring`) and the question tokenize
+    (`query`) apply, so a relation's surfaces CONVERGE on one predicate."""
+    m = {w: "is" for w in DEFAULT_COPULA_SYNONYMS}
+    m.update(DEFAULT_VERB_SYNONYMS)
+    return m
+
 
 def normalize_lexical(line: str) -> str:
-    """Normalize copula morphology in `line` (`are` -> `is`). Mechanical, meaning-free — the
-    same category as the tokenizer's lowercasing; applied to NL-facing input before tokenizing."""
-    return " ".join("is" if w.lower() in DEFAULT_COPULA_SYNONYMS else w for w in line.split())
+    """Fold surface morphology to canonical form (`are` -> `is`, `have` -> `has`). Mechanical,
+    meaning-free — the same category as the tokenizer's lowercasing; applied to NL-facing input before
+    tokenizing, on BOTH the assertion and question paths (the confluence the surface map needs)."""
+    m = _lexical_map()
+    return " ".join(m.get(w.lower(), w) for w in line.split())
 
 
 def form_keywords(rules: list[Rule]) -> set[str]:

@@ -10,8 +10,8 @@ authoring the scope, so it went unseen.
 """
 from ugm.cnl.authoring import load_corpus
 from ugm.intake import ingest
-from ugm.attribution import consider, holds_for
-from ugm.temporal import at_time, holds_at, order
+from ugm.scope_kinds import consider, holds_for
+from ugm.scope_kinds import at_time, holds_at, order
 from ugm.cnl import uncertainty
 from ugm.check import POSITIVE
 

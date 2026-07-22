@@ -12,7 +12,7 @@ from ugm.check import check, collapse, POSITIVE, ASSUMED_NO
 from ugm.policy import FirmwarePolicy
 from ugm.possibility import add_fork, band_word
 from ugm.suppose import SCOPE_KIND, KIND_HOLDER, HOLDER, scope_kind, KIND_EPISTEMIC
-from ugm.attribution import consider, holder_scope_of, holds_for, holders_considering
+from ugm.scope_kinds import consider, holder_scope_of, holds_for, holders_considering
 
 BANDED = FirmwarePolicy(uncertainty="banded")
 

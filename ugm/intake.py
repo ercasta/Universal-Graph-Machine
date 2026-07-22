@@ -52,9 +52,10 @@ COMMAND_ACTS: dict[str, str] = {"focus": "focus", "be": "stance", "run": "run"}
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer"|"fact"|"comparison"|"hedge"|"rule"|"define"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"vocabulary"|"ambiguous"|"unrecognized"
+    kind: str                # "answer"|"why"|"suppose"|"fact"|"comparison"|"hedge"|"rule"|"define"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"vocabulary"|"ambiguous"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
+    explanation: list[str] | None = None         # WHY: the derivation trace (backward diagnosis)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
     disabled_keys: list = field(default_factory=list) # RULE-DISABLE: the rule keys marked `<disabled>`
     focus_op: tuple | None = None                # FOCUS: the (op, target) move applied
@@ -685,6 +686,49 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
                 yield Event("derive", rec)
         yield Event("acted", {"fired": acted})
         return Outcome("goal", utterance, acted=acted)
+
+    # COUNTERFACTUAL — `suppose A : P` / `what if A : P` (causation core §9.2, third direction): entertain
+    # `A` and read off whether `P` would hold, INKING NOTHING. Pure keyword-led parser (grammar refuses
+    # `suppose`/`what if`, like comparison/why), above the fact route so it is not asserted. Answered by
+    # `suppose(commit=False)` — the ADDITIVE counterfactual (native); the subtractive one (retract-under-
+    # hypothesis) is the out-of-core completion. Verdict -> answer: CONFIRMED=yes, REFUTED=no (the
+    # assumption entails the opposite), INCONCLUSIVE=no (assumed) (not derivable under A).
+    from .cnl.suppose_surface import parse_suppose
+    sup = parse_suppose(text)
+    if sup is not None:
+        (a_s, a_p, a_o), (p_s, p_p, p_o) = sup
+        yield Event("suppose", {"assume": [a_s, a_p, a_o], "predict": [p_s, p_p, p_o]})
+        focus_mod.widen(kb, {a_s, a_o, p_s, p_o})
+        from .cnl.query import _reify_rules
+        from .suppose import suppose as _suppose, CONFIRMED, REFUTED
+        rg = _reify_rules(rule_control.active_rules(kb, rules))
+        res = _suppose(kb, [(a_s, a_p, a_o)], [(p_p, p_s, p_o)], rules=rg, commit=False)
+        answer = (["yes"] if res.status == CONFIRMED
+                  else ["no"] if res.status == REFUTED else ["no (assumed)"])
+        yield Event("answer", {"answer": answer})
+        return Outcome("suppose", utterance, answer=answer)
+
+    # WHY / BACKWARD DIAGNOSIS — `why S P O` (causation core, form_inventory §9.2): the DERIVATION
+    # behind a fact, not a yes/no. Recognized by a pure keyword-led parser (the canonical grammar has no
+    # `why` and REFUSES it, like comparison/hedge), ABOVE the yes/no QUESTION recognizer so a `why …`
+    # surface is never mis-claimed. Answered by the STRUCTURED tuple goal `("why", s, p, o)`, which
+    # bypasses the question STRING (so no `has`/`have` inflection issue): `ask_goal` runs the demand
+    # closure with provenance always-on (RECORD, mode 9) to derive the fact + populate the support graph,
+    # then renders it via `surface.explain` — the causal antecedents of the asked fact recursed beneath.
+    # A separate FORCE: it returns a trace and changes no beliefs (so it is its own route, like `answer`).
+    from .cnl.why_surface import parse_why
+    why = parse_why(text)
+    if why is not None:
+        ws, wp, wo = why
+        yield Event("why", {"s": ws, "p": wp, "o": wo})
+        focus_mod.widen(kb, {ws, wo})
+        wscope = frozenset(focus_mod.top_centers(kb)) if attention == "focus" else None
+        active = rule_control.active_rules(kb, rules)
+        from .cnl.query import ask_goal
+        lines = ask_goal(kb, ("why", ws, wp, wo), active, policy=policy,
+                         focus_scope=wscope, max_rounds=max_rounds)
+        yield Event("explanation", {"lines": lines})
+        return Outcome("why", utterance, explanation=lines)
 
     # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
     q = recognize(text, extra_forms=question_forms)

@@ -22,6 +22,105 @@
 
 ## ▶ CURRENT ARC (2026-07-22) — COMPOSITION CLOSURE → SCOPE GENERALIZATION (suite **873 green**)
 
+**⭐ CAUSATION CORE — BACKWARD DIAGNOSIS LANDED 2026-07-22 (suite 909 green), the first slice of the
+next arc (§9.2 sequences causation FIRST).** A PROBE re-scoped it: C1 entity-level causation is native
+THROUGH REAL INTAKE (`causes` = a declared relation + an ordinary propagation rule derives the effect —
+`does X have Y` answers `yes`), so the forward/plan direction needs no build. The genuinely-missing
+capability is BACKWARD DIAGNOSIS ("why does this hold?"), and it turned out to be a SURFACE-WIRING slice,
+not new reasoning: provenance (`proves`/`uses`) + `surface.explain` already walk a fact's derivation
+(the rule, its premises, the `causes` link, and the NAF leaps) — the legacy `query.py` even had `why`
+forms, but off the unified `ingest` route. The slice: `ugm/cnl/why_surface.parse_why` (a pure keyword-led
+recognizer, `why S P O` / `why is S O` / `why is S a O`, PREDICATE-FAITHFUL so it dodges the orthogonal
+`has`/`have` gap) + a `why` route in `intake.py` above the yes/no recognizer that answers via the
+STRUCTURED tuple goal `ask_goal(kb, ("why", s, p, o), …)` (bypasses the question STRING; runs the closure
+with provenance always-on, then `explain`). New `Outcome("why", explanation=…)` kind + `Event("why")` /
+`Event("explanation")`. `tests/test_why_diagnosis.py` (9). One test re-homed: `why is ada thief` now
+routes `why` with the trace in `.explanation`, not overloaded into `.answer` (`test_habitability`).
+- **⭐ THE `has`/`have` CONFLUENCE GAP — FIXED 2026-07-22 (suite 913 green), and it IS sugar.** `does X
+  have Y` asked predicate `have` while `X has Y` stored `has`, so even a stored fact answered `no
+  (assumed)`. Classified via `baroque-vs-fundamental`: `has`/`have` are surface inflections of ONE
+  relation (paraphrasable, belief-invariant) ⇒ SUGAR — the exact category as the existing `are`->`is`
+  fold (`forms.normalize_lexical`, "mechanical, meaning-free, not reasoning"). Root cause was STRUCTURAL:
+  the assertion tokenize applied `normalize_lexical`, the QUESTION tokenize (`query._recognize_question`)
+  did NOT — so the two paths normalized differently. Fix: generalized the fold to a `{synonym:canonical}`
+  map with `have`->`has` (`had` LEFT ALONE — past tense is the temporal arc's, not sugar) and applied it
+  on the question path too. What it PROTECTS is fundamental: both surfaces of a relation must
+  canonicalize to one predicate (same failure family as the determiner kind/property mismatch). General
+  open-class verb inflection stays the prose->CNL translator's job. `tests/test_verb_morphology.py` (4).
+- **⭐ `what causes X` LANDED 2026-07-22 (suite 918 green) — variable-binding backward diagnosis.** The
+  ENUMERATE counterpart to `why` (which explains ONE known fact): `what causes X` lists the causes.
+  PROBE finding: `who causes X` already worked (it is a `who P O` wh-query, qtype `who`); the only gap was
+  that `what` was not a recognized wh-word, so `what causes X` mis-routed to the FACT path and silently
+  asserted a bogus `what causes X` fact. Fix = two additive `what` subject-wh forms in `query.py`
+  mirroring the `who` pair, both mapping to qtype `who` — SUGAR again (`what`/`who` = a person/thing
+  surface split with NO query difference in a label-less substrate). Held the boundary: the n-ary OBJECT
+  `what` (`SUBJ V what P ARG`, non-leading) is a different construction, untouched. `tests/
+  test_what_causes.py` (5, incl. the no-bogus-fact regression + who/what agreement).
+- **⭐ FORWARD-SUGAR LANDED 2026-07-22 (suite 923 green) — and the finding is that it needs NO ENGINE
+  CODE.** "Declaring `X causes Y` should propagate the effect without hand-writing `?x has ?e when ?x has
+  ?c and ?c causes ?e`" is DECLARED DATA via the EXISTING `define schema` meta-pattern: a TWO-parameter
+  schema `define schema ?r propagates ?base : ?x ?base ?e when ?x ?base ?c and ?c ?r ?e` captures the
+  causal-propagation MEANING once, then `causes propagates has` (a plain fact) materialises the concrete
+  rule — exactly as `ancestor is transitive` materialises transitivity. So causation is NOT privileged:
+  its propagation is declared like any relation property, honouring "domain logic ONLY in banks". One
+  schema serves many causal relations (`causes`, `enables`, …), and `why` sees the materialised firing's
+  provenance. This also VALIDATED multi-parameter schemas (the shipped `transitive` schema is
+  single-param). DELIBERATELY NOT shipped as a built-in `propagates` schema — that would privilege
+  causation against the same principle that keeps `transitive` declared; a default causal vocabulary is a
+  separate opt-in if wanted. `tests/test_causal_propagation.py` (5, incl. the re-break: no schema ⇒ no
+  propagation).
+- **⭐ COUNTERFACTUAL LANDED 2026-07-22 (suite 928 green) — causation's THIRD §9.2 direction; core now
+  COMPLETE.** `suppose A : P` / `what if A : P` entertains `A` and reads whether `P` would hold, INKING
+  NOTHING — the ADDITIVE counterfactual ("if A *were* so, would P hold?"), which is NATIVE via
+  `suppose(commit=False)` (probe: baseline `no (assumed)`, `suppose lion has hunger` ⇒ CONFIRMED, derives
+  `lion has aggression` in pencil, ink unchanged). Slice = surface only: `ugm/cnl/suppose_surface.py`
+  (pure keyword parser, `suppose`/`what if`, `:` splits assumption from prediction, predicate-faithful +
+  `have`->`has`) + an intake route → `_reify_rules` + `suppose(commit=False)`, verdict→answer
+  (CONFIRMED=yes, INCONCLUSIVE=no (assumed), REFUTED=no). New `Outcome("suppose")` + `Event("suppose")`.
+  The SUBTRACTIVE counterfactual ("if A were NOT so") needs retract-under-hypothesis (non-monotone) = the
+  out-of-core completion, not surfaced. `tests/test_counterfactual.py` (5, incl. the non-inking guarantee).
+- **⭐⭐ CAUSATION CORE COMPLETE (§9.2):** forward (`causes propagates has` schema) + backward-explain
+  (`why X`) + backward-enumerate (`what causes X`) + counterfactual (`suppose A : P`). THE ARC'S
+  THROUGH-LINE: almost everything was SUGAR / declared-data / surface-wiring — the only genuinely new
+  intake surfaces were `why`/`suppose` routes, both thin wrappers over existing machinery (`explain`,
+  `suppose`). Probing first turned each "missing capability" into a declaration or a surface, never engine.
+- **⭐ EXISTENTIAL CORE (§9.2 #2) — CONFIRMED NATIVE THROUGH INTAKE 2026-07-22 (suite 934 green). No
+  build; a probe + a guard test.** "A witness exists without a name, resolved on demand" works end-to-end
+  via the EXISTING rule + question forms: the LHS-keyed skolem head (`k? opens ?d when ?d is a locked`)
+  parses and mints an unnamed witness per match; the existential yes/no (`does anything opens door1` →
+  yes, `is anyone happy` → yes) resolves it on the demand path; enumeration (`who opens door1` → `k opens
+  door1`) finds it; and it COMPOSES DOWNSTREAM (E2: `is door1 accessible` → yes via the unnamed opener,
+  control plain door → no). `tests/test_existential.py` (6, incl. the no-rule-no-witness + keyed-to-match
+  controls). **§9.2's THREE agentic cores are now all reached** (causation, existential, ordered-ranging).
+  - **Two gaps, both correctly OUT:** (a) general verb inflection `open`/`opens` — the open-class
+    lemmatization deferred as the translator's job (only the closed-class `have` was folded); (b) a DIRECT
+    existential ASSERTION `some key opens door1` mints a node literally named `key` (conflates witnesses)
+    — the out-of-core COMPLETION, because a bare assertion has no LHS to key the witness on, colliding
+    with [[skolem-minting-lhs-keyed]] (agent asserts a rule/specific fact, not a bare ∃).
+  - **⚠ ORTHOGONAL BUG FOUND (not existential, deferred):** a rule head `?d is a KIND when …` mis-routes
+    to the FACT path (the `when` is dropped and it lands as a fact), while `?d is PROP when …` routes
+    `rule` correctly. Bit the E2 probe. A rule-head `is a <kind>` parsing gap — worth a slice on its own.
+- **▶ PICK UP HERE (next session):** the AGENTIC CORES are done; the big remaining non-sugar item is the
+  **grammar flip-default integration** (make the canonical grammar the default route — the preserved arc
+  with a ~18-item triage: GC contract decision, authored-forms routing, expectation-test rewrites; own
+  session, higher blast radius). Smaller alternatives: the `is a KIND` rule-head bug above, or ② facts-as-
+  truth-bearers (the one genuinely-fundamental remaining gap, a declared ceiling — propositional causation C3).
+
+**⭐ SCOPE-KIND UNIFICATION LANDED 2026-07-22 (suite 900 green) — the §4 table is now TRUE IN CODE.**
+With the arc's Slices 0–2 complete, the two ontological kind modules (`attribution.py` holder +
+`temporal.py` temporal) were near-identical — the same helpers modulo a `(kind, key_attr)` pair and two
+policy flags. They are DELETED and consolidated into `ugm/scope_kinds.py`: a kind-parameterized core
+(`scope_of` / `pen_scoped` / `holds_in` / `scopes_holding`) plus thin kind-bound verbs. Timely, not
+premature: building both as near-copies FIRST is what validated "kind dispatch generalizes with zero
+read-engine change," so this extracts a MEASURED axis, not a guessed one. Deferred, deliberately: (a)
+the `epistemic` fork is NOT folded in (it carries a band, is discounted, isn't entity-keyed —
+`suppose.py`/`possibility.py`); (b) `chain.py`'s `@?t` rule path stays hardcoded `temporal` (ranging
+`@?t` over other kinds = the "family-B" arc). Public API deleted, not aliased (engine is experimental,
+single owner) — 5 test files re-pointed to `ugm.scope_kinds`, the 40 existing scope tests pass
+UNCHANGED (the equivalence proof), + `tests/test_scope_kinds.py` (6) drives the core through a synthetic
+third kind with negative controls on kind-dispatch + non-veridicality + materialize.
+
+
 **⭐ META-PATTERN SURFACE LANDED 2026-07-22 (suite 873 green) — the payoff of the quote token.**
 `define schema <trigger> : <template>` lets a user define what a relation-PROPERTY means AS A RULE
 TEMPLATE, in the language: `define schema ?r is transitive : ?a ?r ?c when ?a ?r ?b and ?b ?r ?c`, then

@@ -703,7 +703,7 @@ def _run_scope_index_node(fact_g: AttrGraph, scope: str | None) -> str | None:
 
 def _scope_for_index(fact_g: AttrGraph, index_name: str, *, create: bool) -> str | None:
     """The temporal scope keyed to `index_name` (`<temporal-index>`), minted kinded on `create`. The
-    write side of a relativized head; mirrors `temporal.temporal_scope_of` (inlined to avoid the
+    write side of a relativized head; mirrors `scope_kinds.temporal_scope_of` (inlined to avoid the
     suppose↔chain import cycle)."""
     from .suppose import HYPOTHESIS, SCOPE_KIND, KIND_TEMPORAL, INDEX
     from .attrgraph import NAME, valued, graded

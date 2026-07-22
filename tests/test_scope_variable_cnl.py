@@ -10,7 +10,7 @@ from ugm.attrgraph import AttrGraph
 from ugm.cnl.machine_rules import load_machine_rules
 from ugm.cnl.rule_graph import write_rule
 from ugm.check import check, POSITIVE, ASSUMED_NO
-from ugm.temporal import at_time, holds_at, order, indices_holding
+from ugm.scope_kinds import at_time, holds_at, order, indices_holding
 
 
 FRAME = "?x has ?y @?t2 when ?x has ?y @?t1 and ?t1 before ?t2"

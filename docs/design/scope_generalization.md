@@ -52,6 +52,20 @@ The `epistemic` row is exactly today's fork — so the generalization is additiv
 `temporal` are ONTOLOGICAL (no possibility discount): a fact in a holder/time scope is not "possibly"
 true globally, it is definitely true *there*.
 
+> **✅ REALIZED IN CODE 2026-07-22 (suite 900 green): the two ontological rows are ONE parameterized
+> core.** `holder` and `temporal` were built as near-copy modules (`attribution.py`, `temporal.py`) to
+> validate that kind dispatch generalizes with zero read-engine change — proven across both. They are
+> now collapsed into `ugm/scope_kinds.py`: a kind-parameterized core (`scope_of` / `pen_scoped` /
+> `holds_in` / `scopes_holding`) plus thin kind-bound verbs (`consider`/`holds_for`/…,
+> `at_time`/`holds_at`/`order`/…). The ENTIRE axis of variation between the two kinds is a
+> `(kind, key_attr)` pair plus two policy flags — `resolve_key` (temporal's index is an orderable
+> entity) and `materialize` (temporal's read mints the queried scope for a cross-index rule to pen into).
+> `test_scope_kinds.py` drives the core through a SYNTHETIC third kind with negative controls, proving
+> the parameterization is real. The `epistemic` row stays in `suppose.py`/`possibility.py` (it carries a
+> band, its read is discounted, and it is not entity-keyed — deliberately NOT folded in). The `@?t`
+> rule-binding path in `chain.py` is still hardcoded `temporal` — ranging `@?t` over other kinds is the
+> deferred "family-B" work.
+
 ## 5. Slices — each delivers a real capability and de-risks the next
 
 **Slice 0 — SYMMETRIC relativizer read (the negative-band fix). START HERE.**
@@ -81,7 +95,7 @@ cat*, and `is the lion a cat` answers no-globally / yes-relative-to-N.
 > polarities of the invariant). The kind attr's live payoff is Slice 2's dispatch; here it labels,
 > keys, and proves additivity (existing forks stay unkinded).
 
-**Slice 2 — `temporal` (ontological ordered) scopes + rule-binding. ENGINE LANDED 2026-07-22 (848 green); CNL surface remaining.**
+**Slice 2 — `temporal` (ontological ordered) scopes + rule-binding. ✅ COMPLETE 2026-07-22 (engine 848 green; CNL `@?t` surface 880 green).**
 Two hard parts, in order: (a) an ontological ordered scope (a time index with `before`/`succ` — the
 ordering itself is native relational content, spike O1); (b) SCOPE-VARIABLE rules — a rule that binds
 a scope and relates two (`fact @?s1 ∧ ?s1 before ?s2 ⇒ fact @?s2`). (b) is the genuinely new
@@ -119,8 +133,9 @@ mechanism (§6 fork). This is tense's core.
   — the probe's reframing, since the scope is keyed to an ordinary index). ENGINE BUILT on the demand
   path: a relativized body atom ranges temporal-scope pencils binding the index; a relativized head pens
   into the scope keyed to its bound index; the head's `?t` binds to the run-level scope's index at seed
-  time (non-veridical globally). Additive — un-relativized atoms unchanged (848 green). The CNL surface
-  (`@?t` in the machine-rule grammar) is the remaining piece; the mechanism is tested via `write_rule`.
+  time (non-veridical globally). Additive — un-relativized atoms unchanged (848 green). ✅ The CNL surface
+  (`@?t` in the machine-rule grammar) LANDED 2026-07-22 (880 green) — Slice 2 is complete. DEFERRED
+  limits (not needed for acceptance): a relativized `not S P O @?t` clause and a relativized PROSE head.
 - ~~**How `kind` is represented**~~ **SETTLED 2026-07-22 (Slice 1): a `kind` valued attr on the scope
   node** (`suppose.SCOPE_KIND`, default-absent ⇒ epistemic), not distinct marker names. Chosen because
   it is additive (joins the relativizer-attr family on `<hypothesis>`), gives uniform one-attr dispatch
