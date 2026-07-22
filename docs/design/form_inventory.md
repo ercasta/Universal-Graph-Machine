@@ -808,9 +808,16 @@ agentic core's critical path.**
 - **① scope generalization** is the shared, convergent one: tense-core, attribution, and the
   negative-band fix all reduce to it; it is an EXTENSION of the existing scope mechanism. This is the
   primitive to design, and to design once.
-- **② facts-as-truth-bearers** is ISOLATED: needed only for the causation COMPLETION (the core is
-  native), so by §9.2 it can be a DECLARED CEILING if it proves expensive — no agentic core is blocked
-  on it.
+- **② facts-as-truth-bearers** — its PRODUCTIVE half (deriving new facts by binding a fact's truth,
+  C3) is the gap, needed only for the causation COMPLETION (the core is native), so by §9.2 it can be
+  a DECLARED CEILING. But its RELATING half is NOT a gap and NOT isolated: **provenance already relates
+  facts** (`J --proves--> conclusion`, `J --uses--> premise`, in an inert meta-layer the matcher skips),
+  and EXPLAINABILITY rides exactly this — `why`/`explain` traverse `proves`/`uses`, retraction/reconsider
+  walk the support graph. So the map's "isolated" was too strong (user, 2026-07-22): explanation needs
+  facts to be addressable+relatable, and that already exists. It does NOT need C3 (it READS the record,
+  never re-derives through fact-truth). CONSEQUENCE — a design CONSTRAINT on ①: a scoped/relativized
+  derivation must go through `record_firing` with its scope intact, so it stays explainable. The
+  scope-generalization design is `docs/design/scope_generalization.md`.
 
 So every agentic CORE is reachable with native ranging plus primitive ①, and the only fundamental
 build the whole binding programme requires is scope generalization. Primitive ② is a completion,

@@ -112,3 +112,45 @@ def test_crisp_core_untouched_without_forks():
     assert facts_matching_banded(g, "likes", "a", "b") == [("a", "b", CERTAIN, frozenset())]
     assert verdict(g, "likes", "a", "b") == "certain"
     assert verdict(g, "likes", "a", "c") == "assumed-no"
+
+
+# ---------------------------------------------------------------------------
+# SLICE 0 (docs/design/scope_generalization.md) — the negative READ is banded
+# SYMMETRICALLY with the positive. A fork/pencil ¬L must not collapse to
+# `assumed-no`, dropping its degree — the verified band∘negation leak (§9.1/9.3).
+# ---------------------------------------------------------------------------
+
+def test_banded_negation_wears_its_degree_not_assumed_no():
+    """⭐ THE VERIFIED LEAK, FIXED. A fork `has_not(lion,mane)@0.75` reads possibility 0.75
+    (representation composes) but `check` under a banded policy USED to answer `assumed-no`, dropping
+    the band — where the positive twin answers `likely`. It must instead wear a banded NEGATIVE
+    verdict, symmetric with the positive branch.
+
+    RE-BREAK: delete the `if policy.banded:` negative-band block in `check.check` and this returns
+    `assumed-no` again — the leak restored. The crisp path is unaffected (test below)."""
+    from ugm.possibility import fork_fact, _entity
+    from ugm.check import check
+    from ugm.policy import FirmwarePolicy, BANDED
+    banded = FirmwarePolicy(uncertainty=BANDED)
+
+    g = AttrGraph()
+    fork_fact(g, 0.75, _entity(g, "lion"), "has_not", _entity(g, "mane"))
+    v = check(g, ("has", "lion", "mane"), policy=banded)
+    assert v not in ("assumed-no", "entailed-no"), f"the band was dropped: {v!r}"
+    assert v.endswith("not") and v != "not", f"a banded negative must wear its degree: {v!r}"
+
+    # symmetric: the POSITIVE twin at the same band answers the positive band word, unchanged
+    g2 = AttrGraph()
+    fork_fact(g2, 0.75, _entity(g2, "lion"), "has", _entity(g2, "mane"))
+    assert check(g2, ("has", "lion", "mane"), policy=banded) == band_word(0.75)
+
+
+def test_crisp_negation_path_is_unchanged():
+    """Slice 0 touches ONLY the banded branch: with no banded policy, an absent goal is still
+    `assumed-no` and an ink hard-negative is still `entailed-no`."""
+    from ugm.check import check, ENTAILED_NEG, ASSUMED_NO
+    g = AttrGraph()
+    assert check(g, ("has", "lion", "mane")) == ASSUMED_NO
+    b = g.add_node("bo")
+    g.add_relation(b, "is_not", g.add_node("cleared"))
+    assert check(g, ("is", "bo", "cleared")) == ENTAILED_NEG

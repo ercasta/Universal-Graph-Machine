@@ -127,9 +127,14 @@ def check(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     neg = (_neg_pred(pred), subj, obj)
     chain_sip(fact_g, neg, rules=rule_g, provenance=provenance,    # is the HARD negative entailed?
               max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope, scope=scope,
-              on_subgoal=on_subgoal)
+              on_subgoal=on_subgoal, **({"policy": policy} if policy.banded else {}))
     if _present(fact_g, neg, scope=scope):
         return ENTAILED_NEG
+    if policy.banded:                                    # SLICE 0 (docs/design/scope_generalization.md):
+        n = _band_present(fact_g, neg, scope=scope)       # read the NEGATIVE's band SYMMETRICALLY with the
+        if n > 0.0:                                       # positive branch above. A fork/pencil ¬L visible
+            from .possibility import band_word            # at band n must not collapse to assumed-no and
+            return band_word(n) + " not"                  # drop its degree — that was the verified leak.
     if fuel.exhausted:
         return UNKNOWN
     return UNKNOWN if policy.is_open(_concept_key(pred, obj)) else ASSUMED_NO

@@ -20,6 +20,63 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
+## ▶ CURRENT ARC (2026-07-22) — COMPOSITION CLOSURE → SCOPE GENERALIZATION (suite **818 green**)
+
+**THE ARC IN ONE PARAGRAPH.** The grammar arc's real question — "are the fundamental epistemic blocks
+enough?" — became: are they REASONED-OVER (not just mapped), and CLOSED under composition, at arbitrary
+DEPTH? Two probes answered it. `bench/spike_epistemic_closure.py` (clause-3 = reasoned-over, + closure)
+found blocks compose closed EXCEPT a verified negative-side leak. `bench/spike_binder.py` decomposed the
+shared cross-fact primitive and found: **ranging is NATIVE** (existential = LHS-keyed skolem + demand;
+ordered = recursion over relational order), and the ONE critical-path fundamental gap is
+**RELATIVIZING a fact to a context** — i.e. **SCOPE GENERALIZATION**, which converges the negative-band
+leak, attribution, and tense into ONE extension of the existing scope mechanism. Full reasoning +
+inventory: `design/form_inventory.md` §9.1–9.3; engine design: `design/scope_generalization.md`.
+
+**KEY SETTLED CONCLUSIONS (so they are not re-litigated; all in form_inventory §9):**
+- **Understanding needs CLAUSE 3 — reasoned-over, not just mapped** (the conditionality "right by luck
+  on the token" bug). Closure = every composition lands in {reasoned ∪ explicitly-refused}, never
+  {silently mis-mapped}; goal = smallest CLOSED set covering the corpus (closure can force it LARGER).
+- **Closure-at-depth ⟺ ONE uniform evaluation mechanism** (cond∘degree PASSES under banded chain_sip;
+  degree∘negation LEAKED = two mechanisms).
+- **In-scope is a CORE/COMPLETION line INSIDE each block** (agentic, not theorem-proving): tense-core =
+  state-transition (not full temporal logic); causation-core = entity-level + SUPPOSE; quantification-
+  core = existential-under-uncertainty + universal. Completions are declared ceilings.
+- **TWO distinct missing primitives, only ① on the critical path:** ① SCOPE GENERALIZATION
+  (relativization; shared by tense-core + attribution + negative-band; an EXTENSION of the scope
+  mechanism); ② FACTS-AS-TRUTH-BEARERS — its productive half (propositional-causation C3) is a
+  deferrable ceiling, but its RELATING half already exists as PROVENANCE (`proves`/`uses`) and
+  explainability rides it, so scoped derivations must go through `record_firing` with scope intact.
+
+**⭐ SLICE 0 LANDED 2026-07-22 (suite 818 green): the negative READ is banded SYMMETRICALLY.**
+`check.check` under a banded policy now reads the hard-negative's band (`_band_present`, + runs the
+negative closure banded) and returns a banded-negative verdict (`band_word(n) + " not"`, e.g. `likely
+not`) instead of collapsing a fork/pencil ¬L to `assumed-no`. This closes the verified band∘negation
+leak and establishes the invariant every later scope kind needs ("a scope's relativizer is read on
+BOTH polarities"). Guards: `tests/test_possibility_band.py::test_banded_negation_wears_its_degree...`
+(+ crisp-path-unchanged), re-breakable. `collapse`/`explain_check` pass the new verdict through as a
+band word (verified: `.get(status, status)` + banded fallback).
+
+**NEXT, IN ORDER (`scope_generalization.md` §5):**
+1. **Slice 1 — the `holder` scope KIND (attribution).** Add a scope `kind` (fork: attr vs marker —
+   recommend a `kind` attr); ONTOLOGICAL read (no possibility discount; global check non-veridical /
+   assumed-no for a penned proposition). No ordering, no scope-variable rules. Delivers a §4a block and
+   validates kind dispatch.
+2. **Slice 2 — `temporal` ontological ordered scopes + SCOPE-VARIABLE rules (tense).** The ordering is
+   native (spike O1); the NEW mechanism is a rule binding a scope variable and relating two scopes
+   (`fact @?s1 ∧ ?s1 before ?s2 ⇒ fact @?s2`). The one deep open fork (syntax + matching); do last.
+3. **Independent, off the critical path:** causation's entity-level core is NATIVE now (build on it);
+   propositional causation (② C3) is a declared ceiling.
+
+**BENCHES/PROBES ADDED (re-runnable, `PYTHONIOENCODING=utf-8`, deterministic ×2):**
+`bench/spike_epistemic_closure.py` (clause-3 + closure; 8 PASS / 3 REFUSED / 1 LEAK — the LEAK is the
+INTAKE-side hedge∘negation, not the machine), `bench/spike_binder.py` (E/O/C map: 3 NATIVE capabilities,
+2 GAPs = relativization + propositional-causation). Memory: `binding-is-the-missing-axis.md`,
+`epistemic-closure-under-composition.md`.
+
+**RELATION TO THE GRAMMAR ARC BELOW:** this arc emerged FROM the grammar/flip-default work (below) and
+supersedes it as the current focus, but the flip-default integration work is still valid REMAINING work
+— it was not done. Pick this arc up first; the grammar handoff is preserved verbatim below.
+
 ## ▶ PICK UP HERE (handoff 2026-07-20 END OF SESSION — suite **818 green**, pystrider **388 green**)
 
 **STATE IN ONE PARAGRAPH.** The grammar route now carries every FORCE as a declared verb
