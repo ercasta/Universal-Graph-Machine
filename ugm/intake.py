@@ -303,6 +303,44 @@ def _act_loop(kb, active, sync_tools, async_tools, *, provenance=False, max_cycl
     return total                                # fuel bound reached — stop honestly
 
 
+def _defers_to_keyword_surface(kb, text: str) -> bool:
+    """True if a keyword-led SPECIAL surface would claim `text` — so the greedy open-vocab grammar
+    route must NOT run first and mis-parse it as a plain S-V-O fact.
+
+    ⭐ WHY THIS EXISTS (2026-07-22). A default grammar needs `open_class="noun"` so arbitrary
+    vocabulary parses; but with noun-defaulting the grammar reads `suppose A : P` / `why S P O` /
+    `that A causes that B` / `x is more D than y` / `x is likely P` as ordinary facts, stealing them
+    from the precise keyword-led recognizers that sit BELOW the grammar dispatch. The comments there
+    assume "the grammar REFUSES these, reached by fall-through" — MEASURED true only WITHOUT
+    open_class, so the fall-through silently breaks under exactly the config a default grammar needs.
+    This restores the most-specific-wins order the authoring cluster already relies on: a keyword-led
+    recognizer beats the general grammar.
+
+    Each check is a PURE recognizer (no KB mutation — `parse_hedge_fact` only READS the lexicon); the
+    actual handling still happens once, in the owning block below. Keyword-gated (suppose/what-if;
+    why; that…causes that; more/less…than; likely/either/means), so a plain fact claims none of them —
+    the same property `test_at_most_one_router_recognizer_claims_a_surface` pins."""
+    from .cnl.comparative import parse_comparative
+    from .cnl.suppose_surface import parse_suppose
+    from .cnl.why_surface import parse_why
+    from .cnl import cause_surface
+    from .cnl.query import recognize
+    from .cnl.uncertainty import (hedge_bands, parse_either, parse_hedge_decl, parse_hedge_fact)
+    if (parse_suppose(text) is not None or parse_why(text) is not None
+            or cause_surface.parse_cause(text) is not None
+            or parse_comparative(text) is not None):
+        return True
+    # A WH-QUERY (`who P O` / `what causes X`) — the grammar route can only ask YESNO (its question path
+    # hardcodes the `("yesno", s, p, o)` goal), so an enumerating wh-question MUST reach the shipped
+    # recognizer or it is answered yes/no. `what` is also unknown to a noun-defaulting grammar, so
+    # `what causes X` would otherwise assert a bogus fact. yesno questions stay on the grammar route.
+    q = recognize(text)
+    if q is not None and q.get("qtype") == "who":
+        return True
+    return (parse_hedge_decl(text) is not None or parse_either(text) is not None
+            or parse_hedge_fact(text, hedge_bands(kb)) is not None)
+
+
 def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_ask=False, trace=False,
                 sync_tools=None, async_tools=None, max_rounds=1000):
     """The routing CORE as a generator (§5/8.5b): route ONE CNL `utterance` by which recognition forms
@@ -496,9 +534,13 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # A REFUSED PARSE FALLS THROUGH to the ladder below rather than returning, so a grammar that
     # does not yet declare a surface (`forget that`, `back to X`) still reaches the shipped
     # recognizer for it. What it must NEVER reach is `load_facts` — see the guard on the fact route.
+    #
+    # ⚠ A GREEDY GRAMMAR STEALS KEYWORD-LED SPECIAL SURFACES (2026-07-22). Under `open_class="noun"`
+    # the grammar parses `suppose …`/`why …`/`that … causes …`/comparison/hedge as plain facts, so the
+    # dispatch DEFERS them to the precise recognizers below — see `_defers_to_keyword_surface`.
     from .cnl import grammar_intake
     gbanks = grammar_intake.session_banks(kb)
-    if gbanks is not None:
+    if gbanks is not None and not _defers_to_keyword_surface(kb, text):
         kind, data = grammar_intake.route(kb, text, gbanks)
         if kind == "ambiguous":
             # AMBIGUOUS IS ITS OWN OUTCOME, not a flavour of unrecognized: "I cannot parse this" and

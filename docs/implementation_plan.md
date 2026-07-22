@@ -161,9 +161,60 @@ routes `why` with the trace in `.explanation`, not overloaded into `.answer` (`t
 - **▶ PICK UP HERE (next session):** BOTH fundamental primitives (① scope generalization, ② facts-as-
   truth-bearers) are BUILT and ② now has its CNL surface — §9.3's whole binding programme is reached and
   usable. The big remaining non-sugar item is the **grammar flip-default integration** (make the canonical
-  grammar the default route — the preserved arc with a ~18-item triage: GC contract decision, authored-
-  forms routing, expectation-test rewrites; own session, higher blast radius). Both smaller alternatives
-  (the `is a KIND` rule-head bug, the propositional-causation surface) are now DONE.
+  grammar the default route). **⭐ RE-INVESTIGATED 2026-07-22 — the plan's "~18-item triage" is STALE and
+  the character CHANGED. See the FLIP-DEFAULT RE-MEASURE block immediately below.** Both smaller
+  alternatives (the `is a KIND` rule-head bug, the propositional-causation surface) are DONE.
+
+**⭐⭐ FLIP-DEFAULT RE-MEASURED 2026-07-22 (suite 953 green) — 59 fails not 18, and the real blocker is the
+INTERPRETATION/REASONING DUALITY, not integration bookkeeping.** Fresh deterministic harness (loudon
+`Grammar` loaded once, `copy.deepcopy` per grammar-less KB — sharing one lets `sync_vocabulary` cross-
+pollinate lexicons — auto-`declare_grammar(open_class="noun")`, register-marked to dodge the `id(kb)`-reuse
+bug). Memory: [[flip-default-blocked-by-greedy-grammar]].
+- **THREE things SETTLED this session:**
+  - **GC GATE (gate #1) → do NOT sweep on the grammar route.** Traced + empirically confirmed: the
+    revision path `reconsider`→`rebuild`→`mark_all_spans` re-reads the WHOLE standing surface across ALL
+    past utterances; `gc_utterance_scaffolding` destroys the `first`/`next` token chain the fold needs, so a
+    post-sweep `rebuild` returns `[]` (vs correct facts un-swept). Accretion is the deliberately-accepted
+    cost of a permanent revisable surface. The 2 `test_isa_focus` accretion fails get TEST-REWRITTEN.
+  - **CORPUS-LOAD FEAR RULED OUT.** `load_world`/`load_corpus` load facts via the batch `_recognize` path
+    (bypasses `ingest`/`session_banks`), so only interactive queries hit the grammar — a domain corpus's
+    `is cy thief` still answers correctly under the flip.
+  - **RECOGNIZER-HOIST BUILT (UNCOMMITTED, shipped stays 953 green): `intake._defers_to_keyword_surface`.**
+    A guard before the grammar dispatch that defers keyword-led surfaces (suppose/why/cause/comparison/hedge
+    via PURE recognizers) AND wh-queries (`recognize(text).qtype=="who"` — the grammar route hardcodes the
+    `("yesno",…)` goal so it CANNOT enumerate `who`/`what`) to the precise recognizers below. Root cause it
+    fixes: under `open_class="noun"` (which a default grammar NEEDS) the grammar reads `what causes X` /
+    `suppose A : P` / `that A causes that B` / comparatives as plain S-V-O facts, stealing them before their
+    recognizers run; the intake comments' "grammar refuses these, reached by fall-through" was MEASURED only
+    WITHOUT open_class. Principled (most-specific-wins, as the authoring cluster already is), shipped-safe
+    (guard only runs when a grammar is declared). **But it moved the flip only 59→54** — proving the theft
+    was NOT the dominant cost.
+- **⭐ THE REAL BLOCKER (found once the hoist unblocked wh-enumeration): reasoning over a grammar-route KB
+  is POLLUTED because reasoning reads the RAW graph while the grammar KB permanently carries the
+  interpretation/surface layer.** Two manifestations: (1) SURFACE control nodes carry CONTENT edges — `what
+  causes aggression` enumerated a spurious `' causes aggression'` from two empty-named `ctrl=True`
+  interpretation/span artifacts holding a real `causes`→aggression edge (the shipped route never hits this
+  because it SWEEPS — forbidden here by the GC gate); (2) interpretation COPIES split a name across 2+ nodes
+  (`'dangerous' resolves to 2 distinct nodes; a rule join may silently derive nothing`) — breaks RULE
+  reasoning. This is [[interpretation-nodes-are-the-target]] / the token-entity duality, UNSOLVED for the
+  query path.
+- **⭐ CHEAPEST VIABLE FIX PROBED — REASON OVER A CLEAN PROJECTION of the interpretation.** `gi.facts(kb)`
+  (= `scope_facts`) is CLEAN (no surface, one node per name). PROVEN: load `scope_facts` into a scratch
+  `AttrGraph` + run `ask_goal` there ⇒ enumeration `what causes aggression` returns exactly
+  `[fear…, hunger…]` (no pollution), yesno + rule-join (`is lion dangerous` off `lion is strong` + a rule)
+  both correct, `who is dangerous` clean. Solves BOTH manifestations at once (clean single-node-per-name
+  graph). **ARC COMPLICATION (the risk):** the recognizer-hoist created a DUAL FACT STORE — crisp grammar
+  facts live in the interpretation scope (`gi.facts`), but DEFERRED special surfaces (hedge FORKS,
+  comparisons, propositional-cause handles) write to the REAL KB (confirmed: `cy is likely alibied` routes
+  `hedge`, absent from `gi.facts`). A clean reasoning view must UNION both, and banded/fork reasoning
+  (test_world/isa_ask/contract) needs the fork scopes projected too — that union is the arc's unknown.
+- **ARC ESTIMATE (multi-slice, its "own session" as the plan always said):** (a) a `reasoning_projection(kb)`
+  helper + route grammar-route yesno/wh/why/suppose/goals through it [moderate, ~1 slice]; (b) UNION the
+  deferred/banded facts + fork scopes into the projection [the risky slice — needs its own probe]; (c)
+  provenance/`why`, the goal act-loop, and perf (cache + invalidate on ingest) over the projection
+  [moderate]; (d) the original ~18 integration items (GC-gate + accretion test rewrites, the
+  `SWEEP refused: not a control node` caller fix in `test_intake_act`, authored-forms routing, expectation
+  rewrites) [small-moderate]. Current flip debt with the hoist in place: **54 of 953**.
 
 **⭐ SCOPE-KIND UNIFICATION LANDED 2026-07-22 (suite 900 green) — the §4 table is now TRUE IN CODE.**
 With the arc's Slices 0–2 complete, the two ontological kind modules (`attribution.py` holder +
