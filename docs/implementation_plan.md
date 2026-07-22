@@ -20,7 +20,30 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶ CURRENT ARC (2026-07-22) — COMPOSITION CLOSURE → SCOPE GENERALIZATION (suite **848 green**)
+## ▶ CURRENT ARC (2026-07-22) — COMPOSITION CLOSURE → SCOPE GENERALIZATION (suite **865 green**)
+
+**⭐⭐ SIDE-ARC 2026-07-22: THE QUOTE TOKEN + THE `define` SURFACE (suite 865 green).** From the user's
+"define meaning and use it? drastically simplify?" — audit in `design/meaning_surfaces_audit.md`. Two
+findings + two builds:
+- **"Define meaning and use it" was NOT a missing primitive** (rules = sufficient defs, skolems =
+  necessary; both NATIVE). The sprawl is TWO axes: ~13 LOADERS (collapsible — the real simplification,
+  NOT yet done) vs per-relation rule GENERATORS (thought quote-wall-bound).
+- **⭐ THE QUOTE-WALL WAS ALREADY CLIMBED, and is now removed IN-LANGUAGE.** `learner.py` already writes
+  variable-bearing rules; the only thing still walled was the *ergonomic* form (writing `?a` as a
+  literal). **Built the QUOTE token `'?a`** (`production_rule` §QUOTE — a leading `'` escapes the
+  variable reading; `literal_name`/`Pat.__post_init__` strip it, everything else additive): a meta-rule
+  now writes relation-property transitivity in-language, no Python expander (proven,
+  `tests/test_quote_token.py`, incl. re-break: bare `?a` → malformed, loud). Delicacy is authoring
+  POLICY, not an engine limit (user's framing).
+- **Built the `define` surface** (`cnl/define_surface.py`) — `define H as B` (sufficient rule) /
+  `define H iff B` (+ the NECESSARY direction: `H ⇒ B` with non-head vars as a SHARED bound-literal
+  skolem witness — both directions of meaning from ONE statement). Reuses `load_machine_rules` (no
+  second grammar); wired into the MAIN intake as `Outcome("define")` (NOT a new loader — respecting the
+  audit). `tests/test_define_surface.py` (10).
+- **NEXT for this side-arc (audit §6):** loader convergence (route comparative/uncertainty through
+  intake, retire `load_corpus`); the meta-pattern CNL surface (`define transitive R` — quote enables it,
+  surface is a follow-on); leave hedges/forks to scope generalization (family B).
+
 
 **THE ARC IN ONE PARAGRAPH.** The grammar arc's real question — "are the fundamental epistemic blocks
 enough?" — became: are they REASONED-OVER (not just mapped), and CLOSED under composition, at arbitrary

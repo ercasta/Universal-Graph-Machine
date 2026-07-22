@@ -52,7 +52,7 @@ COMMAND_ACTS: dict[str, str] = {"focus": "focus", "be": "stance", "run": "run"}
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer"|"fact"|"rule"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"vocabulary"|"ambiguous"|"unrecognized"
+    kind: str                # "answer"|"fact"|"rule"|"define"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"vocabulary"|"ambiguous"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
@@ -70,7 +70,7 @@ class Event:
     `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). A `"call"` event
     is the ASYNC-TOOL suspension (§5 wait-set v2): its data carries `{tool, call, request}` and the
     driver's `.send()` value is the world's response, folded by the tool's `fold` half."""
-    kind: str                # focus|question|ask|subgoal|derive|answer|fact|rule|rule-conflict|rule-disable|form|form-conflict|procedure|goal|call|acted|unrecognized
+    kind: str                # focus|question|ask|subgoal|derive|answer|fact|rule|define|rule-conflict|rule-disable|form|form-conflict|procedure|goal|call|acted|unrecognized
     data: dict = field(default_factory=dict)
 
 
@@ -399,6 +399,28 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         procedure_surface.stage_procedure(kb, name, steps)
         yield Event("procedure", {"name": name, "steps": steps})
         return Outcome("procedure", utterance)
+
+    # DEFINE — `define H as B` / `define H iff B` authors a DEFINITION (docs/design/
+    # meaning_surfaces_audit.md §4): a rule for the sufficient direction, plus the NECESSARY direction
+    # for `iff` (both directions of meaning from one statement). A sibling of the RULE route below —
+    # kept ABOVE it because `define …` is the more specific surface, and routed through the SAME
+    # conflict-as-conversation + reconsider-dirtying so a definition and a bare rule behave identically
+    # once committed. (A `define` line that will not parse RAISES — a silent no-op definition is worse.)
+    from .cnl import define_surface
+    def_rules = define_surface.parse_definition(text)
+    if def_rules:
+        conflict = _fresh_conflict(def_rules)
+        if conflict is not None:
+            verdict = yield Event("rule-conflict", {"detail": conflict, "added": len(def_rules)})
+            if not verdict:
+                yield Event("define", {"added": 0, "rejected": True})
+                return Outcome("define", utterance, added_rules=[])
+        rules.extend(def_rules)
+        rule_control.mark_last_added(kb, [r.key for r in def_rules])
+        from .reconsider import mark_dirty, rule_grains
+        mark_dirty(kb, rule_grains(def_rules))
+        yield Event("define", {"added": len(def_rules), "keys": [r.key for r in def_rules]})
+        return Outcome("define", utterance, added_rules=list(def_rules))
 
     # RULE — a `HEAD when …` line reflects to executable rule(s); none => not a rule line. Parse WITHOUT
     # linting (`lint=False`): runtime authoring owns the stratification check so a mid-session negation

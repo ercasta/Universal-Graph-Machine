@@ -69,11 +69,12 @@ class Pat:
         # as non-field attrs on the frozen instance (absent from __init__/__eq__/__hash__/__repr__).
         set = object.__setattr__
         for pre, tok in (("s_", self.s), ("p_", self.p), ("o_", self.o)):
+            quoted = tok.startswith(QUOTE)                # '?a — a quoted literal (name = unquoted rest)
             var = tok.startswith("?")
-            bl = tok.endswith("?") and not var
-            set(self, pre + "kind", 1 if var else 2 if bl else 0)
+            bl = tok.endswith("?") and not var and not quoted
+            set(self, pre + "kind", 1 if var else 2 if bl else 0)   # quoted ⇒ kind 0 (plain literal)
             set(self, pre + "bind", tok if var else (tok[:-1] if bl else None))
-            set(self, pre + "name", tok[:-1] if bl else tok)
+            set(self, pre + "name", tok[1:] if quoted else (tok[:-1] if bl else tok))
 
     def tokens(self) -> tuple[str, str, str]:
         return (self.s, self.p, self.o)
@@ -81,14 +82,32 @@ class Pat:
 
 # Token classification — shared by the matcher (rewriter.py) and authoring tools.
 
+# QUOTE / the metalinguistic escape (docs/design/meaning_surfaces_audit.md §5). A leading `'` makes a
+# token a plain LITERAL whose name is the unquoted rest — even when that rest LOOKS like a variable.
+# This is the one thing the token language could not say: a rule that WRITES a rule needs to name the
+# variable `?a` as a literal (so the written rule reads it back AS a variable), and `?a` written bare is
+# classified as a variable. `'?a` = "the symbol ?a". Purely an authoring-time escape: the node it
+# materialises is named `?a`, so downstream everything is unchanged. It is what makes rule-writing rules
+# — hence user-authored meta-patterns (`define transitive R …`) — expressible in the language itself,
+# rather than only through the interned-pool indirection (`learner.py`). Delicacy is authoring POLICY,
+# not an engine limit.
+QUOTE = "'"
+
+
+def is_symbol(tok: str) -> bool:
+    """A QUOTED literal `'X`: a plain literal whose NAME is `X` (the unquoted rest), even if `X` looks
+    like a variable/bound-literal. Binds nothing; matches/creates a node named `X`."""
+    return tok.startswith(QUOTE)
+
+
 def is_var(tok: str) -> bool:
-    """A free variable: matches any node and binds it (e.g. '?x', '?p')."""
+    """A free variable: matches any node and binds it (e.g. '?x', '?p'). A quoted `'?x` is NOT one."""
     return tok.startswith("?")
 
 
 def is_bound_literal(tok: str) -> bool:
-    """A bound literal: matches a node of that name AND binds it (e.g. 'paul?')."""
-    return tok.endswith("?") and not tok.startswith("?")
+    """A bound literal: matches a node of that name AND binds it (e.g. 'paul?'). Never a quoted token."""
+    return tok.endswith("?") and not tok.startswith("?") and not tok.startswith(QUOTE)
 
 
 def rhs_only_head_vars(rule) -> list[str]:
@@ -116,7 +135,9 @@ def rhs_only_head_vars(rule) -> list[str]:
 
 
 def literal_name(tok: str) -> str:
-    """The node name a literal/bound-literal token refers to ('paul?' -> 'paul')."""
+    """The node name a literal/bound-literal token refers to ('paul?' -> 'paul'; ''?a' -> '?a')."""
+    if is_symbol(tok):
+        return tok[1:]
     return tok[:-1] if is_bound_literal(tok) else tok
 
 
