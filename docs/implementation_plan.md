@@ -20,7 +20,20 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶ CURRENT ARC (2026-07-22) — COMPOSITION CLOSURE → SCOPE GENERALIZATION (suite **865 green**)
+## ▶ CURRENT ARC (2026-07-22) — COMPOSITION CLOSURE → SCOPE GENERALIZATION (suite **873 green**)
+
+**⭐ META-PATTERN SURFACE LANDED 2026-07-22 (suite 873 green) — the payoff of the quote token.**
+`define schema <trigger> : <template>` lets a user define what a relation-PROPERTY means AS A RULE
+TEMPLATE, in the language: `define schema ?r is transitive : ?a ?r ?c when ?a ?r ?b and ?b ?r ?c`, then
+`ancestor is transitive` (a plain fact) materialises the transitivity rule for `ancestor` (and the same
+schema serves `before`, `symmetric`, …). `cnl/define_surface.compile_schema`/`apply_schemas`, wired on
+the intake FACT route (run the meta-bank forward + harvest when a triggering declaration lands —
+order-independent, idempotent, `Event("schema")`). Quote-vs-bind principle: a template var in the
+TRIGGER is BOUND (the parameter `?r`), one that is not is QUOTED (a var of the written rule). `tests/
+test_schema_surface.py` (8). **The in-language replacement for the Python relation-property expanders.**
+⚠ Perf: `apply_schemas` runs the meta-bank on every fact when any schema exists (free when none) —
+gate on trigger-predicate if it ever bends.
+
 
 **⭐⭐ SIDE-ARC 2026-07-22: THE QUOTE TOKEN + THE `define` SURFACE (suite 865 green).** From the user's
 "define meaning and use it? drastically simplify?" — audit in `design/meaning_surfaces_audit.md`. Two
@@ -40,9 +53,10 @@ findings + two builds:
   skolem witness — both directions of meaning from ONE statement). Reuses `load_machine_rules` (no
   second grammar); wired into the MAIN intake as `Outcome("define")` (NOT a new loader — respecting the
   audit). `tests/test_define_surface.py` (10).
-- **NEXT for this side-arc (audit §6):** loader convergence (route comparative/uncertainty through
-  intake, retire `load_corpus`); the meta-pattern CNL surface (`define transitive R` — quote enables it,
-  surface is a follow-on); leave hedges/forks to scope generalization (family B).
+- **NEXT for this side-arc (audit §6):** ~~the meta-pattern CNL surface~~ **DONE — see the META-PATTERN
+  block above.** REMAINING: **loader convergence** (route comparative/uncertainty through intake, retire
+  `load_corpus` — user's "start 2 in a fresh session" item); leave hedges/forks to scope generalization
+  (family B). Also still owed from Slice 2: the `@?t` CNL surface.
 
 
 **THE ARC IN ONE PARAGRAPH.** The grammar arc's real question — "are the fundamental epistemic blocks

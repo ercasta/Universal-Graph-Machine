@@ -4,15 +4,24 @@
 > *definition* surface. Method: read every meaning-giving surface + trace its live callers, not
 > intuition.
 >
-> **BUILT 2026-07-22 (suite 865 green):**
+> **BUILT 2026-07-22 (suite 873 green):**
 > - **The QUOTE token `'?a`** (production_rule §QUOTE) — §5's "wall" removed *in the language*: a rule
->   writes a variable-bearing rule with quoted vars (proven: a meta-rule writes relation-property
->   transitivity, `tests/test_quote_token.py`).
+>   writes a variable-bearing rule with quoted vars. `tests/test_quote_token.py`.
 > - **The `define` surface** (`cnl/define_surface.py`, §4) — `define H as B` (sufficient rule) /
 >   `define H iff B` (+ necessary direction via a shared-skolem witness), wired into the MAIN intake
 >   (`Outcome("define")`), not a new loader. `tests/test_define_surface.py`.
-> - **Still open:** the loader convergence (§3 HIGH cuts) and the meta-pattern CNL surface (authoring a
->   `define transitive R` in CNL — the quote token enables it; the surface is a follow-on).
+> - **⭐ The META-PATTERN surface** (`define schema <trigger> : <template>`) — a user defines what a
+>   relation-property MEANS as a rule template, IN THE LANGUAGE: `define schema ?r is transitive : ?a ?r
+>   ?c when ?a ?r ?b and ?b ?r ?c`, then `ancestor is transitive` (a plain fact) materialises the
+>   transitivity rule for `ancestor`. Quote-vs-bind principle: a template var in the TRIGGER is bound
+>   (the parameter), one that is not is quoted. `compile_schema`/`apply_schemas`, wired on the fact
+>   route (run forward + harvested when a triggering declaration lands; order-independent, idempotent).
+>   `tests/test_schema_surface.py`. **This is the in-language replacement for the Python
+>   relation-property expanders — the deepest form of "define meaning and use it".**
+> - **Still open:** the loader convergence (§3 HIGH cuts — the "start 2 in a fresh session" item).
+> - **⚠ Perf note:** `apply_schemas` runs the meta-bank forward on EVERY fact assertion when any schema
+>   exists (O(schemas) per fact; free when none). Correct but the O(session) shape this repo has fought;
+>   gate on "the fact's predicate is a schema trigger" if a session with schemas ever bends.
 
 ## 0. The headline (so it is not re-derived)
 

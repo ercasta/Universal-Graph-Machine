@@ -400,13 +400,29 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         yield Event("procedure", {"name": name, "steps": steps})
         return Outcome("procedure", utterance)
 
+    # SCHEMA — `define schema <trigger> : <template>` authors a META-RULE (a rule that WRITES a rule):
+    # the in-language definition of a relation-property (`transitive`, `symmetric`, …), enabled by the
+    # QUOTE token (docs/design/meaning_surfaces_audit.md §5). Stored on the KB, then RE-applied on every
+    # triggering declaration — a `?r is transitive` fact materialises the transitivity rule for `?r`.
+    # ABOVE the ordinary `define` route because `define schema …` is the more specific surface.
+    from .cnl import define_surface
+    schema = define_surface.parse_schema(text)
+    if schema is not None:
+        define_surface.store_schema(kb, schema)
+        generated = define_surface.apply_schemas(kb, rules)   # a matching declaration may already exist
+        if generated:
+            rule_control.mark_last_added(kb, [r.key for r in generated])
+            from .reconsider import mark_dirty, rule_grains
+            mark_dirty(kb, rule_grains(generated))
+        yield Event("schema", {"key": schema.key, "generated": [r.key for r in generated]})
+        return Outcome("define", utterance, added_rules=list(generated))
+
     # DEFINE — `define H as B` / `define H iff B` authors a DEFINITION (docs/design/
     # meaning_surfaces_audit.md §4): a rule for the sufficient direction, plus the NECESSARY direction
     # for `iff` (both directions of meaning from one statement). A sibling of the RULE route below —
     # kept ABOVE it because `define …` is the more specific surface, and routed through the SAME
     # conflict-as-conversation + reconsider-dirtying so a definition and a bare rule behave identically
     # once committed. (A `define` line that will not parse RAISES — a silent no-op definition is worse.)
-    from .cnl import define_surface
     def_rules = define_surface.parse_definition(text)
     if def_rules:
         conflict = _fresh_conflict(def_rules)
@@ -582,6 +598,11 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
                 from .reconsider import mark_dirty
                 mark_dirty(kb, [(p, o) for _s, p, o in data["committed"]])
             focus_mod.widen(kb, data["centers"])
+            _gen = define_surface.apply_schemas(kb, rules)     # a `?r is transitive` fact fires a schema
+            if _gen:
+                from .reconsider import mark_dirty, rule_grains
+                mark_dirty(kb, rule_grains(_gen))
+                yield Event("schema", {"generated": [r.key for r in _gen]})
             yield Event("fact", {"centers": sorted(data["centers"])})
             return Outcome("fact", utterance)
         # kind == "unrecognized": the grammar could not parse it. FALL THROUGH to the recognizers
@@ -684,6 +705,11 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         yield Event("acted", {"fired": acted})
         return Outcome("goal", utterance, acted=acted)
     if is_fact:
+        _gen = define_surface.apply_schemas(kb, rules)         # a `?r is transitive` fact fires a schema
+        if _gen:
+            from .reconsider import mark_dirty, rule_grains
+            mark_dirty(kb, rule_grains(_gen))
+            yield Event("schema", {"generated": [r.key for r in _gen]})
         yield Event("fact")
         return Outcome("fact", utterance)
     # UNRECOGNIZED — the habitability signal (§4a): say what was not understood AND which declared
