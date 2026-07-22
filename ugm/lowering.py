@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from .production_rule import Pat, Rule, binder, is_var, is_bound_literal, literal_name
 from .attrgraph import AttrGraph, valued, graded as graded_attr, _is_inert, NAME, PATTERN_MARK, INERT_MARK
-from .vocabulary import MENTION
+from .vocabulary import MENTION, HYPOTHESIS
 from .machine import (
     Instr, Machine, SEED, FOLLOW, TEST, SAME, DUP, GRADE, VMATCH, DISTINCT, MINT, EMIT, DROP_CTRL,
     SWEEP, State,
@@ -828,7 +828,13 @@ def run_bank(ag: AttrGraph, rules: list[Rule], *, max_rounds: int = 200,
     def final_gc(g, stream, ctrl):
         if has_drops:                             # remove control rel nodes a DROP_CTRL orphaned
             doomed = [nid for nid in g.nodes()    # (disconnected + control: never fact/rule structure)
-                      if g.is_control(nid) and not g.succ(nid) and not g.pred(nid)]
+                      if g.is_control(nid) and not g.succ(nid) and not g.pred(nid)
+                      and not g.has_key(nid, HYPOTHESIS)]   # a scope node is edgeless BY DESIGN (its
+            # pencils reference it by a `scope` VALUED ATTR, not an edge) yet load-bearing — the
+            # "edgeless control node = orphaned scaffolding" heuristic is a FALSE POSITIVE for it. A
+            # scope is deleted only explicitly, by suppose._drop_scope; without this exemption a fork
+            # authored before a later fact/rule line (which carries drops) is silently swept, so a
+            # hedge/holder/temporal scope reads back `assumed-no` after ANY interleaved ingest.
             if doomed:                            # the deletion is the gated SWEEP opcode, not a poke
                 machine.apply(g, [SWEEP(f"_n{i}") for i in range(len(doomed))],
                               State({f"_n{i}": n for i, n in enumerate(doomed)}))

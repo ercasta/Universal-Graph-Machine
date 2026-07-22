@@ -65,20 +65,35 @@ findings + two builds:
       route. MEASURED: the canonical grammar refuses it, so nothing is stolen (grammar KB via
       fall-through). An ink relation (transitivity on demand, no `rules` mutation) — SURVIVES later
       fact-path normalization.
-    - **⚠ HEDGE tried on intake and REVERTED — a real finding.** A hedge authors a banded FORK (family B)
-      that does NOT survive the fact path's whole-graph `normalize_surface` re-run on a later utterance
-      (measured: fork → any fact → reads back `assumed-no`). A silently-corrupting route is worse than
-      none; forks must be unified into the kinded-scope mechanism first (audit §2 "leave family B to
-      scope generalization"). Hedge stays on `world.load_world`.
+    - **⚠ HEDGE tried on intake and REVERTED — a real finding, now ROOT-CAUSED AND FIXED.** A hedge
+      authors a banded FORK that read back `assumed-no` after any later fact ingest. FIRST diagnosis
+      ("normalize_surface breaks it, family B, wait for scope generalization") was SHALLOW. **Root cause
+      (traced 2026-07-22): the fork's `<hypothesis>` scope node is EDGELESS BY DESIGN** — its pencils
+      reference it by a `scope` VALUED ATTR, not a graph edge — so the incidental edge-based GC
+      (`lowering.final_gc`, which runs whenever a bank carries drops; `AttrGraph.gc_disconnected`) swept
+      it as "orphaned scaffolding," a FALSE POSITIVE. **This was NOT hedge-specific: holder AND temporal
+      scopes were silently destroyed the same way** (their tests never interleaved a fact after
+      authoring). **THE GC FIX LANDED 2026-07-22 (suite 886 green):** exempt `<hypothesis>` nodes from
+      both GC passes (`HYPOTHESIS` moved to `vocabulary.py` as the shared low-level constant; scope
+      deletion stays owned by `suppose._drop_scope`). Verified across all 3 kinds + `_drop_scope` intact +
+      re-break-confirmed; `tests/test_scope_survives_gc.py` (5). This UNBLOCKED hedge-through-intake (see
+      below). The DEEPER family-B authoring unification (one kinded primitive; `@?t` ranging over
+      epistemic/holder scopes) is separate and unforced.
     - **STEP 2 (batch loader): `load_corpus` is now ingest-in-a-loop** (kept its `(kb, rules)` signature —
       the "reimplement, keep signature" decision — so ~132 call sites untouched). ONE recognition/routing
       path, declare-before-use. Fallout: 2 `test_new_core` tests (inspected rule-source GRAPH internals →
       now the `rules` LIST; one used the Stage-3 loose sugar the ingest path has no route for).
-      `load_world` delegates facts/rules/comparisons to `load_corpus`, authoring hedges LAST.
-    - `intake.py` §"LOADER CONVERGENCE"; `tests/test_intake_loader_convergence.py` + guard +comparison.
-    - **STILL OPEN:** retire `load_loose_rules` + the loose/translation subsystem (approved, but a
-      feature+subsystem deletion — deferred to its own focused slice); hedge-on-intake awaits scope
-      generalization absorbing family B.
+    - **⭐ HEDGE CONVERGED + `load_world` FOLDED 2026-07-22 (suite 894 green):** after the GC fix, the
+      hedge intake route (`Outcome("hedge")`) was re-added and `load_world` collapsed to a thin
+      `load_corpus` alias — every layer (facts, rules, hedges, either/or, comparisons) now goes through
+      the ONE ingest path. The 7 earlier `test_world` failures were purely the GC bug.
+    - **⭐ STAGE-3 LOOSE SUBSYSTEM RETIRED 2026-07-22 (suite 894 green):** `load_loose_rules`,
+      `parse_lexicon`, `expand_loose`/`expand_loose_from_graph`, `frames_in_graph`, `TRANSLATION_FORMS`,
+      `LEXICON_FORMS` deleted + removed from `RULE_SOURCE_FORMS` + 7 `__init__` exports + 2 `test_new_core`
+      tests + the `test_isa_runbank` fixture. Dead on the live path once `load_corpus` became
+      ingest-in-a-loop; superseded by the prose->CNL layer.
+    - `intake.py` §"LOADER CONVERGENCE"; `tests/test_intake_loader_convergence.py` + guard
+      (+comparison/hedge surfaces). **THE LOADER-CONVERGENCE SIDE-ARC IS COMPLETE.**
 
 
 **THE ARC IN ONE PARAGRAPH.** The grammar arc's real question — "are the fundamental epistemic blocks

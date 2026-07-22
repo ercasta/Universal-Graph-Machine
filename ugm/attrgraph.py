@@ -656,9 +656,16 @@ class AttrGraph:
         return seen
 
     def gc_disconnected(self) -> list[str]:
-        """Remove nodes with no edges at all. Operational only (§5), never a step of reasoning."""
+        """Remove nodes with no edges at all. Operational only (§5), never a step of reasoning.
+
+        EXEMPTS scope nodes (`<hypothesis>`): a scope is edgeless BY DESIGN — its pencils reference it
+        by a `scope` VALUED ATTR, not a graph edge — yet load-bearing (it holds the band/kind). It is
+        deleted only explicitly, by `suppose._drop_scope`; sweeping it here as "disconnected garbage"
+        is a false positive that silently destroys a fork/holder/temporal scope on any later ingest."""
+        from .vocabulary import HYPOTHESIS
         dead = [nid for nid in self._nodes
-                if not self._out.get(nid) and not self._in.get(nid)]
+                if not self._out.get(nid) and not self._in.get(nid)
+                and not self.has_key(nid, HYPOTHESIS)]
         for nid in dead:
             self.remove_node(nid)
         return dead

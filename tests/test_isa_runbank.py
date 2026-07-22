@@ -24,7 +24,8 @@ from ugm.attrgraph import _is_inert
 
 # A deliberately DIVERSE corpus: plain facts, a relation, gradable declaration, disjointness, an
 # `if/then` universal, a plural-noun universal, a bare-body rule, a graded-body rule, a NAC rule,
-# a lexicon frame + a loose imperative, and a closed-world declaration — every recognition shape.
+# and a closed-world declaration — every recognition shape. (The loose/lexicon-frame shapes were
+# dropped 2026-07-22 with the retirement of the Stage-3 loose subsystem.)
 CORPUS = """
 alice is a customer
 alice wants vanilla
@@ -37,8 +38,6 @@ Cold things are kind
 ?c served express when ?c wants ?f
 ?c is urgent when ?c is a customer and ?c is very urgent
 ?x is thief when ?x is a suspect and ?x is not cleared
-serve ?x first means ?x served express when ?x wants ?f and ?f is in_stock
-serve urgent customers first
 cleared is closed world
 """
 
@@ -85,7 +84,7 @@ def _recognize(driver, sentences):
 # The FIXED expected recognition result of `run_bank(_ALL_FORMS)` on the whole CORPUS — every
 # recognition shape in one batch (plain facts, a relation, gradable declaration, disjointness, an
 # if/then universal, a plural-noun universal, a bare-body rule, a graded-body rule, a NAC rule, a
-# lexicon frame + loose imperative, a closed-world declaration).
+# closed-world declaration).
 _WHOLE_BATCH_FACTS = {
     ("alice", "is_a", "customer"), ("alice", "wants", "vanilla"),
     ("bob", "is_a", "customer"), ("vanilla", "is", "in_stock"), ("urgent", "is", "gradable"),
@@ -147,10 +146,6 @@ _PER_SENTENCE = {
         [("rule.?x.is.thief", (("?x", "is_a", "suspect"),), (("?x", "is", "cleared"),),
           (("?x", "is", "thief"),), ())],
     ),
-    "serve ?x first means ?x served express when ?x wants ?f and ?f is in_stock": (
-        {("and", "is_bnd", "yes"), ("when", "is_bnd", "yes")}, [],
-    ),
-    "serve urgent customers first": (set(), []),
     "cleared is closed world": (set(), []),
 }
 

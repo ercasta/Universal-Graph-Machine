@@ -43,6 +43,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .attrgraph import AttrGraph, VALUED, graded, valued, NAME
+from .vocabulary import HYPOTHESIS
 from .apply import SCOPE, _fact_exists
 from .chain import chain_sip, _facts_matching, render_demands, resolve_write_node, ById
 from .check import _neg_pred
@@ -50,7 +51,8 @@ from .machine import Machine, MINT, EMIT, SWEEP, State
 
 _MACHINE = Machine()
 
-HYPOTHESIS = "<hypothesis>"
+# HYPOTHESIS = "<hypothesis>" now lives in vocabulary.py (shared with the low-level GC passes that must
+# exempt scope nodes); imported above and re-exported here for suppose.HYPOTHESIS callers.
 
 # SCOPE KIND (scope_generalization.md §4). A scope is a KINDED relativizer: a fact holds RELATIVE TO
 # the scope, and the KIND says how the read treats that relativity. The kind lives as a VALUED attr on

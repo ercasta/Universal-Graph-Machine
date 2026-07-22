@@ -53,6 +53,15 @@ INTERPRETS = "interprets"     # entity -> every surface mention it was derived f
 CLOSES = "closes"             # P closes <closed_world>  (P is closed-world DATA)
 CWA = "<closed_world>"        # the closed-world marker node
 
+# --- scope / hypothesis -----------------------------------------------------
+HYPOTHESIS = "<hypothesis>"   # the scope node's NAME/KEY (suppose.py). A `<hypothesis>` node holds a
+                              # scope's band/kind/derivations and is referenced by its pencils via a
+                              # `scope` VALUED ATTR, not a graph edge — so it is EDGELESS by design yet
+                              # load-bearing. Incidental edge-based GC (lowering.final_gc,
+                              # AttrGraph.gc_disconnected) must EXEMPT it: a scope is deleted only
+                              # explicitly, by suppose._drop_scope. Shared here so the low-level GC
+                              # passes can name it without importing suppose (cycle).
+
 # --- relation-property / structural declarations ----------------------------
 REL_PROPERTY = "rel_property"     # relation-property declaration (e.g. transitive)
 TRANSITIVE = "transitive"         # a declared relation property

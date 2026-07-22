@@ -383,36 +383,9 @@ def test_run_rules_degrades_on_negation_cycle():
         h.run_rules(h.Graph(), [a, b], strict=True)
 
 
-def test_loose_phrasing_translates_to_native_rule():
-    # A loose imperative + a CNL lexicon frame -> the native rule (the user's ask).
-    lexicon = "serve ?x first means ?x served express when ?x wants ?f and ?f is in_stock"
-    rules = h.load_loose_rules("serve urgent customers first", lexicon)
-    assert len(rules) == 1
-    r = rules[0]
-    assert _pats(r.rhs) == [("?x", "served", "express")]
-    # frame conditions from the lexicon, PLUS the loose adjective as a marker condition
-    assert _pats(r.lhs) == [("?f", "is", "in_stock"), ("?x", "is", "urgent"),
-                            ("?x", "wants", "?f")]
-
-
-def test_loose_rule_drops_into_full_routing():
-    # The translated loose rule routes identically to its native twin.
-    g = h.Graph()
-    h.load_facts(g, "urgent is gradable\n"
-                    "alice is a customer\nalice wants vanilla\nalice is very urgent\n"
-                    "bob is a customer\nbob wants chocolate\nvanilla is in_stock\nchocolate is in_stock")
-    native = ("?c is urgent when ?c is a customer and ?c is very urgent\n"
-              "?c served regular when ?c wants ?f and ?f is in_stock and ?c is not urgent")
-    loose = h.load_loose_rules(
-        "serve urgent customers first",
-        "serve ?x first means ?x served express when ?x wants ?f and ?f is in_stock")
-    h.run_rules(g, h.load_rules(native) + loose + h.same_as_rules(h.relation_predicates(g)))
-
-    def outcome(name):                               # dedupe across coreferent mentions (see above)
-        return sorted({g.name(o) for s in g.nodes_named(name)
-                       for r, o in g.relations_from(s) if g.has_key(r, "served")})
-    assert outcome("alice") == ["express"]
-    assert outcome("bob") == ["regular"]
+# (The loose/lexicon-frame translation tests — `test_loose_phrasing_translates_to_native_rule` /
+# `test_loose_rule_drops_into_full_routing` — were REMOVED 2026-07-22 with the retirement of the
+# Stage-3 loose subsystem, `load_loose_rules` and its forms. Superseded by the prose->CNL layer.)
 
 
 # ---------------------------------------------------------------------------

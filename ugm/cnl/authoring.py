@@ -1228,157 +1228,22 @@ def run_rules(graph: Graph, rules: list[Rule], *,
 
 
 # ---------------------------------------------------------------------------
-# Stage 3 — a looser phrasing, translated into the native form (the user's ask)
-# ---------------------------------------------------------------------------
-#
-# "Rules that translate a loose phrasing into the native rule" are exactly the
-# vision's normalization tax (§7/§3), applied to the rule sublanguage. But a loose
-# imperative like `serve urgent customers first` carries no variables and no frame:
-# the verb's meaning ("serving someone gives them an express portion of an in-stock
-# flavour they want") must be DECLARED. So the looseness is anchored by a CNL
-# LEXICON that defines the frame as a native rule template:
-#
-#   serve ?x first means ?x served express when ?x wants ?f and ?f is in_stock
-#
-# Recognition of the loose sentence is a form (in-graph). Emission is a TOOL: the
-# native rule INVENTS pattern variables (`?x`), and a Pat-rule RHS cannot mint a
-# node literally named `?x` (the token reader treats `?x` as a variable, not a
-# name) — the documented quote/eval wall (handoff §7, cf. expand_relation_properties).
-# The tool stays on the calculator side of that wall: it clones the declared
-# template and adds the adjective condition.
-
-# Recognizer: a 4-word imperative `VERB ADJ NOUN ADVERB` -> a <use> annotation.
-TRANSLATION_FORMS: list[Rule] = [
-    Rule(
-        key="form.loose.imperative",
-        lhs=[Pat("?s", "first", "?verb"), Pat("?verb", "next", "?adj"),
-             Pat("?adj", "next", "?noun"), Pat("?noun", "next", "?adverb")],
-        rhs=[Pat("<use>?", "u_verb", "?verb"), Pat("<use>?", "u_adj", "?adj"),
-             Pat("<use>?", "u_adverb", "?adverb")],
-    ),
-]
-
-
-def parse_lexicon(text: str) -> dict[tuple[str, str], tuple[Rule, str]]:
-    """Parse `VERB ?x ADVERB means <native rule>` frame definitions.
-
-    Returns {(verb, adverb): (template_rule, subject_var)}. The body after `means`
-    is ordinary native rule CNL, parsed by `load_rules` (so the frame's variables
-    come from the lexicon TEXT — no var invention needed here).
-    """
-    lexicon: dict[tuple[str, str], tuple[Rule, str]] = {}
-    for line in text.splitlines():
-        if " means " not in line:
-            continue
-        sig, body = line.split(" means ", 1)
-        sig_toks = sig.split()
-        verb, adverb = sig_toks[0], sig_toks[-1]
-        template = load_rules(body)[0]
-        subject_var = template.rhs[0].s            # e.g. "?x"
-        lexicon[(verb, adverb)] = (template, subject_var)
-    return lexicon
-
-
-def expand_loose(graph: Graph, lexicon: dict[tuple[str, str], tuple[Rule, str]]) -> list[Rule]:
-    """TOOL: turn each recognized <use> into a native `Rule` via its lexicon frame.
-
-    Clones the frame's template and adds the loose adjective as a marker condition
-    (`subject_var is ADJ`). Unknown frames are skipped.
-    """
-    rules: list[Rule] = []
-    for nid in graph.nodes():
-        verb = _obj(graph, nid, "u_verb")
-        if verb is None:
-            continue
-        key = (graph.name(verb), graph.name(_obj(graph, nid, "u_adverb")))
-        if key not in lexicon:
-            continue
-        template, subj = lexicon[key]
-        adj = graph.name(_obj(graph, nid, "u_adj"))
-        rules.append(Rule(
-            key=f"loose.{key[0]}.{adj}.{key[1]}",
-            lhs=[*template.lhs, Pat(subj, "is", adj)],
-            rhs=list(template.rhs), nac=list(template.nac), graded=list(template.graded),
-        ))
-    return sorted(rules, key=lambda r: r.key)
-
-
-def load_loose_rules(loose_text: str, lexicon_text: str) -> list[Rule]:
-    """Translate loose imperative rule CNL into native `Rule`s, using a CNL lexicon."""
-    lexicon = parse_lexicon(lexicon_text)
-    rg = Graph()
-    load_text(rg, loose_text)
-    run_bank(rg, TRANSLATION_FORMS)   # recognition on the ISA forward driver (Phase 0.2)
-    return expand_loose(rg, lexicon)
-
-
-# ---------------------------------------------------------------------------
 # Q1a — one corpus, emergent recognition (no Python classifier)
 # ---------------------------------------------------------------------------
 #
-# `load_corpus` loads an entire mixed corpus (facts, native rules, a lexicon frame,
-# loose phrasings) and lets WHICH FORM FIRES decide what each statement is. There is
-# NO Python classifier inspecting a line to route it — the KEYWORDS route it:
-#   - a statement with `when`  -> `rule.head` (the fact forms self-exclude on it);
-#   - a statement with `means` -> `form.lexicon` (re-anchors the body as a rule
-#     template, so `rule.head` folds it; the template is skipped by `expand_rules`);
-#   - a 4-word imperative       -> a `<use>` (matched to a frame, or harmlessly dropped);
-#   - a plain assertion         -> the fact forms;
-#   - anything matching nothing  -> raw tokens (the linter's "no form recognized this").
+# `load_corpus` loads an entire mixed corpus (facts + native rules) and lets WHICH FORM FIRES decide
+# what each statement is — no Python classifier inspecting a line to route it; the KEYWORDS route it
+# (a `when` statement -> `rule.head`, the fact forms self-excluding; a plain assertion -> the fact
+# forms; anything matching nothing -> raw tokens). Since the loader convergence (2026-07-22),
+# `load_corpus` is `intake.ingest` in a loop, so recognition runs through the one router. RULE_SOURCE_FORMS
+# is the rule-source recognizer set, still used directly by `test_isa_runbank`'s differential fixture.
 #
-# Facts and rules go into SEPARATE graphs fed the SAME corpus. This is NOT a content
-# classifier — each graph runs its recognition forms over the whole corpus and simply
-# ignores what doesn't match (a fact line forms no rule; a rule line forms no fact,
-# since the fact forms self-exclude). It is the b1 pattern-space segregation: rules
-# must live apart from facts, because running `RULE_FORMS` in the fact graph makes the
-# engine REUSE fact nodes for a rule's concept literals (`k_pred -> is_a`), polluting
-# the fact space — exactly what b1 forbids. Folding rules INTO the fact graph is the
-# parked b2 (meta-circular) milestone; until then this split stands.
+# (Stage 3 — the loose/lexicon-frame translation sugar `serve X first means …` — was RETIRED
+# 2026-07-22 with the loader convergence: superseded by the prose->CNL translation layer, and no live
+# path used it once `load_corpus` became ingest-in-a-loop. `git log` has the removed forms/tools.)
 
-# The lexicon frame: `VERB ?x ADVERB means <native rule>`. Recognizing `means`
-# re-anchors the body (`<frame> first ?body`) so `rule.head` folds it into a rule
-# template, and records the frame signature for the loose translator.
-LEXICON_FORMS: list[Rule] = [
-    Rule(
-        key="form.lexicon",
-        lhs=[Pat("?s", "first", "?verb"), Pat("?verb", "next", "?var"),
-             Pat("?var", "next", "?adv"), Pat("?adv", "next", "means?"),
-             Pat("means?", "next", "?body")],
-        rhs=[Pat("<frame>?", "frame_verb", "?verb"), Pat("<frame>?", "frame_adverb", "?adv"),
-             Pat("<frame>?", "body", "?body"), Pat("<frame>?", "first", "?body")],
-    ),
-]
-
-# Forms recognized in the rule-source graph (rules, lexicon frames, loose uses, NL universals).
-RULE_SOURCE_FORMS: list[Rule] = (RULE_FORMS + IF_THEN_FORMS + PLURAL_UNIVERSAL_FORMS
-                                 + LEXICON_FORMS + TRANSLATION_FORMS)
-
-
-def frames_in_graph(graph: Graph) -> dict[tuple[str, str], tuple[Rule, str]]:
-    """Read `<frame>` nodes into a lexicon {(verb, adverb): (template_rule, subj_var)}.
-
-    The emergent counterpart of `parse_lexicon` (no `" means "` split in Python):
-    the frame's body was folded into a rule node by `rule.head`; this finds it.
-    """
-    lexicon: dict[tuple[str, str], tuple[Rule, str]] = {}
-    for n in graph.nodes():
-        if graph.name(n) != "<frame>":
-            continue
-        verb, adv, body = (_obj(graph, n, "frame_verb"),
-                           _obj(graph, n, "frame_adverb"), _obj(graph, n, "body"))
-        if verb is None or adv is None or body is None:
-            continue
-        R = next((m for m in graph.nodes()
-                  if _objs(graph, m, "rl_pred") and _obj(graph, m, "rl_subj") == body), None)
-        if R is not None:
-            lexicon[(graph.name(verb), graph.name(adv))] = (
-                _expand_rule_node(graph, R), graph.name(body))
-    return lexicon
-
-
-def expand_loose_from_graph(graph: Graph) -> list[Rule]:
-    """Translate `<use>` nodes into native `Rule`s via the `<frame>`s in the SAME graph."""
-    return expand_loose(graph, frames_in_graph(graph))
+# Forms recognized in the rule-source graph (native rules, NL universals).
+RULE_SOURCE_FORMS: list[Rule] = RULE_FORMS + IF_THEN_FORMS + PLURAL_UNIVERSAL_FORMS
 
 
 def _corpus_lines(text: str) -> list[str]:

@@ -2,13 +2,13 @@
 The COMPOSITE surface — one text, every layer. A world mixes plain facts, rules, hedged facts,
 `either…or`, and comparisons in ONE block of CNL.
 
-`load_world(text)` — PARTLY CONVERGED 2026-07-22 (meaning_surfaces_audit.md §3 step 2): facts, rules
-AND comparisons now go through `load_corpus`, which is the ONE ingest path (comparison routes through
-intake; `load_corpus` is ingest-in-a-loop). Only HEDGES stay on their own loader, and are authored
-LAST — a hedge is a banded FORK (family B) that does NOT survive the fact path's whole-graph
-`normalize_surface` re-run on a later line, so it must be written after all fact/rule loading, not
-interleaved. Unifying forks with the fact path is scope-generalization's job (audit §2 family B), at
-which point hedges can move onto intake too and this special-casing goes away.
+`load_world(text)` — FULLY CONVERGED 2026-07-22 (meaning_surfaces_audit.md §3): now a thin alias for
+`load_corpus`. Every layer — facts, rules, hedged facts, `either…or`, comparisons — routes through the
+ONE ingest path (`intake.route`): comparison + hedge each have an intake route, and `load_corpus` is
+ingest-in-a-loop. A hedge fork now SURVIVES interleaved fact ingestion (the scope-GC fix,
+`scope-nodes-survive-incidental-gc`), so hedges no longer need authoring-last. NOTE: the hedge lexicon
+is DECLARE-BEFORE-USE (`P means N` must precede its uses), the intake contract — the old whole-text
+pre-scan (order-independent) is gone; corpora in use already declare-before-use.
 
 `ask_world(kb, rules, question)` — routes a question to its surface: a comparative shape to
 `ask_comparative`; `guess X` to the defeasible-guess act (rendered as its honest `why` line);
@@ -19,35 +19,13 @@ from __future__ import annotations
 from ..attrgraph import AttrGraph
 from ..production_rule import Rule
 from .authoring import load_corpus
-from .uncertainty import (
-    HEDGE_BAND, parse_hedge_decl, parse_hedge_fact, parse_either, load_line as _load_uncertain_line,
-)
 from .comparative import parse_comparative_question, ask_comparative, explain_comparative
 
 
-def _is_hedge(line: str, hedges: dict[str, float]) -> bool:
-    return (parse_hedge_decl(line) is not None or parse_either(line) is not None
-            or parse_hedge_fact(line, hedges) is not None)
-
-
 def load_world(text: str, *, policy=None) -> tuple[AttrGraph, list[Rule]]:
-    """Author `text`: facts/rules/comparisons through `load_corpus` (the one ingest path), then the
-    HEDGE lines LAST (forks do not survive interleaved fact-path normalization — see the module
-    docstring). Returns `(kb, rules)`. The hedge lexicon is pre-scanned from the text's own `X means
-    N` declarations so a declared hedge routes correctly regardless of its position."""
-    lines = text.splitlines()
-    hedges = dict(HEDGE_BAND)
-    for ln in lines:                                       # pre-scan: a hedge declared anywhere in the
-        d = parse_hedge_decl(ln)                           # text applies to every hedged line here
-        if d is not None:
-            hedges[d[0]] = d[1]
-    plain, hedge_lines = [], []
-    for ln in lines:
-        (hedge_lines if ln.strip() and _is_hedge(ln, hedges) else plain).append(ln)
-    kb, rules = load_corpus("\n".join(plain), policy=policy)   # facts/rules/comparisons: one ingest path
-    for ln in hedge_lines:                                     # forks LAST, after all fact-path passes
-        _load_uncertain_line(kb, ln)
-    return kb, rules
+    """Author `text` across every surface: `(kb, rules)`. A thin alias for `load_corpus`, since intake
+    routes comparison + hedge and `load_corpus` is the one ingest path (loader convergence)."""
+    return load_corpus(text, policy=policy)
 
 
 def ask_world(kb: AttrGraph, rules: list[Rule], question: str, *, policy=None, **ask_kwargs

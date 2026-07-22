@@ -92,9 +92,7 @@ from .cnl.authoring import (
     DEGREE_CNL, degree_thresholds, graded_rules, degree_grammar_forms,
     RULE_FORMS, IF_THEN_FORMS, PLURAL_UNIVERSAL_FORMS, plural_universal_forms, verb_neg_forms,
     expand_rules, load_rules, load_universal_rules, stratify, run_rules,
-    TRANSLATION_FORMS, parse_lexicon, expand_loose, load_loose_rules,
-    LEXICON_FORMS, RULE_SOURCE_FORMS, BODY_SPINE_FORMS, _ALL_FORMS,
-    frames_in_graph, expand_loose_from_graph, load_corpus,
+    RULE_SOURCE_FORMS, BODY_SPINE_FORMS, _ALL_FORMS, load_corpus,
 )
 from .cnl.surface import render_relation, narrate, explain
 from .cnl.query import QUESTION_FORMS, ask, ask_goal, recognize
@@ -197,9 +195,8 @@ __all__ = [
     "DEGREE_CNL", "degree_thresholds", "graded_rules",
     "degree_grammar_forms", "RULE_FORMS", "IF_THEN_FORMS", "PLURAL_UNIVERSAL_FORMS",
     "plural_universal_forms", "verb_neg_forms", "expand_rules", "load_rules", "load_universal_rules",
-    "stratify", "run_rules", "TRANSLATION_FORMS", "parse_lexicon", "expand_loose", "load_loose_rules",
-    "LEXICON_FORMS", "RULE_SOURCE_FORMS", "BODY_SPINE_FORMS", "_ALL_FORMS",
-    "frames_in_graph", "expand_loose_from_graph", "load_corpus",
+    "stratify", "run_rules",
+    "RULE_SOURCE_FORMS", "BODY_SPINE_FORMS", "_ALL_FORMS", "load_corpus",
     "render_relation", "narrate", "explain",
     "QUESTION_FORMS", "ask", "ask_goal", "recognize",
     "MACHINE_RULE_FORMS", "load_machine_rules",

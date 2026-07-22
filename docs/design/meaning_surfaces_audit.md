@@ -35,14 +35,19 @@
 >     per the "reimplement, keep signature" decision). ONE recognition/routing path (the same
 >     `intake.route`), declare-before-use like a live session. Measured fallout: 2 tests
 >     (`test_new_core`) that inspected rule-source GRAPH internals — now assert the `rules` LIST; one also
->     used the Stage-3 loose/lexicon-frame sugar, which the ingest path has no route for (that sugar is
->     superseded by the prose->CNL layer, and was already slated for retirement here). `load_world` folds
->     onto `load_corpus` for facts/rules/comparisons, authoring hedges LAST (forks can't interleave).
->   - Guard extended (`test_at_most_one_router_recognizer_claims_a_surface` +comparison surface) +
->     `tests/test_intake_loader_convergence.py`.
->   - **STILL OPEN:** retire `load_loose_rules` + the loose/translation subsystem (approved, but a
->     feature+subsystem deletion — deferred to its own focused slice rather than rushed at the tail of
->     this one). And hedge-on-intake awaits scope generalization absorbing family B.
+>     used the Stage-3 loose/lexicon-frame sugar, which the ingest path has no route for.
+>   - **HEDGE now converged too (after the scope-GC fix, suite 894 green):** the fork-dies-on-later-ingest
+>     bug was root-caused to edgeless scope nodes and fixed (the scope-GC fix (`scope-nodes-survive-incidental-gc`)), so
+>     the hedge intake route (`Outcome("hedge")`) was re-added and `load_world` FOLDED to a thin
+>     `load_corpus` alias — one ingest path for every layer.
+>   - **Stage-3 loose subsystem RETIRED (suite 894 green):** `load_loose_rules`, `parse_lexicon`,
+>     `expand_loose`/`expand_loose_from_graph`, `frames_in_graph`, `TRANSLATION_FORMS`, `LEXICON_FORMS`
+>     deleted + removed from `RULE_SOURCE_FORMS` + 7 `__init__` exports + 2 `test_new_core` tests + the
+>     `test_isa_runbank` fixture. Superseded by the prose->CNL layer; was dead on the live path once
+>     `load_corpus` became ingest-in-a-loop.
+>   - Guard extended (`test_at_most_one_router_recognizer_claims_a_surface` + comparison + hedge
+>     surfaces) + `tests/test_intake_loader_convergence.py`.
+>   - **This side-arc is now COMPLETE.**
 > - **⚠ Perf note:** `apply_schemas` runs the meta-bank forward on EVERY fact assertion when any schema
 >   exists (O(schemas) per fact; free when none). Correct but the O(session) shape this repo has fought;
 >   gate on "the fact's predicate is a schema trigger" if a session with schemas ever bends.
@@ -103,9 +108,13 @@ the wall allows, its expanders behind that surface (§4).
   `comparison` Outcome (an additive FALLBACK route reusing `parse_comparative`); the canonical grammar
   refuses the surface, so nothing is stolen, and an ink comparison survives later fact-path
   normalization. `load_comparative` had ZERO live non-test callers.
-- **⚠ HEDGE (`load_uncertain`) was NOT converged onto intake** — it authors a FORK that does not survive
-  the fact path's whole-graph normalization on a later utterance (measured), the §2 family-B composition
-  problem. It stays on `world.load_world`, which now authors hedges LAST (after `load_corpus`).
+- **⭐ HEDGE (`load_uncertain`) — NOW CONVERGED onto intake (2026-07-22, after the GC fix).** It had been
+  reverted because the fork read back `assumed-no` after a later fact ingest — root cause: the
+  `<hypothesis>` scope node is EDGELESS by design, so the incidental edge-based GC swept it (and this hit
+  holder + temporal scopes too). Once the scope-GC fix landed (the scope-GC fix (`scope-nodes-survive-incidental-gc`)),
+  the hedge intake route was re-added (`Outcome("hedge")`) and `load_world` FOLDED to a thin
+  `load_corpus` alias — every layer now goes through the one ingest path. The deeper family-B AUTHORING
+  unification (one kinded primitive) stays separate/unforced.
 - **`world.py` composite DEMO loader** now delegates facts/rules/comparisons to `load_corpus` (the one
   ingest path) and only special-cases hedges. So it is a thin partition-and-defer wrapper, not a second
   recognition path.
@@ -194,14 +203,13 @@ the wall now.
 
 ## 6. Recommended sequencing
 
-1. **Loader convergence (HIGH cuts)** — ✅ **DONE 2026-07-22:** COMPARISON routes through `intake`
-   (`comparison` Outcome). HEDGE was tried and REVERTED — a fork does not survive interleaved fact-path
-   normalization (family B; awaits scope generalization). `load_world` now delegates all but hedges to
-   `load_corpus`.
+1. **Loader convergence (HIGH cuts)** — ✅ **DONE 2026-07-22:** COMPARISON and HEDGE both route through
+   `intake` (`comparison`/`hedge` Outcomes). Hedge needed the scope-GC fix first (a fork must survive
+   interleaved fact-path GC); once that landed, `load_world` folded to a thin `load_corpus` alias.
 2. **Batch-loader convergence (MEDIUM)** — ✅ **DONE 2026-07-22 (reimplement, keep signature):**
    `load_corpus` is now ingest-in-a-loop (one recognition path, declare-before-use), keeping its
-   `(kb, rules)` signature so ~132 call sites are untouched. **STILL OPEN:** retire `load_loose_rules` +
-   the loose/translation subsystem (a feature+subsystem deletion — its own focused slice).
+   `(kb, rules)` signature so ~132 call sites are untouched. **Loose/translation subsystem RETIRED**
+   (`load_loose_rules` + `TRANSLATION_FORMS`/`LEXICON_FORMS`/`parse_lexicon`/`expand_loose`/… deleted).
 3. **The `define` surface (family A)** — one form → `Rule`; then fold relation-properties/disjoint
    spellings under it (dispatching to their expanders). Delivers the capability.
 4. **Leave family B to scope generalization** — hedges are forks are scopes; that unification is
