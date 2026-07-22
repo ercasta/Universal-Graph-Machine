@@ -191,7 +191,11 @@ def probe_C3_propositional_modus_ponens():
     holds". It needs a fact to be a first-class TRUTH-BEARER (bind its 'holding', and DEREIFY it back
     to its edge to assert B). Two hard stops: the rule grammar requires every clause to be exactly
     `S P O` (so `?b holds` is unwritable), and there is no dereify operator. A DIFFERENT primitive
-    from scope generalization — facts-as-truth-bearers — needed only for the causation COMPLETION."""
+    from scope generalization — facts-as-truth-bearers — needed only for the causation COMPLETION.
+
+    ⚠ SUPERSEDED 2026-07-22 — this verdict's TWO HARD STOPS were both wrong-as-stated (a 3-token
+    `?s ?p ?o` clause authors fine; dereify already fires forward via MINT.key_reg). The real, narrower
+    wall was PREDICATE-VARIABLE MATCHING, now BUILT: see bench/spike_facts_as_truth_bearers.py."""
     try:
         load_machine_rules("?b holds when ?a causes ?b")
         authored = True

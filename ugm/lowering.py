@@ -145,10 +145,26 @@ def lower_conj(pats: list[Pat], prebound: set[str] = frozenset(),
     node — the premises a provenance-minting driver `uses` (run_bank, `rewriter.match_with_premises`)."""
     prog: list[Instr] = []
     bound: set[str] = set(prebound)
+    rel_vars: set[str] = set()                    # predicate vars bound to a REL node (predicate position)
     for i, pat in enumerate(pats):
         p_key = binder(pat.p)
-        if p_key is not None and p_key in bound:      # predicate var already bound to a rel node
+        if p_key is not None and p_key in rel_vars:   # predicate var bound to a rel node (earlier pred) -> reuse
             rel_reg = p_key
+        elif p_key is not None and p_key in bound:    # predicate var bound to a VALUE node (an endpoint):
+            # the predicates-are-keys READ (facts-as-truth-bearers reify). `?p` names a value node whose
+            # NAME is the predicate; reach the fact rel through a bound endpoint and TEST it carries the
+            # DYNAMIC key `name(regs[?p])` — symmetric with the literal-predicate branch below, guard_inert
+            # covers the FOLLOW/SEED. Endpoints are reached by the shared `_reach_endpoint` calls after.
+            rel_reg = f"_rel{tag}{i}"
+            s_key, o_key = binder(pat.s), binder(pat.o)
+            if s_key is not None and s_key in bound:
+                prog.append(FOLLOW(rel_reg, s_key, "out"))
+                prog.append(TEST(rel_reg, "", key_reg=p_key))
+            elif o_key is not None and o_key in bound:
+                prog.append(FOLLOW(rel_reg, o_key, "in"))
+                prog.append(TEST(rel_reg, "", key_reg=p_key))
+            else:                                      # no bound endpoint: SEED the rel by the dynamic key
+                prog.append(SEED(rel_reg, "", key_reg=p_key))
         elif not is_var(pat.p):                        # literal predicate
             rel_reg = f"_rel{tag}{i}"
             s_key, o_key = binder(pat.s), binder(pat.o)
@@ -172,8 +188,8 @@ def lower_conj(pats: list[Pat], prebound: set[str] = frozenset(),
                 prog.append(TEST(rel_reg, literal_name(pat.p)))
             else:                                      # no bound endpoint: SEED the rel by predicate key
                 prog.append(SEED(rel_reg, literal_name(pat.p), cmp=None))
-            if p_key is not None:                      # bound-literal predicate binds too
-                prog.append(DUP(p_key, rel_reg)); bound.add(p_key)
+            if p_key is not None:                      # bound-literal predicate binds too (to the rel node)
+                prog.append(DUP(p_key, rel_reg)); bound.add(p_key); rel_vars.add(p_key)
         else:                                          # free-var predicate: reach rel via a ground s/o
             rel_reg = f"_rel{tag}{i}"
             s_key, o_key = binder(pat.s), binder(pat.o)
@@ -191,7 +207,7 @@ def lower_conj(pats: list[Pat], prebound: set[str] = frozenset(),
                 prog.append(FOLLOW(rel_reg, anc, "in"))
             else:
                 raise Unlowerable(f"pattern {pat.tokens()} has no ground anchor")
-            prog.append(DUP(p_key, rel_reg)); bound.add(p_key)
+            prog.append(DUP(p_key, rel_reg)); bound.add(p_key); rel_vars.add(p_key)
         _reach_endpoint(prog, bound, rel_reg, pat.s, "in", f"_ts{tag}{i}")
         _reach_endpoint(prog, bound, rel_reg, pat.o, "out", f"_to{tag}{i}")
         if rel_out is not None:

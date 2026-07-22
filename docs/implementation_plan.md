@@ -100,11 +100,52 @@ routes `why` with the trace in `.explanation`, not overloaded into `.answer` (`t
   - **⚠ ORTHOGONAL BUG FOUND (not existential, deferred):** a rule head `?d is a KIND when …` mis-routes
     to the FACT path (the `when` is dropped and it lands as a fact), while `?d is PROP when …` routes
     `rule` correctly. Bit the E2 probe. A rule-head `is a <kind>` parsing gap — worth a slice on its own.
-- **▶ PICK UP HERE (next session):** the AGENTIC CORES are done; the big remaining non-sugar item is the
-  **grammar flip-default integration** (make the canonical grammar the default route — the preserved arc
-  with a ~18-item triage: GC contract decision, authored-forms routing, expectation-test rewrites; own
-  session, higher blast radius). Smaller alternatives: the `is a KIND` rule-head bug above, or ② facts-as-
-  truth-bearers (the one genuinely-fundamental remaining gap, a declared ceiling — propositional causation C3).
+- **⭐⭐ ② FACTS-AS-TRUTH-BEARERS BUILT 2026-07-22 (suite 943 green) — the genuinely-fundamental primitive,
+  and it is PREDICATE-VARIABLE MATCHING, not causation-specific.** The user picked the full engine build
+  over the surface ceiling. A probe first RE-SHAPED the finding (the arc's method, and this is the arc's
+  ONE non-sugar item): the binder spike recorded C3 as "clauses must be S-P-O so `?b holds` is unwritable,
+  and no dereify" — **both wrong-as-stated.** A 3-token variable-predicate clause `?s ?p ?o` authors fine
+  (only the 2-token `?b holds` is rejected — ARITY, not predicate-vars); the DEREIFY (variable-predicate
+  HEAD, `?p` LHS-bound) ALREADY fired forward (the `MINT.key_reg` write side); and propositional MP is
+  pure S-P-O over handle entities. **The one true wall was READING a fact through a bound predicate
+  variable** (the REIFY direction — the lowerer's "no ground anchor") plus DEMAND-REACHABILITY of
+  variable-predicate rules. So propositional causation is DECLARED DATA — a three-rule reification bridge
+  (`bench/spike_facts_as_truth_bearers.py`): `?h truth yes when … ?h pred ?p … and ?s ?p ?o` (reify) /
+  `?b truth yes when ?a truth yes and ?a causes ?b` (MP, S-P-O) / `?s ?p ?o when … ?h truth yes`
+  (dereify) — honouring "domain logic ONLY in banks", causation UNprivileged.
+  - **THE PRIMITIVE, on BOTH engines (forward + demand parity):**
+    - **`machine.py`:** `TEST`/`SEED` gained a `key_reg` (dynamic key = `name(regs[key_reg])`), symmetric
+      with the existing `MINT`/`EMIT.key_reg` write side — the read half of predicates-are-keys.
+    - **`lowering.py` `lower_conj`:** split the "bound predicate var" case with a new `rel_vars` set — a
+      var bound in PREDICATE position stays a rel-node reuse (unchanged); a var bound in an ENDPOINT
+      position (`?h pred ?p`) is a VALUE node, matched via the dynamic-key `TEST(rel, key_reg=?p)`. This
+      also FIXED a pre-existing endpoint-bound-predicate bug (it used to reuse the value node as a rel reg).
+    - **`chain.py` (demand):** `_unify_head_with_demand` binds a variable head predicate to the demanded
+      predicate's value-node; the body loop resolves a bound `?p` to its predicate string (`_pred_name_of`
+      = operand-value-or-name, the value-node/entity denotation bridge) before `_facts_matching`; the head
+      EMIT resolves `hp` likewise; `_sideways_order` defers a var-pred atom until `?p` is bound.
+    - **`apply.py` (head index):** a variable-predicate head is catalogued under a `HEAD_VAR_PRED`
+      wildcard bucket; `rules_producing` returns it for every concrete demand.
+  - **THE PRIMITIVE IS GENERAL — the promised bonus landed:** generic relation-property transitivity
+    written ONCE over `?r` (`?x ?r ?z when ?x ?r ?y and ?y ?r ?z`) now works on demand (the query supplies
+    the anchor). Re-break-guarded that it does NOT over-reach (`a rel b` + `b other c` ⇏ `a rel c`).
+  - **`tests/test_facts_as_truth_bearers.py` (9):** reify/dereify each direction, the full bridge forward
+    AND demand with negative controls (soundness: antecedent absent ⇒ no consequent), generic transitivity
+    + its non-over-reach guard, and the 2-token arity boundary still rejected. ZERO regressions across the
+    whole suite despite touching all four hot-path modules; re-break confirmed the wildcard-head-index
+    guard is load-bearing (both demand tests fail without it).
+  - **OUT (deliberately):** the propositional-causation SURFACE `(P) causes (Q)` (the Option-B ceiling —
+    a surface that emits the handles + bridge; not built, the user chose the engine primitive); reify of a
+    DERIVED fact chaining through the boundary (works in handle-space via `truth`, but the once-per-boundary
+    reify of a derived edge is where a deep chain would need care); the intake QUESTION surface `does cat
+    flees yes` over the bridge (its own recognition quirks — the `is a KIND` rule-head bug below bites here).
+- **▶ PICK UP HERE (next session):** BOTH fundamental primitives (① scope generalization, ② facts-as-
+  truth-bearers) are now BUILT — §9.3's whole binding programme is reached. The big remaining non-sugar
+  item is the **grammar flip-default integration** (make the canonical grammar the default route — the
+  preserved arc with a ~18-item triage: GC contract decision, authored-forms routing, expectation-test
+  rewrites; own session, higher blast radius). Smaller alternatives: the `is a KIND` rule-head bug above
+  (worth a slice; it also blocks the propositional-causation question surface), or the propositional-
+  causation SURFACE (Option B — wire `(P) causes (Q)` to emit the now-working declared bridge).
 
 **⭐ SCOPE-KIND UNIFICATION LANDED 2026-07-22 (suite 900 green) — the §4 table is now TRUE IN CODE.**
 With the arc's Slices 0–2 complete, the two ontological kind modules (`attribution.py` holder +

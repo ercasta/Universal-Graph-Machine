@@ -163,6 +163,14 @@ def _operand_value_of(fact_g: AttrGraph, endpoint):
     return None
 
 
+def _pred_name_of(fact_g: AttrGraph, node_id: str) -> str:
+    """The PREDICATE STRING a node bound to a predicate variable denotes (facts-as-truth-bearers): its
+    operand VALUE when it is a value-node (the demand-unify binds `?p` to `value_node(pred)`), else its
+    NAME (the forward path / a `?h pred ?p` join binds `?p` to the entity node named by the predicate)."""
+    v = fact_g.operand_value(node_id)
+    return str(v) if v is not None else fact_g.name(node_id)
+
+
 def _candidate_nodes(fact_g: AttrGraph, endpoint) -> list[str]:
     """The candidate node ids for a BOUND endpoint (read side): a `ById` PINS to exactly its node (empty
     if that node is absent — the pin is honest, never a silent fall-through to a same-named other) —
@@ -528,9 +536,14 @@ def _unify_head_with_demand(fact_g: AttrGraph, demand: tuple[str, str | None, st
     the demanded tuple. A head VAR takes the pointer verbatim (a value-node for a name goal, an entity
     pin for an id-addressed one); a head LITERAL is matched against the pointer's name/value."""
     pred, dsubj, dobj = demand
-    if hp != pred:
-        return None
     st = State()
+    if is_var(hp):
+        # VARIABLE head predicate (`?s ?p ?o`, the predicates-are-keys write side / facts-as-truth-
+        # bearers dereify): it can serve ANY demanded predicate — bind `?p` to the demand's predicate
+        # value-node, so the body's `?h pred ?p` join and the EMIT both resolve to it.
+        st = st.bind(hp, fact_g.value_node(pred))
+    elif hp != pred:
+        return None
     for slot, ep in ((hs, dsubj), (ho, dobj)):
         if ep is None:
             continue
@@ -858,12 +871,18 @@ def _sideways_order(body: list[tuple[str, str, str, str]], bound: set[str]
     def ready(tok: str) -> bool:
         return bool(tok) and ((not is_var(tok)) or (tok in bound))   # a literal prunes; a var once bound
 
+    def pred_ok(p: str) -> bool:
+        # A VARIABLE predicate (`?s ?p ?o`, facts-as-truth-bearers) can only be read once `?p` is bound
+        # to the value it names — so defer such an atom until then (the demand analog of the forward
+        # "no ground anchor"). A literal predicate is always ok.
+        return (not is_var(p)) or (p in bound)
+
     bound = set(bound)
     remaining = list(body)
     order: list[tuple[str, str, str, str]] = []
     while remaining:
-        idx = next((i for i, (s, _p, o, r) in enumerate(remaining)
-                    if ready(s) or ready(o) or ready(r)), 0)
+        idx = next((i for i, (s, p, o, r) in enumerate(remaining)
+                    if pred_ok(p) and (ready(s) or ready(o) or ready(r))), 0)
         s_tok, p, o_tok, rel_tok = remaining.pop(idx)
         order.append((s_tok, p, o_tok, rel_tok))
         for t in (s_tok, o_tok, rel_tok):
@@ -1312,8 +1331,17 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                             continue
                         nxt.append((st3, band, env))       # ontological: no band discount, no env
                     continue
-                mint((bp, s_ep, o_ep))
-                for m in _facts_matching(fact_g, bp, s_ep, o_ep, scope=scope,
+                bpk = bp
+                if is_var(bp):
+                    # VARIABLE predicate body atom (`?s ?p ?o`, facts-as-truth-bearers reify): read the
+                    # fact through the predicate `?p` names. `_sideways_order` defers this atom until
+                    # `?p` is bound; an unbound one cannot anchor, so it matches nothing.
+                    pn = st.regs.get(bp)
+                    if pn is None:
+                        continue
+                    bpk = _pred_name_of(fact_g, pn)
+                mint((bpk, s_ep, o_ep))
+                for m in _facts_matching(fact_g, bpk, s_ep, o_ep, scope=scope,
                                          focus_scope=focus_scope, bands=banded):
                     if banded:
                         fs, fo, fb, fe = m
@@ -1353,6 +1381,13 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                 band = band if nec >= band else nec        # graded negation: fold in N(¬L)
             sk_ids = _resolve_skolems(fact_g, heads, st, skolems) if skolems else {}
             for hs, hp, ho, hrel in heads:
+                if is_var(hp):
+                    # VARIABLE head predicate (dereify): resolve to the predicate it names — bound by
+                    # the demand-unify (`?p` = the demanded predicate) or the body (`?h pred ?p`).
+                    pn = st.regs.get(hp)
+                    if pn is None:
+                        continue
+                    hp = _pred_name_of(fact_g, pn)
                 s_id = _head_endpoint_id(fact_g, st, hs, sk_ids)
                 o_id = _head_endpoint_id(fact_g, st, ho, sk_ids)
                 if s_id is None or o_id is None:           # unbound non-skolem head slot — out of slice

@@ -25,6 +25,10 @@ from .attrgraph import AttrGraph, valued, graded, NAME, PATTERN_MARK
 from .production_rule import is_var, is_bound_literal, literal_name
 
 HEAD_INDEX = "<head-index>"
+# A rule whose HEAD predicate is a VARIABLE (`?s ?p ?o`, facts-as-truth-bearers dereify) can produce
+# ANY predicate, so it is catalogued under this wildcard key and `rules_producing` returns it for every
+# concrete demand (the demand-path analog of the forward "variable predicate resolved at apply time").
+HEAD_VAR_PRED = "<var-pred-head>"
 ROLES = ("lhs", "rhs", "nac", "drop")
 
 # Phase 5.3 (SUPPOSE): a VALUED tag on a pencil / scope-derived rel node naming the `<hypothesis>` scope
@@ -64,10 +68,11 @@ def build_head_index(rule_g: AttrGraph) -> str:
     existing = {(rule_g.predicate(rel), obj) for rel, obj in rule_g.relations_from(hub)}
     for rn in rule_nodes(rule_g):
         for _hs, hp, _ho in _read_atoms(rule_g, rn, "rhs"):
-            if (hp, rn) not in existing:
-                rel = rule_g.add_relation(hub, hp, rn, control=True)   # hub -[headPred]-> rule
+            key = HEAD_VAR_PRED if is_var(hp) else hp   # a variable head predicate -> the wildcard bucket
+            if (key, rn) not in existing:
+                rel = rule_g.add_relation(hub, key, rn, control=True)   # hub -[headPred]-> rule
                 rule_g.set_attr(rel, PATTERN_MARK, graded(1.0))   # rule wiring: out of the fact view
-                existing.add((hp, rn))
+                existing.add((key, rn))
     return hub
 
 
@@ -77,7 +82,8 @@ def rules_producing(rule_g: AttrGraph, pred: str) -> list[str]:
     out: list[str] = []
     for hub in rule_g.nodes_named(HEAD_INDEX):
         for rel, obj in rule_g.relations_from(hub):
-            if rule_g.has_key(rel, pred) and obj not in out:
+            # a concrete match, OR any variable-predicate-head rule (it can produce `pred`)
+            if (rule_g.has_key(rel, pred) or rule_g.has_key(rel, HEAD_VAR_PRED)) and obj not in out:
                 out.append(obj)
     return out
 

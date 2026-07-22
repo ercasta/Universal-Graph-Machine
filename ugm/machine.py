@@ -150,11 +150,17 @@ class SEED(Instr):
     Enumerates candidates BY KEY only; an optional valued `(cmp, value)` filters each candidate
     — never an index by value (the label guard). ONE sanctioned exception: an equality SEED on
     the reserved NAME key uses the O(1) lexical accelerator (`nodes_named`), the KB-blessed
-    discriminating index (Phase 2.3) — a df-seed, not a general value index."""
+    discriminating index (Phase 2.3) — a df-seed, not a general value index.
+
+    DYNAMIC KEY (`key_reg`, the predicates-are-keys read side, symmetric with `MINT.key_reg`): when
+    set, the seed key is the NAME of the node in that register (`name(regs[key_reg])`), resolved at
+    run time — the anchor is a bound predicate VARIABLE, not a static predicate. `key_reg` must be
+    bound before this SEED runs; the static `key` is then ignored."""
     reg: str
     key: str
     cmp: str | None = None       # None = key-presence seed; else valued comparison
     value: object = None
+    key_reg: str | None = None   # dynamic key: seed by name(regs[key_reg]) instead of the static key
 
 
 @dataclass
@@ -172,12 +178,18 @@ class TEST(Instr):
     valued comparison). No score change. `absent=True` INVERTS to a TEST-ABSENT — keep the
     state iff the node does NOT carry `key`: the fact-read attribute guard primitive
     (firmware §3/A5), emitted by the lowering compiler so a read never binds control/inert
-    scaffolding — an ordinary attribute test, never a privileged matcher skip."""
+    scaffolding — an ordinary attribute test, never a privileged matcher skip.
+
+    DYNAMIC KEY (`key_reg`, symmetric with `SEED`/`MINT.key_reg`): when set, the tested key is the
+    NAME of the node in that register (`name(regs[key_reg])`) — used to read a fact through a bound
+    predicate VARIABLE (`?s ?p ?o` with `?p` bound to a value node). `key_reg` must be bound before
+    this TEST runs; the static `key` is ignored. (Never combined with `absent`.)"""
     reg: str
     key: str
     cmp: str | None = None
     value: object = None
     absent: bool = False
+    key_reg: str | None = None   # dynamic key: test name(regs[key_reg]) instead of the static key
 
 
 @dataclass
@@ -562,12 +574,13 @@ class Machine:
             # from"), so this is the sanctioned df-seed, not the forbidden general value index.
             # Semantically transparent: `_by_name` is kept in sync with the (always-VALUED) NAME
             # attr, so the candidate set is identical to the scan-and-filter path.
-            if ins.key == NAME and ins.cmp == "=" and isinstance(ins.value, str):
+            seed_key = g.name(st.regs[ins.key_reg]) if ins.key_reg is not None else ins.key
+            if seed_key == NAME and ins.cmp == "=" and isinstance(ins.value, str):
                 for nid in g.nodes_named(ins.value):
                     yield st.bind(ins.reg, nid)
                 return
-            for nid in g.nodes_with_key(ins.key):
-                if self._valued_ok(g, nid, ins.key, ins.cmp, ins.value):
+            for nid in g.nodes_with_key(seed_key):
+                if self._valued_ok(g, nid, seed_key, ins.cmp, ins.value):
                     yield st.bind(ins.reg, nid)
         elif isinstance(ins, FUZZY):
             for nid in g.nodes_with_key(ins.key):
@@ -584,10 +597,11 @@ class Machine:
                 yield st.bind(ins.dst, nid)
         elif isinstance(ins, TEST):
             nid = st.regs[ins.reg]
+            key = g.name(st.regs[ins.key_reg]) if ins.key_reg is not None else ins.key
             if ins.absent:                               # the fact-read attribute guard (test-absent)
-                if not g.has_key(nid, ins.key):
+                if not g.has_key(nid, key):
                     yield st
-            elif g.has_key(nid, ins.key) and self._valued_ok(g, nid, ins.key, ins.cmp, ins.value):
+            elif g.has_key(nid, key) and self._valued_ok(g, nid, key, ins.cmp, ins.value):
                 yield st
         elif isinstance(ins, MEMBER):
             live = g.registers.get(ins.live)

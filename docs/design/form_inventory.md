@@ -802,22 +802,29 @@ agentic core's critical path.**
 | existential (quantification core) | NATIVE | — (LHS-keyed skolem + demand) |
 | ordered ranging (tense ranging) | NATIVE | — (recursion over relational order) |
 | entity-level causation (causation core) | NATIVE | — (`causes` relation + binder) |
-| **relativization** (binary-fact tense, attribution, negative-band) | **GAP** | **① SCOPE GENERALIZATION** (ontological + rule-bindable scope) |
-| **propositional causation** (facts-as-endpoints MP) | **GAP** | **② FACTS AS TRUTH-BEARERS** (reify/dereify fact-truth) |
+| **relativization** (binary-fact tense, attribution, negative-band) | **BUILT** (was GAP) | **① SCOPE GENERALIZATION** (ontological + rule-bindable scope) |
+| **propositional causation** (facts-as-endpoints MP) | **BUILT 2026-07-22** (was GAP) | **② FACTS AS TRUTH-BEARERS** = PREDICATE-VARIABLE MATCHING (reify-read + var-pred head, both engines) |
 
 - **① scope generalization** is the shared, convergent one: tense-core, attribution, and the
   negative-band fix all reduce to it; it is an EXTENSION of the existing scope mechanism. This is the
   primitive to design, and to design once.
 - **② facts-as-truth-bearers** — its PRODUCTIVE half (deriving new facts by binding a fact's truth,
-  C3) is the gap, needed only for the causation COMPLETION (the core is native), so by §9.2 it can be
-  a DECLARED CEILING. But its RELATING half is NOT a gap and NOT isolated: **provenance already relates
-  facts** (`J --proves--> conclusion`, `J --uses--> premise`, in an inert meta-layer the matcher skips),
-  and EXPLAINABILITY rides exactly this — `why`/`explain` traverse `proves`/`uses`, retraction/reconsider
-  walk the support graph. So the map's "isolated" was too strong (user, 2026-07-22): explanation needs
-  facts to be addressable+relatable, and that already exists. It does NOT need C3 (it READS the record,
-  never re-derives through fact-truth). CONSEQUENCE — a design CONSTRAINT on ①: a scoped/relativized
-  derivation must go through `record_firing` with its scope intact, so it stays explainable. The
-  scope-generalization design is `docs/design/scope_generalization.md`.
+  C3) was thought the deferrable ceiling. **BUILT 2026-07-22 (suite 943), and the shape was wrong:**
+  a probe found C3 = **PREDICATE-VARIABLE MATCHING**, a GENERAL primitive, not causation-specific. The
+  spike's two "hard stops" were both wrong-as-stated — a 3-token `?s ?p ?o` clause authors fine (only the
+  2-token `?b holds` is rejected, ARITY), and DEREIFY (variable-predicate HEAD) already fired forward via
+  `MINT.key_reg`; propositional MP is pure S-P-O over handles. The ONE wall was READING a fact through a
+  bound predicate variable (reify) + demand-reachability of var-pred rules. Built as: `TEST`/`SEED.key_reg`
+  (read side, symmetric with `MINT.key_reg`); `lower_conj` value-node-vs-rel-node split; the demand chain's
+  head-pred binding + `_pred_name_of` denotation bridge + var-pred `_sideways_order` deferral; a
+  `HEAD_VAR_PRED` wildcard head-index bucket. So propositional causation is now DECLARED DATA (a three-rule
+  reification bridge, causation UNprivileged), and generic relation-property transitivity written over `?r`
+  lights up too. Its RELATING half was NEVER a gap: **provenance already relates facts** (`J --proves-->
+  conclusion`, `J --uses--> premise`, an inert meta-layer the matcher skips), and EXPLAINABILITY rides it —
+  `why`/`explain` traverse `proves`/`uses`, retraction/reconsider walk the support graph. CONSEQUENCE (a
+  standing CONSTRAINT on ①): a scoped/relativized derivation must go through `record_firing` with its scope
+  intact, so it stays explainable. Design/spike: `bench/spike_facts_as_truth_bearers.py`,
+  `tests/test_facts_as_truth_bearers.py`; scope generalization is `docs/design/scope_generalization.md`.
 
 **⭐ CAUSATION CORE — BACKWARD DIAGNOSIS SURFACED 2026-07-22 (suite 909 green).** A probe confirmed C1
 is native THROUGH REAL INTAKE (`causes` relation + propagation rule; forward/plan needs no build), so
