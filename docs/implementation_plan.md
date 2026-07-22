@@ -58,16 +58,27 @@ findings + two builds:
   `load_corpus` — user's "start 2 in a fresh session" item); leave hedges/forks to scope generalization
   (family B). ~~Also still owed from Slice 2: the `@?t` CNL surface.~~ **`@?t` DONE 2026-07-22 (suite 880
   green) — see the Slice 2 block below.**
-  - **⭐ LOADER CONVERGENCE STEP 1 DONE 2026-07-22 (suite 890 green):** comparative + possibilistic now
-    route through `intake.ingest` — two additive FALLBACK routes (`Outcome("comparison")`/`"hedge"`),
-    recognized by their own pure parsers, keyword-gated (never claim a plain fact), above the crisp fact
-    route so `x is likely a thief` authors a banded FORK. MEASURED: the canonical grammar refuses both,
-    so nothing is stolen (a grammar KB reaches them by fall-through). Comparison = ink relation
-    (transitivity on demand, no `rules` mutation); hedge = a SCOPE with an INCREMENTAL lexicon (`P means N`
-    declare-before-use). `intake.py` §"LOADER CONVERGENCE"; `tests/test_intake_loader_convergence.py` (7)
-    + the router guard extended (`test_at_most_one_router_recognizer_claims_a_surface`, +3 surfaces).
-    **STEP 2 (the only owed item now): retire `load_corpus`/`load_world` for `load_kb` + ingest-in-a-loop
-    — the batch-loader CONTRACT change (MEDIUM), deliberately not dragged into this additive slice.**
+  - **⭐ LOADER CONVERGENCE DONE 2026-07-22 (suite 886 green) — comparison converged, hedge deferred,
+    batch loader reimplemented.**
+    - **STEP 1 (comparison):** `x is more/less D than y` routes through `intake.ingest` as an additive
+      FALLBACK `Outcome("comparison")` (reusing `parse_comparative`), keyword-gated, above the crisp fact
+      route. MEASURED: the canonical grammar refuses it, so nothing is stolen (grammar KB via
+      fall-through). An ink relation (transitivity on demand, no `rules` mutation) — SURVIVES later
+      fact-path normalization.
+    - **⚠ HEDGE tried on intake and REVERTED — a real finding.** A hedge authors a banded FORK (family B)
+      that does NOT survive the fact path's whole-graph `normalize_surface` re-run on a later utterance
+      (measured: fork → any fact → reads back `assumed-no`). A silently-corrupting route is worse than
+      none; forks must be unified into the kinded-scope mechanism first (audit §2 "leave family B to
+      scope generalization"). Hedge stays on `world.load_world`.
+    - **STEP 2 (batch loader): `load_corpus` is now ingest-in-a-loop** (kept its `(kb, rules)` signature —
+      the "reimplement, keep signature" decision — so ~132 call sites untouched). ONE recognition/routing
+      path, declare-before-use. Fallout: 2 `test_new_core` tests (inspected rule-source GRAPH internals →
+      now the `rules` LIST; one used the Stage-3 loose sugar the ingest path has no route for).
+      `load_world` delegates facts/rules/comparisons to `load_corpus`, authoring hedges LAST.
+    - `intake.py` §"LOADER CONVERGENCE"; `tests/test_intake_loader_convergence.py` + guard +comparison.
+    - **STILL OPEN:** retire `load_loose_rules` + the loose/translation subsystem (approved, but a
+      feature+subsystem deletion — deferred to its own focused slice); hedge-on-intake awaits scope
+      generalization absorbing family B.
 
 
 **THE ARC IN ONE PARAGRAPH.** The grammar arc's real question — "are the fundamental epistemic blocks

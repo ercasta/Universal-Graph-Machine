@@ -1391,42 +1391,28 @@ _ALL_FORMS: list[Rule] = FORM_RULES + FACT_FORMS + RULE_SOURCE_FORMS
 
 
 def load_corpus(text: str, *, policy=None) -> tuple[Graph, list[Rule]]:
-    """Load a whole mixed CNL corpus into ONE graph; what each statement IS emerges
-    from the forms (no Python classifier — the keywords route it).
+    """Load a whole mixed CNL corpus into a fresh `(kb, rules)` pair — the batch bootstrap.
 
-    Returns (kb, rules): `kb` is the single substrate (facts + the graded layer, and
-    the recognized rule/frame structure, which reasoning ignores by data); `rules`
-    are the executable rules. Answer demand-driven with `ask_goal`/`check` (DEMAND-DRIVEN NEGATION,
-    firmware v3 — every `not P` clause is a NAC decided on demand by negation-as-failure); a full
-    forward snapshot, if needed for inspection/export, is `run_rules(kb, rules)`. Lines starting with
-    '#' are comments.
+    CONVERGED 2026-07-22 (meaning_surfaces_audit.md §3 step 2): this is now `ingest`
+    IN A LOOP over a fresh pair, so there is ONE recognition/routing code path — the
+    same `intake.route` a live session uses — instead of a duplicate whole-batch
+    `_recognize`+fold sequence. Returns `(kb, rules)`: `kb` is the single substrate (facts +
+    the graded layer), `rules` the executable rules ingest accumulated. Answer demand-driven with
+    `ask_goal`/`check`; a forward snapshot for inspection/export is `run_rules(kb, rules)`.
 
-    Facts and rule-source COEXIST safely here (the parked b1 separation is no longer
-    needed) because (1) rule fragments are built with bound-literals, so recognition
-    never grabs a fact node, and (2) reasoning rules bind a context node (e.g. a shop)
-    that rule-source can't satisfy — isolation by DATA, not by an engine scope.
+    CONTRACT NOTE — this makes the batch load DECLARE-BEFORE-USE, like a live session (files ARE
+    batched utterances): a relation/rule/form a line needs must be declared on an EARLIER line. The
+    legacy whole-batch 2-pass was order-INDEPENDENT; the corpora in use already declare-before-use, so
+    the change is behaviour-preserving in practice (measured: only rule-source-INTERNALS inspections
+    differed — reasoning is identical). Unlike `load_kb`, this is LENIENT: an unrecognized line is left
+    raw rather than raising (the corpus/demo contract), and it CREATES the pair rather than mutating one.
+    Lines starting with '#' are comments; blanks skipped.
     """
+    from ..intake import ingest        # lazy: intake imports this module (avoid an import cycle)
     kb = Graph()
-    # Recognize every statement on the ISA FORWARD driver (`_recognize` -> `run_bank`), NOT the
-    # forward `rewriter` — the "one engine" move. Whole-batch, reproducing `rewriter.run` exactly:
-    # facts and rule-source COEXIST because rule fragments are built with bound-literals (recognition
-    # never grabs a fact node), exactly as under `rewriter`.
-    _recognize(kb, _corpus_lines(text), _ALL_FORMS)
-    mark_mentions(kb, _ALL_FORMS)        # tag entities `is_a <mention>` — the entity handle
-    intern_mentions(kb)                  # HARDCODED "same name => same node" (interning): fold same-named
-                                         # mentions to ONE node. REPLACES the old M^2 same-NAME coref rule —
-                                         # one entity is one node, so its facts already coincide (a gradable
-                                         # declaration + its use-site are the same node).
-    prop = _coref_propagation(kb)        # `same_as` propagation over the content predicates present
-    if kb.key_count(SAME_AS):            # ONLY when identity is actually asserted ("X is the same as Y" ->
-        run_bank(kb, prop)               # a `same_as` edge, form.fact.same_as); else the pass is pure
-                                         # overhead. Compose EAGERLY: the recognized same_as is control-layer,
-                                         # invisible to the demand matcher, so it can't be deferred (Blocker A).
-                                         # Sparse post-interning (only asserted, never same-name), so cheap —
-                                         # interning killed the same-name clique the OLD eager pass blew up on.
-    run_bank(kb, graded_rules(kb))       # gradable word -> embedding (propagate EMIT); degrees from KB
-    propagate_embeddings(kb)             # graded-layer union across each `same_as` class
-    rules = expand_rules(kb) + expand_loose_from_graph(kb) + prop
-    if _on_cycle(policy) == "raise":                     # firmware STANCE (see `policy.py`)
-        lint_stratifiable(rules, source="load_corpus")
+    rules: list[Rule] = []
+    for line in text.splitlines():
+        s = line.strip()
+        if s and not s.startswith("#"):
+            ingest(kb, rules, s, policy=policy)   # lenient: unrecognized stays raw (no raise)
     return kb, rules

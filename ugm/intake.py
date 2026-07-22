@@ -52,7 +52,7 @@ COMMAND_ACTS: dict[str, str] = {"focus": "focus", "be": "stance", "run": "run"}
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer"|"fact"|"comparison"|"hedge"|"rule"|"define"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"vocabulary"|"ambiguous"|"unrecognized"
+    kind: str                # "answer"|"fact"|"comparison"|"rule"|"define"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"vocabulary"|"ambiguous"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     added_rules: list = field(default_factory=list)   # RULE: the executable rules this utterance added
@@ -70,7 +70,7 @@ class Event:
     `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). A `"call"` event
     is the ASYNC-TOOL suspension (§5 wait-set v2): its data carries `{tool, call, request}` and the
     driver's `.send()` value is the world's response, folded by the tool's `fold` half."""
-    kind: str                # focus|question|ask|subgoal|derive|answer|fact|comparison|hedge|rule|define|rule-conflict|rule-disable|form|form-conflict|procedure|goal|call|acted|unrecognized
+    kind: str                # focus|question|ask|subgoal|derive|answer|fact|comparison|rule|define|rule-conflict|rule-disable|form|form-conflict|procedure|goal|call|acted|unrecognized
     data: dict = field(default_factory=dict)
 
 
@@ -631,22 +631,28 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         return Outcome("stance", utterance)
 
     # ═══ LOADER CONVERGENCE (2026-07-22, meaning_surfaces_audit.md §3 HIGH) ══════════════════════
-    # The comparative and possibilistic mini-surfaces used to be reachable ONLY through their own
-    # standalone batch loaders (`comparative.load_comparative`, `uncertainty.load_uncertain`) — never
-    # through the modern intake. These two routes fold them into `ingest`, so a live session (or
-    # `load_kb`) can mix `x is more D than y` and `x is likely P` with plain facts. Placed in the
-    # FALLBACK, like focus/stance: the canonical grammar has no vocabulary for either and REFUSES
-    # them (MEASURED — `x is more beautiful than y` / `cy is likely a thief` both route
-    # `unrecognized`), so a grammar KB reaches these by fall-through, and a non-grammar KB directly.
-    # Each is recognized by its OWN pure parser firing (§D.2), never a string sniff, and both are
-    # keyword-gated (more/less/than; likely/either/means), so neither claims a plain fact — pinned by
-    # `test_at_most_one_router_recognizer_claims_a_surface`. Positioned ABOVE the crisp fact route so
-    # `x is likely a thief` authors a banded FORK, not a crisp `is_a` fact.
+    # The COMPARATIVE mini-surface used to be reachable ONLY through its standalone batch loader
+    # (`comparative.load_comparative`) — never through the modern intake. This route folds it into
+    # `ingest`, so a live session (or `load_kb`/`load_corpus`) can mix `x is more D than y` with plain
+    # facts. Placed in the FALLBACK, like focus/stance: the canonical grammar has no vocabulary for it
+    # and REFUSES it (MEASURED — `x is more beautiful than y` routes `unrecognized`), so a grammar KB
+    # reaches it by fall-through, a non-grammar KB directly. Recognized by its OWN pure parser (§D.2),
+    # keyword-gated (more/less/than) so it never claims a plain fact — pinned by
+    # `test_at_most_one_router_recognizer_claims_a_surface`.
+    #
+    # ⚠ HEDGES (`x is likely P` / `either…or`) are DELIBERATELY NOT routed here. They author a banded
+    # FORK — an epistemic SCOPE (family B) — and a fork does NOT survive the fact path's whole-graph
+    # `normalize_surface` re-run on a LATER utterance (measured: a fork authored, then any fact ingested,
+    # reads back `assumed-no`). Making forks compose with the fact path is exactly the scope-generalization
+    # arc's job (`meaning_surfaces_audit.md` §2 family B: "leave hedges/forks to scope generalization"),
+    # so a hedge stays on its own loader (`world.load_world` authors hedges LAST) until then — a
+    # silently-corrupting intake route would be the exception-dropping failure in another costume.
 
     # COMPARISON — `x is more D than y` / `x is less D than y` authors a DECOMPOSED comparison (an ink
     # relation whose predicate is the DIMENSION, class-marked `<comparison>`; comparative.py decision 1).
     # "less" is the reversed arrow. Transitivity is generated ON DEMAND (`comparison_rules`), so nothing
     # is authored into `rules` here — the read path (`ask_comparative`) brings its own rules per query.
+    # An ink relation on entity nodes, so unlike a fork it survives later fact-path normalization.
     from .cnl.comparative import parse_comparative, add_comparison
     cmp_parsed = parse_comparative(text)
     if cmp_parsed is not None:
@@ -655,16 +661,6 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         focus_mod.widen(kb, {subj, obj})                 # the compared entities enter the focus frame
         yield Event("comparison", {"subj": subj, "dim": dim, "obj": obj})
         return Outcome("comparison", utterance)
-
-    # HEDGE / POSSIBILISTIC — `x is likely P` / `x is either A or B` / `P means N` authors a banded
-    # FORK (an epistemic SCOPE, family B), or extends the hedge LEXICON (`P means N`, an ink fact so the
-    # scale lives in the KB). `uncertainty.load_line` reads the lexicon from the KB in scope, so a hedge
-    # declared in an EARLIER ingest call already parses (declare-before-use, the intake contract — the
-    # incremental analog of world.py's whole-text pre-scan). It authors a SCOPE, never a rule.
-    from .cnl.uncertainty import load_line as _load_hedge_line
-    if _load_hedge_line(kb, text):
-        yield Event("hedge")
-        return Outcome("hedge", utterance)
 
     # PROCEDURE RUN — `run NAME` seeds `<run> proc NAME` (the stepping bank's INVOKE request) and drives
     # the SAME act arm a `goal …` does: a pre-made plan and a synthesized one execute through one gate

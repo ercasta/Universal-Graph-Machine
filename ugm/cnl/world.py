@@ -1,13 +1,14 @@
 """
-The COMPOSITE surface — one text, every layer. The additive mini-surfaces (possibilistic
-`uncertainty.py`, comparative `comparative.py`) each consume their own lines and hand the rest on;
-this module is the line-by-line composition the playground and quickstarts use, so a world can mix
-plain facts, rules, hedged facts, `either…or`, and comparisons in ONE block of CNL.
+The COMPOSITE surface — one text, every layer. A world mixes plain facts, rules, hedged facts,
+`either…or`, and comparisons in ONE block of CNL.
 
-`load_world(text)` — partition by the mini-surfaces' PURE parsers (the hedge lexicon is pre-scanned
-from the text's own `X means N` declarations, so a declared hedge routes correctly on the same
-load), feed the remainder to the ordinary `load_corpus`, then author the special lines INTO the
-returned KB.
+`load_world(text)` — PARTLY CONVERGED 2026-07-22 (meaning_surfaces_audit.md §3 step 2): facts, rules
+AND comparisons now go through `load_corpus`, which is the ONE ingest path (comparison routes through
+intake; `load_corpus` is ingest-in-a-loop). Only HEDGES stay on their own loader, and are authored
+LAST — a hedge is a banded FORK (family B) that does NOT survive the fact path's whole-graph
+`normalize_surface` re-run on a later line, so it must be written after all fact/rule loading, not
+interleaved. Unifying forks with the fact path is scope-generalization's job (audit §2 family B), at
+which point hedges can move onto intake too and this special-casing goes away.
 
 `ask_world(kb, rules, question)` — routes a question to its surface: a comparative shape to
 `ask_comparative`; `guess X` to the defeasible-guess act (rendered as its honest `why` line);
@@ -21,36 +22,31 @@ from .authoring import load_corpus
 from .uncertainty import (
     HEDGE_BAND, parse_hedge_decl, parse_hedge_fact, parse_either, load_line as _load_uncertain_line,
 )
-from .comparative import (
-    parse_comparative, add_comparison, parse_comparative_question, ask_comparative,
-    explain_comparative,
-)
+from .comparative import parse_comparative_question, ask_comparative, explain_comparative
 
 
-def _is_special(line: str, hedges: dict[str, float]) -> bool:
+def _is_hedge(line: str, hedges: dict[str, float]) -> bool:
     return (parse_hedge_decl(line) is not None or parse_either(line) is not None
-            or parse_hedge_fact(line, hedges) is not None
-            or parse_comparative(line) is not None)
+            or parse_hedge_fact(line, hedges) is not None)
 
 
 def load_world(text: str, *, policy=None) -> tuple[AttrGraph, list[Rule]]:
-    """Author `text` across every surface: `(kb, rules)` exactly like `load_corpus`, with the
-    possibilistic and comparative lines routed to their own loaders (into the same KB)."""
+    """Author `text`: facts/rules/comparisons through `load_corpus` (the one ingest path), then the
+    HEDGE lines LAST (forks do not survive interleaved fact-path normalization — see the module
+    docstring). Returns `(kb, rules)`. The hedge lexicon is pre-scanned from the text's own `X means
+    N` declarations so a declared hedge routes correctly regardless of its position."""
     lines = text.splitlines()
     hedges = dict(HEDGE_BAND)
-    for ln in lines:                                       # pre-scan: a hedge declared in this very
-        d = parse_hedge_decl(ln)                           # text routes its uses correctly below
+    for ln in lines:                                       # pre-scan: a hedge declared anywhere in the
+        d = parse_hedge_decl(ln)                           # text applies to every hedged line here
         if d is not None:
             hedges[d[0]] = d[1]
-    plain, special = [], []
+    plain, hedge_lines = [], []
     for ln in lines:
-        (special if ln.strip() and _is_special(ln, hedges) else plain).append(ln)
-    kb, rules = load_corpus("\n".join(plain), policy=policy)
-    for ln in special:
-        if not _load_uncertain_line(kb, ln):
-            parsed = parse_comparative(ln)
-            if parsed is not None:
-                add_comparison(kb, *parsed)
+        (hedge_lines if ln.strip() and _is_hedge(ln, hedges) else plain).append(ln)
+    kb, rules = load_corpus("\n".join(plain), policy=policy)   # facts/rules/comparisons: one ingest path
+    for ln in hedge_lines:                                     # forks LAST, after all fact-path passes
+        _load_uncertain_line(kb, ln)
     return kb, rules
 
 

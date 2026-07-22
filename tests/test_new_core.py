@@ -464,8 +464,10 @@ def test_ask_is_a_questions_and_unrecognized():
 # ---------------------------------------------------------------------------
 
 def test_load_corpus_emergent_recognition():
-    # Facts, native rules, a lexicon frame and a loose phrasing in ONE unsectioned
-    # corpus — no Python classifier; the keywords route each statement.
+    # Facts and native rules in ONE unsectioned corpus — no Python classifier; the keywords
+    # route each statement. (The Stage-3 loose/lexicon-frame sugar `serve X first means …` was
+    # RETIRED with the loader convergence 2026-07-22 — superseded by the prose->CNL translation
+    # layer; `load_corpus` is now ingest-in-a-loop, which has no lexicon-frame route.)
     corpus = """
         # a mixed corpus, no sections
         urgent is gradable
@@ -481,18 +483,15 @@ def test_load_corpus_emergent_recognition():
         ?c is urgent when ?c is a customer and ?c is very urgent
         ?c served regular when ?c wants ?f and ?f is in_stock and ?c is not urgent
         ?c offered alternative when ?c is a customer and ?c wants ?f and ?f is not in_stock
-        serve ?x first means ?x served express when ?x wants ?f and ?f is in_stock
-        serve urgent customers first
+        ?c served express when ?c is urgent and ?c wants ?f and ?f is in_stock
     """
     kb, rules = h.load_corpus(corpus)
 
-    # rules were recognized (3 native + 1 lexicon-translated loose); the frame body
-    # template is NOT emitted as a standalone rule. (`load_corpus` also appends the `coref.same_name`
-    # rule + `same_as` propagation rules — infrastructure, not recognized domain rules — filtered here.)
+    # all four native rules were recognized emergently from their keywords.
     keys = sorted(r.key for r in rules
                   if not (r.key.startswith("same_as") or r.key.startswith("coref")))
-    assert keys == ["loose.serve.urgent.first", "rule.?c.is.urgent",
-                    "rule.?c.offered.alternative", "rule.?c.served.regular"]
+    assert keys == ["rule.?c.is.urgent", "rule.?c.offered.alternative",
+                    "rule.?c.served.express", "rule.?c.served.regular"]
 
     # facts + the graded layer landed in the KB; rule-source did NOT pollute it
     assert _has(kb, "alice", "is_a", "customer")
@@ -533,11 +532,11 @@ def test_one_graph_context_isolation():
     """
     kb, rules = h.load_corpus(corpus)
 
-    # facts AND rule-source share the one graph
-    rule_nodes = [n for n in kb.nodes()
-                  if any(kb.predicate(r) == "rl_pred" for r, _ in kb.relations_from(n))]
-    assert len(rule_nodes) >= 4
-    assert _has(kb, "alice", "is_a", "customer")          # a fact, same graph
+    # rules live in the `rules` list; facts live in the kb graph (loader convergence 2026-07-22:
+    # load_corpus is now ingest-in-a-loop, so rule-source no longer accretes as graph fragments —
+    # each rule line routes to the rule list, cleaner than the old shared-graph rule-source).
+    assert len([r for r in rules if r.key.startswith("rule.")]) >= 4
+    assert _has(kb, "alice", "is_a", "customer")          # a fact, in the kb graph
 
     h.run_rules(kb, rules)
 

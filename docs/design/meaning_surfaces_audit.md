@@ -18,19 +18,31 @@
 >   route (run forward + harvested when a triggering declaration lands; order-independent, idempotent).
 >   `tests/test_schema_surface.py`. **This is the in-language replacement for the Python
 >   relation-property expanders — the deepest form of "define meaning and use it".**
-> - **⭐ Loader convergence, STEP 1 (§3 HIGH) LANDED 2026-07-22 (suite 890 green):** the comparative
->   and possibilistic mini-surfaces now route through `intake.ingest` — two additive fallback routes
->   (`Outcome("comparison")`/`Outcome("hedge")`) recognized by their own pure parsers (`parse_comparative`
->   / `uncertainty.load_line`), keyword-gated so neither claims a plain fact, above the crisp fact route
->   so `x is likely a thief` authors a banded FORK not an `is_a` fact. MEASURED first: the canonical
->   grammar REFUSES both surfaces, so the recognizers steal nothing (a grammar KB reaches them by
->   fall-through). Comparison authors an ink relation (transitivity generated on demand — no `rules`
->   mutation); hedge authors a SCOPE (family B) with an INCREMENTAL lexicon (`P means N` declare-before-
->   use, the incremental analog of world.py's whole-text pre-scan). Guard extended
->   (`test_at_most_one_router_recognizer_claims_a_surface` + `tests/test_intake_loader_convergence.py`,
->   7). **Still open in this cut:** STEP 2 (MEDIUM) — retire `load_corpus`/`load_world` for `load_kb` +
->   ingest-in-a-loop (the batch-loader CONTRACT change; `load_world` still uses `load_corpus`, so it was
->   deliberately left for its own slice rather than dragging the contract question into this additive one).
+> - **⭐ Loader convergence LANDED 2026-07-22 (suite 886 green) — comparison converged, hedge deferred,
+>   batch loader reimplemented.**
+>   - **STEP 1 (§3 HIGH) — COMPARISON routes through `intake.ingest`:** an additive fallback route
+>     (`Outcome("comparison")`) recognized by `parse_comparative`, keyword-gated (more/less/than) so it
+>     never claims a plain fact, above the crisp fact route. MEASURED: the canonical grammar REFUSES the
+>     surface, so it steals nothing (grammar KB reaches it by fall-through). Authors an ink relation
+>     (transitivity on demand — no `rules` mutation), which SURVIVES later fact-path normalization.
+>   - **⚠ HEDGE was tried on intake and REVERTED — a real finding.** A hedge authors a banded FORK
+>     (family B), and a fork does NOT survive the fact path's whole-graph `normalize_surface` re-run on a
+>     LATER utterance (measured: author a fork, ingest any fact, the fork reads back `assumed-no`). So a
+>     hedge intake route silently corrupts — worse than none. This is exactly the §2 family-B composition
+>     that "leave hedges/forks to scope generalization" refers to: forks must be unified INTO the kinded-
+>     scope mechanism before they compose with the fact path. Hedge stays on `world.load_world`.
+>   - **STEP 2 (§3 MEDIUM) — `load_corpus` is now ingest-in-a-loop** (kept its `(kb, rules)` signature,
+>     per the "reimplement, keep signature" decision). ONE recognition/routing path (the same
+>     `intake.route`), declare-before-use like a live session. Measured fallout: 2 tests
+>     (`test_new_core`) that inspected rule-source GRAPH internals — now assert the `rules` LIST; one also
+>     used the Stage-3 loose/lexicon-frame sugar, which the ingest path has no route for (that sugar is
+>     superseded by the prose->CNL layer, and was already slated for retirement here). `load_world` folds
+>     onto `load_corpus` for facts/rules/comparisons, authoring hedges LAST (forks can't interleave).
+>   - Guard extended (`test_at_most_one_router_recognizer_claims_a_surface` +comparison surface) +
+>     `tests/test_intake_loader_convergence.py`.
+>   - **STILL OPEN:** retire `load_loose_rules` + the loose/translation subsystem (approved, but a
+>     feature+subsystem deletion — deferred to its own focused slice rather than rushed at the tail of
+>     this one). And hedge-on-intake awaits scope generalization absorbing family B.
 > - **⚠ Perf note:** `apply_schemas` runs the meta-bank forward on EVERY fact assertion when any schema
 >   exists (O(schemas) per fact; free when none). Correct but the O(session) shape this repo has fought;
 >   gate on "the fact's predicate is a schema trigger" if a session with schemas ever bends.
@@ -87,16 +99,16 @@ the wall allows, its expanders behind that surface (§4).
 ## 3. Immediate cuts — evidence-backed, confidence-labeled
 
 **HIGH confidence (mechanical, no capability lost):**
-- **⭐ Loader convergence — STEP 1 DONE 2026-07-22 (suite 890 green).** `comparative.load_comparative`,
-  `uncertainty.load_uncertain` were standalone entry points duplicating what `intake.ingest`/`load_kb`
-  do. The intake dispatch now has a `comparison` / `hedge` Outcome kind (two additive FALLBACK routes,
-  reusing `parse_comparative` / `uncertainty.load_line` as the thin recognizers). `load_comparative` had
-  ZERO live non-test callers; `load_uncertain` only `world.py`. Measured, not assumed — the canonical
-  grammar refuses both, so nothing is stolen. The batch loaders STAY (the intake routes reuse their pure
-  parsers); what step 1 delivered is reaching the surfaces through the MODERN intake.
-- **`world.py` binds comparative+uncertainty+facts together** — a composite DEMO loader, not core. It
-  still uses `load_corpus` (not `ingest`), so turning `load_world` into "ingest in a loop" is STEP 2's
-  batch-loader contract change, not step 1's additive routing. Deferred with §3-MEDIUM below.
+- **⭐ Loader convergence DONE 2026-07-22 (suite 886 green).** The intake dispatch now has a
+  `comparison` Outcome (an additive FALLBACK route reusing `parse_comparative`); the canonical grammar
+  refuses the surface, so nothing is stolen, and an ink comparison survives later fact-path
+  normalization. `load_comparative` had ZERO live non-test callers.
+- **⚠ HEDGE (`load_uncertain`) was NOT converged onto intake** — it authors a FORK that does not survive
+  the fact path's whole-graph normalization on a later utterance (measured), the §2 family-B composition
+  problem. It stays on `world.load_world`, which now authors hedges LAST (after `load_corpus`).
+- **`world.py` composite DEMO loader** now delegates facts/rules/comparisons to `load_corpus` (the one
+  ingest path) and only special-cases hedges. So it is a thin partition-and-defer wrapper, not a second
+  recognition path.
 
 **MEDIUM (needs a design nod — it changes a contract, which the user has OK'd):**
 - **The two batch loaders** `load_corpus` (legacy 2-pass, whole-batch) vs `load_kb` (declare-before-
@@ -182,12 +194,14 @@ the wall now.
 
 ## 6. Recommended sequencing
 
-1. **Loader convergence (HIGH cuts)** — ✅ **STEP 1 DONE 2026-07-22:** route comparative + uncertainty
-   through `intake` (`comparison`/`hedge` Outcomes). The batch loaders stay as thin recognizers the
-   routes reuse; deleting `load_world` as a separate entry point is folded into step 2 (it depends on
-   `load_corpus`). Mechanical, no wall.
-2. **Batch-loader convergence (MEDIUM)** — `load_kb` contract wins; retire `load_corpus` +
-   `load_world`. **← the next slice.**
+1. **Loader convergence (HIGH cuts)** — ✅ **DONE 2026-07-22:** COMPARISON routes through `intake`
+   (`comparison` Outcome). HEDGE was tried and REVERTED — a fork does not survive interleaved fact-path
+   normalization (family B; awaits scope generalization). `load_world` now delegates all but hedges to
+   `load_corpus`.
+2. **Batch-loader convergence (MEDIUM)** — ✅ **DONE 2026-07-22 (reimplement, keep signature):**
+   `load_corpus` is now ingest-in-a-loop (one recognition path, declare-before-use), keeping its
+   `(kb, rules)` signature so ~132 call sites are untouched. **STILL OPEN:** retire `load_loose_rules` +
+   the loose/translation subsystem (a feature+subsystem deletion — its own focused slice).
 3. **The `define` surface (family A)** — one form → `Rule`; then fold relation-properties/disjoint
    spellings under it (dispatching to their expanders). Delivers the capability.
 4. **Leave family B to scope generalization** — hedges are forks are scopes; that unification is

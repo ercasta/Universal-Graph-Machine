@@ -167,8 +167,6 @@ ROUTER_SURFACES = [
     "ada is a suspect",                          # fact
     "ada is happy",                              # fact
     "x is more beautiful than y",                # comparison
-    "cy is likely a thief",                      # hedge
-    "x is either male or female",                # hedge (disjunction)
 ]
 
 
@@ -180,9 +178,6 @@ def _recognizers_firing(text):
     from ugm.cnl.query import recognize
     from ugm.policy import recognize_stance
     from ugm.cnl.comparative import parse_comparative
-    from ugm.cnl.uncertainty import (
-        parse_hedge_decl, parse_hedge_fact, parse_either, HEDGE_BAND,
-    )
 
     def _try(fn):
         try:
@@ -190,17 +185,12 @@ def _recognizers_firing(text):
         except Exception:
             return None          # a malformed surface for THIS route is not a claim on it
 
-    def _hedge(t):               # any of the three possibilistic parsers (against the default lexicon)
-        return (parse_hedge_decl(t) is not None or parse_either(t) is not None
-                or parse_hedge_fact(t, dict(HEDGE_BAND)) is not None)
-
     fop = _try(lambda: focus_mod.recognize_focus_op(text))
     checks = {
         "rule-disable": _try(lambda: rule_control.recognize_rule_op(text)),
         "focus": fop[0] if fop else None,
         "stance": _try(lambda: recognize_stance(text)),
         "comparison": _try(lambda: parse_comparative(text)),
-        "hedge": _try(lambda: _hedge(text)),
         "form": _try(lambda: form_authoring.parse_form_line(text)),
         "procedure": _try(lambda: procedure_surface.parse_define(text)),
         "run": _try(lambda: procedure_surface.parse_run(text)),
