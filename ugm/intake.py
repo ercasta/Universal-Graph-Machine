@@ -52,7 +52,7 @@ COMMAND_ACTS: dict[str, str] = {"focus": "focus", "be": "stance", "run": "run"}
 @dataclass
 class Outcome:
     """What `ingest` did with one utterance. `kind` is the route recognition selected."""
-    kind: str                # "answer"|"why"|"suppose"|"fact"|"comparison"|"hedge"|"rule"|"define"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"vocabulary"|"ambiguous"|"unrecognized"
+    kind: str                # "answer"|"why"|"suppose"|"cause"|"fact"|"comparison"|"hedge"|"rule"|"define"|"rule-disable"|"focus"|"stance"|"goal"|"form"|"procedure"|"vocabulary"|"ambiguous"|"unrecognized"
     utterance: str
     answer: list[str] | None = None              # QUESTION: the CNL answer(s)
     explanation: list[str] | None = None         # WHY: the derivation trace (backward diagnosis)
@@ -71,7 +71,7 @@ class Event:
     `ask_user` gather, so the TUI can show the prompt (the ask-vs-guess escalation, §4). A `"call"` event
     is the ASYNC-TOOL suspension (§5 wait-set v2): its data carries `{tool, call, request}` and the
     driver's `.send()` value is the world's response, folded by the tool's `fold` half."""
-    kind: str                # focus|question|ask|subgoal|derive|answer|fact|comparison|hedge|rule|define|rule-conflict|rule-disable|form|form-conflict|procedure|goal|call|acted|unrecognized
+    kind: str                # focus|question|ask|subgoal|derive|answer|fact|comparison|hedge|rule|define|cause|cause-done|rule-conflict|rule-disable|form|form-conflict|procedure|goal|call|acted|unrecognized
     data: dict = field(default_factory=dict)
 
 
@@ -729,6 +729,37 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
                          focus_scope=wscope, max_rounds=max_rounds)
         yield Event("explanation", {"lines": lines})
         return Outcome("why", utterance, explanation=lines)
+
+    # PROPOSITIONAL CAUSATION — `that A causes that B` (facts-as-truth-bearers, form_inventory §9.3): a
+    # causal link between whole PROPOSITIONS, so A holding DERIVES B, the link is a first-class fact, and
+    # links CHAIN. The `that` nominalizer distinguishes it from ENTITY-level `X causes Y` (native, the
+    # fact route) — so a bare `A causes B` is never stolen. Emits content-keyed HANDLES carrying
+    # subj/pred/obj + a `causes` edge between them, and installs the three declared reification bridge
+    # rules ONCE (reify / MP / dereify — the predicate-variable-matching primitive carries truth across
+    # the link). Above the fact route so a `that …` line is never asserted verbatim. Keyword/structure
+    # recognizer (grammar refuses it, like suppose/why), reached by fall-through under a grammar KB.
+    from .cnl import cause_surface
+    pc = cause_surface.parse_cause(text)
+    if pc is not None:
+        a, b = pc
+        yield Event("cause", {"antecedent": list(a), "consequent": list(b)})
+        from .machine import Machine
+        from . import assemble_facts as _assemble_facts
+        from .cnl.machine_rules import load_machine_rules
+        have = {r.key for r in rules}                       # install the bridge ONCE (idempotent by key)
+        bridge = [r for rt in cause_surface.BRIDGE_RULES for r in load_machine_rules(rt)]
+        new_bridge = [r for r in bridge if r.key not in have]
+        rules.extend(new_bridge)
+        # emit the handle facts into the (facts-only) KB — `assemble_facts` interns by name, so the
+        # handle's `subj door1` shares the node the proposition `door1 is open` uses (coref).
+        Machine().run(kb, _assemble_facts(cause_surface.handle_facts(a, b)))
+        # a new causal link may make the consequent (or a downstream fact) derivable -> RECONSIDER a
+        # prior assumed-no at the next ask: the consequent's grain, plus any new bridge-rule heads.
+        from .reconsider import mark_dirty, rule_grains
+        mark_dirty(kb, [(b[1], b[2])] + rule_grains(new_bridge))
+        focus_mod.widen(kb, {a[0], a[2], b[0], b[2]})
+        yield Event("cause-done", {"added_rules": len(new_bridge)})
+        return Outcome("cause", utterance, added_rules=list(new_bridge))
 
     # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
     q = recognize(text, extra_forms=question_forms)

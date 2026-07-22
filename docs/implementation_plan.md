@@ -142,18 +142,28 @@ routes `why` with the trace in `.explanation`, not overloaded into `.answer` (`t
     + its non-over-reach guard, and the 2-token arity boundary still rejected. ZERO regressions across the
     whole suite despite touching all four hot-path modules; re-break confirmed the wildcard-head-index
     guard is load-bearing (both demand tests fail without it).
-  - **OUT (deliberately):** the propositional-causation SURFACE `(P) causes (Q)` (the Option-B ceiling —
-    a surface that emits the handles + bridge; not built, the user chose the engine primitive); reify of a
-    DERIVED fact chaining through the boundary (works in handle-space via `truth`, but the once-per-boundary
-    reify of a derived edge is where a deep chain would need care); the intake QUESTION surface `does cat
-    flees yes` over the bridge (its own recognition quirks — the `is a KIND` rule-head bug below bites here).
+  - **THE SURFACE LANDED 2026-07-22 (suite 953 green): `that A causes that B`.** The Option-B follow-on,
+    now riding the primitive above (not the no-engine ceiling). `ugm/cnl/cause_surface.py` (a pure
+    keyword/structure recognizer like suppose/why, grammar refuses it) + a `cause` intake route above the
+    fact route. The `that` NOMINALIZER is the whole discriminator — `that door1 is open causes that cat is
+    scared` marks TWO propositions, while a bare `hunger causes aggression` is ENTITY-level (C1, native)
+    and left to the fact route (re-break-guarded: bare `A causes B` never routes `cause`). Emits
+    content-keyed HANDLES (`prop:s:p:o`, plain names so their facts are visible) carrying subj/pred/obj +
+    a `causes` edge via `assemble_facts` (interns by name ⇒ coref with the proposition's entities), and
+    installs the three bridge rules ONCE into the `rules` list (idempotent by key). KEY: because rules
+    live in the LIST (reified at query time), the surface is ORDER-INDEPENDENT — a link stated before its
+    antecedent still fires when the antecedent lands (a raw one-graph `write_rule` before facts does NOT,
+    a pre-existing interning collision, but the intake model dodges it). CHAINS (A→B→C via the derived
+    middle fact), handles KIND propositions (`is_a` agrees both sides), reconsider-dirties the consequent.
+    `Outcome("cause")` + `Event("cause"/"cause-done")`; `tests/test_propositional_cause.py` (8, incl.
+    order-independence, chaining, negative control, the `that`-nominalizer boundary). Clause menu mirrors
+    `suppose_surface` (`S P O` / `S is O` / `S is a O`) + a 2-token intransitive `S P` → `S P yes`.
 - **▶ PICK UP HERE (next session):** BOTH fundamental primitives (① scope generalization, ② facts-as-
-  truth-bearers) are now BUILT — §9.3's whole binding programme is reached. The big remaining non-sugar
-  item is the **grammar flip-default integration** (make the canonical grammar the default route — the
-  preserved arc with a ~18-item triage: GC contract decision, authored-forms routing, expectation-test
-  rewrites; own session, higher blast radius). Smaller alternative: the propositional-causation SURFACE
-  (Option B — wire `(P) causes (Q)` to emit the now-working declared reification bridge). ~~the `is a KIND`
-  rule-head bug~~ **FIXED 2026-07-22 (see the existential block above).**
+  truth-bearers) are BUILT and ② now has its CNL surface — §9.3's whole binding programme is reached and
+  usable. The big remaining non-sugar item is the **grammar flip-default integration** (make the canonical
+  grammar the default route — the preserved arc with a ~18-item triage: GC contract decision, authored-
+  forms routing, expectation-test rewrites; own session, higher blast radius). Both smaller alternatives
+  (the `is a KIND` rule-head bug, the propositional-causation surface) are now DONE.
 
 **⭐ SCOPE-KIND UNIFICATION LANDED 2026-07-22 (suite 900 green) — the §4 table is now TRUE IN CODE.**
 With the arc's Slices 0–2 complete, the two ontological kind modules (`attribution.py` holder +
