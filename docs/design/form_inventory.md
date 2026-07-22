@@ -728,3 +728,91 @@ ceiling. Each is now a CORE (in scope, required, demand-driven, composes with th
 COMPLETION (the declared out-of-scope bound, §7-honest). The ceiling moved from "these blocks" to "the
 theorem-prover completion of these blocks", and that is the line the agentic commitment was always
 implicitly drawing.
+
+### 9.3 The binder spike — the missing axis is RELATIVIZATION, not ranging (MEASURED 2026-07-22)
+
+**METHOD (user): de-risk the SHARED primitive first — and attack the PRIMITIVE, not the hardest
+block.** Tense entangles the shared risk (binding) with its own idiosyncratic costs (ontological
+scope, reopened decisions), so spiking "tense the block" would give a noisy signal. `bench/spike_binder.py`
+spikes the binder itself at the machine layer (no intake), decomposed into the capabilities the agentic
+cores need, classifying each NATIVE / ADAPTABLE / GAP. Negative controls run for every NATIVE verdict
+(this codebase's rule: a trace that confirms the hypothesis is the one to distrust); deterministic ×2.
+
+**THE RESULT SPLITS THE BINDER IN TWO, and only half needs anything.**
+
+- **RANGING + WITNESS machinery is NATIVE — no engine change.** VERIFIED, controls load-bearing:
+  * **existential** — "some key opens this door, resolve on demand": the LHS-keyed skolem `k?` mints
+    the witness when its rule fires, `chain._resolve_skolems` re-finds it, and it PARTICIPATES
+    downstream (`accessible(door1)` derived through the unnamed opener). Control: no rule ⇒ assumed-no;
+    with rule ⇒ positive + a minted node `k`. This is compatible with [[skolem-minting-lhs-keyed]], not
+    blocked by it.
+  * **ordered ranging** — traverse an order and JOIN across it: recursive `precedes` over a relational
+    `before` chain answers `t0 precedes t3`; control: drop the recursive clause ⇒ assumed-no.
+  * **unary-state tense** — `dangerous_at(lion,t2)` from `hungry_at(lion,t1) ∧ t1<t2`; control: drop
+    the ordering fact ⇒ assumed-no, so the cross-index join is real. It fits because a UNARY state +
+    time is 3 slots.
+- **RELATIVIZATION of a fact to an index/context is the GAP — and it is the ONLY gap.** Both failing
+  probes are the same wall from two sides:
+  * a BINARY fact (`has(lion,mane)`) relativized to time is 4-place; S-P-O is spent, and the only
+    3-place encoding folds the index into an OPAQUE object (`mane_at_t1`) — which answers a hard-coded
+    query but DESTROYS the join: the rule cannot range over `t`, so there is no general frame axiom.
+    (The probe returns `positive` on the degenerate encoding and is scored GAP anyway — the missing
+    thing is the CAPABILITY to bind the relativizing index, not a failed query.)
+  * the scope route has NO scope-variable in the rule language: a rule reasons WITHIN a scope
+    (suppose/fork/`check(scope=)`), it cannot BIND one, so cross-context inference is unwritable.
+
+**⭐ THE REFRAME, and it is the payoff: the shared rippling primitive is NOT "the binder" — it is
+SCOPE GENERALIZATION (relativizing a fact to a context, and letting rules bind the context).** This
+sharpens §9.1's "binding is the missing axis": the RANGING binder already exists; what is missing is
+RELATIVIZATION. And it CONVERGES three things that looked separate:
+- the **negative-band leak** (§9.1) — a band already LIVES on a scope; the fix is on the scope's read.
+- **attribution** (§4a) — a holder-keyed pencil is a scope.
+- **tense** — a time index is a scope (ontological, ordered).
+So the fundamental change is ONE extension of an EXISTING mechanism (scope: make it ontological, and
+make it rule-bindable), not three greenfield builds — and it is the same mechanism the annotation-
+composition fix (§9.1 capability #1) already touches. The ripple the user was hunting is real, is
+singular, and is an extension rather than a rewrite.
+
+**CONSEQUENCE FOR SEQUENCING (§9.2 refined).** Because ranging is native, the EXISTENTIAL core of
+quantification and the witness needs of causation are affordable NOW, with no engine change. The
+scope-generalization primitive is what tense's core needs — and since it converges with the
+negative-band fix, those two want to be designed TOGETHER (both are "a scope carrying a
+relativizer, read/bound correctly"), which is a stronger reason to pair them than §9.2's ROI order
+alone.
+
+**THE MAP COMPLETED — causation's facts-as-endpoints MEASURED 2026-07-22 (`spike_binder.py`, C1-C3,
+deterministic).** The one unmeasured loose end is now closed, and causation splits the same way the
+other blocks did — a native CORE and a fundamental COMPLETION:
+- **C1 entity/condition-level causation is NATIVE** — a `causes` relation between conditions, reasoned
+  over by the existing binder (`has(lion,aggression)` from `hunger causes aggression`). This IS
+  causation's agentic core (plan/diagnose at condition level, §9.2), and it needs no engine change.
+- **C2 facts-as-endpoints is structurally PERMITTED but inert** — `factA -[causes]-> factB` stores
+  (a fact is a rel-node, and an edge between rel-nodes is addable), but it does NOT enter the fact
+  VIEW, so on its own it is not reasoned over.
+- **C3 propositional modus ponens is a GAP** — "A holds and A causes B ⇒ B holds" needs a fact to be
+  a first-class TRUTH-BEARER: bind its holding, and DEREIFY it back to its edge to assert B. Two hard
+  stops: the rule grammar requires every clause to be exactly `S P O` (so `?b holds` is unwritable),
+  and there is no dereify operator.
+
+**⭐ THE FINAL SHAPE: TWO fundamental primitives are missing, they are DISTINCT, and only one is on any
+agentic core's critical path.**
+
+| capability | verdict | what it needs |
+|---|---|---|
+| existential (quantification core) | NATIVE | — (LHS-keyed skolem + demand) |
+| ordered ranging (tense ranging) | NATIVE | — (recursion over relational order) |
+| entity-level causation (causation core) | NATIVE | — (`causes` relation + binder) |
+| **relativization** (binary-fact tense, attribution, negative-band) | **GAP** | **① SCOPE GENERALIZATION** (ontological + rule-bindable scope) |
+| **propositional causation** (facts-as-endpoints MP) | **GAP** | **② FACTS AS TRUTH-BEARERS** (reify/dereify fact-truth) |
+
+- **① scope generalization** is the shared, convergent one: tense-core, attribution, and the
+  negative-band fix all reduce to it; it is an EXTENSION of the existing scope mechanism. This is the
+  primitive to design, and to design once.
+- **② facts-as-truth-bearers** is ISOLATED: needed only for the causation COMPLETION (the core is
+  native), so by §9.2 it can be a DECLARED CEILING if it proves expensive — no agentic core is blocked
+  on it.
+
+So every agentic CORE is reachable with native ranging plus primitive ①, and the only fundamental
+build the whole binding programme requires is scope generalization. Primitive ② is a completion,
+sequenceable last or declared out. That is the de-risking the user asked for, concluded: the ripple is
+real, singular on the critical path (①), and an extension rather than a rewrite.
