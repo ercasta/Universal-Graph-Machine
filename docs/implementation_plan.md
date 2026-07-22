@@ -57,7 +57,17 @@ findings + two builds:
   block above.** REMAINING: **loader convergence** (route comparative/uncertainty through intake, retire
   `load_corpus` — user's "start 2 in a fresh session" item); leave hedges/forks to scope generalization
   (family B). ~~Also still owed from Slice 2: the `@?t` CNL surface.~~ **`@?t` DONE 2026-07-22 (suite 880
-  green) — see the Slice 2 block below. Loader convergence is now the only owed item in this side-arc.**
+  green) — see the Slice 2 block below.**
+  - **⭐ LOADER CONVERGENCE STEP 1 DONE 2026-07-22 (suite 890 green):** comparative + possibilistic now
+    route through `intake.ingest` — two additive FALLBACK routes (`Outcome("comparison")`/`"hedge"`),
+    recognized by their own pure parsers, keyword-gated (never claim a plain fact), above the crisp fact
+    route so `x is likely a thief` authors a banded FORK. MEASURED: the canonical grammar refuses both,
+    so nothing is stolen (a grammar KB reaches them by fall-through). Comparison = ink relation
+    (transitivity on demand, no `rules` mutation); hedge = a SCOPE with an INCREMENTAL lexicon (`P means N`
+    declare-before-use). `intake.py` §"LOADER CONVERGENCE"; `tests/test_intake_loader_convergence.py` (7)
+    + the router guard extended (`test_at_most_one_router_recognizer_claims_a_surface`, +3 surfaces).
+    **STEP 2 (the only owed item now): retire `load_corpus`/`load_world` for `load_kb` + ingest-in-a-loop
+    — the batch-loader CONTRACT change (MEDIUM), deliberately not dragged into this additive slice.**
 
 
 **THE ARC IN ONE PARAGRAPH.** The grammar arc's real question — "are the fundamental epistemic blocks

@@ -18,7 +18,19 @@
 >   route (run forward + harvested when a triggering declaration lands; order-independent, idempotent).
 >   `tests/test_schema_surface.py`. **This is the in-language replacement for the Python
 >   relation-property expanders — the deepest form of "define meaning and use it".**
-> - **Still open:** the loader convergence (§3 HIGH cuts — the "start 2 in a fresh session" item).
+> - **⭐ Loader convergence, STEP 1 (§3 HIGH) LANDED 2026-07-22 (suite 890 green):** the comparative
+>   and possibilistic mini-surfaces now route through `intake.ingest` — two additive fallback routes
+>   (`Outcome("comparison")`/`Outcome("hedge")`) recognized by their own pure parsers (`parse_comparative`
+>   / `uncertainty.load_line`), keyword-gated so neither claims a plain fact, above the crisp fact route
+>   so `x is likely a thief` authors a banded FORK not an `is_a` fact. MEASURED first: the canonical
+>   grammar REFUSES both surfaces, so the recognizers steal nothing (a grammar KB reaches them by
+>   fall-through). Comparison authors an ink relation (transitivity generated on demand — no `rules`
+>   mutation); hedge authors a SCOPE (family B) with an INCREMENTAL lexicon (`P means N` declare-before-
+>   use, the incremental analog of world.py's whole-text pre-scan). Guard extended
+>   (`test_at_most_one_router_recognizer_claims_a_surface` + `tests/test_intake_loader_convergence.py`,
+>   7). **Still open in this cut:** STEP 2 (MEDIUM) — retire `load_corpus`/`load_world` for `load_kb` +
+>   ingest-in-a-loop (the batch-loader CONTRACT change; `load_world` still uses `load_corpus`, so it was
+>   deliberately left for its own slice rather than dragging the contract question into this additive one).
 > - **⚠ Perf note:** `apply_schemas` runs the meta-bank forward on EVERY fact assertion when any schema
 >   exists (O(schemas) per fact; free when none). Correct but the O(session) shape this repo has fought;
 >   gate on "the fact's predicate is a schema trigger" if a session with schemas ever bends.
@@ -75,13 +87,16 @@ the wall allows, its expanders behind that surface (§4).
 ## 3. Immediate cuts — evidence-backed, confidence-labeled
 
 **HIGH confidence (mechanical, no capability lost):**
-- **Loader convergence.** `comparative.load_comparative`, `uncertainty.load_uncertain`,
-  `authoring.load_corpus` are standalone entry points that duplicate what `intake.ingest`/`load_kb`
-  do (tokenize → recognize → fold). Route them through the intake dispatch (add a `comparison` /
-  `hedge` Outcome kind) and the three `load_*` shrink to thin recognizers. **`load_comparative` has
-  ZERO live non-test callers**; `load_uncertain` only `world.py`. Measured, not assumed.
-- **`world.py` is the only thing binding comparative+uncertainty+facts together** — it is a composite
-  DEMO loader, not core. Once intake routes both, `load_world` becomes `ingest` in a loop.
+- **⭐ Loader convergence — STEP 1 DONE 2026-07-22 (suite 890 green).** `comparative.load_comparative`,
+  `uncertainty.load_uncertain` were standalone entry points duplicating what `intake.ingest`/`load_kb`
+  do. The intake dispatch now has a `comparison` / `hedge` Outcome kind (two additive FALLBACK routes,
+  reusing `parse_comparative` / `uncertainty.load_line` as the thin recognizers). `load_comparative` had
+  ZERO live non-test callers; `load_uncertain` only `world.py`. Measured, not assumed — the canonical
+  grammar refuses both, so nothing is stolen. The batch loaders STAY (the intake routes reuse their pure
+  parsers); what step 1 delivered is reaching the surfaces through the MODERN intake.
+- **`world.py` binds comparative+uncertainty+facts together** — a composite DEMO loader, not core. It
+  still uses `load_corpus` (not `ingest`), so turning `load_world` into "ingest in a loop" is STEP 2's
+  batch-loader contract change, not step 1's additive routing. Deferred with §3-MEDIUM below.
 
 **MEDIUM (needs a design nod — it changes a contract, which the user has OK'd):**
 - **The two batch loaders** `load_corpus` (legacy 2-pass, whole-batch) vs `load_kb` (declare-before-
@@ -167,9 +182,12 @@ the wall now.
 
 ## 6. Recommended sequencing
 
-1. **Loader convergence (HIGH cuts)** — route comparative + uncertainty through `intake`, delete
-   `load_comparative`/`load_uncertain`/`load_world` as separate entry points. Mechanical, no wall.
-2. **Batch-loader convergence (MEDIUM)** — `load_kb` contract wins; retire `load_corpus`.
+1. **Loader convergence (HIGH cuts)** — ✅ **STEP 1 DONE 2026-07-22:** route comparative + uncertainty
+   through `intake` (`comparison`/`hedge` Outcomes). The batch loaders stay as thin recognizers the
+   routes reuse; deleting `load_world` as a separate entry point is folded into step 2 (it depends on
+   `load_corpus`). Mechanical, no wall.
+2. **Batch-loader convergence (MEDIUM)** — `load_kb` contract wins; retire `load_corpus` +
+   `load_world`. **← the next slice.**
 3. **The `define` surface (family A)** — one form → `Rule`; then fold relation-properties/disjoint
    spellings under it (dispatching to their expanders). Delivers the capability.
 4. **Leave family B to scope generalization** — hedges are forks are scopes; that unification is
