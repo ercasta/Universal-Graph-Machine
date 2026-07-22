@@ -59,6 +59,13 @@ def tokenize(graph: Graph, sentence: str, *, control: bool = False) -> str:
             graph.add_relation(anchor, "first", tok, control=True)
         else:
             graph.add_relation(prev, "next", tok, control=True)   # chain links = ephemeral scaffolding
+        if len(word) > 1 and word.startswith("@"):        # a RELATIVIZER `@?t` (scope-variable rules,
+            # scope_generalization.md §6): a clause suffix saying "this atom is relativized to the scope
+            # keyed to ?t". Tagged HERE — the one chokepoint every fold path shares — because the grammar
+            # forms match token NAMES and cannot express a "starts with @" pattern. The tag is ephemeral
+            # NAC-guard scaffolding (like is_kw/kw_not): the relativized clause form reads it, then
+            # `_recognize` strips the `yes` node. Inert on every non-rule path (`@` is not CNL content).
+            graph.add_relation(tok, "is_rel", graph.add_node("yes", control=True), control=True)
         prev = tok
     return anchor
 

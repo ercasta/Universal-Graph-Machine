@@ -445,15 +445,34 @@ def _body_kw_tags(kw: str, tag: str) -> list[Rule]:
                  rhs=[Pat(f"{kw}?", tag, "yes")])]
 
 
-# A plain positive condition `S P O`. Defers (NAC) to a `not`-led clause (kw_not) and to the prose
-# sugar (is_kw on the predicate or object — inert in the machine grammar, which emits no is_kw tag).
+# A plain positive condition `S P O`. Defers (NAC) to a `not`-led clause (kw_not), to the prose
+# sugar (is_kw on the predicate or object — inert in the machine grammar, which emits no is_kw tag),
+# and to the RELATIVIZED clause below when a `@?t` token follows the object.
 _GENERIC_BODY_CLAUSE = Rule(
     key="body.clause.rl_lhs",
     lhs=[Pat("?cs", "body_subj", "?r"), Pat("?cs", "next", "?cp"), Pat("?cp", "next", "?co")],
     nac=[Pat("?cs", "kw_not", "yes"), Pat("?cp", "is_kw", "yes"), Pat("?co", "is_kw", "yes"),
-         Pat("?cp", "is_bnd", "yes")],   # a boundary kw (then/when/and) is never a clause predicate
+         Pat("?cp", "is_bnd", "yes"),   # a boundary kw (then/when/and) is never a clause predicate
+         Pat("?co", "next", "?relx"), Pat("?relx", "is_rel", "yes")],  # defer to the relativized clause
     rhs=[Pat("?r", "rl_lhs", "<cond>?"), Pat("<cond>?", "k_subj", "?cs"),
          Pat("<cond>?", "k_pred", "?cp"), Pat("<cond>?", "k_obj", "?co"), Pat("?co", "body_end", "?r")],
+)
+
+# A RELATIVIZED positive condition `S P O @?t` (scope-variable rules, scope_generalization.md §6):
+# the trailing `@?t` token — tagged `is_rel` at tokenize — is captured as `k_rel` and reflected into
+# `Pat.rel` by `_cond_pat`, so the atom is matched relativized to the scope keyed to `?t`. The
+# relativizer token (not the object) carries `body_end`, so the `and`/head domino continues past all
+# four tokens. Same deferral NACs as the plain clause (kw_not / is_kw / is_bnd); a relativized `not`
+# clause is a deferred limit (the frame axiom needs only positive relativized atoms).
+_GENERIC_BODY_CLAUSE_REL = Rule(
+    key="body.clause.rl_lhs.rel",
+    lhs=[Pat("?cs", "body_subj", "?r"), Pat("?cs", "next", "?cp"), Pat("?cp", "next", "?co"),
+         Pat("?co", "next", "?rel"), Pat("?rel", "is_rel", "yes")],
+    nac=[Pat("?cs", "kw_not", "yes"), Pat("?cp", "is_kw", "yes"), Pat("?co", "is_kw", "yes"),
+         Pat("?cp", "is_bnd", "yes")],
+    rhs=[Pat("?r", "rl_lhs", "<cond>?"), Pat("<cond>?", "k_subj", "?cs"),
+         Pat("<cond>?", "k_pred", "?cp"), Pat("<cond>?", "k_obj", "?co"),
+         Pat("<cond>?", "k_rel", "?rel"), Pat("?rel", "body_end", "?r")],
 )
 
 # A `not S P O` negative condition / NAC (the marker sits on the `not` token).
@@ -527,8 +546,8 @@ _ELLIPSIS_FORMS: list[Rule] = [
 
 # The shared body spine. machine_rules.py imports this and appends it to its own HEAD forms.
 BODY_SPINE_FORMS: list[Rule] = [*_body_kw_tags("not", "kw_not"),
-                                _GENERIC_BODY_CLAUSE, _BODY_NOT_CLAUSE, _BODY_AND,
-                                *_BND_TAGS, *_ELLIPSIS_FORMS]
+                                _GENERIC_BODY_CLAUSE, _GENERIC_BODY_CLAUSE_REL, _BODY_NOT_CLAUSE,
+                                _BODY_AND, *_BND_TAGS, *_ELLIPSIS_FORMS]
 
 
 # ---- prose copula SUGAR — the multi-token variants the generic triple can't say ----
@@ -765,9 +784,17 @@ def _cond_pat(graph: Graph, cond: str, declared: set[str] = frozenset()) -> Pat:
     # variable word (`critters` -> `?critters`) to a bound variable — the universals->laws name-op (a
     # §8 calculator step, past the quote/eval wall). A literal entity (`lion`) is unchanged, so a
     # ground rule reflects with no variable.
+    # A `k_rel` slot (from a `S P O @?t` relativized clause, scope_generalization.md §6) reflects into
+    # `Pat.rel`: the token name is `@?t`, so the leading `@` is stripped to the scope-key variable `?t`.
+    rel_tok = _obj(graph, cond, "k_rel")
+    rel = ""
+    if rel_tok is not None:
+        rn = graph.name(rel_tok)
+        rel = rn[1:] if rn.startswith("@") else rn
     return Pat(rule_var_name(graph.name(_obj(graph, cond, "k_subj")), declared),
               rule_var_name(graph.name(_obj(graph, cond, "k_pred")), declared),
-              rule_var_name(graph.name(_obj(graph, cond, "k_obj")), declared))
+              rule_var_name(graph.name(_obj(graph, cond, "k_obj")), declared),
+              rel=rel)
 
 
 def _pat_key(p: Pat) -> tuple[str, str, str]:

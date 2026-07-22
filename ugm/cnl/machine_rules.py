@@ -58,8 +58,10 @@ def _kw_tags(kw: str, tag: str) -> list[Rule]:
 def _clause(subj_marker: str, role_rel: str, end_rel: str) -> Rule:
     """A plain triple clause `S P O` whose subject carries `subj_marker`: fold it onto the
     rule under `role_rel` (rl_head / rl_lhs) and mark its object with `end_rel` so the
-    separator domino can continue to the next clause. NAC excludes keyword-led clauses."""
+    separator domino can continue to the next clause. NAC excludes keyword-led clauses AND
+    defers to the RELATIVIZED clause when a `@?t` token follows the object."""
     nac = [Pat("?cs", "kw_drop", "yes")] if role_rel == "rl_head" else [Pat("?cs", "kw_not", "yes")]
+    nac = nac + [Pat("?co", "next", "?relx"), Pat("?relx", "is_rel", "yes")]  # defer to `_rel_clause`
     return Rule(
         key=f"mrule.clause.{role_rel}",
         lhs=[Pat("?cs", subj_marker, "?r"), Pat("?cs", "next", "?cp"), Pat("?cp", "next", "?co")],
@@ -67,6 +69,24 @@ def _clause(subj_marker: str, role_rel: str, end_rel: str) -> Rule:
         rhs=[Pat("?r", role_rel, "<cond>?"), Pat("<cond>?", "k_subj", "?cs"),
              Pat("<cond>?", "k_pred", "?cp"), Pat("<cond>?", "k_obj", "?co"),
              Pat("?co", end_rel, "?r")],
+    )
+
+
+def _rel_clause(subj_marker: str, role_rel: str, end_rel: str) -> Rule:
+    """A RELATIVIZED triple clause `S P O @?t` (scope-variable rules, scope_generalization.md §6):
+    the trailing `@?t` token (tagged `is_rel` at tokenize) is captured as `k_rel` — reflected into
+    `Pat.rel` by `authoring._cond_pat` — so the head/body atom is written/matched relativized to the
+    scope keyed to `?t`. The relativizer token (not the object) carries `end_rel`, so the separator
+    domino continues past all four tokens."""
+    nac = [Pat("?cs", "kw_drop", "yes")] if role_rel == "rl_head" else [Pat("?cs", "kw_not", "yes")]
+    return Rule(
+        key=f"mrule.clause.{role_rel}.rel",
+        lhs=[Pat("?cs", subj_marker, "?r"), Pat("?cs", "next", "?cp"), Pat("?cp", "next", "?co"),
+             Pat("?co", "next", "?rel"), Pat("?rel", "is_rel", "yes")],
+        nac=nac,
+        rhs=[Pat("?r", role_rel, "<cond>?"), Pat("<cond>?", "k_subj", "?cs"),
+             Pat("<cond>?", "k_pred", "?cp"), Pat("<cond>?", "k_obj", "?co"),
+             Pat("<cond>?", "k_rel", "?rel"), Pat("?rel", end_rel, "?r")],
     )
 
 
@@ -102,8 +122,10 @@ MACHINE_RULE_FORMS: list[Rule] = [
     # `not` tag (`kw_not`) is provided by the shared body spine.
     *_kw_tags("drop", "kw_drop"),
 
-    # HEAD clauses: a plain create triple, or a `drop S P O` control deletion.
+    # HEAD clauses: a plain create triple, a RELATIVIZED create triple `S P O @?t`, or a
+    # `drop S P O` control deletion.
     _clause("head_subj", "rl_head", "head_end"),
+    _rel_clause("head_subj", "rl_head", "head_end"),
     _keyword_clause("drop", "head_subj", "rl_drop", "head_end"),
 
     # Separators in the HEAD region: `and` continues the head, `when` switches to the body (seeding

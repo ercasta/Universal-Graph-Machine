@@ -56,7 +56,8 @@ findings + two builds:
 - **NEXT for this side-arc (audit §6):** ~~the meta-pattern CNL surface~~ **DONE — see the META-PATTERN
   block above.** REMAINING: **loader convergence** (route comparative/uncertainty through intake, retire
   `load_corpus` — user's "start 2 in a fresh session" item); leave hedges/forks to scope generalization
-  (family B). Also still owed from Slice 2: the `@?t` CNL surface.
+  (family B). ~~Also still owed from Slice 2: the `@?t` CNL surface.~~ **`@?t` DONE 2026-07-22 (suite 880
+  green) — see the Slice 2 block below. Loader convergence is now the only owed item in this side-arc.**
 
 
 **THE ARC IN ONE PARAGRAPH.** The grammar arc's real question — "are the fundamental epistemic blocks
@@ -162,11 +163,28 @@ wall, dissolved. `tests/test_scope_variable_rules.py` (8).
   materialized). Kind fixed at `temporal` for now (head-mint needs a kind); holder-inheritance can reuse
   the machinery with a kind tag later.
 
-**NEXT: the CNL `@?t` SURFACE — the only remaining Slice-2 piece.** The engine mechanism is complete and
-tested via `write_rule`/`Pat.rel`; what's left is parsing `@?t` in the machine-rule grammar
-(`machine_rules.py` / `BODY_SPINE_FORMS`): tokenize the `@?t` suffix on a clause, fold a `k_rel` onto the
-`<cond>` flat schema, and read it into `Pat.rel` in `authoring._expand_rule_node`. A clean, separable
-slice — the intricate grammar-as-rules fold, deliberately not rushed into the engine change's commit.
+**⭐ THE CNL `@?t` SURFACE LANDED 2026-07-22 (suite 880 green) — SLICE 2 IS COMPLETE.** The frame axiom
+is now expressible in the language: `?x has ?y @?t2 when ?x has ?y @?t1 and ?t1 before ?t2` folds through
+`load_machine_rules` to the exact `Rule` the engine test built by hand (`Pat.rel` on the relativized
+atoms), and persists a binary fact across time end-to-end (non-veridical globally). Three edits, all
+additive:
+- **Tokenize tags the relativizer** (`forms.tokenize`): an `@?t` token gets `is_rel yes` — done at the
+  one chokepoint every fold path shares, because the grammar forms match token NAMES and cannot express a
+  "starts with `@`" pattern. Ephemeral NAC-guard scaffolding (like `is_kw`/`kw_not`), stripped with the
+  `yes` node; inert on every non-rule path (`@` is not CNL content).
+- **A relativized clause form on BOTH the shared body and the machine head** (`authoring.
+  _GENERIC_BODY_CLAUSE_REL`, `machine_rules._rel_clause`): `S P O @?t` captures the trailing token as
+  `k_rel` and carries `body_end`/`head_end` on the RELATIVIZER (not the object), so the `and`/switch
+  domino continues past all four tokens. `_cond_pat` strips the leading `@` and reflects it into
+  `Pat.rel`.
+- **A defer NAC on the plain clauses** (`?co next ?relx ∧ ?relx is_rel yes`) — a separate independent NAC
+  group (grouped by the free `?relx`; `_nac_groups` excludes LHS-bound `?co`), so the plain clause yields
+  to the relativized one when a relativizer follows. **RE-BREAK CONFIRMED load-bearing:** stripping it
+  makes the plain clause ALSO fire, injecting a spurious un-relativized `?x has ?y` copy (rel="") that
+  would break non-veridicality. `tests/test_scope_variable_cnl.py` (7).
+- **DEFERRED limits (not needed for the acceptance):** a relativized `not` clause (`not S P O @?t`) and a
+  relativized PROSE head (`S P O @?t when …` — prose head is single-triple, so it uses `_rel_clause`'s
+  machine path). The shared body spine gives prose bodies the relativizer for free.
 3. **Independent, off the critical path:** causation's entity-level core is NATIVE now (build on it);
    propositional causation (② C3) is a declared ceiling.
 
