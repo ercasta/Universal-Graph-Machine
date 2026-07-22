@@ -158,12 +158,66 @@ routes `why` with the trace in `.explanation`, not overloaded into `.answer` (`t
     `Outcome("cause")` + `Event("cause"/"cause-done")`; `tests/test_propositional_cause.py` (8, incl.
     order-independence, chaining, negative control, the `that`-nominalizer boundary). Clause menu mirrors
     `suppose_surface` (`S P O` / `S is O` / `S is a O`) + a 2-token intransitive `S P` → `S P yes`.
-- **▶ PICK UP HERE (next session):** BOTH fundamental primitives (① scope generalization, ② facts-as-
-  truth-bearers) are BUILT and ② now has its CNL surface — §9.3's whole binding programme is reached and
-  usable. The big remaining non-sugar item is the **grammar flip-default integration** (make the canonical
-  grammar the default route). **⭐ RE-INVESTIGATED 2026-07-22 — the plan's "~18-item triage" is STALE and
-  the character CHANGED. See the FLIP-DEFAULT RE-MEASURE block immediately below.** Both smaller
-  alternatives (the `is a KIND` rule-head bug, the propositional-causation surface) are DONE.
+## ▶▶ PICK UP HERE — SESSION-END HANDOFF 2026-07-22 (suite **961 green**)
+
+**ONE-LINE STATE.** The grammar flip-default was re-investigated end-to-end this session; the reasoning
+side is essentially SOUND, the remaining work is grammar-coverage + surface-specific integration, and the
+STRATEGY PIVOTED to **validation infrastructure FIRST, surface fixes LAST** — the first committed
+grammar-route reasoning gate now exists. Full story + every finding: memory
+[[flip-default-blocked-by-greedy-grammar]] (read it first) and the RE-MEASURE block just below.
+
+**⚠ WORKING TREE — COMMIT THESE FIRST (staged, `git status`):**
+- `?? tests/test_grammar_route_reasoning.py` — NEW, the validation gate (8 tests, all green). KEEP.
+- `M ugm/chain.py` — a REVERT (slice-1c backed out to its `0e0e231` state). KEEP the revert.
+- `D _flip_plugin.py` — removing a scratchpad harness the prior `e90178c` commit accidentally added at the
+  repo root. KEEP the deletion.
+- Already committed & KEPT: slice-1a (`ugm/cnl/query.py` enumeration guard, in `e90178c`) and the
+  recognizer-hoist (`intake._defers_to_keyword_surface`, in `0e0e231`).
+
+**WHAT LANDED (all 961-green):**
+1. **VALIDATION GATE `tests/test_grammar_route_reasoning.py` (8 tests).** Runs core REASONING through the
+   grammar route (`open_class="noun"`, the default-grammar config): fact→yesno, copula-rule derivation,
+   two-premise join across coreferent mentions, NAF defeasible + clearance re-break, wh-enumeration
+   without a surface leak, banded-question-wears-its-band, `why` trace. Gates the exact class of
+   regression the 953 shipped suite CANNOT catch (it under-exercises the grammar route).
+2. **slice-1a — the wh-enumeration control-node guard** (`query.py`): the crisp no-scope `who` branch
+   used raw `match_pats` (no `_guard`); switched to the guarded `_facts_matching` like the scoped/banded
+   branches. Killed the empty-named `' P O'` scaffolding leak; `test_what_causes` passes under the flip.
+3. **recognizer-hoist** (`intake._defers_to_keyword_surface`): defers keyword-led surfaces + wh-queries to
+   their precise recognizers before the greedy `open_class="noun"` grammar can steal them as S-V-O facts.
+
+**WHAT WAS REVERTED & WHY (the key lesson).** slice-1c (a `denotes`-resolution in `chain.py` — the
+read-side mirror of `resolve_write_node`, for node-bound joins across the token/entity duality) correctly
+fixed propositional-cause but **passed 953-green while REGRESSING grammar-route reasoning** (banded
+partial-order), caught only by the scratchpad flip harness. Reverted: bad trade under "surface last", and
+unvalidated. THE LESSON drove the pivot: **do not tune hot-path engine code against a scratchpad harness —
+build committed grammar-route coverage first.**
+
+**THE REMAINING FLIP WORK (verified categorisation, 51 fails at revert; NOT one clean fix):**
+- **Grammar coverage (~9)** — `X prep Y` predicating clause (riddles need it: `rex in yard` doesn't
+  assert, so nothing clears), existentials. `.cnl` work. SURFACE = LAST.
+- **Surface-specific handler integration (~25, HETEROGENEOUS)** — schema/causal-propagation/counterfactual
+  each fail for their OWN grammar-route reason; propositional-cause was the node-bound-join duality
+  (slice-1c, reverted). Banded/world/isa_ask are banded-through-grammar. SURFACE-ADJACENT = LAST.
+- **Integration (~17)** — intake_forms, intake_act (`SWEEP refused: not a control node` caller fix),
+  accretion + harness test rewrites, reconsider. The plan's originals.
+
+**NEXT, IN ORDER (validation-first):**
+1. **Broaden the validation gate** — more reasoning shapes, and/or a parametrized shipped-vs-grammar
+   *agreement* harness (same corpus, assert both routes reason identically). ONLY THEN touch engine code.
+2. With the gate in place, re-derive slice-1c PROPERLY (it fixes a real bug) and validate it against the
+   gate, not a harness.
+3. Grammar coverage (predicating `X prep Y`) + the integration items — LAST, surface.
+
+**SETTLED THIS SESSION (do not re-litigate):** GC gate → do NOT sweep on the grammar route (traced +
+empirical). Corpus-load is NOT broken by the flip (batch path bypasses the grammar). Coref WORKS on the
+grammar route (mentions intern to one entity; rule joins compose). Retiring the duality at the source is
+REJECTED (violates [[surface-interpretation-split]]). Both fundamental primitives (① scope generalization,
+② facts-as-truth-bearers) remain BUILT; the `is a KIND` rule-head bug and propositional-causation surface
+are DONE.
+
+---
+_Earlier handoff (still valid context) below:_
 
 **⭐⭐ FLIP-DEFAULT RE-MEASURED 2026-07-22 (suite 953 green) — 59 fails not 18, and the real blocker is the
 INTERPRETATION/REASONING DUALITY, not integration bookkeeping.** Fresh deterministic harness (loudon

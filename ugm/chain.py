@@ -175,25 +175,13 @@ def _candidate_nodes(fact_g: AttrGraph, endpoint) -> list[str]:
     """The candidate node ids for a BOUND endpoint (read side): a `ById` PINS to exactly its node (empty
     if that node is absent — the pin is honest, never a silent fall-through to a same-named other) —
     UNLESS it points at a value-node, which resolves like the value it carries; a name resolves via the
-    value-accelerator to every same-named node.
-
-    ⭐ RESOLVED THROUGH `denotes` (2026-07-22), the READ-side mirror of `resolve_write_node`. On the
-    grammar route a bound node may be the surface TOKEN — a rule bound `?s` from a handle's `subj` edge,
-    which points at the token — while content lives on the interpretation ENTITY it denotes (the
-    token/entity duality, `surface-interpretation-split`). A NODE-bound join (`?s ?p ?o` with `?s` the
-    token) then found nothing, because the fact is on the entity: the propositional-cause / schema /
-    causal bridges silently derived nothing. `_through_denotation` maps a token to its designated
-    entity — the SAME layer-boundary resolution the write path applies — and is INERT on the shipped
-    route (no `denotes` edges ⇒ identity). It also collapses a name's split candidates to the one
-    entity, retiring the same-named ambiguity honestly (the two nodes were one identity, split across
-    the layer boundary)."""
+    value-accelerator to every same-named node."""
     if isinstance(endpoint, ById):
         v = _operand_value_of(fact_g, endpoint)
         if v is not None:                                  # value-node pointer: resolve by name value
-            return _through_denotation(fact_g, fact_g.nodes_named(v))
-        base = [endpoint.node_id] if fact_g.has(endpoint.node_id) else []
-        return _through_denotation(fact_g, base)
-    return _through_denotation(fact_g, fact_g.nodes_named(endpoint))
+            return fact_g.nodes_named(v)
+        return [endpoint.node_id] if fact_g.has(endpoint.node_id) else []
+    return fact_g.nodes_named(endpoint)
 
 
 def _endpoint_matches(fact_g: AttrGraph, node: str, endpoint) -> bool:
@@ -322,14 +310,7 @@ def resolve_write_node(fact_g: AttrGraph, endpoint, *, where: str) -> str:
     if isinstance(endpoint, ById):
         v = _operand_value_of(fact_g, endpoint)
         if v is None:
-            # THROUGH `denotes` (2026-07-22), symmetric with the read side (`_candidate_nodes`) and the
-            # name branch below: a bound SURFACE TOKEN writes to the interpretation ENTITY it denotes,
-            # not onto the surface (which must stay content-free — `surface-interpretation-split`). A
-            # deferred handler's bridge rule binds an endpoint to a handle's token-valued slot; without
-            # this the derived consequent landed on the token while the query reads the entity, so it
-            # was invisible. Inert on the shipped route (no `denotes` ⇒ identity).
-            nid = endpoint.node_id
-            return _through_denotation(fact_g, [nid])[0] if fact_g.has(nid) else nid
+            return endpoint.node_id
         endpoint = v                                       # fall through to the name write path
     # FACT-LAYER only: `nodes_named` also returns control/inert scaffolding (reified rule/call args,
     # provenance) that the matcher already skips — a write must land on a real entity node.
@@ -797,13 +778,7 @@ def _bound_endpoint_ops(fact_g: AttrGraph, reg: str, endpoint) -> list:
     unifies registers (`SET` the pin + `SAME`); a name / value-node pointer tests the NAME value."""
     v = _operand_value_of(fact_g, endpoint)
     if isinstance(endpoint, ById) and v is None:           # entity pin -> register unification
-        # THROUGH `denotes`, as `_candidate_nodes`/`resolve_write_node`: a pin at a surface TOKEN
-        # unifies with the interpretation ENTITY it denotes (the fact's endpoint is the entity, where
-        # content lives). Inert on the shipped route. The name/value branch below already bridges the
-        # duality by NAME comparison — only this node-identity pin needed it.
-        nid = endpoint.node_id
-        resolved = _through_denotation(fact_g, [nid])[0] if fact_g.has(nid) else nid
-        return [SET(reg + "'", resolved), SAME(reg, reg + "'")]
+        return [SET(reg + "'", endpoint.node_id), SAME(reg, reg + "'")]
     return [TEST(reg, NAME, cmp="=", value=v if v is not None else endpoint)]
 
 
