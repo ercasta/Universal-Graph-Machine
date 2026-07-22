@@ -672,6 +672,20 @@ RULE_FORMS: list[Rule] = [
         rhs=[Pat("<rule>?", "rl_subj", "?hs"), Pat("<rule>?", "rl_pred", "?hp"),
              Pat("<rule>?", "rl_obj", "?ho"), Pat("?bs", "body_subj", "<rule>?")],
     ),
+    # The KIND head: `S is a KIND when ...` — a 4-token head the plain `rule.head` cannot match (its
+    # `?ho next when` requires the object to abut `when`, but the determiner `a` sits between `is` and
+    # the kind). Fold the head to the SAME `is_a` predicate a `X is a Y` FACT produces (`_SUGAR_IS_A`),
+    # so the derived head and a `is X a Y` query agree — the determiner carries kind-vs-property, exactly
+    # as on the body/fact side. The plain form self-excludes here (`a` never abuts `when`), so the two
+    # are unambiguous.
+    Rule(
+        key="rule.head.is_a",
+        lhs=[Pat("?s", "first", "?hs"), Pat("?hs", "next", "is?"),
+             Pat("is?", "next", "a?"), Pat("a?", "next", "?ho"),
+             Pat("?ho", "next", "when?"), Pat("when?", "next", "?bs")],
+        rhs=[Pat("<rule>?", "rl_subj", "?hs"), Pat("<rule>?", "rl_pred", "is_a?"),
+             Pat("<rule>?", "rl_obj", "?ho"), Pat("?bs", "body_subj", "<rule>?")],
+    ),
     # The shared body/condition grammar (generic `S P O`, `not S P O`, `and` domino) — the SAME
     # forms the machine grammar uses; NO fixed condition menu (any relation folds).
     *BODY_SPINE_FORMS,

@@ -280,6 +280,34 @@ def test_prose_rule_grammar_unified_any_relation_folds():
     assert _pats(r.nac) == [("?f", "is", "sold_out")]
 
 
+def test_prose_rule_head_is_a_kind_folds_to_a_rule():
+    # A KIND head `S is a KIND when ...` is a 4-token head (the determiner `a` sits before the kind),
+    # which the plain 3-token `rule.head` cannot match — it used to fall through to the FACT path (the
+    # `when` silently dropped). The `rule.head.is_a` variant folds it to the same `is_a` predicate a
+    # `X is a Y` fact produces, so head and query agree.
+    [r] = h.load_rules("?d is a predator when ?d is strong")
+    assert _pats(r.rhs) == [("?d", "is_a", "predator")]
+    assert _pats(r.lhs) == [("?d", "is", "strong")]
+    # a KIND on BOTH sides folds too (head + body both `is_a`)
+    [r2] = h.load_rules("?x is a locked when ?x is a door")
+    assert _pats(r2.rhs) == [("?x", "is_a", "locked")]
+    assert _pats(r2.lhs) == [("?x", "is_a", "door")]
+
+
+def test_prose_rule_head_is_a_kind_fires_end_to_end():
+    # Acceptance: the KIND-head rule ROUTES as a rule (not a fact) AND fires — head and query agree on
+    # the `is_a` predicate, so a derived kind answers `yes` (previously `no (assumed)`, the `when` lost).
+    from ugm.cnl.authoring import load_corpus
+    from ugm.intake import ingest
+    kb, rules = load_corpus("")
+    assert ingest(kb, rules, "?d is a predator when ?d is strong").kind == "rule"
+    ingest(kb, rules, "rex is strong")
+    assert ingest(kb, rules, "is rex a predator").answer == ["yes"]
+    # negative control: without the antecedent, the kind is not derived
+    ingest(kb, rules, "fido is a dog")
+    assert ingest(kb, rules, "is fido a predator").answer == ["no (assumed)"]
+
+
 # ---------------------------------------------------------------------------
 # Surface normalization — determiners + multi-word DECOMPOSITION, all as forms (Tier 3a)
 # ---------------------------------------------------------------------------

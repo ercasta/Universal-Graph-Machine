@@ -97,9 +97,17 @@ routes `why` with the trace in `.explanation`, not overloaded into `.answer` (`t
     existential ASSERTION `some key opens door1` mints a node literally named `key` (conflates witnesses)
     — the out-of-core COMPLETION, because a bare assertion has no LHS to key the witness on, colliding
     with [[skolem-minting-lhs-keyed]] (agent asserts a rule/specific fact, not a bare ∃).
-  - **⚠ ORTHOGONAL BUG FOUND (not existential, deferred):** a rule head `?d is a KIND when …` mis-routes
-    to the FACT path (the `when` is dropped and it lands as a fact), while `?d is PROP when …` routes
-    `rule` correctly. Bit the E2 probe. A rule-head `is a <kind>` parsing gap — worth a slice on its own.
+  - **⚠ ORTHOGONAL BUG FOUND (not existential): a rule head `?d is a KIND when …` mis-routed to the FACT
+    path (the `when` dropped, landing as a fact), while `?d is PROP when …` routed `rule`. — FIXED
+    2026-07-22 (suite 945 green).** ROOT CAUSE: the prose `rule.head` form is rigid 3-token (`?hs ?hp ?ho`
+    then `when`), so a 4-token KIND head (`?d is a predator`, the determiner `a` between `is` and the kind)
+    could not match and fell through to the fact path. Fix = a `rule.head.is_a` variant (`authoring.py`
+    RULE_FORMS) that folds `S is a KIND when …` to the SAME `is_a` predicate a `X is a Y` FACT produces
+    (`_SUGAR_IS_A`) — so the derived head and a `is X a Y` query agree, the determiner carrying kind-vs-
+    property exactly as on the fact side. The plain form self-excludes (`a` never abuts `when`), so the two
+    are unambiguous. `tests/test_new_core.py` (2: fold + end-to-end firing with a negative control). NOT
+    covered (documented first-slice limits, same as the plain head): the `if … then S is a KIND` and
+    plural-noun universal surfaces keep their 3-token heads; a KIND head there is a separate small slice.
 - **⭐⭐ ② FACTS-AS-TRUTH-BEARERS BUILT 2026-07-22 (suite 943 green) — the genuinely-fundamental primitive,
   and it is PREDICATE-VARIABLE MATCHING, not causation-specific.** The user picked the full engine build
   over the surface ceiling. A probe first RE-SHAPED the finding (the arc's method, and this is the arc's
@@ -143,9 +151,9 @@ routes `why` with the trace in `.explanation`, not overloaded into `.answer` (`t
   truth-bearers) are now BUILT — §9.3's whole binding programme is reached. The big remaining non-sugar
   item is the **grammar flip-default integration** (make the canonical grammar the default route — the
   preserved arc with a ~18-item triage: GC contract decision, authored-forms routing, expectation-test
-  rewrites; own session, higher blast radius). Smaller alternatives: the `is a KIND` rule-head bug above
-  (worth a slice; it also blocks the propositional-causation question surface), or the propositional-
-  causation SURFACE (Option B — wire `(P) causes (Q)` to emit the now-working declared bridge).
+  rewrites; own session, higher blast radius). Smaller alternative: the propositional-causation SURFACE
+  (Option B — wire `(P) causes (Q)` to emit the now-working declared reification bridge). ~~the `is a KIND`
+  rule-head bug~~ **FIXED 2026-07-22 (see the existential block above).**
 
 **⭐ SCOPE-KIND UNIFICATION LANDED 2026-07-22 (suite 900 green) — the §4 table is now TRUE IN CODE.**
 With the arc's Slices 0–2 complete, the two ontological kind modules (`attribution.py` holder +
