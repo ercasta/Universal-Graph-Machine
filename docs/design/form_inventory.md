@@ -129,7 +129,10 @@ mechanism already exists. That is necessary and not sufficient — the mechanism
 land in the same LAYER, and here they did not. Every entry in the "mechanism exists" table above
 should be probed end to end (assert through the real route, then *ask*) before being called cheap.
 Attribution is next and has exactly this shape: its mechanism (the pencil scope) is written by the
-fold, so it is on the entity side — but that must be measured, not assumed.
+fold, so it is on the entity side — but that must be measured, not assumed. **This end-to-end check
+is now `bench/spike_epistemic_closure.py` (§9): assert→ask through the real `ingest`, classified
+PASS / REFUSED / LEAK. Run every "mechanism exists" claim through it before graduating it to
+REPRESENTED.**
 
 **And it is a distinction question, which is why it belongs here.** The epistemic question was never
 "which determiner marks generality". It was *"when the system derives through a conditional, what
@@ -483,3 +486,180 @@ REPERTOIRE — understanding is relative to the form set held, which is the evid
 (§6) applied to ourselves. (2) It is PROPOSITIONAL understanding, not grounding: `has(lion, mane)`
 maps correctly while `mane` stays an uninterpreted token. That is a scope, not a defect — but the
 word "understanding" will invite the objection, so claim the narrow thing.
+
+## 9. CLOSURE UNDER COMPOSITION — the set must be an algebra, not a checklist (user, 2026-07-22)
+
+**THE PROPERTY.** §4 asks whether each fundamental block can be REPRESENTED. §8 upgrades that to
+whether it can be UNDERSTOOD (mapped, unambiguously, status-preservingly). Both are per-block. Neither
+catches the failure a *combination* of blocks produces. A set of blocks can be individually perfect
+and still not compose — so the property this section adds is:
+
+> The fundamental blocks are CLOSED under composition iff every legal composition of them lands in
+> {reasoned-over correctly} ∪ {explicitly refused}, and NEVER in {silently mis-mapped}.
+
+This is the useful half of a mathematical analogy, and the analogy must be stated at its real
+strength and no more. It is **closure**, not a **group**: there are no guaranteed inverses (asserting
+then denying is not identity — it is a contradiction the revision loop must handle), and composition
+is **not commutative** (hedge-of-negation is not negation-of-hedge). The right picture is a **field
+with a defined division-by-zero**: refusing a composition we cannot yet reason over is CLOSED —
+understanding includes knowing you cannot (§8). Only the SILENT mis-map — an unsaid ink fact, a wrong
+answer, certainty manufactured from an uncertain premise — violates closure. Composition is a TOTAL
+classification (every combination gets a verdict), never a total FUNCTION (not every combination
+reasons).
+
+**CLAUSE 3 — "reasoned-over", the operational upgrade of §8.** The conditionality probe (§4a) is why
+this is not pedantry: the mechanism existed, the surface mapped, the query answered `yes` — and it was
+right only by name-resolution luck, with the derived fact on the discourse token. Mapping is not
+reasoning. So a block is NAILED DOWN iff (1) it is representable, (2) surface→block maps unambiguously
+and status-preservingly, AND (3) *assert-it, then ask a query that cannot be answered without
+reasoning over it, through the real `ingest`, and get the right answer with the right epistemic kind.*
+Clause 3 is what `bench/spike_epistemic_closure.py` measures.
+
+**MINIMALITY AND COMPOSABILITY ARE IN TENSION, AND COMPOSABILITY WINS.** The re-point's goal
+("minimum form set") is under-specified as stated. A *truly minimal* set expresses some concepts as
+compositions of others; if those compositions leak, minimality has bought an unsound system.
+Sometimes ADDING a primitive is what makes the algebra close. So the objective is not the smallest
+count — it is:
+
+> the SMALLEST set that is CLOSED under composition **and** covers the corpus.
+
+The closure constraint can legitimately force the set LARGER. (NSM's ~65 primes, §6, are chosen for
+*definitional closure*, not raw minimality — the same tension, resolved the same way.) The
+consequence for method: **composability must GATE the choice of a block's representation, not merely
+validate it afterward.** A representation that cannot compose is the wrong representation even if it
+covers its concept perfectly in isolation.
+
+**AND CLOSURE MUST HOLD AT ARBITRARY DEPTH — which is a firmware demand, not a form demand.** Pairwise
+closure does not imply depth-n closure. There are TWO kinds of depth and they behave oppositely; the
+probe measures both.
+
+- **DERIVATIONAL depth (chaining / subgoals) is mechanically arbitrary, and this is SETTLED.** A chain
+  of rules reasons to its tail (measured: depth 5), and — the load-bearing part — an UNCERTAIN root
+  PROPAGATES its band through the chain without hardening into certainty (measured: `likely` preserved
+  through a depth-3 chain under a banded ask). This is the axis the subgoal stack already covers: the
+  ISA-control-machine arc de-recursed the NAF subgoal chain onto an explicit stack, proven on a
+  601-deep closure under `recursionlimit` 200, so depth here is not Python-recursion-bound.
+- **REPRESENTATIONAL depth (nesting operators structurally) is NOT closed, and it fails at depth 2.**
+  `the lion generally has no mane` — a hedge OVER a negation — parses to a span carrying both an
+  `hclause` and a `negator`, routes `fact` (a SUCCESS verdict), and commits NOTHING: no ink, no band.
+  Negation alone works (`lion has_not mane`); hedge alone works (band 0.75); composed, they silently
+  drop. That is §8's recognized-not-understood at depth 2, so depth-n nesting is a fortiori not
+  closed. **The subgoal stack cannot help, because the failure is at INTAKE — before any subgoal is
+  raised.**
+
+**THE UNIFYING THESIS, and the probe is direct evidence for it: closure-at-depth ⟺ ONE uniform
+evaluation mechanism.** The two composition results are not a mixed verdict; they are the same law
+seen from both sides.
+
+- `conditional ∘ degree` **PASSES** (band propagates to `likely`, and keeps propagating through a
+  depth-3 chain) **because `chain_sip` under a banded policy is a SINGLE mechanism** that spans
+  degree and conditionality — it evaluates the rule over the banded premise as one recursive fold.
+- `degree ∘ negation` **LEAKS** **because it is TWO mechanisms** — hedge as a fork/band written at
+  the interpretation layer, negation as `has_not` written by the fold — meeting at intake with no
+  shared production for the nest.
+
+So "do subgoals allow groups at arbitrary depth?" and "is the set composable?" are the SAME question
+asked at the firmware level. Depth-n composition stays sound only if band, scope, force and negation
+are **composable annotations on one evaluation**, not N mode-specific drivers handing off to each
+other — because with N drivers every new pair is a new integration and depth explodes
+combinatorially. The design target this yields: **evaluate every fundamental block through one
+mechanism.** That is also the precondition under which closure could stop being an empirical probe
+and become a PROVABLE property (below).
+
+**HOW YOU WOULD PROVE IT INSTEAD OF PROBING IT — leads, uncited per §6's discipline.** Formal systems
+that GUARANTEE closure all do it the same way: they FREEZE the language first, so closure is a theorem
+proved once rather than a property tested. This maps exactly onto §4d's settled decision that
+*structure must not grow at runtime while vocabulary may* — freezing the structure is the precondition
+that makes the theorem reachable.
+- **Conservative extension / module extraction** (Description Logics, OWL) — "does adding this piece
+  change any entailment over the old vocabulary?" The formal cousin of "a new block does not corrupt
+  the old ones."
+- **Cut-elimination / logical harmony** (Prawitz, Dummett; proof-theoretic semantics) — each
+  connective's introduction/elimination rules must "fit" so combinations cannot derive garbage. The
+  theoretical cousin of "no LEAK under composition."
+- **The gradual guarantee** (gradual typing) — a system mixing a precise and an imprecise mode proves
+  that mixing DEGRADES PREDICTABLY rather than silently. Structurally identical to "certain-from-
+  uncertain is a LEAK".
+- **Possibilistic / many-valued logics** (possibilistic logic; Belnap's 4-valued) — DO define
+  composition over degrees and truth-gaps, but as a FIXED algebra, not a runtime-extensible set.
+
+None of these offers a runtime check for an OPEN, heterogeneous operator set, because such systems
+refuse to be open. Until UGM's structure is frozen and a single evaluation mechanism is in place,
+`bench/spike_epistemic_closure.py` is the honest empirical stand-in for the theorem.
+
+**WHAT THE PROBE FOUND ON ITS FIRST HONEST RUN (2026-07-22), stable across two identical runs.**
+8 PASS, 3 REFUSED (closed), **1 LEAK**, 0 UNKNOWN.
+- REASONED-OVER end to end: certainty, negation (a HARD `no`, not merely assumed), degree (banded ask
+  → `likely`), conditionality (derived AND in scope — the by-luck bug stays fixed).
+- CLOSED by honest refusal: attribution (no surface yet), quantification (partial), `conditional ∘
+  negation` (the ink rule does not fire on a negated premise — conservative, not reasoned).
+- **THE ONE LEAK: `degree ∘ negation`**, the depth-2 nest above. It is the exact analogue of the
+  use-mention defect `spike_force_coverage.py` found — a composition that the system reports SUCCESS
+  on while representing nothing. A probe measuring reasoning found it where a coverage probe measuring
+  parsing could not.
+
+**CONSEQUENCE FOR THIS INVENTORY.** §4's tables gain an implicit second question per row: not only
+"is it represented?" but "does it COMPOSE — at depth, through one mechanism?" The residue log (§5) is
+the discovery process for what the set CONTAINS; the closure probe is the discovery process for
+whether the set is an ALGEBRA. **A set cannot be called "discovered" until it is shown closed under
+composition at depth** — an unclosed set is, precisely, still missing something structural (a
+representation choice to revise, or a primitive to add). Coverage and closure are not two work items;
+they are one, and closure is the gating half.
+
+### 9.1 The composition redesign is TWO capabilities, not one — annotation vs binding (2026-07-22)
+
+**A MACHINE-LAYER AUDIT (intake deliberately excluded) split the composition problem cleanly in two,
+and the split is the whole result.** The question "make the blocks compose through one mechanism"
+turned out to conflate two architecturally independent things, and keeping them fused is how the
+redesign would have tumbled.
+
+**(1) ANNOTATION composition — WITHIN a fact.** band, negation, scope. Measured at the fold: these are
+UNARY, LOCAL tags and the POSITIVE side of evaluation already composes them uniformly — band
+propagates through a rule to depth 3 (`likely` preserved), a fork simply IS a scope with a
+`<likeliness>`, a banded positive reads correctly. **The one leak is an ASYMMETRY, not a silo: the
+NEGATIVE evaluation path is second-class.** `check`'s `ENTAILED_NEG` is crisp-only (its own docstring:
+"a graded hard-negative is out of slice"), VERIFIED at the machine layer with no intake — a fork
+`has_not(lion,mane)@0.75` reads `possibility=0.75` (representation composes) but `check` under a banded
+policy answers `assumed-no`, dropping the band, where the positive twin answers `likely`. So annotation
+composition is a SURGICAL target: carry the band on the negative read the way the positive read
+already does. It fixes `hedge∘negation` and `conditional∘negation` in one place, and — because it is
+within-fact — it is safe to do INDEPENDENTLY of (2).
+
+**(2) BINDING / relating — ACROSS facts.** This is where the unbuilt shape-classes live, and they are
+NOT annotations. Each demands the fold RANGE or JOIN across a dimension the annotation frame has no
+primitive for:
+
+| block | dimension it binds across | native binder today |
+|---|---|---|
+| tense | an ORDERED index (change joins a fact at *t* with one at *t+1*) | none — the rule `?x` is unordered set-membership, not arithmetic-over-index |
+| quantification | a variable over a SET, with scope/dependency (nested ∀∃), + existential witnesses | UNIVERSAL only, and only inside a rule body |
+| causation | an EDGE BETWEEN FACTS (+ interventional/counterfactual) | provenance relates DERIVATIONS; ontological cause unverified |
+
+**The only binder that exists is the rule layer's universal `?x` over ENTITIES** — which is exactly
+why the partially-covered cases (universal quantification; derivation-as-cause via provenance/`<j:>`)
+are the ones that ride the rule layer, and the uncovered cases are the ones needing a binder it does
+not provide.
+
+**⭐ THE CARD-CASTLE RESULT: three scary open blocks reduce to ONE question about ONE mechanism —**
+*can the rule layer's binder generalize: to an ORDERED INDEX (tense), to EXISTENTIAL/COUNTED/NESTED
+(quantification), to ranging over FACTS not entities (causation)?* This is the assumption a
+"one annotation protocol" redesign would silently bake in, and the one those three would later break.
+Deciding it BEFORE the redesign is what prevents the tumble.
+
+**Settled decisions already pre-constrain the binder, and asymmetrically:**
+- **tense** is the hardest: identity is fine (VERIFIED — scope lets the same S-P-O coexist under two
+  indices), but scope semantics are EPISTEMIC (a possibility overlay) where a time index is
+  ONTOLOGICAL, AND the event-reification route is CLOSED by the no-labeled-edges / no-Davidsonian
+  decision ([[spo-directed-path-no-labeled-edges]]). Two of three routes shut.
+- **quantification**: universal is NATIVE; existential witnesses collide with no-RHS-skolem /
+  no-predicate-invention ([[skolem-minting-lhs-keyed]]).
+- **causation**: most tractable — the substrate already reifies facts (rel-nodes) and relates them
+  (provenance), and counterfactuals have a home (`SUPPOSE`). The gap (an ontological edge between
+  fact-nodes) is structurally plausible but UNVERIFIED (a probe-tooling error left it unmeasured).
+
+**THE DE-RISK FOR THE REDESIGN.** Frame it as the two capabilities above and DO NOT let #1 silently
+claim #2. #1 (annotation composition) is correct as a per-fact frame and nearly closed; do it now. #2
+(binding) is an explicit DECISION — generalize the rule binder along those axes, or declare the
+shape-classes that need it OUT OF SCOPE as a stated ceiling (§7-style honest bound). The value of the
+stress-test is that it pulled that decision into the open instead of leaving it as an assumption.
+**The in-scope/out-of-scope decision itself is §9.2 (open).**
