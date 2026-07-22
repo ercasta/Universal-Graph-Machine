@@ -784,14 +784,18 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
                 return ["unknown"] if policy_.is_open(concept_key(q["p"], q["o"])) else ["(no answer)"]
             # Witness NODES, not witness names: same-named-but-distinct nodes (a rule-minted skolem
             # head) each get their own answer, disambiguated structurally (feedback #15).
-            if scope is not None:                     # read-only: answer from ink + this scope's pencil
-                wit = [s for s, _o in _facts_matching(
-                    graph, q["p"], None, q["o"], scope=scope, focus_scope=focus_scope)]
-                nodes = [w.node_id for w in wit if isinstance(w, ById)]
-                loose = sorted({w for w in wit if not isinstance(w, ById)})   # name-only reads
-            else:
-                nodes = [b["?x"] for b in match(graph, [Pat("?x", q["p"], q["o"])])]
-                loose = []
+            #
+            # ⭐ THE GUARDED ENUMERATOR ON BOTH READS (2026-07-22), not raw `match` on the unscoped one.
+            # `_facts_matching` applies `chain._guard` (skip CONTROL/INERT endpoints) exactly as the
+            # banded branch above and the scoped branch do; raw `match` did NOT, so a control/inert
+            # SCAFFOLDING node carrying a content-predicate edge — a persistent interpretation/surface
+            # artifact that survives on the grammar route (no sweep, by design) — leaked into the
+            # witnesses as an empty-named `' P O'` row. Passing `scope=scope` (None here) keeps the
+            # unscoped read identical bar the guard, so all three enumeration paths now agree.
+            wit = [s for s, _o in _facts_matching(
+                graph, q["p"], None, q["o"], scope=scope, focus_scope=focus_scope)]
+            nodes = [w.node_id for w in wit if isinstance(w, ById)]
+            loose = sorted({w for w in wit if not isinstance(w, ById)})   # name-only reads
             answers = _witness_answers(graph, list(dict.fromkeys(nodes)), q["p"], q["o"])
             answers += [f"{n} {q['p']} {q['o']}" for n in loose]
             if answers:
