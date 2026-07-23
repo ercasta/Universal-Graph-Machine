@@ -185,20 +185,18 @@ monotone event set). `corpus/governor.cnl`: severity ladder (k-fold self-join wi
   replaced by the reactive push. A real simplification, but a large one; scope as its own arc with the
   differential (`test_forward_demand_parity.py`) as the re-break floor.
 
-**UNCOMMITTED WORKING TREE at this handoff (C.1/C.2/C.3 + robustness audit + flare Slice 1 + guardrail;
-verify `git status`):** production — `M ugm/reactive.py` (`_derive`/`react`/`fire` + `max_rounds`/flare
-threading), `M ugm/reconsider.py` (`sweep`/`reconsider` split), `M ugm/cnl/query.py` (commit gate → `fire` +
-ask-path flare), `M ugm/check.py` (caller-owned `fuel`), `?? ugm/flare.py`, `M ugm/__init__.py`
-(reactive/flare exports). Tests — `M tests/test_reactive.py` (decl-as-data + 3 C.2 frame + 6 robustness),
-`?? tests/test_push_pull_unification.py` (8), `?? tests/test_flare.py` (7), `?? tests/test_substrate_purity.py`
-(4, the guardrail). Bench — `?? bench/spike_{reactive_frame,push_pull_unification,reactive_robustness,
-help_flare,governor,authoritativeness,accumulator,threshold_no_tool}.py`. Docs — `M docs/design/
-reactive_core.md`, `M docs/implementation_plan.md`. **Governance layer (this session):** `?? ugm/flare.py`
-(+ counting events), `M ugm/check.py`, `M ugm/cnl/authoring.py` (`_lift_distinct` in `load_rules`),
-`?? corpus/governor.cnl`, `?? corpus/recovery.cnl` (authority-chosen recovery, composes w/ governor),
-`?? tests/test_flare.py` (7), `?? tests/test_governor.py` (5: 3 governor + 2 composition),
-`?? tests/test_substrate_purity.py` (4, the guardrail), `?? tests/test_push_pull_unification.py` (8).
-(STEP A + the STEP-B core + earlier gate-wiring were committed by the user in prior sessions.)
+**COMMITTED — clean tree.** The whole reactive-core + governance arc was committed by the user (branch
+`grammar`, commit `7780df8 "wip grammar"`, on top of the STEP-A/STEP-B work committed in prior sessions). A
+fresh session starts clean — the only thing `git status` may show is this plan doc's handoff update itself. The commit contents (for
+orientation): production — `ugm/flare.py` (help-flare + counting events), `ugm/reactive.py`
+(`_derive`/`react`/`fire` + `max_rounds`/flare threading), `ugm/reconsider.py` (`sweep`/`reconsider` split),
+`ugm/cnl/query.py` (commit gate → `fire` + ask-path flare), `ugm/check.py` (caller-owned `fuel`),
+`ugm/cnl/authoring.py` (`_lift_distinct` in `load_rules` — the `!=`-in-corpus fix), `ugm/__init__.py`
+(reactive/flare exports). Corpora — `corpus/governor.cnl`, `corpus/recovery.cnl`. Tests — `test_reactive.py`
+(+3 C.2 frame +6 robustness), `test_push_pull_unification.py` (8), `test_flare.py` (7), `test_governor.py` (5),
+`test_substrate_purity.py` (4, the guardrail). Bench — `bench/spike_{reactive_frame,push_pull_unification,
+reactive_robustness,help_flare,governor,authoritativeness,accumulator,threshold_no_tool}.py`. Suite **1012
+green**.
 
 **ORTHOGONAL, OFF THE CRITICAL PATH:** flip debt 43/930 is dominated by the SURFACE `X prep Y` gap (a
 separate `.cnl` lever); STEP A/B/C do not move it and are not measured by it. The committed grammar-route
