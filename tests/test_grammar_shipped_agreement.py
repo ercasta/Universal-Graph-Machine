@@ -115,6 +115,44 @@ SCENARIOS = [
         ["likely"],
         BANDED,
     ),
+    (
+        # PREDICATING `X prep Y` (2026-07-23): a bare `bo in library` (no verb) must land the fact
+        # (bo, in, library) on BOTH routes, so a rule reading `?x in library` fires. The grammar route
+        # used to parse this only as a noun phrase — never a `clause` root — so it committed no fact and
+        # bo went unclered (a crisp thief). Now `clause expands to np plus pp` gives it a clause reading;
+        # this scenario locks the two routes together on it (the dominant grammar-route flip gap, 11 of 43).
+        "predicating-x-prep-y",
+        [
+            "bo in library",
+            "?x is innocent when ?x in library",
+            "is bo innocent",
+        ],
+        ["yes"],
+        None,
+    ),
+    (
+        # INTERROGATIVE `X prep Y` (2026-07-23): `is bo in library` must ASK (bo, in, library) on both
+        # routes and answer yes. The grammar-route copula-plus-np qclause used to carry no subj/prep slot,
+        # so no `asks` fold fired and the question was silently DROPPED (routed as a fact committing
+        # nothing — answer None). Now `qclause asks subj prep pobj` reads the percolated slots.
+        "interrogative-x-prep-y",
+        [
+            "bo in library",
+            "is bo in library",
+        ],
+        ["yes"],
+        None,
+    ),
+    (
+        # ...and the negative control: a subject NOT in the library answers the CWA default, not yes.
+        "interrogative-x-prep-y-negative",
+        [
+            "bo in library",
+            "is cy in library",
+        ],
+        ["no (assumed)"],
+        None,
+    ),
 ]
 
 

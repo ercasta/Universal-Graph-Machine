@@ -26,3 +26,9 @@ r_giveup source policy
 # the chosen recovery: a non-overridden advice's action, applied to any ABANDONED goal (from the governor)
 ?g recovery ?action when ?g abandoned yes and ?adv recommends ?action and not ?adv overridden yes
 recovery is reactive
+
+# the chosen recovery ACTS: a materialized `?g recovery ?action` becomes a `<call>` to the tool named by
+# ?action (the world-action boundary, docs/design/reactive_core.md §C). Declaring it ACTIONABLE is all the
+# bank does — the driver's dumb dispatcher services the call; WHICH action (escalate/giveup) was chosen
+# above, by authority. So governance -> a real side-effect, with nothing but data + rules + the tool boundary.
+recovery is actionable

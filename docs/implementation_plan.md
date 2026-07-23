@@ -28,25 +28,71 @@
 > (no assistant commits; domain logic ONLY in banks; strategies are DECLARED data; correctness before
 > perf). Memory: [[derivation-frame-consolidation]], [[reactive-core-north-star]].
 
-### ═══ FRESH-SESSION START HERE (2026-07-23 end — suite 1012 green, flip 43/973) ═══
+### ═══ FRESH-SESSION START HERE (2026-07-23 end — suite 1022 green, flip 32/1022) ═══
 
-**ONE-LINE STATE.** The arc (LOCALITY BOUNDARY → REACTIVE CORE) is **COMPLETE + a GOVERNANCE layer built on
-top, shipped-green (1012)**. Reactive core: STEP A (identity boundary) + B (reactive DERIVE gate) + C.1 (two
-reaction kinds unified under one `fire` gate) + C.2 (reactions fire into the STEP-A frame) + C.3 (push/pull
-unification — PUSH is event-triggered PULL; `PUSH==PULL==FORWARD`). Then robustness audit + a REFLEXIVE
-GOVERNANCE layer: HELP-FLARE (fuel exhaustion → a durable reactable fact, `ugm/flare.py`), the GOVERNOR
-(`corpus/governor.cnl` — self-join `!=` severity ladder + swappable `abandon_at` threshold, 100% data+rules),
-AUTHORITY-chosen RECOVERY (`corpus/recovery.cnl`) COMPOSING with the governor on the shared substrate, all
-guarded by the COMPOSABILITY-PRINCIPLE fitness function (`tests/test_substrate_purity.py`). See
-`docs/design/reactive_core.md` (§Robustness, §reflexive governor) + memory `composability-principle`.
+**⭐⭐ `X prep Y` GRAMMAR SURFACE — BOTH HALVES LANDED 2026-07-23 (shipped 1022 green; flip 43→32).** Two
+predicating-preposition surfaces added to `corpus/loudon_grammar.cnl`, each reusing an existing fold, each
+locked in `test_grammar_shipped_agreement.py`:
+1. **DECLARATIVE (the metric mover, flip 43→32, −11).** `clause expands to np plus pp` + 3 subj/prep/pobj slot
+   lines → a bare `bo in library` (no verb — English drops the copula in a locative) parses as a CLAUSE and
+   asserts `(bo, in, library)`, so `?x is innocent when ?x in library` fires. Before, it covered the whole
+   utterance only as a NOUN PHRASE (`np plus pp`), never a `clause` root (`grammar.ROOT="clause"`), committing
+   NO fact ⇒ bo an unclered crisp thief, polluting who/∃/why. No ambiguity (an np full-span is not a clause
+   root). Gate: `…[predicating-x-prep-y]`.
+2. **INTERROGATIVE (a habitability bug fix, +0 flip — no flip test asks it).** `qclause asks subj prep pobj
+   when pobj` + copula-plus-np subj/prep/pobj slots → `is bo in library` now ASKS `(bo, in, library)` (→ yes).
+   Before, the copula-plus-np qclause carried no subj/prep slot, so no `asks` fold fired and the question was
+   silently DROPPED (routed as a fact that committed nothing, answer None) — the "question silently mis-routes"
+   habitability failure. Gate: `…[interrogative-x-prep-y]` + its negative control.
 
-**NEXT — my recommendation: the LIVE-AGENT LOOP (most INFORMATIVE, not most metric-moving).** The whole
-reflexive stack (flare → governor → authoritativeness → recovery) has been proven in TESTS but never met a
-real reasoning session with a real `<call>`/`ask_user` boundary — that is where the genuine unknowns are
-(timing, cross-turn escalation, whether the chosen recovery actually ACTS). It closes the loop on everything
-built and is likeliest to teach us something we can't predict. The SURFACE `X prep Y` flip lever (below) is
-higher METRIC movement (flip 43→lower) but a known grammar grind — lower architectural information; keep it as
-the parallel product track. (User asked which is more informative → the live loop.)
+ZERO shipped regression across both (1022 green). Remaining 32 flip failures are OTHER clusters, NOT clean
+grammar-coverage: deferred-handler duality (causal_propagation 4, counterfactual 2, prop-cause 1 — the
+intern_denoted family, superseded-in-principle by the STEP-A read boundary but still failing under flip),
+integration (intake_forms 5, intake_act 3, intake_surface_facts 3, isa_* singles), the existential/relation
+semantics (`is anyone happy` — `happy` declared a RELATION vs used as a copula property, entangled, NOT a
+surface gap), and banded why-rendering (test_world 1: a fork premise renders "standing on the unlikely world
+where…" not "cy is alibied (unlikely) (given)"). Memory: [[flip-default-blocked-by-greedy-grammar]].
+
+**ONE-LINE STATE.** The arc (LOCALITY BOUNDARY → REACTIVE CORE) is **COMPLETE + a GOVERNANCE layer + the
+LIVE-AGENT LOOP (side-effect reactions), shipped-green (1019)**. Reactive core: STEP A (identity boundary) + B
+(reactive DERIVE gate) + C.1 (two reaction kinds unified under one `fire` gate) + C.2 (reactions fire into the
+STEP-A frame) + C.3 (push/pull unification — PUSH is event-triggered PULL; `PUSH==PULL==FORWARD`). Then
+robustness audit + a REFLEXIVE GOVERNANCE layer: HELP-FLARE (`ugm/flare.py`), the GOVERNOR
+(`corpus/governor.cnl` — self-join `!=` severity ladder + swappable `abandon_at` threshold), AUTHORITY-chosen
+RECOVERY (`corpus/recovery.cnl`) COMPOSING with the governor, all guarded by the COMPOSABILITY-PRINCIPLE
+fitness function (`tests/test_substrate_purity.py`). **Then (2026-07-23 end) the LIVE-AGENT LOOP: the chosen
+recovery now ACTS** — `recovery is actionable` (data) → the fact→call bridge (`reactive.emit_action_calls`) →
+the driver services it as an `Event("call")` suspension, all through the REAL `converse` session. See
+`docs/design/reactive_core.md` (§Robustness, §reflexive governor, §Side-effect reactions) + memory
+`composability-principle`, `reactive-core-north-star`.
+
+**⭐⭐ LIVE-AGENT LOOP BUILT 2026-07-23 (shipped 1019 green) — side-effect reactions, the §C fork.** The whole
+reflexive stack met a REAL `converse` session with a REAL `<call>`/`ask_user` boundary for the first time
+(`bench/spike_live_agent_loop.py`). PROBE-FIRST paid: it surfaced (1) the stack lights up through the real
+committed-ask gate — the flare raised by `query.ask_goal` accumulates across turns, governor abandons,
+recovery chosen by authority; and (2) a LIVE-ONLY pathology — because the reactive DERIVE threads the ask's
+`max_rounds`, an object goal with a too-tight budget starves the GOVERNANCE derivation, which then flares on
+ITSELF (clean at budget ≥ ~6; self-flares at 2 — a robustness note, natural fix = a `raise_budget` recovery
+action). THE BUILD (all data+rules+tool boundary, no new graph-writing Python, purity manifest untouched):
+`recovery is actionable` (declaration-as-data, sibling of `P is reactive`) → `reactive.emit_action_calls`
+(fact→call BRIDGE via `dispatch.emit_call`, deduped) → `_derive` flags a FRESH actionable materialization
+(`SIDE_EFFECT_REG`, fire-once) → `intake._drain_side_effects` services the `<call>` after a committed question
+(async suspends as `Event("call")`, the SAME boundary a `goal` turn uses). Demonstrated: the never-settling
+question ESCALATES for real, and flipping the ONE authority fact makes `giveup` act instead — composability,
+live. `tests/test_side_effect_reaction.py` (7). Design: reactive_core.md §Side-effect reactions.
+
+**NEXT = STEER again (the live loop closed; core well-hardened + reflexive + now ACTING).** Candidate moves,
+none forced — my recommendation is the SURFACE `X prep Y` flip lever (the biggest measurable correctness lever
+now that the core arc is done), or a `raise_budget` recovery action (the in-language fix for the self-flare
+pathology, a small satisfying capstone of the live loop). Full candidate list below (unchanged).
+
+**~~my recommendation: the LIVE-AGENT LOOP~~ DONE (see above).** The whole
+reflexive stack (flare → governor → authoritativeness → recovery) had been proven in TESTS but never met a
+real reasoning session with a real `<call>`/`ask_user` boundary — that is where the genuine unknowns were
+(timing, cross-turn escalation, whether the chosen recovery actually ACTS). All three unknowns resolved:
+cross-turn escalation works, timing is at the committed-ask gate, and the chosen recovery ACTS. The SURFACE
+`X prep Y` flip lever (below) is higher METRIC movement (flip 43→lower) but a known grammar grind — lower
+architectural information; keep it as the parallel product track.
 
 **WHAT'S DONE (read the dated ⭐ blocks below + the two design docs for detail):**
 - **STEP A — identity boundary. BUILT + COMMITTED (user).** `chain._canon_class` reads a bound endpoint as
@@ -167,10 +213,17 @@ monotone event set). `corpus/governor.cnl`: severity ladder (k-fold self-join wi
 §reflexive governor. **THE REACTIVE-CORE + GOVERNANCE ARC IS BUILT.**
 
 **NEXT = STEER. Candidate moves, none forced:**
-- **The dominant flip debt is the SURFACE `X prep Y` gap (43/973)** — the biggest measurable correctness
-  lever, independent of the core (the core is now well-hardened + reflexive). This was the deferred surface work.
-- **Wire the flare/governor into the live agent loop** — a recovery reaction that actually escalates (ask_user
-  / raise the budget / abandon), and demonstrate authoritativeness choosing the recovery in a real session.
+- **~~The dominant flip debt is the SURFACE `X prep Y` gap~~ DECLARATIVE + INTERROGATIVE DONE 2026-07-23 (flip
+  43→32, shipped 1022).** Both `bo in library` (asserts) and `is bo in library` (asks) now parse (predicating
+  `clause`/`qclause` prep folds in loudon_grammar.cnl). REMAINING flip surface work is thinner: `who is in
+  library` (wh-prep enumeration → no answer) + the VERBED-prep misparse (`the lion lives in africa`); the rest
+  of the 32 are non-surface clusters (deferred-handler duality, existential/relation semantics, banded
+  why-rendering). See the ⭐⭐ block at the top + [[flip-default-blocked-by-greedy-grammar]].
+- **~~Wire the flare/governor into the live agent loop~~ DONE 2026-07-23 (shipped 1019).** A recovery reaction
+  that actually escalates (a real `<call>`/`ask_user` suspension), authoritativeness choosing the recovery in a
+  real `converse` session. See the ⭐⭐ LIVE-AGENT LOOP block above + reactive_core.md §Side-effect reactions.
+  Follow-on surfaced: a `raise_budget` recovery action (the in-language fix for the governance self-flare
+  pathology the live loop found — the reactive DERIVE inheriting the object goal's tight `max_rounds`).
 - **Broader `!=`-in-corpus / custom-relation-in-fact ergonomics** — the two intake gaps this slice surfaced
   (the `!=` lift is fixed; declare-before-use for a fact relation remains a papercut).
 - **The dominant flip debt is the SURFACE `X prep Y` gap (43/973, orthogonal `.cnl` lever).** `bo in library`

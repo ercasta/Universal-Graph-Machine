@@ -303,6 +303,36 @@ def _act_loop(kb, active, sync_tools, async_tools, *, provenance=False, max_cycl
     return total                                # fuel bound reached — stop honestly
 
 
+def _drain_side_effects(kb, sync_tools, async_tools):
+    """Service the WORLD ACTIONS a reactive derivation implied — the side-effect reaction, the §C fork of
+    the reactive core (docs/design/reactive_core.md). A committed ask fires the reactive gate; when a
+    predicate declared ACTIONABLE newly materializes there (e.g. the governor+recovery banks chose
+    `<goal> recovery escalate`), the gate flags `reactive.SIDE_EFFECT_REG`. This drains that flag: the
+    fact->call BRIDGE (`reactive.emit_action_calls`) turns each chosen action-fact into a `<call>`, and the
+    dumb dispatcher services it — an ASYNC tool SUSPENDs, yielded up as an `Event("call")` whose `.send()`
+    is the world's response, exactly the tool boundary a `goal` turn uses. So a QUESTION whose failure the
+    governor governed can ESCALATE (ask a human, raise the budget, abandon) without the caller orchestrating
+    it — the utterance's own reasoning drove the action, the seamlessness goal.
+
+    DEMAND-GATED: the flag is set ONLY when a chosen action freshly materialized, so an ordinary question
+    pays a single register read and returns. Yields an `Event("call")` per async suspension; returns the
+    number serviced."""
+    from .reactive import SIDE_EFFECT_REG, emit_action_calls
+    if not kb.registers.pop(SIDE_EFFECT_REG, None):
+        return 0
+    emit_action_calls(kb)                                   # bridge: chosen action facts -> <call>s
+    from .dispatch import service_calls_cm
+    from .machine import ControlMachine, Continuation
+    res = service_calls_cm(kb, sync_tools or {}, async_tools or {})   # sync acts inline; async -> Continuation
+    n = 0
+    while isinstance(res, Continuation):                    # each async action: suspend to the host, resume
+        name, call_id, payload = res.request
+        response = yield Event("call", {"tool": name, "call": call_id, "request": payload})
+        res = ControlMachine().resume(kb, res, response={"response": response})
+        n += 1
+    return n
+
+
 def _defers_to_keyword_surface(kb, text: str) -> bool:
     """True if a keyword-led SPECIAL surface would claim `text` — so the greedy open-vocab grammar
     route must NOT run first and mis-parse it as a plain S-V-O fact.
@@ -611,6 +641,7 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
             answer = yield from _answer_with_ask(kb, ("yesno", s, p, o), active, policy, fscope,
                                                  can_ask, trace, max_rounds=max_rounds)
             yield Event("answer", {"answer": answer})
+            yield from _drain_side_effects(kb, sync_tools, async_tools)   # a governed failure may now ACT
             return Outcome("answer", utterance, answer=answer)
         if kind == "goal":
             # ⭐ THE `goal` FORCE. Unlike a question it LEAVES SOMETHING BEHIND, so the router
@@ -819,6 +850,7 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         answer = yield from _answer_with_ask(kb, text, active, policy, fscope, can_ask, trace,
                                              extra_forms=question_forms, max_rounds=max_rounds)
         yield Event("answer", {"answer": answer})
+        yield from _drain_side_effects(kb, sync_tools, async_tools)   # a governed failure may now ACT
         return Outcome("answer", utterance, answer=answer)
 
     if gbanks is not None:

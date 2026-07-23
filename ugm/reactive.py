@@ -26,6 +26,9 @@ from .vocabulary import COPULA
 
 REACTIVE_REG = "reactive_preds"        # kb.registers key: programmatic set[str] of reactive predicate names
 REACTIVE_MARK = "reactive"             # the declaration-as-DATA object: a fact `P is reactive`
+ACTIONABLE_REG = "actionable_preds"    # kb.registers key: programmatic set[str] of actionable predicate names
+ACTIONABLE_MARK = "actionable"         # the declaration-as-DATA object: a fact `P is actionable`
+SIDE_EFFECT_REG = "pending_side_effects"   # kb.registers flag: a chosen action newly materialized -> drain it
 
 
 def declare_reactive(kb: AttrGraph, pred: str) -> None:
@@ -33,6 +36,56 @@ def declare_reactive(kb: AttrGraph, pred: str) -> None:
     VISION-TRUE declaration is DATA: an ordinary fact `P is reactive` in the KB (read by `reactive_preds`),
     so a corpus/session declares reactivity in its own text, not in Python. Both are honoured."""
     kb.registers.setdefault(REACTIVE_REG, set()).add(pred)
+
+
+def declare_actionable(kb: AttrGraph, pred: str) -> None:
+    """Mark `pred` ACTIONABLE programmatically — the side-effect sibling of `declare_reactive`. The
+    vision-true declaration is DATA (`P is actionable`, read by `actionable_preds`)."""
+    kb.registers.setdefault(ACTIONABLE_REG, set()).add(pred)
+
+
+def actionable_preds(kb: AttrGraph) -> set[str]:
+    """The predicate names this KB has declared ACTIONABLE — read as DATA (`P is actionable` facts) UNION
+    any programmatic register set. A materialized fact of an actionable predicate is a WORLD ACTION: its
+    object names the tool to call, its subject the goal to pass (`emit_action_calls`). Empty ⇒ the KB
+    derives actions but never ACTS on them (the default — reasoning stays inert until a session opts in)."""
+    from .chain import _facts_matching, ById
+    out = set(kb.registers.get(ACTIONABLE_REG) or ())
+    for s, _o in _facts_matching(kb, COPULA, None, ACTIONABLE_MARK):
+        name = kb.name(s.node_id) if isinstance(s, ById) else s
+        if name:
+            out.add(name)
+    return out
+
+
+def emit_action_calls(kb: AttrGraph) -> list[tuple[str, str]]:
+    """BRIDGE (fact -> call), the world-action boundary of the FiringGate (docs/design/reactive_core.md
+    §C side-effect reactions). A materialized `?g P ?a` fact whose predicate P is declared ACTIONABLE is a
+    chosen world action: it becomes a `<call>` to the tool named by the action `?a`, carrying the goal `?g`
+    in an `arg` slot — which the driver's dumb dispatcher then services (an async tool suspends to the host).
+
+    GENERIC — no domain content: WHICH action was chosen (escalate / giveup / raise_budget) is decided
+    upstream by the recovery bank (data + rules, by authority); this only turns the chosen action-FACT into
+    the `<call>` the tool boundary already understands, exactly as `flare.raise_flare` turns an exhaustion
+    EVENT into a fact. Deduped against a pending call for the same (tool, arg), so an unserviced action does
+    not re-emit. Returns the (tool, goal-node) pairs emitted."""
+    from .chain import _facts_matching, ById
+    from .dispatch import emit_call, pending_calls, call_tool, call_arg
+    actionable = actionable_preds(kb)
+    if not actionable:
+        return []
+    pend = {(call_tool(kb, c), call_arg(kb, c, "arg")) for c in pending_calls(kb)}
+    emitted: list[tuple[str, str]] = []
+    for pred in actionable:
+        for s, o in _facts_matching(kb, pred, None, None):
+            g = s.node_id if isinstance(s, ById) else (kb.nodes_named(s) or [None])[0]
+            tool = kb.name(o.node_id) if isinstance(o, ById) else o
+            if g is None or tool is None or (tool, g) in pend:
+                continue
+            emit_call(kb, tool, {"arg": g})
+            pend.add((tool, g))
+            emitted.append((tool, g))
+    return emitted
 
 
 def reactive_preds(kb: AttrGraph) -> set[str]:
@@ -61,8 +114,9 @@ def _derive(kb: AttrGraph, active, affected: set, *, policy=None, focus_scope=No
     reactive = reactive_preds(kb)
     if not reactive:
         return 0
-    from .chain import chain_sip, _Exhaustion
+    from .chain import chain_sip, _Exhaustion, _facts_matching
     from .cnl.query import _reify_rules
+    actionable = reactive & actionable_preds(kb)   # preds that both PUSH and, once materialized, ACT
     rule_g = None
     fired = 0
     for pred, obj in affected:
@@ -70,13 +124,17 @@ def _derive(kb: AttrGraph, active, affected: set, *, policy=None, focus_scope=No
             if rule_g is None:
                 rule_g = _reify_rules(active)
             # demand the reactive grain -> forward-derive + materialize it (and whatever it depends on)
+            act = pred in actionable
+            before = len(_facts_matching(kb, pred, None, obj)) if act else 0
             fuel = _Exhaustion()
             chain_sip(kb, (pred, None, obj), rules=rule_g, policy=policy, focus_scope=focus_scope,
                       max_rounds=max_rounds, _fuel=fuel)
             if fuel.exhausted:
                 from .flare import raise_flare
                 raise_flare(kb, (pred, None, obj))
-            fired += 1
+            if act and len(_facts_matching(kb, pred, None, obj)) > before:
+                kb.registers[SIDE_EFFECT_REG] = True   # a chosen action NEWLY materialized -> the driver
+            fired += 1                                  # drains it into a serviced <call> at this committed act
     return fired
 
 

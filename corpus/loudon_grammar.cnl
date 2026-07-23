@@ -81,6 +81,19 @@ hvp expands to hedge plus vp
 hclause expands to np plus hvp
 clause expands to hclause
 
+# ---- a bare predicating `X prep Y` (no verb): `bo in library` asserts (bo, in, library) ----
+# English drops the copula in a locative predication (`bo [is] in the library`); the grammar reads a
+# subject np directly followed by a pp as a CLAUSE and asserts (subj, prep, pobj), REUSING the same
+# `clause asserts subj prep pobj when pobj` fold the verbed case (`the lion lives in africa`) uses.
+# Without this a bare `X prep Y` covers the whole utterance only as a NOUN PHRASE (`np expands to np
+# plus pp`) — never a `clause` root — so it commits NO fact, the dominant grammar-route flip gap
+# (`bo in library` unrecognized ⇒ bo not innocent ⇒ a crisp thief, polluting who/∃/why answers).
+# No ambiguity: an np full-span is not a `clause` root, so `bo in library` has exactly ONE clause parse.
+clause expands to np plus pp
+slot subj in clause from np plus pp is left head
+slot prep in clause from np plus pp is right prep
+slot pobj in clause from np plus pp is right pobj
+
 # ---- how each slot is filled ----
 slot head in np from noun is only head
 slot head in np from determiner plus np is right head
@@ -217,6 +230,17 @@ qclause asks subj is adjc when adjc
 # assertion that disagree about the predicate are a silent mismatch in both directions.
 qclause asks subj is_a kind when det
 qclause asks subj is kind unless det
+
+# ---- interrogative `is X prep Y`: `is bo in library` ASKS (bo, in, library) ----
+# The question companion of the predicating `X prep Y` clause above. `is bo in library` parses as
+# `copula plus np` where the np is `bo in library` (np plus pp), so its head/prep/pobj percolate up
+# and `qclause asks subj prep pobj` reads them. Without this the copula-plus-np qclause carried NO
+# subj/prep slot, so no `asks` fold fired: the question was silently DROPPED (routed as a fact that
+# committed nothing — answer None), never yes/no. A question must AGREE with the assertion side.
+slot subj in qclause from copula plus np is right head
+slot prep in qclause from copula plus np is right prep
+slot pobj in qclause from copula plus np is right pobj
+qclause asks subj prep pobj when pobj
 
 # `whether P` embeds a real `clause`, so `clause asserts ...` would fire on it and the QUESTION would
 # assert its own content (measured: `whether lion is huge` wrote `lion is_a huge`). That is the force

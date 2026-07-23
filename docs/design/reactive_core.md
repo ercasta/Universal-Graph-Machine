@@ -227,6 +227,54 @@ did NOT lift a `?a != ?b` body clause into a distinctness condition the way the 
 (`machine_rules._lift_distinct`) does — so a corpus rule with `!=` LOADED but never fired (it matched a
 nonexistent `!=` fact). `load_rules` now runs `_lift_distinct`, so `!=` works in `.cnl` corpora.
 
+## Side-effect reactions — the world-action boundary (the §C fork, BUILT 2026-07-23, shipped 1019 green)
+
+The third reaction kind, and the LIVE-AGENT LOOP: a chosen recovery no longer sits as an inert fact — it
+ACTS. Everything below the reactive core had been proven with hand-driven `fire()`; this is the stack meeting
+a REAL `converse` session with a REAL `<call>`/`ask_user` boundary.
+
+**Probe-first, and it paid.** `bench/spike_live_agent_loop.py` drove the whole reflexive stack (flare →
+governor → authoritativeness → recovery) through the REAL committed-ask gate — repeated fuel exhaustion on a
+never-settling question. Two findings a hand-driven test could not surface:
+1. **The stack lights up through the real ask path** — the flare raised by `query.ask_goal` (not a probe's
+   `raise_flare`) accumulates across turns, the governor escalates + abandons, and recovery is chosen by
+   authority. Live-valid, not just unit-valid.
+2. **A live-only pathology — governance can flare on ITSELF.** The reactive DERIVE threads the ask's
+   `max_rounds`, so if the OBJECT goal's budget is so tight the GOVERNANCE derivation (the recovery/override
+   ladder, a few hops) can't finish, it exhausts and raises flares the governor then counts — a reflexive
+   feedback loop, and recovery never materializes. At an adequate governance budget it is clean (measured: a
+   20-hop cascade starved at budget 2 self-flares; at 6+ it derives `recovery escalate` cleanly, 1 flare/turn,
+   no self-flare). A robustness note, not a blocker (governance is a bounded ordinal ladder). The natural
+   in-language fix is itself a recovery action: `raise_budget` (think harder), which the same mechanism below
+   can now fire.
+
+**The build (all data + rules + the tool boundary; no new graph-writing Python, guardrail unchanged):**
+- **`recovery is actionable`** — a DATA declaration, sibling of `P is reactive` (`reactive.actionable_preds`
+  reads `P is actionable` facts ∪ a programmatic register). A materialized fact of an actionable predicate is
+  a chosen WORLD ACTION: its object names the tool, its subject the goal.
+- **`reactive.emit_action_calls` — the fact→call BRIDGE.** A materialized `?g P ?a` (P actionable) becomes a
+  `<call>` to tool `?a` with `arg=?g` (via `dispatch.emit_call` — the write stays in sanctioned `dispatch.py`,
+  so `reactive.py` is not a substrate writer and the purity manifest is untouched). GENERIC — WHICH action
+  was chosen is decided upstream by the recovery bank (by authority); the bridge only turns the chosen
+  action-FACT into the `<call>` the tool boundary already understands, exactly as `flare.raise_flare` turns an
+  exhaustion EVENT into a fact. Deduped against a pending call for the same (tool, arg).
+- **`_derive` flags a fresh action.** When an actionable+reactive predicate NEWLY materializes at the gate,
+  `_derive` sets `reactive.SIDE_EFFECT_REG` (a register — stepping state, not graph). Fresh-only, so the
+  action fires on the turn the recovery first concludes and is monotone thereafter (no re-fire storm).
+- **`intake._drain_side_effects` — the driver services it.** After a committed question, if the flag is set,
+  the generator emits the action `<call>`s and services them via `dispatch.service_calls_cm`; an ASYNC tool
+  SUSPENDs, yielded up as an `Event("call")` whose `.send()` is the world's response — the SAME suspend/resume
+  a `goal` turn uses. Demand-gated: an ordinary question pays one register read. So a QUESTION whose failure
+  the governor governed can escalate/give-up/raise-budget without the caller orchestrating it — the
+  utterance's own reasoning drove the world action (the seamlessness goal).
+
+**Demonstrated live (composability, end-to-end):** the never-settling question escalates FOR REAL — the
+`escalate` `<call>` suspends to the host and is folded — and flipping the ONE `more_important_than` authority
+fact makes `giveup` act instead, with no code change. Locked by `tests/test_side_effect_reaction.py` (7): the
+action fires through a real `<call>`, authority chooses which action, it fires ONCE not per-turn (dedup), an
+answerable question never acts (opt-in/zero-cost), a reactive-but-not-actionable pred never acts (the boundary
+is a separate opt-in), the bridge dedups against a pending call, and the declaration reads as data.
+
 ## Arc status: STEP C COMPLETE
 
 STEP A (identity frame) + B (reactive DERIVE gate + declaration-as-data) + C.1 (two reaction kinds unified
