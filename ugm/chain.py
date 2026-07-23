@@ -171,17 +171,49 @@ def _pred_name_of(fact_g: AttrGraph, node_id: str) -> str:
     return str(v) if v is not None else fact_g.name(node_id)
 
 
+def _canon_class(fact_g: AttrGraph, node: str) -> set[str]:
+    """The CANONICAL EQUIVALENCE CLASS of a node: itself + everything co-referent via `denotes`, in BOTH
+    directions (a discourse TOKEN and the interpretation ENTITY it denotes are ONE referent). This is the
+    identity boundary of the derivation-frame design (docs/design/derivation_frame.md): reading a bound
+    endpoint as its class UNIONS the token's and the entity's facts, so a node-bound join sees content no
+    matter which member a deferred recognizer wrote to — dissolving the token/entity dual-store WITHOUT a
+    write patch (`intern_denoted`) or a copy. It is SPECIFIC, not name-based: a skolem witness has no
+    `denotes` edge, so its class is {itself} and same-name disambiguation ([[feedback #15]]) is preserved.
+    Inert on the shipped route (no `denotes` edges) — the class is then always {node}."""
+    out = {node}
+    for rel, obj in fact_g.relations_from(node):           # token --denotes--> entity
+        if fact_g.has_key(rel, DENOTES):
+            out.add(obj)
+    for rel in fact_g.into(node):                          # entity <--denotes-- token (the reverse hop)
+        if fact_g.has_key(rel, DENOTES):
+            out.update(fact_g.into(rel))
+    return out
+
+
 def _candidate_nodes(fact_g: AttrGraph, endpoint) -> list[str]:
-    """The candidate node ids for a BOUND endpoint (read side): a `ById` PINS to exactly its node (empty
-    if that node is absent — the pin is honest, never a silent fall-through to a same-named other) —
-    UNLESS it points at a value-node, which resolves like the value it carries; a name resolves via the
-    value-accelerator to every same-named node."""
+    """The candidate node ids for a BOUND endpoint (read side): a `ById` PINS to its node's CANONICAL
+    CLASS (`_canon_class` — the node plus its `denotes`-co-referents; on the shipped route that is just the
+    node, the pin's honesty preserved), UNLESS it points at a value-node, which resolves like the value it
+    carries; a name resolves via the value-accelerator to every same-named node."""
     if isinstance(endpoint, ById):
         v = _operand_value_of(fact_g, endpoint)
         if v is not None:                                  # value-node pointer: resolve by name value
             return fact_g.nodes_named(v)
-        return [endpoint.node_id] if fact_g.has(endpoint.node_id) else []
+        return list(_canon_class(fact_g, endpoint.node_id)) if fact_g.has(endpoint.node_id) else []
     return fact_g.nodes_named(endpoint)
+
+
+def _bound_class_pins(fact_g: AttrGraph, endpoint):
+    """The bound-object endpoints an in-program filter must accept: normally `[endpoint]` (a name / value-
+    node object already unions same-named nodes via `_bound_endpoint_ops`'s NAME test; a skolem pin is
+    exact), but an ENTITY pin expands to one `ById` per `denotes`-co-referent so a both-bound node join
+    matches content on any class member — the object-side mirror of `_candidate_nodes`'s subject class."""
+    if endpoint is None:
+        return [None]
+    if isinstance(endpoint, ById) and _operand_value_of(fact_g, endpoint) is None:
+        cls = _canon_class(fact_g, endpoint.node_id) if fact_g.has(endpoint.node_id) else {endpoint.node_id}
+        return [ById(m) for m in cls]
+    return [endpoint]
 
 
 def _endpoint_matches(fact_g: AttrGraph, node: str, endpoint) -> bool:
@@ -813,16 +845,32 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
                 out.append((s_val, o_val))
 
         if subj_name is not None:                          # (pred, subj, ?) — walk OUT of the subject
-            prog = [SET("s", ""), *_guard("s"),
-                    FOLLOW("r", "s", "out"), *rel_guard,
-                    FOLLOW("o", "r", "out"), *_guard("o"),
-                    *(_bound_endpoint_ops(fact_g, "o", obj_name) if obj_name is not None else ()),
-                    MEMBER(("s", "o"), _FOCUS_LIVE)]
-            for s in _candidate_nodes(fact_g, subj_name):
-                prog[0] = SET("s", s)
-                for st in _ISA_READER.match(fact_g, prog):
-                    emit(st, subj_name,
-                         obj_name if obj_name is not None else ById(st.regs["o"]))
+            # The bound OBJECT is filtered against its CANONICAL CLASS, not one node: an ENTITY pin expands
+            # to one exact-pin filter per `denotes`-co-referent (the object-side mirror of the subject
+            # class-drive), so a both-bound node join sees content the deferred recognizer wrote to any
+            # member. A name / value-node object already unions same-named nodes via `_bound_endpoint_ops`
+            # (a NAME test), and a skolem pin has no class — both stay a SINGLE filter, so the common path
+            # is byte-identical and only the expanded (entity-pin) case dedups its co-referent overlap.
+            obj_pins = _bound_class_pins(fact_g, obj_name)
+            expanded = len(obj_pins) > 1
+            seen: set[tuple] = set()
+            for o_ep in obj_pins:
+                prog = [SET("s", ""), *_guard("s"),
+                        FOLLOW("r", "s", "out"), *rel_guard,
+                        FOLLOW("o", "r", "out"), *_guard("o"),
+                        *(_bound_endpoint_ops(fact_g, "o", o_ep) if o_ep is not None else ()),
+                        MEMBER(("s", "o"), _FOCUS_LIVE)]
+                for s in _candidate_nodes(fact_g, subj_name):
+                    prog[0] = SET("s", s)
+                    for st in _ISA_READER.match(fact_g, prog):
+                        o_val = obj_name if obj_name is not None else ById(st.regs["o"])
+                        if expanded:                       # report under the ORIGINAL pin, dedup overlap
+                            key = (str(o_val), st.regs["r"] if not bands else
+                                   (round(st.score, 9), _rel_env(fact_g, st.regs["r"])))
+                            if key in seen:
+                                continue
+                            seen.add(key)
+                        emit(st, subj_name, o_val)
             return out
         if obj_name is not None:                           # (pred, ?, obj) — walk INTO the object
             prog = [SET("o", ""), *_guard("o"),

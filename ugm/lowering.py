@@ -941,7 +941,7 @@ def match_pats(ag: AttrGraph, pats: list[Pat], *,
 # Fact authoring: (subject, predicate, object) name triples -> an ISA MINT program
 # ---------------------------------------------------------------------------
 
-def assemble_facts(facts: list[tuple[str, str, str]], *, intern_denoted: bool = False) -> list[Instr]:
+def assemble_facts(facts: list[tuple[str, str, str]]) -> list[Instr]:
     """Lower `(subject, predicate, object)` NAME triples to an ISA program of MINT effects — the
     vision-aligned way to BUILD a graph. In a machine, state is written by INSTRUCTIONS, not by Python
     functions that poke the substrate: authoring is assembling a program and running it through the one
@@ -955,11 +955,11 @@ def assemble_facts(facts: list[tuple[str, str, str]], *, intern_denoted: bool = 
     through registers, so every fact assembles into ONE program applied in a single pass (`Machine.run` /
     `load_fact_triples`).
 
-    `intern_denoted` (opt-in): a DEFERRED recognizer (propositional-cause handle) authoring INTO a KB the
-    grammar route has already folded must canonicalize each endpoint name to the interpretation ENTITY it
-    denotes, not the discourse token that shares the name — otherwise its handle's `subj door1` binds the
-    content-free token and the bridge join reads nothing. Inert where there are no `denotes` edges (the
-    shipped route, or a name the grammar has not folded)."""
+    A deferred recognizer (propositional-cause handle) authoring a name the grammar route has already
+    folded interns to whichever co-referent shares the name (token or entity); the demand fetch reads a
+    bound endpoint as its CANONICAL CLASS (`chain._canon_class`), so a node-bound join still sees the
+    entity's folded content — the identity boundary retired the old `intern_denoted` write mode
+    (docs/design/derivation_frame.md)."""
     prog: list[Instr] = []
     reg_of: dict[str, str] = {}
 
@@ -967,8 +967,7 @@ def assemble_facts(facts: list[tuple[str, str, str]], *, intern_denoted: bool = 
         reg = reg_of.get(name)
         if reg is None:
             reg = f"_e{len(reg_of)}"
-            prog.append(MINT(reg, attrs={NAME: valued(name)}, intern=True,   # get-or-create = the instruction
-                             intern_denoted=intern_denoted))
+            prog.append(MINT(reg, attrs={NAME: valued(name)}, intern=True))  # get-or-create = the instruction
             reg_of[name] = reg
         return reg
 

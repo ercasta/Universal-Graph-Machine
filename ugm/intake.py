@@ -794,10 +794,12 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         rules.extend(new_bridge)
         # emit the handle facts into the (facts-only) KB — `assemble_facts` interns by name, so the
         # handle's `subj door1` shares the node the proposition `door1 is open` uses (coref). On the
-        # grammar route that shared name is a TOKEN denoting the interpretation ENTITY the fold wrote to,
-        # so `intern_denoted` follows `denotes` to land the handle on the entity (inert on the shipped
-        # route). Without it the node-bound bridge join reads the content-free token -> `no (assumed)`.
-        Machine().run(kb, _assemble_facts(cause_surface.handle_facts(a, b), intern_denoted=True))
+        # grammar route that shared name is a TOKEN denoting the interpretation ENTITY the fold wrote to.
+        # The write no longer needs to land on the entity: the demand fetch reads a bound endpoint as its
+        # CANONICAL CLASS (`chain._canon_class` — the derivation-frame identity boundary), so the node-bound
+        # bridge join sees the folded content whichever co-referent the handle interned to. (Was
+        # `intern_denoted=True`, the per-site write patch that boundary retired — docs/design/derivation_frame.md.)
+        Machine().run(kb, _assemble_facts(cause_surface.handle_facts(a, b)))
         # a new causal link may make the consequent (or a downstream fact) derivable -> RECONSIDER a
         # prior assumed-no at the next ask: the consequent's grain, plus any new bridge-rule heads.
         from .reconsider import mark_dirty, rule_grains

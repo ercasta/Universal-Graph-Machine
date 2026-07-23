@@ -20,7 +20,96 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶ CURRENT ARC (2026-07-22) — COMPOSITION CLOSURE → SCOPE GENERALIZATION (suite **873 green**)
+## ▶ CURRENT ARC (RE-POINTED 2026-07-23) — LOCALITY BOUNDARY → REACTIVE CORE
+
+> **This re-orientation supersedes the flip-default grind as the top goal** (that grind is now a
+> DOWNSTREAM BENEFICIARY + a measurement, not the driver). It came out of a design conversation
+> (2026-07-23); the dated handoff blocks below remain valid context/history. Standing rules unchanged
+> (no assistant commits; domain logic ONLY in banks; strategies are DECLARED data; correctness before
+> perf). Memory: [[derivation-frame-consolidation]], [[reactive-core-north-star]].
+
+**THE NORTH STAR: a REACTIVE / EVENT-DRIVEN core — materializing a fact or rule TRIGGERS reactions, the
+DATA decides what runs (not a driver script), and this UNIFIES push (forward) and pull (demand) so they
+can no longer diverge.** This is the agent endgame and a genuine candidate UNIFICATION of the two engines
+whose drift is the whole forward/demand guard-divergence class. The mechanism is NOT new-from-scratch:
+forward chaining is already data-driven, and `run_bank`'s semi-naive loop is already a WORK-LIST ("a write
+is an event; re-run only the rules that read what changed") — but scoped inside one call and terminating at
+fixpoint. The goal reframed: LIFT that internal work-list to a STANDING, cross-call, system-wide reactive
+loop, VISION-TRUE (triggers are DECLARED banks dispatched by the engine's match loop, never Python
+callbacks — a generalization of a mechanism already in the machine).
+
+**WHY IT IS STRICTLY DOWNSTREAM OF TWO PREREQUISITES (do NOT build the reactive core first — empirically
+unsafe):**
+1. **A LOCALITY / FRAME BOUNDARY (build first).** Events without scoping are the locality bug class at
+   scale, now WITH side-effects — "rules firing on parts of the graph we don't want" (tokens, scaffolding,
+   other utterances) but reacting. Reactions must fire INTO A BOUNDED FRAME. This is the derivation-frame
+   work (below), and it is the SAME architecture as the reactive core seen from the data side — the first
+   bounded reactive primitive.
+2. **A SOUNDNESS GATE ON FIRING (reactive ≠ eager ≠ unsound).** Demand-driven laziness is a chosen
+   commitment ([[agent-not-theorem-prover]]); a naive push/trigger re-introduces the rejected eager
+   completion. And this scar is EMPIRICAL: [[recall-explicit-not-autofire]] — auto-firing recall
+   on a demand-miss was PROVEN self-reinforcing and NAF-flipping. So firing stays DEMAND-GATED / fuel-
+   bounded; "reactive" predicates are an opt-in dial (like `open_preds`), most predicates still pull.
+
+**THE PATH (ordered, internals-first, fundamentals-not-quick-fixes — user steer 2026-07-23):**
+
+- **STEP A — THE DERIVATION FRAME, VISION-TRUE (copy-on-lazy).** The recurring flip corner-case class is
+  LOCALITY OF PROCESSING (token/entity dual-store, scaffolding enumeration leak, schema control-mirror),
+  paid so far in N per-site denotation patches. The fix (user, 2026-07-23; spike **GO 3/3**,
+  `bench/spike_derivation_frame.py`): reason over a materialized COPY with value semantics (one node per
+  name ⇒ token/entity/scaffolding collapse or are never copied in), MERGE conclusions back to source at ONE
+  identity boundary — subsumes BOTH `intern_denoted` and the who-guard at once; the node-bound
+  predicate-variable reify bridge survives the copy round-trip. A projection was REJECTED: it isolates
+  READS but not WRITES, and a derived fact LANDING on a node is where the aliasing bites (message-passing
+  vs shared state). **VISION CONSTRAINT (user 2026-07-23): the spike's Python `project()`/`merge_back()`
+  are substrate-poking and must NOT ship.** The build is COPY-ON-LAZY IN THE ENGINE: materialization +
+  identity-resolution live INSIDE `_facts_matching` (an ISA fact-fetch instruction) at first-touch, the
+  frame→source boundary is a SUBSTRATE RELATION read by instructions (sibling of `denotes`), and merge-back
+  is a BANK using existing provenance (`proves`/`uses`), not `set_attr`. Measured by "the per-site patches
+  can be DELETED and forward==demand never diverges," NOT by the flip count.
+  - **DESIGN + VISION-TRUE PROBE DONE 2026-07-23** (`docs/design/derivation_frame.md`,
+    `bench/spike_derivation_frame_vision.py`, GO). The forks resolved: the frame is VIRTUAL — a read-time
+    UNION over a bound endpoint's CANONICAL EQUIVALENCE CLASS (node + `denotes`-co-referents, both
+    directions), NOT a copy/projection and NOT a single denotes-PICK (the reverted slice-1c, which dropped
+    the token-resident fact). No second graph, no merge-back, and `intern_denoted` becomes DELETABLE (reads
+    union, so where a write lands stops mattering). Both consolidations live in the ONE fetch
+    `_facts_matching`: the guard (fact-view, already there) + canonicalization (identity, to add in
+    `_candidate_nodes` + `_bound_endpoint_ops`).
+  - **⭐⭐ STEP A BUILT + LANDED 2026-07-23 (shipped 973 green, flip 43/930 UNCHANGED, `intern_denoted`
+    DELETED).** `chain._canon_class` (denotes-class both directions) + `_candidate_nodes` canonicalization +
+    the both-bound object-filter loop (`_bound_class_pins`, entity-pin only, report-under-original-identity,
+    dedup). Chose a node-id class loop over an ISA MEMBER test (MEMBER is name-based → would over-match
+    distinct same-named nodes + break skolem disambiguation; the class must be nameless denotes-structure —
+    the user's "nodes are nameless in the subgraph"). `intern_denoted` machinery removed from
+    `machine.py`/`lowering.py`/`intake.py`; prop-cause derives via canonicalization (gate green). Flip
+    UNCHANGED = a CONSOLIDATION, not a flip-mover (identity cases were already patch-green); comparative
+    INTACT on shipped (union kept what slice-1c's PICK dropped). Details+results:
+    `docs/design/derivation_frame.md` §Build. NEXT = STEP B.
+- **⭐ STEP B/C DESIGN SKETCH DONE 2026-07-23 (`docs/design/reactive_core.md`) — KEY FINDING: the reactive
+  skeleton ALREADY EXISTS and it is `reconsider`.** The standing, cross-call, demand-gated work-list is built
+  for ONE reaction (NAF-recheck): event queue = `DIRTY_REG`, trigger dispatch = `_affected` (body→head
+  fixpoint over declared rules), demand-gated firing = `ask_goal(commit)` runs it before answering, soundness
+  = detach-before-sweep + NAC-exclusion + monotone (= the recall-autofire invariant, ALREADY implemented).
+- **STEP B — THE SOUNDNESS/FIRING GATE = GENERALIZE reconsider's gate** into a reusable `FiringGate` contract
+  (demand-gated, detach-before-fire regress guard, no reaction re-enqueues its own trigger, fuel-bounded).
+  Not invent — lift what reconsider proved. Re-breakable guard = the recall-autofire loop test.
+- **STEP C — GENERALIZE THE REACTION.** reconsider's fixed reaction (retract-stale-NAF) → a DECLARED
+  trigger→reaction (derive / retract / call), a per-predicate `reactive` opt-in (open_preds-shaped, so
+  derivation pushes only where declared — laziness preserved), reactions fired into a STEP-A frame (canonical
+  + guarded `_facts_matching`). Push/pull unify at the ONE dispatch (retiring the guard-divergence class).
+  NEXT = the minimal probe (§reactive_core.md: generalize reconsider to fire ONE declared DERIVE reaction +
+  the recall-autofire re-break). NOT yet built.
+
+**HOW THE FLIP + SURFACE FIT NOW (downstream, orthogonal):** the flip debt is **43/973** (measured
+2026-07-23). STEP A retires the IDENTITY subset. The DOMINANT remaining cluster is SURFACE-gated (`X prep
+Y` predicating clause — `bo in library` doesn't parse ⇒ bo is a crisp thief ⇒ `is anyone thief` = `yes`
+not `likely`, VERIFIED), which the frame does NOT touch — that stays a SEPARATE, independently-scheduled
+`.cnl` grammar lever, not on the reactive-core critical path. The committed grammar-route validation gates
+(`test_grammar_route_reasoning.py`, `test_grammar_shipped_agreement.py`) remain the regression floor.
+
+---
+
+## ▶ PRIOR ARC (2026-07-22, context/history) — COMPOSITION CLOSURE → SCOPE GENERALIZATION (suite **873 green**)
 
 **⭐ CAUSATION CORE — BACKWARD DIAGNOSIS LANDED 2026-07-22 (suite 909 green), the first slice of the
 next arc (§9.2 sequences causation FIRST).** A PROBE re-scoped it: C1 entity-level causation is native
@@ -158,7 +247,11 @@ routes `why` with the trace in `.explanation`, not overloaded into `.answer` (`t
     `Outcome("cause")` + `Event("cause"/"cause-done")`; `tests/test_propositional_cause.py` (8, incl.
     order-independence, chaining, negative control, the `that`-nominalizer boundary). Clause menu mirrors
     `suppose_surface` (`S P O` / `S is O` / `S is a O`) + a 2-token intransitive `S P` → `S P yes`.
-## ▶▶ PICK UP HERE — SESSION-END HANDOFF 2026-07-23 (suite **973 green**, flip **43/973**)
+## ▶ SESSION DETAIL 2026-07-23 (suite **973 green**, flip **43/973**) — STEP A groundwork
+
+> The arc was RE-POINTED above (LOCALITY BOUNDARY → REACTIVE CORE) after this block was written; the
+> frame spike here IS "STEP A". Pick up at the new arc's **NEXT CONCRETE STEP** (design doc + vision-true
+> probe). Detail below.
 
 **⭐⭐ THE CONSOLIDATION DIRECTION IS DECIDED (user, 2026-07-23): a DERIVATION FRAME (materialized COPY
 + merge-back), NOT a read-projection, NOT more per-site patches. Spike GO 3/3 —

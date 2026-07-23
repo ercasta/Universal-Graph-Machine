@@ -106,13 +106,14 @@ def test_a_banded_question_wears_its_doubt_over_a_hedged_premise(gkb):
 
 
 def test_a_propositional_cause_link_derives_over_grammar_folded_propositions(gkb):
-    # THE NODE-BOUND-JOIN case (the write-side of the token/entity duality). A `that A causes that B`
-    # link emits content-keyed HANDLES whose `subj`/`obj` edges intern to the proposition's entities;
-    # on the grammar route those names are surface TOKENS denoting the interpretation ENTITIES the fold
-    # wrote to, so the handle must intern THROUGH `denotes` to the entity (`assemble_facts(...,
-    # intern_denoted=True)`) — else the reify-bridge's node-bound `?s` binds the content-free token and
-    # the consequent never derives. Regression gate for the re-derived propositional-cause fix (the
-    # narrow write-side alternative to the reverted read-path slice-1c, which broke comparative order).
+    # THE NODE-BOUND-JOIN case (the token/entity duality). A `that A causes that B` link emits content-keyed
+    # HANDLES whose `subj`/`obj` edges intern by name to the proposition's TOKENS (on the grammar route those
+    # names are surface tokens denoting the interpretation ENTITIES the fold wrote to). The reify-bridge's
+    # node-bound `?s` then binds the token — but the demand fetch reads a bound endpoint as its CANONICAL
+    # CLASS (`chain._canon_class`, the derivation-frame identity boundary), so the join sees the entity's
+    # folded content and the consequent derives. Regression gate for that boundary (which RETIRED the
+    # per-site `intern_denoted` write patch, 2026-07-23; a union, not the reverted slice-1c single PICK
+    # that dropped the token-resident comparison fact). See docs/design/derivation_frame.md.
     kb, rules = gkb
     _ingest_all(kb, rules, ["door1 is open", "that door1 is open causes that cat is scared"])
     assert ingest(kb, rules, "is cat scared").answer == ["yes"]

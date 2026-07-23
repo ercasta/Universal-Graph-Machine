@@ -130,7 +130,7 @@ def case1_dual_store():
     kb, rules = _grammar_kb()
     ingest(kb, rules, "door1 is open")                    # folds onto the interpretation ENTITY
     a, b = ("door1", "is", "open"), ("cat", "is", "scared")
-    Machine().run(kb, assemble_facts(handle_facts(a, b), intern_denoted=False))   # the BUGGY intern
+    Machine().run(kb, assemble_facts(handle_facts(a, b)))   # the BUGGY intern
     rules.extend(r for rt in BRIDGE_RULES for r in load_machine_rules(rt))
 
     shared = _ask(kb, rules, ("yesno", "cat", "is", "scared"))
@@ -165,7 +165,7 @@ def case3_merge_back():
     kb, rules = _grammar_kb()
     ingest(kb, rules, "door1 is open")
     a, b = ("door1", "is", "open"), ("cat", "is", "scared")
-    Machine().run(kb, assemble_facts(handle_facts(a, b), intern_denoted=False))
+    Machine().run(kb, assemble_facts(handle_facts(a, b)))
     rules.extend(r for rt in BRIDGE_RULES for r in load_machine_rules(rt))
 
     fg, src, _ = frame_of(kb)
