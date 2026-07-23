@@ -158,7 +158,60 @@ routes `why` with the trace in `.explanation`, not overloaded into `.answer` (`t
     `Outcome("cause")` + `Event("cause"/"cause-done")`; `tests/test_propositional_cause.py` (8, incl.
     order-independence, chaining, negative control, the `that`-nominalizer boundary). Clause menu mirrors
     `suppose_surface` (`S P O` / `S is O` / `S is a O`) + a 2-token intransitive `S P` → `S P yes`.
-## ▶▶ PICK UP HERE — SESSION-END HANDOFF 2026-07-22 (suite **973 green**)
+## ▶▶ PICK UP HERE — SESSION-END HANDOFF 2026-07-23 (suite **973 green**, flip **43/973**)
+
+**⭐⭐ THE CONSOLIDATION DIRECTION IS DECIDED (user, 2026-07-23): a DERIVATION FRAME (materialized COPY
++ merge-back), NOT a read-projection, NOT more per-site patches. Spike GO 3/3 —
+`bench/spike_derivation_frame.py`.** The user reframed the whole recurring corner-case class as
+LOCALITY-OF-PROCESSING (rules/reads touching graph they shouldn't — the token/entity dual-store, the
+scaffolding enumeration leak, the schema control-mirror) and argued the fix is message-passing over
+shared-state: reason over a COPY with value semantics (one node per name ⇒ token/entity/scaffolding
+collapse or are never copied in), then MERGE conclusions back to source at ONE identity boundary —
+discardable/re-derivable like an ETL job or a stack frame. Rationale that settled projection-vs-copy: a
+projection isolates READS but not WRITES, and writes (a derived fact landing on a node) are exactly where
+the aliasing bites, so a view leaves the shared-state bug in place; a copy gives write-isolation.
+- **SPIKE VERDICT (3/3, `python -m bench.spike_derivation_frame`):** a one-node-per-name copy dissolves
+  the identity class at one boundary, SUBSUMING BOTH per-site patches at once — the `intern_denoted`
+  WRITE-patch (CASE 1: prop-cause authored `intern_denoted=False` answers `no (assumed)` on the shared
+  graph, `yes` in the frame) AND the who-branch READ-guard (CASE 2: enumeration is structurally clean —
+  no empty-named scaffolding row — with no guard). The node-bound predicate-variable reify bridge SURVIVES
+  the project→reassemble round-trip (the "does the copy preserve enough?" risk — answered yes). CASE 3:
+  merge-back lands the conclusion on the source entity (`no (assumed)`→`yes`), frame discarded.
+- **COPY-ON-LAZY is the production shape (user's follow-up + agreed):** don't eager-project the whole KB
+  (the spike did, to prove the hypothesis) — start an EMPTY frame that materialises a source node at
+  FIRST-TOUCH by the demand path (`_facts_matching`), resolving identity once per node and memoising the
+  frame→source back-pointer. The frame IS the memo table; reconciles value-semantics isolation with the
+  lazy/demand engine, and collapses the N denotation call-sites into the ONE fact-fetch primitive. NOT
+  built — the next probe.
+- **KNOWN LIMITS the spike made concrete (cost, not correctness):** (a) the merge boundary must carry an
+  explicit frame→source back-pointer (ById discipline), not re-resolve by NAME as the spike's `merge_back`
+  does, or a genuine same-name/different-entity case mis-merges — but it is ONE place to get right; (b) the
+  frame fixes the IDENTITY/locality class ONLY — a fact that never PARSED (`bo in library`, the `X prep Y`
+  surface gap) is not in the projection to copy, so surface-coverage gaps are untouched (consistent with
+  the flip categorization: test_world banded failures are SURFACE-gated — `bo in library` doesn't parse ⇒
+  bo is a crisp thief ⇒ `is anyone thief` = `yes` not `likely`, VERIFIED this session); (c) `commit=False`
+  already scopes crisp WRITES into a suppose pencil scope but IN THE SHARED GRAPH, so reads still alias —
+  the COPY is the missing half, complementary to write-scoping.
+- **HEDGE STOPGAP REVERTED (was the anti-pattern).** Mid-session I built a `possibility._entity(denoted=)`
+  / `add_fork(denoted=True)` hedge dual-store patch (item 2) — but it is the N+1th per-site denotation
+  patch the frame arc retires, its gate test did NOT discriminate (passed with AND without the fix, because
+  chain joins by NAME so the hedge-on-token split is tolerated for name-level joins — only NODE-bound joins
+  break), and it fixed no shipped failing test (the test_world banded misses are surface-gated). Reverted
+  cleanly; working tree = only `?? bench/spike_derivation_frame.py`. Lesson recorded: the hedge dual-store
+  is real (hedge pencil lands on the token without the patch — verified) but does NOT bite name-level joins.
+- **NEXT (recommended):** probe COPY-ON-LAZY — put the denotation-resolution + frame-memo inside
+  `_facts_matching` (the one fact-fetch), start empty, materialise at first-touch, carry a frame→source
+  back-pointer for merge. Validate it subsumes intern_denoted + the who-guard (re-run the spike's cases
+  through the lazy path) with zero shipped regression. THEN the surface bucket (`X prep Y`) is still the
+  separate, orthogonal lever for the surface-gated flip failures.
+- **Flip re-measured 43/973 this session** (harness recreated: scratchpad `flipplugin.py` patches
+  `grammar_intake.session_banks` to declare-on-first-use `open_class="noun"`; `-p flipplugin` with the
+  scratchpad on PYTHONPATH; ~4.75 min). Clusters unchanged in KIND from the 2026-07-22 handoff below
+  (surface `X prep Y`, integration, schema/causal/counterfactual, banded-surface-gated).
+
+---
+
+## ▶▶ SESSION-END HANDOFF 2026-07-22 (suite **973 green**)
 
 **═══ START-HERE (fresh-session summary; details in the dated blocks below) ═══**
 
