@@ -385,7 +385,9 @@ def test_a_declared_relation_is_usable_by_the_next_utterance(okb):
     """The declaration must still DO its job — the register is a different home, not a weaker one."""
     import ugm as h
     h.ingest(okb, [], "produces is a relation")
-    assert gi.session_banks(okb).grammar.lexicon.get("produces") == ["transitive"]
+    # A declared relation is a VERB (transitive) AND a NOUN — its name can be TALKED ABOUT (used as a
+    # subject/object, e.g. `causes propagates has`), so `sync_vocabulary` gives it both categories.
+    assert gi.session_banks(okb).grammar.lexicon.get("produces") == ["transitive", "noun"]
     assert h.ingest(okb, [], "get_beans produces beans").kind == "fact"
     assert ("get_beans", "produces", "beans") in gi.facts(okb)
 
@@ -415,12 +417,13 @@ def test_the_l0_form_is_not_reachable_from_the_object_grammar(okb):
     assert gi.recognize_vocabulary("produces is a relation of sorts") is None
 
 
-@pytest.mark.parametrize("text,category", [
-    ("produces is a relation", "transitive"),      # the KB-level spelling, not a category itself
-    ("wolf is a noun", "noun"),
-    ("snarls is a intransitive", "intransitive"),
+@pytest.mark.parametrize("text,cats", [
+    # a RELATION is a VERB (transitive) AND a NOUN — its name is nameable (usable as an argument)
+    ("produces is a relation", ["transitive", "noun"]),
+    ("wolf is a noun", ["noun"]),
+    ("snarls is a intransitive", ["intransitive"]),
 ])
-def test_a_lexicon_declaration_reaches_the_grammar(okb, text, category):
+def test_a_lexicon_declaration_reaches_the_grammar(okb, text, cats):
     """⭐ THE SILENT NO-OP, FIXED. `wolf is a noun` used to route `fact` and extend NOTHING — a user
     declaring a word got a success verdict and an inert fact. Measured: `wolf` was absent from the
     lexicon before and after. That is §8's "understanding ≠ parsing" at the META level, and it was
@@ -428,7 +431,7 @@ def test_a_lexicon_declaration_reaches_the_grammar(okb, text, category):
     import ugm as h
     assert h.ingest(okb, [], text).kind == "vocabulary"
     word = text.split()[0]
-    assert gi.session_banks(okb).grammar.lexicon.get(word) == [category]
+    assert gi.session_banks(okb).grammar.lexicon.get(word) == cats
 
 
 def test_a_declared_noun_is_usable_immediately(okb):
@@ -887,15 +890,19 @@ def test_vocabulary_declared_mid_session_takes_effect():
 
 
 def test_an_explicit_grammar_declaration_beats_the_derived_default():
-    """The derivation fills a GAP; it never overrides what a grammar actually says. `roars` declared
-    `intransitive` must stay intransitive even if the KB also calls it a relation — otherwise
-    deriving would silently re-categorise hand-written vocabulary."""
+    """The derivation fills a GAP in the VERB category; it never overrides what a grammar actually
+    says. `roars` declared `intransitive` must STAY intransitive even if the KB also calls it a
+    relation — the derived `transitive` default must NOT re-categorise hand-written vocabulary.
+    (The additive NOUN reading is orthogonal: a declared relation is nameable, so `roars` gains a
+    noun category too — but its verb category is still the explicit `intransitive`, never `transitive`.)"""
     from ugm.intake import ingest
     kb = AttrGraph()
     gi.declare_grammar(kb, _core_grammar() + "\nroars is a intransitive\n", open_class="noun")
     ingest(kb, [], "roars is a relation")
     gi.sync_vocabulary(kb)
-    assert gi.session_banks(kb).grammar.lexicon["roars"] == ["intransitive"]
+    cats = gi.session_banks(kb).grammar.lexicon["roars"]
+    assert "intransitive" in cats and "transitive" not in cats   # the explicit VERB category won
+    assert cats == ["intransitive", "noun"]                      # + the nameable-relation noun reading
 
 
 # ---------------------------------------------------------------------------

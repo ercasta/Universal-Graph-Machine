@@ -766,18 +766,33 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # `suppose(commit=False)` — the ADDITIVE counterfactual (native); the subtractive one (retract-under-
     # hypothesis) is the out-of-core completion. Verdict -> answer: CONFIRMED=yes, REFUTED=no (the
     # assumption entails the opposite), INCONCLUSIVE=no (assumed) (not derivable under A).
-    from .cnl.suppose_surface import parse_suppose
-    sup = parse_suppose(text)
+    from .cnl.suppose_surface import parse_suppose_banded
+    from .cnl.uncertainty import hedge_bands as _hedge_lex
+    hedges = _hedge_lex(kb)                                 # shipped defaults + KB `X means N` decls
+    _banks = kb.registers.get("grammar")                   # + the active grammar's hedge lexicon
+    if _banks is not None:
+        hedges = {**hedges, **_banks.grammar.hedge_bands}
+    sup = parse_suppose_banded(text, hedges)
     if sup is not None:
-        (a_s, a_p, a_o), (p_s, p_p, p_o) = sup
+        (a_triple, a_band), (p_triple, _p_band) = sup
+        (a_s, a_p, a_o), (p_s, p_p, p_o) = a_triple, p_triple
         yield Event("suppose", {"assume": [a_s, a_p, a_o], "predict": [p_s, p_p, p_o]})
         focus_mod.widen(kb, {a_s, a_o, p_s, p_o})
         from .cnl.query import _reify_rules
         from .suppose import suppose as _suppose, CONFIRMED, REFUTED
+        from .possibility import band_word
         rg = _reify_rules(rule_control.active_rules(kb, rules))
-        res = _suppose(kb, [(a_s, a_p, a_o)], [(p_p, p_s, p_o)], rules=rg, commit=False)
-        answer = (["yes"] if res.status == CONFIRMED
-                  else ["no"] if res.status == REFUTED else ["no (assumed)"])
+        # DEGREE ∘ SCOPE(suppose): a hedge on the assumption (`suppose lion generally is hungry : …`)
+        # is entertained as a WEIGHED stance — penned as a fork, its band composed through the rules by
+        # the banded reader, so CONFIRM wears the propagated degree instead of over-claiming a certain
+        # `yes`. Crisp stance: the fork is invisible (nothing readable ⇒ `no (assumed)`), no leak.
+        res = _suppose(kb, [(a_s, a_p, a_o)], [(p_p, p_s, p_o)], rules=rg, commit=False,
+                       assumption_bands=[a_band], policy=policy)
+        if res.status == CONFIRMED and res.band is not None and res.band < 1.0:
+            answer = [band_word(res.band)]                 # the assumption's degree, propagated
+        else:
+            answer = (["yes"] if res.status == CONFIRMED
+                      else ["no"] if res.status == REFUTED else ["no (assumed)"])
         yield Event("answer", {"answer": answer})
         return Outcome("suppose", utterance, answer=answer)
 
@@ -812,7 +827,7 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # the link). Above the fact route so a `that …` line is never asserted verbatim. Keyword/structure
     # recognizer (grammar refuses it, like suppose/why), reached by fall-through under a grammar KB.
     from .cnl import cause_surface
-    pc = cause_surface.parse_cause(text)
+    pc = cause_surface.parse_cause(text, hedges)           # `hedges` built above (the suppose route)
     if pc is not None:
         a, b = pc
         yield Event("cause", {"antecedent": list(a), "consequent": list(b)})

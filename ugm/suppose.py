@@ -90,13 +90,16 @@ class SupposeResult:
     trace). `derived` is the in-scope DERIVED consequences (the hypothesis's pencil derivations, seed
     assumptions excluded) — populated only on a READ-ONLY run (`commit=False`, feedback #6), so a
     hypothesis-driven analyzer can inspect what held under the supposition (incl. after INCONCLUSIVE)
-    without the KB being mutated. The scope has already been resolved — committed to ink (CONFIRM) or
-    swept (else) — so no live `<hypothesis>` id is returned."""
+    without the KB being mutated. `band` is the DEGREE the prediction held at when the supposition was
+    entertained under a HEDGE (`degree ∘ scope` composition) — the weakest-link band across predictions
+    (None for a crisp, unhedged suppose, whose CONFIRM is certain). The scope has already been resolved
+    — committed to ink (CONFIRM) or swept (else) — so no live `<hypothesis>` id is returned."""
     status: str
     committed: list[Triple] = field(default_factory=list)
     contradiction: Triple | None = None
     looked_for: list[str] = field(default_factory=list)
     derived: list[Triple] = field(default_factory=list)
+    band: float | None = None
 
 
 def _resolve(g: AttrGraph, name) -> str:
@@ -172,7 +175,9 @@ def suppose(fact_g: AttrGraph,
             assumptions: list[Triple], predictions: list[Triple], *,
             rules: AttrGraph | None = None,
             provenance: bool = False, commit: bool = True,
-            focus_scope: frozenset[str] | None = None) -> SupposeResult:
+            focus_scope: frozenset[str] | None = None,
+            assumption_bands: list[float | None] | None = None,
+            policy=None) -> SupposeResult:
     """Entertain `assumptions` in a `<hypothesis>` scope, CHAIN their consequences in pencil, and CHECK
     the `predictions` in-scope. Returns a `SupposeResult`. Side effect on the graph: CONFIRM commits the
     assumptions to ink (monotone, with optional provenance) and sweeps the pencil; REFUTE / INCONCLUSIVE
@@ -192,26 +197,74 @@ def suppose(fact_g: AttrGraph,
     `focus_scope` (feedback #7) BOUNDS attention exactly as `ask_goal` does — threaded into the in-scope
     `chain_sip`/`_facts_matching` so the hypothesis reasons only within the working set (an endpoint in
     `focus_scope`), keeping per-hypothesis cost tracking the focus, not the accreted graph. `None` =
-    whole-graph (behaviour-identical). Orthogonal to the pencil `scope` (which segregates the hypothesis)."""
+    whole-graph (behaviour-identical). Orthogonal to the pencil `scope` (which segregates the hypothesis).
+
+    `assumption_bands` + `policy` — DEGREE ∘ SCOPE(suppose) composition (docs/design/
+    composition_architecture.md §GAPS). A hedged assumption (`suppose lion generally is hungry : …`) is a
+    WEIGHED stance, not a certain one, so it is penned as a FORK at its band rather than a certain in-scope
+    pencil (which `chain._rel_env` reads as ∅-env certainty by design). Under a BANDED `policy` the in-scope
+    chain then composes that band through the rules for FREE (the band rides the match score — the same
+    reader the isolated hedge and `conditional ∘ hedge` cells already pass through), and CONFIRM carries the
+    weakest-link band on `result.band`. Certain assumptions stay in-scope pencils; a mixed suppose is
+    per-assumption correct because each hedged one is its own fork. `assumption_bands[i] < 1.0` marks
+    assumption `i` hedged; `None`/absent = certain (behaviour-identical, `result.band` stays None)."""
     from .chain import validate_ids
+    from .possibility import add_fork, LIKELINESS
     rule_g = rules if rules is not None else fact_g        # one-graph default (the fold)
     for s, _p, o in (*assumptions, *predictions):          # id-addressed pins must exist (silent->loud)
         validate_ids(fact_g, s, o)
+    a_bands = assumption_bands if assumption_bands is not None else [None] * len(assumptions)
+    hedged = [b is not None and b < 1.0 for b in a_bands]
+    # A hedged assumption is always penned as a FORK (never certain in-scope pencil), regardless of
+    # stance — so under a CRISP stance it is invisible exactly as an isolated hedge is (nothing readable
+    # ⇒ INCONCLUSIVE ⇒ `no (assumed)`, no over-claim). The BANDED verdict (reading the fork through the
+    # marker-mode reader so the band composes) only fires under a banded `policy`.
+    banded = policy is not None and getattr(policy, "banded", False) and any(hedged)
+    # Track the forks this run mints (each hedged assumption + every DERIVED fork a banded chain emits)
+    # so the read-only sweep drops them all — the `query_goal` slice-edge fix, mirrored.
+    pre_forks = set(fact_g.nodes_with_key(LIKELINESS)) if any(hedged) else set()
+    run_policy = policy if banded else None
     scope = _MACHINE.apply(fact_g, [MINT("_h", attrs={NAME: valued(HYPOTHESIS),
                                                       HYPOTHESIS: graded(1.0)}, control=True)],
                            State({})).regs["_h"]
     seed_rels: set[str] = set()
-    for s, p, o in assumptions:
-        seed_rels.add(_pencil(fact_g, scope, _resolve(fact_g, s), p, _resolve(fact_g, o)))
+    for (s, p, o), b, hz in zip(assumptions, a_bands, hedged):
+        if hz:
+            add_fork(fact_g, b, [(s, p, o)])               # a WEIGHED assumption is its own fork
+        else:
+            seed_rels.add(_pencil(fact_g, scope, _resolve(fact_g, s), p, _resolve(fact_g, o)))
+
+    def _drop_all() -> None:
+        _drop_scope(fact_g, scope)
+        if any(hedged):
+            for f in fact_g.nodes_with_key(LIKELINESS):    # the assumption + derived forks this run added
+                if f not in pre_forks and fact_g.has(f):
+                    _drop_scope(fact_g, f)
 
     contradiction: Triple | None = None
     all_hold = True
+    pred_band: float | None = None                         # weakest-link band across predictions (banded)
     for pred, subj, obj in predictions:
         # CHAIN the prediction and its negation inside the scope (pencil reasoning; provenance is
         # ephemeral here, so it is never journaled — only the confirmed ink commit records provenance).
-        chain_sip(fact_g, (pred, subj, obj), rules=rule_g, scope=scope, focus_scope=focus_scope)
+        chain_sip(fact_g, (pred, subj, obj), rules=rule_g, scope=scope,
+                  focus_scope=focus_scope, policy=run_policy)
         neg_pred = _neg_pred(pred)
-        chain_sip(fact_g, (neg_pred, subj, obj), rules=rule_g, scope=scope, focus_scope=focus_scope)
+        chain_sip(fact_g, (neg_pred, subj, obj), rules=rule_g, scope=scope,
+                  focus_scope=focus_scope, policy=run_policy)
+        if banded:
+            pos = max((r[2] for r in _facts_matching(fact_g, pred, subj, obj, scope=scope,
+                                                     focus_scope=focus_scope, bands=True)), default=0.0)
+            neg = max((r[2] for r in _facts_matching(fact_g, neg_pred, subj, obj, scope=scope,
+                                                     focus_scope=focus_scope, bands=True)), default=0.0)
+            if neg > 0.0 and neg >= pos:                   # the negation is at least as possible -> refute
+                contradiction = (pred, subj, obj)
+                break
+            if pos <= 0.0:
+                all_hold = False
+            else:
+                pred_band = pos if pred_band is None else min(pred_band, pos)
+            continue
         if _facts_matching(fact_g, neg_pred, subj, obj, scope=scope, focus_scope=focus_scope):
             contradiction = (pred, subj, obj)          # entails the opposite of the prediction -> refute
             break
@@ -223,19 +276,22 @@ def suppose(fact_g: AttrGraph,
     derived = _scope_derivations(fact_g, scope, seed_rels) if not commit else []
 
     if contradiction is not None:
-        _drop_scope(fact_g, scope)
+        _drop_all()
         return SupposeResult(REFUTED, [], contradiction, looked_for, derived)
     if not all_hold:
-        _drop_scope(fact_g, scope)
+        _drop_all()
         return SupposeResult(INCONCLUSIVE, [], None, looked_for, derived)
 
-    # CONFIRMED. READ-ONLY: report the verdict + derivations, ink NOTHING, sweep the pencil.
+    # CONFIRMED. READ-ONLY: report the verdict + derivations, ink NOTHING, sweep the pencil (+ forks).
     if not commit:
-        _drop_scope(fact_g, scope)
-        return SupposeResult(CONFIRMED, [], None, looked_for, derived)
-    # COMMIT: EMIT the assumptions to INK (real facts), then sweep the pencil scaffolding.
+        _drop_all()
+        return SupposeResult(CONFIRMED, [], None, looked_for, derived, band=pred_band)
+    # COMMIT: EMIT the CERTAIN assumptions to INK (real facts), then sweep the pencil scaffolding. A
+    # HEDGED assumption is a weighed stance and never becomes certain ink — it stays a fork (dropped).
     committed: list[Triple] = []
-    for s, p, o in assumptions:
+    for (s, p, o), hz in zip(assumptions, hedged):
+        if hz:
+            continue
         s_id, o_id = _resolve(fact_g, s), _resolve(fact_g, o)
         if not _fact_exists(fact_g, s_id, p, o_id):    # scope=None: consult ink only
             ink = _MACHINE.apply(fact_g,               # EMIT to ink (monotone), as a MINT program
@@ -245,8 +301,8 @@ def suppose(fact_g: AttrGraph,
             committed.append((s, p, o))
             if provenance:
                 _record_confirmed(fact_g, ink)
-    _drop_scope(fact_g, scope)
-    return SupposeResult(CONFIRMED, committed, None, looked_for)
+    _drop_all()
+    return SupposeResult(CONFIRMED, committed, None, looked_for, band=pred_band)
 
 
 def explain_suppose(result: SupposeResult) -> list[str]:

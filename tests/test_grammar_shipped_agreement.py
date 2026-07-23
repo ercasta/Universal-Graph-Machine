@@ -153,6 +153,27 @@ SCENARIOS = [
         ["no (assumed)"],
         None,
     ),
+    (
+        # RELATION NAME AS ARGUMENT (2026-07-23): a schema meta-fact `causes propagates has` talks ABOUT
+        # the relations `causes`/`has` (their names in subject/object position), so both must be usable
+        # as NOUNS, not only verbs. The grammar route used to give a declared relation only the
+        # `transitive` category, so `causes propagates has` was UNRECOGNIZED, the schema never fired, and
+        # the causal effect stayed underivable. Now `sync_vocabulary` dual-categorizes relations
+        # (transitive + noun); both routes materialize the propagation rule and agree.
+        "relation-name-as-argument-causal-propagation",
+        [
+            "has is a relation",
+            "causes is a relation",
+            "propagates is a relation",
+            "define schema ?r propagates ?base : ?x ?base ?e when ?x ?base ?c and ?c ?r ?e",
+            "causes propagates has",
+            "lion has hunger",
+            "hunger causes aggression",
+            "does lion have aggression",
+        ],
+        ["yes"],
+        None,
+    ),
 ]
 
 

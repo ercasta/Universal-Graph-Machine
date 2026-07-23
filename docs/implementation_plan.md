@@ -20,7 +20,118 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶ CURRENT ARC (RE-POINTED 2026-07-23) — LOCALITY BOUNDARY → REACTIVE CORE
+## ▶▶ TOP PRIORITY (RE-POINTED 2026-07-23, user steer) — CORE-AXIS COMPOSITION, not the grammar surface
+
+### ═══ FRESH-SESSION START HERE (2026-07-23 end — suite 1046 green; composition audit PASS 12 / LEAK 0) ═══
+
+**ONE-LINE STATE.** The top priority is CORE-AXIS COMPOSITION, and as of 2026-07-23 end it is RE-POINTED from
+"close the remaining composition cells" to **UNIFY THE REPRESENTATION** — the north star is
+**`docs/design/unified_representation.md`** (one interned proposition node; every axis an annotation-relation on
+it; truth as a vantage that is itself facts). The composition audit is COMMITTED as a ratchet gate
+(`tests/test_epistemic_closure.py`, **PASS 12 / REFUSED 6 / LEAK 0**, shipped 1046 green): the `degree ∘
+negation` LEAK and `suppose ∘ hedge` GAP are CLOSED; the two remaining REFUSED cells (`causation ∘
+{hedge,negation}`) are now the **acceptance test for Step 1 of the unification** (fact identity), NOT a fix to
+rush — a spike (`bench/spike_causation_representation.py`) proved a rule-lowering quick win would DODGE the
+underlying node-identity duality rather than solve it, which is exactly the kind of seam the unification exists
+to stop. NEXT = re-ratify the reification decision (§8), then Step 1 (lift `_canon_class` to facts; one
+`MINT(dedup)` fact-writer). The reactive-core + governance + live-agent-loop arc and the flip/grammar surface
+(43→26) are DONE and below as history. Read the ⭐ blocks in THIS section top-to-bottom; the "PRIOR ARC"
+sections below are context/history. Committed by the user across the session (branch `grammar`).
+
+> **The priority is a CORE whose independently-designed reasoning axes COMPOSE cleanly** (negation,
+> degree/hedge, conditionality, scope/suppose, causation, force) — the core of the reasoning, NOT the
+> grammatical surface. The flip/grammar lever is DE-PRIORITIZED (lowest, orthogonal; 43→26 this session is
+> done-enough). Distinguish this from the REFLEXIVE-mechanism composition (flare/governor/authoritativeness/
+> recovery) — that one is BUILT ([[composability-principle]]); this is the REASONING-axis composition
+> ([[epistemic-closure-under-composition]]).
+>
+> **⭐⭐ RE-POINTED 2026-07-23 END → UNIFY THE REPRESENTATION (north star: `docs/design/unified_representation.md`).**
+> The audit + two producer fixes established the crux empirically: composition is hard ONLY where an axis is
+> represented off to the side of the one evaluation (causation = a content-keyed handle, negation = a separate
+> `R_not` predicate, force = a routing decision at intake), and FREE where it is a scope/annotation the matcher
+> already reads (degree, scope, conditionality). The user's steer (do NOT take quick wins that re-create seams;
+> design the unification now): the target is **one interned proposition node, every axis an annotation-relation
+> on it, truth as a VANTAGE that is itself facts** — grounded in primitives that ALREADY EXIST (`MINT(dedup)`
+> topology-interning, `key_reg` predicate-as-data, kinded scopes, `_canon_class`). The design doc carries the
+> invariant, the four unifications, the re-opened reification decision (§8), and the gated 3-step migration
+> (fact identity → negation-as-annotation → vantage-as-data). The composition CELLS below become the acceptance
+> tests for those steps, not fixes to rush.
+>
+> **⭐ WIDENED COMPOSITION AUDIT DONE 2026-07-23 (shipped 1044 collected; the user's "widen the audit first").**
+> `bench/spike_epistemic_closure.py` extended to the full matrix over built axes (18 cells) +
+> `tests/test_epistemic_closure.py` — a COMMITTED regression floor pinning every cell (21 tests: 18 cells + 3
+> invariants), headline = the LEAK set must stay a known, shrinking set; a REFUSED→PASS or LEAK→PASS
+> improvement is a VISIBLE ratchet (update EXPECTED at the diff). **FINDINGS (PASS 10 / REFUSED 7 / LEAK 1):**
+> - **The one HARD LEAK: `degree ∘ negation`** — `the lion generally has no mane` routes `fact` but
+>   represents NOTHING (no ink, no band). Closure's single violation.
+> - **Three "closed but NOT reasoned" GAPS (an axis silently DROPPED, answered conservatively):**
+>   `suppose ∘ hedge` (band dropped), `causation ∘ hedge` (band dropped at the reification bridge),
+>   `causation ∘ negation` (negation not consulted at the bridge). Not closure violations, but the composition
+>   the user wants (axes REASONING together) fails.
+> - **What COMPOSES (PASS):** conditional∘degree, conditional∘negation, suppose∘negation, force∘degree,
+>   force∘negation, chaining depth, band-propagation depth.
+> - **DIAGNOSIS (crisp): DEGREE (hedge = an interpretation-layer FORK) and PROPOSITIONAL CAUSATION (a
+>   reification BRIDGE) are the poor composers — they live in SEPARATE productions, not on the ONE evaluation
+>   (`chain_sip` over rules under a policy). Every PASS shares that one mechanism; every gap involves a
+>   mechanism outside it.** So the fix is the design target from [[epistemic-closure-under-composition]]:
+>   bring band/scope/negation onto ONE fold as composable ANNOTATIONS, not N mode-specific drivers.
+>
+> **⭐ ARCHITECTURE PROBE DONE 2026-07-23 (`docs/design/composition_architecture.md`) — the fix is at the
+> PRODUCERS, NOT `chain_sip`.** Question raised: is `chain_sip` a hardcoded imperative Python procedure we
+> should convert to firmware / event-based? FINDING: NO — `chain_sip` is ALREADY firmware (ISA `_frame_program`
+> per closure + `_ISA_READER.match` + ControlMachine suspend/resume for NAC = already event-based at the
+> negation boundary) and ALREADY carries band (match SCORE via `OVERLAY_BAND`) + scope (overlay) as composable
+> ANNOTATIONS on the ONE evaluation. PROVEN: a hand-built banded `has_not` reasons through `?x is safe when ?x
+> has_not mane` and carries its band (0.75) — **the evaluator composes degree × negation with no problem.** The
+> LEAK/GAPS are at the PRODUCERS that don't emit into that annotated representation: (1) hedge∘negation leaks at
+> the INTAKE FOLD (grammar hclause has a hedged-POSITIVE fold but no negated counterpart → emits nothing
+> banded); (2) causation∘hedge/negation drops at the REIFICATION BRIDGE (crisp handles don't carry the
+> proposition's band). The "one evaluation, N annotations" principle is CORRECT and already realized in the
+> reader; the gap is producers bypassing it.
+>
+> **⭐⭐ `degree ∘ negation` CLOSED 2026-07-23 (shipped 1044 green) — closure headline now LEAK 0.** The fix was
+> AT THE PRODUCER, exactly as the probe predicted: `grammar._hedge_rules` now emits a hedged-DENY variant — a
+> banded `has_not` FORK (per hedge word, guarded by the `neg` slot, binding the negative predicate via the same
+> `neg_of` pairing the crisp deny fold uses). `the lion generally has no mane` → banded `has_not` @ 0.75 (no
+> positive, no crisp ink); the demand reader composes it for FREE (the band rides the match score — the
+> evaluator needed NO change, validating the probe). The committed gate `tests/test_epistemic_closure.py` cell
+> `hedge x negation` flipped LEAK→PASS + `KNOWN_LEAKS` now EMPTY (the ratchet, reviewed at the diff). Key
+> renamed `.hdeny` (not `.deny`) to keep the crisp-deny COLLAPSE invariant (==1 rule) exact. **Audit now PASS 11
+> / REFUSED 7 / LEAK 0.**
+>
+> **⭐⭐ `suppose ∘ hedge` CLOSED 2026-07-23 (shipped 1046 green) — REFUSED→PASS, audit now PASS 12 / REFUSED 6
+> / LEAK 0.** Two-part PRODUCER fix, the evaluator untouched (validating the architecture probe again):
+> (1) `suppose_surface.parse_suppose_banded` + `_strip_hedge` — the hedge word was read as the PREDICATE
+> (`suppose lion generally is hungry` → the garbage triple `(lion, generally, is)`), so the assumption never
+> held; now the hedge is stripped and its band returned. (2) `suppose(assumption_bands=…, policy=…)` — a hedged
+> assumption is entertained as a FORK (never a certain in-scope pencil, which `chain._rel_env` reads as ∅-env
+> certainty BY DESIGN), so under a banded stance the band composes through the rules into the prediction and
+> CONFIRM wears it (`result.band` → `band_word`); under a crisp stance the fork is invisible (`no (assumed)`, no
+> new leak). Certain assumptions stay in-scope pencils; a mixed suppose is per-assumption correct. Gate cell
+> `suppose x hedge` flipped REFUSED→PASS at the diff. Design: `docs/design/composition_architecture.md` §GAPS.
+>
+> **⭐ `causation ∘ {hedge,negation}` — PRODUCER FIXED, cell stays REFUSED on a SEPARATE blocker.**
+> `cause_surface._clause` was the producer bug: it read the negator as the object (`has no mane` →
+> `(lion, has, no)`) and the hedge as the predicate, so the reification HANDLE never matched the proposition.
+> Now it folds `S V no|not O` → `neg_pred` (matching the fact route's `has_not`) and strips a hedge word (the
+> band lives on the fork the fact route pens, which the banded reader composes). **Antecedent-first, BOTH
+> compositions now REASON** on the grammar route (locked:
+> `test_propositional_cause_over_a_negated_antecedent_reasons`, `…_over_a_hedged_antecedent_carries_the_band`).
+> The audit cells use LINK-FIRST order, still blocked by the known separate issue: a `that A causes that B`
+> stated before its antecedent mints a THIRD co-named `lion` node (the handle's `subj`, interned by name, no
+> `denotes` link to the grammar fold's entity), so the reify join misses it (measured: 3 `lion` nodes). That is
+> the node-identity/canonicalization arc (the derivation-frame boundary handles token↔entity, not an
+> independently-minted handle node) — the producer fix is the PREREQUISITE for those cells once the
+> order-dependence closes.
+>
+> **NEXT candidates (none forced):** (a) the LINK-FIRST order-dependence / handle-node canonicalization (would
+> flip the two remaining causation cells + is a real correctness lever — see the derivation-frame arc); (b) the
+> `hedged rule` cell (degree ON the conditional itself — a surface not yet built); (c) step back to the flip/
+> grammar surface. Honest nuance, NOT blocking: the annotation SET the reader composes is threaded as Python
+> params/overlays, so a genuinely NEW axis still edits `chain_sip` — making that OPEN/data-driven is a separate
+> larger arc.
+
+## ▶ PRIOR ARC (2026-07-23) — LOCALITY BOUNDARY → REACTIVE CORE (COMPLETE)
 
 > **This re-orientation supersedes the flip-default grind as the top goal** (that grind is now a
 > DOWNSTREAM BENEFICIARY + a measurement, not the driver). It came out of a design conversation
@@ -28,7 +139,28 @@
 > (no assistant commits; domain logic ONLY in banks; strategies are DECLARED data; correctness before
 > perf). Memory: [[derivation-frame-consolidation]], [[reactive-core-north-star]].
 
-### ═══ FRESH-SESSION START HERE (2026-07-23 end — suite 1022 green, flip 32/1022) ═══
+### ═══ PRIOR-SESSION DETAIL (2026-07-23 — the reactive-core arc + flip surface; history, NOT the entry point) ═══
+
+**⭐⭐ RELATION-NAME-AS-ARGUMENT (dual-categorize relations) LANDED 2026-07-23 (shipped 1023 green; flip
+32→26, −6) — a whole cluster dissolved by ONE lexicon change.** ROOT CAUSE (the memory's "deferred-handler
+duality" label was STALE, pre-STEP-A): the causal/counterfactual flip failures were `causes propagates has`
+(a `define schema` meta-fact) being UNRECOGNIZED on the grammar route — `R is a relation` gave a word only the
+`transitive` category, so a relation NAME could not stand in a NOUN (subject/object) slot when TALKED ABOUT, so
+the schema never fired and the effect stayed underivable. FIX: `grammar_intake.sync_vocabulary` now
+dual-categorizes every declared relation as `[transitive, noun]` (a relation is nameable), including
+grammar-file relations already in the lexicon (e.g. loudon's `has is a transitive` gains `noun`). ADDITIVE +
+unambiguous: a normal S-V-O still has one clause parse (`np np np` is not a clause), so `lion has mane` still
+reads `has` as the verb — verified ZERO reasoning/ambiguity regression across all 1022 tests (only 3
+exact-category-pin tests in test_grammar_intake needed updating, and the explicit-VERB-category invariant is
+preserved: intransitive never becomes transitive). Removed 6 flip failures (causal_propagation −3,
+counterfactual −2, existential −1), ZERO new flip failures. Locked:
+`test_grammar_shipped_agreement.py::…[relation-name-as-argument-causal-propagation]`. The 2 residual
+causal-cluster failures are edge cases, NOT this gap: `focus` collides with loudon's `focus is a imperative`,
+and the link-first `that A causes that B` order-independence (a known separate issue).
+
+**SESSION FLIP ARC: 43 → 26** across three grammar fixes (declarative `X prep Y` −11, interrogative `X prep Y`
++0/habitability, relation-as-noun −6). Memory: [[flip-default-blocked-by-greedy-grammar]].
+
 
 **⭐⭐ `X prep Y` GRAMMAR SURFACE — BOTH HALVES LANDED 2026-07-23 (shipped 1022 green; flip 43→32).** Two
 predicating-preposition surfaces added to `corpus/loudon_grammar.cnl`, each reusing an existing fold, each

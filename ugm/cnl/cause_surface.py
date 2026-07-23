@@ -22,17 +22,35 @@ predicate-faithful (the `have`->`has` fold), reusing the same clause shapes as `
 """
 from __future__ import annotations
 
+from ..vocabulary import neg_pred
 from .forms import normalize_lexical
+from .suppose_surface import _strip_hedge
 
 Triple = tuple[str, str, str]
 _SEP = " causes that "
 _LEAD = "that "
+_NEGATORS = ("no", "not")
 
 
-def _clause(text: str) -> Triple | None:
+def _clause(text: str, hedges: dict[str, float] | None = None) -> Triple | None:
     """One assertion-shaped clause -> `(subj, pred, obj)`, predicate-faithful (`have`->`has`, `is a`->
-    `is_a`). Identical shape menu to `suppose_surface._clause`."""
+    `is_a`). Shape menu shared with `suppose_surface`.
+
+    CAUSATION ∘ {NEGATION, DEGREE} composition (2026-07-23, docs/design/composition_architecture.md
+    §GAPS). A clause may NEGATE (`that lion has no mane causes …`) or HEDGE (`that lion generally is
+    hungry causes …`); both were mis-read by the bare S-P-O menu (the negator became the object, the
+    hedge became the predicate), so the HANDLE never matched the proposition the reification bridge
+    needs it to. Now: a negator between predicate and object flips the predicate to `neg_pred` (so the
+    handle carries `has_not`, matching `the lion has no mane`), and a hedge word is stripped (the band
+    rides the fork the fact route pens, not the crisp handle — the banded reader composes it). Same
+    producer-fix shape as the hedge/negation surfaces one layer along."""
     toks = normalize_lexical(text).replace("?", " ").lower().split()
+    if hedges:
+        _band, toks = _strip_hedge(toks, hedges)           # DEGREE: the band lives on the fork, not here
+    # NEGATION: `S V no|not O` -> the negative predicate (`has no mane` -> `has_not mane`), faithful to
+    # the fact route's `neg_pred` representation so the reify bridge's `?s ?p ?o` premise matches.
+    if len(toks) >= 4 and toks[2] in _NEGATORS:
+        return (toks[0], neg_pred(toks[1]), toks[3])
     if len(toks) >= 4 and toks[1] == "is" and toks[2] in ("a", "an"):
         return (toks[0], "is_a", toks[3])                  # S is a O   -> a KIND
     if len(toks) >= 3 and toks[1] == "is":
@@ -44,10 +62,12 @@ def _clause(text: str) -> Triple | None:
     return None
 
 
-def parse_cause(text: str) -> tuple[Triple, Triple] | None:
+def parse_cause(text: str, hedges: dict[str, float] | None = None
+                ) -> tuple[Triple, Triple] | None:
     """Recognize `that A causes that B` into `(antecedent, consequent)` triples, else `None`. The `that`
     nominalizer + the ` causes that ` separator mark the two propositions; a bare `A causes B` (no
-    `that`) is NOT this surface — it is entity-level causation, left to the fact route."""
+    `that`) is NOT this surface — it is entity-level causation, left to the fact route. `hedges` (the
+    active lexicon) lets a clause carry a hedge adverb — stripped so the handle matches the banded fork."""
     low = text.strip().lower()
     if not low.startswith(_LEAD) or _SEP not in low:
         return None
@@ -57,7 +77,7 @@ def parse_cause(text: str) -> tuple[Triple, Triple] | None:
     if idx < 0:
         return None
     a_text, b_text = head[:idx], head[idx + len(_SEP):]
-    a, b = _clause(a_text), _clause(b_text)
+    a, b = _clause(a_text, hedges), _clause(b_text, hedges)
     return (a, b) if (a and b) else None
 
 

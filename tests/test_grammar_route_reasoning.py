@@ -127,6 +127,39 @@ def test_a_propositional_cause_link_alone_does_not_assert_the_consequent(gkb):
     assert ingest(kb, rules, "is cat scared").answer == ["no (assumed)"]
 
 
+def _adj_gkb():
+    """A grammar KB with the copula adjectives declared (so `is safe`/`is hungry`/`is dangerous` are
+    properties, not open nouns) — the config the epistemic-closure causation cells run under."""
+    g = AttrGraph()
+    gi.declare_grammar(g, CORPUS.read_text(encoding="utf-8")
+                       + "\nsafe is a adj\nhungry is a adj\ndangerous is a adj\n", open_class="noun")
+    return g, []
+
+
+def test_propositional_cause_over_a_negated_antecedent_reasons():
+    # CAUSATION ∘ NEGATION (docs/design/composition_architecture.md §GAPS). A `that A causes that B`
+    # whose antecedent is a NEGATION now folds the handle to the faithful `has_not` predicate — the
+    # producer bug was `_clause` reading `(lion, has, no)` (the negator as object), so the reify bridge
+    # never matched the fact route's `has_not`. Antecedent-first: link-first is blocked by the SEPARATE
+    # handle-node-duplication order issue (a third co-named `lion` node with no `denotes` link), not the
+    # composition axis.
+    kb, rules = _adj_gkb()
+    _ingest_all(kb, rules, ["the lion has no mane",
+                            "that lion has no mane causes that lion is safe"])
+    assert ingest(kb, rules, "is lion safe").answer == ["yes"]
+
+
+def test_propositional_cause_over_a_hedged_antecedent_carries_the_band():
+    # CAUSATION ∘ DEGREE (composition_architecture.md §GAPS). A hedged antecedent (`that lion generally
+    # is hungry causes …`) now strips the hedge in `_clause` so the handle matches the banded FORK the
+    # fact route pens; under a banded stance the band rides the reification bridge into the consequent.
+    # Antecedent-first (same order caveat as the negation case).
+    kb, rules = _adj_gkb()
+    _ingest_all(kb, rules, ["lion generally is hungry",
+                            "that lion generally is hungry causes that lion is dangerous"])
+    assert ingest(kb, rules, "is lion dangerous", policy=BANDED).answer == ["likely"]
+
+
 def test_a_define_schema_materialises_over_the_grammar_route(gkb):
     # THE FORWARD-MATCH CONTROL-GUARD case. `define schema ?r is transitive : …` then the trigger fact
     # `ancestor is transitive` (folded on the grammar route) fires the schema meta-bank FORWARD to

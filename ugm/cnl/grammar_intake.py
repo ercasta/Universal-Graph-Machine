@@ -243,11 +243,29 @@ def sync_vocabulary(kb) -> bool:
     # `forms.relation_forms` rebuilds from the graph per batch. Union means a KB that was loaded
     # from a corpus AND then talked to keeps both halves of its vocabulary.
     known = {**{r: RELATION_CATEGORY for r in declared_relations(kb)}, **declared_vocabulary(kb)}
-    fresh = sorted(w for w, _c in known.items() if w and w not in gram.lexicon)
-    if not fresh:
+    changed = False
+    for w, cat in known.items():
+        if not w:
+            continue
+        existing = gram.lexicon.get(w)
+        # A DECLARED RELATION can also stand in NOUN position — when the relation itself is TALKED
+        # ABOUT, its NAME is a subject/object, not a verb: `causes propagates has` (a schema trigger /
+        # meta-fact) reads `causes` and `has` as arguments and `propagates` as the verb. Without the
+        # noun reading, a relation name in argument position is UNRECOGNIZED (the schema / causal-
+        # propagation grammar-route gap — 6 flip failures). Additive and not ambiguous in practice: a
+        # normal S-V-O has only one clause parse (`np np np` is not a clause), so `lion has mane` still
+        # reads `has` as the verb; the noun reading only makes the relation usable as an ARGUMENT.
+        wants_noun = (cat == RELATION_CATEGORY)
+        if existing is None:                       # a NEW word — the KB-declared relation / L0 vocab
+            gram.lexicon[w] = [cat, "noun"] if wants_noun else [cat]
+            changed = True
+        elif wants_noun and "noun" not in existing:
+            # a relation ALREADY in the lexicon (a grammar-file `has is a transitive`): ADD the noun
+            # reading so its name can be an argument, WITHOUT disturbing its declared verb category.
+            gram.lexicon[w] = existing + ["noun"]
+            changed = True
+    if not changed:
         return False
-    for r in fresh:
-        gram.lexicon[r] = [known[r]]
     kb.registers[GRAMMAR_REGISTER] = compile_grammar(gram, open_class=banks.open_class)
     return True
 

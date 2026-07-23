@@ -999,6 +999,17 @@ def _hedge_rules(gram: Grammar, i: int, d: dict, z: str, base, obj_prem, obj_tok
             f"carries the hedge word — without it there is no word to take a band from")
     out: list[Rule] = []
     words = sorted({w for w, cs in gram.lexicon.items() if "hedge" in cs} | set(gram.hedge_bands))
+    # DEGREE ∘ NEGATION composition (2026-07-23, docs/design/composition_architecture.md). This
+    # declaration hedges the POSITIVE (nac'd `unless neg`); a hedged NEGATION (`the lion generally has
+    # no mane`) needs the NEGATIVE predicate in the fork — a banded `has_not`, which the demand reader
+    # then composes for free (the band rides the match score; PROVEN a rule over a banded `has_not`
+    # carries its band). So when this declaration is the neg-nac'd one, ALSO emit a hedged-DENY rule per
+    # word: fires WHEN `neg` (not `unless`), binds the negative predicate via the SAME `neg_of` pairing
+    # the crisp `deny` fold uses (`?w interprets ?t`, `?t neg_of ?wn`), banded at the word's degree.
+    # Before, a hedged negation parsed but committed NOTHING (routed `fact`, no ink/no band) — the
+    # `hedge ∘ negation` LEAK the epistemic-closure gate pins.
+    hedges_negation = any(n.p == "neg" for n in nacs)
+    neg_only_nacs = [n for n in nacs if n.p != "neg"]        # the deny variant fires WHEN neg, not unless
     for w in words:
         band = hedge_band_of(gram, w)
         if band is None:
@@ -1010,6 +1021,22 @@ def _hedge_rules(gram: Grammar, i: int, d: dict, z: str, base, obj_prem, obj_tok
             # THIS word separately, which is what lets the two coexist.
             lhs=[*base, Pat("?p", hslot, f"{w}?"), *pred_prem, *obj_prem], nac=nacs,
             rhs=[Pat("?s", head_pred, obj_tok)],
+            bands=[Band(var="<hypothesis>?", key=LIKELINESS, degree=band, scope=("?s",))]))
+        if not hedges_negation:
+            continue
+        # the hedged-DENY counterpart: a fork holding the NEGATIVE predicate, guarded by `neg` present.
+        if pred in names:                  # slot-filled predicate -> bind its negative via `neg_of`
+            neg_prem = [Pat("?p", pred, "?w"), Pat("?w", INTERPRETS, "?t"),
+                        Pat("?t", NEG_OF, "?wn")]
+            neg_head = "?wn"
+        else:                              # fixed predicate -> the string-derived negative
+            neg_prem, neg_head = [], neg_pred(pred)
+        out.append(Rule(
+            key=f"fold.hedge.{i}.{z}.{w}.hdeny",   # NOT `.deny` — the crisp deny COLLAPSE count (==1) is
+            lhs=[*base, Pat("?p", hslot, f"{w}?"), Pat("?p", "neg", "?ng"),   # a separate invariant; this
+                 *neg_prem, *obj_prem], nac=neg_only_nacs,                    # is the per-hedge-word banded
+            # (a hedged-deny rule per HEDGE word — bounded by the hedge vocabulary, not the lexicon)
+            rhs=[Pat("?s", neg_head, obj_tok)],
             bands=[Band(var="<hypothesis>?", key=LIKELINESS, degree=band, scope=("?s",))]))
     return out
 

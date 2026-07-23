@@ -240,6 +240,90 @@ def j_cond_over_hedge(kb, out, before, after):
     return UNKNOWN, f"premise band={prem}, ask -> {ans or out.kind}"
 
 
+def j_suppose_negation(kb, out, before, after):
+    """scope(suppose) OF negation: `suppose lion has no mane : lion is safe` with `?x is safe when ?x
+    has no mane`. PASS if the counterfactual reasons over the NEGATED assumption (the `has_not` premise
+    satisfies the rule under the hypothesis) -> yes, inking nothing. A REFUSED means the suppose surface
+    would not take the negated assumption; a `yes` that inks is a LEAK."""
+    ans = _answer(out)
+    if _committed(before, after):
+        return LEAK, f"a counterfactual committed ink: {_committed(before, after)}"
+    if out.kind != "suppose":
+        return REFUSED, f"suppose surface did not take the negation (kind={out.kind}) — closed"
+    if ans == ["yes"]:
+        return PASS, "counterfactual reasoned over the ¬-assumption -> yes (no ink)"
+    return REFUSED, f"entertained but did not derive ({ans}) — conservative, closed, not reasoned"
+
+
+def j_suppose_hedge(kb, out, before, after):
+    """scope(suppose) OF degree: `suppose lion generally is hungry : lion is dangerous`, banded ask.
+    The SOUND result carries the assumption's band into the prediction (a band word). A certain `yes`
+    from a 0.75 assumption is a LEAK; a conservative `no (assumed)` is CLOSED but the hedge was DROPPED
+    (not reasoned) — the composition gap this audit exists to surface."""
+    ans = _answer(out)
+    if _committed(before, after):
+        return LEAK, f"a counterfactual committed ink: {_committed(before, after)}"
+    if out.kind != "suppose":
+        return REFUSED, f"suppose surface did not take the hedge (kind={out.kind}) — closed"
+    if ans == ["yes"]:
+        return LEAK, "certain `yes` from a hedged (0.75) assumption — status not preserved"
+    if _is_band_word(ans):
+        return PASS, f"assumption band propagated into the prediction -> {ans}"
+    return REFUSED, f"hedge DROPPED, answered conservatively ({ans}) — closed, not reasoned"
+
+
+def j_causation_hedge(kb, out, before, after):
+    """causation OF degree: `that lion generally is hungry causes that lion is dangerous` + the hedged
+    antecedent, banded ask. SOUND = the band rides the causal link into the consequent (a band word).
+    A certain `yes`/ink is a LEAK; a conservative `no (assumed)` is CLOSED but the band was DROPPED at
+    the reification bridge (the propositional-cause handle does not carry the fork)."""
+    ans = _answer(out)
+    if ("lion", "is", "dangerous") in set(gi.facts(kb)):
+        return LEAK, "derived `dangerous` as certain INK from a hedged causal antecedent"
+    if ans == ["yes"]:
+        return LEAK, "certain `yes` — the band was lost across the causal link"
+    if _is_band_word(ans):
+        return PASS, f"band rode the causal link into the consequent -> {ans}"
+    return REFUSED, f"band DROPPED at the cause bridge, answered conservatively ({ans}) — closed, not reasoned"
+
+
+def j_causation_negation(kb, out, before, after):
+    """causation OF negation: `that lion has no mane causes that lion is safe` + `lion has no mane`.
+    SOUND = the negated antecedent satisfies the causal link -> `safe` derived (yes). A conservative
+    `no (assumed)` is CLOSED but the negation was NOT consulted at the reification bridge (the handle
+    does not carry the `has_not`)."""
+    ans = _answer(out)
+    derived = ("lion", "is", "safe") in set(gi.facts(kb))
+    if ans == ["yes"] and derived:
+        return PASS, "negated antecedent satisfied the causal link -> safe derived"
+    if ans == ["yes"]:
+        return LEAK, "answered yes but nothing derived in scope"
+    return REFUSED, f"negation NOT consulted at the cause bridge ({ans}) — closed, not reasoned"
+
+
+def j_negation_question(kb, out, before, after):
+    """negation UNDER ask force: `is lion not hungry` with `lion is hungry` known. Force must be kept
+    (no ink). SOUND reasoning consults the positive to answer the negated question. CLOSED if it keeps
+    ask force; LEAK only if it commits or loses force."""
+    ans = _answer(out)
+    if _committed(before, after):
+        return LEAK, f"a question committed: {_committed(before, after)}"
+    if out.kind not in ("answer", "question"):
+        return LEAK, f"routed `{out.kind}` — a negated question lost its ask force"
+    return PASS, f"kept ask force, committed nothing -> {ans}"
+
+
+def j_hedged_rule(kb, out, before, after):
+    """degree ON the conditional itself: `generally ?x is dangerous when ?x is hungry` — a HEDGED RULE
+    (the rule holds usually, not always). No surface yet: REFUSED (unrecognized/rule) is CLOSED; a
+    committed ink or a mis-mapped fact is a LEAK."""
+    if _committed(before, after):
+        return LEAK, f"a hedged rule committed ink: {_committed(before, after)}"
+    if out.kind in ("unrecognized", "ambiguous", "rule"):
+        return REFUSED, f"declined/plain-rule ({out.kind}) — closed (the hedge-on-rule is not surfaced)"
+    return LEAK, f"routed `{out.kind}` — mis-mapped a hedged rule"
+
+
 def j_deriv_depth(kb, out, before, after):
     """DERIVATIONAL depth: a chain of N rules, ask the tail. This is the axis the subgoal stack and
     the fixpoint already cover — the memento records a de-recursed 601-deep NAF closure, so depth
@@ -310,6 +394,30 @@ CASES = [
          "is lion dangerous", j_cond_over_hedge, extra=ADJ, policy=BANDED_POLICY),
     Case("hedge x question", "composition", "force(ask) o degree",
          ["the lion has a mane"], "is lion generally has mane", j_hedged_question),
+
+    # ---- WIDENED AUDIT 2026-07-23: the untested cells over the BUILT axes ----
+    # The pattern under test: does an axis SURVIVE composition, or is it silently dropped? PASS =
+    # reasoned over (band propagates, negation consulted). REFUSED = closed but the axis was DROPPED
+    # (answered conservatively). LEAK = a silent mis-map. Reveals that DEGREE and PROPOSITIONAL
+    # CAUSATION are the poor composers — they live in separate productions (interpretation fork /
+    # reification bridge), not on the one fold, so their annotation is lost where they meet another axis.
+    Case("suppose x negation", "composition", "scope(suppose) o negation",
+         ["?x is safe when ?x has no mane"],
+         "suppose lion has no mane : lion is safe", j_suppose_negation, extra=ADJ),
+    Case("suppose x hedge", "composition", "scope(suppose) o degree",
+         ["?x is dangerous when ?x is hungry"],
+         "suppose lion generally is hungry : lion is dangerous", j_suppose_hedge,
+         extra=ADJ, policy=BANDED_POLICY),
+    Case("causation x hedge", "composition", "causation o degree",
+         ["that lion generally is hungry causes that lion is dangerous", "lion generally is hungry"],
+         "is lion dangerous", j_causation_hedge, extra=ADJ, policy=BANDED_POLICY),
+    Case("causation x negation", "composition", "causation o negation",
+         ["that lion has no mane causes that lion is safe", "the lion has no mane"],
+         "is lion safe", j_causation_negation, extra=ADJ),
+    Case("negation x question", "composition", "force(ask) o negation",
+         ["the lion is hungry"], "is lion not hungry", j_negation_question, extra=ADJ),
+    Case("hedged rule", "composition", "degree o conditionality (on the rule)",
+         [], "generally ?x is dangerous when ?x is hungry", j_hedged_rule, extra=ADJ),
 
     # ---- DEPTH: does composition hold at ARBITRARY depth, not just pairwise? ----
     # Two OPPOSITE axes. Derivational depth (chaining/subgoals) is mechanically arbitrary; the
