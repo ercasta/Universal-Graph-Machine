@@ -97,8 +97,23 @@ unsafe):**
   trigger→reaction (derive / retract / call), a per-predicate `reactive` opt-in (open_preds-shaped, so
   derivation pushes only where declared — laziness preserved), reactions fired into a STEP-A frame (canonical
   + guarded `_facts_matching`). Push/pull unify at the ONE dispatch (retiring the guard-divergence class).
-  NEXT = the minimal probe (§reactive_core.md: generalize reconsider to fire ONE declared DERIVE reaction +
-  the recall-autofire re-break). NOT yet built.
+- **⭐ REACTIVE-DERIVE PROBE GO 2026-07-23 (`bench/spike_reactive_derive.py`).** Generalized reconsider's
+  front half (DIRTY_REG→detach→_affected) with a DERIVE reaction (chain_sip): a `reactive` predicate's
+  consequence materialized proactively at the next committed act with NO query (data drove it), non-reactive
+  stayed lazy-but-demand-derivable, firing idempotent. SHARPER SAFETY FINDING: the reactive gate avoids
+  recall-autofire BY CONSTRUCTION — it is PRESENCE-triggered (fires on a positive materialization), not
+  MISS-triggered (recall-autofire fired on an absence and filled it → self-reinforced), so the
+  self-reinforcement channel does not exist; termination follows from monotonicity. STEP B's contract is
+  smaller than feared.
+- **⭐⭐ STEP B BUILT + LANDED 2026-07-23 (shipped 978 green — 973+5).** `ugm/reactive.py`: `react(kb,rules)`
+  (the DERIVE half of the FiringGate) wired into `ask_goal`'s commit gate BEFORE `reconsider` (shares the
+  dirty set; reconsider detaches). A predicate declared reactive (`declare_reactive`/`reactive_preds`, a
+  `kb.registers` set) has its consequence materialized demand-driven (`chain_sip`) at the next committed act
+  when its trigger landed. INERT by default (early-returns with no reactive preds → shipped unaffected).
+  `tests/test_reactive.py` (5): proactive-materialize-without-query, non-reactive-stays-lazy, demand-gated,
+  idempotent-after-consume, mutually-reactive p↔q CYCLE DRAINS (recall-autofire re-break). NEXT = STEP C
+  (unify retract+derive reactions under one gate; a `<reactive>` marker-fact / CNL surface; fire into a
+  STEP-A frame; push/pull unification), or steer.
 
 **HOW THE FLIP + SURFACE FIT NOW (downstream, orthogonal):** the flip debt is **43/973** (measured
 2026-07-23). STEP A retires the IDENTITY subset. The DOMINANT remaining cluster is SURFACE-gated (`X prep

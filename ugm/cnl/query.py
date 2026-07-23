@@ -624,10 +624,13 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     _warn_case_folded_mismatch(graph, q)             # feedback #3: no silent case-fold false negative
     _warn_name_split_join(graph, q)                  # feedback #8a: no silent name-split join (read side)
 
-    if commit:                                       # RECONSIDER (docs/design/reconsider_design.md, D1):
-        from ..reconsider import reconsider          # settle marked assumption-staleness BEFORE answering
-        reconsider(graph, rules, policy=policy_,     # (zero-cost when nothing was marked; commit=False
-                    focus_scope=focus_scope)         # keeps its no-mutation promise and may see stale ink)
+    if commit:                                       # THE FIRING GATE (docs/design/reactive_core.md):
+        from ..reactive import react                 # (1) DERIVE — proactively materialize the consequence
+        react(graph, rules, policy=policy_,          # of any DECLARED-reactive predicate whose trigger just
+              focus_scope=focus_scope)               # landed (zero-cost when nothing is reactive/dirty)
+        from ..reconsider import reconsider          # (2) RETRACT — settle marked assumption-staleness
+        reconsider(graph, rules, policy=policy_,     # (both read the ONE dirty set; reconsider detaches it;
+                    focus_scope=focus_scope)         # commit=False keeps the no-mutation promise)
 
     def concept_key(p: str, o: str | None) -> str:
         # Openness is a property of the CONCEPT: for a copula query (`is S C`) it is the object

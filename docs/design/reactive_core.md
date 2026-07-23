@@ -40,7 +40,20 @@ absence it leaned on is now filled. The reactive core generalizes on two axes:
    `open_preds`-shaped opt-in the plan named; it keeps eager exhaustive completion OUT while letting a few
    declared predicates push.
 
-## STEP B — the firing gate, as a reusable contract (small, mostly formalization)
+## STEP B — BUILT + LANDED 2026-07-23 (shipped 978 green)
+
+`ugm/reactive.py`: `react(kb, rules)` — the DERIVE half of the FiringGate, wired into `ask_goal`'s commit
+gate BEFORE `reconsider` (reads the shared dirty set without detaching; reconsider detaches). For every
+affected grain (`reconsider._affected`) whose predicate is DECLARED reactive (`declare_reactive` /
+`reactive_preds`, a `kb.registers[REACTIVE_REG]` set), it materializes the grain demand-driven
+(`chain_sip`, monotone). Zero-cost and INERT when nothing is reactive/dirty — shipped 973→978 green (the +5
+are `tests/test_reactive.py`), gate on every committed ask but early-returns. `tests/test_reactive.py`:
+reactive materializes proactively at the committed ask (no query), non-reactive stays lazy-but-derivable,
+demand-gated (nothing before an act), idempotent after the dirty set is consumed, and a mutually-reactive
+`p<->q` CYCLE DRAINS rather than loops (the recall-autofire re-break, cycle form). The reaction-kind
+generalization (retract/derive unified) + the `<reactive>` marker surface + frame integration are STEP C.
+
+## STEP B — the firing gate, as a reusable contract (small, mostly formalization) [DESIGN, realized above]
 
 - Lift `reconsider`'s safety properties into a named `FiringGate` contract: (i) reactions fire demand-gated
   (at a committed act), never eagerly; (ii) the event set is detached before firing (regress guard); (iii) a
@@ -84,3 +97,23 @@ Generalize `reconsider` to fire ONE declared DERIVE reaction, demand-gated, and 
 If it holds, STEP C is "wire the declared reaction kinds through the generalized gate"; if the
 derive-reaction re-break fails, we learn the monotone argument does not extend past NAF and the gate needs
 more than `reconsider` provides.
+
+## Probe RESULT — GO (`bench/spike_reactive_derive.py`, 2026-07-23)
+
+Generalized `reconsider`'s front half (`DIRTY_REG` → detach → `_affected`) with a DERIVE reaction
+(`chain_sip` to materialize a reactive grain), orchestrating the existing primitives exactly as the build
+would wire them. Confirmed: (1) a `reactive` predicate's consequence is MATERIALIZED at the next committed
+act with NO query for it, while a non-reactive predicate stays not-materialized-but-demand-derivable
+(laziness preserved); (2) firing is idempotent/terminating (first fire 1 grain, second 0 — the detach guard).
+
+**A SHARPER SAFETY FINDING the probe made concrete: the reactive DERIVE gate avoids recall-autofire BY
+CONSTRUCTION.** The recall-autofire scar was a MISS-triggered mechanism (auto-recall on a demand-MISS →
+manufactures the very fact whose absence triggered it → self-reinforcing). The reactive gate is
+PRESENCE-triggered (a POSITIVE materialization enqueues a reaction), so the trigger is never an absence the
+reaction can fill — the self-reinforcement channel does not exist. Idempotence then follows from
+monotonicity: a re-materialized fact is a no-op that enqueues no new grain, so a reactive CYCLE (`P⇒Q`,
+`Q⇒P`, both reactive) drains rather than loops. (Left for the BUILD's re-break: the explicit P⇄Q cycle test,
+and a NAF reaction under the gate — both expected to terminate by the same monotone argument.)
+
+So STEP B's contract is even smaller than feared: presence-triggering + detach-before-fire + monotone
+materialization already give soundness; the gate mostly FORMALIZES what the probe ran.
