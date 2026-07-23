@@ -22,42 +22,47 @@ from __future__ import annotations
 from .attrgraph import AttrGraph
 from .reconsider import DIRTY_REG, _affected
 from .rule_control import active_rules
+from .vocabulary import COPULA
 
-REACTIVE_REG = "reactive_preds"        # kb.registers key: set[str] of predicate names declared reactive
+REACTIVE_REG = "reactive_preds"        # kb.registers key: programmatic set[str] of reactive predicate names
+REACTIVE_MARK = "reactive"             # the declaration-as-DATA object: a fact `P is reactive`
 
 
 def declare_reactive(kb: AttrGraph, pred: str) -> None:
-    """Mark `pred` REACTIVE: once its trigger reaches a rule head, a materialization of that trigger
-    proactively DERIVES the consequence at the next committed act. Opt-in — an undeclared predicate stays
-    pull-only (demand-driven). (Programmatic for now; a `<reactive>` marker-fact / CNL surface is a later
-    slice — the declaration is DATA, so it belongs in the KB, not code.)"""
+    """Mark `pred` REACTIVE programmatically (a register set) — a convenience for tests/embedding. The
+    VISION-TRUE declaration is DATA: an ordinary fact `P is reactive` in the KB (read by `reactive_preds`),
+    so a corpus/session declares reactivity in its own text, not in Python. Both are honoured."""
     kb.registers.setdefault(REACTIVE_REG, set()).add(pred)
 
 
 def reactive_preds(kb: AttrGraph) -> set[str]:
-    """The predicate names this KB has declared reactive (empty ⇒ the whole KB is pull-only, the default)."""
-    return kb.registers.get(REACTIVE_REG) or set()
+    """The predicate names this KB has declared reactive — read as DATA (`P is reactive` facts, the
+    vision-true form) UNION any programmatic register set. Empty ⇒ the whole KB is pull-only (the default).
+    A declaration is an ordinary fact, so it arrives through the same intake as any other and needs no
+    special loader — `P is reactive` names the predicate P whose consequence should push."""
+    from .chain import _facts_matching, ById
+    out = set(kb.registers.get(REACTIVE_REG) or ())
+    for s, _o in _facts_matching(kb, COPULA, None, REACTIVE_MARK):
+        name = kb.name(s.node_id) if isinstance(s, ById) else s
+        if name:
+            out.add(name)
+    return out
 
 
-def react(kb: AttrGraph, rules, *, policy=None, focus_scope=None) -> int:
-    """The DERIVE half of the FiringGate, run at the committed-act gate BEFORE `reconsider` (which detaches
-    the dirty set). Reads the dirty grains (does NOT detach — reconsider owns that), closes them over the
-    bank's body->head edges (`reconsider._affected`), and for every affected grain whose predicate is
-    DECLARED reactive materializes it demand-driven (`chain.chain_sip` — monotone, persists). Zero-cost when
-    nothing is reactive or nothing is dirty. Returns the number of grains fired.
+def _derive(kb: AttrGraph, active, affected: set, *, policy=None, focus_scope=None, max_rounds=1000) -> int:
+    """The DERIVE dispatch over a PRE-COMPUTED affected closure: for every affected grain whose predicate
+    is DECLARED reactive, materialize it demand-driven (`chain.chain_sip` — monotone, persists). Operates
+    on the caller's already-closed `affected` + already-detached dirty set, so the unified `fire` shares
+    both with the RETRACT half instead of recomputing them. Zero-cost when nothing is reactive.
 
-    Ordering: react (derive) precedes reconsider (retract) so a proactively-derived fact can fill an absence
-    that reconsider then correctly retracts a stale conclusion over — derive-then-recheck."""
+    A reactive derivation that EXHAUSTS its fuel raises a HELP-FLARE (`flare.raise_flare`) instead of
+    truncating silently — the robustness soft spot closed: the reactive push now surfaces a non-settling
+    grain as a durable, reactable event rather than a quiet partial result."""
     reactive = reactive_preds(kb)
     if not reactive:
         return 0
-    dirty = kb.registers.get(DIRTY_REG)
-    if not dirty:
-        return 0
-    from .chain import chain_sip
+    from .chain import chain_sip, _Exhaustion
     from .cnl.query import _reify_rules
-    active = active_rules(kb, rules)
-    affected = _affected(set(dirty), active)
     rule_g = None
     fired = 0
     for pred, obj in affected:
@@ -65,6 +70,48 @@ def react(kb: AttrGraph, rules, *, policy=None, focus_scope=None) -> int:
             if rule_g is None:
                 rule_g = _reify_rules(active)
             # demand the reactive grain -> forward-derive + materialize it (and whatever it depends on)
-            chain_sip(kb, (pred, None, obj), rules=rule_g, policy=policy, focus_scope=focus_scope)
+            fuel = _Exhaustion()
+            chain_sip(kb, (pred, None, obj), rules=rule_g, policy=policy, focus_scope=focus_scope,
+                      max_rounds=max_rounds, _fuel=fuel)
+            if fuel.exhausted:
+                from .flare import raise_flare
+                raise_flare(kb, (pred, None, obj))
             fired += 1
     return fired
+
+
+def react(kb: AttrGraph, rules, *, policy=None, focus_scope=None, max_rounds=1000) -> int:
+    """The DERIVE reaction as a standalone: read the dirty grains (does NOT detach), close them over the
+    bank's body->head edges (`reconsider._affected`), and `_derive`. Kept for the direct derive-only path
+    (and its re-break test); the committed-ask gate drives derive through the unified `fire` instead.
+    Returns the number of grains fired. Zero-cost when nothing is reactive or nothing is dirty."""
+    if not reactive_preds(kb):
+        return 0
+    dirty = kb.registers.get(DIRTY_REG)
+    if not dirty:
+        return 0
+    active = active_rules(kb, rules)
+    affected = _affected(set(dirty), active)
+    return _derive(kb, active, affected, policy=policy, focus_scope=focus_scope, max_rounds=max_rounds)
+
+
+def fire(kb: AttrGraph, rules, *, policy=None, focus_scope=None, max_rounds=1000) -> tuple[int, int]:
+    """The unified FiringGate (reactive-core STEP C): read + detach the ONE dirty set once, close it over
+    the active bank ONCE, and dispatch BOTH reaction kinds off that single closure — DERIVE (materialize
+    declared-reactive consequences) then RETRACT (`reconsider.sweep`, the stale-NAF withdrawal). Derive
+    precedes retract so a proactively-derived fact can fill an absence the sweep then correctly retracts a
+    stale conclusion over (derive-then-recheck). Detach-once is the regress guard: neither half re-populates
+    the dirty set (only intake/evidence do), so the captured snapshot is the whole event batch. Zero-cost
+    when nothing is dirty. Returns `(grains_derived, justifications_withdrawn)`."""
+    from .reconsider import sweep
+    from .rule_control import disabled_keys
+    dirty = kb.registers.get(DIRTY_REG)
+    if not dirty:
+        return (0, 0)
+    grains = set(dirty)
+    kb.registers[DIRTY_REG] = {}                     # detach ONCE (regress guard, shared by both halves)
+    active = active_rules(kb, rules)
+    affected = _affected(grains, active)
+    fired = _derive(kb, active, affected, policy=policy, focus_scope=focus_scope, max_rounds=max_rounds)
+    withdrawn = sweep(kb, active, affected, disabled_keys(kb), policy=policy, focus_scope=focus_scope)
+    return (fired, withdrawn)

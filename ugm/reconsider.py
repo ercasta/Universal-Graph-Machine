@@ -149,17 +149,14 @@ def _assumed_nodes(kb: AttrGraph, j: str) -> list[tuple[str, tuple]]:
     return out
 
 
-def reconsider(kb: AttrGraph, rules: list[Rule], *, policy=None, focus_scope=None) -> int:
-    """The question-time sweep (design §4). Zero-cost when nothing was marked. Returns the number
-    of justifications whose conclusions were withdrawn."""
-    dirty = kb.registers.get(DIRTY_REG)
-    if not dirty:
-        return 0
-    kb.registers[DIRTY_REG] = {}                     # detach first (regress guard)
-    active = active_rules(kb, rules)
-    affected = _affected(set(dirty), active)
-    off = disabled_keys(kb)
-
+def sweep(kb: AttrGraph, active: list[Rule], affected: set, off, *,
+          policy=None, focus_scope=None) -> int:
+    """The RETRACT dispatch (design §4), over a PRE-COMPUTED affected closure and an ALREADY-detached
+    dirty set — the caller owns the read+detach regress guard and the `_affected` closure, so the
+    unified FiringGate (`reactive.fire`) can share both with the DERIVE half instead of recomputing them.
+    For each justification, if its rule is DISABLED or an assumed absence it leans on is now derivable,
+    withdraw the facts it proves (cascade + copy-on-delete archive) and stamp the archive. Returns the
+    number of justifications whose conclusions were withdrawn."""
     rule_g = None                                    # reified lazily — only if a check is needed
     withdrawn = 0
     for j in [n for n in kb.nodes() if prov.is_justification(kb.name(n))]:
@@ -188,3 +185,17 @@ def reconsider(kb: AttrGraph, rules: list[Rule], *, policy=None, focus_scope=Non
             _stamp_broken(kb, j, breaker)
         withdrawn += 1
     return withdrawn
+
+
+def reconsider(kb: AttrGraph, rules: list[Rule], *, policy=None, focus_scope=None) -> int:
+    """The question-time RETRACT sweep as a standalone reaction (design §4): read + detach the dirty set,
+    close it over the active bank, and `sweep`. Zero-cost when nothing was marked. Kept for the direct
+    retract-only path (and its re-break test); the committed-ask gate now drives the sweep through the
+    unified `reactive.fire`, which shares the detach + `_affected` closure with the DERIVE half."""
+    dirty = kb.registers.get(DIRTY_REG)
+    if not dirty:
+        return 0
+    kb.registers[DIRTY_REG] = {}                     # detach first (regress guard)
+    active = active_rules(kb, rules)
+    affected = _affected(set(dirty), active)
+    return sweep(kb, active, affected, disabled_keys(kb), policy=policy, focus_scope=focus_scope)

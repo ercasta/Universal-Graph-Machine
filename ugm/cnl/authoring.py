@@ -1146,6 +1146,9 @@ def load_rules(text: str, *, policy=None, lint: bool = True) -> list[Rule]:
     load_text(rg, text)
     run_bank(rg, RULE_FORMS)     # recognition on the ISA forward driver (Phase 0.2)
     rules = expand_rules(rg)
+    from .machine_rules import _lift_distinct     # a `?a != ?b` body clause is a DISTINCTNESS condition,
+    rules = _lift_distinct(rules)                 # not a fact to match — lift it (feedback #11), same as the
+                                                  # machine surface, else the clause silently never fires
     dropped = [c for R in rg.nodes() if _objs(rg, R, "rl_pred")
                for c in _dropped_conditions(rg, R)]
     if dropped:

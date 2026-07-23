@@ -1,0 +1,22 @@
+# The reflexive GOVERNOR — heuristic termination for a repeatedly-failing goal, as 100% DATA + RULES.
+#
+# Fuel exhaustion raises a help-flare (ugm/flare.py) that mints a DISTINCT `?e flared ?g` event per
+# failure. This bank turns those events into a bounded, honest give-up WITHOUT pretending to decide
+# halting (agent-not-theorem-prover): it counts distinct failures by a SELF-JOIN over `!=` (the one
+# native comparison — no arithmetic, no calculator tool), escalates a goal through a severity LADDER,
+# and ABANDONS it once it reaches the DECLARED level. The threshold is swappable DATA (`abandon_at ?l`);
+# nothing here is Python — it composes with authoritativeness, reconsider, and any other bank.
+
+# --- the severity LADDER: reached level-k iff there are k DISTINCT failures --------------------------
+?g reached mild when ?e1 flared ?g
+?g reached moderate when ?e1 flared ?g and ?e2 flared ?g and ?e1 != ?e2
+?g reached severe when ?e1 flared ?g and ?e2 flared ?g and ?e3 flared ?g and ?e1 != ?e2 and ?e1 != ?e3 and ?e2 != ?e3
+
+# --- the THRESHOLD, as swappable DATA: abandon a goal that reached the configured level --------------
+abandon_at is a relation
+config abandon_at severe
+?g abandoned yes when ?g reached ?level and ?c abandon_at ?level
+
+# --- push it: escalate the ladder + re-check the verdict at each committed act (declaration-as-data) -
+reached is reactive
+abandoned is reactive

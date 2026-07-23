@@ -625,12 +625,11 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     _warn_name_split_join(graph, q)                  # feedback #8a: no silent name-split join (read side)
 
     if commit:                                       # THE FIRING GATE (docs/design/reactive_core.md):
-        from ..reactive import react                 # (1) DERIVE — proactively materialize the consequence
-        react(graph, rules, policy=policy_,          # of any DECLARED-reactive predicate whose trigger just
-              focus_scope=focus_scope)               # landed (zero-cost when nothing is reactive/dirty)
-        from ..reconsider import reconsider          # (2) RETRACT — settle marked assumption-staleness
-        reconsider(graph, rules, policy=policy_,     # (both read the ONE dirty set; reconsider detaches it;
-                    focus_scope=focus_scope)         # commit=False keeps the no-mutation promise)
+        from ..reactive import fire                  # ONE gate consumes the dirty set once and dispatches
+        fire(graph, rules, policy=policy_,           # BOTH reaction kinds off a single `_affected` closure —
+             focus_scope=focus_scope, max_rounds=max_rounds)   # (1) DERIVE declared-reactive consequences,
+                                                     # (2) RETRACT stale NAF. Zero-cost when nothing is dirty;
+                                                     # commit=False keeps the no-mutation promise.
 
     def concept_key(p: str, o: str | None) -> str:
         # Openness is a property of the CONCEPT: for a copula query (`is S C`) it is the object
@@ -740,16 +739,22 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
                     return "no (assumed)"
                 return collapse(status)
             goal = (q["p"], q["s"], q["o"])
-            v = verdict(check(graph, goal, policy=policy_, provenance=provenance,
+            from ..chain import _Exhaustion
+            fuel = _Exhaustion()                           # OWN the fuel flag so an exhausted ask raises a
+            v = verdict(check(graph, goal, policy=policy_, provenance=provenance,   # help-flare (flare.py)
                               focus_scope=focus_scope, rules=rule_g, scope=scope,
-                              on_subgoal=on_subgoal, max_rounds=max_rounds))
+                              on_subgoal=on_subgoal, max_rounds=max_rounds, fuel=fuel))
             # MID-CHAIN gather (§8.5b): only when the goal was NOT derivable — ask for the OPEN premises the
             # derivation demands, materialize the confirmed ones, and re-decide (so a rule blocked solely by a
             # gatherable fact fires instead of being wrongly assumed-no). A derivable goal pays no extra work.
             if v != "yes" and ask_user is not None and gather_open_premises(goal):
+                fuel.exhausted = False                     # re-decide with the gathered facts (fresh budget)
                 v = verdict(check(graph, goal, policy=policy_, provenance=provenance,
                                   focus_scope=focus_scope, rules=rule_g, scope=scope,
-                                  max_rounds=max_rounds))
+                                  max_rounds=max_rounds, fuel=fuel))
+            if commit and fuel.exhausted:                  # the ask did not finish looking -> a durable,
+                from ..flare import raise_flare            # reactable trace (not a silent UNKNOWN)
+                raise_flare(graph, goal)
             # OWA evidence-gatherer: an open UNKNOWN the goal needs -> gather (never a CWA-default `no`).
             if v == "unknown" and ask_user is not None and q["o"] is not None:
                 held = ask_user(q["s"], q["p"], q["o"])

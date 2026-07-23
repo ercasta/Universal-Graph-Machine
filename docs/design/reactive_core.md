@@ -50,8 +50,191 @@ affected grain (`reconsider._affected`) whose predicate is DECLARED reactive (`d
 are `tests/test_reactive.py`), gate on every committed ask but early-returns. `tests/test_reactive.py`:
 reactive materializes proactively at the committed ask (no query), non-reactive stays lazy-but-derivable,
 demand-gated (nothing before an act), idempotent after the dirty set is consumed, and a mutually-reactive
-`p<->q` CYCLE DRAINS rather than loops (the recall-autofire re-break, cycle form). The reaction-kind
-generalization (retract/derive unified) + the `<reactive>` marker surface + frame integration are STEP C.
+`p<->q` CYCLE DRAINS rather than loops (the recall-autofire re-break, cycle form).
+
+**DECLARATION-AS-DATA landed too (the vision-true surface, shipped 979 green):** `reactive_preds` reads
+`P is reactive` FACTS off the KB (`_facts_matching(COPULA, ?, "reactive")`) unioned with the programmatic
+register — so a corpus declares its own reactivity in its own text, no loader, no Python. Cost-free by
+default (no node named `reactive` ⇒ an empty `nodes_named` lookup). `test_reactivity_declared_as_data`.
+
+## STEP C.1 — the two reaction kinds unified under ONE gate (BUILT 2026-07-23, shipped 979 green)
+
+`reactive.fire(kb, rules)` is the unified FiringGate: it reads + detaches the ONE dirty set once, computes
+`active_rules` + `_affected` ONCE, and dispatches BOTH reaction kinds off that single closure — DERIVE
+(`_derive`, materialize declared-reactive consequences) then RETRACT (`reconsider.sweep`, the stale-NAF
+withdrawal). It replaces the previous commit-gate pair (`react` then `reconsider`, each independently
+re-reading the dirty set and recomputing `_affected`); `ask_goal`'s commit block now calls `fire` alone.
+Derive precedes retract (derive-then-recheck). Detach-once is the whole regress guard — neither half
+re-populates `DIRTY_REG` (only intake/evidence do), verified against `chain`/`retraction`, so the captured
+snapshot is the entire event batch.
+
+The two standalone reactions survive as thin wrappers over the shared halves: `reconsider(kb, rules)`
+= read+detach → `_affected` → `sweep`; `react(kb, rules)` = read → `_affected` → `_derive`. Both keep their
+signatures/returns and their re-break tests (`test_reconsider` calls `reconsider` directly, `test_reactive`
+calls `react` directly) — the direct-path guards. `sweep` and `_derive` take a PRE-COMPUTED `active`/
+`affected` so the gate shares them; the wrappers compute their own. Shipped 979 green; `test_reactive` (6)
++ `test_reconsider` green.
+
+## STEP C.2 — the reactions fire into the STEP-A frame (VERIFIED by construction, 2026-07-23, shipped 982 green)
+
+The requirement: a reaction must reason over the canonical + guarded fact-view STEP A gave `_facts_matching`
+(union a bound endpoint over its `denotes`-class; exclude control/inert scaffolding), so it cannot fire on a
+token or on scaffolding. **This holds by construction — no new code — because every belief-read the two
+halves do already routes through that one fetch:**
+
+- **DERIVE** materializes via `chain.chain_sip`, which reads facts only through `_facts_matching`.
+- **RETRACT**'s `_positive_now` recheck ("is the assumed absence now derivable?") runs `chain_sip` +
+  `_facts_matching`; `reactive_preds` reads the `P is reactive` declaration through `_facts_matching`.
+- The grains (`DIRTY_REG`, `_affected`) and the assumption goals (`_assumption_goal`) are **name-keyed**, and
+  a name endpoint already unions same-named nodes (`nodes_named`) — so a TOKEN-resident trigger is seen and
+  the reaction fires under the shared name (the entity's identity), the `ById`-only asymmetry STEP A closed
+  never arising on this path.
+- The raw graph reads left in `reconsider.sweep` (justification enumeration, `proves`/`assumes` edges) are
+  **provenance-mechanics**, not belief-reads — they navigate the derivation DAG to decide WHAT to withdraw,
+  and are correctly outside the fact-view.
+
+Locked by three re-break tests in `tests/test_reactive.py` over a real token/entity `denotes` split:
+`test_derive_fires_on_a_token_resident_trigger` (derive on a token-resident trigger materializes on the
+entity), `test_retract_sees_a_token_resident_breaker` (the recheck sees a token-resident breaker across the
+split and withdraws the stale NAF), `test_no_reaction_fires_on_control_scaffolding` (the guard keeps a
+control node carrying a content edge from being reacted upon). Probe: `bench/spike_reactive_frame.py`.
+
+## STEP C.3 — push/pull unification (the arc payoff, BUILT 2026-07-23, shipped 990 green)
+
+The claim: forward (PUSH — a reactive cascade materializing eagerly at `reactive.fire`, no query) and demand
+(PULL — an ask) are two ENTRIES INTO THE ONE DISPATCH, so they cannot diverge. **The mechanism that makes it
+true was already in place: the DERIVE reaction (`reactive._derive`) materializes a grain by calling
+`chain.chain_sip` — the DEMAND solver.** So PUSH is *event-triggered PULL*: there is no second evaluator on
+the reactive path, both read the same canonical + guarded `_facts_matching` view (STEP A / §C.2), and the
+forward/demand guard-divergence class ([[nac-grouping-engine-parity]], [[stratification-both-engines]])
+cannot recur on it.
+
+The non-trivial thing this had to survive: PUSH writes derived facts INTO the graph eagerly, and in the
+stratification-sensitive shapes (`negation_over_derived`, feedback #18) a downstream NAC reads one — the exact
+configuration where a NAIVE push (firing reactions in dirty order rather than stratified) would manufacture a
+mis-stratified world. It holds because each reactive grain's `chain_sip` is a full stratified demand
+derivation, so cross-grain firing order in `_derive` cannot mis-stratify: `chain_sip(ok)` pulls `reachable`
+itself, regardless of whether `reachable`'s own reactive fire has run yet.
+
+Demonstrated over the guard-divergence battery three-way — `PUSH(fire) == PULL(ask) == FORWARD(run_bank)` —
+across every subset of a 7-fact pool × 6 shapes (768 worlds, all six discriminating). Probe:
+`bench/spike_push_pull_unification.py` (GO, 768/768). Standing gate: `tests/test_push_pull_unification.py`
+(6 parametrized shapes + `test_the_push_sweep_is_not_vacuous` + `test_the_push_column_rides_the_demand_engine`
+— the last re-breaks feedback #16's NAC grouping and requires PUSH to then diverge from FORWARD, proving the
+push column genuinely runs `chain_sip` rather than agreeing by sharing nothing).
+
+**What this does and does not claim.** It does NOT merge `run_bank` and `chain_sip` into one engine (they stay
+two, deliberately, guarded by `test_forward_demand_parity.py`). It claims that the REACTIVE path — the north
+star's standing, cross-call, event-driven loop — has ONE evaluator (demand, reading the STEP-A view) entered
+at two times: a materialization ENQUEUES (`mark_dirty`), an act DRAINS (`fire` → `chain_sip`). Push and pull
+are that one dispatch seen from the write side and the read side. The forward engine `run_bank` remains the
+legacy batch push; the reactive core supersedes it with event-triggered demand, and the three-way sweep shows
+the supersession introduces no divergence.
+
+## Robustness audit (2026-07-23, shipped 996 green)
+
+Before moving to surface, the reactive core's *by-construction* soundness/termination claims were stress-
+tested adversarially rather than left argued. **Finding: the reactive push (`fire`) inherits the demand
+engine's guarantees because `_derive` delegates wholly to `chain_sip`, and C.1's unified gate preserves the
+derive-then-recheck ordering.** Six adversarial banks pushed through `fire` all compute the world a demand
+pull would (`bench/spike_reactive_robustness.py`, 6/6; locked as re-break tests in `tests/test_reactive.py`):
+
+1. **Skolem-minting reactive head** — eager push mints ONE witness per binding (structural re-find
+   convergence, [[skolem-minting-lhs-keyed]]), not a fuel-capped flood.
+2. **Deep cascade** (a→b→c→d→e, all reactive) — one `fire` drains the whole chain (the `_affected` closure
+   reaches every hop).
+3. **Reactive rule WITH a NAC** — eager push respects the block exactly as demand (stratification per rule,
+   because each grain's `chain_sip` is a full stratified derivation).
+4. **Banded policy** — the possibilistic fold flows through the derive half (materializes as a banded fact).
+5. **Derive-then-retract in one `fire`** — a reactive derive produces the breaker; the SAME gate materializes
+   it and withdraws the stale NAF conclusion (the C.1 ordering, end-to-end).
+6. **`focus_scope`** — a reactive derive fires into the scoped frame (materializes in-scope, bounded out).
+
+**Termination.** The gate terminates: `_affected` draws from a finite grain universe (dirty ∪ the bank's head
+atoms), and each grain's `chain_sip` is fuel-bounded (`max_rounds`, default 1000). A monotone reactive cycle
+drains (§B); a skolem bank converges (check 1).
+
+**~~Known soft spot~~ CLOSED 2026-07-23 by the HELP-FLARE (`ugm/flare.py`, shipped 1003 green).** Fuel
+exhaustion no longer truncates silently: a demand closure that hits `max_rounds` on either committed-act path
+raises a FLARE — a normal reactable fact `<goal-node> unresolved yes` (the reified goal carries
+`f_pred`/`f_subj`/`f_obj`). Hooked at (1) the reactive DERIVE gate (`reactive._derive` threads `_Exhaustion`;
+`fire`/`react` now thread `max_rounds` so the reactive derive honors the ask's budget) and (2) the ASK path
+(`check` takes a caller-owned `fuel` flag; `ask_goal` raises a flare on an exhausted committed ask — the
+durable trace the transient UNKNOWN lacked). SOUND: presence-triggered (fires on the exhaustion EVENT, never a
+miss → no recall-autofire channel), deduped per goal (idempotent), inert/opt-in (no reaction unless a
+predicate is declared reactive). `tests/test_flare.py` (7): both paths, idempotence, no-false-flare,
+wildcard round-trip, and the reactive core reacting to its OWN flare. Probes: `bench/spike_help_flare.py`,
+`bench/spike_governor.py`.
+
+## The composability principle (the load-bearing constraint on everything above)
+
+**These mechanisms cannot exist in isolation; they must combine in ARBITRARY ways — which is the whole reason
+for a common substrate, and why hardcoding any of them in Python fails** (user, 2026-07-23). A Python function
+that decides "this flare means abandon" is an island: a *rule* about authority, or reconsider, or another
+policy can never reach into it. So the irreducible-Python line is drawn tightly:
+
+- **Engine mechanism (Python, unavoidable):** detecting exhaustion (`_Exhaustion`), the reactive dispatch
+  (`fire`), register storage. And the BRIDGES that turn an engine-internal event into a substrate fact —
+  `flare.raise_flare` (exhaustion → `unresolved` fact) and `provenance.record_assumptions` (a NAF leap →
+  `<assumed>` fact) are the same category: they MINT data, then step out of the way.
+- **Everything downstream is DATA + RULES on the one graph, so it composes:** a flare is a fact a rule reads;
+  an accumulator is substrate data a rule counts; a threshold is a declared fact; a recovery is a reactive
+  rule; an authority order is a comparative fact. Because they are all in the same language, "goal G flared N
+  times" and "Jack outranks John" can be combined in a SINGLE rule — e.g. the recovery STRATEGY is itself
+  chosen by authority. That arbitrary cross-combination is impossible if any layer is a Python special case.
+
+**Consequence for the governor (accumulator + threshold + recovery):** it is NOT built as a Python `govern()`
+(the `bench/spike_governor.py` Python orchestration only VALIDATED the mechanism). It is authored as data +
+rules. The build task is to expose the two substrate hooks a rule needs — an accumulator readable/writable by
+the engine as data, and the flare fact (done) — then the threshold check and every recovery are ordinary
+(reactive) rules. Heuristic termination (we do not decide halting — [[agent-not-theorem-prover]]) then falls
+out of a declared threshold rule turning a repeatedly-flaring goal into a bounded, honest give-up.
+
+## The reflexive governor (accumulator + threshold + recovery) — BUILT 2026-07-23 (shipped 1010 green)
+
+Heuristic termination for a repeatedly-failing goal, as **100% data + rules** — no Python `govern()`, no
+arithmetic tool (the composability principle enforced by `tests/test_substrate_purity.py`). The only Python is
+the flare BRIDGE (`ugm/flare.py`), which now mints a DISTINCT `<event> flared <goal>` fact per exhaustion (the
+ACCUMULATOR — a monotone set of event facts, never deduped) alongside the deduped `unresolved` signal.
+
+Everything else is `corpus/governor.cnl`:
+- **Count without arithmetic** — "reached level-k" = k DISTINCT failures = a k-fold SELF-JOIN with `!=` (the
+  one native comparison). The severity LADDER (`mild`/`moderate`/`severe`) is one self-join per level.
+- **Threshold as swappable DATA** — `?g abandoned yes when ?g reached ?level and ?c abandon_at ?level`; the
+  `abandon_at ?level` FACT selects the active rung. Proven: same failures, `severe`→keep-going,
+  `moderate`→abandon, by data alone (`test_the_threshold_moves_by_data_alone`).
+- **Reactive** — `reached`/`abandoned` declared reactive (as data), so the gate escalates the ladder and
+  materializes the verdict at each committed act with NO query: the system governs ITSELF.
+- **Terminates** — the verdict is monotone; further failures neither un-abandon nor storm it.
+- **Composes** — the recovery is ordinary rules, so authoritativeness can choose the recovery or the
+  `abandon_at` level; reconsider can revise it; etc. No island.
+
+`tests/test_governor.py` (3) drives the loop through `fire`. Ruled out: a GRADED-degree threshold — the
+possibilistic combination is max-of-min (idempotent), so degrees can't accumulate/count
+(`bench/spike_threshold_no_tool.py`). Trade-off: each level's join is structural, so the ladder is a bounded
+declared set of ordinal levels (what governance wants); only an arbitrary unbounded-N threshold would need a
+tool.
+
+**Composition demonstrated in production (the thesis, end-to-end).** `corpus/recovery.cnl` selects the
+recovery for an abandoned goal BY AUTHORITY (reified advice + a `more_important_than` fact + a NAF override).
+Loaded ALONGSIDE `governor.cnl` in one KB, the two banks combine with nothing but shared facts: the governor
+abandons a goal, and the most-authoritative advisor's recovery is applied. `test_governor.py`'s composition
+tests prove it — `ops > policy` → `escalate`; reverse the ONE authority fact → `giveup`. Two independently-
+authored mechanisms, steered by a single datum, no glue code — the composability principle at system scale.
+
+**Silent-failure bug fixed en route:** the CNL corpus rule route (`cnl/authoring.load_rules` → `expand_rules`)
+did NOT lift a `?a != ?b` body clause into a distinctness condition the way the machine surface
+(`machine_rules._lift_distinct`) does — so a corpus rule with `!=` LOADED but never fired (it matched a
+nonexistent `!=` fact). `load_rules` now runs `_lift_distinct`, so `!=` works in `.cnl` corpora.
+
+## Arc status: STEP C COMPLETE
+
+STEP A (identity frame) + B (reactive DERIVE gate + declaration-as-data) + C.1 (two reaction kinds unified
+under `fire`) + C.2 (reactions fire into the STEP-A frame) + C.3 (push/pull unification) are all built and
+shipped-green (990). The reactive core is a standing, cross-call, demand-gated, sound, event-driven loop with
+one evaluator over one canonical fact-view. Deferred / future: side-effect (`<call>`) reactions (the
+world-action boundary, §C fork), a CNL surface for the `reactive` declaration beyond the marker fact, and the
+open question of whether `run_bank` is eventually retired in favour of the reactive push.
 
 ## STEP B — the firing gate, as a reusable contract (small, mostly formalization) [DESIGN, realized above]
 

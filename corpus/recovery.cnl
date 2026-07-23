@@ -1,0 +1,28 @@
+# RECOVERY selection by AUTHORITY — composes with the governor (corpus/governor.cnl) on the ONE substrate.
+#
+# When the governor ABANDONS a goal, competing advisors recommend recovery actions (escalate to a human,
+# give up quietly, …) and the MOST AUTHORITATIVE advice wins — defeasible override via NAF: an action is
+# chosen unless a more-important advisor recommends otherwise. Reified attributed advice + a
+# `more_important_than` fact + a NAF guard, all DATA + RULES — so this bank and the governor bank combine
+# with nothing but shared facts (no Python, no glue). Load both banks together and it just works.
+
+recommends is a relation
+source is a relation
+more_important_than is a relation
+
+# the advisors — reified attributed advice about how to recover
+r_escalate recommends escalate
+r_escalate source ops
+r_giveup recommends giveup
+r_giveup source policy
+
+# (the AUTHORITY order — `ops more_important_than policy` — is supplied as DATA by the session, so swapping
+#  it swaps the chosen recovery with no change to this bank.)
+
+# lift source-importance to advice-precedence; an advice a more-important one beats is overridden
+?e outranks ?d when ?e source ?se and ?d source ?sd and ?se more_important_than ?sd
+?d overridden yes when ?e outranks ?d
+
+# the chosen recovery: a non-overridden advice's action, applied to any ABANDONED goal (from the governor)
+?g recovery ?action when ?g abandoned yes and ?adv recommends ?action and not ?adv overridden yes
+recovery is reactive

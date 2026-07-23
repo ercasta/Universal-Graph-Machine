@@ -73,7 +73,8 @@ def check(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
           rules: AttrGraph | None = None,
           policy: FirmwarePolicy = DEFAULT_POLICY, open_preds: frozenset[str] | None = None,
           provenance: bool = False, max_rounds: int = 1000, on_subgoal=None,
-          focus_scope: frozenset[str] | None = None, scope: str | None = None) -> str:
+          focus_scope: frozenset[str] | None = None, scope: str | None = None,
+          fuel: "_Exhaustion | None" = None) -> str:
     """CHECK `goal` and return one of POSITIVE / ENTAILED_NEG / ASSUMED_NO / UNKNOWN. Runs CHAIN for
     the positive (bounded); if absent, runs CHAIN for the negative; if that too is absent, the
     `policy`'s negation default holds — ASSUMED_NO (closed-world) unless the concept is OPEN under the
@@ -107,7 +108,8 @@ def check(fact_g: AttrGraph, goal: tuple[str, str | None, str | None], *,
     if open_preds is not None:
         policy = replace(policy, open_preds=frozenset(open_preds))
     pred, subj, obj = goal
-    fuel = _Exhaustion()
+    if fuel is None:                                       # a caller may OWN the flag (to raise a help-flare
+        fuel = _Exhaustion()                              # on exhaustion — flare.py); else a private one
     chain_sip(fact_g, goal, rules=rule_g, provenance=provenance,    # demand-driven positive
               max_rounds=max_rounds, _fuel=fuel, focus_scope=focus_scope, scope=scope,
               on_subgoal=on_subgoal, policy=policy)

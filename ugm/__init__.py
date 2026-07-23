@@ -59,6 +59,8 @@ from .retraction import (
     record_rejection, is_rejected,
 )
 from .reconsider import reconsider, mark_dirty
+from .reactive import fire, react, declare_reactive, reactive_preds
+from .flare import raise_flare, flares
 from .dispatch import (
     CALL, TOOL, Tool, AsyncTool, emit_call, call_tool, call_arg, call_args, pending_calls, consume_call,
     service_calls, service_calls_cm, merge_tools,
@@ -160,6 +162,7 @@ __all__ = [
     "assumptions_of", "assumption_groups",
     "derived_facts", "axiomatize",
     "reconsider", "mark_dirty",
+    "fire", "react", "declare_reactive", "reactive_preds", "raise_flare", "flares",
     "learned_support", "learned_keys", "rules_supporting", "render_provisional",
     "LEARNED_ROLE",
     "learn", "observe", "accept", "prepare", "pred_tok_tool",
