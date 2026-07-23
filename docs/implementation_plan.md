@@ -22,19 +22,45 @@
 
 ## ▶▶ TOP PRIORITY (RE-POINTED 2026-07-23, user steer) — CORE-AXIS COMPOSITION, not the grammar surface
 
-### ═══ FRESH-SESSION START HERE (2026-07-23 end — suite 1046 green; composition audit PASS 12 / LEAK 0) ═══
+### ═══ FRESH-SESSION START HERE (2026-07-23 end — suite 1046 green; composition audit PASS 14 / REFUSED 4 / LEAK 0) ═══
 
-**ONE-LINE STATE.** The top priority is CORE-AXIS COMPOSITION, and as of 2026-07-23 end it is RE-POINTED from
-"close the remaining composition cells" to **UNIFY THE REPRESENTATION** — the north star is
-**`docs/design/unified_representation.md`** (one interned proposition node; every axis an annotation-relation on
-it; truth as a vantage that is itself facts). The composition audit is COMMITTED as a ratchet gate
-(`tests/test_epistemic_closure.py`, **PASS 12 / REFUSED 6 / LEAK 0**, shipped 1046 green): the `degree ∘
-negation` LEAK and `suppose ∘ hedge` GAP are CLOSED; the two remaining REFUSED cells (`causation ∘
-{hedge,negation}`) are now the **acceptance test for Step 1 of the unification** (fact identity), NOT a fix to
-rush — a spike (`bench/spike_causation_representation.py`) proved a rule-lowering quick win would DODGE the
-underlying node-identity duality rather than solve it, which is exactly the kind of seam the unification exists
-to stop. NEXT = re-ratify the reification decision (§8), then Step 1 (lift `_canon_class` to facts; one
-`MINT(dedup)` fact-writer). The reactive-core + governance + live-agent-loop arc and the flip/grammar surface
+**ONE-LINE STATE.** The top priority is CORE-AXIS COMPOSITION, RE-POINTED to **UNIFY THE REPRESENTATION**
+(north star **`docs/design/unified_representation.md`** — one interned proposition node; every axis an
+annotation-relation on it; truth as a vantage that is itself facts). **Step 1 (fact identity) INCREMENT 1 is
+SHIPPED GREEN** (2026-07-23): both `causation ∘ {hedge,negation}` cells flipped **REFUSED→PASS LINK-FIRST**
+via reactive fact-identity reconciliation (`ugm/fact_identity.py`); audit now **PASS 14 / REFUSED 4 / LEAK 0**,
+suite 1046 green. **NEXT = Step 1 INCREMENT 2:** retire the `prop:` content-key handle so the RELNODE IS the
+proposition (`causes` between interned relnodes, structural link-query), collapsing the increment-1 additive-
+edge reconciliation into genuine structural fact identity (option B fully). Read the ⭐/STEP-1 blocks in THIS
+section top-to-bottom; the composition audit is the COMMITTED ratchet gate (`tests/test_epistemic_closure.py`).
+The remaining REFUSED cells (`conditional∘negation`, `hedged rule`, attribution, quantification) are closed-not-
+leaking GAPS, not blockers. Committed by the user across the session (branch `grammar`).
+
+**STEP 1 — RATIFIED + IDENTITY MECHANISM SPIKED GO (2026-07-23).** User re-ratified the reification decision
+(§8): the fact-NODE becomes a first-class carrier with structural identity — NO role-labeled/Davidsonian
+edges, NO n-arity change (separate question). Step 1 scoped as **(B)** staged identity-first. ROOT CAUSE of
+link-first probed precisely: the `prop:` handle's name-interned participant nodes are ORPHANS (no `denotes` to
+the grammar entity), and `_canon_class` is ONE-HOP so the reify bridge's node-bound join misses. User asked
+"multi-pass?" → **`bench/spike_fact_identity.py` GO**: TARGETED `denotes`-reconciliation of a proposition's
+participant references — keyed to the UNAMBIGUOUS same-name discourse referent (NOT brute name-union = the
+seam), drawing to ALL class members (one-hop) — CLOSES both link-first cells (negation→yes, hedge→likely),
+antecedent-first unregressed, provably targeted. This is the load-bearing identity mechanism and the
+prerequisite for (B) either way. User chose sequencing **"1 then 2"**.
+
+**STEP 1 INCREMENT 1 — SHIPPED GREEN (2026-07-23; suite 1046 passed, audit PASS 14 / REFUSED 4 / LEAK 0).**
+`ugm/fact_identity.py`: `reconcile_proposition_refs` fired REACTIVELY at the committed-ask gate
+(`cnl.query.ask_goal`, before `reactive.fire`); handles registered at causation intake (zero-cost when no
+causation). BOTH `causation ∘ {hedge,negation}` cells flipped **REFUSED→PASS LINK-FIRST** (gate pins updated
+— the visible ratchet). DESIGN PIVOT from the spike: production ADDS parallel `subj`/`obj` handle edges to
+the entity referent (NOT `denotes`), because the denotes-only form answered `yes` but left the derived
+consequent OUT of the interpretation scope (the `ById`-write path does not follow `denotes`; `gi.facts` =
+`scope_facts`, so an out-of-scope derivation is a LEAK the gate caught). Entity edges make reify/dereify bind
+the entity directly → reify READ matches + dereify WRITE lands in-scope, no core write-path change
+([[derived-facts-must-land-in-the-interpretation]]). Keyed to the UNAMBIGUOUS referent (refuse two disjoint
+same-name classes) = disambiguation preserved. Suite-level non-regression (comparative/coref/disambiguation)
+GREEN. **NEXT = increment 2:** retire the `prop:` content-key handle so the relnode IS the proposition
+(`causes` between relnodes, structural link query), collapsing this reconciliation into structural fact
+identity. The reactive-core + governance + live-agent-loop arc and the flip/grammar surface
 (43→26) are DONE and below as history. Read the ⭐ blocks in THIS section top-to-bottom; the "PRIOR ARC"
 sections below are context/history. Committed by the user across the session (branch `grammar`).
 

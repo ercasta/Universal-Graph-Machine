@@ -846,6 +846,13 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
         # bridge join sees the folded content whichever co-referent the handle interned to. (Was
         # `intern_denoted=True`, the per-site write patch that boundary retired — docs/design/derivation_frame.md.)
         Machine().run(kb, _assemble_facts(cause_surface.handle_facts(a, b)))
+        # STEP 1 (unified representation §4): record the handle node-ids so the committed-ask gate can
+        # RECONCILE their participant references to the discourse referent (fixing the link-first order
+        # bug — a reference stated before its antecedent interns an orphan; reconciliation folds it into
+        # the entity's `denotes` class so the reify bridge's node-bound join sees the asserted fact).
+        from .fact_identity import register_handles
+        register_handles(kb, kb.nodes_named(cause_surface.handle_name(tuple(a)))
+                         + kb.nodes_named(cause_surface.handle_name(tuple(b))))
         # a new causal link may make the consequent (or a downstream fact) derivable -> RECONSIDER a
         # prior assumed-no at the next ask: the consequent's grain, plus any new bridge-rule heads.
         from .reconsider import mark_dirty, rule_grains

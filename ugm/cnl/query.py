@@ -625,6 +625,11 @@ def ask_goal(graph: Graph, question: str, rules: list[Rule], *,
     _warn_name_split_join(graph, q)                  # feedback #8a: no silent name-split join (read side)
 
     if commit:                                       # THE FIRING GATE (docs/design/reactive_core.md):
+        from ..fact_identity import reconcile_proposition_refs
+        reconcile_proposition_refs(graph)            # STEP 1 (unified rep §4): fold each proposition
+                                                     # reference into its discourse referent's denotes class
+                                                     # BEFORE the demand reads the reify bridge (zero-cost
+                                                     # when no causation handle exists).
         from ..reactive import fire                  # ONE gate consumes the dirty set once and dispatches
         fire(graph, rules, policy=policy_,           # BOTH reaction kinds off a single `_affected` closure —
              focus_scope=focus_scope, max_rounds=max_rounds)   # (1) DERIVE declared-reactive consequences,

@@ -57,8 +57,15 @@ EXPECTED: dict[str, str] = {
     # rules into the prediction (`suppose lion generally is hungry : lion is dangerous` → `likely`).
     # Same producer-fix shape as `hedge x negation`; the reader was never the problem.
     "suppose x hedge": PASS,
-    "causation x hedge": REFUSED,        # band DROPPED at the reification bridge — closed, not reasoned
-    "causation x negation": REFUSED,     # negation not consulted at the bridge — closed, not reasoned
+    # ⭐ CLOSED 2026-07-23 (REFUSED→PASS): STEP 1 of the unified-representation arc (increment 1) — the
+    # link-first order bug is fixed by REACTIVE fact-identity reconciliation (`ugm/fact_identity.py`):
+    # a proposition reference stated before its antecedent interns an ORPHAN, and reconciliation adds the
+    # parallel `subj`/`obj` handle edges that bind the discourse entity directly, so the reify READ matches
+    # the asserted fact AND the dereify WRITE lands the consequent IN the interpretation scope. Both cells
+    # (link-first order) now reason end-to-end. Fired at the committed-ask gate (`cnl.query.ask_goal`),
+    # keyed to the UNAMBIGUOUS referent (not brute name-union). Spike: `bench/spike_fact_identity.py`.
+    "causation x hedge": PASS,           # band rides the causal link into the consequent (link-first)
+    "causation x negation": PASS,        # negated antecedent satisfies the link -> consequent derived in scope
     "negation x question": PASS,
     "hedged rule": REFUSED,              # degree-on-the-rule not surfaced — closed
     # depth
