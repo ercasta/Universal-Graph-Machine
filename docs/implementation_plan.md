@@ -82,11 +82,31 @@ crossing is ONE clean declared rule through the REAL `chain_sip` — `?scope hol
 and ?s ?p ?o` (reify) + causal MP — consequent holds-in-base LINK-FIRST + antecedent-first, neg-control correct,
 NO bridge/handle/value-node round-trip. Retires the bridge-fragility finding.
 
-**NEXT = STEP 2 build, remaining:** **(a)** make scopes ORDINARY nodes + do **1c** (migrate the shipped kinded
-scopes off the `SCOPE` attr onto the scope-tree; now critical-path) → **(c)** the PROMOTE/materialization step
-(write the consequent to base = base-referent mint + the shipped variable-predicate dereify) + a read-vantage/
-write-scope split in `chain_sip` where the write side needs it → **rewire `cnl/cause_surface.py`** to emit the
-scope structure instead of the `prop:` content-key handle → **flip the `causation ∘ {hedge,negation}` cells** in
+**END-TO-END SPIKED GO 2026-07-24 (same bench; no new engine change).** `ask lion is safe` → `yes` LINK-FIRST +
+antecedent-first, neg-control `no (assumed)`. Design crystallized: **`holds_base(scope)` = the UNIVERSAL "this
+scope's content is true in base" verdict**; per-relativizer rules DERIVE it (causation = MP; attribution trust
+would derive it identically) = DATA; **PROMOTE = ONE uniform relativizer-agnostic rule** `?s ?p ?o when ?scope
+holds_base yes and ?s ?p ?o @?scope`. The variable-pred HEAD write (fragile over the bridge) works cleanly here
+— the `@?h` read binds real base nodes + the predicate value-node directly. The ONE non-rule step = a generic
+**materialize** (mint a base referent for a held scope's members lacking one); production folds it into a
+reactive skolem-minting rule (needs the `denotes`-visibility exemption).
+
+**PRODUCTION MODULE LANDED 2026-07-24 — `ugm/scope_crossing.py` + `tests/test_scope_crossing.py` (7 green).**
+The proven crossing is now a first-class, tested capability (not just spike code): `mint_causal_link` (two
+ordinary proposition scopes + members under + `causes` edge), `decide_rules()`/`promote_rules()` (the
+declared reify+MP+promote), `materialize_held` (the generic base-referent mint), `resolve_crossings` (the
+decide→materialize fixpoint driver). Tests pin the DECISION (link-first/antecedent-first/neg-control) + END-
+TO-END (`ask lion is safe` → yes). Additive — no existing source touched, suite unaffected. NOTE: the
+earlier "1c on critical path" was overstated — the scope-tree is ADDITIVE, so the NEW causation scopes are
+ordinary/scope-tree while the shipped kinded scopes keep working on the `SCOPE` attr; 1c is a later
+unification, NOT a blocker for the causation acceptance test.
+
+**NEXT = STEP 2 build, remaining:** **(a)** rewire `cnl/cause_surface.py` + intake's `Event("cause")` handler
+onto `scope_crossing` (replace the `prop:` handle with `mint_causal_link` + the pipeline), keeping
+`test_propositional_cause.py` green → **(b)** wire the reactive `holds_base`→
+materialize→promote pipeline into intake/`ask_goal` (today the spike drives the three phases explicitly) +
+materialize-as-rule (`denotes`-visibility exemption) → **rewire `cnl/cause_surface.py`** to emit the scope
+structure instead of the `prop:` content-key handle → **flip the `causation ∘ {hedge,negation}` cells** in
 `test_epistemic_closure.py` to pass LINK-FIRST BY SCOPING (the committed ratchet) → retire `ugm/fact_identity.py`
 (subsumed by the scope-tree). 1d (base fast-path index) only matters once the filter goes active under load.
 

@@ -210,10 +210,21 @@ partition to undo later. Composition cells are the acceptance test, not a fix to
     `pat.rel` (a body `@?h` binds `?h`). RESULT: the crossing is ONE clean declared rule through the REAL
     `chain_sip` — `?scope holds_base yes when ?s ?p ?o @?scope and ?s ?p ?o` (reify) + causal MP — deriving
     the consequent's holds-in-base LINK-FIRST and antecedent-first, neg-control correct, NO bridge/handle/
-    value-node round-trip. This RETIRES finding-3's fragility. **STILL TO BUILD:** scopes-as-ordinary + 1c
-    (findings 1); the PROMOTE/materialization (write the consequent to base = base-referent mint + the shipped
-    variable-predicate dereify — findings 2/3 write side); rewire `cause_surface.py` off the `prop:` handle;
-    flip the `causation ∘ {hedge,negation}` closure cells; retire `fact_identity.py`.
+    value-node round-trip. This RETIRES finding-3's fragility.
+  - **END-TO-END SPIKED GO 2026-07-24 (same bench; no new engine change).** `ask lion is safe` → `yes`
+    LINK-FIRST + antecedent-first, neg-control `no (assumed)`. The design crystallized: **`holds_base(scope)`
+    is the UNIVERSAL "this scope's content is true in base" verdict**; per-relativizer rules DERIVE it
+    (causation = MP; a trusted-holder attribution rule would derive it identically) — all DATA; and **PROMOTE
+    is ONE uniform, relativizer-agnostic rule** `?s ?p ?o when ?scope holds_base yes and ?s ?p ?o @?scope`
+    (the meaning lived entirely in what derived `holds_base`). The variable-predicate HEAD write that was
+    fragile over the bridge works cleanly here — the `@?h` read binds `?s`/`?p`/`?o` to real base nodes + the
+    predicate value-node directly, so the EMIT gets proper ids. The ONE non-rule step is the generic
+    **materialize** (mint a base referent for a held scope's members lacking one — audit primitive ③/④);
+    production folds it into a reactive skolem-minting rule (needs the `denotes`-visibility exemption).
+    **STILL TO BUILD:** scopes-as-ordinary + 1c (findings 1); wire the reactive `holds_base`→materialize→
+    promote pipeline (today the spike drives the three phases explicitly); rewire `cause_surface.py` off the
+    `prop:` handle; flip the `causation ∘ {hedge,negation}` closure cells; retire `fact_identity.py`;
+    materialize-as-rule (the `denotes`-visibility exemption follow-on).
 - **Step 3 — negation as an interposing predicate-node.** Retire `R_not`/`neg_of` (row 5); NAF reads the
   interposing node. Riskiest (reshapes NAF); isolate, re-break the negation/coref suite, differential-gate
   (unified-rep §8; form_inventory §9.1 "carry the band on the negative read").

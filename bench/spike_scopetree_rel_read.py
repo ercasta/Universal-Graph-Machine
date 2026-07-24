@@ -31,7 +31,7 @@ from ugm import ById                                                        # no
 from ugm.attrgraph import AttrGraph, NAME, valued                           # noqa: E402
 from ugm.chain import chain_sip, _facts_matching                           # noqa: E402
 from ugm.cnl.machine_rules import load_machine_rules                        # noqa: E402
-from ugm.cnl.query import _reify_rules                                     # noqa: E402
+from ugm.cnl.query import _reify_rules, ask_goal                           # noqa: E402
 from ugm.scope_tree import put_under, scope_of                             # noqa: E402
 from ugm.vocabulary import DENOTES                                          # noqa: E402
 
@@ -63,11 +63,18 @@ def reconcile(g):
             g.add_relation(n, DENOTES, base[0])
 
 
-# ── the DECLARED crossing rules — ONE clean reify over `@?scope`, plus causal MP ──────────────
+# ── the DECLARED crossing rules ───────────────────────────────────────────────
+# DECIDE — reify (base case) + causal MP: which scopes hold in base. `holds_base(scope)` is the UNIVERSAL
+# "this scope's content is true in base" verdict; per-relativizer rules derive it (causation = MP; a
+# trusted-holder attribution rule would derive it the same way). All DATA.
 CROSS = load_machine_rules("\n".join([
     "?scope holds_base yes when ?s ?p ?o @?scope and ?s ?p ?o",
     "?b holds_base yes when ?a holds_base yes and ?a causes ?b",
 ]))
+# PROMOTE — the uniform materialization: a held scope's members ARE true in base. `?s ?p ?o @?scope` yields
+# the member DEREFERENCED to base (post-materialize), and the variable-predicate head writes it. One rule,
+# relativizer-agnostic — the meaning lived entirely in what derived `holds_base`.
+PROMOTE = load_machine_rules("?s ?p ?o when ?scope holds_base yes and ?s ?p ?o @?scope")
 
 
 def _consequent_scope(g):
@@ -78,12 +85,46 @@ def _consequent_scope(g):
     return None
 
 
+def _base_ref(g, node):
+    if scope_of(g, node) is None:
+        return node
+    for rel, obj in g.relations_from(node):
+        if g.has_key(rel, DENOTES) and scope_of(g, obj) is None:
+            return obj
+    return None
+
+
+def materialize(g):
+    """The generic 'materialize base referent on cross' mechanism (audit §5 primitive ③/④): for every scope
+    that HOLDS in base, ensure each member participant has a base referent (mint + `denotes` if absent, reuse
+    if present). Content-blind — no domain logic. This is the ONE non-rule step; production folds it into a
+    reactive skolem-minting rule (which needs the `denotes`-visibility exemption — a follow-on)."""
+    held = [s.node_id for s, _ in _facts_matching(g, "holds_base", None, "yes")]
+    for sc in held:
+        for ent in [n for n in g.nodes() if scope_of(g, n) == sc]:
+            for rel, obj in list(g.relations_from(ent)):
+                if g.is_control(rel) or g.is_inert(rel) or g.has_key(rel, DENOTES):
+                    continue
+                for node in (ent, obj):
+                    if scope_of(g, node) is not None and _base_ref(g, node) is None:
+                        g.add_relation(node, DENOTES, _named(g, g.name(node)))
+
+
 def crosses_to_base(g):
     reconcile(g)
-    rule_g = _reify_rules(CROSS)
     s_b = _consequent_scope(g)
-    chain_sip(g, ("holds_base", ById(s_b), "yes"), rules=rule_g)
+    chain_sip(g, ("holds_base", ById(s_b), "yes"), rules=_reify_rules(CROSS))
     return bool(list(_facts_matching(g, "holds_base", ById(s_b), "yes")))
+
+
+def answer(g, s, p, o):
+    """End-to-end: DECIDE (reify + MP) → MATERIALIZE base referents for held scopes → PROMOTE (the query
+    demand drives the promote rule, which reads held members via `@?scope` and writes them to base)."""
+    reconcile(g)
+    s_b = _consequent_scope(g)
+    chain_sip(g, ("holds_base", ById(s_b), "yes"), rules=_reify_rules(CROSS))   # decide
+    materialize(g)                                                              # mint base refs
+    return ask_goal(g, ("yesno", s, p, o), list(PROMOTE))                       # promote answers the query
 
 
 def _mark(ok):  return "[+]" if ok else "[X]"
@@ -111,25 +152,37 @@ def _case(order: str, base: bool):
         if base:
             base_fact()
         statement()
-    return crosses_to_base(g)
+    return g
 
 
 def main():
     print("=" * 94)
-    print("SCOPE-TREE `@?h` RELATIVIZED READ SPIKE — the crossing as ONE clean declared rule")
+    print("SCOPE-TREE `@?h` RELATIVIZED READ SPIKE — the crossing as declared rules, end to end")
     print("=" * 94)
 
-    lf = _case("link-first", base=True)
-    af = _case("antecedent-first", base=True)
-    nc = _case("link-first", base=False)
-    print(f"\n  link-first        consequent holds-in-base  {_mark(lf)} {lf}")
+    # DECISION (reify + MP): does the consequent scope hold in base?
+    lf = crosses_to_base(_case("link-first", base=True))
+    af = crosses_to_base(_case("antecedent-first", base=True))
+    nc = crosses_to_base(_case("link-first", base=False))
+    print("\n-- crossing DECISION (holds_base derived through reify + causal MP) " + "-" * 24)
+    print(f"  link-first        consequent holds-in-base  {_mark(lf)} {lf}")
     print(f"  antecedent-first  consequent holds-in-base  {_mark(af)} {af}")
     print(f"  neg control       does NOT cross            {_mark(not nc)} {nc}")
 
-    go = lf and af and not nc
+    # END TO END: does `lion is safe` become true in base (decide → materialize → promote)?
+    e_lf = answer(_case("link-first", base=True), "lion", "is", "safe")
+    e_af = answer(_case("antecedent-first", base=True), "lion", "is", "safe")
+    e_nc = answer(_case("link-first", base=False), "lion", "is", "safe")
+    print("\n-- END TO END (`ask lion is safe`: decide -> materialize -> promote) " + "-" * 23)
+    print(f"  link-first        {_mark(e_lf == ['yes'])} {e_lf}")
+    print(f"  antecedent-first  {_mark(e_af == ['yes'])} {e_af}")
+    print(f"  neg control       {_mark(e_nc != ['yes'])} {e_nc}")
+
+    go = (lf and af and not nc and e_lf == ["yes"] and e_af == ["yes"] and e_nc != ["yes"])
     print("\n" + "=" * 94)
-    print(f"{'GO' if go else 'NO-GO'} — `?s ?p ?o @?scope` reaches into a scope, binds base s/p/o + the")
-    print("scope, and the crossing is ONE declared rule through the real engine (no bridge, no handle).")
+    print(f"{'GO' if go else 'NO-GO'} — the causation crossing is DECLARED RULES end to end: `@?h` reify +")
+    print("causal MP DECIDE (data), a generic materialize copies held members to base, PROMOTE reads via")
+    print("`@?scope` and writes — `lion is safe` becomes true in base LINK-FIRST, no bridge, no handle.")
 
 
 if __name__ == "__main__":
