@@ -1,15 +1,26 @@
 # Unified representation — one proposition node, axes as annotations, truth as vantage
 
-> Status: DESIGN / NORTH STAR, 2026-07-23. Came out of the core-axis-composition arc: the widened
+> ⚠ **SUPERSEDED 2026-07-24 by `docs/design/scope_reframe_audit.md`** — read that as the north star.
+> This doc's diagnosis (the evaluator composes; failures are producers/representations that bypass the one
+> evaluation) STANDS and is inherited. Its **§4 was WRONG in one load-bearing way** and is CORRECTED below:
+> "a reference-before-assertion interns to the VERY NODE a later assertion inks" (COLLAPSE reference into
+> referent) re-manufactures the mention-vs-assert conflict — treating a statement's participant as the
+> entity rather than a REFERENCE to it. The correction is **reconcile, don't collapse**: a reference and its
+> referent stay DISTINCT nodes, unioned at read time SCOPE-LOCALLY (spiked GO, `bench/spike_scope_local_identity.py`).
+> The reframe generalizes "truth as a vantage" (§5) into **relativization as the only scoping primitive:
+> scopes as nested nodes, a relativizer = a base fact whose object is a scope, isolation by default, crossing
+> a data rule.** See the audit for the full map, the settled relativizer/annotation line, and the migration.
+>
+> Status (original): DESIGN / NORTH STAR, 2026-07-23. Came out of the core-axis-composition arc: the widened
 > closure audit (`composition_architecture.md`) proved the EVALUATOR composes cleanly and every failure
 > is a PRODUCER or a REPRESENTATION that bypasses the one evaluation. This doc names the target the
 > whole composition arc should converge on, so every later diff is checked against it rather than
 > patched toward a local green. It supersedes "close the remaining composition cells" as the framing:
 > the cells become the acceptance test for Step 1, not a fix to rush.
 >
-> Memory: [[epistemic-closure-under-composition]], [[composability-principle]], [[facts-as-truth-bearers-built]],
-> [[derivation-frame-consolidation]], [[binding-is-the-missing-axis]], [[spo-directed-path-no-labeled-edges]],
-> [[baroque-vs-fundamental]].
+> Memory: [[scope-reframe-relativization]], [[epistemic-closure-under-composition]], [[composability-principle]],
+> [[facts-as-truth-bearers-built]], [[derivation-frame-consolidation]], [[binding-is-the-missing-axis]],
+> [[spo-directed-path-no-labeled-edges]], [[baroque-vs-fundamental]].
 
 ## 0. The one-sentence invariant
 
@@ -87,12 +98,20 @@ name is stable. But that key is a SECOND identity for a proposition whose parts 
 relnode — and the two never reconcile: link-first mints a THIRD co-named `lion` node with no `denotes`
 edge, and the reify join misses it (measured: 3 `lion` nodes; `spike_causation_representation.py`).
 
-**The unification.** A proposition's identity is a FUNCTION of its (already-interned) participant
-identities and predicate: `id(F) = (canon(subj), pred, canon(obj))`. Entities are already interned
-(name-interning + `denotes` + `_canon_class`); a proposition is an entity ABOUT a relation, so the SAME
-boundary, lifted one level, gives it identity. Mechanically: `MINT(dedup=True)` with endpoints
-canonicalized through `_canon_class` is the ONE fact-writer, and a reference-before-assertion interns to
-the very node a later assertion inks. No content-key, no duplicate, no bridge to keep in sync.
+**The unification (CORRECTED 2026-07-24 — reconcile, DON'T collapse).** A proposition's identity is a
+FUNCTION of its participant identities and predicate: `id(F) = (canon(subj), pred, canon(obj))`. Entities
+are already interned (name-interning + `denotes` + `_canon_class`); a proposition is an entity ABOUT a
+relation, so the SAME boundary, lifted one level, gives it identity. **But a statement's participant is a
+REFERENCE to an entity, not the entity** (`that A causes …`, stated before A, mentions A without asserting
+it). So the reference and its referent stay DISTINCT nodes, reconciled at READ time by the identity boundary
+— NOT collapsed into one node (the original "interns to the very node a later assertion inks" was the error:
+collapse re-manufactures the mention-vs-assert conflict, because minting the referent-node to mention it
+would assert it). Mechanically: `MINT(dedup=True)` with endpoints canonicalized through `_canon_class`
+writes facts; a reference dereferences to its referent via the identity link; and that union is
+**SCOPE-LOCAL** (`spike_scope_local_identity.py` GO) — across a relativizer boundary identity holds but
+facts don't flow, which is what keeps a mention from leaking into base while still coreferring. No
+content-key. (This is the audit's point 1; a mention is simply a fact deeper in the scope tree, not a
+second identity to reconcile away.)
 
 **Consequence.** The causation composition cells close the RIGHT way — by structural identity — not by
 the rule-lowering quick win that merely DODGES minting (`spike_causation_representation.py` showed the

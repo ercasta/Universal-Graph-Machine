@@ -198,9 +198,10 @@ def _candidate_nodes(fact_g: AttrGraph, endpoint) -> list[str]:
     if isinstance(endpoint, ById):
         v = _operand_value_of(fact_g, endpoint)
         if v is not None:                                  # value-node pointer: resolve by name value
-            return fact_g.nodes_named(v)
-        return list(_canon_class(fact_g, endpoint.node_id)) if fact_g.has(endpoint.node_id) else []
-    return fact_g.nodes_named(endpoint)
+            return _scope_visible(fact_g, fact_g.nodes_named(v))
+        cls = list(_canon_class(fact_g, endpoint.node_id)) if fact_g.has(endpoint.node_id) else []
+        return _scope_visible(fact_g, cls)
+    return _scope_visible(fact_g, fact_g.nodes_named(endpoint))  # the NAME accelerator, scope-filtered too
 
 
 def _bound_class_pins(fact_g: AttrGraph, endpoint):
@@ -212,7 +213,7 @@ def _bound_class_pins(fact_g: AttrGraph, endpoint):
         return [None]
     if isinstance(endpoint, ById) and _operand_value_of(fact_g, endpoint) is None:
         cls = _canon_class(fact_g, endpoint.node_id) if fact_g.has(endpoint.node_id) else {endpoint.node_id}
-        return [ById(m) for m in cls]
+        return [ById(m) for m in _scope_visible(fact_g, cls)]  # object-side mirror: scope-local too
     return [endpoint]
 
 
@@ -630,6 +631,20 @@ _ISA_READER = Machine()   # skip_inert OFF: visibility lives in the PROGRAM (mar
 _FOCUS_LIVE = "<focus>"           # the live-set register the read program's MEMBER op points at
 _SCOPE_OVERLAY = "<scope-overlay>"   # the live-set register the read program's OVERLAY op points at
 _BAND_OVERLAY = "<fork-bands>"    # the {rel_id -> band} map register OVERLAY_BAND points at (banded mode)
+_ACTIVE_SCOPE = "<active-scope>"  # the reading VANTAGE (scope id / None=base) the scope-local union reads
+
+
+def _scope_visible(fact_g: AttrGraph, nodes):
+    """Filter a candidate-node iterable to those VISIBLE from the active reading vantage — the scope-local
+    identity union (scope_reframe_audit.md §6, spiked GO). Zero-cost no-op on current data: `reframe_active`
+    is False until the membership migration (1c) mints any `<under>` edge, so the read hot path is
+    byte-unchanged. When active, `is_visible` keeps base + this-scope + ancestor-scope nodes, dropping a
+    node under a relativizer boundary a base read must not cross."""
+    from .scope_tree import is_visible, reframe_active
+    if not reframe_active(fact_g):
+        return list(nodes)
+    active = fact_g.registers.get(_ACTIVE_SCOPE)
+    return [n for n in nodes if is_visible(fact_g, n, active)]
 
 # --- BANDED (marker-mode) reading — the possibilistic fold (docs/possibilistic.md S7.5 step 6) -----
 #
@@ -829,8 +844,10 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
     prev_live = fact_g.registers.get(_FOCUS_LIVE)          # park the live-sets (policy) for the ops
     prev_overlay = fact_g.registers.get(_SCOPE_OVERLAY)    # (mechanism); transitional: derived from
     prev_bands = fact_g.registers.get(_BAND_OVERLAY)       # the parameters here, per call — later the
-    fact_g.registers[_FOCUS_LIVE] = focus_scope            # drivers own them per run
+    prev_active = fact_g.registers.get(_ACTIVE_SCOPE)      # drivers own them per run
+    fact_g.registers[_FOCUS_LIVE] = focus_scope
     fact_g.registers[_SCOPE_OVERLAY] = _scope_pencils(fact_g, scope)
+    fact_g.registers[_ACTIVE_SCOPE] = scope                # the reading vantage for the scope-local union
     if bands:
         fact_g.registers[_BAND_OVERLAY] = _band_overlay(fact_g, scope)
     try:
@@ -893,6 +910,7 @@ def _facts_matching(fact_g: AttrGraph, pred: str,
         fact_g.registers[_FOCUS_LIVE] = prev_live
         fact_g.registers[_SCOPE_OVERLAY] = prev_overlay
         fact_g.registers[_BAND_OVERLAY] = prev_bands
+        fact_g.registers[_ACTIVE_SCOPE] = prev_active
 
 
 def _node_for_name(fact_g: AttrGraph, name) -> str:

@@ -145,6 +145,21 @@ partition to undo later. Composition cells are the acceptance test, not a fix to
   the base fast-path (materialized "holds-in-base" index) designed in from the start so reads don't
   regress (unified-rep §5, the coloring demoted to a cache). **Gate: existing suppose/fork/holder/temporal
   suites stay green; the `SCOPE`-attr reads migrate to `under`-edge reads.**
+  - **1a + 1b DONE 2026-07-24 (suite 1051 green).** `ugm/scope_tree.py` = the nested-scope primitive
+    (`<under>` edge, `scope_of`/`scope_chain`/`is_visible`) + scope-local read wiring in `chain.py`
+    (`_scope_visible` filtering `_candidate_nodes`/`_bound_class_pins`, active-scope register threaded
+    through `_facts_matching`). **Zero-cost conservative extension:** `reframe_active` gates the filter off
+    until any `<under>` edge exists, so the read hot path is byte-unchanged on current data. Differential
+    oracle committed (`tests/test_scope_reframe_diff.py`): base-isolation DIVERGES from the shipped
+    global-union oracle (the intended win), derivation-frame token/entity fusion + grammar-route reasoning
+    AGREE (conservative extension). Substrate-purity MANIFEST updated (`scope_tree.py` = engine).
+  - **RE-SEQUENCING INSIGHT (from the build).** The risky **1c** (migrate the shipped kinded scopes off the
+    `SCOPE` attr) is NOT on the critical path for the Step-2 acceptance test: the scope-tree is ADDITIVE, so
+    the NEW statement/reference relativizer (propositional causation) can use it directly while the existing
+    pencils/kinded scopes keep working on the `SCOPE` attr. Their composition (attribution∘temporal∘…) is
+    untested/unneeded today, so 1c can defer. Lower-risk path: **1a+1b (done) → Step 2 (causation via scope
+    nodes, additive) → 1c later** (or never, if the old kinded scopes compose fine as-is). 1d (base
+    fast-path) is only needed once the filter goes active under load — measure at Step 2.
 - **Step 2 — relativization as the sole primitive.** Dissolve `SCOPE_KIND` (row 1) — kind becomes an
   attribute crossing rules read; `@?t` generalizes to `@?s` over any scope (row 13). Prove references on
   the propositional-causation case: the `prop:` handle retires (row 6); `causes` between scoped statements;

@@ -55,6 +55,7 @@ MANIFEST: dict[str, tuple[str, str]] = {
     "cnl/procedure_surface.py":("surface", "procedure authoring (to …/run …) builds graph"),
     "cnl/comparative.py":      ("surface", "comparative surface — stages gradable facts"),
     "cnl/query.py":            ("engine", "ask_goal: materializes gathered evidence + fires the gate"),
+    "scope_tree.py":           ("engine", "scope reframe — structural <under> membership (nested scopes)"),
 }
 
 VALID_CATEGORIES = {"substrate", "engine", "surface", "bridge", "tool"}
