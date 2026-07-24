@@ -90,14 +90,30 @@ def mint_causal_link(g: AttrGraph, antecedent: Triple, consequent: Triple) -> tu
 
 def reconcile_scopes(g: AttrGraph) -> None:
     """Identity union (audit primitive ④): draw `denotes` from each scoped entity to the UNAMBIGUOUS base
-    entity of its name (node identity, not name — refuse if two base entities share the name, preserving
-    disambiguation). What the `@?h` read dereferences through."""
+    referent of its name (node identity, not name), which the `@?h` read dereferences through.
+
+    GRAMMAR-ROUTE token/entity duality (the derivation-frame identity boundary): a name like `door1` may
+    resolve to a base TOKEN *and* a base ENTITY it `denotes` — that is ONE identity, not two. So the base
+    candidates are collapsed by `chain._canon_class` (the denotes-coref class): unambiguous iff they form a
+    SINGLE class, and the scoped copy links to a representative (the class union lets the base read find the
+    entity's content whichever member it binds). Two GENUINELY-disjoint same-name base entities still refuse
+    (disambiguation preserved)."""
+    from .chain import _canon_class
     for n in [x for x in g.nodes() if scope_of(g, x) is not None and g.name(x)]:
         if any(g.has_key(r, DENOTES) and scope_of(g, o) is None for r, o in g.relations_from(n)):
             continue
         base = [b for b in g.nodes_named(g.name(n)) if scope_of(g, b) is None]
-        if len(base) == 1:
-            g.add_relation(n, DENOTES, base[0])
+        if not base:
+            continue
+        # The representative is the base node with the LARGEST canonical class — the established discourse
+        # entity that every token/coref-mention denotes into (a fresh query token `door1` has a small class;
+        # the entity carrying the facts has the whole coref cloud). Unambiguous iff EVERY base candidate is
+        # in that class (else two genuinely-disjoint same-name entities → refuse). Links to the content-
+        # bearing entity, which the `@?h` read's base check then reads.
+        rep = max(base, key=lambda b: len(_canon_class(g, b)))
+        rep_cls = _canon_class(g, rep)
+        if all(b in rep_cls for b in base):
+            g.add_relation(n, DENOTES, rep)
 
 
 def _base_ref(g: AttrGraph, node: str) -> str | None:
@@ -109,13 +125,25 @@ def _base_ref(g: AttrGraph, node: str) -> str | None:
     return None
 
 
-def materialize_held(g: AttrGraph) -> int:
+def _held_scopes(g: AttrGraph, banded: bool) -> list[str]:
+    """The scope ids with a `holds_base` verdict — read BANDED when the policy is banded (a banded verdict is
+    a FORK a crisp read would miss)."""
+    ms = _facts_matching(g, "holds_base", None, None, bands=banded)
+    out = []
+    for row in ms:
+        s = row[0]
+        if isinstance(s, ById):
+            out.append(s.node_id)
+    return out
+
+
+def materialize_held(g: AttrGraph, *, banded: bool = False) -> int:
     """The generic 'materialize base referent on cross' mechanism (audit §5 primitive ③/④): for every scope
     that HOLDS in base, ensure each member participant has a base referent (mint + `denotes` if absent,
     reuse if present). Content-blind — no domain logic. Returns the number of referents minted. A follow-on
     folds this into a reactive skolem-minting rule."""
     minted = 0
-    held = [s.node_id for s, _ in _facts_matching(g, "holds_base", None, "yes")]
+    held = _held_scopes(g, banded)
     for sc in held:
         for ent in [n for n in g.nodes() if scope_of(g, n) == sc]:
             for rel, obj in list(g.relations_from(ent)):
@@ -128,9 +156,24 @@ def materialize_held(g: AttrGraph) -> int:
     return minted
 
 
-def _scope_tree_scopes(g: AttrGraph) -> set[str]:
-    """Every scope-tree scope (the target of some `<under>` edge)."""
+def _scope_nodes(g: AttrGraph) -> set[str]:
+    """Every scope node (the target of some `<under>` edge — a node with members born under it)."""
     return {sc for n in g.nodes() if (sc := scope_of(g, n)) is not None}
+
+
+def _causal_scopes(g: AttrGraph) -> set[str]:
+    """The SCOPE nodes that are an endpoint of a base `causes` fact — the ONLY scopes causation may cross.
+    Filters out entity-level `causes` (`hunger causes aggression`, whose endpoints are not scopes) and
+    leaves non-causal scope-tree scopes (an attribution `John says …`, an isolation-test scope) untouched:
+    causation promotes its consequent, it does not blanket-promote every scoped fact that holds in base."""
+    scopes = _scope_nodes(g)
+    out: set[str] = set()
+    for a, b in _facts_matching(g, "causes", None, None):
+        for ep in (a, b):
+            nid = ep.node_id if isinstance(ep, ById) else (g.nodes_named(ep) or [None])[0]
+            if nid in scopes:
+                out.add(nid)
+    return out
 
 
 def _members(g: AttrGraph, scope: str):
@@ -142,35 +185,45 @@ def _members(g: AttrGraph, scope: str):
             yield ent, g.predicate(rel), obj
 
 
-def _promote_held(g: AttrGraph, promote_g) -> None:
+def _promote_held(g: AttrGraph, promote_g, *, policy=None) -> None:
     """Write every HELD scope's members to BASE (dereferenced), by demanding each member's base fact through
     the promote rule (`?s ?p ?o when ?scope holds_base yes and ?s ?p ?o @?scope`). Interleaving this in the
-    fixpoint is what lets links CHAIN: a promoted consequent is a base fact the next link's reify reads."""
-    held = [s.node_id for s, _ in _facts_matching(g, "holds_base", None, "yes")]
+    fixpoint is what lets links CHAIN: a promoted consequent is a base fact the next link's reify reads.
+    Under a BANDED `policy` the demand carries the band the antecedent rode in on (DEGREE composition — a
+    hedged antecedent promotes a banded consequent)."""
+    held = _held_scopes(g, bool(policy is not None and policy.banded))
     for sc in held:
         for ent, p, obj in _members(g, sc):
             bs, bo = _base_ref(g, ent), _base_ref(g, obj)
             if bs is not None and bo is not None:
-                chain_sip(g, (p, ById(bs), ById(bo)), rules=promote_g)
+                chain_sip(g, (p, ById(bs), ById(bo)), rules=promote_g, policy=policy)
 
 
-def resolve_crossings(g: AttrGraph, rules=None, *, max_passes: int = 8) -> None:
-    """Drive the crossing to a fixpoint: reconcile → DECIDE (demand `holds_base` for every scope-tree scope,
-    so reify + causal MP run) → MATERIALIZE base referents for newly-held scopes → PROMOTE held members to
-    base. Repeat until stable (a promotion can satisfy another antecedent — so links CHAIN). Leaves every
-    crossed proposition as an ordinary base fact, so a plain query answers it."""
+def resolve_crossings(g: AttrGraph, rules=None, *, policy=None, max_passes: int = 8) -> None:
+    """Drive every CAUSAL crossing to a fixpoint: reconcile → DECIDE (demand `holds_base` for the scopes in a
+    `causes` link, so reify + causal MP run) → MATERIALIZE base referents for newly-held scopes → PROMOTE
+    held members to base. Repeat until stable (a promotion can satisfy another antecedent — so links CHAIN).
+    Leaves every crossed proposition as an ordinary base fact, so a plain query answers it. NO-OP when the
+    graph has no causal scope link — an attribution / isolation scope is never touched.
+
+    DEGREE composition: under a BANDED `policy` the reify/MP/promote demands run banded, so a hedged
+    antecedent's band rides `holds_base` (min t-norm through MP) into a banded consequent fork."""
+    causal = _causal_scopes(g)
+    if not causal:
+        return
     rules = rules if rules is not None else decide_rules()
     from .cnl.query import _reify_rules
     rule_g = _reify_rules(rules)
     promote_g = _reify_rules(promote_rules())
+    banded = bool(policy is not None and policy.banded)
     prev = -1
     for _ in range(max_passes):
         reconcile_scopes(g)
-        for sc in _scope_tree_scopes(g):
-            chain_sip(g, ("holds_base", ById(sc), "yes"), rules=rule_g)
-        materialize_held(g)
-        _promote_held(g, promote_g)
-        now = len(list(_facts_matching(g, "holds_base", None, "yes")))
+        for sc in _causal_scopes(g):
+            chain_sip(g, ("holds_base", ById(sc), "yes"), rules=rule_g, policy=policy)
+        materialize_held(g, banded=banded)
+        _promote_held(g, promote_g, policy=policy)
+        now = len(_held_scopes(g, banded))
         if now == prev:                                        # fixpoint: no new scope crossed this pass
             break
         prev = now

@@ -57,13 +57,14 @@ EXPECTED: dict[str, str] = {
     # rules into the prediction (`suppose lion generally is hungry : lion is dangerous` → `likely`).
     # Same producer-fix shape as `hedge x negation`; the reader was never the problem.
     "suppose x hedge": PASS,
-    # ⭐ CLOSED 2026-07-23 (REFUSED→PASS): STEP 1 of the unified-representation arc (increment 1) — the
-    # link-first order bug is fixed by REACTIVE fact-identity reconciliation (`ugm/fact_identity.py`):
-    # a proposition reference stated before its antecedent interns an ORPHAN, and reconciliation adds the
-    # parallel `subj`/`obj` handle edges that bind the discourse entity directly, so the reify READ matches
-    # the asserted fact AND the dereify WRITE lands the consequent IN the interpretation scope. Both cells
-    # (link-first order) now reason end-to-end. Fired at the committed-ask gate (`cnl.query.ask_goal`),
-    # keyed to the UNAMBIGUOUS referent (not brute name-union). Spike: `bench/spike_fact_identity.py`.
+    # ⭐ CLOSED BY SCOPING 2026-07-24 (the SCOPE REFRAME, scope_reframe_audit.md Step 2). Propositional
+    # causation is now two proposition SCOPES related by a base `causes` fact (`ugm/scope_crossing.py`); the
+    # committed-ask gate (`cnl.query.resolve_crossings`) decides `holds_base` (reify + causal MP over the
+    # `@?h` scope-tree read) and promotes the consequent to base. LINK-FIRST works because the base fact and
+    # the scoped copies RECONCILE (`denotes`, largest canon-class) when the antecedent lands — no orphan, no
+    # content-key handle. NEGATION: `has_not` is just the antecedent's predicate. DEGREE: under a banded
+    # policy `holds_base`/promote run banded, so the antecedent's band rides the min-t-norm into a banded
+    # consequent. (Replaces the retired `prop:` handle + `fact_identity.py` reconciliation.)
     "causation x hedge": PASS,           # band rides the causal link into the consequent (link-first)
     "causation x negation": PASS,        # negated antecedent satisfies the link -> consequent derived in scope
     "negation x question": PASS,

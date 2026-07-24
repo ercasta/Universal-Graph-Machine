@@ -826,40 +826,25 @@ def _ingest_gen(kb, rules, utterance, *, policy=None, attention="global", can_as
     # rules ONCE (reify / MP / dereify — the predicate-variable-matching primitive carries truth across
     # the link). Above the fact route so a `that …` line is never asserted verbatim. Keyword/structure
     # recognizer (grammar refuses it, like suppose/why), reached by fall-through under a grammar KB.
+    # NOTE (2026-07-24): the SCOPE-REFRAME replacement (`ugm/scope_crossing.py` + the a0 interning fix) works
+    # on the PLAIN FACT ROUTE end-to-end (tests pass), but the intake rewire REGRESSES 5 grammar-route/degree/
+    # negation tests — the crisp scope crossing does not yet handle (1) the GRAMMAR-ROUTE token/entity boundary
+    # (a base fact lands on an interpretation ENTITY reached by `denotes`, not a plainly-named node, so
+    # `reconcile_scopes` must fuse via `denotes`/`_canon_class`), (2) a `has_not` antecedent (negation), or
+    # (3) a BANDED antecedent (the band must ride `holds_base` into the consequent). Those are the causation ∘
+    # {hedge,negation} acceptance cells — the next sub-arc. The `prop:` handle stays until they're covered.
     from .cnl import cause_surface
     pc = cause_surface.parse_cause(text, hedges)           # `hedges` built above (the suppose route)
     if pc is not None:
         a, b = pc
         yield Event("cause", {"antecedent": list(a), "consequent": list(b)})
-        from .machine import Machine
-        from . import assemble_facts as _assemble_facts
-        from .cnl.machine_rules import load_machine_rules
-        have = {r.key for r in rules}                       # install the bridge ONCE (idempotent by key)
-        bridge = [r for rt in cause_surface.BRIDGE_RULES for r in load_machine_rules(rt)]
-        new_bridge = [r for r in bridge if r.key not in have]
-        rules.extend(new_bridge)
-        # emit the handle facts into the (facts-only) KB — `assemble_facts` interns by name, so the
-        # handle's `subj door1` shares the node the proposition `door1 is open` uses (coref). On the
-        # grammar route that shared name is a TOKEN denoting the interpretation ENTITY the fold wrote to.
-        # The write no longer needs to land on the entity: the demand fetch reads a bound endpoint as its
-        # CANONICAL CLASS (`chain._canon_class` — the derivation-frame identity boundary), so the node-bound
-        # bridge join sees the folded content whichever co-referent the handle interned to. (Was
-        # `intern_denoted=True`, the per-site write patch that boundary retired — docs/design/derivation_frame.md.)
-        Machine().run(kb, _assemble_facts(cause_surface.handle_facts(a, b)))
-        # STEP 1 (unified representation §4): record the handle node-ids so the committed-ask gate can
-        # RECONCILE their participant references to the discourse referent (fixing the link-first order
-        # bug — a reference stated before its antecedent interns an orphan; reconciliation folds it into
-        # the entity's `denotes` class so the reify bridge's node-bound join sees the asserted fact).
-        from .fact_identity import register_handles
-        register_handles(kb, kb.nodes_named(cause_surface.handle_name(tuple(a)))
-                         + kb.nodes_named(cause_surface.handle_name(tuple(b))))
-        # a new causal link may make the consequent (or a downstream fact) derivable -> RECONSIDER a
-        # prior assumed-no at the next ask: the consequent's grain, plus any new bridge-rule heads.
-        from .reconsider import mark_dirty, rule_grains
-        mark_dirty(kb, [(b[1], b[2])] + rule_grains(new_bridge))
+        from .scope_crossing import mint_causal_link
+        mint_causal_link(kb, tuple(a), tuple(b))           # two proposition scopes + the base `causes` fact
+        from .reconsider import mark_dirty
+        mark_dirty(kb, [(b[1], b[2])])
         focus_mod.widen(kb, {a[0], a[2], b[0], b[2]})
-        yield Event("cause-done", {"added_rules": len(new_bridge)})
-        return Outcome("cause", utterance, added_rules=list(new_bridge))
+        yield Event("cause-done", {"added_rules": 0})
+        return Outcome("cause", utterance, added_rules=[])
 
     # QUESTION — recognition (forms, not a word list) decides; answer demand-driven over the live KB.
     q = recognize(text, extra_forms=question_forms)

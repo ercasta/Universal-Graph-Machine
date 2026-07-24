@@ -22,9 +22,24 @@
 
 ## ▶▶ TOP PRIORITY (RE-POINTED 2026-07-24, user steer) — SCOPE REFRAME (relativization = the one scoping primitive)
 
-### ═══ FRESH-SESSION START HERE (2026-07-24 — suite 1051 green; read-side shipped + Rep A spiked GO) ═══
+### ═══ FRESH-SESSION START HERE (2026-07-24 — suite 1059 green) ═══
 
-**ONE-LINE STATE.** The composition/unification arc is RE-POINTED to the **SCOPE REFRAME** — north star
+> **CURRENT STATE (read this first; the dated ⭐ blocks below are the chronological trail).** The SCOPE
+> REFRAME is the active arc (north star `docs/design/scope_reframe_audit.md`, memory
+> [[scope-reframe-relativization]]). **Step 1 (scope-tree read) + the `@?h` scope-tree relativized read are
+> SHIPPED; Step 2 CAUSATION is LANDED end to end** — propositional `that A causes that B` is now two
+> proposition SCOPES + a base `causes` fact (`ugm/scope_crossing.py`), decided at the committed-ask gate
+> (`cnl/query.resolve_crossings`: reify + causal MP over `@?h`, then materialize + promote). The `prop:`
+> content-key handle and `ugm/fact_identity.py` are RETIRED; all five old causation tests + the two
+> `causation ∘ {hedge,negation}` acceptance cells pass BY SCOPING. **NEXT:** fold the imperative
+> `resolve_crossings` materialize into a reactive skolem-minting rule (needs a `denotes`-visibility
+> exemption); optional 1c (retire the shipped kinded scopes onto the scope-tree — NOT on the critical path,
+> the scope-tree is additive); then Steps 3 (negation-as-interposing-node) + 4 (force + vantage as data).
+> The milestone detail is in the **⭐⭐ STEP 2 CAUSATION LANDED** block below. NOTE: some earlier dated
+> blocks say "1c NOW on the critical path" — that was OVERSTATED and later corrected (the scope-tree is
+> additive; new causation scopes are ordinary while shipped kinded scopes keep working).
+
+**ONE-LINE STATE (historical, superseded by CURRENT STATE above).** The composition/unification arc is RE-POINTED to the **SCOPE REFRAME** — north star
 **`docs/design/scope_reframe_audit.md`** (SUPERSEDES `unified_representation.md`, whose §4 "collapse a
 reference into the very node its assertion inks" was the recurring ERROR — it re-manufactures the
 mention-vs-assert conflict). Memory: **[[scope-reframe-relativization]]** (read it first). THESIS: the graph is
@@ -101,9 +116,47 @@ earlier "1c on critical path" was overstated — the scope-tree is ADDITIVE, so 
 ordinary/scope-tree while the shipped kinded scopes keep working on the `SCOPE` attr; 1c is a later
 unification, NOT a blocker for the causation acceptance test.
 
-**NEXT = STEP 2 build, remaining:** **(a)** rewire `cnl/cause_surface.py` + intake's `Event("cause")` handler
-onto `scope_crossing` (replace the `prop:` handle with `mint_causal_link` + the pipeline), keeping
-`test_propositional_cause.py` green → **(b)** wire the reactive `holds_base`→
+**⭐⭐ STEP 2 CAUSATION LANDED 2026-07-24 (suite 1059 green) — propositional causation is now the SCOPE REFRAME
+end to end; `prop:` handle + `fact_identity.py` RETIRED.** Intake's `Event("cause")` mints two proposition
+SCOPES via `scope_crossing.mint_causal_link`; the committed-ask gate (`cnl/query.resolve_crossings`) decides
+`holds_base` (reify + causal MP over the `@?h` scope-tree read) and promotes the consequent to base. ALL FIVE
+previously-`prop:`-handled tests pass BY SCOPING, including the two **causation ∘ {hedge,negation} acceptance
+cells** (`test_epistemic_closure`, pinned PASS). a1 closed the three hard cases: **(1) grammar-route
+token/entity boundary** — `reconcile_scopes` collapses base candidates by `_canon_class`, picking the
+largest-class representative (robust to fresh query tokens); **(2) negation** — `has_not` is just the
+antecedent's predicate; **(3) degree** — `resolve_crossings` threads the banded policy and reads `holds_base`
+BANDED (a fork), so the antecedent's band rides the min-t-norm into a banded consequent. Cleanup: deleted
+`ugm/fact_identity.py` + the gate's no-op `reconcile_proposition_refs`; stripped `cause_surface`'s
+`BRIDGE_RULES`/`handle_facts`/`handle_name` (`parse_cause` is now a pure parser). **REMAINING Step 2:** wire
+the reactive `holds_base`→materialize→promote pipeline (today `resolve_crossings` drives the three phases
+imperatively at the gate; fold materialize into a skolem-minting rule — needs the `denotes`-visibility
+exemption); optional 1c (retire the shipped kinded scopes onto the scope-tree); then Steps 3 (negation as
+interposing node) + 4 (force + vantage as data).
+
+**a0 DONE — WRITE-SIDE SCOPE-PARTITIONED INTERNING (2026-07-24, suite 1059 green).** `forms.intern_mentions`
+now keys its coref groups by **(name, scope)** when `reframe_active` (else by name, byte-unchanged): two
+same-named mentions in DIFFERENT scopes are DIFFERENT identities, so a base fact `door1 is open` interns to a
+BASE node instead of folding into the scoped copy `door1@S_door`. This was the exact blocker — with it, the
+plain-fact-route crossing works end-to-end (link-first + later base fact → `ask cat scared` → yes). The
+`resolve_write_node` partition tried earlier is NOT needed (promote writes by bound node-id, not by name).
+`scope_crossing.resolve_crossings` also gates on CAUSAL scopes (endpoints of a `causes` link).
+
+**INTAKE REWIRE RE-ATTEMPTED (a0 unblocked it) → REVERTED: regresses grammar-route + hedge/negation causation
+(5 tests).** With a0, the rewire (intake `Event("cause")`→`mint_causal_link`, ask-gate→`resolve_crossings`)
+passes `test_propositional_cause` (plain fact route, crisp) INCLUDING chaining + order-independence — but
+REGRESSES 5 previously-green tests, because the crisp scope crossing does NOT yet handle: (1) the GRAMMAR-ROUTE
+token/entity boundary (a base fact lands on an interpretation ENTITY reached by `denotes`, not a plainly-named
+node — `reconcile_scopes` must fuse scoped copies to it via `denotes`/`_canon_class`,
+`test_a_propositional_cause_link_derives_over_grammar_folded_propositions`); (2) a `has_not` antecedent
+(NEGATION, `causation x negation` cell + `…_over_a_negated_antecedent_reasons`); (3) a BANDED antecedent (the
+band must ride `holds_base` into the consequent — `causation x hedge` cell + `…_over_a_hedged_antecedent_carries
+_the_band`). These ARE the causation ∘ {hedge,negation} acceptance cells (pinned PASS via the old `prop:`
+producer fixes). Reverted the rewire; `prop:` handle stays until the crossing covers them.
+
+**NEXT = STEP 2 build, remaining:** **(a1)** make `scope_crossing` handle the GRAMMAR ROUTE (reconcile scoped
+copies to interpretation entities via `denotes`/`_canon_class`) + NEGATION (`has_not` antecedent, already the
+right shape from `parse_cause`) + DEGREE (band rides `holds_base`/promote into the consequent) → **(a)** THEN
+re-land the intake rewire keeping all 5 cells green → **(b)** wire the reactive `holds_base`→
 materialize→promote pipeline into intake/`ask_goal` (today the spike drives the three phases explicitly) +
 materialize-as-rule (`denotes`-visibility exemption) → **rewire `cnl/cause_surface.py`** to emit the scope
 structure instead of the `prop:` content-key handle → **flip the `causation ∘ {hedge,negation}` cells** in

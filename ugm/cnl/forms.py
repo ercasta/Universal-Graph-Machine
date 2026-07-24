@@ -550,7 +550,14 @@ def intern_mentions(graph: Graph) -> Graph:
     if not named:
         return graph
     marker = named[0]
-    groups: dict[str, list[str]] = {}
+    # SCOPE REFRAME (scope_reframe_audit.md Step 2): interning is SCOPE-PARTITIONED — two same-named
+    # mentions in DIFFERENT scopes are DIFFERENT identities (a base `door1` and a scoped copy `door1@S`
+    # born under a relativizer must not fold together), so a base fact never lands inside a scope. Key by
+    # (name, scope) when any `<under>` edge exists; else by name (byte-unchanged on current data). Coref
+    # across the boundary stays a separate `denotes` query, never this collapse.
+    from ..scope_tree import scope_of, reframe_active
+    partition = reframe_active(graph)
+    groups: dict[object, list[str]] = {}
     for nid in list(graph.nodes()):
         if nid == marker:
             continue
@@ -558,7 +565,8 @@ def intern_mentions(graph: Graph) -> Graph:
         if not nm:
             continue
         if any(graph.has_key(r, IS_A) and marker in graph.out(r) for r in graph.out(nid)):
-            groups.setdefault(nm, []).append(nid)
+            key = (nm, scope_of(graph, nid)) if partition else nm
+            groups.setdefault(key, []).append(nid)
     for members in groups.values():
         rep = members[0]
         for victim in members[1:]:

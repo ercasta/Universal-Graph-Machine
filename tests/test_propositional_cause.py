@@ -22,7 +22,7 @@ def test_propositional_cause_derives_the_consequent():
     ingest(kb, rules, "door1 is open")
     out = ingest(kb, rules, "that door1 is open causes that cat is scared")
     assert out.kind == "cause"
-    assert len(out.added_rules) == 3                       # the reify/MP/dereify bridge, installed once
+    assert out.added_rules == []                           # scope reframe: universal crossing rules, no per-link bridge
     assert ingest(kb, rules, "is cat scared").answer == ["yes"]
 
 
@@ -60,14 +60,14 @@ def test_propositional_cause_over_a_kind_proposition():
     assert ingest(kb, rules, "is rex dangerous").answer == ["yes"]
 
 
-def test_bridge_installed_once_across_statements():
-    # The three bridge rules are shared: a SECOND propositional link adds no new rules.
+def test_causal_links_add_no_per_statement_rules():
+    # SCOPE REFRAME (Step 2): the crossing rules are UNIVERSAL, so a causal statement mints only scopes.
     kb, rules = _kb()
     ingest(kb, rules, "door1 is open")
     first = ingest(kb, rules, "that door1 is open causes that cat is scared")
     second = ingest(kb, rules, "that cat is scared causes that dog is alert")
-    assert len(first.added_rules) == 3
-    assert len(second.added_rules) == 0                    # idempotent by key
+    assert first.added_rules == []
+    assert second.added_rules == []
 
 
 # --- the boundary: `that` marks it; a bare `A causes B` is entity-level, not this surface ----------

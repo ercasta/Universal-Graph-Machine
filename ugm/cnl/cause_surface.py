@@ -1,14 +1,14 @@
-"""Propositional causation — the `that P causes that Q` surface (facts-as-truth-bearers, form_inventory
-§9.3 / causation C3).
+"""Propositional causation — the `that P causes that Q` PARSER (form_inventory §9.3 / causation C3).
 
 Entity-level causation (`hunger causes aggression`, C1) is native: `causes` is an ordinary relation and
 a propagation rule derives the effect. What this surface adds is PROPOSITIONAL causation — a causal link
-between whole PROPOSITIONS ("that the door is open causes that the cat flees"), so P holding DERIVES Q,
-the link itself is a first-class fact, and links CHAIN. It rides the reification bridge the
-predicate-variable-matching primitive enables (`bench/spike_facts_as_truth_bearers.py`): each proposition
-becomes a content-keyed HANDLE carrying `subj`/`pred`/`obj`, joined by an ordinary `causes` edge, and
-three declared bridge rules (reify / MP / dereify) carry truth across the link. Domain logic stays in
-banks; causation is not privileged.
+between whole PROPOSITIONS ("that the door is open causes that the cat flees"), so P holding DERIVES Q and
+links CHAIN. This module is now PURELY the PARSER: `parse_cause` folds the two clauses to `(antecedent,
+consequent)` triples; intake hands them to `ugm/scope_crossing.mint_causal_link`, which mints two
+proposition SCOPES related by a base `causes` fact (the SCOPE REFRAME, scope_reframe_audit.md Step 2). The
+crossing itself — reify + causal MP over the `@?h` scope-tree read, then promote — runs at the committed-ask
+gate (`cnl/query.resolve_crossings`). The old content-keyed `prop:` HANDLE + three bridge rules are RETIRED
+(row 6): a handle was a stringly re-implementation of interning with orphan participant refs.
 
 The `that` NOMINALIZER is what distinguishes this from entity-level `X causes Y` (which the fact route
 handles) — `that door1 is open causes that cat flees` unambiguously marks two propositions, so this
@@ -79,30 +79,3 @@ def parse_cause(text: str, hedges: dict[str, float] | None = None
     a_text, b_text = head[:idx], head[idx + len(_SEP):]
     a, b = _clause(a_text, hedges), _clause(b_text, hedges)
     return (a, b) if (a and b) else None
-
-
-def handle_name(triple: Triple) -> str:
-    """The content-keyed HANDLE name for a proposition — deterministic, so re-stating a link reuses the
-    same handle (idempotent) and links about the same proposition share it (coherent `causes` graph). A
-    plain name (no `<…>`), so its `subj`/`pred`/`obj`/`truth`/`causes` facts are ordinary facts the
-    bridge rules read."""
-    return "prop:" + ":".join(triple)
-
-
-# The three declared bridge rules (facts-as-truth-bearers): reify a handle from its proposition holding,
-# carry truth across a `causes` link (propositional modus ponens, pure S-P-O), dereify a true handle back
-# to its edge. Installed ONCE per session (keyed by rule.key), then shared by every propositional link.
-BRIDGE_RULES: tuple[str, ...] = (
-    "?h truth yes when ?h subj ?s and ?h pred ?p and ?h obj ?o and ?s ?p ?o",
-    "?b truth yes when ?a truth yes and ?a causes ?b",
-    "?s ?p ?o when ?h subj ?s and ?h pred ?p and ?h obj ?o and ?h truth yes",
-)
-
-
-def handle_facts(a: Triple, b: Triple) -> list[Triple]:
-    """The fact triples a `that A causes that B` statement emits: each proposition's handle carrying its
-    subj/pred/obj, plus the propositional `causes` edge between the two handles."""
-    ha, hb = handle_name(a), handle_name(b)
-    return [(ha, "subj", a[0]), (ha, "pred", a[1]), (ha, "obj", a[2]),
-            (hb, "subj", b[0]), (hb, "pred", b[1]), (hb, "obj", b[2]),
-            (ha, "causes", hb)]

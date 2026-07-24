@@ -7,3 +7,6 @@ build/
 .pytest_cache/
 .mypy_cache/
 *.egg
+
+# Third-party research corpora fetched by bench/fetch_corpora.py — NOT ours to redistribute.
+data/corpora/
