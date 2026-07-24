@@ -16,9 +16,12 @@ The `@?h` read binds `(subject, predicate, object, scope)` from a member relatio
 participants to their base referents (identity via `denotes`, node not name), so the rule bodies read
 ordinary base nodes — not blocked by base-vantage scope isolation.
 
-The ONE non-rule mechanism is `materialize_held` (mint a base referent for a held scope's member lacking
-one — audit primitive ③/④ "materialize base referent on cross"); a follow-on folds it into a reactive
-skolem-minting rule (needs the `denotes`-visibility exemption).
+MATERIALIZE IS DECLARED (not imperative Python). The old `materialize_held` — mint a base referent for a
+held scope's member lacking one (audit primitive ③/④ "materialize base referent on cross") — is folded INTO
+the promote rule via the `@!?scope` MINT-ON-CROSS relativized read (`chain._relativized_st_matching`,
+`mint_missing=True`): the crossing dereference itself materializes a missing referent, so the whole crossing
+is decide + promote DATA over the demand engine, with only the fixpoint DRIVER (`resolve_crossings`) left in
+Python.
 """
 from __future__ import annotations
 
@@ -37,7 +40,10 @@ _DECIDE_CNL = (
     "?b holds_base yes when ?a holds_base yes and ?a causes ?b"
 )
 # PROMOTE — the uniform materialization: a held scope's members are true in base (variable-predicate head).
-_PROMOTE_CNL = "?s ?p ?o when ?scope holds_base yes and ?s ?p ?o @?scope"
+# The `@!?scope` MINT-ON-CROSS read (`chain._relativized_st_matching(mint_missing=True)`) dereferences each
+# member participant to its base referent, MINTING one (named after the member, `denotes`-linked) when none
+# exists — so the old imperative `materialize_held` is folded INTO this declared rule (audit primitive ③/④).
+_PROMOTE_CNL = "?s ?p ?o when ?scope holds_base yes and ?s ?p ?o @!?scope"
 
 
 def decide_rules():
@@ -116,15 +122,6 @@ def reconcile_scopes(g: AttrGraph) -> None:
             g.add_relation(n, DENOTES, rep)
 
 
-def _base_ref(g: AttrGraph, node: str) -> str | None:
-    if scope_of(g, node) is None:
-        return node
-    for rel, obj in g.relations_from(node):
-        if g.has_key(rel, DENOTES) and scope_of(g, obj) is None:
-            return obj
-    return None
-
-
 def _held_scopes(g: AttrGraph, banded: bool) -> list[str]:
     """The scope ids with a `holds_base` verdict — read BANDED when the policy is banded (a banded verdict is
     a FORK a crisp read would miss)."""
@@ -135,25 +132,6 @@ def _held_scopes(g: AttrGraph, banded: bool) -> list[str]:
         if isinstance(s, ById):
             out.append(s.node_id)
     return out
-
-
-def materialize_held(g: AttrGraph, *, banded: bool = False) -> int:
-    """The generic 'materialize base referent on cross' mechanism (audit §5 primitive ③/④): for every scope
-    that HOLDS in base, ensure each member participant has a base referent (mint + `denotes` if absent,
-    reuse if present). Content-blind — no domain logic. Returns the number of referents minted. A follow-on
-    folds this into a reactive skolem-minting rule."""
-    minted = 0
-    held = _held_scopes(g, banded)
-    for sc in held:
-        for ent in [n for n in g.nodes() if scope_of(g, n) == sc]:
-            for rel, obj in list(g.relations_from(ent)):
-                if g.is_control(rel) or g.is_inert(rel) or g.has_key(rel, DENOTES):
-                    continue
-                for node in (ent, obj):
-                    if scope_of(g, node) is not None and _base_ref(g, node) is None:
-                        g.add_relation(node, DENOTES, g.add_node({NAME: valued(g.name(node))}))
-                        minted += 1
-    return minted
 
 
 def _scope_nodes(g: AttrGraph) -> set[str]:
@@ -186,25 +164,30 @@ def _members(g: AttrGraph, scope: str):
 
 
 def _promote_held(g: AttrGraph, promote_g, *, policy=None) -> None:
-    """Write every HELD scope's members to BASE (dereferenced), by demanding each member's base fact through
-    the promote rule (`?s ?p ?o when ?scope holds_base yes and ?s ?p ?o @?scope`). Interleaving this in the
-    fixpoint is what lets links CHAIN: a promoted consequent is a base fact the next link's reify reads.
-    Under a BANDED `policy` the demand carries the band the antecedent rode in on (DEGREE composition — a
-    hedged antecedent promotes a banded consequent)."""
+    """Write every HELD scope's members to BASE through the promote rule (`?s ?p ?o when ?scope holds_base
+    yes and ?s ?p ?o @!?scope`). Demanded PER MEMBER PREDICATE with UNBOUND endpoints (`(p, None, None)`):
+    the `@!?scope` MINT-ON-CROSS read binds `?s`/`?o` to the members' base referents — MINTING a missing one
+    as it dereferences (the old imperative `materialize_held`, folded into the declared rule) — and the head
+    writes the base fact onto those exact node ids. Endpoints are left FREE on purpose: seeding them from a
+    NAME goal would bind `?s` to the name's value-node, which then conflicts with the base ENTITY the read
+    resolves (a distinct same-named node — `_bind_state` id-identity), so the promote would not fire. A
+    predicate-scoped demand is bounded (the body's `holds_base` + member scan produce only held members).
+    Demanding drives the CHAIN: a promoted consequent is a base fact the next link's reify reads. Under a
+    BANDED `policy` the demand carries the band the antecedent rode in on (DEGREE composition — a hedged
+    antecedent promotes a banded consequent)."""
     held = _held_scopes(g, bool(policy is not None and policy.banded))
-    for sc in held:
-        for ent, p, obj in _members(g, sc):
-            bs, bo = _base_ref(g, ent), _base_ref(g, obj)
-            if bs is not None and bo is not None:
-                chain_sip(g, (p, ById(bs), ById(bo)), rules=promote_g, policy=policy)
+    preds = {p for sc in held for _ent, p, _obj in _members(g, sc)}
+    for p in preds:
+        chain_sip(g, (p, None, None), rules=promote_g, policy=policy)
 
 
 def resolve_crossings(g: AttrGraph, rules=None, *, policy=None, max_passes: int = 8) -> None:
     """Drive every CAUSAL crossing to a fixpoint: reconcile → DECIDE (demand `holds_base` for the scopes in a
-    `causes` link, so reify + causal MP run) → MATERIALIZE base referents for newly-held scopes → PROMOTE
-    held members to base. Repeat until stable (a promotion can satisfy another antecedent — so links CHAIN).
-    Leaves every crossed proposition as an ordinary base fact, so a plain query answers it. NO-OP when the
-    graph has no causal scope link — an attribution / isolation scope is never touched.
+    `causes` link, so reify + causal MP run) → PROMOTE held members to base (the `@!?scope` read materializes
+    each member's base referent AS it promotes — audit primitive ③/④, no separate materialize pass). Repeat
+    until stable (a promotion can satisfy another antecedent — so links CHAIN). Leaves every crossed
+    proposition as an ordinary base fact, so a plain query answers it. NO-OP when the graph has no causal
+    scope link — an attribution / isolation scope is never touched.
 
     DEGREE composition: under a BANDED `policy` the reify/MP/promote demands run banded, so a hedged
     antecedent's band rides `holds_base` (min t-norm through MP) into a banded consequent fork."""
@@ -221,7 +204,6 @@ def resolve_crossings(g: AttrGraph, rules=None, *, policy=None, max_passes: int 
         reconcile_scopes(g)
         for sc in _causal_scopes(g):
             chain_sip(g, ("holds_base", ById(sc), "yes"), rules=rule_g, policy=policy)
-        materialize_held(g, banded=banded)
         _promote_held(g, promote_g, policy=policy)
         now = len(_held_scopes(g, banded))
         if now == prev:                                        # fixpoint: no new scope crossed this pass

@@ -29,12 +29,25 @@
 > [[scope-reframe-relativization]]). **Step 1 (scope-tree read) + the `@?h` scope-tree relativized read are
 > SHIPPED; Step 2 CAUSATION is LANDED end to end** — propositional `that A causes that B` is now two
 > proposition SCOPES + a base `causes` fact (`ugm/scope_crossing.py`), decided at the committed-ask gate
-> (`cnl/query.resolve_crossings`: reify + causal MP over `@?h`, then materialize + promote). The `prop:`
+> (`cnl/query.resolve_crossings`: reify + causal MP over `@?h`, then promote). The `prop:`
 > content-key handle and `ugm/fact_identity.py` are RETIRED; all five old causation tests + the two
-> `causation ∘ {hedge,negation}` acceptance cells pass BY SCOPING. **NEXT:** fold the imperative
-> `resolve_crossings` materialize into a reactive skolem-minting rule (needs a `denotes`-visibility
-> exemption); optional 1c (retire the shipped kinded scopes onto the scope-tree — NOT on the critical path,
-> the scope-tree is additive); then Steps 3 (negation-as-interposing-node) + 4 (force + vantage as data).
+> `causation ∘ {hedge,negation}` acceptance cells pass BY SCOPING.
+> **⭐ MATERIALIZE IS NOW A DECLARED RULE (2026-07-24, suite 1059 green — committed `270c397`).** The
+> imperative `materialize_held` is RETIRED: "materialize base referent on cross" (audit primitive ③/④)
+> folds INTO the promote rule via a MINT-ON-CROSS relativized read `@!?scope`
+> (`chain._relativized_st_matching(mint_missing=True)`) — the crossing dereference itself find-or-creates a
+> missing base referent (named after the scoped member, `denotes`-linked). So the whole crossing is now
+> decide + promote DATA over the demand engine, with ONLY the fixpoint driver (`resolve_crossings`) left in
+> Python. Three gated engine touches (all no-op until a `<under>` edge / `!` marker exists): the read's mint
+> mode (binds the concrete base ref so an ambiguous member name can't mis-target the head write);
+> `_solve_demand_rule` parses the `!` mint prefix; `_sideways_order` gates a mint-on-cross atom on its held
+> scope var (soundness — never materialize for an unheld scope). `_promote_held` demands promote per member-
+> predicate with UNBOUND endpoints (a name goal would seed a value-node that conflicts with the base entity).
+> The named-skolem primitive originally floated was NOT needed — mint-on-deref is the smaller/cleaner
+> primitive. **NEXT:** (optional) move the `resolve_crossings` driver into `reactive.fire` (a driver-location
+> refinement — the substance is done, the crossing is already fully DATA); optional 1c (retire the shipped
+> kinded scopes onto the scope-tree — NOT on the critical path, the scope-tree is additive); then Steps 3
+> (negation-as-interposing-node) + 4 (force + vantage as data).
 > The milestone detail is in the **⭐⭐ STEP 2 CAUSATION LANDED** block below. NOTE: some earlier dated
 > blocks say "1c NOW on the critical path" — that was OVERSTATED and later corrected (the scope-tree is
 > additive; new causation scopes are ordinary while shipped kinded scopes keep working).

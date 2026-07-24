@@ -820,7 +820,18 @@ def _relativized_matching(fact_g: AttrGraph, pred: str, s_ep, o_ep, rel_ep):
     return out
 
 
-def _relativized_st_matching(fact_g: AttrGraph, pred_tok: str, s_ep, o_ep, rel_ep):
+def _ep_name(fact_g: AttrGraph, ep) -> str | None:
+    """The NAME a bound endpoint pin refers to — a value-node's operand value, an entity pin's name, or a
+    plain name string; None for an unresolvable/free endpoint. Used by the mint-on-cross deref to key a
+    materialized base referent to the demanded participant."""
+    if isinstance(ep, ById) and fact_g.has(ep.node_id):
+        v = fact_g.operand_value(ep.node_id)
+        return str(v) if v is not None else fact_g.name(ep.node_id)
+    return ep if isinstance(ep, str) else None
+
+
+def _relativized_st_matching(fact_g: AttrGraph, pred_tok: str, s_ep, o_ep, rel_ep,
+                             *, mint_missing: bool = False):
     """SCOPE-TREE relativized read `@?h` (scope_reframe_audit.md Step 2, row 13 — generalizing the temporal
     `@?t`): every MEMBER fact under a scope-tree scope (a fact whose SUBJECT is under a `<under>` scope),
     binding `(subject, PREDICATE, object, scope)`. This is the one generic reach primitive the crossing rule
@@ -837,21 +848,39 @@ def _relativized_st_matching(fact_g: AttrGraph, pred_tok: str, s_ep, o_ep, rel_e
     THE CROSSING DEREFERENCES (audit §5 primitive ④, "participants dereferenced lazily by crossing"): the
     subject/object are bound to their BASE referents via `denotes` (node identity, NOT name), not the scoped
     nodes — so the rule's downstream base atoms (`?s ?p ?o`) read ordinary base nodes and are NOT blocked by
-    the base-vantage scope-visibility filter. A member whose participant has no base referent yet is DROPPED
-    (it does not hold in base — correct for reify; promotion mints the referent separately). The predicate
-    binds to the member predicate's VALUE-NODE (a downstream variable-predicate read resolves it via
-    `_pred_name_of`)."""
+    the base-vantage scope-visibility filter. The predicate binds to the member predicate's VALUE-NODE (a
+    downstream variable-predicate read resolves it via `_pred_name_of`).
+
+    TWO DEREF MODES (the crossing rule picks by its relativizer token, audit §5 primitive ③/④):
+      * `@?h`  (`mint_missing=False`) — DROP a member whose participant has no base referent (it does not
+        hold in base — correct for REIFY, which is asking whether the member is already true in base).
+      * `@!?h` (`mint_missing=True`) — MATERIALIZE the base referent ON CROSS: mint (find-or-create, named
+        after the scoped member, `denotes`-linked) so the PROMOTE rule's head write lands on a queryable
+        base node. This folds the old imperative `materialize_held` INTO the declared promote rule. Only
+        for an explicitly-BOUND held scope (`rel_ep` a concrete pin) and only for the DEMANDED participant
+        (`_ep_name` matches, or the endpoint is free) — a goal for a different participant never mints,
+        soundness. Idempotent: a re-served demand finds the referent minted last round (no duplicate)."""
     from .scope_tree import scope_of, reframe_active
     if not reframe_active(fact_g):
         return []
+    do_mint = mint_missing and rel_ep is not None    # mint only for an explicitly-bound (held) scope
 
-    def base_ref(node):                                        # the base referent via `denotes`, else None
+    def base_ref(node, ep, cset):                             # the base referent via `denotes`, else None
         if scope_of(fact_g, node) is None:
-            return node
+            return node if (cset is None or node in cset) else None
         for rel, obj in fact_g.relations_from(node):
             if fact_g.has_key(rel, DENOTES) and scope_of(fact_g, obj) is None:
-                return obj
-        return None
+                return obj if (cset is None or obj in cset) else None
+        if not do_mint:
+            return None
+        nm = fact_g.name(node)                               # MATERIALIZE ON CROSS (primitive ③/④)
+        if ep is not None and _ep_name(fact_g, ep) != nm:    # a goal for another participant does not mint
+            return None
+        base = next((n for n in fact_g.nodes_named(nm) if scope_of(fact_g, n) is None), None)
+        if base is None:
+            base = fact_g.add_node({NAME: valued(nm)})
+        fact_g.add_relation(node, DENOTES, base)             # so a re-served demand re-finds it (idempotent)
+        return base
 
     def cand(ep):
         return None if ep is None else set(_candidate_nodes(fact_g, ep))
@@ -863,8 +892,8 @@ def _relativized_st_matching(fact_g: AttrGraph, pred_tok: str, s_ep, o_ep, rel_e
         sc = scope_of(fact_g, ent)
         if sc is None or (r_c is not None and sc not in r_c):
             continue
-        bs = base_ref(ent)
-        if bs is None or (s_c is not None and bs not in s_c):
+        bs = base_ref(ent, s_ep, s_c)
+        if bs is None:
             continue
         for rel, obj in fact_g.relations_from(ent):            # its member propositions
             if fact_g.is_control(rel) or fact_g.is_inert(rel) or fact_g.has_key(rel, DENOTES):
@@ -872,12 +901,15 @@ def _relativized_st_matching(fact_g: AttrGraph, pred_tok: str, s_ep, o_ep, rel_e
             p = fact_g.predicate(rel)
             if pred_concrete is not None and p != pred_concrete:
                 continue
-            bo = base_ref(obj)
-            if bo is None or (o_c is not None and bo not in o_c):
+            bo = base_ref(obj, o_ep, o_c)
+            if bo is None:
                 continue
-            out.append((s_ep if s_ep is not None else ById(bs),   # DEREFERENCED to base referents
+            # DEREFERENCED to base referents. In MINT mode bind the CONCRETE base node (`ById(bs)`), not the
+            # demand's name pin: a materialized referent shares its member's name, so a bare name pin would
+            # resolve ambiguously (scoped copy + base) and the head write could land on the scoped node.
+            out.append((ById(bs) if do_mint else (s_ep if s_ep is not None else ById(bs)),
                         ById(fact_g.value_node(p)),               # bind `?p` to the member predicate value-node
-                        o_ep if o_ep is not None else ById(bo),
+                        ById(bo) if do_mint else (o_ep if o_ep is not None else ById(bo)),
                         rel_ep if rel_ep is not None else ById(sc)))
     return out
 
@@ -1011,9 +1043,17 @@ def _sideways_order(body: list[tuple[str, str, str, str]], bound: set[str]
     while remaining:
         # A RELATIVIZED atom (`@?h`) is always a valid anchor: the relativized read is a BOUNDED scan over a
         # scope's members that binds s/p/o/scope together (including a VARIABLE predicate), so it neither
-        # needs `?p` pre-bound nor a ready endpoint — it is the crossing rule's reach-into-scope anchor.
-        idx = next((i for i, (s, p, o, r) in enumerate(remaining)
-                    if bool(r) or (pred_ok(p) and (ready(s) or ready(o) or ready(r)))), 0)
+        # needs `?p` pre-bound nor a ready endpoint — it is the crossing rule's reach-into-scope anchor. A
+        # MINT-ON-CROSS atom (`@!?h`, leading `!`) is the exception: it must run ONLY after its held scope is
+        # bound (else it materializes referents for every scope, unsound) — so even when its s/o endpoints
+        # are already bound it is NOT anchorable until the scope var is, unlike an ordinary atom.
+        def anchorable(s: str, p: str, o: str, r: str) -> bool:
+            if r.startswith("!"):                 # mint-on-cross: gate strictly on the held scope var
+                return r[1:] in bound
+            if r:                                 # ordinary relativized read: always the reach anchor
+                return True
+            return pred_ok(p) and (ready(s) or ready(o) or ready(r))
+        idx = next((i for i, atom in enumerate(remaining) if anchorable(*atom)), 0)
         s_tok, p, o_tok, rel_tok = remaining.pop(idx)
         order.append((s_tok, p, o_tok, rel_tok))
         for t in (s_tok, o_tok, rel_tok):
@@ -1447,9 +1487,15 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                 s_ep = _ptr(fact_g, st, s_tok)             # the endpoints as CARRIED: node-pointers
                 o_ep = _ptr(fact_g, st, o_tok)             # (a literal -> its interned value-node)
                 if rel_tok:
+                    # RELATIVIZED atom `@?t` / `@?h` / `@!?h`. A leading `!` on the relativizer token is the
+                    # MINT-ON-CROSS mode (`@!?h`, the promote rule): the scope-tree read materializes a
+                    # missing base referent as it dereferences (folds `materialize_held` into the rule). The
+                    # scope-key VARIABLE is the token minus that marker.
+                    mint_missing = rel_tok.startswith("!")
+                    rel_var = rel_tok[1:] if mint_missing else rel_tok
                     # RELATIVIZED atom `@?t`: range over temporal-scope pencils, binding the index too.
                     # `_bind_state` filters s/o/rel exactly as it filters a free-endpoint fact row.
-                    rel_ep = _ptr(fact_g, st, rel_tok)
+                    rel_ep = _ptr(fact_g, st, rel_var)
                     for fs, fo, fidx in _relativized_matching(fact_g, bp, s_ep, o_ep, rel_ep):
                         st1 = _bind_state(fact_g, st, s_tok, fs)
                         if st1 is None:
@@ -1457,14 +1503,15 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                         st2 = _bind_state(fact_g, st1, o_tok, fo)
                         if st2 is None:
                             continue
-                        st3 = _bind_state(fact_g, st2, rel_tok, fidx)
+                        st3 = _bind_state(fact_g, st2, rel_var, fidx)
                         if st3 is None:
                             continue
                         nxt.append((st3, band, env))       # ontological: no band discount, no env
                     # SCOPE-TREE relativized read `@?h` (Step 2, additive): also bind the member PREDICATE
                     # (`?p`), so `?s ?p ?o @?h` is the crossing rule's one reach-into-scope anchor. Yields
                     # nothing until `<under>` edges exist, so the temporal-only behaviour is unchanged.
-                    for fs, fp, fo, fsc in _relativized_st_matching(fact_g, bp, s_ep, o_ep, rel_ep):
+                    for fs, fp, fo, fsc in _relativized_st_matching(fact_g, bp, s_ep, o_ep, rel_ep,
+                                                                    mint_missing=mint_missing):
                         st1 = _bind_state(fact_g, st, s_tok, fs)
                         if st1 is None:
                             continue
@@ -1475,7 +1522,7 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                         st2 = _bind_state(fact_g, st1, o_tok, fo)
                         if st2 is None:
                             continue
-                        st3 = _bind_state(fact_g, st2, rel_tok, fsc)
+                        st3 = _bind_state(fact_g, st2, rel_var, fsc)
                         if st3 is None:
                             continue
                         nxt.append((st3, band, env))
