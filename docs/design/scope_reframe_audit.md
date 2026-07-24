@@ -165,6 +165,55 @@ partition to undo later. Composition cells are the acceptance test, not a fix to
   the propositional-causation case: the `prop:` handle retires (row 6); `causes` between scoped statements;
   the reify tail becomes the one crossing rule. **Acceptance: causation ∘ {hedge, negation} cells pass
   LINK-FIRST, closed by scoping — no content-key, no guard on base.**
+  - **LOWERING SPIKED GO 2026-07-24 (`bench/spike_crossing_rule_lowering.py`) — the crossing DECISION is
+    declared rules.** The imperative crossing (`spike_scope_causation_repA.py`'s `holds_in_base`/`promote`/
+    MP) lowers to TWO DECLARED RULES firing through the real demand engine: reify (`?scope holds_base yes
+    when ?m in_scope ?scope and ?m mpred ?p and ?m msubj_base ?bs and ?m mobj_base ?bo and ?bs ?p ?bo`) +
+    causal MP (`?b holds_base yes when ?a holds_base yes and ?a causes ?b`). LINK-FIRST and antecedent-first
+    both derive the consequent's holds-in-base; the negative control (no base fact) correctly does not. The
+    causation MEANING is data; no Python decides it.
+  - **THREE BUILD FINDINGS the spike forced (all shape the production plan):**
+    1. **Scopes must be ORDINARY nodes, not `<hypothesis>` control (row 1 corollary).** The reframe relates
+       scopes with BASE facts (`S_A causes S_B`, `S holds_base yes`); a fact with a CONTROL endpoint is
+       dropped by the read guard, so scopes cannot be control if rules are to reason about them. Confirms §1
+       ("a scope is itself an ordinary node") against the current control-scope shape — the 1c migration is
+       now on the critical path for Step 2, not deferrable as first thought. Scope nodes also must NOT
+       name-collide (the demand engine name-unions same-named nodes) — scope identity is the NODE.
+    2. **`chain_sip(scope=H)` CONFLATES read-vantage and write-scope (row 10 surfacing early).** It sets the
+       reading vantage AND pencils every EMIT into H. A crossing rule must READ a member from its scope's
+       vantage while WRITING to base — one param can't do both. In the spike the read-across-boundary is
+       factored into a GENERIC, content-blind reach BRIDGE (`expose_members`: read each scoped member relnode
+       + deref participants to base via `denotes`, expose as ordinary base facts). Production wants either a
+       read-vantage param split from the write-scope, OR the `@?h` relativized read (below), which is why
+       Step 4's vantage-as-data is a latent prerequisite.
+    3. **The materialization (dereify to base) hits variable-predicate representation mismatches.** The
+       shipped dereify (`?bs ?p ?bo` variable-pred head) works via the `ask_goal` path, but a raw `chain_sip`
+       demand over a hand-built bridge does not: the head-unify binds `?p` to `value_node(pred)`, and walking
+       INTO a value-node object returns nothing; the pure-declared lowering is also sensitive to the boolean
+       `holds_base yes` verdict shape + the `_sideways_order` heuristic (a literal object is a non-selective
+       anchor). **CONCLUSION: production should prefer the row-13 `@?h` relativized read** — one atom binds
+       scope + member s/p/o together, no materialized bridge, no value-node round-trip — generalizing the
+       temporal `_relativized_matching` to the scope-tree. That, plus scopes-as-ordinary (1c) and a
+       read-vantage/write-scope split, is the Step-2 build. The bridge-based lowering is the proof-of-concept,
+       not the shipping shape.
+  - **`@?h` SCOPE-TREE READ BUILT + SPIKED GO 2026-07-24 (`bench/spike_scopetree_rel_read.py`; suite 1051
+    green).** The load-bearing primitive is now in the engine, ADDITIVE + gated. `ugm/chain._relativized_st_
+    matching` generalizes the temporal `@?t` read to the scope-tree: ONE atom `?s ?p ?o @?h` reaches into a
+    scope and binds `(subject, PREDICATE, object, scope)` together, with the participants ALREADY
+    DEREFERENCED to their base referents (the crossing dereferences — primitive ④), so the rule's downstream
+    base atoms read ordinary base nodes and are NOT blocked by the base-vantage visibility filter. Three
+    small, gated engine touches: (a) `_relativized_st_matching` (returns [] until any `<under>` edge exists →
+    hot path byte-unchanged, differential-safe); (b) the demand branch also runs the scope-tree read + binds
+    the member PREDICATE (temporal binds only s/o/index — a concrete-predicate assumption the crossing breaks);
+    (c) `_sideways_order` treats a relativized atom as always-anchorable (it is a bounded member scan that
+    binds its own s/p/o/scope, so it never needs `?p` pre-bound) + `production_rule.rhs_only_head_vars` counts
+    `pat.rel` (a body `@?h` binds `?h`). RESULT: the crossing is ONE clean declared rule through the REAL
+    `chain_sip` — `?scope holds_base yes when ?s ?p ?o @?scope and ?s ?p ?o` (reify) + causal MP — deriving
+    the consequent's holds-in-base LINK-FIRST and antecedent-first, neg-control correct, NO bridge/handle/
+    value-node round-trip. This RETIRES finding-3's fragility. **STILL TO BUILD:** scopes-as-ordinary + 1c
+    (findings 1); the PROMOTE/materialization (write the consequent to base = base-referent mint + the shipped
+    variable-predicate dereify — findings 2/3 write side); rewire `cause_surface.py` off the `prop:` handle;
+    flip the `causation ∘ {hedge,negation}` closure cells; retire `fact_identity.py`.
 - **Step 3 — negation as an interposing predicate-node.** Retire `R_not`/`neg_of` (row 5); NAF reads the
   interposing node. Riskiest (reshapes NAF); isolate, re-break the negation/coref suite, differential-gate
   (unified-rep §8; form_inventory §9.1 "carry the band on the negative read").

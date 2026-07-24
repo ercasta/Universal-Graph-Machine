@@ -122,7 +122,7 @@ def rhs_only_head_vars(rule) -> list[str]:
     per firing forward and re-found by its defining relation on demand (`chain._resolve_skolems`). Only the
     unanchored `?x` — a node from nowhere — is unsound and rejected."""
     body = {t for pats in (rule.lhs, rule.nac) for pat in pats
-            for t in (pat.s, pat.p, pat.o) if is_var(t)}
+            for t in (pat.s, pat.p, pat.o, pat.rel) if is_var(t)}   # a body `@?h` relativizer binds `?h`
     body |= {g.var for g in rule.graded if is_var(g.var)}   # a graded condition binds its var too
     body |= {v for vm in rule.value_matches                 # a value-match references LHS-bound vars
              for v in (vm.var_a, vm.var_b) if is_var(v)}

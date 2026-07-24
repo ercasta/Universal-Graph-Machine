@@ -20,21 +20,81 @@
 > exhaustive engine's outputs. Real long-pole for a *usable* system = **performance (Phase 7)**, not
 > correctness.
 
-## ▶▶ TOP PRIORITY (RE-POINTED 2026-07-23, user steer) — CORE-AXIS COMPOSITION, not the grammar surface
+## ▶▶ TOP PRIORITY (RE-POINTED 2026-07-24, user steer) — SCOPE REFRAME (relativization = the one scoping primitive)
 
-### ═══ FRESH-SESSION START HERE (2026-07-23 end — suite 1046 green; composition audit PASS 14 / REFUSED 4 / LEAK 0) ═══
+### ═══ FRESH-SESSION START HERE (2026-07-24 — suite 1051 green; read-side shipped + Rep A spiked GO) ═══
 
-**ONE-LINE STATE.** The top priority is CORE-AXIS COMPOSITION, RE-POINTED to **UNIFY THE REPRESENTATION**
-(north star **`docs/design/unified_representation.md`** — one interned proposition node; every axis an
-annotation-relation on it; truth as a vantage that is itself facts). **Step 1 (fact identity) INCREMENT 1 is
-SHIPPED GREEN** (2026-07-23): both `causation ∘ {hedge,negation}` cells flipped **REFUSED→PASS LINK-FIRST**
-via reactive fact-identity reconciliation (`ugm/fact_identity.py`); audit now **PASS 14 / REFUSED 4 / LEAK 0**,
-suite 1046 green. **NEXT = Step 1 INCREMENT 2:** retire the `prop:` content-key handle so the RELNODE IS the
-proposition (`causes` between interned relnodes, structural link-query), collapsing the increment-1 additive-
-edge reconciliation into genuine structural fact identity (option B fully). Read the ⭐/STEP-1 blocks in THIS
-section top-to-bottom; the composition audit is the COMMITTED ratchet gate (`tests/test_epistemic_closure.py`).
-The remaining REFUSED cells (`conditional∘negation`, `hedged rule`, attribution, quantification) are closed-not-
-leaking GAPS, not blockers. Committed by the user across the session (branch `grammar`).
+**ONE-LINE STATE.** The composition/unification arc is RE-POINTED to the **SCOPE REFRAME** — north star
+**`docs/design/scope_reframe_audit.md`** (SUPERSEDES `unified_representation.md`, whose §4 "collapse a
+reference into the very node its assertion inks" was the recurring ERROR — it re-manufactures the
+mention-vs-assert conflict). Memory: **[[scope-reframe-relativization]]** (read it first). THESIS: the graph is
+mostly AFFIRMATIONS lazily bound to instances; a RELATIVIZER ("John says", "at T", "under H", "that…causes…")
+mints a SCOPE NODE (a base fact whose OBJECT is a scope); facts/scopes are born UNDER it; **composition =
+nesting, isolation = default, crossing = a DATA rule (copy-with-provenance)**. The engine is agnostic about
+what any scope MEANS — all meaning lives in per-relativizer crossing rules. Honours `composition_architecture.md`
+(the ISA reader already composes annotations — do NOT touch `chain_sip`; fix PRODUCERS) and realizes
+`form_inventory.md` §9.3 primitive ① (scope generalization) structurally.
+
+**DONE THIS SESSION (all committed, branch `grammar`, suite 1051 green):**
+- **The audit** (`docs/design/scope_reframe_audit.md`) — 13-row reframe map + the 5-principle lens + the
+  4-primitive irreducible core + the migration + open decisions.
+- **Point 3 SETTLED** (relativizer→scope / negation→on-path PREDICATE-node / degree+force→benign attrs; a
+  fork stays a scope, a plain hedge becomes a band-attr).
+- **Point 1 SPIKED GO + SHIPPED (Step-1 sub-slices 1a+1b):** `ugm/scope_tree.py` (nested-scope primitive:
+  `<under>` edge, `scope_of`/`scope_chain`/`is_visible`) + scope-local read wiring in `chain.py`
+  (`_scope_visible` filters `_candidate_nodes`/`_bound_class_pins`; `<active-scope>` register threaded through
+  `_facts_matching`). ZERO-COST conservative extension: `reframe_active` gates the filter off until any
+  `<under>` edge exists (read hot path byte-unchanged on current data). Differential oracle committed =
+  `tests/test_scope_reframe_diff.py` (base-isolation DIVERGES from the shipped global oracle = the win;
+  derivation-frame token/entity fusion + grammar route AGREE). Substrate-purity MANIFEST updated.
+  Spike: `bench/spike_scope_local_identity.py` (GO 4/4).
+- **Rep A DECIDED + SPIKED GO** (`bench/spike_scope_causation_repA.py`, through the REAL reader): `causes`/
+  `says` between SCOPE nodes (the scope IS the proposition unit) — beats Rep B (causes between relnodes); the
+  CONJUNCTION case (`John says A and B` = one scope, many members, crossing = all-members) is why. CASE 1
+  causation link-first → yes BY SCOPING (no `prop:` handle, no string bridge); CASE 2 attribution: Trap A
+  holds (coref real via `denotes`, yet base does NOT see the claim), in-scope both hold, promote-all crosses
+  both.
+
+**LOWERING SPIKED GO 2026-07-24 (`bench/spike_crossing_rule_lowering.py`).** The imperative crossing lowers
+to TWO DECLARED RULES firing through the REAL demand engine — reify (a scope holds-in-base when its member,
+dereferenced, holds in base) + causal MP — LINK-FIRST and antecedent-first, neg-control correct. The
+causation MEANING is data, no Python decides it. THREE BUILD FINDINGS the spike forced (detail in
+`scope_reframe_audit.md` §6 Step 2): **(1) scopes must be ORDINARY nodes, not `<hypothesis>` control** (a
+fact between scopes / `S holds_base yes` is dropped by the read guard if the scope is control) → **1c is now
+ON the Step-2 critical path**, not deferrable, and scope nodes must not name-collide; **(2) `chain_sip(scope=H)`
+CONFLATES read-vantage with pencil-write-scope** — a crossing rule reads a member from its scope's vantage but
+writes to base; the spike factored the read-across into a generic content-blind reach BRIDGE (`expose_members`),
+but production wants a read-vantage/write-scope split OR the `@?h` read (Step-4 vantage-as-data surfacing early);
+**(3) the dereify WRITE hits variable-predicate representation mismatches** on a hand-built bridge (walking INTO
+a value-node returns nothing; boolean-verdict shape trips `_sideways_order`) → **production should prefer the
+row-13 `@?h` relativized read** (one atom binds scope + member s/p/o, no bridge, no value-node round-trip;
+generalize the temporal `_relativized_matching` to the scope-tree).
+
+**`@?h` READ BUILT + SPIKED GO 2026-07-24 (`bench/spike_scopetree_rel_read.py`; suite 1051 green).** Step-2
+move (b) is DONE — the load-bearing reach primitive is in the engine, ADDITIVE + gated. `ugm/chain._relativized_
+st_matching` generalizes the temporal `@?t` read to the scope-tree: ONE atom `?s ?p ?o @?h` binds `(subject,
+PREDICATE, object, scope)` together with participants DEREFERENCED to base (crossing dereferences), so a
+downstream base atom reads ordinary base nodes (not blocked by the base-vantage filter). Three gated engine
+touches: (a) the matcher (returns [] until any `<under>` edge exists → hot path byte-unchanged); (b) the demand
+branch also runs it + binds the member PREDICATE (temporal binds only s/o/index); (c) `_sideways_order` treats
+a relativized atom as always-anchorable + `production_rule.rhs_only_head_vars` counts `pat.rel`. RESULT: the
+crossing is ONE clean declared rule through the REAL `chain_sip` — `?scope holds_base yes when ?s ?p ?o @?scope
+and ?s ?p ?o` (reify) + causal MP — consequent holds-in-base LINK-FIRST + antecedent-first, neg-control correct,
+NO bridge/handle/value-node round-trip. Retires the bridge-fragility finding.
+
+**NEXT = STEP 2 build, remaining:** **(a)** make scopes ORDINARY nodes + do **1c** (migrate the shipped kinded
+scopes off the `SCOPE` attr onto the scope-tree; now critical-path) → **(c)** the PROMOTE/materialization step
+(write the consequent to base = base-referent mint + the shipped variable-predicate dereify) + a read-vantage/
+write-scope split in `chain_sip` where the write side needs it → **rewire `cnl/cause_surface.py`** to emit the
+scope structure instead of the `prop:` content-key handle → **flip the `causation ∘ {hedge,negation}` cells** in
+`test_epistemic_closure.py` to pass LINK-FIRST BY SCOPING (the committed ratchet) → retire `ugm/fact_identity.py`
+(subsumed by the scope-tree). 1d (base fast-path index) only matters once the filter goes active under load.
+
+**Blocks below (STEP 1 increment 1/2, the `unified_representation.md` fact-identity framing) are SUPERSEDED
+history** — the scope reframe subsumes them (a mention is a fact deeper in the scope tree, not a second
+identity to reconcile). Kept for the reasoning trail. The composition audit stays the COMMITTED ratchet gate
+(`tests/test_epistemic_closure.py`); remaining REFUSED cells (`conditional∘negation`, `hedged rule`,
+attribution, quantification) are closed-not-leaking GAPS, not blockers.
 
 **STEP 1 — RATIFIED + IDENTITY MECHANISM SPIKED GO (2026-07-23).** User re-ratified the reification decision
 (§8): the fact-NODE becomes a first-class carrier with structural identity — NO role-labeled/Davidsonian

@@ -820,6 +820,68 @@ def _relativized_matching(fact_g: AttrGraph, pred: str, s_ep, o_ep, rel_ep):
     return out
 
 
+def _relativized_st_matching(fact_g: AttrGraph, pred_tok: str, s_ep, o_ep, rel_ep):
+    """SCOPE-TREE relativized read `@?h` (scope_reframe_audit.md Step 2, row 13 — generalizing the temporal
+    `@?t`): every MEMBER fact under a scope-tree scope (a fact whose SUBJECT is under a `<under>` scope),
+    binding `(subject, PREDICATE, object, scope)`. This is the one generic reach primitive the crossing rule
+    invokes — one atom `?s ?p ?o @?h` reaches into a scope, binds its member's participants + predicate +
+    the scope node together, so the rest of the rule (`?s denotes ?bs`, base check, MP) is plain data. No
+    materialized bridge, no content-key handle.
+
+    ADDITIVE + gated: returns [] until any `<under>` edge exists (`reframe_active`), so the read hot path is
+    byte-unchanged on current data. Unlike the temporal read (which binds only s/o/index because temporal
+    rules use CONCRETE predicates), this binds the PREDICATE too — the crossing is predicate-GENERAL, so
+    `?p` must range over the member's actual predicate (facts-as-truth-bearers, but sourced from the member
+    relation, not a `?h pred ?p` handle fact).
+
+    THE CROSSING DEREFERENCES (audit §5 primitive ④, "participants dereferenced lazily by crossing"): the
+    subject/object are bound to their BASE referents via `denotes` (node identity, NOT name), not the scoped
+    nodes — so the rule's downstream base atoms (`?s ?p ?o`) read ordinary base nodes and are NOT blocked by
+    the base-vantage scope-visibility filter. A member whose participant has no base referent yet is DROPPED
+    (it does not hold in base — correct for reify; promotion mints the referent separately). The predicate
+    binds to the member predicate's VALUE-NODE (a downstream variable-predicate read resolves it via
+    `_pred_name_of`)."""
+    from .scope_tree import scope_of, reframe_active
+    if not reframe_active(fact_g):
+        return []
+
+    def base_ref(node):                                        # the base referent via `denotes`, else None
+        if scope_of(fact_g, node) is None:
+            return node
+        for rel, obj in fact_g.relations_from(node):
+            if fact_g.has_key(rel, DENOTES) and scope_of(fact_g, obj) is None:
+                return obj
+        return None
+
+    def cand(ep):
+        return None if ep is None else set(_candidate_nodes(fact_g, ep))
+    s_c, o_c, r_c = cand(s_ep), cand(o_ep), cand(rel_ep)
+    pred_concrete = None if is_var(pred_tok) else pred_tok
+
+    out: list[tuple] = []
+    for ent in fact_g.nodes():                                 # every node BORN under a scope
+        sc = scope_of(fact_g, ent)
+        if sc is None or (r_c is not None and sc not in r_c):
+            continue
+        bs = base_ref(ent)
+        if bs is None or (s_c is not None and bs not in s_c):
+            continue
+        for rel, obj in fact_g.relations_from(ent):            # its member propositions
+            if fact_g.is_control(rel) or fact_g.is_inert(rel) or fact_g.has_key(rel, DENOTES):
+                continue                                        # skip `<under>`/`denotes`/control meta
+            p = fact_g.predicate(rel)
+            if pred_concrete is not None and p != pred_concrete:
+                continue
+            bo = base_ref(obj)
+            if bo is None or (o_c is not None and bo not in o_c):
+                continue
+            out.append((s_ep if s_ep is not None else ById(bs),   # DEREFERENCED to base referents
+                        ById(fact_g.value_node(p)),               # bind `?p` to the member predicate value-node
+                        o_ep if o_ep is not None else ById(bo),
+                        rel_ep if rel_ep is not None else ById(sc)))
+    return out
+
+
 def _bound_endpoint_ops(fact_g: AttrGraph, reg: str, endpoint) -> list:
     """The in-program test that register `reg` matches a BOUND second endpoint: an entity pin
     unifies registers (`SET` the pin + `SAME`); a name / value-node pointer tests the NAME value."""
@@ -947,8 +1009,11 @@ def _sideways_order(body: list[tuple[str, str, str, str]], bound: set[str]
     remaining = list(body)
     order: list[tuple[str, str, str, str]] = []
     while remaining:
+        # A RELATIVIZED atom (`@?h`) is always a valid anchor: the relativized read is a BOUNDED scan over a
+        # scope's members that binds s/p/o/scope together (including a VARIABLE predicate), so it neither
+        # needs `?p` pre-bound nor a ready endpoint — it is the crossing rule's reach-into-scope anchor.
         idx = next((i for i, (s, p, o, r) in enumerate(remaining)
-                    if pred_ok(p) and (ready(s) or ready(o) or ready(r))), 0)
+                    if bool(r) or (pred_ok(p) and (ready(s) or ready(o) or ready(r)))), 0)
         s_tok, p, o_tok, rel_tok = remaining.pop(idx)
         order.append((s_tok, p, o_tok, rel_tok))
         for t in (s_tok, o_tok, rel_tok):
@@ -1396,6 +1461,24 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                         if st3 is None:
                             continue
                         nxt.append((st3, band, env))       # ontological: no band discount, no env
+                    # SCOPE-TREE relativized read `@?h` (Step 2, additive): also bind the member PREDICATE
+                    # (`?p`), so `?s ?p ?o @?h` is the crossing rule's one reach-into-scope anchor. Yields
+                    # nothing until `<under>` edges exist, so the temporal-only behaviour is unchanged.
+                    for fs, fp, fo, fsc in _relativized_st_matching(fact_g, bp, s_ep, o_ep, rel_ep):
+                        st1 = _bind_state(fact_g, st, s_tok, fs)
+                        if st1 is None:
+                            continue
+                        if is_var(bp):                     # predicate-general: bind `?p` to the member pred
+                            st1 = _bind_state(fact_g, st1, bp, fp)
+                            if st1 is None:
+                                continue
+                        st2 = _bind_state(fact_g, st1, o_tok, fo)
+                        if st2 is None:
+                            continue
+                        st3 = _bind_state(fact_g, st2, rel_tok, fsc)
+                        if st3 is None:
+                            continue
+                        nxt.append((st3, band, env))
                     continue
                 bpk = bp
                 if is_var(bp):
