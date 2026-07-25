@@ -65,10 +65,37 @@ def put_under(g: AttrGraph, node: str, scope: str) -> None:
     g.add_relation(node, UNDER, scope)          # `<under>` is a control token -> the rel node auto-controls
 
 
+def _scoped_nodes(g: AttrGraph) -> frozenset[str]:
+    """The set of nodes that HAVE an `<under>` edge — version-cached (slice 1c-G, the base fast-path that
+    `scope_reframe_audit.md` called 1d).
+
+    WHY THIS EXISTS. Migrating membership onto `<under>` makes `reframe_active` TRUE on any graph holding
+    a single scope, which switches `chain._scope_visible` on for EVERY read. Without this set the filter
+    called `scope_of` per candidate node, and `scope_of` scans that node's relations looking for an
+    `<under>` — an O(degree) probe per node per read, paid overwhelmingly by BASE nodes that have no
+    `<under>` edge at all. That is what took the suite from 118s to not finishing.
+
+    The fix is `execution_topology.md` §4d's own prescription one level down: INDEX, do not re-derive.
+    Membership is rare and base is the common case, so the answer for a base node must be O(1). Rebuild is
+    O(#`<under>` relations) — small, because scoped facts are the exception — and version-keyed exactly
+    like `lowering.derived_triples`' snapshot cache, so it is a pure function of the current graph."""
+    cached = getattr(g, "_scoped_cache", None)
+    if cached is not None and cached[0] == g.version:
+        return cached[1]
+    out: set[str] = set()
+    for rel in g.nodes_with_key(UNDER):
+        out.update(g.pred(rel))
+    frozen = frozenset(out)
+    g._scoped_cache = (g.version, frozen)
+    return frozen
+
+
 def scope_of(g: AttrGraph, node: str) -> str | None:
     """The scope `node` is directly under (its `<under>` target), or None for a BASE node. One parent per
     node in the tree — an invariant ENFORCED by `put_under`, which is what makes returning the first
     `<under>` well-defined rather than iteration-order-dependent. A node with no `<under>` edge is base."""
+    if node not in _scoped_nodes(g):
+        return None                    # BASE FAST PATH (1c-G): the overwhelmingly common case, now O(1)
     for rel, obj in g.relations_from(node):
         if g.has_key(rel, UNDER):
             return obj

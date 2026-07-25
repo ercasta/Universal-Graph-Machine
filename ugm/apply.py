@@ -124,9 +124,10 @@ def _read_atoms_rel(rule_g: AttrGraph, rule_node: str, role: str) -> list[tuple[
 # --- fact reading + EMIT -------------------------------------------------------------------------
 
 def _rel_in_scope(g: AttrGraph, rel: str, scope: str) -> bool:
-    """Does this control rel node belong to the active `<hypothesis>` `scope`? (its pencil tag matches)."""
-    a = g.get_attr(rel, SCOPE)
-    return a is not None and a.value == scope
+    """Does this rel node belong to the active `scope`? STRUCTURAL since slice 1c: membership is an
+    `<under>` edge, not a `SCOPE` tag."""
+    from .scope_tree import scope_of
+    return scope_of(g, rel) == scope
 
 
 def _fact_relnodes(g: AttrGraph, pred: str, *, scope: str | None = None):

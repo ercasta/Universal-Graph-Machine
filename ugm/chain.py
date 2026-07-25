@@ -702,7 +702,7 @@ def _find_banded_relnode(fact_g: AttrGraph, s_id: str, pred: str, o_id: str,
         return rel
     for r in fact_g.succ(s_id):
         if fact_g.has_key(r, pred) and not fact_g.is_inert(r) \
-                and fact_g.get_attr(r, SCOPE) is not None and o_id in fact_g.succ(r):
+                and scope_of(fact_g, r) is not None and o_id in fact_g.succ(r):
             return r
     return None
 
@@ -731,8 +731,8 @@ def _scope_pencils(fact_g: AttrGraph, scope: str | None) -> frozenset[str] | Non
     end-state has the suppose/chain WRITERS maintain the set incrementally as they pencil."""
     if scope is None:
         return None
-    return frozenset(r for r in fact_g.nodes_with_key(SCOPE)
-                     if (a := fact_g.get_attr(r, SCOPE)) is not None and a.value == scope)
+    from .scope_tree import members_of
+    return frozenset(r for r in members_of(fact_g, scope) if fact_g.predicate(r))
 
 
 # --- Scope-variable rules (relativized atoms `@?t`, scope_generalization.md §6) -------------------
@@ -798,10 +798,9 @@ def _relativized_matching(fact_g: AttrGraph, pred: str, s_ep, o_ep, rel_ep):
     for rel in fact_g.nodes_with_key(pred):
         if not fact_g.is_control(rel) or fact_g.is_inert(rel):
             continue
-        a = fact_g.get_attr(rel, SCOPE)
-        if a is None:
+        sc = scope_of(fact_g, rel)
+        if sc is None:
             continue
-        sc = a.value
         k = fact_g.get_attr(sc, SCOPE_KIND)
         if k is None or k.value != KIND_TEMPORAL:
             continue

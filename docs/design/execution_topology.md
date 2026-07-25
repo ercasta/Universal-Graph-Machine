@@ -638,6 +638,9 @@ should be taken deliberately; today it is scheduled to be taken by default.**
 
 ## 11. Prior art — this model is well-trodden, in four traditions that rarely cite each other
 
+> **A fifth was missing and is added in §13.5** — production match networks (RETE and successors). It is
+> the tradition the §13 amendment actually belongs to, and Soar's one line below was standing in for it.
+
 The answer to *"is this computation model used by any symbolic system in the literature?"* is **yes,
 extensively** — but the pieces are distributed across four communities, and the value of knowing this
 is mostly that each has already catalogued the failure modes we would otherwise rediscover.
@@ -745,3 +748,150 @@ citation and an implementation that predates us.
   re-derivation (a skolem, a provenance record, an un-deduped `EMIT`) re-opens unbounded arrival from
   inside the network. This is a risk about a layer BELOW the scheduler, which is why it is easy to miss
   while reviewing the scheduler.
+
+---
+
+## 13. AMENDMENT (2026-07-26) — rules as ACTIVE CELLS, the DISPATCH half of §4b
+
+> *"What if we adopted a radically different execution model, where 'facts' are data, and 'rules' are
+> 'active computation cells' that can be dynamically assembled (based on the kb and the discourse itself
+> to e.g. nest scopes) — connected to each other, and 'firing' depending on whether the subgraph that's
+> fed to them matches their LHS? Like a 'symbolic' neural network (not neuro-symbolic)."*
+
+**Not radically different, and that is the finding.** It answers a question this document asks and never
+answers: §4b settles what FLOWS through a queue and is silent on **how a rule finds its data**. Today the
+answer is "run the bank against the graph" — search. The proposal makes it structural: a cell is
+pre-connected to the subgraph that can feed it. §4d had already derived half of this for watchers alone
+(*"Do NOT seed; INDEX"*, `O(watchers × rounds)` → `O(matches)`); the proposal is that index generalized
+from watchers to every rule.
+
+**The reconciliation, and it is what was spiked:**
+
+> **A CELL IS A PARKED CONTINUATION INDEXED BY ITS LHS TRIGGER.** The network is the index over parked
+> continuations; the wiring is graph-resident work-requests (§4b, rule-visible); the partial match rides
+> in the continuation (registers). No third state home, no opcode delta, §4b's item unchanged.
+
+Worth nothing if it costs the topology its soundness argument, so the spike asked exactly one question:
+**does a scope still have a definable DRAINED state when the rule never leaves the network?** A network of
+permanently-live cells is §4d hazard 1 — unbounded arrival — promoted from a watcher corner case to the
+default.
+
+### 13.1 SPIKED 2026-07-26 — `bench/spike_cell_network.py`
+
+| case | result |
+|---|---|
+| 1 — cell = parked continuation, woken by an INDEXED delta | **PASS** — fires, re-parks; an unrelated grain wakes *nothing* |
+| 2 — the JOIN: partial match with no third state home | **PASS** — remembered in `ctrl`; zero nodes/edges added by the half-match |
+| 3 — **the drain** (the question) | **PASS** — 3 rounds, stable on re-drain, NAF decidable |
+| 4a — monotone cell CYCLE | **PASS** — drains in 2; consumer woken by the producer's write |
+| 4b — non-monotone cell | **FAILS AS DESIGNED** — never drains; caught by budget, not a hang |
+| 5 — scoped sibling cells | **PASS** — isolated, parent-first, child inherited |
+
+**VERDICT: GO, as a REFINEMENT of §4b rather than a re-point.**
+
+### 13.2 The three findings
+
+**(a) The opcode delta is ZERO, again — and there is no third state home.** `SUSPEND` plus a `BRANCH`
+back to the wait block is the entire cell mechanism: the cell parks, is resumed with the delta, fires,
+and re-parks, each re-park capturing the updated `ctrl`. The cell's memory *is* its continuation, so a
+two-premise join needs no RETE beta-memory node — case 2 confirms the half-match added **nothing** to the
+graph. That matters beyond economy: [[mechanism-policy-separation]] has exactly two homes, and a
+graph-resident partial match would let a rule match on machinery, which is precisely what §8 forbids. The
+proposal's most plausible failure mode does not occur.
+
+**(b) DRAIN SURVIVES — but §5's predicate must be RESTATED, and this is the substantive amendment.**
+Case 3 reports `drained=True` with **both cells still parked, still indexed, still able to fire forever**.
+So "drained" can no longer mean "no work left in the system":
+
+> **drained = EMPTY DELTA QUEUE ∧ NO ENABLED CELL** — a predicate over the delta queue and the enabled
+> set, never over the network's occupancy.
+
+§5b's condition is unchanged in substance (a scope's NAF is decidable once its own and its descendants'
+queues have drained, parent-first); what changes is what the word denotes. Stated the old way it is not
+merely imprecise under the cell model — it is unsatisfiable.
+
+**(c) Monotone materialization is now the TERMINATION ARGUMENT, not a pleasant property.** Cases 4a and
+4b are the *same* topology and differ only in whether the write is idempotent. 4a is a genuine cycle
+(`P→Q`, `Q→P`) and drains in two rounds — because the second firing woke, re-derived, found the fact
+already there, and enqueued no grain. 4b mints a fresh subject per firing and never drains; it is caught
+by budget (an honest `UNKNOWN`, [[think-harder-chapter]]) rather than hanging. `reactive.py` already
+argues monotonicity; under the cell model **NAF stands on it**, and the argument lives one layer BELOW
+the scheduler, in whether a write path is idempotent. Recorded as a risk in §12.
+
+Case 4a also discharges the wiring-completeness worry: the consumer cell was woken by a fact the producer
+*wrote*, not by intake. Nothing connected the two cells — the LHS-derived index did.
+
+### 13.3 A prediction this spike made and the run REFUTED
+
+The draft of this amendment expected an untagged `(pred, obj)` dirty grain — which is what
+`reconsider.DIRTY_REG` carries today, with no scope slot — to **contaminate** a sibling scope, and to be
+filed as a defect. **It does not.** Case 5 replays a delta from H1 with the scope slot dropped: H2's cell
+*is* woken spuriously, but its scoped LHS read finds nothing and it writes nothing.
+
+> **A scope slot on a grain buys SELECTIVITY, not soundness.** That is §4d's cost argument, not a defect.
+> The guard against cross-scope leakage is the scoped read plus the scope-local write, exactly as
+> §4.2/§4c claim; **the delta queue is not load-bearing for isolation.**
+
+Worth recording as a refutation rather than deleting, because it is the second time this document has
+found the write discipline — not the storage, not the queue — to be what makes isolation real (§6b found
+the same about the graph: siblings share `g` and stay isolated purely by writing under their own scope).
+
+Case 5 also produced an unbidden payoff for §5b(iii): the child cell woke, saw its parent's conclusion
+already visible by live inheritance (§4c), and wrote nothing. **Parent-first is not only a soundness
+constraint on NAF — it is also what stops a lineage re-deriving the same fact once per level.**
+
+### 13.4 The one constraint this adds — §8's shape, applied to assembly
+
+*"Dynamically assembled based on the KB and the discourse"* is the strongest part of the proposal and the
+one that can go silently wrong. If the wiring decides what reaches a cell, a relevant fact that was not
+wired **never fires, invisibly** — the failure mode this repo keeps paying for
+([[scope-nodes-survive-incidental-gc]], the §3 `put_under` defect). RETE escapes it only because the
+network is COMPILED FROM THE RULES, so completeness is by construction. Dynamic assembly forfeits that
+guarantee unless the line is drawn:
+
+> **Assembly is MECHANICAL from the rules' LHS. Discourse decides which cells EXIST and which are ACTIVE
+> — never what FEEDS a cell that exists.**
+
+Which is §8 restated one level down: focus selects which queue drains, never what a rule means; discourse
+selects which cells stand, never what they can see. The spike indexes by LHS grain for exactly this
+reason, and case 4a is the test that it holds.
+
+### 13.5 §11 needs a fifth tradition — production match networks
+
+§11's four traditions do not include the one this proposal actually belongs to, and Soar's single line
+was doing the work of a section:
+
+- **RETE (Forgy 1982)** and **TREAT / LEAPS** — rules compiled into a discrimination network whose alpha
+  and beta nodes ARE cells, with partial-match memories, firing incrementally on token arrival. The
+  proposal is RETE with the network made DYNAMIC and SCOPED. Its catalogued failure modes are the ones to
+  read for: beta-memory blowup (which is why 13.2(a) — memory in the continuation, not the graph —
+  matters), and the cost of network rebuild under rule change, which is precisely what "dynamically
+  assembled" invites.
+- **Coloured Petri nets** — a cell firing when its input places hold tokens IS a transition; §11(D)
+  already cites them for tagging, and they are equally the model of the firing rule itself.
+- **Concurrent constraint programming (Saraswat)**, already noted in §11 as prior art for watchers, is
+  the same thing again: ask/tell agents suspending on a shared store until entailment. It is the closest
+  formal semantics for a cell.
+
+**On "symbolic neural network".** Hold the analogy loosely. What makes NNs work is differentiability
+(credit assignment by gradient) over a fixed dense topology with no matching; a cell network has neither —
+activation is a discrete join that can be non-local and expensive. As intuition (emergence from many small
+local units) it is apt, and it is §0.1's motivation. As design guidance it will mislead, because the
+mechanism it evokes is absent. **One exception, and it is real:** a persistent cell is the first object in
+this system with a place to hang a WEIGHT and a path for structural credit assignment — which
+[[possibilistic-layer]]'s bands and [[learning-arc]] currently have no home for. If the framing is pulling
+on that, it is pulling on something; it should then be designed as that, deliberately, rather than
+inherited from the metaphor.
+
+### 13.6 Status, TRIPWIRE, and sequencing
+
+**TRIPWIRE check** (the status header's own rule: refinement, or north star?). It rewrites §4b at the
+dispatch level and forces §5's drain predicate to be restated — so it is NOT free, and it is recorded as
+an AMENDMENT with those two edits made in place rather than absorbed silently. It does not touch Steps 3
+or 4, it needs no new opcode, and it leaves the queue item identical. **Refinement.**
+
+**Sequencing is unchanged: §10.3 still binds.** 1c comes first. The cell network's premise is that wiring
+and drain nest the way scopes nest, and `reframe_active` is still False on all data — implementing the
+index before 1c would mean designing it against `scope_of` returning `None` everywhere, which is the same
+hypothetical §10.3 was written to prevent. The cell model is a **consequence to record now and build after
+fork/join**, on exactly the footing §4d was given.

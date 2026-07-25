@@ -99,9 +99,9 @@ def add_fork(g: AttrGraph, degree: float, triples: list[tuple[str, str, str]],
 
 
 def _fork_scope_of(g: AttrGraph, rel: str) -> str | None:
-    """The fork-scope a matched rel belongs to (its `SCOPE` tag), or None for an ink rel."""
-    a = g.get_attr(rel, SCOPE)
-    return a.value if a is not None else None
+    """The fork-scope a matched rel belongs to, or None for an ink rel. STRUCTURAL since slice 1c."""
+    from .scope_tree import scope_of
+    return scope_of(g, rel)
 
 
 def _scope_env(g: AttrGraph, scope: str) -> frozenset:
@@ -178,12 +178,13 @@ def all_fork_bands(g: AttrGraph) -> dict[str, float]:
     SUPPOSE scopes (no band) are excluded — they are not overlaid in marker mode. This is the overlay
     map the banded read op reads (`chain._band_overlay` merges in the active SUPPOSE scope's pencils
     at CERTAIN)."""
+    from .scope_tree import scope_of, _scoped_nodes
     out: dict[str, float] = {}
-    for r in g.nodes_with_key(SCOPE):
-        a = g.get_attr(r, SCOPE)
-        if a is None or not g.has(a.value):
+    for r in _scoped_nodes(g):                 # every node with an `<under>` edge (slice 1c)
+        sc = scope_of(g, r)
+        if sc is None or not g.has(sc):
             continue
-        b = g.get_attr(a.value, LIKELINESS)
+        b = g.get_attr(sc, LIKELINESS)
         if b is not None:
             out[r] = float(b.value)
     return out
