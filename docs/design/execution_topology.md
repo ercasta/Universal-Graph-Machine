@@ -1,11 +1,17 @@
 # Execution Topology — nested queues with dynamic forks and joins
 
-> **Status: DESIGN ONLY (2026-07-24, drafted by the assistant at user request). NOT RATIFIED, NO CODE.**
-> This document deliberately changes nothing in `implementation_plan.md` and re-points no arc. Its
-> purpose is to answer ONE question that the plan currently contains mislabelled as cosmetics —
-> *where does the `resolve_crossings` driver live* — by deriving the answer from a general principle
-> instead of a coin flip, and to record the design before Step 4 (`force + vantage as data`) makes an
-> implicit commitment to it.
+> **Status: ⭐ RATIFIED 2026-07-25 by the user, after review.** Drafted 2026-07-24 as design-only; the
+> review (§0) settled the four questions it had left open, the §10.5 spike came back GO with a ZERO opcode
+> delta (§6b), and two real defects it surfaced are fixed and tested. What is ratified is the MODEL — the
+> invariant (§4), the queue-item identity (§4b), the data-flow rule (§4c), the corrected drain condition
+> (§5b), and the constraint on Step 4 (§8). What is NOT yet built is the scheduler (§7); §10.3 stands —
+> **1c comes before any queue-mode implementation**, so the topology is designed against real data rather
+> than a hypothetical.
+>
+> Its original purpose was to answer ONE question the plan contained mislabelled as cosmetics — *where
+> does the `resolve_crossings` driver live* (§9) — by deriving the answer from a general principle instead
+> of a coin flip, and to record the design before Step 4 (`force + vantage as data`) made an implicit
+> commitment to it.
 >
 > Companions: `scope_reframe_audit.md` (the north star this serves), `reactive_core.md` (the existing
 > event queue), `composition_architecture.md`, `../attic/isa_control_machine.md` (the control path this
@@ -19,6 +25,13 @@
 > **REVISED 2026-07-25** after review with the user: §0 records the decisions taken, §3 now separates the
 > defect from the single-parent DESIGN question, §4b/§4c are new (queue-item identity; data flow across
 > the boundary), and §5 carries a substantive CORRECTION to its own drain condition.
+>
+> **AMENDED 2026-07-26 — §13 (rules as ACTIVE CELLS).** A second proposal, spiked
+> (`bench/spike_cell_network.py`) and folded in as a REFINEMENT rather than a re-point: it supplies the
+> DISPATCH half §4b left open (how a rule finds its data) without changing what a queue item is. It
+> carries one amendment that reaches back into the ratified core — **§5's drain predicate must be
+> restated** (§13.2), because a network of cells is permanently occupied — and promotes monotone
+> materialization from an incidental property to the termination argument.
 
 ---
 
@@ -267,6 +280,10 @@ a queue.** This also re-unifies the table: the three rows become three ways of C
 a sub-goal raised (pull), a delta triggering a reaction (push), a tool call crossing an async boundary —
 which is [[reactive-core-north-star]]'s PUSH==PULL==FORWARD restated one level up, at the scheduler.
 
+**What this section does NOT say, and §13 supplies.** It settles what FLOWS and is silent on how a rule
+FINDS ITS DATA — today "run the bank against the graph", i.e. search. §13 answers that with an index over
+parked continuations, and the answer is compatible: the item is still a `Continuation`, unchanged.
+
 **An inconsistency this exposes, and its resolution.** §7/§8 hold that scheduling is policy, lives in
 registers, and that no rule may match on it. But the `<call>` queue is *materialized nodes in the graph*,
 which rules can and do see. Rather than treat `<call>` as a violation, split the notion three ways:
@@ -319,6 +336,75 @@ Entity identity crosses by **copy plus link**, never by sharing: the child's `li
 
 ---
 
+## 4d. Trigger-like rules — the WATCHER, and why the pool is not seeded
+
+A question the draft does not address: can this model carry **"watch out for X"** — a standing,
+trigger-like rule that fires when something shows up, rather than when something asks? It can, and the
+mechanism is mostly already built; but the naive reading ("constantly seed the queue from a pool of
+trigger rules") is both the expensive shape and the unsound one, so both halves are recorded here.
+
+**Why it needs a home at all.** Today a watcher has exactly two possible implementations, and both are
+bad:
+
+| shape today | why it fails |
+|---|---|
+| a forward rule that fires eagerly | violates [[agent-not-theorem-prover]]; costs every watcher on every round |
+| a demand nobody ever raises | never fires — nothing asks the question |
+
+§4b supplies the third, without new machinery: **a watcher is a continuation parked on a condition.**
+That is the *push* row of §4b's table — "a delta triggering a reaction" — already named as one of the
+three ways a continuation gets created. A watcher is therefore not a fourth item type; it is the push
+constructor used for a standing rule instead of a one-shot reaction.
+
+**Do NOT seed; INDEX.** `reactive.py` already owns the dispatch half — body→head trigger dispatch keyed
+by dirty grain (`reconsider.DIRTY_REG`, §2's second row). Watchers should be indexed by trigger condition
+and woken on match, not re-enqueued each round:
+
+- re-seeding a pool: `O(watchers × rounds)`;
+- indexed wake: `O(matches)`.
+
+The distinction matters beyond cost: a re-seeded pool makes every round non-empty, which is the drain
+problem below in its worst form.
+
+**What is genuinely new is the SCOPING, not the firing.** The firing already works. What the topology
+adds is that a watcher acquires a place in the tree:
+
+- **Scoped watchers.** *"While considering H, watch out for X"* lives in H's queue and dies when H is
+  dropped. Today a trigger rule is unavoidably global — it has no vantage to be relative to. This is
+  [[scope-reframe-relativization]] applied to control rather than to content.
+- **Sibling isolation.** Independent watchers are sibling queues (§5b's first corollary), so one
+  watcher's derivations cannot contaminate another's.
+- **A declared crossing.** What the watcher CONCLUDED reaches base through the join (§4.3), not by
+  writing wherever it likes — which is the §4.3 invariant doing the work it was introduced for.
+
+**The watcher instance is a work REQUEST.** Per §4b's three-way split, the standing watcher is a graph
+node, rule-visible, for the same reason a `<call>` node is: *"I am watching for X"* is something the agent
+must be able to reason about, and it makes **"why am I watching for this?"** answerable. Only the resumed
+continuation and the wake order stay in registers. A Python trigger table could not answer that question,
+which is [[composability-principle]]'s test applied to this mechanism — and it passes only in this shape.
+
+### The hazards — one of them sharp
+
+1. **The sharp one: §5b's drain condition.** A trigger pool is a source of UNBOUNDED ARRIVAL. If a
+   watcher may inject work at any time, no absence is ever final and NAF loses the drained state §5
+   requires — §5's argument against a single global queue, arriving by a new route. So: **a watcher is
+   confined to a queue whose drain is defined, and a scope's NAF is decidable only once its watchers have
+   quiesced along with its descendants.** Getting this wrong re-imports precisely the unsoundness the
+   nested topology exists to prevent, and does so silently.
+2. **Fire on a positive delta, NEVER on an absence.** [[recall-explicit-not-autofire]] is the close
+   cousin: auto-firing on a demand MISS was proven unsafe — it flips NAF and is self-reinforcing.
+   Push-on-fact is monotone and safe; push-on-absence is neither. This is a hard line, not a default.
+3. **§8 is easy to violate here.** A watcher selects which queue drains; it must never change what a rule
+   MEANS. The tempting implementation — "watch out for X" sets ambient state that other rules read — is
+   dynamic scoping wearing a trigger costume, and §8 forbids it.
+
+**Verdict.** Good fit; the mechanism is mostly present (`SUSPEND` + reactive trigger dispatch); the win is
+scoped, composable, introspectable watchers rather than any change to firing behaviour; and the design
+cost lands entirely on the drain condition. **Not in scope for the sequencing of §10** — it is a
+consequence to record now and build after fork/join, not a fifth mode.
+
+---
+
 ## 5. Why nested, and not one global queue — the NAF argument
 
 This is the argument that decides the shape, and it is a soundness argument rather than a taste one.
@@ -368,6 +454,11 @@ Two things worth recording about the choice:
   direction. Two derivations converging on one scheduling rule is weak evidence, but it is evidence.
 - It is a REAL constraint on §7, not a default: the scheduler may not interleave a parent with its own
   descendants, and any future sibling parallelism (§0.2) must preserve it per-lineage.
+
+**AMENDED AGAIN by §13.2 (2026-07-26).** The condition above says "drained" and means "the queue is
+empty". Under the cell model that is no longer expressible — the network is PERMANENTLY OCCUPIED. Read
+every occurrence of *drained* below as **empty delta queue AND no ENABLED cell**, and note that its
+precondition (monotone materialization) is now load-bearing rather than incidental.
 
 Two corollaries worth stating, because they are free:
 
@@ -528,7 +619,7 @@ should be taken deliberately; today it is scheduled to be taken by default.**
    else. It is small, it is a real order-dependent bug, and 1c will entrench it if it lands first.
    Per §3 this step discharges CLAIM 1 only (code and data must agree); it is correct to land even if the
    single-parent design decision is later revisited.
-2. **Ratify or reject this document.** No code.
+2. ~~**Ratify or reject this document.**~~ — **RATIFIED 2026-07-25** (see the status header).
 3. **1c (membership migration onto `<under>`)** — currently marked optional *because nothing depends on
    it*. This design would be its first dependent: the topology's premise is that queues nest the way
    scopes nest, and `reframe_active` is still False on all data (`scope_of` is None everywhere, the
@@ -602,7 +693,8 @@ is mostly that each has already catalogued the failure modes we would otherwise 
 parent context by chunking — fork-on-impasse, join-by-result, and the closest match in the production-
 system tradition (its agenda/conflict-resolution is also the ancestor of our dirty-grain queue).
 **Concurrent constraint programming (Saraswat)** — ask/tell over a shared store where agents SUSPEND
-until entailment, which is demand-gating with a formal semantics. **Delimited continuations /
+until entailment, which is demand-gating with a formal semantics; it is also the closest prior art for
+the WATCHERS of §4d, which is why that section needs no new theory. **Delimited continuations /
 algebraic effects** are the PL-side general form of `SUSPEND`/`Continuation` (§6), and would give
 `FORK`/`JOIN` a principled typing if we ever want one. **Actor model** contributes dynamic creation
 and message queues but notably *not* joins.
@@ -637,7 +729,19 @@ citation and an implementation that predates us.
   throughput it will be defended on the wrong axis. §0.1 states the positive version: the motivation is
   the EMERGENCE of the computation model. Parallelism is not a goal, and §0.2 declines it explicitly —
   if a future argument for this work leans on concurrency, that is drift, not progress.
+- **Watchers as unbounded arrival** (§4d). Standing trigger rules are the one feature discussed here that
+  can re-open §5's global-queue unsoundness from the inside: if a watcher may enqueue at any time, no
+  absence is final. The mitigations — confine watchers to a queue with a defined drain, fire only on a
+  positive delta — are cheap to state and easy to lose during implementation, which is why they are a
+  risk and not just a note.
 - **Stale NAF across queues** (§5b). The live inherited view makes a drained child's absence-decides
   revocable by a later ancestor write; the sequential parent-first rule is what forbids it. If the
   scheduler ever gains the freedom to interleave a lineage, this unsoundness returns SILENTLY — the same
   failure mode §5 warns about, and the reason §5b is a correction rather than an addition.
+- **Monotonicity becomes the termination argument** (§13.2). Under the cell model, `reactive.py`'s
+  monotonicity claim stops being a pleasant property of the reactive gate and becomes the thing NAF
+  stands on: spike cases 4a and 4b are the SAME topology and differ only in whether the write is
+  idempotent — one drains in two rounds, the other never drains. Any write path that mints fresh on
+  re-derivation (a skolem, a provenance record, an un-deduped `EMIT`) re-opens unbounded arrival from
+  inside the network. This is a risk about a layer BELOW the scheduler, which is why it is easy to miss
+  while reviewing the scheduler.

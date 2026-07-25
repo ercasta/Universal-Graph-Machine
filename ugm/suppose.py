@@ -45,9 +45,11 @@ from dataclasses import dataclass, field
 from .attrgraph import AttrGraph, VALUED, graded, valued, NAME
 from .vocabulary import HYPOTHESIS
 from .apply import SCOPE, _fact_exists
+from .scope_tree import scope_name, put_under, members_of, scoped_ref
+from .vocabulary import DENOTES
 from .chain import chain_sip, _facts_matching, render_demands, resolve_write_node, ById
 from .check import _neg_pred
-from .machine import Machine, MINT, EMIT, SWEEP, State
+from .machine import Machine, MINT, EMIT, RETIRE, SWEEP, State
 
 _MACHINE = Machine()
 
@@ -110,25 +112,25 @@ def _resolve(g: AttrGraph, name) -> str:
 
 
 def _pencil(g: AttrGraph, scope: str, s_id: str, pred: str, o_id: str) -> str:
-    """Write an assumed fact `s -[pred]-> o` in PENCIL, as an ISA program: a CONTROL rel node tagged
-    `scope` — invisible to ordinary matching, visible only within its `<hypothesis>` scope."""
-    st = _MACHINE.apply(g, [
-        MINT("_rel", attrs={pred: graded(1.0)}, in_edges=["_s"], edges=["_o"], control=True),
-        EMIT("_rel", SCOPE, scope, kind=VALUED),
-    ], State({"_s": s_id, "_o": o_id}))
+    """Write an assumed fact `s -[pred]-> o` relativized to `scope` (slice 1c).
+
+    SCOPED COPIES + AN ORDINARY FACT — no longer a control rel tagged with the scope. Both endpoints are
+    resolved to this scope's own references (`_scoped_ref`) and the relation between them is an ORDINARY
+    fact node placed under the scope. Isolation is therefore STRUCTURAL (`is_visible`: a base read cannot
+    reach a node under a relativizer boundary) rather than a consequence of the control flag, which is
+    what lets scopes NEST and COMPOSE — the whole point of the migration. The old shape scoped the FACT
+    while sharing the ENTITIES, so two scopes could never disagree about the same entity."""
+    st = _MACHINE.apply(g, [MINT("_rel", attrs={pred: graded(1.0)}, in_edges=["_s"], edges=["_o"])],
+                        State({"_s": scoped_ref(g, s_id, scope), "_o": scoped_ref(g, o_id, scope)}))
+    put_under(g, st.regs["_rel"], scope)
     return st.regs["_rel"]
 
 
 def scope_members(g: AttrGraph, scope: str) -> list[str]:
-    """Every pencil / scope-derived rel node tagged with `scope` — the scope's contents, read through
-    the key index then value-filtered (the blessed 'candidates-by-key, filter-by-value' pattern; there
-    is deliberately no value index)."""
-    out: list[str] = []
-    for n in g.nodes_with_key(SCOPE):
-        a = g.get_attr(n, SCOPE)
-        if a is not None and a.value == scope:
-            out.append(n)
-    return out
+    """The scope's REL-node contents (its penned + derived facts). Structural now: the members are the
+    nodes `<under>` the scope, filtered to relations — `_scoped_ref` also places ENTITY references under
+    the scope, and callers of this function want the facts."""
+    return [n for n in members_of(g, scope) if g.predicate(n)]
 
 
 def _scope_derivations(g: AttrGraph, scope: str, seed_rels: set[str]) -> list[Triple]:
@@ -151,15 +153,25 @@ def _scope_derivations(g: AttrGraph, scope: str, seed_rels: set[str]) -> list[Tr
 
 
 def _drop_scope(g: AttrGraph, scope: str) -> None:
-    """DROP the whole scope, as a SWEEP program: remove every rel node tagged `scope` (the pencil
-    assumptions + every in-scope pencil derivation) and the `<hypothesis>` node itself. All are
-    CONTROL — and the opcode REFUSES anything else — so this cuts only control structure; the real
-    entity endpoints and every ink fact are untouched (§5 monotone)."""
+    """DROP the whole scope: every member (the pencil assumptions + every in-scope derivation) and the
+    scope node itself.
+
+    RETIRE, NOT SWEEP (slice 1c). This used to be a SWEEP program, because every doomed node was CONTROL
+    and `SWEEP` refuses anything else. Under the scope reframe a scope is an ORDINARY node and its members
+    are ORDINARY facts — isolated by SCOPE, not by the control flag — so `SWEEP` now (correctly) refuses
+    them and the drop must go through the privileged deletion mechanism instead.
+
+    That is a real change in what this operation MEANS, and it is worth being explicit about: dropping a
+    refuted hypothesis is now a RETRACTION of scoped facts rather than the removal of scaffolding that was
+    never a fact. The monotonicity story survives, but only in its honest form — BASE ink is still never
+    touched (nothing unconfirmed was ever written there), which is the invariant that actually carried the
+    weight. `docs/design/execution_topology.md` §4.3: results leave a scope at exactly ONE boundary, and a
+    refuted scope is one that never reaches it."""
     doomed = [rel for rel in scope_members(g, scope) if g.has(rel)]
     if g.has(scope):
         doomed.append(scope)
     if doomed:
-        _MACHINE.apply(g, [SWEEP(f"_n{i}") for i in range(len(doomed))],
+        _MACHINE.apply(g, [RETIRE(f"_n{i}") for i in range(len(doomed))],
                        State({f"_n{i}": n for i, n in enumerate(doomed)}))
 
 
@@ -224,8 +236,8 @@ def suppose(fact_g: AttrGraph,
     # so the read-only sweep drops them all — the `query_goal` slice-edge fix, mirrored.
     pre_forks = set(fact_g.nodes_with_key(LIKELINESS)) if any(hedged) else set()
     run_policy = policy if banded else None
-    scope = _MACHINE.apply(fact_g, [MINT("_h", attrs={NAME: valued(HYPOTHESIS),
-                                                      HYPOTHESIS: graded(1.0)}, control=True)],
+    scope = _MACHINE.apply(fact_g, [MINT("_h", attrs={NAME: valued(scope_name()),
+                                                      HYPOTHESIS: graded(1.0)})],
                            State({})).regs["_h"]
     seed_rels: set[str] = set()
     for (s, p, o), b, hz in zip(assumptions, a_bands, hedged):

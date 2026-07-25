@@ -29,6 +29,7 @@ from __future__ import annotations
 from .attrgraph import AttrGraph, NAME, valued, graded
 from .check import check as _check
 from .lowering import assemble_facts
+from .scope_tree import scope_name
 from .machine import Machine, MINT, State
 from .suppose import (HYPOTHESIS, SCOPE_KIND, KIND_HOLDER, KIND_TEMPORAL, HOLDER, INDEX,
                       _pencil, _resolve, scope_kind, scope_members)
@@ -56,9 +57,9 @@ def scope_of(g: AttrGraph, kind: str, key_attr: str, key: str, *,
         return None
     if resolve_key:
         _resolve(g, key)                                     # the key is an ordinary orderable entity
-    return _MACHINE.apply(g, [MINT("_sc", attrs={NAME: valued(HYPOTHESIS), HYPOTHESIS: graded(1.0),
+    return _MACHINE.apply(g, [MINT("_sc", attrs={NAME: valued(scope_name()), HYPOTHESIS: graded(1.0),
                                                  SCOPE_KIND: valued(kind),
-                                                 key_attr: valued(key)}, control=True)],
+                                                 key_attr: valued(key)})],
                           State({})).regs["_sc"]
 
 

@@ -22,6 +22,25 @@ from .attrgraph import AttrGraph
 
 UNDER = "<under>"        # structural membership: node --<under>--> scope (control; a `<…>` token auto-flags)
 
+_SCOPE_N = [0]
+
+
+def scope_name() -> str:
+    """A FRESH, UNIQUE name for a scope node (slice 1c). Two properties, both load-bearing, and the old
+    `<hypothesis>` name had NEITHER:
+
+      * **not a `<…>` token**, so the node does NOT auto-flag as CONTROL (`attrgraph.py:288`). Scopes must
+        be ORDINARY nodes: the reframe relates them with BASE facts (`S causes S'`, `S holds_base yes`)
+        and the read guard drops any fact with a control endpoint, so a control scope is one no rule can
+        reason about (scope_reframe_audit.md, build finding 1).
+      * **unique**, because the demand engine NAME-UNIONS same-named nodes — every scope called
+        `<hypothesis>` would fuse into one. A scope's identity is the NODE, never a shared name.
+
+    Scope-ness is carried by the `HYPOTHESIS` marker ATTR (which the GC exemptions already key on), not by
+    the name and not by the control flag — kind-as-attribute, the reframe's own principle."""
+    _SCOPE_N[0] += 1
+    return f"scope_{_SCOPE_N[0]}"
+
 
 def put_under(g: AttrGraph, node: str, scope: str) -> None:
     """Place `node` UNDER `scope` (idempotent). The membership edge is the reframe's structural nesting —
@@ -54,6 +73,52 @@ def scope_of(g: AttrGraph, node: str) -> str | None:
         if g.has_key(rel, UNDER):
             return obj
     return None
+
+
+def members_of(g: AttrGraph, scope: str) -> list[str]:
+    """Every node DIRECTLY under `scope` — the scope's contents (slice 1c). The structural replacement for
+    reading back the `SCOPE` attr: membership is an `<under>` relation, so the members are the `<under>`
+    sources pointing at this scope. Direct members only; a nested sub-scope appears as itself, not
+    flattened into its parent's list (composition is NESTING, so a caller wanting the transitive contents
+    recurses deliberately rather than getting it by accident).
+
+    NOTE the indirection: `nodes_with_key(UNDER)` yields the `<under>` RELATION nodes, not the members —
+    membership is the S-P-O path `member → <under>-rel → scope` ([[spo-directed-path-no-labeled-edges]]),
+    so the members are the relation's SUBJECTS."""
+    out: list[str] = []
+    for rel in g.nodes_with_key(UNDER):
+        if scope in g.succ(rel):
+            out.extend(g.pred(rel))
+    return out
+
+
+def scoped_ref(g: AttrGraph, base_id: str, scope: str) -> str:
+    """The reference to base entity `base_id` AS SEEN FROM `scope` — found or minted (slice 1c).
+
+    The reframe's identity discipline: a scope does not reach out and touch the base entity, it holds its
+    OWN reference, `denotes`-linked back. Same NAME (so an in-scope read finds it by name), distinct NODE
+    (so an out-of-scope read cannot) — exactly the split `is_visible` enforces: across a relativizer
+    boundary IDENTITY holds but VISIBILITY does not. The `denotes` link is CONTROL because it is identity
+    META-STRUCTURE, not a fact; drawn ordinary it surfaces in ink (cf. `interpretation.py:104`).
+
+    Lives here rather than in `suppose` because `chain` needs it too (to scope a DERIVED head) and
+    `suppose` already imports `chain`."""
+    from .vocabulary import DENOTES
+    from .attrgraph import NAME, valued
+    if scope_of(g, base_id) == scope:
+        return base_id          # IDEMPOTENT: an in-scope match already bound this scope's own reference,
+                                # so re-wrapping would mint a reference TO a reference — and, because the
+                                # derivation re-fires each round, a fresh one every round (the node
+                                # explosion this guard was added to stop).
+    name = g.name(base_id)
+    for n in members_of(g, scope):
+        if g.name(n) == name and any(g.has_key(r, DENOTES) and o == base_id
+                                     for r, o in g.relations_from(n)):
+            return n
+    ref = g.add_node({NAME: valued(name)})
+    put_under(g, ref, scope)
+    g.add_relation(ref, DENOTES, base_id, control=True)
+    return ref
 
 
 def scope_chain(g: AttrGraph, scope: str | None) -> list[str]:

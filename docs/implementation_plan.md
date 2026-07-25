@@ -44,10 +44,28 @@
 > scope var (soundness — never materialize for an unheld scope). `_promote_held` demands promote per member-
 > predicate with UNBOUND endpoints (a name goal would seed a value-node that conflicts with the base entity).
 > The named-skolem primitive originally floated was NOT needed — mint-on-deref is the smaller/cleaner
-> primitive. **NEXT:** (optional) move the `resolve_crossings` driver into `reactive.fire` (a driver-location
-> refinement — the substance is done, the crossing is already fully DATA); optional 1c (retire the shipped
-> kinded scopes onto the scope-tree — NOT on the critical path, the scope-tree is additive); then Steps 3
-> (negation-as-interposing-node) + 4 (force + vantage as data).
+> primitive.
+> **⭐ EXECUTION TOPOLOGY RATIFIED 2026-07-25 — `docs/design/execution_topology.md`.** The computation-model
+> dual of the substrate claim: **one queue per scope node, forked when a scope is minted, joined at exactly
+> one declared boundary** — composition = nesting, isolation = default, crossing = a DATA rule, restated in
+> execution terms. Settled by the review: a queue ITEM is a `Continuation` tagged with its scope (NOT a rule,
+> instruction, or fact); parent→child data flow is INHERITANCE via `is_visible` (not a transfer), child→parent
+> is the join alone, and BASE IS THE ROOT SCOPE (there is no global state); queues run SEQUENTIALLY,
+> parent-before-children, adopted because it makes the NAF drain condition sound without a snapshot.
+> **The motivation is the EMERGENCE of the computation model, NOT parallelism** — a defence of this work on
+> throughput or concurrency is drift. **SPIKED GO with a ZERO opcode delta** (`bench/spike_fork_join_opcodes.py`):
+> fork = resume ONE continuation N times, join = run the crossing at drain; no `FORK`/`JOIN` terminators.
+> Two real defects found and FIXED (suite 1062): `put_under` silently accepted a SECOND parent (order-dependent
+> mis-scoping — now raises); `SUSPEND`/`resume` aliased the control-stack frames, so a twice-resumed
+> continuation leaked caller registers between siblings (now `_copy_frames` at both capture and restore).
+> **The scheduler (§7) is NOT built, deliberately** — §10.3 puts 1c first so the topology is designed against
+> real data, not a hypothetical.
+> **NEXT:** **1c** (retire the shipped kinded scopes onto the scope-tree) — promoted from "optional" to the
+> next step by the ratification, since the queue topology's premise is that queues nest the way scopes nest
+> and `reframe_active` is still False on most data; then Steps 3 (negation-as-interposing-node) + 4 (force +
+> vantage as data). Step 3 is independent and may proceed in parallel. Also still open: (optional) move the
+> `resolve_crossings` driver into `reactive.fire` — but §9 says NOT to fuse it ad hoc into the global queue,
+> since that puts a scope-local join on the global event queue and erases the locality §5 depends on.
 > The milestone detail is in the **⭐⭐ STEP 2 CAUSATION LANDED** block below. NOTE: some earlier dated
 > blocks say "1c NOW on the critical path" — that was OVERSTATED and later corrected (the scope-tree is
 > additive; new causation scopes are ordinary while shipped kinded scopes keep working).

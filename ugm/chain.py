@@ -774,10 +774,10 @@ def _scope_for_index(fact_g: AttrGraph, index_name: str, *, create: bool) -> str
     if not create:
         return None
     resolve_write_node(fact_g, index_name, where="relativized head index")   # the orderable entity
-    return _ISA_READER.apply(fact_g, [MINT("_ts", attrs={NAME: valued(HYPOTHESIS),
+    return _ISA_READER.apply(fact_g, [MINT("_ts", attrs={NAME: valued(scope_name()),
                                                          HYPOTHESIS: graded(1.0),
                                                          SCOPE_KIND: valued(KIND_TEMPORAL),
-                                                         INDEX: valued(index_name)}, control=True)],
+                                                         INDEX: valued(index_name)})],
                              State({})).regs["_ts"]
 
 
@@ -1646,18 +1646,28 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                                      for bs, bp2, bo, _br in body])
                         if assumed:
                             _record_assumptions(fact_g, j, assumed)
-                if not _fact_exists(fact_g, s_id, hp, o_id, scope=head_scope):
-                    # EMIT as an ISA program: an ink fact normally, but PENCIL (control + scope tag)
-                    # inside a SUPPOSE / relativized scope. `dedup` stays OFF — check-before-derive is the
-                    # scope-aware `_fact_exists` guard above (a raw dedup would reuse an OTHER-scope pencil).
+                # SLICE 1c: a scoped derivation is an ORDINARY fact between THIS SCOPE'S OWN references,
+                # placed `<under>` the scope — no longer a CONTROL rel carrying a `SCOPE` tag over shared
+                # base entities. Isolation is structural (`is_visible`), which is what lets scopes nest.
+                # The endpoints must be resolved BEFORE the check-before-derive guard: the guard looks for
+                # the memo at the endpoints it is given, so checking base while writing scoped means it
+                # never sees its own previous derivation and re-fires every round (a node explosion).
+                w_s, w_o = s_id, o_id
+                if head_scope is not None:
+                    from .scope_tree import scoped_ref, put_under
+                    w_s = scoped_ref(fact_g, s_id, head_scope)
+                    w_o = scoped_ref(fact_g, o_id, head_scope)
+                if not _fact_exists(fact_g, w_s, hp, w_o, scope=head_scope):
+                    # EMIT as an ISA program. `dedup` stays OFF — check-before-derive is the scope-aware
+                    # `_fact_exists` guard above (a raw dedup would reuse an OTHER-scope fact).
                     from .attrgraph import graded as _graded
-                    is_ctrl = (head_scope is not None) or (hp.startswith("<") and hp.endswith(">"))
+                    is_ctrl = hp.startswith("<") and hp.endswith(">")   # only a genuine `<…>` predicate
                     ops = [MINT("_head", attrs={hp: _graded(1.0)},
                                 in_edges=["_s"], edges=["_o"], control=is_ctrl)]
-                    if head_scope is not None:
-                        ops.append(EMIT("_head", SCOPE, head_scope, kind=VALUED))
                     head_node = _ISA_READER.apply(fact_g, ops,
-                                                  State({"_s": s_id, "_o": o_id})).regs["_head"]
+                                                  State({"_s": w_s, "_o": w_o})).regs["_head"]
+                    if head_scope is not None:
+                        put_under(fact_g, head_node, head_scope)
                     fired += 1
                     if provenance:                         # RECORD (mode 9): journal the firing
                         j = _record(fact_g, rule_key, head_node,

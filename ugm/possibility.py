@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from .attrgraph import AttrGraph, NAME, VALUED, GRADED, graded, valued
 from .apply import SCOPE
+from .scope_tree import scope_name
 from .machine import Machine, MINT, EMIT, SWEEP, State
 from .policy import FirmwarePolicy, DEFAULT_POLICY
 from .suppose import HYPOTHESIS, _pencil, scope_members
@@ -65,12 +66,12 @@ def band_of_scope(g: AttrGraph, scope: str) -> float:
 
 def _new_fork_scope(g: AttrGraph, degree: float, *, choice: str | None = None,
                     derived_env: frozenset | None = None) -> str:
-    attrs = {NAME: valued(HYPOTHESIS), HYPOTHESIS: graded(1.0), LIKELINESS: graded(degree)}
+    attrs = {NAME: valued(scope_name()), HYPOTHESIS: graded(1.0), LIKELINESS: graded(degree)}
     if choice is not None:
         attrs[CHOICE] = valued(choice)
     if derived_env:
         attrs[DERIVED_ENV] = valued(frozenset(derived_env))
-    return _MACHINE.apply(g, [MINT("_f", attrs=attrs, control=True)], State({})).regs["_f"]
+    return _MACHINE.apply(g, [MINT("_f", attrs=attrs)], State({})).regs["_f"]
 
 
 def fork_fact(g: AttrGraph, degree: float, s_id: str, pred: str, o_id: str,

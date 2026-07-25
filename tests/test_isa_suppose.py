@@ -46,11 +46,17 @@ PENGUIN_NOFLY = Rule(key="peng_nofly", lhs=[Pat("?x", "is", "penguin")], rhs=[Pa
 
 
 def _ink(g) -> set:
-    """The INK layer only: `(s, pred, o)` for every NON-control, non-inert rel node with real endpoints.
-    (`derived_triples` deliberately includes control rel nodes; a pencil fact must be read out of ink.)"""
+    """The INK layer only: `(s, pred, o)` for every non-control, non-inert, UNSCOPED rel node with real
+    endpoints.
+
+    SLICE 1c re-derived this oracle. It used to read "ink = not control", because a penned fact WAS a
+    control rel — isolation rode the control flag. Under the scope reframe a penned fact is an ORDINARY
+    fact placed `<under>` its scope, so "not control" no longer excludes it and the honest definition of
+    ink is STRUCTURAL: base is the root scope, so ink is what has no scope at all."""
+    from ugm.scope_tree import scope_of
     out: set = set()
     for r in g.nodes():
-        if g.is_control(r) or g.is_inert(r):
+        if g.is_control(r) or g.is_inert(r) or scope_of(g, r) is not None:
             continue
         rn = g.predicate(r)
         if not rn:
