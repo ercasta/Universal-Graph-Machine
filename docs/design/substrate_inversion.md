@@ -1,14 +1,33 @@
 # Substrate Inversion — computation units as the substrate, graphs as the datum
 
-> **Status: ⚠ CANDIDATE RE-POINT, 2026-07-26. NOT ratified, NOT scheduled, nothing built.** This document
-> records a proposal that CONTRADICTS the project's foundational substrate claim, deliberately and in the
-> open, so that adopting it or rejecting it is a decision rather than a drift.
+> **Status: 🔭 ADOPTED AS THE ACTIVE LINE OF EXPLORATION, 2026-07-26.** This document records a proposal
+> that CONTRADICTS the project's foundational substrate claim, deliberately and in the open, so that
+> adopting or rejecting it is a decision rather than a drift. **It has now been taken deliberately.**
+>
+> The user's call, on the record and against this document's own first recommendation: *"I want to explore
+> this design, not the old ugm."* The recommendation to finish 1c first (§13, earlier revisions) was
+> conditional on being UNDECIDED — 1c and the scope reframe exist to serve a substrate this proposal
+> replaces, so finishing them to enable a head-to-head comparison is only worth the weeks if the
+> comparison might go the other way. It has been decided that it will not. The guard against arc-hopping
+> was against drifting UNINTENTIONALLY; a stated re-point is the thing that guard exists to permit.
+>
+> **What that does and does not license.** Exploration, on this substrate, in this repo, behind the
+> no-import rule (§14). It does NOT license retiring anything in `ugm/` — the old substrate stays working
+> and untouched until this one answers a real question end to end, at which point deletion is the honest
+> move ([[delete-old-code-aggressively]]) and archiving is not.
 >
 > **TRIPWIRE — and it trips.** `execution_topology.md`'s rule is that a design which cannot be stated
 > without rewriting the commitments beneath it is a NORTH STAR, not a refinement. This one rewrites the
 > substrate claim itself ("one uniform representation — a label-less attribute graph"), which is the
 > commitment every other document in `docs/design/` inherits. It is therefore recorded HERE, as its own
 > north-star candidate, and NOT folded into the execution topology it would supersede.
+>
+> **SPIKED 2026-07-26 — `bench/spike_substrate_inversion_binding.py`. BINDING SURVIVES (§14).** The one
+> case worth spending a spike on per §13.2 — NETL's documented failure mode — does not recur, and the
+> reason is mechanical: a unit's state is a subgraph, so a binding is carried structurally. Three findings
+> amend this document in place: the store is BOUNDED rather than abolished (§2b), the index is NOT
+> sufficient to assemble the topology (§3b), and structural sharing is load-bearing for CORRECTNESS rather
+> than cost (§5). This result is what made the re-point defensible rather than speculative.
 >
 > **What it is NOT.** Not the queue topology (`execution_topology.md`), which schedules access to a shared
 > graph. Not the cell-network amendment (§13 there), which indexes rules over a shared graph. Both of those
@@ -17,11 +36,12 @@
 > Companions, all of which it would partly retire: `execution_topology.md`, `scope_reframe_audit.md`,
 > `reactive_core.md`, `reconsider_design.md`, `../attic/isa_control_machine.md`.
 >
-> **Honest status of the arc.** [[execution-topology-ratified]] was ratified 2026-07-25 and its §13
-> amendment landed 2026-07-26. This document was written the same day. That is exactly the pattern
-> §12 of that document names as this repo's characteristic failure mode — *starting a better arc rather
-> than finishing a worse one* — and it is the single strongest argument against acting on this now. It is
-> written down so it can be evaluated cold, later, against a working 1c.
+> **Honest status of the arc, kept rather than deleted.** [[execution-topology-ratified]] was ratified
+> 2026-07-25, its §13 amendment landed 2026-07-26, and this document was written the same day — the exact
+> pattern §12 there names as this repo's characteristic failure mode. That observation was the argument
+> against acting, it was made, and it was overruled on the merits above. It stays on the record because
+> the honest test of a deliberate re-point is not that the objection was absent but that it was answered:
+> if this line stalls, the pattern is the first place to look, not the last.
 
 ---
 
@@ -93,6 +113,25 @@ have. `why` for a base fact falls straight out — in-degree 0, *"you told me"* 
 Force, attribution, and band all ride INSIDE the emitted subgraph, so a source unit can carry *who said
 it, when, and how strongly* with no extra mechanism ([[force-is-the-missing-axis]], [[possibilistic-layer]]).
 
+**Confirmed by the spike, and it collapsed one more distinction than expected.** The spike's first draft
+kept "a source" and "a hypothesis branch" as separate constructs; they turned out to be the same unit with
+different in-degree — a `delta` the unit contributes unconditionally, plus whatever its inputs carry
+through. An axiom is that construct at in-degree 0. There is no separate notion of "a fact" anywhere in
+the implementation, which is the taxonomy above arrived at by force rather than by design.
+
+### 2b. The store is BOUNDED, not abolished — and this is a correction
+
+A finding the design did not state, and the sharper form of the whole claim:
+
+> **A unit joins over the UNION of its inputs. So it HAS a store — one consisting of exactly what its
+> in-edges deliver.** "No blackboard" does not mean "no store"; it means **no UNBOUNDED SHARED store.**
+
+The distinction is not pedantic, because it relocates the thing that has to be got right. A unit's
+**IN-DEGREE is what bounds its epistemic reach** — it is the analogue of a scope, and it is the quantity
+to reason about when asking what a unit could possibly conclude. §1's table row "isolation is structural"
+should be read as: isolation is *a property of in-degree*, and every wire added is a deliberate widening
+of what a unit may know.
+
 **What survives from the current ISA, and it is more than expected.** `SEED`/`FOLLOW`/`TEST`/`JOIN` ARE
 "match a subgraph"; `MINT`/`EMIT` ARE "produce one". The opcodes are nearly intact — what changes is their
 ADDRESS SPACE: a bounded input value rather than a global graph. That materially lowers the cost of this
@@ -131,6 +170,34 @@ body→head closure over the active bank, which is a known quantity in this code
 instantiated — never eagerly from the whole KB. The network therefore grows along the path reasoning
 actually takes, and rules nobody needed are never materialized. [[agent-not-theorem-prover]] becomes
 structural rather than a policy, and §4 shows laziness is doing much heavier work than tidiness.
+
+### 3b. CORRECTION (spiked 2026-07-26) — the index is NOT sufficient to assemble the topology
+
+As written above, §3 reads as though predicate-level indexing determines the wiring. **It does not, and
+the failure is total rather than partial.** Spike case 6 ran the assembler on the index alone: every
+producer of a matching predicate was wired into one instance of the rule, so a single unit saw BOTH
+hypothesis branches and derived both conclusions. **The chains collapse completely** — which would take
+§4's entire emergence claim with them.
+
+What separates them is a SPAWN POLICY, and the spike found a purely local one that works:
+
+> **A producer joins an existing instance only if it is COMPARABLE — ancestor, descendant, or identical —
+> with EVERY producer already wired into that instance. Two sibling branches are incomparable, so the
+> second one SPAWNS A NEW INSTANCE of the rule instead of adding a wire.**
+
+Three things about it are worth recording:
+
+- **It names no scope, context or vantage.** It is reachability over the wiring, walked with the topology
+  that is already there. So §4's claim survives: scope stays emergent — but it is emergent *from an
+  assembly policy*, not from the index, and the difference between those two statements is the difference
+  between the design working and not.
+- **The quantifier is load-bearing.** "Comparable with EVERY existing input", not "with ANY". `base` is an
+  ancestor of both branches, so an any-test lets H2 join the instance already holding H1 and the chains
+  collapse regardless. One quantifier.
+- **Accretion is what makes the new instance viable.** A fresh instance wired only to H2 still sees base,
+  because H2 carries it through (§5). Without accretion a spawned sibling instance is starved and derives
+  nothing — which is exactly how the spike failed on its first run, when the branches were mis-modelled as
+  independent sources. **Accretion and the spawn policy are not two features; either alone is broken.**
 
 ---
 
@@ -195,6 +262,15 @@ Two things follow that must be designed rather than assumed:
   [[derivation-frame-consolidation]]). **Structural sharing (persistent graph, HAMT-style) is what makes it
   affordable, and it is far easier to design in than to retrofit.** This is the difference between
   "elegant" and "runs".
+
+  **UPGRADED BY THE SPIKE from a cost question to a CORRECTNESS requirement.** Case 2 joins a variable
+  across two wires and shows the join must be by **node IDENTITY, never by name** — two independently
+  minted nodes both called `mary` produce a false conclusion under name-matching and none under identity
+  ([[node-identity-is-not-a-semantic-proxy]], and the reason there is no `nodes_named` in this substrate).
+  Identity must therefore be **INHERITED through the pipeline**, which means the same node object has to
+  survive every fork and union unchanged. A copy that re-mints nodes is not slow — it is WRONG. So
+  structural sharing is not an optimization to add later; it is what makes cross-wire binding mean anything,
+  and it belongs in the first line of any implementation.
 
 ---
 
@@ -306,12 +382,15 @@ document's *conclusions* are right and its *mechanisms* were the shape a store f
 
 ## 10. Open questions, in order of cost-if-wrong
 
-1. **Structural sharing.** §5. Design it in or the copying decides the outcome.
-2. **Cycles.** The bidirectional wiring can close a loop by accident — a unit wired to something downstream
-   of itself. Everything here converges on monotone, idempotent outputs, so a cycle QUIESCES rather than
-   spinning, and allowing them is defensible. But "assemble more depth" (unrolling) and "wire a back edge"
-   are two different answers to recursion, and running both is how you get a design nobody can reason
-   about. **Decide it; do not discover it.**
+1. ~~**Structural sharing.**~~ **CLOSED as a question, OPEN as a requirement** (§5, spike case 2). Not a
+   cost trade-off: identity must be inherited through the pipeline or cross-wire binding is unsound. It is
+   a first-line implementation constraint, not a later optimization.
+2. ~~**Cycles.**~~ **CLOSED 2026-07-26 — and it was DISCOVERED, not decided** (§15.1). This entry said
+   "decide it; do not discover it", and the opposite happened: the first two-rule chain built produced a
+   cycle immediately. Accretion means every downstream unit carries its ancestors' facts through, so it
+   looks like a producer of every UPSTREAM predicate — cycles are the assembler's DEFAULT behaviour, not
+   an accident it might stumble into. Settled: **refuse cycles, allow unrolling**, and the two are
+   distinguishable locally (§15.1).
 3. **Unit lifetime.** Units persist so refire works — that is their value. But they are then the session's
    working set and something must end them. At session scale ([[ugm-scope-session-sized]]) it may simply
    not matter, which would be the cheapest possible answer and should be checked before machinery is built.
@@ -365,9 +444,9 @@ and *"watch out for X"* is the standing test case.
   ships and the ratified model has met real data.
 - **The ATMS exponential** (§4b). Visible, countable, and contained only by lazy spawn.
 - **Copying** (§5). The one place where "perf is not the motivation" does not excuse a decision.
-- **Binding.** NETL's failure mode, on this project's known weak axis. A unit matching an LHS with
-  variables across several inputs is the case to prototype FIRST if this is ever spiked, because it is the
-  documented place where this architecture historically broke.
+- ~~**Binding.**~~ **RETIRED 2026-07-26 — spiked, does not recur** (§14). NETL's failure was that a marker
+  carries no binding; a unit whose state is a subgraph carries it structurally. What replaces this risk is
+  narrower and stated above: identity inheritance (§5) is the thing that can still make binding unsound.
 - **Opportunism lost** (§11). Structural, not incidental.
 - **Policy leaking into semantics** (§6). Fuel-bounded NAF is the breach; declared is survivable,
   discovered is not.
@@ -377,9 +456,11 @@ and *"watch out for X"* is the standing test case.
 
 ---
 
-## 13. If it were ever taken up — sequencing
+## 13. The exploration plan
 
-Not proposed. Recorded so that a future decision has a starting shape rather than a blank page.
+**SUPERSEDED 2026-07-26** — this section was written as a deferral ("if it were ever taken up"). The
+re-point has been taken; it is now the actual plan. Ordered by WHICH CLAIM, IF FALSE, KILLS THE DESIGN —
+not by what is easiest or most fun to build.
 
 1. **Finish the current arc first.** 1c, then the ratified queue topology against real data. This document
    is worthless as a reason to stop that and valuable only as a thing to compare against afterwards.
@@ -389,3 +470,126 @@ Not proposed. Recorded so that a future decision has a starting shape rather tha
 3. **Then the falsifiable test** (§1): build the smallest end-to-end thing that answers a real question
    with NO global enumeration over data. If it needs one, the inversion did not happen.
 4. **Then decide**, with both models standing and measurable, which is the substrate.
+
+---
+
+## 14. SPIKED 2026-07-26 — binding survives (`bench/spike_substrate_inversion_binding.py`)
+
+§13.2 said: spike BINDING, not plumbing, because NETL is the closest ancestor of this substrate and
+variables are the documented place it broke — which is also this project's known weak axis
+([[binding-is-the-missing-axis]]). Run under an agreed **no-import rule**: the spike may not import from
+`ugm/` (asserted mechanically), so anything it needs is copied, and what gets copied is evidence about
+what is genuinely shared rather than a store-shaped assumption riding along.
+
+| case | result |
+|---|---|
+| 1 — the NETL diagnosis: marker passing vs subgraph passing on a two-place join | **PASS** — markers answer 4, of which 2 are false; the unit answers exactly 2 |
+| 2 — cross-wire binding by IDENTITY, not name | **PASS** — name-matching fabricates a conclusion from two distinct `mary`s; identity does not |
+| 3 — legitimate cross-chain join (base + hypothesis) | **PASS** |
+| 4 — sibling isolation at binding level | **PASS** — and nothing in the implementation is named scope, context or vantage |
+| 5 — §1's falsifiable test: no global enumeration over data | **PASS** — the one global is the unit index, keyed by predicate |
+| 6 — can the topology be ASSEMBLED rather than hand-wired? | **PASS, but only with §3b's spawn policy** — the index alone collapses the chains entirely |
+
+**VERDICT: GO on binding.**
+
+### 14.1 Why it does not recur, stated mechanically
+
+NETL propagates a MARKER — one bit at a node. Inheritance works perfectly, because inheritance needs no
+correlation. A two-place join fails, because there is nowhere to record WHICH `?y` a given `?x` went with,
+so `jack likes mary, bob likes sue, mary is rich, sue is poor` yields the CROSS-PRODUCT: four answers,
+two of them false. That is the whole of NETL's difficulty, reproduced in eight lines.
+
+**A unit whose state is a SUBGRAPH carries the binding structurally — the value of `?y` is simply a node
+in the value.** So the join is exact, and it is exact for a reason that cannot decay: there is no separate
+binding mechanism that could be got wrong, because the binding IS the datum. This is the single most
+important difference between this substrate and its closest ancestor, and it is not a matter of degree.
+
+### 14.2 The three amendments this forced, all made in place
+
+1. **§2b — the store is BOUNDED, not abolished.** A unit joins over the union of its inputs, so it has a
+   local store: exactly what its in-edges deliver. "No blackboard" means no *unbounded shared* store. The
+   quantity that now bounds a unit's epistemic reach is its **in-degree**.
+2. **§3b — the index is NOT sufficient to assemble the topology.** On the index alone the chains collapse
+   completely: one instance sees both hypotheses and derives both conclusions. A local spawn policy fixes
+   it (comparable-with-EVERY-existing-input; the quantifier is load-bearing), and it names no scope — so
+   emergence holds, but from an assembly policy rather than from the index, which §3 did not say.
+3. **§5 — structural sharing is a CORRECTNESS requirement, not a cost trade-off.** Cross-wire binding must
+   join by node identity; a copy that re-mints nodes is not slow, it is wrong.
+
+### 14.3 What the spike deliberately did NOT test, and what it therefore cannot claim
+
+Fuel, refire, lifetime, cycles, negation, and any question of scale. It is a binding spike and it answers
+a binding question. In particular it does **not** show that this substrate works — it shows that the one
+thing that historically killed this substrate does not kill this one. Every simplification claimed in
+§§6–8 remains unbuilt and untested, and §12's last risk (*the seduction of elegance*) is not discharged by
+a spike that only ever had six units in it.
+
+**What it licensed.** Not a claim that the substrate works — a claim that the obvious objection to it is
+answered, and does not have to be re-litigated. That was enough to make the re-point in the status header
+a decision on evidence rather than on taste. The exploration plan is §13.
+
+---
+
+## 15. BUILT 2026-07-26 — the `units/` package
+
+The exploration is under way. `units/` is a sibling of `ugm/`, behind the no-import rule (enforced by
+`tests/units/test_no_ugm_import.py`, statically and by a subprocess check for transitive imports). `ugm/`
+is untouched and still working; nothing is retired until this substrate answers a real question end to end.
+
+| module | what it owns |
+|---|---|
+| `value.py` | `Node`, `Fact`, `Subgraph` — the immutable value on a wire, with a per-value predicate index (bounded local enumeration, which §1 permits) and identity-preserving `union`/`with_facts`/`without` |
+| `match.py` | `Var`, `Triple`, `Absent`, `solve` — binding, and §6a's exact NAF over the wire value; safety checked at construction |
+| `unit.py` | `Unit` — delta + inputs → output, output caching, change detection; `given`/`rule`/`branch` are the same class at different in-degree |
+| `net.py` | the LHS/RHS index, the §3b spawn policy, wiring, work-list propagation, and the assemble/propagate driver |
+| `fuel.py` | `Budget` and the three-valued `Verdict` — §6b's honest UNKNOWN, which refuses to be truthy so it cannot collapse into NO |
+
+29 tests, all green, written as the document's own claims rather than as unit tests of the code:
+`test_binding.py` (the spike, promoted), `test_assembly.py` (§3b including its negative case),
+`test_negation_and_fuel.py` (§6's two negations, §7's revision-by-rerun, and §6b's identified hole).
+
+### 15.1 Three things building it found that designing it did not
+
+**(a) CYCLES ARE THE DEFAULT, and §10.2 was wrong to expect otherwise.** The first two-rule chain — `R1`
+feeding `R2` — wired `R2`'s instance straight back into `R1`'s. The cause is accretion (§5): a downstream
+unit carries its ancestors' facts through, so its output contains the UPSTREAM predicates, so the index
+correctly identifies it as a producer for the upstream rule. This is not an edge case the assembler might
+hit; it is what it does unless told not to.
+
+**(b) UNROLLING AND CYCLING ARE THE SAME MOVE UNTIL YOU DISTINGUISH THEM — and §0's depth claim depends on
+getting it right.** A rule unit's output never re-enters its own view, so **a unit cannot iterate on its
+own**: transitive closure is impossible without either a back edge or a chain of instances. The design
+already chose the chain ("you don't add a cycle, you unroll"), and the mechanical form of that choice is:
+
+> A producer may feed a **NEW** instance of a template it is itself an instance of (that is depth). It may
+> never feed one that is already **upstream** of it (that is a cycle).
+
+Both are local tests over the wiring, which is the only structure there is. Forbid the first and
+transitivity becomes inexpressible; permit the second and a unit's own conclusion re-enters its own input.
+
+**(c) TERMINATION OF ASSEMBLY NEEDED A THIRD GUARD: PROJECTION DEDUP.** With (a) and (b) in place,
+assembly still ran forever — every downstream unit kept re-spawning every upstream rule whose predicates it
+was carrying. The fix is to feed a template a producer only when that producer's output **restricted to the
+predicates the template actually reads** is one no instance has consumed. Projecting rather than comparing
+whole values is the whole trick, and it makes assembly stop by the same idempotence condition that
+terminates propagation — one level up. **Fuel is therefore the bound on pathological cases, not the
+mechanism by which ordinary assembly ends**, which is the right division and was not obvious beforehand.
+
+### 15.2 A correction to `Unit.derived`, and why it is worth recording
+
+The first implementation recovered "what did this unit conclude?" by subtracting its view from its output.
+That is silently wrong whenever a unit's own conclusion can reach its own input — i.e. in exactly the
+cyclic case above — and it reported *nothing derived* rather than failing. It is now RECORDED at run time
+(`last_derived`), because **a derivation is a fact about a run, not a property recoverable from the
+values afterwards.** The bug was found only because a test asserted a conclusion that a human could see
+was there; a subtraction-based probe is exactly the kind that agrees with itself while both sides are
+wrong.
+
+### 15.3 Honest scope of what now exists
+
+It is a substrate, not a system. There is no intake, no CNL, no query surface, no `why`, no structural
+sharing beyond what Python's frozensets give (the spine is copied per union — §5's HAMT is recorded and
+not done), and nothing has been run at any scale. Every claim in §§6–8 that is not in the test list above
+remains unbuilt. **§12's last risk stands undiminished**: the simplifications keep reporting themselves,
+and 29 green tests over a few dozen facts is not evidence against a design being too clean to survive
+contact.
