@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .match import Absent, Triple, check_safety, ground, solve
+from .match import Absent, Triple, check_safety, ground, matched as _matched, solve
 from .value import EMPTY, Fact, Subgraph
 
 
@@ -48,6 +48,11 @@ class Unit:
     inputs: dict = field(default_factory=dict)      # producer name -> that producer's last output
     output: Subgraph = EMPTY
     last_derived: frozenset = frozenset()           # what THIS unit concluded on its last run
+    last_firing: tuple = ()                         # (conclusion, premises consumed) per firing. THE
+    #                                                 INHERITANCE RECORD: annotations (band, attribution)
+    #                                                 ride from premise to conclusion through this, as ONE
+    #                                                 generic rule rather than a clause per template — see
+    #                                                 §16 and `bench/spike_subset_output.py` case 1.
     runs: int = 0                                   # times recomputed
     fired: int = 0                                  # times it DERIVED something (never equal by luck)
 
@@ -81,23 +86,45 @@ class Unit:
         return v.without(self.drop) if self.drop else v
 
     def run(self) -> bool:
-        """Recompute from the current inputs. Output = the view carried through, PLUS what was derived
-        (§5 accretion — and accretion is safe here only because the topology forks: what accumulates is
-        one value PER PATH, which is what a context IS).
+        """Recompute from the current inputs.
+
+        **A RULE EMITS ONLY WHAT IT DERIVED; EVERYTHING ELSE EMITS ITS VIEW** (§16, user proposal
+        2026-07-26). That one line is the difference between two accretions, and only one of them was
+        ever load-bearing:
+
+        * **BRANCH accretion survives** — a `branch`/`carrier` passes its view through, which is why §3b's
+          spawn policy still works: a sibling instance wired only to H2 sees base because H2 carries it.
+          A merge unit is exactly this case at in-degree >= 2; it is not a new construct.
+        * **RULE accretion is GONE**, and with it both guards §15.1 invented to contain it. A rule's output
+          no longer contains its inputs' predicates, so the assembler cannot mistake a consumer for a
+          producer of its own premises: cycles stop being the default, and assembly terminates without
+          projection dedup (`bench/spike_subset_output.py` cases 2-3: 2 spawns, vs 121 and fuel-exhausted).
+
+        **AND A NON-FIRING UNIT BECOMES A REAL GATE** (case 7). Under accretion a rule that matched nothing
+        still passed its whole input through, so the chain's natural guard — *scope by deactivation* — was
+        decorative. Here it emits nothing and downstream is genuinely starved. That is what makes BYPASSING
+        a unit a semantic change rather than a shortcut, and it is why `Net.assemble` wires the deepest
+        producer rather than the first one it finds.
 
         Returns whether the output CHANGED, which is the whole of the termination story."""
         self.runs += 1
         view = self.view()
         derived = set()
+        firing = []
         if self.rhs:
             for b in solve(self.lhs, view):
+                consumed = tuple(f for a in self.lhs if isinstance(a, Triple)
+                                 for f in view.by_pred(a.p) if _matched(a, f, b))
                 for head in self.rhs:
-                    derived.add(ground(head, b))
-        fresh = frozenset(f for f in derived if f not in view)
-        new = view.with_facts(fresh) if fresh else view
+                    g = ground(head, b)
+                    derived.add(g)
+                    firing.append((g, consumed))
+        fresh = frozenset(derived)
+        new = Subgraph(fresh) if self.rhs else view
         if fresh:
             self.fired += 1
         self.last_derived = fresh
+        self.last_firing = tuple(firing)
         changed = new != self.output
         self.output = new
         return changed

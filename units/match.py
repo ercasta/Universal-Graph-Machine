@@ -126,6 +126,18 @@ def _holds(atom: Triple, b: dict, view: Subgraph) -> bool:
     return Fact(s, atom.p, o) in view
 
 
+def matched(atom: Triple, f: Fact, b: dict) -> bool:
+    """Did `f` supply `atom` under binding `b`? — used to record a firing's CONSUMED PREMISES.
+
+    Why this is recorded rather than recovered: a conclusion's annotations (a band, an attribution) are
+    inherited from the facts that PRODUCED it, and once a rule emits only its conclusion there is no
+    afterwards in which to work out which those were. Same lesson as `Unit.derived` — a derivation is a
+    fact about a RUN (§15.2) — arrived at from the inheritance side rather than the cycle side."""
+    s = b[atom.s] if isinstance(atom.s, Var) else atom.s
+    o = b[atom.o] if isinstance(atom.o, Var) else atom.o
+    return f.s == s and f.p == atom.p and f.o == o
+
+
 def ground(head: Triple, b: dict) -> Fact:
     """Instantiate a head atom under a binding. Every slot must be bound — `check_safety` guarantees it."""
     s = b[head.s] if isinstance(head.s, Var) else head.s

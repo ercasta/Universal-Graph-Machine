@@ -29,6 +29,22 @@
 > sufficient to assemble the topology (§3b), and structural sharing is load-bearing for CORRECTNESS rather
 > than cost (§5). This result is what made the re-point defensible rather than speculative.
 >
+> **AMENDED 2026-07-26 BY §16 — SUBSET OUTPUT.** A rule now emits only what it derived; only branches and
+> merges carry a view through. That splits accretion in two, retires both guards §15.1 invented, makes a
+> non-firing unit a REAL GATE, and fixes a live assembler defect that was bypassing context-carrying
+> chains. §3b's *"either alone is broken"* and §15.1(a)'s *"cycles are the default"* are corrected there.
+>
+> **§17 SPIKED IT BACK, 2026-07-26 — and found 2 failure points, both inside §16.** A merge can restore
+> what a branch DROPPED (§16.5's own recommendation is a bypass); and NAF over a hand-wired cycle converges
+> to a different answer per work-list order, silently. Assembled nets are DAGs, so the fixpoint is
+> guaranteed — **which means the cycle guard's justification MOVED and it must not be retired.**
+>
+> **§18 ATOMIC CHAINS (user), RECORDED NOT BUILT.** A contextualized concept is a chain that must not be
+> split, and the assembler splits it — measured. The conditional and the syllogism are STRUCTURALLY
+> IDENTICAL and semantically opposite, so no topological rule separates them: **the criterion is FORCE**
+> (atomic exactly where intermediates carry no assertoric commitment), which makes chain identity fall out
+> of form instantiation with no new declaration. §19 carries the session's remaining reasoned residue.
+>
 > **What it is NOT.** Not the queue topology (`execution_topology.md`), which schedules access to a shared
 > graph. Not the cell-network amendment (§13 there), which indexes rules over a shared graph. Both of those
 > keep ONE store and make computation better-behaved around it. **This proposal deletes the store.**
@@ -593,3 +609,421 @@ not done), and nothing has been run at any scale. Every claim in §§6–8 that 
 remains unbuilt. **§12's last risk stands undiminished**: the simplifications keep reporting themselves,
 and 29 green tests over a few dozen facts is not evidence against a design being too clean to survive
 contact.
+
+---
+
+## 16. SUBSET OUTPUT — accretion split in two (user proposal, SPIKED AND LANDED 2026-07-26)
+
+> **The proposal (user):** *"what if each node only outputs a subset of the graph, and there are nodes
+> dedicated to merging?"* Measured in `bench/spike_subset_output.py` (27/27), landed in `units/`
+> (37 green), promoted to `tests/units/test_subset_output.py`.
+
+`units/unit.py`'s `new = view.with_facts(fresh)` was the entire accretion decision. Replacing it with
+**a rule emits only what it derived; everything else emits its view** turned out to separate two things
+this document had treated as one — and only one of them was ever load-bearing.
+
+| | kept or lost | consequence |
+|---|---|---|
+| **BRANCH accretion** — a `branch`/`carrier` passes its view through | **KEPT** | §3b's spawn policy still works: a sibling instance wired only to H2 sees base because H2 carries it. Sibling isolation re-measured, unchanged. |
+| **RULE accretion** — a rule re-emits everything it read | **GONE** | both guards §15.1 invented are no longer needed |
+
+**This CORRECTS §3b's closing sentence.** *"Accretion and the spawn policy are not two features; either
+alone is broken"* is too strong. The policy depends on **branch** accretion only, and rule accretion was
+buying nothing it did not also cost.
+
+### 16.1 Measured: two guards stop being necessary
+
+| | cycle guard OFF | projection dedup OFF |
+|---|---|---|
+| accretion | **cycle forms** (5 taken) | **runs away** — 121 spawns, fuel exhausted |
+| subset output | no cycle | **terminates on its own** — 2 spawns |
+
+Both of §15.1's discoveries were consequences of rule accretion, not properties of the substrate. A rule's
+output no longer contains its premises' predicates, so the index cannot mistake a consumer for a producer
+of what it consumed. §15.1(a) — *"cycles are the assembler's DEFAULT"* — was true only of the accreting
+variant; **it is no longer the default, and the guards are now belt-and-braces rather than load-bearing.**
+
+One methodological note, because it nearly went unrecorded: testing the cycle guard alone measures
+nothing, because **projection dedup was already masking the cycle.** The §15.1(a) claim is only testable
+with both guards off. A guard that is never reached looks exactly like a guard that works.
+
+### 16.2 ⭐ THE GATE — a chain expresses scope by DEACTIVATION (user, and it is the deepest of the three)
+
+> *"A chain of rules can represent context by simply deactivating its output along the chain, because its
+> input does not match. This would mean that we must NEVER bypass a node along the chain, otherwise we
+> lose this natural guard."*
+
+Correct, and it is an argument for subset output that neither the proposal nor this document had made:
+
+- **Under accretion the guard LEAKED.** A rule that matched nothing still returned its whole view, so
+  everything downstream saw the input anyway. Scope-by-deactivation was decorative.
+- **Under subset output the guard is REAL.** A non-firing rule emits nothing and downstream is starved.
+
+So a chain is a sequence of gates, silence is a semantic act, and **a bypass wire is a semantic change
+rather than a shortcut** (case 7d: the bypassed consumer revives a conclusion the chain had silenced).
+This retires the "skip connections for think-harder mode" idea explored earlier in the same session:
+widening what a unit may see is not free compute, it is **defeating a guard**.
+
+**The distinction that makes it operational**, since some extra wires are legitimate:
+
+> A wire supplying a predicate **NO UNIT IN THE CHAIN PRODUCES** is a **JOIN**.
+> A wire supplying a predicate **A CHAIN UNIT GATES** is a **BYPASS**, and is refused.
+
+Both are local tests over the wiring. `Net._complete_lhs` implements exactly this.
+
+### 16.3 The cost, and it is a real one: the assembler must now satisfy the whole LHS
+
+Subset output broke two existing tests, and the cause is the honest price. `?x reaches ?y ∧ ?y next ?z`
+needs `reaches` from the chain and `next` from base; **accretion carried `next` along, so the assembler
+could wire one producer and hope.** It cannot now. `_complete_lhs` wires the remaining producers, subject
+to the join/bypass test above — which is **the merge node the proposal asked for, made automatic.** A
+merge is not a new construct either: it is `kind == "carrier"` at in-degree ≥ 2, the cell §2's degree
+taxonomy already had and nobody had filled.
+
+### 16.4 A LIVE DEFECT the spike found, unrelated to the proposal: the assembler was bypassing
+
+Identical under both modes, so it was pre-existing in `units/net.py`:
+
+> Projection dedup compares producers on **the predicates the template reads**. A context marker is by
+> definition a predicate the template does NOT read. So `base` and a branch carrying `<at> t1` project
+> identically, dedup skips the branch, and the rule instance is wired to `base` — **the marker never
+> reaches the rule.**
+
+This breaks relativization at ASSEMBLY rather than at representation: the value can hold the marker, and
+the assembler declines to wire the chain that carries it. It is §4's emergent scope failing quietly.
+
+**Lineage-scoped dedup was the wrong fix** (`base` and the branch are comparable — same lineage; skipping
+is correct). **The fix is ordering: consider the DEEPEST producer first.** Two producers in one lineage can
+project identically while the deeper one carries strictly more context, and taking the first found wires
+the shallowest — which is precisely a bypass by §16.2. So *frontier-first* is a **correctness requirement**,
+not the policy dial an earlier part of this session took it for.
+
+Cost: assembly becomes O(units × upstream-walk) per pass. Accepted — the alternative is an assembler that
+silently drops context. At session scale ([[ugm-scope-session-sized]]) this is expected to be nothing, and
+it is the next thing to measure rather than assume ([[measure-before-optimizing-ugm]]).
+
+### 16.5 What accretion was silently buying — and a surprise about the band
+
+`composition_architecture.md` closes by noting that band and scope are threaded as **Python parameters**,
+so a new annotation axis means editing `chain_sip`/`_facts_matching` — *"a separate, larger arc"*. On this
+substrate annotations are ordinary facts, so that arc is free. But the spike found the arc was already
+broken in a way accretion was hiding:
+
+> **Under accretion the premise's band is carried forward and NEVER ATTACHED TO THE CONCLUSION.** A reader
+> finds it *somewhere in the value*, by luck.
+
+That is [[derived-facts-must-land-in-the-interpretation]] in new clothes. **Subset output does not lose
+annotation inheritance; it makes an existing loss visible** — which is the third independent argument for
+it. What it requires is one field: `Unit.last_firing`, recording *conclusion ↦ the premises consumed*.
+`last_derived` recorded conclusions only, and once a rule emits nothing but its conclusion there is no
+afterwards in which to recover the premises. Same lesson as §15.2 — **a derivation is a fact about a RUN**
+— reached from the inheritance side rather than the cycle side.
+
+With it, annotation inheritance is **one generic rule over the firing record**, not a clause per template
+(which is the combinatorial explosion `form_inventory.md` §9 warns against). Measured, with the control
+that matters: a premise carrying no band inherits NOTHING rather than becoming certain.
+
+**And it does NOT solve context markers** (case 5c): a marker was never a premise, so consumed-premise
+inheritance cannot carry it. That is what merge units are for (case 5d), and it is why the answer is not
+a content/frame partition — which [[firmware-over-isa-design]] forbids anyway.
+
+### 16.6 REASONED BUT NOT SPIKED — recorded so the distinction stays visible
+
+Reached by argument in the same session, unmeasured, and therefore weaker than everything above:
+
+- **§8's backward walk is WRONG, by this document's own §15.2.** Wires say what COULD have fed a unit, not
+  what did; refire keeps only the last output; and §6b's late wiring means the topology at explanation time
+  is not the topology at derivation time — so a backward walk explains a derivation that may never have
+  happened. The replacement is a **parallel, forward-built, append-only network over FIRING EVENTS** (one
+  unit, many firings), carried on its OWN wire — it must not accrete into the object value, or §6a's exact
+  NAF starts seeing provenance facts.
+- **Keep only the LAST firing per unit**, plus any firing still referenced by a kept one (reachability GC
+  from current outputs), plus a small **supersession stub** at refire so *"why did you change your mind?"*
+  survives. This collapses trace lifetime into unit lifetime — one question, not two (§10.3).
+- **METARULES ARE NOT NEEDED.** The assembler's four decisions are all queries over the wiring history, so
+  it is already a trace-consumer; and §10.4 (*"the discourse modifies the topology"*) is satisfied by
+  templates alone — the discourse adds SHAPES, not wiring policy. Dropping them keeps §8's line absolute:
+  **units never touch wiring.** Parked honestly: a *policy* authored mid-conversation has nowhere to land.
+- **Three instantiation stages, and they are `form_inventory.md` §4d's levels**: FORM (fixed at load, L0) →
+  TEMPLATE (an authored rule, L1) → UNIT (wired to producers, L2). The form set IS the index, which is
+  §4d's "L0 lives in a register" satisfied structurally. **Constraint:** a firing record may name its form
+  only as an OPAQUE HANDLE, or the L0 leak returns through the trace.
+- **FORCE (§4b) becomes unit SHAPE, not a router** — in-degree, out-degree, and whether the unit suspends.
+  ASK is a sink; `is P?` is a sink on object wires and `why P?` a sink on trace wires, which is where the
+  two networks meet.
+- **§6's two negations are THREE**: exact-over-the-wire, fuel-bounded-over-the-open-derivation, and
+  **banded-positive-negative** (a degree cannot ride an absence). §6 currently conflates the third with
+  the first, and they license different conclusions.
+
+### 16.7 Honest scope
+
+Networks of under ten units. No refire/revision interaction with any of this, no scale, no fuel pressure.
+The inheritance rule is Python standing in for "one rule", so case 1 shows the firing record is
+SUFFICIENT, not that the rule is expressible as a unit. §12's last risk — *the seduction of elegance* —
+is undiminished: this section reports three simplifications and one cost, which is the same ratio every
+previous section reported.
+
+---
+
+## 17. FAILURE POINTS — spiked against §16 rather than for it (2026-07-26)
+
+`bench/spike_failure_points.py`, 12 checks, **2 FOUND** — and both were in constructs §16 had just landed,
+which is the argument for writing a spike to break your own work rather than to demonstrate it. Promoted
+to `tests/units/test_wellformed.py` (43 green).
+
+### 17.A ⚠ A MERGE CAN RESTORE WHAT A BRANCH DROPPED — §16.5's own recommendation is a bypass
+
+§16.5 says: wire a merge to both a rule and its branch, to re-supply context the rule no longer carries.
+§5 says: a delta must be able to REMOVE, because *"under H, not P"* is most of what a hypothesis is for.
+Put them together:
+
+> The merge is wired to the branch AND to the branch's ANCESTOR. The ancestor still holds `P`. **The merge
+> hands back the very fact the branch dropped.** Measured: `M output={lion has mane, lion under h}`.
+
+This is §16.2's bypass, arriving through the construct §16 introduced to fix a different problem. It is
+the sharpest instance so far of the pattern §12 warns about — a simplification that reports itself as
+clean and is not.
+
+**It needs no semantics to detect** (unlike §16.4's chain-splitting, which does): an ancestor producer
+supplying facts its own descendant does not. `Net.restores_a_drop` returns the offending pair, and
+`Net.wellformed()` reports it. **Not auto-refused**, because a merge wired to an ancestor is legitimate
+whenever nothing was dropped — the check is on the FACTS, not on the shape.
+
+### 17.B THE FIXPOINT (user question) — assembled nets are DAGs, and that is the whole guarantee
+
+Termination rests on *"output unchanged"* (§7). That is a fixpoint argument **only if the network cannot
+oscillate**, so the question is exact: cycle + NAF, the canonical unstable program.
+
+- **It does not oscillate. It CONVERGES — to a different answer depending on work-list order.** `P` first
+  yields `p`; `Q` first yields `q`. Silently. That is worse than oscillation, because oscillation is
+  visible and this is not: it is §6's *"scheduling policy leaking into semantics"*, realized and measured.
+- **The assembler never builds that shape.** It refuses back edges, so **an assembled net is a DAG, and a
+  DAG has a guaranteed fixpoint.** Every oscillation risk in this substrate lives in hand-wiring.
+
+> **⭐ THE CYCLE GUARD'S JUSTIFICATION HAS MOVED, and this matters because §16 nearly retired it.** It was
+> built to contain accretion's runaway wiring (§15.1a). §16.1 removed that need and downgraded it to
+> "belt-and-braces". **It must stay anyway — it is now the only thing standing between NAF and an
+> order-dependent answer.** A guard whose original reason disappears is exactly the kind that gets deleted
+> as dead weight.
+
+`Net.wellformed()` reports hand-wired cycles rather than tolerating them silently.
+
+### 17.C REFIRE WORKS — §16.7's untested axis, now tested
+
+A gate that opens lets the conclusion through; a gate that shuts **takes it back**, by recomputation.
+Nothing is retracted, nothing cascades, no `broken_assumption` stamp — §7's claim that the retraction
+apparatus dissolves, measured on the gate case rather than asserted.
+
+### 17.D IDENTITY IS SOUND BUT NOT COMPLETE — a ceiling §14 never measured
+
+§14 measured that two DIFFERENT `mary`s refuse to join, and called binding survived. It never measured two
+**coreferent** `mary`s: with `same_as` asserted, the join **still refuses**. So:
+
+> **Id-equality is SUFFICIENT for sameness and not NECESSARY.** §14's verdict should be read as *binding
+> survives UNSOUNDNESS*; completeness was never on the test list, which makes it an asymmetric probe of
+> exactly the kind this repo's rule says to distrust.
+
+**The reconciliation with §5, and it is the user's own framing:** nothing may conclude "same entity" FROM
+an id. A **coref-merge unit** decides; the ids downstream merely record that decision. On this substrate
+that has an unusually clean home — the merge's delta substitutes B→A, so **coref becomes a CHAIN POSITION
+rather than a global fact**: downstream of it they are one, upstream they remain two. Which also answers
+*"the same entity could follow different paths"* — two chains may legitimately disagree about identity,
+and that is §4's "scope is a chain" applied to identity rather than a defect.
+
+**Blocked today:** that unit needs a GENERIC substitution, which needs a predicate variable. `Triple.p` is
+a plain `str`, so `?s ?p ?o` is inexpressible. The only workaround measured is authoring every rule
+coref-aware (`?x same_as ?y` as an explicit atom) — a clause per template, i.e. `form_inventory.md` §9's
+combinatorial explosion.
+
+### 17.E THE PREDICATE VARIABLE — two independent requirements, one hole
+
+Recorded together because the coincidence is the evidence:
+
+| requirement | what it needs |
+|---|---|
+| entity boundaries as data (head + membership over reified facts) | facts occupying node slots |
+| coref-merge as a unit (substitute B→A everywhere) | a predicate variable |
+
+Both bottom out in the same primitive, which `ugm/` has and [[facts-as-truth-bearers-built]] calls *"the
+ONE genuinely-fundamental non-sugar primitive"*, and which `units/` was deliberately built without. Two
+unrelated requirements finding the same hole in two days is the clearest signal this kind of exploration
+produces. **Recommended: build it** — not because either use is urgent, but because designing around it
+twice is how a substrate acquires the shape of what it cannot say.
+
+### 17.F DEFINITE DESCRIPTIONS — size was never the problem
+
+Measured against *"the car parked at the third floor of the garage near the movie theater"*: a 6-atom
+conjunctive pattern matches without strain, so **arbitrary size is not the difficulty**. What S-P-O cannot
+say is the three things *"the"* claims:
+
+| claim | measured |
+|---|---|
+| **uniqueness** | two cars matched; both would be derived over, silently |
+| **reference failure** | empty result — **indistinguishable from negation**. Presupposition failure collapses into falsity. |
+| **termhood** | a description can be USED in an LHS; it cannot be stored, passed, or referred to unresolved |
+
+**And a description IDENTIFIES rather than CONSTITUTES.** Read constitutively, *"1 subgraph = 1 entity"*
+means the car ceases to exist when it moves to the second floor. So the entity stays a node and the
+subgraph is the **constraint set on it** — with an unresolved description minting a witness, which
+`form_inventory.md` §9.3 already measured as NATIVE. This also dissolves the entity-boundary worry that
+motivated a head node: **boundaries SHOULD overlap**, because descriptions share structure, and what is
+actually lost at a merge is *which utterance contributed what* — provenance, which §16.6 already houses.
+
+Uniqueness and reference-failure are residue-log entries for `form_inventory.md` §4a; termhood is a new
+one.
+
+### 17.G OPEN — units that fire on STABILITY or INSTABILITY (user, 2026-07-26)
+
+Not built, and it should not be built before the trace network is, because it is the same mechanism:
+
+- **A stability event is a fact about a RUN**, so it belongs on the TRACE wire (§16.6), and a unit that
+  fires on it is an ordinary trace-consuming unit. No new construct.
+- **It is what §6b's fuel-bounded NAF actually needs.** *"P is not derivable at all"* is licensed exactly
+  when the network stopped growing — today that judgement lives in the Python driver, i.e. an unreachable
+  island by [[composability-principle]]. A stability unit makes it sayable in-language.
+- **Firing on stability DESTABILISES**, which is the whole difficulty: the unit's output changes the
+  network. Requires stratification — stability at level *n* triggers units at level *n+1* — which is the
+  same shape as [[stratification-both-engines]] and must be designed in, not discovered.
+- **Firing on INSTABILITY is the direct answer to §17.B.** Order-dependence there is silent; a unit that
+  fires on detected instability is precisely what would make it loud, and it is the honest home for
+  "I keep changing my mind about this" as a reportable state rather than a hang.
+
+---
+
+## 18. ATOMIC CHAINS — a contextualized concept must not be split (user, 2026-07-26; NOT BUILT)
+
+> *"When we want to represent a contextualized concept, we shall never split its chain by allowing other
+> nodes to attach to intermediate outputs. But at the end of this chain, we can attach multiple chains."*
+>
+> *"'If tomorrow rains, get an umbrella' is an atomic chain — an `if` rule and a `get the umbrella` rule —
+> and nothing can connect to the intermediate `if`, it would make no sense. While 'All men die',
+> 'Socrates is a man', 'Socrates will die' are three different chains."*
+
+§16.2 established that a bypass is a semantic change. This section is the harder half: **which wires are
+bypasses.** Recorded now, built later — `units/` has no mechanism for it, and the section says why.
+
+### 18.1 ⚠ MEASURED: the assembler splits atomic chains, and cannot be blamed
+
+`bench/spike_failure_points.py` case E, promoted to `tests/units/test_wellformed.py`:
+
+| | intermediate attached? | verdict |
+|---|---|---|
+| conditional — `base → R1(mid) → G(gate)`, second template reads `mid` | yes, `OTHER ← R1` | **WRONG** — reads a supposition as an assertion |
+| syllogism — `MORTAL → ESTATE` | yes, `ESTATE#1 ← MORTAL#1` | **RIGHT** — and the rule is correctly reused for Plato |
+
+> **The two are STRUCTURALLY IDENTICAL and semantically opposite.** No topological rule separates them.
+
+That is the whole justification for this section existing: atomicity cannot be discovered from the wiring,
+so it must arrive with the meaning. §16.4's frontier-first fix does not help — it chooses *which* producer,
+not *whether* the chain may be entered at all.
+
+### 18.2 The end-node problem, and why a purely topological answer self-undermines
+
+The natural derivable candidate is *"attachable iff no rule unit is downstream of it"* — attach only at the
+tail. It handles the conditional correctly and subsumes frontier-first as a hard rule rather than a sort
+preference. **It fails on the user's own objection:**
+
+> Attach consumer D to tail E, and now E has a downstream rule — so **E is no longer attachable for a
+> second consumer.** The first attachment destroys the ability to make a second.
+
+Topological "internal" is self-undermining. Chain identity cannot be read off the wiring.
+
+### 18.3 Mark the CHAIN, not the node — the end is then derivable
+
+The user's proposal was an "endnode" marker. One level up is strictly better:
+
+> Given **which units form one atomic structure**, *internal* means **"has a gate downstream of it WITHIN
+> that set"** — which is stable, because attaching an external consumer adds nothing to the set. The **end
+> node is derivable**: the member with no downstream member inside the set.
+
+One marker instead of two, no drift between them, and it survives unrolling cleanly — §15.1(b)'s new
+instances land *inside* the set, so the chain grows internally and its interface does not move.
+
+**And attaching many consumers at the end is safe for a statable reason**, which is the criterion rather
+than the permission: at the end, **every consumer has inherited every gate in the chain**, so none of them
+can revive what deactivation silenced. It does not matter whether the end is a rule or a merge.
+
+### 18.4 ⭐ THE CRITERION IS FORCE — and it is already an axis
+
+What actually differs between the two rows of 18.1: *"tomorrow rains"* inside the conditional **is not
+asserted**. It is supposed. Attaching to it reads a supposition as a commitment. *"Socrates is mortal"*
+**is** asserted — the system commits to it, and anything may use it.
+
+> **A chain is atomic exactly over the span where its intermediates carry NO ASSERTORIC FORCE.**
+
+That is `form_inventory.md` §4b, not a new declaration. It discriminates every case raised in the session:
+a *derived* intermediate is assertable, so it stays attachable (which is why the syllogism must compose and
+why an internal helper predicate should be reusable rather than hidden).
+
+**CONSEQUENCE — chain identity needs no new surface:**
+
+> **One FORM = one FORCE = one ATOMIC STRUCTURE.** The units a single form lowers to share one commitment,
+> which is exactly why their intermediates are not assertable.
+
+Umbrella: one form → one atomic chain. Syllogism: three forms → three chains. This also retires an
+objection raised and dropped in the session — that form-instantiation would be too fine-grained for *"the
+lion under H at t1"*, which spans several forms. It would not: a branch's output **is** assertable-under-H,
+so its intermediates are legitimately attachable and it was never atomic. Nothing is named, nothing is
+declared, and §4's emergence survives.
+
+### 18.5 The tension with §4, and why it passes
+
+§4 records that scope must stay emergent, and that this document's author re-imported it as a key three
+times before getting it right. A chain boundary is a named boundary, so it deserves the test:
+
+- §4 forbade naming context as a **key on unit identity** (`unit = (rule, context)`), which would enter
+  MATCHING.
+- A chain marker enters nothing but **ATTACHMENT** — assembly policy, which §8's line already assigns to
+  the mechanism side, where units cannot touch it.
+
+Different object, right side of the line. **But the first implementation should assert mechanically that
+the marker never reaches `solve`** — the same shape as the no-import rule, because this is exactly the
+kind of thing that is right on paper and wrong in the build.
+
+### 18.6 The known edge, stated before it is discovered
+
+*"Assertable"* is not always crisp. A branch carrying `<at> t1` is assertable **relative to t1** — force
+and relativization interact, and 18.4 quietly assumes force is absolute. That is the seam
+`form_inventory.md` §9.3 already found from the relativization side, arriving here from the force side. It
+is where the first counterexample should be expected.
+
+### 18.7 Status
+
+**NOT BUILT.** `units/` has no notion of force — nothing in `Unit`, `Triple` or `Net` distinguishes an
+asserted output from a supposed one, so 18.4's criterion is currently unimplementable and 18.1's defect
+stands recorded rather than fixed. The two tests in `test_wellformed.py` pin both halves: the split (which
+must eventually fail differently) and the syllogism (the negative control any fix must not break).
+
+---
+
+## 19. SESSION RESIDUE — reasoned in conversation, not otherwise recorded
+
+Points raised while reasoning toward §§16–18 that belong on the record but did not earn a section. All
+REASONED, none measured.
+
+- **Grammar TYPES the network; the RUN wires it.** The strong claim — that the CNL determines the
+  topology — is contradicted by §3b and §15.1: the wiring is decided at run time by index + spawn policy +
+  dedup, and is not in the text. What survives is better than it sounds: forms come from the grammar and
+  LHS/RHS shapes come from forms, so **which template can in principle feed which is derivable from the
+  grammar** — the index could be COMPUTED rather than accumulated, making §10.5's selectivity question
+  answerable before anything is built.
+- **A small form set makes §10.5 WORSE, not better.** If there are ten forms, all discrimination falls on
+  predicate constants and "wake broadly" gets much broader. Minimality and index selectivity pull against
+  each other.
+- **Why §9.3's relativization gap dissolves here, stated properly.** A binary fact plus a time index is
+  4-place and S-P-O is spent. On this substrate the index is not in the fact — it is a marker fact **in the
+  value** — and because a value is BOUNDED, one marker relativizes everything in it at once. That is
+  impossible on a global store, where the index must ride each fact. The price is one chain per index, i.e.
+  §4b's exponential wearing the frame problem's clothes.
+- **Exclusivity / "only" gets a small genuine win.** `form_inventory.md` §4a lists it as *no mechanism, no
+  way to say only*. A value on a wire is FINISHED (§6a), so "only these" is decidable over it — a claim
+  that could not be made about an open store.
+- **Entity boundaries survive exactly ONE HOP** (measured, and the reason §17.F concludes what it does):
+  recoverable at a merge, because `inputs` keeps each producer's value separately; gone one hop later,
+  because only the merged value flows on. Boundaries are lost precisely when subgraphs OVERLAP. The general
+  form: **structure gives you boundaries for free but they do not travel; data makes them travel but needs
+  reification** (§17.E).
+- **`composition_architecture.md`'s actual leak is substrate-independent.** Its finding is that the
+  evaluator composes and the PRODUCERS leak (hedge × negation drops at intake). §9 keeps intake unchanged,
+  so that leak would recur here identically. What this substrate fixes is the arc that document DEFERRED —
+  an open annotation set — not the leak it diagnosed.

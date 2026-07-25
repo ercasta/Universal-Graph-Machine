@@ -86,6 +86,53 @@ class Net:
         """One lineage? — `a` is `b`, or an ancestor of it, or a descendant."""
         return a == b or a in self.upstream(b) or b in self.upstream(a)
 
+    def restores_a_drop(self, consumer: str, extra: str | None = None) -> tuple | None:
+        """Would this consumer's producers RESTORE a fact one of them deliberately removed? (§17.A)
+
+        §5's delta can REMOVE — *"under H, not P"* — and §16.5 recommends a merge wired to both a rule and
+        its branch, to re-supply context. Put those together and the merge hands back the very fact the
+        branch dropped: **the ancestor is a bypass of the descendant's drop.** Found by spiking the
+        recommendation rather than the design (`bench/spike_failure_points.py` case A).
+
+        It needs no semantics to detect: an ancestor producer supplying facts its own descendant does not.
+        Returns the offending `(ancestor, descendant)` pair, or None."""
+        prods = set(self.producers.get(consumer, ()))
+        if extra:
+            prods.add(extra)
+        for a in prods:
+            for b in prods:
+                if a != b and a in self.upstream(b):
+                    if self.units[a].output.facts - self.units[b].output.facts:
+                        return (a, b)
+        return None
+
+    def wellformed(self) -> list:
+        """Problems a HAND-WIRED net can have that the assembler would never build. Returns a list of
+        `(kind, detail)`; empty means the guarantees below hold.
+
+        **`cycle` — this is where the FIXPOINT guarantee comes from** (§17.B). Termination rests on
+        "output unchanged", which is a fixpoint argument only if the network cannot oscillate. The
+        assembler refuses back edges, so an ASSEMBLED net is a DAG and a fixpoint is guaranteed. A
+        hand-wired cycle plus NAF does not oscillate here — measured — it CONVERGES to a different answer
+        depending on work-list order, which is worse, because it is silent. §6's warning that scheduling
+        policy must not leak into semantics, realized.
+
+        **NOTE THE JUSTIFICATION MOVED.** The cycle guard was built to contain accretion's runaway wiring
+        (§15.1a). §16 removed that need — and the guard must stay anyway, because it is now the only thing
+        standing between NAF and an order-dependent answer. Deleting it as dead weight would be a mistake.
+        """
+        out = []
+        for p, cs in self.consumers.items():
+            for c in cs:
+                if c in self.upstream(p):
+                    out.append(("cycle", f"{p} -> {c}, but {c} is already upstream of {p}"))
+        for name in self.units:
+            hit = self.restores_a_drop(name)
+            if hit:
+                out.append(("restores_a_drop", f"{name}: {hit[0]} is an ancestor of {hit[1]} and "
+                                               f"re-supplies what it dropped"))
+        return out
+
     # -- assembly -----------------------------------------------------------
 
     def declare(self, name: str, lhs, rhs) -> None:
@@ -125,11 +172,16 @@ class Net:
         for tname, (lhs, rhs) in self.library.items():
             need = {a.p for a in lhs if isinstance(a, Triple)}
             seen = self.consumed.setdefault(tname, set())
-            for prod in list(self.units.values()):
+            # FRONTIER FIRST, and it is a correctness requirement rather than a preference (§16). Two
+            # producers in one lineage can project identically while the deeper one carries strictly more
+            # context — a hypothesis marker, a time index, an attribution. Taking the first one found
+            # wires the SHALLOWEST, which silently drops that context and is precisely a BYPASS.
+            cands = sorted(self.units.values(), key=lambda u: len(self.upstream(u.name)), reverse=True)
+            for prod in cands:
                 if not (prod.output.predicates() & need):
                     continue                                # nothing it emits could match this LHS
                 projection = frozenset(f for f in prod.output if f.p in need)
-                if projection in seen:
+                if any(projection == pj for pj, _ in seen):
                     continue                                # nothing NEW for this template to read
                 if any(prod.name in self.producers.get(i, ()) for i in self.instances[tname]):
                     continue                                # already wired somewhere — idempotence guard
@@ -150,8 +202,54 @@ class Net:
                     self.instances[tname].append(target)
                     budget.spawns += 1
                 self.wire(prod.name, target)
-                seen.add(projection)
-                added += 1
+                seen.add((projection, prod.name))
+                added += self._complete_lhs(target, need) + 1
+        return added
+
+    def _complete_lhs(self, iname: str, need: set) -> int:
+        """Wire whatever else this instance needs to satisfy its LHS — the JOIN, made automatic.
+
+        **Why this exists at all is the cost of subset output** (§16). A rule now emits only its
+        conclusion, so an instance wired to one producer sees only that producer's predicates. A
+        two-premise rule like *`?x reaches ?y` and `?y next ?z`* gets `reaches` from the chain and must get
+        `next` from somewhere else; under accretion the upstream unit carried it along and the assembler
+        never had to notice. Here it does, and the noticing is what a MERGE unit is for.
+
+        **AND THIS IS A JOIN, NOT A BYPASS — the distinction is load-bearing** (user, 2026-07-26). A chain
+        represents scope by DEACTIVATION: a unit that matches nothing emits nothing and starves everything
+        downstream. Routing around such a unit defeats that guard and is a semantic change, never a
+        shortcut. The line between the two is checkable and is exactly the test applied below:
+
+            a wire supplying a predicate NO UNIT IN THE CHAIN PRODUCES is a join;
+            a wire supplying a predicate A CHAIN UNIT GATES is a bypass, and is refused.
+
+        So `base -> T2#2` is legal (nothing in the chain produces `next`), while re-wiring `base` for a
+        predicate the chain's own rule emits is not — that would route around the gate.
+        """
+        inst = self.units[iname]
+        added = 0
+        for _ in range(len(need)):                          # at most one pass per needed predicate
+            prods = self.producers.get(iname, set())
+            supplied: set = set()
+            for p in prods:
+                supplied |= self.units[p].output.predicates()
+            missing = need - supplied
+            if not missing:
+                break
+            gated = {h.p for q in self.upstream(iname) for h in self.units[q].rhs}
+            cands = [u for u in self.units.values()
+                     if u.name != iname
+                     and (u.output.predicates() & missing)
+                     and u.name not in prods
+                     and iname not in self.upstream(u.name)          # would close a cycle
+                     and not (u.output.predicates() & missing & gated)  # BYPASS -> refuse
+                     and all(self.comparable(u.name, q) for q in prods)]
+            if not cands:
+                break
+            cands.sort(key=lambda u: len(self.upstream(u.name)), reverse=True)  # frontier first
+            self.wire(cands[0].name, iname)
+            inst.inputs[cands[0].name] = cands[0].output
+            added += 1
         return added
 
     # -- propagation --------------------------------------------------------
