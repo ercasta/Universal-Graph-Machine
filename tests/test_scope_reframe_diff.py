@@ -15,6 +15,8 @@ invoked directly; no second engine is maintained. Retire this diff when membersh
 and the old global path is deleted."""
 from __future__ import annotations
 
+import pytest
+
 import ugm.chain as chain
 from ugm import ById
 from ugm.attrgraph import AttrGraph, NAME, valued
@@ -65,6 +67,22 @@ def test_put_under_idempotent():
     s = g.add_node({NAME: valued("<hypothesis>")}, control=True)
     put_under(g, n, s)
     put_under(g, n, s)
+    assert sum(1 for rel, _o in g.relations_from(n) if g.has_key(rel, UNDER)) == 1
+
+
+def test_put_under_refuses_a_second_parent():
+    """SINGLE PARENT is an invariant of the constructor (execution_topology.md §3). The old guard only
+    suppressed the SAME parent, so a second `put_under` left two `<under>` edges and `scope_of` answered
+    by `relations_from` iteration order — order-dependent, silent mis-scoping."""
+    g = AttrGraph()
+    n = _named(g, "lion")
+    s1 = g.add_node({NAME: valued("<hypothesis>")}, control=True)
+    s2 = g.add_node({NAME: valued("<hypothesis>")}, control=True)
+    put_under(g, n, s1)
+    with pytest.raises(ValueError):
+        put_under(g, n, s2)
+    # the refusal LEAVES THE TREE INTACT — no half-written second membership
+    assert scope_of(g, n) == s1
     assert sum(1 for rel, _o in g.relations_from(n) if g.has_key(rel, UNDER)) == 1
 
 

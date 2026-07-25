@@ -352,6 +352,52 @@ def test_suspend_preserves_the_control_stack_across_the_wait():
     assert len(g.nodes_named("after_wait")) == 1 and len(g.nodes_named("after_call")) == 1
 
 
+def test_a_continuation_can_be_resumed_more_than_once():
+    # A Continuation is an immutable VALUE, so resuming ONE of them N times runs N independent branches
+    # off the same suspend point. This is the FORK primitive the execution topology needs (§6b): it is why
+    # sibling scopes cost no new terminator. Each resumption gets its own register window and its own
+    # graph effects; the continuation itself is left pristine and reusable.
+    def tag(g, stream, ctrl):
+        g.add_node({NAME: _valued(f"branch_{ctrl['who']}")})
+        return stream, None
+    g = AttrGraph()
+    prog = [
+        Block(term=SUSPEND()),                                       # [0] the fork point
+        Block(prim=PRIM(tag), term=HALT()),                          # [1] the branch body
+    ]
+    cont = ControlMachine().run(g, prog)
+    assert isinstance(cont, Continuation)
+    for who in ("a", "b", "c"):
+        ControlMachine().resume(g, cont, {"who": who})
+    assert all(len(g.nodes_named(f"branch_{w}")) == 1 for w in "abc")
+
+
+def test_repeated_resumption_does_not_share_the_caller_register_window():
+    # THE DEFECT (execution_topology.md §6b, found by bench/spike_fork_join_opcodes.py). The control stack
+    # was captured with `list(self.stack)` — SHALLOW — so the frames' saved register windows were shared
+    # across resumptions, and `RET` ALIASES rather than copies them (`self.ctrl = saved_ctrl`). A caller-
+    # side DEC after the return therefore mutated a window the next resumption would restore: sibling B
+    # saw sibling A's decrement. Latent because nothing resumed a continuation twice until forking did.
+    seen: list = []
+
+    def observe(g, stream, ctrl):
+        seen.append(ctrl.get("depth"))               # the caller's window, as this resumption finds it
+        return stream, None
+    g = AttrGraph()
+    prog = [
+        Block(control=[SETI("depth", 7)], term=CALL("SUB")),         # [0] frame carries depth=7
+        Block(label="AFTER", prim=PRIM(observe),                     # [1] observe, THEN mutate the
+              control=[DEC("depth")], term=HALT()),                  #     restored caller window
+        Block(label="SUB", term=SUSPEND()),                          # [2] fork point, one frame deep
+        Block(term=RET()),                                           # [3] resume -> return to caller
+    ]
+    cont = ControlMachine().run(g, prog)
+    assert len(cont.stack) == 1
+    for _ in range(3):
+        ControlMachine().resume(g, cont)
+    assert seen == [7, 7, 7]                         # each branch sees the frame as the PARENT left it
+
+
 def test_repeated_suspends_stream_through_the_driver():
     # A loop that SUSPENDs each iteration (a streaming ask/act cycle): the driver resumes it N times.
     def ask(g, stream, ctrl):

@@ -15,6 +15,36 @@
 > rewriting Steps 3 and 4 of the scope reframe, that is evidence the queue topology is a NORTH STAR
 > rather than a refinement — and the response is to re-point deliberately, not to drift. As drafted,
 > it does not: Step 3 is untouched, and Step 4 gains a constraint (§8) rather than a rewrite.
+>
+> **REVISED 2026-07-25** after review with the user: §0 records the decisions taken, §3 now separates the
+> defect from the single-parent DESIGN question, §4b/§4c are new (queue-item identity; data flow across
+> the boundary), and §5 carries a substantive CORRECTION to its own drain condition.
+
+---
+
+## 0. Decisions taken in review (2026-07-25)
+
+Four, from the questions the draft failed to answer. They are recorded here rather than buried in the
+sections they amend, because each one closes something the draft left open by omission.
+
+**(0.1) The motivation is EMERGENCE, not parallelism.** In the user's words: *"the reason we are adopting
+queues is not parallelism, it is the emergence of the computation model (vs a 'pre-written' algorithm)."*
+This is the positive statement that §12's last risk ("perf is not a motivation") only had the negative of.
+The queues are worth having because reasoning becomes something the substrate DOES rather than something a
+Python driver stages — the computation-model half of the uniformity claim in §1. Any defence of this design
+on throughput or concurrency is a defence on the wrong axis, and should be read as evidence of drift.
+
+**(0.2) Queues run SEQUENTIALLY. No parent/child parallelism.** Settled deliberately, not deferred: a
+parent drains before its children run. This is what makes §5's drain condition sound without a snapshot
+(see the correction in §5) and it costs nothing the engine was using. Sibling parallelism is *possible*
+later and is a genuinely open question — it would require either copying the graph (so a sibling cannot
+modify the common scope) or a join that takes one child at a time — but it is **out of scope**, precisely
+because it would be adopted for a reason (0.1) rejects.
+
+**(0.3) A queue item is a CONTINUATION, not a rule, an instruction, or a fact.** §4b.
+
+**(0.4) Single-parent is a COST decision, not a metaphysical one — and it is separable from the defect.**
+§3.
 
 ---
 
@@ -113,9 +143,19 @@ parent but does NOT prevent adding a SECOND, DIFFERENT parent. Two `put_under` c
 scopes therefore leave two memberships, and `scope_of` returns whichever iteration order surfaces
 first: an order-dependent, silent mis-scoping.
 
-This is load-bearing for everything below: **"exactly one parent scope per queue" is the invariant of
-§4**, and the data structure cannot currently guarantee it. It is also cheap to fix, and it should be
-fixed *before* 1c migrates real membership onto `<under>`, not after. Two candidate fixes:
+*(Re-verified against source 2026-07-25: `scope_tree.py:35` returns the first `<under>` from
+`relations_from` (`:40`); the `put_under` guard at `:30` compares against exactly that. Confirmed.)*
+
+**The defect and the design question are SEPARABLE, and the draft conflated them.** Two distinct claims:
+
+1. **The code assumes one parent while the data structure permits several.** That disagreement is a bug
+   under *any* design — it yields order-dependent, silent mis-scoping — and it should be closed whichever
+   way the design question goes.
+2. **Whether scopes SHOULD have one parent** is a separate call, taken below.
+
+Claim 1 is load-bearing for everything after: **"exactly one parent scope per queue" is the invariant of
+§4**, and the data structure cannot currently guarantee it. It is cheap to fix, and it should be fixed
+*before* 1c migrates real membership onto `<under>`, not after. Two candidate fixes:
 
 - **(a) enforce** — `put_under` raises on a conflicting existing parent (single-parent becomes an
   invariant of the constructor); or
@@ -123,9 +163,36 @@ fixed *before* 1c migrates real membership onto `<under>`, not after. Two candid
   ill-defined by construction, replacing it with `scope_chain` over a genuine DAG. The docstring's own
   aside (*"an `<under>` edge per parent = arbitrary nesting"*) suggests this was contemplated.
 
-**Recommendation: (a).** Multi-parent scopes make the join boundary ambiguous (§4) and buy nothing the
-reframe currently needs; nesting is already arbitrary-DEPTH under single-parent. If a genuine
-multi-parent case appears, it is a lattice, and it should be designed then, deliberately.
+**Recommendation: (a) — but for a better reason than the draft gave.** The draft said multi-parent "buys
+nothing," and that is wrong: multi-membership is meaningful and this document's own §11 supplies the
+precedents. A *fact* under two scopes is an **ATMS label** (a datum carrying a set of environments); a
+*scope* under two parents is **Cyc microtheory multiple inheritance**. Both are real, both are old.
+
+The honest case for single-parent is a COST argument, and it is about WRITES, not reads:
+
+- **Drain survives a DAG.** §5's condition only needs descendants, which are well-defined on a DAG.
+  Multi-parent does not break the soundness argument — this is worth stating because it is the objection
+  one expects to be decisive and it is not.
+- **The join boundary does not survive it.** §4.3's single merge-back point is the transplanted lesson of
+  [[derivation-frame-consolidation]]. Under multi-parent a result leaving a scope has two destinations,
+  and saying what the merged thing MEANS requires a label algebra with minimality. That is the ATMS's
+  hard part, and §11 already records it as Cyc's cautionary tale (the lifting rules became the expensive
+  component). The cost is not the extra edge; it is the algebra the extra edge obliges.
+- **Visibility stops being a one-liner.** `is_visible` would have to choose between *any* of the node's
+  scopes lying on the vantage's chain (disjunctive — weakens isolation) and *all* of them (conjunctive).
+  Neither is obviously right, so "isolation is the default" becomes a semantic decision rather than a
+  three-line predicate.
+
+**And the expressiveness loss is smaller than it looks, because the reframe already answers "holds in
+both": a CROSSING.** The `denotes` link between a scoped reference and its base referent — together with
+the `@!?scope` mint-on-cross read (`chain._relativized_st_matching(mint_missing=True)`) — is how the same
+thing is seen from two scopes: two scoped copies plus a promotion rule, never one node with two
+memberships. Multi-parent would be a SECOND, competing answer to a question the reframe has already
+answered, which is the actual argument against it.
+
+So: single-parent stands, on the ground that **the crossing rule remains the sole way facts move between
+scopes**. If a genuine lattice case appears it is an ATMS-style label design, and it deserves to be
+designed deliberately rather than arrived at by `put_under` silently accepting a second edge.
 
 **Also re-check under 1c:** [[scope-nodes-survive-incidental-gc]] exempted `<hypothesis>` from
 edge-based GC because a scope node was EDGELESS by design (membership was a valued attr). Once
@@ -144,6 +211,24 @@ Unpacked:
    No queue exists without a scope, and no scope runs work outside its queue.
 2. **Isolation is the default.** A queue may read base ink and its ancestors' ink (the visibility rule
    already implemented at `scope_tree.is_visible`); it may WRITE only under its own scope.
+
+   **And it must hold in BOTH HOMES, by different means.** The clause above is about the GRAPH; §4b's
+   split means the same invariant has a second half in the REGISTERS, and stating only the first is how
+   the §6b defect stayed latent. They are the same invariant in shape and nothing alike in mechanism:
+
+   | | GRAPH (facts) | REGISTERS (control) |
+   |---|---|---|
+   | what is isolated | what a branch may read/write | a branch's control window (`ctrl`, control stack) |
+   | enforced by | `<under>` + `is_visible` + the write discipline | COPY discipline at capture/restore (`_copy_frames`) |
+   | sharing between siblings | PARTIAL and rule-governed — base ink is deliberately shared, and the join writes to it | TOTAL — there is no register analogue of base |
+   | inheritance from the parent | LIVE (§4c), which is what forces the parent-first rule of §5b | a SNAPSHOT at fork (`dict(cont.ctrl)`) |
+   | a leak causes | believing something false (an epistemic error) | computing the wrong thing (a control error) — never a change of MEANING, since §8 keeps registers invisible to rules |
+   | caught by | inspecting the structure (`scope_of` is checkable) | only by a test that resumes one continuation twice |
+
+   The last row is the practical one: the graph half is *checkable* and the register half is not, so the
+   register half needs a standing test rather than an invariant one can look at
+   (`test_repeated_resumption_does_not_share_the_caller_register_window`). Fixing either does nothing
+   for the other.
 3. **One join boundary.** Results leave a queue at exactly one place, by the declared crossing rule.
    This is the transplanted lesson of [[derivation-frame-consolidation]]: a read-projection isolates
    reads but not WRITES; only a single merge-back point makes locality real.
@@ -154,6 +239,83 @@ Unpacked:
 Composition = nesting, isolation = default, crossing = a DATA rule — the scope reframe's three
 commitments, restated in execution terms. That correspondence is the point: **the execution topology
 should not be a second structure to keep in sync with the scope tree; it should be the scope tree.**
+
+---
+
+## 4b. What actually goes through a queue — the ITEM
+
+The draft specified a topology and never said what flows through it. That omission is not cosmetic: the
+three queues of §2 each answer differently, which is the §1 non-uniformity showing up at item level.
+
+| queue | item TODAY |
+|---|---|
+| `Frame.agenda` (`chain.py:1694`) | a **demand** — a goal pattern |
+| `reconsider.DIRTY_REG` / `_affected` | a **delta** — a dirty `(pred, obj)` grain |
+| pending `<call>` (`dispatch.py`) | a **graph node** |
+
+Three queues, three item types. The answer that follows from §6's own claim — *the ISA does not change,
+the queue mode is a scheduler over programs the machine already runs* — is that the item is **none of the
+three**:
+
+> **A queue item is a RESUMABLE UNIT OF WORK: a `(program, state-stream, scope)` triple — precisely the
+> `Continuation` that `SUSPEND` already produces (`machine.py:1029`, handed to the driver at
+> `machine.py:1119`), tagged with the scope that owns it.**
+
+Not rules, not instructions, not graph fragments. Rules and instructions are what the item is suspended
+*over*; the graph is the shared store queues read and write under §4.2. **No part of the graph is ever in
+a queue.** This also re-unifies the table: the three rows become three ways of CREATING a continuation —
+a sub-goal raised (pull), a delta triggering a reaction (push), a tool call crossing an async boundary —
+which is [[reactive-core-north-star]]'s PUSH==PULL==FORWARD restated one level up, at the scheduler.
+
+**An inconsistency this exposes, and its resolution.** §7/§8 hold that scheduling is policy, lives in
+registers, and that no rule may match on it. But the `<call>` queue is *materialized nodes in the graph*,
+which rules can and do see. Rather than treat `<call>` as a violation, split the notion three ways:
+
+| | lives in | rules may see it? | why |
+|---|---|---|---|
+| the **work request** | the GRAPH (a `<call>` node) | **yes** | "I am waiting on X" is something the agent must be able to reason about — it is semantics |
+| the **work item** | REGISTERS (a continuation) | no | machinery for resuming; carries no meaning |
+| the **scheduling order** | REGISTERS (policy) | no | [[mechanism-policy-separation]]; §8 forbids it becoming semantics |
+
+§8 then holds unchanged: focus selects which queue drains, never what a rule does.
+
+---
+
+## 4c. How data crosses the boundary — and where "global state" went
+
+Two questions the draft also left open: how does data flow parent→child, and how does a child reach the
+graph? **They have the same answer, and it is already implemented** — the visibility predicate, which is
+not a transfer mechanism at all. From `scope_tree.py:63`:
+
+```python
+ms = scope_of(g, node)
+if ms is None:     return True               # base ink visible from EVERY vantage
+if active is None: return False              # a base read cannot see scoped ink
+return ms in scope_chain(g, active)          # `active` itself, or an ancestor
+```
+
+Since `scope_chain(active) == [active, parent, grandparent, …]`, a node is visible from `active` iff its
+scope is `active` **or an ancestor of it**. `tests/test_scope_reframe_diff.py:56` pins exactly the
+asymmetry: `is_visible(child, s2)` is true, while `is_visible(child, s1)` — from the PARENT — is False.
+
+- **parent → child: free, and not a flow.** A child does not receive its parent's data; it INHERITS it by
+  reading from a deeper vantage. No copy, no message, no queue traffic. This is lexical scoping, which is
+  what makes §8's ban on dynamic scoping affordable: inheritance is static, in the tree, readable off the
+  fact.
+- **child → parent: only through the join** — the crossing rule (`_promote_held`), §4.3's one boundary.
+- **sibling → sibling: nothing.** Only via a common ancestor, through two joins. That isolation is what
+  makes the alternatives of §5 sound.
+
+**There is no global state.** `scope_of() is None` means base; base is visible from every vantage; no
+`<under>` edge means you ARE the root. **Base is scope `None` = the root of the tree**, so the graph is not
+something children reach around the topology to touch — it is the outermost queue's ink, inherited by the
+same rule that gives a child its parent's, applied at depth 0. Writes are the asymmetric half: a child
+writes only under its own scope and never mutates base directly. The one place base is written from inside
+a crossing is `@!?scope` mint-on-cross, and that is not a violation — it fires at the JOIN, not in the
+child's queue.
+
+Entity identity crosses by **copy plus link**, never by sharing: the child's `lion` is its own node with
+`denotes →` base `lion`. Across the boundary identity holds; visibility does not.
 
 ---
 
@@ -176,6 +338,36 @@ guarantee than the global stratification in force today, and it is the only vers
 `suppose` nested inside `suppose` — which the current single-valued `SCOPE` attr cannot even
 represent (`scope_tree.py:25` says so outright: one attr = one scope, which is why scopes don't
 compose today).
+
+### 5b. CORRECTION (2026-07-25): the drain condition above is INSUFFICIENT as stated
+
+The condition names descendants and is silent about ANCESTORS. That silence is unsound, because the
+inherited view of §4c is **live, not a snapshot** — `is_visible` evaluates against the current graph at
+read time. So a parent that is still running can produce a fact the child would have seen, *after* the
+child has drained and already let absence decide. The child's NAF conclusion is then stale by
+construction, which is [[reconsider-arc]]'s problem lifted across queues.
+
+Note what this means about §5's own self-description: it calls itself a rediscovery of SLG completion, and
+**it rediscovered only half of it.** SLG completion is SCC-based over the subgoal DEPENDENCY graph rather
+than tree-based, for exactly this reason — the write topology is a tree, but the READ dependency is not,
+and completion must follow read-dependency. Three ways to close it:
+
+- **(i) drain is not bottom-up** — require ancestors drained too, i.e. follow read-dependency and accept
+  that completion detection is a graph problem (the full SLG answer; the most general, the most work);
+- **(ii) snapshot at fork** — stable, bottom-up drain preserved, but this is the projection-vs-copy
+  trade-off again ([[derivation-frame-consolidation]]) with the OR-parallel Prolog measurements attached
+  (§11 C: binding arrays, hash windows, version vectors, copying);
+- **(iii) schedule the problem away** — a parent drains before its children run. The inherited view is
+  then stable BY CONSTRUCTION and the bottom-up condition above becomes correct as written.
+
+**ADOPTED: (iii)**, per decision §0.2. It needs no new mechanism — only a scheduler commitment — and the
+concurrency it forgoes between parent and child is concurrency this engine was never going to use.
+Two things worth recording about the choice:
+
+- It is the **Andorra policy** that §11 (C) already nominates for §7, arriving here from an independent
+  direction. Two derivations converging on one scheduling rule is weak evidence, but it is evidence.
+- It is a REAL constraint on §7, not a default: the scheduler may not interleave a parent with its own
+  descendants, and any future sibling parallelism (§0.2) must preserve it per-lineage.
 
 Two corollaries worth stating, because they are free:
 
@@ -221,6 +413,39 @@ Python driver.
 expressible as `SUSPEND` plus a scheduler convention. Deciding that is implementation work, not design
 work, and it should be settled by a spike rather than by argument.
 
+### 6b. SPIKED 2026-07-25 — **the opcode delta is ZERO** (`bench/spike_fork_join_opcodes.py`)
+
+Run rather than argued, per §10.5. The hypothesis under test: *the scheduler forks by RESUMING ONE
+CONTINUATION N TIMES, once per child scope, and joins by running the crossing after every child drains.*
+
+| case | result |
+|---|---|
+| 1 — fork at TOP LEVEL (empty control stack) | **PASS** — two siblings, each writing under its own scope, no contamination |
+| 2 — fork INSIDE A `CALL` (non-empty stack) | **FAIL** — sibling B observed caller register `depth=6`, sibling A's decrement |
+| 2b — same program, frame tuples copied one level deeper | **PASS** — `[7, 7]`, contamination gone |
+| 3 — the JOIN | **PASS** — children invisible to base until one boundary promotes a winner |
+
+**VERDICT: GO, zero new terminators.** Fork is resume-N-times; join is the crossing run at drain. §6's
+claim that "the fork primitive already exists" holds as stated.
+
+**But the spike found a real latent defect, and case 2b is what makes the verdict decisive rather than
+inferred.** `SUSPEND` captures `list(self.stack)` (`machine.py:1229`) — a SHALLOW copy. The frame tuples
+`(ret_pc, saved_stream, saved_ctrl)` are shared across every resumption, and `RET` does
+`self.ctrl = saved_ctrl` (aliases, does not copy), so a caller-side `SETI`/`DEC` after the return mutates
+a dict the next resumption will restore. **A `Continuation` is therefore not currently the immutable value
+§4b requires it to be** — it is single-resume-safe only, which is all anything does today, which is why
+no test catches it. Case 2b re-runs the identical program with the frames copied one level deeper and the
+contamination vanishes, so this is CAPTURE DEPTH, fixable in `SUSPEND`, **not** a missing control
+primitive. It is a prerequisite for the queue mode, not an argument against it.
+
+Two things the spike also settled in passing, both worth recording because they were assumptions:
+
+- **State streams are already safe.** `State.bind`/`scaled` return new values (`machine.py:127`), so the
+  stream needs no deepening — only the control registers do.
+- **The graph needs no forking at all.** Siblings share `g` and stay isolated purely by writing under
+  their own scope (§4c), which is the execution-level confirmation that isolation is a WRITE discipline
+  rather than a storage one.
+
 ---
 
 ## 7. What IS genuinely new: the scheduler
@@ -242,6 +467,12 @@ decision**; if it could, scheduling would become semantics, which §8 forbids.
 
 This is where the complexity of the whole proposal actually lands, and the design should say so
 plainly rather than discovering it during implementation.
+
+**Narrowed by §0.2 and §5b.** One degree of freedom is now spent rather than open: **parent-before-children
+is FIXED**, because §5b's drain condition depends on it. Queues run sequentially; the scheduler's remaining
+latitude is over SIBLING order (and per-branch fuel), not over interleaving a lineage. That is a real
+reduction in the §7 design space — most of the classical scheduling literature's difficulty is in the
+interleaving — and it is the reason the sequential commitment is cheap rather than merely conservative.
 
 ---
 
@@ -295,6 +526,8 @@ should be taken deliberately; today it is scheduled to be taken by default.**
 
 1. **Fix the §3 defect first** (single-parent enforcement in `put_under`), independently of everything
    else. It is small, it is a real order-dependent bug, and 1c will entrench it if it lands first.
+   Per §3 this step discharges CLAIM 1 only (code and data must agree); it is correct to land even if the
+   single-parent design decision is later revisited.
 2. **Ratify or reject this document.** No code.
 3. **1c (membership migration onto `<under>`)** — currently marked optional *because nothing depends on
    it*. This design would be its first dependent: the topology's premise is that queues nest the way
@@ -303,9 +536,11 @@ should be taken deliberately; today it is scheduled to be taken by default.**
    hypothetical.**
 4. **Step 3 (negation-as-interposing-node) proceeds in parallel, unblocked** — it is independent of all
    of the above.
-5. **Spike the opcode delta** (§6): can a fork be expressed with existing `SUSPEND` + a scheduler
-   convention, or are `FORK`/`JOIN` terminators required? Cheapest decisive experiment: the chart
-   parser's ambiguous parses as sibling queues (§5), which risks no semantics.
+5. ~~**Spike the opcode delta** (§6)~~ — **DONE 2026-07-25, `bench/spike_fork_join_opcodes.py`: the delta
+   is ZERO** (§6b). Existing `SUSPEND` + a scheduler convention suffices; no `FORK`/`JOIN` terminators.
+   Carried forward as a PREREQUISITE rather than a step: `SUSPEND`'s capture depth must be fixed
+   (`list(self.stack)` aliases the frame register dicts) before any continuation is resumed more than
+   once. Small, and — unlike the §3 defect — currently latent, since nothing resumes twice today.
 6. **Decide implement-or-defer at the Step 3 / Step 4 boundary**, with the spike result in hand.
 
 ---
@@ -389,8 +624,8 @@ citation and an implementation that predates us.
 - **Arc-hopping.** The honest reading of this repo's history — unified-representation → scope-reframe
   inside one day, `prop:` built then retired, slice-1c landed → reverted → re-derived, the intake
   rewire attempted and reverted twice — is that the characteristic failure mode is starting a better
-  arc, not finishing a worse one. This document is deliberately design-only, and the §0 tripwire is
-  the guard.
+  arc, not finishing a worse one. This document is deliberately design-only, and the TRIPWIRE in the
+  status header is the guard.
 - **The scheduler is the real cost** (§7), and it is easy to under-estimate because the queues look
   like the work.
 - **Provenance.** A promoted fact must record the queue/scope that derived it, or `why` renders
@@ -399,4 +634,10 @@ citation and an implementation that predates us.
   flip-identity returns, and it returned twice already.
 - **Perf is not a motivation and should not be claimed as one.** Judge at session scale
   ([[ugm-scope-session-sized]]); the case here is composability, and if the design is defended on
-  throughput it will be defended on the wrong axis.
+  throughput it will be defended on the wrong axis. §0.1 states the positive version: the motivation is
+  the EMERGENCE of the computation model. Parallelism is not a goal, and §0.2 declines it explicitly —
+  if a future argument for this work leans on concurrency, that is drift, not progress.
+- **Stale NAF across queues** (§5b). The live inherited view makes a drained child's absence-decides
+  revocable by a later ancestor write; the sequential parent-first rule is what forbids it. If the
+  scheduler ever gains the freedom to interleave a lineage, this unsoundness returns SILENTLY — the same
+  failure mode §5 warns about, and the reason §5b is a correction rather than an addition.

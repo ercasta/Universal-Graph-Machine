@@ -26,15 +26,30 @@ UNDER = "<under>"        # structural membership: node --<under>--> scope (contr
 def put_under(g: AttrGraph, node: str, scope: str) -> None:
     """Place `node` UNDER `scope` (idempotent). The membership edge is the reframe's structural nesting —
     it replaces the single-valued `SCOPE` attr (which is why scopes don't compose today: one attr = one
-    scope, where an `<under>` edge per parent = arbitrary nesting)."""
-    if scope_of(g, node) == scope:
-        return
+    scope, where an `<under>` edge per parent = arbitrary nesting DEPTH).
+
+    SINGLE PARENT IS AN INVARIANT OF THE CONSTRUCTOR (execution_topology.md §3). Re-placing a node under
+    its EXISTING parent is a no-op; placing it under a DIFFERENT one raises. Without this the guard below
+    suppressed only the same-parent case, so two `put_under` calls left two `<under>` edges and `scope_of`
+    answered by `relations_from` iteration order — an order-dependent, SILENT mis-scoping, and a direct
+    violation of the one-parent contract `scope_of`/`scope_chain`/`is_visible` are all written against.
+    Multi-parent membership is coherent (an ATMS label) but would make the crossing's merge-back boundary
+    ambiguous; the reframe's answer to "holds in two scopes" is a CROSSING (scoped copies + `denotes`),
+    never a second membership."""
+    cur = scope_of(g, node)
+    if cur == scope:
+        return                                  # idempotent: already under exactly this scope
+    if cur is not None:
+        raise ValueError(
+            f"put_under: {node!r} is already under scope {cur!r}; refusing to add a second parent "
+            f"{scope!r} (single-parent is a scope-tree invariant — cross scopes, do not co-nest)")
     g.add_relation(node, UNDER, scope)          # `<under>` is a control token -> the rel node auto-controls
 
 
 def scope_of(g: AttrGraph, node: str) -> str | None:
     """The scope `node` is directly under (its `<under>` target), or None for a BASE node. One parent per
-    node in the tree; a node with no `<under>` edge is base."""
+    node in the tree — an invariant ENFORCED by `put_under`, which is what makes returning the first
+    `<under>` well-defined rather than iteration-order-dependent. A node with no `<under>` edge is base."""
     for rel, obj in g.relations_from(node):
         if g.has_key(rel, UNDER):
             return obj

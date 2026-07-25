@@ -1149,11 +1149,14 @@ class ControlMachine:
         """Continue a `SUSPEND`ed machine from its `Continuation` (§4.2). `response` (optional) is the
         driver's answer — merged into the control registers so the block after the `SUSPEND` reads it.
         Restores the captured control stack + registers + stream and runs on `g` (which the driver may
-        have mutated in the interim — the fold-in of a tool result). May itself `HALT` or `SUSPEND` again."""
+        have mutated in the interim — the fold-in of a tool result). May itself `HALT` or `SUSPEND` again.
+
+        RESUMABLE MORE THAN ONCE: the frames are copied here, not aliased, so `cont` is left pristine and a
+        scheduler may resume the SAME continuation N times to fork N sibling branches (see `_copy_frames`)."""
         self.ctrl = dict(cont.ctrl)
         if response:
             self.ctrl.update(response)
-        self.stack = list(cont.stack)
+        self.stack = _copy_frames(cont.stack)
         return self._execute(g, cont.program, cont.pc, list(cont.stream))
 
     @staticmethod
@@ -1226,13 +1229,33 @@ class ControlMachine:
                 # Resume at the NEXT block (the wait's fall-through); copy stack/ctrl so post-suspend
                 # driver work cannot corrupt the captured snapshot.
                 request = self.ctrl.get(term.request_reg) if term.request_reg is not None else None
-                return Continuation(program, pc + 1, list(self.stack), dict(self.ctrl),
+                return Continuation(program, pc + 1, _copy_frames(self.stack), dict(self.ctrl),
                                     stream, request)
             elif isinstance(term, HALT):
                 break
             else:
                 raise ProgramError(f"{type(term).__name__} is not a terminator")
         return stream
+
+
+def _copy_frames(stack: list) -> list:
+    """Copy control-stack frames ONE LEVEL DEEPER than `list(stack)` — the frame tuples' saved register
+    windows become distinct dicts (docs/design/execution_topology.md §6b, spiked 2026-07-25).
+
+    WHY. A `Continuation` is meant to be an immutable VALUE, resumable more than once — that is what makes
+    a FORK "resume one continuation N times" and is why the queue topology needs NO new terminator. But
+    `list(stack)` is SHALLOW: the frames `(ret_pc, saved_stream, saved_ctrl)` are shared, and `RET` does
+    `self.ctrl = saved_ctrl` — an ALIAS, not a copy. So a caller-side `SETI`/`DEC` executed after the
+    return mutated a register window the next resumption would restore, and sibling B observed sibling A's
+    writes. Latent until now only because nothing ever resumed a continuation twice.
+
+    BOTH aliasing points must copy: capture (`SUSPEND`) and restore (`resume`). Deepening capture alone
+    still lets two resumptions of the same continuation share ITS frames. Streams need no deepening on
+    their own account (`State.bind`/`scaled` return new values and `_execute` rebinds rather than mutates)
+    but are copied here anyway, so the value semantics hold unconditionally rather than by an invariant
+    a future in-place stream edit could silently break."""
+    return [(ret_pc, list(saved_stream), dict(saved_ctrl))
+            for ret_pc, saved_stream, saved_ctrl in stack]
 
 
 def _branch_targets(term: Term) -> list[str]:
