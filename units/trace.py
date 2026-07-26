@@ -38,7 +38,7 @@ the bound travels with the value instead of being a property of a collector.
 """
 from __future__ import annotations
 
-from .reify import OF_O, OF_P, OF_S, reify
+from .reify import OF_O, OF_P, OF_S, handle_key, reify
 from .value import EMPTY, Fact, Node, Subgraph, mint
 from .vocab import role
 
@@ -64,7 +64,10 @@ RETRACTED = role("<retracted>")  # firing  -> unit handle. The stub: "this no lo
 # must never see a derivation fact — it was simply drawn one predicate too wide.
 SUBJECT, PREDICATE, OBJECT = OF_S, OF_P, OF_O           # kept as names; same nodes now
 
-FIRING_PREDICATES = frozenset({FIRED_BY, CONCLUDED, FROM, RETRACTED})
+# §27: the assembler's own decisions are provenance too — *how the NETWORK came about* is the same kind
+# of thing as how a conclusion came about — so they join this set and inherit §26.1's stratification.
+from .journal import JOURNAL_PREDICATES                                            # noqa: E402
+FIRING_PREDICATES = frozenset({FIRED_BY, CONCLUDED, FROM, RETRACTED}) | JOURNAL_PREDICATES
 TRACE_PREDICATES = FIRING_PREDICATES | {OF_S, OF_P, OF_O}
 
 
@@ -83,6 +86,20 @@ def describe(handle: Node, f: Fact) -> tuple:
     trace, not re-minted (§5). Since §22.5 the role is a node too, so the `<predicate>` slot needs no
     special construct: `value.sym`, and the name-equality carve-out it forced, are retired."""
     return (Fact(handle, OF_S, f.s), Fact(handle, OF_P, f.p), Fact(handle, OF_O, f.o))
+
+
+def handle_index(trace: Subgraph) -> dict:
+    """`(s, p, o) -> handle`, built ONCE for a value. `handle_of` is a linear scan, and calling it per
+    premise made trace construction O(n^2) in the size of the value — measured, and it was the dominant
+    cost on a wide net before this existed (§25.1)."""
+    idx: dict = {}
+    for t in trace.by_pred(OF_P):
+        h = t.s
+        s = next((x.o for x in trace.by_pred(OF_S) if x.s == h), None)
+        o = next((x.o for x in trace.by_pred(OF_O) if x.s == h), None)
+        if s is not None and o is not None:
+            idx.setdefault((s, t.o, o), h)
+    return idx
 
 
 def handle_of(trace: Subgraph, f: Fact) -> Node | None:
@@ -125,21 +142,22 @@ def firing_facts(uhandle: Node, firings: tuple, introduced, incoming: Subgraph) 
     stub. That is deliberate: an unciteable premise is a real hole in the record, and it should be visible
     as a short explanation rather than papered over with a placeholder that reads like provenance."""
     out = []
+    idx = handle_index(incoming)
     for g, premises in firings:
         f_node = mint("firing")
-        c_node = mint("c")
+        c_node = handle_key(g)                  # content-derived (§25.3): the SAME node the object wire
         out.append(Fact(f_node, FIRED_BY, uhandle))
         out.append(Fact(f_node, CONCLUDED, c_node))
         out.extend(describe(c_node, g))
         cited = set()
         for prem in premises:
-            h = handle_of(incoming, prem)
+            h = idx.get((prem.s, prem.p, prem.o))
             if h is not None and h not in cited:
                 cited.add(h)
                 out.append(Fact(f_node, FROM, h))
     for g in introduced:
         f_node = mint("firing")
-        c_node = mint("c")
+        c_node = handle_key(g)                  # uses, so a band and a firing can name one thing
         out.append(Fact(f_node, FIRED_BY, uhandle))
         out.append(Fact(f_node, CONCLUDED, c_node))
         out.extend(describe(c_node, g))
@@ -182,8 +200,9 @@ def prune(trace: Subgraph, live: Subgraph) -> Subgraph:
     Reachability from the current output is the whole rule, and it is what collapses §10.3's two lifetime
     questions into one: a firing nobody's live conclusion depends on is not history, it is litter."""
     roots = set()
+    idx = handle_index(trace)
     for f in live:
-        h = handle_of(trace, f)
+        h = idx.get((f.s, f.p, f.o))
         if h is not None:
             roots.add(h)
     for t in trace.by_pred(RETRACTED):

@@ -1718,3 +1718,410 @@ instance per hop, growing backward along `<from>` until it reaches a firing with
 explanation chain rides the **TRACE wire**, not the object wire. Put it on the object wire and §6a's
 `Absent` starts seeing explanations — the leak §20 exists to prevent, re-entering through the door §23.2
 just narrowed.
+
+---
+
+## 24. DISCOURSE → NETWORK — the survey before the build (user, 2026-07-26)
+
+> *"A perfect computation model that we can't build from discourse and KB is useless."* — and §10.4 has
+> always agreed: *"where the discourse's own rules enter"* is named there as **the central claim and the
+> least specified part**. §15.3's honest scope still stands: no intake, no CNL, no query surface.
+
+Deliberately a SURVEY, not a plan. The point is to find what will matter — including what bites THIS
+substrate rather than intake in general — before committing to a shape.
+
+### 24.1 What `units/` actually lacks, which is more than "intake"
+
+Three constructors exist: `given`, `rule`, `branch`. That is the whole inventory.
+
+| absent | why it is structural, not cosmetic |
+|---|---|
+| **FORCE** | §16.6 concluded *force is unit SHAPE, not a router* — and §18.7 records that nothing in `Unit`, `Triple` or `Net` distinguishes an asserted output from a supposed one. So §18's atomic chains are unimplementable, and intake has nothing to map onto. |
+| **A SINK** | §2's taxonomy has *"query = a sink whose output is the answer"* and nothing implements it. `Net.why` is a Python reader (§23.4). |
+| **SUSPEND** | No continuation machinery of any kind. [[procedures-tool-boundary]] needs it, and §20.4 named *"the first SUSPEND"* as a trigger to build the in-node ISA. |
+
+### 24.2 Force → topology, and the mapping is more interesting than a switch
+
+Each force is a **different act on the network**, which is §16.6's claim made concrete:
+
+| force | the act |
+|---|---|
+| ASSERT | spawn a `given` (in-degree 0) |
+| AUTHOR a rule | `declare` a TEMPLATE — **the library, not a unit.** Nothing is instantiated until a producer arrives (§3, lazy spawn) |
+| ASK | spawn a SINK on the object wire; `why` a sink on the trace wire (§16.6: where the two networks meet) |
+| SUPPOSE | spawn a `branch` — already supported, and the most natural fit in the inventory |
+| COMMAND / act | a unit that SUSPENDS (§24.4) |
+| **RETRACT** | ⭐ **delete the `given` unit.** Not a data operation at all — downstream simply recomputes (§7). The retraction apparatus dissolved once; here retraction stops being an operation on facts and becomes an operation on TOPOLOGY. |
+
+That last row is the cleanest thing in this section and it was not designed — it falls out.
+
+### 24.3 ⭐ DISCOURSE REFERENCE IS NOT LOOKUP, and this is the deep one
+
+*"The lion"* in the second sentence must reach the same node as the first. On a store you look it up by
+name. **Here you may not:** §21.2 makes entities nameless, and §22.5 rules that interning a surface word
+into a node is §3's forbidden second global structure — it would fuse two utterances *by name*, which is
+the abolished label returning through intake.
+
+So discourse reference must be **decided, not resolved**: intake mints a FRESH node per mention, and a
+**coref-merge unit** (§17.D) decides which mentions are the same entity. That was blocked until §22.6 gave
+predicate variables, and is now expressible — *"coref becomes a CHAIN POSITION rather than a global fact:
+downstream of the merge they are one, upstream they remain two"*, which also means two chains may
+legitimately disagree about identity.
+
+**This is the single largest piece of new design**, it is [[coref-stays-cnl-not-engine]] and
+[[demand-coref-perf-wall]] arriving on a substrate that makes the wrong answer unrepresentable rather than
+merely discouraged, and §17.F's definite descriptions are the same problem wearing a determiner.
+
+### 24.4 PROCEDURES — the user's example, and it forces two deferred decisions
+
+*"A series of steps"* is the sharpest test, because **a dataflow network has no notion of "next".** Order
+comes only from data dependency, so if step 2 does not consume step 1's output, nothing sequences them.
+Three shapes, and the choice is real:
+
+| shape | consequence |
+|---|---|
+| **(i) a CHAIN of step units**, intake manufacturing the dependency (each step consumes the previous one's output) | keeps every step traceable (§20), gated (§16.2), and individually refirable. Most units-native. |
+| **(ii) ONE unit with an internal PROGRAM** | this is [[machine-semantics-are-isa-programs]] and §20.4's deferred in-node ISA. Handles sequencing and suspend natively — and makes the procedure OPAQUE: no per-step trace, no per-step gate. |
+| (iii) steps as units + a scheduler | reintroduces a control plane the substrate deleted. |
+
+**⭐ Two convergences make (i) look right, and both were reached for other reasons:**
+
+- **§18.4's force criterion predicts procedure atomicity.** It was written for conditionals — *a chain is
+  atomic exactly over the span where its intermediates carry NO ASSERTORIC FORCE*. A step of a procedure
+  is a COMMAND, not an assertion, so its intermediates are not assertable and the chain is atomic. *"One
+  FORM = one FORCE = one ATOMIC STRUCTURE"* covers `to make tea: …` with nothing added.
+- **`match.Mint` (§23.1) is what threads the state token** — the manufactured dependency must be keyed on
+  the procedure instance, or every run re-mints it and the fixpoint dies.
+
+**But (i) does not dodge SUSPEND.** A step that touches the world must suspend, and the unit that suspends
+is a step unit either way. So **procedures are the trigger event §20.4 named** — the in-node ISA question
+reopens here, on schedule, for the stated reason rather than as drift.
+
+### 24.5 The constraints intake will have to honour, gathered
+
+- **IDEMPOTENCY.** [[extend-equals-rebuild]]: saying the same thing twice must not double the network.
+  `Net.spawn` refuses duplicate unit names, and §23.1's `Mint` keys minted nodes — so **the key is the
+  UTTERANCE**, and intake must supply one. Concrete, and cheap if designed in.
+- **⭐ `define` IS THE LICENSED MINTING SITE.** §22.5's line — *a form may mint a role, an utterance may
+  not* — is currently a docstring `vocab.py` cannot enforce. Form-authoring ([[forms-as-kb-data]]'s
+  `form KEY : HEAD when BODY`, [[meaning-surfaces-audit]]'s `define`) is exactly where minting is allowed,
+  which makes the rule operational instead of aspirational **and makes `vocab.FORMS` stop being §23's
+  seam-in-waiting.**
+- **REFUSAL IS FIRST-CLASS.** [[book-corpus-experiment]]: partial intake systematically drops exceptions,
+  so learning goes optimistically biased. [[epistemic-closure-under-composition]]: reasoned ∪ refused,
+  never silently mis-mapped. On this substrate a refusal can be a UNIT — *"I could not represent this"* as
+  an ordinary fact that other units can see, which no store-based intake could offer.
+- **THE INDEX COULD BE COMPUTED, NOT ACCUMULATED** (§19). Forms arrive at load and LHS/RHS shapes come
+  from forms, so which template can in principle feed which is derivable from the form set. That answers
+  §10.5's selectivity question BEFORE anything runs — worth doing while the form set is being built,
+  because retrofitting it later means the index has already been accumulated.
+- **THE PRODUCER LEAK RECURS UNCHANGED** (§19). `composition_architecture.md`'s finding is that the
+  evaluator composes and the PRODUCERS leak (hedge × negation dropped at intake). §9 keeps intake
+  unchanged, so it would recur here — except that §22.7 and §22.8 now make band and denial ordinary data,
+  so intake has somewhere to put them. **The fix is available for the first time; it still has to be taken.**
+
+### 24.6 What is genuinely new versus what is already answered
+
+**Already answered, and should not be re-litigated:** CNL in with an LLM translating prose, not a prose
+parser ([[minimum-form-set]], [[raw-prose-0-of-50]] — verbatim prose measured at 0/50, the gap 100%
+constructional). Force as an axis. Forms as KB data. The tool boundary.
+
+**Genuinely new on this substrate:** force as unit SHAPE; retract as topology; **discourse reference
+without lookup** (§24.3, the big one); procedure sequencing without a scheduler (§24.4); and the sink,
+which is the smallest of them and the natural first probe — an ASK is a unit with in-degree ≥1 whose
+output is the answer, and building it exercises force, wiring and `Verdict` at once without committing to
+any of the above.
+
+### 24.7 ⭐ CLOSURE — and it decides the architecture BEFORE the grammar (user, BUILT 2026-07-26)
+
+> **The user's observation:** *"The OUTPUT of the system should be usable to create more network wirings,
+> because the discourse could lead to new rules. So either we convert subgraphs (output) to CNL and then
+> ingest it back, or we also need a transpiler from output graph to network."*
+
+`units/authoring.py`, `bench/spike_closure.py` (26/26), `tests/units/test_closure.py`, **105 green.**
+
+**THE CNL ROUND-TRIP IS NOT MERELY EXPENSIVE — IT IS UNSOUND HERE.** Rendering a subgraph to text means
+NAMING its nodes; re-ingesting means RESOLVING those names. That is exactly §22.5's forbidden
+interning-by-name and §24.3's *"discourse reference is not lookup"* — two independently minted `mary`s
+would fuse, and §5 records identity inheritance as a CORRECTNESS requirement rather than a cost. **Text is
+a lossy channel for identity, so the loop must not pass through it.**
+
+So the answer is the second option — and the important part is that **it is not a SECOND transpiler, it is
+the ONLY one:**
+
+    CNL text ──parse──▶ rule-shaped SUBGRAPH ──declare──▶ template in the library
+    a unit's output ─────────────────────────▶ (same path from here)
+
+> **⭐ THE DECISION, and this is why it had to be taken before a grammar exists: THE CNL FRONT-END MUST
+> TARGET A SUBGRAPH, NEVER THE `Net` API.** Target `Net` directly and output→network needs a second
+> implementation; the two drift; and **the system becomes able to SAY things it cannot LEARN.** Pinning
+> the contract first costs nothing now and is near-impossible to retrofit.
+
+**Measured:**
+
+| | |
+|---|---|
+| a rule round-trips through a value (incl. negation and `Mint` slots) | **yes**, and the encoding reuses `reify`'s `<of_s>/<of_p>/<of_o>` — a pattern atom is described exactly as a fact is, which is [[learning-arc]]'s *"only the FLAT reification is learner-writable"* arriving as a consequence |
+| **CLOSURE: a unit emits a rule, the bridge declares it, the network derives what nothing authored** | **yes** — the system's own output became computation |
+| **THE LINE HOLDS** (§8, §16.6) | the bridge added **zero wires**; §3b's spawn policy still decided who feeds the new template. Asserted behaviourally AND by the absence of any `.wire(` in the module |
+| idempotency, variable scoping across rules, refusal of a malformed rule | all hold; refusal RAISES rather than guessing ([[epistemic-closure-under-composition]]) |
+
+**⚠ THE STANDING RULE REACHES A THIRD CONSTRUCT.** A rule is minted structure, so an unkeyed encoding
+differs every time and a DERIVED rule would never settle. `encode(key=)` derives every structural node
+from the rule key. After the trace's firing nodes (§20.1a) and the band's handles (§22.8), *anything
+minted per run must be keyed* is no longer an observation — it is the shape of this substrate.
+
+**⚠ AND §10.5 ARRIVED CONCRETELY, in the smallest possible example.** `MORTAL#1` emits
+`socrates is_a mortal`; the index keys on the PREDICATE ALONE; `is_a` is what the template reads — so the
+assembler unrolls onto a conclusion whose object the LHS requires to be `man`, and **spawns an instance
+that can never fire.** Harmless (it is the documented *woke and correctly wrote nothing* case, and it
+gates) but not free: a dead unit and a wasted round, on a two-line rule.
+
+> **This is the argument for §19's COMPUTED INDEX, made concrete rather than predicted.** The form already
+> says the LHS needs `object = man`; a static index built from the form set could have refused the wire
+> before spawning anything. §19 said the index *could* be computed rather than accumulated; this says it
+> *should* be, and that the cost of not doing it shows up on the very first rule rather than at scale.
+
+**What this does NOT settle.** A grammar is still needed eventually — but it is now a front-end onto a
+fixed contract rather than a thing the architecture waits on. Nothing here touches force, sinks, suspend,
+or §24.3's reference problem: this is the *rule* half of intake, and the *fact* half (an utterance's
+entities, and which of them are the same entity) is where §24.3 lives.
+
+---
+
+## 25. DERISKING — ranked by what forces a REDESIGN if found late (user, 2026-07-26)
+
+> *"Let's prioritize things that derisk hitting walls later."*
+
+The ranking is not by size or by interest. It is by **blast radius × probability, divided by cost to
+probe** — what invalidates already-built work if it turns out badly.
+
+### 25.1 ⭐ TIER 1, TAKEN — SCALE, the measurement this document promised and skipped
+
+Every claim in this file has been measured on nets of **under ten units** (§15.3, §16.7, §20.3, §22.7
+all say so). Meanwhile §16.4 accepted a cost with an explicit promise: *"assembly becomes O(units ×
+upstream-walk) per pass. Accepted… **it is the next thing to measure rather than assume**."* It was never
+measured, and [[measure-before-optimizing-ugm]] and [[whole-graph-banks-must-be-idempotent]] are both in
+this repo's memory because superlinear accretion was found exactly this way, twice, after being assumed
+away. Blast radius: total — a superlinear assembler is a redesign of `Net`, not a tweak.
+
+`bench/spike_scale.py`. **Two defects found, both fixed, both mine rather than the design's:**
+
+| defect | fix | effect |
+|---|---|---|
+| **`propagate` re-ran EVERY unit on every call**, and `run` calls it after each assemble pass — so depth cost a full re-propagation per unrolled instance | `Net.dirty` seeds propagation from the units whose inputs actually changed | rounds for a 12-chain: **92 → 14**, i.e. quadratic → linear |
+| **`trace.handle_of` is a linear scan, called once per premise** — O(n²) in the size of the value, and the dominant cost on a wide net | `handle_index`, built once per call | wide-net time roughly halved |
+| (`upstream` re-walked per unit per template per pass) | memoized, invalidated on any rewire | included above |
+
+**And the result that matters, after the fixes:**
+
+| measurement | slope | reading |
+|---|---|---|
+| units vs chain depth | **0.87** | **LINEAR.** §4b's ATMS exponential does not appear on this shape — one instance per hop, as designed |
+| propagation rounds vs depth | **linear** | was quadratic |
+| the ANSWER's own size (transitive closure) | 2.16 | inherent — a chain of *n* has ~n²/2 reachable pairs |
+| wall time | 2.83 | ⇒ **machinery overhead ≈ n^0.67 on top of the answer's own size** |
+
+> **The substrate is not the wall.** The dominant term is the size of the answer being computed, which no
+> design avoids. The residual n^0.67 is value copying — §5's **known and deliberately deferred** HAMT: *"the
+> frozenset spine IS copied on each union… the one optimization that would change nothing semantically."*
+> So the remaining scale risk is a recorded optimization, not a design flaw, which is the best outcome
+> this probe could have had.
+
+Honest limits: two shapes only (wide and chain), no branching/hypothesis fan-out, and **§4b's exponential
+is precisely what a chain does NOT exercise** — sibling hypotheses are the shape that could still blow up,
+and they are the obvious next measurement.
+
+### 25.2 The ranking that follows
+
+**TIER 2 — cheap, compounding, and now top of the list:**
+
+1. **⭐ THE REIFICATION DECISION (§23.3).** One handle per fact per value, or not. **Intake will reify** —
+   mentions, utterances, entity boundaries — and if it invents a THIRD scheme on top of `trace`'s and
+   `reify`'s, that is precisely the *"stack of seams difficult to sanitize later"* the user warned about.
+   Cheap to decide now, expensive to unpick once intake depends on it. It also unblocks `band.inherit`,
+   the largest remaining Python seam.
+2. **THE COMPUTED INDEX (§19, §24.7).** Measured as needed on a two-line rule, not at scale — the index
+   keys on the predicate alone and spawns dead instances. It must be built **while the form set is built**,
+   because retrofitting means the index has already been accumulated.
+
+**TIER 3 — high blast radius, expensive, and de-risked by Tier 2:**
+
+3. **§24.3 DISCOURSE REFERENCE / COREF.** The deep one, and note it is *already measured* as the
+   pathological case for the index: §22.5 found a wildcard `?s ?p ?o` rule both **defeats the index** and
+   **consumes its own control predicate**. Coref-merge is exactly that rule. So doing the computed index
+   first is not a detour — it is the thing that makes this affordable.
+
+**TIER 4 — cost, not risk:** force, the sink, suspend/procedures, the grammar. Each is work, and each has
+a decided shape (§16.6, §24.2, §24.4). Building them early derisks nothing; building them late costs the
+same. **The sink was my earlier recommendation as a first probe and this ranking demotes it** — it is the
+cheapest, not the most derisking, and those are different questions.
+
+### 25.3 ⭐ TIER 2.1 TAKEN — a fact's handle is a PURE FUNCTION of the fact (109 green)
+
+§23.3 framed the decision as *"one handle per fact per VALUE"* — the trace looking up whatever the object
+wire had already minted. **There is a stronger option, and it is strictly better on every axis:**
+
+> **The handle is arithmetic on the three node IDENTITIES.** Any two reifications of the same fact,
+> anywhere, in any value, on any wire, produce the SAME node — with no lookup, no coordination between
+> wires that deliberately share no state, and **no registry**, so §3's one-global-structure rule is
+> untouched: it is a function, not a table.
+
+**It stays inside §21.2 because it is derived from IDENTITY, never from NAME.** Two entities both called
+`mary` yield different handles, because their nids differ. A content-derived handle is structural
+identity, not a label — which is the distinction that has to hold, and does.
+
+**Four consequences, and only the first was the goal:**
+
+1. **§23.3 CLOSES.** A band now hangs off the same node a firing's `<from>` points at (measured).
+2. **⭐ DEGREE INHERITANCE IS A RULE** — `band.inheritance_rule()`, three atoms:
+   `?f <concluded> ?c ∧ ?f <from> ?pc ∧ ?pc <band> ?b ⇒ ?c <band> ?b`. §16.5 designed it as *"one generic
+   rule over the firing record"* and it stayed Python for two reasons, both now gone: it needed a
+   predicate variable (§22.6) and a shared handle (this). **The largest Python seam in §23's audit is
+   closed**, and it reads the TRACE wire while writing the OBJECT wire — §16.6's *"where the two networks
+   meet"*, arriving as an implementation rather than a prediction.
+3. **Reification is IDEMPOTENT**, which retires a class of §22.8 fixpoint bugs instead of guarding them.
+   `negation`'s private key-derivation and `reify`'s `key=` parameter both became dead weight.
+4. **Two derivations of one conclusion now converge on one handle**, so the trace natively represents *"P
+   has two justifications"* — the ATMS structure, free for the third time (§4b, §20.1c).
+
+**⚠ What remains, and it is the smaller half:** `Net.assemble` still does not know about trace wires
+(§20.3), so an inheritance unit must be hand-wired. The Python `band.inherit` is kept for that reason
+alone and is superseded in principle. *"Inheritance cannot be a rule"* has become *"the assembler cannot
+yet wire a trace input"*, which is a much better-shaped problem — and it is the same gap §23.4's
+explanation-as-units will hit, so it is now one blocker for two seams rather than two blockers.
+
+---
+
+## 26. TRACE-WIRE ASSEMBLY — one blocker, two seams (BUILT 2026-07-26)
+
+§25.3 made degree inheritance expressible as a rule and left one thing: **`Net.assemble` did not know
+about trace wires**, so such a unit had to be hand-wired. §23.4 had already established that
+`explain`-as-units hits the same wall. `bench/spike_trace_wiring.py` (23/23),
+`tests/units/test_trace_wiring.py`, **115 green.**
+
+Three questions, each answered from what was already there rather than by a new declaration:
+
+| question | answer |
+|---|---|
+| which templates want the trace? | those whose LHS names a FIRING predicate — derivable, `Net.reads_trace` |
+| where does the trace land? | the consumer's **`inputs`**, because `view()` is what `solve` matches |
+| what may be satisfied from which wire? | a firing predicate only from a trace output, an object predicate only from an object output. **A mixed template spawns on its object half and completes on its trace half** — which is more selective than the reverse |
+
+**⭐ §16.6's CONSTRAINT BECOMES CONDITIONAL, AND STAYS ENFORCED.** *"The trace must never accrete into the
+object value"* becomes **never, unless the unit ASKED** — a unit whose LHS names a firing predicate has
+asked, and refusing would make metareasoning unsayable. **What contains it is SUBSET OUTPUT (§16):** such
+a unit emits only what it derived, so nothing downstream sees the trace unless it too asked. Measured
+three ways: an ordinary unit's view holds no firing predicate, the consumer's does, and its *output* does
+not. `trace_leaks()` still holds, and §6a's NAF is unaffected for units that did not ask.
+
+**Both seams close.** Inheritance assembles itself; an explanation hop assembles itself. `band.inherit`
+and `trace.explain` are now superseded in fact, not only in principle.
+
+### 26.1 ⚠ THE GUARD THAT HAD TO BE DISCOVERED — stratification
+
+A template reading ONLY firing predicates (an explanation hop, §17.G's stability watcher) has an empty
+object need, so it must spawn on its trace half. And then:
+
+> **Every unit has a trace. A trace consumer IS a unit. So consumers feed consumers, forever.** And
+> because firing nodes are MINTED, the projection never repeats and §15.1(c)'s dedup never fires.
+> **Measured before the guard existed: 57 instances, fuel exhausted.**
+
+The guard is one local test: **a unit that reads the trace is never wired to the trace of a unit that
+reads the trace.** Level 0 is the world; level 1 is about level 0; level 2 needs a deliberate act, and
+there is not one. Bounded to 1 instance, measured.
+
+> **⭐ §17.G PREDICTED THIS EXACTLY** — *"firing on stability DESTABILISES… requires stratification, which
+> is the same shape as [[stratification-both-engines]] and must be designed in, not discovered."* It was
+> discovered. The prediction was right about the mechanism and wrong about who would find it first, which
+> is the honest record: this document has now predicted a wall and still walked into it.
+
+### 26.2 The cost, unchanged and now acute
+
+**Trace wiring is maximally unselective.** Every unit emits every firing predicate on its trace wire, so
+the index cannot discriminate at all — a trace consumer is wired to essentially everything upstream of it
+(measured: 4 trace wires for 4 units, against 3 object wires). This is §10.5 at its worst, and it has the
+same answer as everywhere else: **§19's COMPUTED INDEX.** A template reading `<from>` could be restricted
+statically to the units whose conclusions it actually grades. That remains Tier 2.2 of §25.2 and this
+makes it more urgent, not less.
+
+---
+
+## 27. THE ASSEMBLY JOURNAL — the assembler's decisions as data (user, BUILT 2026-07-26)
+
+> **The user's proposal, from the biological framing:** the brain has a *"network configuration network"*
+> that, given discourse, activates the neurons that compute — gating rather than rewiring, because
+> topology is fixed at millisecond scale. *"If we create this network-building network, we would have a
+> way to recreate the explanation chain, or at least the rule chain."*
+
+`units/journal.py`, `tests/units/test_journal.py`, **123 green.**
+
+**Three things were separated before building, and the separation is the substance:**
+
+1. **The stated payoff was already delivered.** §20's trace gives the explanation chain, and §23.4
+   *measured* why wires are the wrong source (they say what COULD have fed a unit; refire keeps only the
+   last output; late wiring changes the topology). A configuration network would reproduce the source
+   §23.4 rejected.
+2. **Fixed topology is a CONSTRAINT the brain has and we do not.** §0 claims that difference as the
+   advantage — *"neurons must be physically wired, whereas units can be assembled on demand."* Importing
+   the mechanism would cost assembled depth.
+3. **But GATING and REWIRING are different acts, and only one is §8's line.** Deciding what *flows* on a
+   wire is what every unit already does (§16.2: a non-firing unit is a real gate). Deciding what wires
+   *exist* is policy. The functional insight — *routing decisions should be first-class and inspectable* —
+   is separable from the fixed-topology mechanism, and that is what got built.
+
+**⚠ 27.1 THE FAILURE MODE IT CLOSES, and it is the one that matters for intake.** Measured: **a form can
+be accepted, become a well-formed template, and never be wired — silently.** `wellformed()` stays clean,
+the budget is untouched, nothing anywhere says so. That is [[book-corpus-experiment]]'s *"partial intake
+systematically drops exceptions, so learning goes optimistically biased"* **one layer below the parser**:
+the parse succeeded and the assembler quietly declined. Its mirror image — §24.7's spurious instance that
+can never fire — was equally silent. Both are now facts.
+
+**And §8's requirement becomes true rather than aspirational.** §8 says a dynamically-wired system *cannot
+be statically checked, so the trace is the only thing there is to inspect* — and then left the assembler,
+the part doing the dynamic wiring, entirely outside the trace.
+
+**What is recorded:** `<spawned>` (which template an instance came from), `<wire_from>`/`<wire_to>`/
+`<wire_kind>`, `<declined>` with a reason (`<would_cycle>`, `<would_bypass>`, `<nothing_new>`,
+`<stratified>`), and `<unused>` for a template accepted and never instantiated. **A refusal is a fact** —
+the assembler always made these decisions and never recorded one, so *"what did you not consider?"* had no
+answer at all.
+
+**OBSERVABLE, NEVER WRITABLE** (§20.4, §22.1). Nothing here lets a unit wire anything. A unit may READ why
+a wire exists exactly as it may read why a conclusion holds — measured: a rule over `<unused>` flags the
+silently-dropped form. §8's line is untouched.
+
+**These are PROVENANCE** by §23.2's own test (*which fact a handle denotes* is content; *how it came
+about* is provenance — and how the NETWORK came about is the same kind of thing). So journal predicates
+join `FIRING_PREDICATES`, which means §26.1's stratification covers them for free and an ordinary unit
+still cannot see them.
+
+### 27.1a Three things building it found
+
+- **THE JOURNAL MUST NOT BE A UNIT.** It was one, briefly, and polluted every unit count, every
+  `wellformed` walk and every `upstream`. **The assembler's record is not part of the computation it
+  records.** It is a value with a reserved producer name.
+- **§22.8'S STANDING RULE, A FOURTH CONSTRUCT.** A wire's identity must be a function of its endpoints,
+  not a fresh mint. And an already-wired producer must be skipped **silently**: logging it as *nothing
+  new* made the journal grow on every re-run of a quiesced net — and the journal rides a trace wire, so a
+  growing journal destroys the fixpoint that `output unchanged` depends on.
+- **⚠ `<unused>` IS A STATE CLAIM, NOT A FIRING — so it must be WITHDRAWN.** Firings accrete (§20); a
+  current-state claim that stops holding is a false report. The watcher flagged **itself**, because at the
+  pass where orphans were computed it had no instance yet. It is now withdrawn and its readers refire
+  (§7: nothing is retracted, downstream recomputes) — §16.6's supersession stub, reached from the journal
+  side rather than the firing side.
+
+### 27.2 What it does and does not do for §24
+
+**Does:** it is the INSTRUMENT for building the network from discourse — it turns the dominant intake
+failure from silence into a fact, and it is the validation gate for §19's computed index (ground truth:
+what the index proposed versus what actually fired), which is this repo's own pattern
+([[flip-default-blocked-by-greedy-grammar]]: build the gate first).
+
+**Does not:** §24.3 (reference without lookup) and §24.4 (procedure sequencing) are REPRESENTATION
+problems. Assembly events determine whether you can SEE it working, not whether it works.
+
+**If routing should ever be LEARNED**, gating cannot supply that and it does require crossing §8. The safe
+shape, recorded but not built: **units may PROPOSE wirings as facts; the assembler stays the only thing
+that wires.** Proposals become inspectable, refusable and traceable, and *"units never touch wiring"*
+survives literally — a unit emits a proposal, never an edge.

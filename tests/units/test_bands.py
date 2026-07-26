@@ -203,3 +203,65 @@ def test_a_graded_absence_is_inexpressible():
     naf2.run()
     assert Fact(danger, "at", p1) in with_graded_absence, "grading asserted it"
     assert not naf2.last_derived, "so the NAF flipped and the rule stopped firing"
+
+
+# -- ⭐ §25.3: the seam closes ---------------------------------------------------------------------------
+
+def test_a_facts_handle_is_a_pure_function_of_the_fact():
+    """§25.3, and it is the stronger of §23.3's two options: no lookup, no coordination, no registry —
+    arithmetic on the three node IDENTITIES. Derived from identity, never from name, which is what keeps
+    it inside §21.2."""
+    from units import reify as R
+    m1, m2, rich = mint("mary"), mint("mary"), mint("rich")
+    assert R.handle_key(Fact(m1, "is_a", rich)) == R.handle_key(Fact(m1, "is_a", rich))
+    assert R.handle_key(Fact(m1, "is_a", rich)) != R.handle_key(Fact(m2, "is_a", rich))
+
+
+def test_reification_is_idempotent():
+    """A whole class of §22.8 fixpoint bugs retired rather than guarded against."""
+    from units import reify as R
+    a, b = mint("a"), mint("b")
+    v1, _ = R.reify(Subgraph(), Fact(a, "p", b))
+    v2, _ = R.reify(v1, Fact(a, "p", b))
+    assert v1 == v2
+
+
+def test_the_object_and_trace_handles_now_coincide():
+    """§23.3's blocker, gone. This is what makes inheritance expressible as a rule."""
+    from units import reify as R
+    danger, high = mint("danger"), mint("high")
+    n = Net()
+    src = n.spawn(given("src", []))
+    src.adds = B.grade(Subgraph([Fact(danger, "is_a", high)]), Fact(danger, "is_a", high), B.LIKELY)
+    r = n.spawn(rule("R", (Triple(X, "is_a", high),), Triple(X, "needs", high)))
+    n.wire(src, r)
+    n.propagate(Budget(300))
+    assert (R.handle_for(r.view(), Fact(danger, "is_a", high))
+            == R.handle_for(r.trace_output, Fact(danger, "is_a", high)))
+
+
+def test_degree_inheritance_is_a_rule_not_python():
+    """⭐ THE §23 SEAM, CLOSED. §16.5 designed this as *one generic rule over the firing record*; it stayed
+    Python because it needed a predicate variable (§22.6) and a shared handle (§25.3). Both arrived.
+
+    It reads the TRACE wire and writes the OBJECT wire — §16.6's *"where the two networks meet"*.
+
+    ⚠ Still hand-wired: `Net.assemble` does not know about trace wires (§20.3). That is the remaining
+    half, and it is much smaller than the half that just closed."""
+    from units import reify as R
+    danger, high = mint("danger"), mint("high")
+    n = Net()
+    src = n.spawn(given("src", []))
+    src.adds = B.grade(Subgraph([Fact(danger, "is_a", high)]), Fact(danger, "is_a", high), B.LIKELY)
+    r = n.spawn(rule("R", (Triple(X, "is_a", high),), Triple(X, "needs", high)))
+    n.wire(src, r)
+    n.propagate(Budget(300))
+
+    lhs, rhs = B.inheritance_rule()
+    u = rule("INHERIT", lhs, rhs)
+    u.inputs["obj"], u.inputs["tr"] = r.view(), r.trace_output
+    u.run()
+
+    concl = R.handle_key(Fact(danger, "needs", high))
+    assert Fact(concl, B.BAND, B.LIKELY) in u.output
+    assert B.band_of(B.inherit(r), Fact(danger, "needs", high)) is B.LIKELY, "agrees with the Python one"

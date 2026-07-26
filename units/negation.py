@@ -53,15 +53,10 @@ def deny(view: Subgraph, f: Fact, band: Node | None = None, key: Node | None = N
 
     `key` names the negation node instead of minting one, and a DERIVED denial must supply it or the
     fixpoint never closes (see the module docstring)."""
-    view, h = reify(view, f, key=None if key is None else _handle_key(key))
+    view, h = reify(view, f)                    # content-derived since §25.3 — idempotent, no key needed
     n = key if key is not None else mint("not")
     view = view.with_facts([Fact(n, DENIES, h)])
     return view if band is None else view.with_facts([Fact(n, BAND, band)])
-
-
-def _handle_key(key: Node) -> Node:
-    """A stable handle derived from a stable denial key — so a keyed denial reifies stably too."""
-    return Node(-key.nid, f"h:{key.name}")
 
 
 def denial_of(view: Subgraph, f: Fact) -> Node | None:

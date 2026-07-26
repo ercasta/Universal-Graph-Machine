@@ -16,12 +16,46 @@ special case.
 """
 from __future__ import annotations
 
-from .value import Fact, Node, Subgraph, mint
+from .value import Fact, Node, Subgraph
 from .vocab import role
 
 OF_S = role("<of_s>")            # handle -> the reified fact's subject
 OF_P = role("<of_p>")            # handle -> its role
 OF_O = role("<of_o>")            # handle -> its object
+
+
+_B = 1 << 32
+
+
+def handle_key(f: Fact) -> Node:
+    """**A FACT'S HANDLE IS A PURE FUNCTION OF THE FACT** (§25.3, the §23.3 decision).
+
+    §23.3 framed the choice as *"one handle per fact per VALUE"* — the trace looking up whatever the
+    object wire had already minted. That needs coordination: whoever reifies second must find what the
+    first did, across two wires that deliberately do not share state. **This is the stronger option and it
+    needs no coordination at all:** the handle is arithmetic on the three node identities, so any two
+    reifications of the same fact, anywhere, in any value, produce the SAME node.
+
+    **It is derived from IDENTITY, never from NAME** — which is what keeps it inside §21.2. Two entities
+    both called `mary` yield different handles, because their nids differ. A content-derived handle is
+    structural identity, not a label.
+
+    Four things fall out rather than being arranged:
+
+    * **§23.3 CLOSES.** A band hangs off the same node a firing's `<from>` points at, so degree
+      inheritance becomes expressible as a rule.
+    * **Reification is IDEMPOTENT.** Reifying twice is the same value, which retires a whole class of
+      §22.8 fixpoint bugs instead of guarding against them.
+    * **TWO DERIVATIONS OF ONE CONCLUSION CONVERGE ON ONE HANDLE**, so the trace represents *"P has two
+      justifications"* natively — the ATMS structure, arriving free for the third time (§4b, §20.1c).
+    * **NO REGISTRY**, so §3's "one global structure" rule is untouched: this is a function, not a table.
+
+    The packing is injective for `nid < 2**32`, which is session scale with room to spare
+    ([[ugm-scope-session-sized]])."""
+    def z(n: Node) -> int:                      # zigzag: derived nodes carry negative nids
+        return (n.nid << 1) if n.nid >= 0 else ((-n.nid << 1) | 1)
+    packed = ((z(f.s) * _B + z(f.p)) * _B + z(f.o)) + 1
+    return Node(-packed, f"h:{f.p.name}")
 
 
 def handle_for(view: Subgraph, f: Fact) -> Node | None:
@@ -37,16 +71,12 @@ def handle_for(view: Subgraph, f: Fact) -> Node | None:
 def reify(view: Subgraph, f: Fact, key: Node | None = None):
     """Return `(view', handle)` — **without asserting `f` itself.**
 
-    That last clause is the whole of §22.8's fix: `band.grade` used to add the fact it was describing,
-    which made *"probably not P"* assert P. Talking ABOUT a fact must not be the same act as claiming it.
+    That clause is the whole of §22.8's fix: `band.grade` used to add the fact it was describing, which
+    made *"probably not P"* assert P. Talking ABOUT a fact must not be the same act as claiming it.
 
-    `key` supplies the handle rather than minting one. **Pass it whenever the handle is DERIVED rather
-    than asserted** — a freshly minted handle per run is §20.1(a)'s trap, and it makes two structurally
-    identical values compare unequal so the fixpoint never closes."""
-    h = handle_for(view, f)
-    if h is not None:
-        return view, h
-    h = key if key is not None else mint("h")
+    The handle is `handle_key(f)` (§25.3), so this is IDEMPOTENT and needs no coordination. `key` is
+    accepted and ignored — kept so callers written before the decision still read correctly."""
+    h = handle_key(f)
     return view.with_facts([Fact(h, OF_S, f.s), Fact(h, OF_P, f.p), Fact(h, OF_O, f.o)]), h
 
 
@@ -65,4 +95,4 @@ def fact_of(view: Subgraph, handle: Node) -> Fact | None:
     return Fact(s, p, o) if None not in (s, p, o) else None
 
 
-__all__ = ["OF_S", "OF_P", "OF_O", "handle_for", "reify", "fact_of"]
+__all__ = ["OF_S", "OF_P", "OF_O", "handle_key", "handle_for", "reify", "fact_of"]

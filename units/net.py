@@ -28,7 +28,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from . import journal as J
 from .fuel import Budget
+from .journal import template_node as _tn
 from .match import Triple
 from .unit import Unit
 from .value import EMPTY, Node
@@ -44,6 +46,23 @@ class Net:
     library: dict = field(default_factory=dict)             # template name -> (lhs, rhs)
     instances: dict = field(default_factory=dict)           # template name -> [instance names]
     consumed: dict = field(default_factory=dict)            # template name -> {value already fed to it}
+    _up: dict = field(default_factory=dict)                 # memoized `upstream`, dropped on any rewire.
+    #                                                         `assemble` sorts every unit by upstream size
+    #                                                         on every pass, so an unmemoized walk is
+    #                                                         O(units x walk) per pass (§25.1).
+    trace_producers: dict = field(default_factory=dict)     # consumer -> producers feeding it their TRACE
+    #                                                         (§26). A separate channel because a trace
+    #                                                         value must reach the consumer's VIEW — that
+    #                                                         is what `solve` matches — while ordinary
+    #                                                         units must never see one.
+    journal: object = None                                  # the ASSEMBLER'S RECORD (§27) — a `Unit`
+    #                                                         with a pinned trace, so its decisions are
+    #                                                         readable by ordinary trace-consuming units.
+    #                                                         Observable, never writable (§8 intact).
+    dirty: set = field(default_factory=set)                 # units whose inputs changed since last pass —
+    #                                                         the SEED for propagation (§25.1). Without it
+    #                                                         `run` re-propagates the WHOLE net after every
+    #                                                         assemble pass, which is quadratic in depth.
 
     # -- structure ----------------------------------------------------------
 
@@ -51,6 +70,7 @@ class Net:
         if u.name in self.units:
             raise ValueError(f"duplicate unit name {u.name!r}")
         self.units[u.name] = u
+        self.dirty.add(u.name)
         self.producers.setdefault(u.name, set())
         self.consumers.setdefault(u.name, set())
         # A VARIABLE role contributes no index key: `?s ?p ?o` is a WILDCARD, and §22.5 measured what
@@ -73,17 +93,70 @@ class Net:
             raise ValueError(f"refusing to wire {p!r} to itself")
         self.producers.setdefault(c, set()).add(p)
         self.consumers.setdefault(p, set()).add(c)
+        self.dirty.add(c)
+        self._up.clear()                                    # the topology changed; every walk is stale
+
+    JOURNAL = "<assembler>"
+
+    def _log(self, facts) -> None:
+        """Append to the assembly journal.
+
+        **The journal is NOT a unit**, deliberately. Making it one put it in `Net.units`, where it
+        polluted every count, every `wellformed` walk and every `upstream` — the assembler's record is
+        not part of the computation it records. It is a value with a reserved producer name, delivered
+        by `propagate` to whoever asked for it."""
+        if facts:
+            self.journal = (self.journal or EMPTY).with_facts(facts)
+
+    def reads_trace(self, name) -> bool:
+        """Does this unit consume firing events? — a purely local test over its own LHS (§26.1)."""
+        from .trace import FIRING_PREDICATES
+        if name == self.JOURNAL:
+            return False                                # the record itself reads nothing
+        u = self.units[name] if isinstance(name, str) else name
+        return any(isinstance(a, Triple) and a.p in FIRING_PREDICATES for a in u.lhs)
+
+    def wire_trace(self, producer, consumer) -> None:
+        """Deliver `producer`'s TRACE to `consumer`'s view (§26).
+
+        **⚠ STRATIFIED, and the stratification was DISCOVERED rather than designed** (§26.1). A trace
+        consumer is itself a unit, so it has a trace of its own; left alone the assembler wires one trace
+        consumer to another and the regress never terminates — measured at 57 instances and fuel
+        exhausted before the guard existed. §17.G predicted exactly this (*"firing on stability
+        DESTABILISES… requires stratification, and must be designed in, not discovered"*) and it was
+        discovered anyway. The guard is one local test: **a unit that reads the trace may not be wired to
+        the trace of a unit that reads the trace.** Level 0 units are the world; level 1 units are about
+        level 0. Level 2 needs a deliberate act, and there is not one.
+
+        **§16.6's constraint becomes conditional rather than absolute, and the wording matters:** the trace
+        must never accrete into an ordinary unit's value — but a unit whose LHS names a firing predicate
+        has ASKED for it, and refusing would make metareasoning unsayable. What keeps the leak contained is
+        SUBSET OUTPUT (§16): such a unit emits only what it derived, so nothing downstream sees the trace
+        unless it too asked. `Net.trace_leaks()` still catches a unit that re-emits one."""
+        pn = producer.name if isinstance(producer, Unit) else producer
+        cn = consumer.name if isinstance(consumer, Unit) else consumer
+        if pn == cn:
+            raise ValueError(f"refusing to wire {pn!r} to itself")
+        self.trace_producers.setdefault(cn, set()).add(pn)
+        self.consumers.setdefault(pn, set()).add(cn)
+        self.dirty.add(cn)
+        self._up.clear()
 
     def upstream(self, name) -> set:
         """Transitive producers, walked over the topology — the only structure there is. Note what this
         does NOT consult: no scope, no context, no vantage. Reachability is the whole mechanism."""
         n = name.name if isinstance(name, Unit) else name
+        hit = self._up.get(n)
+        if hit is not None:
+            return hit
         seen, frontier = set(), [n]
         while frontier:
-            for p in self.producers.get(frontier.pop(), ()):
-                if p not in seen:
+            cur = frontier.pop()
+            for p in set(self.producers.get(cur, ())) | set(self.trace_producers.get(cur, ())):
+                if p not in seen and p in self.units:
                     seen.add(p)
                     frontier.append(p)
+        self._up[n] = seen
         return seen
 
     def comparable(self, a: str, b: str) -> bool:
@@ -190,27 +263,67 @@ class Net:
         budget = budget or Budget()
         added = 0
         for tname, (lhs, rhs) in self.library.items():
-            need = {a.p for a in lhs if isinstance(a, Triple) and isinstance(a.p, Node)}
+            from .trace import FIRING_PREDICATES
+            allneed = {a.p for a in lhs if isinstance(a, Triple) and isinstance(a.p, Node)}
+            # A firing predicate cannot be satisfied from an OBJECT output — every unit emits firings on
+            # its trace wire and none on its object wire. Splitting here is what makes a mixed template
+            # (§26: inheritance reads `<band>` from the object wire and `<from>` from the trace) spawn on
+            # its object half and complete on its trace half.
+            need = allneed - FIRING_PREDICATES
+            # A template reading ONLY firing predicates (an explanation hop, a stability watcher) has an
+            # empty object need, so the object-driven spawn below would never trigger. It spawns on its
+            # TRACE half instead. A MIXED template still spawns on its object half, which is more
+            # selective — §26.
+            on_trace = not need
+            spawn_need = allneed if on_trace else need
             seen = self.consumed.setdefault(tname, set())
             # FRONTIER FIRST, and it is a correctness requirement rather than a preference (§16). Two
             # producers in one lineage can project identically while the deeper one carries strictly more
             # context — a hypothesis marker, a time index, an attribution. Taking the first one found
             # wires the SHALLOWEST, which silently drops that context and is precisely a BYPASS.
             cands = sorted(self.units.values(), key=lambda u: len(self.upstream(u.name)), reverse=True)
+            # THE JOURNAL AS A SPAWN CANDIDATE (§27). It is not a unit, so the loop below cannot see
+            # it — and a template that reads ONLY assembly events (*"which templates were never wired?"*)
+            # has nowhere else to come from.
+            if on_trace and self.journal and (self.journal.predicates() & spawn_need):
+                proj = frozenset(f for f in self.journal if f.p in spawn_need)
+                if not any(proj == pj for pj, _ in seen) and not any(
+                        self.JOURNAL in self.trace_producers.get(i, ()) for i in self.instances[tname]):
+                    n = len(self.instances[tname]) + 1
+                    target = f"{tname}#{n}"
+                    self.spawn(Unit(target, lhs=lhs, rhs=rhs))
+                    self.instances[tname].append(target)
+                    budget.spawns += 1
+                    self.trace_producers.setdefault(target, set()).add(self.JOURNAL)
+                    self.units[target].inputs[f"<trace>{self.JOURNAL}"] = self.journal
+                    self.dirty.add(target)
+                    seen.add((proj, self.JOURNAL))
+                    added += 1
+
             for prod in cands:
-                if not (prod.output.predicates() & need):
+                if on_trace and self.reads_trace(prod):
+                    self._log(J.declined(prod.get_handle(), _tn(tname), J.STRATIFIED, True))
+                    continue                                # STRATIFICATION (§26.1) — see `reads_trace`
+                source = prod.trace_output if on_trace else prod.output
+                if not (source.predicates() & spawn_need):
                     continue                                # nothing it emits could match this LHS
-                projection = frozenset(f for f in prod.output if f.p in need)
-                if any(projection == pj for pj, _ in seen):
-                    continue                                # nothing NEW for this template to read
-                if any(prod.name in self.producers.get(i, ()) for i in self.instances[tname]):
+                projection = frozenset(f for f in source if f.p in spawn_need)
+                # ORDER MATTERS: an ALREADY-WIRED producer is skipped silently. Logging it as
+                # "nothing new" would make the journal grow on every re-run of a quiesced net, and the
+                # journal rides a trace wire — so a growing journal destroys the fixpoint that
+                # `output unchanged` depends on. §22.8's standing rule, reaching the RECORD of assembly.
+                if any(prod.name in self.producers.get(i, ()) for i in self.instances[tname])                         or any(prod.name in self.trace_producers.get(i, ()) for i in self.instances[tname]):
                     continue                                # already wired somewhere — idempotence guard
+                if any(projection == pj for pj, _ in seen):
+                    self._log(J.declined(prod.get_handle(), _tn(tname), J.SEEN, on_trace))
+                    continue                                # nothing NEW for this template to read
                 if not budget.spend(1, f"assemble {tname}<-{prod.name}"):
                     return added
                 up = self.upstream(prod.name)
                 target = None
                 for iname in self.instances[tname]:
                     if iname == prod.name or iname in up:
+                        self._log(J.declined(prod.get_handle(), self.units[iname].get_handle(), J.CYCLE))
                         continue                            # self-wire, or would close a CYCLE
                     if all(self.comparable(prod.name, q) for q in self.producers.get(iname, ())):
                         target = iname                      # ONE LINEAGE -> add a wire
@@ -221,12 +334,18 @@ class Net:
                     self.spawn(Unit(target, lhs=lhs, rhs=rhs))
                     self.instances[tname].append(target)
                     budget.spawns += 1
-                self.wire(prod.name, target)
+                    self._log(J.spawned(self.units[target].get_handle(), tname))
+                (self.wire_trace if on_trace else self.wire)(prod.name, target)
+                self._log(J.wired(prod.get_handle(), self.units[target].get_handle(), on_trace))
                 seen.add((projection, prod.name))
-                added += self._complete_lhs(target, need) + 1
+                added += self._complete_lhs(target, need, allneed - need) + 1
+            # RE-COMPLETE existing instances: a trace producer spawned in an earlier pass had no trace
+            # output when its consumer was wired, so the trace half must stay open across passes.
+            for iname in self.instances[tname]:
+                added += self._complete_lhs(iname, set(), allneed - need)
         return added
 
-    def _complete_lhs(self, iname: str, need: set) -> int:
+    def _complete_lhs(self, iname: str, need: set, trace_need: set = frozenset()) -> int:
         """Wire whatever else this instance needs to satisfy its LHS — the JOIN, made automatic.
 
         **Why this exists at all is the cost of subset output** (§16). A rule now emits only its
@@ -248,6 +367,34 @@ class Net:
         """
         inst = self.units[iname]
         added = 0
+
+        # TRACE HALF (§26). A firing predicate is satisfied from a producer's TRACE output. The gate test
+        # below does not apply: a trace wire supplies provenance, and provenance is not something an
+        # object-wire chain GATES, so it cannot be a bypass of one. The CYCLE test still does.
+        if trace_need:
+            already = self.trace_producers.get(iname, set())
+            cands = [u for u in self.units.values()
+                     if u.name != iname and u.name not in already
+                     and (u.trace_output.predicates() & trace_need)
+                     and iname not in self.upstream(u.name)
+                     and not self.reads_trace(u)]           # STRATIFICATION (§26.1)
+            if (self.journal and self.JOURNAL not in already
+                    and (self.journal.predicates() & trace_need)):
+                self.trace_producers.setdefault(iname, set()).add(self.JOURNAL)
+                inst.inputs[f"<trace>{self.JOURNAL}"] = self.journal
+                added += 1
+            cands.sort(key=lambda u: len(self.upstream(u.name)), reverse=True)   # frontier first (§16.4)
+            # ALL of them, not just the deepest. A trace consumer is asking about FIRINGS, and a firing it
+            # was not wired to is simply invisible — there is no "deepest one carries the rest" here,
+            # because the trace wire does not accrete across units the way a branch carries its ancestor.
+            # ⚠ The cost is §10.5 at its worst: EVERY unit emits every firing predicate, so this cannot
+            # discriminate at all. Measured in §26 and recorded rather than hidden.
+            for u in cands:
+                self.wire_trace(u.name, iname)
+                self._log(J.wired(u.get_handle(), inst.get_handle(), trace=True))
+                inst.inputs[f"<trace>{u.name}"] = u.trace_output
+                added += 1
+
         for _ in range(len(need)):                          # at most one pass per needed predicate
             prods = self.producers.get(iname, set())
             supplied: set = set()
@@ -269,13 +416,14 @@ class Net:
                 break
             cands.sort(key=lambda u: len(self.upstream(u.name)), reverse=True)  # frontier first
             self.wire(cands[0].name, iname)
+            self._log(J.wired(cands[0].get_handle(), inst.get_handle()))
             inst.inputs[cands[0].name] = cands[0].output
             added += 1
         return added
 
     # -- propagation --------------------------------------------------------
 
-    def propagate(self, budget: Budget | None = None) -> int:
+    def propagate(self, budget: Budget | None = None, seed=None) -> int:
         """Run to quiescence over a WORK-LIST: refresh a unit's inputs, recompute, and re-enqueue its
         consumers only if its output CHANGED. That last clause is the termination argument and it is not a
         separate mechanism — it is the same idempotence result the queue-topology spike found (§7).
@@ -283,8 +431,13 @@ class Net:
         A cycle therefore quiesces rather than spinning, PROVIDED the units are monotone in the sense that
         matters: a re-derivation that produces the same facts changes nothing and wakes nobody."""
         budget = budget or Budget()
-        pending = list(self.units)
+        # `seed` is the SET OF UNITS WHOSE INPUTS CHANGED. Omitted, every unit is re-run — which is what a
+        # caller reaching for `propagate` directly means, and what the first pass needs. `run` supplies a
+        # seed after the first pass, because re-propagating the whole net after every assemble is
+        # quadratic in chain depth (§25.1, measured: slope 2.50 -> 1.1).
+        pending = list(self.units) if seed is None else [n for n in self.units if n in seed]
         seen = set(pending)
+        self.dirty.clear()
         rounds = 0
         while pending:
             if not budget.spend(1, "propagate"):
@@ -295,6 +448,11 @@ class Net:
             for p in self.producers.get(name, ()):
                 u.inputs[p] = self.units[p].output
                 u.trace_inputs[p] = self.units[p].trace_output   # the SECOND wire, same topology (§20)
+            for p in self.trace_producers.get(name, ()):
+                # A TRACE-CONSUMING unit gets the trace on its OBJECT channel, because `view()` is what
+                # `solve` matches against. Distinct key so it cannot collide with an ordinary input.
+                u.inputs[f"<trace>{p}"] = (self.journal if p == self.JOURNAL
+                                           else self.units[p].trace_output)
             rounds += 1
             if u.run():
                 for c in self.consumers.get(name, ()):
@@ -312,10 +470,33 @@ class Net:
         is bounded by FUEL, and an exhausted budget must surface as UNKNOWN rather than as a negative
         answer (`fuel.Budget.verdict`)."""
         budget = budget or Budget()
+        first = True
         while not budget.exhausted:
-            self.propagate(budget)
+            self.propagate(budget, seed=None if first else set(self.dirty))
+            first = False
             if self.assemble(budget) == 0:
-                break
+                # ORPHANS are only knowable once assembly has quiesced — a template with no instances
+                # might still get one on the next pass. But logging them CHANGES THE JOURNAL, and a
+                # journal-consuming template ("which forms were never used?") can only assemble against
+                # what the journal already says. So: log, and go round again if that told anyone anything.
+                before = self.journal
+                self._log(J.orphans(self).facts)
+                if self.journal == before:
+                    break
+        # ⚠ `<unused>` is a CURRENT-STATE claim, not a firing, so a stale one is a false report — and the
+        # watcher flags ITSELF, because at the pass where orphans were computed it had no instance yet.
+        # Firings accrete (§20); a state claim must be withdrawn. Same shape as §16.6's supersession stub,
+        # reached from the journal side.
+        if self.journal:
+            stale = [f for f in self.journal.by_pred(J.UNUSED)
+                     if any(J.template_node(tn) == f.s and insts
+                            for tn, insts in self.instances.items())]
+            if stale:
+                self.journal = self.journal.without(stale)
+                # and REFIRE whoever read it — §7: nothing is retracted, downstream recomputes.
+                readers = {c for c, ps in self.trace_producers.items() if self.JOURNAL in ps}
+                if readers:
+                    self.propagate(budget, seed=readers)
         return budget
 
     # -- reads --------------------------------------------------------------

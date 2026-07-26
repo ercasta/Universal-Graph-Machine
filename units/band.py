@@ -32,6 +32,7 @@ those would trip `Net.trace_leaks()`, which is the guard working as intended.
 from __future__ import annotations
 
 from .reify import OF_O, OF_P, OF_S, handle_for, reify
+from .match import Triple, Var
 from .value import Fact, Node, Subgraph
 from .vocab import role
 
@@ -89,14 +90,39 @@ def band_of(view: Subgraph, f: Fact) -> Node | None:
     return got
 
 
+# ⭐ INHERITANCE AS A RULE — the §23 seam, closed (§25.3).
+#
+# §16.5 designed degree inheritance as "ONE generic rule over the firing record" and it stayed Python for
+# two reasons, both now gone: it needed a predicate variable (§22.6 supplied it) and it needed a premise's
+# band and a firing's `<from>` to name the SAME node — which §25.3's content-derived handle finally makes
+# true. This is that rule, as data:
+#
+#     ?f <concluded> ?c  and  ?f <from> ?pc  and  ?pc <band> ?b   =>   ?c <band> ?b
+#
+# It reads the TRACE wire and writes the OBJECT wire, which §16.6 predicted is where the two networks meet.
+#
+# ⚠ STILL NOT AUTO-ASSEMBLED. `Net.assemble` does not know about trace wires (§20.3), so an inheritance
+# unit must be hand-wired today. That is a much smaller and better-understood gap than "inheritance cannot
+# be a rule", and it is the remaining half of the seam.
+_F, _C, _PC, _B = Var("f"), Var("c"), Var("pc"), Var("b")
+
+
+def inheritance_rule():
+    """`(lhs, rhs)` for the generic band-inheritance rule. A function, not a constant, to keep `trace`'s
+    import out of this module's import time."""
+    from .trace import CONCLUDED, FROM
+    return ((Triple(_F, CONCLUDED, _C), Triple(_F, FROM, _PC), Triple(_PC, BAND, _B)),
+            (Triple(_C, BAND, _B),))
+
+
 def inherit(unit) -> Subgraph:
     """Grade a unit's conclusions from the premises it CONSUMED — **one generic computation over
     `last_firing`, which knows nothing about any template.**
 
-    §16.5 built `last_firing` (conclusion ↦ premises consumed) for exactly this and then only used it via
-    a Python stand-in for "one rule". This is that computation. It is still Python rather than a unit,
-    for one stated reason: it MINTS a handle per graded conclusion, and this substrate refuses
-    RHS-only variables ([[skolem-minting-lhs-keyed]]), so a rule cannot mint. Recorded, not hidden.
+    **SUPERSEDED IN PRINCIPLE by `inheritance_rule()` (§25.3)** — kept because the assembler cannot yet
+    wire a trace input, so the rule must be hand-wired while this works anywhere. The reason it used to be
+    unavoidable (a rule cannot mint a handle) is gone: §25.3's handle is content-derived, so nothing is
+    minted at all.
 
     **⚠ It grades by POSITIVE premises only.** An `Absent` atom consumes nothing, so its own confidence
     is invisible here — which is §16.6's third negation (*a degree cannot ride an absence*) arriving as a
@@ -119,4 +145,5 @@ def inherit(unit) -> Subgraph:
 
 
 __all__ = ["SCALE", "BANDS", "VERY_UNLIKELY", "UNLIKELY", "LIKELY", "VERY_LIKELY", "CERTAIN",
-           "BAND", "OF_S", "OF_P", "OF_O", "meet", "grade", "band_of", "handle_for", "inherit"]
+           "BAND", "OF_S", "OF_P", "OF_O", "meet", "grade", "band_of", "handle_for", "inherit",
+           "inheritance_rule"]

@@ -75,6 +75,10 @@ class Unit:
     trace_output: Subgraph = EMPTY
     handle: Node | None = None                          # this unit's OPAQUE handle in the trace
     _trace_sig: object = None                           # last (firing record, incoming trace) built from
+    pinned_trace: Subgraph | None = None                # if set, this unit's trace is SUPPLIED, not
+    #                                                     computed — the assembler's journal rides on one
+    #                                                     of these so it is readable by ordinary units
+    #                                                     without the assembler becoming a unit (§27).
     _minted: dict = field(default_factory=dict)         # KEYED SKOLEMS (match.Mint): (owner, pos, name,
     #                                                     binding) -> node. This unit's own state, never
     #                                                     global. It is what makes a minting rule
@@ -157,6 +161,13 @@ class Unit:
 
     # -- the trace wire -----------------------------------------------------
 
+    def get_handle(self) -> Node:
+        """This unit's OPAQUE handle, minted on demand. The journal (§27) needs to name units before they
+        have run, and must name them the SAME way the trace does or the two records cannot be joined."""
+        if self.handle is None:
+            self.handle = mint(self.name)
+        return self.handle
+
     def _run_trace(self) -> bool:
         """Build this unit's contribution to the parallel provenance network (§16.6, §20).
 
@@ -170,6 +181,10 @@ class Unit:
         Two runs that reach the same conclusions from the same premises ARE the same derivation and must
         not be re-minted; a run that reaches the same conclusion from different premises is a different
         derivation and must be."""
+        if self.pinned_trace is not None:
+            changed = self.pinned_trace != self.trace_output
+            self.trace_output = self.pinned_trace
+            return changed
         incoming = EMPTY
         for val in self.trace_inputs.values():
             incoming = incoming | val
@@ -177,8 +192,7 @@ class Unit:
         if sig == self._trace_sig:
             return False
         self._trace_sig = sig
-        if self.handle is None:
-            self.handle = mint(self.name)               # OPAQUE: the trace can name the unit, nothing more
+        self.get_handle()                               # OPAQUE: the trace can name the unit, nothing more
 
         # A unit traces what it INTRODUCES (a given's axiom, a branch's hypothesis) and what it DERIVES.
         # Everything else it merely carries, and carried facts keep the firing record they arrived with —
