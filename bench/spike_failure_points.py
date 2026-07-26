@@ -140,11 +140,11 @@ def case_c_refire():
     net.propagate(Budget(limit=200))
     report("C1 gate shut -> nothing downstream", not d.derived(), f"D={d.derived()}")
 
-    src.delta = src.delta.with_facts([Fact(a, "has", key)])         # the gate OPENS
+    src.adds = src.adds.with_facts([Fact(a, "has", key)])         # the gate OPENS
     net.propagate(Budget(limit=200))
     report("C2 gate opens -> conclusion appears", bool(d.derived()), f"D={d.derived()}")
 
-    src.delta = src.delta.without([Fact(a, "has", key)])            # and shuts again
+    src.adds = src.adds.without([Fact(a, "has", key)])            # and shuts again
     net.propagate(Budget(limit=200))
     report("C3 gate shuts -> conclusion is TAKEN BACK by recomputation", not d.derived(),
            f"D={d.derived()} (nothing was retracted; it simply re-ran)")

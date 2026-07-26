@@ -32,6 +32,7 @@ from units.match import Triple, Var, solve, ground                  # noqa: E402
 from units.net import Net                                           # noqa: E402
 from units.unit import Unit, branch, given, rule                    # noqa: E402
 from units.value import EMPTY, Fact, Subgraph, mint                 # noqa: E402
+from units.vocab import role
 
 RESULTS: list = []
 
@@ -274,8 +275,8 @@ def case_1_band_inheritance():
     inst = acc.instances["R"][0]
     out = acc.units[inst].output
     # Under ACCRETION the band survives as a carried fact -- but is it ON the conclusion?
-    carried = any(f.p == "band" for f in out)
-    attached = any(f.p == "band" and f.s == danger for f in out)
+    carried = any(f.p == role("band") for f in out)
+    attached = any(f.p == role("band") and f.s == danger for f in out)
     report("1a accretion carries the premise's band forward", carried, f"band facts in output={carried}")
     report("1b ...but it is NOT attached to the conclusion", not attached,
            f"band on 'dangerous'={attached} -> inheritance is UNDONE either way")
@@ -283,7 +284,7 @@ def case_1_band_inheritance():
     sub = build(True)
     inst = sub.instances["R"][0]
     u = sub.units[inst]
-    report("1c subset output drops the band entirely", not any(f.p == "band" for f in u.output),
+    report("1c subset output drops the band entirely", not any(f.p == role("band") for f in u.output),
            f"output={u.output}")
 
     # THE INHERITANCE RULE: one generic rule over the firing record, not one clause per template.

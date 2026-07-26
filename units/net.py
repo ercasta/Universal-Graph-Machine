@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from .fuel import Budget
 from .match import Triple
 from .unit import Unit
-from .value import EMPTY
+from .value import EMPTY, Node
 
 
 @dataclass
@@ -53,12 +53,16 @@ class Net:
         self.units[u.name] = u
         self.producers.setdefault(u.name, set())
         self.consumers.setdefault(u.name, set())
+        # A VARIABLE role contributes no index key: `?s ?p ?o` is a WILDCARD, and §22.5 measured what
+        # that costs — it wakes on everything. Recorded rather than papered over; the index cannot
+        # discriminate for a rule that declines to say what it reads.
         for a in u.lhs:
-            if isinstance(a, Triple):
+            if isinstance(a, Triple) and isinstance(a.p, Node):
                 self.lhs_index.setdefault(a.p, set()).add(u.name)
         for h in u.rhs:
-            self.rhs_index.setdefault(h.p, set()).add(u.name)
-        for p in u.delta.predicates():
+            if isinstance(h.p, Node):
+                self.rhs_index.setdefault(h.p, set()).add(u.name)
+        for p in u.adds.predicates():
             self.rhs_index.setdefault(p, set()).add(u.name)
         return u
 
@@ -89,7 +93,8 @@ class Net:
     def restores_a_drop(self, consumer: str, extra: str | None = None) -> tuple | None:
         """Would this consumer's producers RESTORE a fact one of them deliberately removed? (§17.A)
 
-        §5's delta can REMOVE — *"under H, not P"* — and §16.5 recommends a merge wired to both a rule and
+        §5 as amended: a unit is a REWRITE, so its output may simply omit what its input held — *"under
+        H, not P"* (§21.1). §16.5 recommends a merge wired to both a rule and
         its branch, to re-supply context. Put those together and the merge hands back the very fact the
         branch dropped: **the ancestor is a bypass of the descendant's drop.** Found by spiking the
         recommendation rather than the design (`bench/spike_failure_points.py` case A).
@@ -131,7 +136,22 @@ class Net:
             if hit:
                 out.append(("restores_a_drop", f"{name}: {hit[0]} is an ancestor of {hit[1]} and "
                                                f"re-supplies what it dropped"))
+        out.extend(self.trace_leaks())
         return out
+
+    def trace_leaks(self) -> list:
+        """**§16.6's constraint, made mechanical rather than documented** (§20).
+
+        The trace is carried on its own wire and must never accrete into the object value. If it does,
+        §6a's exact NAF starts seeing provenance facts: `Absent` stops asking *"is P absent from the
+        world I was handed?"* and starts asking *"was P mentioned in the derivation?"* — two different
+        questions with the same syntax, which is the worst kind of leak.
+
+        Same spirit as the no-import rule: this is exactly the sort of thing that is right on paper and
+        wrong in the build, so it is asserted rather than intended."""
+        from .trace import is_trace
+        return [("trace_leak", f"{u.name}: object output carries {f!r}")
+                for u in self.units.values() for f in u.output if is_trace(f)]
 
     # -- assembly -----------------------------------------------------------
 
@@ -170,7 +190,7 @@ class Net:
         budget = budget or Budget()
         added = 0
         for tname, (lhs, rhs) in self.library.items():
-            need = {a.p for a in lhs if isinstance(a, Triple)}
+            need = {a.p for a in lhs if isinstance(a, Triple) and isinstance(a.p, Node)}
             seen = self.consumed.setdefault(tname, set())
             # FRONTIER FIRST, and it is a correctness requirement rather than a preference (§16). Two
             # producers in one lineage can project identically while the deeper one carries strictly more
@@ -236,7 +256,8 @@ class Net:
             missing = need - supplied
             if not missing:
                 break
-            gated = {h.p for q in self.upstream(iname) for h in self.units[q].rhs}
+            gated = {h.p for q in self.upstream(iname) for h in self.units[q].rhs
+                     if isinstance(h.p, Node)}
             cands = [u for u in self.units.values()
                      if u.name != iname
                      and (u.output.predicates() & missing)
@@ -273,6 +294,7 @@ class Net:
             u = self.units[name]
             for p in self.producers.get(name, ()):
                 u.inputs[p] = self.units[p].output
+                u.trace_inputs[p] = self.units[p].trace_output   # the SECOND wire, same topology (§20)
             rounds += 1
             if u.run():
                 for c in self.consumers.get(name, ()):
@@ -300,6 +322,21 @@ class Net:
 
     def output_of(self, name: str):
         return self.units[name].output if name in self.units else EMPTY
+
+    def why(self, f, at: str | None = None, depth: int = 8):
+        """`why P?` — a SINK ON THE TRACE WIRES, which is where the two networks meet (§16.6).
+
+        `at` names the vantage: an explanation is read from the trace value some unit actually holds, not
+        from a global record, because there is no global record. Left unset it takes the frontier unit
+        whose trace can describe `f` — the deepest, by the same frontier-first reasoning as §16.4."""
+        from .trace import explain, handle_of
+        if at is not None:
+            return self.units[at].why(f, depth)
+        cands = sorted(self.units.values(), key=lambda u: len(self.upstream(u.name)), reverse=True)
+        for u in cands:
+            if handle_of(u.trace_output, f) is not None:
+                return explain(u.trace_output, f, depth)
+        return None
 
     def derived_anywhere(self, pred: str) -> set:
         """Every conclusion of `pred` DERIVED by some unit, tagged with the unit that derived it. A

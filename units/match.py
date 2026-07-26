@@ -33,16 +33,26 @@ class Var:
 
 @dataclass(frozen=True)
 class Triple:
-    """A pattern atom. `s` and `o` are each a `Var` (to bind) or a `Node` (a ground constant)."""
+    """A pattern atom. **Every slot is uniform** (§22.3, §22.5): each of `s`, `p`, `o` is a `Var` to bind
+    or a `Node` to match. A `str` in the predicate slot is resolved through the form set at construction.
+
+    That uniformity IS the predicate variable — `?s ?p ?o` needs no new machinery, which is why §17.E's
+    recorded hole is dissolved rather than filled."""
     s: object
-    p: str
+    p: object
     o: object
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.p, (Node, Var)):
+            from .vocab import role
+            object.__setattr__(self, "p", role(self.p))
+
     def vars(self) -> frozenset:
-        return frozenset(t for t in (self.s, self.o) if isinstance(t, Var))
+        return frozenset(t for t in (self.s, self.p, self.o) if isinstance(t, Var))
 
     def __repr__(self) -> str:
-        return f"({self.s} {self.p} {self.o})"
+        pn = self.p.name if isinstance(self.p, Node) else self.p
+        return f"({self.s} {pn} {self.o})"
 
 
 @dataclass(frozen=True)
@@ -108,9 +118,14 @@ def solve(lhs: tuple, view: Subgraph) -> list:
             yield dict(b)
             return
         atom, tail = rest[0], rest[1:]
-        for f in view.by_pred(atom.p):
+        # A GROUND role still uses the value's index; a VARIABLE role scans the value. The scan is
+        # bounded local enumeration over one wire (§1 permits it) — but note what it costs: a `?s ?p ?o`
+        # rule wakes on EVERYTHING (§22.5, measured). The generic rule that avoids a clause per template
+        # is the same one that makes "wake broadly" mean "wake always".
+        cands = view.by_pred(atom.p) if isinstance(atom.p, Node) else view.facts
+        for f in cands:
             b2 = dict(b)
-            if _bind(atom.s, f.s, b2) and _bind(atom.o, f.o, b2):
+            if _bind(atom.s, f.s, b2) and _bind(atom.p, f.p, b2) and _bind(atom.o, f.o, b2):
                 yield from go(tail, b2)
 
     out = []
@@ -120,10 +135,12 @@ def solve(lhs: tuple, view: Subgraph) -> list:
     return out
 
 
+def _resolve(slot, b: dict):
+    return b[slot] if isinstance(slot, Var) else slot
+
+
 def _holds(atom: Triple, b: dict, view: Subgraph) -> bool:
-    s = b[atom.s] if isinstance(atom.s, Var) else atom.s
-    o = b[atom.o] if isinstance(atom.o, Var) else atom.o
-    return Fact(s, atom.p, o) in view
+    return Fact(_resolve(atom.s, b), _resolve(atom.p, b), _resolve(atom.o, b)) in view
 
 
 def matched(atom: Triple, f: Fact, b: dict) -> bool:
@@ -133,13 +150,9 @@ def matched(atom: Triple, f: Fact, b: dict) -> bool:
     inherited from the facts that PRODUCED it, and once a rule emits only its conclusion there is no
     afterwards in which to work out which those were. Same lesson as `Unit.derived` — a derivation is a
     fact about a RUN (§15.2) — arrived at from the inheritance side rather than the cycle side."""
-    s = b[atom.s] if isinstance(atom.s, Var) else atom.s
-    o = b[atom.o] if isinstance(atom.o, Var) else atom.o
-    return f.s == s and f.p == atom.p and f.o == o
+    return (f.s == _resolve(atom.s, b) and f.p == _resolve(atom.p, b) and f.o == _resolve(atom.o, b))
 
 
 def ground(head: Triple, b: dict) -> Fact:
     """Instantiate a head atom under a binding. Every slot must be bound — `check_safety` guarantees it."""
-    s = b[head.s] if isinstance(head.s, Var) else head.s
-    o = b[head.o] if isinstance(head.o, Var) else head.o
-    return Fact(s, head.p, o)
+    return Fact(_resolve(head.s, b), _resolve(head.p, b), _resolve(head.o, b))

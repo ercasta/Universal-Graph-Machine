@@ -85,11 +85,11 @@ def test_refire_takes_a_conclusion_back_when_a_gate_shuts():
     net.propagate(Budget(limit=200))
     assert not d.derived()
 
-    src.delta = src.delta.with_facts([Fact(a, "has", key)])
+    src.adds = src.adds.with_facts([Fact(a, "has", key)])
     net.propagate(Budget(limit=200))
     assert d.derived(), "gate opens -> the conclusion appears"
 
-    src.delta = src.delta.without([Fact(a, "has", key)])
+    src.adds = src.adds.without([Fact(a, "has", key)])
     net.propagate(Budget(limit=200))
     assert not d.derived(), "gate shuts -> it is taken back by recomputation, not by retraction"
 

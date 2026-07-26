@@ -26,25 +26,37 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from . import trace as _trace
 from .match import Absent, Triple, check_safety, ground, matched as _matched, solve
-from .value import EMPTY, Fact, Subgraph
+from .value import EMPTY, Fact, Node, Subgraph, mint
+from .vocab import role as _role
 
 
 @dataclass
 class Unit:
     """One computation unit.
 
-    * `delta` — facts this unit contributes UNCONDITIONALLY. At in-degree 0 this is an axiom; at in-degree
-      1 it is a hypothesis branch adding its claim to what it carries through. Same construct.
+    **A UNIT IS A GRAPH REWRITE, AND NOTHING ON A WIRE IS A DELTA** (user correction, 2026-07-26; §5 as
+    amended, §21.1). The earlier framing — *"a fork produces several deltas applied at the join points"* —
+    described the wire content as a delta, and it was never true after §16: a rule emits a FRESH subgraph
+    (what it derived), a carrier emits its REWRITTEN VIEW. Input subgraph in, output subgraph out. The
+    consequence is a deletion rather than a rename: **§5's *"the delta must be able to REMOVE"* needs no
+    mechanism at all** — a rewrite whose output omits what the input held is just a rewrite, and *"under
+    H, not P"* is expressible because the output is a whole graph, not because a delta learned to subtract.
+
+    The two fields below are this unit's REWRITE SPEC — how it computes its view — not something that
+    travels:
+
+    * `adds` — facts this unit contributes UNCONDITIONALLY. At in-degree 0 that is an axiom; at in-degree
+      1 it is a hypothesis branch adding its claim to what it carries. Same construct (§2).
+    * `removes` — facts its rewrite does not carry forward.
     * `lhs` / `rhs` — the rule, if any. Empty means the unit only carries and contributes.
-    * `drop` — facts this unit REMOVES from what it carries (§5). Required, not incidental: *"under H,
-      not P"* against a base that holds P cannot be said without it.
     """
     name: str
     lhs: tuple = ()
     rhs: tuple = ()
-    delta: Subgraph = EMPTY
-    drop: frozenset = frozenset()
+    adds: Subgraph = EMPTY
+    removes: frozenset = frozenset()
     inputs: dict = field(default_factory=dict)      # producer name -> that producer's last output
     output: Subgraph = EMPTY
     last_derived: frozenset = frozenset()           # what THIS unit concluded on its last run
@@ -55,6 +67,14 @@ class Unit:
     #                                                 §16 and `bench/spike_subset_output.py` case 1.
     runs: int = 0                                   # times recomputed
     fired: int = 0                                  # times it DERIVED something (never equal by luck)
+
+    # -- THE SECOND WIRE (§16.6, §20). Provenance travels on its own channel and must NEVER accrete into
+    #    the object value, or §6a's exact NAF starts answering questions about the derivation instead of
+    #    about the world. Separate fields is what makes that structural rather than a discipline.
+    trace_inputs: dict = field(default_factory=dict)    # producer name -> that producer's last trace
+    trace_output: Subgraph = EMPTY
+    handle: Node | None = None                          # this unit's OPAQUE handle in the trace
+    _trace_sig: object = None                           # last (firing record, incoming trace) built from
 
     def __post_init__(self) -> None:
         if isinstance(self.rhs, Triple):
@@ -77,13 +97,13 @@ class Unit:
     # -- the computation ----------------------------------------------------
 
     def view(self) -> Subgraph:
-        """Everything this unit can see: its inputs, plus its own delta, minus what it drops. THE BOUND on
+        """Everything this unit can see: its inputs, rewritten by `adds` and `removes`. THE BOUND on
         its epistemic reach (§2b) — there is no other address it could read from."""
         v = EMPTY
         for val in self.inputs.values():
             v = v | val
-        v = v.union(self.delta)
-        return v.without(self.drop) if self.drop else v
+        v = v.union(self.adds)
+        return v.without(self.removes) if self.removes else v
 
     def run(self) -> bool:
         """Recompute from the current inputs.
@@ -114,7 +134,8 @@ class Unit:
         if self.rhs:
             for b in solve(self.lhs, view):
                 consumed = tuple(f for a in self.lhs if isinstance(a, Triple)
-                                 for f in view.by_pred(a.p) if _matched(a, f, b))
+                                 for f in (view.by_pred(a.p) if isinstance(a.p, Node) else view.facts)
+                                 if _matched(a, f, b))
                 for head in self.rhs:
                     g = ground(head, b)
                     derived.add(g)
@@ -127,16 +148,59 @@ class Unit:
         self.last_firing = tuple(firing)
         changed = new != self.output
         self.output = new
+        return self._run_trace() or changed
+
+    # -- the trace wire -----------------------------------------------------
+
+    def _run_trace(self) -> bool:
+        """Build this unit's contribution to the parallel provenance network (§16.6, §20).
+
+        **THE MINTING TRAP, and it would have broken termination silently.** A firing event needs a fresh
+        node, and a fresh node every run means the trace output differs every run, so "output unchanged"
+        — the entire termination story (§7) — never holds and propagation never quiesces. The fix is the
+        same idempotence condition one level down: **rebuild only when the FIRING RECORD or the INCOMING
+        TRACE actually changed.** Nothing else here is allowed to mint.
+
+        Note what is compared: `last_firing`, which is *conclusion + premises consumed*, not the output.
+        Two runs that reach the same conclusions from the same premises ARE the same derivation and must
+        not be re-minted; a run that reaches the same conclusion from different premises is a different
+        derivation and must be."""
+        incoming = EMPTY
+        for val in self.trace_inputs.values():
+            incoming = incoming | val
+        sig = (self.last_firing, incoming)
+        if sig == self._trace_sig:
+            return False
+        self._trace_sig = sig
+        if self.handle is None:
+            self.handle = mint(self.name)               # OPAQUE: the trace can name the unit, nothing more
+
+        # A unit traces what it INTRODUCES (a given's axiom, a branch's hypothesis) and what it DERIVES.
+        # Everything else it merely carries, and carried facts keep the firing record they arrived with —
+        # which is why the trace wire accretes while the object wire does not.
+        introduced = [f for f in self.adds if f not in incoming] if self.adds else []
+        own = _trace.firing_facts(self.handle, self.last_firing, introduced, incoming)
+        stub = _trace.supersession_stub(self.handle, self.trace_output,
+                                        set(self.last_derived) | set(introduced))
+        built = incoming.with_facts(own).with_facts(stub)
+        new = _trace.prune(built, self.output)
+        changed = new != self.trace_output
+        self.trace_output = new
         return changed
 
-    def derived(self, pred: str | None = None) -> Subgraph:
+    def why(self, f: Fact, depth: int = 8):
+        """`why P?` at this unit — a walk over the trace VALUE it holds, never over the wires (§16.6)."""
+        return _trace.explain(self.trace_output, f, depth)
+
+    def derived(self, pred=None) -> Subgraph:
         """What THIS unit concluded, RECORDED at run time rather than recovered by subtracting the view.
 
         The difference is not stylistic. Subtraction silently reports nothing whenever a unit's own
         conclusion can reach its own input — which is what an accidental cycle in the wiring produces, and
         which is exactly how this was first found. A derivation is a fact about a RUN, so it is recorded
         when the run happens."""
-        return Subgraph(f for f in self.last_derived if pred is None or f.p == pred)
+        want = None if pred is None else _role(pred)
+        return Subgraph(f for f in self.last_derived if want is None or f.p == want)
 
     def __repr__(self) -> str:
         return f"<{self.kind} {self.name} in={self.in_degree} out={len(self.output)}>"
@@ -144,7 +208,7 @@ class Unit:
 
 def given(name: str, facts) -> Unit:
     """An axiom — a unit with no input and a fixed output (§2). `given("base", [f1, f2])`."""
-    return Unit(name, delta=facts if isinstance(facts, Subgraph) else Subgraph(facts))
+    return Unit(name, adds=facts if isinstance(facts, Subgraph) else Subgraph(facts))
 
 
 def rule(name: str, lhs: tuple, rhs) -> Unit:
@@ -155,7 +219,7 @@ def rule(name: str, lhs: tuple, rhs) -> Unit:
 def branch(name: str, add=(), remove=()) -> Unit:
     """A hypothesis branch: carries its input through, adds `add`, removes `remove`. Identical machinery
     to `given` — the only difference is that something will be wired INTO it."""
-    return Unit(name, delta=Subgraph(add), drop=frozenset(remove))
+    return Unit(name, adds=Subgraph(add), removes=frozenset(remove))
 
 
 __all__ = ["Unit", "given", "rule", "branch", "Triple", "Absent", "Fact", "Subgraph"]

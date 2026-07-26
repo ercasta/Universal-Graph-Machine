@@ -39,6 +39,41 @@
 > to a different answer per work-list order, silently. Assembled nets are DAGs, so the fixpoint is
 > guaranteed — **which means the cycle guard's justification MOVED and it must not be retired.**
 >
+> **§20 TRACE NETWORK BUILT 2026-07-26 (60 green).** §16.6's reasoned replacement for §8's backward walk
+> is measured: two wires accreting in OPPOSITE directions (object = subset, trace = append-only), the
+> no-leak constraint asserted mechanically, and `why` reading what FIRED. Four findings, one of them
+> sharp: **a record of a fixpoint can destroy the fixpoint** (minting), and **§4b's minimal ATMS label
+> arrives free a second time** — a firing cites what it CONSUMED, not the chain it travelled. Closes the
+> composability complaint: a trace fact is an ordinary fact, so §17.G is unblocked. §20.4 records the ISA
+> question — in-node ISA DEFERRED (proven retrofit, cost not soundness), assembler ISA REFUSED (§8's line).
+>
+> **§21 CORRECTIONS (user, 2026-07-26).** ⚠ **THERE ARE NO DELTAS** — a unit is a graph REWRITE, input
+> subgraph in / output subgraph out, and §16 had already made the delta language obsolete without anyone
+> noticing. §5's *"the delta must be able to remove"* loses its mechanism: a rewrite that omits a fact is
+> just a rewrite. Landed as `Unit.adds`/`removes`. **And three inherited principles are now a standing
+> audit (§21.2): nameless data nodes (HELD, asserted by `Net.symbol_leaks`), labelled edges (HELD — and it
+> DIVERGES from `ugm/attrgraph.py`'s own unlabeled-edge claim, recorded not smoothed), sparse embeddings
+> (⚠ ABSENT — the real gap, and `vision.md` §13 calls the graded layer defining, not an add-on).**
+>
+> **§22 THE GRADED SUBSTRATE (user, 2026-07-26) — REASONED, NOT BUILT.** Banded likelihood steers ASSEMBLY
+> PRIORITY (safe because §17.B makes assembled nets DAGs — order cannot change the answer, only where you
+> stop; and the UNBUILT FRONTIER becomes enumerable, so *"what didn't you consider?"* rides the trace wire).
+> Likelihood must also be DATA — the carrier already exists (`last_firing`, §16.5). **⚠ 22.2a: continuous
+> degrees DESTROY THE FIXPOINT — §20.1(a) in a new costume — so a finite BAND LATTICE is load-bearing for
+> TERMINATION, not just for honest reporting.** And **role nodes replace labelled edges** (superseding
+> §21.2a): this DISSOLVES §17.E's predicate variable and retires `sym`, at the price of five
+> predicate-keyed mechanisms going graded — of which **only the JOIN/BYPASS test (§16.2) is dangerous**.
+> **§22.5 SPIKED IT (26/26): GO, and §17.E is DISSOLVED — `?s ?p ?o` falls out, coref-merge is ONE generic
+> rule, reification is the shape `trace.py` already uses. And the five mechanisms STAY CRISP** (a role node
+> is an identity), so role-nodes and similarity-matching are SEPARABLE and the dangerous half is
+> deferrable. Roles must be minted by the FORM SET (interning per utterance = §3's forbidden second
+> global). ⚠ New cost: a wildcard rule **consumes its own control predicate** — the trace-leak class on the
+> object wire, fixed by §20's own answer (control gets its own wire), not by a new inequality primitive.
+> **§22.6 LANDED IT (71 green): `Fact.p` is a node, `units/vocab.py` holds the form set's roles, and
+> `value.sym` + `Net.symbol_leaks` are RETIRED — the carve-out they policed no longer exists.** The build's
+> one defect was again a SILENT degradation (`why` returning None) rather than a crash, which is now three
+> for three.
+>
 > **§18 ATOMIC CHAINS (user), RECORDED NOT BUILT.** A contextualized concept is a chain that must not be
 > split, and the assembler splits it — measured. The conditional and the syllogism are STRUCTURALLY
 > IDENTICAL and semantically opposite, so no topological rule separates them: **the criterion is FORCE**
@@ -1027,3 +1062,436 @@ REASONED, none measured.
   evaluator composes and the PRODUCERS leak (hedge × negation drops at intake). §9 keeps intake unchanged,
   so that leak would recur here identically. What this substrate fixes is the arc that document DEFERRED —
   an open annotation set — not the leak it diagnosed.
+
+---
+
+## 20. THE TRACE NETWORK — BUILT 2026-07-26 (`units/trace.py`, spike 40/40, suite 60 green)
+
+§16.6 reasoned this and did not measure it, which made it the weakest thing on the record: a replacement
+for §8's backward walk, argued from three failures of the walk and built out of nothing. It is now built —
+`units/trace.py`, `bench/spike_trace_network.py` (40/40, stable across hash seeds), promoted to
+`tests/units/test_trace.py`. **Written in §17's spirit rather than §16's**: six of the ten cases are
+attempts to break it, and the four findings in §20.1 all come from those.
+
+**THE TWO ACCRETIONS RUN IN OPPOSITE DIRECTIONS, and that is the design rather than an inconsistency:**
+
+| wire | accretion | why |
+|---|---|---|
+| **OBJECT** | SUBSET output (§16) | a non-firing unit is a real gate; silence is a semantic act |
+| **TRACE** | APPEND-ONLY | a firing cites the firings that produced its premises; history does not gate, it accumulates |
+
+Which is exactly why they must be separate wires, and why §16.6's constraint — *the trace must never
+accrete into the object value* — is **asserted mechanically** (`Net.trace_leaks()`), in the same spirit as
+the no-import rule. The leak it prevents is precise: with provenance in the object value, §6a's `Absent`
+silently changes question, from *"is P absent from the world I was handed?"* to *"was P mentioned in the
+derivation?"* — two different questions wearing the same syntax.
+
+**Shape.** A firing event is a minted node carrying `<fired_by>` (the unit's OPAQUE handle — §16.6's L0
+constraint, tested), `<concluded>` (a conclusion handle described by `<subject>`/`<predicate>`/`<object>`),
+and one `<from>` per premise consumed, pointing at the conclusion handle upstream produced. It is built
+forward at run time from `last_firing`, pruned by reachability from the unit's current output, and read by
+`explain`. **A given has no `<from>`** — so *"you told me"* is not a special case in `why`, it is §2's
+in-degree taxonomy showing through the trace.
+
+**One primitive was needed and it is small:** `value.sym(name)` — a node equal by name, `nid=0`, because a
+predicate has to occupy a node slot in a firing record. **The boundary is exact and load-bearing:** `mint`
+makes ENTITIES, never equal by name (§5); `sym` makes SYMBOLS from the predicate space, which `Fact.p` and
+`Net`'s index already share globally. Crucially it introduces **no registry** — equality falls out of the
+dataclass — because a predicate table would be the second global structure §3 forbids.
+
+### 20.1 Four things building it found that reasoning it did not
+
+**(a) MINTING A FIRING NODE ALMOST DESTROYED TERMINATION.** Every firing needs a fresh node; a fresh node
+per RUN means the trace output differs on every run, so *"output unchanged"* — the whole of §7's
+termination story — never holds and propagation cannot quiesce. **The fix is the same idempotence
+condition one level down:** rebuild the trace only when the FIRING RECORD or the INCOMING TRACE changed.
+Note what is compared — `last_firing`, i.e. *conclusion + premises consumed*, not the output: two runs
+reaching the same conclusion from the same premises are the same derivation and must not be re-minted;
+the same conclusion from different premises is a different derivation and must be. **A record of a
+fixpoint can destroy the fixpoint**, and nothing in §16.6's reasoning could have surfaced that.
+
+**(b) STUB LIFETIME IS MEASURED IN REVISIONS, NOT IN RUNS** — and the first test asserted the opposite and
+failed, correctly. An idle run rebuilds nothing, so the supersession stub stays; that is right, because
+*"why did you change your mind?"* stays answerable exactly as long as the mind has not changed again. What
+must not happen is ACCUMULATION, and it does not: a rebuild starts from the incoming trace, so last
+generation's stubs are gone and only conclusions withdrawn at THIS revision get one. §16.6's *"a small
+stub"* is thus a property of the rebuild, not of a collector.
+
+**(c) ⭐ §4b's MINIMAL LABEL ARRIVES FREE — the strongest result here.** The sibling-hypothesis test first
+asserted that both explanations bottom out in `base`. They do not, and they must not: `seen_as penguin`
+was derived from `is_a penguin` alone, so base is not among its premises **even though the value flowed
+through it**. A firing cites what it CONSUMED, not the chain it travelled. §4b said the topology computes
+the minimal ATMS label by having one instance per environment; the trace turns out to compute it a second
+way, per CONCLUSION, as a side effect of recording the run. The expensive part of de Kleer's algorithm,
+twice over, from two unrelated mechanisms.
+
+**(d) EXPLANATION ORDER WAS HASH-SEED DEPENDENT.** Premises live in a frozenset, so the walk's SHAPE
+varied per run — [[perf-hash-seed-sensitivity]] in a new place, found the way that lesson says it is
+always found: a probe that passed and then did not. `explain` sorts; the suite runs clean under several
+seeds. An explanation a user reads twice must read the same twice.
+
+### 20.2 What it closes, and it is the composability complaint
+
+**A trace fact is an ordinary fact, so an ordinary unit reads firing events with NO NEW CONSTRUCT** —
+measured. That is the claim §17.G rests on: a stability event is a fact about a run, so a unit firing on
+one is just a trace-consuming unit, and §6b's *"P is not derivable at all"* stops living in the Python
+driver as an unreachable island ([[composability-principle]]). §17.G is now unblocked, and it should be
+built next or not at all — a stability unit DESTABILISES, so it needs stratification designed in rather
+than discovered ([[stratification-both-engines]]).
+
+It also retires §8's backward walk as the answer to `why`, in favour of a forward record, and closes the
+`why` entry in §9's *genuinely new* column.
+
+### 20.3 Honest scope
+
+`why P?` is a Python reader (`explain`), not yet a sink unit — §16.6 places it as a sink on trace wires,
+and expressing the recursive walk as units needs unrolling, which is real work and is not done. **The
+ASSEMBLER does not know about trace wires**: they follow the object topology exactly, which is right for
+every case measured but is an assumption, not a result. No scale (nets under ten units), no interaction
+with fuel pressure, and the supersession stub has been exercised over three revisions rather than a
+session. §12's last risk stands where it always does: this section reports one primitive, four findings,
+and no new mechanism, which is the same ratio every section before it reported.
+
+### 20.4 THE ISA QUESTION — asked and answered, so it is not re-raised as an oversight
+
+Raised by the user, 2026-07-26: should `units/` keep `ugm/`'s discipline of ISA + firmware rather than
+Python — an ISA for in-node computation, and separate machinery for assembling the network? **The two
+halves get opposite answers, and the second is the interesting one.**
+
+**IN-NODE ISA — right, and safe to defer.** §2b already found the opcodes nearly intact
+(`SEED`/`FOLLOW`/`TEST`/`JOIN` are *match a subgraph*, `MINT`/`EMIT` are *produce one*), and §9 lists the
+lowering compiler under *survives*. But there is **no unreachable island in the in-node path today**: a
+`Triple`/`Absent` LHS is already authored DATA, and `solve` is a pure function of it over a bounded value,
+so nothing about a unit's semantics is hardcoded in a way a rule could not say. **The discriminator is on
+the record in this very document:** §5's structural sharing was upgraded from cost to correctness because
+retrofitting it would be WRONG; the ISA is the opposite case, and [[lowering-compliance-pass]] is a proven
+retrofit in this repo. **Deferring risks cost, not soundness — so defer**, with the trigger written down:
+the first unit that must observe or emit another unit's PROGRAM (metareasoning, §8), or the first
+`SUSPEND` ([[procedures-tool-boundary]]). Until then, keep `solve` a pure function of pattern-as-data over
+a bounded value, which is what makes the later lowering a compiler rather than a rewrite.
+
+**ASSEMBLER ISA — refused, and not on grounds of cost.** §8 draws the line: flowing subgraphs are content
+and units may observe them; **the assembler's choice of what to wire next is policy and units may not**.
+§16.6 then dropped metarules deliberately to keep that line absolute. An assembler ISA is therefore not
+deferred work, it is re-crossing a line drawn a day earlier — dynamic scoping in a new costume, exactly as
+§8 predicts. **And the composability worry behind the question is real and was already recorded** (§17.G:
+the fuel judgement living in the Python driver). Its answer is this section's own subject: make the
+assembler **OBSERVABLE, not writable** — its decisions become firing events on the trace wire, and a unit
+that reads them is ordinary. Read-only reflection closes the island while §8's line stays intact.
+
+Parked honestly, unchanged from §16.6: a *policy* authored mid-conversation still has nowhere to land. If
+that ever bites for real, reopening the assembler ISA is a deliberate crossing of §8's line — not the
+correction of an oversight.
+
+---
+
+## 21. CORRECTIONS AND INHERITED PRINCIPLES (user, 2026-07-26)
+
+### 21.1 ⚠ THERE ARE NO DELTAS — a unit is a graph REWRITE
+
+> **The user's correction:** *"our doc states computation units output deltas. It's not true. Computation
+> units output a rewritten subgraph, there is no 'delta' to manage."*
+
+Correct, and the framing was already obsolete rather than merely loose. §4 said *"a fork produces several
+deltas that are applied at the join points"* and §5 was titled *"deltas that can remove"* — but **§16
+settled this without anyone noticing the older language had stopped applying**: a rule emits a FRESH
+subgraph (what it derived), a carrier emits its REWRITTEN VIEW. **Input subgraph in, output subgraph out.
+Nothing on a wire is a delta, and there is nothing to apply.**
+
+**The consequence is a deletion, not a rename.** §5's *"the delta must be able to REMOVE and OVERRIDE, not
+only add"* named a requirement that no longer needs a mechanism: a rewrite whose output does not carry an
+input fact forward is just a rewrite. *"Under H, not P"* is expressible **because the output is a whole
+graph**, not because a delta learned to subtract. Read §5 that way; the paragraph stands, its reason
+changes, and one construct disappears.
+
+This also puts the design where §11 already said its ancestors were — **graph rewriting** (double-pushout,
+GrGen, Groove) — rather than in the delta/patch family it had been drifting toward in the prose.
+
+**Landed in the code**, because a correction that lives only in prose is how the drift happened: `Unit`'s
+fields are now `adds`/`removes` and are documented as **this unit's rewrite spec — how it computes its
+view — not something that travels** (61 green). What remains genuinely a delta is nowhere.
+
+### 21.2 THE INHERITED SUBSTRATE PRINCIPLES — and `units/` is 1½ of 3
+
+> **The user's directive:** *"Let's not lose the good principles from ugm: nodes in the data graph must be
+> nameless, edges must be labelled, and sparse embeddings are used."*
+
+A standing constraint on this substrate, audited honestly rather than assumed:
+
+| principle | `units/` today | |
+|---|---|---|
+| **nameless data nodes** | **HELD, and now asserted** | `Node.nid` is identity; `name` is a debug label that no matcher reads (`_bind` compares identity — §5). The one name-equal construct, `value.sym`, exists only for predicates in firing records, and `Net.symbol_leaks()` now refuses it in any object value. |
+| **labelled edges** | **HELD — and it DIVERGES from `ugm/`, see below** | `Fact(s, p: str, o)` puts the predicate on the edge. |
+| **sparse embeddings** | ⚠ **ABSENT — the real gap** | `units/` has no graded layer at all: no degrees on facts, no embedding dimensions on nodes, no α-cut, no similarity. |
+
+**(a) The edge-label divergence is real and should not be smoothed over.** `ugm/attrgraph.py`'s own
+docstring says the opposite of the directive: *"a node carries NO label and NO name… **Edges are directed
+and unlabeled**. All discrimination that used to live in node-names and edge-predicates now lives in
+`(attributes + directed topology)`"* — with relations reified neo-Davidsonian, the predicate living as a
+graded attribute on an event node. `units/` has never worked that way: it is S-P-O with the predicate ON
+the edge, which is also what [[spo-directed-path-no-labeled-edges]] preserved (that memory rejects
+ROLE-labelled edges, not predicates). **So the directive matches what `units/` does and departs from what
+`ugm/attrgraph.py` says it does.** Recorded as the deliberate divergence it is, and worth noting it is
+also what makes §3's index cheap: a predicate on the edge is exactly what the LHS/RHS index keys on. What
+`ugm/` bought with reification — n-ary facts, roles, facts-in-slots — is the same capability §17.E already
+flags as the missing primitive, reached from a third direction.
+
+**(b) Sparse embeddings are the substantive gap, and it is bigger than an add-on.** `docs/vision.md` §13
+calls the graded layer *"one of the system's defining features, not an add-on"*, and
+[[possibilistic-layer]] is a completed arc in `ugm/`: banded reasoning, θ dial, gradable comparatives,
+defeasible guess. `units/` matches crisply and derives crisply. Three specific things are missing, and
+they are separable:
+
+1. **A degree on a fact**, and the semiring `vision.md` §13 already specifies — derived confidence =
+   `(matched confidences) ⊗ (rule prior) ⊗ (embedding match degree)`. On this substrate that has an
+   unusually clean home: it is exactly what `Unit.last_firing` records (§16.5 built it for band
+   inheritance and then only used it for annotations), so the semiring is **one generic computation over
+   the firing record**, not a clause per template.
+2. **Sparse embeddings on nodes** + `recall.py`'s cosine — note `profile()` there builds a node's vector
+   from its `pred:object` relations, which is *bounded local enumeration over a value* here and needs no
+   global index. It may port almost unchanged.
+3. **Graded matching** (α-cut / t-norm) in `solve` — the one place it touches the matcher, and therefore
+   the one to design rather than bolt on.
+
+**Not built, and deliberately not started in the same turn as the correction that revealed it.** The
+honest sequencing question is whether the graded layer comes before or after §17.G (stability units), and
+they are independent. Recorded as the next substantive slice.
+
+---
+
+## 22. THE GRADED SUBSTRATE — banded reasoning, role nodes, fuzzy matching (user, 2026-07-26; REASONED)
+
+> **The user's three moves, and they are one move:** (1) banded likelihood must steer **which units get
+> built first** — unlikely chains enumerated but not built until thinking harder; (2) likelihood must be
+> **carried in the data via sparse embeddings**, or downstream units cannot reason OVER it; (3) **edges
+> need no labels after all** — predicates become **role nodes characterized by embeddings**, and the
+> uniformity of the data substrate is what makes graded reasoning easy.
+
+This supersedes §21.2(a)'s labelled-edge divergence: `units/` moves TOWARD `ugm/attrgraph.py`'s
+label-less, reified shape rather than away from it. All REASONED, none measured.
+
+### 22.1 Likelihood as ASSEMBLY PRIORITY — safe, and the reason is already proved
+
+§6 forbids scheduling policy leaking into semantics, so this deserves the objection before the agreement.
+It survives, and **§17.B is why**:
+
+> An assembled net is a **DAG**, so it has a guaranteed fixpoint. **Order of assembly therefore cannot
+> change the answer — only how much of the answer you have reached when you stop.** Priority is a pure
+> scheduling choice over a confluent process; the only semantic content is WHERE YOU STOP, and that is
+> already `fuel.Verdict`, which refuses to collapse UNKNOWN into NO.
+
+So this is not a new hazard, it is the existing one with a better policy attached. §4b said lazy spawn is
+*"the single most important thing to preserve"* for containing the ATMS exponential; **priority-ordered
+assembly is strictly stronger containment** — not merely "don't build unexplored environments" but
+"explore them in order of expected payoff". §4b's cost model should be updated to say so.
+
+**⭐ AND IT BUYS A CAPABILITY NO BLACKBOARD CAN OFFER: the unbuilt frontier is ENUMERABLE.** *"Enumerate
+them but don't build them"* means the assembler holds a set of wires it COULD make and declined. That set
+is a first-class answer to *"what did you not consider?"* — and it belongs on the **trace wire** (§20),
+where *"why didn't you think about X?"* is answered by the same mechanism as *"why do you believe P?"*.
+One network, two questions. This is the strongest argument for the proposal and it was not among the
+reasons given for it.
+
+**Two cautions, both real:**
+
+- **NAF taken early is provisional.** A unit doing exact NAF over its wire (§6a) can fire before a
+  low-priority producer is assembled. §6b already identified this shape and §7's REFIRE already fixes it —
+  but priority-ordered assembly moves MANY more conclusions into the provisional class, so §6's *"the two
+  negations must be MARKED DIFFERENTLY"* stops being a nicety and becomes the load-bearing part.
+- **⚠ PRIORITY BY DERIVED DEGREE IS A FEEDBACK LOOP.** If the assembler reads likelihood off values, and
+  likelihood is itself derived by units, then units influence assembly — indirectly, but they do. That is
+  the same shape as §17.G's *"firing on stability DESTABILISES"*, and it needs the same answer:
+  stratification, designed in ([[stratification-both-engines]]). It does not cross §8's line (units still
+  never touch wiring) but it stands right next to it.
+
+### 22.2 Likelihood as DATA — the carrier already exists, and the trap is the fixpoint
+
+Right, and half of it is built. §16.5 found that **the premise's band was carried forward and never
+attached to the conclusion** — a reader found it *somewhere in the value*, by luck — and built
+`Unit.last_firing` (conclusion ↦ premises consumed) precisely so annotation inheritance could be **one
+generic rule over the firing record** rather than a clause per template. Degree inheritance is that rule.
+What is missing is the degree itself.
+
+**Keep `vision.md` §13's two channels distinct; collapsing them loses the semiring.**
+
+| channel | what it is | where it lives |
+|---|---|---|
+| **quantitative** | confidence/probability; the SEMIRING `(matched confidences) ⊗ (rule prior) ⊗ (match degree)` | computed at firing, from `last_firing` |
+| **qualitative** | *likely*, *urgent*, *fairly tall* — directions in a sparse named space | embedding dimensions on nodes |
+
+The user's *"otherwise downstream units can't reason over likeliness"* is about the SECOND: a band must be
+an ordinary graded dimension so a unit matches on *likely* exactly as it matches on *tall*. That is
+[[composability-principle]] applied to degree, and it is what
+`composition_architecture.md` deferred as *"a separate, larger arc"* because band and scope were threaded
+as **Python parameters**. On this substrate they are ordinary facts, so the arc is free — §16.5 already
+banked that argument.
+
+**Mechanism vs policy** ([[mechanism-policy-separation]]): the ⊗ at firing time is ENGINE; **which**
+semiring, the priors, and which dimensions exist are DATA.
+
+> ### ⚠ 22.2a THE FIXPOINT TRAP — and it is §20.1(a) again, in a new costume
+>
+> §7's termination is *"output unchanged"*. **A continuous degree that shifts by ε on re-derivation means
+> the output never stops changing, and propagation never quiesces.** Two facts differing only in degree are
+> different members of a frozenset, so equality — the entire termination story — silently stops holding.
+> This is the exact class of bug the trace network hit when every run minted a fresh firing node: **a
+> quantity that varies per run destroys the fixpoint it is recording.** It will bite, and it will look like
+> a hang rather than like a wrong answer.
+>
+> **A FINITE BAND LATTICE is what makes it safe**, because a monotone map on a finite lattice reaches a
+> fixpoint in bounded steps. So [[possibilistic-layer]]'s choice of BANDS over continuous degrees should
+> now be read as **load-bearing for TERMINATION**, not merely as honest reporting — which is a stronger
+> justification than that arc originally had. Continuous embeddings stay safe only where they do NOT
+> participate in the value compared for change: minted-with-the-node is fine, derived-per-run is not.
+
+### 22.3 Role nodes — the cost is five mechanisms, and the payoff is a primitive DISSOLVED
+
+Accepted, and it is a bigger win than the argument given for it.
+
+**⭐ IT DISSOLVES §17.E's PREDICATE VARIABLE — the hole hit three times independently.** If a predicate is
+a NODE, then `?s ?p ?o` needs no new primitive: `?p` is an ordinary node variable. Coref-merge as a unit
+(§17.D) and entity boundaries as data (§17.E) both become expressible, and `form_inventory.md` §9's
+combinatorial explosion — a coref-aware clause per template — is avoided. §17.E recommended BUILDING that
+primitive; **this proposal removes the need for it instead**, which is the better outcome and was not
+among the reasons offered.
+
+**It also retires `value.sym` and §21.2's guard.** The `nid=0` name-equal symbol existed only because a
+predicate had to occupy a node slot in a firing record. With role nodes there is no exception to guard:
+the data graph is nameless *uniformly*, and `Net.symbol_leaks()` becomes vacuous rather than necessary.
+Three constructs removed by one change is the shape of a correct simplification rather than a clever one.
+
+**THE PRICE, stated precisely: five mechanisms key on PREDICATE IDENTITY and every one becomes graded.**
+
+| # | mechanism | today | under role nodes |
+|---|---|---|---|
+| 1 | `Subgraph.by_pred` — the bounded local index | dict lookup | similarity over role embeddings |
+| 2 | `Net.lhs_index` / `rhs_index` — the ONE global structure (§3) | keyed by predicate string | an α-cut over role similarity |
+| 3 | projection dedup (§15.1c) — *the predicates the template READS* | set intersection | graded projection |
+| 4 | `_complete_lhs`'s `need` / `supplied` | set difference | graded satisfaction |
+| 5 | **the JOIN/BYPASS test (§16.2)** | *does a chain unit GATE this predicate?* | **a graded semantic guard** |
+
+> **⚠ THIS TABLE IS CORRECTED BY §22.5, which measured it.** All five stay CRISP when predicates become
+> nodes, because a role node is an IDENTITY. They go graded only when SIMILARITY MATCHING arrives — a
+> separate, later decision. Read the right-hand column as *"under similarity matching"*, not *"under role
+> nodes"*. The distinction is the difference between one free change and one dangerous one.
+
+Rows 1–4 are fine and arguably better: §3.1 already demands the index be **a cheap NECESSARY CONDITION,
+never exact** — *wake broadly, fire narrowly* — and a cosine threshold is exactly that. §10.5 asked
+whether predicate-level keys stay selective under real grammar; this replaces that question with a
+measurable one (what α?), which is progress, and §19's *"a small form set makes selectivity WORSE"* now
+has a dial rather than a wall.
+
+**Row 5 is the sharp risk and should not be waved through.** §16.2 established that a bypass is a
+**semantic change**, not a shortcut — the whole of scope-by-deactivation rests on it. Making that test
+graded means *"is this a bypass?"* becomes a matter of degree, and a guard that is 0.6 sure it is being
+defeated is not obviously a guard. **This is the one place where the uniformity argument may cost more
+than it pays**, and it should be measured before it is adopted, not after.
+
+### 22.4 Why the three are ONE move, and the sequencing that follows
+
+They are not three features. **Role nodes make the substrate uniformly graded; a uniformly graded
+substrate is what lets a band be ordinary data; and a band as ordinary data is what an assembler can read
+to prioritise.** Do them in the other order and each one needs a special case: band as a Python parameter
+(what `composition_architecture.md` is stuck with), priority as a privileged channel, similarity as an
+exception in the index. **The user's *"uniformity makes it easier"* is the load-bearing claim, not a
+motivation for it.**
+
+Proposed order, cheapest-decisive first:
+
+1. **Spike the predicate-as-node dissolution** (§22.3) — ~30 lines, a yes/no, and it unblocks §17.D/E.
+   If `?s ?p ?o` does not fall out, the rest of this section is built on sand.
+2. **Bands as a finite lattice + degree inheritance over `last_firing`** (§22.2) — with 22.2a's
+   termination check as the FIRST test written, not the last.
+3. **Sparse embeddings + graded matching** (§21.2b) — α-cut in `solve`, `ugm/recall.py`'s cosine ported.
+4. **Graded index + assembly priority** (§22.1, §22.3 rows 1–4), with the unbuilt frontier on the trace
+   wire — and **row 5 measured separately** before the bypass test is allowed to go graded.
+
+**Honest status: §§22.1–22.4 are REASONED, and §22.5 is the first of them measured**, which by this
+document's own standard leaves the rest the weakest material in the file — the same standing §16.6 had
+before §20 tested it and found four things the reasoning had missed. The ratio held: see below.
+
+### 22.5 SPIKED 2026-07-26 — predicate-as-node (`bench/spike_predicate_as_node.py`, 26/26)
+
+§22.4's step 1, run first because if `?s ?p ?o` did not fall out the rest of §22 was built on sand. A
+standalone model: **`units/match.solve` with the special case for `p` DELETED**, and nothing else changed.
+
+**VERDICT: GO — and §17.E is DISSOLVED rather than deferred.**
+
+| | measured |
+|---|---|
+| `?s ?p ?o` expressible | **yes** — `?p` is an ordinary node variable; safety is the SAME rule (an unbound head predicate is still refused, by the check that already exists) |
+| coref-merge as one generic unit (§17.D) | **yes** — subject and object substitution, two atoms each, no clause per template |
+| facts in node slots (§17.E) | **yes** — and it is **the same shape `units/trace.py` already uses** for a conclusion handle (`describe`: subject/predicate/object over a minted handle) |
+
+That last row is the third independent arrival at one construct: the trace network built reification
+without calling it that, and §17.E's *"entity boundaries as data"* needs exactly it.
+
+**⭐ CORRECTION TO §22.3 — the two changes are SEPARABLE, and the dangerous one is DEFERRABLE.** §22.3
+assumed all five predicate-keyed mechanisms go graded the moment predicates become nodes. **They do not.**
+A role node is an IDENTITY, so `by_pred` still indexes crisply (measured: 50 candidates from 100 facts),
+and the join/bypass test is still a crisp set operation over node identities. **The five mechanisms go
+graded only when SIMILARITY MATCHING arrives — which is a later and separate decision.** So §22.3's one
+real risk (row 5: a graded *semantic* guard) does not have to be taken to get §17.E's payoff, and it
+should not be. The two halves of the user's edge proposal are independent, and this one is free.
+
+**⭐ ROLE IDENTITY MUST COME FROM THE FORM SET.** Two independently minted `likes` nodes do not match —
+namelessness applied to roles, exactly as §21.2 requires of entities. So roles cannot be interned per
+utterance: **a registry keyed on the surface word would be §3's forbidden second global structure.** Roles
+are minted by the FORM SET at load (§16.6's L0), and templates reference them. Which locates the job for
+embeddings far more precisely than §22 did: **not "everything becomes graded", but "a NOVEL role must be
+related to the roles the form set already has"**. That is the whole of it, and it is a much smaller claim.
+
+**⚠ THE NEW COST, and it is the trace-leak class arriving on the object wire.** A `?s ?p ?o` rule has no
+predicate to key on, so it matched the very `same_as` fact that LICENSES it and derived a reflexive
+`mary same_as mary` from nothing. Generalised:
+
+> **A generic rule cannot tell the object language from the control vocabulary that drives it.**
+
+Two fixes, and the choice matters. An inequality guard (`?p != same_as`) works — measured — but is **a new
+primitive the substrate does not have**, and it puts the control vocabulary into every generic rule by
+hand. **The other fix is the one §20 already built and justified: put control on its OWN WIRE.** That is
+the same argument as `Net.trace_leaks()` — provenance on the object wire makes `Absent` change question;
+control vocabulary on the object wire makes a wildcard rule consume its own licence. One mechanism, two
+uses, and the second is evidence the first was not a special case.
+
+**Two smaller findings, both about the wildcard:**
+
+- **It defeats the index** (measured: a `?s ?p ?o` rule binds *everything*). §10.5's selectivity question,
+  made concrete and uncomfortable: **the generic rule that avoids `form_inventory.md` §9's combinatorial
+  explosion is the same rule that makes "wake broadly" mean "wake always".** Those pull against each other
+  exactly as §19 said minimality and selectivity do.
+- **It can trip §17.A from any producer.** A wildcard consumer wired to both a branch and its ancestor
+  re-supplies whatever the branch dropped, for every predicate at once. `restores_a_drop` and
+  `wellformed()` therefore become MORE load-bearing under predicate variables, not less.
+
+**Revised order for the rest of §22**, given the above: take predicate-as-node NOW (it is free, and it
+dissolves a recorded blocker), keep the index crisp, and treat similarity matching as a separate arc whose
+first job is novel-role relating rather than a wholesale move to fuzzy matching.
+
+### 22.6 LANDED 2026-07-26 — `Fact.p` is a node (`units/vocab.py`, 71 green)
+
+Promoted to `tests/units/test_roles.py`. `ugm/` untouched, no-import rule intact.
+
+| | |
+|---|---|
+| **new** | `units/vocab.py` — `Vocabulary`, the roles ONE FORM SET supplies. A `str` in a predicate slot resolves through it at construction, so call sites read unchanged. |
+| **retired** | `value.sym` and `Net.symbol_leaks` — **both existed only because a predicate needed a node slot in a firing record.** With roles as real nodes, namelessness (§21.2) is UNIFORM and there is no carve-out left to police. |
+| **uniform** | `Triple`'s three slots, `_bind`, `ground`, `matched`, `_holds` — each lost its predicate special case rather than gaining a branch. The diff is a DELETION. |
+| **explicit** | a variable role contributes NO index key, in `spawn`, `need` and `gated` alike. The wildcard's cost is visible in the code, not hidden by a default. |
+
+**The discipline `vocab.py` exists to state**, since a `Vocabulary` looks like the registry §22.5 forbids:
+**a FORM may mint a role; an UTTERANCE may not.** Interning surface words at intake would fuse two
+utterances of *"likes"* by name — the abolished label, returning through the one door left open. There is
+no intake here yet, so the rule is documented and not yet assertable; it is the first thing to make
+mechanical when intake arrives.
+
+**⚠ ONE DEFECT IN THE BUILD, and it is this file's recurring shape.** The trace vocabulary was left as
+strings while `Fact.p` became a node, so `prune` compared a node against a string constant, matched
+nothing, and kept nothing — and `why` **silently returned None** rather than failing. Same class as
+§15.2's subtraction-based `derived` and §20.1(a)'s minting trap: **the failure mode of this substrate is
+consistently a quiet degradation, never a crash.** The fix was to make the trace vocabulary role nodes
+outright, which is also what makes a trace fact ordinary (§20.2).
+
+**What did NOT change, and it is the point of §22.5's correction:** the index, projection dedup,
+`_complete_lhs`, and §16.2's join/bypass test are all still crisp identity tests. Similarity matching
+remains unbuilt and unneeded so far.

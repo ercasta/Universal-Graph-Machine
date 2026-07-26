@@ -52,15 +52,27 @@ def mint(name: str = "") -> Node:
 
 @dataclass(frozen=True)
 class Fact:
-    """A subject-predicate-object triple. The predicate is a string; subject and object are nodes — the
-    S-P-O-as-a-directed-path commitment survives the inversion unchanged
-    ([[spo-directed-path-no-labeled-edges]])."""
+    """A subject-predicate-object triple in which **ALL THREE SLOTS ARE NODES** (§22.3, §22.5).
+
+    The predicate is a ROLE NODE, not a string. S-P-O as a directed path survives unchanged
+    ([[spo-directed-path-no-labeled-edges]] rejects ROLE-LABELLED edges, not predicates) — what changes is
+    that the predicate is now the same kind of thing as its endpoints, which is what makes `?s ?p ?o`
+    expressible with no new primitive.
+
+    A `str` is resolved through the default form set at construction (`vocab.role`), so call sites read
+    the same; **where that resolution is allowed to happen is the whole discipline**, and `vocab` states
+    it: a form may mint a role, an utterance may not."""
     s: Node
-    p: str
+    p: Node
     o: Node
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.p, Node):
+            from .vocab import role
+            object.__setattr__(self, "p", role(self.p))
+
     def __repr__(self) -> str:
-        return f"{self.s} {self.p} {self.o}"
+        return f"{self.s} {self.p.name} {self.o}"
 
 
 class Subgraph:
@@ -82,8 +94,14 @@ class Subgraph:
     def facts(self) -> frozenset:
         return self._facts
 
-    def by_pred(self, p: str) -> tuple:
-        """Facts with predicate `p`. The bounded local index — the reason matching here is not a scan."""
+    def by_pred(self, p) -> tuple:
+        """Facts with role `p` — a role node, or a name resolved through the form set. The bounded local
+        index, and note it stays CRISP under §22.3: a role is an IDENTITY, so this is still a dict lookup
+        and not a similarity search. §22.5 measured that the five predicate-keyed mechanisms go graded
+        only when similarity matching arrives, which is a separate decision."""
+        if not isinstance(p, Node) and p is not None:
+            from .vocab import role
+            p = role(p)
         if self._index is None:
             idx: dict = {}
             for f in self._facts:
@@ -110,7 +128,8 @@ class Subgraph:
         return self if add <= self._facts else Subgraph(self._facts | add)
 
     def without(self, facts: Iterable[Fact]) -> "Subgraph":
-        """REMOVAL, and it is required rather than incidental (§5): a delta must be able to override, or
+        """OMISSION — what a REWRITE does when its output does not carry an input fact forward (§21.1).
+        It is required rather than incidental (§5): without it,
         *"under H, not P"* against a base that holds P — most of what a hypothesis is for — cannot be
         expressed. Note this makes the value on a wire NON-MONOTONE while each unit stays a pure function,
         which is safe here only because nothing is shared: downstream recomputes, nothing is retracted."""

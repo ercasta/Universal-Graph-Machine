@@ -9,6 +9,7 @@ from units.match import Triple, Var
 from units.net import Net
 from units.unit import Unit, branch, given, rule
 from units.value import Fact, Subgraph, mint
+from units.vocab import role
 
 X, Y, Z = Var("x"), Var("y"), Var("z")
 
@@ -23,7 +24,7 @@ def test_a_rule_emits_only_its_conclusion():
     r = net.spawn(rule("R", (Triple(X, "next", Y),), Triple(X, "reaches", Y)))
     net.wire("src", "R")
     net.propagate(Budget(limit=100))
-    assert r.output.predicates() == {"reaches"}, "a rule must not re-emit what it read"
+    assert r.output.predicates() == {role("reaches")}, "a rule must not re-emit what it read"
     assert Fact(a, "next", b) not in r.output
 
 

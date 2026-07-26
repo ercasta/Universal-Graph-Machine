@@ -7,7 +7,7 @@ silently.
 """
 from __future__ import annotations
 
-from units import Budget, Fact, Net, Triple, Unit, Var, branch, given, mint
+from units import FORMS, Budget, Fact, Net, Triple, Unit, Var, branch, given, mint, role
 
 X, Y, Z = Var("x"), Var("y"), Var("z")
 LHS = (Triple(X, "likes", Y), Triple(Y, "is", Z))
@@ -163,5 +163,10 @@ def test_the_only_global_structure_is_the_unit_index():
     net.declare("E", LHS, RHS)
     net.run(Budget(limit=200))
     keys = set(net.lhs_index) | set(net.rhs_index)
-    assert keys and all(isinstance(k, str) for k in keys)
-    assert keys <= {"likes", "is", "admires"}
+    # Since §22.5 the keys are ROLE NODES rather than strings — and the claim sharpens rather than
+    # weakens: they must be roles the FORM SET supplies (L0), never ENTITY identities from the data.
+    assert keys and all(FORMS.known(k.name) for k in keys)
+    entities = ({f.s for u in net.units.values() for f in u.output}
+                | {f.o for u in net.units.values() for f in u.output})
+    assert not (keys & entities), "the index must never key on a datum"
+    assert {k.name for k in keys} <= {"likes", "is", "admires"}

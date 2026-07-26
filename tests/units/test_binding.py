@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from units import Absent, Fact, Net, Subgraph, Triple, Unit, UnsafePattern, Var, branch, given, mint
+from units import Absent, Fact, Net, Subgraph, Triple, Unit, UnsafePattern, Var, branch, given, mint, role
 
 X, Y, Z = Var("x"), Var("y"), Var("z")
 ADMIRES = ((Triple(X, "likes", Y), Triple(Y, "is", Z)), Triple(X, "admires", Z))
@@ -28,8 +28,8 @@ def test_two_place_join_is_exact_where_marker_passing_cross_products():
                      Fact(mary, "is", rich), Fact(sue, "is", poor)])
 
     # marker passing: mark, follow, conclude. No bindings anywhere, so no correlation.
-    marked_x = {f.s for f in view if f.p == "likes"}
-    marked_y = {f.o for f in view if f.p == "likes"}
+    marked_x = {f.s for f in view if f.p == role("likes")}
+    marked_y = {f.o for f in view if f.p == role("likes")}
     marked_z = {f.o for f in view.by_pred("is") if f.s in marked_y}
     markers = {(x.name, z.name) for x in marked_x for z in marked_z}
 
