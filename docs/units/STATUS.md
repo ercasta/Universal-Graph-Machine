@@ -4,6 +4,15 @@
 
 **Last updated:** 2026-07-26 · **Suite:** 174 green (`pytest tests/units`)
 
+> ⚠ **SUPERSEDED BY `docs/units/model.md` (2026-07-26).** The model this page reports progress against has been
+> replaced: data is the substrate, computation is a transient circuit, matching is graded, scope is physical
+> nesting, and there is no interpretation stage. Everything below describes the *previous* model and is accurate
+> only as history. `model.md` §"What carries over from `ugm`" lists what survives and which decisions are
+> contradicted.
+>
+> **Pending your call:** what happens to the existing `units/` code and its 174 tests, most of which test the
+> superseded model. Until that is decided this page is not rewritten.
+
 ---
 
 ## Now
