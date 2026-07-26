@@ -9,6 +9,13 @@ Consequences. `Status` is one of *Accepted*, *Deferred*, *Designed, not built*, 
 **These records are not a changelog.** They say why the system is the way it is. For what it *is*, read
 `../reference.md`; for what is happening now, `../STATUS.md`.
 
+## The principle
+
+| | |
+|---|---|
+| [0039](0039-guards-yes-kinds-no-the-uniformity-principle-and-its-price.md) | **Guards yes, kinds no** — the uniformity principle and its price |
+| [0040](0040-the-fact-layout-is-edge-labelled-the-semantics-are-path-fait.md) | The fact layout is edge-labelled; the semantics are path-faithful |
+
 ## Foundations
 
 | | |
@@ -32,6 +39,7 @@ Consequences. `Status` is one of *Accepted*, *Deferred*, *Designed, not built*, 
 | [0023](0023-what-may-start-a-computation-and-what-distinguishes-two-of-t.md) | Trigger vs projection are different questions |
 | [0024](0024-the-object-trace-fork-test-must-be-positive.md) | The object/trace fork test must be positive |
 | [0025](0025-wildcard-topology-must-be-authored-not-inferred.md) | Wildcard topology must be authored |
+| [0038](0038-only-a-carrier-can-fork-a-world.md) | **Only a carrier can fork a world** — amends 0006 |
 
 ## What flows
 
@@ -63,6 +71,10 @@ Consequences. `Status` is one of *Accepted*, *Deferred*, *Designed, not built*, 
 | [0026](0026-the-lexeme-is-the-licensed-bridge-entities-stay-nameless.md) | The lexeme is the licensed bridge |
 | [0027](0027-a-missing-relation-between-terms-is-a-missing-fact-not-a-mis.md) | A missing relation is a missing fact |
 | [0028](0028-decide-reference-asymmetrically-then-symmetrise.md) | Decide asymmetrically, then symmetrise |
+| [0035](0035-a-description-identifies-rather-than-constitutes-a-selector.md) | A description identifies rather than constitutes |
+| [0036](0036-the-expression-authors-the-topology-selector-chains-are-asse.md) | **The expression authors the topology** |
+| [0037](0037-an-utterance-enters-as-a-carrier-downstream-of-the-kb.md) | An utterance enters as a carrier below the KB |
+| [0041](0041-calls-are-positional-not-role-labelled.md) | Calls are positional, not role-labelled |
 
 ## Open, or designed and not built
 

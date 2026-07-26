@@ -1,6 +1,6 @@
 # 0006. A producer joins an instance only if comparable with EVERY producer already wired
 
-**Status:** Accepted
+**Status:** Accepted — **amended by [0038](0038-only-a-carrier-can-fork-a-world.md)**: comparability is judged over CARRIER lineage, because only a carrier forks a world
 **Source:** substrate_inversion.md §3b — the correction that made assembly work at all
 
 ## Context

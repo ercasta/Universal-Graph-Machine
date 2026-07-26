@@ -2473,3 +2473,242 @@ reference-failure detection, chain-relative identity, and the substitution's rea
    shape can restrict them.
 3. **Intake proper** — an utterance's boundary, the idempotency key (§24.5), and FORCE. None of which this
    section needed, which is itself the useful news.
+
+## 31. THE EXPRESSION BUILDS THE NETWORK — selector chains (user proposal, BUILT 2026-07-26)
+
+`bench/spike_selector_chain.py` (21/21), `tests/units/test_selector.py`, **172 green.**
+
+> **The user's proposal:** *"'wash the car that is parked at the third floor of the garage near the movie
+> theater' builds a network of chained selectors, and at the end of it places a tool call to `wash` on whatever
+> entity it gets. The network derives from the expression."*
+
+This lands directly on §30.3's wall: a pattern that declines to say what it reads cannot have its topology
+inferred, so it must be **authored**. If the syntactic nesting *is* the wiring, the expression authors it.
+
+### 31.0 What a selector outputs — the user's crux, answered from a decision already in force
+
+> **A reference, keyed on the selector STEP. Not the subgraph, and not a mark on the entity.**
+>
+>     <s3> <refers_to> car        NOT   car <selected> yes
+>     <s3> <narrows>   <s2>             (so the unfolded expression is walkable off the graph)
+
+§17.F had already settled the substance: **a description IDENTIFIES rather than CONSTITUTES.** Read
+constitutively, *"one subgraph = one entity"* means the car stops existing when it moves to the second floor. So
+the entity stays a node and the subgraph is the **constraint set** on it. Three further reasons, all from
+decisions in force:
+
+- **§16.** A rule emits only what it derived; emitting the subgraph is re-emitting the input, which is the
+  accretion §16 removed. A reference fact is tiny.
+- **§19, measured.** Entity boundaries survive exactly one hop — recoverable at a merge because a unit keeps
+  each producer's value separately, gone one hop later. Emit subgraphs and you cannot tell which selector
+  contributed what.
+- **§25.3.** A handle is a pure function of the fact, so a step can name its result stably without a registry.
+
+**Keying on the STEP rather than the entity** is the one refinement added to the proposal: it keeps derivational
+marks off the entity, lets two chains disagree about the same entity, and is what makes the chain readable.
+
+**And the output is a SET of references, not one.** A selector may match several; *"the"* is a separate
+uniqueness demand layered on top (§31.3). Designing for exactly-one would make ambiguity inexpressible.
+
+### 31.1 ⭐ THE ANSWER TO §30.3 — and selector chains are ASSEMBLABLE
+
+The five units for the sentence, innermost first, with step nodes supplied by the parse:
+
+```
+s1: ?e <word> #movie_theater                                       ⇒ <s1> <refers_to> ?e
+s2: <s1> <refers_to> ?p ∧ ?e <word> #garage ∧ ?e <near> ?p          ⇒ <s2> <refers_to> ?e
+s3: <s2> <refers_to> ?p ∧ ?e <word> #floor ∧ ?e <of> ?p
+                                           ∧ ?e <ordinal> #third   ⇒ <s3> <refers_to> ?e
+s4: <s3> <refers_to> ?p ∧ ?e <word> #car ∧ ?e <parked_at> ?p        ⇒ <s4> <refers_to> ?e
+c : <s4> <refers_to> ?e                                            ⇒ <call> <verb> #wash, <call> <target> ?e
+```
+
+> **⭐ THE ASSEMBLER WIRED ALL OF IT BY ITSELF.** Every selector received its predecessor *and* a world-carrying
+> producer, with **no authored merge and no hand wiring** — because **every selector atom names its
+> predicate**. That is the precise contrast with §30.3's coreference merge, whose wildcard atom is satisfied by
+> any fact including its own control facts.
+
+**And it is still a contrast, not an artifact.** §31.4's comparability fix might have explained it away; it does
+not — re-measured, the coreference substitution *still* needs an authored merge. **The two obstructions have
+different causes:** one is about *what satisfies an atom*, the other was about *which units may be joined*.
+
+**The expression contributes DATA, never wires** (§8's line untouched): ground step nodes and `<narrows>` links,
+as facts. The ordinary spawn policy does the rest. So *"the expression authors the topology"* is true **without**
+anything acquiring the power to wire.
+
+### 31.2 IT IS A TREE, NOT POSTFIX — and the correction matters
+
+*"Postfix"* implies a linear stack order. What the expression supplies is **nesting**, and the network is a DAG:
+*"wash the car **and the truck** that are parked at ⟨s3⟩"* gives one step with **two consumers**, measured. The
+linear chain is the special case where each modifier attaches to the previous noun. Baking in a pipeline
+assumption would have foreclosed conjunction.
+
+### 31.3 GATING, FAILURE AND AMBIGUITY — all three for free
+
+| | how |
+|---|---|
+| **gating** | a selector is a rule, and §16's rule that matches nothing emits nothing. The chain starves; no *"reference failed"* path exists or is needed |
+| **which hop failed** | `<unresolved>` names the *first* step that found nothing, and only the steps at or after it. A starved chain alone does not say where |
+| **ambiguity** | `<step_ambiguous>` names the step with two referents, **and only that step** |
+
+The last two reuse §30.6's shapes exactly — a witness plus NAF for failure, an inequality for ambiguity.
+**Nothing new was required for selectors**, which is the strongest evidence that reference and selection are one
+problem rather than two.
+
+### 31.4 ⚠ TWO DEFECTS, and the second is a correction to §3b
+
+**(a) THE UTTERANCE MUST ENTER DOWNSTREAM OF THE KB, not as a sibling `given`.** Two independent givens are two
+*worlds* (§3b), so a rule needing the parse's facts *and* a derived fact cannot be assembled — and when the
+missing premise is negated, **its NAF goes vacuously true**: every step was reported unresolved, including the
+ones that had resolved. Entering the parse as a **carrier wired below the world** makes it a descendant, hence
+joinable, and keeps the utterance distinguishable from the KB (which merging them into one given would lose).
+Third time this rule has bitten, and the first time it produced a false report.
+
+**(b) ⭐ ONLY A CARRIER CAN FORK A WORLD.** The comparability test judged worlds by raw reachability, so two
+**sibling rules** over the same carrier were called incomparable:
+
+> Under SUBSET OUTPUT, computing anything non-trivial *means* several sibling rules over one carrier — that is
+> the normal shape, not an exotic one. **So a rule needing premises from two sibling rules was unassemblable**,
+> and if one of those premises was negated its NAF went vacuously true. Measured: the ambiguity rule reported
+> *every* step ambiguous, because it never received the inequality facts.
+
+The fix is `Net.carriers` — compare **carrier lineage**, not raw reachability. A carrier emits its view, so it
+can add or remove what flows and therefore constitutes a world; a rule emits only its conclusion, so it derives
+something new *in* a world without making a new one.
+
+**Every case §3b exists for survives, asserted:** sibling hypotheses still have incomparable carrier sets, and
+two independent givens still do. §3b's *"every, not any"* quantifier is untouched — what changed is which units
+count as different worlds.
+
+### 31.5 ⚠ SURFACE-SENSITIVITY — the probe that could have sunk it
+
+The hazard: if the expression determines the network, phrasing could determine belief.
+
+- **Belief is INVARIANT under atom order.** Permuting a selector's atoms — same antecedent — gives the identical
+  referent. Measured.
+- **Meaning changes only under RE-ATTACHMENT.** The naive re-ordering *"the car that is red, parked at…"* →
+  *"the car parked at… that is red"* moves which step each `?p` refers to, so it asks for *a car parked at a
+  car* and correctly resolves to nothing. **A selector chain is not commutative, because the chain IS the
+  attachment structure.**
+
+> **So the line holds, and it can be stated precisely: the expression fixes the TOPOLOGY, the topology computes
+> a REFERENT, and the referent is what is believed.** The chain itself is derivational — provenance about a
+> reference, not a claim about the world.
+
+### 31.6 THE DUALITY — a reflection with a one-way valve
+
+The chain is **walkable**: following `<narrows>` from the call back to the anchor reads the unfolded expression
+off the graph, and each step on that walk carries its own referent, so the walk is an explanation of the
+reference hop by hop. Both directions of the mirror already existed — the journal is the network as facts (§27),
+authoring is facts as network (§24.7) — and selector chains are where they meet.
+
+**But it is not an isomorphism, and should not be made one.** Instance identity (`SEL#1` vs `SEL#2`) is what
+carries scope (§4) and has no counterpart in the graph, so many networks produce one graph and one graph can be
+produced by many networks — which is *why* provenance needed its own wire rather than being recoverable from
+structure. And the asymmetry is load-bearing: **the assembler reads the parse; the parse never wires.**
+
+### 31.7 What this leaves
+
+- **The terminal call is a REQUEST, as a fact** (`<call> <verb> #wash`, `<call> <target> ?e`), which is the
+  recorded shape for a work request. **SUSPEND is still not built**, so nothing executes it — and §20.4 named
+  the first suspend as the trigger to revisit the in-node ISA.
+- **The parse is hand-written here.** A grammar producing these steps is exactly the front-end §24.7's contract
+  was pinned for, and it now has a concrete target: ground step nodes, `<narrows>` links, one template per
+  syntactic position.
+- **§30.4's derived-removal question is untouched** by any of this and remains the one open decision.
+
+## 32. UNIFORMITY — the principle, its price, and the one exception (user, 2026-07-26)
+
+`bench/spike_selector_chain.py` (26/26), ADRs 0039–0041, **174 green.**
+
+The user asked whether `units/` uses **labelled edges**, and then stated the standing reason for insisting it
+should not:
+
+> *"The moment we start creating superstructures — and labelled edges are one — we incur the risk of getting
+> into things that do not compose. You might object the reverse is also true: the uniform substrate might create
+> the risk of merging things that should be separated."*
+
+### 32.1 THE ANSWER, and both risks are real
+
+**The conflation risk is not hypothetical — this document contains seven instances of it.** Every silent
+assembler defect was one mechanism answering two questions: `comparable` answering *lineage* and *world*; the
+projection answering *may-this-instantiate* and *what-identifies-this-offer*; predicate where **atom** was meant;
+reachability where **world** was meant; *"my chain derives it"* where *"my chain carries it"* was meant. And
+`Absent` still conflates *unknown* with *denied*.
+
+**But the two failures are not symmetric, and that is what decides it:**
+
+| | how it fails | how you find it | cost to fix |
+|---|---|---|---|
+| superstructure | the new mechanism **cannot reach** the old one | when you try to compose — too late | rewrite |
+| uniform conflation | the mis-asked question returns a **well-typed answer** | only if you write the probe | one predicate, one atom, one changed test |
+
+Seven silent defects, three or four answer-changing, and **every fix was small.** None was a rewrite; none
+invalidated anything already built.
+
+> **A superstructure makes a distinction UNSTATABLE in the substrate. Uniformity makes it STATABLE BUT
+> UNSTATED.** The second is recoverable; the first is not.
+
+**And uniformity has repeatedly paid rather than merely broken even:** the uniform predicate slot dissolved three
+recorded problems at once (§22.3); inequality dissolved into a derived fact with no new operator (§30.2);
+selector chains needed **no new code**, and gating, failure-location and ambiguity came free by reusing the
+reference rules unchanged (§31.3); the retraction apparatus dissolved (§7).
+
+**So the answer to *"uniformity risks merging things"* is not *add a superstructure*. It is: MAKE THE DISTINCTION
+A FACT AND ASSERT IT** — the same move that dissolved inequality. Which gives a usable line:
+
+> **⭐ GUARDS YES, KINDS NO.** A guard is a check over the uniform substrate and composes with everything. A kind
+> is a thing every other mechanism must be taught about, and does not.
+
+The price is specific and has to be paid: **every distinction relied on must be stated in the data and
+checkable.** Where that was done it held — the trace/object separation is asserted by a test, the band lattice is
+finite by construction, pattern safety is checked at construction. Where it was not, it bit.
+
+### 32.2 ⚠ THE HONEST ANSWER ABOUT FACTS — layout edge-labelled, semantics path-faithful
+
+`Fact(s, p, o)` is stored **atomically**: a 3-tuple, not two adjacency links through an intermediate node. Drawn
+on a whiteboard it *is* a labelled edge. An earlier docstring claiming *"S-P-O as a directed path survives
+unchanged"* was too generous, and has been corrected in place.
+
+What does survive, in full: roles carried by **position**; the predicate an **ordinary node**, so no separate
+label namespace and `?p` a plain variable; and no role-labelled edges on any fact about the world.
+
+**The exception is kept, for DECIDABILITY.** A fact is a single set member, so `Absent` is a *membership test* —
+exact, immediate, no fuel (§6a). As a traversable 2-path, *"is P absent"* becomes *"is there no 2-path"*, which
+is a join, and the cheap exact negation the whole design leans on would be gone. Value equality and hashing are
+trivial for the same reason, and the fixpoint depends on that.
+
+> **AND THE EXCEPTION SHIPS WITH ITS DECOMPOSITION.** The inside of a fact is reachable as ordinary facts through
+> `reify` (`<of_s>/<of_p>/<of_o>`). **That is the rule for any future exception: if you break uniformity, ship the
+> decomposition with it** — without the escape hatch this would be precisely the island §32.1 forbids.
+
+### 32.3 ⚠ WHERE THE REJECTED SHAPE HAD CREPT BACK — the call node
+
+Three places hang two or more role edges off one node: reification (`<of_s>/<of_p>/<of_o>`), the assembly journal
+(`<wire_from>/<wire_to>/<wire_kind>`), and **the terminal call** (`<verb>`/`<target>`).
+
+The first two are *about* facts and wires — structural data, where the flat reification is what makes a derived
+rule learner-writable. **The third was different and was mine, not recorded:** a `<call>` node was the recorded
+design, its internal shape was not, and a call is **content**, produced by the discourse.
+
+**And n-ary calls are where the pressure genuinely returns** — *"wash the car **with the sponge**"* needs a second
+argument, which is the case the original rejection was really about, arriving for COMMANDS rather than for facts.
+
+**THE USER'S DECISION — POSITIONAL ARGUMENTS.** A call is just another discourse node:
+
+```
+<call>  <word>  #wash          the lexeme, through the same predicate a mention carries
+<call>  <arg1>  <s4>           positional; the argument IS a selector step
+<call>  <arg2>  <s7>
+```
+
+Measured for two arguments: both resolve, each through its own selector chain, numbered — no `<instrument>`, no
+`<patient>`. **`<argN>` names a POSITION, so *direction carries the role* holds one level up:** nothing has to be
+taught a role vocabulary, and arity is the only thing anyone must know. Pointing at the **step** rather than the
+entity keeps the chain walkable and makes a failed or ambiguous argument visible to the call.
+
+Rejected: **verb-as-predicate** (`<call> #wash ?e`) is path-shaped but strictly binary, and finding all calls
+regardless of verb needs a wildcard `?c ?v ?e` — the one pattern the index cannot restrict (§28.3).
+
+**⚠ The honest limit:** `<argN>` is still a label, just a positional one. What it buys is that the label set is
+**fixed and content-free**.

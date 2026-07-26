@@ -27,6 +27,12 @@ Two consequences that shape everything else:
 - **Isolation is a calling convention, not a policy.** A unit cannot see what was not piped into it, because
   no address for it exists. Nothing has to be forbidden.
 
+**The substrate stays uniform, and the rule for keeping it that way is: guards yes, kinds no.** When a
+distinction is needed, it becomes a *fact* that something asserts — never a new kind of thing other mechanisms
+must be taught about. A superstructure makes a distinction *unstatable*; uniformity makes it *statable but
+unstated*, and only the second is recoverable. The price is that every distinction relied on must be stated in
+the data and checked, or it degrades quietly — see §18.
+
 `units/` may not import from `ugm/` (asserted by `tests/units/test_no_ugm_import.py`).
 
 ---
@@ -72,6 +78,13 @@ v | other                                  # union — values are immutable, eve
 | `Node` | an identity. `mint(name)` always produces a **fresh** node — two `mint("mary")` calls do **not** match. |
 | `Fact` | subject–predicate–object. All three slots are nodes; the predicate is a node too. |
 | `Subgraph` | an immutable set of facts with a local per-predicate index. |
+
+⚠ **A `Fact` is stored atomically, so in layout it is a labelled edge** — not two links through an
+intermediate node. That is the one deliberate exception to uniformity, taken for **decidability**: a fact is a
+single set member, so *"is P absent"* is a membership test rather than a join (§11). The exception ships with its
+decomposition — the inside of a fact is reachable as ordinary facts via `reify` (`<of_s>/<of_p>/<of_o>`) whenever
+something needs to compose with it. Roles are still carried by **position**, and the predicate is still an
+ordinary node.
 
 **Nodes are nameless in the sense that matters:** matching compares identities, never names. This is what
 stops two independently created `mary`s from silently fusing. Names that *are* shared come from the
@@ -234,14 +247,52 @@ wire supplying a predicate a chain unit *gates* is a **bypass**, and is refused.
 
 **5. What it cannot decide.** An all-variable atom (`?x ?p ?y`) is satisfied by *any* fact, so there is nothing
 for the assembler to infer. **A pattern that declines to say what it reads must have its topology authored** —
-typically a merge carrier assembled by whatever produced the pattern. See §12.
+typically a merge carrier assembled by whatever produced the pattern. See §13.
+
+**A pattern that *does* name its predicates needs no authoring.** That is the whole difference, and it is why
+selector chains (§14) assemble themselves while a generic substitution does not.
 
 Every one of these decisions — including every refusal, with its reason — is recorded in the **assembly
 journal** (§11).
 
 ---
 
-## 9. Termination, and what "I don't know" means
+## 9. Worlds — who may be joined to whom
+
+Comparability decides whether two producers may feed one instance, and it is judged over **carriers**:
+
+> **Only a carrier can fork a world.** A carrier emits its view, so it can add or remove what flows and
+> therefore constitutes a different world. A rule emits only its conclusion, so it derives something new *in* a
+> world without making a new one.
+
+```python
+net.carriers("R#1")            # the carrier units that decide which world R#1 computes in
+net.comparable("R#1", "R#2")   # may these feed one instance?
+```
+
+| shape | same world? |
+|---|---|
+| two sibling **rules** over one carrier | **yes** — this is the normal way to compute under subset output |
+| two sibling **branches** (hypotheses) | no — they fork, and a rule over them spawns one instance each |
+| two independent **`given`s** | no — negation does not see across them |
+
+**Two consequences that bite in practice:**
+
+- A rule needing premises from two sibling rules is fine. Judging worlds by raw reachability instead made that
+  unassemblable, and a *negated* premise among them went vacuously true.
+- **An utterance must enter as a carrier wired *below* the KB**, not as a second `given`. As a sibling it is a
+  separate world, so nothing can join it to anything derived from the KB — and a negated premise living over
+  there reports false rather than missing.
+
+```python
+net.spawn(given("world", kb))
+net.spawn(branch("parse", add=utterance_facts))
+net.wire("world", "parse")          # <- the utterance is DOWNSTREAM, so it is joinable
+```
+
+---
+
+## 10. Termination, and what "I don't know" means
 
 ```python
 from units import Budget, Verdict
@@ -262,7 +313,7 @@ on work-list order, which is worse.
 
 ---
 
-## 10. Negation — there are two, and only one is cheap
+## 11. Negation — there are two, and only one is cheap
 
 | kind | question | cost |
 |---|---|---|
@@ -282,7 +333,7 @@ negation.deny(view, fact, band)     # a <denies> node — talks ABOUT the fact w
 
 ---
 
-## 11. Provenance — the trace, `why`, and the journal
+## 12. Provenance — the trace, `why`, and the journal
 
 ```python
 net.why(fact)                       # walk the trace value some unit actually holds
@@ -305,7 +356,7 @@ would need a deliberate act.
 
 ---
 
-## 12. Reference — decided, not resolved
+## 13. Reference — decided, not resolved
 
 *"The lion"* in the second sentence must reach the same entity as the first, and may **not** be looked up by
 name. So reference is **decided**: intake mints a fresh node per mention, and rules decide which mentions are
@@ -349,7 +400,66 @@ declined the merge they remain two. Two chains may legitimately disagree about i
 
 ---
 
-## 13. Degree — bands, not numbers
+## 14. Selector chains — the expression builds the network
+
+*"wash the car that is parked at the third floor of the garage near the movie theater"* becomes **one unit per
+syntactic position**, chained by the referent, terminating in a call request:
+
+```
+s1: ?e <word> #movie_theater                                       => <s1> <refers_to> ?e
+s2: <s1> <refers_to> ?p  &  ?e <word> #garage  &  ?e <near> ?p      => <s2> <refers_to> ?e
+s3: <s2> <refers_to> ?p  &  ?e <word> #floor   &  ?e <of> ?p
+                                               &  ?e <ordinal> #third  => <s3> <refers_to> ?e
+s4: <s3> <refers_to> ?p  &  ?e <word> #car     &  ?e <parked_at> ?p => <s4> <refers_to> ?e
+c : <s4> <refers_to> ?e                     => <call> <arg1> <s4>
+```
+
+**A selector outputs a reference keyed on the STEP, never a subgraph** — a description *identifies* rather than
+*constitutes*, so the entity stays a node and the subgraph is the constraint set on it. The output is a **set**
+of references; *"the"* is a separate uniqueness demand on top.
+
+**The expression contributes data, never wires.** It supplies ground step nodes and `<narrows>` links as facts;
+the ordinary spawn policy does the wiring. Because every selector atom names its predicate, **the assembler
+wires the whole chain by itself** — the contrast with a wildcard pattern (§8.5), which cannot be inferred at all.
+
+**It is a tree, not a pipeline.** *"the car **and the truck** that are parked at ⟨s3⟩"* gives one step with two
+consumers, so the topology is a DAG.
+
+Three properties come free, reusing the reference machinery of §13 unchanged:
+
+| | |
+|---|---|
+| **gating** | a selector that matches nothing emits nothing; the chain starves. No "reference failed" path exists or is needed |
+| **which hop failed** | `<unresolved>` names the step where reference broke — a starved chain alone does not say where |
+| **ambiguity** | `<step_ambiguous>` names the step with two referents, and only that step |
+
+**The chain is walkable:** follow `<narrows>` from the call back to the anchor and you read the unfolded
+expression off the graph, with each step carrying its own referent — so the walk explains the reference hop by
+hop.
+
+⚠ **Where belief is and is not sensitive to phrasing.** Permuting a selector's atoms gives the identical
+referent. Only *re-attachment* changes meaning, because the chain **is** the attachment structure. So: the
+expression fixes the **topology**, the topology computes a **referent**, and the referent is what is **believed**.
+The chain itself is derivational.
+
+**The terminal call is positional, not role-labelled.** A call is just another discourse node — a lexeme
+through the same `<word>` predicate a mention carries, plus **numbered** arguments, each pointing at a *step*:
+
+```
+<call>  <word>  #wash
+<call>  <arg1>  <s4>            "wash the car ..."
+<call>  <arg2>  <s7>            "... with the sponge"
+```
+
+`<argN>` names a **position**, so *direction carries the role* holds one level up: nothing has to be taught a
+role vocabulary, and arity is the only thing anyone must know. Pointing at the step rather than the entity keeps
+the chain walkable and makes a failed or ambiguous argument visible to the call.
+
+The call is a **request, as a fact**. Nothing executes it — suspend is not built.
+
+---
+
+## 15. Degree — bands, not numbers
 
 ```python
 from units import band as B
@@ -366,7 +476,7 @@ object wire. `band.inherit` is a Python equivalent kept as a reference.
 
 ---
 
-## 14. Authoring — the system's own output can become computation
+## 16. Authoring — the system's own output can become computation
 
 ```python
 from units import authoring as A
@@ -387,12 +497,13 @@ names, which is the by-name fusion the substrate abolished.
 
 ---
 
-## 15. Reading a net
+## 17. Reading a net
 
 ```python
 net.output_of("R#1")            # a unit's current output
 net.derived_anywhere("is_a")    # {(unit, fact)} — a debugging read over units, not a query over data
 net.upstream("R#1")             # transitive producers
+net.carriers("R#1")             # which WORLD it computes in (§9)
 net.instances["MORTAL"]         # which instances a template has
 net.wellformed()                # problems a hand-wired net can have
 net.trace_leaks()               # provenance that leaked onto an object wire
@@ -401,7 +512,7 @@ net.index_audit()               # wiring permitted vs firings observed; `unsound
 
 ---
 
-## 16. Invariants
+## 18. Invariants
 
 Each is asserted by a test, because each is the kind of thing that is right on paper and wrong in the build.
 
@@ -418,7 +529,7 @@ Each is asserted by a test, because each is the kind of thing that is right on p
 
 ---
 
-## 17. What is not built
+## 19. What is not built
 
 - **FORCE** — assert / author / ask / suppose / command / retract as unit shapes. Designed, not built.
 - **A sink** — *query = a unit whose output is the answer*. `Net.why` is a Python reader.

@@ -167,9 +167,34 @@ class Net:
         self._up[n] = seen
         return seen
 
+    def carriers(self, name) -> frozenset:
+        """The CARRIER units that decide which WORLD this unit computes in.
+
+        **⭐ ONLY A CARRIER CAN FORK A WORLD** (§31.1). A carrier emits its view, so it can add or remove what
+        flows and therefore constitutes a different world. A RULE emits only its conclusion (§16) — it derives
+        something new *in* a world, it does not make a new one. So two sibling RULES over the same carrier are
+        in the SAME world; two sibling CARRIERS are not."""
+        n = name.name if isinstance(name, Unit) else name
+        out = {q for q in self.upstream(n) if not self.units[q].rhs}
+        if n in self.units and not self.units[n].rhs:
+            out.add(n)
+        return frozenset(out)
+
     def comparable(self, a: str, b: str) -> bool:
-        """One lineage? — `a` is `b`, or an ancestor of it, or a descendant."""
-        return a == b or a in self.upstream(b) or b in self.upstream(a)
+        """May these two feed ONE instance? — one lineage, or one WORLD.
+
+        Lineage first: `a` is `b`, an ancestor of it, or a descendant.
+
+        **And then the carrier test, which was missing** (§31.1). Under SUBSET OUTPUT, computing anything
+        non-trivial means several sibling rules over one carrier — that is the normal shape, not an exotic one.
+        Judging worlds by raw reachability called those siblings incomparable, so **a rule needing premises
+        from two sibling rules was unassemblable**, and if one of those premises was negated its NAF went
+        vacuously true. Comparing CARRIER lineage instead keeps every case §3b was built for: sibling
+        hypotheses still have incomparable carrier sets, and two independent `given`s still do."""
+        if a == b or a in self.upstream(b) or b in self.upstream(a):
+            return True
+        ca, cb = self.carriers(a), self.carriers(b)
+        return bool(ca) and bool(cb) and (ca <= cb or cb <= ca)
 
     def restores_a_drop(self, consumer: str, extra: str | None = None) -> tuple | None:
         """Would this consumer's producers RESTORE a fact one of them deliberately removed? (§17.A)

@@ -54,10 +54,26 @@ def mint(name: str = "") -> Node:
 class Fact:
     """A subject-predicate-object triple in which **ALL THREE SLOTS ARE NODES** (§22.3, §22.5).
 
-    The predicate is a ROLE NODE, not a string. S-P-O as a directed path survives unchanged
-    ([[spo-directed-path-no-labeled-edges]] rejects ROLE-LABELLED edges, not predicates) — what changes is
-    that the predicate is now the same kind of thing as its endpoints, which is what makes `?s ?p ?o`
-    expressible with no new primitive.
+    The predicate is a ROLE NODE, not a string — the same kind of thing as its endpoints, which is what makes
+    `?s ?p ?o` expressible with no new primitive.
+
+    **⚠ BE PRECISE ABOUT WHAT THIS IS** (§32). A `Fact` is stored ATOMICALLY, not as two adjacency links
+    through an intermediate node — so in LAYOUT it is a labelled edge, and an earlier version of this docstring
+    claiming *"S-P-O as a directed path survives unchanged"* was too generous. What actually survives is
+    everything [[spo-directed-path-no-labeled-edges]] was about:
+
+    * roles are carried by POSITION, not by labels — `s` and `o` are told apart by where they sit;
+    * the predicate is an ordinary node, so there is no separate label namespace and `?p` is a plain variable;
+    * nothing hangs role-labelled edges on a fact about the world.
+
+    **The atomic layout is a deliberate trade, made once, for DECIDABILITY:** a fact is a single set member, so
+    `Absent` is a membership test — exact, immediate, no fuel (§6a). As a traversable 2-path, *"is P absent"*
+    becomes *"is there no 2-path"*, which is a join, and the cheap exact negation the whole design rests on
+    would be gone. Value equality and hashing are trivial for the same reason, and the fixpoint depends on it.
+
+    **And the exception ships with its decomposition:** the inside of a fact is reachable as ordinary facts via
+    `reify` (`<of_s>/<of_p>/<of_o>`) whenever something needs to compose with it. That escape hatch is what
+    keeps this from being the unreachable island a superstructure otherwise creates (§32).
 
     A `str` is resolved through the default form set at construction (`vocab.role`), so call sites read
     the same; **where that resolution is allowed to happen is the whole discipline**, and `vocab` states
