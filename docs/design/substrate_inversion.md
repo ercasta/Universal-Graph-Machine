@@ -72,7 +72,11 @@
 > **§22.6 LANDED IT (71 green): `Fact.p` is a node, `units/vocab.py` holds the form set's roles, and
 > `value.sym` + `Net.symbol_leaks` are RETIRED — the carve-out they policed no longer exists.** The build's
 > one defect was again a SILENT degradation (`why` returning None) rather than a crash, which is now three
-> for three.
+> for three. **§22.7 BUILT BANDS (84 green): §22.2a CONFIRMED both ways — continuous 40 distinct outputs
+> in 40 rounds vs banded 1 — so the finite lattice is what makes the substrate terminate; degree is DATA
+> and a unit FIRES on it; inheritance is ONE computation over `last_firing`. ⭐ §22.7a: a GRADED ABSENCE
+> is not ignored but INEXPRESSIBLE — `grade` asserts what it grades, so "probably not P" has nowhere to
+> live. A representational gap, and §16.6 pointed at the wrong layer.**
 >
 > **§18 ATOMIC CHAINS (user), RECORDED NOT BUILT.** A contextualized concept is a chain that must not be
 > split, and the assembler splits it — measured. The conditional and the syllogism are STRUCTURALLY
@@ -1495,3 +1499,56 @@ outright, which is also what makes a trace fact ordinary (§20.2).
 **What did NOT change, and it is the point of §22.5's correction:** the index, projection dedup,
 `_complete_lhs`, and §16.2's join/bypass test are all still crisp identity tests. Similarity matching
 remains unbuilt and unneeded so far.
+
+### 22.7 BANDS — BUILT 2026-07-26 (`units/band.py`, spike 25/25, suite 84 green)
+
+§22.4's step 2, with **the termination check written first** rather than last, because §22.2a predicted a
+failure that presents as a hang. Promoted to `tests/units/test_bands.py`.
+
+**§22.2a IS CONFIRMED, and measured BOTH WAYS so it is evidence rather than argument.** The continuous
+version was built and run: 40 distinct outputs in 40 rounds — every re-derivation a new value, so
+*"output unchanged"* never holds and propagation could never quiesce. The banded version: **1 distinct
+output**, and the bound is the lattice HEIGHT, so it is knowable in advance. `meet` is min, and its three
+properties are load-bearing for termination rather than for elegance — commutative (premise order must
+not matter), associative (grouping must not matter), **idempotent** (re-derivation produces an identical
+value and therefore stops).
+
+So [[possibilistic-layer]]'s bands, and `ugm/possibility.py`'s scale and min-join, are **inherited rather
+than invented** — and they now rest on a stronger justification than that arc had.
+
+**Degree is DATA, which was the user's actual requirement.** A band is an ordinary role node; a graded
+fact is reified and carries `<band>`; a downstream unit **fires on a band** with no new construct
+(measured, both positively and negatively). `composition_architecture.md`'s deferred arc — band threaded
+as a Python parameter, so a new annotation axis means editing the evaluator — does not exist here.
+
+**Inheritance is ONE generic computation over `last_firing`.** §16.5 built that record for exactly this
+and then used only a Python stand-in; `band.inherit` is the real thing, and it knows nothing about any
+template. §16.5's control holds: **an unbanded premise inherits NOTHING and does not become `certain`** —
+absence of a degree is not a degree. A two-premise conclusion takes the weaker band.
+
+Two honest limits:
+
+- **`inherit` is still Python, and for a stated reason:** it MINTS a handle per graded conclusion, and
+  this substrate refuses RHS-only variables ([[skolem-minting-lhs-keyed]]), so a rule cannot mint. That
+  is the remaining obstacle to it being a unit — not the predicate variable, which §22.6 supplied.
+- **The object wire needed its OWN reification vocabulary** (`<of_s>/<of_p>/<of_o>`), because reusing the
+  trace's identical-looking `<subject>/<predicate>/<object>` trips `Net.trace_leaks()`. The guard working
+  as intended, and incidental evidence that §20's separation was not a special case.
+
+> ### ⭐ 22.7a A GRADED ABSENCE IS NOT IGNORED — IT IS INEXPRESSIBLE
+>
+> §16.6 predicted a THIRD negation: *banded-positive-negative — a degree cannot ride an absence*. The
+> spike set out to measure that `inherit` grades by positive premises only and quietly ignores the absent
+> atom's confidence. **It failed the way it was expected to pass, which is the useful outcome.**
+>
+> **`grade` ASSERTS the fact it grades.** Attaching a band to `P` puts `P` in the value, so the `Absent`
+> atom stops holding and **the rule stops firing entirely**. Measured.
+>
+> So *"probably not P"* has nowhere to live: grade `P` and `P` becomes true; say nothing and `P` is
+> certainly absent. There is no third state. **This is a REPRESENTATIONAL gap, not an inheritance one —
+> `inherit` was never the place to fix it**, and §16.6's framing pointed at the wrong layer. It is the
+> same shape as §17.F's *reference failure is indistinguishable from negation*: this substrate has one
+> way of not containing something, and it is being asked to carry two meanings.
+>
+> Recorded as a live limitation. The candidate fixes (a polarity slot on the reified handle; a separate
+> "negative wire" as in §22.5's control-vocabulary finding) both cost more than this slice should spend.
