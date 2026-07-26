@@ -702,10 +702,14 @@ Genuinely undecided, not oversights.
   judgement, or the one thing the engine fixes.
 - **What a step costs.** Fuel bounds a circuit's run, but the unit of account is undecided: unit firings,
   values produced, or something else.
-- **The CNL surface itself.** Settled: the boundary transcribes, rules interpret, statement extent is marked in
-  the surface, and the translator must be able to refuse (§9, §11). Undecided: what the surface actually looks
-  like — how a statement is delimited, how nesting is written, how a rule is expressed as data, and how much of
-  the graph the transcription commits to. This is the next design conversation.
+- **The CNL surface itself.** ✅ **Answered in `docs/units/cnl.md`** (2026-07-26). The surface is a
+  linearisation of the graph; statements are delimited by brackets whose label names the *end marker*, so the
+  seal is enforced by the namespace; nesting is literal containment; there is no rule syntax and no force
+  syntax; and transcription is pinned by **create, never merge**. It raised and settled one question underneath
+  the four: **rules unroll a statement, not the assembler and not the boundary** — so the surface has two
+  registers, prose and wiring, and the bundled interpretation rules ship pre-written in the second. What remains
+  open there is the wiring register's vocabulary, where role names come from, band words, quantification, and a
+  prose renderer.
 - **What comprehension costs.** Every utterance now takes many steps of the expensive loop before any domain
   reasoning starts. Acceptable in principle; unmeasured in practice, and the first place performance pressure
   will land.

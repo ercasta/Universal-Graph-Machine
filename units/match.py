@@ -1,210 +1,138 @@
-"""MATCHING — a unit's LHS against the value it was handed (`docs/design/substrate_inversion.md` §14).
+"""MATCHING — topology and attributes, graded (`docs/units/model.md` §4).
 
-This is where variables get bound, and it is the whole reason the substrate is not NETL. NETL propagated a
-MARKER — one bit at a node — which does inheritance perfectly and cannot correlate two matches, because
-there is nowhere to record WHICH `?y` a given `?x` went with; a two-place join becomes a cross-product.
-Here a unit's state is a SUBGRAPH, so **the binding IS the datum**: the value of `?y` is simply a node in
-the value. There is no separate binding mechanism that could be got wrong.
+A pattern is a tree of `Pat` atoms. Each atom constrains one node: crisp attributes it must carry,
+gradable attributes it must carry (which **contribute their band to the match**), and outgoing edges to
+sub-atoms. A match therefore has a **strength**, not a boolean verdict, and the strength is the `meet` of
+everything that went into it.
 
-Spiked before the package existed (`bench/spike_substrate_inversion_binding.py`, 6/6): markers answer 4 on
-the canonical two-place join, of which 2 are false; this answers exactly 2.
+**Nothing is matched implicitly, including names.** There is no name-equality rule in here. An atom that
+wants a node called `"destination"` says `attrs={"name": "destination"}`, and that is *also* how role
+nodes are identified — §4's third consequence, in the flesh. It is intolerable to write by hand, which is
+exactly why `cnl.md` §2 makes `destination:` a **surface** convention that expands to this. The privilege
+lives in the front end; the matcher grants none.
 
-NEGATION HERE IS THE EXACT KIND (§6a). `Absent` asks whether a fact is missing from the value on the wire
-— a FINISHED value, whatever upstream produced — so it is decidable immediately, with no drain, no
-fixpoint and no fuel. That is the negation this substrate gets for free. The other kind ("P is not
-derivable AT ALL") is open, semi-decidable, and answered by fuel; it does not live in this module, and
-conflating the two is how a resource limit silently becomes a claim about the world.
+**There is no global similarity metric.** Similarity is authored per atom: an atom asking for a gradable
+attribute is *choosing* to accept it at whatever degree the data carries. Nothing here compares two
+arbitrary nodes for resemblance.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterator
+from dataclasses import dataclass, field
+from typing import Any, Iterator
 
-from .value import Fact, Node, Subgraph, mint as _mint
-
-
-@dataclass(frozen=True)
-class Var:
-    name: str
-
-    def __repr__(self) -> str:
-        return f"?{self.name}"
+from .band import at_least, meet
+from .graph import Graph, Node
 
 
 @dataclass(frozen=True)
-class Triple:
-    """A pattern atom. **Every slot is uniform** (§22.3, §22.5): each of `s`, `p`, `o` is a `Var` to bind
-    or a `Node` to match. A `str` in the predicate slot is resolved through the form set at construction.
+class Pat:
+    """One atom. Every field is a constraint the author wrote down."""
 
-    That uniformity IS the predicate variable — `?s ?p ?o` needs no new machinery, which is why §17.E's
-    recorded hole is dissolved rather than filled."""
-    s: object
-    p: object
-    o: object
+    var: str | None = None
+    attrs: tuple = ()          # ((key, value), …) — crisp equality
+    graded: tuple = ()         # (key, …) — must be present; its band enters the match strength
+    out: tuple = ()            # sub-atoms reached by one outgoing edge
 
     def __post_init__(self) -> None:
-        if not isinstance(self.p, (Node, Var)):
-            from .vocab import role
-            object.__setattr__(self, "p", role(self.p))
-
-    def vars(self) -> frozenset:
-        return frozenset(t for t in (self.s, self.p, self.o) if isinstance(t, Var))
-
-    def mints(self) -> frozenset:
-        return frozenset(t for t in (self.s, self.p, self.o) if isinstance(t, Mint))
-
-    def __repr__(self) -> str:
-        pn = self.p.name if isinstance(self.p, Node) else self.p
-        return f"({self.s} {pn} {self.o})"
+        if isinstance(self.attrs, dict):
+            object.__setattr__(self, "attrs", tuple(sorted(self.attrs.items())))
+        if isinstance(self.graded, str):
+            object.__setattr__(self, "graded", (self.graded,))
 
 
-@dataclass(frozen=True)
-class Mint:
-    """A HEAD-ONLY term: mint a node, **keyed on the match that produced it** ([[skolem-minting-lhs-keyed]]).
+def atom(var: str | None = None, /, out: tuple = (), graded=(), **attrs) -> Pat:
+    """`atom("c", name="Paul")` — the readable constructor."""
+    return Pat(var=var, attrs=tuple(sorted(attrs.items())), graded=graded, out=tuple(out))
 
-    This is the primitive three separate things were blocked on, and the convergence is the argument for
-    building it:
 
-    * §22.7 — `band.inherit` mints a handle per graded conclusion, so degree inheritance had to stay
-      Python instead of being the one generic RULE §16.5 designed it as;
-    * §22.8 — a DERIVED denial mints a `not` node, so it could not be derived at all without diverging;
-    * §20.1(a) — the trace's firing nodes hit the same wall first, and were fixed by hand.
-
-    All three are the standing rule §22.8 states: **anything minted per run must be KEYED, or it destroys
-    the fixpoint it is annotating.** `Mint` is that rule made into a construct rather than a discipline —
-    the node is a function of (unit, head position, binding), so re-running a unit on the same match
-    yields the SAME node and the output stops changing.
-
-    An RHS-only `Var` remains refused (unsound — it asserts an unbound existential). A `Mint` is not a
-    variable: it names a FUNCTION of the binding, which is exactly the supported skolem form."""
-    name: str
-
-    def vars(self) -> frozenset:
-        return frozenset()
-
-    def __repr__(self) -> str:
-        return f"{self.name}?"
+def role(name: str, target: Pat) -> Pat:
+    """A role node, identified the only way the engine allows: by matching its `name` attribute
+    explicitly. `cnl.md`'s `destination:` compiles to exactly this."""
+    return Pat(attrs=(("name", name),), out=(target,))
 
 
 @dataclass(frozen=True)
-class Absent:
-    """NAF over the value on the wire — exact, immediate, no fuel (§6a).
+class Match:
+    bindings: dict
+    band: str | None           # None = crisp; the match involved no gradable attribute
 
-    SAFETY: every variable in the negated atom must already be bound by the positive atoms, exactly as in
-    datalog. An unsafe `Absent` asks an unbounded question of a bounded value, which has no answer; it
-    raises rather than guessing, because the alternative is a rule whose meaning depends on evaluation
-    order."""
-    atom: Triple
-
-    def __repr__(self) -> str:
-        return f"not {self.atom}"
+    def __getitem__(self, k: str) -> Node:
+        return self.bindings[k]
 
 
-class UnsafePattern(ValueError):
-    """A variable appears only in a negated atom, or only in the head."""
+def _match_atom(g: Graph, pat: Pat, n: Node, binds: dict, used: frozenset) -> Iterator[tuple]:
+    """Yield `(bindings, band)` for every way `pat` matches at node `n`."""
+    if pat.var is not None:
+        prior = binds.get(pat.var)
+        if prior is not None and prior is not n:
+            return                                   # identity join — never a name join
+        binds = {**binds, pat.var: n}
 
-
-def check_safety(lhs: tuple, rhs: tuple = ()) -> None:
-    """Raise unless every variable is BOUND by a positive body atom. Checked once, at construction, so a
-    unit cannot be built with a meaning that depends on the order its patterns happen to be tried."""
-    bound: frozenset = frozenset()
-    for pat in lhs:
-        if isinstance(pat, Triple):
-            bound |= pat.vars()
-    for pat in lhs:
-        if isinstance(pat, Absent):
-            loose = pat.atom.vars() - bound
-            if loose:
-                raise UnsafePattern(
-                    f"{pat!r}: {sorted(v.name for v in loose)} appear only under negation — a negated "
-                    f"atom may only test variables the positive body has already bound")
-    for head in rhs:
-        loose = head.vars() - bound
-        if loose:
-            raise UnsafePattern(
-                f"{head!r}: {sorted(v.name for v in loose)} appear only in the head — this substrate has "
-                f"no minting rule yet, so a head variable must be bound by the body")
-
-
-def _bind(spec: object, n: Node, b: dict) -> bool:
-    """Unify one slot. THE LINE THAT MATTERS: a bound variable is compared by node IDENTITY, never by
-    name (§5). Joining by name fuses two independently-minted `mary`s and fabricates a conclusion."""
-    if isinstance(spec, Var):
-        prev = b.get(spec)
-        if prev is not None:
-            return prev == n                        # Node equality is nid equality — identity
-        b[spec] = n
-        return True
-    return spec == n
-
-
-def solve(lhs: tuple, view: Subgraph) -> list:
-    """Every binding of `lhs` in `view`. Positive atoms join first (each seeded from the value's own
-    bounded per-predicate index); `Absent` atoms filter the surviving bindings."""
-    positives = tuple(p for p in lhs if isinstance(p, Triple))
-    negatives = tuple(p for p in lhs if isinstance(p, Absent))
-
-    def go(rest: tuple, b: dict) -> Iterator[dict]:
-        if not rest:
-            yield dict(b)
+    for k, v in pat.attrs:
+        if g.attr(n, k) != v:
             return
-        atom, tail = rest[0], rest[1:]
-        # A GROUND role still uses the value's index; a VARIABLE role scans the value. The scan is
-        # bounded local enumeration over one wire (§1 permits it) — but note what it costs: a `?s ?p ?o`
-        # rule wakes on EVERYTHING (§22.5, measured). The generic rule that avoids a clause per template
-        # is the same one that makes "wake broadly" mean "wake always".
-        cands = view.by_pred(atom.p) if isinstance(atom.p, Node) else view.facts
-        for f in cands:
-            b2 = dict(b)
-            if _bind(atom.s, f.s, b2) and _bind(atom.p, f.p, b2) and _bind(atom.o, f.o, b2):
-                yield from go(tail, b2)
 
-    out = []
-    for b in go(positives, {}):
-        if all(not _holds(n.atom, b, view) for n in negatives):
-            out.append(b)
+    band = None
+    for k in pat.graded:
+        d = g.degree(n, k)
+        if d is None:
+            return                                   # the attribute is required; its degree grades it
+        band = meet(band, d)
+
+    yield from _match_out(g, pat.out, 0, n, binds, band, used | {n})
+
+
+def _match_out(g: Graph, subs: tuple, i: int, n: Node, binds: dict, band, used) -> Iterator[tuple]:
+    if i == len(subs):
+        yield binds, band
+        return
+    for nxt in g.out(n):
+        if nxt in used:
+            continue                                 # two sub-atoms may not collapse onto one neighbour
+        for b2, band2 in _match_atom(g, subs[i], nxt, binds, used):
+            yield from _match_out(g, subs, i + 1, n, b2, meet(band, band2), used | {nxt})
+
+
+def solve(g: Graph, pattern: tuple, theta: str | None = None) -> list:
+    """Every way the conjunction `pattern` matches `g`, above θ.
+
+    ⚠ **This is where cheap exact negation went** (§4). There is no membership test: *"P is absent"* is
+    now *"nothing matched P above θ"*, and θ is a number you can be wrong about. Stated as a correction
+    rather than a loss — the *"a little bird is not really a bird"* case needs it."""
+    results: list = []
+    _solve(g, pattern, 0, {}, None, results)
+    out = [Match(b, band) for b, band in results
+           if theta is None or at_least(band, theta)]
+    return _dedupe(out)
+
+
+def _solve(g: Graph, pattern: tuple, i: int, binds: dict, band, acc: list) -> None:
+    if i == len(pattern):
+        acc.append((binds, band))
+        return
+    for n in g.nodes:
+        for b2, band2 in _match_atom(g, pattern[i], n, binds, frozenset()):
+            _solve(g, pattern, i + 1, b2, meet(band, band2), acc)
+
+
+def _dedupe(matches: list) -> list:
+    seen, out = set(), []
+    for m in matches:
+        key = (tuple(sorted((k, v.nid) for k, v in m.bindings.items())), m.band)
+        if key not in seen:
+            seen.add(key)
+            out.append(m)
     return out
 
 
-def _resolve(slot, b: dict):
-    return b[slot] if isinstance(slot, Var) else slot
+def atoms(pattern) -> Iterator[Pat]:
+    """Every atom in a pattern, for inspection. `model.md` §12 invariant 1 — *no rule pattern names a
+    scope* — is tested by walking this and looking at what the author wrote."""
+    stack = list(pattern) if isinstance(pattern, (tuple, list)) else [pattern]
+    while stack:
+        p = stack.pop()
+        yield p
+        stack.extend(p.out)
 
 
-def _holds(atom: Triple, b: dict, view: Subgraph) -> bool:
-    return Fact(_resolve(atom.s, b), _resolve(atom.p, b), _resolve(atom.o, b)) in view
-
-
-def matched(atom: Triple, f: Fact, b: dict) -> bool:
-    """Did `f` supply `atom` under binding `b`? — used to record a firing's CONSUMED PREMISES.
-
-    Why this is recorded rather than recovered: a conclusion's annotations (a band, an attribution) are
-    inherited from the facts that PRODUCED it, and once a rule emits only its conclusion there is no
-    afterwards in which to work out which those were. Same lesson as `Unit.derived` — a derivation is a
-    fact about a RUN (§15.2) — arrived at from the inheritance side rather than the cycle side."""
-    return (f.s == _resolve(atom.s, b) and f.p == _resolve(atom.p, b) and f.o == _resolve(atom.o, b))
-
-
-def ground(head: Triple, b: dict, memo: dict | None = None, owner: str = "") -> Fact:
-    """Instantiate a head atom under a binding. Every `Var` slot is bound — `check_safety` guarantees it —
-    and every `Mint` slot resolves through `memo`, KEYED ON THE BINDING.
-
-    `memo` is the minting unit's OWN state, not a global: two units that mint for the same match get
-    different nodes, which is correct, because they are different derivations. Convergence between them
-    is a separate question ([[skolem-minting-lhs-keyed]]'s defining-relation reuse) and is not solved
-    here."""
-    return Fact(_mint_or_resolve(head.s, b, memo, owner, 0),
-                _mint_or_resolve(head.p, b, memo, owner, 1),
-                _mint_or_resolve(head.o, b, memo, owner, 2))
-
-
-def _mint_or_resolve(slot, b: dict, memo: dict | None, owner: str, pos: int):
-    if not isinstance(slot, Mint):
-        return _resolve(slot, b)
-    if memo is None:
-        raise UnsafePattern(f"{slot!r}: a minting head needs a keyed memo — see `Mint`")
-    key = (owner, pos, slot.name, tuple(sorted((v.name, n.nid) for v, n in b.items())))
-    node = memo.get(key)
-    if node is None:
-        node = _mint(slot.name)
-        memo[key] = node
-    return node
+__all__ = ["Pat", "Match", "atom", "role", "solve", "atoms"]

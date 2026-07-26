@@ -1,33 +1,27 @@
-"""units — computation units as the substrate (`docs/design/substrate_inversion.md`).
+"""units — the computation model of `docs/units/model.md`.
 
-The inversion: UGM's `ugm/` package is a data-only substrate (a graph) with computation bolted on. Here
-**computation units ARE the substrate**, each holding a whole subgraph as its state, wired dynamically so
-that the KB and the discourse physically modify the topology. A graph is not the store; it is the value
-flowing on a wire.
+**Data is the substrate; computation is a transient circuit** built over it, used, and thrown away. The
+graph persists; the network does not.
 
-**NO-IMPORT RULE.** This package must not import from `ugm/`. Anything it needs is copied, and what gets
-copied is then evidence about what is genuinely shared versus what was a store-shaped assumption riding
-along. Enforced by `tests/units/test_no_ugm_import.py`, not by good intentions.
+**Status: a spike.** What is here tests exactly one claim — the one the whole paradigm flip is justified
+by: *the inner loop is a circuit, so no rule ever matches a scope.* Everything else is deliberately
+stubbed. Not built: System 1 retrieval (§7), the outer loop and its budget (§8), the boundary and the CNL
+transcriber (§9, `cnl.md`), write-back of derivations and deletions (§9), and the wiring register that
+would let rules describe a chain instead of it being hand-assembled (`cnl.md` §4).
 
-`ugm/` stays working and untouched. Nothing is retired until this substrate answers a real question end to
-end — at which point deletion is the honest move ([[delete-old-code-aggressively]]), not archiving.
+**NO-IMPORT RULE** (§12 invariant 10): this package must not import from `ugm/`. Enforced by
+`tests/units/test_no_ugm_import.py`, not by good intentions.
 """
-from . import authoring, band, discourse, index, journal, negation, reify, trace
-from .fuel import Budget, Verdict
-from .match import Absent, Triple, UnsafePattern, Var, solve
-from .net import Net
-from .trace import explain, render
-from .vocab import FORMS, Vocabulary, role
-from .unit import Unit, branch, given, rule
-from .value import EMPTY, Fact, Node, Subgraph, mint
+from .band import SCALE, meet, weaker
+from .circuit import Circuit, Fuel, Port, Run, SealBreach, Statement
+from .graph import EMPTY, Graph, Node, named, occurrence, role_edge
+from .match import Match, Pat, atom, atoms, role, solve
+from .unit import Emit, Miss, Unit, rule, transform
 
 __all__ = [
-    "Budget", "Verdict",
-    "Absent", "Triple", "UnsafePattern", "Var", "solve",
-    "Net",
-    "authoring", "band", "discourse", "index", "journal", "negation", "reify", "trace",
-    "explain", "render",
-    "Unit", "branch", "given", "rule",
-    "EMPTY", "Fact", "Node", "Subgraph", "mint",
-    "FORMS", "Vocabulary", "role",
+    "SCALE", "meet", "weaker",
+    "Circuit", "Fuel", "Port", "Run", "SealBreach", "Statement",
+    "EMPTY", "Graph", "Node", "named", "occurrence", "role_edge",
+    "Match", "Pat", "atom", "atoms", "role", "solve",
+    "Emit", "Miss", "Unit", "rule", "transform",
 ]
