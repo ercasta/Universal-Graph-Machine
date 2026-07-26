@@ -1550,5 +1550,53 @@ Two honest limits:
 > same shape as §17.F's *reference failure is indistinguishable from negation*: this substrate has one
 > way of not containing something, and it is being asked to carry two meanings.
 >
-> Recorded as a live limitation. The candidate fixes (a polarity slot on the reified handle; a separate
-> "negative wire" as in §22.5's control-vocabulary finding) both cost more than this slice should spend.
+> Recorded as a live limitation. **⭐ FIXED THE SAME DAY by §22.8, and neither candidate fix above was
+> the answer.**
+
+### 22.8 EXPLICIT NEGATION — *"probably not P"* in the data subgraph (user, BUILT 2026-07-26)
+
+> **The user's proposal:** *"Can't we express 'probably not P' as two nodes — `not` with a 'probably'
+> grade, then node P? Note we are now talking about the DATA subgraph, not the computation units."*
+
+Yes. `bench/spike_explicit_negation.py` (22/22), landed as `units/negation.py` + `units/reify.py`,
+promoted to `tests/units/test_negation.py`, **94 green**.
+
+**It needed NO new construct**, which is the striking part. §22.6 made a fact able to occupy a node slot;
+§22.7 built the reification vocabulary to attach a band. A denial is a node pointing at that same handle.
+**Talking ABOUT a fact and CLAIMING it finally come apart** — and that separation is the entire fix, so
+`reify.py` now exists as its own module because two unrelated requirements arrived at it. §17.E predicted
+that signal; this is its fourth occurrence.
+
+**The state space, which is what actually changed:**
+
+| value contains | means |
+|---|---|
+| `P` | P holds |
+| P absent, no denial | nothing is known about P |
+| P absent, denial at band *b* | **P is believed false, to degree *b*** — the state that did not exist |
+
+**⚠ THE PRICE: §6a's `Absent` cannot tell the last two apart** (measured). This is the classical
+negation-as-failure vs strong-negation split, and the honest statement is that the proposal **RELOCATES
+the ambiguity rather than removing it**. `Absent(P)` stays a syntactic test over the value; a rule meaning
+*"actively denied"* must ASK for the denial. That is bounded — an ordinary pattern, no new atom kind, no
+second matcher — but **the rule author now has to choose which negation is meant**, and nothing checks
+that they chose right. That is the real cost of the proposal and it should not be discovered later.
+
+**Three things it buys beyond the fix:**
+
+- **A unit reasons over a denial AND over how sure it is** — measured firing on *probably-denied* and
+  correctly not firing on *certainly-denied*. §22.7 did this for degree; this does it for negation, and
+  the user's standing requirement is now satisfied on both axes.
+- **⭐ `P` and `not P` in one value are not a contradiction but a DISTRIBUTION.** A set could never
+  represent this before. With bands it is competing degrees — [[possibilistic-layer]]'s ranked hypotheses
+  arriving for free. **The honest half: nothing reconciles them.** A rule asking for `P` fires and ignores
+  the denial entirely. A RECONCILIATION unit is what is missing, and it does not exist.
+- **§16.2's gate gets sharper**: a unit can EMIT A DENIAL instead of falling silent, so *"I have nothing"*
+  and *"I deny"* stop being the same act. Under subset output that was one act; now it is two.
+
+**⚠ AND §20.1(a)'S TRAP FOR THE THIRD TIME.** `deny` mints a `not` node, so two denials of one fact are
+different values and a re-derived denial never converges. Asserted denials are safe; a DERIVED one must
+pass `key=`. After the trace's firing nodes and the band's handles, the pattern is firm enough to state as
+a standing rule:
+
+> **Anything minted per run must be KEYED, or it destroys the fixpoint it is annotating.**

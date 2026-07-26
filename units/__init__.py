@@ -12,7 +12,7 @@ along. Enforced by `tests/units/test_no_ugm_import.py`, not by good intentions.
 `ugm/` stays working and untouched. Nothing is retired until this substrate answers a real question end to
 end — at which point deletion is the honest move ([[delete-old-code-aggressively]]), not archiving.
 """
-from . import band, trace
+from . import band, negation, reify, trace
 from .fuel import Budget, Verdict
 from .match import Absent, Triple, UnsafePattern, Var, solve
 from .net import Net
@@ -25,7 +25,7 @@ __all__ = [
     "Budget", "Verdict",
     "Absent", "Triple", "UnsafePattern", "Var", "solve",
     "Net",
-    "band", "trace", "explain", "render",
+    "band", "negation", "reify", "trace", "explain", "render",
     "Unit", "branch", "given", "rule",
     "EMPTY", "Fact", "Node", "Subgraph", "mint",
     "FORMS", "Vocabulary", "role",

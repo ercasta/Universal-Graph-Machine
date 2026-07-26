@@ -31,7 +31,8 @@ those would trip `Net.trace_leaks()`, which is the guard working as intended.
 """
 from __future__ import annotations
 
-from .value import Fact, Node, Subgraph, mint
+from .reify import OF_O, OF_P, OF_S, handle_for, reify
+from .value import Fact, Node, Subgraph
 from .vocab import role
 
 # WEAKEST FIRST. The order is the lattice, and its length is the termination bound.
@@ -46,11 +47,10 @@ CERTAIN = role("certain")
 BANDS = (VERY_UNLIKELY, UNLIKELY, LIKELY, VERY_LIKELY, CERTAIN)
 _RANK = {b: i for i, b in enumerate(BANDS)}
 
-# The object wire's reification vocabulary. Distinct from `trace`'s by construction, not by accident.
-BAND = role("<band>")            # handle -> a band node
-OF_S = role("<of_s>")            # handle -> the graded fact's subject
-OF_P = role("<of_p>")            # handle -> the graded fact's role
-OF_O = role("<of_o>")            # handle -> the graded fact's object
+BAND = role("<band>")            # a reified fact's handle -> a band node
+
+# The reification itself lives in `reify.py`, because §22.8's denial needed the SAME construct from an
+# unrelated direction. Re-exported here so `band.OF_S` keeps working.
 
 
 def meet(a: Node, b: Node) -> Node:
@@ -67,25 +67,12 @@ def meet(a: Node, b: Node) -> Node:
     return a if _RANK[a] <= _RANK[b] else b
 
 
-def handle_for(view: Subgraph, f: Fact) -> Node | None:
-    """The reification handle for `f` in `view`, if it has one. Bounded local enumeration."""
-    for t in view.by_pred(OF_P):
-        if t.o == f.p:
-            h = t.s
-            if Fact(h, OF_S, f.s) in view and Fact(h, OF_O, f.o) in view:
-                return h
-    return None
-
-
 def grade(view: Subgraph, f: Fact, band: Node) -> Subgraph:
-    """Attach `band` to `f`, reifying it if it is not already reified. Additive: the fact is untouched,
-    and nothing else in the value is disturbed."""
-    h = handle_for(view, f)
-    add = [] if h is not None else None
-    if h is None:
-        h = mint("g")
-        add = [Fact(h, OF_S, f.s), Fact(h, OF_P, f.p), Fact(h, OF_O, f.o)]
-    return view.with_facts([f] + add + [Fact(h, BAND, band)])
+    """Attach `band` to `f`, reifying it if needed. **This ASSERTS `f`** — grading a fact is claiming it
+    at a degree, which is why it is the wrong tool for *"probably not P"* (§22.7a). To talk about a fact
+    without claiming it, use `reify.reify` directly, as `negation.deny` does."""
+    view, h = reify(view, f)
+    return view.with_facts([f, Fact(h, BAND, band)])
 
 
 def band_of(view: Subgraph, f: Fact) -> Node | None:
