@@ -1668,3 +1668,53 @@ cost: *every* conclusion becomes reified, whether or not anything grades it, whi
 makes** — what gets reified, and who may mint a role. Settling them before the discourse path exists means
 settling them twice. `Mint` and §23.2 were worth doing now because they are unconditional; the rest is
 recorded debt with a named blocker, which is the difference between debt and a mess.
+
+### 23.4 WHERE EXPLANATION LIVES — the record is eager, the narrative is lazy (user, 2026-07-26)
+
+> **The user's question:** *"Could we translate `explain` to growing a parallel chain that points to
+> computation units, when the request of explaining arises? Shall we bake explainability into the DATA
+> produced by the unit, or as units that point to other units to produce an explanation subgraph? Or units
+> that attach to intermediate outputs to build the trace in a parallel subgraph?"*
+
+Three options, and **they are not alternatives — they split along a line the existing measurements already
+force.** Probed directly rather than argued:
+
+| probe | result |
+|---|---|
+| can ONE ordinary rule take an explanation hop over the trace? | **yes, today** — `(?f <concluded> ?c, ?f <from> ?p) ⇒ (?c <because> ?p)` derived 3 steps |
+| can a rule say WHAT a step is about? | **yes — and only since §23.2** shared the description vocabulary. That correction was made an hour earlier for an unrelated reason (band inheritance) and turns out to be what unblocks this |
+| can a unit DOWNSTREAM of a producer reconstruct that producer's firing? | **NO.** A consumer of `R1` sees `{a r b}` and nothing else; the premises consumed are engine state on no wire |
+
+**⭐ THE THIRD ROW DECIDES THE ARCHITECTURE.** Subset output (§16) means a downstream unit sees only the
+conclusion, so a trace-building unit tapping intermediate outputs **cannot know which premises were
+consumed** — it would have to re-derive the match, and could recover a DIFFERENT binding that yields the
+same conclusion. It would be guessing, and guessing that reads as provenance. Add §16.6's three reasons a
+demand-time reconstruction fails (refire keeps only the last output; late wiring changes the topology; a
+unit that woke and correctly wrote nothing looks like one that fired) and the rule is:
+
+> **The RECORD must be EAGER and must come from the unit itself. The NARRATIVE can be LAZY and should be
+> units.** You cannot defer the recording; you can defer the explaining.
+
+So option (a) stays, minimally — a firing record is the smallest possible bridge (conclusion handle,
+premise handles, opaque unit handle) and §20's `prune` already bounds it. Options (b) and (c) are the same
+thing and they are the right shape for everything ABOVE that record: the walk, the narrative, *"why did
+you change your mind"*, §17.G's stability units. **The user's phrase — a parallel chain that points to
+computation units — is exactly right for that layer**, and §15.1(b)'s unrolling is the mechanism: one
+instance per hop, growing backward along `<from>` until it reaches a firing with none (a given).
+
+**What that buys, and the first item is the strongest thing in this section:**
+
+- **EXPLANATION DEPTH BECOMES ASSEMBLY DEPTH, WHICH IS FUEL.** *"Explain more"* stops being a different
+  operation from *"think more"* — it is the same operation (§8's claim that the metaphor and the mechanism
+  are one thing, finally realized rather than asserted). Today `explain(depth=8)` **silently truncates**,
+  which is this session's recurring failure mode a fourth time; as units it is an honest `UNKNOWN`.
+- **It closes a §23 seam without touching the blocked decision.** `trace.explain` becomes units;
+  `band.inherit` cannot yet, because it needs the handle unification §23.3 parks. **Of the three seams,
+  this one is now cheap and unblocked** — which is a real difference, not a preference.
+- **An explanation becomes a subgraph a unit can reason OVER** — metareasoning, which §8 said to reopen
+  deliberately on this substrate.
+
+**One constraint, from §23.2's own principle:** *"P was derived from Q"* is a derivation fact, so the
+explanation chain rides the **TRACE wire**, not the object wire. Put it on the object wire and §6a's
+`Absent` starts seeing explanations — the leak §20 exists to prevent, re-entering through the door §23.2
+just narrowed.
