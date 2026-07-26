@@ -19,6 +19,8 @@ document is wrong.
 > input matches its pattern, and emits a new subgraph. **A graph is not a store; it is the value flowing on a
 > wire.** Connections are built at run time, so depth is *assembled on demand* rather than pre-wired.
 
+ACD_THINKS better explain what is "the state". is it a cache of its last output? If not, what is state, and how does it affect the computation?
+
 Two consequences that shape everything else:
 
 - **Semantics are functional; the implementation memoizes.** A unit is `output = f(inputs)` over immutable
@@ -38,6 +40,8 @@ the data and checked, or it degrades quietly — see §18.
 ---
 
 ## 2. Five minutes, end to end
+
+ACD_THINKS first explain the computation model, with examples.
 
 ```python
 from units import Budget, Fact, Net, Triple, Var, given, mint, role
@@ -73,6 +77,8 @@ v.by_pred(role("roars"))                   # the facts with that predicate
 v | other                                  # union — values are immutable, every operation returns a new one
 ```
 
+ACD_THINKS: prove me that everything can be expressed via S-P-O. I seriously doubt it. "Yesterday Paul and Mary went to the park riding bycicles". Show me how to express this via SPO. Stop thinking Davidsonian or whatever you are referring to. And stop thinking about theorem proving, we are building a system to support agentic behavior.
+
 | type | what it is |
 |---|---|
 | `Node` | an identity. `mint(name)` always produces a **fresh** node — two `mint("mary")` calls do **not** match. |
@@ -90,6 +96,8 @@ ordinary node.
 stops two independently created `mary`s from silently fusing. Names that *are* shared come from the
 **vocabulary** (§7), which is the form set's to own.
 
+ACD_THINKS: no, matching must not compare identities. Matching must compare topology and attributes, applying fuzzy logic too. 
+
 ---
 
 ## 4. Units — one class, and the taxonomy is read off the wiring
@@ -106,6 +114,8 @@ branch("H", add=[hypothesis], remove=[])   # carries its input through, modified
 
 These are three constructors, not three types — they all build a `Unit`. And `kind` is **reported from the
 current wiring**, not from which constructor was used:
+
+ACD_THINKS I can't understand the following snippet, explain better. And explain the concept of "kind". Are we building superstructures?
 
 ```python
 rule("R", lhs, rhs).kind        # "given"  — nothing is wired into it YET
@@ -138,6 +148,8 @@ What is abolished is an unbounded *shared* store.
 ---
 
 ## 5. Patterns — how a unit says what it reads
+
+ACD_THINKS explain better what "Absent" does
 
 ```python
 from units import Triple, Var, role
@@ -200,6 +212,8 @@ role("is_a")        # a PREDICATE node, resolved through the form set
 lexeme("lion")      # a WORD node ("#lion"), also the form set's
 ```
 
+ACD_THINKS again, superstructure. See the ugm lesson. you are superimposing roles, lexemes, etc. This will bite us hard as things will not compose. You are thinking in 70's formal systems, that failed because they had lots of superstructures that could not combine. Prove me wrong.
+
 A role cannot be minted per occurrence (two independently minted `likes` nodes would not match) and cannot be
 interned from a surface word at run time (that would fuse two utterances by name). So the vocabulary is **part
 of the form set**: forms mint their roles once, at load.
@@ -218,6 +232,8 @@ Every pass, for each template in the library and each unit whose current output 
 
 **1. Does this producer offer anything?** Can any fact on the wire satisfy any atom of the pattern? This is
 exact and fact-level, not predicate-level.
+
+ACD_THINKS is this a form of "rush to fixpoint computation", without any lazyness or driving force? WHY should the system look for more "expansions" or things to wire? again, the system is not a theorem prover, there should be goals and subgoals driving this expansions, otherwise nothing should happen.
 
 ```
 producer emits:  socrates is_a mortal
@@ -240,6 +256,9 @@ hypothesis-ness rides in the subgraph they carry. Scope is a **chain**, never a 
 **3. Frontier first.** Candidates are tried deepest-upstream first. Two producers in one lineage can look
 identical while the deeper one carries strictly more context — a hypothesis marker, a time index. Taking the
 shallower one silently drops that context, which is exactly a bypass.
+
+ACD_THINKS it's not only "frontier first", it's that we can only connect to the "end" of a chain, never at the middle "If tomorrow rains, bring the umbrella" is a chain of two things and must NEVER connect to "if tomorrow rains". We also already concluded that once built, the topology alone is not sufficient, you need something to identify the end of a chain: a marker, a node, whatever, but if you just connect computation units, once you have attached something to an end, you lose the information that it's an end, as it now sits "in the middle" of a chain of computation units.
+
 
 **4. Complete the pattern.** A rule reading two premises gets one from the chain and must get the other from
 somewhere; the assembler wires it. A wire supplying a predicate no unit in the chain produces is a **join**; a
