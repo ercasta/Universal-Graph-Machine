@@ -194,7 +194,19 @@ class Net:
         for a in prods:
             for b in prods:
                 if a != b and not self.units[b].rhs and a in self.upstream(b):
-                    if self.units[a].output.facts - self.units[b].output.facts:
+                    # **WHAT A CARRIER DROPPED IS EXACTLY `view - output`** (§30.3), and nothing else is a
+                    # drop. The earlier test — *facts the ancestor has and the descendant does not* — also
+                    # matched facts the descendant NEVER RECEIVED, which under subset output is most of
+                    # them: an intermediate rule passes on only its conclusion, so a carrier downstream of
+                    # one legitimately lacks everything else. That flagged ordinary merges as bypasses.
+                    # NOTE `view()` already applies `removes`, so `view - output` is vacuously empty for a
+                    # carrier — the drop is what ARRIVED and did not leave.
+                    bu = self.units[b]
+                    arrived = EMPTY
+                    for val in bu.inputs.values():
+                        arrived = arrived | val
+                    dropped = arrived.union(bu.adds).facts - bu.output.facts
+                    if self.units[a].output.facts & dropped:
                         return (a, b)
         return None
 
@@ -541,35 +553,59 @@ class Net:
         # is what a negated premise on a predicate the positive body also reads looks like, and the
         # predicate set reported it as already satisfied. Atom-level need is also what makes the shape
         # filter and the join agree, instead of one working at each granularity.
-        want = tuple(a for a in self._half_atoms(inst.lhs, False)
-                     if isinstance(a.p, Node) and a.p in need) if self.computed_index else ()
+        # ⚠ EVERY OBJECT-HALF ATOM, NOT ONLY THE ONES WHOSE PREDICATE IS IN `need` (§30.1). An atom with a
+        # VARIABLE PREDICATE contributes no key to `need`, so a mixed template — one wildcard atom plus one
+        # ground atom, **which is exactly the coref-merge rule** — spawned on its ground atom and its
+        # wildcard atom was NEVER SATISFIED. `?x ?p ?y ∧ ?x same_as ?z ⇒ ?z ?p ?y` saw only the `same_as`
+        # facts and substituted over those alone. Fifth in this class, and the same shape every time: the
+        # need was computed at a granularity that cannot represent what was being asked for.
+        want = self._half_atoms(inst.lhs, False) if self.computed_index else ()
         for _ in range(max(len(need), len(want))):           # at most one pass per thing needed
             prods = self.producers.get(iname, set())
+
+            def gated_for(cand: str) -> set:
+                """Predicates a unit IN MY CHAIN derives, so sourcing them elsewhere routes around its gate.
+
+                **⚠ EXCLUDING THE CANDIDATE ITSELF, and that exclusion is load-bearing (§30.2).** Under
+                SUBSET OUTPUT an intermediate rule emits only its own conclusion, so it never CARRIES an
+                upstream unit's predicate — which means a direct wire from that upstream unit is the ONLY
+                route, not a bypass of anything. Left in, the guard refused the very wire it needed: a
+                template whose negated premise is produced two units back was denied its own producer and
+                its NAF went vacuously true. **A unit cannot be a bypass of itself.**"""
+                return {h.p for q in self.upstream(iname) if q != cand
+                        for h in self.units[q].rhs if isinstance(h.p, Node)}
             if self.computed_index:
                 from .index import can_satisfy, feasible
                 have = EMPTY
                 for p in prods:
                     have = have | self.units[p].output
                 unmet = tuple(a for a in want if not any(can_satisfy(f, a) for f in have))
-                missing = {a.p for a in unmet}
+                if not unmet:
+                    break
+                missing = {a.p for a in unmet if isinstance(a.p, Node)}
+                # A wildcard atom can be satisfied by ANY fact — including one a chain unit GATES — so the
+                # predicate-set bypass test below cannot see it. When one is unmet, a candidate carrying
+                # ANY gated predicate is a bypass.
+                wild = len(missing) < len(unmet)
             else:
                 supplied: set = set()
                 for p in prods:
                     supplied |= self.units[p].output.predicates()
-                missing, unmet = need - supplied, ()
-            if not missing:
-                break
-            gated = {h.p for q in self.upstream(iname) for h in self.units[q].rhs
-                     if isinstance(h.p, Node)}
+                missing, unmet, wild = need - supplied, (), False
+                if not missing:
+                    break
             cands = [u for u in self.units.values()
                      if u.name != iname
-                     and (u.output.predicates() & missing)
+                     # the predicate PRE-FILTER is an optimization, sound only when there IS a ground
+                     # predicate to filter on (§29.2's lesson, reaching the join)
+                     and (not missing or (u.output.predicates() & missing))
                      # a TRIGGER test, not a projection — the join asks only *can you supply what is
                      # still unmet*, and `unmet` already spans both polarities (§29.1)
                      and (not self.computed_index or feasible(u.output, unmet))
                      and u.name not in prods
                      and iname not in self.upstream(u.name)          # would close a cycle
-                     and not (u.output.predicates() & missing & gated)  # BYPASS -> refuse
+                     and not (u.output.predicates() & (gated_for(u.name) if wild
+                                                      else (missing & gated_for(u.name))))   # BYPASS
                      and all(self.comparable(u.name, q) for q in prods)
                      # ⚠ AND THE OTHER BYPASS, which `gated` does not catch: a branch that REMOVES a fact
                      # is not a rule head, so wiring its ANCESTOR back in restores exactly what it dropped

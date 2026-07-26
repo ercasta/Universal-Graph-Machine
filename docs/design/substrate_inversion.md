@@ -1,3 +1,22 @@
+> ## ⚠ THIS DOCUMENT IS HISTORY, NOT A REFERENCE
+>
+> It is the **lab notebook** for the `units` substrate: an append-only trail of what was tried, what broke, and
+> what was reasoned, in the order it happened. It is kept because the trail is evidence — several decisions here
+> were reversed, and knowing why matters. **It is no longer maintained, and it should not be read to find out
+> how the system works.** As a reference it had become a changelog that explained each choice in terms of other
+> entries in itself, with almost no worked examples.
+>
+> Superseded, as of 2026-07-26, by three documents with three jobs:
+>
+> | you want | read |
+> |---|---|
+> | what the system **is**, with runnable examples | [`docs/units/reference.md`](../units/reference.md) |
+> | **why** a decision was taken, and the evidence | [`docs/units/decisions/`](../units/decisions/README.md) |
+> | what is being worked on **now**, and what needs a decision | [`docs/units/STATUS.md`](../units/STATUS.md) |
+>
+> Section numbers here (§16.6, §22.8, …) are still cited by the decision records as sources. That is the only
+> role this file has now.
+
 # Substrate Inversion — computation units as the substrate, graphs as the datum
 
 > **Status: 🔭 ADOPTED AS THE ACTIVE LINE OF EXPLORATION, 2026-07-26.** This document records a proposal
@@ -2318,3 +2337,139 @@ Those are now measured facts sitting in front of §24.3 rather than predictions 
 > wrong granularity** — predicate where an atom was meant, positive where both polarities were meant, absence
 > of one thing taken as presence of another. The assembler decides by *set intersection over predicates*, and
 > each defect was a place where that abstraction was one level too coarse for what was being asked.
+
+## 30. DISCOURSE REFERENCE — decided, not resolved (§24.3 TAKEN, 2026-07-26)
+
+`units/discourse.py`, `vocab.lexeme`, `bench/spike_discourse_reference.py` (25/25),
+`tests/units/test_discourse.py`, **158 green.**
+
+§25.2 ranked this Tier 3 — *"the single largest piece of new design"* — and §24.3 stated the constraint that
+makes it hard: *"the lion"* must reach the same entity as the first mention, and it may **not** be looked up
+by name, because entities are nameless (§21.2) and interning a surface word is §3's forbidden second global.
+
+**Everything built here is DATA.** Seven declared rules and one node-minting convention; no engine change was
+needed for the representation. Every engine change in this section is a DEFECT FIX, which is the outcome
+§24.3 could most have hoped for.
+
+### 30.1 ⭐ THE LEXEME IS THE LICENSED BRIDGE, and the distinction was already being made
+
+> **The word *lion* belongs to the FORM SET. THE LION is a nameless mention.**
+
+That one line resolves the whole apparent paradox. `vocab.Vocabulary` already interns ROLES, licensed by
+*a form may mint, an utterance may not* (§22.5). A **lexeme** is the same kind of thing: supplied at load,
+shared across every utterance, namespaced `#word` so it cannot collide with a role. A mention carries
+`m <word> lexeme("lion")`, and coref becomes a rule over **lexeme** identity — so nothing about the ENTITY is
+resolved by name, and both rules survive literally.
+
+Measured both ways: two mentions in different utterances corefer through the shared lexeme, and two
+independently MINTED `lion` nodes still refuse to match. The by-name fusion §22.5 closed stays closed.
+
+### 30.2 ⭐ INEQUALITY DISSOLVES — identity as DATA
+
+Coref needs `?x ≠ ?z` and the matcher has no such primitive. **It needs none:** `?x <word> ?y ⇒ ?x <self> ?x`
+makes identity a FACT, and `Absent(?x <self> ?z)` **is** `?x ≠ ?z` — exact, over the value on the wire (§6a),
+no fuel. Without the guard it is measurably reflexive junk, so the guard is not decoration.
+
+That is the second recorded gap to dissolve rather than be filled (§17.E's predicate variable was the first),
+and the pattern is worth naming: **on this substrate a missing relation between terms is usually a missing
+FACT, not a missing operator.**
+
+> **⚠ AND §30 RESTS ON §28.** The inequality rule's producer has to be WIRED for the NAF to see it — and
+> until §28.1 a negated premise's producer was **never wired**. The whole of §30.2 would have silently
+> reported "everything is unequal to everything". Doing §28/§29 first was not a detour: §30 is unbuildable on
+> the assembler that existed two sections ago.
+
+### 30.3 ⚠ THE ASSEMBLER CANNOT WIRE A WILDCARD MERGE, and that is what a wildcard costs
+
+`?x ?p ?y ∧ ?x same_as ?z ⇒ ?z ?p ?y` (§17.D's generic substitution) gets wired to the coref rule and **not
+to the discourse**, so it substitutes over `same_as` facts and nothing else. And this one cannot be fixed by a
+better need computation:
+
+> **The wildcard atom is satisfied by ANY fact — including the rule's own control facts — so *"is this atom
+> unmet?"* is vacuously false.** The atom is formally satisfied, by the wrong facts. No test at this
+> granularity could notice.
+
+**So the topology for a wildcard rule must be AUTHORED, not inferred** — a merge carrier over the discourse
+and the decision. That is not a defect; it is the price of declining to say what you read, and §24.4 already
+accepted *"intake manufactures the dependency"* as the shape for procedures. It is the first place in this
+document where wiring is genuinely not inferable, and it lands exactly where §22.5 predicted.
+
+**And the merge must hold EVERY premise in ONE value.** A rule's output does not carry its input (§16), so a
+merge over the discourse and the decision but *not* the symmetry substitutes one way only — and the wildcard
+rule cannot self-unroll for the same reason: hop *n+1* reads hop *n*'s conclusions, which contain no
+discourse. Measured.
+
+**Two defects fell out, both in the bypass guard, both pre-existing:**
+
+- **`gated` treated a unit as a bypass of ITSELF.** Under subset output an intermediate rule never carries an
+  upstream unit's predicate, so a direct wire from that unit is the ONLY route — and the guard refused it. A
+  template whose negated premise is produced two units back was denied its own producer and **its NAF went
+  vacuously true.** A unit cannot be a bypass of itself.
+- **`restores_a_drop` counted facts the carrier NEVER RECEIVED as facts it dropped** — which under subset
+  output is most of them, so ordinary merges downstream of a rule were flagged as bypasses. **A drop is what
+  ARRIVED and did not leave.** (`view()` already applies `removes`, so `view - output` was vacuously empty;
+  the comparison has to be against the pre-removal union.) §17.A's real bypass is still caught.
+
+### 30.4 ⚠ SUBSTITUTION UNIONS PROPERTIES; IT DOES NOT COLLAPSE IDENTITY
+
+Both mentions end up carrying both properties, and **remain two nodes** — so *"how many lions roar"* answers
+2. §17.D designed the merge as *"a delta that substitutes B→A"*, and that needs REMOVAL:
+
+> **A RULE CANNOT REMOVE.** `Unit.removes` is fixed at construction and a rule's `rhs` only adds. §21.1's
+> claim that *"a unit is a graph REWRITE"* is true of the STATIC spec and **false of the rule** — a derived
+> rewrite, one whose removals depend on the match, is inexpressible. Coref is the first thing to want it.
+
+So coref here is **sound for what rules MATCH and silent for what is COUNTED**, which is §17.F's uniqueness
+gap in a second guise rather than a new one. **Whether to add derived removal is an open DECISION, not an
+oversight** — it would give a rule non-monotone output, and §7's *"revision dissolves, downstream
+recomputes"* is built on rules only ever adding. Recorded, not taken.
+
+### 30.5 THE DECISION, and one thing that fell out of getting it wrong
+
+The rule is **definiteness**, not the word: a DEFINITE mention corefers with an INDEFINITE mention of the
+same lexeme. Keying on the shared lexeme alone merges *"a lion roars. A lion sleeps."* — two different lions.
+That is not a substrate failure but a **wrong decision**, which is precisely what §24.3 means by *decided*.
+Recency, salience and description-matching are further premises on the same rule shape and need no new
+machinery.
+
+> **⭐ AND THE ASYMMETRY THAT MAKES THE DECISION RIGHT MAKES THE SUBSTITUTION ONE-DIRECTIONAL.** Substitution
+> follows the arrow, so it carries the definite mention's properties to the antecedent and not the reverse:
+> what is said about *"the lion"* reaches the entity, while what was already known about the entity never
+> reaches the mention. **Sameness is an equivalence and the decision is not**, so the two must be separated —
+> decide asymmetrically, then symmetrize (`symmetry_rule`). Found by getting the direction wrong in the spike
+> and reading what came out.
+
+### 30.6 ⭐ §17.F's TWO LOGGED GAPS BECOME DETECTABLE
+
+`form_inventory.md` §4a has carried both as *no mechanism*; both are now ordinary facts:
+
+| §17.F's finding | now |
+|---|---|
+| **uniqueness** — *"two cars matched; both would be derived over, silently"* | `?x same_as ?z ∧ ?x same_as ?z2 ∧ ?z ≠ ?z2 ⇒ ?x <ambiguous> ?x` — two antecedents is a FACT other units can read |
+| **reference failure** — *"empty result, indistinguishable from negation"* | a `<resolved>` witness plus NAF ⇒ `<dangling>`; presupposition failure stops collapsing into falsity |
+
+Neither RESOLVES anything — they make the failure **sayable**, which is what was missing, and it is
+[[epistemic-closure-under-composition]]'s *reasoned ∪ refused, never silently mis-mapped* reaching discourse
+reference. The existential needed one extra rule (a witness) because `Absent` may only test variables the
+positive body bound; no new primitive.
+
+### 30.7 TWO CHAINS MAY DISAGREE ABOUT IDENTITY — §17.D's prediction, measured
+
+Downstream of a merge branch the two mentions are one; downstream of a sibling that declines the merge they
+remain two. **Coref is a CHAIN POSITION** — §4's *"scope is a chain"* applied to identity, and it needed
+nothing new: the world that declines the merge simply never spawns a substitution instance, because §3b has
+nothing to trigger on there.
+
+### 30.8 WHAT §24.3 LEAVES
+
+**Closed:** the evidence question (the lexeme), inequality, the decision shape, uniqueness and
+reference-failure detection, chain-relative identity, and the substitution's real topology.
+
+**Open, and now precisely stated rather than vague:**
+
+1. **DERIVED REMOVAL** (§30.4) — the one thing that would make substitution a true merge. A decision about
+   the computation model, not a missing feature.
+2. **Wildcard cost** — §29.4's redundant unrolls are undiminished, and §28.3 already established that no
+   shape can restrict them.
+3. **Intake proper** — an utterance's boundary, the idempotency key (§24.5), and FORCE. None of which this
+   section needed, which is itself the useful news.

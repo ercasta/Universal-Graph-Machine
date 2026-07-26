@@ -65,3 +65,26 @@ def role(name) -> Node:
     """Resolve a role through the default form set. A `Node` passes through unchanged, so every call site
     can accept either and the coercion happens once, at construction."""
     return name if isinstance(name, Node) else FORMS.role(name)
+
+
+def lexeme(word: str) -> Node:
+    """⭐ THE WORD as a node — **the licensed bridge discourse reference needs** (§30.1).
+
+    §24.3's problem: *"the lion"* in the second sentence must reach the same entity as the first, and it may
+    NOT be looked up by name, because entities are NAMELESS (§21.2) and interning a surface word into an
+    entity is §3's forbidden second global structure.
+
+    **The resolution is a distinction this module was already making for roles.** A LEXEME is part of the
+    FORM SET — the word *lion* is vocabulary, supplied at load, shared across every utterance. THE LION is
+    a nameless mention node, minted fresh per mention and never interned. So a mention carries a fact
+    `m <word> lexeme("lion")`, and coref becomes a RULE over lexeme identity:
+
+        both rules survive intact — entities stay nameless, and the only interned thing is the WORD, which
+        was always the form set's to own. Nothing about the ENTITY is resolved by name.
+
+    Measured (`bench/spike_discourse_reference.py`): two mentions in different utterances corefer through
+    a shared lexeme, while two independently MINTED `lion` nodes correctly refuse to match.
+
+    Namespaced with `#` so a lexeme can never collide with a role. Same licensing line as `role`: **a form
+    may mint through this; an utterance may not.**"""
+    return FORMS.role(f"#{word}")
