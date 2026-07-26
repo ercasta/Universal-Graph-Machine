@@ -38,6 +38,7 @@ the bound travels with the value instead of being a property of a collector.
 """
 from __future__ import annotations
 
+from .reify import OF_O, OF_P, OF_S, reify
 from .value import EMPTY, Fact, Node, Subgraph, mint
 from .vocab import role
 
@@ -50,16 +51,27 @@ from .vocab import role
 FIRED_BY = role("<fired_by>")    # firing  -> the unit's OPAQUE handle
 CONCLUDED = role("<concluded>")  # firing  -> a conclusion handle
 FROM = role("<from>")            # firing  -> a conclusion handle it CONSUMED as a premise
-SUBJECT = role("<subject>")      # conclusion handle -> the subject node (THE SAME node, inherited)
-PREDICATE = role("<predicate>")  # conclusion handle -> the ROLE NODE itself
-OBJECT = role("<object>")        # conclusion handle -> the object node
 RETRACTED = role("<retracted>")  # firing  -> unit handle. The stub: "this no longer holds"
 
-TRACE_PREDICATES = frozenset({FIRED_BY, CONCLUDED, FROM, SUBJECT, PREDICATE, OBJECT, RETRACTED})
+# ⭐ THE DESCRIPTION VOCABULARY IS `reify`'s, SHARED WITH THE OBJECT WIRE (§22.9) — corrected 2026-07-26.
+# It used to be a private `<subject>/<predicate>/<object>`, and that split is what made degree
+# inheritance unexpressible as a rule: a premise's band hung off a REIFY handle while a firing's `<from>`
+# pointed at a TRACE handle, and the two denoted the same fact without being joinable.
+#
+# THE CORRECTION IS TO THE GUARD, NOT A WORKAROUND. Saying WHICH FACT a handle denotes is CONTENT; only
+# *"firing F concluded c"* and *"F came from c'"* are provenance. So the leak check narrows to the FIRING
+# vocabulary, and the description is shared. §16.6's constraint is unchanged in force — §6a's `Absent`
+# must never see a derivation fact — it was simply drawn one predicate too wide.
+SUBJECT, PREDICATE, OBJECT = OF_S, OF_P, OF_O           # kept as names; same nodes now
+
+FIRING_PREDICATES = frozenset({FIRED_BY, CONCLUDED, FROM, RETRACTED})
+TRACE_PREDICATES = FIRING_PREDICATES | {OF_S, OF_P, OF_O}
 
 
 def is_trace(f: Fact) -> bool:
-    return f.p in TRACE_PREDICATES
+    """**The LEAK test, and it is the FIRING vocabulary only** (§22.9). A description of which fact a
+    handle denotes is content and may travel on the object wire; a derivation fact may not."""
+    return f.p in FIRING_PREDICATES
 
 
 # -- describing a conclusion ---------------------------------------------------------------------------
@@ -70,7 +82,7 @@ def describe(handle: Node, f: Fact) -> tuple:
     Note all THREE slots are **the same node objects** the conclusion holds — identity inherited into the
     trace, not re-minted (§5). Since §22.5 the role is a node too, so the `<predicate>` slot needs no
     special construct: `value.sym`, and the name-equality carve-out it forced, are retired."""
-    return (Fact(handle, SUBJECT, f.s), Fact(handle, PREDICATE, f.p), Fact(handle, OBJECT, f.o))
+    return (Fact(handle, OF_S, f.s), Fact(handle, OF_P, f.p), Fact(handle, OF_O, f.o))
 
 
 def handle_of(trace: Subgraph, f: Fact) -> Node | None:

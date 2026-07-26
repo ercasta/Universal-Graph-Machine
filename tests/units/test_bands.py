@@ -91,13 +91,19 @@ def test_a_band_grades_a_fact_and_is_paid_for_only_where_used():
     assert f1 in view and f2 in view
 
 
-def test_the_object_wire_needs_its_own_reification_vocabulary():
-    """`<of_s>/<of_p>/<of_o>` rather than the trace's identical-looking `<subject>/<predicate>/<object>`.
-    Reusing those would trip `Net.trace_leaks()` — the guard working as intended, and evidence that §20's
-    separation was not a special case."""
+def test_the_object_wire_may_describe_a_fact_but_never_a_firing():
+    """⭐ CORRECTED BY §22.9. This test used to assert that the object wire needed its OWN reification
+    vocabulary, because reusing the trace's tripped `Net.trace_leaks()`. That split was drawn one
+    predicate too wide, and it was what made degree inheritance unexpressible as a rule: a premise's band
+    hung off a REIFY handle while a firing's `<from>` pointed at a TRACE handle, denoting the same fact
+    without being joinable.
+
+    **Saying WHICH FACT a handle denotes is CONTENT. Only the firing vocabulary is provenance.** §16.6's
+    constraint is unchanged in force — §6a's `Absent` must never see a derivation fact."""
     a, b = mint("a"), mint("b")
     view = B.grade(Subgraph([Fact(a, "p", b)]), Fact(a, "p", b), B.LIKELY)
-    assert not (view.predicates() & T.TRACE_PREDICATES)
+    assert view.predicates() & {T.OF_S, T.OF_P, T.OF_O}, "description travels on the object wire"
+    assert not (view.predicates() & T.FIRING_PREDICATES), "a derivation fact never does"
 
 
 # -- inheritance ----------------------------------------------------------------------------------------

@@ -77,6 +77,12 @@
 > and a unit FIRES on it; inheritance is ONE computation over `last_firing`. ⭐ §22.7a: a GRADED ABSENCE
 > is not ignored but INEXPRESSIBLE — `grade` asserts what it grades, so "probably not P" has nowhere to
 > live. A representational gap, and §16.6 pointed at the wrong layer.**
+> **⭐ §22.8 FIXED IT THE SAME DAY (user): "probably not P" = TWO NODES in the DATA subgraph — a
+> graded `not` node pointing at a reified P. NEEDED NO NEW CONSTRUCT (§22.6's reification + §22.7's
+> vocabulary), 94 green. Buys: units reason over denials AND their degree; P and not-P become a
+> DISTRIBUTION rather than a contradiction; the gate can DENY instead of falling silent. ⚠ Price:
+> `Absent` conflates *unknown* with *denied* — the NAF/strong-negation split, relocated not removed.
+> ⚠ And §20.1(a)'s trap a THIRD time ⇒ STANDING RULE: ANYTHING MINTED PER RUN MUST BE KEYED.**
 >
 > **§18 ATOMIC CHAINS (user), RECORDED NOT BUILT.** A contextualized concept is a chain that must not be
 > split, and the assembler splits it — measured. The conditional and the syllogism are STRUCTURALLY
@@ -1600,3 +1606,65 @@ pass `key=`. After the trace's firing nodes and the band's handles, the pattern 
 a standing rule:
 
 > **Anything minted per run must be KEYED, or it destroys the fixpoint it is annotating.**
+
+---
+
+## 23. THE PYTHON SEAMS — audited, and one of them is a keystone (user, 2026-07-26)
+
+> **The user's question:** *"You started implementing things in Python that might be computation in the
+> substrate. Shall we fix it before we start creating a stack of seams that will be difficult to sanitize
+> later?"*
+
+Right to ask, and the audit says it is **three seams, not a stack** — which changes the answer.
+
+| Python | verdict |
+|---|---|
+| `match.solve`, `Unit.run`, `Net.assemble/propagate`, `band.meet` | **MECHANISM.** The evaluator, the assembler (§20.4 refused making it substrate, deliberately), and the semiring's ⊗ (`vision.md` §13 assigns it to the engine). Not seams. |
+| `trace.firing_facts`, `prune`, `supersession_stub` | **BRIDGES.** A run event becoming facts is exactly the *"minimal event→fact bridge"* [[composability-principle]] permits as irreducible. |
+| `band.band_of`, `negation.denial_of/denied`, `reify.handle_for/fact_of` | **READS**, each a pattern a rule could express. Harmless as helpers — they become seams only if reasoning depends on them, which is the next row. |
+| **`band.inherit`** | ⚠ **SEAM.** Degree propagation IS reasoning, and §16.5 designed it as *one generic rule*. |
+| **`trace.explain`** | ⚠ **SEAM.** §16.6 places `why` as a SINK UNIT; it is a Python walk (already recorded, §20.3). |
+| **`vocab.FORMS`** | ⚠ **SEAM-IN-WAITING.** A module-level registry that resolves any string. It is only not §22.5's forbidden interning registry because nothing calls it from an utterance — and nothing calls it from an utterance because there is no intake. |
+
+### 23.1 BUILT — `match.Mint`, keyed skolem minting
+
+Three separate things were blocked on the same missing primitive, which is the argument for building it:
+`band.inherit` mints a handle per graded conclusion; a DERIVED denial mints a `not` node (§22.8); the
+trace's firing nodes hit it first (§20.1a) and were fixed by hand. **`Mint` makes §22.8's standing rule a
+CONSTRUCT rather than a discipline** — the node is a function of (unit, head position, binding), so
+re-running on the same match yields the same node and the output settles. An RHS-only `Var` stays refused;
+a `Mint` is not a variable, it names a function of the binding ([[skolem-minting-lhs-keyed]]'s supported
+form). Memo is the unit's own state, never global.
+
+### 23.2 ⭐ §20's LEAK GUARD WAS DRAWN ONE PREDICATE TOO WIDE — corrected
+
+Trying to close the `inherit` seam hit a wall that turned out to be a real defect. The trace described a
+conclusion with a private `<subject>/<predicate>/<object>`; `reify.py` describes a graded fact with
+`<of_s>/<of_p>/<of_o>`. **Two vocabularies for one construct, forced apart by `trace_leaks()`** — and that
+split is precisely what made inheritance unexpressible as a rule: a premise's band hangs off a REIFY
+handle while a firing's `<from>` points at a TRACE handle, denoting the same fact without being joinable.
+
+> **The correction is to the GUARD, not a workaround. Saying WHICH FACT a handle denotes is CONTENT; only
+> *"firing F concluded c"* and *"F came from c'"* are provenance.** So `is_trace` now tests the FIRING
+> vocabulary alone, and the description is shared with the object wire.
+
+§16.6's constraint is unchanged in force — §6a's `Absent` must still never see a derivation fact. It was
+simply over-drawn, and a test that pinned the old claim (`test_the_object_wire_needs_its_own_reification_
+vocabulary`) has been rewritten to state the new one.
+
+### 23.3 ⚠ AND THE SEAM STILL DOES NOT CLOSE — which is the useful result
+
+Sharing the vocabulary was necessary and **not sufficient**. Measured: the object-wire handle for a
+premise and the trace-wire handle for the same premise are **different nodes**. The description is now
+joinable in principle and the handles still are not.
+
+Closing it means **one handle per fact per value** — the trace reifying its conclusions into the OBJECT
+value so a band and a firing can name the same node. That is not a bug fix; it is a decision with a real
+cost: *every* conclusion becomes reified, whether or not anything grades it, which is the opposite of
+§22.7's *"paid for only where used"*.
+
+**So the honest answer to the user's question is: fix the seams, but not first.** Two of the three
+(`inherit`'s handle unification, `FORMS`) bottom out in a representation decision that **intake also
+makes** — what gets reified, and who may mint a role. Settling them before the discourse path exists means
+settling them twice. `Mint` and §23.2 were worth doing now because they are unconditional; the rest is
+recorded debt with a named blocker, which is the difference between debt and a mess.

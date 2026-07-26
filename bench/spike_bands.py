@@ -120,9 +120,13 @@ check("3a the graded fact carries its band", B.band_of(view, f_likes) is B.LIKEL
 check("3b an UNGRADED fact costs nothing — no handle, no band, and it is NOT silently certain",
       B.band_of(view, f_rich) is None)
 check("3c grading is additive: the fact itself is untouched", f_likes in view and f_rich in view)
-check("3d ⭐ and the object wire needs its OWN reification vocabulary — reusing the trace's would trip "
-      "`Net.trace_leaks`", not (view.predicates() & __import__("units.trace", fromlist=["x"])
-                                .TRACE_PREDICATES))
+# CORRECTED BY §23.2: this originally asserted the object wire needed its OWN reification vocabulary.
+# That split was drawn one predicate too wide and blocked inheritance-as-a-rule. Describing WHICH FACT a
+# handle denotes is CONTENT; only the firing vocabulary is provenance.
+_T = __import__("units.trace", fromlist=["x"])
+check("3d the object wire MAY describe a fact, and must never carry a FIRING (§23.2)",
+      bool(view.predicates() & {_T.OF_S, _T.OF_P, _T.OF_O})
+      and not (view.predicates() & _T.FIRING_PREDICATES))
 
 # ======================================================================================================
 print("\n== 4. INHERITANCE over `last_firing` — one generic computation, not a clause per template ==")

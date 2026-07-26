@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterator
 
-from .value import Fact, Node, Subgraph
+from .value import Fact, Node, Subgraph, mint as _mint
 
 
 @dataclass(frozen=True)
@@ -50,9 +50,40 @@ class Triple:
     def vars(self) -> frozenset:
         return frozenset(t for t in (self.s, self.p, self.o) if isinstance(t, Var))
 
+    def mints(self) -> frozenset:
+        return frozenset(t for t in (self.s, self.p, self.o) if isinstance(t, Mint))
+
     def __repr__(self) -> str:
         pn = self.p.name if isinstance(self.p, Node) else self.p
         return f"({self.s} {pn} {self.o})"
+
+
+@dataclass(frozen=True)
+class Mint:
+    """A HEAD-ONLY term: mint a node, **keyed on the match that produced it** ([[skolem-minting-lhs-keyed]]).
+
+    This is the primitive three separate things were blocked on, and the convergence is the argument for
+    building it:
+
+    * §22.7 — `band.inherit` mints a handle per graded conclusion, so degree inheritance had to stay
+      Python instead of being the one generic RULE §16.5 designed it as;
+    * §22.8 — a DERIVED denial mints a `not` node, so it could not be derived at all without diverging;
+    * §20.1(a) — the trace's firing nodes hit the same wall first, and were fixed by hand.
+
+    All three are the standing rule §22.8 states: **anything minted per run must be KEYED, or it destroys
+    the fixpoint it is annotating.** `Mint` is that rule made into a construct rather than a discipline —
+    the node is a function of (unit, head position, binding), so re-running a unit on the same match
+    yields the SAME node and the output stops changing.
+
+    An RHS-only `Var` remains refused (unsound — it asserts an unbound existential). A `Mint` is not a
+    variable: it names a FUNCTION of the binding, which is exactly the supported skolem form."""
+    name: str
+
+    def vars(self) -> frozenset:
+        return frozenset()
+
+    def __repr__(self) -> str:
+        return f"{self.name}?"
 
 
 @dataclass(frozen=True)
@@ -153,6 +184,27 @@ def matched(atom: Triple, f: Fact, b: dict) -> bool:
     return (f.s == _resolve(atom.s, b) and f.p == _resolve(atom.p, b) and f.o == _resolve(atom.o, b))
 
 
-def ground(head: Triple, b: dict) -> Fact:
-    """Instantiate a head atom under a binding. Every slot must be bound — `check_safety` guarantees it."""
-    return Fact(_resolve(head.s, b), _resolve(head.p, b), _resolve(head.o, b))
+def ground(head: Triple, b: dict, memo: dict | None = None, owner: str = "") -> Fact:
+    """Instantiate a head atom under a binding. Every `Var` slot is bound — `check_safety` guarantees it —
+    and every `Mint` slot resolves through `memo`, KEYED ON THE BINDING.
+
+    `memo` is the minting unit's OWN state, not a global: two units that mint for the same match get
+    different nodes, which is correct, because they are different derivations. Convergence between them
+    is a separate question ([[skolem-minting-lhs-keyed]]'s defining-relation reuse) and is not solved
+    here."""
+    return Fact(_mint_or_resolve(head.s, b, memo, owner, 0),
+                _mint_or_resolve(head.p, b, memo, owner, 1),
+                _mint_or_resolve(head.o, b, memo, owner, 2))
+
+
+def _mint_or_resolve(slot, b: dict, memo: dict | None, owner: str, pos: int):
+    if not isinstance(slot, Mint):
+        return _resolve(slot, b)
+    if memo is None:
+        raise UnsafePattern(f"{slot!r}: a minting head needs a keyed memo — see `Mint`")
+    key = (owner, pos, slot.name, tuple(sorted((v.name, n.nid) for v, n in b.items())))
+    node = memo.get(key)
+    if node is None:
+        node = _mint(slot.name)
+        memo[key] = node
+    return node

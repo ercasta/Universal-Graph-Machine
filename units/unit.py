@@ -27,7 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from . import trace as _trace
-from .match import Absent, Triple, check_safety, ground, matched as _matched, solve
+from .match import Absent, Mint, Triple, check_safety, ground, matched as _matched, solve
 from .value import EMPTY, Fact, Node, Subgraph, mint
 from .vocab import role as _role
 
@@ -75,6 +75,11 @@ class Unit:
     trace_output: Subgraph = EMPTY
     handle: Node | None = None                          # this unit's OPAQUE handle in the trace
     _trace_sig: object = None                           # last (firing record, incoming trace) built from
+    _minted: dict = field(default_factory=dict)         # KEYED SKOLEMS (match.Mint): (owner, pos, name,
+    #                                                     binding) -> node. This unit's own state, never
+    #                                                     global. It is what makes a minting rule
+    #                                                     re-derive the SAME node and therefore SETTLE —
+    #                                                     §22.8's standing rule, as a construct.
 
     def __post_init__(self) -> None:
         if isinstance(self.rhs, Triple):
@@ -137,7 +142,7 @@ class Unit:
                                  for f in (view.by_pred(a.p) if isinstance(a.p, Node) else view.facts)
                                  if _matched(a, f, b))
                 for head in self.rhs:
-                    g = ground(head, b)
+                    g = ground(head, b, self._minted, self.name)
                     derived.add(g)
                     firing.append((g, consumed))
         fresh = frozenset(derived)
