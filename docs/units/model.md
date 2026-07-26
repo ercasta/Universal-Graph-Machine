@@ -729,6 +729,12 @@ Genuinely undecided, not oversights.
   rule loaded once as ordinary KB data, or restated per rule? The first risks becoming a de-facto vocabulary
   through the back door.
 - **The outer budget's shape.** Steps, wall clock, or something the goal itself carries.
+- **Should rules be attached to nodes?** ⚠ **See `docs/units/attachment.md`** — raised 2026-07-26 and
+  possibly more faithful to §1 than what is built. Rules grafted onto the data where they apply, firing
+  and **dissolving** in place, would collapse four separate mechanisms (per-context instantiation, the
+  visibility projection, the scope pointer, and the cooldown table) into one. Blocked on multi-premise
+  anchoring: *which* node does a two-premise rule attach to? That doc carries the acceptance harness any
+  replacement must meet.
 - **Homoiconicity.** Deliberately deferred. The computation network may itself be a graph (hyperedge with begin
   and end marker nodes), which makes it tempting; not yet.
 

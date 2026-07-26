@@ -87,6 +87,40 @@ class Graph:
         degrees[n] = {**degrees.get(n, {}), attr: band}
         return Graph(self.nodes | {n}, self.edges, self.attrs, degrees)
 
+    def merge(self, keep: Node, drop: Node) -> "Graph":
+        """Replace `drop` with `keep` everywhere. **The application of a coreference decision, never the
+        decision itself.**
+
+        `cnl.md` §1 forbids the *boundary* from merging two nodes, because merging is where judgement
+        lives. It does not forbid merging: it says a **rule** must be the one to decide, gradedly and
+        revisably. So this is the mechanism a concluded `same-as` is applied through at write-back
+        (§9), exactly as a concluded deletion is — and nothing calls it except that application.
+
+        Degrees are combined with `meet`: two views of one thing are as strong as the weaker. Crisp
+        attributes are unioned, `keep` winning a genuine conflict."""
+        from .band import meet as _meet
+        if keep is drop:
+            return self
+        m = lambda n: keep if n is drop else n              # noqa: E731
+
+        attrs: dict = {}
+        for n, a in self.attrs.items():
+            t = m(n)
+            base = attrs.get(t, {})
+            # `keep`'s own attributes win a conflict, whatever order we met them in.
+            attrs[t] = {**dict(a), **base} if n is drop else {**base, **dict(a)}
+        degrees: dict = {}
+        for n, dmap in self.degrees.items():
+            t = m(n)
+            cur = dict(degrees.get(t, {}))
+            for k, v in dmap.items():
+                cur[k] = _meet(cur.get(k), v)
+            degrees[t] = cur
+
+        return Graph(frozenset(m(n) for n in self.nodes),
+                     frozenset((m(a), m(b)) for a, b in self.edges),
+                     attrs, degrees)
+
     def union(self, other: "Graph") -> "Graph":
         attrs = {**self.attrs}
         for n, a in other.attrs.items():
@@ -140,6 +174,101 @@ def role_edge(g: Graph, occ: Node, role_name: str, filler: Node) -> Graph:
     r = Node(role_name)
     g = g.with_node(r, name=role_name)
     return g.with_edge(occ, r).with_edge(r, filler)
+
+
+def contains(g: Graph, scope: Node, *members: Node) -> Graph:
+    """Put `members` inside `scope` — **the nesting, held explicitly in the graph** (§6).
+
+    `model.md` §6's table splits scope in two: the *circuit* holds the tunnel, which is free during a
+    computation and gone after it; the *graph* holds the nesting, which is what survives across turns.
+    This is the second one, and it is an ordinary role — no scope object, no world identifier, no kind.
+
+    ## ⚠ DIRECTION IS DECIDED, AND IT IS NOT A CONVENTION
+
+    Containment runs **container → contained**: `y contains x`, never `x in y`. The edge leaves the
+    parent.
+
+    This is **forced by the matcher, not chosen for taste.** A pattern atom has `out` and nothing else —
+    there is no backward traversal in the language (`match.Pat`). So *"find something that contains both
+    of these"*, which is how any rule asks about co-membership, is expressible only if the container is
+    the **source**:
+
+        atom("s", out=(role("member", atom("a")), role("member", atom("b"))))
+
+    Under the reverse convention that pattern is simply unwritable: you would have to start at `a`, walk
+    *backwards* to its container, and check `b` hangs off it too. `tests/units/test_coref.py` pins this.
+
+    ## The consequence for the front end
+
+    A discourse statement *"x is in y"* does **not** transcribe to containment. It transcribes to an
+    ordinary occurrence — `in(agent: x, location: y)` — because the boundary transcribes syntax and
+    judges nothing (`cnl.md` §1). Deciding that a particular *"in"* establishes **structural nesting**,
+    and in which direction, is an interpretation rule's job. Two different things wearing one English
+    word, and conflating them would put a scoping decision in the transcriber."""
+    for m in members:
+        g = role_edge(g, scope, "member", m)
+    return g
+
+
+def containers(g: Graph) -> dict:
+    """node -> the set of **scope** nodes holding it as a `member`.
+
+    Only containers asserting `scope` count. Ordinary `member` grouping — a discourse turn collecting
+    its mentions, say — nests things without bounding what anything can see; being a scope is a *fact
+    asserted about a node* (§11, guards yes kinds no), not a property of the edge."""
+    out: dict = {}
+    for s in g.nodes:
+        if not g.attr(s, "scope"):
+            continue
+        for r in g.out(s):
+            if g.attr(r, "name") != "member":
+                continue
+            for m in g.out(r):
+                out.setdefault(m, set()).add(s)
+    return out
+
+
+def scope_ancestors(g: Graph, scope: Node) -> set:
+    held, cur, seen = containers(g), scope, set()
+    while cur is not None:
+        seen.add(cur)
+        ups = held.get(cur, set()) - seen
+        cur = next(iter(ups), None)
+    return seen
+
+
+def visible_at(g: Graph, scope: Node | None) -> Graph:
+    """The slice of the world visible **from inside `scope`** — `None` meaning the base world.
+
+    This is `model.md` §6's other direction: *"each turn re-derives the tunnel from the graph's
+    nesting."* Recording containment is not enough. If a hypothetical conclusion merely *sits* under an
+    assumption while every rule can still see it, the assumption is decorative: a base-world rule will
+    happily match a supposed bird and conclude flatly that it flies.
+
+    So visibility is computed from the nesting and enforced by **what value reaches the gate** — never
+    by a rule checking anything (§12 invariant 1). A node is visible at `scope` when every scope holding
+    it is `scope` or one of its ancestors; a node in no scope is visible everywhere. An assumption's
+    *own* node stays visible from outside — you can see that a supposition exists without seeing inside
+    it, which is exactly the seal (§6).
+
+    ⚠ **Known imprecision.** Edges touching a hidden node are dropped, but the role nodes hanging off a
+    hidden occurrence survive as orphans, because hiding them by reachability would also hide ordinary
+    base-world participants. A pattern anchored on an occurrence never sees them; one that matches a
+    bare role node could. Cheap to tighten if it ever matters."""
+    allowed = scope_ancestors(g, scope) if scope is not None else set()
+    held = containers(g)
+    hidden = {n for n in g.nodes if held.get(n) and not held[n] <= allowed}
+    if not hidden:
+        return g
+    keep = g.nodes - hidden
+    return Graph(keep,
+                 frozenset((a, b) for a, b in g.edges if a in keep and b in keep),
+                 {n: dict(a) for n, a in g.attrs.items() if n in keep},
+                 {n: dict(d) for n, d in g.degrees.items() if n in keep})
+
+
+def active_scopes(g: Graph) -> list:
+    return [n for n in g.nodes if g.attr(n, "scope")]
 
 
 def named(g: Graph, name: str, **crisp: Any) -> tuple[Graph, Node]:

@@ -72,6 +72,42 @@ destinations matches `name = "destination"` on the role node explicitly. `destin
 boilerplate is generated, which is exactly where the privileged treatment is supposed to live — inspectable, in
 the front end, never in the matcher.
 
+### Roles are a closed class; content vocabulary is open
+
+**Decided 2026-07-26.** The CNL ships a **fixed inventory of role names** — the prepositions and
+relators: `agent:`, `patient:`, `destination:`, `time:`, `means:`, `of:`, `member:`, `when:`, `then:`,
+`content:`. Content words — nouns, verbs, adjectives, the names of things — are **unrestricted**, and
+the translator invents them freely.
+
+This is natural language's own closed-class / open-class split, and it lands exactly where
+`baroque-vs-fundamental` predicts: the closed set is small, structural, and designed in; the open set is
+absorbed by the LLM and costs the system nothing.
+
+**It settles `model.md` §13's *role node sharing*.** That question asked whether the role-name equality
+rule is loaded once as KB data or restated per rule, and warned that the first *"risks becoming a
+de-facto vocabulary through the back door."* The answer is that there **is** a shared vocabulary, and it
+comes through the front door: declared, closed, and part of the language rather than of any KB.
+
+**The build supplied the evidence, twice, before the decision was taken:**
+
+- **Retrieval stopped discriminating.** A pattern reaching a participant through a role matches
+  `name = "agent"` explicitly, so `"agent"` enters its vocabulary — and *every* world containing any
+  agent then resembles *every* rule with an agent role (`units/recall.py`).
+- **Default coreference nearly ate the graph.** A rule merging *"two nodes with the same name"* fuses
+  every role node called `"agent"` into one, destroying every occurrence's participants
+  (`tests/units/test_coref.py`).
+
+Both are the same fact: **role names already behave as a shared vocabulary whether or not one is
+declared.** Given that, declaring it and bounding it is strictly better than pretending otherwise.
+
+**What it costs.** The inventory must be complete enough to express what the grammar needs, and
+extending it is a change to the CNL rather than a KB edit — deliberately, since that is what keeps it
+closed. A translator emitting a role outside the set must refuse rather than invent (§1).
+
+**The engine still grants no privilege.** This is a front-end fact. A rule about destinations still
+matches `name = "destination"` explicitly, and the matcher has no idea the class is closed — §11's *"the
+CNL grants the shortcut the engine refuses"*, applied to the inventory as well as to the notation.
+
 **Degree rides on the bracket.** A trailing `~band` grades the occurrence node it closes:
 
 ```
@@ -252,10 +288,15 @@ statement in both steps. That is `model.md` §10's last two rows, at the surface
 - **The wiring register's vocabulary.** Which roles a unit description needs, and whether a pattern is written
   in the same bracket notation as content (probably; it would make `model.md` §13's homoiconicity item nearly
   free, which is a reason to be careful rather than pleased).
-- **Role names.** `destination:` is a name a rule must match. Where does the inventory come from, and is the
-  name-equality rule loaded once as KB data or restated per rule? This is `model.md` §13's *role node sharing*
-  reaching the surface, and the first option risks a de-facto vocabulary through the back door — the exact
-  thing §1 deletes.
+- **The role inventory's contents.** *Settled* that roles are a **closed class** and content vocabulary is open
+  (§2). Still open: which roles are in it; whether structural nesting (`member:`) belongs in the same class as
+  thematic roles (`agent:`) or forms a second, more primitive tier; and how a domain that genuinely needs a new
+  relator is served without reopening the class.
+- **Containment direction is decided but under-documented here.** It runs **container → contained**, and the
+  reason is not taste: a pattern atom has `out` and no backward traversal, so *"find something containing both
+  of these"* is only expressible if the container is the source (`units/graph.py::contains`). The consequence
+  for the surface is unwritten — *"x is in y"* transcribes as an ordinary occurrence, and deciding that it
+  establishes **structural nesting** is an interpretation rule's job, not the transcriber's.
 - **Bands.** `~sortof` names a band. The lattice survives from `ugm` and moves into matching, but which words
   name which bands, and whether that is authored data, is undecided.
 - **Quantification and plurals beyond `+`.** *"every customer"*, *"three of them"*, mass terms. Untouched.
@@ -274,5 +315,5 @@ statement in both steps. That is `model.md` §10's last two rows, at the surface
 | how a rule is expressed as data | **settled** — it isn't; a rule is a statement with `when:`/`then:` (§4) |
 | how much the transcription commits to | **settled** — §5's closed list, under *create-never-merge* (§1) |
 | *who unrolls a statement* | **newly raised and settled** — rules do, into a second register (§4) |
-| role node sharing | **unchanged**, and now has a surface (§7) |
+| role node sharing | **settled** — roles are a CLOSED class, content vocabulary is open (§2). The inventory's contents remain open |
 | homoiconicity | **unchanged** — but §7's first item is where it would arrive |

@@ -49,10 +49,17 @@ class Description:
     def atom(self, var: str | None = None, *, out=(), graded=(), **constraints) -> Node:
         """One pattern atom. Constraints are `(key, value)` pairs written as their own nodes, so a
         pattern is inspectable by an ordinary rule — which is where homoiconicity would come in if it is
-        ever wanted (`model.md` §13, deliberately deferred)."""
+        ever wanted (`model.md` §13, deliberately deferred).
+
+        A constraint's value may be an `AttrVar`, which is written as a `var` on the constraint node
+        rather than a `value` — *"carries the same name as that one"*, without saying which name."""
+        from .match import AttrVar
         a = self._occ("atom", var=var)
         for k, v in constraints.items():
-            self._role(a, "constraint", self._occ("constraint", key=k, value=v))
+            if isinstance(v, AttrVar):
+                self._role(a, "constraint", self._occ("constraint", key=k, var=v.name))
+            else:
+                self._role(a, "constraint", self._occ("constraint", key=k, value=v))
         for key in ((graded,) if isinstance(graded, str) else graded):
             self._role(a, "graded", self._occ("graded", key=key))
         for i, child in enumerate(out):
@@ -76,6 +83,20 @@ class Description:
         """A supposition's effect. Data, not a Python callable — see `unit.Stamp`."""
         return self._occ("stamp", target=target, attr=attr, band=band)
 
+    def same(self, left: str, right: str) -> Node:
+        """Conclude two bound nodes are the same. Applied at write-back, never here."""
+        return self._occ("same", left=left, right=right)
+
+    def absent(self, *atoms: Node) -> Node:
+        """A negative conjunct — *"nothing here matched"*, not *"this is underivable"* (§4).
+
+        Written as an ordinary occurrence with `atom` roles, so a guard is as inspectable as anything
+        else. Order does not matter, so the roles are unindexed."""
+        a = self._occ("absent")
+        for at in atoms:
+            self._role(a, "atom", at)
+        return a
+
     # -- structure -------------------------------------------------------------------------
 
     def unit(self, label: str, pattern, effects, *, theta: str | None = None) -> Node:
@@ -86,13 +107,39 @@ class Description:
             self._role(u, "effect", e, index=i)
         return u
 
-    def statement(self, label: str, *steps: Node) -> Node:
+    def statement(self, label: str, *steps: Node, scope: str | None = None) -> Node:
         """A sealed statement. Its steps are ordered by the index on each `step` role node, and a step
-        may itself be a statement — **nesting is physical** (§6) and here that is just an edge."""
-        s = self._occ("statement", label=label)
+        may itself be a statement — **nesting is physical** (§6) and here that is just an edge.
+
+        `scope` names the containment this statement **establishes in the graph**. A statement that
+        declares one — a supposition, an attributed belief, an embedded clause — has its conclusions
+        placed under a node of that name rather than asserted flatly, and statements nested inside it
+        inherit it (`unit.ScopePointer`). Omitting it means *"this reasons in whatever context it was
+        reached in"*, which is what an ordinary rule wants."""
+        s = self._occ("statement", label=label, scope=scope)
         for i, step in enumerate(steps):
             self._role(s, "step", step, index=i)
         return s
+
+    # -- goals -----------------------------------------------------------------------------
+
+    def goal(self, label: str, satisfied_by: Node, *, parent: Node | None = None) -> Node:
+        """A goal: a node carrying **a description of what would satisfy it** (§8).
+
+        It has to be data — it persists across a suspension, and rules must be able to produce
+        subgoals. The satisfaction condition is an ordinary `atom`, the same encoding a rule's pattern
+        uses, so *checking whether a goal is satisfied is an ordinary rule match* with no new machinery.
+
+        `parent` is the lineage §8 needs: a goal with no parent is just a goal with no parent, not a
+        different kind of thing. It is what lets *"I couldn't read it"* be distinguished from *"I
+        understood you; nothing came to mind"* by chain position alone."""
+        g = self._occ("goal", label=label)
+        self._role(g, "satisfied-by", satisfied_by)
+        if parent is not None:
+            self._role(g, "parent", parent)
+        return g
+
+    # -- structure, continued --------------------------------------------------------------
 
     def wire(self, src_statement: Node, dst: Node) -> Node:
         """A crossing (§6). The description names the **statement**, and the assembler resolves that to

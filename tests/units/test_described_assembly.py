@@ -100,14 +100,14 @@ def test_the_described_pattern_decodes_to_the_hand_written_one():
     """The strongest available parity statement: the data does not merely *behave* like the Python
     pattern, it **decodes to an equal object**. Which is what makes decoding transcription rather than
     interpretation (`assemble.py`'s docstring) — total, mechanical, and with no room for a choice."""
-    from units.assemble import _pat, _roles
+    from units.assemble import decode_pattern, roles_of
     from tests.units.test_tunnel import ELIGIBILITY
 
     d, _ = eligibility_description()
     unit = [n for n in d.g.nodes
             if d.g.attr(n, "name") == "unit" and d.g.attr(n, "label") == "eligibility-rule"][0]
 
-    decoded = tuple(_pat(d.g, p) for p in _roles(d.g, unit, "pattern"))
+    decoded = tuple(decode_pattern(d.g, p) for p in roles_of(d.g, unit, "pattern"))
 
     assert decoded == ELIGIBILITY
 
