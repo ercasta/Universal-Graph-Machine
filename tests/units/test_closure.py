@@ -141,19 +141,20 @@ def test_a_malformed_rule_is_refused_not_guessed_at():
                              Fact(a2, role("<of_s>"), r2)]))         # half-described atom
 
 
-def test_the_index_keys_on_the_predicate_alone_and_spawns_a_dead_instance():
-    """⚠ §10.5 arriving concretely. `MORTAL#1` emits `socrates is_a mortal`; the index keys on the
-    PREDICATE only; `is_a` is what the template reads — so the assembler unrolls onto a conclusion whose
-    object the LHS requires to be something else. The instance writes nothing, which is the documented
-    *woke and correctly wrote nothing* case, so nothing is WRONG — it is a dead unit and a wasted round.
+def test_a_declared_rule_spawns_no_dead_instance():
+    """§24.7 measured §10.5 concretely HERE and this test asserted the defect: `MORTAL#1` emits
+    `socrates is_a mortal`, the index keyed on the PREDICATE alone, `is_a` is what the template reads — so
+    the assembler unrolled onto its own conclusion and spawned an instance that could never fire.
 
-    ⭐ **And it is the argument for §19's COMPUTED index**: the form already says this LHS needs
-    object=`man`, so a static index could have refused the wire before spawning anything."""
+    ⭐ **CLOSED by §28's computed index**, and the test is kept pointing at the same spot: a DERIVED rule
+    (the closure path, which is where this was found) now spawns exactly the one instance that can fire.
+    Kept here rather than moved to `test_index.py` because the value is the regression, not the mechanism."""
     man, mortal, socrates = mint("man"), mint("mortal"), mint("socrates")
     enc = A.encode("MORTAL", (Triple(X, "is_a", man),), (Triple(X, "is_a", mortal),))
     net = Net()
     net.spawn(given("base", [Fact(socrates, "is_a", man)]))
     A.declare_all(net, enc)
     net.run(Budget(300))
-    dead = [i for i in net.instances["MORTAL"] if not net.units[i].output]
-    assert len(dead) == 1
+    assert [i for i in net.instances["MORTAL"] if not net.units[i].output] == []
+    assert len(net.instances["MORTAL"]) == 1
+    assert any(f.o == mortal for _, f in net.derived_anywhere("is_a"))

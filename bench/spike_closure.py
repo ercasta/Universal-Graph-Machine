@@ -77,13 +77,18 @@ check("2c and the conclusion is derived", Fact(socrates, "is_a", mortal) in
 # alone, `is_a` is what the template reads — so the assembler unrolls onto a conclusion whose object
 # (`mortal`) the LHS requires to be `man`. It writes nothing, which is the documented "woke and correctly
 # wrote nothing" case, so nothing is WRONG; it is a dead unit and a wasted round.
+# ⭐ AND IT WAS THE ARGUMENT FOR §19's COMPUTED INDEX, which §28 then built — `bench/spike_computed_index.py`
+# re-takes this measurement as its case 6. The checks below are inverted from what this spike first found,
+# deliberately: this is where the cost showed up, so this is where the closure belongs on the record.
 dead = [i for i in net.instances["MORTAL"] if not net.units[i].output]
-check("2d ⚠ a SPURIOUS instance was spawned — the index keys on the PREDICATE only, and `is_a` is the "
-      "least selective predicate there is", len(dead) == 1, f"instances={net.instances['MORTAL']}")
-check("2e it is HARMLESS but not free: it derives nothing, so it gates, and costs a unit + a round",
-      all(not net.units[i].output for i in dead))
-check("2f ⭐ AND IT IS THE ARGUMENT FOR §19's COMPUTED INDEX: the form already says this LHS needs "
-      "object=`man`, so a static index could have refused the wire before spawning anything", True)
+check("2d ⭐ NO SPURIOUS INSTANCE — §28's computed index refuses the wire on the SHAPE (`is_a mortal` "
+      "cannot satisfy `?x is_a man`) before anything is spawned. Was: 2 instances, one of them dead",
+      not dead and len(net.instances["MORTAL"]) == 1, f"instances={net.instances['MORTAL']}")
+check("2e and the ANSWER is unchanged — pruning a unit that could never fire is not a semantic change",
+      Fact(socrates, "is_a", mortal) in net.units["MORTAL#1"].output)
+check("2f the refusal is a FACT, not a silence — the journal records `<no_shape_match>` (§27: a refusal is "
+      "a fact, so *what did you not consider?* has an answer)",
+      any(f.o == role("<no_shape_match>") for f in (net.journal or Subgraph())))
 
 # ======================================================================================================
 print("\n== 3. idempotency — saying it twice must not double the network ==")

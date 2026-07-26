@@ -41,6 +41,9 @@ CYCLE = role("<would_cycle>")
 BYPASS = role("<would_bypass>")
 SEEN = role("<nothing_new>")
 STRATIFIED = role("<stratified>")
+SHAPE = role("<no_shape_match>")  # THE COMPUTED INDEX refused it (§28): the producer emits the predicate
+#                                   the template reads and no fact of it could satisfy any ATOM. §24.7's
+#                                   dead instance, now a recorded refusal instead of a spawned unit.
 
 JOURNAL_PREDICATES = frozenset({SPAWNED, WIRE_FROM, WIRE_TO, WIRE_KIND, DECLINED, UNUSED})
 
@@ -91,6 +94,6 @@ def orphans(net) -> Subgraph:
 
 
 __all__ = ["SPAWNED", "WIRE_FROM", "WIRE_TO", "WIRE_KIND", "DECLINED", "UNUSED",
-           "OBJECT_WIRE", "TRACE_WIRE", "NEVER_WIRED", "CYCLE", "BYPASS", "SEEN", "STRATIFIED",
+           "OBJECT_WIRE", "TRACE_WIRE", "NEVER_WIRED", "CYCLE", "BYPASS", "SEEN", "STRATIFIED", "SHAPE",
            "JOURNAL_PREDICATES", "template_node", "wire_node",
            "spawned", "wired", "declined", "unused", "orphans"]

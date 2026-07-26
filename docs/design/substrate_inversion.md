@@ -2125,3 +2125,196 @@ problems. Assembly events determine whether you can SEE it working, not whether 
 shape, recorded but not built: **units may PROPOSE wirings as facts; the assembler stays the only thing
 that wires.** Proposals become inspectable, refusable and traceable, and *"units never touch wiring"*
 survives literally — a unit emits a proposal, never an edge.
+
+## 28. THE COMPUTED INDEX — selectivity from SHAPES (BUILT 2026-07-26)
+
+`units/index.py`, `bench/spike_computed_index.py` (37/37), `tests/units/test_index.py`, **138 green.**
+Tier 2.2 of §25.2, and §27.2's journal is what validated it.
+
+§19 said the index *could* be computed rather than accumulated; §24.7 said it *should* be, and measured the
+cost of not doing it on a **two-line rule**. The build takes it, and the honest headline is that the
+mechanism is smaller than the section it closes: **the wire test stops being *"do these share a predicate"*
+and becomes *"could any fact on this wire satisfy any ATOM of this LHS"*.**
+
+### 28.0 ⭐ THERE ARE TWO INDEXES, AND CONFLATING THEM WOULD BE UNSOUND
+
+This was the design decision, and it was forced by case 5 rather than reasoned:
+
+| | over | may it gate a wire? |
+|---|---|---|
+| the **STATIC** index (`ComputedIndex`) | TEMPLATES — which can in principle feed which, a pure function of the library | **NO** |
+| the **RUNTIME** filter (`feasible`) | FACTS — can this value satisfy any atom of this LHS | yes, and it is exact |
+
+The reason is not stylistic: **a `given`, a `branch` and a `carrier` are units whose output NO template RHS
+describes.** Gate on the template relation and every hand-supplied fact is cut off from the rules that read
+it — §19's *"which template can feed which is derivable from the form set"* is true and is *not* the wiring
+test. So the static index's job is DIAGNOSIS, not dispatch: `wildcards()` names, from the form set alone and
+before a unit exists, the rules nothing will restrict.
+
+### 28.1 ⚠ TWO LIVE DEFECTS, and the first one produced a FALSE CONCLUSION
+
+Both were found by spiking to break (standing rule 4), and both were **pre-existing** — the index only made
+them reachable. Neither would have crashed (standing rule 2, five for five now).
+
+> **⭐ THE ASSEMBLER DELIVERED ONLY THE POSITIVE HALF OF AN LHS.** A negated premise's predicate was in no
+> need set, so a producer of it was **never wired.** Under SUBSET OUTPUT that means §6a's NAF was evaluated
+> against a value the fact never reached — so *`?x is_a man ∧ ¬ ?x is_a dead ⇒ ?x is_a walker`* concluded
+> `walker` **with `dead` derived and sitting one wire away.** A wrong answer, silently, on a three-atom rule.
+
+Two things had to change, and the second is the more general:
+
+- **A negated atom may COMPLETE an instance and must never SPAWN one.** An instance born on *"there is no
+  P"* has no positive premise and nothing to conclude from — and getting this backwards spawns a rule
+  instance off the very evidence that will silence it. `_half_atoms(negated=…)` is that distinction.
+- **⭐ THE JOIN IS OVER ATOMS, NOT PREDICATES.** A predicate-level need cannot say *"another producer of
+  `is_a`, but for a different atom of it"* — and it reported the need as already satisfied. That is not a
+  corner case: it is what a negated premise on a predicate the positive body also reads looks like, which is
+  the normal shape in a taxonomy. Atom-level need is also what makes the filter and the join agree instead
+  of each working at its own granularity.
+
+The second defect was in the guard I reached for to contain the first: **`restores_a_drop` read every
+ordinary JOIN as a bypass.** Under §16 a rule emits its conclusion and nothing else, so *every* rule lacks
+*all* of its ancestor's facts — that is subset output, not a deliberate omission. Harmless while it was only
+a `wellformed` report; wrong the moment it became a wiring decision. **Only a CARRIER can drop**, because
+only a carrier emits its view. §17.A's guard was right about the phenomenon and untyped about the producer.
+
+> **⚠ AND ONE PIECE OF §3b GOT CONFIRMED BY LOOKING LIKE A BUG.** Two INDEPENDENT `given`s are two WORLDS:
+> they share no lineage, so they are incomparable and the assembler refuses to join them — a NAF does not see
+> across them and the rule fires. That is §4's emergence claim doing its job, and joining worlds is what a
+> MERGE unit is for. Recorded because it presents identically to the defect above and is the opposite of one.
+
+### 28.2 WHAT IT BUYS — measured, and it is SHAPE-DEPENDENT
+
+| shape | effect |
+|---|---|
+| §25.1's `next`/`reaches` chain | **nothing.** Identical units, identical spend, ~3% overhead — those predicates were already selective |
+| **one predicate doing all the work** (a taxonomy: every template reads and writes `is_a`) | **units `2k-1` → `k`; budget spend QUADRATIC → LINEAR** (265 → 23 at k=12) |
+
+**The compounding is the point:** a dead instance is itself a producer of the predicate, so it spawns more
+dead instances. §10.5's warning was not about waste, it was about a multiplier.
+
+> **⭐ AND THE SHAPE IT PAYS ON IS THE ONE A MINIMUM FORM SET HAS.** §19 predicted exactly this and filed it
+> as a tension — *"a small form set makes §10.5 WORSE, not better; if there are ten forms, all
+> discrimination falls on predicate constants"*. It is the same prediction, now with a number on it, and the
+> resolution is that the discrimination does not have to come from the predicate at all.
+
+### 28.3 WHERE IT BUYS NOTHING, and §26.2's hope does not survive
+
+§26.2 hoped a trace consumer *"could be restricted statically to the units whose conclusions it actually
+grades."* **It cannot.** `band.inheritance_rule()`'s trace atoms are all-variable except their predicates,
+so `selectivity` is **0.0** — the shape does not say which units those are, and no shape could. Trace wiring
+stays maximally unselective. Asserted as a test so the hope is not re-raised as an oversight.
+
+The same applies to §22.5's wildcard, which is §24.3's coref-merge shape: fed by everything, unchanged. What
+is new is only that **the index says so in advance**, which is worth having and is not a speedup.
+
+### 28.4 THE GATE — `Net.index_audit()`, and it is a DIFFERENTIAL
+
+§27.2 named the journal as the validation gate (*what the index proposed versus what actually fired*) and
+the two directions are not symmetric:
+
+    over-approximation   a wire the index permitted whose consumer never fired    -> wasted work
+    under-approximation  a premise actually CONSUMED, over a wire the index would
+                         REFUSE                                                  -> A DROPPED DERIVATION
+
+`unsound` must be empty and is checked against **consumed premises**, not against the filter's own
+decisions — asking a filter whether it agrees with itself measures nothing (standing rule 3, which is why
+this is written to work with `computed_index=False` too: run without the index and the audit reports what
+switching it on *would* have lost).
+
+A refusal is a fact: `<no_shape_match>` joins §27's journal reasons, so §24.7's silent spurious instance
+became a recorded refusal rather than a spawned unit — the mirror of §27.1's silent unwired form, closed
+from the other side.
+
+### 28.5 What this does and does not change for §24
+
+**Does:** the form set can now be audited for selectivity *as it is written*, which is why this had to come
+before the grammar — retrofitting means the index has already accumulated. And §24.3's coref work is
+affordable in the sense §25.2 meant: the pathological rule is still pathological, but everything around it
+is no longer paying a quadratic multiplier for sharing a predicate with it.
+
+**Does not:** the wildcard is undiminished, and §24.3 is still the deep one. The next thing is
+DISCOURSE REFERENCE — reference DECIDED, not resolved: a fresh node per mention plus a coref-merge unit,
+so coref becomes a chain position and two chains may legitimately disagree about identity.
+
+## 29. THE ASSEMBLER-COMPLETENESS SWEEP — two more silent defects (BUILT 2026-07-26)
+
+`bench/spike_assembler_completeness.py` (27/27), `tests/units/test_index.py`, **143 green.**
+
+**Why this rather than §26.2 or §24.3.** §28.1 found the assembler delivering only the POSITIVE half of an
+LHS, and the consequence was a **false conclusion, silently, on a three-atom rule**. §27.1 had already found
+its sibling one layer up (a form accepted and never wired). That is a bug CLASS, not a bug — *the assembler
+quietly fails to deliver part of what a template asked for, and the answer changes* — and standing rule 2
+says to assume quiet. So the response to finding one was to SWEEP the matrix: **LHS shape × producer
+situation**, each cell asking *did the instance get what it needed?*
+
+The interesting answers were never "no". They were **"no, and nothing said so"** — twice more.
+
+### 29.1 ⭐⭐ TWO SIBLING WORLDS THAT DIFFER ONLY UNDER NEGATION COLLAPSED INTO ONE
+
+`base` asserts `p1`; `H1` supposes `block`; `H2` supposes nothing; the rule is `p1 ∧ ¬block ⇒ ok`. H1's world
+must stay silent and H2's must derive `ok`.
+
+> **Only ONE instance was spawned.** The two branches project **identically on the positive half** — both
+> offer exactly `p1` — so the second was declined as *nothing new*. **The world where the answer is YES had
+> no instance at all**, and nothing anywhere said so.
+
+This is §4's emergence claim failing in the one place it is supposed to hold, and §28.1 caused it: separating
+the trigger from the projection, I made *both* positive.
+
+> **⭐ THE GENERAL LESSON, and it is worth more than the fix: WHAT MAY START A COMPUTATION AND WHAT
+> DISTINGUISHES TWO OF THEM ARE DIFFERENT QUESTIONS.**
+>
+> * the **TRIGGER** is POSITIVE — a template must never be instantiated on *"there is no P"*;
+> * the **PROJECTION** is an **IDENTITY** and must span BOTH POLARITIES — two offers differing only in a
+>   NAF-relevant fact are DIFFERENT OFFERS.
+>
+> Collapsing them **loses worlds** rather than raising an error. `_offer` now returns `None` for *nothing to
+> trigger on* and the both-polarity projection otherwise, so the two roles cannot be confused again.
+
+### 29.2 ⚠ A TEMPLATE WITH NO GROUND PREDICATE WAS NEVER INSTANTIATED
+
+`?x ?p ?y ⇒ ?y ?p ?x` **did not run.** The object/trace fork was `on_trace = not need` — *"reads no ground
+OBJECT predicate"* — which also describes an **all-variable** template. Such a template went to the trace
+fork, where its (empty) ground need matched nothing, and no instance was ever born. `wellformed()` clean,
+budget untouched; §27's journal did flag it as `<unused>` and `wildcards()` named it, which is the instrument
+working, but the behaviour was still wrong.
+
+Two corrections, and the second is the reusable one:
+
+- **The fork test must be POSITIVE:** *does this template read ONLY firing predicates?* Not *does it fail to
+  read a ground object predicate?* Two different questions with the same answer on every shape built so far.
+- **The predicate PRE-FILTER is an optimization, and it is only sound when there is a ground predicate to
+  filter on.** With none, the shape test is the whole test. A wildcard then pays §22.5's price honestly — it
+  wakes on everything — instead of silently not existing.
+
+It terminates: the reverse of the reverse is the original, so the projection stops changing (2 instances,
+5 budget).
+
+### 29.3 THE CELLS THAT WERE ALREADY RIGHT
+
+Asserted rather than assumed, because a guard that is never reached looks exactly like one that works
+(standing rule 3): ground SUBJECT and ground OBJECT slots; an `n`-premise join where every producer arrives
+on a **later pass** than the spawn (k=2,3,4 — the spawn loop, not `_complete_lhs`, is what completes these);
+two atoms on ONE predicate needing two producers; a negated premise derived TWO HOPS away; a mixed
+object+trace template; a branch that REMOVES its own premise, which starves its own world and is **not**
+bypassed; and two independent `given`s remaining two worlds, asserted specifically so §29.1's fix is not
+read as licensing a cross-world join.
+
+### 29.4 THE RESIDUE — §24.3's inbox, and it is cost rather than defect
+
+The coref-merge shape (`?x ?p ?y ∧ ?x same_as ?z ⇒ ?z ?p ?y`) **works**, and it exhibits both things §22.5
+predicted:
+
+- it spawns a **redundant unroll** that re-derives what the first instance already had — the wildcard
+  defeating the index, a cost and not a wrong answer;
+- it **consumes its own control predicate**: `?p` matches `same_as`, so it derives `m2 same_as m2`.
+
+Those are now measured facts sitting in front of §24.3 rather than predictions about it.
+
+> **⚠ AND THE SCORE ON THIS BUG CLASS IS NOW FOUR FOR FOUR SILENT, THREE OF THEM ANSWER-CHANGING**
+> (§27.1's unwired form, §28.1's undelivered negated premise, §29.1's collapsed world, §29.2's uninstantiated
+> template). The pattern is sharper than "assume quiet": **every one of them was a question asked at the
+> wrong granularity** — predicate where an atom was meant, positive where both polarities were meant, absence
+> of one thing taken as presence of another. The assembler decides by *set intersection over predicates*, and
+> each defect was a place where that abstraction was one level too coarse for what was being asked.

@@ -31,7 +31,8 @@ from dataclasses import dataclass, field
 from . import journal as J
 from .fuel import Budget
 from .journal import template_node as _tn
-from .match import Triple
+from .index import positive as _positive
+from .match import Absent, Triple
 from .unit import Unit
 from .value import EMPTY, Node
 
@@ -63,6 +64,13 @@ class Net:
     #                                                         the SEED for propagation (§25.1). Without it
     #                                                         `run` re-propagates the WHOLE net after every
     #                                                         assemble pass, which is quadratic in depth.
+    computed_index: bool = True                             # THE COMPUTED INDEX (§19, §28). Off, the wire
+    #                                                         test is `predicate in common` and §24.7's
+    #                                                         dead instance is born; on, it is *can this
+    #                                                         FACT satisfy this ATOM*. Kept as a flag only
+    #                                                         so the difference stays measurable — the
+    #                                                         filter is exact, so there is no case for
+    #                                                         running without it.
 
     # -- structure ----------------------------------------------------------
 
@@ -173,13 +181,19 @@ class Net:
         recommendation rather than the design (`bench/spike_failure_points.py` case A).
 
         It needs no semantics to detect: an ancestor producer supplying facts its own descendant does not.
-        Returns the offending `(ancestor, descendant)` pair, or None."""
+        Returns the offending `(ancestor, descendant)` pair, or None.
+
+        **⚠ ONLY A CARRIER CAN DROP** (§28.1, found when this became a wiring test rather than only a
+        report). Under SUBSET OUTPUT a RULE emits its conclusion and nothing else, so *every* rule lacks
+        *all* of its ancestor's facts — that is §16, not a deliberate omission, and testing it as one made
+        this fire on every ordinary JOIN. A carrier emits its view minus `removes`, so for a carrier an
+        absent ancestor fact really was dropped. The distinction is `kind`, which is read off the wiring."""
         prods = set(self.producers.get(consumer, ()))
         if extra:
             prods.add(extra)
         for a in prods:
             for b in prods:
-                if a != b and a in self.upstream(b):
+                if a != b and not self.units[b].rhs and a in self.upstream(b):
                     if self.units[a].output.facts - self.units[b].output.facts:
                         return (a, b)
         return None
@@ -265,17 +279,44 @@ class Net:
         for tname, (lhs, rhs) in self.library.items():
             from .trace import FIRING_PREDICATES
             allneed = {a.p for a in lhs if isinstance(a, Triple) and isinstance(a.p, Node)}
+            # ⚠ THE NEGATED HALF OF THE LHS (§28.1, found by spiking the index rather than designing it).
+            # A negated premise's predicate was in NO need set, so a producer of it was never wired — and
+            # under SUBSET OUTPUT that means the NAF is evaluated against a value the fact never reached,
+            # and the rule FIRES WHERE IT MUST NOT. Silently, and with a false conclusion.
+            # It may COMPLETE an instance and must never SPAWN one: an instance born on "there is no P" has
+            # nothing to conclude from. So it joins `_complete_lhs`'s need and not `spawn_need`.
+            neg_need = {p.atom.p for p in lhs if isinstance(p, Absent) and isinstance(p.atom.p, Node)}
             # A firing predicate cannot be satisfied from an OBJECT output — every unit emits firings on
             # its trace wire and none on its object wire. Splitting here is what makes a mixed template
             # (§26: inheritance reads `<band>` from the object wire and `<from>` from the trace) spawn on
             # its object half and complete on its trace half.
             need = allneed - FIRING_PREDICATES
-            # A template reading ONLY firing predicates (an explanation hop, a stability watcher) has an
-            # empty object need, so the object-driven spawn below would never trigger. It spawns on its
-            # TRACE half instead. A MIXED template still spawns on its object half, which is more
-            # selective — §26.
-            on_trace = not need
+            # A template reading ONLY firing predicates (an explanation hop, a stability watcher) cannot
+            # spawn on the object wire at all, so it spawns on its TRACE half. A MIXED template still spawns
+            # on its object half, which is more selective — §26.
+            #
+            # ⚠ THE TEST USED TO BE `not need`, AND THAT IS NOT THE SAME QUESTION (§29.2). *"Reads no ground
+            # OBJECT predicate"* also describes a template whose predicates are all VARIABLES — and such a
+            # template was sent to the trace fork, where its (empty) ground need matched nothing, so it was
+            # **never instantiated at all.** `?x ?p ?y ⇒ ?y ?p ?x` simply did not run. The right test is the
+            # positive one: does this template read ONLY firing predicates?
+            pos = _positive(lhs)
+            on_trace = bool(pos) and all(isinstance(a.p, Node) and a.p in FIRING_PREDICATES for a in pos)
             spawn_need = allneed if on_trace else need
+            # THE COMPUTED INDEX (§28), split by WIRE exactly as the predicate need is. An atom with a
+            # VARIABLE predicate goes in BOTH halves, because it could match either kind of fact —
+            # conservative, and it is §22.5's wildcard paying for declining to say what it reads.
+            #
+            # ⭐ TWO ATOM SETS, AND §28.1 CONFLATED THEM — §29.1 is the measurement that separated them:
+            #
+            #   the TRIGGER    positive atoms only. What may INSTANTIATE a template. An instance born on
+            #                  *"there is no P"* has no positive premise and nothing to conclude from.
+            #   the PROJECTION both polarities. What a producer's offer is IDENTIFIED by, for dedup. Two
+            #                  sibling hypotheses that differ only in a NAF-relevant fact project
+            #                  IDENTICALLY on the positive half — so the second world is deduped away and
+            #                  silently has no answer at all.
+            spawn_atoms = self._half_atoms(lhs, on_trace, negated=False)
+            proj_atoms = self._half_atoms(lhs, on_trace, negated=True)
             seen = self.consumed.setdefault(tname, set())
             # FRONTIER FIRST, and it is a correctness requirement rather than a preference (§16). Two
             # producers in one lineage can project identically while the deeper one carries strictly more
@@ -286,8 +327,8 @@ class Net:
             # it — and a template that reads ONLY assembly events (*"which templates were never wired?"*)
             # has nowhere else to come from.
             if on_trace and self.journal and (self.journal.predicates() & spawn_need):
-                proj = frozenset(f for f in self.journal if f.p in spawn_need)
-                if not any(proj == pj for pj, _ in seen) and not any(
+                proj = self._offer(self.journal, spawn_need, spawn_atoms, proj_atoms)
+                if proj and not any(proj == pj for pj, _ in seen) and not any(
                         self.JOURNAL in self.trace_producers.get(i, ()) for i in self.instances[tname]):
                     n = len(self.instances[tname]) + 1
                     target = f"{tname}#{n}"
@@ -305,9 +346,23 @@ class Net:
                     self._log(J.declined(prod.get_handle(), _tn(tname), J.STRATIFIED, True))
                     continue                                # STRATIFICATION (§26.1) — see `reads_trace`
                 source = prod.trace_output if on_trace else prod.output
-                if not (source.predicates() & spawn_need):
+                # ⚠ THE PREDICATE PRE-FILTER IS AN OPTIMIZATION, AND IT IS ONLY SOUND WHEN THERE IS A GROUND
+                # PREDICATE TO FILTER ON (§29.2). A WILDCARD template has an EMPTY `spawn_need`, so the
+                # intersection is empty for every producer and it was never instantiated. When there is
+                # nothing to pre-filter on, the shape test below is the whole test — which is the wildcard
+                # paying §22.5's price (it wakes on everything) rather than silently not existing.
+                if spawn_need and not (source.predicates() & spawn_need):
                     continue                                # nothing it emits could match this LHS
-                projection = frozenset(f for f in source if f.p in spawn_need)
+                if not spawn_need and not self.computed_index:
+                    continue                                # no ground predicate and no shape test to fall
+                    #                                         back on — nothing here can decide
+                # ⭐ THE COMPUTED INDEX, at the one point it is allowed to refuse (§28). The predicate test
+                # above is what §24.7 measured as insufficient; this asks whether any fact on the wire
+                # could satisfy any ATOM of the template. Empty means the wire would be dead.
+                projection = self._offer(source, spawn_need, spawn_atoms, proj_atoms)
+                if projection is None:
+                    self._log(J.declined(prod.get_handle(), _tn(tname), J.SHAPE, on_trace))
+                    continue
                 # ORDER MATTERS: an ALREADY-WIRED producer is skipped silently. Logging it as
                 # "nothing new" would make the journal grow on every re-run of a quiesced net, and the
                 # journal rides a trace wire — so a growing journal destroys the fixpoint that
@@ -338,12 +393,98 @@ class Net:
                 (self.wire_trace if on_trace else self.wire)(prod.name, target)
                 self._log(J.wired(prod.get_handle(), self.units[target].get_handle(), on_trace))
                 seen.add((projection, prod.name))
-                added += self._complete_lhs(target, need, allneed - need) + 1
+                added += self._complete_lhs(target, need | (neg_need - FIRING_PREDICATES),
+                                            allneed - need) + 1
             # RE-COMPLETE existing instances: a trace producer spawned in an earlier pass had no trace
             # output when its consumer was wired, so the trace half must stay open across passes.
             for iname in self.instances[tname]:
-                added += self._complete_lhs(iname, set(), allneed - need)
+                added += self._complete_lhs(iname, neg_need - FIRING_PREDICATES,
+                                            allneed - need)
         return added
+
+    # -- the computed index (§28) -------------------------------------------
+
+    def _half_atoms(self, lhs, on_trace: bool, negated: bool = True) -> tuple:
+        """The atoms of `lhs` that live on ONE wire. §26 splits the LHS by wire because a firing predicate
+        can only be satisfied from a trace output and an object predicate only from an object output; the
+        shape filter has to honour the same split or it would test a value against atoms no value on that
+        wire could ever supply. A VARIABLE predicate is in both halves.
+
+        **`negated` is the SPAWN/COMPLETE distinction and it is not cosmetic** (§28.1). A fact matching a
+        negated atom may COMPLETE an instance — it is what makes the NAF sound — and must never SPAWN one:
+        an instance born on *"there is no P"* has no positive premise and nothing to conclude from. Passing
+        the wrong one here spawns a rule instance off the very evidence that will silence it."""
+        from .index import atoms, positive
+        from .trace import FIRING_PREDICATES
+        out = []
+        for a in (atoms(lhs) if negated else positive(lhs)):
+            if not isinstance(a.p, Node):
+                out.append(a)                               # wildcard role — could be either
+            elif (a.p in FIRING_PREDICATES) == on_trace:
+                out.append(a)
+        return tuple(out)
+
+    def _offer(self, source, spawn_need: set, spawn_atoms: tuple, proj_atoms: tuple) -> frozenset | None:
+        """What this producer OFFERS this template. `None` means *nothing to trigger on* — the wire would be
+        dead and is refused. Otherwise: the PROJECTION this offer is identified by, for dedup.
+
+        **⚠ THE TWO ARE NOT THE SAME QUESTION, and §28.1 said they were** (§29.1 measured it):
+
+        * the TRIGGER is POSITIVE — a template must not be instantiated on negative evidence;
+        * the PROJECTION spans BOTH POLARITIES — because it is an IDENTITY, and two sibling hypotheses
+          differing only in a NAF-relevant fact are DIFFERENT OFFERS. Identify them by the positive half
+          alone and the second world is deduped away, silently, with no answer at all. That is §4's
+          emergence claim failing in the one place it is supposed to hold.
+
+        The general shape, worth keeping: **what may START a computation and what DISTINGUISHES two of them
+        are different questions**, and collapsing them loses worlds rather than raising an error."""
+        if not self.computed_index:
+            proj = frozenset(f for f in source if f.p in spawn_need)
+            return proj or None
+        from .index import feasible
+        return feasible(source, proj_atoms) if feasible(source, spawn_atoms) else None
+
+    def index_audit(self) -> dict:
+        """**THE VALIDATION GATE** — what the index PROPOSED against what actually FIRED (§27.2).
+
+        §27.2 named the journal as this gate, and the two directions are not symmetric:
+
+            over-approximation   a wire the index permitted whose consumer never fired -> wasted work
+            under-approximation  a premise actually CONSUMED that arrived over a wire the index would
+                                 REFUSE -> **a dropped derivation, and silent.** `unsound` must be empty.
+
+        It is a differential, so it is meaningful in BOTH modes: run with `computed_index=False` and it
+        reports whether switching the index on would have lost anything. That is why the check is written
+        against consumed premises rather than against the filter's own decisions — asking a filter whether
+        it agrees with itself measures nothing (standing rule 3)."""
+        from .index import ComputedIndex, feasible
+        by_handle = {u.get_handle(): u.name for u in self.units.values()}
+        wires, idle = [], []
+        if self.journal:
+            for f in self.journal.by_pred(J.WIRE_FROM):
+                to = next((g.o for g in self.journal.by_pred(J.WIRE_TO) if g.s == f.s), None)
+                kind = next((g.o for g in self.journal.by_pred(J.WIRE_KIND) if g.s == f.s), None)
+                if to is None or kind is None:
+                    continue                                # a DECLINED wire — not a wire
+                p, c = by_handle.get(f.o), by_handle.get(to)
+                wires.append((p, c, kind.name))
+                if c in self.units and self.units[c].fired == 0:
+                    idle.append((p, c, kind.name))
+        unsound = []
+        for u in self.units.values():
+            if not u.last_firing:
+                continue
+            consumed = {f for _, prem in u.last_firing for f in prem}
+            for pname in self.producers.get(u.name, ()):
+                prod = self.units[pname]
+                if feasible(prod.output, self._half_atoms(u.lhs, False)):
+                    continue                                # the index permits this wire
+                got = consumed & prod.output.facts
+                if got:
+                    unsound.append((pname, u.name, sorted(map(repr, got))))
+        static = ComputedIndex(self.library)
+        return {"wires": wires, "idle_wires": idle, "unsound": unsound,
+                "density": static.density(), "wildcards": static.wildcards()}
 
     def _complete_lhs(self, iname: str, need: set, trace_need: set = frozenset()) -> int:
         """Wire whatever else this instance needs to satisfy its LHS — the JOIN, made automatic.
@@ -395,12 +536,27 @@ class Net:
                 inst.inputs[f"<trace>{u.name}"] = u.trace_output
                 added += 1
 
-        for _ in range(len(need)):                          # at most one pass per needed predicate
+        # ⭐ THE JOIN IS OVER ATOMS, NOT PREDICATES (§28.1). A predicate-level need cannot say *"I need
+        # another producer for `is_a`, but for a DIFFERENT atom of it"* — and that is not a corner case: it
+        # is what a negated premise on a predicate the positive body also reads looks like, and the
+        # predicate set reported it as already satisfied. Atom-level need is also what makes the shape
+        # filter and the join agree, instead of one working at each granularity.
+        want = tuple(a for a in self._half_atoms(inst.lhs, False)
+                     if isinstance(a.p, Node) and a.p in need) if self.computed_index else ()
+        for _ in range(max(len(need), len(want))):           # at most one pass per thing needed
             prods = self.producers.get(iname, set())
-            supplied: set = set()
-            for p in prods:
-                supplied |= self.units[p].output.predicates()
-            missing = need - supplied
+            if self.computed_index:
+                from .index import can_satisfy, feasible
+                have = EMPTY
+                for p in prods:
+                    have = have | self.units[p].output
+                unmet = tuple(a for a in want if not any(can_satisfy(f, a) for f in have))
+                missing = {a.p for a in unmet}
+            else:
+                supplied: set = set()
+                for p in prods:
+                    supplied |= self.units[p].output.predicates()
+                missing, unmet = need - supplied, ()
             if not missing:
                 break
             gated = {h.p for q in self.upstream(iname) for h in self.units[q].rhs
@@ -408,10 +564,20 @@ class Net:
             cands = [u for u in self.units.values()
                      if u.name != iname
                      and (u.output.predicates() & missing)
+                     # a TRIGGER test, not a projection — the join asks only *can you supply what is
+                     # still unmet*, and `unmet` already spans both polarities (§29.1)
+                     and (not self.computed_index or feasible(u.output, unmet))
                      and u.name not in prods
                      and iname not in self.upstream(u.name)          # would close a cycle
                      and not (u.output.predicates() & missing & gated)  # BYPASS -> refuse
-                     and all(self.comparable(u.name, q) for q in prods)]
+                     and all(self.comparable(u.name, q) for q in prods)
+                     # ⚠ AND THE OTHER BYPASS, which `gated` does not catch: a branch that REMOVES a fact
+                     # is not a rule head, so wiring its ANCESTOR back in restores exactly what it dropped
+                     # (§17.A). `restores_a_drop` already detects it for `wellformed`; it belongs in the
+                     # wiring DECISION too, and a negated premise is what made it reachable — the assembler
+                     # now goes looking for producers of a predicate a hypothesis may have deliberately
+                     # deleted.
+                     and not self.restores_a_drop(iname, extra=u.name)]
             if not cands:
                 break
             cands.sort(key=lambda u: len(self.upstream(u.name)), reverse=True)  # frontier first
