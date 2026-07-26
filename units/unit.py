@@ -21,8 +21,8 @@ from .match import Match, solve
 
 @dataclass(frozen=True)
 class Emit:
-    """What a firing writes: one occurrence node, its roles, and — if the rule says so — a gradable
-    attribute stamped with the **firing's own match strength**.
+    """Mint an occurrence: one node, its roles, and — if the rule says so — a gradable attribute
+    stamped with the **firing's own match strength**.
 
     That stamp is §4's *"a firing may inherit its match strength"*: degree propagates from premise to
     conclusion, which is what lets *"a little bird"* conclude *not really a bird*."""
@@ -30,6 +30,20 @@ class Emit:
     name: str
     roles: tuple = ()              # ((role_name, var_name), …)
     graded: str | None = None      # gradable attr on the conclusion, valued at the match band
+
+
+@dataclass(frozen=True)
+class Stamp:
+    """Set a gradable attribute on an **already-bound** node, at a stated band.
+
+    This exists so that a supposition is a *rule* rather than a Python callable. *"Suppose he pays them
+    off"* is *"the standing occurrence is good, at `certain`"* — a pattern and an effect, like anything
+    else. Without it the spike had an escape hatch exactly where `model.md` §11 says there must not be
+    one: the front end would be targeting Python, not data."""
+
+    target: str                    # a variable bound by the pattern
+    attr: str
+    band: str
 
 
 @dataclass
@@ -91,8 +105,13 @@ def _walk(pattern):
 
 # -- constructors -----------------------------------------------------------------------------
 
-def rule(name: str, pattern: tuple, emit: Emit, *, gate: str = "in", theta: str | None = None) -> Unit:
-    """A rule unit: match `pattern` on the gate's value, write `emit` for each match.
+def rule(name: str, pattern: tuple, *effects, gate: str = "in", theta: str | None = None) -> Unit:
+    """A rule unit: match `pattern` on the gate's value and apply each effect per match.
+
+    **A supposition is one of these** (§6), which is the whole reason effects are data: it takes the
+    enclosing value and emits the value as it would be under the supposition. Nothing marks it as
+    hypothetical, because nothing needs to — the scope *is* the value on the wire, and no rule
+    downstream will ever ask.
 
     ⚠ **The output carries its input forward**, conclusions added. `0008` (*subset output — a rule emits
     only what it derived*) was not on `model.md`'s contradicted list, but the tunnel needs carry-forward:
@@ -104,27 +123,31 @@ def rule(name: str, pattern: tuple, emit: Emit, *, gate: str = "in", theta: str 
         g = inputs[gate]
         out = g
         for m in solve(g, pattern, theta):
-            out = _write(out, emit, m)
+            for e in effects:
+                out = _apply(out, e, m)
         return out
 
     return Unit(name, (gate,), fn, pattern=pattern)
 
 
-def _write(g: Graph, emit: Emit, m: Match) -> Graph:
-    occ = Node(emit.name)
-    g = g.with_node(occ, name=emit.name)
-    for role_name, var in emit.roles:
-        g = role_edge(g, occ, role_name, m[var])
-    if emit.graded is not None and m.band is not None:
-        g = g.with_degree(occ, emit.graded, m.band)
-    return g
+def _apply(g: Graph, effect, m: Match) -> Graph:
+    if isinstance(effect, Emit):
+        occ = Node(effect.name)
+        g = g.with_node(occ, name=effect.name)
+        for role_name, var in effect.roles:
+            g = role_edge(g, occ, role_name, m[var])
+        if effect.graded is not None and m.band is not None:
+            g = g.with_degree(occ, effect.graded, m.band)
+        return g
+    if isinstance(effect, Stamp):
+        return g.with_degree(m[effect.target], effect.attr, effect.band)
+    raise TypeError(f"unknown effect {effect!r}")
 
 
 def transform(name: str, fn: Callable[[Graph], Graph], *, gate: str = "in") -> Unit:
-    """A graph-to-graph unit. **This is all a supposition is** (§6): it takes the enclosing value and
-    emits the value as it would be under the supposition. Nothing marks it as hypothetical, because
-    nothing needs to — the scope *is* the value on the wire, and no rule downstream will ever ask."""
+    """An arbitrary graph-to-graph unit. **Kept only for tests and probes** — a real one would be a
+    `rule`, because anything expressed as a Python callable is invisible to the data (§11)."""
     return Unit(name, (gate,), lambda inputs: fn(inputs[gate]))
 
 
-__all__ = ["Unit", "Emit", "Miss", "rule", "transform"]
+__all__ = ["Unit", "Emit", "Stamp", "Miss", "rule", "transform"]
