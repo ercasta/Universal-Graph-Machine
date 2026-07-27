@@ -288,7 +288,131 @@ a chain, and revive cost at scale. It tests the substrate claims only.
 
 ---
 
-## 9. Open
+## 9. Hypotheses, contradiction, and elimination
+
+Revive-from-axioms has a consequence worth stating on its own, because it removes a mechanism rather
+than adding one.
+
+> **There are no overlays.** Everything a unit derives is discarded at the next revive, so a derived
+> claim needs no special "temporary" status. There is one kind of derived thing.
+
+An earlier draft of this section invented an `Overlay` distinct from an ordinary conclusion, and a
+composition rule for reading a node "relative to a cell" — inner values shadowing outer ones, lexical
+scoping. Both were wrong. Shadowing is a **precedence policy hardcoded in the engine**, which is exactly
+the judgement §11 says must stay authored, and the temporary-vs-permanent distinction is a *kind*
+(§11 again) that revive already provides for free.
+
+**And the simplification goes one step further than it first appears.** If a unit is itself a node
+(homoiconicity, §6 — already a precondition), then a derived fact **hanging off its producing unit** is
+both "in the graph" and "positioned", with no `Cell` as a separate species of thing. Position is an
+edge from the unit that produced it; provenance is that edge; discarding the derived layer is dropping
+what hangs off units. The spike's `Cell` is scaffolding for a type that should not survive.
+
+### Alternatives are not contradictions
+
+Several hypotheses may be live at once, and their conclusions **coexist physically in the graph**.
+*"Paul is a man"* and *"Paul is a woman"* under two suppositions are two alternatives, not a conflict.
+This is what makes contradiction detection an ordinary rule: the conflicting claims are *there*, to be
+matched.
+
+### A contradiction refutes the configuration that powered it
+
+Reductio is the main case, not a special one. A detector wired to a **single** hypothesis that derives
+both *P* and *¬P* refutes that hypothesis — there is no "wired to both".
+
+The general statement, which covers both:
+
+> A contradiction condemns **whatever configuration fed the detector**. That configuration is not
+> something a rule asks about — it is read off the wiring by walking backwards.
+
+So no rule names a scope (invariant 1) and blame assignment is provenance doing real work. Feeding one
+detector from two suppositions asserts their *conjunction*, and reporting a contradiction there is
+correct. Which of the blamed assumptions to discard is a further **rule's** judgement, not the engine's
+— base axioms simply are not discardable, so in the ordinary case only one candidate remains.
+
+### The enumerator
+
+Round-robin over hypotheses, one powered per turn, gives search — and abduction — with no new mechanism.
+Two things it depends on:
+
+- **Its cursor must be asserted data**, advanced by a mutating rule at write-back. A cursor held as a
+  derived fact resets to the first hypothesis on every revive. This is the canonical case for the two
+  dispositions in §2: search *state* is asserted, search *consequences* are materialized.
+- **A refutation must cross to an axiom.** Concluded inside the hypothesis it refutes, it dies with it
+  the moment the enumerator moves on, and the search becomes amnesiac.
+
+⚠ **Elimination proves nothing unless the enumeration is exhaustive**, and the engine cannot know that
+— it is a knowledge claim (§11). The survivor of an elimination is **un-refuted**, never **proven**: the
+same weak, honest claim as `starved` ≠ underivable.
+
+### Checkpointing — scoping what is *mutated*
+
+Positioning scopes what is **derived** and does nothing for what is **mutated**. Materialized facts are
+recomputed every revive, so a hypothesis's conclusions are free — but a mutating rule firing under a
+hypothesis writes to the shared asserted layer, permanently. Any hypothesis whose exploration takes more
+than one turn therefore corrupts the base world, precisely because its state has to survive the revive
+that discards everything else.
+
+> **A checkpoint is the asserted layer, nested inside a supposition.** Mutation under the hypothesis
+> lands there. `commit` merges it back; `discard` drops it. Those are the only two exits, one explicit
+> act each — the same shape as §6's crossing.
+
+**Deliberate, never automatic.** The machine supports checkpointing; it never decides to checkpoint.
+Branching the world is an operation a rule concludes, exactly as it concludes a deletion — a judgement
+in the data, inspectable and revisable, not a policy in the engine (§11).
+
+This is `ugm`'s [[derivation-frame-consolidation]] finding re-derived from the other side: the fix is a
+materialized **copy with merge-back at one boundary**, never a read-projection, because a projection
+isolates reads and not writes. Two independent routes to the same answer.
+
+⚠ **Search state lives outside the checkpoints it controls.** The enumerator's cursor and its
+refutations are exactly what must survive a branch being abandoned; checkpointed, a `discard` would roll
+them back and the search would loop forever on the hypothesis it just refuted.
+
+⚠ **Abandoned checkpoints are a leak.** Nothing reclaims one on its own — a refuted hypothesis whose
+checkpoint is never discarded persists, and writing that rule is the author's job (§11).
+
+### Attention: think-harder as random restart
+
+Fixation (§5's attention leak, and `model.md` §13's self-reinforcement) is answered by allowing
+**randomised refocus when thinking harder**. This is PageRank's random-surfer damping, which exists to
+solve the identical pathology, and it is the same *diversity rather than top-k* mitigation §7 already
+asks for — triggered by effort level rather than run continuously, so it costs nothing when nobody
+asked. Two constraints: sample **outward from what is attended**, a hop or two, never uniformly over the
+twin (uniform sampling is the thing attention exists to prevent); and **record what was granted**, or a
+turn becomes unexplainable, which is the one thing provenance-as-wiring was supposed to guarantee. Not
+spiked — the spike tests substrate claims only, not retrieval.
+
+### Spike results — `units/tests/test_hypotheses.py`, 8 green (102 total)
+
+**The finding that changed the design: a derived claim must be a node, not an attribute write.**
+`Graph.union` merges attributes *by node*, so two live derivations disagreeing about one `(node, attr)`
+silently collapsed to whichever was unioned last — and the contradiction became invisible **exactly when
+it mattered**. Two values for one attribute are not representable as attributes at all. This is §3's
+argument for occurrence nodes arriving one level down: an attribution is a thing that is asserted, so it
+is a node. Mutation-checked: reverting to an attribute write kills the contradiction test.
+
+**Second finding: a checkpoint is copy-on-write for free.** The first implementation deep-copied the
+asserted layer, on the assumption that exploring *n* hypotheses would otherwise cost O(twin × n) and
+kill the enumerator on a real twin. Mutation testing showed the copy makes **no semantic difference**:
+`Graph` is immutable, so a mutating rule *replaces* a cell's value rather than editing it, and
+divergence happens only where a write lands. A checkpoint costs one cell per asserted cell. This is
+`graph.py`'s immutability decision — *"load-bearing, not hygiene"* — paying for something it was not
+adopted for, and it is what makes multi-turn hypothesis exploration affordable at all.
+
+**Third finding: asserted and derived facts must wear one shape.** Once a derived claim is a reified
+attribution, an asserted fact written as a plain attribute is no longer comparable with it, and a rule
+would have to match both forms. The boundary must transcribe into the same shape rules conclude in.
+
+Also pinned: overlaid values do not touch what they overlay and fade with their support; a derived
+**edge** is powered identically; a detector wired to one hypothesis stays silent while the same detector
+wired to both reports (the positive control that keeps the silence honest); blame walks back to exactly
+the suppositions involved; a refutation dies with its hypothesis unless written back; and three-way
+round-robin elimination across turns leaves exactly one survivor.
+
+---
+
+## 10. Open
 
 Carried forward, plus what this revision raised.
 
@@ -311,6 +435,10 @@ Carried forward, plus what this revision raised.
   name must be wired to where the name is. There is no ambient store to fall back on — which is the intended
   discipline, and also the number to watch: if most units end up wired back to the axiom cell, the pool has
   been re-created by convention
+- **Dissolving `Cell` into the graph** (§9). The spike keeps cells as a separate Python type; under
+  homoiconicity a derived fact should simply hang off its producing unit's node. This is the next
+  simplification and it removes a kind
+- **One shape for asserted and derived facts** (§9). Decides what the boundary transcribes into
 - **Whether the old engine goes now.** The spike reproduces the six surviving harness rows with no
   `visible_at`, no `ScopePointer` and no `cooldown.py`. Deleting those is the payoff, and it reds most of the
   78 tests written against the superseded model

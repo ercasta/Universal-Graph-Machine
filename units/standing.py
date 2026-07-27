@@ -28,12 +28,54 @@ wired wider than they look, and that is the number worth watching.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from typing import Any
 
 from .graph import EMPTY, Graph, Node, role_edge
 from .match import Match, solve
 from .unit import Emit, Stamp, _apply
 
 SURGE_AT = 3            # revisits of one unit before the loop is burned
+
+
+ATTRIBUTION = "attribution"
+
+
+@dataclass(frozen=True)
+class Overlay:
+    """An attribute **derived onto a node that lives somewhere else** — as a *reified attribution*, not
+    as a write.
+
+    The overlay materialises in its producing unit's cell; the target is untouched wherever it actually
+    lives. So *"Paul is 43"* from a birthday rule never edits the asserted *"Paul is 42"* — it stands
+    beside it, powered by whatever powered the rule, and is gone on the next revive if that support
+    goes.
+
+    ⚠ **Reification is forced, and the spike is what forced it.** The first version wrote the attribute
+    straight onto the shared node. `Graph.union` merges attributes *by node*, so two overlays disagreeing
+    about one `(node, attr)` silently collapsed to whichever was unioned last — and the contradiction
+    became invisible **exactly when it mattered**. Two live values for one attribute are not
+    representable as attributes at all; they have to be two nodes. This is §3's argument for occurrence
+    nodes arriving one level down: an attribution is a thing that is asserted, so it is a node.
+
+    ⚠ **Overlays do not shadow and are not resolved.** Two live overlays disagreeing about one attribute
+    are two readings, both present, and telling *"a man under H1, a woman under H2"* from *"a man and a
+    woman"* is a **rule's** job, never the engine's (§9: contradiction handling is authored). An earlier
+    draft had inner overlays shadowing outer ones, lexical-scoping style — a precedence policy hardcoded
+    in the engine, which is the judgement `model.md` §11 says must stay authored."""
+
+    target: str
+    attr: str
+    value: Any
+
+
+@dataclass(frozen=True)
+class Link:
+    """An **edge** derived between two nodes that live elsewhere — optionally through a role node, which
+    is how §3 requires a participant to hang off an occurrence."""
+
+    src: str
+    dst: str
+    role: str | None = None
 
 
 @dataclass(frozen=True)
@@ -146,7 +188,7 @@ class StandingUnit:
         band = None
         for m in solve(g, self.pattern, self.theta):
             for e in self.effects:
-                derived = _apply(derived, e, m, None)
+                derived = _apply_here(derived, e, m)
             band = m.band if band is None else band
 
         if not derived.nodes:
@@ -168,6 +210,20 @@ class StandingUnit:
 
     def __repr__(self) -> str:
         return f"<Standing {self.name} fired={self.firings} dangling={self.dangling()}>"
+
+
+def _apply_here(g: Graph, effect, m: Match) -> Graph:
+    """Apply one effect into the **producing cell's** fragment. Nothing here ever writes outside it —
+    that is subset output (`0008`), and it is what makes a fact's position mean something."""
+    if isinstance(effect, Overlay):
+        a = Node(f"{effect.attr}={effect.value}")
+        g = g.with_node(a, name=ATTRIBUTION, attr=effect.attr, value=effect.value)
+        return role_edge(g, a, "of", m[effect.target])
+    if isinstance(effect, Link):
+        if effect.role is None:
+            return g.with_edge(m[effect.src], m[effect.dst])
+        return role_edge(g, m[effect.src], effect.role, m[effect.dst])
+    return _apply(g, effect, m, None)
 
 
 @dataclass
@@ -202,6 +258,77 @@ class Network:
     def suppose(self, g: Graph, *, name: str, within: Cell | None = None) -> Cell:
         """A supposition: an axiom cell that is its own containment. *"Suppose it rains."*"""
         return self.axiom(g, name=name, within=within, scope=True)
+
+    # -- checkpointing ---------------------------------------------------------------------------
+
+    def checkpoint(self, scope: Cell) -> list:
+        """Copy the asserted layer into `scope`, so that mutation under a hypothesis is **local to it**.
+
+        ## Why this is needed at all
+
+        Positioning scopes what is *derived* and does nothing for what is *mutated*. Materialized facts
+        are recomputed every revive, so a hypothesis's conclusions are free — but a **mutating** rule
+        firing under a hypothesis writes to the shared asserted layer, permanently. Any hypothesis whose
+        exploration takes more than one turn therefore corrupts the base world, because its state has to
+        survive the revive that discards everything else.
+
+        `ugm` reached the same wall from the other direction and recorded the same answer: a
+        materialized **copy with merge-back at one boundary**, never a read-projection, because a
+        projection isolates reads and not writes.
+
+        ## Deliberate, never automatic
+
+        The machine supports checkpointing; it never decides to checkpoint. This is an operation a rule
+        concludes, exactly as it concludes a deletion — so *when* to branch the world is a judgement in
+        the data, inspectable and revisable, and not a policy in the engine (§11).
+
+        ## The two exits, and they are the only two
+
+        `commit` merges the checkpoint back into the asserted layer; `discard` drops it. Both are one
+        explicit act at one boundary, the same shape as §6's crossing.
+
+        ⚠ **Search state must live outside the checkpoints it controls.** The enumerator's cursor and its
+        refutations are what must survive a hypothesis being abandoned, so they belong in the base layer.
+        Checkpointing them would reset the search every time it discarded a branch.
+
+        ## It is copy-on-write for free, and that was not obvious
+
+        Nothing is copied here — the new cell simply *points at the same immutable `Graph`*. A draft of
+        this method deep-copied, on the assumption that exploring *n* hypotheses would otherwise cost
+        O(twin × n) and kill the enumerator. Mutation testing showed the copy makes no semantic
+        difference at all: `Graph` is immutable, so a mutating rule **replaces** a cell's value rather
+        than editing it, and divergence happens only where a write actually lands.
+
+        So a checkpoint costs one `Cell` per asserted cell, not one graph per hypothesis. This is
+        `graph.py`'s immutability decision — *"load-bearing, not hygiene"* — paying for something it was
+        not adopted for."""
+        made = []
+        for c in list(self.axioms):
+            if c.scope or c.within is not None or c.held is None:
+                continue                     # suppositions and already-nested cells are not the base layer
+            copy = Cell(f"{scope.name}/{c.name}", within=scope, axiom=True)
+            copy.held = c.held               # shared, not copied — see above
+            self.axioms.append(copy)
+            made.append((c, copy))
+        return made
+
+    def commit(self, scope: Cell) -> None:
+        """Merge a checkpoint back into the asserted layer — committing to the hypothesis."""
+        for c in list(self.axioms):
+            if c.within is not scope or c.scope:
+                continue
+            origin = next((o for o in self.axioms
+                           if c.name == f"{scope.name}/{o.name}" and o is not c), None)
+            if origin is not None and c.held is not None:
+                origin.held = Value(c.held.graph)
+        self.discard(scope)
+
+    def discard(self, scope: Cell) -> None:
+        """Drop a checkpoint, leaving the asserted layer untouched — abandoning the hypothesis.
+
+        Nothing reclaims an abandoned checkpoint on its own: a refuted hypothesis whose checkpoint is
+        never discarded is a leak, and writing that rule is the author's job (§11)."""
+        self.axioms = [c for c in self.axioms if c.within is not scope or c.scope]
 
     def add(self, unit: StandingUnit) -> StandingUnit:
         self.units.append(unit)
@@ -277,6 +404,56 @@ class Network:
     def cells(self) -> list:
         return self.axioms + [u.cell for u in self.units]
 
+    def readings(self, node: Node, attr: str) -> list:
+        """Every live value for `node.attr`, with the cell that holds it.
+
+        A query returns **several**, and that is not a defect to be resolved — §4 already says a match
+        has a strength rather than a verdict. *"Paul is a man under H1, a woman under H2"* is two
+        readings, and nothing collapses them."""
+        out = []
+        for c in self.cells():
+            if c.held is None:
+                continue
+            g = c.held.graph
+            v = g.attr(node, attr)
+            if v is not None:
+                out.append((v, c))
+            for n in g.nodes:                       # …and every derived attribution about it
+                if g.attr(n, "name") != ATTRIBUTION or g.attr(n, "attr") != attr:
+                    continue
+                if any(node in g.out(r) for r in g.out(n)):
+                    out.append((g.attr(n, "value"), c))
+        return out
+
+    def _owner(self, cell: Cell):
+        for u in self.units:
+            if u.cell is cell:
+                return u
+        return None
+
+    def powering(self, unit: "StandingUnit") -> set:
+        """The suppositions this unit's output rests on — walked **backwards over the wiring**.
+
+        This is what makes blame assignment possible without any rule naming a scope (invariant 1). A
+        contradiction refutes *the configuration that powered it*; the configuration is not something a
+        detector is told, it is something the wiring already records. Provenance doing real work."""
+        scopes, seen, stack = set(), set(), [unit]
+        while stack:
+            u = stack.pop()
+            if id(u) in seen:
+                continue
+            seen.add(id(u))
+            for cell in [u.cell] + [s for (s, d, _) in self.wires if d is u]:
+                c = cell.home()
+                while c is not None:
+                    if c.scope:
+                        scopes.add(c)
+                    c = c.within
+                owner = self._owner(cell)
+                if owner is not None:
+                    stack.append(owner)
+        return scopes
+
     def dangling(self) -> list:
         return [(u.name, g) for u in self.units for g in u.dangling()]
 
@@ -287,4 +464,5 @@ def holds(g: Graph, name: str) -> bool:
     return any(g.attr(n, "name") == name for n in g.nodes)
 
 
-__all__ = ["Value", "Cell", "StandingUnit", "Network", "Surge", "holds", "SURGE_AT"]
+__all__ = ["Value", "Cell", "StandingUnit", "Network", "Surge", "Overlay", "Link",
+           "holds", "SURGE_AT"]
