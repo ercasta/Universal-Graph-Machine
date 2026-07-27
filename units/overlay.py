@@ -116,6 +116,24 @@ class Retract:
 
 
 @dataclass(frozen=True)
+class Grade:
+    """Set a **gradable** attribute at a band (`model.md` §3's second sort of attribute).
+
+    ⚠ **Grades meet; they do not conflict.** Two crisp values for one slot are an inconsistency (§6), but
+    two bands are not: `band.py`'s min-join is commutative and associative, so *"likely"* and
+    *"unlikely"* about the same thing compose to the weaker rather than disagreeing. A chain is as strong
+    as its weakest link, and that is a *combination*, not a contradiction.
+
+    This asymmetry is the design already sitting on the truth-axis / knowledge-axis split that bilattices
+    formalise (`review-01` §5): disagreement about *what is so* is a conflict; disagreement about *how
+    strongly* is a join."""
+
+    target: Node
+    attr: str
+    band: str
+
+
+@dataclass(frozen=True)
 class Identify:
     """Two nodes are one thing — the **applied** coreference decision.
 
@@ -130,7 +148,7 @@ class Identify:
     drop: Node
 
 
-EFFECTS = (Mint, AddEdge, SetAttr, Identify, Retract)
+EFFECTS = (Mint, AddEdge, SetAttr, Grade, Identify, Retract)
 
 
 @dataclass(frozen=True)
@@ -172,7 +190,7 @@ class Overlays:
     """
 
     __slots__ = ("base", "effects", "support", "_parent", "_members", "_edges", "_attribs",
-                 "_minted", "_retracts")
+                 "_minted", "_retracts", "_grades")
 
     def __init__(self, base: Graph = EMPTY, effects: Sequence[tuple] = (),
                  support: dict | None = None) -> None:
@@ -214,6 +232,7 @@ class Overlays:
         self._attribs: dict = {}
         self._minted: list = []
         self._retracts: dict = {}
+        self._grades: dict = {}
         for src, e in self.effects:
             if isinstance(e, AddEdge):
                 self._edges.setdefault(self._find(e.src), []).append((self._find(e.dst), src))
@@ -221,6 +240,8 @@ class Overlays:
                 self._attribs.setdefault(self._find(e.target), []).append((e.attr, e.value, src))
             elif isinstance(e, Mint):
                 self._minted.append((e, src))
+            elif isinstance(e, Grade):
+                self._grades.setdefault(self._find(e.target), []).append((e.attr, e.band, src))
             elif isinstance(e, Retract):
                 self._retracts.setdefault(self._find(e.target), []).append((e.attr, e.source, src))
             elif not isinstance(e, Identify):
@@ -331,6 +352,27 @@ class Overlays:
                 seen.append(d)
         return tuple(seen)
 
+    def degree(self, n: Node, key: str, under: frozenset = frozenset()) -> str | None:
+        """The band for `n.key` — the **meet** of every live grade and the base. See `Grade`: bands
+        combine rather than disagree, so this never reports a conflict."""
+        from .band import meet
+        n = self._find(n)
+        if any(a in (key, None) and self.live(src, under)
+               for a, _t, src in self._retracts.get(n, ())):
+            return None
+        band = None
+        for raw in self._raw(n):
+            d = self.base.degree(raw, key)
+            if d is not None:
+                band = meet(band, d)
+        for attr, b, src in self._grades.get(n, ()):
+            if attr == key and self.live(src, under):
+                band = meet(band, b)
+        return band
+
+    def view(self, under: frozenset = frozenset()) -> "View":
+        return View(self, under)
+
     def nodes(self, under: frozenset = frozenset()) -> tuple:
         """**The** graph as it stands, in this configuration.
 
@@ -339,7 +381,13 @@ class Overlays:
         graph would not be coherent, which is an independent reason a read yields one value."""
         seen: list = []
         minted = [(m.node, src) for m, src in self._minted]
-        for n, src in [(b, BASE) for b in self.base.nodes] + minted:
+        # A node **mentioned** by a live effect is visible here, even if nothing minted it. Otherwise a
+        # downstream unit handed only `SetAttr(paul, …)` cannot see Paul at all and the matcher never
+        # tries him — found by `test_crossing_is_one_wire_out_of_the_supposition`. This is not ambient
+        # access: it is still only what the gates delivered.
+        mentioned = [(t, src) for src, e in self.effects
+                     for t in (_targets(e))]
+        for n, src in [(b, BASE) for b in self.base.nodes] + minted + mentioned:
             if not self.live(src, under):
                 continue
             r = self._find(n)
@@ -372,5 +420,51 @@ class Overlays:
         return g
 
 
-__all__ = ["Mint", "AddEdge", "SetAttr", "Identify", "Retract", "Overlays", "Reading", "Conflict",
-           "EFFECTS", "ATTRIBUTION", "BASE"]
+def _targets(e) -> tuple:
+    """Which nodes an effect mentions."""
+    if isinstance(e, (SetAttr, Grade, Retract)):
+        return (e.target,)
+    if isinstance(e, AddEdge):
+        return (e.src, e.dst)
+    if isinstance(e, Identify):
+        return (e.keep, e.drop)
+    return ()
+
+
+class View:
+    """A configuration-fixed read surface, shaped exactly like `Graph` where the matcher touches it.
+
+    `match.solve()` uses four things — `nodes`, `attr`, `degree`, `out` — so threading the matcher
+    through overlays needs no change to `match.py` at all. That is the payoff of `Graph` having been kept
+    to a small read surface.
+
+    ⚠ **A conflicted attribute simply does not match.** `attr` returns `None` when two live values
+    disagree, because a conflicted read is absent (§6). So a rule wanting `age = 42` is silent about a
+    node the system is in two minds over — which is the right behaviour and needed no special case."""
+
+    __slots__ = ("_o", "under")
+
+    def __init__(self, overlays: "Overlays", under: frozenset = frozenset()) -> None:
+        self._o = overlays
+        self.under = under
+
+    @property
+    def nodes(self) -> tuple:
+        return self._o.nodes(self.under)
+
+    def attr(self, n: Node, key: str):
+        r = self._o.read(n, key, self.under)
+        return None if r is None else r.value
+
+    def degree(self, n: Node, key: str):
+        return self._o.degree(n, key, self.under)
+
+    def out(self, n: Node) -> tuple:
+        return self._o.out(n, self.under)
+
+    def conflicts(self) -> list:
+        return self._o.conflicts(self.under)
+
+
+__all__ = ["Mint", "AddEdge", "SetAttr", "Grade", "Identify", "Retract", "Overlays", "View",
+           "Reading", "Conflict", "EFFECTS", "ATTRIBUTION", "BASE"]

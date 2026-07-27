@@ -1,9 +1,8 @@
 # Revision 02 — the two planes
 
-**Status: design, 2026-07-27. §6 is BUILT and green — `units/overlay.py` + `units/turn.py`, 36 tests, 66 total; `standing.py`'s energy moved to the gate.** The rest is
-design. This revises `model.md` §6 substantially and amends `revision-01` in three places. `standing.py` still
-implements `revision-01` and carries the `Value.graph` + `merges` error §6 corrects; where the two disagree,
-the code is wrong.
+**Status: 2026-07-27. CONSOLIDATED and green — `units/engine.py` + `units/overlay.py`, 40 tests.**
+`standing.py` and `turn.py` are **deleted** (§8b); §§3, 5 and 6 are built, §§2 and 4 remain design. This
+revises `model.md` §6 substantially and amends `revision-01` in three places.
 
 `model.md` §6 called the **tunnel** the section the architecture exists for. It was doing three unrelated jobs
 under one name, and separating them deletes most of it: the seal, the begin/end markers, and the round-trip
@@ -106,7 +105,7 @@ that made a containment field behave like one.
   scope object for a pattern to name.
 - **Invariant 2 (*nesting → tunnel → nesting round-trips*) is deleted.** It was `model.md`'s nomination for
   where silent drift would happen. There is no tunnel to round-trip through, and no mapping to drift.
-- `Cell.within` and `Cell.scope` are marked for deletion.
+- `Cell.within` and `Cell.scope` are **deleted** (§8b).
 
 ---
 
@@ -586,11 +585,72 @@ used. Invariant 4 needs the amendment stated in §8 below rather than a repeal.
 
 ---
 
+## 8b. The consolidation — one machine
+
+Three partial machines had accumulated while the design converged, and they did not compose: `standing.py`
+(propagating, but reading by unioning graph fragments, with `Cell.within`/`Cell.scope`), `overlay.py`
+driven directly with no units, and `turn.py` (fixpoint iteration, no matching). `units/engine.py`
+replaces all three. What it settled:
+
+**§3's two halves finally met.** `overlay.py` took a configuration as *declared*; `standing.py` computed
+one by *walking wiring*. Joined, the join needs **less** than expected:
+
+> **A unit needs no configuration at all.** It sees only what its gates delivered, and a supposition's
+> contributions reach exactly the units wired downstream of it. Scope is not *read* — it is **wiring**.
+
+So `under` appears in `Network.graph()` and never in a unit. `powering()` is what a read filters by; the
+tunnel is free, as §6 always promised. `Cell.within` and `Cell.scope` are gone.
+
+**The matcher needed no change.** `match.solve()` touches exactly four members — `nodes`, `attr`,
+`degree`, `out` — so `Overlays.view()` exposes those and the matcher runs against overlays unmodified.
+A conflicted attribute simply does not match, which needed no special case: a conflicted read is absent.
+
+⚠ **A `turn.py` result is REVERSED, and this is the finding of the consolidation.** §6 recorded that a
+computation unit deleting its own premise *oscillates*. It does not — in a **propagating** engine. That
+oscillation was an artifact of `turn.py` recomputing every unit's premise from the current view each
+round, which conflates the two planes:
+
+> **Power is plane 2; readability is plane 1.** A value that arrived on a wire cannot be un-delivered by
+> an overlay that changes what is *readable*. So a deletion cannot withdraw the power that produced it.
+
+`model.md` §5 specifies the propagating engine (*"it sees only what its gates deliver"*), so the
+propagating result is the one that counts. The flip detector remains correct and remains needed — for
+genuine wiring cycles — and the monotonicity argument behind it is untouched. What is withdrawn is only
+the claim that deletion introduces a *new* pathology. Pinned by
+`test_deletion_cannot_undermine_its_own_support_in_a_propagating_engine`.
+
+**Two further gaps the port exposed**, both now closed: write-back was never implemented (`mutating`
+existed on the unit and `revive()` ignored it), and a node *mentioned* by a live effect was not visible
+in a view — so a downstream unit handed only `SetAttr(paul, …)` could not see Paul and the matcher never
+tried him.
+
+⚠ **Write-back is the one place effect order still matters.** Reads are lazy and therefore
+order-independent (§6 finding 4), but the store is a `Graph` and must be materialized. Identifications
+are applied **last**, which is the narrowest fix for the re-introduced-node bug; it is not a general
+argument that write-back is order-free.
+
+### Invariant 15, meant literally
+
+`review-01` §4 named the one structural gap: *"if invariant 15 is meant literally, it needs an argument
+that latching cannot make a stabilization result order-dependent, and the docs do not have one."*
+
+**Tested, across 144 orderings of a diamond network with a two-gate join** — every permutation of unit
+order and wire order — and the readable content is identical in all of them. This is not trivial: the
+join fires *repeatedly*, once per arrival, with different partial inputs depending on order (pinned by a
+control test). What does not vary is where it settles. Mutating the engine so a unit reads only its most
+recently delivered gate breaks it immediately, so the test discriminates.
+
+That is the nearest this design gets to a semantics, and it is now a property rather than a hope.
+
+---
+
 ## 9. Open
 
-- ~~**Is lazy application affordable?**~~ ✅ **Closed by the §6 spike — yes, and eager is what is not.**
-  Merging half a 2,000-node twin costs 1.68× on the read path; eager materialization is linear in twin size
-  where lazy indexing is flat. Build it lazy, and **index once per revive** — naive scanning is 3,599× worse.
+- ~~**Is lazy application affordable?**~~ ✅ **Closed — yes, and eager is what is not.** Merging half a
+  2,000-node twin costs ~1.4–1.7× on the read path; eager materialization is linear in twin size where
+  lazy indexing is flat (0.14 ms vs 431→4,222 ms as the twin grows). Build it lazy, and **index once per
+  revive**. `tests/units/bench_overlay.py`.
+- ~~**Does the matcher survive reading through `Overlays`?**~~ ✅ **Yes, unmodified** (§8b).
 - **Does the matcher survive reading through `Overlays`?** The spike drives effects directly and never runs
   `solve()` against them. `_solve` iterates `g.nodes` and calls `g.attr`/`g.out`, so the surface is small, and
   a single-valued configuration-relative read is the shape it already expects — but it must be threaded with
