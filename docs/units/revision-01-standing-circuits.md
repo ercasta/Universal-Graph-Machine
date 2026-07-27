@@ -12,6 +12,12 @@ but the *values in it*, which are re-established from the axioms at the start of
 
 This document records the revision, what it retires, and what it opens.
 
+> ⚠ **Amended 2026-07-27 by `revision-02-two-planes.md`**, in four places. §4's open burn question is
+> **closed** (it persists, as a bundled rule). §8's third finding is **reinterpreted** — the seal was not
+> leaking; scope was mis-represented as containment. §9's proposed next simplification, *"a derived fact hangs
+> off its producing unit"*, is **withdrawn** as a conflation of position with support. §9's *"every effect is
+> an overlay"* is **strengthened**: the type must carry it, so `Value.graph` + `merges` is wrong.
+
 ---
 
 ## 1. The claim
@@ -128,10 +134,12 @@ through a certain rule yields a certain conclusion, at any depth.
 large graph it is a global scan, and it is redundant against a runtime detector that catches dynamically formed
 loops anyway. §3 already makes unpowered cycles free.
 
-**Open — does the burn persist?** If it is transient, every revive pays the surge cost again for the same loop.
-If it persists, engine policy has made a durable edit to structure the author never authorized. Recommendation
-on record: **transient burn, persistent `surged` fact**, so the author can see it and a rule can conclude a
-real fix. Not yet decided.
+~~**Open — does the burn persist?**~~ ✅ **Closed by `revision-02` §7 — it persists, and the correction is a
+bundled rule.** The recommendation recorded here was transient-burn-plus-persistent-fact, to keep engine
+policy from making a durable edit the author never authorized. Decided the other way, because a transient burn
+re-runs the identical pathology on every turn forever. The authorization objection is answered by *where the
+correction lives*: the engine only emits `surged`; a rule wired to it concludes the unwiring; wires are
+ordinary occurrences, so that is an ordinary mutation at write-back.
 
 ---
 

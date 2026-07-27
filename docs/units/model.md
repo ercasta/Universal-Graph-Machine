@@ -7,6 +7,13 @@ code, the code is wrong.
 > ⚠ **Revised 2026-07-27 by `revision-01-standing-circuits.md`.** Circuits **stand** rather than being thrown
 > away; values are re-established from the axioms at the start of each turn. Sections revised below are marked
 > **[R1]**. Where this document and the revision disagree, the revision wins.
+>
+> ⚠ **Revised again 2026-07-27 by `revision-02-two-planes.md`.** There are **two planes**: inert graph data
+> (including denotational expressions and the *descriptions* of units) and the running circuit. §6's tunnel was
+> three unrelated jobs — statement atomicity dissolves into the LHS/RHS boundary, scope becomes **support**
+> rather than containment, and the tunnel survives only as the inert decomposition of a **referring
+> expression**. The seal, the begin/end markers and invariants 2 and 9 are **deleted**. Sections revised are
+> marked **[R2]**; revision 02 wins over both this document and revision 01.
 
 **What this document is.** The computation model, derived from first principles, with worked examples. It is
 organised so that each section only depends on the ones before it. Read it in order; the mechanisms in §5
@@ -188,6 +195,13 @@ value-comparison test suppressing it, and therefore no notion of quiescence.
 ## 6. Statements, seals, and tunnels
 
 This is the section the architecture exists for.
+
+> ⚠ **[R2] This entire section is superseded by `revision-02-two-planes.md` §§2–4.** It conflates three jobs.
+> A statement is atomic because its antecedent is a **unit's LHS pattern**, not graph structure — so there is
+> no interior to seal and the markers protect against a hazard that no longer exists. Scope is **support** —
+> which configuration powers a conclusion, read off the wiring backwards — not a containment a fact sits in.
+> The tunnel survives only as §4 of the revision describes it: the **inert subgraph** of a complex referring
+> expression, resolved by ordinary rules. Read the rest of this section as the reasoning trail.
 
 ### A statement is atomic, but built as a chain
 
@@ -740,12 +754,15 @@ mental node refers to a particular real thing is a *rule's* decision, and can be
 
 Each is the kind of thing that is obviously right on paper and quietly wrong in a build.
 
-1. **No rule pattern names a scope.** The single strongest signal of regression.
-2. **Nesting → tunnel → nesting round-trips.** Rebuild reads nesting to make the tunnel; write-back maps
-   tunnel position back to nesting. This is where silent drift will happen.
+1. **No rule pattern names a scope.** The single strongest signal of regression. **[R2]** Now holds for free:
+   scope is support, so there is no scope object for a pattern to name.
+2. ~~**Nesting → tunnel → nesting round-trips.**~~ **[R2] DELETED** — there is no tunnel to round-trip
+   through, and no mapping to drift.
 3. **A unit reads only its gates.** No ambient access, ever.
 4. **Units never wire anything.** The assembler is the only writer of topology. If routing is ever learned,
-   units *propose* wirings as facts.
+   units *propose* wirings as facts. **[R2] Amended:** units never wire anything *directly*; a wiring change
+   is a mutating rule's conclusion applied at write-back, and the engine never edits wiring on its own. The
+   `surged` burn correction is the first use of that slot (`revision-02` §7).
 5. **Every goal worked on in a step receives exactly one positive outcome fact.** Per goal, not per step, and
    never an absence.
 6. **The boundary interprets nothing.** Transcription, minting a goal, and I/O only — every judgement is a rule.
@@ -753,7 +770,9 @@ Each is the kind of thing that is obviously right on paper and quietly wrong in 
 8. **A turn is *resumable* from persisted data alone — not reproducible.** No hidden in-memory state may be
    load-bearing. But re-running a turn need not reach the same place, because System 1 is non-deterministic
    (§7). The test is that work can *continue*, never that it replays identically.
-9. **Only end markers are attachable.** No wire terminates inside a sealed span.
+9. ~~**Only end markers are attachable.**~~ **[R2] DELETED** with the seal. A rule may match any part of an
+   inert description; matching is not attaching, and it claims nothing about what the whole expression
+   denotes.
 10. `units/` imports nothing from `ugm/`.
 11. **[R1] Changing an axiom makes everything derived from it absent on the next revive, with nothing
     retracted.** The central claim of `revision-01`. If any retraction, cascade-delete or invalidation code
@@ -765,7 +784,16 @@ Each is the kind of thing that is obviously right on paper and quietly wrong in 
 14. **[R1] A partially wired unit is stable** — it holds, produces nothing, raises no error, and is not
     garbage.
 15. **[R1] The graph state is a pure function of (axioms, wiring).** No hidden accumulation survives a
-    revive. This is the machine-checkable form of "recomputed, never maintained."
+    revive. This is the machine-checkable form of "recomputed, never maintained." **[R2]** Now literally
+    true: wiring is plane-1 data, not Python objects that happen to survive.
+16. **[R2] A read returns a set, never a winner.** Two live overlays disagreeing about one attribute are two
+    readings. If the engine collapses them, the cascade has been built (`revision-02` §6).
+17. **[R2] No engine code mutates wiring.** Every wiring change — including a burn — is a mutating rule's
+    conclusion applied at write-back.
+18. **[R2] Everything persistent is plane 1.** Plane 2 holds nothing across a revive that plane 1 does not
+    describe. Latched values and energy live *within* one stabilization run and do not survive it.
+19. **[R2] A pattern that does not name machinery never matches machinery** — for the ordinary reason of
+    invariant 7, not because of a partition.
 
 ---
 
@@ -807,9 +835,10 @@ Genuinely undecided, not oversights.
   being load-bearing. **[R1]** Still open, and now interacts with latched cycles after ungrounding: nothing
   latches *across* a revive, but within one stabilization run a cycle that loses its external input could be
   sustained by latched values until it surges.
-- **[R1] Does a burn persist, or is it redone each revive?** Transient burn plus a persistent `surged` fact is
-  the recommendation on record, so engine policy never makes a durable edit the author did not authorize. Not
-  decided.
+- ~~**[R1] Does a burn persist, or is it redone each revive?**~~ ✅ **[R2] Closed — it persists**
+  (`revision-02` §7). A transient burn re-runs the same pathology every turn, forever. The authorization
+  objection is answered by *where the correction lives*: the engine only emits `surged`, and a **bundled
+  rule** concludes the unwiring, applied at write-back like any other mutation.
 - **[R1] Does attention bound gate-matching** the way it bounds rule recall? A dangling gate wanting *a man* is
   a standing query against the twin, and the population of such gates now contributes to outer-loop work
   independently of the goal. This is where the cost of dissolving the anchoring problem actually landed.
@@ -819,8 +848,13 @@ Genuinely undecided, not oversights.
 - **The outer budget's shape.** Steps, wall clock, or something the goal itself carries.
 - ~~**Homoiconicity.** Deliberately deferred.~~ ✅ **[R1] No longer optional — it is a precondition.** §1's
   claim that data is the substrate survives only if standing units are themselves graph data; otherwise there
-  are two substrates, a graph and a live circuit beside it, and the claim is false. The shape sketched here
-  (hyperedge with begin and end marker nodes) is the one to build.
+  are two substrates, a graph and a live circuit beside it, and the claim is false. ~~The shape sketched here
+  (hyperedge with begin and end marker nodes) is the one to build.~~ ✅ **[R2] Shape settled, and it is
+  cheaper than expected** (`revision-02` §§1, 5). A wire is a **3-place** relation (source, target, gate), so
+  §3 forbids it from being an edge at all — it is an occurrence node with role nodes, like any other relation.
+  No marker nodes, no hyperedge, and no machinery partition. Invisibility to ordinary rules is free from §4:
+  a pattern for `name = "agent"` does not match `name = "wire_input"` for the same reason it does not match
+  `name = "likes"`. Homoiconicity is the **default**, and costs nothing until a rule looks.
 - ~~**Should rules be attached to nodes?**~~ ✅ **[R1] Closed** — yes, and they **stand** rather than
   dissolving. `attachment.md` is deleted and folded into `revision-01` §7. Its blocking problem,
   multi-premise anchoring, is dissolved by partial wiring rather than solved.
