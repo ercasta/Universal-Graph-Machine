@@ -786,8 +786,10 @@ Each is the kind of thing that is obviously right on paper and quietly wrong in 
 15. **[R1] The graph state is a pure function of (axioms, wiring).** No hidden accumulation survives a
     revive. This is the machine-checkable form of "recomputed, never maintained." **[R2]** Now literally
     true: wiring is plane-1 data, not Python objects that happen to survive.
-16. **[R2] A read returns a set, never a winner.** Two live overlays disagreeing about one attribute are two
-    readings. If the engine collapses them, the cascade has been built (`revision-02` §6).
+16. **[R2] A read is relative to a configuration, and yields one value or reports a conflict.** Never a
+    winner (that is the cascade) and never a set (that is the quieter failure — a caller takes the first
+    element and the contradiction vanishes anyway). A conflicted read is **absent**; the disagreement is a
+    positive `conflict` fact a rule can match and resolve by concluding a retraction (`revision-02` §6).
 17. **[R2] No engine code mutates wiring.** Every wiring change — including a burn — is a mutating rule's
     conclusion applied at write-back.
 18. **[R2] Everything persistent is plane 1.** Plane 2 holds nothing across a revive that plane 1 does not

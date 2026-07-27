@@ -1,6 +1,6 @@
 # Revision 02 — the two planes
 
-**Status: design, 2026-07-27. §6 is BUILT and green — `units/overlay.py`, 10 tests, 40 total.** The rest is
+**Status: design, 2026-07-27. §6 is BUILT and green — `units/overlay.py` + `units/turn.py`, 24 tests, 54 total.** The rest is
 design. This revises `model.md` §6 substantially and amends `revision-01` in three places. `standing.py` still
 implements `revision-01` and carries the `Value.graph` + `merges` error §6 corrects; where the two disagree,
 the code is wrong.
@@ -219,15 +219,122 @@ and it **resolves** them to one computed value by specificity. The first is the 
 The second is a precedence policy hardcoded in the engine, which is the judgement `model.md` §11 says must stay
 authored — and `revision-01` §9 already rejected it once, as inner overlays shadowing outer ones.
 
-> The test for which half you have built is **what a read returns when two overlays disagree.** A **set** is
-> lazy application. A **winner** is the cascade, and the engine has made a judgement.
+What the analogy does buy is narrower than it first looks. CSS's cascade is well-defined because specificity is
+**declared in the language** — but the composable form of that is *not* authored precedence.
 
-`Network.readings()` is already the good half: it walks live cells and returns every value with the cell holding
-it, deliberately uncollapsed.
+> **A rule concludes how to solve the conflict.**
 
-What the analogy does buy: CSS's cascade is well-defined because specificity is **declared in the language**.
-The composable form of that is a rule concluding precedence — *this overlay overrides that one* — so resolution
-is ordinary reasoning. Same shape, authored.
+⚠ **Not *"a rule concludes precedence."*** That was the first phrasing and it is the cascade smuggled back in
+with the specificity function moved into the KB: it presupposes that resolving a conflict means **ranking**,
+and it leaves a precedence claim in the graph that something has to consult at read time. Resolution is not
+ranking. A rule may conclude that one claim should go, that a third value holds, that the goal should suspend
+and ask, or that both stand and the disagreement is itself the answer.
+
+Two things fall out, and the second is the reason to insist on the wording:
+
+- **The engine's entire involvement is reporting the conflict.** It has no resolution mechanism to parameterise
+  — not even an authored one.
+- **The invariant-7 tension disappears.** Authored precedence would need the read path to consult a
+  `supersedes`-shaped relation *by name*, which is a privileged name and invariant 7 gone. If the rule simply
+  concludes, nothing is consulted, and the resolution is an overlay like any other.
+
+This is the same shape as §7's burn: **the engine reports, a rule decides what to do about it.** That the two
+arrived independently is the evidence the shape is right.
+
+### ⚠ A read yields one value. The first version of this section said "a set", and that was wrong
+
+There are **three** options here, not two, and the draft that shipped to the spike took the wrong one of the
+three:
+
+| | |
+|---|---|
+| pick a winner | CSS's cascade. Engine-hardcoded precedence. Correctly rejected |
+| **return a set** | what the spike first built. Also wrong: it *looks* like the principled refusal to pick, but a caller takes the first element and the contradiction disappears exactly as quietly as it did under `Graph.union` — now with the engine's blessing |
+| **one value, or a reported conflict** | doesn't pick, doesn't hide |
+
+> **Not picking is not the same as handing the caller a set.**
+
+**And the set was an artifact of ignoring §3.** Scope is *support*, so a read is always relative to a
+**configuration** — which units are powered. Two overlays resting on different suppositions are never both live
+in one read, so *"a man under H1, a woman under H2"* is not a conflict and never presents as one: reading the
+base world sees neither, reading under H1 sees one. Once that is in place, two values in **one** configuration
+is exactly what it looks like — an inconsistency.
+
+**A conflicted read is absent, and the conflict is a positive fact.** That is `model.md` §8's discipline (an
+outcome is a fact, never an absence) and §9's (contradiction handling is authored). Absent-on-conflict is safe
+here in a way it would not be under strong negation: §4 already weakened absence to *"nothing matched above
+θ"*, so a conflicted value reading as absent corrupts no claim that was ever made.
+
+**Two independent arguments arrive at the same place**, which is why this is worth being firm about:
+
+- **System 1 reads the overlaid graph.** Retrieval next turn recalls against the graph as it stands after
+  stabilization — derived structure present, retracted structure gone. Associative recall over a *set-valued*
+  graph is not coherent.
+- **The matcher.** `_solve` calls `g.attr` and `g.out`; an atom constrains one value. A set-valued read would
+  have forced a decision about what an atom means when a node has two values for it — a question that
+  evaporates once a read is configuration-relative.
+
+### Deletion is an overlay
+
+A unit may conclude that something should be **removed**, and that is the fifth effect, not a separate
+mechanism. It is also what makes the conflict loop close:
+
+> conflict → a rule matches it → the rule concludes a **retraction** → the next revive reads cleanly.
+
+The engine contributed the *report* and nothing else. Which side goes is authored, which is `model.md` §9's
+*"a rule concludes that the stale age fact should go, exactly as a rule concludes anything else"* — and this
+settles `decisions/0032` in the form it was actually asked.
+
+The two dispositions apply unchanged: a **computation unit**'s retraction *hides while powered* — no data is
+lost and it reverts by the ordinary revive — while a **mutating rule**'s retraction is applied to the asserted
+layer at write-back and is real. And a retraction is scoped by its support like any other overlay, so a
+deletion inside a supposition does not reach the base world, with no extra machinery.
+
+### Deletion is the only effect that can undermine its own support
+
+Mint, edge, attribute and identify only ever *add*, so a unit can never subtract its own premise. A
+deletion can, and that is the one dynamic deletion introduces that the other four do not. Spiked in
+`units/turn.py` (9 tests, 54 total), and the answer splits **exactly along the two dispositions**:
+
+| | what happens when a unit deletes its own premise |
+|---|---|
+| **computation unit** | **oscillates.** Fires → premise unreadable → does not fire → premise readable again. There is no fixpoint, and the turn reports `oscillating` |
+| **mutating rule** | **self-extinguishes**, as predicted. Turn 1 fires and write-back removes the premise; turn 2 has nothing to fire from, *and nothing was retracted to make that true* |
+
+**The prediction on record — "if the unit deletes its power source, at the next turn it does not
+revive" — is right for the mutating rule and wrong for the computation unit**, and the reason is the
+write-back boundary. `model.md` §9's *"a deletion is invisible within its own step"* is not merely a
+convenience for reasoning hygiene: **it is what makes the self-undermining mutating case terminate.**
+Within the turn the deletion is a proposal, the premise stays readable, the fixpoint is reached, and
+only then is anything applied. Remove that and the mutating rule oscillates too — which is how the
+spike found it, because the first version of the machine let mutating effects into the read view.
+
+So the disposition split is doing load-bearing work a third time: a computation unit's deletion **is** a
+read-time effect and is its whole nature; a mutating rule's deletion is an **act on the world**, and an
+act has not happened until write-back performs it.
+
+**Three supporting results, each mutation-checked.**
+
+- **An oscillating turn writes nothing back, and reports no effects.** Whichever phase the detector
+  halts on is an artifact of where the scan began. Tested against a cycle whose phases are *both*
+  non-empty, because the simple case always halts on the empty phase and cannot tell a principled
+  answer from a lucky one.
+- **A truncated turn writes nothing back either** — it has conclusions in hand and applies none of
+  them. `model.md` §9: write-back happens after stabilization, never during.
+- **A computation unit's deletion never reaches the asserted layer.** It hides while powered and is
+  re-hidden from scratch every turn.
+
+⚠ **Two deletions cannot build a cycle between them.** A first attempt at the non-empty oscillation used
+two units deleting each other's premises; it **converged**, because deletions only subtract and one unit
+falling silent is a self-consistent state. Self-deletion is the only genuine 2-cycle available. That is
+worth knowing: the pathology this section is about is *narrow*, not a general instability of deletion.
+
+⚠ **The spike walked into an open question from the other side here.** *Retract Paul's age* is ambiguous
+between *that claim* and *that slot*, and a rule resolving a conflict always means the first. The spike names
+the **source** — expressible today, and exactly as expressive as what the rule can see, since what it matched
+was a conflict naming readings by source. But the only reason a source has to be named at all is that
+**asserted and derived facts do not yet wear one shape** (`revision-01` §9's third finding, still open). Once a
+base fact is a node like a derived one, this collapses into naming that node.
 
 **`Merge` is the case that decides whether lazy is affordable**, and it is the case to benchmark. Mint, edge and
 attribute overlays are local, so a read consults a small set. A merge rewrites every mention, so *every* read —
@@ -235,23 +342,30 @@ including every read the matcher does, which is most of the inner loop — must 
 as it goes: effectively a union-find on the read path. The same operation that proved fragments wrong is the one
 that stresses laziness, which is decent evidence it is the real load-bearing operation in this design.
 
-### Spike results — `units/overlay.py`, 10 green (40 total)
+### Spike results — `units/overlay.py`, 15 green (45 total)
 
-Built 2026-07-27. Every test mutation-checked; four semantic mutations, four kills, and the one perf-only
-mutation correctly killed nothing.
+Built 2026-07-27, then corrected the same day when the set-valued read was rejected. Every test
+mutation-checked; nine semantic mutations, nine kills, and the one perf-only mutation correctly killed
+nothing.
 
 | mutation | result |
 |---|---|
-| `read()` returns the last value — the cascade | kills 4, including the two-live-readings test. **Invariant 16 is discriminating** |
+| `read()` picks the last value — the cascade | kills 3 |
+| support ignored — scope not read as support | kills 2, including the alternatives-never-meet test |
+| `conflicts()` reports across configurations | kills the alternatives test — **the configuration filter is what makes the conflict report meaningful** |
+| retraction ignored on the read path | kills the hides-while-powered test |
+| retraction ignored for node removal | kills the overlaid-graph test |
 | overlay edges indexed by raw rather than resolved node | kills the every-mention test |
 | the root omitted from its own equivalence class | kills the gather-across test — and this was a **live defect**, found by the test rather than planted |
 | `SetAttr` applied as a write shadowing the base value | kills 2 — the reified-attribution constraint holds |
 | path compression removed | **no kill**, correctly: perf only |
 
 **1. Lazy is affordable, and the margin is not close.** Read cost on a 2,000-node twin as identifications
-grow: 0 → 2.21 µs, 100 → 1.99 µs, 1,000 → 3.71 µs. **Merging half the graph costs 1.68× on the read path**,
+grow: 0 → 3.01 µs, 100 → 3.41 µs, 1,000 → 4.80 µs. **Merging half the graph costs 1.60× on the read path**,
 and the residual is gathering over 2-member classes — inherent to having merged, not to being lazy. The
-union-find is effectively free. The open question is closed: **build it lazy.**
+union-find is effectively free. The open question is closed: **build it lazy.** (Adding the configuration
+check and the retraction filter cost 36% on the baseline read and did not move the slope — the scaling claim
+is about identity resolution, and nothing else on the read path touches it.)
 
 **2. The real result is the setup cost, and it is a difference in *order*, not in constant.** Per-revive cost
 at a fixed 200 overlays:
@@ -284,9 +398,15 @@ scheduling artifact, and `model.md` invariant 8 explicitly declines to promise r
 order-sensitive application would make the *graph* depend on the scheduler. Pinned by
 `test_eager_application_is_order_dependent_and_lazy_is_not`.
 
-**What the spike did *not* test:** overlays produced by actual units (it drives effects directly), the
-matcher reading through `Overlays` rather than a `Graph`, and nesting/support. Those are §3's job and are
-untouched.
+**5. A read is 36% dearer once it is configuration-relative, and that is the price of §3.** Support is checked
+per candidate. It does not scale with anything, so it is a constant, but it is worth recording that
+*scope-as-support is not free* — it moved a cost from a field read on a cell into the read path itself. Cheap,
+and paid on every read.
+
+**What the spike did *not* test:** overlays produced by actual units (it drives effects directly), the matcher
+reading through `Overlays` rather than a `Graph`, and support computed by walking the wiring rather than
+declared. The last is the real gap — `Network.powering()` exists in `standing.py` and the spike takes
+configurations as given.
 
 ---
 
@@ -371,11 +491,20 @@ used. Invariant 4 needs the amendment stated in §8 below rather than a repeal.
   Merging half a 2,000-node twin costs 1.68× on the read path; eager materialization is linear in twin size
   where lazy indexing is flat. Build it lazy, and **index once per revive** — naive scanning is 3,599× worse.
 - **Does the matcher survive reading through `Overlays`?** The spike drives effects directly and never runs
-  `solve()` against them. `_solve` iterates `g.nodes` and calls `g.attr`/`g.out`, so the surface is small —
-  but a read now returns a *set* of values where the matcher expects one, and what an atom means when a node
-  has two live values for the attribute it constrains is **not decided**. Likely the honest answer is that it
-  matches under each reading separately and the strength differs, which would make this §4's graded matching
-  meeting invariant 16. First thing to build on top of this spike.
+  `solve()` against them. `_solve` iterates `g.nodes` and calls `g.attr`/`g.out`, so the surface is small, and
+  a single-valued configuration-relative read is the shape it already expects — but it must be threaded with
+  `under`, and a match must therefore carry the configuration it was made in. **First thing to build on top of
+  this spike.**
+- **Where does `under` come from?** In the spike it is declared. In the engine it is `Network.powering()`,
+  walked backwards over the wiring — so the two halves of §3 have both been built and never yet joined.
+- **Should an oscillating computation unit surge instead of being detected by a fixpoint scan?** The
+  spike detects a repeated state, which is a global comparison of the kind `model.md` §2 refuses. Energy
+  growing on revisit (`revision-01` §4) is the mechanism already on the books for exactly this shape, and
+  a self-deleting unit is a cycle. Likely the fixpoint scan is spike scaffolding and the surge is the
+  real answer — untested, and it would remove the one global test in `turn.py`.
+- **Does a conflict need a band?** `Conflict` is currently crisp. Two readings at different strengths is not
+  obviously the same event as two readings at equal strength, and §4 says a match has a strength rather than
+  a verdict. Undecided, and it is the seam where graded matching meets invariant 16.
 - **What a `surged`-triggered correction should actually do.** Unwiring an arbitrary loop element is what the
   detector does today. A rule can be cleverer, and there is no evidence yet about what cleverer means.
 - **Does a resolution stand or is it thrown away?** §4 says it is per-utterance and its product is asserted.

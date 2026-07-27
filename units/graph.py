@@ -121,6 +121,22 @@ class Graph:
                      frozenset((m(a), m(b)) for a, b in self.edges),
                      attrs, degrees)
 
+    def without(self, n: Node, attr: str | None = None) -> "Graph":
+        """Remove an attribute, or the node itself. **Write-back only.**
+
+        Nothing inside a turn calls this: a computation unit's deletion is an *overlay* and hides while
+        powered (`revision-02` §6). This is the other disposition — a mutating rule's deletion, applied
+        to the asserted layer once stabilization is over, exactly as `model.md` §9 requires deletions to
+        be proposals applied at the boundary rather than mutations the circuit performs."""
+        if attr is not None:
+            attrs = {k: dict(v) for k, v in self.attrs.items()}
+            attrs.get(n, {}).pop(attr, None)
+            return Graph(self.nodes, self.edges, attrs, self.degrees)
+        return Graph(self.nodes - {n},
+                     frozenset((a, b) for a, b in self.edges if a is not n and b is not n),
+                     {k: v for k, v in self.attrs.items() if k is not n},
+                     {k: v for k, v in self.degrees.items() if k is not n})
+
     def union(self, other: "Graph") -> "Graph":
         attrs = {**self.attrs}
         for n, a in other.attrs.items():
