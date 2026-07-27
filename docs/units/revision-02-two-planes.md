@@ -572,8 +572,11 @@ used. Invariant 4 needs the amendment stated in §8 below rather than a repeal.
 
 ### New invariants
 
-16. **A read returns a set, never a winner.** Two live overlays disagreeing about one attribute are two
-    readings. If the engine collapses them, the cascade has been built.
+16. **A read is relative to a configuration, and yields one value or reports a conflict.** Never a winner
+    (the cascade) and never a set (the quieter failure — a caller takes the first element and the
+    contradiction vanishes anyway). A conflicted read is **absent**; the disagreement is a positive
+    `conflict` fact a rule can match and resolve. See §6.
+    *(This list said "a read returns a set" until `review-01` §6 caught it standing against its own §6.)*
 17. **No engine code mutates wiring.** Every wiring change — including a burn — is a mutating rule's
     conclusion applied at write-back.
 18. **Everything persistent is plane 1.** Plane 2 holds nothing across a revive that plane 1 does not
