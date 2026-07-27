@@ -1,6 +1,6 @@
 # Revision 02 — the two planes
 
-**Status: design, 2026-07-27. §6 is BUILT and green — `units/overlay.py` + `units/turn.py`, 24 tests, 54 total.** The rest is
+**Status: design, 2026-07-27. §6 is BUILT and green — `units/overlay.py` + `units/turn.py`, 28 tests, 58 total.** The rest is
 design. This revises `model.md` §6 substantially and amends `revision-01` in three places. `standing.py` still
 implements `revision-01` and carries the `Value.graph` + `merges` error §6 corrects; where the two disagree,
 the code is wrong.
@@ -298,7 +298,7 @@ deletion can, and that is the one dynamic deletion introduces that the other fou
 
 | | what happens when a unit deletes its own premise |
 |---|---|
-| **computation unit** | **oscillates.** Fires → premise unreadable → does not fire → premise readable again. There is no fixpoint, and the turn reports `oscillating` |
+| **computation unit** | **oscillates, and surges.** Fires → premise unreadable → does not fire → premise readable again. There is no fixpoint, and the turn reports `surged` naming the unit and the gate |
 | **mutating rule** | **self-extinguishes**, as predicted. Turn 1 fires and write-back removes the premise; turn 2 has nothing to fire from, *and nothing was retracted to make that true* |
 
 **The prediction on record — "if the unit deletes its power source, at the next turn it does not
@@ -315,7 +315,7 @@ act has not happened until write-back performs it.
 
 **Three supporting results, each mutation-checked.**
 
-- **An oscillating turn writes nothing back, and reports no effects.** Whichever phase the detector
+- **A surged turn writes nothing back, and reports no effects.** Whichever phase the detector
   halts on is an artifact of where the scan began. Tested against a cycle whose phases are *both*
   non-empty, because the simple case always halts on the empty phase and cannot tell a principled
   answer from a lucky one.
@@ -323,6 +323,38 @@ act has not happened until write-back performs it.
   them. `model.md` §9: write-back happens after stabilization, never during.
 - **A computation unit's deletion never reaches the asserted layer.** It hides while powered and is
   re-hidden from scratch every turn.
+
+#### The detector is a flipping gate, and it is local
+
+An earlier version of the machine found the oscillation by comparing whole effect-set states for a repeat.
+That is a **global** comparison and `model.md` §2 refuses exactly that — *no work-list running to quiescence,
+no output-unchanged termination test*. It is replaced by a local detector on an argument that is a theorem
+rather than a heuristic:
+
+> Mint, edge and attribute only ever make more things readable, so within a stabilization run the readable
+> set grows **monotonically** and a gate can only go absent → present. **A gate going present → absent is
+> therefore proof that a non-monotone effect fired.**
+
+**And the non-monotone effects are two, not one.** `Retract` is the obvious one. **`Identify` is the other**
+— merging two nodes that disagree produces a conflict, and a conflict reads as absent (§6). A self-undermining
+identification surges by the identical mechanism, which is the evidence that a flipping gate is the *general*
+signal rather than a deletion-shaped special case. Pinned by
+`test_the_detector_is_not_deletion_specific_identify_surges_too`.
+
+**One flip is normal** — a deletion landed and a downstream unit correctly lost its premise — so the threshold
+is on the *count*, and like θ it is a threshold you can be wrong about.
+
+⚠ **`revision-01` §4's energy cannot see this.** It grows when a value *returns to a unit it already passed
+through* — an AS-path on a wire. A self-deleting unit has **no wiring cycle**: its path is `[U]` and never
+revisits, because the feedback runs through the readable state instead. So this is a **second trigger with the
+same shape** (energy on a repeated event, local, surging, reported as a positive fact, corrected by a bundled
+rule), not an instance of the first. Whether the two are literally one mechanism — *energy grows on return*,
+whether a value returns to a unit or a gate returns to a presence-state — is worth trying and is not yet
+established.
+
+What this buys structurally: **surge is the detector, fuel is the backstop** (`revision-01` §8's second
+finding), and the global state-repeat scan is deleted. Pinned by `test_there_is_no_global_quiescence_test`,
+which reads the source, because this is the kind of thing that grows back.
 
 ⚠ **Two deletions cannot build a cycle between them.** A first attempt at the non-empty oscillation used
 two units deleting each other's premises; it **converged**, because deletions only subtract and one unit
@@ -497,11 +529,13 @@ used. Invariant 4 needs the amendment stated in §8 below rather than a repeal.
   this spike.**
 - **Where does `under` come from?** In the spike it is declared. In the engine it is `Network.powering()`,
   walked backwards over the wiring — so the two halves of §3 have both been built and never yet joined.
-- **Should an oscillating computation unit surge instead of being detected by a fixpoint scan?** The
-  spike detects a repeated state, which is a global comparison of the kind `model.md` §2 refuses. Energy
-  growing on revisit (`revision-01` §4) is the mechanism already on the books for exactly this shape, and
-  a self-deleting unit is a cycle. Likely the fixpoint scan is spike scaffolding and the surge is the
-  real answer — untested, and it would remove the one global test in `turn.py`.
+- **Are revisit-energy and flip-energy one mechanism or two?** Both are *energy grows on a repeated
+  event*, both are local, both surge. But one watches a value returning to a unit and the other a gate
+  returning to a presence-state, and they catch disjoint pathologies — a wiring cycle and a
+  readable-state cycle. Unifying them would be satisfying and may be forced; nothing yet says which.
+- **What should the bundled rule do about a surged gate?** Unwiring is the answer for a wiring cycle
+  (§7). For a self-undermining unit it is less obvious — suppressing the *effect* may be better than
+  unwiring the *premise*, and the engine must not choose.
 - **Does a conflict need a band?** `Conflict` is currently crisp. Two readings at different strengths is not
   obviously the same event as two readings at equal strength, and §4 says a match has a strength rather than
   a verdict. Undecided, and it is the seam where graded matching meets invariant 16.

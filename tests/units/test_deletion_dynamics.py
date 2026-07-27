@@ -7,8 +7,67 @@ The prediction under test: *"if the unit deletes its power source, at the next t
 revive."*
 """
 from units.graph import EMPTY, named
-from units.overlay import BASE, Retract, SetAttr
-from units.turn import Machine, Unit
+from units.overlay import BASE, Identify, Retract, SetAttr
+from units.turn import SURGE_AT, Machine, Unit
+
+
+# -- the detector: a gate that keeps switching on and off ---------------------------------------
+
+def test_a_surge_names_the_unit_and_the_gate():
+    """A positive fact, not an absence to be noticed. It has to be matchable, because the correction is
+    a bundled rule's job and the engine's involvement ends at reporting (§7)."""
+    g, paul = named(EMPTY, "Paul", age=42)
+    m = Machine(g, (Unit("selfeater", (paul, "age"), (Retract(paul, "age"),)),))
+
+    (s,) = m.turn().surges
+    assert s.unit == "selfeater"
+    assert s.gate == (paul, "age")
+    assert s.flips >= SURGE_AT
+
+
+def test_one_flip_is_normal_and_does_not_surge():
+    """A deletion landing and a downstream unit correctly losing its premise is a single present →
+    absent transition, and it settles. Only a *repeated* flip means no fixpoint exists — which is why
+    the threshold is on the count rather than on the first transition."""
+    g, paul = named(EMPTY, "Paul", age=42)
+    g, mary = named(g, "Mary", age=30)
+    m = Machine(g, (
+        Unit("deleter", (paul, "age"), (Retract(mary, "age"),)),
+        Unit("downstream", (mary, "age"), (SetAttr(paul, "seen", True),)),
+    ))
+
+    r = m.turn()
+    assert r.surges == () and r.ended() == "stable"
+    assert r.fired == ("deleter",)
+
+
+def test_the_detector_is_not_deletion_specific_identify_surges_too():
+    """The monotonicity argument's second half. Mint, edge and attribute only ever make more readable,
+    so a gate can only go absent → present; **`Identify` is non-monotone too**, because merging two
+    nodes that disagree produces a conflict and a conflict reads as absent.
+
+    Here that is self-undermining in exactly the way a self-deletion is, and the same local detector
+    catches it — which is the evidence that a flipping gate is the general signal rather than a
+    deletion-shaped special case."""
+    g, paul = named(EMPTY, "Paul", age=42)
+    g, other = named(g, "P.", age=43)
+    m = Machine(g, (Unit("coref", (paul, "age"), (Identify(paul, other),)),))
+
+    r = m.turn()
+    assert r.ended() == "surged"
+    assert r.surges[0].unit == "coref"
+
+
+def test_there_is_no_global_quiescence_test():
+    """`model.md` §2 — *no work-list running to quiescence, no output-unchanged termination test.* The
+    detector must be local to a gate, so the machine may not keep a history of whole states to compare
+    against. Structural, because this is the kind of thing that grows back."""
+    import inspect
+
+    import units.turn as turn
+    src = inspect.getsource(turn.Machine.turn)
+    assert "seen" not in src                     # no set of previously-visited global states
+    assert "flips" in src and "was" in src       # per-gate presence, and nothing wider
 
 
 def world():
@@ -50,7 +109,7 @@ def test_an_oscillating_turn_writes_nothing_back():
     ))
 
     r = m.turn()
-    assert r.ended() == "oscillating"
+    assert r.ended() == "surged"
     assert r.applied == ()
     assert r.effects == ()                               # no phase is *the* answer; none is reported
     assert m.asserted.attr(mary, "age") == 30            # the world is untouched
@@ -80,7 +139,7 @@ def test_an_oscillating_turn_reports_no_phase_even_when_a_phase_is_nonempty():
     ))
 
     r = m.turn()
-    assert r.ended() == "oscillating"
+    assert r.ended() == "surged"
     assert r.effects == ()                               # …though the phase it halted on was not empty
     assert m.view().read(zoe, "age").value == 7          # nothing from either phase leaked out
     assert m.asserted.attr(paul, "age") == 42
@@ -117,8 +176,7 @@ def test_a_computation_unit_that_deletes_its_own_premise_OSCILLATES():
     m = Machine(g, (Unit("u", (paul, "age"), (Retract(paul, "age"),)),))
 
     r = m.turn()
-    assert r.ended() == "oscillating"
-    assert len(r.oscillating) == 2               # fires / does not fire
+    assert r.ended() == "surged"
     assert m.asserted.attr(paul, "age") == 42    # and the asserted layer is untouched
 
 
@@ -130,7 +188,7 @@ def test_the_oscillation_does_not_reach_the_asserted_layer_and_the_next_turn_is_
     m = Machine(g, (Unit("u", (paul, "age"), (Retract(paul, "age"),)),))
 
     first, second = m.turn(), m.turn()
-    assert first.ended() == second.ended() == "oscillating"
+    assert first.ended() == second.ended() == "surged"
     assert m.asserted.attr(paul, "age") == 42
 
 
