@@ -8,7 +8,8 @@ revive."*
 """
 from units.graph import EMPTY, named
 from units.overlay import BASE, Identify, Retract, SetAttr
-from units.turn import SURGE_AT, Machine, Unit
+from units.turn import (ANY, BOUND, ENGINE, SILENCED, SURGE_AT, Machine, Unit,
+                        bundled_silence_rule)
 
 
 # -- the detector: a gate that keeps switching on and off ---------------------------------------
@@ -54,7 +55,7 @@ def test_the_detector_is_not_deletion_specific_identify_surges_too():
     m = Machine(g, (Unit("coref", (paul, "age"), (Identify(paul, other),)),))
 
     r = m.turn()
-    assert r.ended() == "surged"
+    assert r.surges and r.ended() == "out_of_fuel"
     assert r.surges[0].unit == "coref"
 
 
@@ -109,7 +110,7 @@ def test_an_oscillating_turn_writes_nothing_back():
     ))
 
     r = m.turn()
-    assert r.ended() == "surged"
+    assert r.surges and r.ended() == "out_of_fuel"
     assert r.applied == ()
     assert r.effects == ()                               # no phase is *the* answer; none is reported
     assert m.asserted.attr(mary, "age") == 30            # the world is untouched
@@ -139,7 +140,7 @@ def test_an_oscillating_turn_reports_no_phase_even_when_a_phase_is_nonempty():
     ))
 
     r = m.turn()
-    assert r.ended() == "surged"
+    assert r.surges and r.ended() == "out_of_fuel"
     assert r.effects == ()                               # …though the phase it halted on was not empty
     assert m.view().read(zoe, "age").value == 7          # nothing from either phase leaked out
     assert m.asserted.attr(paul, "age") == 42
@@ -155,8 +156,9 @@ def test_a_truncated_turn_writes_nothing_back():
 
     r = m.turn(fuel=1)
     assert r.ended() == "out_of_fuel"
-    assert r.effects != ()                               # it *had* concluded something…
+    assert r.fired != ()                                 # it *had* concluded something…
     assert r.applied == ()                               # …and applied none of it
+    assert r.effects == ()                               # …and reports no phase, for the same reason
     assert m.asserted.attr(mary, "age") == 30
 
 
@@ -176,7 +178,7 @@ def test_a_computation_unit_that_deletes_its_own_premise_OSCILLATES():
     m = Machine(g, (Unit("u", (paul, "age"), (Retract(paul, "age"),)),))
 
     r = m.turn()
-    assert r.ended() == "surged"
+    assert r.surges and r.ended() == "out_of_fuel"
     assert m.asserted.attr(paul, "age") == 42    # and the asserted layer is untouched
 
 
@@ -188,7 +190,8 @@ def test_the_oscillation_does_not_reach_the_asserted_layer_and_the_next_turn_is_
     m = Machine(g, (Unit("u", (paul, "age"), (Retract(paul, "age"),)),))
 
     first, second = m.turn(), m.turn()
-    assert first.ended() == second.ended() == "surged"
+    assert first.surges and second.surges
+    assert first.ended() == second.ended() == "out_of_fuel"
     assert m.asserted.attr(paul, "age") == 42
 
 
@@ -253,3 +256,99 @@ def test_a_mutating_deletion_starves_a_downstream_unit_permanently():
     second = m.turn()
     assert second.fired == ()
     assert m.view(second.effects).read(paul, "noted") is None
+
+
+# -- the correction: a rule, not the engine ------------------------------------------------------
+
+def test_the_bundled_rule_silences_a_surged_unit_and_the_turn_completes():
+    """**The engine reports; a rule decides.** The surge lands as a fact on the unit's own node, the
+    bundled rule matches it, and silencing the output breaks the feedback — so the premise stays
+    readable and the turn reaches a fixpoint instead of spinning to the budget.
+
+    Note what the correction is: a **containment**, not a repair. Nothing was fixed; the turn was merely
+    allowed to finish and report."""
+    g, paul = named(EMPTY, "Paul", age=42)
+    eater = Unit("selfeater", (paul, "age"), (Retract(paul, "age"),))
+    m = Machine(g, (eater, bundled_silence_rule()))
+
+    r = m.turn()
+    assert r.ended() == "stable"                         # …where without the rule it runs out of fuel
+    assert r.surges and r.surges[0].unit == "selfeater"  # the report is still made, and still loud
+    assert m.view(r.effects).read(paul, "age").value == 42
+
+
+def test_the_surge_is_a_fact_about_the_unit_and_that_needs_homoiconicity():
+    """The surge is written **onto the unit's own node**, so it is matchable by an ordinary premise.
+
+    This is the first place the design needs a unit to be plane-1 data for a reason other than
+    tidiness: without a node for the unit there is nothing for the fact to be *about*, and the
+    correction would have to be engine code (`revision-02` §§1, 5)."""
+    g, paul = named(EMPTY, "Paul", age=42)
+    eater = Unit("selfeater", (paul, "age"), (Retract(paul, "age"),))
+    m = Machine(g, (eater,))
+
+    r = m.turn()
+    assert m.view(r.effects) is not None
+    view = m.view([(s, e) for s, e in [(ENGINE, SetAttr(eater.node, "surged", "age"))]])
+    assert view.read(eater.node, "surged").value == "age"
+    assert view.read(eater.node, "surged").source == ENGINE      # the engine's only contribution
+
+
+def test_without_the_bundled_rule_nothing_fixes_the_surge():
+    """The composability claim, made falsifiable: **remove the rule and the behaviour changes.**
+
+    If the engine silenced on its own, this would still end `stable` and the rule would be decoration.
+    It ends at the budget instead, which is the honest outcome of *reported, unhandled*."""
+    g, paul = named(EMPTY, "Paul", age=42)
+    m = Machine(g, (Unit("selfeater", (paul, "age"), (Retract(paul, "age"),)),))
+
+    r = m.turn()
+    assert r.surges and r.ended() == "out_of_fuel"
+
+
+def test_silencing_touches_no_wiring_and_no_asserted_data():
+    """Invariant 17 — no engine code mutates wiring — and the reason silencing is the least invasive
+    correction available. The unit is still standing, still wired, still has its premise; only its
+    output stopped, and only for this turn."""
+    g, paul = named(EMPTY, "Paul", age=42)
+    eater = Unit("selfeater", (paul, "age"), (Retract(paul, "age"),))
+    m = Machine(g, (eater, bundled_silence_rule()))
+    before = list(m.units)
+
+    r = m.turn()
+    assert m.units == before                             # wiring untouched
+    assert m.asserted.attr(paul, "age") == 42            # asserted layer untouched
+    assert r.applied == ()
+    assert eater in m.units                              # the unit still stands
+
+
+def test_the_correction_is_an_ordinary_fact_not_a_new_effect_kind():
+    """`model.md` invariant 4 already reserved this shape — *units **propose** wirings as facts* — and
+    taking it literally means there is nothing new to add.
+
+    A first attempt made `Silence` a sixth effect type. It failed immediately, because `Overlays` had
+    never heard of it: a control decision is not a graph overlay. The fix was not to teach the overlay
+    layer about it but to notice the effect was unnecessary — the rule concludes an ordinary attribute
+    on the unit's node, and the machine reads it."""
+    import units.turn as turn
+    assert not hasattr(turn, "Silence")
+
+    (effect,) = bundled_silence_rule().effects
+    assert isinstance(effect, SetAttr) and effect.attr == SILENCED
+
+
+def test_unit_nodes_share_the_graph_and_ordinary_rules_do_not_see_them():
+    """Invariant 19, and `revision-02` §5's *no machinery partition*.
+
+    Unit nodes live in the same graph as Paul — there is no separate universe — and an ordinary rule
+    patterning `age` does not find them, for the ordinary reason that nothing matches implicitly
+    (invariant 7). Nothing is hidden; it simply does not match."""
+    g, paul = named(EMPTY, "Paul", age=42)
+    watcher = Unit("watcher", (ANY, "age"), (SetAttr(BOUND, "noted", True),))
+    m = Machine(g, (watcher,))
+
+    assert watcher.node in m.asserted.nodes                  # same graph, no partition
+    r = m.turn()
+    noted = [n for n in m.view(r.effects).nodes()
+             if m.view(r.effects).read(n, "noted") is not None]
+    assert noted == [paul]                                   # the unit node was not swept up

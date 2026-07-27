@@ -1,6 +1,6 @@
 # Revision 02 — the two planes
 
-**Status: design, 2026-07-27. §6 is BUILT and green — `units/overlay.py` + `units/turn.py`, 30 tests, 60 total; `standing.py`'s energy moved to the gate.** The rest is
+**Status: design, 2026-07-27. §6 is BUILT and green — `units/overlay.py` + `units/turn.py`, 36 tests, 66 total; `standing.py`'s energy moved to the gate.** The rest is
 design. This revises `model.md` §6 substantially and amends `revision-01` in three places. `standing.py` still
 implements `revision-01` and carries the `Value.graph` + `merges` error §6 corrects; where the two disagree,
 the code is wrong.
@@ -383,6 +383,45 @@ What this buys structurally: **surge is the detector, fuel is the backstop** (`r
 finding), and the global state-repeat scan is deleted. Pinned by `test_there_is_no_global_quiescence_test`,
 which reads the source, because this is the kind of thing that grows back.
 
+#### The correction is a bundled rule, and it is the first thing that *needs* homoiconicity
+
+Built. The engine's entire involvement is one line: on surge it writes `surged` as a fact **on the unit's own
+node**. It does not stop, does not unwire, and does not silence. A bundled rule matches that fact and
+concludes the correction; the turn then reaches a fixpoint and completes.
+
+> `bundled:silence` — *anything that surged: stop its output.*
+
+**Three things fell out that were not obvious in advance.**
+
+**1. It needs a unit to be plane-1 data for a reason other than tidiness.** Without a node for the unit there
+is nothing for `surged` to be *about*, and the correction has to be engine code. This is §1's homoiconicity
+being **used** rather than merely justified — and the first place in the design where it earns its keep.
+Removing unit nodes from the graph kills two tests.
+
+**2. There is no new effect kind, and the attempt to add one failed usefully.** `Silence` was first built as a
+sixth effect, and it broke immediately: `Overlays` had never heard of it, because **a control decision is not
+a graph overlay**. The fix was not to teach the overlay layer about it but to notice `model.md` invariant 4
+had already specified the shape — *units **propose** wirings as facts*. Taken literally, the rule concludes
+an ordinary attribute on the unit's node and the machine reads it. Effect count stays at five.
+
+**3. A report must persist for the turn; a conclusion must not.** Effects are rebuilt from scratch each round,
+so the first version's `surged` fact evaporated on the very next round and no rule could ever match it —
+found by the bundled rule silently failing to fire. **A report of something that *happened* is not a
+conclusion that has to keep being re-derived**, and the two need different lifetimes inside one turn. This is
+the two dispositions appearing at a third scale, within a single stabilization run.
+
+**And the claim is falsifiable rather than decorative.** Remove the bundled rule and the behaviour changes:
+the engine reports, nothing handles it, and the turn runs to the budget. If the engine silenced on its own,
+the turn would still complete and the rule would be decoration — mutating the engine to do exactly that kills
+six tests.
+
+⚠ **The plane interface has a vocabulary, and that is an unresolved tension with invariant 7.** The machine
+writes one name (`surged`) and reads one name (`silenced`). Nothing matches implicitly for *rules*, but the
+engine itself must know these two words to report and to act on a proposal. This is the same question as
+§9's *what the assembler reads* — the plane-1 → plane-2 crossing needs a vocabulary — arriving concretely and
+much earlier than expected. It is a small, named, documented interface rather than magic, but it is not
+nothing.
+
 ⚠ **Two deletions cannot build a cycle between them.** A first attempt at the non-empty oscillation used
 two units deleting each other's premises; it **converged**, because deletions only subtract and one unit
 falling silent is a self-consistent state. Self-deletion is the only genuine 2-cycle available. That is
@@ -562,9 +601,15 @@ used. Invariant 4 needs the amendment stated in §8 below rather than a repeal.
   without any gate ever flipping, so no local detector sees it. That makes fuel the *sole* mechanism for a
   real pathology rather than only a backstop for a misconfigured detector — worth stating explicitly,
   because `revision-01` §8 justified fuel on the weaker ground.
-- **What should the bundled rule do about a surged gate?** Unwiring is the answer for a wiring cycle
-  (§7). For a self-undermining unit it is less obvious — suppressing the *effect* may be better than
-  unwiring the *premise*, and the engine must not choose.
+- ~~**What should the bundled rule do about a surged gate?**~~ ✅ **Silence the output** — built (§6).
+  Minimal, touches no authored wiring, and can only remove claims. ⚠ **Fail-safe, not safe**: a vanished
+  conclusion can fire negation-dependent rules on a mechanical absence, the same hazard as invariant 12.
+  It is a **containment** that lets the turn complete and report, never a repair.
+- **The plane interface's vocabulary.** The engine writes `surged` and reads `silenced`. Rules match
+  nothing implicitly, but the engine must know those two words — the same question as *what the assembler
+  reads*, and the first concrete instance of it.
+- **Does a persistent correction differ from a within-turn one?** §7 says burns persist. Silencing as built
+  is per-turn containment; the persistent variant is the authored unwiring, and it is unbuilt.
 - **Does a conflict need a band?** `Conflict` is currently crisp. Two readings at different strengths is not
   obviously the same event as two readings at equal strength, and §4 says a match has a strength rather than
   a verdict. Undecided, and it is the seam where graded matching meets invariant 16.

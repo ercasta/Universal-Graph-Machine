@@ -53,22 +53,37 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .graph import EMPTY, Graph, Node
-from .overlay import BASE, Overlays, Retract
+from .overlay import BASE, Overlays, Retract, SetAttr
+
+ANY = "<any>"                        # premise node position: match every node carrying the attribute
+BOUND = "<bound>"                    # effect target: whatever the premise bound
+ENGINE = "<engine>"                  # the only source the engine itself contributes under
+
+
+SILENCED = "silenced"                # a unit carrying this produces nothing. See `bundled_silence_rule`
 
 
 @dataclass(frozen=True)
 class Unit:
     """A unit reduced to what this spike needs: a premise, effects, and a disposition.
 
-    `premise` is `(node, attr)` — the unit fires while that slot is **readable**. `mutating=True` is
-    `revision-01` §2's regular rule: its effects are applied to the asserted layer at write-back and
-    stay. `mutating=False` is a computation unit: its effects are overlays and are gone the moment it
-    stops firing."""
+    `premise` is `(node, attr)` — the unit fires while that slot is **readable**. `node` may be `ANY`,
+    which binds every node carrying the attribute and instantiates the effects once per binding; that is
+    the least a rule needs in order to be *about* something it was not written against.
+
+    `node` is the unit's **own node in the graph** — homoiconicity (`revision-02` §§1, 5). A unit is
+    plane-1 data, so a fact can be *about* it, which is what lets the surge correction be an ordinary
+    rule instead of engine code.
+
+    `mutating=True` is `revision-01` §2's regular rule: its effects are applied to the asserted layer at
+    write-back and stay. `mutating=False` is a computation unit: its effects are overlays and are gone
+    the moment it stops firing."""
 
     name: str
     premise: tuple
     effects: tuple
     mutating: bool = False
+    node: Node = field(default_factory=lambda: Node("unit"))
 
 
 SURGE_AT = 3                         # presence transitions on one gate before it is called a cycle
@@ -102,11 +117,11 @@ class TurnResult:
     applied: tuple = ()              # what write-back did to the asserted layer
 
     def ended(self) -> str:
-        if self.surges:
-            return "surged"
-        if self.out_of_fuel:
-            return "out_of_fuel"
-        return "stable"
+        """⚠ A surge is an **event, not an ending**. A turn whose surge was corrected by a rule ends
+        `stable`; one whose surge nobody handled runs until the budget and ends `out_of_fuel`. Making
+        the surge itself an ending would be the engine deciding to stop, which is the judgement §7 says
+        it must not make."""
+        return "out_of_fuel" if self.out_of_fuel else "stable"
 
 
 class Machine:
@@ -117,8 +132,17 @@ class Machine:
     turn — invariant 15, in the smallest form that can be tested."""
 
     def __init__(self, asserted: Graph = EMPTY, units: tuple = ()) -> None:
-        self.asserted = asserted
         self.units = list(units)
+        # **Units are plane-1 data** (`revision-02` §§1, 5). Each one's node goes into the same graph as
+        # everything else — no machinery partition — which is what makes a fact *about* a unit
+        # expressible, and therefore what makes the surge correction an ordinary rule.
+        #
+        # They are invisible to ordinary rules for the ordinary reason (invariant 19): nothing matches
+        # implicitly, so a premise wanting `age` does not find a unit. Nothing is hidden; it simply does
+        # not match.
+        for u in self.units:
+            asserted = asserted.with_node(u.node, name=u.name)
+        self.asserted = asserted
         self.history: list = []
 
     def view(self, effects=()) -> Overlays:
@@ -136,6 +160,24 @@ class Machine:
         mutating = {u.name for u in self.units if u.mutating}
         return Overlays(self.asserted, [(s, e) for s, e in effects if s not in mutating])
 
+    def _bindings(self, view, u: "Unit") -> tuple:
+        """Which nodes this unit's premise is about. A concrete node binds itself; `ANY` binds every
+        node carrying the attribute, which is the least a rule needs to be *about* something it was not
+        written against."""
+        node, attr = u.premise
+        if node is not ANY:
+            return (node,)
+        return tuple(n for n in view.nodes() if view.read(n, attr) is not None)
+
+    @staticmethod
+    def _instantiate(effect, bound: Node):
+        """Substitute the premise's binding into an effect written with `BOUND`."""
+        if isinstance(effect, SetAttr) and effect.target is BOUND:
+            return SetAttr(bound, effect.attr, effect.value)
+        if isinstance(effect, Retract) and effect.target is BOUND:
+            return Retract(bound, effect.attr, effect.source)
+        return effect
+
     def turn(self, fuel: int = 50) -> TurnResult:
         """Revive from the asserted layer, stabilize, then write back.
 
@@ -145,28 +187,39 @@ class Machine:
         true (`revision-01` §3)."""
         effects: list = []
         result = TurnResult()
-        was: dict = {}               # (unit, gate) -> last observed presence
-        flips: dict = {}             # (unit, gate) -> presence transitions so far
+        was: dict = {}               # (unit, bound node) -> last observed presence
+        flips: dict = {}             # (unit, bound node) -> presence transitions so far
         surges: list = []
+        reported: set = set()
+        # ⚠ What the engine reports persists for the rest of the turn. Effects are rebuilt from scratch
+        # each round, so without this the `surged` fact evaporates on the very next round and no rule
+        # can ever match it — found by the bundled rule failing to fire. A report of something that
+        # *happened* is not a conclusion that has to keep being re-derived.
+        reports: list = []
 
         for _ in range(fuel):
             view = self.view(effects)
-            fresh: list = []
+            fresh: list = list(reports)
             fired: list = []
             for u in self.units:
-                key = (u.name, u.premise)
-                now = view.read(*u.premise) is not None
-                if key in was and was[key] != now:
-                    flips[key] = flips.get(key, 0) + 1
-                    if flips[key] >= SURGE_AT:
-                        surges.append(Surge(u.name, u.premise, flips[key]))
-                        continue
-                was[key] = now
-                if now:
-                    fired.append(u.name)
-                    fresh.extend((u.name, e) for e in u.effects)
-            if surges:
-                break
+                for bound in self._bindings(view, u):
+                    key = (u.name, bound)
+                    now = view.read(bound, u.premise[1]) is not None
+                    if key in was and was[key] != now:
+                        flips[key] = flips.get(key, 0) + 1
+                        if flips[key] >= SURGE_AT and key not in reported:
+                            surges.append(Surge(u.name, (bound, u.premise[1]), flips[key]))
+                            reported.add(key)
+                            # The engine's ENTIRE involvement: say so, as a fact on the unit's own
+                            # node, where a rule can match it (`revision-02` §7). It does not stop, it
+                            # does not unwire, and it does not silence. If nobody handles it, fuel ends
+                            # the turn — which is what makes the bundled rule load-bearing.
+                            reports.append((ENGINE, SetAttr(u.node, "surged", u.premise[1])))
+                            fresh.append(reports[-1])
+                    was[key] = now
+                    if now and view.read(u.node, SILENCED) is None:
+                        fired.append(u.name)
+                        fresh.extend((u.name, self._instantiate(e, bound)) for e in u.effects)
             if fresh == effects:
                 result.stable = True
                 result.fired = tuple(fired)
@@ -177,10 +230,11 @@ class Machine:
             result.out_of_fuel = True
 
         result.surges = tuple(surges)
-        # ⚠ A surged turn reports **no effects**. Whichever phase the detector happened to stop in is an
-        # artifact of where the scan began, and reporting it would make the turn's output depend on
-        # that. There is no answer here; saying so is the honest report (`model.md` §8).
-        result.effects = () if surges else tuple(effects)
+        # ⚠ A turn that never settled reports **no effects**. Whichever round the budget happened to cut
+        # it off in is an artifact, and reporting it would make the turn's output depend on that. There
+        # is no answer here; saying so is the honest report (`model.md` §8). A turn that surged and was
+        # then *corrected* does settle, and reports normally.
+        result.effects = () if result.out_of_fuel else tuple(effects)
 
         # WRITE-BACK. Only a mutating rule reaches the asserted layer, and only here (`model.md` §9:
         # after stabilization, never during). This is the one place the next turn's revive can differ.
@@ -198,4 +252,23 @@ class Machine:
         return result
 
 
-__all__ = ["Unit", "Machine", "TurnResult"]
+def bundled_silence_rule() -> Unit:
+    """**The surge correction, shipped as an ordinary rule.**
+
+    *"Anything that surged: stop its output."* It is a `Unit` like any other — no privileged status, no
+    engine hook — and it is written **about units**, which it can only be because a unit is plane-1 data
+    with a node of its own (`revision-02` §§1, 5). This is the first thing in the design that needs
+    homoiconicity for something other than tidiness.
+
+    Shipping it as a rule rather than as engine policy is [[composability-principle]]: a governance
+    mechanism hardcoded in Python is an unreachable island that later has to be dug out. Here the cost
+    of doing it right on day one is one function.
+
+    Remove it and the surge stands unhandled — the engine reports and keeps going until fuel, because
+    stopping would itself be a judgement (§7). That is what makes this rule load-bearing rather than
+    decorative, and it is what `test_without_the_bundled_rule_nothing_fixes_the_surge` pins."""
+    return Unit("bundled:silence", (ANY, "surged"), (SetAttr(BOUND, SILENCED, True),))
+
+
+__all__ = ["Unit", "Machine", "TurnResult", "Surge", "bundled_silence_rule",
+           "ANY", "BOUND", "ENGINE", "SILENCED", "SURGE_AT"]
