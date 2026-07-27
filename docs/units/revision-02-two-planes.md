@@ -1,7 +1,9 @@
 # Revision 02 — the two planes
 
-**Status: 2026-07-27. CONSOLIDATED and green — `units/engine.py` + `units/overlay.py`, 40 tests.**
-`standing.py` and `turn.py` are **deleted** (§8b); §§3, 5 and 6 are built, §§2 and 4 remain design. This
+**Status: 2026-07-27. CONSOLIDATED and green — `units/engine.py` + `units/overlay.py`, 52 tests.**
+`standing.py` and `turn.py` are **deleted** (§8b); §§3, 5 and 6 are built, §§2 and 4 remain design.
+⚠ **Invariant 19 has since been tested and FAILED** — see the invariant, restated. §5's wiring register is
+built (`forms_cnl.md` §9 step 1), and building it found §6's bundled rule had never fired. This
 revises `model.md` §6 substantially and amends `revision-01` in three places.
 
 `model.md` §6 called the **tunnel** the section the architecture exists for. It was doing three unrelated jobs
@@ -384,9 +386,28 @@ which reads the source, because this is the kind of thing that grows back.
 
 #### The correction is a bundled rule, and it is the first thing that *needs* homoiconicity
 
-Built. The engine's entire involvement is one line: on surge it writes `surged` as a fact **on the unit's own
-node**. It does not stop, does not unwire, and does not silence. A bundled rule matches that fact and
-concludes the correction; the turn then reaches a fixpoint and completes.
+⚠ **This section said "Built" and it was not — the rule had never fired once.** Found 2026-07-27 while
+building the wiring register, which is what §9's build order predicted the register would self-test. Two
+independent defects, either of which alone was fatal, and the test that "covered" it asserted only the
+engine's half — that `surged` was reported — never that anything acted on it:
+
+1. **the pattern was `surged=None`**, which `Graph.attr` answers for every node that *lacks* the attribute,
+   so it matched everything except its target. The matcher has no *"present, any value"* atom; **`AttrVar`
+   is one**, because it fails when the attribute is missing. That is the general answer, not a local patch;
+2. **`surged` was never on a wire.** The engine wrote it into the read layer, and a unit sees only its gates
+   (invariant 3) — so no rule could reach it however good its pattern. The report is now a **cell**
+   (`Network.reports`), and it crosses where every other value crosses.
+
+⚠ **And once it fired, it burned itself.** The report accumulates within a turn, so each surge after the
+first is a *change* on the corrector's single gate; at `SURGE_AT` the detector burned the corrector, and the
+last loop went uncorrected. That is counting **growth** as cycling — the per-hop mistake this section
+otherwise avoids. The fix is this section's own monotonicity theorem applied to the value on the wire: **a
+strictly larger input is not energy.** It narrows the detector onto the case the theorem covers and pushes
+monotone-but-infinite further onto fuel, which §9 already names as fuel's job.
+
+Now genuinely built. The engine's entire involvement is one line: on surge it writes `surged` as a fact **on
+the unit's own node** and delivers the report. It does not stop, does not unwire, and does not silence. A
+bundled rule matches that fact and concludes the correction; the turn then reaches a fixpoint and completes.
 
 > `bundled:silence` — *anything that surged: stop its output.*
 
@@ -580,8 +601,13 @@ used. Invariant 4 needs the amendment stated in §8 below rather than a repeal.
     conclusion applied at write-back.
 18. **Everything persistent is plane 1.** Plane 2 holds nothing across a revive that plane 1 does not
     describe. Latched values and energy live *within* one stabilization run and do not survive it.
-19. **A pattern that does not name machinery never matches machinery** — and for the ordinary reason of
-    invariant 7, not because of a partition.
+19. ⚠ ~~**A pattern that does not name machinery never matches machinery**~~ — **FALSE, tested
+    2026-07-27.** A wire occurrence has an outgoing edge like anything else, so a *generic structural*
+    pattern matches it while naming nothing. Invariant 7 buys nothing here. **Restated: machinery has
+    to be delivered to a gate before any pattern can see it, and delivering it is a deliberate act** —
+    so the barrier is `model.md` §5 (a unit sees only its gates), not naming. Pinned both ways by
+    `test_machinery_is_unreachable_unless_something_wires_it` and
+    `test_invariant_19_is_false_as_written_and_the_barrier_is_the_wiring`.
 
 ---
 
@@ -668,9 +694,17 @@ That is the nearest this design gets to a semantics, and it is now a property ra
   Minimal, touches no authored wiring, and can only remove claims. ⚠ **Fail-safe, not safe**: a vanished
   conclusion can fire negation-dependent rules on a mechanical absence, the same hazard as invariant 12.
   It is a **containment** that lets the turn complete and report, never a repair.
-- **The plane interface's vocabulary.** The engine writes `surged` and reads `silenced`. Rules match
-  nothing implicitly, but the engine must know those two words — the same question as *what the assembler
-  reads*, and the first concrete instance of it.
+- **The plane interface's vocabulary.** ✅ **Settled in shape, 2026-07-27.** The engine writes `surged`,
+  reads `silenced`, and the assembler reads `<wire>` / `from` / `to` / `gate` / `out`. Five words plus two,
+  all constants in one module, none of them privileged in the matcher. What changed is that the report now
+  **travels on a wire** rather than being written into the read layer — so the crossing is where every other
+  value already crosses, and no new mechanism carries it.
+- ~~**What the assembler reads.**~~ ✅ **Closed — it reads the graph.** `Network.assemble()` matches an
+  ordinary pattern over `self.asserted`; `wire()` writes the fact rather than owning a list. A circuit can be
+  wired by writing graph data alone, and a mutating rule can conclude a wire — invariant 4's *units propose
+  wirings as facts*, cashed. ⚠ **`pattern:` is still Python**: the assembler is handed unit objects and
+  resolves them by node, so a unit's LHS/RHS is the one part of plane 2 plane 1 does not yet describe. That
+  is the remaining half of `forms_cnl.md` §9 step 1.
 - **Does a persistent correction differ from a within-turn one?** §7 says burns persist. Silencing as built
   is per-turn containment; the persistent variant is the authored unwiring, and it is unbuilt.
 - **Does a conflict need a band?** `Conflict` is currently crisp. Two readings at different strengths is not
@@ -682,9 +716,6 @@ That is the nearest this design gets to a semantics, and it is now a property ra
   Whether the *resolving units* stand afterwards is not settled, and it feeds the revive-cost question
   directly: an agent that resolves many references accumulates many units that will never fire usefully again.
 - **Revive cost**, unchanged from `revision-01` §10 and still the first thing to measure.
-- **What the assembler reads.** Plane 1 holds descriptions of units; the assembler builds plane 2 from them.
-  The crossing is now the only crossing, which makes it worth specifying exactly — and it is where the
-  *"front end targets data, never an engine API"* contract (`model.md` §11) is actually cashed.
 - **Attention over machinery.** If wires are ordinary occurrences, they are in principle retrievable by
   System 1. Almost certainly undesirable by default, and the mechanism that prevents it is attention, not a
   partition — but nothing currently says so.

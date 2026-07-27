@@ -42,14 +42,25 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .graph import EMPTY, Graph, Node
-from .match import Match, solve
+from .graph import EMPTY, Graph, Node, role_edge
+from .match import AttrVar, Match, atom, role, solve
 from .overlay import (BASE, AddEdge, Grade, Identify, Mint, Overlays, Retract, SetAttr, View)
 
 SURGE_AT = 3            # times one gate's input may CHANGE before the loop is burned
 SILENCED = "silenced"   # a unit carrying this produces nothing — see `bundled_silence_rule`
 SURGED = "surged"       # the engine's only write: it reports, and a rule decides (`rev-02` §7)
 ENGINE = "<engine>"     # the only source the engine contributes under
+
+# -- tier 0: the wiring register's vocabulary (`forms_cnl.md` §6) ---------------------------------
+#
+# The whole of it. `pattern:` is tier 0 too and is not yet used here — a unit's *pattern* is still a
+# Python object, which is the next thing this register has to swallow.
+
+WIRE = "<wire>"         # the occurrence: a 3-place relation, source × target × gate (`rev-02` §5)
+FROM = "from"
+TO = "to"
+GATE = "gate"
+OUT = "out"             # a unit → the cell its output is held in
 
 
 # -- effect templates: what a rule says, before a match instantiates it --------------------------
@@ -182,15 +193,20 @@ class Cell:
 
     ⚠ `within` and `scope` are gone (`rev-02` §3). They made containment a second axis of *position*,
     when scope is **support**: not a place a fact sits but which configuration powers it. That mistake is
-    also what `revision-01` §8's "seal leak" really was."""
+    also what `revision-01` §8's "seal leak" really was.
 
-    __slots__ = ("name", "axiom", "supposes", "held")
+    `node` is the cell **as data** — what a wire's `from:` names. Without it the wiring register has
+    nothing to point at and topology stays a Python list."""
+
+    __slots__ = ("name", "axiom", "supposes", "held", "node", "owner")
 
     def __init__(self, name: str, *, axiom: bool = False, supposes: str | None = None) -> None:
         self.name = name
         self.axiom = axiom
         self.supposes = supposes        # this cell IS a supposition, named
         self.held: Value | None = None
+        self.node = Node(name)
+        self.owner: "StandingUnit | None" = None
 
     def __repr__(self) -> str:
         return f"<Cell {self.name}{' axiom' if self.axiom else ''}{'' if self.held else ' empty'}>"
@@ -217,6 +233,7 @@ class StandingUnit:
         self.latched: dict = {g: None for g in self.gates}
         self.changes: dict = {g: 0 for g in self.gates}
         self.cell = Cell(f"{name}:out")
+        self.cell.owner = self
         self.firings = 0
 
     def clear(self) -> None:
@@ -266,6 +283,35 @@ class StandingUnit:
         return f"<Unit {self.name} fired={self.firings} dangling={self.dangling()}>"
 
 
+# The register's whole grammar, as an ordinary pattern over ordinary data. Nothing privileged: it finds
+# wires because it *names* `<wire>`, `from`, `to` and `gate` — invariant 19, and the reason machinery
+# needs no partition. The gate arrives as an attribute value, not a node, via `AttrVar`.
+_WIRE_PATTERN = (atom("w", name=WIRE, out=(role(FROM, atom("src")),
+                                           role(TO, atom("dst")),
+                                           role(GATE, atom("g", name=AttrVar("gate"))))),)
+
+
+def _grew(prior: Value, value: Value) -> bool:
+    """Did this input only **gain** effects? Then it is not energy.
+
+    `rev-02` §6's monotonicity theorem, applied one level down. That argument — *mint, edge and
+    attribute only ever make more things readable, so a gate going present → absent is proof a
+    non-monotone effect fired* — is about a gate's **readable set**; the same reasoning holds of the
+    value on the wire, and without it a value that merely accumulates registers as a change.
+
+    ⚠ **Found by the corrector burning itself.** Once `bundled:silence` could fire at all, a network
+    with four loops surged four times, and each surge extended the report on the rule's one gate — so
+    at the third the detector burned the *corrector*, and the fourth loop went uncorrected. That is
+    counting growth as cycling, which is `model.md` §5's per-hop mistake in new clothes.
+
+    ⚠ **The cost is that monotone-but-infinite is now even more squarely fuel's job** — a `rev-02` §9
+    open item, and this narrows the detector's remit onto the case its theorem actually covers."""
+    try:
+        return set(prior.effects) <= set(value.effects)
+    except TypeError:                   # an unhashable effect payload: no claim, so no exemption
+        return False
+
+
 @dataclass(frozen=True)
 class Surge:
     """A gate whose input kept changing. A **positive fact** naming the unit, the gate and the loop —
@@ -278,16 +324,28 @@ class Surge:
 
 
 class Network:
-    """Asserted data, standing units, standing wiring. `revive()` is the turn."""
+    """Asserted data, standing units, standing wiring. `revive()` is the turn.
+
+    ⚠ **The wiring is not a field.** `self.wires` used to be a Python list of tuples, which made
+    invariant 18 false (*everything persistent is plane 1*) and made the front end's target an **engine
+    API** — the one thing `model.md` §11 forbids. Topology is now **derived** from `self.asserted` by
+    `assemble()`, and `wire()` is a convenience that writes the fact `assemble()` reads. Anything that
+    can write a graph can wire — including a mutating rule, which is invariant 4's *units propose
+    wirings as facts* actually cashed."""
 
     def __init__(self, asserted: Graph = EMPTY) -> None:
         self.asserted = asserted
         self.units: list = []
         self.axioms: list = []
-        self.wires: list = []           # (Cell, StandingUnit, gate)
         self.surges: list = []
         self.out_of_fuel = False
         self.applied: tuple = ()
+        self._built: dict = {}          # plane-1 node → the plane-2 object it describes
+        self._wiring: tuple = ()
+        self._wiring_of: Graph | None = None
+        # The engine's report, as a cell — see `reports`.
+        self.reports = Cell(ENGINE)
+        self._describe(self.reports.node, self.reports, name=ENGINE)
 
     # -- construction -----------------------------------------------------------------------------
 
@@ -295,6 +353,7 @@ class Network:
         c = Cell(name, axiom=True, supposes=supposes)
         c.held = Value(tuple(effects))
         self.axioms.append(c)
+        self._describe(c.node, c, name=name)
         return c
 
     def given(self, g: Graph, *, name: str = "given") -> Cell:
@@ -317,13 +376,60 @@ class Network:
         # Units are plane-1 data: the node goes in the same graph as everything else, with no machinery
         # partition (`rev-02` §5). Ordinary rules do not match it for the ordinary reason — nothing
         # matches implicitly (invariant 19).
-        self.asserted = self.asserted.with_node(unit.node, name=unit.name)
+        self._describe(unit.node, unit, name=unit.name)
+        self._describe(unit.cell.node, unit.cell, name=unit.cell.name)
+        # …and the unit's `out:` role, so a wire can be written naming only the unit.
+        self.asserted = role_edge(self.asserted, unit.node, OUT, unit.cell.node)
         return unit
 
     def wire(self, src: Cell, dst: StandingUnit, gate: str = "in") -> None:
         """The only way a unit reaches anything. Wiring out of a supposition's cell is `model.md` §6's
-        crossing: one explicit act, no permission rule, no crossing predicate."""
-        self.wires.append((src, dst, gate))
+        crossing: one explicit act, no permission rule, no crossing predicate.
+
+        ⚠ **This is not where wiring lives.** It writes a `<wire>` occurrence — source, target and gate,
+        each through its own role node, because an edge is nameless and a 3-place relation cannot be one
+        (`rev-02` §5). `assemble()` reads it back. Write the same occurrence by hand, or conclude it from
+        a rule, and the circuit is wired just the same."""
+        w, gate_node = Node(WIRE), Node(gate)
+        g = self.asserted.with_node(w, name=WIRE).with_node(gate_node, name=gate)
+        g = role_edge(g, w, FROM, src.node)
+        g = role_edge(g, w, TO, dst.node)
+        self.asserted = role_edge(g, w, GATE, gate_node)
+
+    def _describe(self, node: Node, obj, **crisp) -> Node:
+        """Put a plane-2 object's description in the graph and record the crossing.
+
+        This map is **the assembler**, and it is the only place plane 1 and plane 2 meet. It holds
+        nothing invariant 18 forbids: it is rebuilt by construction, never carried across a revive."""
+        self.asserted = self.asserted.with_node(node, **crisp)
+        self._built[node] = obj
+        return node
+
+    # -- the wiring register ------------------------------------------------------------------------
+
+    def assemble(self) -> tuple:
+        """**Read the topology out of the graph.** `forms_cnl.md` §1's assembler: it wires what the
+        register describes and never sees a statement.
+
+        A description naming something that was never built is **skipped, not an error** — the same
+        stance as a dangling gate (invariant 14). Ordered by the wire node's mint order so a run is
+        reproducible; nothing semantic rests on it (invariant 15)."""
+        found: list = []
+        for m in solve(self.asserted, _WIRE_PATTERN):
+            src, dst = self._built.get(m["src"]), self._built.get(m["dst"])
+            if not isinstance(src, Cell) or not isinstance(dst, StandingUnit):
+                continue
+            found.append((m["w"].nid, src, dst, m.values["gate"]))
+        return tuple((s, d, g) for _nid, s, d, g in sorted(found, key=lambda t: t[0]))
+
+    @property
+    def wires(self) -> tuple:
+        """Derived, and cached against the graph value it was derived from. `Graph` is immutable, so an
+        identity check is exact: a new graph is a new value, and re-assembly is due."""
+        if self._wiring_of is not self.asserted:
+            self._wiring_of = self.asserted
+            self._wiring = self.assemble()
+        return self._wiring
 
     # -- the turn ---------------------------------------------------------------------------------
 
@@ -333,6 +439,7 @@ class Network:
         for u in self.units:
             u.clear()
         self.surges = []
+        self.reports.held = None
         self.out_of_fuel = False
         burned: set = set()
         reported: set = set()
@@ -350,7 +457,7 @@ class Network:
                 # Energy at the gate: has this input CHANGED again? A first arrival is not a change, so
                 # a chain — which delivers once per gate — costs nothing at any depth.
                 prior = unit.latched.get(gate)
-                if prior is not None and prior != value:
+                if prior is not None and prior != value and not _grew(prior, value):
                     unit.changes[gate] += 1
                     if unit.changes[gate] >= SURGE_AT:
                         key = (src.name, unit.name, gate)
@@ -358,6 +465,7 @@ class Network:
                             self.surges.append(
                                 Surge(unit.name, gate, self.loop_through(unit), unit.changes[gate]))
                             reported.add(key)
+                            queue.append(self.report(SetAttr(unit.node, SURGED, gate)))
                         burned.add(key)
                         continue
                 if self.silenced(unit):
@@ -368,6 +476,21 @@ class Network:
 
         self.write_back()
         return self
+
+    def report(self, *effects) -> tuple:
+        """The engine's **only** contribution, and it now travels like everything else.
+
+        ⚠ A report the engine merely *writes into the read layer* is one no rule can act on, because a
+        unit sees only its gates (invariant 3). That is the shape the surge correction was in: `surged`
+        appeared in `graph()` and reached no unit, so `bundled:silence` could not fire whatever its
+        pattern said. Reporting on a **cell** puts the plane-1 → plane-2 interface where every other
+        value already crosses, and costs no new mechanism.
+
+        Accumulative within a turn: `rev-02` §6's *"a report must persist for the turn; a conclusion
+        must not"*."""
+        prior = self.reports.held.effects if self.reports.held is not None else ()
+        self.reports.held = Value(prior + tuple(effects))
+        return (self.reports, self.reports.held)
 
     def write_back(self) -> tuple:
         """Apply what **mutating rules** concluded to the asserted layer — after stabilization, never
@@ -413,8 +536,8 @@ class Network:
     # -- reads ------------------------------------------------------------------------------------
 
     def _live(self) -> tuple:
-        effects = [(ENGINE, SetAttr(self._unit_named(s.unit).node, SURGED, s.gate))
-                   for s in self.surges]
+        held = self.reports.held
+        effects = [(ENGINE, e) for e in (held.effects if held is not None else ())]
         support = {ENGINE: frozenset()}
         for c in self.axioms:
             if c.held is None:
@@ -489,7 +612,7 @@ class Network:
         return tuple(dict.fromkeys(back(unit, [unit.name]) or [unit.name]))
 
     def _owner(self, cell: Cell):
-        return next((u for u in self.units if u.cell is cell), None)
+        return cell.owner
 
     def _unit_named(self, name: str):
         return next(u for u in self.units if u.name == name)
@@ -503,11 +626,21 @@ def bundled_silence_rule(net: Network) -> StandingUnit:
 
     No privileged status and no engine hook. It is written *about units*, which it can only be because a
     unit is plane-1 data with a node of its own. Shipping it as a rule rather than as engine policy is
-    the composability principle: a governance mechanism hardcoded in Python is an unreachable island."""
-    from .match import atom
-    u = StandingUnit("bundled:silence", (atom("s", **{SURGED: None}),),
-                     Attribute("s", SILENCED, True))
-    return net.add(u)
+    the composability principle: a governance mechanism hardcoded in Python is an unreachable island.
+
+    ⚠ **Two defects were found here by trying to make it fire**, and both were invisible to a test that
+    only checked the engine's half:
+
+    1. the pattern was `surged=None`, which reads as *"`surged` equals `None`"* — and `attr` returns
+       `None` for an attribute that is **absent**, so it matched every node **except** the surged one.
+       The matcher has no *"present, any value"* atom; `AttrVar` **is** one, because it fails when the
+       attribute is missing. That is this rule's whole fix, and it is also the general answer;
+    2. it was wired to whatever the author happened to wire it to, and `surged` was never on a wire at
+       all. It is wired to `net.reports` here, which is the only place it can see one."""
+    u = net.add(StandingUnit("bundled:silence", (atom("s", **{SURGED: AttrVar("gate")}),),
+                             Attribute("s", SILENCED, True)))
+    net.wire(net.reports, u)
+    return u
 
 
 def readable(view: View, nodes) -> dict:
@@ -527,6 +660,7 @@ def readable(view: View, nodes) -> dict:
     return out
 
 
-__all__ = ["Emit", "Attribute", "Stamp", "Link", "Merge", "Drop", "instantiate",
+__all__ = ["Emit", "Attribute", "Stamp", "Link", "Merge", "Drop", "instantiate", "effects_of",
            "Value", "Cell", "StandingUnit", "Surge", "Network", "bundled_silence_rule", "readable",
-           "SURGE_AT", "SILENCED", "SURGED", "ENGINE", "BOUND"]
+           "SURGE_AT", "SILENCED", "SURGED", "ENGINE", "BOUND",
+           "WIRE", "FROM", "TO", "GATE", "OUT"]

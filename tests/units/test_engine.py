@@ -6,10 +6,11 @@ support**, computed by walking the wiring, joining `revision-02` §3's two halve
 """
 import pytest
 
-from units.engine import (SILENCED, SURGE_AT, SURGED, Attribute, Drop, Emit, Link, Merge,
-                          Network, StandingUnit, bundled_silence_rule)
-from units.graph import EMPTY, Node, named
-from units.match import atom, atoms, role
+from units.engine import (FROM, GATE, OUT, SILENCED, SURGE_AT, SURGED, TO, WIRE, Attribute, Drop,
+                          Emit, Link, Merge, Network, StandingUnit, bundled_silence_rule,
+                          effects_of)
+from units.graph import EMPTY, Node, named, role_edge
+from units.match import AttrVar, atom, atoms, role
 
 
 def kb(**attrs):
@@ -283,18 +284,81 @@ def test_units_share_the_graph_and_ordinary_rules_do_not_see_them():
 
 def test_the_bundled_rule_silences_a_surged_unit():
     """The engine reports `surged` as a fact on the unit's own node; a rule matches it and concludes the
-    correction. The engine never silences — which needs a unit to be plane-1 data."""
+    correction. The engine never silences — which needs a unit to be plane-1 data.
+
+    ⚠ **This test used to stop at the first assertion, and the two lines below it were both false.**
+    The rule's pattern was `surged=None`, which `attr` answers for every node that *lacks* the
+    attribute, so it matched everything except its target; and `surged` was written only into the read
+    layer, where no unit can see it (invariant 3). Checking the engine's half of a two-half mechanism
+    is what let both survive."""
     g, _ = named(EMPTY, "ping")
     n = Network()
     a, b = ping_pong(n)
     n.wire(n.given(g), a)
     rule = bundled_silence_rule(n)
-    n.wire(a.cell, rule)
     n.revive()
 
     assert n.surges
     surged = n._unit_named(n.surges[0].unit)
     assert n.graph().attr(surged.node, SURGED) is not None    # reported, on the unit's node
+    assert rule.firings, "the rule never saw the report"
+    assert n.graph().attr(surged.node, SILENCED) is True      # …and a RULE concluded the correction
+
+
+def test_without_the_bundled_rule_nothing_is_silenced():
+    """The negative control. The engine reports and does nothing else — if it silenced on its own the
+    rule would be decoration (`rev-02` §6)."""
+    g, _ = named(EMPTY, "ping")
+    n = Network()
+    a, b = ping_pong(n)
+    n.wire(n.given(g), a)
+    n.revive()
+
+    assert n.surges
+    assert all(n.graph().attr(u.node, SILENCED) is None for u in n.units)
+
+
+def test_the_corrector_does_not_burn_itself_when_several_loops_surge():
+    """⚠ **A defect the working rule exposed immediately.** The report accumulates on one cell, so every
+    surge after the first is a *change* on the corrector's single gate — and at `SURGE_AT` the detector
+    burned the corrector itself, leaving the last loop uncorrected.
+
+    That is counting **growth** as cycling. `rev-02` §6's own theorem says growth is not evidence of a
+    cycle, and applying it to the value on the wire is the fix: a strictly larger input is not energy.
+    The price is that monotone-but-infinite is squarely fuel's job, which `rev-02` §9 already says."""
+    g, _ = named(EMPTY, "ping")
+    n = Network()
+    ax = n.given(g)
+    loops = []
+    for i in range(SURGE_AT + 1):                             # one more loop than the threshold
+        a = n.add(StandingUnit(f"A{i}", (atom("x", name="ping"),), Emit("pong", roles=(("of", "x"),))))
+        b = n.add(StandingUnit(f"B{i}", (atom("x", name="pong"),), Emit("ping", roles=(("of", "x"),))))
+        n.wire(a.cell, b)
+        n.wire(b.cell, a)
+        n.wire(ax, a)
+        loops.append(a)
+    rule = bundled_silence_rule(n)
+    n.revive()
+
+    assert rule.name not in {s.unit for s in n.surges}, "the corrector burned itself"
+    assert all(n.graph().attr(a.node, SILENCED) is True for a in loops)
+
+
+def test_a_rule_not_wired_to_the_report_cannot_see_it():
+    """Why the report had to become a **cell**. A unit sees only its gates, so a fact the engine merely
+    writes into the read layer is unreachable however good the pattern is."""
+    g, _ = named(EMPTY, "ping")
+    n = Network()
+    a, b = ping_pong(n)
+    ax = n.given(g)
+    n.wire(ax, a)
+    watcher = n.add(StandingUnit("watcher", (atom("s", **{SURGED: AttrVar("g")}),),
+                                 Attribute("s", SILENCED, True)))
+    n.wire(ax, watcher)                                       # wired to the WRONG thing
+    n.revive()
+
+    assert n.surges
+    assert watcher.firings and n.graph().attr(a.node, SILENCED) is None
 
 
 # -- 6. the two dispositions ---------------------------------------------------------------------
@@ -400,6 +464,173 @@ def test_the_result_does_not_depend_on_unit_or_wire_order():
     (only,) = results
     assert dict(only)["both"] is True                 # …and it is the *right* one, not uniformly empty
     assert dict(only)["L"] is True and dict(only)["R"] is True
+
+
+# -- 8. the wiring register — tier 0 ----------------------------------------------------------------
+#
+# `forms_cnl.md` §9 step 1. Topology was a Python list of tuples, which made invariant 18 false and made
+# the front end's target an **engine API** rather than data (`model.md` §11). These are the tests that
+# say it is data now: written by hand, concluded by a rule, and removable by removing the fact.
+
+def wire_nodes(n: Network) -> list:
+    return [w for w in n.asserted.nodes if n.asserted.attr(w, "name") == WIRE]
+
+
+def test_a_circuit_can_be_wired_by_writing_graph_data_alone():
+    """**The contract `model.md` §11 asks for, cashed.** Not one call to `wire()`: a `<wire>` occurrence
+    with three role nodes, written the way any other fact is written, and the circuit runs."""
+    g, soc = named(EMPTY, "Socrates", kind="man")
+    n = Network()
+    ax = n.given(g)
+    u = n.add(StandingUnit("m", (atom("x", kind="man"),), Attribute("x", "mortal", True)))
+
+    w, gate = Node(WIRE), Node("in")
+    a = n.asserted.with_node(w, name=WIRE).with_node(gate, name="in")
+    a = role_edge(a, w, FROM, ax.node)
+    a = role_edge(a, w, TO, u.node)
+    n.asserted = role_edge(a, w, GATE, gate)
+
+    n.revive()
+    assert n.world().attr(soc, "mortal") is True
+
+
+def test_removing_the_fact_unwires_the_circuit():
+    """Derived, not owned. If topology were still a field, deleting the description would change
+    nothing — which is exactly the failure this step exists to remove."""
+    g, soc = named(EMPTY, "Socrates", kind="man")
+    n = Network()
+    n.wire(n.given(g), n.add(StandingUnit(
+        "m", (atom("x", kind="man"),), Attribute("x", "mortal", True))))
+    assert n.revive().world().attr(soc, "mortal") is True
+
+    (w,) = wire_nodes(n)
+    n.asserted = n.asserted.without(w)
+    assert n.wires == ()
+    assert n.revive().world().attr(soc, "mortal") is None
+
+
+def test_a_mutating_rule_can_conclude_a_wire():
+    """**Invariant 4 cashed** — *"if routing is ever learned, units propose wirings as facts."* The rule
+    is ordinary and its effect is an ordinary `Emit`; what makes it a wiring is only that it names the
+    tier-0 vocabulary. Nothing in the engine knows this rule is special, and the wire it concludes is
+    applied at write-back like any other act."""
+    g, soc = named(EMPTY, "Socrates", kind="man")
+    g, feed = named(g, "feed")                      # the gate to wire to, as a node in the world
+    n = Network()
+    src = n.given(g, name="src")
+    target = n.add(StandingUnit("m", (atom("x", kind="man"),), Attribute("x", "mortal", True),
+                                gates=("feed",)))
+    assert n.revive().world().attr(soc, "mortal") is None       # unwired: nothing happens
+
+    planner = n.add(StandingUnit(
+        "planner", (atom("c", name="src"), atom("t", name="m"), atom("g", name="feed")),
+        Emit(WIRE, roles=((FROM, "c"), (TO, "t"), (GATE, "g"))), mutating=True))
+    # The planner has to *see* the machinery to talk about it, and it does so the ordinary way: an axiom
+    # delivering the graph it lives in. Homoiconicity costing nothing until someone looks (`rev-02` §5).
+    n.wire(n.axiom(*effects_of(n.asserted), name="reflect"), planner)
+
+    n.revive()
+    assert (src, target, "feed") in n.wires                     # the wire exists because a rule said so
+    assert n.revive().world().attr(soc, "mortal") is True
+
+
+def test_a_wire_naming_something_that_was_never_built_is_skipped():
+    """A description is not an assembly. The assembler wires what it can resolve and passes over what it
+    cannot — the same stance as a dangling gate (invariant 14), not an error."""
+    g, _ = named(EMPTY, "Socrates", kind="man")
+    n = Network()
+    ax = n.given(g)
+    ghost = Node("nobody")
+    w, gate = Node(WIRE), Node("in")
+    a = n.asserted.with_node(w, name=WIRE).with_node(gate, name="in").with_node(ghost, name="nobody")
+    a = role_edge(a, w, FROM, ax.node)
+    a = role_edge(a, w, TO, ghost)
+    n.asserted = role_edge(a, w, GATE, gate)
+
+    assert n.wires == ()
+    n.revive()
+    assert n.surges == [] and not n.out_of_fuel
+
+
+def test_a_units_output_cell_is_reachable_from_its_node():
+    """`out:`, tier 0. A wire may be written naming only the unit, so the cell it feeds from has to be
+    findable in the graph rather than through a Python attribute."""
+    n = Network()
+    u = n.add(StandingUnit("u", (atom("x"),), Attribute("x", "seen", True)))
+    (cell_node,) = [d for r in n.asserted.out(u.node)
+                    if n.asserted.attr(r, "name") == OUT for d in n.asserted.out(r)]
+    assert cell_node is u.cell.node
+
+
+def leaky(reflective: bool):
+    """A rule with a **generic structural** pattern — *anything with an outgoing edge* — which is the
+    shape that leaked the last time the metalanguage went into the graph (`?y is meta when ?y is a
+    relation` deriving `produces is meta`). Wired either to world data or to a reflective axiom."""
+    g, _ = named(EMPTY, "Paul", age=42)
+    n = Network()
+    ax = n.given(g)
+    n.wire(ax, n.add(StandingUnit("u", (atom("x", name="Paul"),), Attribute("x", "seen", True))))
+    leak = n.add(StandingUnit("leak", (atom("r", out=(atom("t"),)),), Attribute("r", "meta", True)))
+    n.wire(n.axiom(*effects_of(n.asserted), name="reflect") if reflective else ax, leak)
+    n.revive()
+    return n, [w for w in n.asserted.nodes if n.asserted.attr(w, "name") == WIRE]
+
+
+def test_machinery_is_unreachable_unless_something_wires_it():
+    """`T9`, the half that holds — and it is the half that matters. The wiring register put the
+    metalanguage in the graph, which is what leaked last time; here a rule that would happily mark a
+    wire never gets the chance, because nothing delivered one to its gate."""
+    n, wires = leaky(reflective=False)
+    assert wires
+    assert all(n.graph().attr(w, "meta") is None for w in wires)
+
+
+def test_invariant_19_is_false_as_written_and_the_barrier_is_the_wiring():
+    """⚠ **`T9` against the known leak, and it leaks.** Invariant 19 says *a pattern that does not name
+    machinery never matches machinery*. It does not hold: a wire occurrence has an outgoing edge like
+    everything else, so a **generic structural** pattern matches it without naming anything. What is
+    true is the weaker and more useful statement above — machinery has to be **delivered** before any
+    pattern can see it, and delivering it is a deliberate act.
+
+    So the protection is `model.md` §5 (a unit sees only its gates), not invariant 7. Recorded rather
+    than patched: a partition is what `rev-02` §5 rejected, and the mechanism `rev-02` §9 nominates for
+    this is attention."""
+    n, wires = leaky(reflective=True)
+    assert any(n.graph().attr(w, "meta") is True for w in wires), \
+        "if this stops leaking, invariant 19 can be restated — check why before celebrating"
+
+
+def test_the_engine_holds_no_topology_of_its_own():
+    """Invariant 18, read off the source, because this is the kind of thing that grows back: there is no
+    assignment to a wire list anywhere, and `wires` is derived."""
+    import inspect
+
+    import units.engine as engine
+    src = inspect.getsource(engine)
+    assert "self.wires.append" not in src and "self.wires =" not in src
+    assert isinstance(engine.Network.wires, property)
+
+
+def test_a_second_network_assembles_the_same_circuit_from_the_graph_alone():
+    """**The point of the whole step.** A fresh `Network` handed only the asserted graph — never told
+    how anything is wired — assembles the identical circuit and reaches the identical conclusion. The
+    circuit persisted because its *description* did (`rev-02` §5).
+
+    ⚠ It still has to be handed the unit **objects**, because a unit's pattern and effects are Python.
+    That is `pattern:`, tier 0's remaining role, and it is the next thing this register has to swallow."""
+    g, soc = named(EMPTY, "Socrates", kind="man")
+    n = Network()
+    ax = n.given(g)
+    u = n.add(StandingUnit("m", (atom("x", kind="man"),), Attribute("x", "mortal", True)))
+    n.wire(ax, u)
+    assert n.revive().world().attr(soc, "mortal") is True
+
+    again = Network(n.asserted)
+    again.axioms.append(ax)
+    again._built[ax.node] = ax
+    again.add(u)
+    assert [(s.name, d.name, gate) for s, d, gate in again.wires] == [("given", "m", "in")]
+    assert again.revive().world().attr(soc, "mortal") is True
 
 
 def test_a_join_fires_once_per_arrival_which_is_why_the_test_above_is_not_trivial():

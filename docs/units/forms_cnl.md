@@ -51,6 +51,12 @@ design that introduces a CNL→graph *compiler* has violated this, whatever it i
 
 ## 2. The principles
 
+### ⚠ P1 is under measurement — read §11 first
+
+`units/sieve.py` probes the axis space rather than assuming it, and the seed of seven forms already
+splits `CONTENT` in two on evidence. The principles below are stated as they were designed; **§11
+records what running them produced**, and P1 and P8 are the two that did not survive intact.
+
 ### P1 · Categories are a product, not a list
 
 A "category" is a point in **CONTENT × FORCE × LEVEL**, never an entry in an enumeration.
@@ -296,7 +302,7 @@ the failures this design actually has.**
 | **T6** | **Idempotency.** The same surface ingested twice routes identically | levels | round-trip | buildable now |
 | **T7** | **Refusal.** A role outside the inventory is **refused, not invented**; an ambiguous surface yields alternatives, not a pick | P10 | adversarial surfaces | buildable now |
 | **T8** | **Boundary purity.** Transcription is a **pure function of the surface** — no KB access, no rule firing, nothing outside `cnl.md` §5's list | §1, P6 | mechanical: transcribe with an empty KB and with a full one, compare | buildable now |
-| **T9** | **Machinery isolation.** A pattern that does not name machinery never matches machinery | homoiconicity | invariant 19 | ⚠ **untested against the known leak** — see §9 |
+| **T9** | **Machinery isolation.** ~~A pattern that does not name machinery never matches machinery~~ → **machinery is unreachable unless something wires it** | homoiconicity | ~~invariant 19~~ `model.md` §5 | ⚠ **run, and invariant 19 FAILED** — restated; see §9 |
 | **T10** | **Order independence.** Graph state is a pure function of (axioms, wiring) | invariant 15 | two revives, compare `readable()` | exists (`test_engine.py`) |
 
 **Two discipline notes.** A trace that confirms the hypothesis is the one to distrust — **run a negative control
@@ -307,22 +313,42 @@ a representation that cannot compose is the wrong representation even if it cove
 
 ## 9. Build order
 
-**1 · Tier 0 — the wiring register.** Everything else is downstream.
+**1 · Tier 0 — the wiring register.** ✅ **BUILT, 2026-07-27** — `units/engine.py`, 52 green. Everything else
+is downstream.
 
-The assembler has nothing to read and nowhere to write: `units/engine.py:287` holds wiring as
-`self.wires: list` of Python objects, nothing in `units/` reads topology from the graph, and every test wires by
-calling `Network.wire(...)` — so **the front end's target is currently an engine API**, the one thing
-`model.md` §11 forbids. Consequences: **invariant 18 violated outright**; invariant 15's `[R2]` gloss false about
-the build; `rev-02` §5 (a wire is a 3-place occurrence node) designed and unbuilt.
+*Was:* the assembler had nothing to read and nowhere to write. Wiring was `self.wires: list` of Python tuples,
+nothing read topology from the graph, and every test wired by calling `Network.wire(...)` — so **the front
+end's target was an engine API**, the one thing `model.md` §11 forbids.
 
-*The build:* wires become occurrence nodes; `Network` **derives** topology from `self.asserted` instead of
-owning it; `wire()` becomes a fact. **It self-tests** — writing the bundled interpretation rules *in* that
-register is what proves the vocabulary sufficient. (Today the bundle is `bundled_silence_rule()`, a Python
-function constructing a `StandingUnit`.)
+*Is:* a wire is a `<wire>` occurrence with `from:` `to:` `gate:` role nodes; `Network.wires` is **derived** by
+`assemble()` matching an ordinary pattern over `self.asserted`; `wire()` writes that fact and nothing else.
+Pinned: a circuit wired **by writing graph data alone**, a wire **concluded by a mutating rule** (invariant 4
+cashed), removing the fact un-wiring the circuit, and a second `Network` assembling the same circuit from the
+graph. **`pattern:` is the one tier-0 role still unbuilt** — a unit's pattern and effects are still Python, so
+the assembler is handed unit objects and resolves them by node.
 
-⚠ While doing it, re-test the **L0 leak** (`T9`). Putting the metalanguage in the graph previously leaked
-(`?y is meta when ?y is a relation` derived `produces is meta`), which is why it was moved to a register.
-Homoiconicity reverses that decision and invariant 19 is the claimed replacement — **unverified**.
+**It self-tested, and three things fell out** — all invisible until the bundled rule could actually fire:
+
+1. **`bundled_silence_rule` had never fired.** Its pattern was `surged=None`, and `attr` answers `None` for an
+   attribute that is **absent** — so it matched every node *except* its target. The matcher has no
+   *"present, any value"* atom; `AttrVar` **is** one, because it fails when the attribute is missing.
+2. **A report written only into the read layer reaches no rule.** A unit sees only its gates
+   (invariant 3), so `surged` appearing in `graph()` was unreachable whatever the pattern said. The report is
+   now a **cell** (`Network.reports`) and travels on a wire like every other value. This is §9's *plane
+   interface* question answered: the crossing is where every other value already crosses.
+3. **The corrector burned itself.** The report accumulates, so each surge after the first was a *change* on the
+   corrector's one gate, and at `SURGE_AT` the detector burned the corrector — leaving the last loop
+   uncorrected. That is counting **growth** as cycling. `rev-02` §6's own monotonicity theorem says growth is
+   not evidence of a cycle; applying it to the value on the wire is the fix. The price is that
+   monotone-but-infinite is now squarely fuel's job, which `rev-02` §9 already says it is.
+
+⚠ **`T9` was re-run against the known leak, and it leaks — invariant 19 is false as written.** *"A pattern
+that does not name machinery never matches machinery"* does not hold: a wire occurrence has an outgoing edge
+like anything else, so a **generic structural** pattern (*anything with an outgoing edge* — the exact shape
+that once derived `produces is meta`) matches it without naming anything. What holds is weaker and more
+useful: **machinery has to be delivered to a gate before any pattern can see it**, and delivering it is a
+deliberate act. So the barrier is `model.md` §5, not invariant 7. Recorded rather than patched — a partition
+is what `rev-02` §5 rejected, and the mechanism `rev-02` §9 nominates here is attention.
 
 **2 · The surge detector.** Measured 2026-07-27: a self-looped narrowing unit over an inert nested description
 resolves **correctly at depth 4 and is still burned as a runaway loop**; at depth ≥ 5 it is **silently partial**.
@@ -350,8 +376,84 @@ four.
   The available construct is counting **equivalence classes under the union-find**, not match rows.
 - **Tier 3's contents.** Deferred to the residue log; nothing logged against the new model yet.
 - **Is the entry format sufficient?** §5's ⚠.
-- **How many forms is it, actually?** *The closed class is small* is inherited, not measured. The first honest
-  count comes out of tiers 0–2.
+- **How many forms is it, actually?** *The closed class is small* is inherited, not measured — and §11
+  now shows the count is not designable at all: the sum of the axis inventories is a **floor**, the
+  product a **ceiling**, and the true number is the sum plus however many *interactions* need their own
+  entry. Interactions are discovered, not predicted.
+- **Who decided three axes?** Nobody: `forms_discourse` §12 carries them over as *"the single most
+  durable result"*, and the argument actually made is for **orthogonality**, never for completeness.
+  Measured, the seed gives **four** slots (§11).
 - **A prose renderer**, for auditability (§4.3). Needed, unspecified.
 - **A grammar for the CNL itself.** The surface is regular enough to parse trivially — which is the point, and
   *trivially* should be demonstrated rather than asserted.
+
+
+---
+
+## 11. What the sieve measured
+
+**`units/forms.py` + `units/sieve.py`, 2026-07-27. 19 tests, every finding mutation-checked.** Seven
+seed forms written as executable entries — `introduce` / `eliminate` / `commits` — swept over every
+combination and classified. No prose and no CNL surface: the translator is not under test, so every form
+decorates one **claim occurrence**, and the content is an opaque predicate (`P2` — the open class is not
+under test either).
+
+**The oracle needs no ground truth**, which is what makes this automatable: a form declares what must
+never be concluded, and a leak is that happening.
+
+### The three results
+
+**1 · The declared axes are not the measured ones.** Two forms occupy one slot iff they **exclude** each
+other — the standard derivation in feature theory, and the only evidence available about how many axes
+there are. The seed gives **four slots against three declared axes**: `CONTENT` splits into *polarity*
+(positive ⊕ negation, which exclude) and *strength* (degree, which combines with both).
+
+> ⚠ **And the declared assignment actively prevents the cells from being built.** Framing a cell by
+> declared axis treats a graded claim as already having its `content` axis filled, so it never receives a
+> polarity — and any elimination that consults polarity is handed nothing to read. The probe only works
+> when it frames by **measured slot**. That is the sharpest single piece of evidence that `content` is
+> not one axis.
+
+**2 · Local harmony buys nothing here.** `forms_discourse` §4.2's tractability argument is that checking
+~50 intro/elim pairs covers 1,225 compositions. Measured:
+
+| | leaks | passes |
+|---|---|---|
+| **naive** eliminations — each written thinking only about its own form | **13 of 20 cells (65%)**; over pairs that can co-occur, **53%** | 0 |
+| **guarded** — every elimination rewritten to consult its neighbours | 0 | **0** |
+| **guarded + one pair entry** | 0 | **1** |
+
+> ⚠ **Guarding removes every leak and composes nothing.** It converts a leak into an **inert** composite
+> — `P8`'s other failure. *"Not very dangerous"* stops asserting the predicate and starts meaning
+> exactly *"not dangerous"*: the band is dropped rather than carried. Silence is not closure.
+
+What actually composed it was an entry for the **pair** — and one pair entry bought exactly one cell,
+with nothing generalizing to the others. That is the O(n²) the local check was supposed to make
+unnecessary, and it is the answer to *sum or product*: **the sum is a floor, the product a ceiling, and
+the real count is the sum plus the interactions that need their own entry.**
+
+**3 · The entry format does not survive contact, in two places.**
+
+- **`commits` is one field doing two opposite jobs.** `P8` already distinguishes them — elimination
+  outrunning introduction (**leaks**) and introduction without elimination (**inert**) — but a single
+  predicate cannot report which, so the classifier cannot tell a form that leaked from one that
+  correctly went quiet. It has to be split into `commits` (must hold) and `forbids` (must not).
+- **A commitment cannot be stated in its own axis's terms.** `positive` commits you to the predicate only
+  when *asserted* at the *world* level; `degree` has to name force, level **and** polarity. If the axes
+  were orthogonal this count would be zero. The composability problem is in the **specification**, not
+  only in the implementation.
+
+### What this cannot do, stated up front
+
+It explores the space **as parameterized**. It can *split* a declared axis, because refusal is evidence;
+it can never discover a form or an axis nobody wrote down. The consolation is Mendeleev-shaped and weak
+— `geometry()` reports where failures sit, and clustering the slots do not explain would be a hint.
+
+⚠ **Two limits on the seed itself.** Seven forms is small, and the eliminations are hand-written by one
+author who knew what was being measured — the naive ones are naive *on purpose*, as the realistic
+failure mode. The guarded/naive/pair-entry comparison is the result; no single column is.
+
+⚠ **The `degree ∘ negation` leak reproduces**, and this was the control: it was measured on the retired
+`ugm` engine with mechanisms that no longer exist, so it was a phenomenon to re-probe rather than a bug
+to reproduce. It is still there, and it is worse than it was recorded — the graph holds the claim **and**
+its denial at once.
