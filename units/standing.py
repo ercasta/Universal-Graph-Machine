@@ -32,9 +32,47 @@ from typing import Any
 
 from .graph import EMPTY, Graph, Node, role_edge
 from .match import Match, solve
-from .unit import Emit, Stamp, _apply
 
 SURGE_AT = 3            # revisits of one unit before the loop is burned
+
+
+# -- effects: everything a unit can conclude ----------------------------------------------------
+#
+# **Every effect is an overlay.** A unit never writes to the asserted layer — it produces a thought,
+# which stands while the unit is powered and is gone when it is not. Only the boundary writes the base
+# layer, and only with what came from outside (`model.md` §9). This is what makes hypothesis exploration
+# safe without any checkpoint, copy or merge-back: a supposition's consequences are retractable because
+# *all* consequences are.
+
+
+@dataclass(frozen=True)
+class Emit:
+    """Mint an occurrence: one node, its roles, and — if the rule says so — a gradable attribute stamped
+    with the firing's own match strength (§4, *"a firing may inherit its match strength"*)."""
+
+    name: str
+    roles: tuple = ()              # ((role_name, var_name), …)
+    graded: str | None = None
+
+
+@dataclass(frozen=True)
+class Stamp:
+    """Set a gradable attribute on an already-bound node, at a stated band. This is what lets a
+    supposition be a *rule* rather than a Python callable (§11)."""
+
+    target: str
+    attr: str
+    band: str
+
+
+@dataclass(frozen=True)
+class Same:
+    """Conclude that two bound nodes are the same thing — **a decision, not an application.** The
+    identification itself happens at write-back, so no machinery ever decides identity
+    (`cnl.md` §1, *create, never merge*)."""
+
+    left: str
+    right: str
 
 
 ATTRIBUTION = "attribution"
@@ -79,6 +117,27 @@ class Link:
 
 
 @dataclass(frozen=True)
+class Merge:
+    """Identify two nodes — the **applied** coreference decision, and the effect that proves a
+    contribution is not confined to its producer.
+
+    Minting a node, adding an edge and setting an attribute can all be *described* as a local fragment.
+    Merging cannot: it rewrites every mention of the dropped node, anywhere in the graph. So a unit's
+    output is not "a fragment that lives in a box" — it is a **revertable mutation of the whole graph**,
+    and the box was a modelling error.
+
+    It is still revertable for the same reason everything else is: the mutation is re-applied from the
+    asserted layer on each revive, so a merge whose unit stops being powered simply does not happen
+    again. Nothing is un-merged; the identification is not re-made.
+
+    ⚠ The *decision* is a rule's (`cnl.md` §1, create-never-merge — no machinery may identify two nodes
+    on its own). This is only its application."""
+
+    left: str
+    right: str
+
+
+@dataclass(frozen=True)
 class Value:
     """What travels on a wire.
 
@@ -92,6 +151,7 @@ class Value:
     graph: Graph
     band: str | None = None
     path: tuple = ()
+    merges: tuple = ()          # (keep, drop) pairs — mutations that are NOT local to a fragment
 
     def through(self, unit: str) -> "Value":
         return replace(self, path=self.path + (unit,))
@@ -144,11 +204,32 @@ class StandingUnit:
     """A unit that **stands**. It is not rebuilt per step and not thrown away.
 
     Its gates latch, it matches over the **union of its gates** — a join that is local to the unit and
-    reaches nothing else — and it writes what it derived into its own `cell`. It never touches topology
-    (invariant 4) and never sees a scope (invariant 1)."""
+    reaches nothing else — and it records what it derived in its own `cell`. It never touches topology
+    (invariant 4) and never sees a scope (invariant 1).
+
+    ## The one flag that matters: `mutating`
+
+    Two dispositions, and they are **not** the same thing wearing different clothes:
+
+    | | |
+    |---|---|
+    | `mutating=False` — a **computation unit** | stands in the graph permanently and produces **overlays**: effects that are a function of its inputs, recomputed every revive, gone the moment its input goes. This is a *thought* |
+    | `mutating=True` — a **regular rule** | fires and **applies**. Its effect is merged into the asserted layer at write-back and stays there. This is an *act* |
+
+    Both are needed, and the split is what makes multi-turn search work at all. Hypothesis exploration
+    uses computation units, so a supposition's consequences revert by the ordinary revive with no
+    checkpoint, no copy and no merge-back. Search *state* — the enumerator's cursor, a recorded
+    refutation — is written by a regular rule, so it survives the revive that discards everything else.
+
+    ⚠ Firing a **mutating** rule underneath a hypothesis writes to the asserted layer for real, and the
+    engine will let you. That is the same hazard as a tool call during exploration: an authoring
+    problem, the one a lab has when an experiment cannot be undone (§11, the engine is
+    knowledge-agnostic)."""
 
     def __init__(self, name: str, pattern: tuple, *effects, gates: tuple = ("in",),
-                 theta: str | None = None, within: "Cell | None" = None) -> None:
+                 theta: str | None = None, within: "Cell | None" = None,
+                 mutating: bool = False) -> None:
+        self.mutating = mutating
         self.name = name
         self.pattern = pattern
         self.effects = effects
@@ -185,19 +266,24 @@ class StandingUnit:
             g = g.union(v.graph)
 
         derived = EMPTY
+        merges: list = []
         band = None
         for m in solve(g, self.pattern, self.theta):
             for e in self.effects:
-                derived = _apply_here(derived, e, m)
+                if isinstance(e, Merge):
+                    # Cannot be expressed as a fragment — it rewrites every mention, graph-wide.
+                    merges.append((m[e.left], m[e.right]))
+                else:
+                    derived = _apply_here(derived, e, m)
             band = m.band if band is None else band
 
-        if not derived.nodes:
+        if not derived.nodes and not merges:
             return None
         path = ()
         for v in seen:
             if len(v.path) > len(path):
                 path = v.path
-        out = Value(derived, band, path).through(self.name)
+        out = Value(derived, band, path, tuple(merges)).through(self.name)
         self.cell.held = out
         return out
 
@@ -223,7 +309,25 @@ def _apply_here(g: Graph, effect, m: Match) -> Graph:
         if effect.role is None:
             return g.with_edge(m[effect.src], m[effect.dst])
         return role_edge(g, m[effect.src], effect.role, m[effect.dst])
-    return _apply(g, effect, m, None)
+    if isinstance(effect, Emit):
+        occ = Node(effect.name)
+        g = g.with_node(occ, name=effect.name)
+        for role_name, var in effect.roles:
+            g = role_edge(g, occ, role_name, m[var])
+        if effect.graded is not None and m.band is not None:
+            g = g.with_degree(occ, effect.graded, m.band)
+        return g
+    if isinstance(effect, Stamp):
+        return g.with_degree(m[effect.target], effect.attr, effect.band)
+    if isinstance(effect, Same):
+        a, b = m[effect.left], m[effect.right]
+        if a is b:
+            return g                                  # a node is trivially itself; write nothing
+        occ = Node("same-as")
+        g = g.with_node(occ, name="same-as")
+        g = role_edge(g, occ, "of", a)
+        return role_edge(g, occ, "of", b)
+    raise TypeError(f"unknown effect {effect!r}")
 
 
 @dataclass
@@ -245,6 +349,10 @@ class Network:
         self.wires: list = []           # (Cell, StandingUnit, gate)
         self.surges: list = []
         self.out_of_fuel: bool = False
+        self.applied: bool = False
+        self.record = Cell("asserted-by-rules", axiom=True)
+        self.record.held = Value(EMPTY)
+        self.axioms.append(self.record)
 
     # -- construction ---------------------------------------------------------------------------
 
@@ -259,82 +367,11 @@ class Network:
         """A supposition: an axiom cell that is its own containment. *"Suppose it rains."*"""
         return self.axiom(g, name=name, within=within, scope=True)
 
-    # -- checkpointing ---------------------------------------------------------------------------
-
-    def checkpoint(self, scope: Cell) -> list:
-        """Copy the asserted layer into `scope`, so that mutation under a hypothesis is **local to it**.
-
-        ## Why this is needed at all
-
-        Positioning scopes what is *derived* and does nothing for what is *mutated*. Materialized facts
-        are recomputed every revive, so a hypothesis's conclusions are free — but a **mutating** rule
-        firing under a hypothesis writes to the shared asserted layer, permanently. Any hypothesis whose
-        exploration takes more than one turn therefore corrupts the base world, because its state has to
-        survive the revive that discards everything else.
-
-        `ugm` reached the same wall from the other direction and recorded the same answer: a
-        materialized **copy with merge-back at one boundary**, never a read-projection, because a
-        projection isolates reads and not writes.
-
-        ## Deliberate, never automatic
-
-        The machine supports checkpointing; it never decides to checkpoint. This is an operation a rule
-        concludes, exactly as it concludes a deletion — so *when* to branch the world is a judgement in
-        the data, inspectable and revisable, and not a policy in the engine (§11).
-
-        ## The two exits, and they are the only two
-
-        `commit` merges the checkpoint back into the asserted layer; `discard` drops it. Both are one
-        explicit act at one boundary, the same shape as §6's crossing.
-
-        ⚠ **Search state must live outside the checkpoints it controls.** The enumerator's cursor and its
-        refutations are what must survive a hypothesis being abandoned, so they belong in the base layer.
-        Checkpointing them would reset the search every time it discarded a branch.
-
-        ## It is copy-on-write for free, and that was not obvious
-
-        Nothing is copied here — the new cell simply *points at the same immutable `Graph`*. A draft of
-        this method deep-copied, on the assumption that exploring *n* hypotheses would otherwise cost
-        O(twin × n) and kill the enumerator. Mutation testing showed the copy makes no semantic
-        difference at all: `Graph` is immutable, so a mutating rule **replaces** a cell's value rather
-        than editing it, and divergence happens only where a write actually lands.
-
-        So a checkpoint costs one `Cell` per asserted cell, not one graph per hypothesis. This is
-        `graph.py`'s immutability decision — *"load-bearing, not hygiene"* — paying for something it was
-        not adopted for."""
-        made = []
-        for c in list(self.axioms):
-            if c.scope or c.within is not None or c.held is None:
-                continue                     # suppositions and already-nested cells are not the base layer
-            copy = Cell(f"{scope.name}/{c.name}", within=scope, axiom=True)
-            copy.held = c.held               # shared, not copied — see above
-            self.axioms.append(copy)
-            made.append((c, copy))
-        return made
-
-    def commit(self, scope: Cell) -> None:
-        """Merge a checkpoint back into the asserted layer — committing to the hypothesis."""
-        for c in list(self.axioms):
-            if c.within is not scope or c.scope:
-                continue
-            origin = next((o for o in self.axioms
-                           if c.name == f"{scope.name}/{o.name}" and o is not c), None)
-            if origin is not None and c.held is not None:
-                origin.held = Value(c.held.graph)
-        self.discard(scope)
-
-    def discard(self, scope: Cell) -> None:
-        """Drop a checkpoint, leaving the asserted layer untouched — abandoning the hypothesis.
-
-        Nothing reclaims an abandoned checkpoint on its own: a refuted hypothesis whose checkpoint is
-        never discarded is a leak, and writing that rule is the author's job (§11)."""
-        self.axioms = [c for c in self.axioms if c.within is not scope or c.scope]
-
-    def add(self, unit: StandingUnit) -> StandingUnit:
+    def add(self, unit: "StandingUnit") -> "StandingUnit":
         self.units.append(unit)
         return unit
 
-    def wire(self, src: Cell, dst: StandingUnit, gate: str = "in") -> None:
+    def wire(self, src: Cell, dst: "StandingUnit", gate: str = "in") -> None:
         """The **only** way a unit reaches anything. Wiring into a hypothesis's cell from outside is
         exactly `model.md` §6's crossing: one explicit act, no permission rule, no crossing predicate."""
         self.wires.append((src, dst, gate))
@@ -361,6 +398,7 @@ class Network:
         burned: set = set()
 
         queue = [(c, c.held) for c in self.axioms if c.held is not None]
+        applied = False
         while queue:
             if fuel <= 0:
                 self.out_of_fuel = True
@@ -382,6 +420,17 @@ class Network:
                 out = unit.deliver(gate, value)
                 if out is not None:
                     queue.append((unit.cell, out))
+
+        # WRITE-BACK, after stabilization and never during (§9). A mutating rule's effect becomes
+        # asserted here and survives every subsequent revive; a computation unit's does not.
+        for u in self.units:
+            if u.mutating and u.cell.held is not None:
+                self.record.held = Value(self.record.held.graph.union(u.cell.held.graph))
+                for keep, drop in u.cell.held.merges:
+                    self.record.held = Value(self.record.held.graph.merge(keep, drop))
+                u.cell.held = None
+                applied = True
+        self.applied = applied
         return self
 
     # -- reads ----------------------------------------------------------------------------------
@@ -393,12 +442,27 @@ class Network:
         return self.at(None)
 
     def at(self, scope: Cell | None) -> Graph:
-        g = EMPTY
-        for c in self.axioms + [u.cell for u in self.units]:
+        return self._assemble([c for c in self.cells() if c.home() is scope])
+
+    def graph(self) -> Graph:
+        """**The** graph: the asserted layer plus every live contribution, with graph-wide mutations
+        applied.
+
+        A contribution is not a box a fact lives in — it is a *revertable mutation*, and `Merge` is the
+        one that proves it, because identifying two nodes rewrites every mention of them anywhere. So
+        contributions are recorded per unit (which is what makes provenance a walk) and **applied to one
+        graph** (which is what makes them mutations rather than fragments)."""
+        return self._assemble(self.cells())
+
+    def _assemble(self, cells: list) -> Graph:
+        g, merges = EMPTY, []
+        for c in cells:
             if c.held is None:
                 continue
-            if c.home() is scope:
-                g = g.union(c.held.graph)
+            g = g.union(c.held.graph)
+            merges.extend(c.held.merges)
+        for keep, drop in merges:
+            g = g.merge(keep, drop)
         return g
 
     def cells(self) -> list:
@@ -464,5 +528,5 @@ def holds(g: Graph, name: str) -> bool:
     return any(g.attr(n, "name") == name for n in g.nodes)
 
 
-__all__ = ["Value", "Cell", "StandingUnit", "Network", "Surge", "Overlay", "Link",
-           "holds", "SURGE_AT"]
+__all__ = ["Value", "Cell", "StandingUnit", "Network", "Surge",
+           "Emit", "Stamp", "Same", "Overlay", "Link", "holds", "SURGE_AT"]

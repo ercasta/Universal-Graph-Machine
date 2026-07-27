@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from units.graph import EMPTY, Graph, named, occurrence, role_edge
 from units.match import atom, role
-from units.standing import Link, Network, Overlay, StandingUnit, Value, holds
-from units.unit import Emit
+from units.standing import Emit, Link, Merge, Network, Overlay, StandingUnit, Value, holds
 
 
 def attribution(target, attr, value) -> Graph:
@@ -192,7 +191,7 @@ def test_round_robin_enumeration_across_turns_eliminates_hypotheses():
     g, paul = paul_world()
     n = Network()
     n.axiom(g)
-    n.axiom(attribution(paul, "facial-hair", "none"), name="paul-is-clean-shaven")
+    shaven = n.axiom(attribution(paul, "facial-hair", "none"), name="paul-is-clean-shaven")
 
     # Three alternatives. Only "woman" is compatible with the asserted clean shave.
     alts = {"man": "moustache", "bearded-man": "moustache", "woman": "none"}
@@ -204,7 +203,7 @@ def test_round_robin_enumeration_across_turns_eliminates_hypotheses():
         d.gates = ("in", "base")
         d.latched = {"in": None, "base": None}
         n.wire(u.cell, d, "in")
-        n.wire(n.axioms[1], d, "base")
+        n.wire(shaven, d, "base")
         cells[gender], dets[gender] = cell, d
 
     refuted = set()
@@ -228,14 +227,14 @@ def test_elimination_proves_nothing_unless_the_enumeration_is_exhaustive():
     g, paul = paul_world()
     n = Network()
     n.axiom(g)
-    n.axiom(attribution(paul, "facial-hair", "none"), name="paul-is-clean-shaven")
+    shaven = n.axiom(attribution(paul, "facial-hair", "none"), name="paul-is-clean-shaven")
 
     cell, u = gendered(n, paul, "assuming-man", "man", "moustache")
     d = n.add(StandingUnit("detect", CONTRADICTION, Emit("contradiction"), within=cell))
     d.gates = ("in", "base")
     d.latched = {"in": None, "base": None}
     n.wire(u.cell, d, "in")
-    n.wire(n.axioms[1], d, "base")
+    n.wire(shaven, d, "base")
     n.revive()
 
     assert holds(d.cell.held.graph, "contradiction")        # this one is refuted
@@ -244,86 +243,120 @@ def test_elimination_proves_nothing_unless_the_enumeration_is_exhaustive():
     assert not holds(n.world(), "woman")
 
 
-# -- 5. checkpointing: scoping what is MUTATED, not only what is derived ---------------------------
+# -- 5. a contribution is a revertable MUTATION, not a fragment in a box --------------------------
 
-def balance(target, amount):
-    return attribution(target, "balance", amount)
+def test_merge_proves_a_contribution_is_not_confined_to_its_producer():
+    """Minting a node, adding an edge and setting an attribute can all be *described* as a local
+    fragment. **Merging cannot** — identifying two nodes rewrites every mention of them, anywhere. So a
+    unit's output is a revertable mutation of the whole graph, and treating it as a box was a modelling
+    error.
 
+    It is revertable for the same reason everything else is: mutations are re-applied from the asserted
+    layer on each revive, so a merge whose unit loses power simply does not happen again. Nothing is
+    ever *un*-merged."""
+    g = EMPTY
+    g, morning = named(g, "the-morning-star")
+    g, evening = named(g, "the-evening-star")
+    g, _ = occurrence(g, "orbits", subject=morning, around=named(g, "Sun")[1])
 
-def test_a_mutation_under_a_hypothesis_does_not_reach_the_base_layer():
-    """The hole positioning does not cover. Materialized facts are recomputed every revive, so a
-    hypothesis's *conclusions* are free — but a mutating rule writes to the asserted layer, permanently.
-    A checkpoint is what makes the write local."""
-    g, paul = paul_world()
     n = Network()
-    base = n.axiom(balance(paul, 100), name="ledger")
-    h = n.suppose(EMPTY, name="assuming-he-pays")
-    made = n.checkpoint(h)
-    assert made, "the base layer was copied into the hypothesis"
-    (_, copy), = [(o, c) for o, c in made if o is base]
+    ax = n.axiom(g)
+    coref = n.add(StandingUnit("same-planet",
+                               (atom("a", name="the-morning-star"),
+                                atom("b", name="the-evening-star")),
+                               Merge("a", "b")))
+    n.wire(ax, coref)
 
-    # A mutating rule fires under the hypothesis, across two turns.
-    for turn in (1, 2):
-        copy.held = Value(balance(paul, 100 - 40 * turn))
-        n.revive()
-
-    assert {v for v, _ in n.readings(paul, "balance")} == {100, 20}
-    assert base.held.graph is not None
-    inside = [v for v, c in n.readings(paul, "balance") if c.inside(h)]
-    outside = [v for v, c in n.readings(paul, "balance") if not c.inside(h)]
-    assert inside == [20] and outside == [100]
-
-
-def test_commit_merges_the_checkpoint_and_discard_does_not():
-    """The two exits, and they are the only two — one explicit act each, same shape as §6's crossing."""
-    g, paul = paul_world()
-
-    for exit_, expected in (("commit", 20), ("discard", 100)):
-        n = Network()
-        base = n.axiom(balance(paul, 100), name="ledger")
-        h = n.suppose(EMPTY, name="assuming-he-pays")
-        (_, copy), = n.checkpoint(h)
-        copy.held = Value(balance(paul, 20))
-        n.revive()
-
-        getattr(n, exit_)(h)
-        n.revive()
-        assert [v for v, _ in n.readings(paul, "balance")] == [expected], exit_
-        assert not any(c.inside(h) and c is not h for c in n.cells()), "checkpoint reclaimed either way"
-
-
-def test_search_state_must_live_outside_the_checkpoints_it_controls():
-    """The enumerator's cursor and its refutations are precisely what must survive a branch being
-    abandoned. Checkpointed, they would be rolled back by the discard that abandons the branch — and
-    the search would loop on the hypothesis it just refuted, forever."""
-    g, paul = paul_world()
-    n = Network()
-    n.axiom(balance(paul, 100), name="ledger")
-    cursor = n.axiom(named(EMPTY, "refuted:assuming-he-pays")[0], name="search-state")
-
-    h = n.suppose(EMPTY, name="assuming-he-pays")
-    n.checkpoint(h)
-    n.discard(h)
+    assert len({morning, evening} & n.graph().nodes) == 2      # two nodes before
     n.revive()
+    live = n.graph()
+    assert (morning in live.nodes) != (evening in live.nodes), "the merge collapsed them graph-wide"
+    survivor = morning if morning in live.nodes else evening
+    subject = next(r for r in live.nodes if live.attr(r, "name") == "subject")
+    assert survivor in live.out(subject), "and the orbit was rewritten onto the survivor"
 
-    assert holds(n.world(), "refuted:assuming-he-pays")
-    assert cursor in n.axioms
+    # Unpower the unit: the identification is simply not made again.
+    n.wires = []
+    n.revive()
+    reverted = n.graph()
+    assert morning in reverted.nodes and evening in reverted.nodes
 
 
-def test_a_checkpoint_shares_rather_than_copies():
-    """Found by mutation testing: deep-copying the asserted layer makes **no semantic difference**,
-    because `Graph` is immutable and a mutating rule replaces a cell's value rather than editing it.
-    So a checkpoint is copy-on-write by construction and costs one `Cell` per asserted cell, not one
-    graph per hypothesis — which is what makes multi-turn hypothesis exploration affordable at all."""
+def test_a_hypothesis_needs_no_checkpoint_because_every_effect_is_revertable():
+    """Checkpointing was only ever needed because units were assumed to write to the asserted layer.
+    They do not: **every** effect is an overlay. So a supposition's consequences — including a merge —
+    revert by the ordinary revive, with no copy, no merge-back and no nesting problem."""
+    g = EMPTY
+    g, a = named(g, "Hesperus")
+    g, b = named(g, "Phosphorus")
+    n = Network()
+    base = n.axiom(g)
+    supposing = n.suppose(EMPTY, name="assuming-they-are-one")
+    u = n.add(StandingUnit("identify",
+                           (atom("x", name="Hesperus"), atom("y", name="Phosphorus")),
+                           Merge("x", "y"), within=supposing))
+    n.wire(base, u)
+    n.revive()
+    assert len({a, b} & n.graph().nodes) == 1              # merged under the supposition
+
+    supposing.held = Value(EMPTY)
+    n.wires = []
+    n.revive()
+    assert {a, b} <= n.graph().nodes                       # and the asserted layer is intact
+    assert base.held.graph is g                            # never touched at all
+
+
+# -- 6. the two dispositions: an overlay is a thought, a mutation is an act ------------------------
+
+def test_a_mutating_rule_persists_across_revives_and_a_computation_unit_does_not():
+    """The split the whole design rests on, and the reason multi-turn search works.
+
+    A **computation unit** produces overlays: a function of its inputs, recomputed every revive, gone
+    the moment the input goes. A **regular rule** fires and applies — its effect is merged into the
+    asserted layer at write-back and survives every subsequent revive.
+
+    Here the same trigger drives both. The tick accumulates; the thought does not."""
     g, paul = paul_world()
     n = Network()
-    base = n.axiom(balance(paul, 100), name="ledger")
-    h = n.suppose(EMPTY, name="assuming-he-pays")
-    (_, copy), = n.checkpoint(h)
+    ax = n.axiom(g)
 
-    assert copy.held.graph is base.held.graph, "no copy was made"
+    thought = n.add(StandingUnit("notices-paul", (atom("p", name="Paul"),),
+                                 Emit("noticed", roles=(("of", "p"),))))
+    act = n.add(StandingUnit("tick", (atom("p", name="Paul"),), Emit("tick"), mutating=True))
+    n.wire(ax, thought)
+    n.wire(ax, act)
 
-    copy.held = Value(balance(paul, 20))            # a mutating write diverges only this cell
+    for expected_ticks in (1, 2, 3):
+        n.revive()
+        ticks = [x for x in n.record.held.graph.nodes
+                 if n.record.held.graph.attr(x, "name") == "tick"]
+        assert len(ticks) == expected_ticks, "a mutating rule's effect accumulates"
+        noticed = [x for x in n.graph().nodes if n.graph().attr(x, "name") == "noticed"]
+        assert len(noticed) == 1, "a computation unit's overlay is recomputed, never accumulated"
+
+    # Remove the support. The thought vanishes; the acts already performed remain.
+    n.wires = []
     n.revive()
-    assert base.held.graph is not copy.held.graph
-    assert [v for v, c in n.readings(paul, "balance") if not c.inside(h)] == [100]
+    assert not holds(n.graph(), "noticed")
+    assert holds(n.graph(), "tick")
+
+
+def test_search_state_survives_because_a_regular_rule_wrote_it():
+    """Why the enumerator works. Its cursor is not a conclusion recomputed each turn — it is written by
+    a rule that fires and applies, so it is still there on the next revive. Counting ticks is a cursor
+    that needs no arithmetic."""
+    g, paul = paul_world()
+    n = Network()
+    ax = n.axiom(g)
+    n.wire(ax, n.add(StandingUnit("advance", (atom("p", name="Paul"),),
+                                  Emit("tick"), mutating=True)))
+
+    alternatives = ["man", "bearded-man", "woman"]
+    visited = []
+    for _ in alternatives:
+        n.revive()
+        cursor = sum(1 for x in n.record.held.graph.nodes
+                     if n.record.held.graph.attr(x, "name") == "tick")
+        visited.append(alternatives[(cursor - 1) % len(alternatives)])
+
+    assert visited == alternatives, "round robin advanced across turns without resetting"

@@ -1,7 +1,10 @@
 # Revision 01 — standing circuits
 
-**Status: design revision, adopted 2026-07-27.** This revises `model.md` and replaces
-`docs/units/attachment.md`, which is folded in below and deleted. Nothing here is built.
+**Status: adopted and BUILT, 2026-07-27.** This revises `model.md` and replaces
+`docs/units/attachment.md`, which is folded in below and deleted. `units/` now implements this document
+and nothing else — the previous engine (`assemble`, `circuit`, `loop`, `cooldown`, `recall`, `describe`,
+`unit`) was deleted the same day, along with `graph.visible_at` and the scope machinery around it.
+987 lines across four modules, 28 tests.
 
 `model.md` said computation is scaffolding built over the data, used, and **thrown away**. That is now half
 wrong. The scaffolding is built over the data and **stays**; what is thrown away each turn is not the circuit
@@ -36,18 +39,32 @@ re-write.
 
 ## 2. Two dispositions
 
-A unit's output is either **applied** or **held**, and this is structural.
+They are not the same thing wearing different clothes, and conflating them is the single easiest way to
+lose the design. Both are needed.
 
-| disposition | behaviour |
-|---|---|
-| **mutating** | the unit fires, its output changes asserted data at write-back, and that is the end of it |
-| **materializing** | the unit stands, and its output is part of the graph for as long as it is powered |
+| | what it is | what its effects do |
+|---|---|---|
+| **computation unit** | stands in the graph permanently, wired to its inputs | produces **overlays** — a function of its inputs, recomputed every revive, gone the moment the input goes. A **thought** |
+| **regular rule** | fires and applies | its effect is merged into the asserted layer at write-back and stays there. An **act** |
 
-Mutating rules are how axioms change. Materializing rules are how everything else exists. A materialized fact
-is never edited and never deleted; it appears and disappears with its support.
+> A computation unit does not *do* anything. It **holds** something true for as long as its input holds.
+> A regular rule changes the world and is finished.
 
-*Note, not an objection:* the disposition is structural rather than a fact about the unit, so a rule cannot
-conclude which one applies and the CNL must mark it syntactically.
+**This split is what makes multi-turn search work.** Hypothesis exploration uses computation units, so a
+supposition's consequences revert by the ordinary revive — no checkpoint, no copy, no merge-back, and no
+problem with nesting. Search *state* — the enumerator's cursor, a recorded refutation — is written by a
+regular rule, so it survives the revive that discards everything else. Neither half works alone.
+
+⚠ **Two dead ends are recorded here because both were argued for and one was built.** *"The disposition
+should be a fact a rule concludes, not a structural flag"* — rejected; both kinds are needed and the
+distinction is what the CNL marks. *"Everything is an overlay, so the asserted layer only grows from
+outside"* — wrong, and it invents an accumulation problem out of nothing: it makes the cursor reset
+every turn and refutations vanish, which is exactly what regular rules exist to prevent.
+
+⚠ **Firing a mutating rule underneath a hypothesis writes to the asserted layer for real, and the engine
+will let you.** Same hazard as a tool call during exploration: an authoring problem, the one a lab has
+when an experiment cannot be undone (§11, the engine is knowledge-agnostic). Not something the engine
+should pretend to solve.
 
 ---
 
@@ -345,32 +362,48 @@ Two things it depends on:
 — it is a knowledge claim (§11). The survivor of an elimination is **un-refuted**, never **proven**: the
 same weak, honest claim as `starved` ≠ underivable.
 
-### Checkpointing — scoping what is *mutated*
+### Every effect is an overlay
 
-Positioning scopes what is **derived** and does nothing for what is **mutated**. Materialized facts are
-recomputed every revive, so a hypothesis's conclusions are free — but a mutating rule firing under a
-hypothesis writes to the shared asserted layer, permanently. Any hypothesis whose exploration takes more
-than one turn therefore corrupts the base world, precisely because its state has to survive the revive
-that discards everything else.
+A unit never writes to the asserted layer. **Everything it does is a revertable mutation of the graph** —
+minting a node, adding an edge, setting an attribute, merging two nodes — standing while its unit is
+powered and gone when it is not.
 
-> **A checkpoint is the asserted layer, nested inside a supposition.** Mutation under the hypothesis
-> lands there. `commit` merges it back; `discard` drops it. Those are the only two exits, one explicit
-> act each — the same shape as §6's crossing.
+> **The asserted layer only grows from outside.** Utterances, file reads, tool results: things that
+> happened. Everything a unit produces is a thought.
 
-**Deliberate, never automatic.** The machine supports checkpointing; it never decides to checkpoint.
-Branching the world is an operation a rule concludes, exactly as it concludes a deletion — a judgement
-in the data, inspectable and revisable, not a policy in the engine (§11).
+That single asymmetry is the whole scoping story, and it is `model.md` §9's boundary line
+(*"transcription, minting a goal, and the actual reads and writes to the outside world"*) doing work it
+was already committed to. A tool call during exploration can of course have permanent external effects —
+that is an authoring problem, the same one a lab has when an experiment cannot be undone, and not
+something the engine should pretend to solve.
 
-This is `ugm`'s [[derivation-frame-consolidation]] finding re-derived from the other side: the fix is a
-materialized **copy with merge-back at one boundary**, never a read-projection, because a projection
-isolates reads and not writes. Two independent routes to the same answer.
+**Two corrections this replaces, both recorded because both were built and then removed:**
 
-⚠ **Search state lives outside the checkpoints it controls.** The enumerator's cursor and its
-refutations are exactly what must survive a branch being abandoned; checkpointed, a `discard` would roll
-them back and the search would loop forever on the hypothesis it just refuted.
+⚠ **Checkpointing was wrong.** An earlier draft copied the asserted layer into each supposition, with
+`commit` and `discard` as the two exits. It was necessary only if hypothesis exploration is done with
+*mutating rules* — and it is not: exploration is what computation units are for, and their effects
+revert by the ordinary revive. It also made a mess of
+nesting: checkpoints under nested hypotheses need nested copies and merge-back chains, where overlays
+nest for free because position nests. Built, tested, deleted the same day.
 
-⚠ **Abandoned checkpoints are a leak.** Nothing reclaims one on its own — a refuted hypothesis whose
-checkpoint is never discarded persists, and writing that rule is the author's job (§11).
+⚠ **A contribution is not confined to its producer.** `Merge` is what proves it: minting a node, adding
+an edge and setting an attribute can all be *described* as a local fragment, but identifying two nodes
+rewrites every mention of them anywhere in the graph. So contributions are **recorded per unit** — which
+is what makes provenance a walk — and **applied to one graph**, which is what makes them mutations
+rather than fragments. The `Cell` in the code is a record of what a unit contributed, not a box the fact
+lives in.
+
+Reverting needs no machinery in either case: mutations are re-applied from the asserted layer on every
+revive, so a merge whose unit loses power simply is not made again. Nothing is ever *un*-merged.
+
+### What accumulates across turns — answered by §2
+
+An earlier draft of this document called this the biggest open problem: if everything is recomputed,
+nothing the system concludes can accumulate, so the cursor resets and refutations vanish. That followed
+only from collapsing the two dispositions. **Regular rules are what accumulate.** The cursor persists
+because a rule fired and applied; a refutation persists for the same reason. Pinned by
+`test_a_mutating_rule_persists_across_revives_and_a_computation_unit_does_not` and
+`test_search_state_survives_because_a_regular_rule_wrote_it`.
 
 ### Attention: think-harder as random restart
 

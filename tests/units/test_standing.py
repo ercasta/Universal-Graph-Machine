@@ -8,7 +8,7 @@ from __future__ import annotations
 from units.graph import EMPTY, Graph, Node, named, occurrence, role_edge
 from units.match import atom, role
 from units.standing import SURGE_AT, Cell, Network, StandingUnit, holds
-from units.unit import Emit
+from units.standing import Emit
 
 
 # -- fixtures ------------------------------------------------------------------------------------
