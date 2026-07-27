@@ -1,6 +1,6 @@
 # Revision 02 — the two planes
 
-**Status: design, 2026-07-27. §6 is BUILT and green — `units/overlay.py` + `units/turn.py`, 28 tests, 58 total.** The rest is
+**Status: design, 2026-07-27. §6 is BUILT and green — `units/overlay.py` + `units/turn.py`, 30 tests, 60 total; `standing.py`'s energy moved to the gate.** The rest is
 design. This revises `model.md` §6 substantially and amends `revision-01` in three places. `standing.py` still
 implements `revision-01` and carries the `Value.graph` + `merges` error §6 corrects; where the two disagree,
 the code is wrong.
@@ -344,13 +344,40 @@ signal rather than a deletion-shaped special case. Pinned by
 **One flip is normal** — a deletion landed and a downstream unit correctly lost its premise — so the threshold
 is on the *count*, and like θ it is a threshold you can be wrong about.
 
-⚠ **`revision-01` §4's energy cannot see this.** It grows when a value *returns to a unit it already passed
-through* — an AS-path on a wire. A self-deleting unit has **no wiring cycle**: its path is `[U]` and never
-revisits, because the feedback runs through the readable state instead. So this is a **second trigger with the
-same shape** (energy on a repeated event, local, surging, reported as a positive fact, corrected by a bundled
-rule), not an instance of the first. Whether the two are literally one mechanism — *energy grows on return*,
-whether a value returns to a unit or a gate returns to a presence-state — is worth trying and is not yet
-established.
+#### They are one mechanism: energy moves from the value to the gate
+
+`revision-01` §4's energy was an **AS-path riding on the value** — the list of every unit it had passed
+through, with energy as `path.count(unit)`. That was the answer to a question which only arises when energy
+*travels*: a scalar accumulated per hop cannot separate depth from cycling, so the whole history had to be
+carried.
+
+**Energy now lives at the gate**, as a count of how many times that gate's input *changed* within the run.
+`Value.path` is deleted. The discrimination survives intact, because it was never really about the value:
+
+| | gate energy |
+|---|---|
+| long acyclic chain (30 deep) | every gate is delivered **once**, so no input ever changes — **zero** energy, whatever the depth |
+| powered wiring cycle | one gate's input keeps changing — surges |
+| self-undermining deletion | one gate's input keeps flipping — surges, by the identical counter |
+
+So the two triggers were never two. The wiring cycle and the readable-state cycle are the same event seen at
+the same place, and a self-deleting unit's invisibility to the old detector was an artifact of energy being
+attached to a value that never went round a wire.
+
+**Two things this had to keep, both now pinned:**
+
+- **Count *changes*, not arrivals.** `model.md` §5 — *a repeat arrival is a firing* — so four wires from one
+  source fire the unit four times and that is legitimate, not a loop. Counting arrivals is the per-hop
+  mistake in new clothes; only counting changes avoids it.
+- **Count per *gate*, not per unit.** A unit with one input on a cycle and one on a stable axiom must burn
+  the cycling wire. Summing across the unit still surges but makes the quiet input an equally eligible
+  victim — `model.md` §8's *"energy on a wire says which chain was expensive"*, holding in the choice of
+  what to cut.
+
+**And naming the loop survives without the path.** `revision-01` §4 credited growth-on-revisit with naming
+the loop, where a decayed value could not. The loop was never in the value — it is in the topology, and it is
+recovered by **walking the wiring backwards**, the same walk `powering()` does. Provenance is the wiring
+(`revision-01` §1), so this is that principle paying for something it was not adopted for.
 
 What this buys structurally: **surge is the detector, fuel is the backstop** (`revision-01` §8's second
 finding), and the global state-repeat scan is deleted. Pinned by `test_there_is_no_global_quiescence_test`,
@@ -529,10 +556,12 @@ used. Invariant 4 needs the amendment stated in §8 below rather than a repeal.
   this spike.**
 - **Where does `under` come from?** In the spike it is declared. In the engine it is `Network.powering()`,
   walked backwards over the wiring — so the two halves of §3 have both been built and never yet joined.
-- **Are revisit-energy and flip-energy one mechanism or two?** Both are *energy grows on a repeated
-  event*, both are local, both surge. But one watches a value returning to a unit and the other a gate
-  returning to a presence-state, and they catch disjoint pathologies — a wiring cycle and a
-  readable-state cycle. Unifying them would be satisfying and may be forced; nothing yet says which.
+- ~~**Are revisit-energy and flip-energy one mechanism or two?**~~ ✅ **One.** Energy moved to the gate,
+  `Value.path` is deleted, and the same counter catches both (§6).
+- **Monotone-but-infinite is caught only by fuel.** A rule minting a fresh node every round grows forever
+  without any gate ever flipping, so no local detector sees it. That makes fuel the *sole* mechanism for a
+  real pathology rather than only a backstop for a misconfigured detector — worth stating explicitly,
+  because `revision-01` §8 justified fuel on the weaker ground.
 - **What should the bundled rule do about a surged gate?** Unwiring is the answer for a wiring cycle
   (§7). For a self-undermining unit it is less obvious — suppressing the *effect* may be better than
   unwiring the *premise*, and the engine must not choose.

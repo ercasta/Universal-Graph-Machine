@@ -33,7 +33,7 @@ from typing import Any
 from .graph import EMPTY, Graph, Node, role_edge
 from .match import Match, solve
 
-SURGE_AT = 3            # revisits of one unit before the loop is burned
+SURGE_AT = 3            # times one gate's input may CHANGE before the loop is burned
 
 
 # -- effects: everything a unit can conclude ----------------------------------------------------
@@ -141,23 +141,22 @@ class Merge:
 class Value:
     """What travels on a wire.
 
-    `path` is the list of units this value has passed through, and it is the whole of the cycle
-    machinery: energy is `path.count(unit)`, so it **grows only on revisit** and a long acyclic chain
-    accumulates nothing (`revision-01` §4). This is BGP's AS-path rather than IP's TTL, chosen for the
-    same reason — a hop counter cannot tell depth from looping.
+    ⚠ **`path` is gone** (`revision-02` §6). It used to carry the list of units this value had passed
+    through — BGP's AS-path — and energy was `path.count(unit)`, growing only on revisit. That was the
+    answer to a question which only arises when **energy travels with the value**: a scalar accumulated
+    per hop cannot separate depth from cycling, so the whole history had to be carried.
 
-    `band` is epistemic and **never** interacts with `path`. Energy is plumbing (§4, invariant 12)."""
+    Energy now lives **at the gate** instead, as a count of how many times that gate's input *changed*
+    (`StandingUnit.changes`). A long acyclic chain changes each gate exactly once; a cycle changes one
+    gate repeatedly. Same discrimination, no history, and nothing global — and the loop is recovered by
+    **walking the wiring backwards** rather than by reading it off the value, which is provenance being
+    the wiring rather than data carried around.
+
+    `band` is epistemic and never interacts with energy. Energy is plumbing (§4, invariant 12)."""
 
     graph: Graph
     band: str | None = None
-    path: tuple = ()
     merges: tuple = ()          # (keep, drop) pairs — mutations that are NOT local to a fragment
-
-    def through(self, unit: str) -> "Value":
-        return replace(self, path=self.path + (unit,))
-
-    def revisits(self, unit: str) -> int:
-        return self.path.count(unit)
 
 
 class Cell:
@@ -236,6 +235,9 @@ class StandingUnit:
         self.gates = tuple(gates)
         self.theta = theta
         self.latched: dict = {g: None for g in self.gates}
+        # Energy, held **at the gate**: how many times this gate's input has changed within the run.
+        # Local, no history, and the only thing the surge detector consults (`revision-02` §6).
+        self.changes: dict = {g: 0 for g in self.gates}
         self.cell = Cell(f"{name}:out", within=within)
         self.firings = 0
 
@@ -245,6 +247,7 @@ class StandingUnit:
         """A revive throws away *values*, never wiring. This is the whole of §3: no retraction, no
         invalidation, no in-lists — the conclusion is simply not reproduced if its support is gone."""
         self.latched = {g: None for g in self.gates}
+        self.changes = {g: 0 for g in self.gates}
         self.cell.held = None
         self.firings = 0
 
@@ -279,11 +282,7 @@ class StandingUnit:
 
         if not derived.nodes and not merges:
             return None
-        path = ()
-        for v in seen:
-            if len(v.path) > len(path):
-                path = v.path
-        out = Value(derived, band, path, tuple(merges)).through(self.name)
+        out = Value(derived, band, tuple(merges))
         self.cell.held = out
         return out
 
@@ -411,12 +410,15 @@ class Network:
                 key = (src.name, unit.name, gate)
                 if key in burned:
                     continue
-                revisits = value.revisits(unit.name)
-                if revisits >= SURGE_AT:
-                    loop = value.path[value.path.index(unit.name):]
-                    self.surges.append(Surge(unit.name, tuple(dict.fromkeys(loop)), key))
-                    burned.add(key)
-                    continue
+                # Energy at the gate: has this input CHANGED again? A first arrival is not a change,
+                # and a chain delivers once per gate, so depth costs nothing.
+                prior = unit.latched.get(gate)
+                if prior is not None and prior != value:
+                    unit.changes[gate] += 1
+                    if unit.changes[gate] >= SURGE_AT:
+                        self.surges.append(Surge(unit.name, self.loop_through(unit), key))
+                        burned.add(key)
+                        continue
                 out = unit.deliver(gate, value)
                 if out is not None:
                     queue.append((unit.cell, out))
@@ -517,6 +519,35 @@ class Network:
                 if owner is not None:
                     stack.append(owner)
         return scopes
+
+    def _owner_named(self, name: str):
+        return next(u for u in self.units if u.name == name)
+
+    def loop_through(self, unit: "StandingUnit") -> tuple:
+        """The cycle this unit sits on, read off the **wiring** by walking backwards.
+
+        `revision-01` §4 credited growth-on-revisit with *naming the loop*, where a decayed value could
+        not say whether it was deep or looping. Dropping the AS-path does not lose that: the loop was
+        never really in the value, it is in the topology, and provenance here is the wiring
+        (`revision-01` §1). This is the same backward walk `powering()` does."""
+        def back(u, seen):
+            for (src, dst, _g) in self.wires:
+                if dst is not u:
+                    continue
+                owner = self._owner(src)
+                if owner is None:
+                    continue
+                if owner is unit:
+                    return seen + [unit.name]
+                if owner.name in seen:
+                    continue
+                found = back(owner, seen + [owner.name])
+                if found:
+                    return found
+            return None
+
+        found = back(unit, [unit.name])
+        return tuple(dict.fromkeys(found)) if found else (unit.name,)
 
     def dangling(self) -> list:
         return [(u.name, g) for u in self.units for g in u.dangling()]

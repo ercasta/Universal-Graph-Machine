@@ -186,10 +186,71 @@ def test_a_long_acyclic_chain_neither_surges_nor_weakens():
     assert n.surges == [], "a chain deeper than the surge threshold must not trip it"
     assert prev.held is not None
     assert holds(prev.held.graph, f"step{depth}")
-    # The discrimination, made explicit: the chain is ten times deeper than the surge threshold, so a
-    # hop counter would have burned it at step 3. Nothing was revisited, so revisit-counting sees zero.
-    assert len(prev.held.path) == depth > SURGE_AT
-    assert max(prev.held.path.count(u) for u in set(prev.held.path)) == 1
+    # The discrimination, made explicit. The chain is ten times deeper than the surge threshold, so a
+    # hop counter would have burned it at step 3.
+    #
+    # ⚠ This assertion used to read the value's AS-path. Energy now lives **at the gate**
+    # (`revision-02` §6): every gate in the chain is delivered exactly once, so no gate's input ever
+    # *changes*, and depth costs literally nothing. That is the same discrimination the path bought,
+    # with no history carried and nothing global consulted.
+    assert depth > SURGE_AT
+    assert max(u.changes[g] for u in n.units for g in u.gates) == 0
+    assert not hasattr(prev.held, "path")
+
+
+def test_energy_is_per_gate_so_the_burn_lands_on_the_wire_that_cycles():
+    """Why the counter is on the **gate** and not on the unit.
+
+    `B` has two inputs: one on the cycle, one from a stable axiom. Summing energy across the unit would
+    still surge, but it could not say *which* input was the problem, so the burn would land on whichever
+    wire happened to be delivering. Per-gate localizes it — which is `model.md` §8's *"energy on a wire
+    says which chain was expensive"* holding one level down, in the choice of what to cut."""
+    g = EMPTY
+    g, _ = named(g, "ping")
+    g2, _ = named(EMPTY, "steady")
+    n = Network()
+    ax, quiet = n.axiom(g), n.axiom(g2)
+
+    a = n.add(StandingUnit("A", (atom("x", name="ping"),), Emit("pong", roles=(("of", "x"),))))
+    b = n.add(StandingUnit("B", (atom("x", name="pong"),), Emit("ping", roles=(("of", "x"),)),
+                           gates=("in", "aux")))
+    n.wire(a.cell, b, "in")
+    n.wire(b.cell, a)
+    n.wire(quiet, b, "aux")
+    n.wire(ax, a)
+    n.revive()
+
+    assert n.surges
+    assert b.changes["aux"] == 0                 # the stable input contributed no energy at all…
+    assert b.changes["in"] > 0                   # …every bit of it came from the cycling one
+    # …so the cut lands on a wire that cycles, and never on the quiet one. Summing across the unit
+    # would have made `aux` an equally eligible victim.
+    assert all(s.burned[2] != "aux" for s in n.surges)
+    assert all(n._owner_named(s.unit).changes[s.burned[2]] >= SURGE_AT for s in n.surges)
+
+
+def test_repeat_arrivals_of_the_same_value_are_not_energy():
+    """What separates gate energy from a delivery counter, now that the AS-path is gone.
+
+    `model.md` §5: *a repeat arrival is a firing* — the same value arriving twice fires the unit twice,
+    and that is legitimate, not a loop. Four wires from one source deliver four times and the unit fires
+    four times, but the input never **changes**, so no energy accumulates.
+
+    This is `revision-01` §4's *"no scalar accumulated per hop separates depth from cycling"* surviving
+    the move from the value to the gate: counting arrivals is the per-hop mistake in its new clothes,
+    and only counting *changes* avoids it."""
+    g = EMPTY
+    g, _ = named(g, "seed")
+    n = Network()
+    ax = n.axiom(g)
+    u = n.add(StandingUnit("u", (atom("x", name="seed"),), Emit("out", roles=(("of", "x"),))))
+    for _ in range(4):                       # fan-in: four wires, one source, one gate
+        n.wire(ax, u)
+    n.revive()
+
+    assert n.surges == [], "repeat arrivals are firings, not a cycle"
+    assert u.firings == 4
+    assert u.changes["in"] == 0
 
 
 def test_fuel_bounds_the_revive_independently_of_surge():
