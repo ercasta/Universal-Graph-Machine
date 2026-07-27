@@ -641,3 +641,64 @@ def test_a_join_fires_once_per_arrival_which_is_why_the_test_above_is_not_trivia
     join = n._unit_named("join")
     assert join.firings > 1
     assert join.dangling() == ()
+
+
+# -- 9. suppositions and acts ------------------------------------------------------------------------
+
+def test_a_mutating_rule_inside_a_supposition_does_not_act_on_the_world():
+    """⚠ **A leak, found 2026-07-27 while probing discharge.** `rev-02` §6 claims scoping comes free —
+    *"a deletion inside a supposition does not reach the base world, with no extra machinery."* That
+    holds for **overlays**, which are read under a configuration. Write-back has no configuration at
+    all, so it applied regardless: *"suppose it rains"* wired to a mutating rule really took the
+    umbrella.
+
+    Support is the filter on write-back exactly as it is on the read path."""
+    g, lion = named(EMPTY, "lion")
+    n = Network()
+    n.given(g)
+    h = n.supposing(EMPTY.with_node(lion, provoked=True), name="H")
+    act = n.add(StandingUnit("act", (atom("x", provoked=True),),
+                             Attribute("x", "umbrella_taken", True), mutating=True))
+    n.wire(h, act)
+    n.revive()
+
+    assert n.powering(act) == frozenset({"H"})
+    assert n.asserted.attr(lion, "umbrella_taken") is None      # the act did NOT happen
+    assert n.world().attr(lion, "umbrella_taken") is None
+
+
+def test_an_act_outside_every_supposition_still_lands():
+    """The control. The filter is support, not mutation — an unhypothesised act is unaffected."""
+    g, lion = named(EMPTY, "lion", provoked=True)
+    n = Network()
+    n.wire(n.given(g), n.add(StandingUnit("act", (atom("x", provoked=True),),
+                                          Attribute("x", "umbrella_taken", True), mutating=True)))
+    n.revive()
+    assert n.asserted.attr(lion, "umbrella_taken") is True
+
+
+def test_nothing_downstream_of_a_supposition_can_conclude_in_the_base_world():
+    """⭐ **Discharge is structurally impossible, and this is the measurement behind that claim.**
+
+    Natural deduction introduces `→` by *assume P, derive Q, **discharge** to P → Q* — and discharge is
+    exactly the step that must leave the hypothesis behind. `powering()` walks backwards over the
+    wiring, so support propagates forward through **every** wire: anything reachable from a supposition
+    is inside it, by construction. There is no wiring that gets a conclusion out.
+
+    So `forms_discourse` §4.4's *"SUPPOSE is the introduction rule for the conditional"* is not
+    buildable on this engine as it stands — the first two steps work and the third has no mechanism."""
+    g, lion = named(EMPTY, "lion")
+    n = Network()
+    n.given(g)
+    h = n.supposing(EMPTY.with_node(lion, provoked=True), name="H")
+    inner = n.add(StandingUnit("inner", (atom("x", provoked=True),),
+                               Attribute("x", "dangerous", True)))
+    n.wire(h, inner)
+    discharge = n.add(StandingUnit("discharge", (atom("x", dangerous=True),),
+                                   Attribute("x", "conditional_holds", True)))
+    n.wire(inner.cell, discharge)
+    n.revive()
+
+    assert n.powering(discharge) == frozenset({"H"})             # inherited, unavoidably
+    assert n.world().attr(lion, "conditional_holds") is None     # …so it cannot reach the base world
+    assert n.graph(frozenset({"H"})).attr(lion, "conditional_holds") is True

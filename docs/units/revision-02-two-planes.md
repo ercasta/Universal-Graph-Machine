@@ -291,6 +291,13 @@ lost and it reverts by the ordinary revive — while a **mutating rule**'s retra
 layer at write-back and is real. And a retraction is scoped by its support like any other overlay, so a
 deletion inside a supposition does not reach the base world, with no extra machinery.
 
+⚠ **That last sentence was false of write-back, and it was a live leak until 2026-07-27.** It holds for
+**overlays**, which are read under a configuration (§3). Write-back has no configuration at all — it applied
+every mutating rule's effects to the store regardless of what powered them, so *"suppose it rains"* wired to a
+mutating rule really took the umbrella. Fixed by filtering write-back on `powering()`, which is the same
+filter the read path already uses; found while probing whether `suppose` can discharge. Pinned by
+`test_a_mutating_rule_inside_a_supposition_does_not_act_on_the_world`.
+
 ### Deletion is the only effect that can undermine its own support
 
 Mint, edge, attribute and identify only ever *add*, so a unit can never subtract its own premise. A
@@ -715,6 +722,13 @@ That is the nearest this design gets to a semantics, and it is now a property ra
 - **Does a resolution stand or is it thrown away?** §4 says it is per-utterance and its product is asserted.
   Whether the *resolving units* stand afterwards is not settled, and it feeds the revive-cost question
   directly: an agent that resolves many references accumulates many units that will never fire usefully again.
+- ⭐ **Discharge has no mechanism, and it is structural.** `powering()` walks backwards over the wiring, so
+  support propagates forwards through every wire: anything reachable from a supposition is inside it, by
+  construction. Natural deduction's →-introduction is precisely the step that must leave the hypothesis
+  behind, so `forms_discourse` §4.4's *"suppose is the introduction rule for the conditional"* is not
+  buildable here. Either discharge becomes a declared, support-breaking unit — which costs the purity of
+  scope-as-backward-walk — or conditionals are simply **authored wirings** and supposition is for
+  hypothetical reasoning only. See `forms_cnl` §13.
 - **Revive cost**, unchanged from `revision-01` §10 and still the first thing to measure.
 - **Attention over machinery.** If wires are ordinary occurrences, they are in principle retrievable by
   System 1. Almost certainly undesirable by default, and the mechanism that prevents it is attention, not a

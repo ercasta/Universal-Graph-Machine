@@ -6,9 +6,9 @@ built. The findings it produces are pinned separately at the bottom.
 """
 import pytest
 
-from units.forms import (ASK, ASSERT, CANDIDATES, DEGREE, HEDGE, LANGUAGE, NEGATION, POSITIVE,
-                         PREDICATE, SEED, Attribute, Ctx, Form, claim_pattern, competes, excludes,
-                         frame, run, signal_audit, slots)
+from units.forms import (ASK, ASSERT, CANDIDATES, CONDITIONAL, DEGREE, HEDGE, LANGUAGE, NEGATION,
+                         POSITIVE, PREDICATE, SEED, UNMET, Attribute, Ctx, Form, claim_pattern,
+                         competes, excludes, frame, run, signal_audit, slots)
 from units.graph import Node
 from units.engine import StandingUnit
 from units.sieve import (BASELINE, INERT, LEAK, PASS, REFUSED, axis_appeals, axis_audit, baseline,
@@ -174,12 +174,14 @@ def test_a_commitment_cannot_be_stated_without_naming_other_slots():
 
 # -- 5. the candidate pool: each form is a hypothesis test on a documented decision ------------------
 
-def test_the_candidate_pool_measures_eight_slots_against_three_declared_axes():
-    """⭐ Enumerate **forms** and let the axes be measured. Fifteen forms drawn from the typological
-    pool `forms_discourse` §3.6 names give eight slots — and neither `content` nor `force` is one."""
+def test_the_candidate_pool_measures_nine_slots_against_three_declared_axes():
+    """⭐ Enumerate **forms** and let the axes be measured. Seventeen forms drawn from the typological
+    pool `forms_discourse` §3.6 names give nine slots — and neither `content` nor `force` is one.
+
+    The count moves every time a form is added, which is the point: it is an **output**."""
     audit = axis_audit(CANDIDATES)
     assert audit["n_declared"] == 3
-    assert audit["n_measured"] == 8
+    assert audit["n_measured"] == 9
     assert set(audit["axes_split_by_evidence"]) == {"content", "force"}
 
 
@@ -240,3 +242,49 @@ def test_a_form_whose_conclusion_is_untracked_looks_identical_to_every_other_one
         _c, _v, sig = baseline(f, guarded=False, inventory=CANDIDATES)
         assert sig is not None, f"{f.name} refused in its own frame"
     assert {"normative", "permitted", "held_then", "sourced", "surprising"} <= set(CONCLUSIONS)
+
+
+# -- 6. conditionality: the first form that is not a decoration -------------------------------------
+
+def test_a_conditional_needs_a_second_claim_not_a_field():
+    """⭐ Every form before this writes a **field** on one claim — a polarity, a band, a force, a level.
+    A conditional relates the claim to **another claim**, through the `when:` role. It is the first
+    tier-2 role anything here has used, and the first form the "decorate a claim" shape does not fit."""
+    ctx, view, _net = run(frame((CONDITIONAL,), CANDIDATES), guarded=False)
+    assert ctx.antecedent is not None
+    assert ctx.antecedent is not ctx.claim
+
+
+def test_modus_ponens_is_the_unit_firing():
+    """→-elimination needs no mechanism of its own. The pattern reaches the antecedent through `when:`
+    and requires it satisfied, so the unit simply does not fire when it is not — which **is** the rule."""
+    ctx, view, _net = run(frame((CONDITIONAL,), CANDIDATES), guarded=True)
+    assert view.attr(ctx.claim, "conditional_read") is True
+    assert view.attr(ctx.subject, PREDICATE) is True
+
+
+def test_an_unsatisfied_antecedent_still_detaches_its_consequent():
+    """The leak a per-form check cannot see: the conditional's own elimination is impeccable — it
+    consults the antecedent — and a **different** form's elimination detaches the consequent anyway."""
+    v = probe((UNMET,), inventory=CANDIDATES)
+    assert v.outcome == LEAK and "detached" in v.detail
+
+
+def test_guarding_against_the_three_declared_axes_does_not_cover_the_conditional():
+    """⭐ **The O(n²) claim, sharpened.** The guarded eliminations consult polarity, force and level —
+    every slot that existed when they were written. Adding one form adds a **fourth** thing each of them
+    must consult, and until they do, the leak survives guarding untouched.
+
+    A guard is not written once per form. It is rewritten every time the inventory grows."""
+    ctx, view, _net = run(frame((UNMET,), CANDIDATES), guarded=True)
+    assert view.attr(ctx.subject, PREDICATE) is True           # …still detached, guards and all
+    assert probe((UNMET,), guarded=True, inventory=CANDIDATES).outcome == LEAK
+
+
+def test_the_conditional_shares_a_slot_with_its_unmet_twin_and_nothing_else():
+    """`conditional` and `unmet` are one form at two values of the antecedent, so they are one slot —
+    and it is a slot no declared axis contains."""
+    groups = slots(CANDIDATES)
+    cond = next(sorted(m.name for m in v) for v in groups.values()
+                if any(m.name == "conditional" for m in v))
+    assert cond == ["conditional", "unmet"]

@@ -64,12 +64,16 @@ STRENGTH = "strength"
 # its output across runs compares nothing. It also confines the comparison to what was *derived* —
 # base decorations differ between a composite and its parts by construction, and folding them in makes
 # every composite look like it gained something.
+ANTECEDENT = "provoked"          # the antecedent's predicate — opaque, like PREDICATE
+WHEN = "when"                    # tier 2 (`forms_cnl` §6): the conditional's carrier
+
 CONCLUSIONS = (PREDICATE, f"not_{PREDICATE}", "raised", "mentions",
                # …and every candidate form's marker. ⚠ A form whose conclusion is missing from this
                # list has an **invisible state change**, and `P3` makes the state change the identity of
                # the form — so it then appears identical to every other invisible form and the
                # factorization sieve reports that everything is everything. Found exactly that way.
-               "normative", "permitted", "held_then", "sourced", "surprising", "demanded")
+               "normative", "permitted", "held_then", "sourced", "surprising", "demanded",
+               "conditional_read")
 
 
 @dataclass
@@ -85,6 +89,8 @@ class Ctx:
     guarded: bool = False
     decor: dict = field(default_factory=dict)
     refusal: str | None = None
+    antecedent: Node | None = None      # the `when:` claim, if a conditional built one
+    antecedent_holds: bool = False      # …and whether the world satisfies it
 
     def set(self, key: str, value: Any) -> bool:
         """Decorate the claim. **Refuses** rather than overwrites — two forms wanting one slot at
@@ -421,8 +427,86 @@ MIRATIVE = Form(
 )
 
 
+# -- CONDITIONALITY ------------------------------------------------------------------------------
+#
+# ⚠ **The first candidate that is not a decoration on the claim**, and that is the point of adding it.
+# Every form above writes a *field*: a polarity, a band, a force, a level. A conditional relates the
+# claim to **another claim**, so it needs a second occurrence and a `when:` role — tier 2 of
+# `forms_cnl` §6, and the first tier-2 role anything here has used.
+#
+# It is added as a form so the sieve can measure it. What the sieve **cannot** hold is the other half:
+# on this engine a conditional is properly a **standing unit**, and a unit is not a claim decoration.
+# See `test_sieve.py` and `forms_cnl` §13.
+
+
+def add_antecedent(ctx: Ctx, holds: bool) -> bool:
+    """Give the claim a `when:` antecedent, and optionally make the world satisfy it."""
+    if ctx.antecedent is not None:
+        return True
+    ante = Node("antecedent")
+    g = ctx.graph.with_node(ante, name="antecedent", predicate=ANTECEDENT)
+    if holds:
+        g = g.with_node(ante, satisfied=True)
+    ctx.graph = role_edge(g, ctx.claim, WHEN, ante)
+    ctx.antecedent = ante
+    ctx.antecedent_holds = holds
+    ctx.decor[WHEN] = ANTECEDENT
+    return True
+
+
+def _conditional_elim(ctx: Ctx) -> StandingUnit:
+    """**Modus ponens**: from *if P then Q* together with *P*, conclude *Q*.
+
+    The pattern reaches the antecedent through the `when:` role and requires it `satisfied` — so the
+    unit simply does not fire when the antecedent is unmet, which is the whole of →-elimination.
+
+    ⚠ Naively it does not consult polarity, force or level, exactly like the others."""
+    ante = atom("a", predicate=ANTECEDENT, satisfied=True)
+    attrs = {} if not ctx.guarded else {"polarity": "pos", "force": "assert", "level": "world"}
+    pat = (atom("c", out=(role(ABOUT, atom("s")), role(WHEN, ante)),
+                predicate=PREDICATE, **attrs),)
+    return StandingUnit("elim:conditional", pat, Attribute("s", PREDICATE, True),
+                        Attribute("c", "conditional_read", True))
+
+
+def _conditional_forbids(ctx: Ctx, v: View) -> str | None:
+    """⭐ **Harmony for →, and it is the only commitment here with real teeth.** *If P then Q* commits
+    you to Q **when P**, and to nothing whatever when P is unknown. Detaching the consequent from an
+    unsatisfied antecedent is the classic leak, and it is a leak no per-form check catches — the form
+    looks fine in isolation."""
+    if ctx.antecedent is None or ctx.antecedent_holds:
+        return None
+    if _reads_true(v, ctx):
+        return "consequent detached from an unsatisfied antecedent"
+    return None
+
+
+CONDITIONAL = Form(
+    "conditional", "content",
+    introduce=lambda ctx: add_antecedent(ctx, holds=True),
+    eliminate=_conditional_elim,
+    commits=lambda ctx, v: (None if not _plain_frame(ctx) or _reads_true(v, ctx)
+                            else "antecedent satisfied, but the consequent was not concluded"),
+    forbids=_conditional_forbids,
+    appeals=("force", "level", "polarity"),
+    note="⚠ NOT a decoration: it relates the claim to another claim through `when:`. The first tier-2 "
+         "role used here, and the first form whose real home is a UNIT rather than a field.",
+)
+
+UNMET = Form(
+    "unmet", "content",
+    introduce=lambda ctx: add_antecedent(ctx, holds=False),
+    eliminate=_conditional_elim,
+    commits=lambda ctx, v: None,
+    forbids=_conditional_forbids,
+    note="the same conditional with its antecedent UNSATISFIED — the control that makes the "
+         "detachment leak visible. It shares `conditional`'s slot by construction.",
+)
+
+
 SEED = (POSITIVE, NEGATION, DEGREE, ASSERT, ASK, WORLD, LANGUAGE)
-CANDIDATES = SEED + (DENY, HEDGE, NORM, MODALITY, COMMAND, PAST, EVIDENTIAL, MIRATIVE)
+CANDIDATES = SEED + (DENY, HEDGE, NORM, MODALITY, COMMAND, PAST, EVIDENTIAL, MIRATIVE,
+                     CONDITIONAL, UNMET)
 
 BY_AXIS = {"content": (POSITIVE, NEGATION, DEGREE),
            "force": (ASSERT, ASK),
@@ -611,4 +695,5 @@ __all__ = ["Ctx", "Form", "SEED", "BY_AXIS", "DEFAULTS", "CONCLUSIONS", "PREDICA
            "slots", "slot_of",
            "PAIR_ENTRIES", "pair_entries", "negated_degree_elim", "CANDIDATES",
            "DENY", "HEDGE", "NORM", "MODALITY", "COMMAND", "PAST", "EVIDENTIAL", "MIRATIVE",
+           "CONDITIONAL", "UNMET", "ANTECEDENT", "WHEN", "add_antecedent",
            "POSITIVE", "NEGATION", "DEGREE", "ASSERT", "ASK", "WORLD", "LANGUAGE"]

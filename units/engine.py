@@ -508,7 +508,15 @@ class Network:
             return ()
         applied: list = []
         for u in self.units:
-            if u.mutating and u.cell.held is not None:
+            # ⚠ **A rule inside a supposition has not acted.** `rev-02` §6 argued scoping is free —
+            # *"a deletion inside a supposition does not reach the base world, with no extra
+            # machinery"* — and that is true of **overlays**, which are read under a configuration. It
+            # was never true of write-back, which applies to the store with no configuration at all. So
+            # *"suppose it rains"* wired to a mutating rule really took the umbrella.
+            #
+            # Support is the filter, exactly as it is on the read path (§3). Measured 2026-07-27 while
+            # probing whether `suppose` can discharge; this was the other half of that probe.
+            if u.mutating and u.cell.held is not None and not self.powering(u):
                 applied.extend(u.cell.held.effects)
         merges = [e for e in applied if isinstance(e, Identify)]
         for e in [x for x in applied if not isinstance(x, Identify)] + merges:

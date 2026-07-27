@@ -525,3 +525,73 @@ and *factorization* results do not depend on that.
 vocabulary had no measurable state change, so by `P3` it was identical to every other invisible form —
 and the factorization sieve duly reported that everything factors into everything. It fails silently and
 plausibly; pinned by a test.
+
+
+---
+
+## 13. Conditionality — and §4.4's falsification criterion firing
+
+**2026-07-27, 86 tests.** Taken next because `forms_discourse` §4.4 makes an explicitly falsifiable
+claim about it — *"if they are one form, the same units serve both. If the build needs two mechanisms,
+the form was factored wrong"* — and because a conditional is what interpretation rules must produce
+first.
+
+### 1 · It is the first form that is not a decoration
+
+Every form before it writes a **field** on one claim: a polarity, a band, a force, a level. A
+conditional relates the claim to **another claim**, through `when:` — the first tier-2 role anything
+here has used. The "decorate a claim" shape that carried seventeen forms does not carry this one.
+
+> **The closed class has members of at least two sorts.** Fields on a claim, and relations between
+> claims. Nothing in the entry format distinguishes them, and `axis` cannot: both are filed `content`.
+
+### 2 · →-elimination needs no mechanism: it is the unit firing
+
+Modus ponens came free. The pattern reaches the antecedent through `when:` and requires it satisfied, so
+the unit **does not fire** when the antecedent is unmet — and that is the whole of →-elimination, with
+no rule of inference anywhere. This is the strongest confirmation the engine has produced of anything.
+
+### 3 · ⭐ But the introduction half is not buildable, and the criterion has fired
+
+§4.4 says *supposition is the introduction rule for the conditional* — assume P, derive Q, **discharge**
+to P → Q. The first two steps are built (`rev-02` §3). The third has no mechanism, and the reason is
+structural rather than missing work:
+
+> `powering()` walks **backwards** over the wiring, so support propagates **forwards** through every
+> wire. Anything reachable from a supposition is inside it, by construction. **Discharge is exactly the
+> step that must leave the hypothesis behind, and there is no wiring that does.**
+
+So the conditional needs **two mechanisms**: a supposition cell for the hypothetical, and a standing
+unit for the conditional itself. By §4.4's own test, the form was factored wrong — and the specific
+error is identifiable. Natural deduction *derives* P → Q as a theorem; this engine has no
+theorem-derivation step. **A conditional here is a wiring, and wiring is authored** (invariant 4).
+Supposition and conditional share a *shape* — both bind a hypothesis to consequences — and not a
+mechanism.
+
+⚠ That does not make supposition useless or §4.4 worthless; it locates what supposition is *for* on this
+engine (hypothetical reasoning under a configuration) and what it is *not* (a way to manufacture
+conditionals).
+
+### 4 · The detachment leak, which no per-form check can see
+
+*If provoked, the lion is dangerous* — with the antecedent **unsatisfied** — still concludes that the
+lion is dangerous. And the conditional's own elimination is impeccable: it consults the antecedent and
+correctly declines to fire. **A different form's elimination detaches the consequent**, because a
+conditional claim carries `polarity: pos` like any other and the positive elimination reads it flat.
+
+> A form can be locally harmonious and still be destroyed by a neighbour that never heard of it. That is
+> what `P8`'s local check cannot reach, stated on the form the documents care most about.
+
+### 5 · ⭐ And guards do not survive the inventory growing
+
+The guarded eliminations consult polarity, force and level — every slot that existed when they were
+written. Adding **one** form adds a fourth thing each of them must consult, and until they do, the leak
+survives guarding untouched.
+
+> **A guard is not written once per form. It is rewritten every time the inventory grows.**
+
+Measured directly: guarding the conditional's *own* elimination changes no outcome at all, because the
+leak is in somebody else's. The n² is not a worst case — it is the ordinary case.
+
+Slot count is now **nine measured against three declared**, and it moves every time a form is added,
+which is what it means for the axes to be an output.
