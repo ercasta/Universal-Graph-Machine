@@ -4,6 +4,10 @@
 different model — see *What this replaces* at the end. This document is the target; where it disagrees with the
 code, the code is wrong.
 
+> ⚠ **Revised 2026-07-27 by `revision-01-standing-circuits.md`.** Circuits **stand** rather than being thrown
+> away; values are re-established from the axioms at the start of each turn. Sections revised below are marked
+> **[R1]**. Where this document and the revision disagree, the revision wins.
+
 **What this document is.** The computation model, derived from first principles, with worked examples. It is
 organised so that each section only depends on the ones before it. Read it in order; the mechanisms in §5
 cannot be understood without §4, and §4 cannot be understood without §3.
@@ -12,18 +16,31 @@ cannot be understood without §4, and §4 cannot be understood without §3.
 
 ## 1. The claim
 
-The system holds a **graph of data that persists**, and computes over it by **assembling a transient circuit**.
+The system holds a **graph of data that persists**, and computes over it by **assembling a circuit**.
 
-> Data is the substrate. Computation is scaffolding built over it, used, and thrown away.
+> Data is the substrate. Computation is scaffolding built over it — and the scaffolding **stays**.
 >
 > Persistent data is itself the **digital twin** of something outside the system — a real Paul, a real
 > codebase, a real invoice. Being stale or wrong is a normal condition, not a fault.
+
+**[R1]** The circuit is not thrown away. What is thrown away each turn are the **values in it**: a turn begins
+by firing from the **axioms** — the facts with no predecessors — and letting the circuit stabilize. So a
+materialized fact is *recomputed*, never *maintained*, and it exists for exactly as long as its unit is
+powered. Change a premise and the conclusion is not retracted; it simply is not produced next time. This is
+what makes provenance free — the wiring **is** the derivation — and it is why no retraction apparatus is
+needed. See `revision-01-standing-circuits.md` §§1, 3.
 
 Two things follow immediately, and they shape everything else.
 
 **Nothing happens unbidden.** An external event — an utterance, a schedule firing, a tool result — starts a
 turn. A goal fires. Firing is what causes units to be created and wired. Absent a goal, the system is silent.
 There is no drive toward closure, no completion of the derivable, nothing that runs because it *could*.
+
+**[R1]** Sharpened, because the revive fires with no goal asking:
+
+> **No *reasoning* happens unbidden. Re-establishing conclusions already drawn is maintenance, not reasoning.**
+
+That line is what keeps maintenance from growing back into an evaluator.
 
 **Reasoning has two loops, and they are System 1 and System 2** (§7). An associative outer loop retrieves the
 rules that *come to mind* given the data and the goal; a deliberate inner loop applies them exactly. The outer
@@ -42,6 +59,13 @@ and output falls out the far end. Closer to ETL, or to logic gates, than to acto
 
 **It is not a fixpoint engine.** There is no work-list running to quiescence, no "output unchanged" termination
 test, and no requirement that the network be acyclic. A cycle is fine and iterates.
+
+**[R1] — half revised.** The revive *is* a run to stabilization, so the first clause no longer holds as
+written. What survives, and is stronger than the original claim, is that **stabilization is bounded by
+construction**: a value's energy grows on **revisit**, and crossing the threshold is a **surge** that burns an
+element of the loop and reports it. So termination has an argument rather than an assertion — which matters,
+since the spike found `band.py`'s termination argument was void. Acyclicity is still not required. What is
+still refused is a *global* quiescence test: nothing compares outputs to decide the network is done.
 
 ---
 
@@ -112,6 +136,13 @@ Three consequences:
 - **Cheap exact negation is gone.** *"P is absent"* becomes *"nothing matched P above θ"* — a threshold, and a
   threshold you can be wrong about. There is no free set-membership test any more. This is a correction, not a
   loss: the bird case *needs* it.
+
+**[R1] Energy is not a band, and θ never sees it.** A value carries an energy for cycle detection (§2, and
+`revision-01` §4). It is plumbing with no epistemic content — the sibling of §11's *"IDs are plumbing"* — and
+it must never be consulted by the θ test, or a still-supported conclusion will read as *absent* and fire
+negation-dependent rules on a purely mechanical artifact. This is also why energy **grows** rather than decays:
+growth pushes away from θ. Deduction is not lossy — a certain premise through a certain rule yields a certain
+conclusion, at any depth.
 - **Identifying a role means matching a role name explicitly.** A rule about destinations matches
   `name = "destination"` on the role node. Every such rule says so. The front end (§9) generates the
   boilerplate; the engine grants no shortcut.
@@ -122,6 +153,15 @@ Three consequences:
 
 A **unit** holds a pattern and a transformation. It has **input gates** and one **output**. It sees only what
 its gates deliver — there is no ambient store to read, so isolation costs nothing and forbids nothing.
+
+**[R1] Units stand across turns, and a partially wired unit is a stable state.** An unconnected gate is not an
+error and not an unfinished assembly step: the unit holds, does not fire, and produces nothing. That empty gate
+does three jobs at once — it asks (§9's miss), it holds attention (§7), and it is a standing trigger, since a
+condition that has not occurred is exactly a gate that has not been filled.
+
+**[R1] A unit's output is either applied or held.** **Mutating** units fire and change asserted data at
+write-back, and that is the end of them; **materializing** units stand, and their output is part of the graph
+for as long as they are powered. The disposition is structural, so the CNL must mark it.
 
 **Gates latch.** A gate retains the last value that arrived on it. When something new arrives on any gate, the
 unit fires using the latched values of the others. It does not block waiting for the rest.
@@ -272,11 +312,25 @@ rather than a shrug — *"I only considered what I was attending to"* is a stata
 `starved` fact. Attention is data, so a rule can conclude *attend to X*, and a retrieval hint is just an act of
 attention.
 
+**[R1] Attention binds dangling gates**, and this derives the first of the two requirements below rather than
+stipulating it. A pending goal *is* an unsatisfied satisfaction condition, which is a dangling gate, which
+holds attention — so goal-pinning stops being a special case. Four things become one shape: an unwired premise,
+a pending tool call, a starved gate emitting a miss, and a pinned goal. System 1's job widens to proposing
+**wirings** as well as rules, which needs no amendment — invariant 4 already reserves that slot.
+
+Read from the other end, the same structure is a **standing watch**: *"tell me when the price drops"* and
+*"watch out not to do this while you proceed"* are units wired to a condition that has not occurred. So a
+prohibition is not implemented by testing that something is absent — a test that is now a fallible threshold —
+but by **waiting for it to be present**. Negative constraint, positive trigger, same move §8 makes for
+outcomes. See `revision-01` §5.
+
 **Two hard requirements, not tuning parameters.**
 
 **A pending goal must stay attended.** Because the loop is tight (below), a goal is re-retrieved dozens of times
 before it is satisfied — pinned, or refreshed by its own pendency. Uniform decay turns the tight loop's
-advantage (relevance tracks the state) into its failure mode (relevance drifts off the purpose).
+advantage (relevance tracks the state) into its failure mode (relevance drifts off the purpose). **[R1]** And
+decay now has a second constraint: it must not drop a standing prohibition, so it consults attention-holding
+facts rather than age alone.
 
 **Linguistic competence must be attended even when nothing is.** At the start of a turn attention holds almost
 nothing: a transcribed utterance and a fresh goal (§9). System 1 has to surface the interpretation rules out of
@@ -353,6 +407,11 @@ Each is a **positive fact**:
 | `starved` | nothing came to mind, or nothing matched | *not* "underivable" — see §7 |
 | `out_of_fuel` | the inner budget was exhausted | a handler unit can be wired to it |
 | `awaiting` | a value must come from outside | suspend (§9) |
+| `surged` **[R1]** | a powered cycle crossed the energy threshold | the loop was burned; the fact names it |
+
+**[R1] Energy is fuel, localized.** A global counter says the step was expensive; energy on a wire says *which
+chain* was, and exhaustion attaches to the specific conclusion that ran out rather than to the whole step —
+which is this section's own discipline extended one level down. This also answers §13's *"what a step costs."*
 
 **An outcome attaches to a goal, never to a step.** A tight step may advance several pending goals, so each
 gets its own outcome fact.
@@ -473,7 +532,14 @@ arriving between turns instead of within one.
 
 ### Write-back
 
-Conclusions **and derivations** are written back — and so are **deletions**. A unit may conclude that something
+**[R1] Derivations are no longer written back — the wiring *is* the derivation.** A standing unit is attached to
+what produced its output, so *"why do you believe this"* is a walk rather than a lookup, and provenance costs
+nothing beyond the circuit that computed it. This retires the accretion the spike found (conclusions growing
+superlinearly across steps, because each step wrote its conclusions *and* their derivations as new data).
+**Write-back happens after stabilization, never during** — the circuit transiently holds wrong values while a
+revive propagates.
+
+Conclusions are written back — and so are **deletions**. A unit may conclude that something
 should be removed; that conclusion is an ordinary value that travels to the boundary and is applied there. Two
 consequences worth having explicit:
 
@@ -689,6 +755,17 @@ Each is the kind of thing that is obviously right on paper and quietly wrong in 
    (§7). The test is that work can *continue*, never that it replays identically.
 9. **Only end markers are attachable.** No wire terminates inside a sealed span.
 10. `units/` imports nothing from `ugm/`.
+11. **[R1] Changing an axiom makes everything derived from it absent on the next revive, with nothing
+    retracted.** The central claim of `revision-01`. If any retraction, cascade-delete or invalidation code
+    appears, the design has regressed to maintenance.
+12. **[R1] Energy never reaches the θ test.** A conclusion's readability as present or absent must be
+    independent of how far it travelled or how many times it was revisited.
+13. **[R1] A long acyclic chain neither surges nor weakens.** The test that distinguishes revisit-counting
+    from hop-counting; hop-counting passes 11 and 12 and fails this one.
+14. **[R1] A partially wired unit is stable** — it holds, produces nothing, raises no error, and is not
+    garbage.
+15. **[R1] The graph state is a pure function of (axioms, wiring).** No hidden accumulation survives a
+    revive. This is the machine-checkable form of "recomputed, never maintained."
 
 ---
 
@@ -700,8 +777,8 @@ Genuinely undecided, not oversights.
   guarantee (§7). Still open in *choice* — subgraph similarity, activation spreading from the goal's nodes, or
   something learned. And whether the similarity function is authored data like every other similarity
   judgement, or the one thing the engine fixes.
-- **What a step costs.** Fuel bounds a circuit's run, but the unit of account is undecided: unit firings,
-  values produced, or something else.
+- ~~**What a step costs.**~~ ✅ **[R1] Answered** — energy, carried on the wire rather than counted globally,
+  so exhaustion localizes to the chain that caused it (§8).
 - **The CNL surface itself.** ✅ **Answered in `docs/units/cnl.md`** (2026-07-26). The surface is a
   linearisation of the graph; statements are delimited by brackets whose label names the *end marker*, so the
   seal is enforced by the namespace; nesting is literal containment; there is no rule syntax and no force
@@ -717,26 +794,36 @@ Genuinely undecided, not oversights.
   confirming itself, and attention narrowing onto its own output is a failure mode with a human analogue.
   Decay, deliberate diversity in recall, or something else — undecided. This is the unresolved half of the
   `ugm` auto-fire finding (§7).
-- **Retention, and the growth of the twin.** The circuit is discarded each step, so there is nothing to collect
-  there — but the graph grows monotonically, since every step writes conclusions *and* derivations. Attention
-  does not answer this: it governs what you *look at*, not what you *keep*. An agent that must explain itself
-  next week cannot discard provenance; one that runs for a year cannot keep all of it. `ugm`'s
-  focus-reachability GC does not transfer.
+- **Retention — [R1] reshaped, not closed.** The old form of this question is gone: derivations are no longer
+  written back (the wiring is the derivation), and materialized facts are recomputed rather than accumulated,
+  so the graph no longer grows monotonically with every conclusion. What replaces it is **revive cost**: the
+  standing circuit grows as units accumulate, and every turn is O(circuit). Incremental revive — firing only
+  from axioms that changed — is available as a pure optimisation and deliberately not taken, because it
+  reintroduces exactly the invalidation bookkeeping `revision-01` §3 deletes. Measure first. A second form:
+  **accumulated dangling gates leak attention** (§7), constrained by the fact that some are deliberately
+  standing prohibitions and must not be reaped by age.
 - **Whether in-circuit cycles are needed at all.** See §5. If the tight outer loop supplies all iteration that
   requires new data, the only cycles left inside walk a fixed structure to a known end — and latching stops
-  being load-bearing.
+  being load-bearing. **[R1]** Still open, and now interacts with latched cycles after ungrounding: nothing
+  latches *across* a revive, but within one stabilization run a cycle that loses its external input could be
+  sustained by latched values until it surges.
+- **[R1] Does a burn persist, or is it redone each revive?** Transient burn plus a persistent `surged` fact is
+  the recommendation on record, so engine policy never makes a durable edit the author did not authorize. Not
+  decided.
+- **[R1] Does attention bound gate-matching** the way it bounds rule recall? A dangling gate wanting *a man* is
+  a standing query against the twin, and the population of such gates now contributes to outer-loop work
+  independently of the goal. This is where the cost of dissolving the anchoring problem actually landed.
 - **Role node sharing.** Role nodes are per-occurrence and match by declared name-equality. Is that equality
   rule loaded once as ordinary KB data, or restated per rule? The first risks becoming a de-facto vocabulary
   through the back door.
 - **The outer budget's shape.** Steps, wall clock, or something the goal itself carries.
-- **Should rules be attached to nodes?** ⚠ **See `docs/units/attachment.md`** — raised 2026-07-26 and
-  possibly more faithful to §1 than what is built. Rules grafted onto the data where they apply, firing
-  and **dissolving** in place, would collapse four separate mechanisms (per-context instantiation, the
-  visibility projection, the scope pointer, and the cooldown table) into one. Blocked on multi-premise
-  anchoring: *which* node does a two-premise rule attach to? That doc carries the acceptance harness any
-  replacement must meet.
-- **Homoiconicity.** Deliberately deferred. The computation network may itself be a graph (hyperedge with begin
-  and end marker nodes), which makes it tempting; not yet.
+- ~~**Homoiconicity.** Deliberately deferred.~~ ✅ **[R1] No longer optional — it is a precondition.** §1's
+  claim that data is the substrate survives only if standing units are themselves graph data; otherwise there
+  are two substrates, a graph and a live circuit beside it, and the claim is false. The shape sketched here
+  (hyperedge with begin and end marker nodes) is the one to build.
+- ~~**Should rules be attached to nodes?**~~ ✅ **[R1] Closed** — yes, and they **stand** rather than
+  dissolving. `attachment.md` is deleted and folded into `revision-01` §7. Its blocking problem,
+  multi-premise anchoring, is dissolved by partial wiring rather than solved.
 
 ---
 
@@ -804,14 +891,15 @@ treated as current:
 
 | decision | status |
 |---|---|
-| `0001` computation units are the substrate | **reversed** — data is the substrate (§1) |
+| `0001` computation units are the substrate | **reversed** — data is the substrate (§1). **[R1]** partly rehabilitated: units persist and are themselves data, but they are *over* the data, not it |
 | `0002` one unit class, taxonomy from in-degree | dropped — no `kind` (§3) |
-| `0004` functional semantics, the cache makes the fixpoint work | **dead** — no fixpoint; latching makes units stateful (§5) |
+| `0004` functional semantics, the cache makes the fixpoint work | **dead** — latching makes units stateful (§5). **[R1]** the *fixpoint* half returns: a revive runs to stabilization, bounded by surge (§2). The *cache* half stays dead — nothing is cached, everything is recomputed |
 | `0006` comparability, `0038` only a carrier forks a world | replaced by physical nesting (§6) |
 | `0007` scope is a chain never a key | **half** — a chain, yes, but it needs explicit markers (§6) |
 | `0009` frontier-first wiring | replaced by end-marker attachment (§6) |
 | `0011` two negations, one is cheap | dead — graded matching removes the cheap one (§4) |
-| `0012`, `0013` provenance on its own wire, stratified | replaced by provenance as ordinary data (§9) |
+| `0012`, `0013` provenance on its own wire, stratified | replaced by provenance as ordinary data (§9). **[R1]** superseded again — provenance is neither a wire nor data, it is **the wiring** |
+| `0019` revision is recomputing forward, the retraction apparatus dissolves | **[R1] vindicated and strengthened** — listed below as surviving, and revive-from-axioms is what makes it literally true |
 | `0017`, `0026` roles/lexemes belong to the form set | **half** — roles are nodes, yes; the shared vocabulary is deleted (§3) |
 | `0030` an exhausted budget is `UNKNOWN` | replaced by fuel-as-a-fact (§8) |
 | `0040`, `0041` roles positional, calls positional | replaced by role nodes (§3) |
