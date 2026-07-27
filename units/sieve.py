@@ -57,7 +57,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import combinations
 
-from .forms import (BY_AXIS, DEFAULTS, SEED, Form, excludes, frame, run, signature, slots)
+from .forms import (BY_AXIS, CANDIDATES, DEFAULTS, SEED, Form, excludes, frame, run, signal_audit,
+                    signature, slots)
 
 PASS, INERT, REFUSED, LEAK, BROKEN = "PASS", "INERT", "REFUSED", "LEAK", "BROKEN"
 BASELINE = "BASELINE"     # one form in the default frame: it IS its own control, so it grades nothing
@@ -83,25 +84,42 @@ class Verdict:
         return f"{self.outcome:8} {self.names}{tail}"
 
 
-def _state(forms: tuple, guarded: bool, composed: bool = False) -> tuple:
-    """Run a framed cell: `(ctx, violations, concluded)`. `violations is None` marks a refusal."""
-    cell = frame(forms)
+_CACHE: dict = {}
+
+
+def _state(forms: tuple, guarded: bool, composed: bool = False,
+           inventory: tuple = SEED) -> tuple:
+    """Run a framed cell: `(ctx, violations, concluded)`. `violations is None` marks a refusal.
+
+    ⚠ `inventory` is not decoration. `frame()` fills slots, and which slot a form occupies is measured
+    **against an inventory** — so framing a candidate form against the seed puts it in a slot of its
+    own and bolts on a competing default, and the cell refuses for no reason but the caller's default
+    argument. Every audit below threads it."""
+    key = (tuple(f.name for f in forms), guarded, composed,
+           tuple(f.name for f in inventory))
+    if key in _CACHE:
+        return _CACHE[key]
+
+    cell = frame(forms, inventory)
     ctx, view, _net = run(cell, guarded, composed)
     if view is None:
-        return ctx, None, None
+        return _CACHE.setdefault(key, (ctx, None, None))
     leaks = tuple((f.name, msg) for f in cell
                   if (msg := f.forbids(ctx, view)) is not None)
     silences = tuple((f.name, msg) for f in cell
                      if (msg := f.commits(ctx, view)) is not None)
-    return ctx, (leaks, silences), signature(ctx, view)
+    # A run is a pure function of (cell, guarded, composed) — the engine's own invariant 15 — so this
+    # caches a result rather than a coincidence. It holds only within a process.
+    return _CACHE.setdefault(key, (ctx, (leaks, silences), signature(ctx, view)))
 
 
-def baseline(f: Form, guarded: bool, composed: bool = False) -> tuple:
+def baseline(f: Form, guarded: bool, composed: bool = False,
+             inventory: tuple = SEED) -> tuple:
     """A form **on its own terms**: itself, in the default frame.
 
     Not the bare form — `frame()` fixes the axes it does not fill, because an unmarked claim is an
     assertion about the world rather than a claim with holes in it."""
-    return _state((f,), guarded, composed)
+    return _state((f,), guarded, composed, inventory)
 
 
 def reference(guarded: bool = False) -> tuple:
@@ -122,7 +140,8 @@ def seed_is_sound(guarded: bool = False) -> tuple:
     return leaks + silences
 
 
-def probe(cell: tuple, guarded: bool = False, composed: bool = False) -> Verdict:
+def probe(cell: tuple, guarded: bool = False, composed: bool = False,
+          inventory: tuple = SEED) -> Verdict:
     """Classify one cell.
 
     ⚠ **A `forbids` violation is a LEAK unconditionally**, with no baseline comparison. That is what
@@ -130,8 +149,8 @@ def probe(cell: tuple, guarded: bool = False, composed: bool = False) -> Verdict
     frame in which it is acceptable and nothing to subtract. The earlier version of this classifier
     subtracted a per-form baseline and mis-graded every leak as a defect in the *victim*, because the
     victim's own minimal cell already contained the form that leaked into it."""
-    full = frame(cell)
-    ctx, outcome, concluded = _state(cell, guarded, composed)
+    full = frame(cell, inventory)
+    ctx, outcome, concluded = _state(cell, guarded, composed, inventory)
     if outcome is None:
         return Verdict(full, REFUSED, detail=ctx.refusal or "incompatible")
     leaks, silences = outcome
@@ -147,7 +166,7 @@ def probe(cell: tuple, guarded: bool = False, composed: bool = False) -> Verdict
 
     union: frozenset = frozenset()
     for f in non_default:
-        _c, _v, s = baseline(f, guarded, composed)
+        _c, _v, s = baseline(f, guarded, composed, inventory)
         union |= (s or frozenset())
     gained = tuple(sorted(f"{w}.{k}={v}" for w, k, v in (concluded - union)))
     if not gained:
@@ -157,29 +176,38 @@ def probe(cell: tuple, guarded: bool = False, composed: bool = False) -> Verdict
 
 # -- the space ------------------------------------------------------------------------------------
 
-def cells(forms: tuple = SEED, content_depth: int = 2) -> list:
-    """Every cell worth running: subsets of content up to `content_depth`, × each force × each level.
+def cells(forms: tuple = SEED, depth: int = 2) -> list:
+    """Every cell worth running: one form from each **defaulted** slot, times a subset of the optional
+    slots up to `depth`.
 
-    ⚠ **This shape is itself a claim, and it is the one under test.** `P1` says a category is a *point*
-    in CONTENT × FORCE × LEVEL — one value per axis. But content forms **stack**: *"not very dangerous"*
-    bears negation and degree at once, and a point in a product has no room for that. Content is swept
-    as a subset and force/level as single values precisely so the asymmetry shows up rather than being
-    designed away."""
-    content = [f for f in forms if f.axis == "content"]
-    forces = [f for f in forms if f.axis == "force"] or [DEFAULTS[0]]
-    levels = [f for f in forms if f.axis == "level"] or [DEFAULTS[1]]
+    ⚠ **Built over measured slots, not declared axes**, for the same reason `frame()` is. `P1` says a
+    category is a *point* in CONTENT × FORCE × LEVEL — one value per axis — but forms within `content`
+    stack: *"not very dangerous"* bears polarity and strength at once, and a point in a product has no
+    room for that. Once slots are measured the shape is regular again: **defaulted slots always carry a
+    value, optional slots stack.** That is the corrected form of P1, and it is what the sieve enumerates.
+    """
+    groups = slots(forms)
+    default_names = {d.name for d in DEFAULTS}
+    defaulted = [v for v in groups.values() if any(m.name in default_names for m in v)]
+    optional = [v for v in groups.values() if not any(m.name in default_names for m in v)]
+
+    base: list = [()]
+    for group in defaulted:
+        base = [c + (f,) for c in base for f in group]
+
     out: list = []
-    for k in range(1, content_depth + 1):
-        for combo in combinations(content, k):
-            for force in forces:
-                for level in levels:
-                    out.append(combo + (force, level))
+    for k in range(0, depth + 1):
+        for chosen in combinations(optional, k):
+            picks: list = [()]
+            for group in chosen:
+                picks = [c + (f,) for c in picks for f in group]
+            out.extend(b + p for b in base for p in picks)
     return out
 
 
 def sweep(forms: tuple = SEED, content_depth: int = 2, guarded: bool = False,
           composed: bool = False) -> list:
-    return [probe(c, guarded, composed) for c in cells(forms, content_depth)]
+    return [probe(c, guarded, composed, forms) for c in cells(forms, content_depth)]
 
 
 # -- measuring the axes ---------------------------------------------------------------------------
@@ -200,6 +228,63 @@ def axis_audit(forms: tuple = SEED) -> dict:
 
 
 # -- the numbers ----------------------------------------------------------------------------------
+
+def factors(f: Form, inventory: tuple = SEED, depth: int = 2) -> list:
+    """**The other sieve — primality.** Which combinations of *other* forms produce exactly this form's
+    state change?
+
+    `forms_cnl` §3's underlying test is *"can it be paraphrased without changing what the system
+    believes?"*, and `P3` says a form **is** what it does to the information state. Put together they are
+    mechanical: a form is **composite** (baroque, desugar it) iff some combination of held forms reaches
+    the identical state, and **prime** (fundamental, admit it) iff none does.
+
+    ⚠ Identity of state change is stricter than paraphrase. This can only report exact factorizations,
+    so it finds the clear cases and is silent about near-misses — which is the right direction to fail
+    (`P9`: too closed is recoverable)."""
+    _c, _v, target = baseline(f, guarded=False, inventory=inventory)
+    if target is None:
+        return []
+    others = [g for g in inventory if g is not f]
+    mine = frozenset(frame((f,), inventory))
+    found: list = []
+    for k in range(1, depth + 1):
+        for combo in combinations(others, k):
+            # ⚠ A combo that FRAMES to the same cell is the identity, not a factorization. Every
+            # default form frames to the reference cell, so without this every default "factors" into
+            # every other one — which is what the first run of this reported.
+            if frozenset(frame(combo, inventory)) == mine:
+                continue
+            _c2, viol, got = _state(combo, guarded=False, inventory=inventory)
+            if viol is not None and got == target:
+                found.append(tuple(g.name for g in combo))
+    return found
+
+
+def factorization_audit(inventory: tuple = SEED) -> dict:
+    """Every form that turns out to be a combination of others."""
+    # Defaults are excluded: a default form's baseline IS the reference cell, so it has no isolable
+    # contribution to factor. That is a limit of the method, not a verdict about those forms.
+    testable = [f for f in inventory if f not in DEFAULTS]
+    composite = {f.name: fs for f in testable if (fs := factors(f, inventory))}
+    return {"forms": len(inventory), "testable": len(testable), "composite": composite,
+            "prime": sorted(f.name for f in testable if f.name not in composite)}
+
+
+def impure_slots(inventory: tuple = SEED) -> dict:
+    """Slots whose members were filed on **different declared axes**.
+
+    A slot is one dimension by measurement. If its members carry different `axis` values, the axis
+    assignment and the behaviour disagree, and the behaviour is the evidence: forms that exclude each
+    other or write the same field are competing values of one thing, whatever they were filed as."""
+    out: dict = {}
+    for key, members in slots(inventory).items():
+        axes = {m.axis for m in members}
+        if len(axes) > 1:
+            out[key] = {"members": sorted(m.name for m in members), "declared_axes": sorted(axes)}
+    misfiled = sorted({m.name for v in out.values() for m in ()} |
+                      {n for v in out.values() for n in v["members"]})
+    return {"impure": out, "n_impure": len(out), "forms_involved": misfiled}
+
 
 def geometry(verdicts: list) -> dict:
     """**Where** the failures sit, not just how many — is a leak a property of a pair, or of one form
@@ -251,7 +336,7 @@ def interactions(forms: tuple = SEED, guarded: bool = False) -> dict:
     for a, b in pairs:
         if a in DEFAULTS and b in DEFAULTS:
             continue
-        v = probe((a, b), guarded)
+        v = probe((a, b), guarded, inventory=forms)
         if v.outcome == REFUSED:
             continue
         live.append(v.names)
@@ -305,5 +390,5 @@ def report(forms: tuple = SEED, content_depth: int = 2) -> str:
 
 __all__ = ["Verdict", "probe", "cells", "sweep", "baseline", "excludes", "slots", "axis_audit",
            "geometry", "guard_density", "interactions", "axis_appeals", "report",
-           "reference", "seed_is_sound",
+           "reference", "seed_is_sound", "factors", "factorization_audit", "impure_slots",
            "PASS", "INERT", "REFUSED", "LEAK", "BROKEN", "BASELINE"]

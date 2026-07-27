@@ -64,7 +64,12 @@ STRENGTH = "strength"
 # its output across runs compares nothing. It also confines the comparison to what was *derived* —
 # base decorations differ between a composite and its parts by construction, and folding them in makes
 # every composite look like it gained something.
-CONCLUSIONS = (PREDICATE, f"not_{PREDICATE}", "raised", "mentions")
+CONCLUSIONS = (PREDICATE, f"not_{PREDICATE}", "raised", "mentions",
+               # …and every candidate form's marker. ⚠ A form whose conclusion is missing from this
+               # list has an **invisible state change**, and `P3` makes the state change the identity of
+               # the form — so it then appears identical to every other invisible form and the
+               # factorization sieve reports that everything is everything. Found exactly that way.
+               "normative", "permitted", "held_then", "sourced", "surprising", "demanded")
 
 
 @dataclass
@@ -312,7 +317,112 @@ LANGUAGE = Form(
 )
 
 
+# -- CANDIDATE FORMS -----------------------------------------------------------------------------
+#
+# Each one is a **hypothesis test on a decision the documents already took**, not a form added for
+# coverage. `forms_discourse` §4b listed NINE forces; `forms_cnl` P1 ships six, and hedge, goal and norm
+# were dropped with nothing recorded about why. Three of these test that drop. The last three test the
+# opposite question — whether the three axes have room for what typology says languages actually
+# grammaticalize (`forms_discourse` §3.6 level 2: time, space, causation, quantity, modality, evidence,
+# discourse status).
+#
+# ⚠ Their eliminations conclude **their own marker on the claim** and nothing about the subject. That is
+# deliberate: it keeps them out of the leak measurement, which is sensitive to how carefully an
+# elimination was authored, while leaving the *slot* measurement — which is not — fully informative.
+
+
+def _marker_elim(name: str, key: str, value, mark: str):
+    def build(ctx: Ctx) -> StandingUnit:
+        return StandingUnit(f"elim:{name}", claim_pattern(ctx, **{key: value}),
+                            Attribute("c", mark, True))
+    return build
+
+
+DENY = Form(
+    "deny", "force",
+    introduce=lambda ctx: ctx.set("polarity", "neg"),
+    eliminate=_negation_elim,
+    commits=lambda ctx, v: (None if not _plain_frame(ctx)
+                            or v.attr(ctx.subject, f"not_{PREDICATE}") is True
+                            else "denied, but nothing concluded"),
+    forbids=lambda ctx, v: (f"{PREDICATE} still reads True under a denial"
+                            if _reads_true(v, ctx) else None),
+    note="⚠ HYPOTHESIS: not a force at all. If deny = negation ∘ assert it should land in the polarity "
+         "slot and be indistinguishable from it — the enumerate-the-product error P1 exists to prevent.",
+)
+
+HEDGE = Form(
+    "hedge", "force",
+    introduce=lambda ctx: ctx.grade(STRENGTH, "unlikely"),
+    eliminate=_degree_elim,
+    forbids=_degree_forbids,
+    note="⚠ HYPOTHESIS: dropped from the force list because it is DEGREE at another band. If so it "
+         "shares degree's slot — and then the question is whether a band is a form or a value.",
+)
+
+NORM = Form(
+    "norm", "force",
+    introduce=lambda ctx: ctx.set("modality", "obligation"),
+    eliminate=_marker_elim("norm", "modality", "obligation", "normative"),
+    commits=lambda ctx, v: (None if v.attr(ctx.claim, "normative") is True
+                            else "obliged, but nothing concluded"),
+    note="⚠ HYPOTHESIS: deontic modality, i.e. CONTENT. If so it does not share the force slot.",
+)
+
+MODALITY = Form(
+    "modality", "content",
+    introduce=lambda ctx: ctx.set("modality", "permission"),
+    eliminate=_marker_elim("modality", "modality", "permission", "permitted"),
+    commits=lambda ctx, v: (None if v.attr(ctx.claim, "permitted") is True
+                            else "permitted, but nothing concluded"),
+    note="the control for NORM: declared content, and they should turn out to be one slot.",
+)
+
+COMMAND = Form(
+    "command", "force",
+    introduce=lambda ctx: ctx.set("force", "command"),
+    eliminate=_marker_elim("command", "force", "command", "demanded"),
+    commits=lambda ctx, v: (None if v.attr(ctx.claim, "demanded") is True
+                            else "commanded, but nothing demanded"),
+    forbids=lambda ctx, v: (None if (m := _says_anything_about_the_world(v, ctx)) is None
+                            else f"commanding it committed the system: {m}"),
+    note="the control for the force slot: a third value that should exclude assert and ask.",
+)
+
+PAST = Form(
+    "past", "content",
+    introduce=lambda ctx: ctx.set("time", "past"),
+    eliminate=_marker_elim("past", "time", "past", "held_then"),
+    commits=lambda ctx, v: (None if v.attr(ctx.claim, "held_then") is True
+                            else "tensed, but nothing concluded"),
+    note="tense. Declared CONTENT — so if content were one axis it would exclude negation and degree.",
+)
+
+EVIDENTIAL = Form(
+    "evidential", "content",
+    introduce=lambda ctx: ctx.set("source", "hearsay"),
+    eliminate=_marker_elim("evidential", "source", "hearsay", "sourced"),
+    commits=lambda ctx, v: (None if v.attr(ctx.claim, "sourced") is True
+                            else "sourced, but nothing concluded"),
+    note="⚠ HYPOTHESIS: fits NO declared axis. It is not what is claimed, nor what is done with it, nor "
+         "what it is about — it is how the claim was come by. In `forms_discourse`'s own glossary, "
+         "*a required provenance field on every record*. Filed under content only because there is "
+         "nowhere else to file it.",
+)
+
+MIRATIVE = Form(
+    "mirative", "content",
+    introduce=lambda ctx: ctx.set("mirative", True),
+    eliminate=_marker_elim("mirative", "mirative", True, "surprising"),
+    commits=lambda ctx, v: (None if v.attr(ctx.claim, "surprising") is True
+                            else "marked as unexpected, but nothing concluded"),
+    note="⚠ HYPOTHESIS: also fits no axis. `forms_discourse` §3.2 names mirativity itself as something "
+         "languages grammaticalize, in a caveat, and then never places it.",
+)
+
+
 SEED = (POSITIVE, NEGATION, DEGREE, ASSERT, ASK, WORLD, LANGUAGE)
+CANDIDATES = SEED + (DENY, HEDGE, NORM, MODALITY, COMMAND, PAST, EVIDENTIAL, MIRATIVE)
 
 BY_AXIS = {"content": (POSITIVE, NEGATION, DEGREE),
            "force": (ASSERT, ASK),
@@ -326,10 +436,49 @@ DEFAULTS = (POSITIVE, ASSERT, WORLD)
 
 
 def excludes(a: "Form", b: "Form") -> bool:
-    """Do these two forms refuse to co-occur? Decided by `introduce` alone — no network is run, because
-    incompatibility is a property of what they write, not of what anything concludes."""
+    """**Signal A.** Do these two forms refuse to co-occur? Decided by `introduce` alone — no network is
+    run, because incompatibility is a property of what they write, not of what anything concludes."""
     ctx = new_ctx()
     return not (a.introduce(ctx) and b.introduce(ctx))
+
+
+def writes(f: "Form") -> frozenset:
+    """**Signal B.** Which fields of the claim this form touches, observed by running its introduction."""
+    ctx = new_ctx()
+    f.introduce(ctx)
+    return frozenset(ctx.decor)
+
+
+def competes(a: "Form", b: "Form") -> bool:
+    """Two forms are in one slot if **either** signal says so.
+
+    ⚠ **Signal A alone is blind in the graded sort, and that is a property of the engine.** Bands
+    `meet` rather than disagree (`overlay.Grade`), so two forms writing different bands to one attribute
+    never refuse each other — `degree` and `hedge` came out as separate slots under A, which is wrong.
+    Signal B catches it because they touch the same field.
+
+    ⚠ **Neither signal is free of the author.** The field name is chosen when the form is written. What
+    keeps this from being circular is that the two signals are independent — a crisp pair is caught by
+    refusal without reference to the name — and that they **agree everywhere both can see**
+    (`signal_audit`). Where they disagree, the disagreement is the finding."""
+    return excludes(a, b) or bool(writes(a) & writes(b))
+
+
+def signal_audit(forms: tuple = SEED) -> dict:
+    """Where the two slot signals disagree. Agreement is evidence; disagreement is a measurement limit
+    worth naming rather than averaging away."""
+    only_a, only_b = [], []
+    for i, a in enumerate(forms):
+        for b in forms[i + 1:]:
+            ex, ov = excludes(a, b), bool(writes(a) & writes(b))
+            if ex and not ov:
+                only_a.append((a.name, b.name))
+            elif ov and not ex:
+                only_b.append((a.name, b.name))
+    return {"refusal_only": only_a, "shared_field_only": only_b}
+
+
+_SLOT_CACHE: dict = {}
 
 
 def slots(forms: tuple = SEED) -> dict:
@@ -339,6 +488,9 @@ def slots(forms: tuple = SEED) -> dict:
     transitive closure of exclusion gives the partition. This is the standard move in feature theory —
     an inventory is derived from complementary distribution, never asserted — and it is the only
     evidence available here about how many axes there are."""
+    key = tuple(f.name for f in forms)
+    if key in _SLOT_CACHE:
+        return _SLOT_CACHE[key]
     parent = {f.name: f.name for f in forms}
 
     def find(x):
@@ -349,14 +501,14 @@ def slots(forms: tuple = SEED) -> dict:
 
     for i, a in enumerate(forms):
         for b in forms[i + 1:]:
-            if excludes(a, b):
+            if competes(a, b):
                 ra, rb = find(a.name), find(b.name)
                 if ra != rb:
                     parent[rb] = ra
     groups: dict = {}
     for f in forms:
         groups.setdefault(find(f.name), []).append(f)
-    return groups
+    return _SLOT_CACHE.setdefault(key, groups)
 
 
 def slot_of(f: "Form", forms: tuple = SEED) -> str:
@@ -455,6 +607,8 @@ def run(forms: tuple, guarded: bool = False, composed: bool = False) -> tuple:
 
 
 __all__ = ["Ctx", "Form", "SEED", "BY_AXIS", "DEFAULTS", "CONCLUSIONS", "PREDICATE", "STRENGTH",
-           "run", "new_ctx", "frame", "signature", "excludes", "slots", "slot_of",
-           "PAIR_ENTRIES", "pair_entries", "negated_degree_elim",
+           "run", "new_ctx", "frame", "signature", "excludes", "writes", "competes", "signal_audit",
+           "slots", "slot_of",
+           "PAIR_ENTRIES", "pair_entries", "negated_degree_elim", "CANDIDATES",
+           "DENY", "HEDGE", "NORM", "MODALITY", "COMMAND", "PAST", "EVIDENTIAL", "MIRATIVE",
            "POSITIVE", "NEGATION", "DEGREE", "ASSERT", "ASK", "WORLD", "LANGUAGE"]

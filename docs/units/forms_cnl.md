@@ -457,3 +457,71 @@ failure mode. The guarded/naive/pair-entry comparison is the result; no single c
 `ugm` engine with mechanisms that no longer exist, so it was a phenomenon to re-probe rather than a bug
 to reproduce. It is still there, and it is worse than it was recorded — the graph holds the claim **and**
 its denial at once.
+
+
+---
+
+## 12. The candidate pool — enumerating forms and measuring the axes
+
+**2026-07-27, `units/forms.py::CANDIDATES`, 78 tests.** §11 could split a declared axis but never
+discover one, because it swept the three that were declared. The fix is not to enumerate axes — it is to
+**enumerate forms and let `slots()` measure the axes**. Eight candidates were added, each a *hypothesis
+test on a decision the documents already took*, not coverage:
+
+| candidate | hypothesis it tests | verdict |
+|---|---|---|
+| `deny` | ⚠ CONTENT lists *negation* and FORCE lists *deny* — the enumerate-the-product error `P1` exists to prevent | **confirmed. `deny` IS `negation`** — identical state change, mutually factorizable |
+| `hedge` | dropped from the nine-force list with no reason recorded; is it `degree` at another band? | **same slot, different value** — competes with `degree`, reduces to neither |
+| `norm` | ditto; is it deontic modality, i.e. CONTENT? | **confirmed** — shares a slot with `modality`, not with the forces |
+| `command` | the control: a third genuine force | **holds** — excludes assert and ask |
+| `past` | tense, declared CONTENT | its own slot |
+| `evidential`, `mirative` | ⚠ neither is *what is claimed*, *what is done with it*, nor *what it is about* | **slots of their own, fitting no declared axis** |
+
+### Results
+
+**1 · Fifteen forms give EIGHT slots against three declared axes**, and neither `content` nor `force`
+survives as one dimension. Three slots are **impure** — their members were filed on different declared
+axes purely by assignment:
+
+| measured slot | members | filed as |
+|---|---|---|
+| polarity | positive, negation, **deny** | content + force |
+| strength | degree, **hedge** | content + force |
+| modality | modality, **norm** | content + force |
+
+> ⭐ **Three of the six declared forces are not forces.** Only `assert` / `ask` / `command` compete for
+> the force slot. The 9 → 6 reduction between `form_inventory` and `forms_cnl` was *right*, and this is
+> the first record of why.
+
+**2 · The slot measurement is cross-validated, and its blind spot is named.** Two independent signals:
+**refusal** (two forms cannot co-occur) and **shared field** (they write the same thing). They agree
+everywhere both can see — refusal is a strict subset. ⚠ Refusal is **structurally blind in the graded
+sort**, because bands `meet` rather than conflict (`overlay.Grade`), so `degree` and `hedge` came out as
+separate slots under it alone. Neither signal is free of the author, who names the field; what makes it
+evidence rather than assumption is that the two are independent and agree.
+
+**3 · The factorization sieve works, and it is `forms_cnl` §3's own test made mechanical.** `P3` says a
+form **is** what it does to the information state, so *"paraphrasable without changing what the system
+believes"* becomes *"some combination reaches the identical state"* — composite (baroque) versus prime
+(fundamental), decided by running it. Its first catch is `deny` = `negation`.
+
+⚠ It reports **exact** identity only, so it finds clear cases and is silent about near-misses — the
+right direction to fail (`P9`). And `hedge` shows what it is *for*: sharing a slot is not reducing to
+its neighbour.
+
+### What this still cannot do
+
+It measures the pool it is given. Eight candidates drawn from `forms_discourse` §3.6's typological list
+is not that list exhausted, and a form nobody writes down stays invisible. **What changed is the
+procedure**: the axes are now an output, and every new form is a hypothesis with a verdict rather than
+an entry in a table.
+
+⚠ **The candidates' leak numbers are deliberately weak evidence.** Their eliminations conclude only
+their own marker and nothing about the subject, which keeps them out of the leak measurement — that one
+is sensitive to how carefully an elimination was authored, and these were authored quickly. The *slot*
+and *factorization* results do not depend on that.
+
+⚠ **One instrument bug worth remembering**: a form whose conclusion was missing from the tracked
+vocabulary had no measurable state change, so by `P3` it was identical to every other invisible form —
+and the factorization sieve duly reported that everything factors into everything. It fails silently and
+plausibly; pinned by a test.
