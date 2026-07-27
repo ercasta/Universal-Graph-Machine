@@ -57,6 +57,10 @@ ENGINE = "<engine>"     # the only source the engine contributes under
 # Python object, which is the next thing this register has to swallow.
 
 WIRE = "<wire>"         # the occurrence: a 3-place relation, source × target × gate (`rev-02` §5)
+CONFLICT = "conflict"   # the engine's second report: two live values for one slot (`rev-02` §6)
+ABOUT = "about"         # …which node it is about
+UNDER = "under"         # …and which supposition it is confined to, if any
+SOURCE = "source"       # …and which unit produced each disagreeing reading
 FROM = "from"
 TO = "to"
 GATE = "gate"
@@ -116,11 +120,17 @@ class Merge:
 @dataclass(frozen=True)
 class Drop:
     """Remove something. A **computation unit**'s drop hides while powered; a **mutating rule**'s is
-    applied to the asserted layer at write-back and is real (`rev-01` §2)."""
+    applied to the asserted layer at write-back and is real (`rev-01` §2).
+
+    `source_var` names an **AttrVar** rather than a literal, so a rule can drop *the reading it
+    matched* instead of one its author knew about in advance. Without it a conflict-resolving rule can
+    only name a source hardcoded at authoring time, which is not resolution — `rev-02` §6 describes the
+    loop *conflict → rule → retraction → clean read* and this is the binding it needs."""
 
     target: str
     attr: str | None = None
     source: str | None = None
+    source_var: str | None = None
 
 
 BOUND = "<bound>"       # in a premise-bound rule, the node the premise matched
@@ -167,7 +177,12 @@ def instantiate(template, m: Match) -> tuple:
         a, b = m[template.left], m[template.right]
         return () if a is b else (Identify(a, b),)
     if isinstance(template, Drop):
-        return (Retract(m[template.target], template.attr, template.source),)
+        src = template.source
+        if template.source_var is not None:
+            src = m.values.get(template.source_var)
+            if src is None:
+                return ()
+        return (Retract(m[template.target], template.attr, src),)
     raise TypeError(f"unknown effect template {template!r}")
 
 
@@ -444,7 +459,28 @@ class Network:
         burned: set = set()
         reported: set = set()
 
+        seen_conflicts: set = set()
+
         queue = [(c, c.held) for c in self.axioms if c.held is not None]
+        while True:
+            fuel = self._drain(queue, burned, reported, fuel)
+            if self.out_of_fuel:
+                break
+            # ⚠ **Conflicts have to be delivered, not merely readable.** `rev-02` §6 describes the loop
+            # *conflict → a rule matches it → the rule concludes a retraction → the next revive reads
+            # cleanly*, and it could not happen: `conflicts()` is a read-layer method and nothing put a
+            # conflict on a wire, so no unit ever saw one. Same defect as `surged`, in the other
+            # governance path. Detection runs after the queue drains, because a conflict is a property
+            # of what everything concluded, not of any one firing.
+            fresh = self.detect_conflicts(seen_conflicts)
+            if not fresh:
+                break
+            queue.append(self.report(*fresh))
+
+        self.write_back()
+        return self
+
+    def _drain(self, queue: list, burned: set, reported: set, fuel: int) -> int:
         while queue:
             if fuel <= 0:
                 self.out_of_fuel = True
@@ -473,9 +509,63 @@ class Network:
                 out = unit.deliver(gate, value)
                 if out is not None:
                     queue.append((unit.cell, out))
+        return fuel
 
-        self.write_back()
-        return self
+    def configurations(self) -> list:
+        """The base world, and each supposition on its own. What conflicts are looked for *in*."""
+        return [(frozenset(), None)] + [(frozenset({c.supposes}), c)
+                                        for c in self.axioms if c.supposes]
+
+    def detect_conflicts(self, seen: set) -> tuple:
+        """Every disagreement not yet reported, as **facts on a wire**.
+
+        ⭐ **A conflict found only under a supposition is attributed to it**, and the report itself is
+        *not* inside it. That is what makes reductio expressible without breaking §3: `reports` has
+        empty support, so a rule wired to it concludes in the **base world** — which is right, because
+        *"H leads to a contradiction"* is a fact about the reasoning, not a fact inside the hypothesis.
+        The alternative — a declared support-breaking unit — would have cost scope-as-backward-walk its
+        only virtue."""
+        o = self.overlays()
+        base = {(c.node, c.attr) for c in o.conflicts(frozenset())}
+        out: list = []
+        for under, cell in self.configurations():
+            for c in o.conflicts(under):
+                # A conflict already present in the base world is the base world's, not this
+                # supposition's — otherwise every hypothesis inherits the blame for every prior mess.
+                if cell is not None and (c.node, c.attr) in base:
+                    continue
+                key = (c.node, c.attr, cell.name if cell else None)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.extend(self._conflict_facts(c, cell))
+        return tuple(out)
+
+    def _conflict_facts(self, conflict, cell: Cell | None) -> list:
+        """One conflict as an ordinary occurrence — `model.md` §8's discipline, that an outcome is a
+        positive fact and never an absence. Nothing here is a new kind of thing."""
+        occ = Node(CONFLICT)
+        facts: list = [Mint(occ, (("name", CONFLICT), ("attr", conflict.attr)))]
+        # One `source:` role per disagreeing reading, pointing at the **unit that produced it** — which
+        # is only possible because a unit is plane-1 data (`rev-02` §1). It is what lets a resolving
+        # rule name a side; without it a rule can see that there is a disagreement and not who is in it.
+        sources = [(SOURCE, u.node) for r in conflict.readings
+                   if (u := next((x for x in self.units if x.name == r.source), None)) is not None]
+        named_targets = {u.node: u.name for u in self.units}
+        if cell is not None:
+            named_targets[cell.node] = cell.name
+        for role_name, target in ((ABOUT, conflict.node),
+                                  *([(UNDER, cell.node)] if cell is not None else ()),
+                                  *sources):
+            r = Node(role_name)
+            facts += [Mint(r, (("name", role_name),)), AddEdge(occ, r), AddEdge(r, target)]
+            # ⚠ **Mentioning a node is not delivering it.** A unit sees only its gates, so a report that
+            # points at a unit without carrying that unit's *name* gives a rule something it cannot
+            # identify — `0008`'s subset-output discipline, hit from the reporting side. The reductio
+            # rule did not notice, because it only needed the node; a resolving rule needs the name.
+            if target in named_targets:
+                facts.append(Mint(target, (("name", named_targets[target]),)))
+        return facts
 
     def report(self, *effects) -> tuple:
         """The engine's **only** contribution, and it now travels like everything else.
@@ -669,6 +759,7 @@ def readable(view: View, nodes) -> dict:
 
 
 __all__ = ["Emit", "Attribute", "Stamp", "Link", "Merge", "Drop", "instantiate", "effects_of",
+           "CONFLICT", "ABOUT", "UNDER", "SOURCE",
            "Value", "Cell", "StandingUnit", "Surge", "Network", "bundled_silence_rule", "readable",
            "SURGE_AT", "SILENCED", "SURGED", "ENGINE", "BOUND",
            "WIRE", "FROM", "TO", "GATE", "OUT"]

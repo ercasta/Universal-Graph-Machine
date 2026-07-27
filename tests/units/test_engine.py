@@ -6,9 +6,9 @@ support**, computed by walking the wiring, joining `revision-02` §3's two halve
 """
 import pytest
 
-from units.engine import (FROM, GATE, OUT, SILENCED, SURGE_AT, SURGED, TO, WIRE, Attribute, Drop,
-                          Emit, Link, Merge, Network, StandingUnit, bundled_silence_rule,
-                          effects_of)
+from units.engine import (ABOUT, CONFLICT, FROM, GATE, OUT, SILENCED, SOURCE, SURGE_AT, SURGED, TO,
+                          UNDER, WIRE, Attribute, Drop, Emit, Link, Merge, Network, StandingUnit,
+                          bundled_silence_rule, effects_of)
 from units.graph import EMPTY, Node, named, role_edge
 from units.match import AttrVar, atom, atoms, role
 
@@ -702,3 +702,104 @@ def test_nothing_downstream_of_a_supposition_can_conclude_in_the_base_world():
     assert n.powering(discharge) == frozenset({"H"})             # inherited, unavoidably
     assert n.world().attr(lion, "conditional_holds") is None     # …so it cannot reach the base world
     assert n.graph(frozenset({"H"})).attr(lion, "conditional_holds") is True
+
+
+# -- 10. conflicts are delivered, not merely readable -------------------------------------------------
+
+def conflicted(n: Network):
+    """Two live derivations disagreeing about one slot."""
+    g, paul = kb(age=42)
+    n.wire(n.given(g), n.add(StandingUnit("bday", (atom("x", name="Paul"),),
+                                          Attribute("x", "age", 43))))
+    return paul
+
+
+def test_a_rule_can_match_a_conflict():
+    """⚠ **`rev-02` §6 claimed this and it was false.** *"The conflict is a positive fact a rule can
+    match and resolve"* — but `conflicts()` is a read-layer method and nothing put one on a wire, so no
+    unit ever saw one. Exactly the `surged` defect, in the other governance path.
+
+    Conflicts are now reported on `Network.reports`, where every other value crosses."""
+    n = Network()
+    conflicted(n)
+    seer = n.add(StandingUnit("seer", (atom("c", name=CONFLICT, out=(role(ABOUT, atom("t")),)),),
+                              Attribute("c", "noticed", True)))
+    n.wire(n.reports, seer)
+    n.revive()
+
+    reports = [x for x in n.graph().nodes if n.graph().attr(x, "name") == CONFLICT]
+    assert reports, "the engine must report the conflict as an occurrence"
+    assert any(n.graph().attr(x, "noticed") is True for x in reports)
+
+
+def test_a_rule_not_wired_to_the_report_still_cannot_see_a_conflict():
+    """The control, and the reason the fix is *delivery* rather than *detection*. Nothing is ambient."""
+    n = Network()
+    g, _ = named(EMPTY, "unrelated")
+    conflicted(n)
+    blind = n.add(StandingUnit("blind", (atom("c", name=CONFLICT),),
+                               Attribute("c", "noticed", True)))
+    n.wire(n.given(g), blind)
+    n.revive()
+    assert not [x for x in n.graph().nodes if n.graph().attr(x, "noticed") is True]
+
+
+def test_the_conflict_resolution_loop_closes_in_one_turn():
+    """`rev-02` §6's loop, end to end: **conflict → a rule matches it → the rule concludes a retraction
+    → the read is clean.** The rule drops *the reading it matched*, via `Drop(source_var=…)` — a source
+    bound at match time rather than known when the rule was written. The engine chose nothing."""
+    n = Network()
+    paul = conflicted(n)
+    assert n.revive().world().attr(paul, "age") is None          # conflicted reads absent
+
+    resolver = n.add(StandingUnit(
+        "resolver",
+        (atom("c", name=CONFLICT, attr="age",
+              out=(role(ABOUT, atom("t")), role(SOURCE, atom("u", name=AttrVar("who"))))),),
+        Drop("t", "age", source_var="who")))
+    n.wire(n.reports, resolver)
+    n.revive()
+
+    assert n.world().attr(paul, "age") == 42
+    assert n.world().conflicts() == []
+
+
+def test_a_conflict_confined_to_a_hypothesis_is_attributed_to_it():
+    """⭐ **Reductio, and it needs no support-breaking machinery.**
+
+    A conflict arising only under H is reported with an `under:` role naming H. The report travels on
+    `reports`, whose support is empty — so a rule wired to it is **in the base world** and its
+    conclusion stays there. That is right rather than a loophole: *"H leads to a contradiction"* is a
+    fact about the reasoning, not a fact inside the hypothesis.
+
+    This is the mechanism hypothesis rejection needs, and `powering()` is untouched."""
+    g, lion = named(EMPTY, "lion", temper="calm")
+    n = Network()
+    n.given(g)
+    h = n.supposing(EMPTY.with_node(lion, provoked=True), name="H")
+    n.wire(h, n.add(StandingUnit("wild", (atom("x", provoked=True),),
+                                 Attribute("x", "temper", "wild"))))
+    refute = n.add(StandingUnit("refute", (atom("c", name=CONFLICT, out=(role(UNDER, atom("s")),)),),
+                                Attribute("s", "refuted", True), mutating=True))
+    n.wire(n.reports, refute)
+    n.revive()
+
+    assert n.powering(refute) == frozenset()          # the report is NOT inside the hypothesis
+    assert n.world().attr(h.node, "refuted") is True  # …so the rejection lands in the base world
+    assert n.asserted.attr(h.node, "refuted") is True # …and being an act, it persists
+
+
+def test_a_base_world_conflict_is_not_blamed_on_a_hypothesis():
+    """Otherwise every hypothesis inherits the blame for every prior mess, and reductio reports
+    whichever hypothesis happened to be open."""
+    n = Network()
+    paul = conflicted(n)
+    h = n.supposing(EMPTY.with_node(paul, mood="calm"), name="H")
+    n.wire(h, n.add(StandingUnit("idle", (atom("x", mood="calm"),),
+                                 Attribute("x", "seen", True))))
+    n.revive()
+
+    reports = [x for x in n.graph().nodes if n.graph().attr(x, "name") == CONFLICT]
+    unders = [d for r in reports for e in n.graph().out(r)
+              if n.graph().attr(e, "name") == UNDER for d in n.graph().out(e)]
+    assert reports and not unders

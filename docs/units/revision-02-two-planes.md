@@ -261,6 +261,21 @@ in one read, so *"a man under H1, a woman under H2"* is not a conflict and never
 base world sees neither, reading under H1 sees one. Once that is in place, two values in **one** configuration
 is exactly what it looks like — an inconsistency.
 
+⚠ **"A rule can match it" was false until 2026-07-27.** `conflicts()` is a **read-layer** method and
+nothing ever put a conflict on a wire, so no unit could see one and the loop below could not run —
+identically to `surged` (§6's bundled rule), in the other governance path. Conflicts are now detected
+after the queue drains and delivered on `Network.reports`, and the report carries the **names** of the
+units whose readings disagree, because mentioning a node is not delivering it (`0008`). Closing that
+also needed `Drop(source_var=…)`: a rule must drop *the reading it matched*, not one its author knew
+about in advance. Pinned by `test_the_conflict_resolution_loop_closes_in_one_turn`.
+
+⭐ **And it is what makes reductio expressible, with no support-breaking machinery.** A conflict arising
+only under H is reported with an `under:` role naming H — while the report itself travels on `reports`,
+whose support is **empty**. So a rule wired to it is in the **base world** and its conclusion stays
+there. That is right rather than a loophole: *"H leads to a contradiction"* is a fact about the
+reasoning, not a fact inside the hypothesis. Hypothesis rejection therefore needs no exception to §3,
+and `powering()` is untouched.
+
 **A conflicted read is absent, and the conflict is a positive fact.** That is `model.md` §8's discipline (an
 outcome is a fact, never an absence) and §9's (contradiction handling is authored). Absent-on-conflict is safe
 here in a way it would not be under strong negation: §4 already weakened absence to *"nothing matched above
@@ -722,6 +737,9 @@ That is the nearest this design gets to a semantics, and it is now a property ra
 - **Does a resolution stand or is it thrown away?** §4 says it is per-utterance and its product is asserted.
   Whether the *resolving units* stand afterwards is not settled, and it feeds the revive-cost question
   directly: an agent that resolves many references accumulates many units that will never fire usefully again.
+- ~~**Does a conflict reach a rule?**~~ ✅ **Closed** — it does now, on `reports`, with the disagreeing
+  units named and an `under:` role when it is confined to a supposition. The full §6 loop runs in one
+  turn, and reductio falls out.
 - ⭐ **Discharge has no mechanism, and it is structural.** `powering()` walks backwards over the wiring, so
   support propagates forwards through every wire: anything reachable from a supposition is inside it, by
   construction. Natural deduction's →-introduction is precisely the step that must leave the hypothesis
