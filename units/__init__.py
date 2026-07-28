@@ -41,7 +41,8 @@ checkpoint, no copy and no merge-back.
 from .band import CERTAIN, SCALE, THETA, at_least, meet, weaker
 from .engine import (ENGINE, SILENCED, SURGE_AT, SURGED, Attribute, Cell, Drop, Emit, Link, Merge,
                      Network, StandingUnit, Stamp, Surge, Value, bundled_silence_rule, effects_of,
-                     instantiate)
+                     instantiate, instantiate_all, read_effect, read_pattern, write_effect,
+                     write_pattern)
 from .graph import EMPTY, Graph, Node, named, occurrence, role_edge
 from .match import Absent, AttrVar, Match, Pat, absent, atom, atoms, role, solve
 from .overlay import (AddEdge, Conflict, Grade, Identify, Mint, Overlays, Reading, Retract, SetAttr,
@@ -55,7 +56,9 @@ __all__ = [
     "Mint", "AddEdge", "SetAttr", "Grade", "Identify", "Retract",
     "Overlays", "View", "Reading", "Conflict",
     # engine — the circuit
-    "Cell", "Network", "StandingUnit", "Surge", "Value", "effects_of", "instantiate",
+    "Cell", "Network", "StandingUnit", "Surge", "Value", "effects_of",
+    "instantiate", "instantiate_all", "read_pattern", "write_pattern",
+    "read_effect", "write_effect",
     "Emit", "Attribute", "Stamp", "Link", "Merge", "Drop",
     "bundled_silence_rule", "SURGE_AT", "SILENCED", "SURGED", "ENGINE",
 ]

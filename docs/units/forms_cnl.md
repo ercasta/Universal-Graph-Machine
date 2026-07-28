@@ -240,10 +240,17 @@ It ships as a flat list of ten. It is **four tiers**, with different consumers a
 
 | tier | roles | consumer | may grow? | method |
 |---|---|---|---|---|
-| **0 · wiring** | `pattern:` `gate:` `out:` `from:` `to:` | the **assembler** | no | **designed a priori** — there is no corpus of wirings, and the bootstrap depends on it |
+| **0 · wiring** | `pattern:` `gate:` `out:` `from:` `to:` **`effect:`** | the **assembler** | ⚠ **it did** | **designed a priori** — there is no corpus of wirings, and the bootstrap depends on it |
 | **1 · structural** | `content:` `member:` `of:` | interpretation rules | no | designed, validated against what those rules need |
 | **2 · logical** | `when:` `then:` | interpretation rules | no | designed |
 | **3 · thematic** | `agent:` `patient:` `destination:` `time:` `means:` | domain rules | **the only tier that could** | **corpus-derived** — residue log; raid AMR / FrameNet / PropBank rather than inventing |
+
+⚠ **Tier 0 was declared closed at five roles and is six** (`effect:`, built 2026-07-27, `rev-02` §8e).
+The five describe **wiring** — what feeds what — and describing a whole *unit* is a job the register was never
+sized for: with `pattern:` in, plane 1 could say what a unit matches and what reaches it, and still not what it
+**concludes**. Not a violation to hide but the cheapest kind of evidence: *designed a priori* means designed
+before anything used it, and the first real use added a role. What did **not** grow is the rest of the
+encoding — a pattern's and an effect's own parts hang off `out:` and are told apart by their `name`.
 
 ⚠ **Containment runs container → contained.** Not taste: a pattern atom has `out` and no backward traversal, so
 *"find something containing both of these"* is only expressible if the container is the source
@@ -324,8 +331,30 @@ end's target was an engine API**, the one thing `model.md` §11 forbids.
 `assemble()` matching an ordinary pattern over `self.asserted`; `wire()` writes that fact and nothing else.
 Pinned: a circuit wired **by writing graph data alone**, a wire **concluded by a mutating rule** (invariant 4
 cashed), removing the fact un-wiring the circuit, and a second `Network` assembling the same circuit from the
-graph. **`pattern:` is the one tier-0 role still unbuilt** — a unit's pattern and effects are still Python, so
-the assembler is handed unit objects and resolves them by node.
+graph. ✅ **`pattern:` landed too** (`rev-02` §8d, 107 green): a unit's left-hand side is written as
+occurrences — `<pattern>` → `<atom>` → `<constraint>` — and **read out of the graph each revive**, falling back
+to the authored one when nothing describes it. It grew **no role**: `out:` is the one containment relation and
+what a described node *is* comes from its `name`, matched explicitly. ⚠ Reading a description **refuses** where
+assembling *skips* — a skipped wire is a smaller circuit, a skipped constraint is a pattern that matches more
+(`P9`). ✅ **And `effect:` followed** (`rev-02` §8e), so a unit is describable **entirely**: a shell with no
+pattern and no effects can be given both by a rule, and it runs. That cost tier 0 a sixth role — see §6.
+
+⭐ **And sizing that last role found the real blocker, which was not in the format** (`rev-02` §8c, built
+2026-07-27). A rule **could not connect two nodes it minted**: every filler in every effect template was a node
+the *left*-hand side found, so two `Emit`s produced two disconnected occurrences. A pattern as data is
+atom →`out:`→ atom and a conditional is `when:` between two claims (§13.1) — both are links between things the
+rule itself creates, so *a rule writes a rule* was impossible whatever was done about reifying patterns. The fix
+is the RHS getting names of its own (`Emit(..., as_=…)`), scoped to one firing exactly as a match binding is:
+no new kind, no privileged namespace. ⚠ It also makes the learning arc reachable, which is a much larger
+surface than the diff — enter it deliberately.
+
+⭐ **With all of it in, a rule writes a whole rule and it runs.** A mutating rule concludes a pattern node, an
+atom, a constraint, the effect templates, the links between them and the wire that feeds the unit — none of it
+existing before it fired — and on the next turn the described unit concludes about the world
+(`test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python`). **§1's middle stage is now expressible:
+interpretation is a turn of the engine and what it produces is data an assembler reads.** The next slice is the
+interpretation rule that turns a `when:` claim into a wired unit — no longer blocked on mechanism, only on
+saying what the rule should conclude.
 
 **It self-tested, and three things fell out** — all invisible until the bundled rule could actually fire:
 

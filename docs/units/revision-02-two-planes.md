@@ -692,6 +692,124 @@ That is the nearest this design gets to a semantics, and it is now a property ra
 
 ---
 
+## 8c. ⭐ A rule could not connect two nodes it minted
+
+**Measured 2026-07-27, while sizing the reification of `pattern:`.** Reification looked easy — a pattern as
+data is the same shape as the wire occurrence §5 already forces: atom nodes, `out:` roles between them,
+constraint nodes carrying key and value, and a reader in the assembler. Mechanical both ways. The blocker was
+somewhere else and smaller:
+
+> **Every filler in every effect template was `m[var]` — a node the *left*-hand side found.** `Emit`'s roles,
+> `Link`'s target and destination, all of them. So a rule could point at anything the match discovered and at
+> nothing it had just created. Two `Emit`s produced two disconnected occurrences.
+
+That is on the critical path twice, and neither is reachable by working on formats:
+
+- a **pattern** as data needs atom →`out:`→ atom, and both atoms are minted by the rule writing it;
+- a **conditional** needs the `when:` link between two claims (`forms_cnl` §13.1), and neither claim exists
+  until the interpretation rule mints it.
+
+So *a rule writes a rule* was impossible independently of how patterns are reified — the reification would
+have produced an inventory of parts with nothing able to assemble them.
+
+**The fix adds no kind and no privileged namespace**, which is why it belongs here rather than in a format
+document. The LHS has variables; give the RHS names. `Emit(..., as_="a1")` binds the minted occurrence for
+the rest of *that firing*, and any later effect may name it exactly as it names a match binding. Mechanically
+it is one change of shape: the effects of a firing are instantiated **together**, sharing one binding map
+(`instantiate_all`), instead of one template at a time.
+
+**One namespace per firing, and three ways to get it wrong are refused rather than resolved:** an `as_` that
+shadows a pattern variable, an `as_` minted twice, and a forward reference to a name not yet minted. Each
+raises. The alternative in every case is a rule that silently builds half a structure, or points the second
+half at the first — the mis-wirings this construct exists to make expressible.
+
+⚠ **The line count is not the cost.** Once a rule can build arbitrary structure, *rule writes a rule* is live
+and the learning arc is reachable from here. That is a far larger design surface than the diff, and it should
+be entered deliberately rather than as a footnote to `pattern:`.
+
+`units/engine.py`; `tests/units/test_engine.py` §11, 8 tests including the disconnected negative control.
+
+---
+
+## 8d. `pattern:` — a left-hand side is data
+
+**Built 2026-07-27, immediately on top of §8c.** The last tier-0 role, and the remaining half of
+`forms_cnl.md` §9 step 1: what a unit *looks for* was a Python object, so for that half the front end's
+target was still an engine API.
+
+**The encoding grows no role.** `out:` is the one containment relation, and what a described node **is**
+comes from its `name`, matched explicitly like every other fact (`model.md` §4) — `<pattern>` holding
+conjuncts, `<atom>` holding constraints and sub-atoms, `<constraint>` carrying `key` plus one of
+`value` / `attrvar` / `graded`, `<absent>` for a negative conjunct. Tier 0 stays at five roles while the
+register learns to hold a whole LHS, which is the same move §5 made for wires: an occurrence node and a
+name, never a new sort of edge.
+
+**Derived, not owned.** `StandingUnit.pattern` is read from the graph each revive and falls back to
+`authored` when nothing describes it, exactly as `Network.wires` is derived. Without the fallback,
+deleting a description would leave the last LHS read still running — the defect the wiring register
+exists to remove, one level in. So *(axioms, wiring)* in invariant 15 now includes the units' patterns.
+
+⚠ **Reading refuses where assembling skips, and the asymmetry is the point.** `assemble()` skips a wire
+naming something unbuilt, because a missing wire is a *smaller* circuit — visible, and it fails safe. A
+dropped constraint is the opposite: the pattern matches **more** than its author wrote, silently. So an
+unreadable member raises, two descriptions on one unit raise rather than conjoin, and a described
+conjunction with **no** conjuncts raises — an empty pattern matches vacuously, so a truncated description
+would fire its unit on everything. An authored `()` stays legal: a Python author can mean it, a
+half-written description cannot. That last one was found by mutation-checking the test below.
+
+⭐ **`test_a_rule_writes_a_rule` runs**, and it needs both slices: a mutating rule concludes a pattern
+node, an atom, a constraint and the links between them — none of which existed before it fired — plus
+the wire that feeds the unit; on the next turn the described unit runs and concludes about the world.
+Without §8c the parts cannot be joined; without `pattern:` the parts are not a left-hand side.
+
+⚠ **A unit's effects are still Python, and that is now the whole of the gap.** Plane 1 can describe what
+a unit matches and what it is wired to; it cannot yet describe what it *concludes*. The learning arc
+(§8c's caveat) needs that half too.
+
+`tests/units/test_engine.py` §12, 8 tests; 107 green.
+
+---
+
+## 8e. `effect:` — and tier 0 grew, which is the finding
+
+**Built 2026-07-27.** §8d left one gap and named it: plane 1 could say what a unit matches and what feeds
+it, not what it **concludes**. `effect:` closes it, on the same encoding — one node per template, `name`
+says which (`<emit>` `<attribute>` `<stamp>` `<link>` `<merge>` `<drop>`), attributes carry the fields, an
+`<emit>`'s `<role>`s hang off `out:`. `StandingUnit.effects` is derived from the graph each revive with
+`authored_effects` as the fallback, exactly as the pattern is.
+
+⚠ **`forms_cnl.md` §6 declares tier 0 closed at five roles, designed a priori. It is six.** The five
+describe *wiring* — what feeds what — and describing a whole **unit** was a job the register was never
+sized for. This is recorded rather than absorbed, because it is the cheapest kind of evidence there is:
+*designed a priori* means designed before anything used it, and the first real use added a role. What did
+**not** grow is the encoding underneath — a pattern's and an effect's own parts hang off `out:` and are
+told apart by `name`, so the register bought two whole sub-languages for one role.
+
+**Order is load-bearing on this side, in a way it is not for patterns.** Conjunct order matters only to
+`Absent`; effect order decides whether an RHS local name resolves at all (§8c). Mint order carries it,
+and a described right-hand side read out of order is a *different rule* — for a forward reference, one
+that raises.
+
+⚠ **Refusal is sharper here too.** A dropped `Emit` makes a unit conclude *less*; a dropped `Drop` makes
+the graph read **more**, because deletion is the one non-monotone effect (§6). So *"skip what you cannot
+read"* would widen the world in exactly the case that matters. A truncated template — an `<emit>` with no
+`mints`, a `<link>` with no `dst` — raises.
+
+⭐ **A unit is now describable entirely.** `test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python`
+starts from a shell — a name and a gate, `pattern is None`, `effects == ()` — and a mutating rule concludes
+its LHS, its RHS and its wire; next turn it runs and concludes about the world. There is no longer any part
+of a unit that only Python can say.
+
+**What that opens, and what it does not.** `forms_cnl.md` §1's middle stage is now expressible: interpretation
+is a turn of the engine and what it produces is data an assembler reads. It does **not** decide what an
+interpretation rule *should* conclude — that is the `when:`-to-wired-unit slice, and it is a question about
+forms, not about mechanism. It also puts the learning arc's precondition fully in place; §8c's caveat stands
+undiminished.
+
+`tests/units/test_engine.py` §13, 6 tests; 113 green.
+
+---
+
 ## 9. Open
 
 - ~~**Is lazy application affordable?**~~ ✅ **Closed — yes, and eager is what is not.** Merging half a
@@ -724,9 +842,9 @@ That is the nearest this design gets to a semantics, and it is now a property ra
 - ~~**What the assembler reads.**~~ ✅ **Closed — it reads the graph.** `Network.assemble()` matches an
   ordinary pattern over `self.asserted`; `wire()` writes the fact rather than owning a list. A circuit can be
   wired by writing graph data alone, and a mutating rule can conclude a wire — invariant 4's *units propose
-  wirings as facts*, cashed. ⚠ **`pattern:` is still Python**: the assembler is handed unit objects and
-  resolves them by node, so a unit's LHS/RHS is the one part of plane 2 plane 1 does not yet describe. That
-  is the remaining half of `forms_cnl.md` §9 step 1.
+  wirings as facts*, cashed. ✅ **`pattern:` is data too** (§8d, via §8c's prerequisite), ✅ **and `effect:`**
+  (§8e) — so `forms_cnl.md` §9 step 1 is **closed**: nothing about a unit is Python-only, and a rule can
+  describe a whole unit into existence. ⚠ It cost tier 0 a sixth role, which §6 declared closed.
 - **Does a persistent correction differ from a within-turn one?** §7 says burns persist. Silencing as built
   is per-turn containment; the persistent variant is the authored unwiring, and it is unbuilt.
 - **Does a conflict need a band?** `Conflict` is currently crisp. Two readings at different strengths is not

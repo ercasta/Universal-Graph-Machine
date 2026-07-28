@@ -6,11 +6,13 @@ support**, computed by walking the wiring, joining `revision-02` §3's two halve
 """
 import pytest
 
-from units.engine import (ABOUT, CONFLICT, FROM, GATE, OUT, SILENCED, SOURCE, SURGE_AT, SURGED, TO,
-                          UNDER, WIRE, Attribute, Drop, Emit, Link, Merge, Network, StandingUnit,
-                          bundled_silence_rule, effects_of)
+from units.engine import (ABOUT, AS, ATOM, ATTRIBUTE, CONFLICT, CONSTRAINT, EFFECT, EMIT, FROM, GATE,
+                          KEY, MINTS, OUT, PAT, PATTERN, SILENCED, SOURCE, SURGE_AT, SURGED, TO,
+                          UNDER, VALUE, VAR, WIRE, Attribute, Drop, Emit, Link, Merge, Network,
+                          StandingUnit, Stamp, _targets, bundled_silence_rule, effects_of,
+                          read_effect, read_pattern, write_effect, write_pattern)
 from units.graph import EMPTY, Node, named, role_edge
-from units.match import AttrVar, atom, atoms, role
+from units.match import AttrVar, absent, atom, atoms, role
 
 
 def kb(**attrs):
@@ -803,3 +805,409 @@ def test_a_base_world_conflict_is_not_blamed_on_a_hypothesis():
     unders = [d for r in reports for e in n.graph().out(r)
               if n.graph().attr(e, "name") == UNDER for d in n.graph().out(e)]
     assert reports and not unders
+
+
+# -- 11. the right-hand side has names too -----------------------------------------------------------
+#
+# **Measured 2026-07-27: a rule could not connect two nodes it minted.** Every filler in every effect
+# template was `m[var]`, a node the *left*-hand side found, so two `Emit`s produced two occurrences with
+# nothing between them. That blocks `pattern:` (a two-atom pattern is atom →`out:`→ atom) and it blocks
+# the conditional (`when:` between two claims) — so *a rule writes a rule* was impossible whatever was
+# done about reifying patterns.
+#
+# The fix adds no kind: the LHS has variables, so the RHS gets names, scoped to one firing exactly like
+# a match binding. `instantiate_all` is the whole of it.
+
+def role_targets(view, node, role_name: str) -> list:
+    return [d for e in view.out(node) if view.attr(e, "name") == role_name for d in view.out(e)]
+
+
+def emitted(view, name: str) -> list:
+    return [x for x in view.nodes if view.attr(x, "name") == name]
+
+
+def two_emits(*, connected: bool) -> Network:
+    g, seed = named(EMPTY, "seed")
+    n = Network()
+    effects = [Emit("atomA", roles=(("of", "s"),), as_="a1"),
+               Emit("atomB", roles=(("of", "s"),) + ((("out", "a1"),) if connected else ()))]
+    n.wire(n.given(g), n.add(StandingUnit("writer", (atom("s", name="seed"),), *effects)))
+    return n.revive()
+
+
+def test_two_emits_are_disconnected_unless_one_names_the_other():
+    """**The negative control, and the measurement that started this.** Without a local name each `Emit`
+    can only point back at what the match found — both occurrences hang off `seed` and nothing runs
+    between them."""
+    v = two_emits(connected=False).graph()
+    (a, b) = emitted(v, "atomA")[0], emitted(v, "atomB")[0]
+    assert role_targets(v, a, "of") == role_targets(v, b, "of")     # both reach the matched node
+    assert role_targets(v, b, "out") == []                          # …and nothing reaches each other
+
+
+def test_a_rule_connects_two_nodes_it_minted():
+    """The same rule, one `as_` apart. This is the capability, at its smallest."""
+    v = two_emits(connected=True).graph()
+    (a,), (b,) = emitted(v, "atomA"), emitted(v, "atomB")
+    assert role_targets(v, b, "out") == [a]
+
+
+def test_a_rule_writes_a_two_atom_pattern():
+    """`pattern:` is the last unbuilt tier-0 role, and a pattern as data is atom →`out:`→ atom. A rule
+    can now write one — which is what makes reifying patterns a matter of format rather than of
+    mechanism."""
+    g, seed = named(EMPTY, "seed")
+    n = Network()
+    n.wire(n.given(g), n.add(StandingUnit(
+        "author", (atom("s", name="seed"),),
+        Emit("atom", roles=(("of", "s"),), as_="inner"),
+        Emit("atom", as_="outer"),
+        Link("outer", "inner", role=OUT),
+        Emit("pattern", roles=((OUT, "outer"),)))))
+    v = n.revive().graph()
+
+    (p,) = emitted(v, "pattern")
+    (outer,) = role_targets(v, p, OUT)
+    (inner,) = role_targets(v, outer, OUT)
+    assert role_targets(v, inner, "of") == [seed]
+    assert outer is not inner
+
+
+def test_a_rule_writes_a_conditional():
+    """The other thing on the critical path: `when:` is a tier-2 role **between two claims**
+    (`forms_cnl` §13.1), and neither claim exists until the rule mints it."""
+    g, seed = named(EMPTY, "seed")
+    n = Network()
+    n.wire(n.given(g), n.add(StandingUnit(
+        "interpret", (atom("s", name="seed"),),
+        Emit("claim", roles=(("about", "s"),), as_="antecedent"),
+        Emit("claim", roles=(("about", "s"),), as_="consequent"),
+        Link("consequent", "antecedent", role="when"),
+        Attribute("antecedent", "polarity", "pos"))))
+    v = n.revive().graph()
+
+    claims = emitted(v, "claim")
+    conseq = [c for c in claims if role_targets(v, c, "when")]
+    assert len(claims) == 2 and len(conseq) == 1
+    (ante,) = role_targets(v, conseq[0], "when")
+    assert v.attr(ante, "polarity") == "pos"
+    assert v.attr(conseq[0], "polarity") is None
+
+
+def test_a_local_name_is_scoped_to_one_firing():
+    """⚠ The whole safety of the construct. Two matches must build two structures, not cross-link into
+    one — the same discipline that makes a match binding per-row."""
+    g, one = named(EMPTY, "seed", tag="one")
+    g, two = named(g, "seed", tag="two")
+    n = Network()
+    n.wire(n.given(g), n.add(StandingUnit(
+        "writer", (atom("s", name="seed"),),
+        Emit("head", roles=(("of", "s"),), as_="h"),
+        Emit("tail", roles=(("out", "h"),)))))
+    v = n.revive().graph()
+
+    heads, tails = emitted(v, "head"), emitted(v, "tail")
+    assert len(heads) == len(tails) == 2
+    pairs = {role_targets(v, t, "out")[0]: role_targets(v, t, "out") for t in tails}
+    assert len(pairs) == 2                                    # each tail reached a different head
+    for t in tails:
+        assert len(role_targets(v, t, "out")) == 1            # …and exactly one
+
+
+def test_a_local_name_may_not_shadow_a_match_binding():
+    """One namespace per firing, not two with a precedence rule. A rule whose `as_` collides with its
+    own pattern variable is contradicting itself, and it fails loudly (`P9`)."""
+    g, _ = named(EMPTY, "seed")
+    n = Network()
+    n.wire(n.given(g), n.add(StandingUnit(
+        "clash", (atom("s", name="seed"),), Emit("occ", as_="s"))))
+    with pytest.raises(ValueError):
+        n.revive()
+
+
+def test_a_local_name_may_not_be_minted_twice():
+    """Rebinding would silently make the second structure the first one's, which is the mis-wiring this
+    construct exists to make expressible."""
+    g, _ = named(EMPTY, "seed")
+    n = Network()
+    n.wire(n.given(g), n.add(StandingUnit(
+        "twice", (atom("s", name="seed"),), Emit("occ", as_="a"), Emit("occ", as_="a"))))
+    with pytest.raises(ValueError):
+        n.revive()
+
+
+def test_naming_a_local_before_it_is_minted_is_a_failure_not_a_silent_miss():
+    """Effect order is authoring order. Forward references are not resolved, and the honest failure is
+    the loud one — a silent skip here would be a rule that quietly built half a structure."""
+    g, _ = named(EMPTY, "seed")
+    n = Network()
+    n.wire(n.given(g), n.add(StandingUnit(
+        "early", (atom("s", name="seed"),),
+        Emit("tail", roles=(("out", "h"),)), Emit("head", as_="h"))))
+    with pytest.raises(KeyError):
+        n.revive()
+
+
+# -- 12. `pattern:` — a unit's left-hand side, as data -------------------------------------------------
+#
+# The remaining half of `forms_cnl.md` §9 step 1. Topology became data first; what a unit *looks for*
+# stayed a Python object, so the front end still had an engine API as its target for that half.
+#
+# The encoding grows no role: `out:` is the one containment relation and what a described node **is**
+# comes from its `name`, matched explicitly like any other fact.
+
+def described(n: Network, unit) -> list:
+    return _targets(n.asserted, unit.node, PATTERN)
+
+
+def test_a_pattern_round_trips_through_the_graph():
+    """Every construct the matcher has: a variable, a literal, an `AttrVar`, a graded requirement, a
+    sub-atom, and a negative conjunct. Equality is on the matcher's own objects, so this is the whole
+    claim that the description loses nothing."""
+    p = (atom("x", kind="man", nick=AttrVar("n"),
+              out=(role("agent", atom("y", graded=("tall",))),)),
+         atom("z", name=AttrVar("n")),
+         absent(atom("w", dead=True)))
+    g, node = write_pattern(EMPTY, p)
+    assert read_pattern(g, node) == p
+
+
+def test_a_unit_matches_what_the_graph_says_it_matches():
+    """No `wire()`-shaped convenience and no engine API: the pattern is written into the graph as
+    occurrences, hung off the unit through `pattern:`, and the unit runs it."""
+    g, soc = named(EMPTY, "Socrates", kind="man")
+    n = Network()
+    u = n.add(StandingUnit("m", None, Attribute("x", "mortal", True)))
+    n.wire(n.given(g), u)
+    assert n.revive().world().attr(soc, "mortal") is None      # no LHS described: nothing to say
+
+    n.asserted, p = write_pattern(n.asserted, (atom("x", kind="man"),))
+    n.asserted = role_edge(n.asserted, u.node, PATTERN, p)
+    assert n.revive().world().attr(soc, "mortal") is True
+
+
+def test_removing_the_description_un_patterns_the_unit():
+    """Derived, not owned — the wiring register's own test, one level in. If `pattern` were kept once
+    read, deleting the description would leave the last LHS still running."""
+    g, soc = named(EMPTY, "Socrates", kind="man")
+    n = Network()
+    u = n.add(StandingUnit("m", None, Attribute("x", "mortal", True)))
+    n.wire(n.given(g), u)
+    p = n.describe_pattern(u, (atom("x", kind="man"),))
+    assert n.revive().world().attr(soc, "mortal") is True
+
+    n.asserted = n.asserted.without(p)
+    assert n.revive().world().attr(soc, "mortal") is None
+    assert u.pattern is None
+
+
+def test_a_described_pattern_overrides_an_authored_one_and_reverts():
+    """A unit built in Python is not frozen: describing a pattern replaces its LHS, and removing the
+    description gives the authored one back. That is what lets the register grow into the engine
+    instead of replacing it in one step."""
+    g, soc = named(EMPTY, "Socrates", kind="man", mood="calm")
+    n = Network()
+    u = n.add(StandingUnit("m", (atom("x", mood="restless"),), Attribute("x", "seen", True)))
+    n.wire(n.given(g), u)
+    assert n.revive().world().attr(soc, "seen") is None         # the authored LHS does not match
+
+    p = n.describe_pattern(u, (atom("x", mood="calm"),))
+    assert n.revive().world().attr(soc, "seen") is True
+    n.asserted = n.asserted.without(p)
+    assert n.revive().world().attr(soc, "seen") is None
+
+
+def test_two_descriptions_are_an_error_not_a_conjunction():
+    """⚠ Two wires are two deliveries and compose harmlessly. Two patterns is a unit whose author cannot
+    be identified, and picking one silently is the unrecoverable direction (`P9`)."""
+    n = Network()
+    u = n.add(StandingUnit("m", None, Attribute("x", "mortal", True)))
+    n.describe_pattern(u, (atom("x", kind="man"),))
+    n.describe_pattern(u, (atom("x", kind="god"),))
+    with pytest.raises(ValueError):
+        n.revive()
+
+
+def test_an_unreadable_member_is_refused_never_skipped():
+    """The asymmetry that decides this: a skipped wire is a **smaller** circuit, visible and safe; a
+    skipped constraint is a pattern that matches **more** than its author wrote, silently."""
+    g, junk = named(EMPTY, "junk")
+    g, node = write_pattern(g, (atom("x", kind="man"),))
+    (a,) = _targets(g, node, OUT)
+    g = role_edge(g, a, OUT, junk)
+    with pytest.raises(ValueError):
+        read_pattern(g, node)
+
+
+def test_a_described_pattern_with_no_conjuncts_is_refused():
+    """The same asymmetry at its limit: an empty pattern matches **vacuously**, so a truncated
+    description would fire its unit on everything. An authored `()` is still legal — a Python author can
+    mean it, a half-written description cannot. Found by mutation: dropping one `Link` from the rule in
+    `test_a_rule_writes_a_rule` produced exactly this."""
+    n = Network()
+    u = n.add(StandingUnit("m", None, Attribute("x", "mortal", True)))
+    n.asserted, p = write_pattern(n.asserted, ())
+    n.asserted = role_edge(n.asserted, u.node, PATTERN, p)
+    with pytest.raises(ValueError):
+        n.revive()
+
+
+def test_a_rule_writes_a_rule():
+    """⭐ **The two slices meeting.** A mutating rule concludes a unit's whole left-hand side — pattern
+    node, atom, constraint, and the links between them, none of which existed before it fired — plus the
+    wire that feeds it. Next turn the described unit runs and concludes about the world.
+
+    It needs both halves: RHS local names, or the pattern's parts cannot be joined (§11); `pattern:`,
+    or the parts are not a left-hand side. Its effects are still Python, and that is the honest limit —
+    what a unit *concludes* is the part of plane 2 plane 1 still cannot describe."""
+    g, soc = named(EMPTY, "Socrates", kind="man")
+    g, feed = named(g, "feed")                       # the gate to wire to, as a node in the world
+    n = Network()
+    n.given(g, name="src")
+    n.add(StandingUnit("derived", None, Attribute("x", "mortal", True), gates=("feed",)))
+    assert n.revive().world().attr(soc, "mortal") is None       # no LHS, no wire: nothing happens
+
+    author = n.add(StandingUnit(
+        "author",
+        (atom("c", name="src"), atom("t", name="derived"), atom("g", name="feed")),
+        Emit(PAT, as_="p"),
+        Emit(ATOM, as_="a"), Attribute("a", VAR, "x"),
+        Emit(CONSTRAINT, as_="k"), Attribute("k", KEY, "kind"), Attribute("k", VALUE, "man"),
+        Link("a", "k", role=OUT),
+        Link("p", "a", role=OUT),
+        Link("t", "p", role=PATTERN),
+        Emit(WIRE, roles=((FROM, "c"), (TO, "t"), (GATE, "g"))),
+        mutating=True))
+    reflect = n.axiom(*effects_of(n.asserted), name="reflect")
+    n.wire(reflect, author)
+
+    n.revive()                                       # turn 1: the author writes the rule
+    assert n.world().attr(soc, "mortal") is None     # …and nothing has run it yet
+
+    reflect.held = None                              # the author is done; it has no further input
+    n.revive()                                       # turn 2: the written rule runs
+    assert n.world().attr(soc, "mortal") is True
+
+
+# -- 13. `effect:` — what a unit concludes, as data ----------------------------------------------------
+#
+# ⚠ **Tier 0 grew, from five roles to six.** `forms_cnl.md` §6 declares it closed and designed a priori,
+# and the five it declares describe **wiring** — what feeds what. Describing a whole *unit* is a job the
+# register was never sized for: with `pattern:` in, plane 1 could say what a unit matches and what
+# reaches it, and still not what it concludes. Recorded rather than quietly absorbed.
+
+RHS = (Emit("claim", roles=(("about", "x"),), as_="c"),
+       Attribute("c", "polarity", "pos"),
+       Stamp("c", "likely", "high"),
+       Link("c", "x", role="when"),
+       Merge("x", "c"),
+       Drop("x", "stale", source_var="who"))
+
+
+def test_every_effect_template_round_trips_through_the_graph():
+    """All six, with their optional fields present and absent. Equality is on the templates
+    `instantiate` consumes, so this is the whole claim that the description loses nothing."""
+    for t in RHS + (Emit("bare"), Link("a", "b"), Drop("a", "attr", source="u")):
+        g, node = write_effect(EMPTY, t)
+        assert read_effect(g, node) == t
+
+
+def test_a_unit_concludes_what_the_graph_says_it_concludes():
+    """The mirror of §12's first claim, on the other side of the rule."""
+    g, soc = named(EMPTY, "Socrates", kind="man")
+    n = Network()
+    u = n.add(StandingUnit("m", (atom("x", kind="man"),)))       # no effects authored
+    n.wire(n.given(g), u)
+    assert n.revive().world().attr(soc, "mortal") is None
+
+    n.describe_effects(u, Attribute("x", "mortal", True))
+    assert n.revive().world().attr(soc, "mortal") is True
+
+
+def test_described_effects_replace_the_authored_ones_and_revert():
+    g, soc = named(EMPTY, "Socrates", kind="man")
+    n = Network()
+    u = n.add(StandingUnit("m", (atom("x", kind="man"),), Attribute("x", "mortal", True)))
+    n.wire(n.given(g), u)
+    assert n.revive().world().attr(soc, "mortal") is True
+
+    (e,) = n.describe_effects(u, Attribute("x", "seen", True))
+    n.revive()
+    assert n.world().attr(soc, "seen") is True
+    assert n.world().attr(soc, "mortal") is None                 # replaced, not added to
+
+    n.asserted = n.asserted.without(e)
+    assert n.revive().world().attr(soc, "mortal") is True        # …and the authored one is back
+
+
+def test_described_effects_keep_their_order_so_local_names_resolve():
+    """⚠ Mint order is load-bearing here in a way it is not for pattern conjuncts: RHS local names are
+    resolved in authoring order (§11), so a right-hand side read out of order is a *different rule* —
+    and, for a forward reference, one that raises."""
+    g, seed = named(EMPTY, "seed")
+    n = Network()
+    u = n.add(StandingUnit("writer", (atom("s", name="seed"),)))
+    n.wire(n.given(g), u)
+    n.describe_effects(u, Emit("head", roles=(("of", "s"),), as_="h"),
+                       Emit("tail", roles=(("out", "h"),)))
+    v = n.revive().graph()
+
+    (head,), (tail,) = emitted(v, "head"), emitted(v, "tail")
+    assert role_targets(v, tail, "out") == [head]
+
+
+def test_a_truncated_effect_is_refused_never_skipped():
+    """⚠ Sharper than the pattern case. A dropped `Emit` makes a unit conclude *less*; a dropped `Drop`
+    makes the graph read **more**, because deletion is the one non-monotone effect (`rev-02` §6). So
+    *skip what you cannot read* would widen the world in exactly the case that matters."""
+    g, node = write_effect(EMPTY, Emit("claim"))
+    assert read_effect(g, node) == Emit("claim")
+    with pytest.raises(ValueError):
+        read_effect(g.without(node, MINTS), node)                # a truncated <emit>
+    with pytest.raises(ValueError):
+        read_effect(g.with_node(node, name="<something>"), node)  # not an effect at all
+
+
+def test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python():
+    """⭐ **Plane 1 describes a unit entirely.** The target unit is an empty shell — no pattern, no
+    effects, nothing but a name and a gate. A mutating rule concludes its left-hand side, its right-hand
+    side and the wire that feeds it, and on the next turn it runs.
+
+    This is `forms_cnl.md` §1's middle stage made expressible: interpretation is a turn of the engine,
+    and what it produces is data an assembler reads."""
+    g, soc = named(EMPTY, "Socrates", kind="man")
+    g, feed = named(g, "feed")
+    n = Network()
+    n.given(g, name="src")
+    shell = n.add(StandingUnit("derived", None, gates=("feed",)))
+    assert shell.pattern is None and shell.effects == ()
+
+    author = n.add(StandingUnit(
+        "author",
+        (atom("c", name="src"), atom("t", name="derived"), atom("g", name="feed")),
+        # …the left-hand side: match anything of kind "man", as "x"
+        Emit(PAT, as_="p"),
+        Emit(ATOM, as_="a"), Attribute("a", VAR, "x"),
+        Emit(CONSTRAINT, as_="k"), Attribute("k", KEY, "kind"), Attribute("k", VALUE, "man"),
+        Link("a", "k", role=OUT), Link("p", "a", role=OUT), Link("t", "p", role=PATTERN),
+        # …the right-hand side: mint a <claim> about it
+        Emit(EMIT, as_="e"), Attribute("e", MINTS, "claim"), Attribute("e", AS, "cl"),
+        Emit("<role>", as_="r"), Attribute("r", KEY, "about"), Attribute("r", VAR, "x"),
+        Link("e", "r", role=OUT), Link("t", "e", role=EFFECT),
+        Emit(ATTRIBUTE, as_="at"), Attribute("at", VAR, "cl"),
+        Attribute("at", KEY, "mortal"), Attribute("at", VALUE, True),
+        Link("t", "at", role=EFFECT),
+        # …and the wire
+        Emit(WIRE, roles=((FROM, "c"), (TO, "t"), (GATE, "g"))),
+        mutating=True))
+    reflect = n.axiom(*effects_of(n.asserted), name="reflect")
+    n.wire(reflect, author)
+
+    n.revive()                                   # turn 1: the author writes the whole unit
+    reflect.held = None
+    n.revive()                                   # turn 2: the written unit runs
+
+    v = n.world()
+    (claim,) = emitted(v, "claim")
+    assert role_targets(v, claim, "about") == [soc]
+    assert v.attr(claim, "mortal") is True       # …the RHS local name resolved, across a turn

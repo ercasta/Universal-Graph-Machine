@@ -43,7 +43,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .graph import EMPTY, Graph, Node, role_edge
-from .match import AttrVar, Match, atom, role, solve
+from .match import Absent, AttrVar, Match, Pat, atom, role, solve
 from .overlay import (BASE, AddEdge, Grade, Identify, Mint, Overlays, Retract, SetAttr, View)
 
 SURGE_AT = 3            # times one gate's input may CHANGE before the loop is burned
@@ -53,8 +53,8 @@ ENGINE = "<engine>"     # the only source the engine contributes under
 
 # -- tier 0: the wiring register's vocabulary (`forms_cnl.md` §6) ---------------------------------
 #
-# The whole of it. `pattern:` is tier 0 too and is not yet used here — a unit's *pattern* is still a
-# Python object, which is the next thing this register has to swallow.
+# The whole of it, and it is now used in full: `pattern:` reaches a unit's left-hand side, described in
+# the graph like everything else — and `effect:`, below, reaches its right-hand side.
 
 WIRE = "<wire>"         # the occurrence: a 3-place relation, source × target × gate (`rev-02` §5)
 CONFLICT = "conflict"   # the engine's second report: two live values for one slot (`rev-02` §6)
@@ -64,7 +64,157 @@ SOURCE = "source"       # …and which unit produced each disagreeing reading
 FROM = "from"
 TO = "to"
 GATE = "gate"
-OUT = "out"             # a unit → the cell its output is held in
+OUT = "out"             # a unit → the cell its output is held in; and container → contained (§6)
+PATTERN = "pattern"     # a unit → the description of what it matches
+
+# …and the occurrences a pattern is made of. **No new role**: `out:` is the one containment relation,
+# and what a described node *is* comes from its `name`, matched explicitly like every other fact
+# (`model.md` §4). That keeps tier 0 at five roles while the register learns to hold a whole LHS.
+
+PAT = "<pattern>"        # the conjunction; `out:` → its conjuncts, in mint order
+ATOM = "<atom>"          # one atom; `var` names it, `out:` → its constraints and sub-atoms
+CONSTRAINT = "<constraint>"   # `key` + one of `value` / `attrvar` / `graded`
+ABSENT = "<absent>"      # a negative conjunct; `out:` → the atoms that must not match
+KEY = "key"
+VALUE = "value"
+ATTRVAR = "attrvar"     # …the constraint is an AttrVar of this name, not a literal
+GRADED = "graded"       # …the attribute must be present, and its band enters the match strength
+VAR = "var"
+
+# -- tier 0 GREW, and the growth is the finding ---------------------------------------------------
+#
+# ⚠ `forms_cnl.md` §6 declares tier 0 closed at five roles. It is six now. The five were designed to
+# describe **wiring** — what feeds what — and describing a whole *unit* is a job the register was never
+# sized for: with `pattern:` in, plane 1 could say what a unit matches and what reaches it, and still
+# not what it **concludes**. `effect:` is that missing half. Recorded rather than quietly absorbed: a
+# tier declared closed and then grown is exactly the sort of thing that should be visible.
+
+EFFECT = "effect"       # a unit → one of its effect templates, in mint order
+
+EMIT = "<emit>"          # `mints` names the occurrence; `out:` → its `<role>`s; `as`, `grades`
+ROLE = "<role>"          # `key` = the role name, `var` = what fills it
+ATTRIBUTE = "<attribute>"     # `var` `key` `value`
+STAMP = "<stamp>"        # `var` `key` `band`
+LINK = "<link>"          # `var` → `dst`, optionally through a role node named `key`
+MERGE = "<merge>"        # `left` `right`
+DROP = "<drop>"          # `var`, optionally `key`, and `value` / `attrvar` for the source
+MINTS = "mints"
+AS = "as"
+GRADES = "grades"       # …the attribute the firing's own match band is written to
+BAND = "band"
+DST = "dst"
+LEFT = "left"
+RIGHT = "right"
+
+
+# -- a pattern, as data ---------------------------------------------------------------------------
+#
+# `forms_cnl.md` §9 step 1's remaining half. A unit's left-hand side was a Python object, so the one
+# part of plane 2 that plane 1 could not describe was *what a unit looks for* — and a front end whose
+# target is an engine API is what `model.md` §11 forbids.
+#
+# ⚠ **Order is mint order**, as it is for wires. Conjunct order is semantically inert for atoms and is
+# **not** inert for `Absent`, which is evaluated against the bindings established so far (`match.py`);
+# a rule's effects mint in authoring order, so authoring order is what survives. Nothing else in the
+# graph could express the intent, and inventing a role to carry it would grow tier 0.
+
+
+def _targets(g: Graph, n: Node, role_name: str) -> list:
+    """Everything reached from `n` through a role node called `role_name`, in mint order.
+
+    ⚠ **`Graph.out` is unordered** — edges live in a frozenset, so iteration follows hash order. Any
+    reader that cares about sequence has to impose one, and `nid` is the only sequence the substrate
+    records (invariant 15: nothing semantic may rest on it, and here only `Absent` does)."""
+    found = [d for e in sorted(g.out(n), key=lambda x: x.nid)
+             if g.attr(e, "name") == role_name for d in g.out(e)]
+    return sorted(found, key=lambda x: x.nid)
+
+
+def write_pattern(g: Graph, pattern) -> tuple:
+    """A pattern, described in the graph. Returns `(graph, node)`."""
+    p = Node(PAT)
+    g = g.with_node(p, name=PAT)
+    for item in pattern:
+        g, n = _write_conjunct(g, item)
+        g = role_edge(g, p, OUT, n)
+    return g, p
+
+
+def _write_conjunct(g: Graph, item) -> tuple:
+    if isinstance(item, Absent):
+        a = Node(ABSENT)
+        g = g.with_node(a, name=ABSENT)
+        for sub in item.atoms:
+            g, n = _write_atom(g, sub)
+            g = role_edge(g, a, OUT, n)
+        return g, a
+    return _write_atom(g, item)
+
+
+def _write_atom(g: Graph, pat: Pat) -> tuple:
+    a = Node(ATOM)
+    g = g.with_node(a, name=ATOM, **({VAR: pat.var} if pat.var is not None else {}))
+    for k, v in pat.attrs:
+        c = Node(CONSTRAINT)
+        g = (g.with_node(c, name=CONSTRAINT, **{KEY: k},
+                         **({ATTRVAR: v.name} if isinstance(v, AttrVar) else {VALUE: v})))
+        g = role_edge(g, a, OUT, c)
+    for k in pat.graded:
+        c = Node(CONSTRAINT)
+        g = role_edge(g.with_node(c, name=CONSTRAINT, **{KEY: k, GRADED: True}), a, OUT, c)
+    for sub in pat.out:
+        g, n = _write_atom(g, sub)
+        g = role_edge(g, a, OUT, n)
+    return g, a
+
+
+def read_pattern(g: Graph, node: Node) -> tuple:
+    """The described pattern, as the matcher's own objects. The inverse of `write_pattern`.
+
+    ⚠ **An unreadable member is refused, never skipped.** `assemble()` skips a wire naming something
+    unbuilt, because a missing wire is a *smaller* circuit — visible, and it fails safe. A dropped
+    constraint is the opposite: the pattern matches **more** than its author wrote, silently. Same
+    asymmetry as `P9`, so this raises.
+
+    ⚠ **A described conjunction with no conjuncts is refused too**, for the same reason at the limit: an
+    empty pattern matches **vacuously**, so a truncated description would fire its unit on anything. An
+    authored `()` is still legal — a Python author can mean it; a half-written description cannot."""
+    conjuncts = tuple(_read_conjunct(g, c) for c in _targets(g, node, OUT))
+    if not conjuncts:
+        raise ValueError(f"{node!r} describes an empty pattern, which matches vacuously")
+    return conjuncts
+
+
+def _read_conjunct(g: Graph, n: Node):
+    if g.attr(n, "name") == ABSENT:
+        return Absent(tuple(_read_atom(g, s) for s in _targets(g, n, OUT)))
+    return _read_atom(g, n)
+
+
+def _read_atom(g: Graph, n: Node) -> Pat:
+    if g.attr(n, "name") != ATOM:
+        raise ValueError(f"{n!r} is not an atom (name={g.attr(n, 'name')!r})")
+    attrs: list = []
+    graded: list = []
+    subs: list = []
+    for t in _targets(g, n, OUT):
+        kind = g.attr(t, "name")
+        if kind == ATOM:
+            subs.append(_read_atom(g, t))
+        elif kind == CONSTRAINT:
+            key = g.attr(t, KEY)
+            if key is None:
+                raise ValueError(f"constraint {t!r} carries no {KEY!r}")
+            if g.attr(t, GRADED):
+                graded.append(key)
+            elif (av := g.attr(t, ATTRVAR)) is not None:
+                attrs.append((key, AttrVar(av)))
+            else:
+                attrs.append((key, g.attr(t, VALUE)))
+        else:
+            raise ValueError(f"{n!r} contains {t!r}, which is neither an atom nor a constraint")
+    return Pat(var=g.attr(n, VAR), attrs=tuple(sorted(attrs, key=lambda kv: kv[0])),
+               graded=tuple(graded), out=tuple(subs))
 
 
 # -- effect templates: what a rule says, before a match instantiates it --------------------------
@@ -75,11 +225,16 @@ OUT = "out"             # a unit → the cell its output is held in
 @dataclass(frozen=True)
 class Emit:
     """Mint an occurrence: a node, its role nodes, and optionally a band from the firing's own match
-    strength (§4, *a firing may inherit its match strength*)."""
+    strength (§4, *a firing may inherit its match strength*).
+
+    `as_` names the minted occurrence **for the rest of this firing**, so a later effect can point at it
+    (`instantiate_all`). Without it every filler is a node the *match* found, and a rule can therefore
+    build only stars around pre-existing nodes — never an edge between two things it just made."""
 
     name: str
     roles: tuple = ()              # ((role_name, var_name), …)
     graded: str | None = None
+    as_: str | None = None
 
 
 @dataclass(frozen=True)
@@ -152,29 +307,50 @@ def effects_of(g: Graph) -> tuple:
     return tuple(out)
 
 
-def instantiate(template, m: Match) -> tuple:
-    """One template plus one match becomes zero or more overlay effects."""
+def _filler(var: str, m: Match, minted: dict) -> Node:
+    """The node a template's filler names — **one namespace per firing**, match bindings and minted
+    locals together. Not two lookups with a precedence rule: a local shadowing a bound variable is a
+    rule contradicting itself, and it is refused rather than resolved (`P9` — the visible failure)."""
+    if var in minted:
+        return minted[var]
+    return m[var]
+
+
+def instantiate(template, m: Match, minted: dict | None = None) -> tuple:
+    """One template plus one match becomes zero or more overlay effects.
+
+    `minted` is the firing's local names (see `instantiate_all`); passing none means this template can
+    neither read nor write one, which is the old behaviour and is fine for a single-effect rule."""
+    if minted is None:
+        minted = {}
     if isinstance(template, Emit):
         occ = Node(template.name)
+        if template.as_ is not None:
+            if template.as_ in m.bindings:
+                raise ValueError(f"{template.as_!r} is already a match binding in this firing")
+            if template.as_ in minted:
+                raise ValueError(f"{template.as_!r} was already minted in this firing")
+            minted[template.as_] = occ
         out = [Mint(occ, (("name", template.name),))]
         for role_name, var in template.roles:
             r = Node(role_name)
-            out += [Mint(r, (("name", role_name),)), AddEdge(occ, r), AddEdge(r, m[var])]
+            out += [Mint(r, (("name", role_name),)), AddEdge(occ, r),
+                    AddEdge(r, _filler(var, m, minted))]
         if template.graded is not None and m.band is not None:
             out.append(Grade(occ, template.graded, m.band))
         return tuple(out)
     if isinstance(template, Attribute):
-        return (SetAttr(m[template.target], template.attr, template.value),)
+        return (SetAttr(_filler(template.target, m, minted), template.attr, template.value),)
     if isinstance(template, Stamp):
-        return (Grade(m[template.target], template.attr, template.band),)
+        return (Grade(_filler(template.target, m, minted), template.attr, template.band),)
     if isinstance(template, Link):
+        src, dst = _filler(template.target, m, minted), _filler(template.dst, m, minted)
         if template.role is None:
-            return (AddEdge(m[template.target], m[template.dst]),)
+            return (AddEdge(src, dst),)
         r = Node(template.role)
-        return (Mint(r, (("name", template.role),)),
-                AddEdge(m[template.target], r), AddEdge(r, m[template.dst]))
+        return (Mint(r, (("name", template.role),)), AddEdge(src, r), AddEdge(r, dst))
     if isinstance(template, Merge):
-        a, b = m[template.left], m[template.right]
+        a, b = _filler(template.left, m, minted), _filler(template.right, m, minted)
         return () if a is b else (Identify(a, b),)
     if isinstance(template, Drop):
         src = template.source
@@ -182,8 +358,90 @@ def instantiate(template, m: Match) -> tuple:
             src = m.values.get(template.source_var)
             if src is None:
                 return ()
-        return (Retract(m[template.target], template.attr, src),)
+        return (Retract(_filler(template.target, m, minted), template.attr, src),)
     raise TypeError(f"unknown effect template {template!r}")
+
+
+def instantiate_all(templates, m: Match) -> tuple:
+    """A whole right-hand side against one match — **the effects instantiated together**, sharing one
+    binding map.
+
+    ⚠ **This is what lets a rule connect two nodes it minted.** Instantiated one template at a time,
+    every filler is `m[var]`, i.e. a node the *left*-hand side found; two `Emit`s therefore produce two
+    occurrences with nothing between them. Measured 2026-07-27, and it is on the critical path twice:
+    a two-atom `pattern:` needs atom →`out:`→ atom, and a conditional needs the `when:` link between two
+    claims — so *a rule writes a rule* was impossible independently of how patterns are reified.
+
+    The fix adds no kind and no privileged namespace: the LHS has variables, so give the RHS names too,
+    scoped to one firing exactly like a match binding."""
+    out: list = []
+    minted: dict = {}
+    for t in templates:
+        out.extend(instantiate(t, m, minted))
+    return tuple(out)
+
+
+# -- an effect, as data ---------------------------------------------------------------------------
+#
+# The last part of a unit that plane 1 could not describe: **what it concludes**. Same shape as a
+# pattern — one node per template, `name` says which, attributes carry the fields — and the same
+# ordering discipline, which here is not a nicety: RHS local names are resolved in authoring order
+# (`instantiate_all`), so a described right-hand side is read in **mint order** or it is a different
+# rule.
+
+_EFFECT_FIELDS = {
+    EMIT: ("name", MINTS, "graded", GRADES, "as_", AS),
+    ATTRIBUTE: ("target", VAR, "attr", KEY, "value", VALUE),
+    STAMP: ("target", VAR, "attr", KEY, "band", BAND),
+    LINK: ("target", VAR, "dst", DST, "role", KEY),
+    MERGE: ("left", LEFT, "right", RIGHT),
+    DROP: ("target", VAR, "attr", KEY, "source", VALUE, "source_var", ATTRVAR),
+}
+_EFFECT_KIND = {EMIT: Emit, ATTRIBUTE: Attribute, STAMP: Stamp,
+                LINK: Link, MERGE: Merge, DROP: Drop}
+# What the template cannot be built without. Everything else has a default, and a missing default is
+# the author declining an option; a missing *required* field is a truncated description.
+_EFFECT_REQUIRED = {EMIT: (MINTS,), ATTRIBUTE: (VAR, KEY), STAMP: (VAR, KEY, BAND),
+                    LINK: (VAR, DST), MERGE: (LEFT, RIGHT), DROP: (VAR,)}
+
+
+def write_effect(g: Graph, template) -> tuple:
+    """One effect template, described in the graph. Returns `(graph, node)`."""
+    kind = next((k for k, cls in _EFFECT_KIND.items() if type(template) is cls), None)
+    if kind is None:
+        raise TypeError(f"unknown effect template {template!r}")
+    fields = _EFFECT_FIELDS[kind]
+    crisp = {"name": kind}
+    for attr, key in zip(fields[::2], fields[1::2]):
+        v = getattr(template, attr)
+        if v is not None:
+            crisp[key] = v
+    e = Node(kind)
+    g = g.with_node(e, **crisp)
+    for role_name, var in getattr(template, "roles", ()):
+        r = Node(ROLE)
+        g = role_edge(g.with_node(r, name=ROLE, **{KEY: role_name, VAR: var}), e, OUT, r)
+    return g, e
+
+
+def read_effect(g: Graph, node: Node):
+    """The described effect, as the template `instantiate` expects. The inverse of `write_effect`.
+
+    ⚠ **Refused, not skipped**, for the reason `read_pattern` gives — and here it is sharper. A dropped
+    `Emit` merely makes a unit conclude less, but a dropped `Drop` makes the graph read **more**:
+    deletion is the one non-monotone effect (`rev-02` §6), so *"skip what you cannot read"* would widen
+    the world in exactly the case that matters."""
+    kind = g.attr(node, "name")
+    if kind not in _EFFECT_KIND:
+        raise ValueError(f"{node!r} is not an effect (name={kind!r})")
+    fields = _EFFECT_FIELDS[kind]
+    missing = [k for k in _EFFECT_REQUIRED[kind] if g.attr(node, k) is None]
+    if missing:
+        raise ValueError(f"{node!r} is a truncated {kind}: no {', '.join(missing)}")
+    kwargs = {attr: g.attr(node, key) for attr, key in zip(fields[::2], fields[1::2])}
+    if kind == EMIT:
+        kwargs["roles"] = tuple((g.attr(r, KEY), g.attr(r, VAR)) for r in _targets(g, node, OUT))
+    return _EFFECT_KIND[kind](**kwargs)
 
 
 # -- what travels, and what records ---------------------------------------------------------------
@@ -234,11 +492,21 @@ class StandingUnit:
     to be in: a supposition's contributions arrive because something wired them here, or they do not
     arrive at all. That is the tunnel, and it costs nothing."""
 
-    def __init__(self, name: str, pattern: tuple, *effects, gates: tuple = ("in",),
+    def __init__(self, name: str, pattern: tuple | None, *effects, gates: tuple = ("in",),
                  theta: str | None = None, mutating: bool = False,
                  bind: str | None = None) -> None:
         self.name = name
+        # `None` is *"my pattern is described in the graph"* — the assembler fills it each revive. It is
+        # not the same as `()`, which is a pattern that matches vacuously and fires on anything.
+        #
+        # ⚠ `pattern` is **derived** and `authored` is what it falls back to, exactly as `Network.wires`
+        # is derived. Without the fallback, un-describing a pattern would leave the last one read still
+        # running — the same defect the wiring register was built to remove, one level in.
+        self.authored = pattern
         self.pattern = pattern
+        # …and the same for the right-hand side. `()` here is a unit that concludes nothing, which is
+        # legitimate — so unlike a pattern there is no `None`, and *described* simply replaces it.
+        self.authored_effects = effects
         self.effects = effects
         self.gates = tuple(gates)
         self.theta = theta
@@ -275,13 +543,15 @@ class StandingUnit:
     def fire(self) -> Value | None:
         """Match and emit. `None` is *a unit that had nothing to say* — not an error and not a miss."""
         self.firings += 1
+        if self.pattern is None:
+            return None                 # described, and nothing has described it — a dangling LHS
         if not any(v is not None for v in self.latched.values()):
             return None
         produced: list = []
         band = None
         for m in solve(self.view(), self.pattern, self.theta):
-            for t in self.effects:
-                produced.extend(instantiate(t, m))
+            # The whole RHS at once, per match — so effects of one firing can name each other.
+            produced.extend(instantiate_all(self.effects, m))
             band = m.band if band is None else band
         if not produced:
             return None
@@ -411,6 +681,24 @@ class Network:
         g = role_edge(g, w, TO, dst.node)
         self.asserted = role_edge(g, w, GATE, gate_node)
 
+    def describe_pattern(self, unit: StandingUnit, pattern) -> Node:
+        """Give a unit a left-hand side **by writing it down**. The counterpart of `wire()`: it writes
+        the facts `assemble_units()` reads, and a rule concluding the same occurrences gives the unit
+        the same pattern."""
+        self.asserted, p = write_pattern(self.asserted, pattern)
+        self.asserted = role_edge(self.asserted, unit.node, PATTERN, p)
+        return p
+
+    def describe_effects(self, unit: StandingUnit, *templates) -> tuple:
+        """Give a unit a right-hand side by writing it down. Order is mint order, and here that is
+        load-bearing: RHS local names resolve in authoring order (`instantiate_all`)."""
+        out: list = []
+        for t in templates:
+            self.asserted, e = write_effect(self.asserted, t)
+            self.asserted = role_edge(self.asserted, unit.node, EFFECT, e)
+            out.append(e)
+        return tuple(out)
+
     def _describe(self, node: Node, obj, **crisp) -> Node:
         """Put a plane-2 object's description in the graph and record the crossing.
 
@@ -437,6 +725,27 @@ class Network:
             found.append((m["w"].nid, src, dst, m.values["gate"]))
         return tuple((s, d, g) for _nid, s, d, g in sorted(found, key=lambda t: t[0]))
 
+    def assemble_units(self) -> None:
+        """**Read each unit's left- and right-hand side out of the graph**, where they are described.
+
+        The other half of `assemble()`, and the same stance: it reads a description and never sees a
+        statement. A unit with nothing described keeps whatever Python handed it — which is how the
+        register grows into the engine rather than replacing it in one step.
+
+        ⚠ **Two patterns is an error, not a conjunction.** Two wires are two deliveries and compose
+        harmlessly; two patterns are a unit whose author cannot be identified, and picking one silently
+        is exactly the unrecoverable direction (`P9`). Two *effects* are fine and ordinary — a right-hand
+        side is a sequence, and mint order is what orders it."""
+        for u in self.units:
+            described = _targets(self.asserted, u.node, PATTERN)
+            if len(described) > 1:
+                raise ValueError(f"{u.name} has {len(described)} described patterns")
+            u.pattern = read_pattern(self.asserted, described[0]) if described else u.authored
+
+            effects = _targets(self.asserted, u.node, EFFECT)
+            u.effects = (tuple(read_effect(self.asserted, e) for e in effects) if effects
+                         else u.authored_effects)
+
     @property
     def wires(self) -> tuple:
         """Derived, and cached against the graph value it was derived from. `Graph` is immutable, so an
@@ -450,7 +759,8 @@ class Network:
 
     def revive(self, fuel: int = 10_000) -> "Network":
         """Fire from the axioms and stabilize. Everything derived is recomputed from *(axioms, wiring)*
-        alone — invariant 15."""
+        alone — invariant 15, where *wiring* now includes the units' own patterns."""
+        self.assemble_units()
         for u in self.units:
             u.clear()
         self.surges = []
@@ -758,8 +1068,12 @@ def readable(view: View, nodes) -> dict:
     return out
 
 
-__all__ = ["Emit", "Attribute", "Stamp", "Link", "Merge", "Drop", "instantiate", "effects_of",
+__all__ = ["Emit", "Attribute", "Stamp", "Link", "Merge", "Drop", "instantiate", "instantiate_all",
+           "effects_of", "write_pattern", "read_pattern", "write_effect", "read_effect",
            "CONFLICT", "ABOUT", "UNDER", "SOURCE",
            "Value", "Cell", "StandingUnit", "Surge", "Network", "bundled_silence_rule", "readable",
            "SURGE_AT", "SILENCED", "SURGED", "ENGINE", "BOUND",
-           "WIRE", "FROM", "TO", "GATE", "OUT"]
+           "WIRE", "FROM", "TO", "GATE", "OUT", "PATTERN", "EFFECT",
+           "PAT", "ATOM", "CONSTRAINT", "ABSENT", "KEY", "VALUE", "ATTRVAR", "GRADED", "VAR",
+           "EMIT", "ROLE", "ATTRIBUTE", "STAMP", "LINK", "MERGE", "DROP",
+           "MINTS", "AS", "GRADES", "BAND", "DST", "LEFT", "RIGHT"]
