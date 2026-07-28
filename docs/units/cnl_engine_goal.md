@@ -47,9 +47,9 @@ of the `AND`/`OR` guarantee; it is the same guarantee, costing more cases becaus
 
 | finding | status |
 |---|---|
-| pairwise composition sieved | **partial.** 65% of naive cells leak (`sieve-measures-the-axes.md`) |
-| n ≥ 3 nesting | **unmeasured** — pairwise safety does not imply n-wise safety (same shape as pairwise-independent-but-not-jointly-independent variables, or local-but-not-global confluence); `forms_discourse.md` §4.2 already flags "1,225 pairs **and unbounded nestings**" |
-| `SUPPOSE`'s discharge (the conditional's own introduction rule, §4.4) | **⭐ measured structurally impossible** — falsifies §4.4 outright. This is the highest-priority gap for an *agentic* CNL specifically: conditionals ("if X, do Y") are the load-bearing primitive for procedural reasoning, and they are not soundly composing today, independent of how sound `AND`/`OR`/`NOT` are |
+| pairwise composition sieved | **partial**, but now provable rather than only samplable — 65% of naive cells leak (`sieve-measures-the-axes.md`); `units/smt_sieve.py` proves the guarded fix for several of these over the whole symbolic domain rather than sampling it (`cnl_engine_goal_plan.md` §4) |
+| n ≥ 3 nesting | **⭐ closed as a design requirement, 2026-07-28** — not by sampling more depths, but by an induction: nesting one conditional inside another is proven safe at unbounded depth *conditional on* one specific wiring discipline ("gated," not "naive" — `composition_grammar.md` §5a). No longer an open measurement question |
+| `SUPPOSE`'s discharge (the conditional's own introduction rule, §4.4) | **⚠ measured structurally impossible, and SHELVED, 2026-07-28** — falsifies §4.4 outright, but checked against `agentic_scenario_catalog.md`'s ten scenarios, none need the agent to derive a new rule from a hypothetical (only to *apply* already-authored ones, which already works via modus ponens). Not on the critical path unless a real "agent learns its own rules" scenario is added; diagnosis kept on record (`cnl_engine_goal_plan.md` §3) |
 
 **2. Machinery conformance — does the running engine actually realize the proven algebra, with no plumbing bugs?**
 
@@ -72,7 +72,9 @@ of the `AND`/`OR` guarantee; it is the same guarantee, costing more cases becaus
 Each of the three ingredients above is a **specific, already-diagnosed defect with a clear next action**, not an
 unbounded research question:
 
-1. Fix or replace `SUPPOSE`'s discharge so conditionals actually compose (§3's `4.4` finding).
+1. ~~Fix or replace `SUPPOSE`'s discharge so conditionals actually compose~~ — **shelved**; nested-conditional
+   *evaluation* (modus ponens applied to already-authored rules) needed the "gated" wiring discipline instead,
+   and that's done (§3's `4.4` finding kept on record, no longer a roadmap item).
 2. Turn guards from "silence the risky case" into "certify and admit the sound case" (§3's guard finding).
 3. Fix the surge detector so depth exhaustion is reported rather than silently truncated (§10.3).
 

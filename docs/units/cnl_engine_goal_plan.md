@@ -55,7 +55,29 @@ proceed independently of phases A–C.
 
 ---
 
-## 3. Worked example: SUPPOSE's discharge, checked against the code — the canonical Phase B case
+## 3. ⚠ SHELVED, 2026-07-28: SUPPOSE's discharge
+
+**Not being worked on, and here's why, so it isn't quietly re-picked-up without the reason attached.**
+Checked against `agentic_scenario_catalog.md`'s ten scenarios directly: every one of them assumes rules are
+already authored by a human and the agent's job is to *apply* them (modus ponens — already works, no problem).
+**None of the ten need the agent to derive a brand-new rule from exploring a hypothetical**, which is the only
+thing discharge is actually for. That makes this the same shape of mistake `mirative` turned out to be — a
+real, well-motivated capability (there, from linguistic typology; here, from natural deduction) that got
+significant attention without ever being checked against a demonstrated need.
+
+Where it would earn its place back: an agent that learns or refines its own rules from experience (simulates
+cases, notices a pattern, wants to encode it as a new standing rule rather than re-deriving it each time) — a
+real capability, but a materially more advanced one than anything in the current ten scenarios. If that becomes
+an actual need, add it to the catalog as its own scenario and let it justify the work the way the other ten did,
+rather than resuming this because it's a known gap in natural deduction.
+
+**What stays valid despite shelving this:** the *diagnosis* below (why discharge doesn't work on this engine as
+built) is a correct, permanent finding about the architecture, worth keeping on record even unstarted. What does
+**not** carry over is any claim that fixing it is on the critical path — it no longer is.
+
+The original worked example, kept for the record:
+
+## 3a. Worked example: SUPPOSE's discharge, checked against the code — the canonical Phase B case
 
 `forms_discourse.md` §4.4 claims *"SUPPOSE is the introduction rule for the conditional"* — assume P, derive Q,
 discharge to conclude P → Q. This is exactly a Phase A form (borrowed straight from natural deduction, nothing
@@ -105,20 +127,78 @@ entering Phase C's composition-proof work at all.
 
 ---
 
-## 4. Open items carried from `cnl_engine_goal.md`, restated as phase assignments
+## 4. `units/smt_sieve.py` — a second, decidable check feeding Phase C
+
+`sieve.py` finds a leak by building a concrete cell, running the actual engine, and reading the result —
+sound, but only over the cells `cells()` happens to construct. Telecom's feature-interaction-detection
+literature (Zave, from 1993) takes the other route: encode each feature as a declarative constraint and ask a
+decision procedure whether *any* assignment violates it — a proof over the whole symbolic domain in one query,
+the same move as lifting a hard-to-separate boundary into a space where it becomes linear (z = x² + y² for a
+circle).
+
+**Built and run.** `units/smt_sieve.py` re-expresses `SEED`'s `fires`/`conclusions`/`forbids` as Z3 formulas over
+free variables (`polarity`, `force`, `level`, `has_degree` — no concrete claim is ever constructed) and asks,
+per form, whether its `forbids` is satisfiable. Result, reproducing three known findings **as proofs rather than
+samples**:
+
+| form | naive | guarded | witness (naive) |
+|---|---|---|---|
+| `negation` | `sat` (leaks) | `unsat` (proven safe, not just untested) | `polarity=NEG, has_degree=True` — exactly the measured `degree ∘ negation` leak |
+| `ask` | `sat` | `unsat` | `polarity=POS, force=ASK` — `forms_discourse.md` §8's "map the question, then assert it" |
+| `language` | `sat` | `unsat` | `level=LANGUAGE, polarity=POS` |
+
+**What this is not yet:** for a domain this small, exhaustive enumeration could already reach the same
+conclusion — the payoff is the infrastructure (forms as pure formulas over free variables), not a new result
+today. Two directions this opens, one of which has already paid off:
+
+1. **`conditional`, extended — done, and it found a second, real defect.** Adding `has_conditional`/
+   `antecedent_satisfied` to the encoding and checking a `conditional_detachment` formula came back `sat` in
+   **both** naive and guarded modes. This predicted, and `guard_density(CANDIDATES)`/`probe((UNMET, POSITIVE),
+   guarded=True)` then confirmed empirically, that **guarding does not fix `conditional`'s detachment leak** —
+   distinct from the discharge blocker in §3, and living in Phase C rather than Phase B. Recorded in
+   `closed_class_inventory.md` §5. This is the first case in this project where the SMT encoding found something
+   the empirical sieve hadn't been run to check yet, rather than only reproducing an already-known result.
+2. **Corrected framing, 2026-07-28: "prove it for n forms at once" doesn't need induction here — it's already
+   what a free (unfixed) variable gives you.** Every attribute in the encoding (polarity, force, level,
+   has_degree, has_conditional, antecedent_satisfied) was already left unfixed, which means each `check()` call
+   was already asking about every combination of every form that can affect it, of any size, in one query —
+   there was never a separate "now do triples" step to do. What was actually still missing was a form with no
+   variable yet: added `command` as a third `Force` value (it shares `ask`'s forbids shape). Re-running the full
+   check with every current form that has real teeth (negation, degree, ask, command, language, conditional)
+   included at once: **negation/ask/command/language all come back `unsat` under guarding** (proven safe across
+   the whole current inventory, not sampled); **`conditional_detachment` stays `sat` even guarded** — confirming
+   item 1's finding holds up against the fuller check, not just the smaller one. What this still cannot cover:
+   a form nobody has designed yet has no variable in this file, and no solver query can protect against that —
+   that's a design-discipline question for how future guards get authored, not something provable today.
+3. **⭐ The nesting-depth induction — done, and NOT related to discharge (correcting a conflation of mine).**
+   `composition_grammar.md` §5a: with the base case already proven (item 2, above), the inductive step — does
+   nesting one conditional inside another stay safe, *assuming* the inner one already is — was checked two ways
+   in `check_inductive_step()`. Naive wiring (outer concludes the answer directly) is `sat`, leaking even under
+   the induction hypothesis. Gated wiring (outer only unlocks whatever the inner already concludes) is `unsat`,
+   safe at every depth. ⚠ **This is about evaluating an already-authored nested rule** — modus ponens applied
+   twice ("if A, then: if B then C," given A and B) — **not about SUPPOSE's discharge.** I originally worded
+   this as depending on "the discharge mechanism," which was wrong: nested rule *evaluation* is purely
+   elimination-side and needs no hypothesis-introduction at all. It is squarely still needed (scenarios 1 and 6
+   both evaluate authored conditional rules) and is **not blocked by shelving discharge (§3)** — a concrete
+   requirement on how nested-conditional evaluation must be wired, standing on its own.
+
+---
+
+## 5. Open items carried from `cnl_engine_goal.md`, restated as phase assignments
 
 | item | phase |
 |---|---|
 | Full closed-class inventory with intro/elim stated per entry | A |
-| SUPPOSE's discharge gate (§3 above) | B |
+| SUPPOSE's discharge gate (§3) | **shelved** — no scenario in `agentic_scenario_catalog.md` needs it; diagnosis kept on record, not on the critical path |
+| Nested-conditional evaluation must use "gated" wiring, not "naive" (§4 item 3) | C — independent of discharge; needed for scenarios 1 and 6 |
 | Guards found to silence rather than compose (0 leaks, 0 passes) | B/C — a guard that only blocks is a Phase B form that hasn't been given a real Phase C composition path yet |
-| Pairwise leaks (65% of naive cells) | C |
-| n ≥ 3 nesting, unmeasured | C |
+| Pairwise leaks (65% of naive cells) | C — now also provable rather than only samplable, per §4 |
+| n ≥ 3 nesting | **C — closed as a design requirement.** §4 item 3's induction proves safety at unbounded depth *conditional on* the gated wiring discipline; no longer an open measurement question, and not blocked by shelving discharge |
 | Surge detector cannot distinguish convergent recursion from a runaway cycle | D |
 
 ---
 
-## 5. What this plan does not cover
+## 6. What this plan does not cover
 
 Same exclusions as `cnl_engine_goal.md` §5 — nothing here touches business-rule correctness or open-class
 predicate interaction. This plan is scoped entirely to the closed class and the engine that composes it.

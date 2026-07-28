@@ -41,6 +41,8 @@ below are from a **live run against the current `units/` code**, not recalled fr
 
 **Measured (this run):** `axis_audit(SEED)` → **4 slots vs 3 declared axes.** `content` splits into `{positive, negation}` and `{degree}` — confirming `forms_discourse.md`'s own §2.2 three-axis table cannot be taken as one slot per row; `positive`/`negation` compete (same field, `polarity`) while `degree` writes a different field (`STRENGTH`) and so gets its own slot. This matches `sieve-measures-the-axes.md`'s prior finding exactly.
 
+**Also independently confirmed via `units/smt_sieve.py`** (`cnl_engine_goal_plan.md` §4): the `degree ∘ negation` leak and its guarded fix are now proven over the entire symbolic domain via Z3, not just sampled — the first use of a decision procedure rather than enumeration anywhere in this project's form verification.
+
 ---
 
 ## 3. RESOLVED HYPOTHESES — `CANDIDATES \ SEED`, where the sieve settled the code's own open question
@@ -71,11 +73,12 @@ resolves four of them:
 
 ---
 
-## 5. STRUCTURALLY BLOCKED — passes as a form, fails the realizability gate
+## 5. STRUCTURALLY BLOCKED — passes as a form, fails the realizability gate or the composition proof
 
 | name | status | why |
 |---|---|---|
-| `conditional` / `unmet` | measured **one slot**, and `_conditional_forbids` is, per the code's own comment, *"the only commitment here with real teeth"* — but `forms_discourse.md` §4.4's discharge half is **not buildable on this engine as it stands** | `cnl_engine_goal_plan.md` §3, verified against `tests/units/test_engine.py:682-706`. Modus ponens (elimination) works; hypothesis-discharge (introduction of `→` itself, as an unconditional world fact) has no mechanism, because `powering()`'s backward wire-walk taints any unit downstream of a supposition regardless of what it mints |
+| `conditional` / `unmet` — **discharge, ⚠ SHELVED 2026-07-28** | measured **one slot**, and `_conditional_forbids` is, per the code's own comment, *"the only commitment here with real teeth"* — but `forms_discourse.md` §4.4's discharge half is **not buildable on this engine as it stands**. **No longer being worked on**: checked against `agentic_scenario_catalog.md`'s ten scenarios, none need the agent to derive a new rule from a hypothetical — every scenario only ever *applies* already-authored rules. Diagnosis kept below for the record; not on the critical path unless a real "agent learns its own rules" scenario is added | `cnl_engine_goal_plan.md` §3, verified against `tests/units/test_engine.py:682-706`. Modus ponens (elimination) works; hypothesis-discharge (introduction of `→` itself, as an unconditional world fact) has no mechanism, because `powering()`'s backward wire-walk taints any unit downstream of a supposition regardless of what it mints |
+| `conditional` / `unmet` — **detachment, a second and separate problem** | ⭐ **measured 2026-07-28: guarding does NOT fix this one.** `guard_density(CANDIDATES)["still_leaking"]` contains `positive ∘ assert ∘ world ∘ unmet` and seven siblings (one per other content form co-present with `unmet`) — confirmed directly via `probe((UNMET, POSITIVE), guarded=True)` → `LEAK`, and independently reproduced symbolically by `units/smt_sieve.py`'s `conditional_detachment` check, `sat` in **both** naive and guarded modes | The guarded eliminations for `positive`/`degree`/etc. conclude `dangerous` from their own conditions alone — none of them check whether an unsatisfied antecedent role is also present on the claim. So *any* other content form composed with an unmet conditional detaches the consequent, guard or no guard. This is a **distinct defect from discharge** — it lives entirely in Phase C (composition), not Phase B (realizability), and unlike discharge it doesn't need a new engine primitive: it needs every other content form's guarded elimination to additionally check for a co-present, unsatisfied antecedent, which is exactly the O(n²)-shaped guard-authoring cost `forms_discourse.md` §4.2 warned about, now with a second concrete instance beyond `degree ∘ negation` |
 
 **Note for Phase A specifically:** `conditional` is flagged in `units/forms.py`'s own comment as *"the first form whose real home is a UNIT rather than a field"* — i.e. the first candidate that isn't a claim decoration but a relation between two occurrences. That is exactly the shape every item in §6 below also has, which is why §6 should not be entered into the sieve's claim-decoration harness naively — see the action item in §7.
 
