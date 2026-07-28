@@ -1,0 +1,99 @@
+# The engine's goal, stated precisely: a CNL that soundly composes at unlimited depth
+
+**Status: north star, 2026-07-28.** Distilled from a working-session thread that pressure-tested
+`forms_discourse.md`, `forms_llm.md` and `forms_extra_considerations.md` down to a single, checkable target.
+Supersedes nothing; it is the crisp restatement those three documents were circling. Read them first for the
+argument; this is the destination stated as a claim with a scope and a status.
+
+---
+
+## 1. The goal, stated as a claim
+
+> **Build a CNL whose closed-class composition machinery is proven sound to unlimited nesting depth, so an
+> agent can offload composition-heavy and procedure-following reasoning to it, carrying opaque domain content
+> through that machinery without ever composing over the content itself.**
+
+This is deliberately **not** "reason soundly about arbitrary business content." That version is impossible —
+the open class is made of relations, not parts, has no basis, and is unbounded (`forms_discourse.md` §3.3);
+no engine can prove closure over it, ever, regardless of effort. The claim above is scoped to exactly the half
+that *can* be proven closed: the small, fixed, designed closed class.
+
+---
+
+## 2. Whose job this is, precisely
+
+Two responsibilities that must not be conflated (this is the load-bearing distinction the thread arrived at):
+
+| | scope | provable once? | owner |
+|---|---|---|---|
+| **the engine's job** | closed-class connectives (negation, degree, quantification, conditionality, tense, causation, force, roles) composing with **each other**, to unlimited nesting | **yes, in principle** — the closed class is fixed and small, so this is a bounded, finite, one-time task, the same shape as proving `AND`/`OR`/`NOT` closed under Boolean algebra, just requiring more cases because the closed-class forms are not all instances of one clean algebra | the engine builder |
+| **not the engine's job, ever** | open-class domain predicates (business terms — `VIP`, `orders`, `spend`) interacting with **each other** in ways their authors didn't anticipate | **no, not even in principle** — open-class content has no basis to prove closed over (`forms_discourse.md` §3.3); this is a permanent structural fact, not a gap that more engineering closes | KB/ruleset governance — a different layer, possibly using engine-adjacent tooling, but not covered by the engine's contract |
+
+**Why pure `AND`/`OR` gets unlimited depth for free, and why the rest of the closed class doesn't automatically:**
+Boolean algebra is associative, commutative, and closed under its own operations by construction — one structural
+induction proves every possible nesting, forever, the reason SQL's `WHERE` clause (minus `NULL`) composes to
+arbitrary depth with no per-query verification. Degree, quantification, tense etc. don't automatically inherit
+this because each introduces its **own value type** (a scalar band, a bound variable, a temporal order) that
+Boolean algebra's proof says nothing about. Composing across them (`degree ∘ negation`) is a cross-algebra
+operation whose closure has to be established **separately** — that separate establishment, done once for the
+whole fixed inventory, is still categorically an engine-level, bounded, one-time job. It is not a lesser version
+of the `AND`/`OR` guarantee; it is the same guarantee, costing more cases because the domain is less uniform.
+
+---
+
+## 3. Three ingredients, and current status against each
+
+**1. Algebra closure — do all closed-class forms compose soundly with each other, to arbitrary nesting?**
+
+| finding | status |
+|---|---|
+| pairwise composition sieved | **partial.** 65% of naive cells leak (`sieve-measures-the-axes.md`) |
+| n ≥ 3 nesting | **unmeasured** — pairwise safety does not imply n-wise safety (same shape as pairwise-independent-but-not-jointly-independent variables, or local-but-not-global confluence); `forms_discourse.md` §4.2 already flags "1,225 pairs **and unbounded nestings**" |
+| `SUPPOSE`'s discharge (the conditional's own introduction rule, §4.4) | **⭐ measured structurally impossible** — falsifies §4.4 outright. This is the highest-priority gap for an *agentic* CNL specifically: conditionals ("if X, do Y") are the load-bearing primitive for procedural reasoning, and they are not soundly composing today, independent of how sound `AND`/`OR`/`NOT` are |
+
+**2. Machinery conformance — does the running engine actually realize the proven algebra, with no plumbing bugs?**
+
+| finding | status |
+|---|---|
+| `degree ∘ negation` | **known leak** — two write paths (fold vs. interpretation layer), no shared read; an implementation defect, not an algebra defect |
+| guards (the current mitigation) | **⭐ found to silence rather than compose** (0 leaks, 0 passes) — today's "no leaks" is partly achieved by refusing risky compositions outright, not by soundly executing them. Reaching the goal needs guards that **admit** the sound cases, not just block everything |
+
+**3. Honest depth/exhaustion reporting in the runtime — does deep composition terminate or honestly report that it hasn't?**
+
+| finding | status |
+|---|---|
+| depth is realized as an iterating computation (a self-looped unit), not static term-nesting | by design (`model.md` §5) |
+| the surge detector (`SURGE_AT = 3`) | **measured broken** (`forms_discourse.md` §10.3) — cannot distinguish converging recursion over a finite description from a runaway cycle; depth ≥ 5 returns a **silently partial** answer. This is the engine committing the exact failure — silent exhaustion reported as an answer — that `forms_llm.md` §7 names as the whole justification for building this instead of trusting an LLM's forward pass |
+
+---
+
+## 4. Why the goal is realistic rather than open-ended
+
+Each of the three ingredients above is a **specific, already-diagnosed defect with a clear next action**, not an
+unbounded research question:
+
+1. Fix or replace `SUPPOSE`'s discharge so conditionals actually compose (§3's `4.4` finding).
+2. Turn guards from "silence the risky case" into "certify and admit the sound case" (§3's guard finding).
+3. Fix the surge detector so depth exhaustion is reported rather than silently truncated (§10.3).
+
+None of these require solving the open-class problem — all three are contained entirely within the closed class,
+which is exactly what makes this goal tractable where "reason soundly about business content" is not. The
+closed class is fixed in size; each of these three fixes is a bounded, scoped engineering task; and once done,
+**every** ruleset built purely from closed-class forms inherits the guarantee for free, to unlimited depth, with
+no re-verification per ruleset — which is the entire point of drawing the engine/ruleset boundary where §2 draws
+it.
+
+---
+
+## 5. What this does **not** license
+
+- **Not** a claim that business rules built on top of this CNL are correct, wise, or bug-free. Composition
+  soundness and business correctness are orthogonal audits with different owners (`forms_extra_considerations.md`
+  would be the place to record KB-governance tooling, if that gets designed — it is explicitly **not** part of
+  this goal).
+- **Not** a claim that open-class predicate interactions (two business terms colliding unexpectedly) are
+  covered. They structurally cannot be, by anyone, ever — that is a permanent fact about the open class, not a
+  gap this roadmap closes.
+- **Not** a claim that any of §3's three fixes is small. Each is flagged in its source document as a real,
+  measured problem; this document's contribution is only to name them as the complete, closed list standing
+  between the current build and the stated goal.
