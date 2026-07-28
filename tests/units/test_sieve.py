@@ -263,22 +263,34 @@ def test_modus_ponens_is_the_unit_firing():
     assert view.attr(ctx.subject, PREDICATE) is True
 
 
-def test_an_unsatisfied_antecedent_still_detaches_its_consequent():
-    """The leak a per-form check cannot see: the conditional's own elimination is impeccable — it
-    consults the antecedent — and a **different** form's elimination detaches the consequent anyway."""
+def test_unmet_alone_no_longer_manufactures_a_detachment():
+    """⭐ **Corrected 2026-07-28** (`closed_class_inventory.md` §5, `composition_grammar.md`).
+
+    The two tests this replaces built `frame((UNMET,), CANDIDATES)` and read the resulting leak as a
+    property of `unmet` itself. It wasn't: `frame()`/`cells()` were auto-attaching the *default* bare
+    `positive` onto the same node whenever nothing else claimed the polarity slot, and *that*
+    unrelated, unrequested addition was what detached — `unmet` on its own, antecedent unsatisfied,
+    correctly concludes nothing. `Form.excludes_defaults` stops the sieve from manufacturing that
+    combination when nobody asked for it; the tests below confirm both directions."""
     v = probe((UNMET,), inventory=CANDIDATES)
+    assert v.outcome == BASELINE
+    v = probe((UNMET,), guarded=True, inventory=CANDIDATES)
+    assert v.outcome == BASELINE
+
+
+def test_explicitly_combining_unmet_with_a_bare_positive_still_leaks():
+    """The underlying collision is real when actually asked for — this is the case that matters, and
+    it is unaffected by the `excludes_defaults` fix, on purpose. Saying both "unconditionally
+    dangerous" (`positive`) and "conditionally dangerous, antecedent unmet" (`unmet`) about the *same*
+    claim is a genuine contradiction to detach from, not a manufactured one, and no guard fixes it —
+    `closed_class_inventory.md` §5's O(n²) finding, correctly scoped to the case that is actually a
+    leak rather than to every mention of `unmet`."""
+    v = probe((UNMET, POSITIVE), inventory=CANDIDATES)
     assert v.outcome == LEAK and "detached" in v.detail
 
-
-def test_guarding_against_the_three_declared_axes_does_not_cover_the_conditional():
-    """⭐ **The O(n²) claim, sharpened.** The guarded eliminations consult polarity, force and level —
-    every slot that existed when they were written. Adding one form adds a **fourth** thing each of them
-    must consult, and until they do, the leak survives guarding untouched.
-
-    A guard is not written once per form. It is rewritten every time the inventory grows."""
-    ctx, view, _net = run(frame((UNMET,), CANDIDATES), guarded=True)
+    ctx, view, _net = run(frame((UNMET, POSITIVE), CANDIDATES), guarded=True)
     assert view.attr(ctx.subject, PREDICATE) is True           # …still detached, guards and all
-    assert probe((UNMET,), guarded=True, inventory=CANDIDATES).outcome == LEAK
+    assert probe((UNMET, POSITIVE), guarded=True, inventory=CANDIDATES).outcome == LEAK
 
 
 def test_the_conditional_shares_a_slot_with_its_unmet_twin_and_nothing_else():

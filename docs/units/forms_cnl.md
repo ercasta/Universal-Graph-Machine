@@ -13,7 +13,7 @@ is argued — if a rule looks wrong, the argument is in `forms_discourse.md` and
 | **`forms_discourse.md`** | why any of this is believed; what was rejected |
 | **`forms_llm.md`** | what may be asked of the translator, and what may not |
 | **`cnl.md`** | the surface itself — brackets, roles, nesting. Still current; this document constrains it |
-| **`model.md` / `revision-01` / `revision-02`** | the engine these forms run on |
+| **`model.md`** | the engine these forms run on. `rev-01`/`rev-02` citations below point into `attic/`, where the two revisions are kept as the reasoning trail after being consolidated into `model.md` |
 
 ---
 

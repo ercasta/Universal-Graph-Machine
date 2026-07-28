@@ -144,6 +144,12 @@ class Form:
     commits: Callable[[Ctx, View], str | None] = lambda ctx, v: None
     forbids: Callable[[Ctx, View], str | None] = lambda ctx, v: None
     appeals: tuple = ()          # other AXES this form's commitment has to name
+    # Other DEFAULT forms this one makes inappropriate to auto-attach — not because they'd conflict
+    # outright, but because this form already supplies its own, incompatible way of reaching the same
+    # conclusion on the same node. `composition_grammar.md`: a bare claim and a relational form's own
+    # consequent must never be the same node, so `frame()`/`cells()` must not hand a relational form
+    # an unrelated default polarity to independently decorate that shared node with.
+    excludes_defaults: tuple = ()
     note: str = ""
 
     def __repr__(self) -> str:
@@ -499,6 +505,14 @@ UNMET = Form(
     eliminate=_conditional_elim,
     commits=lambda ctx, v: None,
     forbids=_conditional_forbids,
+    # ⭐ Found 2026-07-28: unlike `conditional` (antecedent satisfied, where a default `positive` on the
+    # same node is harmless — both it and the conditional's own gated elimination agree), `unmet`'s
+    # antecedent never holds, so an auto-attached default `positive` independently concludes the
+    # predicate regardless — the measured `conditional_detachment` leak. Excluding it here means
+    # testing `unmet` alone no longer manufactures that collision; explicitly asking for `(unmet,
+    # positive)` together still does, correctly, because that really is one (`closed_class_inventory.md`
+    # §5, `composition_grammar.md`).
+    excludes_defaults=(POSITIVE,),
     note="the same conditional with its antecedent UNSATISFIED — the control that makes the "
          "detachment leak visible. It shares `conditional`'s slot by construction.",
 )
@@ -603,17 +617,28 @@ def slot_of(f: "Form", forms: tuple = SEED) -> str:
 
 
 def frame(forms: tuple, inventory: tuple = SEED) -> tuple:
-    """Complete a cell so every **slot with a default** is filled exactly once.
+    """Complete a cell so every **slot with a default** is filled exactly once — unless a form present
+    declares that default **excluded** (`Form.excludes_defaults`), because it already supplies its own,
+    incompatible way of reaching the same conclusion on the same node.
 
     ⚠ **By measured slot, not by declared axis, and it cannot be done the other way.** `degree` and
     `positive` are declared the same axis (`content`), so framing by axis treats a graded claim as
     already having a polarity and hands the guarded elimination a claim with no polarity to read. The
     declared axis assignment actively prevents the cells from being built correctly, which is the
-    sharpest single piece of evidence that `content` is not one axis."""
+    sharpest single piece of evidence that `content` is not one axis.
+
+    ⭐ **Found 2026-07-28: without the exclusion, `frame((UNMET,), CANDIDATES)` manufactures a
+    combination nobody asked for** — `unmet` alone gets auto-paired with the default `positive`, and
+    that specific pairing is exactly the `conditional_detachment` leak (`closed_class_inventory.md`
+    §5). It isn't that `unmet` and `positive` can never coexist — explicitly asking for both together
+    still leaks, correctly, because that really is a genuine collision. The fix is that `frame()`
+    should not manufacture the collision on its own when nobody asked for `positive` at all."""
     groups = slots(inventory)
     where = {m.name: key for key, members in groups.items() for m in members}
     filled = {where.get(f.name, f.name) for f in forms}
-    return tuple(forms) + tuple(d for d in DEFAULTS if where.get(d.name, d.name) not in filled)
+    excluded = {where.get(d.name, d.name) for f in forms for d in f.excludes_defaults}
+    return tuple(forms) + tuple(d for d in DEFAULTS if where.get(d.name, d.name) not in filled
+                                and where.get(d.name, d.name) not in excluded)
 
 
 def signature(ctx: Ctx, view: View) -> frozenset:

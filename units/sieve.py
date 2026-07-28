@@ -178,22 +178,33 @@ def probe(cell: tuple, guarded: bool = False, composed: bool = False,
 
 def cells(forms: tuple = SEED, depth: int = 2) -> list:
     """Every cell worth running: one form from each **defaulted** slot, times a subset of the optional
-    slots up to `depth`.
+    slots up to `depth` — except a defaulted slot is skipped for a specific combination if one of the
+    optional forms chosen for it declares that default excluded (`Form.excludes_defaults`), so a
+    relational form (`unmet`) doesn't get handed an unrelated default polarity to independently
+    decorate the same node with.
 
     ⚠ **Built over measured slots, not declared axes**, for the same reason `frame()` is. `P1` says a
     category is a *point* in CONTENT × FORCE × LEVEL — one value per axis — but forms within `content`
     stack: *"not very dangerous"* bears polarity and strength at once, and a point in a product has no
     room for that. Once slots are measured the shape is regular again: **defaulted slots always carry a
     value, optional slots stack.** That is the corrected form of P1, and it is what the sieve enumerates.
-    """
+
+    ⭐ **Found 2026-07-28: the un-excluded version manufactures `unmet ∘ positive` for every cell that
+    mentions `unmet` at all** — the base was built once, globally, before `unmet` had any say in which
+    defaults apply to it. Computing the base per-`picks` fixes that, and is exactly the same correction
+    `frame()` needed for the same reason (`closed_class_inventory.md` §5, `composition_grammar.md`)."""
     groups = slots(forms)
     default_names = {d.name for d in DEFAULTS}
     defaulted = [v for v in groups.values() if any(m.name in default_names for m in v)]
     optional = [v for v in groups.values() if not any(m.name in default_names for m in v)]
 
-    base: list = [()]
-    for group in defaulted:
-        base = [c + (f,) for c in base for f in group]
+    def base_for(picks: tuple) -> list:
+        excluded = {d.name for f in picks for d in f.excludes_defaults}
+        active = [group for group in defaulted if not any(m.name in excluded for m in group)]
+        b: list = [()]
+        for group in active:
+            b = [c + (f,) for c in b for f in group]
+        return b
 
     out: list = []
     for k in range(0, depth + 1):
@@ -201,7 +212,8 @@ def cells(forms: tuple = SEED, depth: int = 2) -> list:
             picks: list = [()]
             for group in chosen:
                 picks = [c + (f,) for c in picks for f in group]
-            out.extend(b + p for b in base for p in picks)
+            for p in picks:
+                out.extend(b + p for b in base_for(p))
     return out
 
 

@@ -5,6 +5,14 @@
 > this index and an older doc disagree about *status*, this index wins; when two live docs disagree
 > about *content*, the precedence chain (§4) wins.
 
+> ⚠ **SCOPE, 2026-07-28.** This index and everything it lists — `design/`, `reference/`, `attic/`, and the
+> `book/` — document the **`ugm` engine**, which is built, running, and what the book teaches. It is **not**
+> what is currently being designed. Since 2026-07-25 the active work is the `units` substrate, a different
+> computation model with its own index at **`units/README.md`**, its own model document, and its own attic.
+> The two generations are kept apart deliberately: nothing under `units/` supersedes anything here, and
+> nothing here describes `units/`. The one document that crossed the line, `design/substrate_inversion.md`,
+> has been moved to `units/attic/` where it belongs.
+
 ## 1. What the system is (one paragraph)
 
 One substrate: a graph of **label-less nodes** (opaque identity + a bundle of graded/valued

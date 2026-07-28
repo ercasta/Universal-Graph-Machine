@@ -1,7 +1,7 @@
-"""OVERLAYS — `docs/units/revision-02-two-planes.md` §6.
+"""OVERLAYS — `docs/units/model.md` §5, *the output is an overlay, not a graph*.
 
-A spike, deliberately separate from `standing.py`, which implements revision 01 and carries the design
-error this module exists to correct.
+Originally a spike separate from the since-deleted `standing.py`, which carried the design error this
+module exists to correct; the argument is in `docs/units/attic/revision-02-two-planes.md` §6.
 
 ## The claim
 

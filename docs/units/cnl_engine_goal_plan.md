@@ -191,6 +191,7 @@ today. Two directions this opens, one of which has already paid off:
 | Full closed-class inventory with intro/elim stated per entry | A |
 | SUPPOSE's discharge gate (§3) | **shelved** — no scenario in `agentic_scenario_catalog.md` needs it; diagnosis kept on record, not on the critical path |
 | Nested-conditional evaluation must use "gated" wiring, not "naive" (§4 item 3) | C — independent of discharge; needed for scenarios 1 and 6 |
+| ⭐ **Conditional's detachment leak — DONE, fixed in code 2026-07-28** | C — `Form.excludes_defaults` (`units/forms.py`, `units/sieve.py`); `still_leaking` now empty, guarded leak rate 0.008 with only the explicitly-requested `positive ∘ unmet` remaining, correctly. First item in this plan to go from design/proof to verified running code |
 | Guards found to silence rather than compose (0 leaks, 0 passes) | B/C — a guard that only blocks is a Phase B form that hasn't been given a real Phase C composition path yet |
 | Pairwise leaks (65% of naive cells) | C — now also provable rather than only samplable, per §4 |
 | n ≥ 3 nesting | **C — closed as a design requirement.** §4 item 3's induction proves safety at unbounded depth *conditional on* the gated wiring discipline; no longer an open measurement question, and not blocked by shelving discharge |

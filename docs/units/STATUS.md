@@ -1,106 +1,103 @@
 # `units` — status
 
-*One page. What is being worked on, what changed, what is open, and what needs a decision from you.*
-
-**Last updated:** 2026-07-26 · **Suite:** 174 green (`pytest tests/units`)
-
-> ⚠ **SUPERSEDED BY `docs/units/model.md` (2026-07-26).** The model this page reports progress against has been
-> replaced: data is the substrate, computation is a transient circuit, matching is graded, scope is physical
-> nesting, and there is no interpretation stage. Everything below describes the *previous* model and is accurate
-> only as history. `model.md` §"What carries over from `ugm`" lists what survives and which decisions are
-> contradicted.
->
-> **Pending your call:** what happens to the existing `units/` code and its 174 tests, most of which test the
-> superseded model. Until that is decided this page is not rewritten.
+**One page, last updated 2026-07-28. What happened, what document to read for what, what's actually done vs.
+designed, and what to pick up next.** This is the current, active thread. The index is `README.md`; the model
+is `model.md`; the previous status page (pre-inversion, 174 tests, superseded 2026-07-26) is
+`attic/STATUS.md`.
 
 ---
 
-## Now
+## The arc, in one paragraph
 
-**Selector chains work** (`0035`–`0038`, 21/21 spike, `tests/units/test_selector.py`). The expression *does*
-build the network, and the headline is that **the assembler wires the whole chain by itself** — because every
-selector atom names its predicate, unlike a wildcard pattern. The expression contributes only ground step nodes
-and `<narrows>` links, as data. Nothing gained the power to wire.
-
-All three agreed probes came back clean: end to end resolves and names the right entity; the topology is a
-**tree**, not a pipeline; and **belief is invariant under atom order** — only *re-attachment* changes meaning,
-because the chain *is* the attachment structure.
-
-**Just settled — the substrate's own ground rule, now written down** (`0039`–`0041`). You asked whether we use
-labelled edges. Answer: a `Fact` is stored atomically, so in *layout* it is one — kept deliberately, because it
-makes *"is P absent"* a membership test instead of a join, and it ships with its decomposition (`reify`) so it
-stays composable. Roles are still positional and predicates are still ordinary nodes.
-
-And the rejected shape had crept back in one place I had not noticed: the terminal **call** node carried
-`<verb>`/`<target>` role edges. Now **positional** — a call is just another discourse node with a lexeme and
-numbered arguments, measured n-ary on *"wash the car with the sponge"*.
-
-The principle is recorded as **guards yes, kinds no**: when a distinction is needed it becomes a *fact* that
-something asserts, never a new kind of thing. The counter-risk you raised is real — seven silent defects here were
-exactly that — but it is the *recoverable* failure, and every one of those fixes was one predicate or one atom.
-
-**Next, in order:**
-
-1. **A grammar producing those steps.** It now has a concrete target: ground step nodes, `<narrows>` links, one
-   template per syntactic position. This is what the *"a front-end must target a subgraph"* contract (`0020`)
-   was pinned for.
-2. **SUSPEND.** The terminal call is currently a *request as a fact* and nothing executes it. Building this
-   reopens the deferred in-node ISA question (`0021`) on its own stated trigger.
-3. The derived-removal decision below, whenever you want to take it.
+Started from a question about whether the closed class *composes* — pressure-tested `forms_discourse.md` and
+`forms_llm.md` until "compositional fidelity vs. business correctness" became a clean split, which turned into a
+concrete engineering goal (`cnl_engine_goal.md`), a phased plan (`cnl_engine_goal_plan.md`), a consolidated
+inventory with live sieve numbers (`closed_class_inventory.md`), a completeness check anchored in real agentic
+use cases (`agentic_scenario_catalog.md`), a symbolic proof tool (`units/smt_sieve.py`), a composition grammar
+sketch (`composition_grammar.md`), an actual unbounded-depth safety proof (induction, not sampling), and — the
+first time any of this landed in running code — a real, verified fix for the `conditional` detachment leak. One
+big thread (SUPPOSE's discharge) was deliberately shelved along the way for lack of a real use case.
 
 ---
 
-## ⚠ Needs your decision
+## Document map — what to read for what
 
-| # | question | why it is yours |
-|---|---|---|
-| 1 | **Can a rule remove?** (`decisions/0032`) | It is a paradigm choice, not a feature. A rule is currently a monotone accumulator. Making it a *rewrite* stays functional but gives up monotonicity — which three separate mechanisms rest on (the fixpoint argument, "revision = recompute forward", and the absence of retraction machinery). Nothing is blocked on it today; coreference is sound for matching and silent for counting without it. |
-
----
-
-## Recently done
-
-| what | outcome |
+| doc | read it for |
 |---|---|
-| **Selector chains** | The expression builds the network, and it **assembles itself**. Gating, failure-location and ambiguity all came free, reusing the reference machinery unchanged — strong evidence that reference and selection are one problem, not two. Found 2 more silent defects. |
-| **Discourse reference** | Built as **data** — 7 declared rules, no engine support. A *lexeme* is the licensed bridge (the word is the form set's; the entity is nameless). Inequality dissolved into identity-as-data. Ambiguity and reference failure became detectable rather than silent. |
-| **Assembler-completeness sweep** | Found and fixed 2 silent defects after the first one proved the bug class was live. |
-| **The computed index** | Wire test moved from *"share a predicate"* to *"can this fact satisfy this atom"*. Quadratic → linear on the shape a minimal form set produces. Found 2 more silent defects, one of which produced a false conclusion. |
+| `cnl_engine_goal.md` | the goal statement, the engine/ruleset responsibility split, the three ingredients |
+| `cnl_engine_goal_plan.md` | the four-phase plan (A spec / B realizability / C composition proof / D termination); current status per phase |
+| `closed_class_inventory.md` | the soundness-side check — every form's live-measured status, from `sieve.py` |
+| `agentic_scenario_catalog.md` | the completeness-side check — ten real scenarios, what each needs, coverage verdicts |
+| `composition_grammar.md` | the `BareClaim \| RelationalClaim` grammar sketch, the detachment fix's design, the nesting induction |
+| `glossary.md` | plain-language definitions of every term actually agreed on this session — check before reusing jargon |
+| `units/smt_sieve.py` | the runnable Z3 proofs (base case, inductive step) |
+| `units/forms.py`, `units/sieve.py` | where the detachment fix actually landed in code |
 
-**Seven silent defects in the assembler have now been found and fixed, four of which changed an answer.**
-Every one was a question asked at the wrong granularity — predicate where an atom was meant, positive where both
-polarities were meant, "my chain derives it" where "my chain carries it" was meant, **reachability where *world*
-was meant**. This is the standing hazard in this codebase: it does not crash, it degrades quietly.
-
-The two newest are worth knowing because they will bite intake directly:
-
-- **An utterance must enter as a carrier *below* the KB**, never as a second `given`. As a sibling it is a
-  separate world, so nothing joins it to anything derived from the KB — and a negated premise over there reports
-  **false**, not missing (`0037`).
-- **Only a carrier forks a world** (`0038`, amending `0006`). Sibling *rules* over one carrier are the same
-  world — which is the normal shape under subset output, and judging it by raw reachability made ordinary
-  multi-premise rules unassemblable.
+Read `cnl_engine_goal.md` → `cnl_engine_goal_plan.md` first if picking this back up cold; the other docs hang
+off those two.
 
 ---
 
-## Open, not blocking
+## Status by phase
 
-- **Wildcard cost.** A pattern that declines to say what it reads (`?x ?p ?y`) spawns redundant instances and
-  cannot be restricted by any static analysis. Diagnosed in advance by `ComputedIndex.wildcards()`.
-- **Trace-wire fan-out.** Every unit emits every firing predicate, so a trace consumer is wired broadly. A
-  content-level restriction is available and unbuilt; deferred because stratification caps trace consumers at
-  one level, making the cost linear rather than compounding.
-- **Fan-out scale unmeasured.** Chains and wide nets are linear; sibling-hypothesis fan-out has never been
-  measured, and it is the shape that could still blow up.
-- **Not built:** force, a sink, suspend/procedures, a grammar. Each has a decided shape.
-
----
-
-## How to read this project
-
-| you want | read |
+| phase | state |
 |---|---|
-| what the system is and how to use it | `docs/units/reference.md` |
-| why a decision was taken, and the evidence | `docs/units/decisions/` (see its `README.md`) |
-| what I am doing right now | this file |
-| the original reasoning trail | `docs/design/substrate_inversion.md` — history, no longer maintained |
+| **A — spec the inventory** | in progress. `closed_class_inventory.md` has live numbers; open items: `past`/`evidential`/`mirative` are singleton slots (need a competing form to test independence); `quantification`/`causation`/`identity` not yet formalized at all |
+| **B — realizability gate** | SUPPOSE's discharge **shelved** (no scenario needs it — see below). Nested-conditional evaluation needs a "gated" wiring discipline, proven abstractly, **not yet built in the real engine** |
+| **C — composition proof** | `degree ∘ negation`, `ask`/`language` leaks: proven fixed via guarding (SMT, `unsat`). **`conditional` detachment: fixed in running code** (`Form.excludes_defaults`, `units/forms.py`/`sieve.py` — `still_leaking` empty, only the deliberately-requested `positive ∘ unmet` still leaks, correctly). n≥3 nesting: closed as a design requirement (induction proof), conditional on the gated wiring actually being built |
+| **D — termination/honesty** | **untouched.** The surge detector still can't distinguish convergent recursion from a runaway cycle (`forms_discourse.md` §10.3) — this is the literal mechanism behind scenario 5 (honest exhaustion reporting), which is currently just broken |
+
+---
+
+## Shelved, on record
+
+**SUPPOSE's discharge.** Diagnosed precisely (`powering()`'s wire-walk taints any unit downstream of a
+supposition regardless of what it mints, because units have no ambient graph access — only their gates,
+`engine.py` invariant 3). Shelved because none of the ten scenarios in `agentic_scenario_catalog.md` need the
+agent to *derive* a new rule from a hypothesis — all ten only *apply* already-authored rules. Revives if a real
+"agent learns its own rules from experience" scenario gets added to the catalog and earns its place the way the
+other ten did.
+
+---
+
+## What's proven vs. what's actually built — don't conflate these
+
+- **Proven, abstractly, in `units/smt_sieve.py`:** the base case (a bare claim alone is safe under guarding) and
+  the inductive step (nested conditionals stay safe at unbounded depth, *if* wired "gated" not "naive").
+- **Built and verified, in real code:** the detachment leak's fix (`Form.excludes_defaults`).
+- **Not built:** an actual nested `Claim` structure in `units/` — there is currently no way to represent "if A,
+  then: if B then C" as real graph data. The induction proof is real, but nothing has tested it against the
+  running engine yet, because the structure it's a proof *about* doesn't exist in code.
+
+---
+
+## Recommended next step
+
+**Phase D — fix the surge detector.** Reasoning: it's the one item that's completely untouched despite being
+flagged since the earliest design docs; it's independent of every open item above (doesn't wait on quantification,
+identity, or the nested-`Claim` structure); it directly fixes scenario 5, which is currently not a gap but an
+active bug (silently wrong answers past a depth threshold); and it's the mechanism `forms_llm.md` §7 names as
+the *entire justification* for building this engine instead of trusting an LLM's forward pass — silent
+exhaustion reported as an answer. Fixing it is a bounded, well-defined engineering task (a real termination
+argument or energy measure), not open-ended design work.
+
+**Close second: `quantification` or `identity`/equality.** Tied as the highest-priority actual gaps in
+`agentic_scenario_catalog.md` §11 (each needed by three of the ten scenarios), and nothing exists for either yet.
+`identity` in the narrow "compare two values" sense (needed for drift detection) looks buildable independent of
+Phase D; full reference/definite-description resolution is the part actually blocked on the surge detector.
+
+**Lower priority, worth remembering rather than acting on now:** closing out `past`/`evidential`/`mirative`'s
+open-hypothesis status (needs a competing form each before `slots()` can say anything); the aggregation scoping
+question from scenario 3 (is numeric aggregation closed-class at all, or a delegated tool-call — needs a
+decision, not code); building the real nested-`Claim` structure to test the induction against running code
+rather than only against `smt_sieve.py`'s abstract model.
+
+---
+
+## How to read this project going forward
+
+One status page, updated as things move, rather than re-deriving context from the full conversation each time.
+Update this file's "Status by phase" and "Recommended next step" sections as work continues; add new rows to
+the document map as new files get created. When a document is superseded, move it to `attic/` and add a row to
+`attic/README.md` saying how it ended — do not leave a superseded document sitting beside a current one with
+only a header to tell them apart.

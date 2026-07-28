@@ -1,7 +1,7 @@
 """`units` — the standing-circuit model.
 
-Implements `docs/units/model.md` as revised by `revision-01-standing-circuits.md` and
-`revision-02-two-planes.md`.
+Implements `docs/units/model.md`, which consolidates the original model with revisions 01 and 02
+(now `docs/units/attic/`).
 
 Five modules, and that is the whole system:
 

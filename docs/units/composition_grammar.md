@@ -133,9 +133,18 @@ conditional rules) and is not blocked by shelving discharge.
 
 ---
 
-## 7. Next step, if this shape is approved
+## 7. Next step — ⭐ partially done, 2026-07-28
 
-Turn this into an actual Python structure in `units/`, and re-run the existing sieve/SMT checks against claims
-built this way instead of the current flat "decorate one shared node" approach (`units/forms.py`), to see which
-known leaks disappear by construction versus which still need each form's rule written correctly on top of it.
-Not started — this document is the design to review first.
+The detachment leak (§5's table) is now **fixed in running code**, not just designed: `Form.excludes_defaults`
+(`units/forms.py`) stops `frame()`/`cells()` (`units/sieve.py`) from auto-attaching a bare `positive` onto
+`unmet`'s node when nobody asked for it — the specific manufactured collision that was causing the leak.
+`guard_density(CANDIDATES)["still_leaking"]` is now empty; the only leak `interactions()` still finds is the
+explicitly-requested `positive ∘ unmet`, correctly. Full details and numbers: `closed_class_inventory.md` §5,
+`cnl_engine_goal_plan.md` §5.
+
+**This was a smaller, more surgical fix than the full `BareClaim | RelationalClaim` Python type this document
+sketches** — it corrects the cell-*generation* discipline rather than restructuring `conditional` to use a
+genuinely separate consequent node. What's still not built: a real, nested `Claim` structure in `units/` capable
+of representing "if A, then: if B then C" as actual graph data (needed to test the §5a induction's "gated vs.
+naive" finding against the real engine, rather than only against `smt_sieve.py`'s abstract model). That remains
+open.

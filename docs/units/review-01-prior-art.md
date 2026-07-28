@@ -4,6 +4,11 @@
 `model.md` + `revision-01` + `revision-02` in the literature, grades what is actually new, and names the
 places where a known result answers an open question or predicts a cost.
 
+> **Note, 2026-07-28.** The three documents this reviews have since been consolidated into one `model.md`;
+> `revision-01` and `revision-02` are now in `attic/`. Every `rev-01`/`rev-02` citation below still resolves
+> there, and the substance is unchanged — but §6's complaint about `revision-02` §8's stale invariant list is
+> now **closed**: the consolidated `model.md` §12 carries the corrected invariant 16.
+
 **Method.** Read the three design documents as they stand. Every mechanism was matched against the closest
 named prior art, and each is graded:
 
