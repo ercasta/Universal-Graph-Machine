@@ -46,7 +46,14 @@ from .graph import EMPTY, Graph, Node, role_edge
 from .match import Absent, AttrVar, Match, Pat, atom, role, solve
 from .overlay import (BASE, AddEdge, Grade, Identify, Mint, Overlays, Retract, SetAttr, View)
 
-SURGE_AT = 3            # times one gate's input may CHANGE before the loop is burned
+SURGE_AT = 6            # times one gate's input may CHANGE before the loop is burned — wide enough
+                        # for realistic narrowing depth (`forms_discourse.md` §10.3's four-step
+                        # reference example), since a genuine cycle (fresh mint every pass, never
+                        # repeating or shrinking — no local signal distinguishes it, verified against
+                        # the code, not just recalled) is caught just as surely a few passes later, at
+                        # negligible fuel cost. Raising this only buys width, never proof; see
+                        # `Network._unit_burned` for the half that matters — a burned unit's stale
+                        # in-flight value must not leak into a read as if it were a finished answer.
 SILENCED = "silenced"   # a unit carrying this produces nothing — see `bundled_silence_rule`
 SURGED = "surged"       # the engine's only write: it reports, and a rule decides (`rev-02` §7)
 ENGINE = "<engine>"     # the only source the engine contributes under
@@ -623,6 +630,7 @@ class Network:
         self.units: list = []
         self.axioms: list = []
         self.surges: list = []
+        self.burned: set = set()
         self.out_of_fuel = False
         self.applied: tuple = ()
         self._built: dict = {}          # plane-1 node → the plane-2 object it describes
@@ -764,16 +772,16 @@ class Network:
         for u in self.units:
             u.clear()
         self.surges = []
+        self.burned = set()
         self.reports.held = None
         self.out_of_fuel = False
-        burned: set = set()
         reported: set = set()
 
         seen_conflicts: set = set()
 
         queue = [(c, c.held) for c in self.axioms if c.held is not None]
         while True:
-            fuel = self._drain(queue, burned, reported, fuel)
+            fuel = self._drain(queue, self.burned, reported, fuel)
             if self.out_of_fuel:
                 break
             # ⚠ **Conflicts have to be delivered, not merely readable.** `rev-02` §6 describes the loop
@@ -935,6 +943,19 @@ class Network:
         self.applied = tuple(applied)
         return self.applied
 
+    def _unit_burned(self, u: StandingUnit) -> bool:
+        """Did *any* of this unit's gates get burned this turn?
+
+        `cnl_engine_goal_plan.md` Phase D: a burned gate stops delivering, but the unit's `cell.held`
+        still holds whatever it last derived **before** burning — an in-flight, unfinished value, not
+        an answer. Nothing upstream of `_live()` used to check this, so a burned unit's stale value
+        read exactly like a settled one: the *"depth ≥ 5 is silently partial"* finding in
+        `forms_discourse.md` §10.3. Excluding it here makes that unit's contribution read as absent —
+        honest *"nothing came to mind"* (`model.md` §7–8), not a wrong or half-finished answer — while
+        `SURGED` (written on the unit's own node, see `_drain`) still says why, for whatever reads
+        that far."""
+        return any(name == u.name for (_src, name, _gate) in self.burned)
+
     def silenced(self, unit: StandingUnit) -> bool:
         """Has a rule concluded that this unit should stop? Read from the graph, because the correction
         is *a rule's conclusion* and rules conclude facts (invariant 4, *units propose wirings as
@@ -953,7 +974,7 @@ class Network:
             effects += [(c.name, e) for e in c.held.effects]
             support[c.name] = frozenset({c.supposes} if c.supposes else ())
         for u in self.units:
-            if u.cell.held is not None:
+            if u.cell.held is not None and not self._unit_burned(u):
                 effects += [(u.name, e) for e in u.cell.held.effects]
             support[u.name] = self.powering(u)
         return tuple(effects), support

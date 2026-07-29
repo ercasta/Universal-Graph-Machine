@@ -63,7 +63,7 @@ of the `AND`/`OR` guarantee; it is the same guarantee, costing more cases becaus
 | finding | status |
 |---|---|
 | depth is realized as an iterating computation (a self-looped unit), not static term-nesting | by design (`model.md` §5) |
-| the surge detector (`SURGE_AT = 3`) | **measured broken** (`forms_discourse.md` §10.3) — cannot distinguish converging recursion over a finite description from a runaway cycle; depth ≥ 5 returns a **silently partial** answer. This is the engine committing the exact failure — silent exhaustion reported as an answer — that `forms_llm.md` §7 names as the whole justification for building this instead of trusting an LLM's forward pass |
+| the surge detector (`SURGE_AT`, now 6) | **⭐ reframed and partly closed, 2026-07-29** (`forms_discourse.md` §10.3, `cnl_engine_goal_plan.md` Phase D) — verified, not just measured: it genuinely **cannot** distinguish converging recursion from a runaway cycle, because every self-loop mints a fresh node each pass, leaving no content-blind signal to build a smarter check from. What *was* fixable — a burned unit's stale value silently reading as a finished answer — is fixed: burned units are now excluded from every read, so the failure this row worried about (`forms_llm.md` §7's silent-exhaustion-as-answer) no longer happens, even though the detector itself stays unable to tell the two cases apart |
 
 ---
 

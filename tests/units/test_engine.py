@@ -122,6 +122,28 @@ def test_a_powered_cycle_surges_and_names_its_loop_from_the_wiring():
     assert set(n.surges[0].loop) == {"A", "B"}
 
 
+def test_a_burned_units_stale_value_does_not_leak_into_a_read():
+    """`cnl_engine_goal_plan.md` Phase D — the "silently partial" finding (`forms_discourse.md`
+    §10.3). Each pass of a genuine cycle mints a fresh node (`ping_pong` below, and every real
+    self-loop this engine can express), so no local check can tell a converging-but-deep recursion
+    from a runaway one by comparing values — verified directly, not merely recalled. Burning a gate
+    is therefore sometimes wrong about *why* it stopped delivering, but it must never be wrong about
+    *what the unit's last held value is worth*: that value was in-flight, not settled, and reading it
+    anyway is indistinguishable from reading a real answer. Fixed by excluding a burned unit from
+    `_live()` entirely, so its contribution reads as absent rather than as a stale answer."""
+    g, _ = named(EMPTY, "ping")
+    n = Network()
+    a, b = ping_pong(n)
+    n.wire(n.given(g), a)
+    n.revive()
+    assert n.surges, "the powered cycle must still surge, just later (SURGE_AT widened)"
+    burned_units = [u for u in (a, b) if n._unit_burned(u)]
+    assert burned_units, "burning must actually have happened for this test to mean anything"
+    names = {name for name, _e in n._live()[0]}
+    for u in burned_units:
+        assert u.name not in names
+
+
 def test_repeat_arrivals_of_the_same_value_are_not_energy():
     """`model.md` §5 — *a repeat arrival is a firing*. Four wires from one source fire the unit four
     times and that is legitimate; only a *change* is energy."""

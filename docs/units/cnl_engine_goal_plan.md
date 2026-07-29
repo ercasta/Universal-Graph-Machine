@@ -53,6 +53,18 @@ truncated. This is foundational computational-model work — a real termination 
 distinguishes convergent recursion from a runaway cycle — and does not depend on the CNL's contents, so it can
 proceed independently of phases A–C.
 
+**⭐ Done, 2026-07-29 — reframed and partly closed.** The "distinguish convergent recursion from a runaway
+cycle" framing above was checked against the running code and found **structurally impossible, not merely
+unsolved**: every self-loop this engine can express mints a fresh node each pass, so no two passes' values are
+ever equal or in a subset relation, and there is no content-blind signal left to build a smarter detector out
+of (`forms_discourse.md` §10.3's 2026-07-29 update has the trace). What was fixable and is fixed: the detector
+was conflating two different failures under one veto — a wasted-but-honest false positive (depth 4, correct,
+discarded) and a genuinely dangerous false negative (depth ≥ 5, truncated, returned as if complete). Fixed by
+excluding a burned unit's value from every read (`Network._unit_burned`, `units/engine.py`) so it reads as
+*absent* rather than as a stale partial answer, paired with widening `SURGE_AT` (3 → 6) so the common shallow
+case doesn't trip the veto at all. Neither part proves termination; together they close the actual ingredient-3
+ask — the engine no longer reports a wrong answer as if it were right.
+
 ---
 
 ## 3. ⚠ SHELVED, 2026-07-28: SUPPOSE's discharge
@@ -195,7 +207,7 @@ today. Two directions this opens, one of which has already paid off:
 | Guards found to silence rather than compose (0 leaks, 0 passes) | B/C — a guard that only blocks is a Phase B form that hasn't been given a real Phase C composition path yet |
 | Pairwise leaks (65% of naive cells) | C — now also provable rather than only samplable, per §4 |
 | n ≥ 3 nesting | **C — closed as a design requirement.** §4 item 3's induction proves safety at unbounded depth *conditional on* the gated wiring discipline; no longer an open measurement question, and not blocked by shelving discharge |
-| Surge detector cannot distinguish convergent recursion from a runaway cycle | D |
+| Surge detector cannot distinguish convergent recursion from a runaway cycle | **D — reframed and partly closed 2026-07-29**: the distinguishing check is structurally impossible (verified, not just unsolved), but the dangerous half — a truncated answer read as if complete — is fixed by excluding burned units from reads |
 
 ---
 

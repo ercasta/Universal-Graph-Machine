@@ -756,6 +756,34 @@ over a finite description from a runaway cycle.** Raising `SURGE_AT` moves the d
 breaks; it does not fix it. `review-01` §3.1 calls the detector *"a witness, not a decision procedure"* and sound
 in one direction only — this is the other direction, costing a real answer.
 
+**⭐ 2026-07-29, `cnl_engine_goal_plan.md` Phase D — the "cannot distinguish" half confirmed, not fixed; the
+"silently partial" half fixed.** Verified against the running code, not just against this write-up: traced a
+powered `ping_pong` cycle and every genuine self-loop this engine can express mints a **fresh node on every
+pass** (`Emit`'s effect payload always names a brand-new `Mint`), so no two passes' values are ever equal, a
+subset of each other, or a superset of each other. That is not a gap in the detector's cleverness — it is a
+structural fact about what a value on a wire *can be* here, and it means **no local, content-blind check can
+ever tell a converging four-step narrowing from a non-converging one**; `_grew`'s monotonicity theorem (growth
+only) already covers the one shape that *is* decidable, and there is no dual "shrank monotonically" shape to
+extend it with, because shrinking would require reusing a node across passes, which nothing does. The plan's
+prior framing — implying a smarter detector was the target — was the wrong frame; there isn't one to build.
+
+What *was* fixable, and is now fixed (`units/engine.py`, `Network._unit_burned` + `_live()`): the two symptoms
+named above are not one bug, they're two. Reporting a correct depth-4 answer as a runaway loop is a **false
+positive** — wasteful but honest, since the answer is discarded rather than trusted. Silently returning a
+truncated depth-5 answer as if it were complete is a **false negative**, and that is the dangerous one — it is
+the exact failure `forms_llm.md` §7 names as the whole justification for building this instead of trusting an
+LLM's forward pass, reproduced inside the thing meant to prevent it. The fix does not try to detect which case
+it is (impossible, per the above); it removes the silence instead. A burned unit's `cell.held` is now excluded
+from every read (`_live()`), on the same footing as the *"0 matches ≠ reference failure"* argument two
+paragraphs up: a burned unit reads as **absent**, not as whatever partial value it happened to be holding when
+its gate stopped delivering, while `SURGED` remains on its node (`_drain`) for whatever downstream rule or
+caller wants to ask why. Paired with widening `SURGE_AT` (3 → 6, `units/engine.py`) so the common, shallow case
+(the four-step example above) doesn't trip it at all — cheap, since a genuine cycle is still caught a few
+passes later at negligible fuel cost, per the same fresh-mint argument. Neither change is a termination proof;
+together they mean the engine never again reports a wrong answer as if it were a right one, which is what
+ingredient 3 of `cnl_engine_goal.md` §3 actually asked for. Test: `test_a_burned_units_stale_value_does_not_
+leak_into_a_read` (`tests/units/test_engine.py`).
+
 Two further arguments against `rev-02` §4's cardinality table, unmeasured:
 
 - **0 matches ≠ reference failure.** `model.md` §7–8's commitment is that *nothing matched* never means *not
