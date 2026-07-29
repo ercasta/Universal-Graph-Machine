@@ -1,29 +1,44 @@
 """GOAL EXPERIMENT — the worked example `cnl_engine_goal_plan.md` §7d asks for, before any of §7c's
 design gets written up as settled.
 
-Three small, separately-checkable things, all against the real engine (`units/engine.py`), not a mock:
+⚠ **First version of this file (2026-07-29) invented machinery the engine didn't need — recorded here
+because the correction is the actual finding.** It "solved" lineage interning by spinning up a *second*
+`Network` object each turn, and "solved" decay's wire-retraction by splitting delivery across two gates.
+Both were self-inflicted: the codebase already has a one-line, precedented answer for "a unit needs to
+see what a prior turn wrote" — manage the axiom's lifecycle on the *same*, persisting `Network`
+(`ax.held = None`; wire a fresh `n.axiom(*effects_of(n.asserted), ...)` on the *same* gate) — exactly the
+idiom `tests/units/test_engine.py`'s `test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python` and
+`test_a_mutating_rule_can_conclude_a_wire` already use. Verified against the real engine that this needs
+no second `Network` and no second gate. What's below is the corrected version; the wrong turn is worth
+keeping in the docstring so it isn't quietly reinvented.
+
+Checks, all against the real engine (`units/engine.py`), not a mock:
 
 1. **Lineage, interned.** A goal mints a subgoal via an ordinary mutating rule (`Emit` + `Link`). Interning
    ("get-or-create per parent") needs a NAC-shaped guard (`absent(...)`) — and §7b flagged exactly this
-   shape as the old procedures arc's most recurring bug. Checked two ways: naively (calling `revive()`
-   twice on one `Network`, which **does** duplicate — the guard reads only what's delivered to the unit's
-   own gate, and the axiom's held value is a fixed snapshot from construction, so a second revive
-   redelivers the *original* graph, blind to what write-back just added) and per-turn (rebuilding a fresh
-   `Network` from the previous turn's `asserted` graph before revive, the way `model.md` §7's outer loop
-   actually works — which does not duplicate, because the new turn's axiom delivers `effects_of` the
-   *accumulated* graph, guard included).
+   shape as the old procedures arc's most recurring bug. Checked two ways on **one, persisting** `Network`
+   and **one, persisting** `StandingUnit`: naively (calling `revive()` again with the axiom's held value
+   left untouched — **does** duplicate, and correctly so per `model.md` §5, *"a repeat arrival is a
+   firing... there is no value-comparison test suppressing it"* — this is documented behavior, not a
+   defect) and managed (null the stale axiom, wire a fresh reflective axiom capturing the *current*
+   `self.asserted` onto the *same* gate — does not duplicate, because the guard's view now includes what
+   the first turn wrote back).
 2. **Outcome, as a positive fact.** A goal's satisfaction condition being met (or not) concludes
    `achieved` / `diverged` directly on the goal node — never read off absence.
 3. **Abandon-and-decay.** A `stale` marker concludes `abandoned=True` **and** retracts the goal's own
-   watching wire (`Drop` on the `<wire>` occurrence) — closing `model.md` §13's attention-leak — while
-   nothing touches the lineage edge itself (not exercised in this scenario, since it has none, but the
-   decay rule's effects are scoped to the wire alone).
+   watching wire (`Drop` on the `<wire>` occurrence) — closing `model.md` §13's attention-leak. One
+   reflective axiom, delivered on the *same* gate as the goal's ordinary facts, is enough — it is a
+   strict superset of what the plain axiom delivers once `given()`/`wire()` have both already written into
+   `self.asserted`, so nothing needs a second gate.
 
 A fourth check, independent of goals but part of the same next-action (§7d): **rewrite via addition** —
 does minting a fact's new form *alongside* the old (never replacing it) actually let two independent rules
 each match their own form and both fire, with the old form left untouched? `computation_units.md` §5
 found `Identify`/merge is the *substitution* primitive; this is testing the *different*, additive
-decision made in conversation for KB rewriting.
+decision made in conversation for KB rewriting. This one held up unmodified: a `StandingUnit`'s output is
+built from an `EMPTY` base (`view()`, `engine.py`), never from `self.asserted`, so a producer's output
+never carries a copy of what it merely read — the same tunnel `computation_units.md` §5 found for
+`Identify`, hit again from the additive-mint side.
 
 Full write-up: `docs/units/cnl_engine_goal_plan.md` §7. Re-runnable: `python -m units.goal_experiment`.
 """
@@ -56,8 +71,9 @@ def _count_raised(g, goal) -> int:
 
 
 def check_lineage_interning_naive() -> dict[str, object]:
-    """The wrong way: two `revive()` calls on the *same* `Network`. Duplicates, because the axiom's
-    held value is the original snapshot — the guard never sees what the first revive wrote back."""
+    """Calling `revive()` again with the axiom left as-is. **Correctly** duplicates — `model.md` §5's
+    documented behavior, not a defect: the guard's view is built only from what is latched on its own
+    gate, and nothing changed there, so the identical input arrives and fires again."""
     g, goal, _cond = _build_goal()
     n = Network()
     n.wire(n.given(g), n.add(_raise_subgoal_rule()))
@@ -68,20 +84,25 @@ def check_lineage_interning_naive() -> dict[str, object]:
     return {"after_one_revive": after_one, "after_two_revives_same_network": after_two}
 
 
-def check_lineage_interning_per_turn() -> dict[str, object]:
-    """The right way: a fresh `Network` per turn, axiom built from the *accumulated* graph — this is
-    `model.md` §7's outer loop, literally. The guard now sees what the previous turn wrote."""
+def check_lineage_interning_managed() -> dict[str, object]:
+    """The precedented way — `test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python`'s idiom,
+    not a rebuilt `Network`: **one** persisting `Network`, **one** persisting `StandingUnit`. Between
+    turns, null the stale axiom and wire a fresh reflective axiom — capturing what the first turn wrote
+    back — onto the *same* gate. The guard now sees its own prior output and blocks."""
     g, goal, _cond = _build_goal()
-    n1 = Network()
-    n1.wire(n1.given(g), n1.add(_raise_subgoal_rule()))
-    n1.revive()
-    after_turn_one = _count_raised(n1.asserted, goal)
+    n = Network()
+    ax = n.given(g)
+    rule = n.add(_raise_subgoal_rule())
+    n.wire(ax, rule)
+    n.revive()
+    after_turn_one = _count_raised(n.asserted, goal)
 
-    n2 = Network()
-    n2.wire(n2.given(n1.asserted), n2.add(_raise_subgoal_rule()))
-    n2.revive()
-    after_turn_two = _count_raised(n2.asserted, goal)
-    return {"after_turn_one": after_turn_one, "after_turn_two_fresh_network": after_turn_two}
+    ax.held = None                                                    # stop redelivering the stale snapshot
+    reflect = n.axiom(*effects_of(n.asserted), name="reflect")        # the current, accumulated graph
+    n.wire(reflect, rule)                                             # same gate ("in") — no new gate
+    n.revive()
+    after_turn_two = _count_raised(n.asserted, goal)
+    return {"after_turn_one": after_turn_one, "after_turn_two_managed_axiom": after_turn_two}
 
 
 def check_outcome_achieved_and_diverged() -> dict[str, object]:
@@ -115,8 +136,10 @@ def check_abandon_and_decay() -> dict[str, object]:
     """A goal marked `stale` concludes `abandoned=True` *and* retracts its own watching wire — the
     mechanism `model.md` §13 names as the fix for the attention leak. The decay rule matches the
     `<wire>` occurrence itself (`model.md` §6: wires are ordinary occurrences), so it has to be
-    *delivered* one first (invariant 19 — machinery is unreachable unless something wires it), on a
-    second gate rather than overwriting the goal facts on the first."""
+    *delivered* first (invariant 19 — machinery is unreachable unless something wires it). One
+    reflective axiom on the unit's ordinary gate is enough: `effects_of(n.asserted)`, taken after
+    `given()`/`wire()` have both already written into the graph, is a strict superset of the plain
+    axiom's contribution, so no second gate is needed."""
     decay_pat = (atom("g", name="goal", stale=True),
                  absent(atom("g", abandoned=True)),
                  atom("w", name=WIRE, out=(role(TO, atom(name="watch")),)))
@@ -129,11 +152,9 @@ def check_abandon_and_decay() -> dict[str, object]:
                                 Attribute("g", "watched", True)))
     n.wire(ax, watch)
     decay = n.add(StandingUnit("decay", decay_pat,
-                                Attribute("g", "abandoned", True), Drop("w"),
-                                gates=("in", "meta"), mutating=True))
-    n.wire(ax, decay, gate="in")
-    reflect = n.axiom(*effects_of(n.asserted), name="reflect")   # delivers the <wire> facts
-    n.wire(reflect, decay, gate="meta")
+                                Attribute("g", "abandoned", True), Drop("w"), mutating=True))
+    reflect = n.axiom(*effects_of(n.asserted), name="reflect")   # superset: goal facts AND the <wire>
+    n.wire(reflect, decay)                                        # one gate — same as everything else
     before = [(s.name, d.name, gate) for s, d, gate in n.wires]
     n.revive()
     after = [(s.name, d.name, gate) for s, d, gate in n.wires]
@@ -172,10 +193,10 @@ def check_rewrite_via_addition() -> dict[str, object]:
 
 def report() -> str:
     lines = ["=== GOAL EXPERIMENT: lineage, outcome, decay, and additive rewriting ==="]
-    lines.append(f"lineage interning, naive (same Network, two revives): "
+    lines.append(f"lineage interning, naive (axiom left as-is, correctly refires): "
                  f"{check_lineage_interning_naive()}")
-    lines.append(f"lineage interning, per-turn (fresh Network each turn): "
-                 f"{check_lineage_interning_per_turn()}")
+    lines.append(f"lineage interning, managed (same Network, axiom lifecycle managed): "
+                 f"{check_lineage_interning_managed()}")
     lines.append(f"outcome as a positive fact: {check_outcome_achieved_and_diverged()}")
     lines.append(f"abandon and decay: {check_abandon_and_decay()}")
     lines.append(f"rewrite via addition: {check_rewrite_via_addition()}")

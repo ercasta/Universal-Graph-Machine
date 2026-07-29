@@ -316,57 +316,68 @@ committing to the shape in §7c.
 
 Four checks, all against the real engine (`python -m units.goal_experiment`), all green, none needing new engine
 code — everything in §7c's table is buildable with the five existing effect kinds plus the existing `absent()`
-guard. What running it actually found, which is more than "it works":
+guard.
 
-**Lineage interning needs the outer loop to be real, not a detail to defer.** `_raise_subgoal_rule`'s NAC guard
-(`absent(atom("g", out=(role("raised", atom()),)))`) is the interning mechanism §7c called for, and it works —
-*but only across the per-turn "rebuild `Network` from the accumulated graph"* shape, not across two `revive()`
-calls on one `Network`. Measured both ways: two revives on the same `Network` mint a **second** subgoal (1 → 2,
-`check_lineage_interning_naive`); a fresh `Network` per turn, axiom rebuilt from the prior turn's
-`n.asserted`, mints exactly one (1 → 1, `check_lineage_interning_per_turn`). The reason is mechanical and worth
-recording as a general lesson, not just a goal-machinery footnote: **an axiom's held value is a fixed snapshot
-taken at construction** (`given()` calls `effects_of(g)` once), so calling `revive()` again on the same
-`Network` redelivers the *original* graph, blind to anything write-back added since — the guard reads only what
-is delivered to the unit's own gate, and nothing re-derives that delivery. This matches `model.md` §7's outer
-loop exactly (*"the next step retrieves against the data step 3 produced"*) — the loop already prescribed
-rebuilding per step, this just confirms goal lineage has no exemption from that discipline.
+⚠ **First pass at this section overstated two of the four findings, and the correction is worth keeping on
+record rather than smoothing over.** The first version reached for two pieces of unnecessary machinery — a
+*second* `Network` object, rebuilt each "turn"; a *second gate*, to keep goal-facts and wire-facts from
+colliding — and reported both as if the engine required them. Neither does. The actual mechanism was already
+sitting in `tests/units/test_engine.py` (`test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python`,
+`test_a_mutating_rule_can_conclude_a_wire`): **one persisting `Network`, one persisting `StandingUnit`**, and
+between turns you manage the axiom's `.held` lifecycle — null the stale one, wire a fresh reflective axiom
+capturing the *current* `self.asserted`, onto the *same* gate. Re-verified directly against the engine before
+rewriting `goal_experiment.py` to match. Corrected findings below; what stood is marked as such.
+
+**Lineage interning: the guard works, and the "naive" failure isn't a finding — it's documented behavior.**
+`_raise_subgoal_rule`'s NAC guard (`absent(atom("g", out=(role("raised", atom()),)))`) is the interning
+mechanism §7c called for. Calling `revive()` again with the axiom left untouched **correctly** mints a second
+subgoal (1 → 2, `check_lineage_interning_naive`) — not because of a defect, but because `model.md` §5 says
+exactly this will happen (*"a repeat arrival is a firing... there is no value-comparison test suppressing
+it"*): the guard's view is built only from what's latched on its own gate, and redelivering the identical,
+unmanaged snapshot is misuse of the axiom, not a property of goal machinery. **The corrected fix stays on one
+`Network`:** null the stale axiom (`ax.held = None`), wire a fresh `n.axiom(*effects_of(n.asserted), ...)` —
+capturing what write-back just added — onto the *same* gate the unit already had (`check_lineage_interning_managed`,
+1 → 1). No second `Network`, no rebuild. The earlier framing ("needs the outer loop to be real... rebuild
+`Network` from the accumulated graph") described a working but gratuitously heavier mechanism, invented instead
+of reaching for the one already precedented in the test suite.
 
 **Outcome-as-a-positive-fact needed nothing beyond an ordinary mutating rule** — `achieved`/`diverged` landed
-exactly as designed, no surprises. The clean case in this arc.
+exactly as designed, no surprises, and nothing about this finding changed on re-check.
 
-**Decay's wire-retraction needed one thing §7c's table didn't say out loud: machinery has to be *delivered*
-before a rule can drop it.** `model.md` §6 already states this (invariant 19 — *"machinery must be delivered to
-a gate before any pattern can see it"*) but §7c's table reads as if `Drop` on a `<wire>` node were a one-gate
-affair like everything else in the table. It is not: the decay rule needed a **second gate**, fed by
-`n.axiom(*effects_of(n.asserted), name="reflect")` (the same reflective-axiom idiom `test_engine.py`'s
-`leaky()` uses), because the goal facts and the wire facts are never both on one gate's latched value at once —
-wiring both sources to the same default gate would just have the later delivery silently overwrite the earlier
-one (single-gate latch, not accumulation). Confirmed by reading `n.wires` before/after: the `("given", "watch",
-"in")` wire is gone after revive, `abandoned` is `True`, and — not exercised here since this scenario's goal has
-no lineage, but consistent with the design — nothing else needed touching.
+**Decay's wire-retraction needs delivery, but not a second gate.** `model.md` §6 (invariant 19 — *"machinery
+must be delivered to a gate before any pattern can see it"*) is the real requirement, and it's satisfied by
+**one** reflective axiom (`n.axiom(*effects_of(n.asserted), name="reflect")`) on the unit's **one** ordinary
+gate: taken after `given()`/`wire()` have both already written into `self.asserted`, that snapshot is a strict
+superset of what the plain axiom alone would deliver, so nothing needs splitting across two gates. The earlier
+"needs a second gate" claim was an artifact of the first draft wiring `ax` and `reflect` to *separate* gates
+instead of reaching for one reflective axiom that already contains everything — a problem manufactured by that
+choice, then patched with more machinery, not a fact about the engine. Confirmed by reading `n.wires`
+before/after (the `("given", "watch", "in")` wire is gone; the redundant `("given", "decay", "in")` wire the
+first draft added isn't even present in the corrected version), and `abandoned` is `True`.
 
 **Additive rewriting hit the tunnel again, the same shape `computation_units.md` §5 already found for
-`Identify`/substitution, and the fix generalizes.** `reify_age`'s output (`Emit` + `Attribute`) carries only the
-*new* facts it minted — not a copy of the base fact it read (`age=42` on Paul) — so a naive consumer pattern
-requiring `name="paul"` on the linked node fails: that attribute was never re-emitted, only referenced by
-identity. Fixed by dropping the redundant constraint (the "about" edge already carries the right node by
-identity; nothing needs to re-check its name) rather than by wiring the consumer to both the axiom and the
-producer as `computation_units.md` §5 did — a narrower fix here because the consumer didn't actually need the
-base fact's *attributes*, only the node it pointed at. **The general lesson holds regardless of which fix
-applies:** a unit's output is only ever what it minted or concluded, never a passthrough of what it read, so any
-rule consuming a derived fact must be wired to see everything its pattern actually needs — the wiring cost
-`computation_units.md` §5 flagged as System 1's job to absorb is confirmed here as a *recurring* cost, not a
-one-off found once and fixed once. With that, `old_form_seen` and `new_form_seen` both landed **and** `age`
-stayed `42` — additive coexistence confirmed, not merge-and-hope.
+`Identify`/substitution, and this one held up on re-check.** `reify_age`'s output (`Emit` + `Attribute`)
+carries only the *new* facts it minted — not a copy of the base fact it read (`age=42` on Paul, `StandingUnit`'s
+`view()` is built from an `EMPTY` base, never `self.asserted`) — so a consumer pattern requiring `name="paul"`
+on the linked node fails: that attribute was never re-emitted, only referenced by identity. Fixed by dropping
+the redundant constraint (the "about" edge already carries the right node by identity; nothing needs to
+re-check its name) rather than by wiring the consumer to both the axiom and the producer as
+`computation_units.md` §5 did — a narrower fix here because the consumer didn't actually need the base fact's
+*attributes*, only the node it pointed at. **The general lesson holds regardless of which fix applies:** a
+unit's output is only ever what it minted or concluded, never a passthrough of what it read, so any rule
+consuming a derived fact must be wired (or its pattern scoped) to match what that fact's producer actually
+re-asserts. `old_form_seen` and `new_form_seen` both landed and `age` stayed `42` — additive coexistence
+confirmed.
 
-**What this changes about §7c, going in to the design doc:** the table's shape survives unchanged — no new
-effect kind, no new gate concept beyond what already exists — but two things move from "detail" to
-"requirement, stated": (1) any goal-lineage consumer (a check rule, a decay rule, anything reading `raised`)
-must be re-derived from the accumulated graph each turn, never revived twice against a stale snapshot; (2) any
-rule matching machinery (a wire, in this case) needs a dedicated gate fed by a reflective axiom, not folded onto
-the same gate as its ordinary premises. Neither is a change to the model — both are already implied by
-`model.md` §§6–7 — but neither was visible until something broke against the running code, which is exactly why
-§7d asked for this before the design doc rather than after.
+**What this changes about §7c, going in to the design doc — corrected:** the table's shape survives unchanged,
+and so does its claim that no new effect kind or gate concept is needed. What moves from "detail" to
+"requirement, stated" is narrower than the first draft claimed: (1) a goal-lineage consumer across turns must
+have its axiom's lifecycle *managed* (nulled when stale, refreshed with a reflective snapshot when something
+new needs seeing) — this is a **discipline on how `Network`/`Cell` get used**, not a requirement to rebuild
+anything; (2) a rule matching machinery (a wire) needs it *delivered*, via a reflective axiom, same gate as
+everything else — not a dedicated one. Both are already implied by `model.md` §§6–7 and by precedent already
+in the test suite; the corrected version of this section is closer to "confirmed the existing idiom transfers"
+than "found a new requirement."
 
 **Not yet touched:** a subgoal with its *own* satisfaction condition distinct from its parent's (this
 experiment's subgoal is a bare lineage marker, no `wants` of its own); a check that spans more than one revive
