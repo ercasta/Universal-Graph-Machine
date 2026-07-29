@@ -1,10 +1,13 @@
 # Goal/subgoal machinery — design, verified against the running engine
 
-**Status: design, settled 2026-07-29, worked example built and green (`units/goal_experiment.py`).** This is
-the document `model.md` §8 points to and `cnl_engine_goal_plan.md` §7 was building toward. It exists because
-§7's three-thread arc (goal lineage, a first System 1, additive rewriting) needed a worked example before being
-written up as settled — that example is built, it found two places where the first draft over-engineered a
-fix, and this document states the corrected, minimal shape plus the general mechanism it exposed.
+**Status: design, settled 2026-07-29, worked examples built and green (`units/goal_experiment.py`,
+`units/goal_decomposition_experiment.py`, `units/nac_verification_experiment.py`); updated 2026-07-30 for
+two corrections (§6/§8's same-turn gate dropped, both self-inflicted) and §9's NAC/closed-vs-open-world
+finding.** This is the document `model.md` §8 points to and `cnl_engine_goal_plan.md` §7 was building
+toward. It exists because §7's three-thread arc (goal lineage, a first System 1, additive rewriting) needed
+a worked example before being written up as settled — that example is built, it found several places where
+the first draft over-engineered a fix, and this document states the corrected, minimal shape plus the
+general mechanisms it exposed.
 
 **Read `model.md` §8 first** (goals as data, outcome as a positive fact, energy/burn) — this document only
 covers what §8 leaves as "design, not built": the lineage relation itself, and how it survives across turns.
@@ -163,10 +166,125 @@ snapshot.
 
 ## 7. What's still open
 
-- **A subgoal with its own satisfaction condition**, distinct from its parent's. `goal_experiment.py`'s
-  subgoal is a bare lineage marker (no `wants` of its own) — decomposing a goal into subgoals that must each be
-  independently checked is not yet built.
+- ~~A subgoal with its own satisfaction condition~~ — **built and run, 2026-07-29,
+  `units/goal_decomposition_experiment.py`, three checks green.** See §8 below.
 - **System 1** (`model.md` §7, associative retrieval) — a first prototype exists (`units/system1_experiment.py`)
   but everything in this document is still hand-wired past that point (retrieval proposes a wire; nothing yet
   proposes the *reflective-axiom-vs-sibling-cell* choice §4/§6 found matters). §7 nominates System 1 as the
   thing that eventually absorbs that authoring cost too.
+
+---
+
+## 8. Built and run, 2026-07-29 — `units/goal_decomposition_experiment.py`, a subgoal with its own condition
+
+Every prior worked example either used a bare lineage marker (§6's cursor quantifies over a flat,
+externally-given member set) or a subgoal with no `wants` of its own (`goal_experiment.py`). Neither
+tests real decomposition: a goal minting *several* subgoals, each with an independent satisfaction
+condition, each resolved on its own turn, with the parent's own outcome bubbling up only once every
+child's is in — the shape §7c's original table actually described. Three checks, all green.
+
+**Composes, doesn't reinvent.** Every rule here — first-level (decompose; each subgoal's own
+achieved/diverged) and second-level (the *parent's* achieved/diverged) alike — uses the single reused
+reflective-axiom-lifecycle discipline (§3). Nothing new was needed in the engine.
+
+**⚠ Correction, 2026-07-30: §6's same-turn sibling-cell gate has been dropped from both this file and
+`quantification_cursor_experiment.py`, and the "same-turn, not one turn late" claim below is superseded.**
+Checked directly against `Network._drain()` (`units/engine.py:801`): a sibling's own conclusion already
+propagates within one `revive()` call via the ordinary queue mechanism, so the extra gate wasn't fixing a
+correctness gap. And the *other* half of the original justification — "otherwise the answer might never
+appear if no further turn comes" — was also wrong: a unit that can't fire because a gate is empty goes
+`dangling()` (`engine.py:569`), which `model.md` §7 already names as the honest "still waiting" signal for
+an outer driver to act on, not a silent failure needing to be engineered around. The engine's own test
+suite already treats one-turn lag on freshly-produced structure as normal
+(`test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python`'s docstring: *"on the next turn it
+runs"*). The parent's achieved/diverged now use one gate, like everything else, and see a child's
+conclusion one *settle* turn later — traced explicitly, not hidden behind extra wiring.
+
+**One wrinkle specific to decomposition, not present in the flat case, and still real.** The parent's
+`achieved` guard (`absent(raised subgoal with achieved=None)`) is vacuously true *before any subgoal has
+even been minted* — an undecomposed goal would read as trivially, falsely achieved.
+`quantification_cursor_experiment.py` never hit this because its member set was given up front, never
+minted by the same rule chain that consumes it. Fixed with a positive existence premise
+(`atom(out=(role("raised", atom())))`) alongside the NAC — checked explicitly
+(`check_undecomposed_goal_is_not_vacuously_achieved`), not just reasoned about. §9 below generalizes this
+into "don't trust an open-ended absence without an explicit closure fact."
+
+**Verified, both directions:** both children succeeding reaches `achieved` on the settle turn after the
+*second* child's result arrives; one child diverging reaches `diverged` on the settle turn after its own
+result, without waiting on its still-pending sibling, and never falsely reaches `achieved`.
+
+**What this closes:** the first item of §7's open list. What's still open is System 1 alone (unchanged,
+restated above) — a subgoal's own satisfaction condition, and the parent-quantifies-over-children shape,
+are now both built and verified against the real engine rather than only designed.
+
+**⭐ 2026-07-30: goal/subgoal turned out to be the shape everything else in this arc reduces to.**
+`planning_meta_concepts_arc.md` (prose) tells the full story — planning, real side effects and
+idempotency, closed/open-world stance, and the closed class itself being rechallenged — ending at
+`units/meta_concept_unification_experiment.py`: a procedure is this shape plus one sequencing edge, a
+question is this shape wanting a knowledge-claim instead of a world-state claim, and a standing
+prohibition is an ordinary stance-fact veto, all checked together in one worked example, not just argued.
+
+---
+
+## 9. NAC guards: closed-world default, per-concept stance, and active verification — 2026-07-30
+
+Raised in conversation, checked against the running engine before being written up: what should a
+NAC-guarded rule (`absent(...)`) actually mean, and does it need to mean the same thing everywhere? The
+old `ugm` engine (`ugm/check.py`, `ugm/policy.py`) had already worked this out once, as a four-status
+model (`POSITIVE` / `ENTAILED_NEG` / `ASSUMED_NO` / `UNKNOWN`) with openness declared **per concept**,
+never as a single global stance. This section is that distinction, rebuilt on `units/`'s actual
+primitives rather than ported as Python config — and a working demonstration
+(`units/nac_verification_experiment.py`, four checks green) that it needed no new engine mechanism, only
+an authoring pattern.
+
+### 9a. The three findings, in order
+
+**1. "Per concept" has to be a fact, not Python policy.** Old `ugm`'s `FirmwarePolicy.open_preds` was a
+frozenset passed at call time — exactly the "hardcoded stance, unreachable from the graph" shape
+[[composability-principle]] rules out. Here, a concept's stance is an ordinary attribute on its own node
+(`atom("hazmat", actively_verify=True)`, `units/nac_verification_experiment.py`), checked as an ordinary
+positive premise by whatever rule needs it. No policy object, no new kind.
+
+**2. A defeasible "assumed no" should be a *computation unit's* conclusion, never a mutating rule's.**
+This is what makes it revisable for free, matching old `ugm`'s own framing of `ASSUMED_NO` as *"a
+computed verdict, not a write."* A non-mutating `StandingUnit`'s output is never applied at write-back
+(`engine.py:927`) — it's recomputed fresh from current gate content every `revive()`. Mint it via a
+*mutating* rule instead and it becomes permanent data needing an explicit `Drop` the moment new evidence
+contradicts it — exactly the kind of self-inflicted machinery this session already caught itself building
+twice (§6, and `quantification_cursor_experiment.py`'s original same-turn gate).
+
+**3. "Try hard before assuming no" does not need a new engine primitive — it needs the investigate rule's
+positive premises to include the stance fact, nothing more.** The heavier mechanism raised in
+conversation — a meta-rule that inspects another rule's `<absent>` node (already fully homoiconic data,
+`units/engine.py:151-197`) and generates a companion rule from it — is real and buildable, but wasn't
+needed for this. Simpler: author the investigate rule directly, with the stance fact as an ordinary
+premise (`out=(role("kind", atom("k", actively_verify=True)))`) — it then only fires for flagged
+concepts, the same way any other guard restricts a rule. "Configurable per concept" turns out to be
+nothing more than which fact happens to be true of a given node.
+
+### 9b. The shape, verified (`units/nac_verification_experiment.py`)
+
+| concept's stance | rule shape | what it concludes | when |
+|---|---|---|---|
+| default (no stance fact) | bare NAC (`absent(dangerous=True)`) | `assumed_safe` | immediately, first revive — cheap CWA |
+| `actively_verify=True` | investigate rule (stance fact as a positive premise) raises a subgoal wanting the real answer; **no** assumed-anything rule ever matches this concept | `confirmed_safe` / `confirmed_dangerous`, from the subgoal's own `achieved`/`diverged` (`goal_machinery.md` §2's shape, reused verbatim) | only once the subgoal genuinely resolves — real evidence, never a guess |
+
+The flagged concept has **no defeasible middle state**: before the subgoal resolves it is honestly
+pending (all three of `assumed_safe`/`confirmed_safe`/`confirmed_dangerous` stay `None`, checked
+explicitly — `check_flagged_concept_never_assumes_before_investigating`), never a silent fallback to CWA.
+
+### 9c. What was raised but not built, and why
+
+**A safety veto for an already-concluded `assumed_no`** (a flagged concept's own rule producing a
+conflicting conclusion, surfaced through the engine's *existing* `detect_conflicts()`/`report()`
+machinery, `engine.py:837-901`, rather than a bespoke "trigger on assuming no" primitive) was proposed as
+the general mechanism for overriding a prior assumption. Not needed for this worked example, because
+finding 2+3 together made it moot here: a flagged concept never produces `assumed_no` in the first place,
+so there is nothing to veto after the fact. Worth building as its own worked example if a case ever needs
+*retracting* an already-trusted assumption rather than pre-empting it.
+
+**A generic "read any rule's `<absent>` and generate its investigate companion"** meta-rule was the
+originally-proposed heavier mechanism. Confirmed buildable (`Absent` is homoiconic, precedent exists in
+`test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python`) but not built — §9a finding 3 found the
+direct-authoring version sufficient for every case tried so far. Worth revisiting only if hand-authoring
+an investigate companion for every flagged concept becomes real, repeated cost — not before.

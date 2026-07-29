@@ -5,6 +5,11 @@ inventory, abstractly. It consolidates what is scattered across `forms_discourse
 `docs/design/form_inventory.md` (superseded except for the surviving findings named in `forms_discourse.md` §12),
 and `units/forms.py`/`units/sieve.py` (the runnable probe) into one table with one status per entry.
 
+**⚠ 2026-07-30: `closed_class_rechallenged.md` questions this document's whole CONTENT/FORCE/LEVEL frame**
+— the `causation` row below is stale (already confirmed sugar, `causation-core-was-sugar`, predating this
+session), and `force`/`level`/`identity` are proposed (not yet probed) as likely open+meta-rule-mediated
+too. Read that note before extending this table further; it names what's confirmed vs. hypothesized.
+
 ## 0. Why this document exists
 
 The system understands language through a small, fixed vocabulary of grammatical building blocks — a **closed
@@ -135,7 +140,7 @@ where they're named and what shape they'd need:
 | form / category | example | named in | shape |
 |---|---|---|---|
 | **quantification** | "**every** VIP customer gets the discount," not just one named customer | `forms_discourse.md` §2.2 CONTENT list, `form_inventory.md` §4a | **worked out 2026-07-29, §8 below — splits into four cases, only one of which is actually relational-form-shaped** |
-| **causation** | "creating the account **enables** sending the welcome email" | same | relational — at minimum a two-occurrence link; `form_inventory.md` flagged this as "NO MECHANISM" even under the retired engine |
+| **causation** | "creating the account **enables** sending the welcome email" | same | ⚠ **stale row — already resolved as sugar, not unformalized.** `causation-core-was-sugar` (2026-07-22): the whole causation core is a generic `propagates` meta-schema + declared data, zero engine primitive. See `closed_class_rechallenged.md` §2 |
 | **identity / reference** | "the **observed** total doesn't match the **expected** total" — are these two occurrences the same thing or not? | `forms_discourse.md` §10.3 (open, with the measured depth-4/5 engine obstacle already blocking the flagship case) | relational, and specifically flagged as depending on a *separate* fix (the surge detector, `cnl_engine_goal_plan.md` Phase D) before it can even be tested, since resolution is iterated over a cycle |
 | **tense, if bounded returns** | distinguishing "the customer **qualified**" from "the customer **had been qualifying**" | `forms_discourse.md` §6 catalog row (Vendler's aspect classes) | `past` (§4 above) is a start; a full tense/aspect treatment needs the aspectual-class dimension too, currently absent |
 | **tier-3 thematic roles** | who is the *agent* and who is the *patient* in "send the customer the welcome email" | `forms_discourse.md` §9 | not a "form" in the CONTENT/FORCE/LEVEL sense at all — a different, corpus-derived tier, deliberately out of this sieve's scope |

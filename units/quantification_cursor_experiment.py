@@ -21,17 +21,20 @@ directly into `self.asserted` (skipping `given()`'s own axiom bookkeeping, since
 to that event individually — only the shared reflective snapshot does) — a fair simplification for a test
 harness standing in for a real external event.
 
-⚠ **One new wrinkle, found and fixed while building this: the reflective snapshot alone lags one turn on
-the *very same* revive that finishes the job.** `reflect.held` is refreshed *before* `revive()` runs, which
-is *before* `check_member`'s own write-back for *this* turn has happened — so `achieved`/`diverged`, wired
-only to `reflect`, see last member's result one turn late (measured: `achieved` only became `True` on an
-extra, otherwise-pointless settle turn after the last member). Fix: give `achieved`/`diverged` a **second**
-gate, fed directly by `check_member.cell` — that unit's own output from *this* firing, which write-back
-hasn't applied to `self.asserted` yet but which is already sitting in its cell. `view()` composes both gates,
-so the same turn that checks the last member also concludes the outcome. This is the same "wire the single
-axiom that's a superset" lesson from `goal_machinery.md` §4, one layer sharper: sometimes no single existing
-snapshot *is* a superset within one revive, and the fix is a second, narrower source (a sibling rule's own
-cell) rather than a bigger snapshot.
+⚠ **Correction, 2026-07-30: the second "same-turn" gate this section originally described has been removed
+— it wasn't required, and it was inconsistent with how the rest of this engine treats fresh conclusions.**
+The original reasoning was that `reflect.held`, refreshed *before* `revive()` runs, lags one turn behind
+`check_member`'s own write-back for *that same* turn, so `achieved`/`diverged` would see the last member's
+result one turn late unless wired directly to `check_member.cell`. Checked against `Network._drain()`
+(`units/engine.py:801`): that reasoning about *why* a second source is sometimes needed was right in
+general (a snapshot taken before a firing can't contain that firing's own output) — but the fix of a
+dedicated "same_turn" gate was heavier than necessary for *this* file, and inconsistent with
+`test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python`'s own precedent, whose docstring says
+plainly of freshly-produced structure: *"on the next turn it runs."* `achieved`/`diverged` now use the
+plain reused-reflective-snapshot ("in") gate only, and the one-turn lag is accepted and traced explicitly
+as a `settle` step rather than engineered away. A unit that can't yet conclude because its gate is empty
+isn't failing silently either way — it's `dangling()` (`engine.py:569`), which `model.md` §7 names as the
+honest "still waiting" signal.
 
 Re-runnable: `python -m units.quantification_cursor_experiment`.
 """
@@ -65,21 +68,26 @@ def _build_goal(member_names: tuple) -> tuple:
 def _rules() -> tuple:
     check_member = StandingUnit("check_member", _CHECK_MEMBER_PAT,
                                  Attribute("m", "checked", True), mutating=True)
-    # Two gates each, not one: "in" carries the last-known-synced state (the reflective snapshot,
-    # refreshed at the *start* of this turn — see the module docstring's "same-turn lag" note); "same_turn"
-    # carries `check_member`'s own output from *this* firing, which write-back hasn't applied to
-    # `self.asserted` yet when the reflective snapshot was taken. Without the second gate, `achieved`/
-    # `diverged` see last member's result one turn late.
-    achieved = StandingUnit("achieved", _ACHIEVED_PAT,
-                             Attribute("g", "achieved", True), mutating=True, gates=("in", "same_turn"))
-    diverged = StandingUnit("diverged", _DIVERGED_PAT,
-                             Attribute("g", "diverged", True), mutating=True, gates=("in", "same_turn"))
+    # One gate, like every other rule in this file: the reused reflective snapshot. `achieved`/`diverged`
+    # see a member's result one turn after `check_member` concludes it — accepted lag, traced explicitly
+    # via `_settle`, not engineered away with a second gate.
+    achieved = StandingUnit("achieved", _ACHIEVED_PAT, Attribute("g", "achieved", True), mutating=True)
+    diverged = StandingUnit("diverged", _DIVERGED_PAT, Attribute("g", "diverged", True), mutating=True)
     return check_member, achieved, diverged
 
 
+def _settle(n: Network, reflect) -> None:
+    """No new external input — re-expose what the last turn wrote back, one turn later. The honest,
+    precedented lag (`test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python`'s "on the next turn
+    it runs"), not hidden behind extra wiring."""
+    reflect.held = Value(effects_of(n.asserted))
+    n.revive()
+
+
 def _run(member_names: tuple, eligibility: dict) -> list:
-    """One member's result delivered per turn, in `member_names` order. Returns the (achieved, diverged)
-    read after *every* turn, so the honest "not yet decided" middle turns are visible, not just the end."""
+    """One member's result delivered per turn, in `member_names` order, each followed by an explicit
+    settle turn. Returns the (achieved, diverged) read after *every* turn — including the settle turns —
+    so both the honest "not yet decided" middle states and the one-turn lag itself are visible."""
     g, goal, members = _build_goal(member_names)
     n = Network()
     n.given(g)
@@ -90,33 +98,36 @@ def _run(member_names: tuple, eligibility: dict) -> list:
 
     reflect = n.axiom(*effects_of(n.asserted), name="reflect")
     n.wire(reflect, check_member)                    # fan-out: three consumers, one shared source
-    n.wire(reflect, achieved, gate="in")
-    n.wire(reflect, diverged, gate="in")
-    n.wire(check_member.cell, achieved, gate="same_turn")   # this turn's own delta, same-turn visible
-    n.wire(check_member.cell, diverged, gate="same_turn")
+    n.wire(reflect, achieved)
+    n.wire(reflect, diverged)
 
     trace = []
     for nm in member_names:
         n.asserted = n.asserted.with_node(members[nm], eligible=eligibility[nm])  # the "tool result"
         reflect.held = Value(effects_of(n.asserted))                              # refresh in place
         n.revive()
-        trace.append({"member_just_checked": nm,
+        trace.append({"turn": f"{nm}_result",
+                       "achieved": n.world().attr(goal, "achieved"),
+                       "diverged": n.world().attr(goal, "diverged")})
+        _settle(n, reflect)
+        trace.append({"turn": f"settle_after_{nm}",
                        "achieved": n.world().attr(goal, "achieved"),
                        "diverged": n.world().attr(goal, "diverged")})
     return trace
 
 
 def check_all_eligible_reaches_achieved_only_at_the_end() -> dict[str, object]:
-    """Three members, all eligible. `achieved` must stay `None` through the middle turns — concluding it
+    """Three members, all eligible. `achieved` must stay `None` through every middle turn — concluding it
     early would be exactly the false-completeness `model.md` §8 exists to prevent — and become `True`
-    only once the third (last) member's result has arrived."""
+    only on the settle turn after the third (last) member's result has arrived."""
     trace = _run(("m1", "m2", "m3"), {"m1": True, "m2": True, "m3": True})
     return {"trace": trace}
 
 
 def check_one_ineligible_member_reaches_diverged_not_achieved() -> dict[str, object]:
-    """Same shape, one member fails. `diverged` (not `achieved`) lands once every member is checked —
-    the universal claim is honestly false, stated as a positive fact, not silently absent."""
+    """Same shape, one member fails. `diverged` (not `achieved`) lands on the settle turn after every
+    member has been checked — the universal claim is honestly false, stated as a positive fact, not
+    silently absent."""
     trace = _run(("m1", "m2", "m3"), {"m1": True, "m2": False, "m3": True})
     return {"trace": trace}
 

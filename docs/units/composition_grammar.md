@@ -125,9 +125,10 @@ conditional rules) and is not blocked by shelving discharge.
 
 ## 6. Left open, on purpose
 
-- **`quantification`, `causation`** — future `RelationalClaim`-shaped siblings, each needing their own design
-  the way `conditional` just got one. Structurally isolated from everything else once added, but not designed
-  yet.
+- **`quantification`, `causation`** — ⚠ 2026-07-30: this framing is likely wrong for `causation` (already
+  confirmed sugar, `causation-core-was-sugar`) and possibly for `quantification`'s open case (resolves via
+  goal machinery, not a new closed-class design) — see `closed_class_rechallenged.md`. Neither may need "its
+  own design" the way `conditional` did; both may be open content read by a generic meta-rule instead.
 - **A new `flag`/`alert` force value** (from the drift-detection scenario, `agentic_scenario_catalog.md` §7) —
   cheap: one more value in the existing `force` field, not a new structure.
 - **Termination/safety of nested `RelationalClaim`s at arbitrary depth** — not argued here, only made into a
