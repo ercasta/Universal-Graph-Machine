@@ -1,9 +1,9 @@
 # Plan: reaching the goal in `cnl_engine_goal.md`
 
-**Status: plan, 2026-07-28.** References `cnl_engine_goal.md` — read that first for the goal statement, the
-engine/ruleset responsibility split, and the three ingredients. This document is the phase plan for closing the
-gap between "realistic goal" and "shipped guarantee," plus one worked example (SUPPOSE's discharge) that turned
-out to be the concrete case for phase 2 below.
+**Status: plan, 2026-07-28; updated 2026-07-29 for the and/or `Trigger` finding.** References `cnl_engine_goal.md`
+— read that first for the goal statement, the engine/ruleset responsibility split, and the three ingredients.
+This document is the phase plan for closing the gap between "realistic goal" and "shipped guarantee," plus one
+worked example (SUPPOSE's discharge) that turned out to be the concrete case for phase 2 below.
 
 ---
 
@@ -40,6 +40,14 @@ worked example, now verified against the actual code rather than only against th
 
 Anything that fails this gate forces a real choice: revise the execution model, or revise the form. Nothing
 downstream should be built on a form that hasn't cleared this gate.
+
+**And/or (`Trigger`'s `All`/`Any`, `composition_grammar.md` §8) clears this gate almost for free**, and it's
+worth stating why next to a form that failed it: `All` is an ordinary two-gate unit (fires once both deliver —
+already how any two-input unit works), `Any` is the same shape with either-delivers instead of both. Nothing new
+is asked of the execution model — contrast with SUPPOSE's discharge (§3), which needed a primitive
+(`powering()`'s backward wire-walk) that doesn't exist. That's the actual distinction Phase B is for: `Trigger`
+passes because it reuses gates as they already work; discharge fails because escaping a supposition needs a
+boundary the engine has no gate kind for.
 
 ### Phase C — Composition proof: do the forms that passed Phase B compose with each other?
 
@@ -193,6 +201,13 @@ today. Two directions this opens, one of which has already paid off:
    elimination-side and needs no hypothesis-introduction at all. It is squarely still needed (scenarios 1 and 6
    both evaluate authored conditional rules) and is **not blocked by shelving discharge (§3)** — a concrete
    requirement on how nested-conditional evaluation must be wired, standing on its own.
+4. **And/or, worked out the same way and landing in the same place.** `composition_grammar.md` §8 (via
+   `computation_units.md`'s worked example): `and`/`or` are a fan-in shape at a conditional's antecedent
+   position (`Trigger`'s `All`/`Any`), always feeding one shared `then`, never a free-standing claim with its
+   own consequent. Sound by construction, same reasoning as item 3 — and, same correction as item 3 needed
+   twice now, **not about discharge either**: a bare "A or B" with nothing derived from it is inert content;
+   it only becomes a discharge problem if something tries to derive a *new* shared conclusion independently
+   under each disjunct, which is out of scope for the same reason §3 is shelved.
 
 ---
 
@@ -207,6 +222,7 @@ today. Two directions this opens, one of which has already paid off:
 | Guards found to silence rather than compose (0 leaks, 0 passes) | B/C — a guard that only blocks is a Phase B form that hasn't been given a real Phase C composition path yet |
 | Pairwise leaks (65% of naive cells) | C — now also provable rather than only samplable, per §4 |
 | n ≥ 3 nesting | **C — closed as a design requirement.** §4 item 3's induction proves safety at unbounded depth *conditional on* the gated wiring discipline; no longer an open measurement question, and not blocked by shelving discharge |
+| And/or (`Trigger`'s `All`/`Any`, `composition_grammar.md` §8) | **B — cleared** (ordinary multi-gate wiring, nothing new asked of the execution model); **C — closed as a design requirement**, sound by construction, same shape as n ≥ 3 nesting above; **not built** in `units/` yet |
 | Surge detector cannot distinguish convergent recursion from a runaway cycle | **D — reframed and partly closed 2026-07-29**: the distinguishing check is structurally impossible (verified, not just unsolved), but the dangerous half — a truncated answer read as if complete — is fixed by excluding burned units from reads |
 
 ---

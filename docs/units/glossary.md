@@ -48,6 +48,18 @@ you want to reuse it going forward; don't introduce a term casually before it's 
   A **wire** connects one unit's output to another's input. Units communicate only through wires, never by
   reaching into shared storage directly.
 
+- **computation unit vs. mutating rule** — the two things a unit can be, and the only place safety in a nested
+  claim actually lives. A **computation unit**'s output is recomputed fresh every turn and disappears the moment
+  its input does — nothing persists. A **mutating rule**'s output is written for real and stays. In a chain of
+  nested claims, every intermediate step is a computation unit; only the very last step, if it's a mutating
+  rule, ever becomes a standing fact.
+
+- **fan-in (`All` / `Any`)** — how "and"/"or" combine two conditions feeding *one* shared continuation, rather
+  than each carrying its own. `All` fires only once both conditions have delivered a value (an AND); `Any` fires
+  once either has, with both wired to the identical next step (an OR). Because there's only one next step for
+  either to feed, nothing has to check that "the and-branch" and "the or-branch" agree — there's only ever one
+  of them.
+
 - **supposition / support** — a supposition is a hypothesis the engine is reasoning under ("suppose it rains").
   Anything concluded while that hypothesis is active carries that hypothesis as its **support** — a record of
   which assumption it depends on, so it can be kept separate from things known outright.

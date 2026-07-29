@@ -1,9 +1,11 @@
 # A grammar over closed-class composition — sketch, pending review
 
-**Status: design sketch, not yet implemented, 2026-07-28.** References `cnl_engine_goal_plan.md` (this is a
-candidate approach to Phase C — proving composition sound — and to the `conditional`-detachment finding in
-`closed_class_inventory.md` §5). Terms below marked *(proposed)* are not yet agreed — see `glossary.md`; don't
-reuse them elsewhere until confirmed.
+**Status: design sketch, not yet implemented, 2026-07-28; §8 added 2026-07-29.** References `cnl_engine_goal_plan.md`
+(this is a candidate approach to Phase C — proving composition sound — and to the `conditional`-detachment finding
+in `closed_class_inventory.md` §5). Terms below marked *(proposed)* are not yet agreed — see `glossary.md`; don't
+reuse them elsewhere until confirmed. **§8 supersedes an in-conversation sketch that never landed here** — and/or
+were considered as free-standing siblings of `RelationalClaim`, each with an independent consequent; that shape
+was wrong (see `computation_units.md` §3–4) and was corrected before being written down, not after.
 
 ---
 
@@ -148,3 +150,43 @@ genuinely separate consequent node. What's still not built: a real, nested `Clai
 of representing "if A, then: if B then C" as actual graph data (needed to test the §5a induction's "gated vs.
 naive" finding against the real engine, rather than only against `smt_sieve.py`'s abstract model). That remains
 open.
+
+---
+
+## 8. And/or — `Trigger`, a fan-in shape at the antecedent position, not a sibling of `RelationalClaim`
+
+Worked out against a concrete example (`computation_units.md` §2: "if the circle is red or green, then: if
+blinking fast: if red, press A, otherwise B") and against two corrections made getting there (same doc, §4). The
+finding: `and`/`or` are never full `Claim`s carrying their own consequent. They only occur **inside** a
+`RelationalClaim`'s antecedent, fanning into one shared `then`:
+
+```
+Claim    := BareClaim
+          | RelationalClaim(when: Trigger, then: Claim)
+
+Trigger  := BareClaim
+          | All(Trigger, Trigger)      -- AND-fan-in: fires only once every branch has delivered
+          | Any(Trigger, Trigger)      -- OR-fan-in: fires once any branch delivers; every branch of one
+                                        --   `Any` is wired to the identical `then` — never to independently
+                                        --   authored continuations
+```
+
+This is sound **by construction**, the same way §5's detachment fix is: a grammar that only ever gives one
+`then` per `RelationalClaim` cannot represent two continuations that merely *happen* to agree, so nothing needs
+checking that they do. `Any(A,B) → C` unfolds mechanically to `(A → C)` and `(B → C)`, because both wire to the
+identical `C` — which is also why `if X then A else B` is conjunction-shaped (`X → A` plus `¬X → B`, `¬X` matched
+directly via §4's θ mechanism), never disjunction-elimination, and needs nothing beyond ordinary gates.
+
+**Deliberately excluded, same reasoning as §6:** a free-standing disjunctive `Claim` from which something new is
+*derived* independently under each disjunct (rather than applied through a shared `then`). That is genuine
+proof-by-cases and is exactly `SUPPOSE`'s discharge — shelved (`cnl_engine_goal_plan.md` §3) for lack of a
+scenario that derives rather than applies. A bare disjunction asserted with nothing conditioned on it (*"the
+circle is red or green"*, full stop) is harmless content, not an elimination problem — it only becomes one if
+something tries to fan into two different continuations instead of one.
+
+**No standalone `Negation` combinator either.** "If not X" is `Trigger` matched absent (§4's θ mechanism, already
+in the engine), not a new node. Sentential negation of a whole combination doesn't arise in the
+evaluate-an-already-authored-claim setting this grammar targets.
+
+**Not built:** `All`/`Any` don't exist in `units/` yet — nothing to build against until this shape is reviewed
+the way `conditional`'s was.

@@ -46,7 +46,8 @@ nesting depth**, carrying opaque domain content through it without ever composin
 | `forms_extra_considerations.md` | a Q&A trail pressure-testing the two above. Not a specification | reasoning trail |
 | **`closed_class_inventory.md`** | the **soundness** check — every form's live-measured status from `units/sieve.py` | Phase A, in progress |
 | **`agentic_scenario_catalog.md`** | the **completeness** check — ten agentic scenarios, what each needs, coverage verdicts. ⚠ synthetic, not real usage | Phase A working document |
-| `composition_grammar.md` | the `BareClaim \| RelationalClaim` sketch, the detachment fix, the nesting induction | design sketch, not implemented |
+| `composition_grammar.md` | the `BareClaim \| RelationalClaim` sketch, the detachment fix, the nesting induction | design sketch, not implemented, ⚠ predates the `Trigger`-fan-in correction in `computation_units.md`, update pending |
+| `computation_units.md` | worked example (gates/wires/overlays), the `Trigger`-fan-in shape for and/or, the one discharge point, two corrections made along the way | design note, 2026-07-29 |
 
 Read `cnl_engine_goal.md` → `cnl_engine_goal_plan.md` first if picking this up cold; the rest hangs off those
 two. `closed_class_inventory.md` and `agentic_scenario_catalog.md` are complementary and neither substitutes

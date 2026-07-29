@@ -28,7 +28,8 @@ big thread (SUPPOSE's discharge) was deliberately shelved along the way for lack
 | `cnl_engine_goal_plan.md` | the four-phase plan (A spec / B realizability / C composition proof / D termination); current status per phase |
 | `closed_class_inventory.md` | the soundness-side check — every form's live-measured status, from `sieve.py` |
 | `agentic_scenario_catalog.md` | the completeness-side check — ten real scenarios, what each needs, coverage verdicts |
-| `composition_grammar.md` | the `BareClaim \| RelationalClaim` grammar sketch, the detachment fix's design, the nesting induction |
+| `composition_grammar.md` | the `BareClaim \| RelationalClaim` grammar sketch, the detachment fix's design, the nesting induction. ⚠ its `Conjunction`/`Disjunction`/`Negation`-as-siblings shape is superseded, update pending |
+| `computation_units.md` | the `Trigger`-fan-in correction: and/or live at the antecedent position feeding one shared `then`, never as free-standing claims with independent consequents; the one discharge point; worked example |
 | `glossary.md` | plain-language definitions of every term actually agreed on this session — check before reusing jargon |
 | `units/smt_sieve.py` | the runnable Z3 proofs (base case, inductive step) |
 | `units/forms.py`, `units/sieve.py` | where the detachment fix actually landed in code |
@@ -44,7 +45,7 @@ off those two.
 |---|---|
 | **A — spec the inventory** | in progress. `closed_class_inventory.md` has live numbers; open items: `past`/`evidential`/`mirative` are singleton slots (need a competing form to test independence); `quantification`/`causation`/`identity` not yet formalized at all |
 | **B — realizability gate** | SUPPOSE's discharge **shelved** (no scenario needs it — see below). Nested-conditional evaluation needs a "gated" wiring discipline, proven abstractly, **not yet built in the real engine** |
-| **C — composition proof** | `degree ∘ negation`, `ask`/`language` leaks: proven fixed via guarding (SMT, `unsat`). **`conditional` detachment: fixed in running code** (`Form.excludes_defaults`, `units/forms.py`/`sieve.py` — `still_leaking` empty, only the deliberately-requested `positive ∘ unmet` still leaks, correctly). n≥3 nesting: closed as a design requirement (induction proof), conditional on the gated wiring actually being built |
+| **C — composition proof** | `degree ∘ negation`, `ask`/`language` leaks: proven fixed via guarding (SMT, `unsat`). **`conditional` detachment: fixed in running code** (`Form.excludes_defaults`, `units/forms.py`/`sieve.py` — `still_leaking` empty, only the deliberately-requested `positive ∘ unmet` still leaks, correctly). n≥3 nesting: closed as a design requirement (induction proof), conditional on the gated wiring actually being built. **And/or: corrected to a `Trigger`-fan-in shape** (`computation_units.md`) — sound by construction, no discharge needed, provided `composition_grammar.md`'s old siblings shape is updated to match |
 | **D — termination/honesty** | **untouched.** The surge detector still can't distinguish convergent recursion from a runaway cycle (`forms_discourse.md` §10.3) — this is the literal mechanism behind scenario 5 (honest exhaustion reporting), which is currently just broken |
 
 ---
