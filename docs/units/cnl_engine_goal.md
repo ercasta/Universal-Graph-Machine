@@ -1,6 +1,6 @@
 # The engine's goal, stated precisely: a CNL that soundly composes at unlimited depth
 
-**Status: north star, 2026-07-28.** Distilled from a working-session thread that pressure-tested
+**Status: north star, 2026-07-28; §2 note added 2026-07-29.** Distilled from a working-session thread that pressure-tested
 `forms_discourse.md`, `forms_llm.md` and `forms_extra_considerations.md` down to a single, checkable target.
 Supersedes nothing; it is the crisp restatement those three documents were circling. Read them first for the
 argument; this is the destination stated as a claim with a scope and a status.
@@ -28,6 +28,20 @@ Two responsibilities that must not be conflated (this is the load-bearing distin
 |---|---|---|---|
 | **the engine's job** | closed-class connectives (negation, degree, quantification, conditionality, tense, causation, force, roles) composing with **each other**, to unlimited nesting | **yes, in principle** — the closed class is fixed and small, so this is a bounded, finite, one-time task, the same shape as proving `AND`/`OR`/`NOT` closed under Boolean algebra, just requiring more cases because the closed-class forms are not all instances of one clean algebra | the engine builder |
 | **not the engine's job, ever** | open-class domain predicates (business terms — `VIP`, `orders`, `spend`) interacting with **each other** in ways their authors didn't anticipate | **no, not even in principle** — open-class content has no basis to prove closed over (`forms_discourse.md` §3.3); this is a permanent structural fact, not a gap that more engineering closes | KB/ruleset governance — a different layer, possibly using engine-adjacent tooling, but not covered by the engine's contract |
+
+**Note, 2026-07-29 — normalization is a rules job, never the boundary's, and the CNL should have room for
+synonyms because of it.** A session pressure-testing several closed-class forms (`deny`, `ask`, sequencing,
+quantification-as-application) found each collapses into an existing mechanism rather than needing its own —
+`deny` into `negation`, `ask` into `command` targeting a report-shaped claim, and so on (`closed_class_inventory.md`
+§3, §9). None of this touches the boundary: the LLM still recognizes surface English as CNL-keyword `ask` or
+`deny` exactly as before (job 1, judgment about intent — stays the LLM's) and a **rule**, never the LLM, expands
+that keyword into whichever internal mechanism it turns out to share (job 2, mechanical and deterministic — never
+the LLM's, per `forms_llm.md`'s findings on where depth-bound LLMs fail silently at exactly this kind of
+compositional rewriting). Consequence worth keeping deliberately: **the CNL surface should keep multiple keywords
+for the same underlying mechanism** (`ask` and `deny` staying distinct, natural surface forms even once their
+internal realizations are shared or reduced) — better UX for a human author, and it also makes the LLM's own job
+easier, since more valid surface phrasings for the same target give it more ways to land on something correct
+rather than one brittle, canonical phrasing it must hit exactly.
 
 **Why pure `AND`/`OR` gets unlimited depth for free, and why the rest of the closed class doesn't automatically:**
 Boolean algebra is associative, commutative, and closed under its own operations by construction — one structural
