@@ -1,6 +1,6 @@
 # The closed-class inventory, consolidated — Phase A working document
 
-**Status: Phase A in progress, 2026-07-28.** This is `cnl_engine_goal_plan.md` Phase A: finalize the closed-class
+**Status: Phase A in progress, 2026-07-28; §8–§10 added 2026-07-29.** This is `cnl_engine_goal_plan.md` Phase A: finalize the closed-class
 inventory, abstractly. It consolidates what is scattered across `forms_discourse.md` §2.2/§6/§9,
 `docs/design/form_inventory.md` (superseded except for the surviving findings named in `forms_discourse.md` §12),
 and `units/forms.py`/`units/sieve.py` (the runnable probe) into one table with one status per entry.
@@ -134,7 +134,7 @@ where they're named and what shape they'd need:
 
 | form / category | example | named in | shape |
 |---|---|---|---|
-| **quantification** | "**every** VIP customer gets the discount," not just one named customer | `forms_discourse.md` §2.2 CONTENT list, `form_inventory.md` §4a | relational, like `conditional` — binds a variable across occurrences, not a single-claim decoration |
+| **quantification** | "**every** VIP customer gets the discount," not just one named customer | `forms_discourse.md` §2.2 CONTENT list, `form_inventory.md` §4a | **worked out 2026-07-29, §8 below — splits into four cases, only one of which is actually relational-form-shaped** |
 | **causation** | "creating the account **enables** sending the welcome email" | same | relational — at minimum a two-occurrence link; `form_inventory.md` flagged this as "NO MECHANISM" even under the retired engine |
 | **identity / reference** | "the **observed** total doesn't match the **expected** total" — are these two occurrences the same thing or not? | `forms_discourse.md` §10.3 (open, with the measured depth-4/5 engine obstacle already blocking the flagship case) | relational, and specifically flagged as depending on a *separate* fix (the surge detector, `cnl_engine_goal_plan.md` Phase D) before it can even be tested, since resolution is iterated over a cycle |
 | **tense, if bounded returns** | distinguishing "the customer **qualified**" from "the customer **had been qualifying**" | `forms_discourse.md` §6 catalog row (Vendler's aspect classes) | `past` (§4 above) is a start; a full tense/aspect treatment needs the aspectual-class dimension too, currently absent |
@@ -150,3 +150,70 @@ where they're named and what shape they'd need:
 3. **Route `conditional`'s Phase B blocker (§5) to the plan**, not to more Phase A work — no amount of additional inventory entries fixes a discharge mechanism that doesn't exist. This is already tracked in `cnl_engine_goal_plan.md` §3/§4.
 4. **`identity`/reference (§6) is gated behind Phase D**, not Phase A — don't spend inventory-writing effort on it until the surge detector is fixed, since the flagship test case is already known to be unmeasurable on the current engine.
 5. **Re-run `axis_audit`/`factorization_audit`/`impure_slots` after every inventory change** and update this document's tables from the live output — the numbers here are a snapshot, not a citation.
+6. **Quantification (§8) mostly does *not* need item 1's generic harness extension.** Only its fourth case (a claim like "did every X satisfy P," over an open/unbounded domain) is genuinely relational-form-shaped; the other three resolve via existing matching, negation-as-absence, or (unbuilt) goal machinery — see §8 before assuming quantification is `conditional`'s shape repeated.
+
+---
+
+## 8. Quantification, worked out — 2026-07-29
+
+Three scenarios in `agentic_scenario_catalog.md` need it (1, 3, 10). Rather than one relational form, it splits
+into four cases with different answers, checked one at a time:
+
+| case | example | status |
+|---|---|---|
+| **(a) universal as application** — "apply the discount to every VIP customer" | scenario 1 | **free.** An ordinary rule with a free variable already fires once per match (`model.md` §4) — no new form |
+| **(b) universal as a claim, over a bounded/closed set** — "did every queue member get evaluated," checkable in one revive | — | **free**, via `∀x.P(x) ≡ ¬∃x.¬P(x)` — search for a counterexample, using negation-as-absence (`model.md` §4's θ mechanism) already in the engine. No new form, no new machinery |
+| **(c) the same claim, but checking each member needs more than one revive** (e.g. a tool call per member) | scenario 10 | **not free, but not bespoke either.** Needs a cursor that survives across revives — exactly `model.md` §8's goal/subgoal/procedure shape (*"plan, step, subgoal, and expectation are all the same shape"*), already designed, not yet built. Not a quantification-specific mechanism |
+| **(d) universal as a claim over an open, unbounded domain** — "every VIP customer," where new ones can appear any time | scenario 1 (implicit) | **genuinely unresolved, possibly not a form question at all.** Absence-of-a-counterexample-so-far never proves absence-of-a-counterexample-ever in an open domain. At best a hedged claim ("no counterexample found among what's currently known"), maybe expressible via existing `degree`/hedge rather than as a hard universal |
+
+**Aggregation (scenario 3, "average order value for VIP customers this month") decomposes the same way, plus one
+more piece:** gather-the-set is case (b) (free, via `solve()` already returning every match at once —
+`engine.py`'s `assemble()` uses exactly this); the arithmetic itself is a delegated tool call, no new form, the
+same shape as the `Identify`-substitution finding's tool-call boundary (`computation_units.md` §5); "this month"
+is bounded reference, already tracked separately as Phase-D-blocked. **One small, real mechanism gap found along
+the way, not specific to quantification:** ordinary units fire once per match; aggregation wants one firing over
+the *whole* current match set instead (`solve()` already returns it as a collection — `assemble()` consumes it
+that way internally). Worth a small addition (a unit disposition or effect kind that consumes the whole iterable,
+alongside mint/edge/attribute/identify/retract) rather than a new closed-class form.
+
+---
+
+## 9. Open hypothesis, 2026-07-29: does `ask` reduce to `command`?
+
+Measured evidence, not just resemblance: `units/smt_sieve.py`'s `forbids_violated()` gives `ask` and `command`
+**structurally identical** formulas — `z3.And(force == ASK, says_anything)` and
+`z3.And(force == COMMAND, says_anything)` — differing only in which enum tag `force` holds. The same shape of
+finding that resolved `deny` into `negation` (§3 above).
+
+**Caveat before calling it confirmed:** `units/forms.py`'s `COMMAND` is explicitly authored as a placeholder —
+*"the control for the force slot"* — its elimination is `_marker_elim`, concluding a bare `demanded` marker with
+no real content, deliberately kept out of the leak measurement. `ASK`, by contrast, has real semantics
+(`_ask_elim` concludes `raised=True` — inquisitive semantics, a question puts an issue on the table rather than
+informing). So the identical-`forbids` finding is real evidence that the whole *non-assert* family shares one
+property (none should commit to truth merely by being uttered) — it is not yet evidence that `ask` and `command`
+are interchangeable, because `command` hasn't been given real semantics to compare against.
+
+**Sharper, testable version of the hypothesis:** `ask(P)` = `command(report(P))`, where `report(P)` is itself a
+claim, at LEVEL=language, about P's truth value — meaning `force` would shrink to `{assert, command}`, and "ask"
+becomes a shape of *content* a command can target, not its own force value. **What's needed to actually test
+this, not just argue it:** give `COMMAND` a real elimination (mints a goal whose satisfaction condition is the
+demanded action occurring) and check whether `ASK`'s real behavior (raises an issue, resolved by an answer) is
+reproducible as `command` + report-shaped content, or needs something `command` genuinely lacks. **Status: open,
+not yet built.**
+
+---
+
+## 10. Considered and dissolved, 2026-07-29: "justification" is not a CONTENT form
+
+Raised in conversation: does the closed class need a way to represent *why* a goal is being pursued (e.g. "we
+need to learn stranger cases before trusting the design")? Checked against `model.md` §8 rather than added as a
+guess: goals already **form a lineage** — "a goal produces subgoals, and that lineage is what carries the
+explanation... an ordinary relation between ordinary goals." That is the same move as §1's provenance-is-free
+("why do you believe this" is a walk over the wiring, not a lookup), one plane up — "why do you want this" is a
+walk up the goal lineage. So justifying a *goal* needs no new form: it's the parent edge in `model.md` §8's
+already-designed (not yet built) goal machinery, not a `causation`-shaped CONTENT relation.
+
+**Left open, and deliberately not merged in:** justifying a *belief* ("P is true because Q" — epistemic rather
+than practical justification) is a different shape and likely does land on `causation`'s still-unformalized
+relational form (evidential support). Keeping these apart on purpose, the same discipline that kept `deny` from
+quietly merging into `negation` without checking first.

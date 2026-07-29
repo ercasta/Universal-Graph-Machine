@@ -1,6 +1,7 @@
 # Agentic scenario catalog — the completeness check, complementing the sieve
 
-**Status: Phase A working document, 2026-07-28.** References `closed_class_inventory.md` (the soundness-side
+**Status: Phase A working document, 2026-07-28; scenarios 1/3/10 and §11 revised, §12 added, 2026-07-29.**
+References `closed_class_inventory.md` (the soundness-side
 check: does the declared set compose without leaking, via `sieve.py`) and `cnl_engine_goal_plan.md`. This
 document is the other check — completeness: does the declared set cover what an agent doing real work actually
 needs to say. Neither check substitutes for the other.
@@ -46,11 +47,13 @@ commitments it requires → check against `closed_class_inventory.md`'s current 
 | conditionality (`when`/`then`) | **STRUCTURALLY BLOCKED** — discharge has no mechanism (`cnl_engine_goal_plan.md` §3) |
 | degree/threshold (`>$500`) | CONFIRMED |
 | negation (exceptions) | CONFIRMED |
-| quantification (implicit — *every* VIP customer) | NOT YET FORMALIZED |
+| quantification (implicit — *every* VIP customer) | **worked out 2026-07-29** (`closed_class_inventory.md` §8) — this is case (a), universal-as-application, and is **free**: an ordinary rule with a free variable already fires once per match, no new form. The *implicit* open-domain claim ("is it true every VIP customer gets it") is case (d) — a genuine, likely-permanent epistemic limit, not a form gap |
 | roles (agent/patient for the discount action) | tier 3, already supported |
 
-**Verdict: PARTIAL.** The pieces that exist are solid; the two blockers (conditional discharge, quantification)
-are both already-tracked gaps, and this scenario is independent confirmation that both matter, not new news.
+**Verdict: PARTIAL, revised 2026-07-29.** Conditional discharge is still a real blocker. Quantification, once
+decomposed, turned out **not** to be one — the discount-application reading this scenario actually needs is
+already free; only asking "is it true for *every* customer" (which the scenario doesn't actually require) would
+hit the open-domain limit.
 
 ---
 
@@ -76,19 +79,14 @@ for free (sequencing) — worth confirming, not assuming, before spending design
 
 | requires | status |
 |---|---|
-| quantification (over the customer set) | NOT YET FORMALIZED |
-| bounded reference ("this month", "VIP customers") | open, and specifically **Phase D blocked** — `forms_discourse.md` §10.3's flagship reference case is already known unmeasurable until the surge detector is fixed |
-| aggregation itself (average, sum, count) | **⚠ genuinely unresolved scoping question, not just a gap** |
+| quantification (over the customer set) | **resolved 2026-07-29** (`closed_class_inventory.md` §8) — gathering "VIP customers' orders this month" is case (b), free via `solve()` already returning every current match at once (confirmed against the real engine's `assemble()`), **provided the month is already complete** (a closed set checkable in one revive). An ongoing month is case (d)'s hedge, not a hard fact |
+| bounded reference ("this month", "VIP customers") | open, and specifically **Phase D blocked** — `forms_discourse.md` §10.3's flagship reference case is already known unmeasurable until the surge detector is fixed. Worth rechecking against Phase D's 2026-07-29 partial closure rather than assuming still fully stuck |
+| aggregation itself (average, sum, count) | **resolved 2026-07-29 — delegated tool call, no new form.** The engine's role is gather (case (b), free) and read-back; the arithmetic is ordinary computation with no epistemic content, handed to the already-designed procedure/tool-call arc. One real, small mechanism gap found doing this, not specific to aggregation: ordinary units fire once per match, aggregation wants one firing over the *whole* current match set — worth a small addition (a unit disposition/effect consuming `solve()`'s whole result), not a new form (`closed_class_inventory.md` §8) |
 
-**The scoping question is the real finding here.** It's not obvious "average" belongs in the closed class at
-all — arithmetic aggregation is a well-defined operation, not vague/open-class content, but it's also not
-obviously a linguistic form the way negation or conditionality are. This may be better modeled as a delegated
-tool-call (the engine hands the operation to an external, ordinary computation and reasons about the *result*)
-rather than as something requiring its own intro/elim pair. **This needs a decision, not more sieving** —
-recommend resolving it before writing any entry.
-
-**Verdict: GAP, and the most unresolved of the ten** — one real content gap (quantification), one Phase-D
-dependency, and one open architectural question about scope.
+**Verdict: PARTIAL, revised 2026-07-29 — no longer the most unresolved of the ten.** Both of the two content gaps
+(quantification, aggregation) dissolved into either "already free" or "tool-call glue, one small mechanism gap."
+What's left is genuinely just the bounded-reference/Phase-D dependency, and worth rechecking now that Phase D got
+a partial closure — this scenario may be closer to COVERED than GAP.
 
 ---
 
@@ -191,27 +189,46 @@ those two mechanisms actually interoperate, not as an independent source of gaps
 
 | requires | status |
 |---|---|
-| quantification | same gap as scenarios 1 and 3 |
+| quantification | **resolved 2026-07-29 — this is case (c)** (`closed_class_inventory.md` §8): checking each queue member likely needs more than one revive (real per-member work, possibly a tool call), so it needs a cursor that survives across revives. That's `model.md` §8's goal/subgoal/procedure shape, already designed, **not yet built** — not a quantification-specific mechanism |
 | roles for iteration | tier 3, already supported |
 
-**Verdict: GAP**, and the third of ten scenarios needing quantification — the strongest signal in this catalog
-for where to prioritize next.
+**Verdict: GAP, revised 2026-07-29 — but the gap moved.** Not "quantification is unformalized" any more; it's
+"goal/subgoal machinery (`model.md` §8) is designed but not built," which this scenario needs and cases (a)/(b)
+above do not. That's a sharper, smaller, more buildable gap than the one originally recorded here.
 
 ---
 
 ## 11. Priority ranking, read off the ten scenarios
 
+**Revised 2026-07-29 — quantification and aggregation resolved, not just prioritized.** Both were worked out
+against the real engine and the design docs (`closed_class_inventory.md` §8) rather than left as "check this
+next." Neither turned out to be a missing closed-class form.
+
 | gap | appears in | priority signal |
 |---|---|---|
-| **quantification** | scenarios 1, 3, 10 (3 of 10) | highest — cross-cutting, no known Phase B blocker yet identified, should be checked next |
+| **goal/subgoal machinery (`model.md` §8), unbuilt** | scenario 10's quantification case (c); also justification (§12 below) and System 1's associative wiring (`computation_units.md` §5) | **new highest-leverage item** — three independent findings now converge on this one piece of unbuilt design |
 | **conditional discharge (Phase B)** | scenarios 1, 6 (2 of 10) | already tracked, now independently reconfirmed twice |
-| **identity/equality** | scenarios 3, 7, 8 (3 of 10) | tied with quantification — equally cross-cutting |
+| **identity/equality** | scenarios 3, 7, 8 (3 of 10) | now the clearest remaining cross-cutting content gap — quantification no longer ties with it |
 | **causation** | scenario 2 (1 of 10) | real, but singly-attested so far in this catalog |
-| **aggregation (scoping question)** | scenario 3 | needs a decision, not more inventory |
 | **new `flag`/`alert` force** | scenario 7 (and 9 by composition) | well-specified, ready to author |
 | **`evidential` (rescued)** | scenario 8 | keep — do not drop, unlike `mirative` |
 | **`mirative`** | none of the ten | drop from active priority — the scenario that motivated re-examining it (drift detection) turned out not to need it |
+| ~~quantification~~ | scenarios 1, 3, 10 | **resolved, not a gap** — splits into free/application, free/bounded-closed, needs-goal-machinery/multi-turn, and open-domain-hedge-limit. See `closed_class_inventory.md` §8 |
+| ~~aggregation (scoping question)~~ | scenario 3 | **resolved, not a gap** — delegated tool call, no intro/elim pair needed. One small mechanism gap found (an aggregating unit disposition), tracked in `closed_class_inventory.md` §8, not a scoping question any more |
 
-**Recommended next step:** quantification and identity/equality are tied as the highest-leverage gaps — both
-cross-cutting, both currently unblocked by any known Phase B issue. Suggest picking one to draft an entry for
-next, sieve it, and use that as the template for the other.
+**Recommended next step, revised:** identity/equality is now the clearest remaining cross-cutting content gap.
+But goal/subgoal machinery is arguably higher-leverage — it's no longer just scenario 10's problem, it's also
+what justification (§12, "considered and dissolved") and the substitution experiment's wiring-cost fix
+(`computation_units.md` §5) both depend on. Worth weighing that convergence against identity/equality's own
+three-scenario cross-cutting signal before picking.
+
+---
+
+## 12. Considered and dissolved, 2026-07-29: "justification" as its own need
+
+Raised in conversation, checked rather than assumed: does an agent ever need to *justify* a goal ("pursue X
+because Y")? `model.md` §8 already has this — goals form a lineage, and "that lineage is what carries the
+explanation... an ordinary relation between ordinary goals." Justifying a goal is just stating its parent in
+that lineage, the same move as provenance-is-free (`model.md` §1) one plane up. **Not a new scenario, not a new
+form** — full writeup in `closed_class_inventory.md` §10. Left open there: justifying a *belief* rather than a
+goal is a different, likely `causation`-shaped question.

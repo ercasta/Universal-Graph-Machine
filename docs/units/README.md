@@ -64,6 +64,7 @@ for the other.
 | `units/overlay.py` | overlays applied lazily, indexed once per revive; configuration-relative reads; conflicts |
 | `units/forms.py`, `units/sieve.py` | the closed-class inventory and the runnable leak probe |
 | `units/smt_sieve.py` | the Z3 proofs — base case and inductive step |
+| `units/substitution_experiment.py` | `define` + `Identify` as progressive substitution — order-independence, circular-definition safety, the tunnel's wiring cost. `computation_units.md` §5 |
 | `tests/units/` | 113 green. `bench_overlay.py` carries the lazy-vs-eager measurements |
 
 ## Conventions

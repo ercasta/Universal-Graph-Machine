@@ -128,7 +128,8 @@ progressively substitute open-class content, the way solving a small system of e
 (`engine.py`, one of the five effect types) already merges two nodes into one; a rule of the shape "if X is
 defined this way, identify X with what it resolves to" needs nothing new to try this.
 
-**Built and run** (`substitution_experiment.py`, against `units/engine.py` directly, not a mock):
+**Built and run** (`units/substitution_experiment.py`, against `units/engine.py` directly, not a mock —
+promoted alongside `smt_sieve.py` as a real, re-runnable check: `python -m units.substitution_experiment`):
 `customer_discount → holiday_rate → standard_rate → ten_percent (value=0.10)`, one rule
 (`Merge("x","y")` on a `defined_as` pattern), tested three ways.
 

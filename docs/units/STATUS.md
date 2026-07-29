@@ -74,23 +74,27 @@ other ten did.
 
 ## Recommended next step
 
-**Phase D — fix the surge detector.** Reasoning: it's the one item that's completely untouched despite being
-flagged since the earliest design docs; it's independent of every open item above (doesn't wait on quantification,
-identity, or the nested-`Claim` structure); it directly fixes scenario 5, which is currently not a gap but an
-active bug (silently wrong answers past a depth threshold); and it's the mechanism `forms_llm.md` §7 names as
-the *entire justification* for building this engine instead of trusting an LLM's forward pass — silent
-exhaustion reported as an answer. Fixing it is a bounded, well-defined engineering task (a real termination
-argument or energy measure), not open-ended design work.
+**Revised 2026-07-29 — Phase D's surge-detector item is now partly closed** (see "Status by phase" above), and
+quantification/aggregation, the prior "close second," **turned out not to be gaps at all** once actually worked
+out (`closed_class_inventory.md` §8, `agentic_scenario_catalog.md` §11). Three independent findings from this
+session now converge on one thing instead: **goal/subgoal machinery (`model.md` §8, designed, not built)** —
+needed by scenario 10's quantification case (multi-turn enumeration), by "justification" dissolving into goal
+lineage rather than a new form (`closed_class_inventory.md` §10, `agentic_scenario_catalog.md` §12), and by
+System 1 absorbing the wiring cost the substitution experiment surfaced (`computation_units.md` §5).
 
-**Close second: `quantification` or `identity`/equality.** Tied as the highest-priority actual gaps in
-`agentic_scenario_catalog.md` §11 (each needed by three of the ten scenarios), and nothing exists for either yet.
-`identity` in the narrow "compare two values" sense (needed for drift detection) looks buildable independent of
-Phase D; full reference/definite-description resolution is the part actually blocked on the surge detector.
+**Candidates, not yet decided between:**
+1. **Goal/subgoal machinery.** Highest-leverage by convergence (three findings depend on it), but the biggest
+   lift — still design, not code, and a real undertaking.
+2. **`identity`/equality.** Now the clearest remaining cross-cutting *content* gap (scenarios 3, 7, 8) — no
+   longer tied with quantification, since quantification resolved. `identity` in the narrow "compare two values"
+   sense looks buildable independent of Phase D; full reference/definite-description resolution is still blocked
+   on the surge detector.
+3. **Give `COMMAND` real semantics** (`closed_class_inventory.md` §9) — small, concrete, quick: tests the
+   `ask = command(report(P))` reduction hypothesis rather than leaving it argued-but-unverified.
 
 **Lower priority, worth remembering rather than acting on now:** closing out `past`/`evidential`/`mirative`'s
-open-hypothesis status (needs a competing form each before `slots()` can say anything); the aggregation scoping
-question from scenario 3 (is numeric aggregation closed-class at all, or a delegated tool-call — needs a
-decision, not code); building the real nested-`Claim` structure to test the induction against running code
+open-hypothesis status (needs a competing form each before `slots()` can say anything); building the real
+nested-`Claim` structure to test the induction against running code
 rather than only against `smt_sieve.py`'s abstract model.
 
 ---
