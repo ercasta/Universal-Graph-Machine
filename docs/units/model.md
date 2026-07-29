@@ -615,7 +615,7 @@ restated).
 
 ---
 
-## 7. The two loops  · DESIGN, NOT BUILT
+## 7. The two loops  · DESIGN; a first RETRIEVE prototype built — `units/system1_experiment.py`
 
 A turn is a sequence of **steps**. Each step is:
 
@@ -630,7 +630,15 @@ and then the next step retrieves against the data step 3 produced. This is the o
 
 **Step 1 is System 1.** Associative, approximate, not rationally controlled. Subgraph similarity — the same
 graded matcher of §4, doing recall instead of application — or any other associative mechanism. It is allowed
-to be incomplete and allowed to be wrong; the cost of a wrong suggestion is a wasted step.
+to be incomplete and allowed to be wrong; the cost of a wrong suggestion is a wasted step. `units/system1_experiment.py`
+is a first, minimal prototype: attribute-key-overlap resemblance, scoped to an attended region (BFS outward from
+a seed), proposing wires directly (not a new engine mechanism — `Network.wire()`, decided by score instead of by
+hand). Confirms "allowed to be wrong" concretely — a candidate can be wired on a crude resemblance and then
+simply fail to fire once matched exactly, which is the wasted-step cost stated above, not a wrong *answer*. Also
+surfaced that the outer driver has no tunnel of its own: unlike a `StandingUnit` (which only ever sees its
+gates), the retrieval code reads `Network.wires`/`.asserted` directly, so avoiding re-wiring an already-wired
+candidate is a plain Python check — none of `goal_machinery.md` §3's axiom-lifecycle discipline is needed at
+this layer, only inside units.
 
 **It is also non-deterministic, deliberately.** The same data and the same goal may bring different rules to
 mind on different occasions, so two runs of the same turn may reason differently and reach different places.
@@ -767,7 +775,8 @@ slow: every parameter in it depends on measurements that cannot be taken yet.
 
 ---
 
-## 8. Goals, termination, energy and the burn  · PARTLY BUILT (energy and the burn are; goals are not)
+## 8. Goals, termination, energy and the burn  · PARTLY BUILT (energy and the burn are; goal lineage is
+designed and worked-example-verified, not yet a standing rule bank — see `goal_machinery.md`)
 
 ### A goal is data
 
@@ -797,8 +806,9 @@ gets its own outcome fact.
 
 **Goals form a lineage** — a goal produces subgoals — and that lineage is what carries the explanation. It is
 an ordinary relation between ordinary goals; a goal with no parent is just a goal with no parent, not a
-different kind of thing. Combined with the outcomes above it distinguishes four states that would otherwise
-collapse:
+different kind of thing. `goal_machinery.md` works this lineage relation out concretely (interning via an NAC
+guard, verified against the running engine) and states the general turn mechanism it depends on. Combined with
+the outcomes above it distinguishes four states that would otherwise collapse:
 
 | | on the **first** goal of a turn | on a **descendant** |
 |---|---|---|

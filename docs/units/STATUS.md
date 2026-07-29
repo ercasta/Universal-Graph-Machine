@@ -75,17 +75,45 @@ other ten did.
 
 ## Recommended next step
 
-**Updated 2026-07-29 — `units/goal_experiment.py` built and run, entry point now `cnl_engine_goal_plan.md` §7e.**
-The three-thread arc from §7 (goal/subgoal lineage, a first System 1, additive rewriting) got its worked example:
-four checks, all green, no new engine code needed. Two real findings surfaced that weren't visible from design
-alone — (1) goal-lineage interning only holds across a **per-turn rebuild** (fresh `Network`, axiom re-derived
-from the accumulated graph), not across two `revive()` calls on one `Network`, because an axiom's held value is
-a fixed snapshot taken at construction; (2) a rule matching machinery (a `<wire>` occurrence, for decay's
-gate-retraction) needs its own gate fed by a reflective axiom — folding it onto the same gate as ordinary
-premises silently overwrites one or the other (single-gate latch, not accumulation). Neither changes the model;
-both were already implied by `model.md` §§6–7 and are now confirmed against running code. Full detail:
-`cnl_engine_goal_plan.md` §7e. **Not yet done: writing the settled design doc §7c pointed at** — this pass was
-deliberately scoped to "build it, see what breaks" first, per §7d.
+**Updated 2026-07-29 — design doc written (`goal_machinery.md`), now moving to the first System 1 prototype.**
+`units/goal_experiment.py` (four checks, all green) found the real shape, but the first write-up over-claimed
+two findings as engine requirements when they were self-inflicted extra machinery — caught by re-reading the
+explanation rather than the code, corrected same-session (`cnl_engine_goal_plan.md` §7e has the full
+correction). The settled version: goal lineage/interning, outcome-as-fact, and decay all work with the five
+existing effect kinds and no new gate concept, **provided** a turn is understood as *"same `Network`, same
+standing units, axiom `.held` lifecycle managed between turns"* rather than anything rebuilt — a mechanism that
+was already precedented three times in `test_engine.py` but never stated in one place until `goal_machinery.md`.
+Additive rewriting re-hit `computation_units.md` §5's tunnel finding from the mint side, confirmed recurring
+rather than one-off.
+
+**Updated 2026-07-29 (later same day) — first System 1 prototype built, `units/system1_experiment.py`.** Three
+checks, all green: RETRIEVE as a Python-level outer-loop function (attention = BFS from a seed, resemblance =
+attribute-key overlap, wiring proposed by score) — no new engine mechanism, wiring is still `Network.wire()`.
+Confirmed "allowed to be wrong" concretely (a candidate can be wired on crude resemblance and then simply fail
+to fire, the wasted-step cost §7 names, never a wrong answer) and found a real asymmetry: the outer driver has
+no tunnel of its own (unlike a `StandingUnit`, which only sees its gates), so avoiding a duplicate wire is a
+plain Python check on `n.wires` — none of `goal_machinery.md` §3's axiom-lifecycle discipline was needed at
+this layer. **Does not revise `goal_machinery.md`** — the two findings are consistent (the tunnel is a unit
+property specifically, confirmed by finding a place it doesn't apply), so the accepted risk from choosing this
+order didn't materialize this round. Full detail: `cnl_engine_goal_plan.md` §7f.
+
+**Updated 2026-07-29 (later same day) — two follow-ups landed, `cnl_engine_goal_plan.md` §7g/§7h.**
+`system1_experiment.py` gained fan-out (wire every candidate that clears `theta`, never unwire one for failing
+to fire — settled as the answer to "how does retrieval avoid needing retraction") and one reused reflective
+`Cell` (mutate `.held` in place across calls instead of minting a fresh axiom each time — the naive version
+measurably grew `self.axioms`/wire-count by 1 every call, because `Network.axiom()` also writes its own node
+into the graph; fixed, confirmed flat). Then `units/quantification_cursor_experiment.py` built and closed
+`closed_class_inventory.md` §8 case (c) — the cursor across turns for member-by-member checking, using exactly
+the axiom-lifecycle discipline plus a **new, sharper** finding: a reused reflective snapshot alone lags one
+turn behind a sibling rule's *own* same-turn conclusion (refreshing `.held` happens *before* `revive()` runs,
+so it can never contain what that same `revive()` is about to produce) — fixed with a second gate wired
+directly to the sibling's `Cell`, not a bigger snapshot. `goal_machinery.md` §4 now has this as a precise
+amendment. All three experiment scripts (`goal_experiment.py`, `system1_experiment.py`,
+`quantification_cursor_experiment.py`) plus 114 tests are green.
+
+**Not yet decided: next step after this.** Candidates, not yet chosen between: extend System 1 past a toy
+resemblance metric (graded/banded scoring via `band.py`, attention decay); a subgoal with its own satisfaction
+condition (`goal_machinery.md` §7's remaining open item); or address one of the lower-priority items below.
 
 **Still open, lower priority, not blocking the above:**
 - **`identity`/equality.** The clearest remaining cross-cutting *content* gap (scenarios 3, 7, 8), independent of

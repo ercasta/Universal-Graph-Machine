@@ -28,6 +28,9 @@ interpretive judgement is a rule inside the loop.
 | doc | what it is | status |
 |---|---|---|
 | **`model.md`** | The computation model: data, matching, units, the two planes, scope as support, overlays, energy and the burn, the two loops, goals, the boundary. Section numbers are stable and cited from `units/*.py` | **current** — §§1–6, §8's energy/burn and §9's write-back are BUILT (113 tests); §7 and the goal machinery are design |
+| `goal_machinery.md` | The goal/subgoal lineage design §8 points to — interning, outcome, decay, additive rewriting, and the general turn/axiom-lifecycle mechanism they exposed. Worked example: `units/goal_experiment.py` | design, settled 2026-07-29 |
+| `units/system1_experiment.py` | A first RETRIEVE prototype for §7 — attention as BFS, resemblance as attribute-key overlap, wiring proposed by score; fan-out and one reused reflective cell. Findings in `cnl_engine_goal_plan.md` §7f/§7g | worked example, 2026-07-29 |
+| `units/quantification_cursor_experiment.py` | `closed_class_inventory.md` §8 case (c), built — a cursor across turns, universal outcome as a positive fact. Findings in `goal_machinery.md` §6, `cnl_engine_goal_plan.md` §7h | worked example, 2026-07-29 |
 | `review-01-prior-art.md` | The model located in the literature, graded rediscovery / recombination / novel. Changes no decision | review, 2026-07-27 |
 
 ## The CNL and the closed class

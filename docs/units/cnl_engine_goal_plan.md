@@ -382,4 +382,121 @@ than "found a new requirement."
 **Not yet touched:** a subgoal with its *own* satisfaction condition distinct from its parent's (this
 experiment's subgoal is a bare lineage marker, no `wants` of its own); a check that spans more than one revive
 (the cursor case, `closed_class_inventory.md` §8 case (c)); and System 1 in any form — every wire above is
-still hand-authored, per §7c's explicit deferral.
+still hand-authored, per §7c's explicit deferral. §7f (below) is that deferral being spent.
+
+### 7f. Built and run, 2026-07-29 — `units/system1_experiment.py`, a first RETRIEVE prototype
+
+The goal design doc (`goal_machinery.md`) is written; this is the deliberate next step taken with the explicit
+possibility that it revises that doc, not after it. Three checks
+(`python -m units.system1_experiment`), all green:
+
+**RETRIEVE, minimally.** `attention()` is a BFS outward from a seed set, `resemblance()` scores a candidate
+unit's *required attribute keys* (read off its authored `Pat`s via `match.atoms()`) against what's attended, by
+Jaccard overlap; `retrieve()` wires in any candidate clearing a stated `theta`. Nothing here is a new engine
+mechanism — wiring is still `Network.wire()`, decided by a score instead of by hand. This is deliberately
+Python-level, not a rule: `model.md` §7 says the **outer driver** does retrieval, wiring, running, and writing,
+and that "no semantics" means it never judges *content* — content judgement stays inside units, exactly as
+before. Retrieval choosing *which* units get a chance to judge is not a content judgement itself.
+
+**"Allowed to be wrong" is not a hand-wave — it showed up as an actual result, not a caveat.** Two candidate
+rules (`mortal_rule` needs `kind`, `flight_rule` needs `kind`) both get wired against an attended `kind="man"`
+node, because the resemblance scorer looks at attribute *keys*, not values — a crude, honestly-stated
+similarity, not a claim of correctness. `flight_rule` gets wired and then **simply fails to fire**, because
+firing still goes through `units/match.py`'s exact solver once wired — System 2 stays exact, exactly as §7
+requires. This is the "wasted step" cost stated in the design, now demonstrated rather than asserted: a wrong
+suggestion costs a dangling wire, never a wrong conclusion.
+
+**A candidate needing an attended key that's genuinely absent stays unwired** (`weather_rule` needing
+`humidity`, nothing attended has it, score 0.0) — the honest incompleteness §7 names: *"a rule that would have
+applied may simply never come to mind."*
+
+**The outer driver has no tunnel of its own, and that's a real, useful asymmetry — not the same finding as
+`goal_machinery.md` §3, its mirror image.** A `StandingUnit` only ever sees its own gates, which is why a
+rule-level interning guard needed the axiom-lifecycle discipline (null a stale axiom, wire a fresh reflective
+snapshot) to see its own prior conclusion. The retrieval code calling `n.wire()` is not a unit — it is ordinary
+Python holding a reference to `n` — so checking "is this candidate already wired" is a direct read of
+`n.wires`, no reflective axiom needed. Two calls to `retrieve()` with the same candidate wire it exactly once
+(verified). Worth stating plainly: **the tunnel is a property of units, specifically, not of every reader of
+the graph** — §6/§7 never claimed otherwise, but it wasn't obvious until something outside a unit needed to
+check its own past action.
+
+**What this does not yet touch, honestly:** attention decay/leak (`model.md` §13), think-harder/random-refocus
+(§7's PageRank-damping mitigation), asynchronous retrieval, and any similarity metric beyond crude key-overlap
+(subgraph embedding, graded/banded resemblance using `band.py` rather than a bare float). None of these were
+needed to get RETRIEVE to run once; they're the next layer if retrieval needs to scale past a toy pool.
+
+**Does this revise `goal_machinery.md`?** Not yet, and the asymmetry above is why: retrieval turned out to
+need *less* machinery than rule-level interning, not more, because it isn't bound by the tunnel. Nothing here
+contradicts §3's mechanism for units — it confirms the tunnel is specifically a unit property by finding a
+place (the outer driver) where it doesn't apply.
+
+### 7g. Two follow-up additions to `system1_experiment.py`, 2026-07-29 (same day) — fan-out, and one reused cell
+
+Raised in conversation, checked against the engine before being added: if retrieval can wire more than one
+candidate at once, does that let it avoid ever needing to *un*wire a candidate later (pick one "best" rule,
+swap it for a better one as data changes)? And does refreshing what an already-wired candidate can see require
+minting a fresh reflective axiom every time, or can the same one be reused?
+
+**Fan-out is unrestricted, verified directly.** `Network.wires` is just a set of `(src, dst, gate)` triples —
+nothing anywhere limits how many consumers one source cell feeds. `retrieve()` already wires every candidate
+clearing `theta` from the *same* reflective snapshot in one call (`check_fan_out_multiple_candidates_share_one_source`
+confirms both `mortal_rule` and `flight_rule` are fed by exactly one shared source). Combined with `model.md`
+§7's *"a dangling gate is a standing trigger"*, this settles the original question: **wire every plausible
+candidate, never unwire one for failing to fire.** An unfired, wired candidate costs nothing and stays ready —
+if the graph later changes so its pattern matches, it fires without retrieval ever having to reconsider it.
+This also means "multiple candidates producing multiple overlays" was never actually a problem needing new
+design: each unit's output is already its own independent `Cell.held` (`model.md` §1 — *"create never merge...
+two units producing the same content are two live outputs"*), and disagreement between them is exactly what the
+existing conflict-detection/retraction loop (§5/§9) is for, not something fan-out introduces.
+
+**⭐ A real, measured cost was found and fixed while building this: minting a fresh reflective axiom every
+`retrieve()` call causes unbounded, linear-per-call growth — not hypothetical, counted.** `Network.axiom()`
+doesn't just set `.held`, it also writes the axiom cell's own node into the graph (`_describe`), so a *later*
+reflective snapshot (`effects_of(n.asserted)`) includes descriptions of every *earlier* reflective axiom —
+literally a mirror capturing all the previous mirrors. Measured over three simulated turns, minting fresh each
+time: `self.axioms` and the wire count into the candidate both grew 2 → 3 → 4. **Fix, verified:** `retrieve()`
+now accepts an existing reflective `Cell` and — on every call after the first — just reassigns its `.held` in
+place (`reflect.held = Value(effects_of(n.asserted))`) rather than calling `n.axiom()` again. Since a plain
+attribute assignment never calls `_describe()`, no new node or wire is ever added.
+`check_reusing_one_reflective_cell_stays_flat_across_turns` confirms flat counts (2, 2, 2) across three turns
+where the naive version would have grown to (2, 3, 4). **General lesson, stated once so it isn't re-derived per
+worked example:** *"refresh what a unit can see"* means updating an existing `Cell.held`, not minting a new
+`Cell` — minting is for genuinely new content, refreshing is for the same content restated.
+
+### 7h. Built and run, 2026-07-29 (same day) — `units/quantification_cursor_experiment.py`, case (c) closed
+
+`closed_class_inventory.md` §8 case (c) — *"checking every member of a bounded set needs more than one revive,
+e.g. a tool call per member"* — was the one quantification case left open, and the concrete scenario that
+originally motivated needing goal machinery at all (`STATUS.md`'s "recommended next step" history). Built now
+that both mechanisms it needs exist: the axiom-lifecycle discipline (§7e/`goal_machinery.md` §3) and fan-out
+from a reused reflective cell (§7g). Three checks, all green.
+
+**The cursor is exactly what `model.md` §8 says it must be, and it was checked, not assumed.** `checked` is a
+mutating rule's conclusion (asserted data), never a computation unit's overlay — verified directly
+(`check_cursor_survives_because_it_is_asserted_not_derived`): a member checked on turn 1 is *still* checked on
+turn 2, even though turn 2 delivers no new input for that member at all. Had `checked` been concluded by a
+computation unit instead, it would vanish every revive and the same member would be re-asked forever.
+
+**The universal outcome behaves exactly as `goal_machinery.md` §2 already required, now over a real multi-turn
+case:** `achieved`/`diverged` are positive facts, and — checked explicitly, not just assumed — **stay `None`
+through every middle turn**, never concluding completeness before the last member's result has actually
+arrived. Both directions verified: all-eligible reaches `achieved`; one ineligible member reaches `diverged`,
+never `achieved`.
+
+**⭐ One new finding, sharper than anything in §4/§7g: fan-out from a single reused reflective snapshot is not
+always enough, and the gap has a precise shape.** `achieved`/`diverged`, wired only to the reused reflective
+axiom, computed one turn late — `achieved` only turned `True` on an *extra*, otherwise pointless settle turn
+after the last member was actually checked. Reason: `reflect.held` is refreshed *before* `revive()` runs, i.e.
+*before* this same turn's `check_member` has fired — so the reflective snapshot necessarily reflects the graph
+as it stood at the *start* of the turn, one step behind a sibling rule's *own* output from later in that same
+turn. **Fixed with a second gate wired directly to the sibling's `Cell`** (`check_member.cell`, its output from
+this firing, available before write-back applies it to the store) — not a bigger snapshot, which cannot help
+here since no snapshot taken before `revive()` runs can ever contain what that same `revive()` is about to
+produce. `goal_machinery.md` §4 is amended with this as a precise addendum: reach for a bigger reflective
+snapshot when the gap is *what's already in the store*; reach for a sibling's own cell when the gap is *what a
+rule concludes this same turn*. These are different gaps with different fixes, and conflating them is an easy
+mistake — the first attempt at this experiment made exactly that mistake before the fix was found.
+
+**What this closes:** `closed_class_inventory.md` §8 case (c) moves from "designed, not built" to built and
+green. Case (d) (open, unbounded domain) is unaffected — it was flagged as "possibly not a form question at
+all," and nothing here bears on that.
