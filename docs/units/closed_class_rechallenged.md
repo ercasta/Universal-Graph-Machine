@@ -99,14 +99,17 @@ time would be the "rediscovering rules" waste `system1_experiment.py` already fl
 
 | status | items |
 |---|---|
-| **Empirically confirmed** (actually built, checked against running code) | causation = sugar (old `ugm`, propagation schema); quantification's open case = goal machinery, not a new primitive |
-| **Structurally implied, not yet probed** | force, level (routing targets identified — goal machinery, plan machinery — but never built and checked the way causation was); identity/merge (Datalog has no analog at all — unification handles same-constant, not "these two different constants denote the same thing"; this project's own "identity is decided, not interned" stance already smells open) |
-| **Believed genuinely closed** | negation, degree/band, the raw substrate mechanics (mint/edge/attribute/merge/drop, `solve()`) |
+| **Empirically confirmed** (actually built, checked against running code) | causation = sugar (old `ugm`, propagation schema); quantification's open case = goal machinery, not a new primitive; **force = sugar, `units/force_probe_experiment.py` (3 green)** — "ask"/"command" routing is two near-identical meta-rules minting a goal, resolved by the ordinary, force-blind `achieved`/`diverged` machinery; ⭐ **level = sugar, 2026-07-30, `units/level_probe_experiment.py` (3 green)** — "world"/"theory" routing is the same meta-rule shape, and a theory-level claim ("has the engine's own `vip_rule` concluded X") is satisfied by an ordinary rule reading another rule's conclusion as data — provenance already free, no introspection primitive needed — while staying honestly unresolved through a turn where only the *world* question gets answered; goal/procedure/question/prohibition unification — `units/meta_concept_unification_experiment.py` (3 green) |
+| **Structurally implied, not yet probed** | identity/merge (Datalog has no analog at all — unification handles same-constant, not "these two different constants denote the same thing"; this project's own "identity is decided, not interned" stance already smells open); transitivity's predicate-variable mechanism (built in the old engine, unconfirmed in `units/`) |
+| **Believed genuinely closed** | negation, degree/band, modus ponens (the substrate's own execution semantics, not a meta-rule — see §8), the raw substrate mechanics (mint/edge/attribute/merge/drop, `solve()`) |
 
-**The middle row is a claim, not a finding.** `causation-core-was-sugar`'s own stated lesson applies
-directly: *"for the next agentic core, expect a surface/declared-data slice, not engine — probe first
-every time."* Force and level have not been probed. The pattern across every relational form checked so
-far predicts they'll resolve the same way, but betting on a pattern is not the same as checking it.
+**Force and level are no longer claims — they're findings, checked the same way causation was.** The
+middle row is still a claim for what remains in it. `causation-core-was-sugar`'s own stated lesson still
+applies to identity/merge and transitivity: *"for the next agentic core, expect a surface/declared-data
+slice, not engine — probe first every time."* The pattern has now held for four relational forms in a row
+without exception,
+which is good reason to expect the rest resolve the same way — but betting on a pattern is still not the
+same as checking it.
 
 ## 7. What this means for the planning design, concretely
 
@@ -121,15 +124,66 @@ causation row. A causal fact ("doing X usually causes Y") is authored in a fixed
 the actual action. Neither meta-rule is hand-written per business rule — each is written **once**,
 generically, over the conventional shape, exactly like every other worked example this session.
 
-## 8. Next actions
+## 8. Further observations, 2026-07-30 (same day) — modus ponens, transitivity, definition
+
+Three more candidates raised in conversation, worth separating carefully rather than lumping into "more
+relational forms."
+
+**Modus ponens is not middle-tier — it is the substrate's own execution semantics, not a meta-rule.**
+Every `StandingUnit`, matching its pattern and firing its effect, *is* an instance of modus ponens; that
+is simply what `solve()` + `instantiate_all` do for any authored rule. What *is* middle-tier is the
+adjacent, different step of getting from an openly-authored conditional *claim* (data — an antecedent and
+a consequent connected by a `when:` role, `forms_cnl.md`) to something the substrate can execute — a
+meta-rule that either applies it directly (if its content is already closed-class) or compiles it into a
+real `pattern:`/`effect:` rule (`test_a_rule_writes_a_whole_rule...`, again). `closed_class_inventory.md`'s
+*"modus ponens works"* was already talking about the post-compilation case, not a claim that business
+conditionals need no meta-rule.
+
+**Transitivity is middle-tier, and the old engine already found the mechanism — generic
+predicate-variable matching, not one rule per relation.** `facts-as-truth-bearers-built` (2026-07-22,
+`ugm`): transitivity written *once*, over a predicate variable (`?x ?r ?z when ?x ?r ?y and ?y ?r ?z`),
+"works on demand" for whichever relation the query supplies. Applied unconditionally to any `?r` this is
+simply wrong (my mother's mother is not my mother), so the safe version needs a declared `is_transitive`
+fact per relation — the same "declare it, don't hardcode which ones get it" discipline as causation's
+`propagates` and this session's stance facts. The *mechanism* (predicate-variable matching) was built in
+the old engine; whether `units/` has or needs it is unconfirmed — added to the probe list below.
+
+**Definition/substitution does not run into Fodor's paradox, and the reason is precise, not hand-wavy.**
+Fodor's argument (`forms_discourse.md` line 199, informational atomism: *"concepts are primitive; content
+is fixed by a causal/lawlike link to the world. There is no inside"*) is against using decompositional
+definition as the *universal* mechanism for concept meaning — his case is that ordinary concepts reliably
+resist clean definitions. This project already adopted the practical consequence of his alternative:
+ordinary open-class words are never given explicit definitions here — they are embedding-absorbed,
+holistic, exactly Quine's confirmation holism, exactly what [[baroque-vs-fundamental]] calls content an
+LLM already carries. `define` was never proposed as a general theory of word meaning; it is a narrow,
+explicit, opt-in mechanism for *stipulated* equivalences (paraphrasable without changing what the system
+believes — textbook baroque). Fodor's target was a claim this project never made.
+
+**Checking composition of these is the same runtime-detection answer as §7's Zave discussion, sharpened
+by one new risk: these specific schemas are recursive.** Transitivity composed with itself derives longer
+chains; a defined equivalence combined with transitivity or a business rule could keep unfolding. Not a
+new risk in kind — exactly what Phase D's termination work (burned-unit exclusion, the widened surge
+threshold, `forms_discourse.md` §10.3) already made honest for cycles generally, just not yet connected to
+these specific schemas. One risk that *is* specific to definition: since additive rewriting keeps both the
+old and new form of a fact alive (`goal_experiment.py`'s `check_rewrite_via_addition`), a rule reacting to
+each form of the same defined equivalence could produce two representations of "the same" conclusion that
+look different enough to register as a spurious conflict rather than genuine agreement — worth checking
+directly, not assumed away.
+
+## 9. Next actions
 
 1. **Probe force before building anything further on top of it** — check directly whether "ask"/"command"
    recognition needs anything beyond parsing (already separate machinery) plus one meta-rule minting a
    goal, the same way causation was checked.
 2. **Probe identity/merge** — same treatment, separately, not assumed.
-3. **Only then**, return to the causal-fact → plan meta-rule and the norm → requirement → satisfies chain,
+3. **Probe predicate-variable matching for transitivity** — does `units/` have or need it; if built,
+   gate it on a declared `is_transitive` fact per relation, never applied unconditionally.
+4. **Check the definitional-coexistence risk** — build the smallest case where a rule reacts to each form
+   of one defined equivalence and confirm the engine's conflict-detection reads it as agreement, not a
+   spurious disagreement.
+5. **Only then**, return to the causal-fact → plan meta-rule and the norm → requirement → satisfies chain,
    now confident about which parts of the design are load-bearing engine primitives and which are
    ordinary meta-rules over open data.
-4. **Revise `closed_class_inventory.md`, `composition_grammar.md`, and `agentic_scenario_catalog.md`**
-   once §8 items 1-2 are actually probed, not before — matching this project's own "probe first" discipline
+6. **Revise `closed_class_inventory.md`, `composition_grammar.md`, and `agentic_scenario_catalog.md`**
+   once items 1-4 are actually probed, not before — matching this project's own "probe first" discipline
    rather than rewriting the inventory off a pattern alone.

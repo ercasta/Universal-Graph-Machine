@@ -287,18 +287,125 @@ supposition scoping, the commit boundary, closure-before-NAC, the reflective-axi
 `AttrVar`-linked negation needed to change to make this work — they composed exactly as designed, in a
 scenario built specifically to see whether a seam would appear.
 
-## 9. Where this leaves things
+## 9. Three more candidates, and one paradox that turns out not to apply
+
+Before moving on to actually probing anything, three further questions were raised and worked through,
+because lumping them in with "more relational forms, presumably open" would have been too quick. The
+first was modus ponens itself — surely, if a business conditional's elimination is open content read by a
+meta-rule, then modus ponens is too? Working through it slowly showed this is not so. Every `StandingUnit`
+in the engine, the moment it matches its pattern and fires its effect, already *is* an instance of modus
+ponens — that is simply what matching and firing mean, for any rule at all, and it has nothing to do with
+business content. What is genuinely open is a step *adjacent* to modus ponens, not modus ponens itself:
+getting from an openly-authored conditional claim, sitting as data with an antecedent and a consequent
+connected by a role, to something the substrate can actually execute. That step needs a meta-rule, exactly
+like causation did; the substrate's own execution of a rule once compiled needs nothing further at all.
+This matters because it draws the line differently than "conditional is relational, therefore open" would
+suggest on its own — the relational, open part is the authored *claim*; the execution, once compiled, was
+never anything but substrate.
+
+Transitivity turned out to sit unambiguously on the open side, but with a real mechanism behind it rather
+than a vague gesture at "some meta-rule or other." The old engine had already built this, in a different
+context, and found something specific: transitivity did not need one hand-written rule per transitive
+relation. It needed one rule, written once, quantifying over the relation itself as a variable — for any
+relation `r`, if `x` relates to `y` and `y` relates to `z` under `r`, conclude that `x` relates to `z` under
+`r` — and this worked "on demand," supplying whichever relation a query actually asked about. Left
+unguarded, though, this schema is simply wrong for the many relations that are not transitive; a person's
+mother's mother is not their mother. The honest version needs a declared fact, per relation, saying that
+relation is transitive — the same discipline this whole arc keeps reaching for: declare the exception as
+data, never bake the exception into which content the engine happens to treat specially. Whether this
+predicate-variable mechanism exists, or is even needed, in the current engine was not checked, and belongs
+on the same list as force and level rather than being assumed to transfer.
+
+The third question was sharper and more uncomfortable: does authoring an explicit definition — "call this
+combination of conditions X," the substitution mechanism already built earlier this session — run into
+the classical philosophical problem with defining concepts at all? Jerry Fodor's argument, cited already
+elsewhere in this project's own design work, is that trying to explain most ordinary concepts through
+definitions fails empirically — nobody has ever produced a definition of an everyday word that survives
+counterexamples — and his own alternative is that most concepts are primitive, their content fixed by
+nothing more than a causal connection to whatever they denote in the world, with no internal structure to
+decompose. Working through this carefully rather than dismissing it, the answer is that this project never
+attempted the thing Fodor showed does not work. Ordinary open-class words in this system are never given
+explicit definitions at all — they are handled holistically, absorbed by an embedding model, exactly the
+practical shape of Fodor's own alternative, and exactly what this project's existing distinction between
+baroque and fundamental content already commits to: content that can be paraphrased without changing what
+the system believes does not need decomposing, an LLM already carries it. The explicit `define` mechanism
+was only ever meant for a narrower, different case — a domain or a user *stipulating* an equivalence, the
+one place definition genuinely does work without controversy, the way a legal or mathematical term is
+often definitionally fixed by convention rather than discovered by philosophical analysis. Fodor's paradox
+is a warning against a project this one never signed up for.
+
+Checking whether these compose safely turned out to be the same runtime-detection answer already reached
+for the open middle tier generally, sharpened by one thing genuinely specific to this group: transitivity
+and definitional substitution are both recursive, in a way force-routing or a one-shot causal-to-plan
+translation are not. Transitivity composed with itself keeps deriving longer chains; a defined equivalence
+combined with a transitive relation or an ordinary business rule could, in principle, keep unfolding
+indefinitely. This is not a new category of risk — it is exactly the termination and honesty work already
+done for cycles in general, the fix that stopped a truncated derivation from being silently read as a
+complete one, simply not yet connected to these particular schemas. One risk really is specific to
+definition, though, and worth stating precisely rather than folding into the general recursion worry:
+because additive rewriting deliberately keeps both the old and the new form of a rewritten fact alive
+side by side, a rule reacting to one form and a different rule reacting to the other could produce two
+representations of what is, underneath, the same conclusion — and unless the engine's conflict-detection
+is checked directly against this specific case, there is a real possibility it would read two equivalent
+conclusions as a disagreement rather than an agreement. That is a concrete thing to build and check, not
+something safe to assume from the general argument alone.
+
+## 10. Force, probed rather than assumed
+
+The pattern predicted force would resolve the same way causation did, and it was worth resisting the
+temptation to simply believe the pattern. `units/force_probe_experiment.py` built the smallest version of
+the actual claim: given an utterance already tagged with its force — recognizing that tag is parsing's job,
+genuinely out of scope here, exactly as `force-is-the-missing-axis` already argued — does routing "ask" and
+"command" toward the goal machinery need anything beyond a trivial meta-rule minting a goal wanting the
+utterance's content? Two routing rules were written, one per force, deliberately almost identical to each
+other, because if ask and command genuinely needed different machinery to route, the two rules would have
+had to look different, and they don't — they differ only in which literal force value they match. Both mint
+a goal, both mark their utterance consumed in the same firing so neither can double-fire on a later idle
+turn, exactly the discipline already established for sticky transitions earlier in this arc.
+
+The more interesting confirmation came from what happened next. The two resulting goals — one born from a
+question, one from a command — were handed to the ordinary, unmodified `achieved`/`diverged` rules already
+built for goals with no relationship to force at all, and both resolved correctly: the question's goal
+reached `achieved` once its content was confirmed, the command's goal reached `diverged` once the
+world-state it wanted failed to materialize. Neither achieved/diverged rule reads which force produced its
+goal, and none needed to. This is the sharpest form of the claim this whole arc has been building toward:
+by the time a goal exists, its originating force has already done its one and only job — deciding that a
+goal should exist — and has nothing further to contribute. Force earns its place in the confirmed column
+alongside causation, not merely the hypothesized one.
+
+## 11. Level, checked the same way, and made to earn a real distinction rather than a cosmetic one
+
+Level asks something different from force — not how a claim was delivered, but what the claim is even
+about: the world, or the system's own reasoning about the world. It would have been easy to build a probe
+that only repeated force's shape with different labels, which would have proven nothing beyond "labels can
+differ." `units/level_probe_experiment.py` was built to avoid that trap deliberately: a `world` utterance
+asks whether a customer is a VIP, an ordinary claim answered by external input, exactly like anything in
+the force probe. A `theory` utterance asks something categorically different — whether the engine's own
+`vip_rule` has *already concluded* that the customer is a VIP — a claim about the system's own reasoning,
+not about the customer directly.
+
+Routing both utterances to a goal needed nothing beyond the identical meta-rule shape already confirmed for
+force. What made the check meaningful was showing the theory goal's content is genuinely satisfied by a
+different *kind* of thing, using no new machinery to do it: an ordinary rule reacts to `vip_rule`'s own
+conclusion exactly the way any rule reacts to any fact, because a rule's output is already ordinary graph
+data and provenance was already established, several sections back in this same arc, as free. Checked
+directly, the theory goal stayed honestly unresolved through a turn where only the world question got its
+external answer — proving the "about the system" reading is real rather than a label with no behavioral
+consequence — and resolved only once `vip_rule` itself actually fired. Both goals, once minted, were
+resolved by the exact same two rules, with no level-specific branch anywhere. That is four relational forms
+now checked in a row — causation, quantification's open case, force, and level — with the pattern holding
+every single time.
+
+## 12. Where this leaves things
 
 The concrete claim standing at the end of this arc is that this engine's genuinely closed, executable
 core is small — conjunctive matching, theta-gated negation-as-failure, gradedness as a meet-semilattice,
-and five raw substrate effects — and that everything else this project has been building toward an agent
-needing, including goals, procedures, questions, prohibitions, causal reasoning, and business policy, is
-open content read by a comparatively small number of generic meta-rules, all sharing one representational
-shape. What remains genuinely unconfirmed, and should not be treated as settled until it is checked the
-same way causation and this session's meta-concept unification were checked, is whether force and level
-really do reduce the same way, and whether identity and merge belong in the closed pile or the open one.
-The concrete next step, agreed in conversation and not yet started, is to probe force directly — building a
-small worked example checking whether recognizing "this is a question" or "this is a command" really needs
-nothing beyond the existing parsing layer plus one generic meta-rule minting a goal — before any of
-`closed_class_inventory.md`, `composition_grammar.md`, or `agentic_scenario_catalog.md` gets rewritten to
-match what this arc currently believes.
+and five raw substrate effects, with modus ponens properly understood as part of that same substrate rather
+than a meta-rule in its own right — and that everything else this project has been building toward an agent
+needing, including goals, procedures, questions, prohibitions, causal reasoning, transitivity, definitional
+substitution, and business policy, is open content read by a comparatively small number of generic
+meta-rules, all sharing one representational shape. Causation, quantification's open case, force, level, and
+the goal/procedure/question/prohibition unification are now checked, not merely argued. What remains
+genuinely unconfirmed is identity/merge and whether transitivity's predicate-variable mechanism exists or is
+needed in this engine at all — each named rather than assumed, each waiting on the same kind of small,
+concrete worked example that resolved everything checked so far, rather than on the pattern alone.
