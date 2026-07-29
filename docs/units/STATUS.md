@@ -1,6 +1,6 @@
 # `units` — status
 
-**One page, last updated 2026-07-29. What happened, what document to read for what, what's actually done vs.
+**One page, last updated 2026-07-29 (goal-experiment pass). What happened, what document to read for what, what's actually done vs.
 designed, and what to pick up next.** This is the current, active thread. The index is `README.md`; the model
 is `model.md`; the previous status page (pre-inversion, 174 tests, superseded 2026-07-26) is
 `attic/STATUS.md`.
@@ -33,6 +33,7 @@ big thread (SUPPOSE's discharge) was deliberately shelved along the way for lack
 | `glossary.md` | plain-language definitions of every term actually agreed on this session — check before reusing jargon |
 | `units/smt_sieve.py` | the runnable Z3 proofs (base case, inductive step) |
 | `units/forms.py`, `units/sieve.py` | where the detachment fix actually landed in code |
+| `units/goal_experiment.py` | goal lineage/interning, outcome-as-fact, abandon-and-decay, and additive rewriting — all checked against the real engine; findings in `cnl_engine_goal_plan.md` §7e |
 
 Read `cnl_engine_goal.md` → `cnl_engine_goal_plan.md` first if picking this back up cold; the other docs hang
 off those two.
@@ -74,12 +75,17 @@ other ten did.
 
 ## Recommended next step
 
-**Decided, 2026-07-29 — start a new session, entry point `cnl_engine_goal_plan.md` §7.** Three threads converged
-and are being tackled **jointly**: goal/subgoal lineage (`model.md` §8), a first System 1 prototype (`model.md`
-§7 — the shared retrieval mechanism both goal decomposition and substitution-rule application need), and in-KB
-rewriting resolved as **additive** (mint the new-form fact alongside the old, never replace — convergence by
-accumulation, not destruction). Full reasoning and the old-`ugm`-prior-art findings behind this:
-`cnl_engine_goal_plan.md` §7, memory `goal-system1-rewrite-next-arc.md`.
+**Updated 2026-07-29 — `units/goal_experiment.py` built and run, entry point now `cnl_engine_goal_plan.md` §7e.**
+The three-thread arc from §7 (goal/subgoal lineage, a first System 1, additive rewriting) got its worked example:
+four checks, all green, no new engine code needed. Two real findings surfaced that weren't visible from design
+alone — (1) goal-lineage interning only holds across a **per-turn rebuild** (fresh `Network`, axiom re-derived
+from the accumulated graph), not across two `revive()` calls on one `Network`, because an axiom's held value is
+a fixed snapshot taken at construction; (2) a rule matching machinery (a `<wire>` occurrence, for decay's
+gate-retraction) needs its own gate fed by a reflective axiom — folding it onto the same gate as ordinary
+premises silently overwrites one or the other (single-gate latch, not accumulation). Neither changes the model;
+both were already implied by `model.md` §§6–7 and are now confirmed against running code. Full detail:
+`cnl_engine_goal_plan.md` §7e. **Not yet done: writing the settled design doc §7c pointed at** — this pass was
+deliberately scoped to "build it, see what breaks" first, per §7d.
 
 **Still open, lower priority, not blocking the above:**
 - **`identity`/equality.** The clearest remaining cross-cutting *content* gap (scenarios 3, 7, 8), independent of
