@@ -5,6 +5,27 @@ check: does the declared set compose without leaking, via `sieve.py`) and `cnl_e
 document is the other check — completeness: does the declared set cover what an agent doing real work actually
 needs to say. Neither check substitutes for the other.
 
+## 0. Why this document exists
+
+`closed_class_inventory.md` asks, of each proposed grammatical building block (**form** — see `glossary.md`),
+whether it combines with the others without breaking. It never asks whether the *set of forms itself* is big
+enough. A form nobody has thought to write yet can't leak, and won't show up in that document's tables at all —
+so a second, independent check is needed: pick real tasks an agent would actually need to do, write out in plain
+English what each one needs to *say*, and see whether the current closed class has the pieces for it.
+
+That's what this document does. Each of the ten scenarios below is a short, realistic agent task (e.g. *"if a
+customer is VIP and spent over $500, apply a 10% discount"*). For each, the method is: **state the need in one
+line → break it down into what CONTENT/FORCE/LEVEL commitments it actually requires (see `glossary.md` for what
+those three mean) → look up each requirement's current status in `closed_class_inventory.md` → verdict.** A
+scenario's verdict is one of: the pieces it needs already exist and are confirmed (**COVERED**), some pieces
+exist and some don't (**PARTIAL**), or a genuinely new form is needed and hasn't been written yet (**GAP**).
+
+Concretely: scenario 1 below needs *conditionality* ("if... then..."), which `closed_class_inventory.md` §5
+records as **STRUCTURALLY BLOCKED** — so this scenario's decomposition is what turns an abstract inventory gap
+into a concrete "yes, real agent work actually needs this, here's the sentence that needs it." That's the value
+this document adds that the inventory alone can't: it prioritizes which gaps matter, using actual tasks instead
+of guessing. §11 at the bottom rolls all ten scenarios up into one ranked list of what to build next.
+
 ⚠ **This is a synthetic corpus, not real usage**, and carries the same caveat `form_inventory.md` §3 puts on
 intuition-based form selection: five for five wrong, historically, when judged by guessing rather than measuring.
 Treat every "gap" below as a hypothesis to prioritize, not a proven requirement — and replace or supplement this

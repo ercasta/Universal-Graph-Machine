@@ -73,3 +73,30 @@ you want to reuse it going forward; don't introduce a term casually before it's 
 - **witness / model** — when the solver says SAT, it also hands back the actual concrete values that made it
   true — e.g. "polarity=negative, has_degree=true." That's the witness: a concrete leaking case, found by the
   solver rather than by us guessing it.
+
+- **CONTENT / FORCE / LEVEL (the three axes)** — every form is classified along three independent questions.
+  **CONTENT** asks *what is being claimed* — the payload itself (e.g. "the customer spent over $500," negated or
+  not, to some degree). **FORCE** asks *what is being done with that claim* — asserting it, asking it,
+  commanding it, denying it. The same content can carry different force: "you spent over $500" (assert) vs. "did
+  you spend over $500?" (ask) share identical CONTENT but differ in FORCE. **LEVEL** asks *what the claim is
+  about* — an ordinary fact about the world, or a claim about another claim/rule (e.g. "that rule is wrong" is
+  LEVEL = language, not world). A "category" like negation or a question is a *point* in this three-way space,
+  not a separate kind of thing.
+
+- **field** — one concrete attribute a form writes onto a claim when it's used — e.g. `polarity` (written by
+  `positive`/`negation`) or `strength` (written by `degree`). Two forms **compete** (occupy the same slot) when
+  they write the same field; they can coexist when they write different fields.
+
+- **SEED / CANDIDATES** — `SEED` is the small set of forms already trusted and locked in (the confirmed baseline
+  the rest of the inventory is checked against). `CANDIDATES` is the larger, still-being-tested set that includes
+  `SEED` plus every form proposed since — some confirmed, some still open hypotheses. A form graduates from
+  `CANDIDATES` to `SEED` once the sieve has actually tested it.
+
+- **bare vs. relational form** — a **bare** form decorates a single claim on its own (e.g. `negation`, `degree` —
+  nothing else needs to exist for them to apply). A **relational** form links *two* occurrences together (e.g.
+  `conditional` connects a hypothesis to its consequence) — it can't be checked by looking at one claim in
+  isolation, and needs its own machinery to test.
+
+- **tier 0 / tier 3** — a rough scale of how fundamental a piece of the system is. Tier 0 is the wiring
+  substrate everything else runs on. Tier 3 (thematic roles — agent/patient/etc.) is corpus-derived surface
+  detail, deliberately kept out of the closed-class sieve described in this document.

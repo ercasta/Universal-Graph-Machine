@@ -5,6 +5,40 @@ inventory, abstractly. It consolidates what is scattered across `forms_discourse
 `docs/design/form_inventory.md` (superseded except for the surviving findings named in `forms_discourse.md` §12),
 and `units/forms.py`/`units/sieve.py` (the runnable probe) into one table with one status per entry.
 
+## 0. Why this document exists
+
+The system understands language through a small, fixed vocabulary of grammatical building blocks — a **closed
+class** (see the glossary linked below) — plus an unbounded set of ordinary words ("customer," "discount,"
+"park") that it never tries to define, only names. The closed class is what actually does the reasoning: it's
+how the engine knows that *"the customer did NOT qualify"* forbids also concluding *"the customer qualified,"*
+or that *"spent over $500"* is a different, comparable kind of claim from *"spent exactly $500."* Get the closed
+class wrong — missing a piece, or with two pieces that quietly contradict each other when combined — and the
+engine either can't say something a real request needs, or worse, reasons its way to a wrong answer without
+anyone noticing.
+
+This document is that class's **soundness check**: for every proposed building block ("form"), does it combine
+with every other one *without silently letting the engine conclude something false*? It does not ask whether the
+class is *big enough* — that's `agentic_scenario_catalog.md`'s job, the completeness-side check. A
+form can pass this document's test and still be missing from the class entirely, if nobody's written it yet; and
+a form can be written and even useful, and still fail here, because combined with some other form it produces a
+**leak** (concludes something it should never be allowed to conclude — see glossary). The tool that actually runs
+these combinations is `units/sieve.py`, hence "the sieve" throughout.
+
+**Worked example, to make "form" and "leak" concrete before the tables below get abstract.** Take the sentence
+*"the customer did not qualify."* `negation` is a form: it's what licenses writing "not," and what forbids you
+from also concluding the unnegated claim ("the customer qualified") while it holds. Now take *"the customer
+barely qualified."* `degree` is a different form — it doesn't flip true/false, it says *how much*. These two
+forms turn out to write different fields (`negation` writes `polarity`, `degree` writes `strength`), so in
+principle they should be freely combinable: *"the customer did not barely qualify"* should behave sensibly. The
+sieve actually tried this combination and found it **did not** — `degree ∘ negation` was the one measured leak
+in the confirmed baseline (§2 below) before it was fixed. That's what this whole document is doing, form by
+form: not debating in the abstract whether the inventory *seems* complete, but running every pair through the
+engine and recording what actually happened.
+
+If the vocabulary above (**closed class**, **form**, **slot**, **leak**, **CONTENT/FORCE/LEVEL**, **SEED** /
+`CANDIDATES`) is unfamiliar, read `glossary.md` first — every term below is used exactly as defined there, and
+this document does not redefine them inline.
+
 **This is the soundness-side check only.** `agentic_scenario_catalog.md` is the complementary completeness-side
 check — does this inventory cover what an agent doing real work needs to say — and it has already reprioritized
 this document's own open items (mirative dropped, quantification and identity promoted). Read both together. Numbers
@@ -29,15 +63,15 @@ below are from a **live run against the current `units/` code**, not recalled fr
 
 ## 2. CONFIRMED — `SEED`
 
-| name | declared axis | measured slot | entry-format completeness | note |
-|---|---|---|---|---|
-| `positive` | content | `positive` (shared with `negation`) | intro / elim / commits — no `forbids` (nothing to forbid for the baseline) | the reference cell; `seed_is_sound()` depends on this being clean |
-| `negation` | content | `positive` slot | intro / elim / commits / forbids — full | "the operator case for A1"; the one form with a real `forbids` from day one |
-| `degree` | content | its own slot | intro / elim / commits / forbids — full | **the form the one measured leak (`degree ∘ negation`) was found on** |
-| `assert` | force | `assert` slot (shared with `ask`) | intro / elim (none — default) | the default force |
-| `ask` | force | `assert` slot | intro / elim / commits / forbids — full | `forms_discourse.md` §8's worked failure lives here (map the question, then assert it) |
-| `world` | level | `world` slot (shared with `language`) | intro only | the default level |
-| `language` | level | `world` slot | intro / elim / commits / forbids — full | the use/mention test of whether LEVEL is a real axis |
+| name | example | declared axis | measured slot | entry-format completeness | note |
+|---|---|---|---|---|---|
+| `positive` | "the customer qualified" | content | `positive` (shared with `negation`) | intro / elim / commits — no `forbids` (nothing to forbid for the baseline) | the reference cell; `seed_is_sound()` depends on this being clean |
+| `negation` | "the customer did **not** qualify" | content | `positive` slot | intro / elim / commits / forbids — full | "the operator case for A1"; the one form with a real `forbids` from day one |
+| `degree` | "the customer **barely** qualified" | content | its own slot | intro / elim / commits / forbids — full | **the form the one measured leak (`degree ∘ negation`) was found on** |
+| `assert` | "the customer qualified." (a statement) | force | `assert` slot (shared with `ask`) | intro / elim (none — default) | the default force |
+| `ask` | "**did** the customer qualify?" | force | `assert` slot | intro / elim / commits / forbids — full | `forms_discourse.md` §8's worked failure lives here (map the question, then assert it) |
+| `world` | a claim about the customer | level | `world` slot (shared with `language`) | intro only | the default level |
+| `language` | "**that rule** about VIP customers is wrong" — a claim about a claim, not about the world | level | `world` slot | intro / elim / commits / forbids — full | the use/mention test of whether LEVEL is a real axis |
 
 **Measured (this run):** `axis_audit(SEED)` → **4 slots vs 3 declared axes.** `content` splits into `{positive, negation}` and `{degree}` — confirming `forms_discourse.md`'s own §2.2 three-axis table cannot be taken as one slot per row; `positive`/`negation` compete (same field, `polarity`) while `degree` writes a different field (`STRENGTH`) and so gets its own slot. This matches `sieve-measures-the-axes.md`'s prior finding exactly.
 
@@ -48,7 +82,10 @@ below are from a **live run against the current `units/` code**, not recalled fr
 ## 3. RESOLVED HYPOTHESES — `CANDIDATES \ SEED`, where the sieve settled the code's own open question
 
 Every one of these carries a `⚠ HYPOTHESIS` note in `units/forms.py` written by whoever added it. The live run
-resolves four of them:
+resolves four of them. Concretely: someone proposed `deny` ("the customer **refuses to say** they qualify") as
+its own force value, distinct from `assert`+`negation` combined ("the customer **is not** qualified"). The sieve
+tested whether the two actually behave differently once wired into the engine — they don't, so `deny` is retired
+as a duplicate of `negation`, not entered as a new form.
 
 | name | code's own question | measured answer | resolution |
 |---|---|---|---|
@@ -63,17 +100,23 @@ resolves four of them:
 
 ## 4. OPEN HYPOTHESES — sieve-tested, but nothing yet excludes or shares a field with them
 
-| name | declared axis | measured slot | why it's still open |
-|---|---|---|---|
-| `past` | content | singleton | nothing else in `CANDIDATES` writes the `time` field or competes with `past`, so its slot membership is unconfirmed by exclusion — it could turn out to share a slot with a future `future`/`present`/aspect form, or genuinely stand alone |
-| `evidential` | content | singleton | same limit. The code's own note calls it *"fits NO declared axis"* — a fourth axis candidate, not yet testable because nothing else occupies a `source` field to compete with it |
-| `mirative` | content | singleton | same limit — *"also fits no axis"* per the code |
+| name | example | declared axis | measured slot | why it's still open |
+|---|---|---|---|---|
+| `past` | "the customer **had** qualified" | content | singleton | nothing else in `CANDIDATES` writes the `time` field or competes with `past`, so its slot membership is unconfirmed by exclusion — it could turn out to share a slot with a future `future`/`present`/aspect form, or genuinely stand alone |
+| `evidential` | "the customer qualified, **according to the order log**" | content | singleton | same limit. The code's own note calls it *"fits NO declared axis"* — a fourth axis candidate, not yet testable because nothing else occupies a `source` field to compete with it |
+| `mirative` | "the customer **surprisingly** qualified" | content | singleton | same limit — *"also fits no axis"* per the code |
 
 **Action needed to close these out, not just leave them open:** each needs at least one more form written that plausibly competes with it (a `future`/aspect form for `past`; a second evidential-source value for `evidential`; a second surprise-marking form for `mirative`) before `slots()` can say anything about them. Singleton-slot status is **not** a finding — it is the absence of one, and should not be read as "confirmed independent."
 
 ---
 
 ## 5. STRUCTURALLY BLOCKED — passes as a form, fails the realizability gate or the composition proof
+
+Both rows below are about `conditional` — *"if a customer is VIP and spent over $500, apply a 10% discount."*
+That one sentence actually needs two separate mechanisms: **detachment** (given the "if" and the fact it depends
+on, correctly conclude the discount for *this* customer — ordinary modus ponens) and **discharge** (turn "if a
+customer is VIP..." into a standing, unconditional rule the engine can reuse for the *next* customer, without
+re-deriving it from scratch). Detachment now works. Discharge does not — see the row below for why.
 
 | name | status | why |
 |---|---|---|
@@ -89,13 +132,13 @@ resolves four of them:
 None of these have been through the sieve at all; they exist only as prose claims across the docs. Listed with
 where they're named and what shape they'd need:
 
-| form / category | named in | shape |
-|---|---|---|
-| **quantification** | `forms_discourse.md` §2.2 CONTENT list, `form_inventory.md` §4a | relational, like `conditional` — binds a variable across occurrences, not a single-claim decoration |
-| **causation** | same | relational — at minimum a two-occurrence link; `form_inventory.md` flagged this as "NO MECHANISM" even under the retired engine |
-| **identity / reference** | `forms_discourse.md` §10.3 (open, with the measured depth-4/5 engine obstacle already blocking the flagship case) | relational, and specifically flagged as depending on a *separate* fix (the surge detector, `cnl_engine_goal_plan.md` Phase D) before it can even be tested, since resolution is iterated over a cycle |
-| **tense, if bounded returns** | `forms_discourse.md` §6 catalog row (Vendler's aspect classes) | `past` (§4 above) is a start; a full tense/aspect treatment needs the aspectual-class dimension too, currently absent |
-| **tier-3 thematic roles** | `forms_discourse.md` §9 | not a "form" in the CONTENT/FORCE/LEVEL sense at all — a different, corpus-derived tier, deliberately out of this sieve's scope |
+| form / category | example | named in | shape |
+|---|---|---|---|
+| **quantification** | "**every** VIP customer gets the discount," not just one named customer | `forms_discourse.md` §2.2 CONTENT list, `form_inventory.md` §4a | relational, like `conditional` — binds a variable across occurrences, not a single-claim decoration |
+| **causation** | "creating the account **enables** sending the welcome email" | same | relational — at minimum a two-occurrence link; `form_inventory.md` flagged this as "NO MECHANISM" even under the retired engine |
+| **identity / reference** | "the **observed** total doesn't match the **expected** total" — are these two occurrences the same thing or not? | `forms_discourse.md` §10.3 (open, with the measured depth-4/5 engine obstacle already blocking the flagship case) | relational, and specifically flagged as depending on a *separate* fix (the surge detector, `cnl_engine_goal_plan.md` Phase D) before it can even be tested, since resolution is iterated over a cycle |
+| **tense, if bounded returns** | distinguishing "the customer **qualified**" from "the customer **had been qualifying**" | `forms_discourse.md` §6 catalog row (Vendler's aspect classes) | `past` (§4 above) is a start; a full tense/aspect treatment needs the aspectual-class dimension too, currently absent |
+| **tier-3 thematic roles** | who is the *agent* and who is the *patient* in "send the customer the welcome email" | `forms_discourse.md` §9 | not a "form" in the CONTENT/FORCE/LEVEL sense at all — a different, corpus-derived tier, deliberately out of this sieve's scope |
 | **activity structure** (plan/step/subgoal/hypothesis-verification) | `forms_discourse.md` §10.2, open | multi-turn, not classifiable as a single utterance's CONTENT×FORCE×LEVEL point at all — needs its own treatment before it's even a sieve-shaped question |
 
 ---
