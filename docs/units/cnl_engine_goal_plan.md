@@ -1,6 +1,7 @@
 # Plan: reaching the goal in `cnl_engine_goal.md`
 
-**Status: plan, 2026-07-28; updated 2026-07-29 for the and/or `Trigger` finding.** References `cnl_engine_goal.md`
+**Status: plan, 2026-07-28; updated 2026-07-29 for the and/or `Trigger` finding; §7 added 2026-07-29 as the next
+arc's entry point.** References `cnl_engine_goal.md`
 — read that first for the goal statement, the engine/ruleset responsibility split, and the three ingredients.
 This document is the phase plan for closing the gap between "realistic goal" and "shipped guarantee," plus one
 worked example (SUPPOSE's discharge) that turned out to be the concrete case for phase 2 below.
@@ -231,3 +232,82 @@ today. Two directions this opens, one of which has already paid off:
 
 Same exclusions as `cnl_engine_goal.md` §5 — nothing here touches business-rule correctness or open-class
 predicate interaction. This plan is scoped entirely to the closed class and the engine that composes it.
+
+---
+
+## 7. Next arc, 2026-07-29 — goal/subgoal lineage, a first System 1, and additive rewriting
+
+**Start here if resuming cold.** Three threads, tackled **jointly**, not as separate tickets — they turned out to
+be intertwined enough that solving one without the others would likely mean redoing it. `computation_units.md`
+and `closed_class_inventory.md` §8/§10 have the reasoning that led here; this section is the one place that
+states the combined arc and what to actually build first.
+
+### 7a. Why these three, together
+
+- **Goal/subgoal lineage** (`model.md` §8, design not code) is now a confirmed dependency of three separate
+  findings: quantification's case (c) — checking a set member-by-member across turns needs a cursor that
+  survives a revive (`closed_class_inventory.md` §8); "justification" dissolving into goal lineage rather than a
+  new CONTENT form (`closed_class_inventory.md` §10, `agentic_scenario_catalog.md` §12); and the substitution
+  experiment's wiring-cost finding, which is exactly System 1's job to absorb (`computation_units.md` §5).
+- **A first System 1 prototype** (`model.md` §7, associative retrieval — design not code) is the connective
+  tissue: "which standing rule is relevant right now" is the same question whether the consumer is a goal
+  deciding which rule decomposes it into subgoals, or a term deciding which definition-rule rewrites it. Building
+  retrieval once and letting both ride it beats each hand-wiring its own chain.
+- **In-KB rewriting** came up as a natural extension of the `define`+`Identify` substitution experiment
+  (`computation_units.md` §5) — and forced a real decision, resolved in conversation: rewriting a fact into a
+  different form means **minting the new-form fact alongside the old**, not replacing it. Both coexist; rules
+  using either form fire independently; convergence happens by accumulation, not destruction. (A destructive
+  rewrite was considered and rejected — it would reopen exactly the collapse `model.md` §3 already paid to
+  prevent: two live derivations silently clobbering one shared value.)
+
+### 7b. Prior art actually checked, not assumed — from the OLD `ugm` engine
+
+A full research pass (not guessed) found real, usable prior art for **half** of this, and confirmed the other
+half is genuinely new territory in both generations:
+
+- **What's validated and portable (the shape, not the code):** the old engine's plan→act→check→replan loop
+  (`docs/design/procedures_design.md`, `ugm/mode_calls.py`, worked example in `tests/test_isa_plan_act_check.py`)
+  — a `<call>` token is data (tool name + args), "checking" is an ordinary rule reacting to a verdict fact,
+  discrepancy/achieved/diverged are **positive facts attached to the goal**, never absence-tests, and the whole
+  loop composes monotonically with **no teardown** (a stale verdict from an abandoned path just sits there,
+  inert, harmless — five rules, no Python driver, `test_isa_plan_act_check.py`'s docstring). This matches
+  `model.md` §8's own framing closely and can be ported as a rule bank.
+- **What was never built, in either generation:** a persisted **goal → subgoal lineage relation** that a rule
+  could walk afterward for explanation. The old procedures arc has goals, steps, checks, replanning — but no
+  parent→child edge between goal-nodes. `ugm/chain.py`'s `<subgoal>` looked like a candidate but is confirmed (by
+  the code's own comments) to be a different concept — negation-as-failure explanation ("I searched X and found
+  nothing"), not agentic goal decomposition. Its **shape** is reusable (an interned goal-shaped node, a
+  parent-child edge, control-marked) even though its semantics aren't.
+- **Why a `GoalSolver` was retired** (`docs/attic/goalsolver_retirement_design.md`): consolidating two competing
+  engines into one, not a flaw in goal/subgoal machinery itself — mostly doesn't transfer. One real lesson that
+  does: backward/demand-driven search and closed-world negation don't compose cleanly (a hazard test proved it).
+  `units/` is already on the correct side of this (forward, revive-from-axioms, never backward demand), so this
+  is a reassurance, not a warning to act on.
+- **Two scars worth not re-earning a third time:** (1) the procedure's own step order and the planner's global
+  order had to be kept as two distinct relations — conflating them broke things; expect subgoal lineage similarly
+  needs to stay **scoped** to its own goal, never a global relation. (2) **Stratification races around
+  NAC-shaped guards that gate a subsequent action were the single most recurring bug** in the old procedures arc,
+  rediscovered three separate times across its slices. Any rule that spawns or completes a subgoal on a
+  `not X`-shaped guard needs to be tested explicitly for this race, not just reasoned about.
+
+### 7c. The design so far, pending a worked example
+
+| fact/relation | shape | who writes it |
+|---|---|---|
+| a goal | an ordinary node + a `wants:` role pointing at its satisfaction-condition claim | a mutating rule (must survive a suspend) |
+| subgoal lineage | `goal -[raised]-> subgoal`, interned (get-or-create per parent + satisfaction-condition, borrowing `ugm/chain.py`'s interning pattern, not its NAF semantics) | a mutating rule |
+| outcome | a positive marker attribute on the goal node — `achieved` / `diverged` / `abandoned` — never an absence-test | a mutating rule, reacting to whatever "checks" the condition |
+| decay | a mutating rule concluding `abandoned=True` **plus** retracting the goal's own gate-wiring (closing `model.md` §13's attention-leak) — the `raised` lineage edge itself stays, permanently, same reasoning as provenance-is-free | a mutating rule, deliberately using the one non-monotone effect |
+
+**Deliberately deferred:** `model.md` §7's full associative retrieval is not a prerequisite — build the goal bank
+with explicit wiring first (same as every worked example this session), and treat System 1 as what removes that
+authoring cost later, not a blocker now. A *first* prototype of it (scope still to be decided) is part of this
+arc, but need not be the associative-recall machinery in full.
+
+### 7d. Next action
+
+Build a small worked example the way `Trigger` and the substitution experiment got one before any of this was
+written up as settled: one parent goal, one subgoal it raises, a check that fires an outcome, and an
+abandon-and-decay case — run against the real engine, see what breaks, *then* write the design doc. Do the same
+for a minimal rewrite-via-addition case (two coexisting forms of one fact, a rule that fires off either) before
+committing to the shape in §7c.

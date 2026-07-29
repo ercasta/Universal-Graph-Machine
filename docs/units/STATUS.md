@@ -1,6 +1,6 @@
 # `units` — status
 
-**One page, last updated 2026-07-28. What happened, what document to read for what, what's actually done vs.
+**One page, last updated 2026-07-29. What happened, what document to read for what, what's actually done vs.
 designed, and what to pick up next.** This is the current, active thread. The index is `README.md`; the model
 is `model.md`; the previous status page (pre-inversion, 174 tests, superseded 2026-07-26) is
 `attic/STATUS.md`.
@@ -74,28 +74,22 @@ other ten did.
 
 ## Recommended next step
 
-**Revised 2026-07-29 — Phase D's surge-detector item is now partly closed** (see "Status by phase" above), and
-quantification/aggregation, the prior "close second," **turned out not to be gaps at all** once actually worked
-out (`closed_class_inventory.md` §8, `agentic_scenario_catalog.md` §11). Three independent findings from this
-session now converge on one thing instead: **goal/subgoal machinery (`model.md` §8, designed, not built)** —
-needed by scenario 10's quantification case (multi-turn enumeration), by "justification" dissolving into goal
-lineage rather than a new form (`closed_class_inventory.md` §10, `agentic_scenario_catalog.md` §12), and by
-System 1 absorbing the wiring cost the substitution experiment surfaced (`computation_units.md` §5).
+**Decided, 2026-07-29 — start a new session, entry point `cnl_engine_goal_plan.md` §7.** Three threads converged
+and are being tackled **jointly**: goal/subgoal lineage (`model.md` §8), a first System 1 prototype (`model.md`
+§7 — the shared retrieval mechanism both goal decomposition and substitution-rule application need), and in-KB
+rewriting resolved as **additive** (mint the new-form fact alongside the old, never replace — convergence by
+accumulation, not destruction). Full reasoning and the old-`ugm`-prior-art findings behind this:
+`cnl_engine_goal_plan.md` §7, memory `goal-system1-rewrite-next-arc.md`.
 
-**Candidates, not yet decided between:**
-1. **Goal/subgoal machinery.** Highest-leverage by convergence (three findings depend on it), but the biggest
-   lift — still design, not code, and a real undertaking.
-2. **`identity`/equality.** Now the clearest remaining cross-cutting *content* gap (scenarios 3, 7, 8) — no
-   longer tied with quantification, since quantification resolved. `identity` in the narrow "compare two values"
-   sense looks buildable independent of Phase D; full reference/definite-description resolution is still blocked
-   on the surge detector.
-3. **Give `COMMAND` real semantics** (`closed_class_inventory.md` §9) — small, concrete, quick: tests the
-   `ask = command(report(P))` reduction hypothesis rather than leaving it argued-but-unverified.
-
-**Lower priority, worth remembering rather than acting on now:** closing out `past`/`evidential`/`mirative`'s
-open-hypothesis status (needs a competing form each before `slots()` can say anything); building the real
-nested-`Claim` structure to test the induction against running code
-rather than only against `smt_sieve.py`'s abstract model.
+**Still open, lower priority, not blocking the above:**
+- **`identity`/equality.** The clearest remaining cross-cutting *content* gap (scenarios 3, 7, 8), independent of
+  the joint arc above. `identity` in the narrow "compare two values" sense looks buildable independent of Phase
+  D; full reference/definite-description resolution is still blocked on the surge detector.
+- **Give `COMMAND` real semantics** (`closed_class_inventory.md` §9) — small, concrete, quick: tests the
+  `ask = command(report(P))` reduction hypothesis rather than leaving it argued-but-unverified.
+- Closing out `past`/`evidential`/`mirative`'s open-hypothesis status (needs a competing form each before
+  `slots()` can say anything); building the real nested-`Claim` structure to test the induction against running
+  code rather than only against `smt_sieve.py`'s abstract model.
 
 ---
 
