@@ -29,7 +29,7 @@ big thread (SUPPOSE's discharge) was deliberately shelved along the way for lack
 | `closed_class_inventory.md` | the soundness-side check — every form's live-measured status, from `sieve.py` |
 | `agentic_scenario_catalog.md` | the completeness-side check — ten real scenarios, what each needs, coverage verdicts |
 | `composition_grammar.md` | the `BareClaim \| RelationalClaim` grammar sketch, the detachment fix's design, the nesting induction. ⚠ its `Conjunction`/`Disjunction`/`Negation`-as-siblings shape is superseded, update pending |
-| `computation_units.md` | the `Trigger`-fan-in correction: and/or live at the antecedent position feeding one shared `then`, never as free-standing claims with independent consequents; the one discharge point; worked example |
+| `computation_units.md` | the `Trigger`-fan-in correction: and/or live at the antecedent position feeding one shared `then`, never as free-standing claims with independent consequents; the one discharge point; worked example; §5's `define`+`Identify` progressive-substitution experiment, tested against the real engine |
 | `glossary.md` | plain-language definitions of every term actually agreed on this session — check before reusing jargon |
 | `units/smt_sieve.py` | the runnable Z3 proofs (base case, inductive step) |
 | `units/forms.py`, `units/sieve.py` | where the detachment fix actually landed in code |

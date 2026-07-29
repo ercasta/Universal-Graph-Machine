@@ -121,7 +121,37 @@ what configuration it's in; it only ever sees its gates.
 
 ---
 
-## 5. Open
+## 5. `define` + `Identify`: progressive substitution, tested against the real engine
+
+A different question than nesting: can the *engine itself* — not a new closed-class form — be used to
+progressively substitute open-class content, the way solving a small system of equations does? `Identify`
+(`engine.py`, one of the five effect types) already merges two nodes into one; a rule of the shape "if X is
+defined this way, identify X with what it resolves to" needs nothing new to try this.
+
+**Built and run** (`substitution_experiment.py`, against `units/engine.py` directly, not a mock):
+`customer_discount → holiday_rate → standard_rate → ten_percent (value=0.10)`, one rule
+(`Merge("x","y")` on a `defined_as` pattern), tested three ways.
+
+| test | result |
+|---|---|
+| chain built dependency-order, reverse, and shuffled | **all three converge to `value == 0.1`, in one revive** — confluent for this case, measured not assumed |
+| circular definition (`a defined_as b`, `b defined_as a`) | merges cleanly, no surge — the termination machinery handles the degenerate case for free |
+| a second rule consuming the resolved value | **failed at first** — not a soundness problem, the tunnel (§5's `model.md` invariant 3: a unit sees only its gates) applying exactly as documented. `Identify` merging two nodes doesn't make the merged facts ambiently visible to every other rule; the consuming rule has to be wired to **both** the substitution rule's output **and** the original axiom carrying the base fact. Once wired to both, it fired correctly |
+
+**What this means:** the core idea works, cheaply, with nothing new built — `Identify` already is the
+substitution primitive. The real cost isn't soundness, it's wiring effort: a deep or wide equation system needs
+every consuming rule deliberately wired to every fact it depends on. That cost is exactly what §7's System 1
+(associative retrieval, design not code) exists to absorb — the tunnel is a System 2 property; System 1 is
+what's supposed to notice a chain is relevant and propose the wiring, rather than requiring it hand-authored.
+
+**Scope note, not tested here:** pure substitution (`Identify`) stops short of actual computation — solving
+"2x + 3 = 7" needs an arithmetic step that isn't identification at all. That's exactly the delegated-tool-call
+shape already found for aggregation: the engine drives *which* substitutions apply and *when*, a tool does the
+arithmetic, the result merges back in the same way.
+
+---
+
+## 6. Open
 
 - `composition_grammar.md` still states the old `Conjunction`/`Disjunction`/`Negation`-as-siblings shape and
   needs updating to the `Trigger`-fan-in shape above.
