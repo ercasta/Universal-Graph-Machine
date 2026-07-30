@@ -259,6 +259,28 @@ ordinary act of attention (§7); and picking *which* prior turn is a second, dif
 score over a small turn-root index, topic-driven rather than recency-driven. Full writeup:
 `model.md` §7's new subsection, "Multi-turn context needs no new kind."
 
+**The metaprocedure model, stated precisely, then corrected — same day (2026-07-30).** Sharpening the
+outer-loop metaprocedure question first produced a draft claiming `run_bank`'s Python-orchestrated propose/
+evaluate/apply (`reactive.fire`, this session's generalized `resolve_crossings`) was one level short of the
+real target — implying the orchestration logic itself should become graph-resident rule-data. **That was an
+over-correction, caught the same day:** the engine/firmware/ISA is legitimately a fixed, Python-implemented
+virtual machine, not something a KB author changes; only the CONTENT it manipulates needs to be graph-resident
+— including, confirmed concretely, rules themselves. `ugm/learner.py`'s `COOCCURRENCE` rule is an ORDINARY
+rule, run through the ORDINARY `run_bank`, whose RHS writes the exact flat rule-representation
+(`rl_lhs`/`rl_head`/`k_subj`/`k_pred`/`k_obj`) `define_surface.py`'s `define schema` also targets — one
+general, already-working, engine-wide mechanism for "a rule is graph-resident data," not schema-specific and
+not the one-shot compile the first draft called it. Reading `ugm/`'s existing procedure/dispatch machinery
+directly also found the goal-driven/materialized/central-dispatch shape mostly already built and mature:
+`corpus/procedure.cnl` + `procedure_surface.py` author a procedure as declared facts, `dispatch.py` is
+already the ONE content-blind central call-servicer, `mode_calls.py` invokes CHECK/CHOOSE/SUPPOSE the
+identical way, and `planning_execution.cnl`'s DISCREPANCY/RANK/REPLAN rules already handle failure as data.
+**One precise, load-bearing gap survives the correction:** the line minting a real-world `act` call off
+`<exec> ready ?o` carries no guard at all — nothing stops a standing prohibition from being silently
+bypassed by an in-flight procedure. Resolved, not left open: the central dispatcher should consult a
+graph-resident veto marker, matching every other VM-consults-data precedent in the doc — not a local NAC
+that every future call-emitting rule would need to remember independently. Full writeup and a proposed
+first probe: `metaprocedure_model.md`.
+
 **Genuinely open, not yet resolved, and worth naming so it doesn't get silently dropped:**
 
 - **The arbitration convention** (§3/§4) — detecting a middle-tier conflict is built; deciding it ("norm A

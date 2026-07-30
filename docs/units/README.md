@@ -26,6 +26,7 @@ interpretive judgement is a rule inside the loop.
 |---|---|
 | **`arc_recap.md`** | the whole arc, narrated — where this came from and where it's going, including the 2026-07-30 foundation decision. Read this **first** if you're picking this up cold |
 | **`attic/handoff_ugm_reversion_evaluation.md`** | RESOLVED — the audit and reasoning behind the foundation decision above. Read if you need the "why," not just the "what" |
+| **`metaprocedure_model.md`** | the computation model's goal-driven/metaprocedure/central-gate shape, precisely mapped onto `ugm/`'s existing mechanisms (`dispatch.py`, `mode_calls.py`, `corpus/procedure.cnl`, `reactive.py`, `machine.py`'s `ControlMachine`) — with the one concrete, unclosed gap named. Read after the foundation decision, before picking up outer-loop-metaprocedure work |
 | **`STATUS.md`** | what is being worked on right now, and what to pick up next, in more granular detail than the recap's own §5 |
 | **`model.md`** | the computation model — the single design document |
 | **`glossary.md`** | plain-language definitions of terms actually agreed on. Check before reusing jargon |

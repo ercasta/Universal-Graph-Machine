@@ -230,11 +230,29 @@ blind driver with an outer-loop metaprocedure** (the "a rule writes a rule" mech
    existing changed behavior. `tests/test_scope_crossing.py` now 14 tests, all green; no new regressions.
    **What's still open:** this is the FORWARD-crossing half of the metaprocedure only. The demand/backward
    half is `ugm/suppose.py` itself (already adequate, per the finding above — no rule-instancing needed,
-   and it already supports `focus_scope` too). Not yet done: a single entry point that dispatches to
-   whichever half a given rule/region needs — `resolve_crossings` and `suppose()` are still two functions a
-   caller must pick between, not one metaprocedure.
+   and it already supports `focus_scope` too). **Superseded by a bigger finding, same day:** `resolve_
+   crossings` and `suppose()` don't need forcing into one function — they're two of at least THREE
+   independent working instances of the same propose->evaluate->apply shape (the third: CHECK/CHOOSE/
+   SUPPOSE dispatch via `ugm/mode_calls.py` + `dispatch.py`). See item 4a below — `metaprocedure_model.md`
+   names the real question precisely instead: is a shared central point worth building, or are three
+   siblings that happen to share a shape not automatically one mechanism?
 4. Decide whether `units/`'s `revision-01` argument ("circuits stand, no retraction needed") transfers to
    this metaprocedure-on-`ugm` model, or whether `ugm/retraction.py`/`reconsider.py` are still needed there.
+4a. **NEW 2026-07-30 — the metaprocedure model, written up and then corrected the same day:
+   `metaprocedure_model.md`.** First draft treated "Python orchestrates propose/evaluate/apply" (`reactive.
+   fire`, `resolve_crossings`, CHECK/CHOOSE/SUPPOSE dispatch) as one level short of the target, implying the
+   orchestration itself should become graph-resident rule-data. **Corrected:** that's one indirection too
+   many — the engine/firmware/ISA is correctly a fixed, Python-implemented VM, not something a KB author
+   changes; only the CONTENT it manipulates must be graph-resident. Confirmed concretely: `ugm/learner.py`'s
+   `COOCCURRENCE` rule is an ORDINARY rule, run through the ORDINARY `run_bank`, whose RHS writes the same
+   flat rule-representation (`rl_lhs`/`rl_head`/`k_subj`/`k_pred`/`k_obj`) `define_surface.py`'s `define
+   schema` targets — a general, already-working, engine-wide "rules are graph-resident data" mechanism, not
+   schema-specific and not one-shot. `ugm/cnl/authoring.py`'s `expand_rules` is the one fixed compiler that
+   lifts it into an executable `Rule`. This resolved §4's fork too: the central-dispatcher-veto placement is
+   now the confirmed answer (matches every other VM-consults-graph-resident-data precedent in the doc), not
+   an open question. **Next: build the proposed probe** (`metaprocedure_model.md` §5) — a toy two-step
+   procedure, a standing prohibition asserted mid-run, checking that `dispatch.py`'s central servicer
+   actually halts the next step once taught to consult it.
 5. ~~Triage `ugm/`'s 79 pre-existing test failures~~ **DONE 2026-07-30.** Also resolved: which branch to
    start from. `ugm`'s `main` is 706/706 green but PREDATES `scope_tree.py`/`scope_kinds.py`/
    `scope_crossing.py`/`reactive.py`/`flare.py` and the expanded CNL grammar entirely (they don't exist on
