@@ -126,8 +126,13 @@ following instructions and for figuring things out.
 
 ## What a hypothesis is
 
-A hypothesis is a region of the graph in which things can be held true provisionally, without those things
-being true anywhere else.
+A hypothesis is an ordinary node, with ordinary subgraphs hanging off it.
+
+**⚠ Corrected 2026-07-30, later the same day.** This section originally described a hypothesis as *a region
+of the graph in which things can be held true provisionally* — a scope, with conclusions marked as
+belonging to it and discarding done by dropping the region. That mechanism was subsequently rejected in
+favour of no mechanism at all. What follows is the corrected account; `docs/microfunctions/README.md`
+records why, and `microfunctions/hypothesis.py` is the implementation.
 
 The system needs this constantly. Before committing to a plan, it should be able to ask what would happen
 if the plan ran. Before acting, it should be able to ask what would follow if some uncertain thing turned
@@ -135,12 +140,27 @@ out to be the case. Doing this by making the assumption real, drawing conclusion
 everything afterwards is the obvious approach and a bad one, because working out exactly what to undo is
 the hard part and getting it slightly wrong corrupts everything downstream.
 
-Instead, the assumption is placed inside a marked region, and everything concluded from it is marked as
-belonging to that region too. Conclusions inside the region can be inspected freely, and they do not leak,
-because anything looking at the system's actual beliefs simply does not look inside the region. Discarding
-the hypothesis is then not an undo operation at all — it is dropping the region, and everything that only
-ever existed inside it goes with it. Confirming a hypothesis is the reverse: the assumption is promoted out
-of the region into the system's real beliefs.
+Instead, a hypothesis is a node. Its assumptions hang off it as ordinary edges. If entertaining it needs a
+different version of something, it *builds* that version as an ordinary subgraph — a real node, sharing
+whatever it does not override — and hangs that off the hypothesis too. If it needs to remember what a value
+used to be, it writes an explicit backup node. Discarding it is ordinary deletion. Confirming it is setting
+an attribute.
+
+Isolation falls out of addressing rather than being a mechanism: a hypothesis's subgraph is reachable only
+by navigating into it, so a hypothetical conclusion could only "leak" if something deliberately walked
+there and copied it out. Nothing needs to police the boundary because there is no boundary to police —
+there is only what a given focus head happens to point at.
+
+Two things this buys that the region version could not. **Rival hypotheses coexist**: two candidate plans
+are two nodes, both live, both readable, and choosing between them is an ordinary comparison — where a
+scope-based mechanism entertained one assumption at a time and had to re-run to compare. And **the verdict
+is a fact**: a hypothesis's status is an attribute on a node that persists after the question is settled,
+so anything can react to "that one was refuted." The scope version returned its verdict to the calling
+program and then retired the scope, which meant no rule could ever see it — a gap this document's companion
+recorded as real and open, and which this design closes by never introducing it.
+
+The honest cost is that nothing is shared implicitly. A hypothesis that perturbs a large structure has to
+build what differs; there is no free relativized view. Build only the delta and point at the rest.
 
 There is one deliberate protection here that is easy to underrate. A rule that *acts on the world* — calls
 a tool, sends something, changes something outside the system — cannot do so from inside a hypothesis. This
@@ -148,12 +168,17 @@ is enforced by the machinery rather than by rule authors remembering to check, w
 it, because a rule author who forgets would otherwise cause a real action to happen as a side effect of the
 system merely wondering about something. This is checked by a test that exists specifically to guard it.
 
-The gap here, and it is a real one, is that **a hypothesis's verdict is not currently something a rule can
-see.** The system can entertain an assumption, reason inside it, and reach a conclusion about whether the
-prediction held — but that conclusion comes back to the surrounding program rather than being recorded on
-the hypothesis itself. So no rule can react to "that hypothesis was refuted." This is exactly the asymmetry
-that goals do not have, since a goal's outcome is a mark on the goal that anything can read, and the fix is
-almost certainly to do the same thing here.
+**✅ The gap this section used to record is closed.** It read: *a hypothesis's verdict is not something a
+rule can see* — the verdict came back to the calling program while the scope was retired, so nothing could
+react to "that hypothesis was refuted," an asymmetry goals did not have. Making a hypothesis a node removed
+the asymmetry rather than patching it: its status is a mark on a node, exactly as a goal's outcome is.
+
+One protection worth keeping from the old design, since it was never about scopes: **a rule that acts on
+the world should not be able to do so merely because the system is wondering about something.** Under the
+old mechanism this was enforced by the scope machinery. Under this one it follows from pointing — an action
+is dispatched at one checkpoint, on a head something deliberately handed it — but it is now a discipline
+at the dispatcher rather than a property of the representation, and that is worth stating plainly rather
+than assuming it carried over.
 
 ---
 

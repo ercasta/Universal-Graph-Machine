@@ -87,15 +87,26 @@ can reason **through** declared structure but never through an opaque function c
 Python and you lose the ability to ask "would this step become ready if the door were locked."
 
 This is wrong, and the error is a hidden assumption: that answering a hypothetical requires walking the
-derivation *symbolically*. It does not. Pen the assumption into a scratch graph and **run the
-mini-algorithm against it**. The answer comes out the same way, and this is exactly the shape
-`suppose(commit=False)` already has — entertain, derive, read off, discard. Checked directly: a
-counterfactual ("what if this goal had *not* been achieved") produced the correct different answer, with
-the real graph unchanged.
+derivation *symbolically*. It does not. **Run the mini-algorithm on hypothetical data and read the answer
+off.** Checked directly at the time: a counterfactual ("what if this goal had *not* been achieved")
+produced the correct different answer, with real belief unchanged.
 
 Executing on hypothetical data is strictly cheaper than reasoning symbolically about execution, and it is
 also more honest, since it answers with what the code would actually do rather than with what a declared
 approximation of the code says it would do. §1b defended a real capability by the wrong means.
+
+**⚠ Corrected later the same day — the argument stands, the mechanism it proposed does not.** This section
+originally concluded "pen the assumption into a *scratch graph*," which belonged to the copy-on-write
+substrate that no longer exists. What replaced it is smaller: **a hypothesis is an ordinary node**, and the
+"hypothetical data" a mini-algorithm runs against is an ordinary subgraph hanging off it (§5c's variants,
+plus explicit backup nodes where a prior value must be recoverable). No scratch graph, no scope, no
+copying the world to ask a question.
+
+The undo journal in `microfunctions/graph.py` is **not** this mechanism and must not be mistaken for it.
+Its only job is transactional — a program that raises halfway leaves no half-written graph — its unit is a
+single failed run, and **a rollback boundary must never span a dispatch**, because a tool call has already
+escaped and no journal reaches it. Hypotheses outlive calls, must be comparable side by side, and must
+reach verdicts rules can read; rollback can do none of that, and two nodes can do all of it.
 
 ---
 
