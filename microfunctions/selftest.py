@@ -1001,5 +1001,236 @@ def check_discarding_scraps_everything_and_belief_survives():
             "belief_intact": is_a(g, car, "car") and g.attr(car, "serviced") is None}
 
 
+# --- mocks, assumptions, and the refusal ------------------------------------------------------------
+def _filesystem():
+    """A dispatching function with three declared outcomes. Each mock is an ORDINARY microfunction whose
+    return type IS the outcome it assumes, so the existing type-chaining planner handles each case."""
+    from . import asm, dispatch as D
+    g = new_graph()
+    declare_type(g, "dir", attrs={"kind_of": "dir"})
+    declare_type(g, "listing", base="dir", attrs={"listed": True})
+    declare_type(g, "empty_listing", base="listing", attrs={"count": 0})
+    declare_type(g, "full_listing", base="listing", attrs={"many": True})
+    asm.load_text(g, "\n".join([
+        "# Really list a directory. Reaches the world.",
+        "fn list_dir(d: dir) -> listing:",
+        '    DISPATCH R(out) "ls" F(d)',
+        '    SET F(d) "listed" true',
+        "",
+        "# Assume the directory turns out empty.",
+        "fn list_empty(d: dir) -> empty_listing mocks list_dir:",
+        '    SET F(d) "listed" true',
+        '    SET F(d) "count" 0',
+        "",
+        "# Assume it turns out to have plenty in it.",
+        "fn list_full(d: dir) -> full_listing mocks list_dir:",
+        '    SET F(d) "listed" true',
+        '    SET F(d) "many" true',
+    ]))
+    d = g.mint("dir", kind_of="dir")
+    g.link("root", "has", d)
+    D.register("ls", lambda gr, target: ["a.txt"])
+    return g, d
+
+
+def check_a_function_has_many_mocks_in_preference_order():
+    """Declaration order IS preference order, free, because `mock` is an ordered edge. Deliberately the
+    weakest thing that works — the cut band layer is not coming back for this."""
+    from . import function as fn
+    g, d = _filesystem()
+    return {"outcomes": fn.mocks_of(g, "list_dir"),
+            "order_is_declaration_order": fn.mocks_of(g, "list_dir") == ("list_empty", "list_full"),
+            "each_declares_its_own_outcome_type":
+                (fn.returns_of(g, "list_empty"), fn.returns_of(g, "list_full"))
+                == ("empty_listing", "full_listing"),
+            "a_mock_knows_what_it_mocks": fn.mocks_target(g, "list_empty") == "list_dir"}
+
+
+def check_dispatch_refuses_an_imagined_target():
+    """⭐ THE SAFETY PROPERTY. Vacuity guard: the SAME call on the SAME real node must succeed, so we know
+    the refusal is about being imagined and not about anything else."""
+    from . import dispatch as D, workbench as W
+    g, d = _filesystem()
+    real_ok = D.service(g, "ls", d)
+    wb = W.open_workbench(g, d)
+    copy = W.image_of(g, W.mapping_for(g, W.root_frame(g, wb), d))
+    try:
+        D.service(g, "ls", copy)
+        refused = False
+    except D.Imagined:
+        refused = True
+    return {"real_target_dispatches": real_ok == ["a.txt"],
+            "imagined_target_refused": refused}
+
+
+def check_stepping_substitutes_a_mock_and_never_dispatches():
+    """On a workbench, a function with declared outcomes is replaced by one — always, not by convention.
+    Vacuity guard: `list_dir` contains a DISPATCH, so if substitution failed the step would either reach
+    the world or raise `Imagined`; neither happens."""
+    from . import dispatch as D, workbench as W
+    g, d = _filesystem()
+    calls = []
+    D.register("ls", lambda gr, target: calls.append(target) or ["a.txt"])
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    f1, tr = W.step(g, wb, f0, "list_dir", {"d": W.mapping_for(g, f0, d)})
+    img = W.image_of(g, g.target(W.mapping_for(g, f0, d), "next"))
+    return {"recorded_the_real_function": g.attr(tr, "function") == "list_dir",
+            "but_executed_the_preferred_mock": g.attr(tr, "executed") == "list_empty",
+            "expectation_is_the_assumed_outcome": g.attr(tr, "expects") == "empty_listing",
+            "no_tool_was_called": calls == [],
+            "effect_is_the_mocks": (g.attr(img, "listed"), g.attr(img, "count")) == (True, 0)}
+
+
+def check_choosing_an_outcome_records_a_hypothesis():
+    """A plan carries its own dependence on guesses — 'which parts are fragile' becomes a lookup."""
+    from . import workbench as W
+    g, d = _filesystem()
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    _f1, tr = W.step(g, wb, f0, "list_dir", {"d": W.mapping_for(g, f0, d)})
+    h = W.assumption_of(g, tr)
+    return {"assumption_recorded": h is not None and g.kind(h) == "hypothesis",
+            "and_says_what_it_assumed": "empty_listing" in (g.attr(h, "label") or ""),
+            "listed_as_fragile": W.fragile_steps(g, wb) == (tr,)}
+
+
+def check_forking_on_a_different_outcome_gives_a_different_world():
+    """⭐ Two assumptions, two branches, side by side — and contingency plans come free from having
+    explored both. Vacuity guard: the two frames must genuinely disagree about the world."""
+    from . import workbench as W
+    g, d = _filesystem()
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    m0 = W.mapping_for(g, f0, d)
+    _a, tra = W.step(g, wb, f0, "list_dir", {"d": m0}, assume="list_empty")
+    _b, trb = W.fork(g, wb, f0, "list_dir", {"d": m0}, assume="list_full")
+    ia, ib = [W.image_of(g, m) for m in g.targets(m0, "next")]
+    return {"two_outcomes": (g.attr(tra, "expects"), g.attr(trb, "expects"))
+                            == ("empty_listing", "full_listing"),
+            "worlds_disagree": (g.attr(ia, "count"), g.attr(ib, "many")) == (0, True),
+            "and_each_is_a_distinct_hypothesis":
+                W.assumption_of(g, tra) != W.assumption_of(g, trb),
+            "an_unknown_outcome_is_refused":
+                _raises(lambda: W.step(g, wb, f0, "list_dir", {"d": m0}, assume="nope"), KeyError)}
+
+
+def check_deviation_is_a_failed_cast():
+    """Reality is compared against the promise the function made, not against a whole-subgraph diff."""
+    from . import workbench as W
+    g, d = _filesystem()
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    _f1, tr = W.step(g, wb, f0, "list_dir", {"d": W.mapping_for(g, f0, d)})   # assumed EMPTY
+
+    matching = g.mint("dir", kind_of="dir", listed=True, count=0)
+    diverging = g.mint("dir", kind_of="dir", listed=True, many=True)
+    return {"expected": g.attr(tr, "expects"),
+            "reality_matching_the_assumption_is_no_deviation": W.deviates(g, tr, matching) == {},
+            "reality_contradicting_it_deviates": bool(W.deviates(g, tr, diverging)),
+            "and_says_how": "@count" in W.deviates(g, tr, diverging)}
+
+
+# --- following a plan for real ----------------------------------------------------------------------
+def check_a_plan_replays_against_the_real_graph():
+    """⭐ Everything needed was recorded: the REAL function (not the mock), the MAPPINGS (which resolve to
+    real nodes), and the expected type. Vacuity guard: the real world must be untouched before execution
+    and changed after."""
+    from . import execution as X, workbench as W
+    g, car = _garage()
+    wb = W.open_workbench(g, car)
+    f0 = W.root_frame(g, wb)
+    f1, _ = W.step(g, wb, f0, "service", {"c": W.mapping_for(g, f0, car)})
+    f2, _ = W.step(g, wb, f1, "wash", {"c": W.mapping_for(g, f1, car)})
+    untouched = g.attr(car, "serviced") is None
+    result = X.execute(g, wb, f2)
+    return {"world_untouched_before": untouched,
+            "ran_in_order": result["ran"] == ("service", "wash"),
+            "completed": result["completed"],
+            "real_car_actually_changed": is_a(g, car, "washed_car")}
+
+
+def check_execution_follows_one_path_through_a_forked_tree():
+    """A plan is a PATH, not the whole tree. Committing to a branch is exactly the choice forks kept open."""
+    from . import execution as X, workbench as W
+    g, d = _filesystem()
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    m0 = W.mapping_for(g, f0, d)
+    a, _ = W.step(g, wb, f0, "list_dir", {"d": m0}, assume="list_empty")
+    b, _ = W.fork(g, wb, f0, "list_dir", {"d": m0}, assume="list_full")
+    return {"three_frames": len(W.frames(g, wb)) == 3,
+            "path_to_a_is_two_long": len(X.path_to(g, wb, a)) == 2,
+            "and_excludes_the_sibling": b not in X.path_to(g, wb, a)}
+
+
+def check_reality_disagreeing_with_the_assumption_is_caught():
+    """⭐ THE POINT of mocks + deviation. The plan assumed the directory would be EMPTY; the real tool says
+    otherwise, so the step diverges and execution stops rather than acting on a world that no longer
+    matches. Vacuity guard: the same plan against a reality that MATCHES must complete."""
+    from . import dispatch as D, execution as X, workbench as W
+
+    def plan_assuming_empty(g, d):
+        wb = W.open_workbench(g, d)
+        f0 = W.root_frame(g, wb)
+        f1, tr = W.step(g, wb, f0, "list_dir", {"d": W.mapping_for(g, f0, d)}, assume="list_empty")
+        return wb, f1, tr
+
+    g, d = _filesystem()
+    D.register("ls", lambda gr, target: gr.put(target, many=True))     # reality: plenty of files
+    wb, f1, _tr = plan_assuming_empty(g, d)
+    diverged = X.execute(g, wb, f1)
+
+    g2, d2 = _filesystem()
+    D.register("ls", lambda gr, target: gr.put(target, count=0))       # reality: empty, as assumed
+    wb2, f1b, _ = plan_assuming_empty(g2, d2)
+    matched = X.execute(g2, wb2, f1b)
+
+    return {"diverged": not diverged["completed"],
+            "names_the_step": diverged["deviation"]["step"] == "list_dir",
+            "says_what_it_assumed": "empty_listing" in (diverged["deviation"]["assumed"] or ""),
+            "says_how_it_differed": "@count" in diverged["deviation"]["violations"],
+            "matching_reality_completes": matched["completed"]}
+
+
+def check_the_explored_alternative_is_available_as_a_contingency():
+    """Contingency plans come free from having branched — which is why an abandoned fork is kept as data."""
+    from . import execution as X, workbench as W
+    g, d = _filesystem()
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    m0 = W.mapping_for(g, f0, d)
+    a, tra = W.step(g, wb, f0, "list_dir", {"d": m0}, assume="list_empty")
+    b, _trb = W.fork(g, wb, f0, "list_dir", {"d": m0}, assume="list_full")
+    alts = X.alternatives(g, wb, tra)
+    return {"the_other_branch_is_offered": alts == (b,),
+            "and_it_assumed_something_else":
+                g.attr(g.target(b, "via"), "expects") == "full_listing"}
+
+
+def check_a_node_imagined_during_planning_is_bound_by_provenance():
+    """A step may mint something that did not exist at planning time — its mapping has NO `original`, and
+    what ties it to reality is the transformation that produced it."""
+    from . import asm, execution as X, function as fnm, workbench as W
+    g, car = _garage()
+    asm.load_text(g, "\n".join([
+        "# Attach a fresh service record to the car.",
+        "fn record(c: car) -> car:",
+        '    NEW R(r) "record"',
+        '    LINK F(c) "record" R(r)',
+    ]))
+    wb = W.open_workbench(g, car)
+    f0 = W.root_frame(g, wb)
+    f1, _ = W.step(g, wb, f0, "record", {"c": W.mapping_for(g, f0, car)})
+    imagined = [m for m in W.mappings(g, f1) if W.is_imagined(g, m)]
+    result = X.execute(g, wb, f1)
+    real_records = g.targets(car, "record")
+    return {"planning_minted_something": len(imagined) == 1,
+            "it_has_no_original": W.resolve(g, imagined[0]) is None,
+            "execution_created_the_real_one": len(real_records) == 1,
+            "and_bound_it_to_its_twin": result["bindings"].get(imagined[0]) == real_records[0],
+            "no_ambiguity_notes": result["notes"] == ()}
+
+
 if __name__ == "__main__":
     print(report())

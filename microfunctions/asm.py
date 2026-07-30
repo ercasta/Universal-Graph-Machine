@@ -47,7 +47,7 @@ _OPCODES = {name for name in isa.__all__
             if name.isupper() and name not in {"R", "F", "I"}}
 
 _TOKEN = re.compile(r'"[^"]*"|[^\s]+')
-_HEADER = re.compile(r"^fn\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:->\s*(\w+)\s*)?:\s*$")
+_HEADER = re.compile(r"^fn\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:->\s*(\w+)\s*)?(?:mocks\s+(\w+)\s*)?:\s*$")
 # `x` or `x: car` — an optional TYPE annotation, which is what makes candidate generation possible:
 # without it nothing can ask "which functions could apply to this node?"
 _PARAM = re.compile(r"^(\w+)\s*(?::\s*(\w+))?$")
@@ -91,6 +91,7 @@ class Parsed:
     notes: dict = field(default_factory=dict)
     ptypes: dict = field(default_factory=dict)     # param name -> declared type name
     returns: str | None = None                     # declared result type — what a planner chains on
+    mocks: str | None = None                       # this function is one possible OUTCOME of that one
 
     def __iter__(self):
         """Unpacks as `(name, params, program)`, so callers that predate `doc`/`notes` still work."""
@@ -104,11 +105,11 @@ def parse(text: str) -> list:
     above `fn` documents the function; one sitting immediately above an instruction annotates it. A
     comment on the same line as an instruction is a trailing note for that instruction."""
     out, name, params, program = [], None, (), []
-    doc, notes, pending, ptypes, returns = None, {}, [], {}, None
+    doc, notes, pending, ptypes, returns, mocks = None, {}, [], {}, None, None
 
     def flush():
         if name is not None:
-            out.append(Parsed(name, params, tuple(program), doc, dict(notes), dict(ptypes), returns))
+            out.append(Parsed(name, params, tuple(program), doc, dict(notes), dict(ptypes), returns, mocks))
 
     for lineno, raw in enumerate(text.splitlines(), 1):
         stripped = raw.strip()
@@ -126,7 +127,7 @@ def parse(text: str) -> list:
         if header:
             flush()
             name = header.group(1)
-            params, ptypes, returns = [], {}, header.group(3)
+            params, ptypes, returns, mocks = [], {}, header.group(3), header.group(4)
             for raw_p in (x.strip() for x in header.group(2).split(",") if x.strip()):
                 m = _PARAM.match(raw_p)
                 if not m:
@@ -186,7 +187,7 @@ def _fmt(operand) -> str:
 
 def unparse(name: str, params: tuple, program: tuple,
             doc: str | None = None, notes: dict | None = None, ptypes: dict | None = None,
-            returns: str | None = None) -> str:
+            returns: str | None = None, mocks: str | None = None) -> str:
     """Render back to text, natural-language comments included — for inspection, for round-trip checking,
     and for showing a model what it actually wrote after the graph stored it."""
     notes, ptypes = notes or {}, ptypes or {}
@@ -195,7 +196,8 @@ def unparse(name: str, params: tuple, program: tuple,
         lines.append(f"# {doc}")
     sig = ", ".join(f"{p}: {ptypes[p]}" if p in ptypes else p for p in params)
     arrow = f" -> {returns}" if returns else ""
-    lines.append(f"fn {name}({sig}){arrow}:")
+    mk = f" mocks {mocks}" if mocks else ""
+    lines.append(f"fn {name}({sig}){arrow}{mk}:")
     for pos, step in enumerate(program):
         if notes.get(pos):
             lines.append(f"    # {notes[pos]}")
@@ -214,7 +216,7 @@ def load_text(g: Graph, text: str) -> tuple:
     from .function import define
     defined = []
     for p in parse(text):
-        define(g, p.name, p.params, p.program, p.doc, p.notes, p.ptypes, p.returns)
+        define(g, p.name, p.params, p.program, p.doc, p.notes, p.ptypes, p.returns, p.mocks)
         defined.append(p.name)
     return tuple(defined)
 
@@ -238,10 +240,10 @@ def load_dir(g: Graph, path, pattern: str = "*.mf") -> tuple:
 
 
 def dump(g: Graph, name: str) -> str:
-    from .function import load, doc_of, notes_of, param_types, returns_of
+    from .function import load, doc_of, notes_of, param_types, returns_of, mocks_target
     params, program = load(g, name)
     return unparse(name, params, program, doc_of(g, name), notes_of(g, name),
-                   param_types(g, name), returns_of(g, name))
+                   param_types(g, name), returns_of(g, name), mocks_target(g, name))
 
 
 __all__ = ["AsmError", "Parsed", "parse", "unparse", "load_text", "load_file", "load_dir", "dump"]

@@ -47,7 +47,7 @@ def _store_operand(g: Graph, instr: str, operand) -> None:
 
 def define(g: Graph, name: str, params: tuple, program: tuple,
            doc: str | None = None, notes: dict | None = None, ptypes: dict | None = None,
-           returns: str | None = None) -> str:
+           returns: str | None = None, mocks: str | None = None) -> str:
     """Store a function as graph data. Returns the function node.
 
     A label (a bare string in `program`) is stored as an instruction whose op is `LABEL`, so the stored
@@ -63,6 +63,13 @@ def define(g: Graph, name: str, params: tuple, program: tuple,
         g.put(fn, doc=doc)
     if returns:
         g.put(fn, returns=returns)
+    if mocks:
+        target = find(g, mocks)
+        if target is None:                       # loud, per the standing discipline for a bad fragment
+            raise KeyError(f"{name!r} declares `mocks {mocks}` but no such function is defined "
+                           f"(define the real one first)")
+        g.put(fn, mocks=mocks)
+        g.link(target, "mock", fn)               # ORDERED — declaration order IS preference order
     ptypes = ptypes or {}
     for p in params:
         node = g.mint("param", name=p)
@@ -82,6 +89,30 @@ def define(g: Graph, name: str, params: tuple, program: tuple,
             for operand in step.args:
                 _store_operand(g, i, operand)
     return fn
+
+
+def mocks_target(g: Graph, name: str) -> str | None:
+    """If this function is a mock, the function it is an outcome of."""
+    f = find(g, name)
+    return g.attr(f, "mocks") if f is not None else None
+
+
+def mocks_of(g: Graph, name: str) -> tuple:
+    """The possible outcomes of calling `name`, **most preferred first**.
+
+    A call can turn out several ways — `file_list` may find nothing, one thing, or many — and those are not
+    variations in degree, they lead to different plans. So a function has MANY mocks, each an ordinary
+    microfunction whose **return type is the outcome it assumes**, which means the existing type-chaining
+    planner plans each case differently with nothing added.
+
+    Preference is **declaration order**, and it costs nothing because `mock` is an ordered edge like every
+    other 1:N relation here. That is deliberately the weakest thing that could work: the old engine's
+    possibilistic band layer existed to rank uncertain outcomes and was cut as machinery solving a problem
+    a language model already solves. An ordered list is the residue actually needed — something has to
+    decide the default assumption, or it is whichever mock happened to be declared first *by accident*
+    rather than *by intent*."""
+    f = find(g, name)
+    return () if f is None else tuple(g.attr(m, "name") for m in g.targets(f, "mock"))
 
 
 def returns_of(g: Graph, name: str) -> str | None:
@@ -194,4 +225,4 @@ def invoke(g: Graph, name: str, args: dict | None = None, **regs):
     return focus, out
 
 
-__all__ = ["define", "find", "load", "names", "invoke", "doc_of", "notes_of", "catalogue", "param_types", "returns_of", "producers"]
+__all__ = ["define", "find", "load", "names", "invoke", "doc_of", "notes_of", "catalogue", "param_types", "returns_of", "producers", "mocks_of", "mocks_target"]

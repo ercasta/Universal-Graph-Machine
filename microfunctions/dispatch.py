@@ -60,11 +60,34 @@ def veto_reason(g: Graph, target):
     return None
 
 
-def service(g: Graph, tool: str, target, *, record_on=None):
-    """THE choke point. Check, commit, then run the handler.
+class Imagined(Exception):
+    """A dispatch attempted on something that only exists inside a workbench. Planning may not act."""
 
-    Returns the handler's value. Raises `Vetoed` if a standing prohibition names the target, or `KeyError`
-    if the tool is unregistered — both before anything leaves the graph."""
+
+def _in_workbench(g: Graph, node) -> bool:
+    """Derived, not labelled: a node is a workbench copy exactly when a mapping points at it as `image`."""
+    return node is not None and any(g.kind(m) == "mapping" for m in g.sources(node, "image"))
+
+
+def service(g: Graph, tool: str, target, *, record_on=None):
+    """THE choke point. Refuse imagined targets, check the veto, commit, then run the handler.
+
+    Returns the handler's value. Raises `Imagined` if the target is inside a workbench, `Vetoed` if a
+    standing prohibition names it, or `KeyError` if the tool is unregistered — all before anything leaves
+    the graph.
+
+    **⚠ The workbench refusal is the single most important safety property in the design.** Planning runs
+    real functions on a copy, and a function that dispatches would reach the real world from inside an
+    imagination. The alternative — "remember to substitute mocks when planning" — is the same class of
+    mistake as "remember to check the prohibition in each rule", which was already shown to fail. One check
+    here makes planning *structurally incapable* of real effects rather than merely disciplined about
+    them, and it covers every tool that will ever be registered, including ones written by code that has
+    never heard of workbenches.
+
+    It is checked **before** the veto deliberately: an imagined target's prohibitions are imagined too, so
+    consulting them first would be answering with made-up evidence."""
+    if _in_workbench(g, target):
+        raise Imagined(f"refusing to dispatch {tool!r} on {target}: it exists only inside a workbench")
     blocked = veto_reason(g, target)
     if blocked is not None:
         if record_on is not None:

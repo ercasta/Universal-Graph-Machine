@@ -32,6 +32,7 @@ both frames and mappings, so a node's history branches with the frames it lives 
 from __future__ import annotations
 
 from . import function as fn
+from . import hypothesis
 from .graph import Graph
 
 
@@ -165,7 +166,7 @@ def history(g: Graph, mapping: str) -> tuple:
 
 # --- stepping ---------------------------------------------------------------------------------------
 def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
-         assumes: str | None = None):
+         assumes: str | None = None, assume: str | None = None):
     """Run `function` on a NEW frame derived from `frame`, and record the transformation.
 
     `bindings` maps parameter name to a **mapping** in `frame` — never a raw node, so the record stays
@@ -194,10 +195,43 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
         g.link(new_frame, "mapping", nm)
         carried[m] = nm
 
-    args = {p: image_of(g, carried[m]) for p, m in bindings.items()}
-    fn.invoke(g, function, args)
+    # ⭐ MOCK SUBSTITUTION. On a workbench, a function that has declared outcomes is replaced by one of
+    # them — always, not by convention. `assume` names which; the default is the most preferred, i.e. the
+    # first declared, since `mock` is an ordered edge.
+    #
+    # ⚠ This is a *convenience*, not the safety mechanism. Safety is `dispatch.service` refusing an
+    # imagined target: if this substitution were forgotten or bypassed, a dispatching function would still
+    # be unable to reach the world. Substitution makes planning *useful*; the refusal makes it *safe*, and
+    # conflating the two would put the guarantee in the wrong place.
+    outcomes = fn.mocks_of(g, function)
+    chosen = assume if assume is not None else (outcomes[0] if outcomes else None)
+    if chosen is not None and chosen not in outcomes:
+        raise KeyError(f"{chosen!r} is not a declared outcome of {function!r}; known: {outcomes}")
+    executed = chosen or function
 
-    tr = g.mint("transformation", function=function, expects=fn.returns_of(g, function))
+    args = {p: image_of(g, carried[m]) for p, m in bindings.items()}
+    before = set(g.nodes)
+    fn.invoke(g, executed, args)
+
+    # A function may MINT something while imagining. Those nodes get mappings too, with **no `original`** —
+    # which is meaningful rather than broken: it says *this does not exist yet and must be created when the
+    # plan runs for real*. What ties such a node to reality later is not a pointer but the transformation
+    # that produced it, which is recorded anyway. Without this, `is_imagined` could never fire and
+    # execution would have nothing to bind a newly minted real node to.
+    for n in sorted(set(g.nodes) - before):
+        m = g.mint("mapping")
+        g.link(m, "image", n)
+        g.link(new_frame, "mapping", m)
+
+    # Choosing an outcome IS making an assumption, so it becomes a hypothesis the transformation records.
+    # That is what lets a plan carry its own dependence on guesses: "which parts of this are fragile"
+    # becomes a lookup rather than a judgement someone has to remember to make.
+    if chosen is not None and assumes is None:
+        assumes = hypothesis.open_hypothesis(
+            g, f"{function} turns out {fn.returns_of(g, chosen) or chosen}")
+
+    tr = g.mint("transformation", function=function, executed=executed,
+                expects=fn.returns_of(g, executed))
     g.link(tr, "applies", fn.find(g, function))
     for param, m in bindings.items():
         b = g.mint("binding", param=param)
@@ -210,13 +244,14 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     return new_frame, tr
 
 
-def fork(g: Graph, wb: str, frame: str, function: str, bindings: dict, *, assumes: str | None = None):
+def fork(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
+         assumes: str | None = None, assume: str | None = None):
     """An alternative successor of the same frame — a different assumed outcome.
 
     Identical to `step`; named separately because the intent differs and the frame tree's shape is the
     thing a reader is trying to understand. An abandoned fork stays as data: a dead end that was explored
     and rejected is exactly what is worth not re-exploring."""
-    return step(g, wb, frame, function, bindings, assumes=assumes)
+    return step(g, wb, frame, function, bindings, assumes=assumes, assume=assume)
 
 
 def discard(g: Graph, wb: str) -> None:
@@ -236,5 +271,36 @@ def discard(g: Graph, wb: str) -> None:
     g.drop(wb)
 
 
-__all__ = ["reachable", "open_workbench", "root_frame", "mappings", "mapping_for",
+def deviates(g: Graph, transformation: str, real_result) -> dict:
+    """Did reality match what this transformation predicted? Empty dict means it did.
+
+    **Deviation is a failed cast**, which is why it is cheap: the transformation already records what type
+    it expected, and checking it is `types.is_a` — bounded, and already written. Comparing whole subgraphs
+    would be expensive and noisy, and irrelevant differences would swamp the real ones. The expected type
+    is the honest signal because it is exactly the promise the function made.
+
+    Returns the type violations, so a caller reporting a deviation can say *how* it deviated rather than
+    only *that* it did."""
+    from .types import violations
+    expected = g.attr(transformation, "expects")
+    return {} if expected is None else violations(g, real_result, expected)
+
+
+def assumption_of(g: Graph, transformation: str):
+    """The hypothesis this step took on faith, or `None` if it assumed nothing."""
+    return g.target(transformation, "assumes")
+
+
+def fragile_steps(g: Graph, wb: str) -> tuple:
+    """Every transformation in this workbench that rests on an assumption — the plan's own account of
+    where it is guessing. This is the payoff of recording assumptions rather than merely making them."""
+    out = []
+    for f in frames(g, wb):
+        tr = g.target(f, "via")
+        if tr is not None and assumption_of(g, tr) is not None:
+            out.append(tr)
+    return tuple(out)
+
+
+__all__ = ["deviates", "assumption_of", "fragile_steps", "reachable", "open_workbench", "root_frame", "mappings", "mapping_for",
            "image_of", "resolve", "is_imagined", "frames", "history", "step", "fork", "discard"]

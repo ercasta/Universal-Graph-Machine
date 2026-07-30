@@ -4,7 +4,7 @@
 document in code. `ugm/` and `units/` stay as the findings they are — nothing deleted, and deletion is
 earned per item by the audit in `north_star.md` §6.
 
-`python -m microfunctions.selftest` — **67 checks, 0 errored.**
+`python -m microfunctions.selftest` — **78 checks, 0 errored.**
 
 | module | what it is |
 |---|---|
@@ -19,6 +19,7 @@ earned per item by the audit in `north_star.md` §6.
 | `plan.py` | **backward chaining over return types into a LAZY chain** — plans are data, nothing runs until the action |
 | `dispatch.py` | the one place an effect leaves the graph, and the checkpoint guarding it |
 | `workbench.py` | **imagining effects on a copy** — frames, mappings, forking, backtracking |
+| `execution.py` | **following a plan for real** — replay, deviation detection, contingencies |
 | `selection.py` | candidates, ranking, applying one function at a time |
 | `rules/*.mf` | the KB on disk |
 
@@ -286,15 +287,80 @@ unfiltered scan would find the system's own imaginings and offer them as candida
 about the products of planning with no error and no symptom beyond gradually stranger plans. The test for
 this was written before the feature that causes it.
 
+## Mocks, assumptions, and deviation
+
+**A call can turn out several ways, so a function has many mocks** — each an ordinary microfunction whose
+**return type is the outcome it assumes**, so the existing type-chaining planner plans each case
+differently with nothing added:
+
+```
+fn list_dir(d: dir) -> listing:                              # reaches the world
+fn list_empty(d: dir) -> empty_listing mocks list_dir:       # assume nothing there
+fn list_full(d: dir)  -> full_listing  mocks list_dir:       # assume plenty
+```
+
+**Declaration order is preference order**, free, because `mock` is an ordered edge. That is deliberately
+the weakest thing that works: the old possibilistic band layer existed to rank uncertain outcomes and was
+cut as machinery solving a problem a language model already solves. An ordered list is the residue actually
+needed — something has to decide the default, or it is whichever mock was declared first *by accident*
+rather than *by intent*.
+
+**Choosing an outcome is making an assumption**, so the transformation records a hypothesis, and
+`fragile_steps` answers "which parts of this plan are guesses" as a lookup rather than a judgement someone
+has to remember to make. Forking on a different outcome gives two worlds side by side — and contingency
+plans come free from having explored both.
+
+**⚠ Two mechanisms, and they must not be conflated.** On a workbench a function with declared outcomes is
+*substituted* by one — that makes planning **useful**. What makes it **safe** is separate:
+`dispatch.service` **refuses an imagined target** (one a mapping points at as an `image`). If substitution
+were ever forgotten or bypassed, a dispatching function still could not reach the world. Putting the
+guarantee in the substitution would be putting it in the wrong place. The refusal is checked *before* the
+veto, since an imagined target's prohibitions are imagined too.
+
+**Deviation is a failed cast** — `types.is_a` against the type the transformation recorded. Cheap,
+meaningful, and it reports *how* it deviated, not merely that it did. Comparing whole subgraphs would let
+irrelevant differences swamp real ones; the expected type is the honest signal because it is exactly the
+promise the function made.
+
+## Following a plan for real
+
+Everything execution needs was already recorded, which is what mappings and transformations were *for*
+rather than a log: the **real** function (stored separately from the mock that was imagined), the
+**mappings** (which resolve to real nodes), and the **expected type**.
+
+```
+--- executing the branch that assumed 'empty' ---
+ran: list_dir
+DIVERGED at list_dir
+  it had assumed: list_dir turns out empty_listing
+  expected empty_listing, but: {'@count': ('0', 'None')}
+
+contingency already explored: ['full_listing']
+```
+
+**Fail fast, and do not roll back.** Execution stops at the first step whose real result fails the cast it
+promised, because everything after it was planned *on the assumption that it held*. Nothing is undone:
+real effects have already left the graph, and pretending a journal could reach them would be worse than
+not having one. The honest output is "these ran, this diverged, here is how."
+
+**Imagined nodes are bound by provenance.** A step may mint something that did not exist at planning time;
+its mapping has no `original`, and the real counterpart is matched by *which transformation produced it* —
+the only correspondence available for something that did not exist when planning started. ⚠ Matching within
+a transformation is by kind and order, so if one transformation mints two nodes of the same kind the
+pairing is a guess — and `execute` says so in its notes rather than choosing silently.
+
+**Contingencies come free.** `alternatives` returns the sibling branches explored for a step that
+diverged. That is the payoff for branching deliberately at the few points that warrant it, and the reason
+an abandoned fork is kept as data rather than erased.
+
 ## Not here yet
 
-- **Mocks as multi-valued rules** — a call can turn out several ways, so a function has *many* mocks, each
-  a real microfunction whose return type is the outcome it assumes. Choosing one is an assumption, i.e. a
-  hypothesis, recorded on the transformation. ⚠ And the substitution must be **structural**:
-  `dispatch.service` must refuse when the target is inside a workbench. ⚠⚠ Do not enumerate mocks eagerly —
-  assume the likely outcome and keep the others available *on deviation*.
-- **Deviation detection** — small: `types.is_a` against the `expects` already recorded on each
-  transformation.
+- **Replanning on divergence.** Execution reports a deviation and offers explored alternatives, but
+  nothing yet chooses one and continues, or re-proposes from the actual state.
+- **⚠ A policy against enumerating mocks eagerly.** Nothing currently stops a caller forking every outcome
+  of every uncertain call — three calls with three outcomes each is twenty-seven plans, and that is a small
+  plan. `step` assumes the preferred outcome, which is the right default, but the discipline (branch only
+  where being wrong is expensive; keep the others for *on deviation*) is not enforced anywhere.
 - **Non-greedy selection**, and learned preference over subsequences — see the warning above.
 - **Conflict detection.** ⚠ A regression, not a deferral: the old rule engine surfaced two conclusions
   disagreeing rather than letting one silently overwrite, and the composition-safety argument rested on it.
