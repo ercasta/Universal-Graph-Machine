@@ -34,11 +34,11 @@ from .vocabulary import DENOTES
 Triple = tuple[str, str, str]
 
 # ── the declared crossing rules ───────────────────────────────────────────────
-# DECIDE — reify (base case) + causal MP. `holds_base(scope)` is the universal "true in base" verdict.
-_DECIDE_CNL = (
-    "?scope holds_base yes when ?s ?p ?o @?scope and ?s ?p ?o\n"
-    "?b holds_base yes when ?a holds_base yes and ?a causes ?b"
-)
+# DECIDE — reify (base case) + crossing MP. `holds_base(scope)` is the universal "true in base" verdict.
+# The MP clause is keyed to a RELATION (`causes` by default) — the outer-loop metaprocedure generalization
+# (docs/units/STATUS.md's "generalize resolve_crossings" step): a second declared relation (`enables`,
+# `implies`, …) gets the SAME driver by naming it, not by a new Python module or a new decide/promote pair.
+_REIFY_CNL = "?scope holds_base yes when ?s ?p ?o @?scope and ?s ?p ?o"
 # PROMOTE — the uniform materialization: a held scope's members are true in base (variable-predicate head).
 # The `@!?scope` MINT-ON-CROSS read (`chain._relativized_st_matching(mint_missing=True)`) dereferences each
 # member participant to its base referent, MINTING one (named after the member, `denotes`-linked) when none
@@ -46,14 +46,35 @@ _DECIDE_CNL = (
 _PROMOTE_CNL = "?s ?p ?o when ?scope holds_base yes and ?s ?p ?o @!?scope"
 
 
-def decide_rules():
-    """The reify + causal-MP rules (which scopes hold in base)."""
-    return load_machine_rules(_DECIDE_CNL)
+def decide_rules(relations: tuple[str, ...] = ("causes",)):
+    """The reify + crossing-MP rules (which scopes hold in base), for the declared crossing RELATIONS —
+    one MP clause per relation, sharing the single reify base case. `("causes",)` is the default
+    (propositional causation); a second relation (e.g. `enables`) reuses the identical driver rather than
+    a new Python module — see `resolve_crossings`."""
+    mp = [f"?b holds_base yes when ?a holds_base yes and ?a {r} ?b" for r in relations]
+    return load_machine_rules("\n".join([_REIFY_CNL, *mp]))
 
 
 def promote_rules():
     """The uniform promote/dereify rule (a held scope's members land in base)."""
     return load_machine_rules(_PROMOTE_CNL)
+
+
+CROSSES_SCOPE = "crosses_scope"
+
+
+def declared_crossing_relations(g: AttrGraph) -> tuple[str, ...]:
+    """Relations declared, as ordinary KB data, to cross a scope boundary — a fact `<relation> crosses_scope
+    yes`, the entity-level `causes propagates has` idiom (`test_causal_propagation.py`) applied to the
+    crossing-relation SET itself: a new crossing kind is authored, never a new Python module. A wildcard
+    subject comes back `ById` (`_facts_matching`'s endpoint shape for an unbound match), so it is resolved
+    through `g.name` — mirroring `_crossing_scopes`'s own endpoint handling below."""
+    out: list[str] = []
+    for s, _o in _facts_matching(g, CROSSES_SCOPE, None, "yes"):
+        nm = g.name(s.node_id) if isinstance(s, ById) else s
+        if nm:
+            out.append(nm)
+    return tuple(out)
 
 
 # ── minting the scope structure ───────────────────────────────────────────────
@@ -83,12 +104,14 @@ def mint_proposition(g: AttrGraph, triple: Triple) -> str:
     return sc
 
 
-def mint_causal_link(g: AttrGraph, antecedent: Triple, consequent: Triple) -> tuple[str, str]:
-    """`that A causes that B`: two proposition scopes related by a base `causes` fact. Returns `(s_a, s_b)`.
+def mint_causal_link(g: AttrGraph, antecedent: Triple, consequent: Triple,
+                      relation: str = "causes") -> tuple[str, str]:
+    """`that A <relation> that B`: two proposition scopes related by a base `<relation>` fact (`causes` by
+    default; any relation `resolve_crossings` is told to cross works identically). Returns `(s_a, s_b)`.
     Idempotent per statement is the caller's concern (a re-stated link re-mints; interning is future work)."""
     s_a = mint_proposition(g, antecedent)
     s_b = mint_proposition(g, consequent)
-    g.add_relation(s_a, "causes", s_b)
+    g.add_relation(s_a, relation, s_b)
     return s_a, s_b
 
 
@@ -139,18 +162,21 @@ def _scope_nodes(g: AttrGraph) -> set[str]:
     return {sc for n in g.nodes() if (sc := scope_of(g, n)) is not None}
 
 
-def _causal_scopes(g: AttrGraph) -> set[str]:
-    """The SCOPE nodes that are an endpoint of a base `causes` fact — the ONLY scopes causation may cross.
-    Filters out entity-level `causes` (`hunger causes aggression`, whose endpoints are not scopes) and
-    leaves non-causal scope-tree scopes (an attribution `John says …`, an isolation-test scope) untouched:
-    causation promotes its consequent, it does not blanket-promote every scoped fact that holds in base."""
+def _crossing_scopes(g: AttrGraph, relations: tuple[str, ...]) -> set[str]:
+    """The SCOPE nodes that are an endpoint of a base fact in one of `relations` — the ONLY scopes crossing
+    may cross. Filters out entity-level uses of the same relation names (`hunger causes aggression`, whose
+    endpoints are not scopes) and leaves scope-tree scopes reached by a DIFFERENT (undeclared) relation
+    untouched: a crossing promotes its own consequent, never blanket-promotes every scoped fact that holds
+    in base. The REGION-SELECTION half of the outer-loop metaprocedure shape (select region -> demand-decide
+    -> promote -> repeat) — generalized from a single hardcoded `causes` to any set of declared relations."""
     scopes = _scope_nodes(g)
     out: set[str] = set()
-    for a, b in _facts_matching(g, "causes", None, None):
-        for ep in (a, b):
-            nid = ep.node_id if isinstance(ep, ById) else (g.nodes_named(ep) or [None])[0]
-            if nid in scopes:
-                out.add(nid)
+    for relation in relations:
+        for a, b in _facts_matching(g, relation, None, None):
+            for ep in (a, b):
+                nid = ep.node_id if isinstance(ep, ById) else (g.nodes_named(ep) or [None])[0]
+                if nid in scopes:
+                    out.add(nid)
     return out
 
 
@@ -181,20 +207,31 @@ def _promote_held(g: AttrGraph, promote_g, *, policy=None) -> None:
         chain_sip(g, (p, None, None), rules=promote_g, policy=policy)
 
 
-def resolve_crossings(g: AttrGraph, rules=None, *, policy=None, max_passes: int = 8) -> None:
-    """Drive every CAUSAL crossing to a fixpoint: reconcile → DECIDE (demand `holds_base` for the scopes in a
-    `causes` link, so reify + causal MP run) → PROMOTE held members to base (the `@!?scope` read materializes
-    each member's base referent AS it promotes — audit primitive ③/④, no separate materialize pass). Repeat
-    until stable (a promotion can satisfy another antecedent — so links CHAIN). Leaves every crossed
-    proposition as an ordinary base fact, so a plain query answers it. NO-OP when the graph has no causal
-    scope link — an attribution / isolation scope is never touched.
+def resolve_crossings(g: AttrGraph, rules=None, *, policy=None, max_passes: int = 8,
+                       relations: tuple[str, ...] = ("causes",)) -> None:
+    """Drive every crossing (over any relation in `relations`) to a fixpoint: reconcile -> DECIDE (demand
+    `holds_base` for the scopes reached by a declared relation, so reify + MP run) -> PROMOTE held members
+    to base (the `@!?scope` read materializes each member's base referent AS it promotes — audit primitive
+    ③/④, no separate materialize pass). Repeat until stable (a promotion can satisfy another antecedent —
+    so links CHAIN, possibly through a DIFFERENT declared relation). Leaves every crossed proposition as an
+    ordinary base fact, so a plain query answers it. NO-OP when the graph has no crossing-relation link — an
+    attribution / isolation scope is never touched.
+
+    THE OUTER-LOOP METAPROCESSOR SHAPE, generalized (docs/units/STATUS.md): `relations` names which
+    relations cross a scope boundary — `("causes",)` by default, propositional causation, PLUS whatever
+    `declared_crossing_relations(g)` finds as ordinary KB data (a `<relation> crosses_scope yes` fact, the
+    same idiom `causes propagates has` already uses at the entity level — `test_causal_propagation.py`). So
+    a new crossing kind can be added PURELY by authoring one fact — no Python change, no new decide/promote
+    module, no caller-side kwarg — and an explicit `relations=` still works for a one-off/test-local kind
+    that was never meant to be declared globally.
 
     DEGREE composition: under a BANDED `policy` the reify/MP/promote demands run banded, so a hedged
     antecedent's band rides `holds_base` (min t-norm through MP) into a banded consequent fork."""
-    causal = _causal_scopes(g)
-    if not causal:
+    relations = tuple(dict.fromkeys((*relations, *declared_crossing_relations(g))))
+    crossing = _crossing_scopes(g, relations)
+    if not crossing:
         return
-    rules = rules if rules is not None else decide_rules()
+    rules = rules if rules is not None else decide_rules(relations)
     from .cnl.query import _reify_rules
     rule_g = _reify_rules(rules)
     promote_g = _reify_rules(promote_rules())
@@ -202,7 +239,7 @@ def resolve_crossings(g: AttrGraph, rules=None, *, policy=None, max_passes: int 
     prev = -1
     for _ in range(max_passes):
         reconcile_scopes(g)
-        for sc in _causal_scopes(g):
+        for sc in _crossing_scopes(g, relations):
             chain_sip(g, ("holds_base", ById(sc), "yes"), rules=rule_g, policy=policy)
         _promote_held(g, promote_g, policy=policy)
         now = len(_held_scopes(g, banded))

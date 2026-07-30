@@ -193,12 +193,36 @@ blind driver with an outer-loop metaprocedure** (the "a rule writes a rule" mech
 `attic/handoff_ugm_reversion_evaluation.md`, now hosted on `ugm/`'s substrate instead of a new one).
 
 **Next, concretely, in priority order:**
-1. Read `ugm/suppose.py`, `scope_crossing.py`, `scope_kinds.py` against the §2 tunnel/metaprocedure
-   resolution: does `ugm/`'s existing supposition machinery support "wire a minted rule-instance to a
-   scope's cell," or does that need building fresh on `ugm/`'s substrate?
-2. Probe a first outer-loop metaprocedure directly on `ugm/`: a meta-rule reading one declared
-   `production_rule.Rule`'s own `lhs`/`rhs` and minting a second live instance of it, targeted rather than
-   run via `run_bank` over everything.
+1. ~~Read `ugm/suppose.py`, `scope_crossing.py`, `scope_kinds.py` against the §2 tunnel/metaprocedure
+   resolution~~ **DONE 2026-07-30.** Finding: `ugm/suppose.py` already solves exploration for the
+   BACKWARD/demand driver WITHOUT rule-instancing — it threads a `scope=` parameter through the fact-reader
+   (`_facts_matching`, `chain_sip`) instead of minting a second wired rule instance, and it can do this
+   because `chain_sip` is recomputed fresh per query (never a standing circuit, unlike `units/engine.py`).
+   The "mint a second supposition-wired instance" idea from §2 was solving a problem specific to STANDING
+   FORWARD circuits, which may not exist on `ugm/`'s backward driver at all.
+2. ~~Probe a first outer-loop metaprocedure directly on `ugm/`~~ **DONE 2026-07-30, first slice.**
+   `ugm/scope_crossing.py`'s `resolve_crossings` was already a working, tested precedent for the FORWARD
+   case's metaprocedure shape (select region -> demand-decide -> promote -> repeat), hardcoded to one
+   relation (`causes`). Generalized it: `decide_rules`, `_crossing_scopes` (renamed from `_causal_scopes`),
+   `mint_causal_link`, and `resolve_crossings` now take a `relations: tuple[str, ...]` parameter instead of
+   a hardcoded string. Proven with a second relation (`enables`) crossing through the IDENTICAL driver, and
+   two relations crossing together in one call — `test_a_second_declared_relation_crosses_through_the_same_
+   driver`, `test_two_different_relations_cross_in_one_driver_call`, `test_undeclared_relation_does_not_
+   cross` in `tests/test_scope_crossing.py`. No regressions (verified against the full suite and the
+   already-known 79-failure baseline: still 79 failed, now 1130 passed).
+   **Second increment, DONE same day:** `relations` is no longer only a caller-supplied tuple —
+   `resolve_crossings` now unions its `relations` argument (`("causes",)` by default, kept for backward
+   compatibility) with `declared_crossing_relations(g)`, which reads an ordinary KB fact `<relation>
+   crosses_scope yes` — the same idiom `causes propagates has` uses at the entity level
+   (`test_causal_propagation.py`), now applied to the crossing-relation SET itself. A brand-new crossing
+   kind can be added by authoring ONE fact, no Python change and no caller-side kwarg — proven by
+   `test_a_kb_declared_relation_crosses_with_no_caller_kwarg`; backward compatibility proven by
+   `test_the_default_causes_still_crosses_without_any_declaration`. All in `tests/test_scope_crossing.py`
+   (13 tests, all green); no regressions in the surrounding suite.
+   **What's still open:** this is the FORWARD-crossing half of the metaprocedure only. The demand/backward
+   half is `ugm/suppose.py` itself (already adequate, per the finding above — no rule-instancing needed).
+   Not yet done: a single entry point that dispatches to whichever half a given rule/region needs, and
+   `ugm/focus.py` as the region-selection seed (next item below) is still unconnected to either half.
 3. Check `ugm/focus.py`'s demand-derived attention register as the seed for "which region" the
    metaprocedure applies to.
 4. Decide whether `units/`'s `revision-01` argument ("circuits stand, no retraction needed") transfers to
