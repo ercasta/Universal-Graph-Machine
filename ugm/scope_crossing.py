@@ -162,17 +162,23 @@ def _scope_nodes(g: AttrGraph) -> set[str]:
     return {sc for n in g.nodes() if (sc := scope_of(g, n)) is not None}
 
 
-def _crossing_scopes(g: AttrGraph, relations: tuple[str, ...]) -> set[str]:
+def _crossing_scopes(g: AttrGraph, relations: tuple[str, ...],
+                      focus_scope: frozenset[str] | None = None) -> set[str]:
     """The SCOPE nodes that are an endpoint of a base fact in one of `relations` — the ONLY scopes crossing
     may cross. Filters out entity-level uses of the same relation names (`hunger causes aggression`, whose
     endpoints are not scopes) and leaves scope-tree scopes reached by a DIFFERENT (undeclared) relation
     untouched: a crossing promotes its own consequent, never blanket-promotes every scoped fact that holds
     in base. The REGION-SELECTION half of the outer-loop metaprocedure shape (select region -> demand-decide
-    -> promote -> repeat) — generalized from a single hardcoded `causes` to any set of declared relations."""
+    -> promote -> repeat) — generalized from a single hardcoded `causes` to any set of declared relations.
+
+    `focus_scope` (docs/units/STATUS.md's `focus.py` item) BOUNDS the region exactly as `suppose()` already
+    bounds hypothesis reasoning — an endpoint must be IN the focus working set for its crossing to be
+    selected, so the driver runs over the graph the conversation is currently about, not the whole KB.
+    `None` = whole-graph (behaviour-identical to before `focus_scope` existed)."""
     scopes = _scope_nodes(g)
     out: set[str] = set()
     for relation in relations:
-        for a, b in _facts_matching(g, relation, None, None):
+        for a, b in _facts_matching(g, relation, None, None, focus_scope=focus_scope):
             for ep in (a, b):
                 nid = ep.node_id if isinstance(ep, ById) else (g.nodes_named(ep) or [None])[0]
                 if nid in scopes:
@@ -189,7 +195,8 @@ def _members(g: AttrGraph, scope: str):
             yield ent, g.predicate(rel), obj
 
 
-def _promote_held(g: AttrGraph, promote_g, *, policy=None) -> None:
+def _promote_held(g: AttrGraph, promote_g, *, policy=None,
+                   focus_scope: frozenset[str] | None = None) -> None:
     """Write every HELD scope's members to BASE through the promote rule (`?s ?p ?o when ?scope holds_base
     yes and ?s ?p ?o @!?scope`). Demanded PER MEMBER PREDICATE with UNBOUND endpoints (`(p, None, None)`):
     the `@!?scope` MINT-ON-CROSS read binds `?s`/`?o` to the members' base referents — MINTING a missing one
@@ -200,15 +207,17 @@ def _promote_held(g: AttrGraph, promote_g, *, policy=None) -> None:
     predicate-scoped demand is bounded (the body's `holds_base` + member scan produce only held members).
     Demanding drives the CHAIN: a promoted consequent is a base fact the next link's reify reads. Under a
     BANDED `policy` the demand carries the band the antecedent rode in on (DEGREE composition — a hedged
-    antecedent promotes a banded consequent)."""
+    antecedent promotes a banded consequent). `focus_scope` bounds the promote demand the same way it
+    bounds region-selection above."""
     held = _held_scopes(g, bool(policy is not None and policy.banded))
     preds = {p for sc in held for _ent, p, _obj in _members(g, sc)}
     for p in preds:
-        chain_sip(g, (p, None, None), rules=promote_g, policy=policy)
+        chain_sip(g, (p, None, None), rules=promote_g, policy=policy, focus_scope=focus_scope)
 
 
 def resolve_crossings(g: AttrGraph, rules=None, *, policy=None, max_passes: int = 8,
-                       relations: tuple[str, ...] = ("causes",)) -> None:
+                       relations: tuple[str, ...] = ("causes",),
+                       focus_scope: frozenset[str] | None = None) -> None:
     """Drive every crossing (over any relation in `relations`) to a fixpoint: reconcile -> DECIDE (demand
     `holds_base` for the scopes reached by a declared relation, so reify + MP run) -> PROMOTE held members
     to base (the `@!?scope` read materializes each member's base referent AS it promotes — audit primitive
@@ -226,9 +235,14 @@ def resolve_crossings(g: AttrGraph, rules=None, *, policy=None, max_passes: int 
     that was never meant to be declared globally.
 
     DEGREE composition: under a BANDED `policy` the reify/MP/promote demands run banded, so a hedged
-    antecedent's band rides `holds_base` (min t-norm through MP) into a banded consequent fork."""
+    antecedent's band rides `holds_base` (min t-norm through MP) into a banded consequent fork.
+
+    `focus_scope` (`ugm/focus.py`'s attention register, converted by the caller — e.g. `frozenset(top_
+    centers(kb))` — to the small handle this parameter expects) BOUNDS the whole driver to the working set
+    the conversation is currently about, exactly as `suppose()` already bounds hypothesis reasoning. `None`
+    = whole-graph (behaviour-identical to before this parameter existed)."""
     relations = tuple(dict.fromkeys((*relations, *declared_crossing_relations(g))))
-    crossing = _crossing_scopes(g, relations)
+    crossing = _crossing_scopes(g, relations, focus_scope=focus_scope)
     if not crossing:
         return
     rules = rules if rules is not None else decide_rules(relations)
@@ -239,9 +253,10 @@ def resolve_crossings(g: AttrGraph, rules=None, *, policy=None, max_passes: int 
     prev = -1
     for _ in range(max_passes):
         reconcile_scopes(g)
-        for sc in _crossing_scopes(g, relations):
-            chain_sip(g, ("holds_base", ById(sc), "yes"), rules=rule_g, policy=policy)
-        _promote_held(g, promote_g, policy=policy)
+        for sc in _crossing_scopes(g, relations, focus_scope=focus_scope):
+            chain_sip(g, ("holds_base", ById(sc), "yes"), rules=rule_g, policy=policy,
+                      focus_scope=focus_scope)
+        _promote_held(g, promote_g, policy=policy, focus_scope=focus_scope)
         now = len(_held_scopes(g, banded))
         if now == prev:                                        # fixpoint: no new scope crossed this pass
             break

@@ -163,3 +163,21 @@ def test_the_default_causes_still_crosses_without_any_declaration():
     g, s_b = _graph("link-first", base=True)
     resolve_crossings(g)
     assert _holds(g, s_b)
+
+
+# ── focus_scope bounds the region — ugm/focus.py's attention register as the metaprocedure's seed ────
+# docs/units/STATUS.md's "focus.py as the region-selection seed" item: `focus_scope` (already threaded
+# through `chain_sip`/`_facts_matching`, the mechanism `suppose()` uses to bound hypothesis reasoning) now
+# bounds `resolve_crossings` the identical way — the driver runs over the working set the conversation is
+# currently about, not blindly over every crossing link in the whole graph.
+
+def test_focus_scope_bounds_which_crossing_runs():
+    g = AttrGraph()
+    mint_causal_link(g, ANTE, CONS)                                          # lion has no mane -> lion is safe
+    mint_causal_link(g, ("switch", "is", "on"), ("light", "is", "lit"), relation="enables")
+    g.add_relation(g.add_node({NAME: valued("lion")}), "has_not",
+                   g.add_node({NAME: valued("mane")}))
+    g.add_relation(g.add_node({NAME: valued("switch")}), "is", g.add_node({NAME: valued("on")}))
+    resolve_crossings(g, relations=("causes", "enables"), focus_scope=frozenset({"lion", "mane"}))
+    assert ask_goal(g, ("yesno", "lion", "is", "safe"), []) == ["yes"]        # in focus: crosses
+    assert ask_goal(g, ("yesno", "light", "is", "lit"), []) != ["yes"]        # out of focus: does not

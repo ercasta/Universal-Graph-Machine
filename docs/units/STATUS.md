@@ -219,12 +219,20 @@ blind driver with an outer-loop metaprocedure** (the "a rule writes a rule" mech
    `test_a_kb_declared_relation_crosses_with_no_caller_kwarg`; backward compatibility proven by
    `test_the_default_causes_still_crosses_without_any_declaration`. All in `tests/test_scope_crossing.py`
    (13 tests, all green); no regressions in the surrounding suite.
+   **Third increment, DONE same day:** `ugm/focus.py` wired in as the region-selection seed. `resolve_
+   crossings` (and `_crossing_scopes`/`_promote_held` underneath it) now take a `focus_scope:
+   frozenset[str] | None` parameter, threaded straight through to the `chain_sip`/`_facts_matching` calls
+   that already accept it — the SAME mechanism `suppose()` already uses to bound hypothesis reasoning to
+   the working set, not a new one. A caller passes `frozenset(top_centers(kb))` (`focus.py`'s own accessor)
+   to bound the whole driver to what the conversation is currently about. Proven with two independent
+   crossing links, only one of whose entities are in the passed focus set — only that one crosses
+   (`test_focus_scope_bounds_which_crossing_runs`). `None` (the default) stays whole-graph, so nothing
+   existing changed behavior. `tests/test_scope_crossing.py` now 14 tests, all green; no new regressions.
    **What's still open:** this is the FORWARD-crossing half of the metaprocedure only. The demand/backward
-   half is `ugm/suppose.py` itself (already adequate, per the finding above — no rule-instancing needed).
-   Not yet done: a single entry point that dispatches to whichever half a given rule/region needs, and
-   `ugm/focus.py` as the region-selection seed (next item below) is still unconnected to either half.
-3. Check `ugm/focus.py`'s demand-derived attention register as the seed for "which region" the
-   metaprocedure applies to.
+   half is `ugm/suppose.py` itself (already adequate, per the finding above — no rule-instancing needed,
+   and it already supports `focus_scope` too). Not yet done: a single entry point that dispatches to
+   whichever half a given rule/region needs — `resolve_crossings` and `suppose()` are still two functions a
+   caller must pick between, not one metaprocedure.
 4. Decide whether `units/`'s `revision-01` argument ("circuits stand, no retraction needed") transfers to
    this metaprocedure-on-`ugm` model, or whether `ugm/retraction.py`/`reconsider.py` are still needed there.
 5. ~~Triage `ugm/`'s 79 pre-existing test failures~~ **DONE 2026-07-30.** Also resolved: which branch to
