@@ -132,13 +132,25 @@ def check(g: Graph, node, type_name: str) -> None:
         raise TypeViolation(f"{node} is not a {type_name}: {bad}")
 
 
-def instances(g: Graph, type_name: str) -> tuple:
-    """Every node satisfying the schema.
+def instances(g: Graph, type_name: str, under: str = "root") -> tuple:
+    """Every node under `under` satisfying the schema — **enumerated by traversal, never by scanning.**
 
-    ⚠ The ONE whole-graph scan in this package. It exists to seed a selection layer's candidate index,
-    never to dispatch. Per §5c's practical rule — chunk once at recognition (`tag`), then pass pointers —
-    a caller in a hot path should be holding a head, not calling this."""
-    return tuple(n for n in g.nodes if is_a(g, n, type_name))
+    ⚠ **This used to scan every node in the graph and filter out workbench copies, and that filter was a
+    mistake worth recording.** Copies are ordinary nodes, so an unfiltered scan would find the system's own
+    imaginings and offer them as candidate arguments — planning about the products of planning. The first
+    fix was an exclusion parameter plus a test guarding it. The real fix is not to scan: enumerate what is
+    reachable from a root, and workbench copies are *structurally* unreachable, because nothing in the real
+    graph points at a copy (only a mapping does, via `image`) and nothing points at a workbench (a workbench
+    points at its subject). No filter, no marker, no test — the isolation was already there.
+
+    Passing a workbench copy as `under` enumerates inside that workbench, by the same mechanism and with no
+    special case.
+
+    **The discipline this relies on: real things hang off `root`.** That is what makes "the real world" a
+    well-defined region rather than "whatever happens to be in the dict", and it is what the substrate's
+    single starting node was always for."""
+    from .workbench import reachable
+    return tuple(n for n in reachable(g, under) if is_a(g, n, type_name))
 
 
 def tag(g: Graph, node, type_name: str):

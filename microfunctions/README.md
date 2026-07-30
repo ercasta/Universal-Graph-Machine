@@ -4,7 +4,7 @@
 document in code. `ugm/` and `units/` stay as the findings they are — nothing deleted, and deletion is
 earned per item by the audit in `north_star.md` §6.
 
-`python -m microfunctions.selftest` — **58 checks, 0 errored.**
+`python -m microfunctions.selftest` — **67 checks, 0 errored.**
 
 | module | what it is |
 |---|---|
@@ -18,6 +18,7 @@ earned per item by the audit in `north_star.md` §6.
 | `application.py` | applications and episodes — the record of what the system did, as ordinary nodes |
 | `plan.py` | **backward chaining over return types into a LAZY chain** — plans are data, nothing runs until the action |
 | `dispatch.py` | the one place an effect leaves the graph, and the checkpoint guarding it |
+| `workbench.py` | **imagining effects on a copy** — frames, mappings, forking, backtracking |
 | `selection.py` | candidates, ranking, applying one function at a time |
 | `rules/*.mf` | the KB on disk |
 
@@ -249,8 +250,51 @@ an authored function (same storage, same catalogue, callable and recordable). �
 sequence of single-argument operations on one subject. Generalising means deciding how a replay maps old
 bindings to new — a real question about *analogy*, not a missing mechanism.
 
+## The workbench — imagining what functions would do
+
+`plan.py` chains declared *types*, which is a promise rather than a proof and says nothing about what else
+changed. So backward chaining is a good way to **propose** a chain and a bad way to **believe** one. The
+workbench runs the proposal somewhere that does not count. Design: `docs/microfunctions/planning_workbench.md`.
+
+**The copy boundary is everything reachable from the subject.** Every cleverer boundary is a guess about
+which structure will matter, and a wrong guess yields a plan that looks fine and fails on contact with
+reality. Copy-on-write, if ever needed, implements exactly these semantics more cheaply — it is not a
+smaller boundary.
+
+**Mappings are the crux.** A mapping points at the original and at this frame's image, and chains via
+`next`. **A transformation binds its arguments to mappings, never raw workbench nodes** — that is what makes
+a plan replayable, since following `original` yields the node the operation must really be applied to. A log
+saying "`service` was applied" is unreplayable: it does not identify the subject in a form that survives out
+of the workbench.
+
+**⚠ The direction invariant.** A mapping points *to* the original and image; nothing points from a node to
+its mappings. Copying traverses outgoing edges, so one edge the other way would drag in that mapping's
+original, image and `next` — and thence every frame, every workbench, every plan touching that node. Not a
+wrong answer: an **unbounded copy**. Enforced by `check_metadata_is_never_pointed_at_by_structure`, which
+scans every edge and is verified to catch a planted violation.
+
+**Frames form a tree.** Steps extend a path; assumptions fork it. `next` is 1:N on frames *and* on
+mappings, so a node's own history branches with the frames it lives in — code assuming a single successor
+would silently follow one branch.
+
+**Nesting vs forking are different axes.** Subgoal exploration **nests** (a workbench inside a workbench,
+new copy scope, `original` pointing one level up so resolution is a walk); assumption branching **forks the
+frames** inside one workbench, since all branches imagine the same world differently.
+
+**⚠ Scans exclude workbench copies by default.** Not a convenience — copies are ordinary nodes, so an
+unfiltered scan would find the system's own imaginings and offer them as candidate arguments, planning
+about the products of planning with no error and no symptom beyond gradually stranger plans. The test for
+this was written before the feature that causes it.
+
 ## Not here yet
 
+- **Mocks as multi-valued rules** — a call can turn out several ways, so a function has *many* mocks, each
+  a real microfunction whose return type is the outcome it assumes. Choosing one is an assumption, i.e. a
+  hypothesis, recorded on the transformation. ⚠ And the substitution must be **structural**:
+  `dispatch.service` must refuse when the target is inside a workbench. ⚠⚠ Do not enumerate mocks eagerly —
+  assume the likely outcome and keep the others available *on deviation*.
+- **Deviation detection** — small: `types.is_a` against the `expects` already recorded on each
+  transformation.
 - **Non-greedy selection**, and learned preference over subsequences — see the warning above.
 - **Conflict detection.** ⚠ A regression, not a deferral: the old rule engine surfaced two conclusions
   disagreeing rather than letting one silently overwrite, and the composition-safety argument rested on it.

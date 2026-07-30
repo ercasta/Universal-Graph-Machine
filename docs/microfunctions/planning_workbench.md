@@ -314,18 +314,39 @@ and replanning is running the proposer again from the actual state.
 
 ---
 
-## 6. The leak nobody would notice until it hurt
+## 6. The leak that turned out not to exist — and the mistake worth keeping
 
-`types.instances()` is a whole-graph scan. Workbench copies are nodes. **Therefore, the moment a workbench
-exists, the planner will start finding its own imaginings as candidate arguments** — planning about the
-products of planning, with no error and no obvious symptom beyond gradually stranger plans.
+The worry: `types.instances()` was a whole-graph scan, and workbench copies are nodes, so the moment a
+workbench existed the planner would find its own imaginings and offer them as candidate arguments —
+planning about the products of planning, with no error and no symptom beyond gradually stranger plans.
 
-Every scan needs to exclude workbench-resident nodes by default. Cheap (one attribute on copied nodes),
-easy to forget, and genuinely nasty if forgotten. Worth writing the test before the feature.
+**The first fix was wrong, and instructively so.** It stamped every copy with an `in_workbench` attribute
+and had scans filter on it, with a test guarding the filter. That is a *labelling* error: it asserts
+something the structure already entails, so it can drift out of sync while the structure cannot. It also
+added a mechanism, a parameter, and a test — three things to maintain — for a problem that was not real.
 
-The same concern applies to `fn.producers` and to any future reflective microfunction that enumerates
-nodes — which is the argument for one scanning helper that takes the exclusion rule, rather than each
-caller filtering by hand.
+**The actual fix is to stop scanning.** Enumerate by traversal from a root, and the leak is structurally
+impossible: nothing in the real graph points at a copy (only a mapping does, via `image`), and nothing
+points at a workbench (a workbench points *at* its subject). So a copy is simply unreachable from `root`.
+Passing a copy as the root enumerates inside that workbench, by the same mechanism, with no special case.
+
+Two things this depends on, both already true and worth naming:
+
+- **The direction invariant** (§2). It is what makes copies unreachable rather than merely unlabelled.
+- **Real things hang off `root`.** That is what makes "the real world" a well-defined region rather than
+  "whatever happens to be in the dict", and it is what the substrate's single starting node was always
+  for.
+
+### The general principle, because this will recur
+
+> **A test that guards a mechanism I added because I did not see the structural answer is a smell. Delete
+> the mechanism and the test goes with it. A test that guards a discipline a *human* must follow earns its
+> place, because structure cannot enforce it.**
+
+Both kinds are present here, and the difference is clean: the exclusion test guarded machinery (gone, along
+with the machinery). The direction-invariant test guards authoring discipline — anyone can later add a
+convenience edge from a node to its mapping, and nothing structural prevents it — so that one stays, and
+is verified to catch a planted violation.
 
 ---
 

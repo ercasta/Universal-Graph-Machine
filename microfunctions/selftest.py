@@ -148,10 +148,12 @@ def _car_world():
     g = new_graph()
     declare_type(g, "car", {"body": ("body", 1), "wheel": ("wheel", 4)})
     car = g.mint("chunk")
+    g.link("root", "has", car)                      # real things hang off root
     g.link(car, "body", g.mint("body"))
     for _ in range(4):
         g.link(car, "wheel", g.mint("wheel"))
     trike = g.mint("chunk")
+    g.link("root", "has", trike)
     g.link(trike, "body", g.mint("body"))
     for _ in range(3):
         g.link(trike, "wheel", g.mint("wheel"))
@@ -626,6 +628,7 @@ def check_an_episode_compiles_into_a_reusable_function():
     ap.compile_episode(g, ep, "full_service")
 
     fresh = g.mint("chunk")
+    g.link("root", "has", fresh)
     g.link(fresh, "body", g.mint("body"))
     for _ in range(4):
         g.link(fresh, "wheel", g.mint("wheel"))
@@ -670,6 +673,7 @@ def _garage():
         '    SET F(c) "washed" true',
     ]))
     car = g.mint("chunk")
+    g.link("root", "has", car)                      # real things hang off root
     g.link(car, "body", g.mint("body"))
     for _ in range(4):
         g.link(car, "wheel", g.mint("wheel"))
@@ -873,6 +877,128 @@ def check_metadata_is_never_pointed_at_by_structure():
             "metadata_kinds_guarded": len(_METADATA_KINDS),
             "VIOLATIONS": violations_found,
             "invariant_holds": not violations_found}
+
+
+# --- workbench: imagining effects on a copy ---------------------------------------------------------
+def check_workbench_copies_are_structurally_unreachable():
+    """⭐ The isolation is STRUCTURAL — no marker, no filter, and no exclusion logic to get wrong.
+
+    An earlier version stamped every copy with an `in_workbench` attribute and made `instances` filter on
+    it. That was a labelling error: it asserted what the structure already entails. The real reason a copy
+    is never offered as a candidate is that **nothing in the real graph points at it** — only a mapping
+    does, via `image` — so enumerating by traversal from `root` cannot reach it.
+
+    Vacuity guard: assert the copy IS a well-typed car (so a scan would have found it), and that
+    enumerating from inside the workbench finds it by the very same mechanism."""
+    from . import workbench as W
+    from .types import instances
+    g, car = _garage()
+    real_before = instances(g, "car")
+    wb = W.open_workbench(g, car)
+    copy = W.image_of(g, W.mapping_for(g, W.root_frame(g, wb), car))
+    return {"copy_is_a_valid_car": is_a(g, copy, "car"),
+            "real_enumeration_unchanged": instances(g, "car") == real_before,
+            "copy_unreachable_from_root": copy not in W.reachable(g, "root"),
+            "nothing_real_points_at_it": all(g.kind(s) == "mapping" for s in g.sources(copy)),
+            "found_by_the_same_mechanism_from_inside": copy in instances(g, "car", under=copy)}
+
+
+def check_the_copy_is_complete_and_the_original_untouched():
+    from . import workbench as W
+    g, car = _garage()
+    reach = W.reachable(g, car)
+    wb = W.open_workbench(g, car)
+    f0 = W.root_frame(g, wb)
+    copy = W.image_of(g, W.mapping_for(g, f0, car))
+    return {"reached_body_and_wheels": len(reach) == 6,
+            "one_mapping_per_reachable_node": len(W.mappings(g, f0)) == len(reach),
+            "structure_copied": g.count(copy, "wheel") == 4 and g.target(copy, "body") is not None,
+            "copy_is_not_the_original": copy != car,
+            "original_untouched": g.sources(car, "image") == ()}
+
+
+def check_a_mapping_resolves_to_the_real_node():
+    from . import workbench as W
+    g, car = _garage()
+    wb = W.open_workbench(g, car)
+    m = W.mapping_for(g, W.root_frame(g, wb), car)
+    return {"resolves": W.resolve(g, m) == car, "not_imagined": not W.is_imagined(g, m)}
+
+
+def check_nested_workbenches_resolve_up_the_stack():
+    """⚠ In a nested workbench `original` points ONE LEVEL UP, so resolving is a walk, not a hop."""
+    from . import workbench as W
+    g, car = _garage()
+    outer = W.open_workbench(g, car)
+    outer_copy = W.image_of(g, W.mapping_for(g, W.root_frame(g, outer), car))
+    inner = W.open_workbench(g, outer_copy, parent=outer)
+    m = W.mapping_for(g, W.root_frame(g, inner), outer_copy)
+    return {"points_one_level_up": g.target(m, "original") == outer_copy,
+            "resolves_all_the_way_down": W.resolve(g, m) == car,
+            "depth_recorded": g.attr(inner, "depth") == 1}
+
+
+def check_stepping_makes_a_new_frame_and_leaves_the_old_one_intact():
+    """⭐ The movie is real: every earlier state stays inspectable rather than needing replay."""
+    from . import workbench as W
+    g, car = _garage()
+    wb = W.open_workbench(g, car)
+    f0 = W.root_frame(g, wb)
+    m0 = W.mapping_for(g, f0, car)
+    f1, tr = W.step(g, wb, f0, "service", {"c": m0})
+    img0, img1 = W.image_of(g, m0), W.image_of(g, g.target(m0, "next"))
+    return {"new_frame": g.attr(f1, "index") == 1,
+            "effect_landed_in_the_new_frame": g.attr(img1, "serviced") is True,
+            "previous_frame_untouched": g.attr(img0, "serviced") is None,
+            "real_world_untouched": g.attr(car, "serviced") is None,
+            "transformation_recorded": g.attr(tr, "function") == "service",
+            "expectation_recorded": g.attr(tr, "expects") == "serviced_car"}
+
+
+def check_a_transformation_binds_a_mapping_not_a_raw_node():
+    """THE rule that makes a plan replayable: following `original` yields the node the operation must
+    really be applied to. Vacuity guard: assert the bound thing is a mapping AND that it resolves."""
+    from . import workbench as W
+    g, car = _garage()
+    wb = W.open_workbench(g, car)
+    f0 = W.root_frame(g, wb)
+    _f1, tr = W.step(g, wb, f0, "service", {"c": W.mapping_for(g, f0, car)})
+    b = g.target(tr, "arg")
+    bound = g.target(b, "mapping")
+    return {"binding_is_a_mapping": g.kind(bound) == "mapping",
+            "and_it_resolves_to_the_real_node": W.resolve(g, bound) == car,
+            "no_raw_node_was_bound": g.target(b, "value") is None}
+
+
+def check_frames_fork_and_a_mapping_history_forks_with_them():
+    """⚠ `next` is 1:N on both. Code assuming a single successor would silently follow one branch."""
+    from . import workbench as W
+    g, car = _garage()
+    wb = W.open_workbench(g, car)
+    f0 = W.root_frame(g, wb)
+    m0 = W.mapping_for(g, f0, car)
+    a, _ = W.step(g, wb, f0, "service", {"c": m0})
+    b, _ = W.fork(g, wb, f0, "service", {"c": m0})
+    return {"two_successors": set(g.targets(f0, "next")) == {a, b},
+            "mapping_history_forked": len(g.targets(m0, "next")) == 2,
+            "history_walks_the_tree": len(W.history(g, m0)) == 3,
+            "all_frames_found": len(W.frames(g, wb)) == 3}
+
+
+def check_discarding_scraps_everything_and_belief_survives():
+    from . import workbench as W
+    g, car = _garage()
+    before = len(g.nodes)
+    wb = W.open_workbench(g, car)
+    f0 = W.root_frame(g, wb)
+    W.step(g, wb, f0, "service", {"c": W.mapping_for(g, f0, car)})
+    W.discard(g, wb)
+    leftovers = [n for n in g.nodes if any(g.kind(m) == "mapping"
+                                            for m in g.sources(n, "image"))]
+    return {"workbench_gone": wb not in g.nodes,
+            "no_copies_left": leftovers == [],
+            "back_to_the_original_size": len(g.nodes) == before,
+            "belief_intact": is_a(g, car, "car") and g.attr(car, "serviced") is None}
 
 
 if __name__ == "__main__":
