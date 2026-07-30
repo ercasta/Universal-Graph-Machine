@@ -115,10 +115,38 @@ amendment. All three experiment scripts (`goal_experiment.py`, `system1_experime
 resemblance metric (graded/banded scoring via `band.py`, attention decay); a subgoal with its own satisfaction
 condition (`goal_machinery.md` §7's remaining open item); or address one of the lower-priority items below.
 
+**Updated 2026-07-30 — `planning_meta_concepts_arc.md` + `closed_class_rechallenged.md`: force, level,
+identity/merge, and transitivity all probed and confirmed.** `units/force_probe_experiment.py` (3 green),
+`units/level_probe_experiment.py` (3 green), and `units/identity_merge_probe_experiment.py` (4 green) each
+check that a relational form resolves to a declared-data slice plus one generic meta-rule, never a new
+engine primitive — identity's version: `Merge` (already built) plus one rule quantifying over both concept
+kind and key value via two `AttrVar`s, gated so an incidental shared attribute never triggers a merge.
+`goal/procedure/question/prohibition` unification also confirmed
+(`units/meta_concept_unification_experiment.py`, 3 green).
+
+**⭐ Transitivity is the one exception to "pure sugar," and it's the reason probing beats pattern-matching.**
+`units/transitivity_probe_experiment.py` (4 green) confirms predicate-variable *reading* transfers for free
+via `AttrVar`, but predicate-variable *writing* genuinely needed a small engine extension: `Attribute.value`
+and `Link.role` in `units/engine.py` now accept an already-bound `AttrVar`, symmetric to how node fillers
+already read match bindings — pinned separately in `tests/units/test_engine.py`
+(`test_attribute_value_can_read_a_bound_attrvar`, `test_link_role_can_read_a_bound_attrvar`).
+
+**Updated 2026-07-30 (same day) — the definitional-coexistence risk is checked, closing out every item on
+`closed_class_rechallenged.md` §9's probe list.** `units/definitional_coexistence_experiment.py` (3 green):
+two independently-authored rules reacting to two coexisting forms of the same additively-rewritten fact
+(`paul.age==42` directly, and the reified `age_claim.value==42` reached through `about`) and concluding the
+identical value on the identical slot do NOT register as a conflict — `overlay.py`'s `Overlays.conflicts()`
+dedupes by value, not by source, confirmed against running code rather than only inferred from reading it.
+The converse holds too: a genuinely different conclusion on the same slot still surfaces as a real
+`Conflict`. Standalone probe script, like the other four in this arc; the pytest suite stays at 116 green,
+unaffected.
+
+**Everything named in `planning_meta_concepts_arc.md` and `closed_class_rechallenged.md` is now checked.**
+The natural next step is the one item these documents have been holding open specifically for after
+probing: revise `closed_class_inventory.md`, `composition_grammar.md`, and `agentic_scenario_catalog.md` to
+match, then return to designing the causal-fact→plan and norm→requirement→satisfies meta-rule chain.
+
 **Still open, lower priority, not blocking the above:**
-- **`identity`/equality.** The clearest remaining cross-cutting *content* gap (scenarios 3, 7, 8), independent of
-  the joint arc above. `identity` in the narrow "compare two values" sense looks buildable independent of Phase
-  D; full reference/definite-description resolution is still blocked on the surge detector.
 - **Give `COMMAND` real semantics** (`closed_class_inventory.md` §9) — small, concrete, quick: tests the
   `ask = command(report(P))` reduction hypothesis rather than leaving it argued-but-unverified.
 - Closing out `past`/`evidential`/`mirative`'s open-hypothesis status (needs a competing form each before

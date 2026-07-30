@@ -1,3 +1,14 @@
+# Planning example — the raw seed note (attic)
+
+**SUPERSEDED — kept verbatim as the historical seed, not a source of truth.** This is the original,
+unedited note that started the whole planning/middle-tier/closed-class-rechallenge arc (2026-07-30). Every
+idea in it — meta-rules reading a causal fact to mint a plan step, "REQUIRES"/"satisfies" business norms,
+inference rules vs. fact-manipulating meta-rules — is now developed, checked, and cross-referenced in
+`../planning_meta_concepts_arc.md` §5/§7 and `../closed_class_rechallenged.md` §5/§7. Read those; read this
+only for how the idea first got stated.
+
+---
+
 Example: finding a row in a kb.
 
 list the files in the directory

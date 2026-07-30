@@ -1,7 +1,8 @@
 # The engine's goal, stated precisely: a CNL that soundly composes at unlimited depth
 
-**Status: north star, 2026-07-28; §2 note added 2026-07-29.** Distilled from a working-session thread that pressure-tested
-`forms_discourse.md`, `forms_llm.md` and `forms_extra_considerations.md` down to a single, checkable target.
+**Status: north star, 2026-07-28; §2 note added 2026-07-29; §2's table updated 2026-07-30 against
+`closed_class_rechallenged.md`.** Distilled from a working-session thread that pressure-tested
+`forms_discourse.md`, `forms_llm.md` and `attic/forms_extra_considerations.md` down to a single, checkable target.
 Supersedes nothing; it is the crisp restatement those three documents were circling. Read them first for the
 argument; this is the destination stated as a claim with a scope and a status.
 
@@ -26,7 +27,7 @@ Two responsibilities that must not be conflated (this is the load-bearing distin
 
 | | scope | provable once? | owner |
 |---|---|---|---|
-| **the engine's job** | closed-class connectives (negation, degree, quantification, conditionality, tense, causation, force, roles) composing with **each other**, to unlimited nesting | **yes, in principle** — the closed class is fixed and small, so this is a bounded, finite, one-time task, the same shape as proving `AND`/`OR`/`NOT` closed under Boolean algebra, just requiring more cases because the closed-class forms are not all instances of one clean algebra | the engine builder |
+| **the engine's job** | closed-class connectives — **updated, 2026-07-30**: negation, degree, conditionality, roles, and the raw substrate effects. Quantification, causation, force, level, and identity/merge are **not** in this list any more — `closed_class_rechallenged.md` confirmed all five resolve to open content read by a generic meta-rule, not connectives the engine executes directly (transitivity aside, which needed one small real engine extension, `Attribute.value`/`Link.role` reading a bound `AttrVar`) — composing with **each other**, to unlimited nesting | **yes, in principle** — the closed class is fixed and small (smaller than this document originally scoped it), so this is a bounded, finite, one-time task, the same shape as proving `AND`/`OR`/`NOT` closed under Boolean algebra, just requiring more cases because the closed-class forms are not all instances of one clean algebra | the engine builder |
 | **not the engine's job, ever** | open-class domain predicates (business terms — `VIP`, `orders`, `spend`) interacting with **each other** in ways their authors didn't anticipate | **no, not even in principle** — open-class content has no basis to prove closed over (`forms_discourse.md` §3.3); this is a permanent structural fact, not a gap that more engineering closes | KB/ruleset governance — a different layer, possibly using engine-adjacent tooling, but not covered by the engine's contract |
 
 **Note, 2026-07-29 — normalization is a rules job, never the boundary's, and the CNL should have room for
@@ -104,9 +105,9 @@ it.
 ## 5. What this does **not** license
 
 - **Not** a claim that business rules built on top of this CNL are correct, wise, or bug-free. Composition
-  soundness and business correctness are orthogonal audits with different owners (`forms_extra_considerations.md`
-  would be the place to record KB-governance tooling, if that gets designed — it is explicitly **not** part of
-  this goal).
+  soundness and business correctness are orthogonal audits with different owners (`attic/forms_extra_
+  considerations.md` would be the place to record KB-governance tooling, if that gets designed — it is
+  explicitly **not** part of this goal).
 - **Not** a claim that open-class predicate interactions (two business terms colliding unexpectedly) are
   covered. They structurally cannot be, by anyone, ever — that is a permanent fact about the open class, not a
   gap this roadmap closes.

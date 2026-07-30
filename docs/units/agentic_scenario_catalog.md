@@ -6,6 +6,15 @@ check: does the declared set compose without leaking, via `sieve.py`) and `cnl_e
 document is the other check — completeness: does the declared set cover what an agent doing real work actually
 needs to say. Neither check substitutes for the other.
 
+**Updated 2026-07-30.** Two things changed since this catalog was last revised (07-29) and are folded in
+below rather than flagged separately: (1) `closed_class_rechallenged.md` confirmed causation, identity, and
+quantification's cursor case are open content read by a generic meta-rule, not closed-class mechanisms
+needing their own design (scenarios 2, 7, 10, §11); (2) the goal/subgoal machinery §11 used to list as
+"designed, not built" is now **built** (`goal_machinery.md`, `units/goal_experiment.py`,
+`units/quantification_cursor_experiment.py`, `units/meta_concept_unification_experiment.py`) — every
+verdict that depended on it is upgraded accordingly. The scenarios themselves are unchanged; only the
+verdicts move.
+
 ## 0. Why this document exists
 
 `closed_class_inventory.md` asks, of each proposed grammatical building block (**form** — see `glossary.md`),
@@ -63,13 +72,13 @@ hit the open-domain limit.
 
 | requires | status |
 |---|---|
-| sequencing/ordering | **likely free, not a form** — `model.md` §5 realizes ordering as wiring topology (unit A's output feeds unit B), so "before/after" may not need its own CONTENT entry at all. Worth confirming rather than assuming, but this looks like a case where the architecture already supplies it structurally |
-| goal/subgoal/expectation structure | designed (`model.md` §8), not yet run through the sieve as a form — it lives at a different tier (procedure/activity structure, `forms_discourse.md` §10.2, still open) |
-| causation ("this step enables the next") | NOT YET FORMALIZED |
-| tool-call outcome (success/failure/error) | **likely covered without a new form** — probably just `positive`/`negation` over a `succeeded`-shaped predicate, not a new axis |
+| sequencing/ordering | **free, not a form** — a procedure is a goal decomposition plus one `then:` sequencing edge among the children (`units/meta_concept_unification_experiment.py`), confirmed built, not merely likely |
+| goal/subgoal/expectation structure | **built** — `goal_machinery.md`, `units/goal_experiment.py`; a procedure/question/prohibition all reduce to this one shape (`units/meta_concept_unification_experiment.py`) |
+| causation ("this step enables the next") | **resolved as sugar** — a generic `propagates` meta-schema plus one declared fact, zero engine primitive (`causation-core-was-sugar`; reconfirmed as part of `closed_class_rechallenged.md`) |
+| tool-call outcome (success/failure/error) | **covered without a new form** — `positive`/`negation` over a `succeeded`-shaped predicate |
 
-**Verdict: PARTIAL.** One genuine gap (causation); one place where the architecture may already supply the need
-for free (sequencing) — worth confirming, not assuming, before spending design effort there.
+**Verdict: COVERED.** All four requirements resolved — none needed a new closed-class form; two (sequencing,
+goal/subgoal structure) needed the goal machinery, now built.
 
 ---
 
@@ -144,14 +153,15 @@ Worked through in full in the preceding discussion. Decomposes into:
 
 | requires | status |
 |---|---|
-| identity/equality (expected vs. observed) | NOT YET FORMALIZED — now concretely motivated rather than a citation from an old catalog row |
-| expectation structure | already exists (`model.md` §8) |
+| identity/equality (expected vs. observed) | **resolved as sugar, 2026-07-30** — `units/identity_merge_probe_experiment.py`: the engine's `Merge` effect plus one generic rule keyed on a declared identity slot, no new form. What's still open is the *unrelated*, still-cited depth-4/5 obstacle for definite-description resolution generally (`forms_discourse.md` §10.3, Phase D) — deciding this specific scenario's expected-vs-observed identity does not hit it |
+| expectation structure | already exists (`model.md` §8), and its goal/subgoal shape is now built, not just designed |
 | a new force value (`flag`/`alert`, parallel to `ask`'s `raised`) | **proposed, not yet built or sieved** |
 
 *Not* mirativity — the linguistic category was the wrong vehicle for a real need it correctly pointed at; see
 the discussion preceding this catalog for the full reasoning.
 
-**Verdict: GAP**, but an unusually well-specified one — two concrete, ready-to-author candidates.
+**Verdict: PARTIAL, revised 2026-07-30.** Identity resolved. What remains is authoring one new force value —
+small, well-specified, not yet built.
 
 ---
 
@@ -189,38 +199,39 @@ those two mechanisms actually interoperate, not as an independent source of gaps
 
 | requires | status |
 |---|---|
-| quantification | **resolved 2026-07-29 — this is case (c)** (`closed_class_inventory.md` §8): checking each queue member likely needs more than one revive (real per-member work, possibly a tool call), so it needs a cursor that survives across revives. That's `model.md` §8's goal/subgoal/procedure shape, already designed, **not yet built** — not a quantification-specific mechanism |
+| quantification | **built, 2026-07-29 — this is case (c)** (`closed_class_inventory.md` §8): checking each queue member needs more than one revive (real per-member work, possibly a tool call), so it needs a cursor that survives across revives. `units/quantification_cursor_experiment.py` built exactly that, using `model.md` §8's goal/subgoal/procedure shape — not a quantification-specific mechanism |
 | roles for iteration | tier 3, already supported |
 
-**Verdict: GAP, revised 2026-07-29 — but the gap moved.** Not "quantification is unformalized" any more; it's
-"goal/subgoal machinery (`model.md` §8) is designed but not built," which this scenario needs and cases (a)/(b)
-above do not. That's a sharper, smaller, more buildable gap than the one originally recorded here.
+**Verdict: COVERED, revised 2026-07-30 — the gap that moved in 07-29's revision is now closed.** Both
+requirements resolved; the goal/subgoal cursoring machinery this scenario needed is built and this scenario
+is its worked example.
 
 ---
 
 ## 11. Priority ranking, read off the ten scenarios
 
-**Revised 2026-07-29 — quantification and aggregation resolved, not just prioritized.** Both were worked out
-against the real engine and the design docs (`closed_class_inventory.md` §8) rather than left as "check this
-next." Neither turned out to be a missing closed-class form.
+**Revised 2026-07-30 — goal/subgoal machinery built; causation and identity/merge resolved as sugar.** Three
+of this table's four live rows from the 07-29 revision are now closed. What's left is genuinely narrower.
 
 | gap | appears in | priority signal |
 |---|---|---|
-| **goal/subgoal machinery (`model.md` §8), unbuilt** | scenario 10's quantification case (c); also justification (§12 below) and System 1's associative wiring (`computation_units.md` §5) | **new highest-leverage item** — three independent findings now converge on this one piece of unbuilt design |
-| **conditional discharge (Phase B)** | scenarios 1, 6 (2 of 10) | already tracked, now independently reconfirmed twice |
-| **identity/equality** | scenarios 3, 7, 8 (3 of 10) | now the clearest remaining cross-cutting content gap — quantification no longer ties with it |
-| **causation** | scenario 2 (1 of 10) | real, but singly-attested so far in this catalog |
+| **conditional discharge (Phase B)** | scenarios 1, 6 (2 of 10) | the one remaining real, structural blocker — shelved, not fixed, and still the highest-leverage open item in this whole catalog |
+| **bounded/definite reference generally** (Phase D — a *different*, broader problem than scenario 7's now-resolved identity/merge) | scenarios 3, 8 | still gated behind the surge detector; genuinely unresolved, not reclassified this round |
 | **new `flag`/`alert` force** | scenario 7 (and 9 by composition) | well-specified, ready to author |
 | **`evidential` (rescued)** | scenario 8 | keep — do not drop, unlike `mirative` |
-| **`mirative`** | none of the ten | drop from active priority — the scenario that motivated re-examining it (drift detection) turned out not to need it |
-| ~~quantification~~ | scenarios 1, 3, 10 | **resolved, not a gap** — splits into free/application, free/bounded-closed, needs-goal-machinery/multi-turn, and open-domain-hedge-limit. See `closed_class_inventory.md` §8 |
-| ~~aggregation (scoping question)~~ | scenario 3 | **resolved, not a gap** — delegated tool call, no intro/elim pair needed. One small mechanism gap found (an aggregating unit disposition), tracked in `closed_class_inventory.md` §8, not a scoping question any more |
+| **`mirative`** | none of the ten | drop from active priority |
+| ~~goal/subgoal machinery~~ | scenario 10; justification (§12); System 1 (`computation_units.md` §5) | **built** — `goal_machinery.md`, `units/goal_experiment.py`, `units/quantification_cursor_experiment.py`, `units/meta_concept_unification_experiment.py` |
+| ~~identity/equality (narrow sense — same referent)~~ | scenario 7 | **resolved, not a gap** — `units/identity_merge_probe_experiment.py`. Distinct from the broader bounded-reference row above, which is still open |
+| ~~causation~~ | scenario 2 | **resolved, not a gap** — confirmed sugar |
+| ~~quantification~~ | scenarios 1, 3, 10 | **resolved, not a gap** — every case built or dissolved; only case (d)'s open-domain limit remains, and it's an epistemic fact, not a form gap |
+| ~~aggregation (scoping question)~~ | scenario 3 | **resolved, not a gap** — delegated tool call |
 
-**Recommended next step, revised:** identity/equality is now the clearest remaining cross-cutting content gap.
-But goal/subgoal machinery is arguably higher-leverage — it's no longer just scenario 10's problem, it's also
-what justification (§12, "considered and dissolved") and the substitution experiment's wiring-cost fix
-(`computation_units.md` §5) both depend on. Worth weighing that convergence against identity/equality's own
-three-scenario cross-cutting signal before picking.
+**Recommended next step:** conditional discharge is now the single clearest remaining structural blocker in
+this catalog, unchanged in status since 07-28 while everything that used to compete with it for priority has
+resolved. The broader bounded/definite-reference problem (Phase D) is the other genuinely open item, and it
+is a systemic engine fix, not a per-scenario content gap. Both are already tracked outside this document —
+the concrete next step for the *project*, not this catalog specifically, is `arc_recap.md` §5's item 2: the
+causal-fact→plan and norm→requirement→satisfies meta-rule design this whole rechallenge was in service of.
 
 ---
 

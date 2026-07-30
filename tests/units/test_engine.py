@@ -9,10 +9,10 @@ import pytest
 from units.engine import (ABOUT, AS, ATOM, ATTRIBUTE, CONFLICT, CONSTRAINT, EFFECT, EMIT, FROM, GATE,
                           KEY, MINTS, OUT, PAT, PATTERN, SILENCED, SOURCE, SURGE_AT, SURGED, TO,
                           UNDER, VALUE, VAR, WIRE, Attribute, Drop, Emit, Link, Merge, Network,
-                          StandingUnit, Stamp, _targets, bundled_silence_rule, effects_of,
+                          StandingUnit, Stamp, _targets, bundled_silence_rule, effects_of, instantiate,
                           read_effect, read_pattern, write_effect, write_pattern)
 from units.graph import EMPTY, Node, named, role_edge
-from units.match import AttrVar, absent, atom, atoms, role
+from units.match import AttrVar, Match, absent, atom, atoms, role
 
 
 def kb(**attrs):
@@ -259,6 +259,24 @@ def test_merge_rewrites_every_mention_including_ones_the_unit_never_saw():
     w = n.world()
     assert w.attr(a, "plate") == "AB123"             # reached through the identification
     assert w.attr(a, "colour") == "red"
+
+
+def test_attribute_value_can_read_a_bound_attrvar():
+    """`transitivity_probe_experiment.py`'s load-bearing extension, pinned in isolation: `Attribute.value`
+    may be an `AttrVar` already bound by the match, not only a literal fixed at authoring time — the RHS
+    counterpart to `_filler` reading a match-bound *node*, now for a match-bound *value*."""
+    m = Match(bindings={"x": Node("n")}, values={"k": "runtime_value"}, band=None)
+    (set_attr,) = instantiate(Attribute("x", "kind", AttrVar("k")), m, {})
+    assert set_attr.value == "runtime_value"
+
+
+def test_link_role_can_read_a_bound_attrvar():
+    """Same extension, for `Link.role` — needed to mint a role node named after whichever relation the
+    match found, rather than one hardcoded at authoring time."""
+    m = Match(bindings={"x": Node("n"), "y": Node("n")}, values={"rel": "runtime_relation"}, band=None)
+    effects = instantiate(Link("x", "y", role=AttrVar("rel")), m, {})
+    mint = next(e for e in effects if hasattr(e, "attrs"))
+    assert dict(mint.attrs)["name"] == "runtime_relation"
 
 
 def test_a_computation_units_deletion_hides_while_powered_and_never_reaches_the_store():

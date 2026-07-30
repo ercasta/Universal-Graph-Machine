@@ -1,9 +1,10 @@
 # Forms — extra considerations (Q&A trail)
 
-**Status: reasoning trail, 2026-07-28.** Not a specification. This is a record of a working-session discussion
-that pressure-tested `forms_discourse.md` and `forms_llm.md` from first principles, working through concrete
-examples until the confusions resolved. Read those two first; this document only adds what came out of arguing
-with them. Nothing here should be cited outward without the source docs.
+**Status: reasoning trail, 2026-07-28. Filed to attic 2026-07-30 hygiene pass — it said "not a
+specification, nothing here should be cited outward" from the day it was written, so it was never load-
+bearing on its own.** A record of a working-session discussion that pressure-tested `../forms_discourse.md`
+and `../forms_llm.md` from first principles, working through concrete examples until the confusions
+resolved. Read those two first; this document only adds what came out of arguing with them.
 
 ---
 

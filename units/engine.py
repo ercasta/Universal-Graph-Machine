@@ -247,7 +247,14 @@ class Emit:
 @dataclass(frozen=True)
 class Attribute:
     """A crisp attribute derived onto a bound node. Applies as a **reified attribution**, never a write
-    (`rev-02` §6) — which is what keeps two live disagreeing derivations visible as a conflict."""
+    (`rev-02` §6) — which is what keeps two live disagreeing derivations visible as a conflict.
+
+    `value` is normally a literal, fixed at authoring time. It may also be an `AttrVar` already bound by
+    the LHS (`transitivity_probe_experiment.py`) — the RHS symmetric counterpart to `_filler`: exactly as
+    a node filler can name a match-bound *node* rather than one the author knew in advance, this lets an
+    attribute's *value* be one the match bound rather than one the author knew in advance. Nothing new in
+    kind; the same discipline `instantiate_all` already applies to node bindings, extended to value
+    bindings."""
 
     target: str
     attr: str
@@ -265,9 +272,14 @@ class Stamp:
 
 @dataclass(frozen=True)
 class Link:
+    """`role` is normally a literal role name, fixed at authoring time. It may also be an `AttrVar`
+    already bound by the LHS — the same RHS-reads-a-bound-value extension as `Attribute.value`, needed
+    when a rule must mint a role node named after whichever relation the match found (generic
+    transitivity, `transitivity_probe_experiment.py`), not one the author hardcoded."""
+
     target: str
     dst: str
-    role: str | None = None
+    role: str | AttrVar | None = None
 
 
 @dataclass(frozen=True)
@@ -347,15 +359,19 @@ def instantiate(template, m: Match, minted: dict | None = None) -> tuple:
             out.append(Grade(occ, template.graded, m.band))
         return tuple(out)
     if isinstance(template, Attribute):
-        return (SetAttr(_filler(template.target, m, minted), template.attr, template.value),)
+        value = m.values[template.value.name] if isinstance(template.value, AttrVar) else template.value
+        return (SetAttr(_filler(template.target, m, minted), template.attr, value),)
     if isinstance(template, Stamp):
         return (Grade(_filler(template.target, m, minted), template.attr, template.band),)
     if isinstance(template, Link):
         src, dst = _filler(template.target, m, minted), _filler(template.dst, m, minted)
-        if template.role is None:
+        role_name = template.role
+        if isinstance(role_name, AttrVar):
+            role_name = m.values[role_name.name]
+        if role_name is None:
             return (AddEdge(src, dst),)
-        r = Node(template.role)
-        return (Mint(r, (("name", template.role),)), AddEdge(src, r), AddEdge(r, dst))
+        r = Node(role_name)
+        return (Mint(r, (("name", role_name),)), AddEdge(src, r), AddEdge(r, dst))
     if isinstance(template, Merge):
         a, b = _filler(template.left, m, minted), _filler(template.right, m, minted)
         return () if a is b else (Identify(a, b),)

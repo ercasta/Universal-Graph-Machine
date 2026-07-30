@@ -99,17 +99,19 @@ time would be the "rediscovering rules" waste `system1_experiment.py` already fl
 
 | status | items |
 |---|---|
-| **Empirically confirmed** (actually built, checked against running code) | causation = sugar (old `ugm`, propagation schema); quantification's open case = goal machinery, not a new primitive; **force = sugar, `units/force_probe_experiment.py` (3 green)** — "ask"/"command" routing is two near-identical meta-rules minting a goal, resolved by the ordinary, force-blind `achieved`/`diverged` machinery; ⭐ **level = sugar, 2026-07-30, `units/level_probe_experiment.py` (3 green)** — "world"/"theory" routing is the same meta-rule shape, and a theory-level claim ("has the engine's own `vip_rule` concluded X") is satisfied by an ordinary rule reading another rule's conclusion as data — provenance already free, no introspection primitive needed — while staying honestly unresolved through a turn where only the *world* question gets answered; goal/procedure/question/prohibition unification — `units/meta_concept_unification_experiment.py` (3 green) |
-| **Structurally implied, not yet probed** | identity/merge (Datalog has no analog at all — unification handles same-constant, not "these two different constants denote the same thing"; this project's own "identity is decided, not interned" stance already smells open); transitivity's predicate-variable mechanism (built in the old engine, unconfirmed in `units/`) |
+| **Empirically confirmed** (actually built, checked against running code) | causation = sugar (old `ugm`, propagation schema); quantification's open case = goal machinery, not a new primitive; **force = sugar, `units/force_probe_experiment.py` (3 green)** — "ask"/"command" routing is two near-identical meta-rules minting a goal, resolved by the ordinary, force-blind `achieved`/`diverged` machinery; ⭐ **level = sugar, 2026-07-30, `units/level_probe_experiment.py` (3 green)** — "world"/"theory" routing is the same meta-rule shape, and a theory-level claim ("has the engine's own `vip_rule` concluded X") is satisfied by an ordinary rule reading another rule's conclusion as data — provenance already free, no introspection primitive needed — while staying honestly unresolved through a turn where only the *world* question gets answered; goal/procedure/question/prohibition unification — `units/meta_concept_unification_experiment.py` (3 green); ⭐ **identity/merge = sugar, 2026-07-30, `units/identity_merge_probe_experiment.py` (4 green)** — deciding two structurally-unconnected occurrences denote the same referent needs nothing beyond the already-built `Merge` substrate effect plus one generic rule, written once, quantifying over *both* concept kind and the key value via two `AttrVar`s — the same rule instance merges customers on `ssn` and orders on `order_number` without knowing either field name; gating tested directly (two occurrences sharing an incidental attribute but a different declared identity-key value do **not** merge, and with the rule unwired nothing merges on its own — the engine has no opinion, per `match.py`'s own stated discipline) |
+| **Structurally implied, not yet probed** | *(empty — everything named in this arc has now been probed)* |
 | **Believed genuinely closed** | negation, degree/band, modus ponens (the substrate's own execution semantics, not a meta-rule — see §8), the raw substrate mechanics (mint/edge/attribute/merge/drop, `solve()`) |
+| **⭐ Confirmed, but NOT pure sugar — the one exception** | **transitivity, `units/transitivity_probe_experiment.py` (4 green)** — generic predicate-variable *reading* transfers for free from `AttrVar` (`match.py`), exactly as hoped. Generic predicate-variable *writing* did not: every RHS effect template (`Attribute`, `Link`) previously took only literal attribute/role names and values, so a rule could not conclude a fact under "whichever relation the match just found." Fixed with a small, symmetric extension — `Attribute.value` and `Link.role` now also accept an already-bound `AttrVar`, read in `instantiate()` exactly the way `_filler` already reads a match-bound *node* — pinned separately in `test_engine.py` (`test_attribute_value_can_read_a_bound_attrvar`, `test_link_role_can_read_a_bound_attrvar`). Gated correctly: an undeclared relation does not compose, and two different relation kinds chained together do not cross-contaminate. |
 
-**Force and level are no longer claims — they're findings, checked the same way causation was.** The
-middle row is still a claim for what remains in it. `causation-core-was-sugar`'s own stated lesson still
-applies to identity/merge and transitivity: *"for the next agentic core, expect a surface/declared-data
-slice, not engine — probe first every time."* The pattern has now held for four relational forms in a row
-without exception,
-which is good reason to expect the rest resolve the same way — but betting on a pattern is still not the
-same as checking it.
+**Force, level, and identity/merge are pure-sugar findings — zero engine change, checked the same way
+causation was.** Transitivity is confirmed too, but it is the one item in this whole arc where the answer
+was not "declare it as data, read it with an unmodified engine" — the *write* side needed a real, if small,
+generalization of the engine's own RHS convention. That distinction matters and should not be flattened:
+five relational forms are now checked without exception, but only four of the five needed nothing new from
+the substrate. `causation-core-was-sugar`'s "probe first, don't assume" lesson is exactly what caught this
+one — the pattern predicted sugar, and this time betting on the pattern alone would have missed a real,
+if minor, engine gap.
 
 ## 7. What this means for the planning design, concretely
 
@@ -164,26 +166,39 @@ by one new risk: these specific schemas are recursive.** Transitivity composed w
 chains; a defined equivalence combined with transitivity or a business rule could keep unfolding. Not a
 new risk in kind — exactly what Phase D's termination work (burned-unit exclusion, the widened surge
 threshold, `forms_discourse.md` §10.3) already made honest for cycles generally, just not yet connected to
-these specific schemas. One risk that *is* specific to definition: since additive rewriting keeps both the
-old and new form of a fact alive (`goal_experiment.py`'s `check_rewrite_via_addition`), a rule reacting to
-each form of the same defined equivalence could produce two representations of "the same" conclusion that
-look different enough to register as a spurious conflict rather than genuine agreement — worth checking
-directly, not assumed away.
+these specific schemas — still genuinely open, unlike the risk below. One risk that *was* specific to
+definition, and **is now checked**: since additive rewriting keeps both the old and new form of a fact
+alive (`goal_experiment.py`'s `check_rewrite_via_addition`), a rule reacting to each form of the same
+defined equivalence could produce two representations of "the same" conclusion that look different enough
+to register as a spurious conflict rather than genuine agreement.
 
-## 9. Next actions
+**⭐ Checked, 2026-07-30 — `units/definitional_coexistence_experiment.py` (3 green): the worry does not
+materialize, and it's checkable directly rather than only inferable from reading the code.**
+`overlay.py`'s `Overlays.conflicts()` dedupes by **value**, not by source (`{r.value for r in found}`) —
+two independently-authored rules reacting to two coexisting forms of the same fact (`paul.age == 42`
+directly, and the reified `age_claim.value == 42` reached through the `about` role) and concluding the
+identical value on the identical slot do **not** register as a conflict; the read comes back clean. The
+converse was checked in the same experiment, so the finding isn't "conflicts never fire": a genuinely
+different conclusion on the same slot (a third rule reacting to an unrelated fact) still surfaces as a real
+`Conflict` carrying both disagreeing values, and both original forms survive untouched either way
+(`create-never-merge` holding under this specific risk, not just assumed to).
 
-1. **Probe force before building anything further on top of it** — check directly whether "ask"/"command"
-   recognition needs anything beyond parsing (already separate machinery) plus one meta-rule minting a
-   goal, the same way causation was checked.
-2. **Probe identity/merge** — same treatment, separately, not assumed.
-3. **Probe predicate-variable matching for transitivity** — does `units/` have or need it; if built,
-   gate it on a declared `is_transitive` fact per relation, never applied unconditionally.
-4. **Check the definitional-coexistence risk** — build the smallest case where a rule reacts to each form
-   of one defined equivalence and confirm the engine's conflict-detection reads it as agreement, not a
-   spurious disagreement.
-5. **Only then**, return to the causal-fact → plan meta-rule and the norm → requirement → satisfies chain,
-   now confident about which parts of the design are load-bearing engine primitives and which are
-   ordinary meta-rules over open data.
-6. **Revise `closed_class_inventory.md`, `composition_grammar.md`, and `agentic_scenario_catalog.md`**
-   once items 1-4 are actually probed, not before — matching this project's own "probe first" discipline
-   rather than rewriting the inventory off a pattern alone.
+## 9. Next actions — every item on this list is now checked
+
+1. ~~Probe force~~ — done, `units/force_probe_experiment.py`, 3 green.
+2. ~~Probe identity/merge~~ — done, 2026-07-30, `units/identity_merge_probe_experiment.py`, 4 green.
+3. ~~Probe predicate-variable matching for transitivity~~ — done, 2026-07-30,
+   `units/transitivity_probe_experiment.py`, 4 green. Confirmed, but **not** pure sugar: reading transfers
+   for free via `AttrVar`; writing needed `Attribute.value`/`Link.role` to accept a bound `AttrVar`, a
+   small symmetric RHS extension, gated on a declared `relation_kind(..., transitive=True)` fact per
+   relation exactly as planned, never applied unconditionally.
+4. ~~Check the definitional-coexistence risk~~ — done, 2026-07-30,
+   `units/definitional_coexistence_experiment.py`, 3 green. Agreement across two coexisting forms is
+   correctly read as agreement (value-deduped, not source-deduped); genuine disagreement is still caught.
+5. **Now**, return to the causal-fact → plan meta-rule and the norm → requirement → satisfies chain,
+   now confident about which parts of the design are load-bearing engine primitives (the small
+   `Attribute`/`Link` RHS extension, item 3) and which are ordinary meta-rules over open data (everything
+   else in this arc).
+6. **Revise `closed_class_inventory.md`, `composition_grammar.md`, and `agentic_scenario_catalog.md`** —
+   every item this arc's probe list named is now actually checked, so this revision is no longer blocked
+   on further probing; it is the next concrete piece of work.

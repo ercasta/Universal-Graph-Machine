@@ -7,6 +7,14 @@ reuse them elsewhere until confirmed. **§8 supersedes an in-conversation sketch
 were considered as free-standing siblings of `RelationalClaim`, each with an independent consequent; that shape
 was wrong (see `computation_units.md` §3–4) and was corrected before being written down, not after.
 
+**Updated 2026-07-30.** §6 already flagged, correctly, that `causation` and quantification's open case might
+not need their own `RelationalClaim`-shaped design — `closed_class_rechallenged.md` has since confirmed it:
+both, plus `force`, `level`, and `identity`, resolve to open content read by a generic meta-rule, never a
+new sibling of `RelationalClaim`. That leaves `conditional` as the one genuinely relational, closed-class
+form this grammar's `RelationalClaim` wrapper is actually for — everything else below (the `BareClaim`
+bundle, the detachment fix, the gated-vs-naive nesting induction, the `Trigger` fan-in shape) is about
+`conditional`'s own structure and composition, and is unaffected by the rechallenge.
+
 ---
 
 ## 1. The problem this is answering
@@ -125,10 +133,10 @@ conditional rules) and is not blocked by shelving discharge.
 
 ## 6. Left open, on purpose
 
-- **`quantification`, `causation`** — ⚠ 2026-07-30: this framing is likely wrong for `causation` (already
-  confirmed sugar, `causation-core-was-sugar`) and possibly for `quantification`'s open case (resolves via
-  goal machinery, not a new closed-class design) — see `closed_class_rechallenged.md`. Neither may need "its
-  own design" the way `conditional` did; both may be open content read by a generic meta-rule instead.
+- ~~`quantification`, `causation`~~ — **confirmed, 2026-07-30, not merely suspected**: neither needed "its
+  own design" the way `conditional` did. Both are open content read by a generic meta-rule
+  (`closed_class_rechallenged.md`), never a `RelationalClaim` sibling — the same is now also confirmed for
+  `force`, `level`, and `identity`, none of which were ever candidates for this grammar in the first place.
 - **A new `flag`/`alert` force value** (from the drift-detection scenario, `agentic_scenario_catalog.md` §7) —
   cheap: one more value in the existing `force` field, not a new structure.
 - **Termination/safety of nested `RelationalClaim`s at arbitrary depth** — not argued here, only made into a

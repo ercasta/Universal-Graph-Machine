@@ -5,10 +5,13 @@ inventory, abstractly. It consolidates what is scattered across `forms_discourse
 `docs/design/form_inventory.md` (superseded except for the surviving findings named in `forms_discourse.md` §12),
 and `units/forms.py`/`units/sieve.py` (the runnable probe) into one table with one status per entry.
 
-**⚠ 2026-07-30: `closed_class_rechallenged.md` questions this document's whole CONTENT/FORCE/LEVEL frame**
-— the `causation` row below is stale (already confirmed sugar, `causation-core-was-sugar`, predating this
-session), and `force`/`level`/`identity` are proposed (not yet probed) as likely open+meta-rule-mediated
-too. Read that note before extending this table further; it names what's confirmed vs. hypothesized.
+**Updated 2026-07-30 against `closed_class_rechallenged.md`.** That document rechallenged this one's
+CONTENT/FORCE/LEVEL frame and finished probing every relational form on its list: causation, quantification's
+open case, force, level, and identity/merge are all confirmed open content read by a generic meta-rule (four
+of the five needed zero engine change); transitivity is confirmed too but needed a small, real engine
+extension (`Attribute.value`/`Link.role` reading a bound `AttrVar`). §6 and §8 below are updated to match.
+Everything else in this document — the sieve measurements (§1–5), the ask/command finding (§9), the
+justification dissolution (§10) — is unaffected by the rechallenge and stands as originally measured.
 
 ## 0. Why this document exists
 
@@ -139,9 +142,9 @@ where they're named and what shape they'd need:
 
 | form / category | example | named in | shape |
 |---|---|---|---|
-| **quantification** | "**every** VIP customer gets the discount," not just one named customer | `forms_discourse.md` §2.2 CONTENT list, `form_inventory.md` §4a | **worked out 2026-07-29, §8 below — splits into four cases, only one of which is actually relational-form-shaped** |
-| **causation** | "creating the account **enables** sending the welcome email" | same | ⚠ **stale row — already resolved as sugar, not unformalized.** `causation-core-was-sugar` (2026-07-22): the whole causation core is a generic `propagates` meta-schema + declared data, zero engine primitive. See `closed_class_rechallenged.md` §2 |
-| **identity / reference** | "the **observed** total doesn't match the **expected** total" — are these two occurrences the same thing or not? | `forms_discourse.md` §10.3 (open, with the measured depth-4/5 engine obstacle already blocking the flagship case) | relational, and specifically flagged as depending on a *separate* fix (the surge detector, `cnl_engine_goal_plan.md` Phase D) before it can even be tested, since resolution is iterated over a cycle |
+| **quantification** | "**every** VIP customer gets the discount," not just one named customer | `forms_discourse.md` §2.2 CONTENT list, `form_inventory.md` §4a | **resolved, §8 below — splits into four cases; case (c) is now built (`units/quantification_cursor_experiment.py`), case (d) is a genuine, likely-permanent epistemic limit, not a form gap** |
+| **causation** | "creating the account **enables** sending the welcome email" | same | **resolved as sugar, not unformalized.** `causation-core-was-sugar` (2026-07-22): the whole causation core is a generic `propagates` meta-schema + declared data, zero engine primitive. See `closed_class_rechallenged.md` §2 |
+| **identity / reference** | "the **observed** total doesn't match the **expected** total" — are these two occurrences the same thing or not? | `forms_discourse.md` §10.3 | **resolved as sugar, 2026-07-30.** `units/identity_merge_probe_experiment.py` (4 green): the engine's already-built `Merge` effect plus one generic rule, quantifying over both concept kind and identity-key value via two `AttrVar`s — no new primitive. The depth-4/5 engine obstacle this row used to cite was about a *different* thing (definite-description resolution iterated over a cycle, still Phase-D-gated); deciding that two already-identified occurrences denote the same referent needs no such cycle. See `closed_class_rechallenged.md` §6 |
 | **tense, if bounded returns** | distinguishing "the customer **qualified**" from "the customer **had been qualifying**" | `forms_discourse.md` §6 catalog row (Vendler's aspect classes) | `past` (§4 above) is a start; a full tense/aspect treatment needs the aspectual-class dimension too, currently absent |
 | **tier-3 thematic roles** | who is the *agent* and who is the *patient* in "send the customer the welcome email" | `forms_discourse.md` §9 | not a "form" in the CONTENT/FORCE/LEVEL sense at all — a different, corpus-derived tier, deliberately out of this sieve's scope |
 | **activity structure** (plan/step/subgoal/hypothesis-verification) | `forms_discourse.md` §10.2, open | multi-turn, not classifiable as a single utterance's CONTENT×FORCE×LEVEL point at all — needs its own treatment before it's even a sieve-shaped question |
@@ -150,12 +153,17 @@ where they're named and what shape they'd need:
 
 ## 7. Next actions for Phase A
 
-1. **Do not naively add quantification/causation to `units/forms.py`'s claim-decoration harness.** `conditional` already proved that a relational form needs a second occurrence and a role (`when:`), which the sieve's `Ctx`/`claim_pattern` scaffold was not built for generically — it was extended once, ad hoc, for `conditional`. Before writing `Form` entries for quantification or causation, decide whether the harness itself needs a generic "second occurrence + role" capability, or whether each relational form keeps getting a bespoke extension the way `conditional` did.
-2. **Close out §4's open hypotheses** by writing one competing form each for `past`, `evidential`, `mirative` — otherwise their slot status stays uninformative indefinitely.
-3. **Route `conditional`'s Phase B blocker (§5) to the plan**, not to more Phase A work — no amount of additional inventory entries fixes a discharge mechanism that doesn't exist. This is already tracked in `cnl_engine_goal_plan.md` §3/§4.
-4. **`identity`/reference (§6) is gated behind Phase D**, not Phase A — don't spend inventory-writing effort on it until the surge detector is fixed, since the flagship test case is already known to be unmeasurable on the current engine.
+1. ~~Do not naively add quantification/causation to `units/forms.py`'s claim-decoration harness.~~
+   **Resolved by not needing to**: both turned out to be open content read by a generic meta-rule
+   (`closed_class_rechallenged.md`), never a `Form` entry in this harness at all.
+2. **Close out §4's open hypotheses** by writing one competing form each for `past`, `evidential`, `mirative` — otherwise their slot status stays uninformative indefinitely. Still open.
+3. **Route `conditional`'s Phase B blocker (§5) to the plan**, not to more Phase A work. Still shelved, still tracked — no scenario has yet needed the agent to derive a new rule from a hypothetical.
+4. ~~`identity`/reference (§6) is gated behind Phase D.~~ **No longer true** — deciding two already-identified
+   occurrences denote the same referent needed no cycle and no Phase D fix; resolved directly (§6 above).
 5. **Re-run `axis_audit`/`factorization_audit`/`impure_slots` after every inventory change** and update this document's tables from the live output — the numbers here are a snapshot, not a citation.
-6. **Quantification (§8) mostly does *not* need item 1's generic harness extension.** Only its fourth case (a claim like "did every X satisfy P," over an open/unbounded domain) is genuinely relational-form-shaped; the other three resolve via existing matching, negation-as-absence, or (unbuilt) goal machinery — see §8 before assuming quantification is `conditional`'s shape repeated.
+6. ~~Quantification (§8) mostly does not need item 1's generic harness extension.~~ Confirmed correct, and
+   its case (c) — the one case needing new machinery, goal/subgoal cursoring rather than a harness
+   extension — is now built. Only case (d)'s open-domain limit remains genuinely open.
 
 ---
 
@@ -168,7 +176,7 @@ into four cases with different answers, checked one at a time:
 |---|---|---|
 | **(a) universal as application** — "apply the discount to every VIP customer" | scenario 1 | **free.** An ordinary rule with a free variable already fires once per match (`model.md` §4) — no new form |
 | **(b) universal as a claim, over a bounded/closed set** — "did every queue member get evaluated," checkable in one revive | — | **free**, via `∀x.P(x) ≡ ¬∃x.¬P(x)` — search for a counterexample, using negation-as-absence (`model.md` §4's θ mechanism) already in the engine. No new form, no new machinery |
-| **(c) the same claim, but checking each member needs more than one revive** (e.g. a tool call per member) | scenario 10 | **not free, but not bespoke either.** Needs a cursor that survives across revives — exactly `model.md` §8's goal/subgoal/procedure shape (*"plan, step, subgoal, and expectation are all the same shape"*), already designed, not yet built. Not a quantification-specific mechanism |
+| **(c) the same claim, but checking each member needs more than one revive** (e.g. a tool call per member) | scenario 10 | **not free, but not bespoke either — and now built.** A cursor that survives across revives, exactly `model.md` §8's goal/subgoal/procedure shape (*"plan, step, subgoal, and expectation are all the same shape"*). `units/quantification_cursor_experiment.py` (2026-07-29) built it: one reused reflective `Cell`, a second gate wired directly to the sibling rule's own `Cell` (a same-turn-lag fix). Not a quantification-specific mechanism |
 | **(d) universal as a claim over an open, unbounded domain** — "every VIP customer," where new ones can appear any time | scenario 1 (implicit) | **genuinely unresolved, possibly not a form question at all.** Absence-of-a-counterexample-so-far never proves absence-of-a-counterexample-ever in an open domain. At best a hedged claim ("no counterexample found among what's currently known"), maybe expressible via existing `degree`/hedge rather than as a hard universal |
 
 **Aggregation (scenario 3, "average order value for VIP customers this month") decomposes the same way, plus one
