@@ -229,6 +229,16 @@ Full audit, the `Rule`/`machine.py` reading that produced this resolution, and w
 no-retraction argument transfers): `attic/handoff_ugm_reversion_evaluation.md`, filed with the resolution
 recorded at its own top.
 
+**Naming the source of the advantage, so it isn't lost under the "agentic" vocabulary (2026-07-30):**
+"metaprocedure + goal-oriented + recovery rules + tool usage" describes a real computation model, but it is
+not a new one — it's the classical production-system lineage (Soar/ACT-R/BDI), which has goal stacks,
+repair, and procedural attachment with no LLM anywhere. The thing this project has that lineage doesn't is
+homoiconicity: a rule is data, so another rule can read a declared rule's own pattern/effect and mint a live
+instance of it — that's what the metaprocedure above and §2's tunnel-as-wiring resolution both actually run
+on. An LLM is a tool a rule can dispatch to at the boundary (§9 of `model.md`), not part of the computation
+model. Recorded in full as a standing position in `model.md` §11 — read it there before writing any future
+document that frames this project as "agentic," to avoid crediting the wrong mechanism.
+
 **Next, in order, now that the foundation question is resolved:** (1) read `ugm/suppose.py`,
 `scope_crossing.py`, `scope_kinds.py` against the §2 resolution — does `ugm/`'s existing supposition
 machinery already support wiring a minted rule-instance to a scope's cell; (2) probe a first outer-loop

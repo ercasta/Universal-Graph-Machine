@@ -203,9 +203,19 @@ blind driver with an outer-loop metaprocedure** (the "a rule writes a rule" mech
    metaprocedure applies to.
 4. Decide whether `units/`'s `revision-01` argument ("circuits stand, no retraction needed") transfers to
    this metaprocedure-on-`ugm` model, or whether `ugm/retraction.py`/`reconsider.py` are still needed there.
-5. Triage `ugm/`'s 79 pre-existing test failures against the modules this direction actually touches
-   (`production_rule.py`, `machine.py`, `lowering.py`, `focus.py`, `suppose.py` family) before treating any
-   of them as a clean base.
+5. ~~Triage `ugm/`'s 79 pre-existing test failures~~ **DONE 2026-07-30.** Also resolved: which branch to
+   start from. `ugm`'s `main` is 706/706 green but PREDATES `scope_tree.py`/`scope_kinds.py`/
+   `scope_crossing.py`/`reactive.py`/`flare.py` and the expanded CNL grammar entirely (they don't exist on
+   `main`) — starting there means rebuilding all of it. The `grammar` branch (main + 111 commits) has these
+   modules, with real dedicated test coverage, and its 79 failures (of 1127) are almost entirely
+   concentrated in the possibilistic/band/hedge layer (`possibility.py`, `possibility_band/rules/cnl/guess`,
+   hedge-related grammar intake, `test_world.py`/`test_epistemic_closure.py`'s band assertions) plus the
+   *temporal* scope-variable engine (`test_scope_variable_rules/cnl.py` — a different mechanism from the
+   focus/attention scope machinery). `test_isa_focus.py`, `test_scope_kinds.py`, `test_reactive.py`,
+   `test_flare.py` are ALL GREEN; `test_scope_crossing.py` has one failure, a known pre-existing interning
+   gap (a name resolving to multiple nodes), not a design flaw. **Decision: build forward on `grammar`'s
+   tip as-is; treat the 79 failures as debt confined to the band/hedge layer, which `units/band.py` already
+   superseded by finding — do not spend time fixing them before starting the metaprocedure work.**
 
 **Still open, lower priority, not blocking the above:**
 - **Give `COMMAND` real semantics** (`closed_class_inventory.md` §9) — small, concrete, quick: tests the

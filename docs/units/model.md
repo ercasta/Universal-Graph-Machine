@@ -1265,6 +1265,22 @@ mental node refers to a particular real thing is a *rule's* decision, and can be
 the evidence the shape is right. The engine has no resolution mechanism to parameterise — not even an authored
 one.
 
+**The computation model is not an LLM architecture, and the two must not be allowed to blur together.**
+Goal-orientation, recovery/repair, and tool dispatch are old — classical production systems (OPS5, Soar,
+ACT-R, BDI agents) already have goal stacks, conflict resolution, and procedural attachment, with no LLM
+anywhere. Those pieces are necessary scaffolding here too, but they are not where this project's advantage
+over that lineage comes from, and stating them as if they were is how the advantage gets quietly lost. The
+actual source is **homoiconicity as an engine-level property**: a rule is data (§1, §3), so another rule can
+read a declared rule's own pattern/effect and mint a live instance of it — the metaprocedure that replaces a
+blind fixpoint driver, and the mechanism behind §6's tunnel-as-wiring resolution, both depend on this and
+nothing else. Soar's productions are not data other productions can restructure at runtime; that is the
+concrete difference, not "it has goals" or "it recovers from failure." An LLM's place in this picture is as
+one possible **tool a rule dispatches to** (construction, ambiguity resolution, prose-to-CNL translation,
+per §9) — an attachment at the boundary, never a component of the computation model itself. Keep this
+distinction explicit in every future document that describes "agentic" behavior here: name the mechanism
+that buys composability, don't reach for the goal/recovery/tool vocabulary as if reciting it were the
+explanation.
+
 ---
 
 ## 12. Invariants worth testing
