@@ -36,9 +36,11 @@ syntactically — the *role name* decides, against a small, closed, named set:
   reads them. This parser follows the *current* model, not `cnl.md`'s stale description of it. (A second,
   smaller inconsistency found the same way the force-marking one was — not fixed in the doc yet, just not
   built here.)
-- **No labels or `x/`/`x` coindexing** (`cnl.md` §3) — cross-statement and within-statement identity both
-  wait for a real scenario that needs them, the same "don't build machinery ahead of a use case" discipline
-  `computation_units.md` names for SUPPOSE's discharge.
+- **No labels or `x/`/`x` coindexing** (`cnl.md` §3) — within-statement identity still waits for a real
+  scenario. **Cross-statement identity did not stay hypothetical**: `units/identity_rules.py`'s
+  `same_entity_rule` is a first, narrow cut (lexically-identical bare-word fillers merge; nothing else
+  does), found necessary the moment two separate authored utterances needed to refer to the same thing
+  (`test_danger_detection_end_to_end.py`). Real coreference (descriptions, pronouns) is still unbuilt.
 - **No degree bands, no negation marking, no refusal mechanism.** Each is a real, designed piece of the
   surface (`cnl.md` §2, `forms_cnl.md` §4.3) that this slice simply hasn't needed yet.
 - **No validation that a role name outside some declared inventory should be refused** (`cnl.md` §2's "a
@@ -137,7 +139,11 @@ class _Parser:
         else:
             word = self._next()
             filler = Node(word)
-            g = g.with_node(filler, name=word)
+            # `kind="entity"` marks this as a referent a later identity rule may decide is the same as
+            # another mention (`units/identity_rules.py`) — never decided here. A bare-word FILLER is
+            # marked; a statement HEAD is not (`cnl.md` §3: within-statement identity is syntax, `x/`/`x`;
+            # cross-statement identity is a rule's job, and this is only the raw material for one).
+            g = g.with_node(filler, name=word, kind="entity")
         g = role_edge(g, occ, role_name, filler)
         return g, occ
 

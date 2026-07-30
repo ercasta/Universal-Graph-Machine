@@ -74,6 +74,26 @@ The most recent, most active thread. Full narrative and how it connects to every
 | `planning_meta_concepts_arc.md` | the full prose story this was extracted from — exploration vs. execution, the middle tier, Zave's telecom precedent, the goal/procedure/question/prohibition unification | design note, prose |
 | `cnl_engine_goal_plan.md` | the original four-phase plan (A spec / B realizability / C composition proof / D termination) and the day-by-day goal/subgoal build log (§7a–§7h) that `goal_machinery.md` and the probe scripts above were extracted from. Heavily cross-referenced from code (`units/engine.py`, `units/goal_experiment.py`, others) — still the canonical pointer for those citations even though its content is now mostly digested elsewhere | historical log; per-phase status lives in `STATUS.md` now |
 
+## The CNL boundary — first real slice (07-30, current work)
+
+Where `cnl.md`/`forms_cnl.md` stopped being 100% design. `units/cnl.py` is the first parser turning actual
+CNL text into graph data; everything downstream of it reuses meta-rules already checked in isolation
+(`force_probe_experiment.py`, `identity_merge_probe_experiment.py`) rather than inventing new ones.
+
+| module | what it does | grew out of |
+|---|---|---|
+| `units/cnl.py` | the parser: `[head \| role: filler ...]`, nesting = containment, `force:`/`level:` marked as crisp attributes (a real contradiction between `cnl.md` and `forms_cnl.md`/the checked probes, found and fixed 2026-07-30 — `cnl.md` §2/§4/§5), everything else as relational role nodes |
+| `units/goal_rules.py` | `ask_to_goal`/`command_to_goal`/`goal_achieved`/`goal_diverged`, promoted out of `force_probe_experiment.py` into a shared, importable module once something real got built on top of the finding |
+| `units/author_rules.py` | routes `force="author"` — scoped to fact-authoring only; compiling an authored `when:`/`then:` shape into a genuinely new `StandingUnit` ("a rule writes a rule") is deferred, named explicitly rather than built ahead of a need |
+| `units/prohibition_rules.py` | "don't do anything dangerous," for real: a declared `dangerous` fact propagates into `forbidden` via one generic rule; a separate, independent watcher vetoes a command's goal from ever executing if its target is forbidden |
+| `units/identity_rules.py` | cross-statement identity, first cut: two bare-word fillers with the same name merge. Found necessary, not hypothetical — the danger-detection scenario's two utterances mention "production_database" separately, and `cnl.py` mints a fresh node per mention unless something merges them |
+
+**Two real bugs surfaced building this, both instructive, both fixed:** calling a rule-constructor function
+twice (once to `add`, once to `wire`) silently builds two disconnected rule-object sets — no exception, just
+zero results; and matching a CNL-parsed relational role (`target:`) as if it were a crisp attribute passes
+against hand-built test graphs that share the same wrong assumption, while silently never matching real
+parsed text at all. Both are recorded in the relevant module's own docstring, not smoothed over.
+
 ## Code
 
 | | |
@@ -88,7 +108,8 @@ The most recent, most active thread. Full narrative and how it connects to every
 | `units/substitution_experiment.py` | `define` + `Identify` as progressive substitution |
 | `units/goal_experiment.py`, `system1_experiment.py`, `quantification_cursor_experiment.py`, `goal_decomposition_experiment.py`, `nac_verification_experiment.py` | the goal-machinery arc's worked examples |
 | `units/force_probe_experiment.py`, `level_probe_experiment.py`, `identity_merge_probe_experiment.py`, `transitivity_probe_experiment.py`, `definitional_coexistence_experiment.py` | the closed-class-rechallenged arc's five probes |
-| `tests/units/` | 116 green |
+| `units/cnl.py`, `goal_rules.py`, `author_rules.py`, `prohibition_rules.py`, `identity_rules.py` | the CNL boundary's first real slice — see the section above |
+| `tests/units/` | 144 green |
 
 ## Conventions
 

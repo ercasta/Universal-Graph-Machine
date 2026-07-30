@@ -142,9 +142,37 @@ The converse holds too: a genuinely different conclusion on the same slot still 
 unaffected.
 
 **Everything named in `planning_meta_concepts_arc.md` and `closed_class_rechallenged.md` is now checked.**
-The natural next step is the one item these documents have been holding open specifically for after
-probing: revise `closed_class_inventory.md`, `composition_grammar.md`, and `agentic_scenario_catalog.md` to
-match, then return to designing the causal-fact→plan and norm→requirement→satisfies meta-rule chain.
+`closed_class_inventory.md`, `composition_grammar.md`, and `agentic_scenario_catalog.md` were revised to
+match (2026-07-30 hygiene pass), and `docs/units/arc_recap.md` now carries the whole arc's narrative plus a
+living "where we are now" section — read that first when picking this up cold.
+
+**Updated 2026-07-30 (same day) — the CNL boundary's first real slice, built and growing.** Full detail:
+`README.md`'s "The CNL boundary" section. `units/cnl.py` is the first actual CNL parser (everything before
+this was 100% design); `units/goal_rules.py`, `author_rules.py`, `prohibition_rules.py`, `identity_rules.py`
+are real, reusable modules, not throwaway probes — `force_probe_experiment.py` now imports its rules from
+`goal_rules.py` rather than defining them twice. End to end, checked against the real engine: a natural-
+language prompt, translated by hand into CNL text, parsed, and run — "is X known" and "do X" utterances
+correctly mint and resolve goals; "the production database is dangerous" authored as a KB fact correctly
+vetoes a later "delete the production database" command, regardless of authoring order, via two
+independently-composing generic rules (`dangerous ⇒ forbidden`, `forbidden` vetoes `executed`) neither of
+which knows the other exists. 144 tests green.
+
+**Two real bugs found and fixed while building this — worth remembering, not just fixing quietly:** (1)
+calling a rule-constructor function twice (once per `add`/`wire` loop) silently builds two disconnected
+rule-object sets, failing with zero results and no exception; (2) matching a CNL-parsed relational role
+(`target:`) as a crisp attribute passes against hand-built test graphs sharing the same wrong assumption,
+while silently never matching real parsed text — the parser was right, the rules were wrong, and only
+running *parsed* CNL rather than hand-built graphs surfaced it.
+
+**Deliberately deferred, named rather than built ahead of a need:** compiling an authored `when:`/`then:`
+shape into a genuinely new `StandingUnit` ("a rule writes a rule," `author_rules.py`'s docstring) — a real
+compiler task, bigger than this slice; real coreference beyond lexically-identical bare words
+(`identity_rules.py`'s docstring); a real action-dispatch/tool-call mechanism (`prohibition_rules.py`'s
+`executed` is a stand-in, not a real `<call>`); CNL refusal and role-inventory validation.
+
+**Also still open, from before, not blocking any of the above:** return to designing the causal-fact→plan
+and norm→requirement→satisfies meta-rule chain — the piece of planning-support work that started the whole
+closed-class-rechallenge detour, now buildable on top of a real CNL boundary instead of hand-built graphs.
 
 **Still open, lower priority, not blocking the above:**
 - **Give `COMMAND` real semantics** (`closed_class_inventory.md` §9) — small, concrete, quick: tests the

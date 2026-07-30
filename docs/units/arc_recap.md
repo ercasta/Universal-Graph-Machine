@@ -175,10 +175,25 @@ each; `composition_grammar.md` also survives narrowed to `conditional` specifica
 relational closed-class form it was ever for). `docs/units/attic/` gained two entries
 (`forms_extra_considerations.md`, `planning_example.md`) whose ideas are fully absorbed elsewhere.
 
-**The one concrete next step:** design the causal-fact→plan meta-rule and the norm→requirement→satisfies
-chain — the piece of planning-support work that started Act III in the first place, now with a settled
-answer about which parts are load-bearing engine primitives (the small `Attribute`/`Link` extension) and
-which are ordinary meta-rules over open data (everything else).
+**Then the CNL boundary's first real slice got built, 2026-07-30 (same day) — the current active thread.**
+Full detail: `README.md`'s "The CNL boundary" section, `STATUS.md`. `units/cnl.py` is the first actual CNL
+parser this project has (everything before it was design only); `goal_rules.py`, `author_rules.py`,
+`prohibition_rules.py`, `identity_rules.py` are real, growing modules, not throwaway probes. Checked end to
+end: natural-language prompts, translated by hand into CNL text, parsed, and run on the real engine —
+question/command routing (reusing `goal_rules.py` unmodified) and a full "don't do anything dangerous"
+scenario (a KB-authored `dangerous` fact vetoing an unrelated later command, order-independent). Two real
+bugs surfaced and were fixed in the process, both instructive (a rule-constructor called twice building
+disconnected object sets; a relational CNL role matched as if it were a crisp attribute, passing against
+hand-built test graphs that shared the same wrong assumption while silently never matching real parsed
+text) — recorded in the relevant modules' docstrings, not smoothed over. `author`'s harder case (compiling
+an authored conditional into a genuinely new rule — "a rule writes a rule") is deliberately deferred as a
+separate, bigger compiler task, not built ahead of a need.
+
+**Next, in order:** (1) grow the CNL boundary further — candidates, not yet chosen between: the `author`
+rule-compiling case, real refusal/role-inventory validation, or extending the danger-detection pattern to a
+second scenario to check it generalizes; (2) return to the causal-fact→plan meta-rule and the
+norm→requirement→satisfies chain — the piece of planning-support work that started Act III in the first
+place, now buildable on a real CNL boundary instead of hand-built graphs.
 
 **Genuinely open, not yet resolved, and worth naming so it doesn't get silently dropped:**
 
@@ -190,6 +205,9 @@ which are ordinary meta-rules over open data (everything else).
   specific schemas.
 - Lower-priority items already on record in `STATUS.md` (`COMMAND`'s real semantics, `past`/`evidential`/
   `mirative`'s open-hypothesis status).
+- **Real coreference beyond lexically-identical bare words** (`identity_rules.py`) and **real action
+  dispatch** (`prohibition_rules.py`'s `executed` is a stand-in, not a real `<call>`) — both concretely
+  surfaced building the CNL boundary, both deliberately narrow first cuts, neither a general solution yet.
 
 Update this section, not the Acts above, as work continues. When the inventory-revision and
 plan-meta-rule work actually happens, it earns its own Act V here — a one-paragraph summary with a pointer
