@@ -617,12 +617,19 @@ class Machine:
                     yield st
         elif isinstance(ins, OVERLAY_BAND):
             nid = st.regs[ins.reg]
-            if not g.has_key(nid, ins.key):                # base: an ink (fact) rel -> CERTAIN
+            # Check the band map FIRST, not `ins.key` (CONTROL_MARK) first: a fork pencil relation is no
+            # longer control-marked since the `_pencil`->`_relativize` migration moved pencil isolation to
+            # STRUCTURAL `<under>`-edge scoping (`suppose._relativize`) — it LACKS `ins.key` exactly like
+            # ordinary ink now, so gating the map-check behind "has the key" made a fork pencil silently
+            # fall through as unscaled CERTAIN ink (`docs/units/scope_visibility_blocks_forks.md`, root-
+            # caused 2026-07-30). The band map (`chain._band_overlay`/`possibility.all_fork_bands`) only
+            # ever contains genuine fork-scoped nodes, so checking it first is safe for plain ink (never
+            # in the map) and correctly scales a fork pencil regardless of whether it also carries `ins.key`.
+            bands = g.registers.get(ins.live)
+            if bands is not None and nid in bands:
+                yield st.scaled(bands[nid], self.tnorm)     # fold the fork band into score (min)
+            elif not g.has_key(nid, ins.key):                # base: an ink (fact) rel -> CERTAIN
                 yield st
-            else:
-                bands = g.registers.get(ins.live)          # overlay: fork pencils -> their band
-                if bands is not None and nid in bands:
-                    yield st.scaled(bands[nid], self.tnorm)   # fold the fork band into score (min)
         elif isinstance(ins, JOIN):
             src = st.regs[ins.src]
             nbrs = g.succ(src) if ins.direction == "out" else g.pred(src)

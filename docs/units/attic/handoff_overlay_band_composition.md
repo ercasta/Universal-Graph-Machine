@@ -1,7 +1,99 @@
 # Handoff: does likeliness/band composition need privileged ISA support, or is it ordinary declared rules?
 
-**Status: handoff note, written 2026-07-30 because the conversation that raised this question is running
-low on context.** Written so a fresh session can pick up the actual open question rather than re-derive it.
+**RESOLVED, 2026-07-30, same day — CORRECTED the same day after a fresh pass caught an error in the first
+pass of this resolution (below), then the fix was ACTUALLY APPLIED AND VERIFIED end-to-end the same day
+(§7). Verdict: CONFIRMED SUGAR (retirement candidate), not a `transitivity`-style exception. See §6 for the
+corrected diagnosis and §7 for the applied fix; §§1–5 are kept verbatim as the probe material that produced
+it.**
+
+## 6. Resolution (corrected)
+
+The first pass of this resolution claimed `Pat.rel`'s relativizer needed a third dispatch arm for
+`KIND_HYPOTHESIS` (fork) scopes, reasoning by analogy from `KIND_TEMPORAL`'s kind-specific dispatch without
+actually checking whether the *other* existing relativized reader, `chain._relativized_st_matching` (the
+`@?h` scope-tree reader), already covers forks. **It does, and the claim was wrong — caught by a direct
+question ("isn't relativization just a convention now? we should be able to just point the machinery at a
+local area of the subgraph"), verified by running it, not by re-reading docstrings more carefully.**
+
+`OVERLAY_BAND` bundles three concerns, and two of them are already fully generic — but not the two the first
+pass named:
+
+1. **Visibility of a control-marked pencil rel to the demand read at all.** Unchanged from the first pass:
+   the same "OR is an overlaid pencil" gate plain `OVERLAY` already does for crisp SUPPOSE scopes — already
+   justified, never actually in question.
+
+2. **Binding *which fork scope* a matched atom's rel belongs to — ALREADY GENERIC, verified empirically.**
+   `possibility.fork_fact` writes a fork's facts via `suppose._relativize` → `scope_tree.put_under`, the
+   exact same `<under>`-edge structural membership every scope kind uses (temporal, scope-tree holds,
+   forks — one convention, not three). `chain._relativized_st_matching` (the `@?h` reader) never tests scope
+   kind — it walks "entities born under *some* scope" generically. Direct test: building a fork
+   (`load_uncertain(g, "x is likely male")`, band 0.6) and firing an ordinary `Rule(lhs=[Pat("?p", "is",
+   "male", rel="?fork")], rhs=[Pat("?p", "is", "suspicious")])` through `chain_sip` with **no** banded policy
+   and **no** engine change **binds `?fork` to the fork scope today, with zero new code**. There is no
+   missing arm. `_relativized_matching` (the `KIND_TEMPORAL`-only reader) is legacy/narrower than
+   `_relativized_st_matching`, not a template that needed a sibling.
+
+3. **Composing the resulting band into the match score — the ACTUAL remaining gap, and it is NOT the score
+   math.** `GRADE` (`machine.py:207`) does correctly compute the min-composed degree when run as an ephemeral
+   program (confirmed by reading `Machine`'s GRADE case: `st.scaled(deg, self.tnorm)`). But
+   `chain._grades_pass` (`chain.py:1078`), the function `GradedCondition`'s α-cut actually runs through in the
+   demand chain, discards that computed score:
+   ```python
+   prog = [GRADE(var, dim, threshold=thr) for var, dim, thr in graded]
+   return bool(_ISA_READER.match(fact_g, prog, init=[st]))
+   ```
+   `bool(...)` keeps only pass/fail; the achieved degree is thrown away and never folded into `band` the way
+   `_facts_matching(bands=True)`'s fork-band results already are (`chain.py:1557`,
+   `band if fb >= band else fb`). **Verified by running the same probe above and checking the result**: the
+   rule fires (`chain_sip` returns 1), but `check(g, ("is", "x", "suspicious"), rules=rg)` reports `"positive"`
+   (CERTAIN), not `"likely"` (0.6) — the conclusion is written crisp, silently dropping the fork's band. This
+   is the real, narrow gap: not a missing relativizer arm, not new opcode machinery, but one function
+   (`_grades_pass`) that needs to return the achieved score instead of a bool, and its one caller
+   (`chain.py:1560`) needs to fold that score into `band` — the identical pattern already used for fork bands
+   two lines away.
+
+4. **"Best band wins across derivations"** — unchanged from the first pass: ordinary monotone-fixpoint
+   behaviour (re-emit only at a strictly better degree, `Band`'s own docstring, `production_rule.py:246`),
+   not fork-specific, needs nothing new.
+
+**Corrected answer: THREE of the four pieces are already fully generic/ordinary (visibility, scope-binding,
+best-of-derivations) — the scope-binding piece in particular needs NO new relativizer arm, contrary to the
+first pass. The one real gap is a small, LOCAL plumbing fix in `chain._grades_pass` and its single call
+site — thread the achieved graded score through instead of collapsing it to a bool, and fold it into `band`
+exactly where fork-bands already are. This is smaller and more local than the first pass's claim, not larger:
+no new engine concept, no new dispatch arm, one function's return value and ~2 lines at its call site.**
+Retiring `OVERLAY_BAND` itself (and `_band_overlay`/`_scope_pencils`) is still real follow-up work, but it is
+now gated on that one local fix plus reproducing `test_body_through_fork_bands_the_conclusion` and
+`test_best_band_wins_across_derivations` with ordinary `Pat(rel="?fork")` + `GradedCondition` rules — not
+done in this session, left as the scoped next task.
+
+## 7. The fix, applied and verified — but it needed a THIRD thing first, unrelated to this question
+
+Applying §6's `_grades_pass` fix immediately hit a real infinite-accretion bug: the banded-emit
+idempotence check (`chain.py`'s "has a strictly-better fork already been derived?" guard) could never find
+a fork it had just derived, so it re-derived a brand-new one every round, forever. Tracing that down found
+a THIRD, much bigger, unrelated pre-existing bug: `possibility(g, "is", "x", "male")` returned `0.0` for a
+fork that unambiguously existed, **on a clean checkout, with no rule or policy involved at all** — the
+entire base-vantage possibilistic read path was already broken before this session touched anything, root
+cause being a silent collision between the `_pencil`->`_relativize` structural migration and two older
+mechanisms (`scope_tree.is_visible`'s base-vantage filter, and `machine.OVERLAY_BAND`'s `CONTROL_MARK`-keyed
+admit-logic) that never got updated to match. Full root-cause and fix:
+`docs/units/scope_visibility_blocks_forks.md`.
+
+**With that fixed, `_grades_pass`'s fix works exactly as predicted:** an ordinary declared rule —
+`Rule(lhs=[Pat("?p", "is", "male", rel="?fork")], graded=[GradedCondition("?fork", {LIKELINESS: 1.0}, 0.0)],
+rhs=[Pat("?p", "is", "suspicious")])` — derives `x is suspicious` ONCE (no accretion) at band `0.6`
+(`check()` reports `"likely"`, not `"positive"`), reproducing `OVERLAY_BAND`'s automatic banding with zero
+fork-specific engine support. This is the concrete, working confirmation the original question asked for.
+Side effect: the documented pre-existing failure bucket in the four `test_possibility_*.py` files went from
+31 failed / 12 passed to 2 failed / 41 passed (the `scope_visibility_blocks_forks.md` fix's doing, not
+`_grades_pass`'s — but found and fixed in the same continuous investigation).
+
+---
+
+**Original probe material below (§§1–5), written 2026-07-30 because the conversation that raised this
+question was running low on context.** Written so a fresh session could pick up the actual open question
+rather than re-derive it — kept verbatim as the record of how the resolution above was reached.
 Read `arc_recap.md`'s current Act for the full narrative this sits on top of; this document only covers
 the one open question left at the end of that Act, plus enough grounding to probe it without re-reading
 the whole session.

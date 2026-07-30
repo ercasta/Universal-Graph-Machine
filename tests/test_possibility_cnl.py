@@ -11,12 +11,17 @@ from ugm.cnl.uncertainty import (
 
 
 def _scope_of(g: AttrGraph, subj: str, obj: str):
-    """The fork-scope id holding the pencil `subj is obj`, or None — for the correlation check."""
+    """The fork-scope id holding the pencil `subj is obj`, or None — for the correlation check.
+
+    STRUCTURAL since the `_pencil`->`_relativize` migration: a pencil relation is no longer
+    control-marked nor carries the old single-valued `SCOPE` attr (`apply.SCOPE`) — its scope is the
+    `<under>` edge `scope_tree.scope_of` reads (`docs/units/scope_visibility_blocks_forks.md`). This
+    helper was stale from before that migration and always returned None."""
+    from ugm.scope_tree import scope_of
     for s_id in g.nodes_named(subj):
         for r in g.out(s_id):
-            if g.is_control(r) and any(g.name(o) == obj for o in g.out(r)):
-                a = g.get_attr(r, SCOPE)
-                return a.value if a is not None else None
+            if any(g.name(o) == obj for o in g.out(r)):
+                return scope_of(g, r)
     return None
 
 

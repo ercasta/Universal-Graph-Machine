@@ -639,11 +639,30 @@ def _scope_visible(fact_g: AttrGraph, nodes):
     identity union (scope_reframe_audit.md §6, spiked GO). Zero-cost no-op on current data: `reframe_active`
     is False until the membership migration (1c) mints any `<under>` edge, so the read hot path is
     byte-unchanged. When active, `is_visible` keeps base + this-scope + ancestor-scope nodes, dropping a
-    node under a relativizer boundary a base read must not cross."""
-    from .scope_tree import is_visible, reframe_active
+    node under a relativizer boundary a base read must not cross.
+
+    BANDED CARVE-OUT (`docs/units/scope_visibility_blocks_forks.md`, root-caused 2026-07-30): a fork's own
+    scoped entity references are ALSO under a relativizer boundary (`_pencil`->`_relativize` put forks on
+    the same structural `<under>` scoping as SUPPOSE), so `is_visible` alone silently made a base-vantage
+    read blind to every fork — including the banded read that exists specifically to reach one. That must
+    NOT apply under the SILENT/default stance (a fork stays invisible-until-assumed there — see
+    `test_silent_default_keeps_forks_invisible`), so the carve-out is gated on whether a BANDED read is
+    actually in progress: `_BAND_OVERLAY` is only parked in the registers by `_facts_matching(bands=True)`,
+    never by a plain crisp read, so checking it here (rather than baking the exception into `is_visible`
+    itself) keeps the fix local to the one stance that needs it."""
+    from .scope_tree import is_visible, reframe_active, scope_of
     if not reframe_active(fact_g):
         return list(nodes)
     active = fact_g.registers.get(_ACTIVE_SCOPE)
+    if fact_g.registers.get(_BAND_OVERLAY) is not None:      # a banded read: forks are reachable too
+        from .possibility import LIKELINESS
+
+        def visible(n: str) -> bool:
+            if is_visible(fact_g, n, active):
+                return True
+            sc = scope_of(fact_g, n)
+            return sc is not None and fact_g.get_attr(sc, LIKELINESS) is not None
+        return [n for n in nodes if visible(n)]
     return [n for n in nodes if is_visible(fact_g, n, active)]
 
 # --- BANDED (marker-mode) reading — the possibilistic fold (docs/possibilistic.md S7.5 step 6) -----
@@ -1075,17 +1094,26 @@ def _read_graded(rule_g: AttrGraph, rule_node: str) -> list[tuple[str, str, floa
     return out
 
 
-def _grades_pass(fact_g: AttrGraph, graded: list[tuple[str, str, float]], st: State) -> bool:
+def _grades_pass(fact_g: AttrGraph, graded: list[tuple[str, str, float]], st: State) -> float | None:
     """The α-cut DURING matching, as FIRMWARE ((X)): the reified graded conditions lower to an
     EPHEMERAL `GRADE` program run by the shared machine over the match's register file — the SAME op
     the forward path lowers to, no bespoke Python check. A value-node register aggregates
     max-over-mentions INSIDE the instruction (`Machine._operand_nodes`, the §3 coref-class semantics —
     any coreferent mention may carry the propagated degree). An unbound graded var is out of slice ->
-    fail (never fire on an unevaluable α-cut)."""
+    fail (never fire on an unevaluable α-cut).
+
+    Returns the ACHIEVED score (max over matching paths — `GRADE` already min-composes each dimension
+    into it via the shared t-norm), or None on failure. NOT a bool: a `GradedCondition` reads a graded
+    attribute exactly like a fork's `<likeliness>` band, so its composed degree must reach the caller's
+    `band` the same way a fork read through `_facts_matching(bands=True)` already does — dropping it to
+    a bool (the previous shape) silently discarded the one thing that made `OVERLAY_BAND`'s automatic
+    banding look like it needed privileged support (`docs/units/attic/handoff_overlay_band_composition.
+    md` §6): the composition itself was already generic in `GRADE`, only this call was throwing it away."""
     if any(var not in st.regs for var, _dim, _thr in graded):
-        return False
+        return None
     prog = [GRADE(var, dim, threshold=thr) for var, dim, thr in graded]
-    return bool(_ISA_READER.match(fact_g, prog, init=[st]))
+    scores = [s.score for s in _ISA_READER.match(fact_g, prog, init=[st])]
+    return max(scores) if scores else None
 
 
 def _read_value_matches(rule_g: AttrGraph, rule_node: str) -> list[tuple[str, str, str, float | None]]:
@@ -1557,8 +1585,11 @@ def _solve_demand_rule(fact_g: AttrGraph, rule_g: AttrGraph, rule_node: str,
                     nxt.append((st2, band if fb >= band else fb, ne))   # min-band: weakest link
             states = nxt
         for st, band, env in states:                       # EMIT every head atom per full match
-            if graded and not _grades_pass(fact_g, graded, st):           # α-cut: ephemeral GRADE prog
-                continue
+            if graded:                                     # α-cut: ephemeral GRADE prog, min-folded
+                gscore = _grades_pass(fact_g, graded, st)   # into band exactly like a fork read
+                if gscore is None:
+                    continue
+                band = band if gscore >= band else gscore
             if value_matches and not _vmatches_pass(fact_g, value_matches, st):   # ephemeral VMATCH prog
                 continue
             if distincts and not _distincts_pass(fact_g, distincts, st):   # ?a != ?b: ephemeral DISTINCT
