@@ -6,9 +6,11 @@ behind it.
 
 | document | what it is | read when |
 |---|---|---|
+| **`HANDOFF.md`** | ⭐ **start here if picking this up cold** — state, decisions and their wrong versions, what to do next, known limits | first |
 | `north_star.md` | the repoint — content as data, mechanism as mini-algorithms; triggers; microfunctions; what gets cut | first, always |
 | `the_data_model.md` | plain-language prose: what a goal, a plan and a hypothesis *are*; the operations; why they nest without limit | to understand the model |
 | `graph_data_model.md` | the same as signature tables, a closure check, named gaps, and the probe results | to verify something |
+| `planning_workbench.md` | the workbench design — mappings, frames, mocks, the direction invariant, and the decisions that were got wrong first | before touching `workbench.py` |
 
 ---
 
@@ -65,15 +67,23 @@ place; this section records what changed so the reasoning trail stays honest.
   (`chosen`, `ready`, `wants`, `raised`). The *operations* survive as a catalogue; the "built?" column now
   points at superseded code. Treat the tables as the operation vocabulary, not as a map of the codebase.
 
-### Still open, and unchanged by any of this
+### Closed since this review was written
 
-- **§6.2, no plan node.** A plan is still implicit. Focus makes it easier to address one but nothing mints
-  it.
-- **§6.3, an application is not a node.** Focus supplies the *addressing* a recorded application needs, and
-  heads are named partly for this reason — but nothing records applications yet, so selection, lookahead,
-  episodes and learning are all still blocked on it. This remains the single most load-bearing gap, and
-  under microfunctions it is now *more* central, since selection is the only control mechanism.
-- **Termination and conflict arbitration.** Both untouched. The ISA fails loudly at `MAX_STEPS` as an
-  honest stand-in for the first; nothing addresses the second.
+- **§6.3, "an application is not a node"** — the gap this project called its most load-bearing. Closed by
+  `microfunctions/application.py`: applications and episodes are ordinary nodes, and episode ordering is
+  native rather than needing a driver-stamped turn counter.
+- **§6.2, "no plan node"** — closed by `plan.py`, and better than the section imagined: a plan is a *lazy
+  chain* of pending calls, so it is data that can be compared and critiqued before anything runs.
+- **§6.1, "a hypothesis's verdict is not a fact"** — closed by `hypothesis.py`, by never reintroducing the
+  scope that caused it.
+
+### Still open
+
+- **Replanning on divergence.** `execution.py` reports a deviation and offers explored alternatives;
+  nothing yet chooses one or re-proposes from the actual state.
+- **⚠ Conflict detection — a regression, not a deferral.** The old engine surfaced two conclusions
+  disagreeing; the new one has last-write-wins. The composition-safety argument rested on the old
+  behaviour. Reflective microfunctions are the intended answer and need no new mechanism.
+- **Termination.** The ISA fails loudly at `MAX_STEPS` as an honest stand-in; nothing solves it.
 - **The audit in `north_star.md` §6** — which of the ten scenarios actually needs skolems, ATMS, bands,
   stratified NAF, or demand-driven SIP. Not run. Deletion of `ugm/` machinery should wait on it.

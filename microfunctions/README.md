@@ -1,6 +1,6 @@
 # `microfunctions/` — the new engine
 
-**Started 2026-07-30. Supersedes `ugm/`.** Read `docs/microfunctions/north_star.md` first; this package is that
+**Started 2026-07-30. Supersedes `ugm/`.** Picking this up cold? Read `docs/microfunctions/HANDOFF.md` first, then `docs/microfunctions/north_star.md`; this package is that
 document in code. `ugm/` and `units/` stay as the findings they are — nothing deleted, and deletion is
 earned per item by the audit in `north_star.md` §6.
 
