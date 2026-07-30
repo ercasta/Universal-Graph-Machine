@@ -346,6 +346,30 @@ cause fixed, `_grades_pass`'s fix now works exactly as designed: the ordinary de
 conclusion ONCE, correctly banded at the fork's degree — the concrete, working confirmation of the
 `OVERLAY_BAND` retirement question's answer.
 
+**Full retirement attempted, same day — split cleanly into a confirmed piece and a confirmed gap.**
+`OVERLAY_BAND` turned out to do two distinct jobs. The DIRECT band-lookup utility — `check`/`reconsider`/
+`scope_crossing`/`suppose`/`possibility`'s public API, all reading an already-`chain_sip`-derived goal's
+settled band — was checked against this project's own standing `closed_class_rechallenged.md` finding
+("meet-semilattice for gradedness" is already confirmed closed-algebra, not sugar) and against each call
+site directly: **CONFIRMED NON-SUGAR, stays untouched** (`overlay_band_read_utility_confirmed.md`). The
+AUTOMATIC per-atom rule-body banding (`chain._solve_demand_rule`'s plain-atom loop) was then actually
+retired in code — and `test_possibility_rules.py` was rewritten test-by-test to the explicit
+`Pat(rel="?fork")` + `GradedCondition` idiom. **5 of 9 tests ported and verified correct**, including a
+genuinely elegant result: same-fork co-scoping (`test_cross_exclusive_fork_derivation_is_impossible`) falls
+out of ORDINARY variable-reuse unification — reusing one `?fork` variable across two atoms — with zero ATMS
+machinery. **The other 4 exposed a real, confirmed, separate gap**: relativized atoms never raise
+sub-demands (a multi-hop chain through a derived fork silently derives nothing), and — more seriously —
+never populate the ATMS environment, so cross-fork EXCLUSIVITY is silently unenforced once two atoms reach
+DIFFERENT forks via different relativizer variables (verified: a rule combining two mutually-exclusive
+forks' facts derived `"likely"` where it should have been impossible — a genuine unsoundness, not just a
+missing derivation). Full repro and the two concrete failure mechanisms: `atms_env_across_forks_gap.md`.
+**Verdict: this is the possibilistic layer's own analog of `closed_class_rechallenged.md`'s one confirmed
+non-sugar exception (transitivity)** — closing it for real needs either sub-demand-raising relativized
+atoms or a new declared "fork compatibility" condition, neither built. The `chain._solve_demand_rule` change
+was reverted (byte-identical to pre-session HEAD) rather than leave a soundness regression in place; the 5
+rewritten tests stay, proving the declarative idiom is real and available today for the cases that don't
+need ATMS, even though the engine's automatic default couldn't safely be removed.
+
 **Genuinely open, not yet resolved, and worth naming so it doesn't get silently dropped:**
 
 - **The arbitration convention** (§3/§4) — detecting a middle-tier conflict is built; deciding it ("norm A

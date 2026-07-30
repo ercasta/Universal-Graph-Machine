@@ -9,15 +9,25 @@ tests drive `chain_sip` / `check` / `ask_goal` directly.
 import pytest
 
 from ugm.attrgraph import AttrGraph
-from ugm.production_rule import Rule, Pat
+from ugm.production_rule import Rule, Pat, GradedCondition
 from ugm.cnl.rule_graph import write_rule
 from ugm.policy import FirmwarePolicy
 from ugm.chain import chain_sip
 from ugm.check import check, POSITIVE, ASSUMED_NO
-from ugm.possibility import possibility, all_fork_bands
+from ugm.possibility import possibility, all_fork_bands, LIKELINESS
 from ugm.cnl.uncertainty import load_uncertain
 
 BANDED = FirmwarePolicy(uncertainty="banded")            # θ defaults to 0.5
+
+# A body atom that must reach a FORK now says so EXPLICITLY (`docs/units/attic/
+# handoff_overlay_band_composition.md` §7, `docs/units/overlay_band_read_utility_confirmed.md`): a plain
+# `Pat` atom reads crisp-only even under a banded policy, so a rule that used to lean on automatic per-atom
+# fork detection now binds the atom's owning scope via the relativizer (`rel="?fork"`, the same `@?h`
+# scope-tree reach primitive) and grades it with an ordinary `GradedCondition` on `<likeliness>` — the
+# min-composition into the derivation's band happens through the already-generic `GRADE` op, not a
+# fork-specific mechanism. `_fork_graded` is the one-line idiom every rewritten test below reuses.
+def _fork_graded(var: str = "?fork") -> GradedCondition:
+    return GradedCondition(var, {LIKELINESS: 1.0}, 0.0)
 
 
 def _bank(*rules: Rule) -> AttrGraph:
@@ -75,11 +85,14 @@ def test_graded_negation_scales_with_counter_evidence():
 # --- the band rides the derivation: body → head, crisp stays crisp, silent stays silent ---------
 
 def test_body_through_fork_bands_the_conclusion():
-    """`?p is suspicious when ?p is male`, `male` only reachable through a fork (0.6): the demand
-    closure emits the head as a DERIVED FORK at the body band — end-to-end from CNL to verdict."""
+    """`?p is suspicious when ?p is male @?fork [graded]`, `male` only reachable through a fork (0.6):
+    the demand closure emits the head as a DERIVED FORK at the body band — end-to-end from CNL to
+    verdict. The rule EXPLICITLY reaches the fork (`rel="?fork"` + a graded condition on it) — a plain
+    body atom stays crisp-only now (`docs/units/overlay_band_read_utility_confirmed.md`)."""
     g = AttrGraph()
     load_uncertain(g, "x is likely male")
-    rg = _bank(Rule(key="s", lhs=[Pat("?p", "is", "male")], rhs=[Pat("?p", "is", "suspicious")]))
+    rg = _bank(Rule(key="s", lhs=[Pat("?p", "is", "male", rel="?fork")], graded=[_fork_graded()],
+                    rhs=[Pat("?p", "is", "suspicious")]))
     assert check(g, ("is", "x", "suspicious"), rules=rg, policy=BANDED) == "likely"
     assert possibility(g, "is", "x", "suspicious") == 0.6
 
@@ -105,24 +118,28 @@ def test_silent_default_keeps_forks_invisible():
 
 
 def test_multivariable_join_through_a_fork():
-    """`?p is suspicious when ?p knows ?q and ?q is spy` — a TWO-variable body joined on ?q, with the
-    spy fact behind a fork; the fork bands the conclusion through the demand-driven join."""
+    """`?p is suspicious when ?p knows ?q and ?q is spy @?fork [graded]` — a TWO-variable body joined
+    on ?q, with the spy fact behind a fork explicitly reached; the fork bands the conclusion through
+    the demand-driven join (`knows` stays a plain, crisp atom — only the forked atom is relativized)."""
     g = AttrGraph()
     g.add_relation(g.add_node("alice"), "knows", g.add_node("bob"))
     load_uncertain(g, "bob is likely spy")
-    rg = _bank(Rule(key="s", lhs=[Pat("?p", "knows", "?q"), Pat("?q", "is", "spy")],
-                    rhs=[Pat("?p", "is", "suspicious")]))
+    rg = _bank(Rule(key="s", lhs=[Pat("?p", "knows", "?q"), Pat("?q", "is", "spy", rel="?fork")],
+                    graded=[_fork_graded()], rhs=[Pat("?p", "is", "suspicious")]))
     assert check(g, ("is", "alice", "suspicious"), rules=rg, policy=BANDED) == "likely"
     assert possibility(g, "is", "alice", "suspicious") == 0.6        # min(1.0 knows, 0.6 spy)
 
 
 def test_best_band_wins_across_derivations():
     """Two forks make `x is spy` reachable at 0.3 and 0.6; the derived conclusion's possibility is
-    the MAX-of-min — the better derivation wins."""
+    the MAX-of-min — the better derivation wins. Each fork is reached explicitly (`rel="?fork"`); the
+    demand chain's own round loop (not ATMS/env tracking) is what makes the better one win, since a
+    head is re-emitted only at a STRICTLY better band (`test_banded_emit_is_idempotent`, same idiom)."""
     g = AttrGraph()
     load_uncertain(g, "x is unlikely spy")
     load_uncertain(g, "x is likely spy")
-    rg = _bank(Rule(key="w", lhs=[Pat("?p", "is", "spy")], rhs=[Pat("?p", "is", "watched")]))
+    rg = _bank(Rule(key="w", lhs=[Pat("?p", "is", "spy", rel="?fork")], graded=[_fork_graded()],
+                    rhs=[Pat("?p", "is", "watched")]))
     chain_sip(g, ("is", "x", "watched"), rules=rg, policy=BANDED)
     assert possibility(g, "is", "x", "watched") == 0.6
 
@@ -132,7 +149,8 @@ def test_banded_emit_is_idempotent():
     graded check-before-derive that makes the demand rounds converge."""
     g = AttrGraph()
     load_uncertain(g, "x is likely male")
-    rg = _bank(Rule(key="s", lhs=[Pat("?p", "is", "male")], rhs=[Pat("?p", "is", "suspicious")]))
+    rg = _bank(Rule(key="s", lhs=[Pat("?p", "is", "male", rel="?fork")], graded=[_fork_graded()],
+                    rhs=[Pat("?p", "is", "suspicious")]))
     assert chain_sip(g, ("is", "x", "suspicious"), rules=rg, policy=BANDED) > 0
     assert chain_sip(g, ("is", "x", "suspicious"), rules=rg, policy=BANDED) == 0
 
@@ -141,14 +159,21 @@ def test_banded_emit_is_idempotent():
 
 def test_cross_exclusive_fork_derivation_is_impossible():
     """A body joining facts from TWO alternatives of the same `either…or` is an impossible
-    environment and must be REJECTED — while a body using facts from ONE fork derives."""
+    environment and must be REJECTED — while a body using facts from ONE fork derives.
+
+    No ATMS/environment tracking needed: reusing the SAME `?fork` relativizer variable on both atoms
+    forces them to be co-scoped by ORDINARY variable-reuse unification (`_bind_state` refuses to
+    rebind a variable to a different node) — `male`/`short` live in DIFFERENT forks (the either/or's
+    two alternatives) so the shared `?fork` never unifies and rule `c` never derives; `male`/`tall`
+    share the SAME fork so rule `k` derives normally. The impossibility falls out of the join
+    language's existing semantics, not a fork-specific mechanism."""
     g = AttrGraph()
     load_uncertain(g, "x is either male and tall or female and short")
     rg = _bank(
-        Rule(key="c", lhs=[Pat("?p", "is", "male"), Pat("?p", "is", "short")],
-             rhs=[Pat("?p", "is", "contradictory")]),
-        Rule(key="k", lhs=[Pat("?p", "is", "male"), Pat("?p", "is", "tall")],
-             rhs=[Pat("?p", "is", "consistent")]))
+        Rule(key="c", lhs=[Pat("?p", "is", "male", rel="?fork"), Pat("?p", "is", "short", rel="?fork")],
+             graded=[_fork_graded()], rhs=[Pat("?p", "is", "contradictory")]),
+        Rule(key="k", lhs=[Pat("?p", "is", "male", rel="?fork"), Pat("?p", "is", "tall", rel="?fork")],
+             graded=[_fork_graded()], rhs=[Pat("?p", "is", "consistent")]))
     assert check(g, ("is", "x", "contradictory"), rules=rg, policy=BANDED) == ASSUMED_NO
     assert check(g, ("is", "x", "consistent"), rules=rg, policy=BANDED) == "likely"   # 0.5, one fork
 
