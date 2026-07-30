@@ -1,9 +1,14 @@
 # `units` — the current system
 
-> **This is the live generation.** `units/` is what is being built. The `ugm` engine (`docs/*.md`,
-> `docs/design/`, `docs/reference/`, `docs/attic/`, and the `book/`) is the **previous** generation — still
-> running, still documented, still the thing the book teaches, but not what is being designed here. Nothing in
-> this directory supersedes anything in those, and the two have separate attics.
+> **Foundation decision, 2026-07-30 (see `arc_recap.md`'s current Act and
+> `attic/handoff_ugm_reversion_evaluation.md`): going forward, new work builds on `ugm/`'s substrate
+> (`ugm/attrgraph.py`), ISA (`ugm/machine.py`), and rule-lowering — NOT a third from-scratch substrate.**
+> `units/`'s own substrate (`units/engine.py`) and every mechanism validated on it (scope-as-support, the
+> tunnel resolution, "a rule writes a rule," the closed-class algebra) remain the **findings this project
+> stands on** — they are what gets ported onto `ugm/`'s substrate as an outer-loop metaprocedure replacing
+> `ugm/lowering.run_bank`'s blind whole-graph fixpoint driver, not a rival implementation. This directory's
+> documents (`model.md`, the CNL boundary, the probes) stay the authoritative record of *what was found*;
+> where the code that embodies it lives is what changed.
 
 **One paragraph.** The system holds a graph of data that persists, and computes over it by assembling a circuit
 that **stands**. Values are re-established from the axioms each turn, so conclusions are recomputed rather than
@@ -19,7 +24,8 @@ interpretive judgement is a rule inside the loop.
 
 | | |
 |---|---|
-| **`arc_recap.md`** | the whole arc, narrated — where this came from and where it's going. Read this **first** if you're picking this up cold |
+| **`arc_recap.md`** | the whole arc, narrated — where this came from and where it's going, including the 2026-07-30 foundation decision. Read this **first** if you're picking this up cold |
+| **`attic/handoff_ugm_reversion_evaluation.md`** | RESOLVED — the audit and reasoning behind the foundation decision above. Read if you need the "why," not just the "what" |
 | **`STATUS.md`** | what is being worked on right now, and what to pick up next, in more granular detail than the recap's own §5 |
 | **`model.md`** | the computation model — the single design document |
 | **`glossary.md`** | plain-language definitions of terms actually agreed on. Check before reusing jargon |
@@ -109,7 +115,8 @@ parsed text at all. Both are recorded in the relevant module's own docstring, no
 | `units/goal_experiment.py`, `system1_experiment.py`, `quantification_cursor_experiment.py`, `goal_decomposition_experiment.py`, `nac_verification_experiment.py` | the goal-machinery arc's worked examples |
 | `units/force_probe_experiment.py`, `level_probe_experiment.py`, `identity_merge_probe_experiment.py`, `transitivity_probe_experiment.py`, `definitional_coexistence_experiment.py` | the closed-class-rechallenged arc's five probes |
 | `units/cnl.py`, `goal_rules.py`, `author_rules.py`, `prohibition_rules.py`, `identity_rules.py` | the CNL boundary's first real slice — see the section above |
-| `tests/units/` | 144 green |
+| `units/structural_choice_experiment.py` | structural planning as live, real commit/detect/retract/retry — no supposition, no Python. Led directly to the tunnel/metaprocedure resolution in `handoff_ugm_reversion_evaluation.md` §2 |
+| `tests/units/` | 144 green (the structural-choice probe has its own `report()`-style checks, not yet ported to pytest) |
 
 ## Conventions
 

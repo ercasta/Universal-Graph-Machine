@@ -189,11 +189,55 @@ text) — recorded in the relevant modules' docstrings, not smoothed over. `auth
 an authored conditional into a genuinely new rule — "a rule writes a rule") is deliberately deferred as a
 separate, bigger compiler task, not built ahead of a need.
 
-**Next, in order:** (1) grow the CNL boundary further — candidates, not yet chosen between: the `author`
-rule-compiling case, real refusal/role-inventory validation, or extending the danger-detection pattern to a
-second scenario to check it generalizes; (2) return to the causal-fact→plan meta-rule and the
-norm→requirement→satisfies chain — the piece of planning-support work that started Act III in the first
-place, now buildable on a real CNL boundary instead of hand-built graphs.
+**Then structural planning, and a real architectural resolution about the tunnel itself — same day,
+current frontier.** `units/structural_choice_experiment.py`: a genuine choice among KB-declared candidates
+(two wiper kits, one incompatible with the car's declared windshield), resolved by *actually committing* to
+the real graph, honestly detecting the conflict against already-declared data, retracting, and trying the
+next declared alternative — zero Python, zero supposition, three checks green. This led to a sharper
+question — does the tunnel/supposition mechanism matter at all, given this? — and a real, load-bearing
+resolution, **not yet built, but reasoned through precisely**: genuine counterfactual exploration doesn't
+need Python or content-duplicating "bubbles" either. A meta-rule can read a declared business rule's own
+`pattern:`/`effect:` data (already proven possible,
+`test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python`) and mint a **second, supposition-wired
+instance** of it to explore hypothetically; confirming the hypothesis needs no crossing at all, because
+confirming just means the antecedent becomes *really* true, at which point a separate, always-real-wired
+instance of the same declared rule fires naturally. Full reasoning, including where my first objection to
+this was wrong: `handoff_ugm_reversion_evaluation.md` §2 — **read that document now if picking this up
+cold**, it also carries the open strategic question below.
+
+**RESOLVED 2026-07-30 (same day) — the foundation question, and it did not resolve the way the handoff's
+own §4.3 guessed.** The question raised above (revert to `ugm/` or keep building `units/`?) turned out to
+have a third answer, found by reading `ugm/production_rule.py` and `ugm/machine.py` directly rather than
+only their docstrings: `ugm/`'s `Rule` is ALREADY data (LHS/RHS/NAC as `Pat` lists, no Python closures),
+and `ugm/machine.py` is ALREADY a real register-based ISA over a genuine substrate (`attrgraph.py`) —
+mature, tested, two-phase match-then-apply, with the no-fact-deletion invariant built into the opcode set
+itself. "Rules as data over a substrate" is not something `units/` has that `ugm/` lacks. `ugm/`'s actual
+weakness sits one layer up, in `ugm/lowering.run_bank`/`run_to_fixpoint` — a Python driver that
+aggressively forward-chains every declared rule bank to fixpoint over the WHOLE graph, every pass. That is
+the thing to replace, not the substrate or the ISA underneath it.
+
+**The decision: build forward on `ugm/`'s substrate + ISA + rule-lowering, not on `units/engine.py`.**
+Replace `run_bank`'s blind whole-graph driver with an outer-loop metaprocedure — the "a rule writes a rule"
+mechanism `units/` validated (`test_a_rule_writes_a_whole_rule_with_nothing_authored_in_python`) and the §2
+tunnel resolution above, both hosted on `ugm/`'s substrate instead of a third from-scratch one. Concretely:
+a meta-rule reads one declared `ugm` `Rule`'s own `lhs`/`rhs`, and mints a live instance of it — wired to a
+real axiom, or to a supposition's cell (the §2 bubble mechanism) — in a targeted region, instead of
+`run_bank` running every rule everywhere. `units/`'s own substrate and everything validated on it (this
+whole Act) stand as the FINDINGS this rests on, not a rival implementation to keep maintaining in parallel.
+Full audit, the `Rule`/`machine.py` reading that produced this resolution, and what's still open (`ugm/`'s
+`suppose.py` family vs. §2, `focus.py` as the region-selection seed, whether `revision-01`'s
+no-retraction argument transfers): `attic/handoff_ugm_reversion_evaluation.md`, filed with the resolution
+recorded at its own top.
+
+**Next, in order, now that the foundation question is resolved:** (1) read `ugm/suppose.py`,
+`scope_crossing.py`, `scope_kinds.py` against the §2 resolution — does `ugm/`'s existing supposition
+machinery already support wiring a minted rule-instance to a scope's cell; (2) probe a first outer-loop
+metaprocedure directly on `ugm/`'s substrate, targeted rather than run via `run_bank`; (3) check
+`ugm/focus.py`'s demand-derived attention register as the seed for "which region" the metaprocedure
+applies to; (4) decide whether `units/`'s no-retraction argument transfers to this model, or whether
+`ugm/retraction.py`/`reconsider.py` are still needed; (5) once the metaprocedure shape is validated on
+`ugm/`, return to the causal-fact→plan meta-rule and norm→requirement→satisfies chain that started Act III,
+now on the new foundation.
 
 **Genuinely open, not yet resolved, and worth naming so it doesn't get silently dropped:**
 

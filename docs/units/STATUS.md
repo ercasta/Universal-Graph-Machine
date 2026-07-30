@@ -174,6 +174,39 @@ compiler task, bigger than this slice; real coreference beyond lexically-identic
 and norm→requirement→satisfies meta-rule chain — the piece of planning-support work that started the whole
 closed-class-rechallenge detour, now buildable on top of a real CNL boundary instead of hand-built graphs.
 
+**Updated 2026-07-30 (same day) — structural planning probed, and it forced a real architectural
+resolution about the tunnel.** `units/structural_choice_experiment.py` (3 checks green): a genuine choice
+among KB-declared candidates, resolved by committing to the real graph, honestly detecting a conflict
+against already-declared data, retracting, and trying the next declared alternative — zero Python, zero
+supposition. This led to a debate about whether tunnels/computation-units are needed at all, resolved (not
+yet built) via: a meta-rule can mint a *second, supposition-wired instance* of a declared business rule
+(reusing "a rule writes a rule," already proven possible) to explore hypothetically, fire-and-forget;
+confirming a hypothesis needs no crossing at all, because confirming just means the antecedent becomes
+really true, at which point a separate, always-real-wired instance of the same rule fires naturally.
+
+**RESOLVED 2026-07-30 (same day) — the foundation question.** Neither revert wholesale nor stay on
+`units/`'s substrate: `ugm/production_rule.py`'s `Rule` is already data and `ugm/machine.py` is already a
+real register-based ISA over a genuine substrate (`attrgraph.py`) — `ugm/`'s actual weakness is
+`ugm/lowering.run_bank`/`run_to_fixpoint` blindly forward-chaining every rule bank to fixpoint over the
+whole graph, every pass. **Decision: keep `ugm/`'s substrate + ISA + rule-lowering; replace `run_bank`'s
+blind driver with an outer-loop metaprocedure** (the "a rule writes a rule" mechanism from §2 of
+`attic/handoff_ugm_reversion_evaluation.md`, now hosted on `ugm/`'s substrate instead of a new one).
+
+**Next, concretely, in priority order:**
+1. Read `ugm/suppose.py`, `scope_crossing.py`, `scope_kinds.py` against the §2 tunnel/metaprocedure
+   resolution: does `ugm/`'s existing supposition machinery support "wire a minted rule-instance to a
+   scope's cell," or does that need building fresh on `ugm/`'s substrate?
+2. Probe a first outer-loop metaprocedure directly on `ugm/`: a meta-rule reading one declared
+   `production_rule.Rule`'s own `lhs`/`rhs` and minting a second live instance of it, targeted rather than
+   run via `run_bank` over everything.
+3. Check `ugm/focus.py`'s demand-derived attention register as the seed for "which region" the
+   metaprocedure applies to.
+4. Decide whether `units/`'s `revision-01` argument ("circuits stand, no retraction needed") transfers to
+   this metaprocedure-on-`ugm` model, or whether `ugm/retraction.py`/`reconsider.py` are still needed there.
+5. Triage `ugm/`'s 79 pre-existing test failures against the modules this direction actually touches
+   (`production_rule.py`, `machine.py`, `lowering.py`, `focus.py`, `suppose.py` family) before treating any
+   of them as a clean base.
+
 **Still open, lower priority, not blocking the above:**
 - **Give `COMMAND` real semantics** (`closed_class_inventory.md` §9) — small, concrete, quick: tests the
   `ask = command(report(P))` reduction hypothesis rather than leaving it argued-but-unverified.
