@@ -145,16 +145,30 @@ def test_overlay_extends_the_base_with_a_live_set():
 
 
 def test_scope_pencil_visibility_is_the_overlay_op():
-    """End-to-end: a pencil (control rel tagged with a scope) is invisible to a plain read, visible
-    to a read within ITS scope, and invisible within ANOTHER scope — all in-program, no post-filter
-    — all in-program, no post-filter."""
+    """End-to-end: a pencil (a fact placed structurally UNDER a scope) is invisible to a plain
+    (base) read, visible to a read within ITS scope, and invisible within a SIBLING scope — all
+    in-program, no post-filter.
+
+    REWRITTEN 2026-07-30 (`docs/units/scope_visibility_blocks_forks.md`): the original construction
+    (a `control=True` relation tagged with the old single-valued `apply.SCOPE` attr) tested a
+    mechanism the `_pencil`->`_relativize` migration retired — pencil isolation is now STRUCTURAL
+    (`scope_tree.put_under`'s `<under>` edge), so a hand-built old-style pencil is simply invisible
+    to the current mechanism regardless of scope (it was silently always failing, not testing
+    anything). This is the same fix already applied to `test_possibility_cnl.py::_scope_of`."""
+    from ugm.scope_tree import put_under, scoped_ref
     g = AttrGraph()
     ada, bo = g.add_node("ada"), g.add_node("bo")
-    rel = g.add_relation(ada, "suspects", bo, control=True)   # a pencil ...
-    g.set_attr(rel, SCOPE, valued("<hyp1>"))                  # ... of scope <hyp1>
+    hyp1, hyp2 = g.add_node("hyp1"), g.add_node("hyp2")       # ordinary scope nodes (`scope_name`'s
+    # A pencil relativizes BOTH endpoints (`suppose._relativize`'s own pattern: `scoped_ref` mints each
+    # entity's OWN reference under the scope, `denotes`-linked back) as well as the relation itself —
+    # relativizing only the relation while leaving its endpoints as shared base nodes doesn't isolate
+    # anything, since the base nodes stay reachable from every vantage regardless.
+    ada1, bo1 = scoped_ref(g, ada, hyp1), scoped_ref(g, bo, hyp1)
+    rel = g.add_relation(ada1, "suspects", bo1)               # own convention: no `<...>` name, so
+    put_under(g, rel, hyp1)                                   # scope nodes don't auto-flag as control)
     assert chain._facts_matching(g, "suspects", "ada", None) == []
-    assert len(chain._facts_matching(g, "suspects", "ada", None, scope="<hyp1>")) == 1
-    assert chain._facts_matching(g, "suspects", "ada", None, scope="<hyp2>") == []
+    assert len(chain._facts_matching(g, "suspects", "ada", None, scope=hyp1)) == 1
+    assert chain._facts_matching(g, "suspects", "ada", None, scope=hyp2) == []
 
 
 # --- 3. the read program end-to-end ----------------------------------------------------------------

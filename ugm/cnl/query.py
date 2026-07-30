@@ -526,21 +526,29 @@ def _defining_facts(graph: Graph, node: str, *, skip: tuple[str, str],
     """The (predicate, object-name) pairs this node stands in — its structural identity, minus the
     relation being asked about (which every witness shares, so it discriminates nothing).
 
-    BANDED: a derived FORK fact is carried as a control-tagged rel with a fork scope, so the plain
-    control filter would hide exactly the relations an UNCERTAIN witness was built from — leaving two
-    forked witnesses with empty discriminators and collapsing them again. Under `banded` a control rel
-    that is a genuine fork fact (`_fork_scope_of`) counts; ordinary scaffolding (SUPPOSE pencils,
-    machinery) still does not."""
-    from ..possibility import _fork_scope_of
+    BANDED: a fork fact connects the fork's OWN scoped reference to an entity, not the base entity
+    directly (`suppose._relativize`'s scoped copies, `docs/units/atms_env_across_forks_gap.md`) — a
+    witness's BASE node carries no relations of its own when everything it was built from is forked,
+    so `graph.relations_from(node)` alone finds nothing to discriminate on. Reading also through every
+    scoped reference that `denotes` this base node (the same cross-reference `chain.
+    _relativized_st_matching` uses) recovers them. `graph.is_control` no longer needs a fork carve-out
+    here (`docs/units/scope_visibility_blocks_forks.md`): a fork relation isn't control-marked at all
+    post-migration, so it already passes the ordinary control filter unaided — only genuine scaffolding
+    (SUPPOSE pencils, machinery) is control and gets skipped."""
+    from ..vocabulary import DENOTES
     out: set[tuple[str, str]] = set()
-    for rel, obj in graph.relations_from(node):
-        if graph.is_inert(rel):
-            continue
-        if graph.is_control(rel) and not (banded and _fork_scope_of(graph, rel) is not None):
-            continue
-        p, o = graph.predicate(rel), graph.name(obj)
-        if p and (p, o) != skip:
-            out.add((p, o))
+    referents = [node]
+    if banded:
+        for rel in graph.into(node):
+            if graph.has_key(rel, DENOTES):
+                referents.extend(graph.into(rel))
+    for ref in referents:
+        for rel, obj in graph.relations_from(ref):
+            if graph.is_inert(rel) or graph.is_control(rel):
+                continue
+            p, o = graph.predicate(rel), graph.name(obj)
+            if p and (p, o) != skip:
+                out.add((p, o))
     return out
 
 

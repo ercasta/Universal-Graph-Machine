@@ -81,24 +81,41 @@ def test_band_word_scale():
 def test_overlay_band_min_accumulates_multi_hop():
     """The ISA fold (S7.1/S7.2): the read runs through Machine.match, and a MULTI-HOP banded path
     min-accumulates the weakest-link band in the match score. x —is→ male (fork 0.6); male —is→
-    dangerous (fork 0.5); the 2-hop path's score = min(0.6, 0.5) = 0.5."""
+    dangerous (fork 0.5); the 2-hop path's score = min(0.6, 0.5) = 0.5.
+
+    REWRITTEN 2026-07-30 (`docs/units/atms_env_across_forks_gap.md`): two things about the original
+    hand-rolled program were stale. (1) It seeded from `min(g.nodes_named("x"))` — the BASE `x`,
+    which (since the structural `_relativize` migration) carries no relations directly; only its
+    per-scope reference does (`scope_tree.scoped_ref`), so the very first `FOLLOW` found nothing.
+    (2) Each fork mints its OWN private scoped reference to the shared-by-name "male" entity — fork1's
+    "male" and fork2's "male" are two DIFFERENT nodes — so a multi-hop walk must cross between them
+    via their shared BASE referent (`denotes`), exactly as the demand-chain's own relativized reads
+    do (`chain._relativized_st_matching`'s `base_ref`)."""
     from ugm.machine import Machine, SET, FOLLOW, TEST, OVERLAY_BAND
     from ugm.attrgraph import CONTROL_MARK, INERT_MARK, NAME
     from ugm.possibility import add_fork, all_fork_bands
+    from ugm.scope_tree import scoped_ref
 
     _FORK_BANDS = "<test-bands>"          # any register name — the op reads whatever it points at
     g = AttrGraph()
-    add_fork(g, 0.6, [("x", "is", "male")])
+    scope1 = add_fork(g, 0.6, [("x", "is", "male")])
     add_fork(g, 0.5, [("male", "is", "dangerous")])
     g.registers[_FORK_BANDS] = all_fork_bands(g)
 
     def guard(r):
         return [TEST(r, CONTROL_MARK, absent=True), TEST(r, INERT_MARK, absent=True)]
 
-    prog = [SET("s", min(g.nodes_named("x"))), *guard("s"),
+    x1 = scoped_ref(g, min(g.nodes_named("x")), scope1)   # fork1's OWN reference to x — the seed
+    prog = [SET("s", x1), *guard("s"),
             FOLLOW("r1", "s", "out"), TEST("r1", "is"), OVERLAY_BAND("r1", CONTROL_MARK, _FORK_BANDS),
-            FOLLOW("m", "r1", "out"), *guard("m"), TEST("m", NAME, cmp="=", value="male"),
-            FOLLOW("r2", "m", "out"), TEST("r2", "is"), OVERLAY_BAND("r2", CONTROL_MARK, _FORK_BANDS),
+            FOLLOW("m1", "r1", "out"), *guard("m1"), TEST("m1", NAME, cmp="=", value="male"),
+            # cross fork1's "male" reference to fork2's, via their shared base referent (`denotes`,
+            # itself CONTROL — the one edge kind a fact-read guard must NOT exclude here)
+            FOLLOW("dr1", "m1", "out"), TEST("dr1", "denotes"),
+            FOLLOW("mb", "dr1", "out"),
+            FOLLOW("dr2", "mb", "in"), TEST("dr2", "denotes"),
+            FOLLOW("m2", "dr2", "in"), *guard("m2"), TEST("m2", NAME, cmp="=", value="male"),
+            FOLLOW("r2", "m2", "out"), TEST("r2", "is"), OVERLAY_BAND("r2", CONTROL_MARK, _FORK_BANDS),
             FOLLOW("d", "r2", "out"), *guard("d"), TEST("d", NAME, cmp="=", value="dangerous")]
     states = Machine().match(g, prog)
     assert states and min(st.score for st in states) == 0.5

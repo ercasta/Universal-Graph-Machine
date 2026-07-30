@@ -144,6 +144,88 @@ surprises, and the surprises — if any — will be about *ordering* (which trig
 rather than about mechanism. That is the same arbitration question that is already open and already
 unsolved, so it should be tracked there rather than counted as a new problem.
 
+### 5b. Probed, 2026-07-30 — `units/trigger_probe_experiment.py`, and §5 holds as stated
+
+Written as ordinary functions over the graph — no `StandingUnit`, no matching, no settle loop — because
+that is precisely what was under test. Five checks:
+
+* **A dangerous action is vetoed at the choke point.** Executed 0, blocked 1.
+* **⭐ A prohibition recorded *after* the proposal was minted still blocks it.** This was the decisive
+  check — the order-independence ambient matching gave away free, and the property most likely to be
+  quietly lost when moving to called code. It holds, and the reason is precise enough to be worth stating
+  as a rule for the implementation: **the check must happen at APPLY time, not at MINT time.** A
+  proposal is inert data until the executor reaches it, so anything recorded in between counts. Had the
+  check been done when the proposal was created, this would have failed.
+* **Completed work is not retroactively undone.** The first action executed before the prohibition existed
+  and stayed done; the second was blocked. The gate stops the next act and never reaches back.
+* **A later-authored action cannot bypass the gate.** A proposal minted by a function written in deliberate
+  ignorance of prohibitions was still blocked, because there is structurally one executor. This is the
+  argument for a choke point over per-caller checks, and it is now tested rather than asserted.
+* **The residue is real, and was demonstrated rather than reasoned about.** A danger that became true with
+  no proposal pending was *not* caught by the trigger — nothing fired because nothing happened — and *was*
+  found by a scheduled sweep. Write-triggering is complete for guarding acts and structurally cannot cover
+  states nothing announced.
+
+⚠ Two checks initially reported the wrong thing because of a defect in the probe itself (a
+`with_prohibition_on=None` parameter tested with `is not None`, so passing `False` still installed the
+prohibition). Caught because a check that had to be true came back false. Recorded because it is the third
+false-or-wrong green in one day's probing, and the pattern is now worth naming as a discipline: **for every
+green, ask what would make it vacuous.**
+
+---
+
+## 5c. Microfunctions — the further step, probed 2026-07-30
+
+Raised immediately after §5 and pushed further than the repoint itself: instead of rules with a left- and
+right-hand side, have **microfunctions** — ordinary functions taking subgraphs as parameters, where a
+*type* is a subgraph schema (a `car` is a chunk with a body and four wheels). A microfunction is *pointed
+at* its arguments rather than firing wherever the world happens to match, so wrong firing becomes
+structurally impossible. An LLM at the boundary translates natural language into microfunction calls.
+
+Built as `units/microfunction_probe_experiment.py`, five checks, all holding. The findings, in the order
+they matter:
+
+**Matching does not disappear — it is demoted, and that is the actual win.** Checking "is this subgraph a
+car" *is* a graph pattern match. But it moves from **dispatch** (unbounded, fixpoint-driven, tangled with
+NAC and ordering) to **validation** (one known argument, one known call site, bounded, no fixpoint). This
+should be stated precisely so nobody later claims matching was eliminated. Established prior art sits
+exactly here: SHACL is "a shape a subgraph must satisfy," and Minsky's frames are stereotyped situations
+with slots — a car with a body and four wheels is a frame.
+
+**A type is ordinary graph data.** Declared as a node with one `requires` edge per part, read back by an
+ordinary function. If types were Python classes the homoiconicity claim would be lost at exactly the point
+it matters most; they are not, so a KB can author a type and a microfunction can read one.
+
+**Malformed arguments are refused loudly at the boundary.** A three-wheeled chunk is not a `car` and the
+microfunction raises rather than half-executing, reporting expected-versus-actual. This is the same
+loud-refusal discipline the rule compiler already applies to a malformed fragment.
+
+**Wrong firing is eliminated — with the caveat that the interesting half of this result is on the rule
+side.** Two structurally identical cars; the microfunction pointed at one touched exactly one, which is
+close to definitional. The content is the contrast, run in the same graph: the rule-shaped equivalent
+touched **both**, because a pattern structurally cannot express "this one." That is the defect class being
+removed, demonstrated rather than asserted.
+
+**Microfunctions return a graph rather than mutating one.** Arguments-by-reference would reintroduce
+aliasing the rule model never had; returning a graph keeps pencil and ink separate and keeps §4's
+hypothesis-by-running available. Verified: the caller's graph is unchanged, the returned one carries the
+effect.
+
+**The honest residue, and it is the load-bearing consequence.** With no matching to decide what applies,
+*something* must choose both the microfunction and its argument. Typing narrows the candidate set — two
+well-typed cars — but does not pick one. **Selection therefore stops being an optimisation and becomes the
+only control mechanism there is.** That raises the stakes on the application-node layer (§6.3 of
+`graph_data_model.md`, Probes B and C) from "unlocks learning" to "is the control flow," and it needs an
+index of which microfunctions could apply to a chunk, which is precisely the associative-retrieval step
+`system1_experiment.py` already prototypes. Note GOAP has this same problem and answers it by matching
+preconditions against state — so retrieval, not matching, is what actually gets deleted here.
+
+**One practical rule that follows.** Do not search for chunks. "Find the car in this graph" is subgraph
+isomorphism in the general case; instead **chunk once at recognition and materialise the chunk as a node**
+pointing at its parts, so downstream every reference is a pointer rather than a search. This is where an
+LLM at the boundary earns its place, and it is consistent with the parts-as-separate-nodes discipline and
+with interning.
+
 ---
 
 ## 6. What is cut, and what that is worth

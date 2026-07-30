@@ -853,7 +853,8 @@ class Machine:
             return st
         if isinstance(ins, SWEEP):
             nid = st.regs[ins.node]
-            if not g.is_control(nid):
+            from .scope_tree import scope_of
+            if not g.is_control(nid) and scope_of(g, nid) is None:
                 raise ControlEdgeError(
                     f"SWEEP refused: {nid} is not a control node (facts are RETIRE's privilege; "
                     "inert provenance is explanation and never swept)")

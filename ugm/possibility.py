@@ -47,10 +47,12 @@ def band_word(b: float) -> str:
 
 def _entity(g: AttrGraph, name: str) -> str:
     """Reuse an existing same-named entity node or mint one (so a fork's `x` is the ink `x`).
-    The read keeps its deterministic `min` tie-break; the mint is the ISA instruction."""
+    The read keeps its deterministic tie-break (the FIRST-minted node, by numeric id — a plain
+    string `min` breaks once ids cross a power-of-ten boundary, e.g. "n114" < "n42" lexically
+    though 114 > 42; `docs/units/comparative_id_ordering_bug.md`); the mint is the ISA instruction."""
     found = g.nodes_named(name)
     if found:
-        return min(found)
+        return min(found, key=lambda n: int(n[1:]))
     return _MACHINE.apply(g, [MINT("_e", attrs={NAME: valued(name)})], State({})).regs["_e"]
 
 

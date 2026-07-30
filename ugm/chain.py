@@ -761,9 +761,11 @@ def _scope_pencils(fact_g: AttrGraph, scope: str | None) -> frozenset[str] | Non
 
 def _index_entity(fact_g: AttrGraph, index_name: str) -> str | None:
     """The canonical ENTITY node the ordering facts (`t1 before t2`) and the temporal scope agree on for
-    `index_name` — name-interned, so one node. None if it does not exist (never mints in a read)."""
+    `index_name` — name-interned, so one node. None if it does not exist (never mints in a read).
+    Tie-break by NUMERIC id, not string `min` (`"n114" < "n42"` lexically though 114 > 42 —
+    `docs/units/comparative_id_ordering_bug.md`)."""
     found = fact_g.nodes_named(index_name)
-    return min(found) if found else None
+    return min(found, key=lambda n: int(n[1:])) if found else None
 
 
 def _run_scope_index_node(fact_g: AttrGraph, scope: str | None) -> str | None:

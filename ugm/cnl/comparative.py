@@ -42,8 +42,13 @@ def _norm(line: str) -> list[str]:
 
 
 def _entity(g: AttrGraph, name: str) -> str:
+    """The canonical node for `name` — the FIRST one minted (by numeric id, not string `min`: node
+    ids are `n<int>`, and a plain string comparison breaks once ids cross a power-of-ten boundary,
+    e.g. "n114" sorts before "n42" though 114 > 42 — `docs/units/comparative_id_ordering_bug.md`,
+    the bug behind a comparative fact silently attaching to the wrong same-named node once enough
+    other nodes had been minted first)."""
     found = [n for n in g.nodes_named(name) if not (g.is_control(n) or g.is_inert(n))]
-    return min(found) if found else g.add_node(name)
+    return min(found, key=lambda n: int(n[1:])) if found else g.add_node(name)
 
 
 # ---------------------------------------------------------------------------

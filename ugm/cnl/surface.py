@@ -71,13 +71,18 @@ def _find_rel(graph: Graph, s_id: str, pname: str, o_id: str) -> str | None:
 def _band_suffix(graph: Graph, rel: str) -> str:
     """The possibilistic band a FORK fact carries, rendered as ` (likely)` etc — "" for ink and for
     transient SUPPOSE pencils (no band). The proof tree shows each fact's OWN confidence (the
-    band+env half of a banded `why`, docs/possibilistic.md S7.5 step 6)."""
-    from ..apply import SCOPE
+    band+env half of a banded `why`, docs/possibilistic.md S7.5 step 6).
+
+    STRUCTURAL since the `_pencil`->`_relativize` migration (`docs/units/scope_visibility_blocks_
+    forks.md`): a fork fact's scope is its `<under>` edge, not the old single-valued `apply.SCOPE`
+    attr this used to read — which no relation has carried since the migration, so every banded
+    conclusion silently rendered without its band suffix."""
+    from ..scope_tree import scope_of
     from ..possibility import LIKELINESS, band_word
-    a = graph.get_attr(rel, SCOPE)
-    if a is None or not graph.has(a.value):
+    sc = scope_of(graph, rel)
+    if sc is None:
         return ""
-    b = graph.get_attr(a.value, LIKELINESS)
+    b = graph.get_attr(sc, LIKELINESS)
     if b is None or float(b.value) >= 1.0:
         return ""
     return f" ({band_word(float(b.value))})"
@@ -89,13 +94,13 @@ def _env_lines(graph: Graph, rel: str, depth: int) -> list[str]:
     ATMS environment, rendering the world's own CO-SCOPED pencil facts — so a conclusion reached
     through `intruder is either tall and quiet or …` shows it stands on the WHOLE tall∧quiet world,
     a correlation the premise lines alone don't reveal. Empty for ink, base forks, and crisp runs."""
-    from ..apply import SCOPE
+    from ..scope_tree import scope_of
     from ..possibility import DERIVED_ENV, band_of_scope, band_word
     from ..suppose import scope_members
-    a = graph.get_attr(rel, SCOPE)
-    if a is None or not graph.has(a.value):
+    sc = scope_of(graph, rel)
+    if sc is None:
         return []
-    env = graph.get_attr(a.value, DERIVED_ENV)
+    env = graph.get_attr(sc, DERIVED_ENV)
     if env is None or not env.value:
         return []
     lines: list[str] = []
