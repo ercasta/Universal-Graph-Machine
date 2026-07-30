@@ -274,12 +274,34 @@ directly also found the goal-driven/materialized/central-dispatch shape mostly a
 `corpus/procedure.cnl` + `procedure_surface.py` author a procedure as declared facts, `dispatch.py` is
 already the ONE content-blind central call-servicer, `mode_calls.py` invokes CHECK/CHOOSE/SUPPOSE the
 identical way, and `planning_execution.cnl`'s DISCREPANCY/RANK/REPLAN rules already handle failure as data.
-**One precise, load-bearing gap survives the correction:** the line minting a real-world `act` call off
-`<exec> ready ?o` carries no guard at all — nothing stops a standing prohibition from being silently
-bypassed by an in-flight procedure. Resolved, not left open: the central dispatcher should consult a
-graph-resident veto marker, matching every other VM-consults-data precedent in the doc — not a local NAC
-that every future call-emitting rule would need to remember independently. Full writeup and a proposed
-first probe: `metaprocedure_model.md`.
+
+**A second correction followed immediately, same day.** The first correction's own "move mechanism to
+Python" suggestion was itself wrong for mechanism that *derives reasoned-over state* (plan readiness,
+ordering, discrepancy): `chain_sip`/`suppose()` can only reason through declared `Pat`/`Rule` structure,
+never an opaque Python call, so answering "what would you do if X" requires that derivation to *stay* a
+declared rule — just privileged at the write side (gated the way `RETIRE` already excludes ordinary rule
+lowering from emitting it), not moved to Python. Only mechanism nothing ever reasons about (the dispatcher's
+servicing loop, `ControlMachine` stepping) is correctly Python. This produced a three-way rule
+classification — business rules, unprivileged "useful" rules the engine ships (same power as business
+rules, just pre-written), and privileged metarules/metaprocedures — and **two independent gaps, not one**:
+a runtime gap (act-dispatch has no standing-prohibition check) and a load-time gap (nothing stops a business
+rule from directly concluding `chosen`/`ready`, bypassing the planner's own logic). Both need closing;
+neither substitutes for the other, and the load-time fix must preserve `suppose()`'s ability to reason
+hypothetically *through* the privileged rules, not just hide them. Full writeup and two proposed probes:
+`metaprocedure_model.md`.
+
+**A documentation bug surfaced and fixed while reasoning about the privilege/scope split, same day.**
+`ugm/suppose.py`'s own module docstring described a pre-migration mechanism (a control-flagged "PENCIL"
+relation) that its own `_pencil` function's docstring already said had been superseded by structural
+scope-tree relativization — the two docstrings in the same file disagreed with each other. Fixed: the
+module docstring rewritten to match reality, and `_pencil` renamed to `_relativize` (it was shared by
+holder/temporal scopes too — `scope_kinds.py` — which are explicitly NOT tentative, so the old name was
+actively wrong there even though it fit the fork/possibility case in `possibility.py`). Full suite
+re-verified clean, no regressions. **This surfaced a real, harder, deliberately-unresolved question,
+handed off for a fresh session:** does `machine.py`'s `OVERLAY_BAND` opcode's automatic band composition
+through multi-hop derivation chains need to be privileged ISA machinery, or is it — like every other
+mechanism this arc examined — expressible as ordinary declared rules over relativized facts? Not decided;
+`handoff_overlay_band_composition.md` is the probe material.
 
 **Genuinely open, not yet resolved, and worth naming so it doesn't get silently dropped:**
 

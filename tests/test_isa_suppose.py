@@ -17,7 +17,7 @@ from ugm import (
     suppose, explain_suppose, scope_members,
     CONFIRMED, REFUTED, INCONCLUSIVE, HYPOTHESIS,
 )
-from ugm.suppose import _pencil
+from ugm.suppose import _relativize
 
 
 def _facts(triples) -> AttrGraph:
@@ -77,7 +77,7 @@ def test_pencil_fact_is_invisible_to_scopeless_chain():
     rg = _reify([BIRD_FLIES])
     scope = g.add_node(HYPOTHESIS, control=True)
     tweety = g.add_node("tweety")
-    _pencil(g, scope, tweety, "is", g.add_node("bird"))
+    _relativize(g, scope, tweety, "is", g.add_node("bird"))
     # ordinary CHAIN (no scope) must NOT see the pencil `tweety is bird`, so it derives nothing
     before = _ink(g)
     chain_sip(g, ("is", "tweety", "flyer"), rules=rg)
@@ -89,7 +89,7 @@ def test_in_scope_chain_sees_the_pencil_and_derives_in_pencil():
     rg = _reify([BIRD_FLIES])
     scope = g.add_node(HYPOTHESIS, control=True)
     tweety = g.add_node("tweety")
-    _pencil(g, scope, tweety, "is", g.add_node("bird"))
+    _relativize(g, scope, tweety, "is", g.add_node("bird"))
     # WITHIN the scope, the pencil `tweety is bird` is visible -> `tweety is flyer` is derived...
     chain_sip(g, ("is", "tweety", "flyer"), scope=scope, rules=rg)
     # ...but only in PENCIL: it is NOT an ink fact (derived_triples reads ink only)

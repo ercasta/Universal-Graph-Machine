@@ -13,7 +13,7 @@ remaining work (a likeliness BAND on visibility) is deliberately NOT covered her
 import ugm as h
 from ugm import AttrGraph, Pat, Rule, chain_sip, HYPOTHESIS
 from ugm.chain import _facts_matching
-from ugm.suppose import _pencil
+from ugm.suppose import _relativize
 
 
 def _present(g, pred, s, o, scope) -> bool:
@@ -33,10 +33,10 @@ def _scenario():
     female_world = g.add_node(HYPOTHESIS, control=True)
     male, tall = g.add_node("male"), g.add_node("tall")
     female, short = g.add_node("female"), g.add_node("short")
-    _pencil(g, male_world, x, "is", male)                      # correlated -> co-scoped behind ONE fork
-    _pencil(g, male_world, x, "is", tall)
-    _pencil(g, female_world, x, "is", female)
-    _pencil(g, female_world, x, "is", short)
+    _relativize(g, male_world, x, "is", male)                  # correlated -> co-scoped behind ONE fork
+    _relativize(g, male_world, x, "is", tall)
+    _relativize(g, female_world, x, "is", female)
+    _relativize(g, female_world, x, "is", short)
     return g, male_world, female_world
 
 

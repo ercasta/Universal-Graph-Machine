@@ -453,7 +453,7 @@ class EMIT(Instr):
     DYNAMIC VALUE: when `value_reg` is set the attribute VALUE is the NODE ID held in that register
     (resolved at apply time), not the static `value`. Symmetric with `key_reg`, and it exists for the
     same reason: a scope TAG points at a node that is minted by the same firing, so its id cannot be
-    a compile-time constant. `suppose._pencil` writes exactly this shape by hand
+    a compile-time constant. `suppose._relativize` writes exactly this shape by hand
     (`EMIT(rel, SCOPE, scope, kind=VALUED)` where `scope` is a node id) — `value_reg` is what lets a
     RULE express it, which is what a rule authoring a banded fork needs (see `production_rule.Band`).
     VALUED only: a node id is data, never a degree."""

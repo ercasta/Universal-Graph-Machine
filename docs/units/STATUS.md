@@ -238,21 +238,44 @@ blind driver with an outer-loop metaprocedure** (the "a rule writes a rule" mech
    siblings that happen to share a shape not automatically one mechanism?
 4. Decide whether `units/`'s `revision-01` argument ("circuits stand, no retraction needed") transfers to
    this metaprocedure-on-`ugm` model, or whether `ugm/retraction.py`/`reconsider.py` are still needed there.
-4a. **NEW 2026-07-30 — the metaprocedure model, written up and then corrected the same day:
-   `metaprocedure_model.md`.** First draft treated "Python orchestrates propose/evaluate/apply" (`reactive.
-   fire`, `resolve_crossings`, CHECK/CHOOSE/SUPPOSE dispatch) as one level short of the target, implying the
-   orchestration itself should become graph-resident rule-data. **Corrected:** that's one indirection too
-   many — the engine/firmware/ISA is correctly a fixed, Python-implemented VM, not something a KB author
-   changes; only the CONTENT it manipulates must be graph-resident. Confirmed concretely: `ugm/learner.py`'s
-   `COOCCURRENCE` rule is an ORDINARY rule, run through the ORDINARY `run_bank`, whose RHS writes the same
-   flat rule-representation (`rl_lhs`/`rl_head`/`k_subj`/`k_pred`/`k_obj`) `define_surface.py`'s `define
-   schema` targets — a general, already-working, engine-wide "rules are graph-resident data" mechanism, not
-   schema-specific and not one-shot. `ugm/cnl/authoring.py`'s `expand_rules` is the one fixed compiler that
-   lifts it into an executable `Rule`. This resolved §4's fork too: the central-dispatcher-veto placement is
-   now the confirmed answer (matches every other VM-consults-graph-resident-data precedent in the doc), not
-   an open question. **Next: build the proposed probe** (`metaprocedure_model.md` §5) — a toy two-step
-   procedure, a standing prohibition asserted mid-run, checking that `dispatch.py`'s central servicer
-   actually halts the next step once taught to consult it.
+4a. **NEW 2026-07-30 — the metaprocedure model, written up and then corrected TWICE the same day:
+   `metaprocedure_model.md`.** First correction (§1a): the first draft treated "Python orchestrates
+   propose/evaluate/apply" (`reactive.fire`, `resolve_crossings`, CHECK/CHOOSE/SUPPOSE dispatch) as one
+   level short of the target — wrong; the engine/firmware/ISA is correctly a fixed, Python-implemented VM,
+   only the CONTENT it manipulates must be graph-resident, confirmed via `ugm/learner.py`'s `COOCCURRENCE`
+   rule (an ORDINARY rule writing the same general flat rule-representation `define_surface.py`'s `define
+   schema` targets — not schema-specific, not one-shot).
+   **Second correction (§1b):** §1a's own "move mechanism to Python" suggestion was itself wrong for
+   mechanism that DERIVES REASONED-OVER STATE (plan readiness/ordering/discrepancy) — `chain_sip`/
+   `suppose()` can only reason through declared `Pat`/`Rule` structure, never an opaque Python call, so
+   hypothetical planning ("what would you do if X") needs that derivation to STAY a declared rule, just
+   privileged at the write side (gated like `RETIRE`'s lowering-vocabulary exclusion) rather than moved to
+   Python. Only mechanism nothing ever reasons about (the dispatcher's servicing loop, `ControlMachine`
+   stepping) is correctly Python. This produced a three-way rule classification (business / engine-shipped-
+   but-unprivileged "useful" rules / privileged metarules) and **TWO independent gaps, not one:** Gap A
+   (runtime — act-dispatch has no standing-prohibition check) and Gap B (load-time — nothing stops a
+   business rule from directly concluding `chosen`/`ready`/etc., bypassing the planner's own logic). Both
+   need closing; neither substitutes for the other. **Next: build both proposed probes** (`metaprocedure_
+   model.md` §5) — Probe 1 (Gap A, the runtime dispatcher checkpoint) and Probe 2 (Gap B, the load-time
+   privilege gate, PLUS confirming `suppose()`/`chain_sip` can still reach the privileged readiness rules
+   hypothetically — the check that actually matters, since a wrong implementation of Gap B's fix could
+   silently break hypothetical planning instead of just gating it).
+4b. **NEW 2026-07-30 — `suppose.py`'s stale "PENCIL/INK" docstring fixed, and the shared primitive
+   renamed.** Working through §4a's privilege/scope orthogonality surfaced that `suppose.py`'s own
+   module docstring described a pre-migration control-flag mechanism its own `_pencil` function's
+   docstring said was already superseded by structural scope-tree relativization. Fixed: module
+   docstring rewritten to match; `_pencil` renamed to `_relativize` (used generically for holder/temporal
+   scopes too, `scope_kinds.py`, which are NOT tentative — the old name was actively misleading there;
+   also fixed in `possibility.py`, where the fork use case genuinely IS tentative but the primitive is
+   shared, so the neutral name is still correct) across `suppose.py`, `scope_kinds.py`, `possibility.py`,
+   and their direct test callers (`test_isa_suppose.py`, `test_possibilistic_naf.py`). Stale doc
+   references fixed in `machine.py`/`lowering.py`/`production_rule.py`/`cnl/grammar.py`. Full suite
+   re-verified clean: still 79 failed / 1133 passed, no regressions.
+   **This surfaced a real, deliberately-deferred, deeper question: `handoff_overlay_band_composition.md`
+   — does `machine.py`'s `OVERLAY_BAND` opcode's automatic likeliness-composition through multi-hop
+   derivation chains need privileged ISA support, or is it (like everything else this arc found)
+   expressible as ordinary declared rules over relativized facts + `GradedCondition`/`Band`? Not resolved,
+   handed off for a fresh session with full context budget — see that document for the concrete probe.**
 5. ~~Triage `ugm/`'s 79 pre-existing test failures~~ **DONE 2026-07-30.** Also resolved: which branch to
    start from. `ugm`'s `main` is 706/706 green but PREDATES `scope_tree.py`/`scope_kinds.py`/
    `scope_crossing.py`/`reactive.py`/`flare.py` and the expanded CNL grammar entirely (they don't exist on

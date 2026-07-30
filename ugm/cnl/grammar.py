@@ -979,7 +979,7 @@ def _hedge_rules(gram: Grammar, i: int, d: dict, z: str, base, obj_prem, obj_tok
     not by the lexicon.
 
     A hedged clause writes NO ink: `Band.scope` pens the head, so the relation is a control node
-    tagged into the fork (`suppose._pencil`'s shape). The band readers see it at its degree;
+    tagged into the fork (`suppose._relativize`'s shape). The band readers see it at its degree;
     the certain layer does not see it at all.
 
     A hedge with no declared band is SKIPPED rather than defaulted — a silent 0.5 for a word nobody

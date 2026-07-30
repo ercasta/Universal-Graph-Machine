@@ -22,7 +22,7 @@ from .apply import SCOPE
 from .scope_tree import scope_name
 from .machine import Machine, MINT, EMIT, SWEEP, State
 from .policy import FirmwarePolicy, DEFAULT_POLICY
-from .suppose import HYPOTHESIS, _pencil, scope_members
+from .suppose import HYPOTHESIS, _relativize, scope_members
 from .vocabulary import DISJOINT, COPULA, IS_A
 
 _MACHINE = Machine()
@@ -80,7 +80,7 @@ def fork_fact(g: AttrGraph, degree: float, s_id: str, pred: str, o_id: str,
     authoring the banded chain EMIT uses for a derived conclusion. `derived_env` records the
     assumption-set the conclusion rests on (its parents' forks), so a rule chaining off it inherits
     them (transitive ATMS, S7.2). Returns the pencil REL node (the fact — its fork is its SCOPE tag)."""
-    return _pencil(g, _new_fork_scope(g, degree, derived_env=derived_env), s_id, pred, o_id)
+    return _relativize(g, _new_fork_scope(g, degree, derived_env=derived_env), s_id, pred, o_id)
 
 
 def add_fork(g: AttrGraph, degree: float, triples: list[tuple[str, str, str]],
@@ -94,7 +94,7 @@ def add_fork(g: AttrGraph, degree: float, triples: list[tuple[str, str, str]],
     BASE fork (no `derived_env`) is its own assumption; a derived fork's assumptions are its stored env."""
     scope = _new_fork_scope(g, degree, choice=choice, derived_env=derived_env)
     for s, p, o in triples:
-        _pencil(g, scope, _entity(g, s), p, _entity(g, o))
+        _relativize(g, scope, _entity(g, s), p, _entity(g, o))
     return scope
 
 
@@ -319,9 +319,9 @@ def guess(g: AttrGraph, goal: tuple[str, str, None]) -> dict | None:
             o_id = next(iter(g.out(rel)), None)
             if p and s_id is not None and o_id is not None and (s_id, p, o_id) not in penned:
                 penned.add((s_id, p, o_id))
-                _pencil(g, node, s_id, p, o_id)
+                _relativize(g, node, s_id, p, o_id)
     if (pred, subj, picked) not in {(g.name(s), p, g.name(o)) for s, p, o in penned}:
-        _pencil(g, node, _entity(g, subj), pred, _entity(g, picked))   # e.g. a pick from a derived fork
+        _relativize(g, node, _entity(g, subj), pred, _entity(g, picked))   # e.g. a pick from a derived fork
     return {"node": node, "pred": pred, "subj": subj, "picked": picked, "band": band,
             "basis": basis, "alternatives": alternatives}
 

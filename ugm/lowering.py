@@ -368,7 +368,7 @@ def _lower_bands(rule: Rule, reg_of: dict[str, str], head_regs: dict[str, list[s
          is a stated degree, not a derived one that should max-raise with the match score);
       2. for each penned subject, the `<scope>` VALUED tag pointing at the band's node — which needs
          `EMIT(value_reg=)`, since the scope is minted by this same firing and has no compile-time
-         id. That pair is exactly `possibility._new_fork_scope` + `suppose._pencil`, which is the
+         id. That pair is exactly `possibility._new_fork_scope` + `suppose._relativize`, which is the
          point: the rule reaches the SAME representation the Python authoring path does, rather than
          a parallel one.
 

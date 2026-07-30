@@ -13,11 +13,12 @@ between them is a `(kind, key_attr)` pair plus TWO policy flags:
     materialization). Holder: an absent scope ⇒ a global check ⇒ `assumed-no`.
 
 Both kinds are ONTOLOGICAL (definite in-scope, no possibility discount — the scope carries no
-`<likeliness>`, so the banded overlay never discounts it, and its pencils merge at CERTAIN when active)
-and NON-VERIDICAL globally (a global check never sees a control-marked pencil ⇒ `assumed-no`: the world
-does not hold a penned proposition just because someone considers it, or it held at some time). This
-falls out of the existing pencil/scope read UNCHANGED — the kinds add only KEYING and the ontological
-label; NO read-engine change was needed, validated across both kinds (Slice 1, Slice 2a).
+`<likeliness>`, so the banded overlay never discounts it, and its relativized members merge at CERTAIN
+when active) and NON-VERIDICAL globally (a global check never sees a scope-relativized fact ⇒
+`assumed-no`: the world does not hold a penned proposition just because someone considers it, or it held
+at some time). This falls out of the existing scope-relativized read UNCHANGED — the kinds add only
+KEYING and the ontological label; NO read-engine change was needed, validated across both kinds (Slice 1,
+Slice 2a).
 
 The `epistemic` kind (fork/suppose) is NOT a facade here: it carries a `<likeliness>` band, its read
 IS discounted, and it is not entity-keyed — it lives in `suppose.py`/`possibility.py`. The scope-
@@ -32,7 +33,7 @@ from .lowering import assemble_facts
 from .scope_tree import scope_name
 from .machine import Machine, MINT, State
 from .suppose import (HYPOTHESIS, SCOPE_KIND, KIND_HOLDER, KIND_TEMPORAL, HOLDER, INDEX,
-                      _pencil, _resolve, scope_kind, scope_members)
+                      _relativize, _resolve, scope_kind, scope_members)
 
 _MACHINE = Machine()
 
@@ -71,7 +72,7 @@ def pen_scoped(g: AttrGraph, kind: str, key_attr: str, key: str, triple: Triple,
     exactly as a SUPPOSE assumption does; only the RELATION is relativized to the scope."""
     subj, pred, obj = triple
     scope = scope_of(g, kind, key_attr, key, create=True, resolve_key=resolve_key)
-    _pencil(g, scope, _resolve(g, subj), pred, _resolve(g, obj))
+    _relativize(g, scope, _resolve(g, subj), pred, _resolve(g, obj))
     return scope
 
 
@@ -89,7 +90,7 @@ def holds_in(g: AttrGraph, kind: str, key_attr: str, key: str, goal: Goal, *,
 def scopes_holding(g: AttrGraph, kind: str, key_attr: str, triple: Triple) -> list[str]:
     """Every `key` whose `kind` scope pens `triple = (subj, pred, obj)` — the inverse of `pen_scoped`,
     for explanation ('who considers this?' / 'when does this hold?'). Reads the scopes by key and their
-    pencil members by name; unordered (a temporal caller ranks by the `before` facts)."""
+    relativized members by name; unordered (a temporal caller ranks by the `before` facts)."""
     subj, pred, obj = triple
     out: list[str] = []
     for n in g.nodes_with_key(key_attr):

@@ -3,36 +3,42 @@ Phase 5.3 — SUPPOSE (firmware v2, `processing_modes.md` mode 6): "what if" —
 believing. The hypothesis-formulation-and-verification mechanism, composed from the firmware modes
 already built (CHAIN inside a scope, CHECK its predicted consequences).
 
-The mechanics are the PENCIL/INK split (`vision.md` §5, `processing_modes.md` §3):
+**Corrected 2026-07-30 — this docstring described a pre-migration mechanism (a control-flagged
+relation tagged `scope=<hypothesis>` via a since-removed `apply.SCOPE`) that `_relativize`'s own
+docstring already documents as superseded. The mechanics are SCOPE-TREE RELATIVIZATION, not a
+control/fact flag:**
 
-  - a `<hypothesis>` scope node is minted (control);
-  - each ASSUMED fact is written in PENCIL — a CONTROL relation node tagged `scope=<hypothesis>` (via
-    `apply.SCOPE`). Because it is control, it is invisible to ordinary fact matching and can never be
-    read as ink; because it is tagged, the scope-aware fact readers (`apply._fact_relnodes(scope=…)`)
-    make it visible WITHIN this scope;
-  - CHAIN (`chain_sip(scope=…)`) reasons INSIDE the scope: it sees the pencil + the real ink, and
-    writes its derivations back in PENCIL (scope-tagged control), so nothing unconfirmed touches ink;
+  - a `<hypothesis>` scope node is minted (an ORDINARY node — this generalizes to holder/temporal
+    scopes too, `scope_kinds.py`, none of which are hypotheses in the tentative sense);
+  - each ASSUMED fact is written RELATIVIZED to the scope (`_relativize`): both endpoints are
+    resolved to scope-local reference nodes (`scope_tree.scoped_ref`), and the relation itself is an
+    ORDINARY fact node placed structurally UNDER the scope (`scope_tree.put_under`). Isolation is
+    STRUCTURAL — a base-vantage read cannot reach a node under a relativizer boundary
+    (`scope_tree.is_visible`) — never a control flag, which is what lets scopes NEST and COMPOSE (two
+    hypotheses can disagree about "the same" entity, since each has its own scope-local reference);
+  - CHAIN (`chain_sip(scope=…)`) reasons INSIDE the scope: it sees the relativized assumptions plus
+    real ink, and writes its derivations back relativized to the same scope, so nothing unconfirmed
+    touches ink;
   - each PREDICTED consequence is CHECKed in-scope. A contradiction (the supposition entails the
     NEGATION of a prediction, in-scope) REFUTES the hypothesis; every prediction holding CONFIRMS it;
   - on CONFIRM the assumptions are EMITted to INK (real facts) with optional provenance, then the
-    pencil scaffolding is swept; on REFUTE (or an inconclusive within-budget result) the whole scope
-    is DROP_CTRL-swept and ink is untouched.
+    scope's relativized scaffolding is RETIRED; on REFUTE (or an inconclusive within-budget result)
+    the whole scope is RETIRED and ink is untouched.
 
-The fact layer stays MONOTONE throughout — there is no retraction, because nothing unconfirmed ever
-became a fact. This is the whole point of the pencil/ink split.
+The fact layer stays MONOTONE throughout for INK — there is no retraction of a real fact, because
+nothing unconfirmed ever became one. Retiring a refuted scope's own (never-real) relativized content
+is not an exception to that; see `_drop_scope`.
 
-NOT possible-worlds: reasoning happens on the SAME graph, segregated by the scope tag — never on a
-`graph.copy()` branch, which `processing_modes.md` mode 6 names as SUPPOSE's TRAP (backtrackable
+NOT possible-worlds: reasoning happens on the SAME graph, relativized by scope-tree placement — never
+on a `graph.copy()` branch, which `processing_modes.md` mode 6 names as SUPPOSE's TRAP (backtrackable
 fact-layer writes / truth-maintenance by deletion). The price of same-graph is scope-aware matching:
-the deliberately-additive posture of CHECK/CHOOSE (new modules over `chain_sip`, touching nothing in
-the hot path) could not hold here, so `apply._fact_relnodes` / `chain._facts_matching` / the EMIT path
-gained a `scope=` parameter — gated to be behavior-NEUTRAL when no scope is active (protecting the
-positive core, differentially proven).
+`chain._facts_matching`/`chain_sip`/the EMIT path all carry a `scope=` parameter — gated to be
+behavior-NEUTRAL when no scope is active (protecting the positive core, differentially proven).
 
-v0 SCOPE:
+SCOPE:
   - the assumptions and predictions are `(pred, subj, obj)` name triples; assumption endpoints resolve
     to existing entity nodes (minted as real if absent — the entities the hypothesis is ABOUT), only
-    the RELATION is assumed. A supposition that introduces a fresh pencil ENTITY is a later slice.
+    the RELATION is assumed. A supposition that introduces a fresh relativized ENTITY is a later slice.
   - the negation convention is `check._neg_pred` (`is`->`is_not`, `R`->`R_not`); a contradiction fires
     only where the bank has negative-producing rules/facts.
   - CONFIRM commits the ASSUMPTIONS to ink (the consequences re-derive from ink by ordinary forward
@@ -44,7 +50,7 @@ from dataclasses import dataclass, field
 
 from .attrgraph import AttrGraph, VALUED, graded, valued, NAME
 from .vocabulary import HYPOTHESIS
-from .apply import SCOPE, _fact_exists
+from .apply import _fact_exists
 from .scope_tree import scope_name, put_under, members_of, scoped_ref
 from .vocabulary import DENOTES
 from .chain import chain_sip, _facts_matching, render_demands, resolve_write_node, ById
@@ -89,7 +95,7 @@ class SupposeResult:
     """The verdict of a SUPPOSE run. `committed` is the ink written on CONFIRM (empty otherwise);
     `contradiction` is the predicted tuple whose negation was entailed (set only on REFUTE);
     `looked_for` is the rendered magic set the in-scope CHAIN explored (the 'what I reasoned about'
-    trace). `derived` is the in-scope DERIVED consequences (the hypothesis's pencil derivations, seed
+    trace). `derived` is the in-scope DERIVED consequences (the hypothesis's relativized derivations, seed
     assumptions excluded) — populated only on a READ-ONLY run (`commit=False`, feedback #6), so a
     hypothesis-driven analyzer can inspect what held under the supposition (incl. after INCONCLUSIVE)
     without the KB being mutated. `band` is the DEGREE the prediction held at when the supposition was
@@ -111,7 +117,7 @@ def _resolve(g: AttrGraph, name) -> str:
     return resolve_write_node(g, name, where="suppose assumption")
 
 
-def _pencil(g: AttrGraph, scope: str, s_id: str, pred: str, o_id: str) -> str:
+def _relativize(g: AttrGraph, scope: str, s_id: str, pred: str, o_id: str) -> str:
     """Write an assumed fact `s -[pred]-> o` relativized to `scope` (slice 1c).
 
     SCOPED COPIES + AN ORDINARY FACT — no longer a control rel tagged with the scope. Both endpoints are
@@ -134,7 +140,7 @@ def scope_members(g: AttrGraph, scope: str) -> list[str]:
 
 
 def _scope_derivations(g: AttrGraph, scope: str, seed_rels: set[str]) -> list[Triple]:
-    """The in-scope DERIVED consequences as `(subj, pred, obj)` name-triples — every scope-tagged pencil
+    """The in-scope DERIVED consequences as `(subj, pred, obj)` name-triples — every scope-relativized
     fact that is NOT one of the seed assumption rels (feedback #6: inspect what the hypothesis ENTAILED,
     e.g. to see WHY a run was inconclusive). Read before the scope is swept; endpoints as their names."""
     out: list[Triple] = []
@@ -153,13 +159,13 @@ def _scope_derivations(g: AttrGraph, scope: str, seed_rels: set[str]) -> list[Tr
 
 
 def _drop_scope(g: AttrGraph, scope: str) -> None:
-    """DROP the whole scope: every member (the pencil assumptions + every in-scope derivation) and the
-    scope node itself.
+    """DROP the whole scope: every member (the relativized assumptions + every in-scope derivation) and
+    the scope node itself.
 
     RETIRE, NOT SWEEP (slice 1c). This used to be a SWEEP program, because every doomed node was CONTROL
     and `SWEEP` refuses anything else. Under the scope reframe a scope is an ORDINARY node and its members
-    are ORDINARY facts — isolated by SCOPE, not by the control flag — so `SWEEP` now (correctly) refuses
-    them and the drop must go through the privileged deletion mechanism instead.
+    are ORDINARY facts — isolated by scope-tree placement, not by a control flag — so `SWEEP` now
+    (correctly) refuses them and the drop must go through the privileged deletion mechanism instead.
 
     That is a real change in what this operation MEANS, and it is worth being explicit about: dropping a
     refuted hypothesis is now a RETRACTION of scoped facts rather than the removal of scaffolding that was
@@ -190,36 +196,38 @@ def suppose(fact_g: AttrGraph,
             focus_scope: frozenset[str] | None = None,
             assumption_bands: list[float | None] | None = None,
             policy=None) -> SupposeResult:
-    """Entertain `assumptions` in a `<hypothesis>` scope, CHAIN their consequences in pencil, and CHECK
-    the `predictions` in-scope. Returns a `SupposeResult`. Side effect on the graph: CONFIRM commits the
-    assumptions to ink (monotone, with optional provenance) and sweeps the pencil; REFUTE / INCONCLUSIVE
-    sweep the scope and leave ink untouched.
+    """Entertain `assumptions` in a `<hypothesis>` scope, CHAIN their consequences relativized to it, and
+    CHECK the `predictions` in-scope. Returns a `SupposeResult`. Side effect on the graph: CONFIRM commits
+    the assumptions to ink (monotone, with optional provenance) and retires the scope's relativized
+    scaffolding; REFUTE / INCONCLUSIVE retire the scope and leave ink untouched.
 
     Contradiction = the supposition entails the NEGATION of a prediction (in-scope). Confirmation = every
     prediction is derivable in-scope and none contradicted.
 
     `commit=False` (feedback #6) makes it READ-ONLY: nothing is ever inked — even a CONFIRMED run only
     reports the verdict and returns the in-scope DERIVED consequences (`result.derived`) for inspection,
-    then sweeps the pencil, so the KB's committed facts are unchanged. This fits a hypothesis-driven
+    then retires the scope, so the KB's committed facts are unchanged. This fits a hypothesis-driven
     analyzer ('does X hold under this assumption?') that would otherwise copy/rebuild the KB per query,
-    and it lets you inspect WHY a run was INCONCLUSIVE (the partial derivations that used to be swept
+    and it lets you inspect WHY a run was INCONCLUSIVE (the partial derivations that used to be dropped
     unseen). (A brand-new entity NAME in an assumption still mints its node — pass `ById` to stay fully
     pure.) Default `commit=True` is behaviour-identical to before (`derived` stays empty).
 
     `focus_scope` (feedback #7) BOUNDS attention exactly as `ask_goal` does — threaded into the in-scope
     `chain_sip`/`_facts_matching` so the hypothesis reasons only within the working set (an endpoint in
     `focus_scope`), keeping per-hypothesis cost tracking the focus, not the accreted graph. `None` =
-    whole-graph (behaviour-identical). Orthogonal to the pencil `scope` (which segregates the hypothesis).
+    whole-graph (behaviour-identical). Orthogonal to the relativizer `scope` (which segregates the
+    hypothesis) — bounding WHERE reasoning looks and WHICH scope a firing lands in are separate axes.
 
     `assumption_bands` + `policy` — DEGREE ∘ SCOPE(suppose) composition (docs/design/
     composition_architecture.md §GAPS). A hedged assumption (`suppose lion generally is hungry : …`) is a
-    WEIGHED stance, not a certain one, so it is penned as a FORK at its band rather than a certain in-scope
-    pencil (which `chain._rel_env` reads as ∅-env certainty by design). Under a BANDED `policy` the in-scope
-    chain then composes that band through the rules for FREE (the band rides the match score — the same
-    reader the isolated hedge and `conditional ∘ hedge` cells already pass through), and CONFIRM carries the
-    weakest-link band on `result.band`. Certain assumptions stay in-scope pencils; a mixed suppose is
-    per-assumption correct because each hedged one is its own fork. `assumption_bands[i] < 1.0` marks
-    assumption `i` hedged; `None`/absent = certain (behaviour-identical, `result.band` stays None)."""
+    WEIGHED stance, not a certain one, so it is placed as a FORK at its band rather than a certain
+    in-scope relativized fact (which `chain._rel_env` reads as ∅-env certainty by design). Under a BANDED
+    `policy` the in-scope chain then composes that band through the rules for FREE (the band rides the
+    match score — the same reader the isolated hedge and `conditional ∘ hedge` cells already pass
+    through), and CONFIRM carries the weakest-link band on `result.band`. Certain assumptions stay
+    in-scope relativized facts; a mixed suppose is per-assumption correct because each hedged one is its
+    own fork. `assumption_bands[i] < 1.0` marks assumption `i` hedged; `None`/absent = certain
+    (behaviour-identical, `result.band` stays None)."""
     from .chain import validate_ids
     from .possibility import add_fork, LIKELINESS
     rule_g = rules if rules is not None else fact_g        # one-graph default (the fold)
@@ -227,7 +235,7 @@ def suppose(fact_g: AttrGraph,
         validate_ids(fact_g, s, o)
     a_bands = assumption_bands if assumption_bands is not None else [None] * len(assumptions)
     hedged = [b is not None and b < 1.0 for b in a_bands]
-    # A hedged assumption is always penned as a FORK (never certain in-scope pencil), regardless of
+    # A hedged assumption is always placed as a FORK (never a certain in-scope relativized fact), regardless of
     # stance — so under a CRISP stance it is invisible exactly as an isolated hedge is (nothing readable
     # ⇒ INCONCLUSIVE ⇒ `no (assumed)`, no over-claim). The BANDED verdict (reading the fork through the
     # marker-mode reader so the band composes) only fires under a banded `policy`.
@@ -244,7 +252,7 @@ def suppose(fact_g: AttrGraph,
         if hz:
             add_fork(fact_g, b, [(s, p, o)])               # a WEIGHED assumption is its own fork
         else:
-            seed_rels.add(_pencil(fact_g, scope, _resolve(fact_g, s), p, _resolve(fact_g, o)))
+            seed_rels.add(_relativize(fact_g, scope, _resolve(fact_g, s), p, _resolve(fact_g, o)))
 
     def _drop_all() -> None:
         _drop_scope(fact_g, scope)
@@ -257,7 +265,7 @@ def suppose(fact_g: AttrGraph,
     all_hold = True
     pred_band: float | None = None                         # weakest-link band across predictions (banded)
     for pred, subj, obj in predictions:
-        # CHAIN the prediction and its negation inside the scope (pencil reasoning; provenance is
+        # CHAIN the prediction and its negation inside the scope (relativized reasoning; provenance is
         # ephemeral here, so it is never journaled — only the confirmed ink commit records provenance).
         chain_sip(fact_g, (pred, subj, obj), rules=rule_g, scope=scope,
                   focus_scope=focus_scope, policy=run_policy)
@@ -294,12 +302,13 @@ def suppose(fact_g: AttrGraph,
         _drop_all()
         return SupposeResult(INCONCLUSIVE, [], None, looked_for, derived)
 
-    # CONFIRMED. READ-ONLY: report the verdict + derivations, ink NOTHING, sweep the pencil (+ forks).
+    # CONFIRMED. READ-ONLY: report the verdict + derivations, ink NOTHING, retire the scope (+ forks).
     if not commit:
         _drop_all()
         return SupposeResult(CONFIRMED, [], None, looked_for, derived, band=pred_band)
-    # COMMIT: EMIT the CERTAIN assumptions to INK (real facts), then sweep the pencil scaffolding. A
-    # HEDGED assumption is a weighed stance and never becomes certain ink — it stays a fork (dropped).
+    # COMMIT: EMIT the CERTAIN assumptions to INK (real facts), then retire the scope's relativized
+    # scaffolding. A HEDGED assumption is a weighed stance and never becomes certain ink — it stays a
+    # fork (dropped).
     committed: list[Triple] = []
     for (s, p, o), hz in zip(assumptions, hedged):
         if hz:

@@ -236,7 +236,7 @@ class Band:
     Pat's shape (a numeric-looking object token stays an ordinary node literal).
 
     `scope` (optional): the RHS tokens whose minted relations are written in PENCIL behind this
-    scope — the `<scope>` VALUED tag `suppose._pencil` writes by hand. Those relations become
+    scope — the `<scope>` VALUED tag `suppose._relativize` writes by hand. Those relations become
     scope-visible rather than ink, which is the point: a hedged claim must NOT be a certain fact.
 
     A `<…>`-named bound-literal skolem already mints `{name: valued(n), n: graded(1.0)}`, so
