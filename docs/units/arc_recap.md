@@ -249,6 +249,16 @@ applies to; (4) decide whether `units/`'s no-retraction argument transfers to th
 `ugm/`, return to the causal-fact→plan meta-rule and norm→requirement→satisfies chain that started Act III,
 now on the new foundation.
 
+**Multi-turn context probed and resolved, same day (2026-07-30) — `units/history_recall_experiment.py`, 5
+checks green.** A design question about how a running conversation reaches back into earlier turns —
+"should `focus`/attention grow into a materialized breadcrumb structure plus a dedicated metaprocedure that
+walks it, auto-triggered by a recall subgoal?" — turned out to need no new kind, same discipline as the
+foundation decision above. A turn is an ordinary standing node linked to the previous one by an ordinary
+`follows` edge (§1's "data is the substrate" already means nothing needs archiving); a recall subgoal is an
+ordinary act of attention (§7); and picking *which* prior turn is a second, differently-authored resemblance
+score over a small turn-root index, topic-driven rather than recency-driven. Full writeup:
+`model.md` §7's new subsection, "Multi-turn context needs no new kind."
+
 **Genuinely open, not yet resolved, and worth naming so it doesn't get silently dropped:**
 
 - **The arbitration convention** (§3/§4) — detecting a middle-tier conflict is built; deciding it ("norm A

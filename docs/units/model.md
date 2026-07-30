@@ -11,7 +11,9 @@ it is now *the two planes*, because that is what replaced it.
 
 **What is built.** `units/` — `graph.py`, `match.py`, `band.py`, `engine.py`, `overlay.py` — implements
 §§1–6, §8's energy and burn, and §9's write-back; 113 tests. §§7 and 10 (the two loops, attention, retrieval)
-and the goal machinery in §8 are **design, not code**. Section headers say which.
+and the goal machinery in §8 are **design, not code**, except for two probes: `system1_experiment.py` (a
+first RETRIEVE prototype) and `history_recall_experiment.py` (multi-turn context needs no new kind — see
+§7). Section headers say which.
 
 **How to read it.** Sections are in dependency order; §6 cannot be understood without §5, and §5 cannot be
 understood without §3. §10 is a worked example if you would rather see it move first.
@@ -615,7 +617,8 @@ restated).
 
 ---
 
-## 7. The two loops  · DESIGN; a first RETRIEVE prototype built — `units/system1_experiment.py`
+## 7. The two loops  · DESIGN; a first RETRIEVE prototype built — `units/system1_experiment.py`,
+`units/history_recall_experiment.py`
 
 A turn is a sequence of **steps**. Each step is:
 
@@ -772,6 +775,37 @@ the buffer's contents in the derivation**, so a timing-dependent turn stays expl
 be replayed; and if it prefetches *data*, **speculate reads, never actions** — that line belongs in the
 boundary, not in a rule's judgement. Do not build it before synchronous retrieval exists and is measurably
 slow: every parameter in it depends on measurements that cannot be taken yet.
+
+### Multi-turn context needs no new kind — `units/history_recall_experiment.py`, 5 checks green
+
+Whether a running conversation's earlier turns need a materialized "breadcrumb" structure plus a bespoke
+metaprocedure that walks it, auto-triggered by recognising a "recall from history" subgoal, turned out to
+be no on both counts. Three pieces already licensed above, combined, are the whole answer:
+
+1. **A turn is an ordinary standing node**, linked to the previous turn's root by an ordinary `follows`
+   edge — declared graph structure, not a new kind (§11). `attention()`'s BFS already walks any edge, so
+   the chain costs nothing new (`check_follows_chain_reaches_history_with_only_more_hops`). §1's "data is
+   the substrate" already means nothing about an earlier turn needs deleting or archiving — remembering
+   the conversation is not a storage problem, only a retrieval one.
+2. **The recall subgoal is an ordinary act of attention**, exactly as stated above — it widens the seed set
+   System 1 already uses, and needs no dedicated trigger type that recognises "this is a recall subgoal" as
+   a special shape.
+3. **Which prior turn to jump to is a second, differently-authored resemblance score**, not the same one
+   candidate-rule retrieval uses. §4 already says similarity is authored, not global; this is the same
+   move applied a second time — value-equality on a small `topic` tag, scored over a **turn-root index**
+   (one node per turn) rather than the whole graph, so the jump's cost tracks turn *count*, never turn
+   *content*. `check_recall_subgoal_selects_by_topic_not_recency` confirms this picks the topically-right
+   turn over the merely-more-recent one — the earlier design worry that this might collapse into "walk
+   back N turns" does not hold.
+
+One honest tuning point the probe surfaced: once several turn-root nodes are in the seed set together,
+their own bookkeeping keys (`is_turn_root`, `topic`, `name`) dilute the Jaccard score enough that theta
+needs lowering below `system1_experiment.py`'s default — an authored parameter doing its job, not a defect.
+
+What this leaves open, named rather than assumed: no decay/working-set policy for when a turn should stop
+being a jump target at all (same shape as the existing attention-leak item below), and the topic scorer
+here is deliberately the crudest possible one (exact tag equality) — richer topic resemblance is future
+work, not a blocker to the shape holding.
 
 ---
 
