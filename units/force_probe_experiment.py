@@ -32,44 +32,9 @@ Re-runnable: `python -m units.force_probe_experiment`.
 """
 from __future__ import annotations
 
-from .engine import Attribute, Emit, Link, Network, StandingUnit, Value, effects_of
+from .engine import Network, Value, effects_of
+from .goal_rules import rules as _rules
 from .graph import EMPTY, named, role_edge
-from .match import atom, role
-
-_ASK_PAT = (atom("u", name="utterance", force="ask", routed=None,
-                  out=(role("content", atom("c")),)),)
-_COMMAND_PAT = (atom("u", name="utterance", force="command", routed=None,
-                      out=(role("content", atom("c")),)),)
-
-_GOAL_ACHIEVED_PAT = (atom("g", name="goal", achieved=None,
-                            out=(role("wants", atom("c", true=True)),)),)
-_GOAL_DIVERGED_PAT = (atom("g", name="goal", diverged=None,
-                            out=(role("wants", atom("c", true=False)),)),)
-
-
-def _ask_to_goal_rule() -> StandingUnit:
-    return StandingUnit("ask_to_goal", _ASK_PAT,
-                         Emit("goal", as_="g"), Link("g", "c", role="wants"),
-                         Attribute("g", "from_force", "ask"), Attribute("u", "routed", True),
-                         mutating=True)
-
-
-def _command_to_goal_rule() -> StandingUnit:
-    return StandingUnit("command_to_goal", _COMMAND_PAT,
-                         Emit("goal", as_="g"), Link("g", "c", role="wants"),
-                         Attribute("g", "from_force", "command"), Attribute("u", "routed", True),
-                         mutating=True)
-
-
-def _rules() -> dict[str, StandingUnit]:
-    return {
-        "ask_to_goal": _ask_to_goal_rule(),
-        "command_to_goal": _command_to_goal_rule(),
-        "goal_achieved": StandingUnit("goal_achieved", _GOAL_ACHIEVED_PAT,
-                                       Attribute("g", "achieved", True), mutating=True),
-        "goal_diverged": StandingUnit("goal_diverged", _GOAL_DIVERGED_PAT,
-                                       Attribute("g", "diverged", True), mutating=True),
-    }
 
 
 def _find(g, name: str):

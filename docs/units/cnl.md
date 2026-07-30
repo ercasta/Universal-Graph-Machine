@@ -1,6 +1,8 @@
 # The CNL surface
 
-**Status: design, not code.** The companion to `model.md`, answering the item its §13 named *"the next design
+**Status: design, not code as of 2026-07-28; force-marking corrected 2026-07-30 (§2, §4, §5) to match
+`forms_cnl.md` and the checked probes — this document previously and wrongly claimed force is unmarked and
+concluded by a rule.** The companion to `model.md`, answering the item its §13 named *"the next design
 conversation."* Where the two disagree, `model.md` wins — this document is downstream of it and cites it
 throughout.
 
@@ -116,9 +118,18 @@ CNL grants the shortcut the engine refuses"*, applied to the inventory as well a
 
 Nothing else can carry a degree, which is `model.md` §3's fourth point holding: no edge ever needs one.
 
-**There is no force syntax.** No `?`, no `!`, no assert/ask/command marker. *"Should Paul get the discount"*
-transcribes as ordinary content, and a rule concludes it asks. This is the surface-level meaning of *force stops
-being a router* (§9) — if force were syntax, the boundary would be deciding it.
+**Force is marked, but not as punctuation.** No `?`, no `!`, no special bracket-shape for a question versus a
+command — that part of the original claim survives. **Corrected, 2026-07-30, against `forms_cnl.md`'s own
+entry-format table (force carrier: "marked at the boundary") and the checked probes
+(`units/force_probe_experiment.py`, `units/level_probe_experiment.py`), which this document contradicted
+without either side noticing until it mattered for building the parser:** the translator *does* mark force,
+as an ordinary tagged attribute on the utterance occurrence (`force: ask`), the same way it marks a role
+filler or a coindex — not as a privileged syntax, just as one more small, closed-class judgement the
+translator is asked to make (*"is this phrased as a question, a command, or a plain assertion"*), refusable
+like any other mark. What the engine still owns entirely is what a given force *does* — `ask_to_goal`,
+`command_to_goal` and their siblings are trivial, generic meta-rules that read the mark and mint a goal;
+they recognize nothing. "Force stops being a router" (§9) still holds — it names what happens *after* the
+mark exists, not a claim that the mark itself must arise unmarked from bare content.
 
 ---
 
@@ -177,8 +188,12 @@ graded; it does not survive graded matching.
 
 There is **no rule syntax**. `s3` above is a rule, and it is a statement with `when:` and `then:` roles;
 *"a customer gets the loyalty discount when…"* is the same shape. Nothing in the surface says *this is a rule* —
-being a rule is a conclusion an interpretation rule reaches, exactly as force is. One syntax, and the atomicity
-that makes *"if tomorrow rains, bring the umbrella"* unbreakable is the bracket, not a rule construct.
+being a rule is a conclusion an interpretation rule reaches, **unlike force (§2, corrected), which is marked**.
+The distinction is exactly `closed_class_rechallenged.md`'s: `when`/`then` is a *conventional shape* the
+translator transcribes structurally (which filler goes in `when`, which in `then` — a closed-class judgement
+about structure), and a separate, generic engine meta-rule decides what that shape *becomes* — a standing rule,
+a plan step, a `requires` fact — never the boundary's call. One syntax, and the atomicity that makes *"if
+tomorrow rains, bring the umbrella"* unbreakable is the bracket, not a rule construct.
 
 That leaves the question underneath the other four. `model.md` §11 pins two constraints that look
 incompatible:
@@ -240,9 +255,13 @@ The closed list, so that anything else appearing in a transcriber is a defect:
 | `x/…`, `x` | the same node — statement-local, erased |
 | `label:` | binds the label to that statement's **end marker** |
 | nesting | containment: the inner occurrence node is the filler |
+| `force:`, `level:` (§2, corrected) | ordinary crisp attributes on the occurrence — marked, not concluded, and no different in kind from any other role or bare word above |
 
 And the three things outside it (§9's irreducible seam): minting the turn's goal, and the actual reads and
-writes. Nothing here decides force, reference, truth, applicability, or scope.
+writes. Marking force/level is a closed-class judgement about which of a small, fixed set of tags applies —
+transcription, same as marking a role. What transcription still never does is decide what a mark *means* or
+*leads to* — whether this content is true, which occurrence a reference resolves to, whether a rule applies,
+what a supposition's scope is. Those stay rules, in the loop, every time.
 
 **Costs, plainly.** Role-slotted CNL is verbose and unpleasant to read, which is acceptable because a human
 is not the author — but it makes the translator's output hard for a human to *audit*, which was one of
