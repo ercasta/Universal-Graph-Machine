@@ -138,6 +138,488 @@ def check_the_kind_index_cannot_disagree_with_a_scan():
             "unknown_kind_is_empty_not_an_error": g.of_kind("nonesuch") == ()}
 
 
+def check_a_goal_can_have_a_hierarchy_and_an_undecomposed_one_is_not_vacuously_done():
+    """⭐ SLICE 3 of `deliberation.md`: goals gain a hierarchy, so `DECOMPOSE` has somewhere to post and a
+    decision rule has a context to key on.
+
+    **⚠ The key this check exists for is the LAST one, and it is a trap taken from prior work rather than
+    rediscovered.** `docs/units/goal_machinery.md` §8 records that a parent's "all my children are done"
+    guard was written as an *absence* — no subgoal that is unmet — and so was **vacuously true before any
+    subgoal had been minted**: an undecomposed goal read as trivially achieved. Generalised there as *don't
+    trust an open-ended absence without an explicit closure fact*. `satisfied` already applies the same rule
+    one level down (`bool(cs)`), which is why the two guards look alike.
+
+    Also: ancestry is the context (so a rule need not be rewritten per position), children are O(1) the
+    other way, and **a cycle is structurally impossible** because parentage is set at mint and never
+    changed — the same reasoning that lets `Graph.of_kind` be an index rather than a cache. ⚠ That bounds
+    cycles, *not* depth: recursive decomposition mints a fresh goal each time, so `depth_of` is what a
+    termination bound has to read."""
+    from . import goal as G
+    g, world = _blocks()
+    a, b, c = g.targets(world, "block")
+
+    top = G.open_goal(g, label="build the tower")
+    G.require_link(g, top, a, "on", b)
+    base = G.open_goal(g, label="settle the base", under=top, because="the base must be clear first")
+    G.require_link(g, base, b, "on", c)
+    deep = G.open_goal(g, label="clear c", under=base)
+
+    # THE TRAP: `top` has a child that is not satisfied, so "all children done" must be False; and `deep`
+    # has NO children, so the same question must also be False rather than vacuously True.
+    undecomposed_reads_done = G.subgoals_met(g, deep)
+    g.unlink(b, "on", index=0)
+    g.link(b, "on", c)                                   # now `base` really is satisfied
+    parent_after = G.subgoals_met(g, top)
+
+    return {"a_subgoal_knows_its_parent": G.parent_of(g, base) == top,
+            "and_the_parent_its_children": G.subgoals(g, top) == (base,),
+            "ancestry_is_the_context": G.ancestry(g, deep) == (deep, base, top),
+            "within_answers_the_rule_question": G.within(g, deep, top) and not G.within(g, top, deep),
+            "depth_is_what_a_bound_reads": (G.depth_of(g, top), G.depth_of(g, deep)) == (0, 2),
+            "the_reason_rides_on_the_transition":
+                G.raised_because(g, base) == "the base must be clear first",
+            "a_cycle_is_structurally_impossible": G.parent_of(g, top) is None,
+            "decomposed_says_which_is_which": G.decomposed(g, top) and not G.decomposed(g, deep),
+            "AN_UNDECOMPOSED_GOAL_IS_NOT_VACUOUSLY_DONE": not undecomposed_reads_done,
+            "but_a_decomposed_one_can_be": parent_after,
+            "and_this_is_NOT_the_parents_own_satisfaction":
+                parent_after and not G.satisfied(g, top, under=world)}
+
+
+def check_ignorance_is_representable_and_sensing_closes_it():
+    """⭐⭐ THE LAST CAPABILITY GAP: *not looked* as distinct from *not there*.
+
+    The engine already performed information-gathering actions but could only model them as world-*changing*
+    ones — `scan_dir`'s mock mints file nodes, as though scanning **created** files rather than revealing
+    them. Underneath was a substrate limit: an attribute was present or absent, and absence meant *lacks
+    it*. So the system could not tell "make p true" from "find out whether p", an information-gathering
+    subgoal had nothing to close, and `pursue` reported failure identically whether **no plan exists** or
+    **no plan exists given what I know** — though only the second warrants going and finding out.
+
+    **⭐ The fix rides on §5d's existing insight rather than adding a planner.** A goal naming *which*
+    constraints are false lets the driver ask what could close them; one separating **false** from
+    **unknown** lets it reach for a sensing action. `undetermined` is that separation.
+
+    **⚠ Explicit ignorance only.** Absence still means *lacks it*; a slot is unknown only when something
+    says so. Treating every absence as ignorance would make the whole graph unknown and every constraint
+    undecidable — and would be untrue, since most absences really are knowledge.
+
+    ⚠ `blocked_on_ignorance` requires the goal to **bottom out** in ignorance, not merely touch it —
+    otherwise a goal with one unknown slot and three false constraints would send the system looking in
+    boxes instead of doing the work. Its vacuity guard is `decomposed`'s: with nothing unmet it is not
+    blocked, it is done."""
+    from . import driver as D, goal as G, intake as I, thread as T
+    from .graph import UNKNOWN
+    from . import asm
+
+    g, world = _blocks()
+    box = g.mint("box", kind_of="box", label="box", contents=UNKNOWN)
+    g.link(world, "box", box)
+    declare_type(g, "box", attrs={"kind_of": "box"})
+    asm.load_text(g, "\n".join([
+        "# Looking is an ACTION: it changes what we know, not what is there.",
+        "fn look_inside(b: box) -> box:",
+        '    SET F(b) "contents" "a spanner"',
+    ]))
+
+    goal = I.read_goal(g, "goal find out what is in the box:\n    box.contents known")
+    before = (len(G.unmet(g, goal, under=world)), len(G.undetermined(g, goal, under=world)))
+    blocked = G.blocked_on_ignorance(g, goal, under=world)
+
+    # A goal that is unmet for an ordinary reason must NOT read as blocked on ignorance.
+    a, b, _c = g.targets(world, "block")
+    plain = G.open_goal(g, label="a on b")
+    G.require_link(g, plain, a, "on", b)
+    mixed = G.open_goal(g, label="both")
+    G.require_link(g, mixed, a, "on", b)
+    G.require_known(g, mixed, box, "contents")
+    # ⚠ Read the CONTRASTS BEFORE acting. The first version evaluated them in the return dict, after
+    # `carry_out` had already made the slot known — so `mixed` had nothing undetermined left and the key
+    # passed no matter what `blocked_on_ignorance` did. A planted bug proved it tested nothing.
+    plain_blocked = G.blocked_on_ignorance(g, plain, under=world)
+    mixed_blocked = G.blocked_on_ignorance(g, mixed, under=world)
+    empty_blocked = G.blocked_on_ignorance(g, G.open_goal(g, label="empty"), under=world)
+
+    # END TO END: the goal is closed only by an action that reveals, and only after it really ran.
+    report = D.carry_out(g, goal, T.open_thread(g), world)
+
+    unknown_is_falsy = bool(UNKNOWN) is False
+    return {"unknown_is_not_absent": g.attr(box, "contents") is not None,
+            "and_not_a_value_either": unknown_is_falsy,
+            "the_constraint_is_UNMET_and_UNDETERMINED": before == (1, 1),
+            "SO_THE_GOAL_IS_BLOCKED_ON_IGNORANCE": blocked,
+            "an_ordinary_unmet_goal_is_NOT": not plain_blocked,
+            "nor_is_one_that_merely_TOUCHES_ignorance": not mixed_blocked,
+            "and_a_satisfied_goal_is_not_blocked_but_done": not empty_blocked,
+            "LOOKING_CLOSED_IT": report["done"],
+            "by_an_action_that_really_ran": g.attr(box, "contents") == "a spanner",
+            "and_the_slot_is_no_longer_unknown":
+                g.attr(box, "contents") is not UNKNOWN and not G.undetermined(g, goal, under=world),
+            "SENSE_is_a_real_verb_now": D.SENSE in D.VERBS,
+            "the_surface_can_say_it": "known" in I.describe(g, goal)}
+
+
+def check_authored_knowledge_arrives_as_text_that_can_be_refused():
+    """⭐⭐ THE BORDER, EXTENDED TO EVERYTHING A DOMAIN CONTRIBUTES.
+
+    The standing principle is that microfunctions ship with the engine and *everything a domain contributes
+    is data*. But the border existed for **goals alone**: a guideline or a method could only be authored by
+    calling Python — which is precisely the "reach past the surface and write graph structure" `intake.py`'s
+    docstring says must never happen, because then nothing can refuse it. **The principle was stated and
+    unenforced.** One block grammar now covers all three families.
+
+    **⚠ The key that matters is the END-TO-END one.** A parser that produces nodes nobody uses would pass
+    every structural assertion here; what makes the border real is that a method *authored as text* goes on
+    to decompose a goal and change the world.
+
+    **⚠ `method` and `procedure` differ ONLY in force** — identical bodies, opposite failure behaviour —
+    which is why the surface makes the author say which word they mean rather than inferring it.
+
+    **⚠ Refusal must leave nothing behind, and now does so via the JOURNAL.** The old goal path dropped its
+    constraints by hand, which had to be kept in step with everything a body could mint. `savepoint`/
+    `rollback` is what the journal was built for and this is its first consumer outside this file — which
+    also answers the standing note that it should be deleted if nothing used it."""
+    from . import driver as D, goal as G, guideline as GL, intake as I, method as M, thread as T
+
+    g, world = _blocks()
+    a, b, c = g.targets(world, "block")
+    g.unlink(b, "on", index=0)
+    g.link(b, "on", c)
+    g.put(c, clear=False)
+    g.put(b, height=2)
+
+    verb_a, gl = I.read(g, "prefer settle the base first:\n"
+                           "    touching c\n"
+                           "    because a tower is built bottom up")
+    verb_m, m = I.read(g, "method stack by clearing:\n"
+                          "    handles link on\n"
+                          "    because a block only goes onto a clear one\n"
+                          "    step object.clear = true\n"
+                          "    step subject on object")
+    _v, proc = I.read(g, "procedure the approved way:\n"
+                         "    handles attr clear\n"
+                         "    step subject.clear = true")
+
+    # END TO END: a goal authored as text, decomposed by a method authored as text.
+    goal = I.read_goal(g, "goal put a onto b:\n    a on b")
+    done = D.attempt(g, goal, T.open_thread(g), world)
+
+    before = (len(M.methods(g)), len(GL.advice(g)))
+
+    def refused(text):
+        try:
+            I.read(g, text)
+            return None
+        except I.Unreadable as e:
+            return str(e)
+
+    refusals = {
+        "advice matching everything": refused("prefer nothing:\n    because just because"),
+        "a stepless method": refused("method empty:\n    handles link on"),
+        "a step naming an individual": refused("method bad:\n    handles link on\n    step a on b"),
+        "an unknown constraint sort": refused("procedure x:\n    handles wobble on\n"
+                                              "    step subject.clear = true"),
+        "an unknown verb": refused("ponder things:\n    a on b"),
+        "an unreadable advice line": refused("avoid it:\n    action stack\n    gubbins"),
+    }
+
+    return {"advice_parses": verb_a == "prefer" and g.kind(gl) == "guideline",
+            "and_binds_the_named_thing": g.target(gl, "on") == c,
+            "a_method_parses": verb_m == "method" and g.kind(m) == "method",
+            "with_its_steps_in_order": len(M.steps_of(g, m)) == 2,
+            "IDENTICAL_BODIES_DIFFER_ONLY_IN_FORCE":
+                (g.attr(m, "force"), g.attr(proc, "force")) == (G.ADVISORY, G.MANDATORY),
+            "END_TO_END_TEXT_TO_A_CHANGED_WORLD": done["done"] and g.target(a, "on") == b,
+            "and_it_was_the_authored_method_that_did_it": done.get("method") == m,
+            "EVERY_REFUSAL_IS_LOUD": all(v is not None for v in refusals.values()),
+            "and_each_says_why": all(len(v) > 25 for v in refusals.values() if v),
+            "REFUSAL_LEAVES_NOTHING_BEHIND":
+                (len(M.methods(g)), len(GL.advice(g))) == before,
+            "describe_refuses_what_it_cannot_render":
+                _raises(lambda: I.describe(g, gl), I.Unreadable)}
+
+
+def _raises(fn, exc) -> bool:
+    try:
+        fn()
+        return False
+    except exc:
+        return True
+
+
+def check_a_method_selects_itself_and_a_bad_one_cannot_lose_a_solution():
+    """⭐⭐ The half of slice 4 that was missing: methods as **data that select themselves**, so nobody
+    assembles subgoals by hand.
+
+    **⚠ The key that matters most is the COMPLETENESS guard.** A method prunes by *replacing* enumeration —
+    that is where the exponential win lives, and it is why a method cannot be a ranker. The price is that a
+    wrong or non-covering method could make a reachable goal **unreachable**, which is a failure mode
+    nothing else in this engine has: `guideline.py` can only reorder, `forbid_action` prunes on a proof.
+    The only thing between authority and disaster is the `ADVISORY` fallback, so it is checked directly —
+    a goal solvable by search must **stay solvable** when a method that mishandles it is declared.
+
+    **⭐ And context is structural.** A method is generic and cannot name an individual ancestor goal, so a
+    subgoal points at the **method that raised it** and *"within a goal raised by M"* becomes an ordinary
+    walk up `goal.ancestry`. That is what lets a context-conditioned method exist without authors unrolling
+    context into position-specific copies — the labelling error `goal.ancestry` exists to prevent."""
+    from . import driver as D, goal as G, method as M, thread as T
+
+    # A method for "X on Y": clear the target first, then put X on it. Reusable — it names roles, not blocks.
+    def library(g, force=G.ADVISORY):
+        m = M.method(g, handles="link", label="on", force=force, name="stack-by-clearing",
+                     because="a block can only be stacked onto a clear one")
+        M.step(g, m, sort="attr", key="clear", value=True, subject=M.OBJECT, note="clear the target")
+        M.step(g, m, sort="link", label="on", subject=M.SUBJECT, object=M.OBJECT, note="put it on")
+        return m
+
+    g1, w1 = _blocks()
+    a1, b1, c1 = g1.targets(w1, "block")
+    g1.unlink(b1, "on", index=0)
+    g1.link(b1, "on", c1)
+    g1.put(c1, clear=False)
+    g1.put(b1, height=2)
+    goal1 = G.open_goal(g1, label="A onto B")
+    G.require_link(g1, goal1, a1, "on", b1)
+    m1 = library(g1)
+    hits = M.applicable(g1, goal1, under=w1)
+    done1 = D.attempt(g1, goal1, T.open_thread(g1), w1)
+    raised1 = G.sequence(g1, goal1)
+
+    # THE COMPLETENESS GUARD: a method that mishandles the goal must not lose the solution.
+    g2, w2 = _blocks()
+    a2, b2, c2 = g2.targets(w2, "block")
+    goal2 = G.open_goal(g2, label="A on B on C")
+    G.require_link(g2, goal2, a2, "on", b2)
+    G.require_link(g2, goal2, b2, "on", c2)
+    bad = M.method(g2, handles="link", label="on", force=G.ADVISORY, name="useless")
+    M.step(g2, bad, sort="attr", key="painted", value=True, subject=M.SUBJECT, note="paint it (useless)")
+    salvaged = D.attempt(g2, goal2, T.open_thread(g2), w2)
+
+    # No method at all: `attempt` must be exactly `carry_out`.
+    g3, w3 = _blocks()
+    a3, b3, _c3 = g3.targets(w3, "block")
+    goal3 = G.open_goal(g3, label="A onto B")
+    G.require_link(g3, goal3, a3, "on", b3)
+    plain = D.attempt(g3, goal3, T.open_thread(g3), w3)
+
+    # Context: a method that only applies beneath another method's goal.
+    g4, _w4 = _blocks()
+    outer = M.method(g4, handles="link", label="on", name="outer")
+    M.step(g4, outer, sort="attr", key="clear", value=True, subject=M.OBJECT)
+    inner = M.method(g4, handles="attr", label="clear", within=outer, name="inner")
+    M.step(g4, inner, sort="attr", key="clear", value=True, subject=M.SUBJECT)
+    a4, b4, _c4 = g4.targets(_w4, "block")
+    top4 = G.open_goal(g4, label="top")
+    c4 = G.require_link(g4, top4, a4, "on", b4)
+    raised4 = M.decompose(g4, outer, top4, c4)
+    # ⚠ The negative case must differ ONLY in context. A goal with an `attr`/`clear` constraint that is
+    # NOT beneath `outer` — the first version used the link-constraint goal, so the mismatch was decided
+    # by constraint *sort* and the context condition was never exercised at all.
+    elsewhere = G.open_goal(g4, label="unrelated")
+    c_elsewhere = G.require_attr(g4, elsewhere, a4, "clear", True)
+    c_inside = G.world_constraints(g4, raised4[0])[0]
+
+    return {"the_method_selected_itself": [m for m, _c in hits] == [m1],
+            "it_raised_its_steps_in_order": len(raised1) == 2,
+            "roles_bound_to_the_right_blocks":
+                G.world_constraints(g1, raised1[0])[0] and
+                g1.target(G.world_constraints(g1, raised1[0])[0], "subject") == b1,
+            "and_it_carried_the_goal_out": done1["done"] and g1.target(a1, "on") == b1,
+            # ⚠ A METHOD IS A ROUTE, NOT A REDEFINITION. A goal with its own world constraints keeps
+            # being judged by them; only a goal with none becomes BY_STEPS. Stamping BY_STEPS on
+            # everything destroyed the advisory fallback — see `method.decompose`.
+            "a_goal_with_constraints_KEEPS_them": G.met_by(g1, goal1) == G.BY_CONSTRAINTS,
+            "A_MISHANDLING_METHOD_DOES_NOT_LOSE_THE_SOLUTION": salvaged["done"],
+            "it_fell_back_rather_than_succeeding_by_luck": salvaged.get("fell_back") is True,
+            "and_reality_is_right_anyway":
+                g2.target(a2, "on") == b2 and g2.target(b2, "on") == c2,
+            "with_no_method_it_is_plain_carry_out": plain["done"] and "method" not in plain,
+            "CONTEXT_IS_STRUCTURAL_NOT_A_NAME": M.under_method(g4, raised4[0], outer),
+            "and_a_context_method_is_scoped_by_it":
+                M.matches(g4, inner, raised4[0], c_inside)
+                and not M.matches(g4, inner, elsewhere, c_elsewhere),
+            "the_two_differ_ONLY_in_context":
+                g4.attr(c_inside, "sort") == g4.attr(c_elsewhere, "sort") == "attr"
+                and g4.attr(c_inside, "key") == g4.attr(c_elsewhere, "key"),
+            "a_stepless_method_is_refused_loudly": _raises_valueerror(
+                lambda: M.decompose(g4, M.method(g4, handles="attr", name="empty"), top4, c4))}
+
+
+def _raises_valueerror(fn) -> bool:
+    try:
+        fn()
+        return False
+    except ValueError:
+        return True
+
+
+def check_a_procedure_refuses_where_a_method_falls_back():
+    """⭐⭐ SLICE 4: the distinction the whole design turns on — **force is about FAILURE, not strength.**
+
+    Two decompositions can be written identically and must behave oppositely when a step does not work out.
+    A **method** was a suggestion about how, so falling back to search is right and incompleteness is fine.
+    A **procedure** was the sanctioned way, so falling back would be *improvising*: for it, "could not do
+    it" is a better answer than "did it another way". That inverts every other reflex in `driver` —
+    `carry_out` replans, `recover` reaches for contingencies — and the inversion is the feature.
+
+    ⭐ Built on `goal_machinery.md` §8's claim that *"a procedure is this shape plus one sequencing edge"*,
+    which a probe found substantially true: ordered subgoals already ran through `carry_out` unchanged. What
+    was missing was **drive** — nothing walked the order — plus one thing the probe surfaced that the claim
+    did not mention: a procedure's parent has no world constraints of its own, so a satisfaction test that
+    only reads constraints calls a perfectly completed procedure unsatisfied. Hence `BY_STEPS`.
+
+    Vacuity guards: the impossible step must be genuinely impossible (so the contrast is real), and the
+    method and the procedure must be **structurally identical apart from the declared force**."""
+    from . import driver as D, goal as G, thread as T
+
+    def decomposed(force):
+        """One reachable step, then an impossible one. Identical but for `force`."""
+        g, world = _blocks()
+        a, b, c = g.targets(world, "block")
+        top = G.open_goal(g, label="the approved way")
+        g.put(top, met_by=G.BY_STEPS, force=force)
+        first = G.open_goal(g, label="B onto C", under=top, because="the approved order")
+        G.require_link(g, first, b, "on", c)
+        second = G.open_goal(g, label="the impossible bit", under=top)
+        G.require_attr(g, second, a, "colour", "chartreuse")     # no operator can ever write this
+        G.then(g, first, second)
+        return g, world, top, first, second
+
+    g1, w1, top1, first1, _s1 = decomposed(G.MANDATORY)
+    refused = D.follow(g1, top1, T.open_thread(g1), w1, attempts=1, max_steps=60)
+
+    g2, w2, top2, first2, _s2 = decomposed(G.ADVISORY)
+    fell_back = D.follow(g2, top2, T.open_thread(g2), w2, attempts=1, max_steps=60)
+
+    # A procedure whose steps all succeed: BY_STEPS is what makes it count as met at all.
+    g3, w3 = _blocks()
+    a3, b3, c3 = g3.targets(w3, "block")
+    ok = G.open_goal(g3, label="the approved way")
+    g3.put(ok, met_by=G.BY_STEPS, force=G.MANDATORY)
+    p1 = G.open_goal(g3, label="B onto C", under=ok)
+    G.require_link(g3, p1, b3, "on", c3)
+    p2 = G.open_goal(g3, label="A onto B", under=ok)
+    G.require_link(g3, p2, a3, "on", b3)
+    G.then(g3, p1, p2)
+    done = D.follow(g3, ok, T.open_thread(g3), w3)
+
+    # Undecomposed: must not read as a trivially-completed procedure.
+    g4, w4 = _blocks()
+    bare = G.open_goal(g4, label="nothing under me")
+    g4.put(bare, met_by=G.BY_STEPS)
+    empty = D.follow(g4, bare, T.open_thread(g4), w4)
+
+    return {"the_first_step_really_is_reachable": refused["followed"][0][1],
+            "and_the_second_really_is_impossible": not fell_back["followed"][1][1]
+                if len(fell_back.get("followed", ())) > 1 else True,
+            "A_PROCEDURE_REFUSES": not refused["done"] and refused.get("stopped") == D.REFUSE,
+            "it_names_the_step_that_stopped_it": refused.get("at") == _s1,
+            "and_says_it_may_not_be_worked_around": "may not be worked around" in refused["why"],
+            "A_METHOD_FALLS_BACK_INSTEAD": fell_back.get("fell_back") is True,
+            "and_never_refuses": "stopped" not in fell_back,
+            "IDENTICAL_BUT_FOR_THE_DECLARED_FORCE":
+                (refused["force"], fell_back["force"]) == (G.MANDATORY, G.ADVISORY),
+            "a_completed_procedure_IS_met": done["done"] and G.satisfied(g3, ok, under=w3),
+            "and_it_really_built_the_tower":
+                g3.target(b3, "on") == c3 and g3.target(a3, "on") == b3,
+            "BY_STEPS_is_why_it_counts_as_met": not G.world_constraints(g3, ok),
+            "an_undecomposed_procedure_is_NOT_trivially_done":
+                not empty["done"] and empty.get("undecomposed") is True,
+            "sequence_is_the_then_order": G.sequence(g3, ok) == (p1, p2)}
+
+
+def check_a_guideline_reorders_and_can_never_exclude():
+    """⭐⭐ SLICE 2 of `deliberation.md`: authored preference that may be WRONG without being UNSOUND.
+
+    **The property under test is the one that makes advice safe to accept: `avoid` means LATER, never
+    NEVER.** `goal.forbid_action` is the one that means never, and it prunes because a safety breach is a
+    *proof*. A guideline is a guess, and the standing rule is rank a guess, prune a proof.
+
+    ⚠ **The decisive case is Sussman's anomaly, reused deliberately.** There, the only route begins with
+    `unstack` — a move that closes no constraint and scores low. `check_a_forbidden_action_prunes...`
+    already shows that *forbidding* `unstack` turns it honestly unsolvable. So **avoiding `unstack` must
+    leave it solved**, or `avoid` has silently become `forbid` and authored advice can lose solutions.
+    That single contrast is what this check exists for.
+
+    ⚠ **What the planted-bug probes revealed, and it is the more useful half.** A ranker rigged to return
+    -999 for every avoided call — advice behaving as an outright filter — **still solved the anomaly.**
+    So *"advice cannot exclude" is guaranteed by `pursue`'s architecture, not by anything in
+    `guideline.py`*: the frontier only ever **orders**, so no score however low can put a move out of
+    reach. That is exactly why authored advice is safe to accept, and it means this check *demonstrates*
+    the property end to end rather than enforcing it. What `guideline.py` must get right on its own is the
+    **band**, and that is what the probes do bite on.
+
+    Also checked: a guideline never crosses a `relevance` band (the composed score keeps `>= 4` meaning
+    exactly what `driver` requires); declaration order is precedence; and `governing` can say afterwards
+    which advice spoke, because advice nobody can interrogate is a magic number whether it was learned or
+    authored."""
+    from . import driver as D, goal as G, guideline as GL, thread as T, workbench as W
+
+    def sussman():
+        g, world = _blocks()
+        a, b, c = g.targets(world, "block")
+        g.unlink(c, "on", index=0)
+        g.link(c, "on", a)
+        g.put(a, clear=None)
+        g.put(c, height=2)
+        goal = G.open_goal(g, label="A on B on C")
+        G.require_link(g, goal, a, "on", b)
+        G.require_link(g, goal, b, "on", c)
+        return g, world, goal
+
+    # THE CONTRAST. Same anomaly, same engine; only the force differs.
+    g1, w1, goal1 = sussman()
+    GL.avoid(g1, function="unstack", because="the crane is slow")
+    avoided = D.pursue(g1, goal1, T.open_thread(g1), w1, max_steps=400, max_depth=5,
+                       rank=GL.ranker(g1))
+
+    g2, w2, goal2 = sussman()
+    G.forbid_action(g2, goal2, function="unstack", reason="the crane is out of service")
+    forbidden = D.pursue(g2, goal2, T.open_thread(g2), w2, max_steps=400, max_depth=5)
+
+    # ⚠ Bands must survive, AND the reordering must be real. Advice keyed on a NODE rather than a
+    # function is what puts two differently-advised proposals in one band — advising per function put each
+    # band's proposals all on the same side, so the first version of this could not have seen a reordering
+    # at all. "Settle the base first" is also the kind of thing an author would actually write.
+    g3, w3 = _blocks()
+    a3, b3, c3 = g3.targets(w3, "block")
+    goal3 = G.open_goal(g3, label="A on B on C")
+    G.require_link(g3, goal3, a3, "on", b3)
+    G.require_link(g3, goal3, b3, "on", c3)
+    GL.prefer(g3, on=c3, because="settle the base first")
+    GL.avoid(g3, function="paint", because="cosmetic; never urgent")
+    rank3 = GL.ranker(g3)
+    wb = W.open_workbench(g3, w3)
+    f0 = W.root_frame(g3, wb)
+    unmet3 = G.unmet(g3, goal3, view=D.view_in(g3, f0),
+                     under=W.image_of(g3, W.mapping_for(g3, f0, w3)))
+    scored = [(rank3(g3, n, b, unmet3), D.relevance(g3, n, b, unmet3), n)
+              for n, b in D.proposals(g3, f0)]
+    crossed = [(s, band, n) for s, band, n in scored if int(s) != band]
+    within = {band: {round(s, 6) for s, bb, _n in scored if bb == band}
+              for band in {b for _s, b, _n in scored}}
+
+    # Declaration order is precedence: the first matching guideline decides, so a later contradicting
+    # one must not win.
+    g4, _w4, _goal4 = sussman()
+    first = GL.prefer(g4, function="unstack", because="declared first")
+    GL.avoid(g4, function="unstack", because="declared second, must not win")
+    bound4 = {"b": g4.targets(_w4, "block")[2], "floor": g4.target(_w4, "ground")}
+
+    return {"forbidding_it_makes_the_goal_UNREACHABLE": not forbidden["found"],
+            "BUT_AVOIDING_IT_STILL_SOLVES_IT": avoided["found"],
+            "by_the_very_move_that_was_avoided":
+                "unstack" in D.plan_steps(g1, avoided) if avoided["found"] else False,
+            "A_GUIDELINE_NEVER_CROSSES_A_BAND": crossed == [],
+            "AND_IT_REALLY_REORDERED_INSIDE_THEM": all(len(v) > 1 for v in within.values()),
+            "declaration_order_is_precedence":
+                GL.governing(g4, "unstack", bound4)[:1] == (first,),
+            "governing_explains_afterwards":
+                g4.attr(GL.governing(g4, "unstack", bound4)[0], "because") == "declared first",
+            "advice_is_library_data_not_world_data":
+                not any(gl in W.reachable(g4, "root") for gl in GL.advice(g4))}
+
+
 def check_the_deliberation_seam_is_inert_by_default_and_live_when_used():
     """⭐ SLICE 1 of `deliberation.md`: `pursue` gains a decision point and changes nothing.
 
@@ -197,10 +679,13 @@ def check_the_deliberation_seam_is_inert_by_default_and_live_when_used():
                 "decided to commit" in (T.why(g3, e) or "") for e in T.entries(g3, t3)),
             "nothing_reached_the_thread_by_default": not any(
                 "decided to" in (T.why(g0, e) or "") for e in T.entries(g0, t0)),
-            "an_unbuilt_verb_RAISES_and_says_what_is_missing":
-                "goal hierarchy" in (unbuilt(D.DECOMPOSE) or ""),
-            "for_both_of_them": "ignorance" in (unbuilt(D.SENSE) or ""),
-            "and_so_does_a_nonsense_verb": unbuilt("dance") is not None}
+            # ⚠ Updated as the machinery landed. `SENSE` is now a real stop (ignorance exists), and
+            # `DECOMPOSE` no longer raises for want of a goal hierarchy — it raises because a method
+            # applies once per GOAL (`driver.attempt`), never once per search step. Frequency, not absence.
+            "DECOMPOSE_raises_and_says_it_is_the_wrong_FREQUENCY":
+                "per GOAL" in (unbuilt(D.DECOMPOSE) or ""),
+            "SENSE_is_no_longer_unbuilt": unbuilt(D.SENSE) is None,
+            "and_a_nonsense_verb_still_raises": unbuilt("dance") is not None}
 
 
 # --- focus ----------------------------------------------------------------------------------------

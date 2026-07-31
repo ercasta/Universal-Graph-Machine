@@ -71,8 +71,8 @@ _STOPS = (COMMIT, SENSE, REFUSE)
 
 #: Verbs whose machinery does not exist yet. Returning one raises rather than being ignored — a decision
 #: silently doing nothing is exactly the class of failure this project keeps catching.
-_UNBUILT = {DECOMPOSE: "goal hierarchy (goal.py has no subgoal relation)",
-            SENSE: "a representation of ignorance (unmet cannot say 'unknown')"}
+_UNBUILT = {DECOMPOSE: "per-STEP decomposition; a method applies per GOAL, via driver.attempt "
+                       "(deliberation.md §4 — methods are consulted once per goal, not per step)"}
 
 
 class Undecidable(Exception):
@@ -755,6 +755,95 @@ def carry_out(g: Graph, goal: str, thread: str, subject: str, *,
             "why": f"{len(history)} attempt(s) did not reach ["
                    + "; ".join(G.describe_constraint(g, c)
                                for c in G.unmet(g, goal, under=subject)) + "]"}
+
+
+def follow(g: Graph, goal: str, thread: str, subject: str, **kw) -> dict:
+    """Carry out a **decomposed** goal by working its subgoals in `then` order.
+
+    ⭐ This is the one thing probing `goal_machinery.md` §8 found genuinely missing. Its claim — *"a
+    procedure is this shape plus one sequencing edge"* — held structurally: two ordered subgoals ran through
+    `carry_out` unchanged and reality came out right. What was absent was not structure but **drive**;
+    nothing walked the order. This is that walk, and it is deliberately thin because the probe showed
+    everything underneath already worked.
+
+    **⭐⭐ FORCE decides what happens when a step fails, and it is the whole distinction between a method
+    and a procedure** (`deliberation.md` §3):
+
+    * **`ADVISORY`** (a method) — the decomposition was a *suggestion about how*. If it does not work out,
+      fall back to searching for the parent goal directly. Incompleteness is fine; the author was helping.
+    * **`MANDATORY`** (a procedure) — the decomposition was *the sanctioned way*. Falling back would be
+      improvising, so this **refuses** instead. ⚠ For a procedure, *"could not do it"* is a better answer
+      than *"did it another way"*, and that inverts every other reflex in this module — `carry_out`
+      replans, `recover` reaches for contingencies. The reflex is suppressed here on purpose.
+
+    ⚠ **A refusal is not a failure to find a plan**, and they must not be reported alike: one says the
+    world would not permit it, the other says we were not permitted to try. `REFUSE` carries the step that
+    stopped it and the reason, which is what an audit of a regulated run actually needs.
+
+    ⚠ **Advisory fallback cannot resurrect a MANDATORY parent.** Force is read from the parent whose
+    decomposition this is, never from the step that failed — a mandatory procedure containing an advisory
+    sub-method must not become improvisable because the failure happened one level down."""
+    steps = G.sequence(g, goal)
+    if not steps:
+        # Not decomposed at all — the vacuity trap `goal_machinery.md` §8 records. Refusing to treat this
+        # as a trivially-completed procedure is the whole reason `decomposed` exists.
+        return {"done": False, "goal": goal, "followed": (), "why": "nothing was raised under this goal",
+                "undecomposed": True}
+
+    force = G.force_of(g, goal)
+    T.attend(g, thread, goal, why=f"following a {force} decomposition",
+             note=" then ".join(g.attr(s, "label") or s for s in steps))
+
+    outcomes = []
+    for step in steps:
+        report = carry_out(g, step, thread, subject, **kw)
+        outcomes.append((step, report["done"]))
+        if report["done"]:
+            continue
+        if force == G.MANDATORY:
+            T.attend(g, thread, step, why="refusing to improvise",
+                     note="the sanctioned step did not succeed and no other route is permitted")
+            return {"done": False, "goal": goal, "followed": tuple(outcomes), "stopped": REFUSE,
+                    "at": step, "force": force,
+                    "why": f"the procedure's step {g.attr(step, 'label') or step!r} did not succeed, and a "
+                           f"mandatory decomposition may not be worked around"}
+        T.attend(g, thread, goal, why="the method did not work out",
+                 note="falling back to searching for the goal itself")
+        fallback = carry_out(g, goal, thread, subject, **kw)
+        return {**fallback, "goal": goal, "followed": tuple(outcomes), "fell_back": True, "at": step,
+                "force": force}
+
+    return {"done": G.satisfied(g, goal, under=subject), "goal": goal, "followed": tuple(outcomes),
+            "force": force, "all_steps_done": True}
+
+
+def attempt(g: Graph, goal: str, thread: str, subject: str, **kw) -> dict:
+    """**The goal-level decision point: decompose, or search?** The top of the loop for anything with
+    authored methods.
+
+    ⚠ **This is deliberately NOT inside `pursue`'s search loop**, and the frequency is the reason
+    (`deliberation.md` §4). A method is consulted **once per goal** — few, so it may be expensive — while
+    the per-step `decide` hook runs hundreds of times and must stay structural. Putting method matching in
+    the inner loop would invert the cost of the thing it exists to save, which is the mistake `HANDOFF.md`
+    §5m records paying for once already.
+
+    **⭐ Precedence is declaration order**, and the first applicable method wins. No weights, nothing to
+    tune — the same free ordering `mock` and `guideline` already use.
+
+    **⚠ Falling back is what keeps AUTHORITY safe.** A method prunes by replacing enumeration, so a
+    non-covering one could make a reachable goal unreachable. When no method matches, this searches exactly
+    as before; when an `ADVISORY` one matches and fails, `follow` searches the parent goal directly. Only
+    `MANDATORY` may end in a refusal, which is the point of declaring it."""
+    from . import method as M
+    hits = M.applicable(g, goal, under=subject)
+    if not hits:
+        return carry_out(g, goal, thread, subject, **kw)
+
+    m, c = hits[0]
+    raised = M.decompose(g, m, goal, c)
+    T.attend(g, thread, goal, why=f"decomposing by method {g.attr(m, 'name') or m}",
+             note=g.attr(m, "because") or f"{len(raised)} step(s)")
+    return {**follow(g, goal, thread, subject, **kw), "method": m, "raised": raised}
 
 
 def plan_steps(g: Graph, result: dict) -> tuple:

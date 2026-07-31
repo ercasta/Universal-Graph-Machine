@@ -32,6 +32,7 @@ goal stack them:
     # what must be true of the world
     a on b                      a link between individuals
     b.clear = true              an attribute value
+    d.contents known            a KNOWLEDGE claim — go and look, rather than make it so
     some file                   SOMETHING of this type must exist
     a is a serviced_car         this individual must satisfy this type
 
@@ -74,6 +75,8 @@ import re
 
 from . import goal as G
 from .graph import Graph
+from . import guideline as GL
+from . import method as M
 from .workbench import reachable
 
 
@@ -126,6 +129,11 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
         G.require_type(g, goal, words[1])
     elif len(words) == 4 and words[1:3] == ["is", "a"]:
         G.require_type(g, goal, words[3], about=node(words[0]))
+    elif len(words) == 2 and words[1] == "known" and "." in words[0]:
+        # ⭐ A KNOWLEDGE claim: *go and look*, as opposed to *make it so*. The surface distinguishes them
+        # because the system now can — see `graph.UNKNOWN`.
+        subject, key = words[0].split(".", 1)
+        G.require_known(g, goal, node(subject), key)
     elif len(words) == 3 and words[1] == "=" and "." in words[0]:
         subject, key = words[0].split(".", 1)
         G.require_attr(g, goal, node(subject), key, _literal(words[2]))
@@ -133,18 +141,104 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
         G.require_link(g, goal, node(words[0]), words[1], node(words[2]))
     else:
         raise Unreadable(f"line {lineno}: cannot read {line!r} — the goal vocabulary is closed "
-                         f"(a b c | a.k = v | some T | a is a T | never f | never touch x | "
+                         f"(a b c | a.k = v | a.k known | some T | a is a T | never f | never touch x | "
                          f"must f | at most n steps)")
 
 
-VERBS = ("goal", "ask", "why")
+GOAL_VERBS = ("goal", "ask", "why")
+ADVICE_VERBS = ("prefer", "avoid")
+METHOD_VERBS = ("method", "procedure")
+VERBS = GOAL_VERBS + ADVICE_VERBS + METHOD_VERBS
+
+ROLES = (M.SUBJECT, M.OBJECT)
+
+
+def _advise(g: Graph, gl: str, words: list, line: str, lineno: int, under: str) -> None:
+    """One line of a `prefer`/`avoid` block. Closed, keyword-led, and deliberately tiny."""
+    if words[0] == "action" and len(words) == 2:
+        g.put(gl, function=words[1])
+    elif words[0] == "touching" and len(words) == 2:
+        g.link(gl, "on", resolve(g, words[1], under=under))
+    elif words[0] == "when" and len(words) == 2:
+        g.put(gl, when=words[1])
+    elif words[0] == "because" and len(words) > 1:
+        g.put(gl, because=" ".join(words[1:]))
+    else:
+        raise Unreadable(f"line {lineno}: cannot read {line!r} — the advice vocabulary is closed "
+                         f"(action f | touching x | when T | because …)")
+
+
+def _step(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
+    """One `step …` line. ⭐ **The step grammar is the GOAL grammar with roles instead of names** — the
+    only legal subjects are `subject` and `object`, meaning the matched constraint's. A method that named
+    an individual would be about that individual and could not be reused, which is the same reason
+    `types.py` refuses to let a schema name a target."""
+    def role(w: str) -> str:
+        if w not in ROLES:
+            raise Unreadable(f"line {lineno}: {w!r} is not a role — a step may only speak of "
+                             f"{' or '.join(ROLES)}, never a named individual")
+        return w
+
+    if len(words) == 3 and words[1] == "=" and "." in words[0]:
+        who, key = words[0].split(".", 1)
+        M.step(g, m, sort="attr", key=key, value=_literal(words[2]), subject=role(who), note=line)
+    elif len(words) == 4 and words[1:3] == ["is", "a"]:
+        M.step(g, m, sort="type", label=words[3], subject=role(words[0]), note=line)
+    elif len(words) == 3:
+        M.step(g, m, sort="link", label=words[1], subject=role(words[0]),
+               object=role(words[2]), note=line)
+    else:
+        raise Unreadable(f"line {lineno}: cannot read step {line!r} — a step is "
+                         f"(subject l object | subject.k = v | subject is a T), with roles not names")
+
+
+def _method_line(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
+    if words[0] == "handles" and len(words) == 3:
+        if words[1] not in ("link", "attr", "type"):
+            raise Unreadable(f"line {lineno}: a method handles link, attr or type — not {words[1]!r}")
+        g.put(m, handles=words[1], label=words[2])
+    elif words[0] == "when" and len(words) == 2:
+        g.put(m, when=words[1])
+    elif words[0] == "within" and len(words) == 2:
+        hits = [n for n in M.methods(g) if g.attr(n, "name") == words[1]]
+        if len(hits) != 1:
+            raise Unreadable(f"line {lineno}: {words[1]!r} names {len(hits)} methods; "
+                             f"a method's context must be exactly one declared method")
+        g.link(m, "within", hits[0])
+    elif words[0] == "because" and len(words) > 1:
+        g.put(m, because=" ".join(words[1:]))
+    elif words[0] == "step" and len(words) > 1:
+        _step(g, m, words[1:], line, lineno)
+    else:
+        raise Unreadable(f"line {lineno}: cannot read {line!r} — the method vocabulary is closed "
+                         f"(handles S l | when T | within m | because … | step …)")
 
 
 def read(g: Graph, text: str, *, under: str = "root") -> tuple:
-    """Parse one `<verb> <label>:` block. Returns `(verb, goal)`. Raises `Unreadable`.
+    """Parse one `<verb> <label>:` block. Returns `(verb, node)`. Raises `Unreadable`.
 
-    One grammar, three verbs — see the module docstring. The verb is recorded on the node so that *how it
-    arrived* survives, which nothing about the constraints could tell you afterwards."""
+    **⭐ One block grammar, three families**, because the standing principle is that microfunctions ship
+    with the engine and *everything a domain contributes is data*. Until this existed the border held for
+    goals alone: a guideline or a method could only be authored by calling Python, which is exactly the
+    "reach past the surface and write graph structure" the module docstring says must never happen. The
+    principle was stated and unenforced.
+
+    | verb | produces |
+    |---|---|
+    | `goal` / `ask` / `why` | a **goal** — same body, different thing done with it |
+    | `prefer` / `avoid` | a **guideline** — reorders, can never exclude |
+    | `method` / `procedure` | a **method** — a decomposition, advisory or mandatory |
+
+    ⚠ **`method` and `procedure` differ ONLY in force, and that is the point.** The bodies are identical;
+    what changes is what happens when a step does not work out — fall back to searching, or refuse to
+    improvise. `deliberation.md` §3: force is about *failure*, not strength, and it cannot be inferred
+    from content, so the surface makes the author say which word they mean.
+
+    ⚠ **Refusal leaves nothing behind, now via the JOURNAL rather than by hand.** The old goal path dropped
+    its constraints one by one on failure, which had to be kept in step with everything a body could mint —
+    exactly the maintenance a transactional substrate exists to remove. `savepoint`/`rollback` is what the
+    journal was built for, and this is its first real consumer outside `selftest.py`. ⚠ It is transactional
+    only: nothing between the savepoint and the rollback may `commit`, and nothing here does."""
     lines = [(i + 1, ln.split("#")[0].rstrip())
              for i, ln in enumerate(text.splitlines())]
     lines = [(i, ln) for i, ln in lines if ln.strip()]
@@ -156,30 +250,62 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
     if not m:
         raise Unreadable(f"line {lineno}: expected `<verb> <label>:` with verb one of "
                          f"{', '.join(VERBS)}, got {header.strip()!r}")
-    verb = m.group(1)
+    verb, label = m.group(1), m.group(2)
 
-    # Parse into a throwaway goal first so a bad line leaves nothing behind.
-    goal = G.open_goal(g, label=m.group(2))
-    g.put(goal, verb=verb)
+    sp = g.savepoint()
     try:
+        node = _open(g, verb, label)
         for lineno, raw in lines[1:]:
-            _constrain(g, goal, raw.split(), raw.strip(), lineno, under)
+            _body(g, verb, node, raw.split(), raw.strip(), lineno, under)
+        _seal(g, verb, node, label)
     except Unreadable as e:
-        for c in G.constraints(g, goal):
-            g.drop(c)
-        g.drop(goal)
-        raise Unreadable(f"line {lineno}: {e}" if "line " not in str(e) else str(e)) from None
-    if not G.constraints(g, goal):
-        g.drop(goal)
-        raise Unreadable(f"a {verb} with no constraints says nothing")
-    return verb, goal
+        g.rollback(sp)
+        raise Unreadable(str(e) if "line " in str(e) else f"line {lineno}: {e}") from None
+    return verb, node
+
+
+def _open(g: Graph, verb: str, label: str) -> str:
+    if verb in GOAL_VERBS:
+        goal = G.open_goal(g, label=label)
+        g.put(goal, verb=verb)
+        return goal
+    if verb in ADVICE_VERBS:
+        return g.mint("guideline", stance=GL.PREFER if verb == "prefer" else GL.AVOID, label=label)
+    return g.mint("method", name=label, handles="link", force=(G.MANDATORY if verb == "procedure"
+                                                               else G.ADVISORY))
+
+
+def _body(g: Graph, verb: str, node: str, words: list, line: str, lineno: int, under: str) -> None:
+    if verb in GOAL_VERBS:
+        _constrain(g, node, words, line, lineno, under)
+    elif verb in ADVICE_VERBS:
+        _advise(g, node, words, line, lineno, under)
+    else:
+        _method_line(g, node, words, line, lineno)
+
+
+def _seal(g: Graph, verb: str, node: str, label: str) -> None:
+    """⚠ **Every family refuses a body that says nothing**, and each needs its own closure fact — the
+    generalisation `goal_machinery.md` §8 reached as *don't trust an open-ended absence without an explicit
+    closure fact*. A guideline matching everything is not advice; a method with no steps decomposes into
+    nothing, which `goal.decomposed` would then read as an undecomposed goal."""
+    if verb in GOAL_VERBS:
+        if not G.constraints(g, node):
+            raise Unreadable(f"a {verb} with no constraints says nothing")
+    elif verb in ADVICE_VERBS:
+        if g.attr(node, "function") is None and g.target(node, "on") is None:
+            raise Unreadable(f"`{verb} {label}` names neither an action nor a thing — advice that "
+                             f"matches everything is not advice")
+    elif not M.steps_of(g, node):
+        raise Unreadable(f"`{verb} {label}` has no steps; it would decompose into nothing")
 
 
 def read_goal(g: Graph, text: str, *, under: str = "root") -> str:
     """Parse a `goal …:` block. Refuses `ask` and `why` — a caller wanting one of those wants `read`."""
+    sp = g.savepoint()
     verb, goal = read(g, text, under=under)
     if verb != "goal":
-        g.drop(goal)
+        g.rollback(sp)
         raise Unreadable(f"this is a {verb!r} block, not a goal; use `read` to take any of {VERBS}")
     return goal
 
@@ -205,10 +331,17 @@ def respond(g: Graph, text: str, thread: str, subject: str = "root", *,
 
 
 def describe(g: Graph, goal: str) -> str:
-    """Render a goal back to the surface it came from — the round trip a model reads to check itself."""
+    """Render a goal back to the surface it came from — the round trip a model reads to check itself.
+
+    ⚠ **Refuses anything that is not a goal rather than rendering it badly.** Handed a guideline it would
+    otherwise emit `goal <label>:` with an empty body — well-formed, wrong, and exactly the "best effort"
+    this module exists to refuse. A round trip a model checks itself against must not be able to lie."""
+    if g.kind(goal) != "goal":
+        raise Unreadable(f"describe renders a goal; {goal} is a {g.kind(goal)}")
     lines = [f"{g.attr(goal, 'verb') or 'goal'} {g.attr(goal, 'label')}:"]
     lines.extend(f"    {G.describe_constraint(g, c)}" for c in G.constraints(g, goal))
     return "\n".join(lines)
 
 
-__all__ = ["Unreadable", "VERBS", "resolve", "read", "read_goal", "respond", "describe"]
+__all__ = ["Unreadable", "VERBS", "GOAL_VERBS", "ADVICE_VERBS", "METHOD_VERBS", "ROLES",
+           "resolve", "read", "read_goal", "respond", "describe"]

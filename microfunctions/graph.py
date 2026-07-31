@@ -295,6 +295,35 @@ class _Missing:
 _MISSING = _Missing()
 
 
+class _Unknown:
+    """⭐⭐ **NOT LOOKED, as distinct from NOT THERE** — the one thing this substrate could not say.
+
+    An attribute was present or absent, and absence meant *lacks it*. So the engine could perform
+    information-gathering actions but could only model them as world-*changing* ones: `scan_dir`'s mock
+    mints file nodes, as though scanning created files rather than revealing them. With no way to say
+    "we have not looked", an information-gathering subgoal had nothing to close and "did that help?" had
+    no answer.
+
+    ⚠ **Explicit only, and that restraint is the design.** Absence still means *lacks it*; a slot is
+    unknown only when something says so. Treating every absence as ignorance would make the whole graph
+    unknown and every constraint undecidable — and it would be untrue, because most absences really are
+    knowledge. What the system knows it does not know is a fact an author (or a mock) states.
+
+    ⚠ **Attribute slots only.** An absent *edge* has nowhere to hang a marker — there is no slot to write
+    on — which is the same substrate limit that makes an edge property unaddressable. Recorded rather than
+    worked around."""
+
+    def __repr__(self) -> str:
+        return "UNKNOWN"
+
+    def __bool__(self) -> bool:
+        # ⚠ Falsy on purpose: `if g.attr(n, k):` must not read ignorance as a value.
+        return False
+
+
+UNKNOWN = _Unknown()
+
+
 def new_graph() -> Graph:
     """A fresh graph with its `root` already present — the node every focus starts from."""
     g = Graph()

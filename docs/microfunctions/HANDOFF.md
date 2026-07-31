@@ -13,7 +13,7 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 135 checks, 0 FAILED
+python -m microfunctions.selftest      # 141 checks, 0 FAILED
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -71,10 +71,12 @@ the data model was genuinely independent of the execution model.
 | `workbench.py` | **imagining** effects on a copy — frames, mappings, mocks, forking |
 | `execution.py` | **following a plan for real** — replay, deviation, contingencies, recovery |
 | `thread.py` | **materialised short-term memory** — attention shifts + applications, navigable, cross-linkable |
-| `goal.py` | a wanted state as **constraint nodes**; `unmet` is what drives planning |
+| `goal.py` | a wanted state as **constraint nodes**; `unmet` drives planning; **hierarchy** gives context |
 | `driver.py` | **the outer loop** — pursue a goal by imagining; the plan is *found*, not built |
-| `intake.py` | **the goal border** — a closed CNL for goals, which can and does refuse |
+| `intake.py` | **the border** — one closed CNL for goals, guidelines and methods; refuses |
 | `conflict.py` | contradictory goals, and **interference** between goals over one slot |
+| `guideline.py` | **authored preference as data** — reorders within a band, can never exclude |
+| `method.py` | **authored decompositions as data** that select themselves; prune on *authority* |
 
 ## 4. The decisions that took the longest to reach
 
@@ -792,6 +794,238 @@ with `north_star.md` ("rules become microfunctions"), `function.py` ("a rule is 
 being documented as the LLM border, `../pystrider` authoring `.mf`, and §5k's `INVOKE` surface added
 expressly to help them.** The unsettled question is where *domain actions* sit; `deliberation.md` §12 works
 it through and proposes the line at **knowledge versus capability**.
+
+## 5p. Deliberation slice 2 — guidelines, as data (2026-08-01)
+
+`microfunctions/guideline.py`. 136 checks, 0 FAILED. `prefer`/`avoid` are **nodes an author writes**; the
+*ranker* that reads them ships with the engine and drops into the existing `pursue(rank=...)` hook, so the
+driver needed no change at all.
+
+**⭐⭐ The property that makes advice safe to accept: `avoid` means LATER, never NEVER.** The decisive case
+is Sussman's anomaly reused as a contrast — §5e already shows that *forbidding* `unstack` turns it honestly
+unsolvable, so **avoiding** `unstack` must leave it solved. It does, by the very move that was avoided.
+
+**⭐⭐ AND THE PLANTED-BUG PROBE TAUGHT MORE THAN THE CHECK.** A ranker rigged to return `-999` for every
+avoided call — advice behaving as an outright *filter* — **still solved the anomaly.** So *"advice cannot
+exclude" is a guarantee of `pursue`'s architecture, not of `guideline.py`*: the frontier only ever
+**orders**, so no score however low puts a move out of reach. That is precisely why authored advice is safe
+to accept at all, and it means the check *demonstrates* the property rather than enforcing it. What
+`guideline.py` must get right on its own is the **band**.
+
+**⚠ Bands are the real invariant.** The composed score is `band + offset`, `offset` in `[0, 1)`, so
+`rank >= 4` keeps meaning exactly what the driver requires. Band 4 is derived from the function's own body;
+a guideline is an author's opinion. Letting the weaker evidence beat the stronger is how authored advice
+makes a system dumber than it was. ⚠ The fraction is **an encoding of an order, not a weight** — nothing
+here is tunable, and precedence among guidelines is *declaration order*, free via `of_kind`'s mint order.
+
+**⚠ Two versions of this check were vacuous before it bit.** First, advising per *function* put every
+proposal in a band on the same side, so within-band reordering could not be observed at all — advising on a
+**node** (`prefer(on=c)`, "settle the base first") is what puts two differently-advised proposals in one
+band. Second, the band test used only `prefer`, so the avoided tier was never exercised and a planted
+band-crossing bug passed. Both found by probing, neither by the green.
+
+**⭐⭐ And the two-level architecture was settled** (`deliberation.md` §12): *"rules become microfunctions"*
+means an action like `stack` is **data**, executed by an **interpreter microfunction that ships with the
+engine** — not the full ISA as data, only business-model operations (mint, get/set attr, link/unlink over
+paths), never privileged ISA. ⭐ **This makes `establishes` EXACT**: every one of its six `unknown` cases is
+an artefact of reading a general-purpose ISA, and a closed branch-free vocabulary has none of them, so band
+4 becomes reliably reachable. §5k's role-**paths** become the native form rather than something recovered
+from register provenance. ⚠ The risk is vocabulary creep — `stack` already needs `height + 1` — so the
+stopping rule is stated: **action data says what changes and has no control flow; branching lives in
+decision rules; repetition lives in the loop.**
+
+## 5q. Deliberation slice 3 — goals gain a hierarchy (2026-08-01)
+
+137 checks, 0 FAILED. `open_goal(..., under=, because=)` plus `parent_of`, `subgoals`, `ancestry`,
+`within`, `depth_of`, `decomposed`, `subgoals_met`. This is what `DECOMPOSE` had nothing to post into and
+what a decision rule had no context to key on.
+
+**⭐ The child points at the PARENT.** Ancestry — *"am I inside a `y`?"*, the question a rule asks — is then
+a walk up a path, while children stay O(1) through the reverse index. Same decision as `thread.py`'s `prev`,
+for the same reasons, and it keeps the metadata direction invariant.
+
+**⭐ A cycle is structurally impossible**, because parentage is set at mint and never changed — a fresh node
+cannot already be its own ancestor. Same shape as `Graph.of_kind` being an index rather than a cache. ⚠ That
+bounds cycles, **not depth**: recursive decomposition mints a fresh goal each time, so the chain grows
+without looping and `depth_of` is what a termination bound must read.
+
+**⭐⭐ And the prior art paid for itself immediately.** `docs/units/goal_machinery.md` §8 records that a
+parent's "all my children are done" guard was written as an **absence** — no subgoal that is unmet — and was
+therefore **vacuously true before any subgoal had been minted**: an undecomposed goal read as trivially
+achieved. Generalised there as *don't trust an open-ended absence without an explicit closure fact*. That
+trap is now guarded (`decomposed`, and `subgoals_met` returning False when undecomposed) and planted-bug
+probed. ⚠ Note `satisfied` already applied the identical rule one level down via `bool(cs)` — **the same
+mistake was available in two places and had only been fixed in one.**
+
+**⚠ `subgoals_met` is a READER, not the definition of a parent's satisfaction.** Whether a parent counts as
+met when its children are is a *policy* belonging to whatever raised them — a method may decompose into
+steps that jointly achieve it, or into checks that merely support it. Deciding that here would settle it for
+every future method at the moment it is least clear which is wanted.
+
+**⭐ Also recovered from §8, and it shapes what comes next:** *"goal/subgoal turned out to be the shape
+everything else in this arc reduces to — a procedure is this shape plus one sequencing edge, a question is
+this shape wanting a knowledge-claim instead of a world-state claim."* If that transfers, **procedures are
+much closer than the design assumed**, and `SENSE` (§8 of `deliberation.md`) is a goal wanting a knowledge
+claim rather than a new mechanism.
+
+## 5r. Deliberation slice 4 — methods and procedures (2026-08-01)
+
+138 checks, 0 FAILED. `goal.then`/`sequence`, `BY_STEPS`, `ADVISORY`/`MANDATORY`, and `driver.follow`.
+
+**⭐ Probed §8's claim before building on it, and it substantially held** — the first claim in this project
+lately that survived contact roughly intact. *"A procedure is this shape plus one sequencing edge"*: two
+ordered subgoals ran through the existing `carry_out` **unchanged**, in order, and reality came out right.
+Structure was not the gap.
+
+**Two things the probe found that the claim did not mention:**
+
+1. **Nothing walked the order** — the gap was *drive*, not structure. `driver.follow` is that walk, and it
+   is deliberately thin because everything underneath already worked.
+2. **⭐ A procedure's parent has no world constraints of its own.** *"Do these steps, in this order"* is the
+   whole of it — so `satisfied`, which only ever read constraints, called a perfectly completed procedure
+   **unsatisfied**. Hence `BY_STEPS`: for a procedure, having followed the steps *is* being met. §8's third
+   variant (a goal wanting a *knowledge* claim) is the same move a third time, and is `SENSE`'s shape.
+
+**⭐⭐ FORCE decides what happens on failure, and that is the whole method/procedure distinction.**
+`ADVISORY` falls back to searching for the parent goal; `MANDATORY` **refuses**. ⚠ For a procedure *"could
+not do it"* is a better answer than *"did it another way"* — which inverts every other reflex in `driver`,
+where `carry_out` replans and `recover` reaches for contingencies. The check builds the two
+**structurally identically apart from the declared force** and requires them to behave oppositely; three
+planted-bug probes (all-advisory, all-mandatory, `satisfied` ignoring `BY_STEPS`) each turn distinct keys
+red.
+
+⚠ **A refusal is not a failed search** and they are reported differently: one says the world would not
+permit it, the other that we were not permitted to try. ⚠ **Advisory fallback cannot resurrect a MANDATORY
+parent** — force is read from the parent whose decomposition it is, never from the step that failed, or a
+mandatory procedure containing an advisory sub-method would become improvisable one level down.
+
+⚠ **`met_by` and `force` are DECLARED, not inferred.** Structure *almost* entails `met_by` (no constraints
+plus ordered children looks like a procedure) but a goal may legitimately have both, and both are
+statements of authorial intent rather than facts about the graph.
+
+**Still to come:** methods as *data* that select themselves (today a decomposition is built by hand, so
+nothing yet matches a method to a goal), and `SENSE`.
+
+## 5s. Methods as data that select themselves (2026-08-01)
+
+`microfunctions/method.py` + `driver.attempt`. 139 checks, 0 FAILED. Closes slice 4: an author no longer
+assembles subgoals by hand.
+
+**⭐ Context is STRUCTURAL, which was the open question.** A method is generic and cannot name an individual
+ancestor goal — and letting authors unroll context into position-specific methods is the labelling error
+`goal.ancestry` exists to prevent. The answer: a subgoal **points at the method that raised it**, so
+*"within a goal raised by M"* is an ordinary walk up the ancestry asking a structural question. No strings,
+no goal taxonomy, and it works under recursion.
+
+**⭐ `attempt` is the GOAL-level decision point, deliberately not inside the search loop** — `deliberation.md`
+§4's frequency rule. Methods are consulted once per goal (few, may be expensive); the per-step `decide` hook
+runs hundreds of times and must stay structural. Method matching in the inner loop would invert the cost of
+the thing it saves, which is the mistake §5m records paying for once already.
+
+**⚠⚠ THE BUG WORTH REMEMBERING: a method is a ROUTE, not a REDEFINITION.** The first `decompose` stamped
+`met_by=BY_STEPS` on every goal it decomposed. So a goal with real world constraints stopped being judged by
+them — and when the advisory method then failed and `follow` fell back to searching for that same goal, the
+goal could no longer be satisfied *by any route*, because its criterion had been rewritten to "my steps are
+done" and its steps were the ones that had just failed. **The decomposition silently destroyed the escape
+hatch that makes authority safe.** Fixed by rewriting the grounding only when there is nothing to rewrite:
+a goal with its own constraints keeps them; a goal with none is a procedure.
+
+**⚠ The completeness guard is the key that matters.** A method prunes by *replacing* enumeration — the
+exponential win, and why it cannot be a ranker — so a wrong or non-covering one could make a reachable goal
+**unreachable**, a failure mode nothing else here has (`guideline.py` can only reorder; `forbid_action`
+prunes on a proof). Checked directly: a goal solvable by search **stays solvable** when a method that
+mishandles it is declared.
+
+**⚠ And a second vacuous check caught by probing, not by the green.** The context test's negative case used
+a goal whose constraint was a *different sort*, so the mismatch was decided by sort and the context
+condition was never exercised — a `under_method` rigged to return `True` always still passed. The two cases
+must differ **only** in context.
+
+## 5t. The border, extended to everything a domain contributes (2026-08-01)
+
+`intake.py` restructured. 140 checks, 0 FAILED. One block grammar, three families:
+
+| verb | produces |
+|---|---|
+| `goal` / `ask` / `why` | a goal — same body, different thing done with it |
+| `prefer` / `avoid` | a **guideline** |
+| `method` / `procedure` | a **method**, advisory or mandatory |
+
+**⭐⭐ Why this and not `SENSE` first: the standing principle was STATED AND UNENFORCED.** Microfunctions
+ship with the engine and everything a domain contributes is data — but the border existed for **goals
+alone**, so a guideline or a method could only be authored by calling Python. That is exactly the "reach
+past the surface and write graph structure" this module's own docstring says must never happen, because
+then nothing can refuse it. A gap between what the docs say and what is true.
+
+**⭐ It was one parser, not a fourth.** The four-surfaces worry collapsed when `asm.py` became internal, so
+this extends the existing `<verb> <label>:` block rather than adding a grammar.
+
+**⭐ A step's grammar is the GOAL grammar with roles instead of names.** `step subject on object`,
+`step object.clear = true`. The only legal subjects are `subject` and `object` — the matched constraint's —
+and a step naming an individual is **refused**, because a method that named one could not be reused. Same
+reason `types.py` refuses to let a schema name a target.
+
+**⚠ `method` and `procedure` have identical bodies and differ only in force**, so the surface makes the
+author say which word they mean rather than inferring what cannot be inferred.
+
+**⭐ Refusal now leaves nothing behind via the JOURNAL.** The old path dropped constraints by hand, which
+had to be kept in step with everything a body could mint. `savepoint`/`rollback` is what the journal was
+built for, and this is **its first consumer outside `selftest.py`** — which answers §6's standing note that
+it should be deleted if nothing used it. ⚠ Transactional only: nothing between savepoint and rollback may
+`commit`.
+
+**⚠ `describe` now refuses what it cannot render.** Handed a guideline it used to emit `goal <label>:` with
+an empty body — well-formed, wrong, and exactly the "best effort" this module exists to prevent. A round
+trip a model checks itself against must not be able to lie.
+
+**The key that carries the check is END TO END**: a method *authored as text* decomposes a goal authored as
+text and changes the real world. A parser producing nodes nobody uses would satisfy every structural
+assertion. Planted-bug probes: disabling `rollback`, and dropping the closure checks, each turn keys red.
+⚠ The first probe attempt **failed to plant anything** — it wrapped `read`, whose own rollback still ran —
+which is the fifth time this session a probe caught a check or a probe being vacuous.
+
+## 5u. Ignorance, and SENSE — the last capability gap (2026-08-01)
+
+`graph.UNKNOWN`, `goal.require_known` / `undetermined` / `blocked_on_ignorance`, the `a.k known` surface
+form. 141 checks, 0 FAILED.
+
+**⭐⭐ NOT LOOKED, as distinct from NOT THERE.** The engine already performed information-gathering actions
+but could only model them as world-*changing* ones — `scan_dir`'s mock mints file nodes, as though scanning
+**created** files rather than revealing them. Underneath was a substrate limit: an attribute was present or
+absent and absence meant *lacks it*. So the system could not tell *"make p true"* from *"find out whether
+p"*, an information-gathering subgoal had nothing to close, and `pursue` reported failure identically
+whether **no plan exists** or **no plan exists given what I know** — though only the second warrants going
+and finding out.
+
+**⭐ The fix rode on §5d rather than adding a planner.** A goal naming *which* constraints are false lets
+the driver ask what could close them; one separating **false** from **unknown** lets it reach for a sensing
+action. `undetermined` is that separation, and `require_known` is §8's third variant of the goal shape — *a
+question is this shape wanting a knowledge claim* — after `BY_CONSTRAINTS` and `BY_STEPS`.
+
+**⚠ Explicit ignorance only.** Absence still means *lacks it*; a slot is unknown only when something says
+so. Treating every absence as ignorance would make the whole graph unknown and every constraint
+undecidable — and would be untrue, since most absences really are knowledge.
+
+**⚠ Attribute slots only, recorded rather than worked around.** An absent *edge* has nowhere to hang a
+marker — no slot to write on — the same substrate limit that makes an edge property unaddressable.
+
+**⚠ `blocked_on_ignorance` requires BOTTOMING OUT in ignorance, not touching it.** A goal with one unknown
+slot and three false constraints still has world work to do; sensing on a mere touch makes the system look
+in every box.
+
+**Two bugs, both caught by something other than the green.**
+
+1. `require_known` passed `subject` as a keyword to `_constrain`, making it a stored *string* rather than
+   an edge — so `g.target(c, "subject")` was `None`, `holds` looked at nothing, and **a knowledge goal
+   closed itself before anyone had looked**. Caught by `describe` rendering it as "something.colour", which
+   is the round trip earning its keep.
+2. The check's ignorance *contrasts* were evaluated in the return dict, **after** `carry_out` had already
+   made the slot known — so they passed regardless. A planted bug proved they tested nothing. Sixth vacuity
+   caught by probing this session.
+
+**`SENSE` is no longer unbuilt**, and `DECOMPOSE`'s refusal message was corrected: it does not raise for
+want of a goal hierarchy (that exists) but because a method applies **per goal** via `driver.attempt`, never
+per search step. Frequency, not absence.
 
 ## 5. What to do next
 

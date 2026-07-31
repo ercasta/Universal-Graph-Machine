@@ -1,7 +1,9 @@
 # Deliberation — deciding what to do next, and following authored knowledge
 
-> **Slice 1 is BUILT (2026-07-31).** `driver.pursue` takes a `decide` hook, the five verbs exist, and
-> `check_the_deliberation_seam_is_inert_by_default_and_live_when_used` holds it. 135 checks, 0 FAILED; the
+> **ALL SIX SLICES ARE BUILT (2026-07-31 / 2026-08-01).** `driver.pursue` takes a `decide` hook, the five verbs exist, and
+> `guideline.py` supplies authored preference as data, goals have a hierarchy, and `method.py` + `driver.attempt`/`follow` select and run methods
+> and procedures, one CNL takes all three families, and `graph.UNKNOWN` makes sensing expressible.
+> 141 checks, 0 FAILED; the
 > default path is identical and the search is still deterministic. §11 records what that slice did and did
 > not do. Everything else below remains designed-only.
 
@@ -259,15 +261,16 @@ choke point every effect leaves through.
 1. ~~**Steppable search + an inert decision point.**~~ **DONE — §11.** `decide()` always returns `EXPAND`. ⭐ **Zero behaviour
    change, verified by the existing 134 checks and by the search staying deterministic.** Land the seam
    before anything stands on it — this is the project's idiom and it makes every later slice a small diff.
-2. **Guidelines.** Independent of everything else and nearly free — a ranker through the existing `rank=`
+2. ~~**Guidelines.**~~ **DONE 2026-08-01 — `guideline.py`, `HANDOFF.md` §5p.** Independent of everything else and nearly free — a ranker through the existing `rank=`
    hook. Earliest real value, and it exercises "authored knowledge that can be wrong without being unsound".
-3. **Goal hierarchy.** The `subgoal` edge, ancestry queryable, goals mintable from a microfunction. Read
-   `goal_machinery.md` §8 first.
-4. **Methods** (`DECOMPOSE`, advisory). ⚠ With a check that a goal solvable by search **stays solvable**
-   when a method that does not cover it is added — that property is easy to lose silently.
-5. **Procedures** (mandatory, `REFUSE`) + the audit recording of §7. ⚠ With the *opposite* check: adding a
+3. ~~**Goal hierarchy.**~~ **DONE 2026-08-01 — `HANDOFF.md` §5q.** Reading `goal_machinery.md` §8 first paid
+   for itself: its vacuous-absence trap was live here too, in two places, fixed in one.
+4. ~~**Methods** (`DECOMPOSE`, advisory).~~ **DONE 2026-08-01 — `HANDOFF.md` §5r + §5s.** `driver.follow`
+   runs decompositions; `method.py` + `driver.attempt` select and build them; the completeness guard holds.
+5. ~~**Procedures** (mandatory, `REFUSE`)~~ **DONE — §5r.** Remaining: the audit recording of §7. ⚠ With the *opposite* check: adding a
    procedure must make an off-procedure route refuse, and the refusal must name what governed it.
-6. **Ignorance and `SENSE`** (§8). Largest, and the only one needing a substrate change.
+6. ~~**Ignorance and `SENSE`** (§8).~~ **DONE 2026-08-01 — `HANDOFF.md` §5u.** The substrate change was
+   one sentinel; the rest rode on §5d's existing separation of unmet constraints.
 
 ## 10. Open questions, stated rather than buried
 
@@ -284,7 +287,8 @@ choke point every effect leaves through.
   matching lives there and only there — but schemas are one level deep and cannot relate two parameters
   (§5c). Goal constraints have the three sorts that reach further. Probably: a condition takes the same
   three sorts a goal's constraints take, plus goal-ancestry queries. Unverified.
-- **One CNL or four?** That would be four surfaces — functions (`asm.py`), goals (`intake.py`), guidelines,
+- ~~**One CNL or four?**~~ **ANSWERED 2026-08-01 — ONE, see `HANDOFF.md` §5t.** The principle made
+  `asm.py` internal, so it was one parser extended, not a fourth added. Original reasoning: That would be four surfaces — functions (`asm.py`), goals (`intake.py`), guidelines,
   decision rules. A decision rule mentions goals *and* actions *and* conditions, so it needs vocabulary from
   both existing parsers. Converging them risks a big-bang rewrite; not converging them risks the exact
   vocabulary drift `../pystrider` had to hand-roll a check for.
@@ -351,7 +355,47 @@ would be the drift this project keeps catching:
 - `application.compile_episode` *learns* microfunctions — the system extending the engine, which the
   principle forbids.
 
-**The unsettled question, which decides how much of the above has to change: where do DOMAIN ACTIONS sit?**
+### ⭐⭐ SETTLED (2026-08-01): a two-level architecture
+
+*"Rules become microfunctions"* means an action like `stack` is **data**, and an **interpreter
+microfunction shipped with the engine** executes it. Not the full ISA as data — only what practice needs:
+minting nodes, reading and setting attributes, linking and unlinking. **Operations on the business model,
+never privileged ISA.**
+
+| level | language | who writes it |
+|---|---|---|
+| engine | the ISA — control flow, `FOCUS`/`INVOKE`/`DISPATCH`, the interpreter itself | ships with the engine |
+| domain | a closed effect vocabulary: mint, get/set attr, link/unlink, over **paths** | the KB author, as data |
+
+⭐ **The layering keeps homoiconicity where it pays and drops it where it costs.** The interpreter is
+itself a microfunction, so it stays inspectable data at the engine level; the domain level is a restricted
+DSL that cannot express a program nobody can check.
+
+**⭐⭐ And it makes `establishes` EXACT.** Today it is documented as "an over-approximation by contract",
+and every one of its six `unknown` cases is an artefact of reading a general-purpose ISA: a computed
+label, a `CALL` that runs out of order, an `INVOKE`/`DISPATCH` whose effect happens elsewhere. A closed,
+branch-free effect vocabulary has none of those, so `unknown` disappears and band 4 becomes reliably
+reachable — which is the guidance quality the whole deliberation design depends on. ⭐ §5k's role-**paths**
+(`c.right`), painstakingly recovered from register provenance, become the **native form**: what the
+analysis reverse-engineers is simply what the data says. ~223 lines of provenance analysis mostly evaporate.
+
+⚠ **The risk is vocabulary creep, and it needs a stated stopping rule.** `stack` already needs arithmetic
+(`height + 1`); once `+1` is in, conditionals follow, and the ISA gets rebuilt one convenience at a time.
+The line proposed here, drawn on what each level is *for*:
+
+> **Action data says what changes and contains no control flow. Branching lives in decision rules.
+> Repetition lives in the loop.**
+
+That is consistent with §5c's finding that backward chaining cannot express repetition and that repetition
+comes from the loop — the same split, arrived at from the other end. Value expressions may be total and
+non-branching; anything that wants to choose is a decision rule, not an action.
+
+⚠ **Migration is real and not free:** every `.mf` domain action in `selftest.py` and in `../pystrider`
+becomes data, and so do the **mocks**, which are microfunctions today ("each an ordinary microfunction
+whose return type is the outcome it assumes"). Tool calls need a form too, referencing a registered tool by
+name so `dispatch.py` keeps its single choke point.
+
+### The older framing, kept because it is what the code still says
 `stack`, `service`, `scan_dir` are domain-specific and are microfunctions today.
 
 The reading that seems coherent: microfunctions are the **operation layer** — primitives and tool bindings,
