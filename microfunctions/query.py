@@ -178,14 +178,61 @@ def ask(g: Graph, question: str, thread: str, subject: str, *, assume_complete: 
             "workbench": report.get("workbench"), "goal": question, "why": why}
 
 
-def settle(g: Graph, answer: dict) -> dict:
+def settle(g: Graph, answer: dict, thread: str | None = None) -> dict:
     """Replay a `yes` answer's proof against the real graph, so what was worked out is KEPT.
 
     Safe by construction rather than by care: every step came from `derivations`, so none of them can reach
-    the world — this commits conclusions, never effects. Returns `execution.execute`'s report."""
+    the world — this commits conclusions, never effects. Returns `execution.execute`'s report.
+
+    **⚠ Recording on the thread is what makes `why` answerable later, and it was missing at first.** Without
+    it a fact could be derived, committed, and then be unexplainable ten minutes afterwards — the engine
+    would know Paul is mortal and have no account of how it came to think so. The entries are marked `done`,
+    the same marker `conflict.py` uses to separate what really ran from what was merely imagined during the
+    search; a thread full of considered-but-abandoned proposals would make "why" answer with roads not
+    taken."""
     if answer["verdict"] != YES or not answer["proof"]:
         return {"ran": (), "completed": True, "deviation": None}
-    return X.execute(g, answer["workbench"], answer["frame"])
+    report = X.execute(g, answer["workbench"], answer["frame"])
+    if thread is not None:
+        ran = set(report.get("ran", ()))
+        for name, bound in steps_of(g, answer):
+            if name in ran:
+                T.applied(g, thread, name, bound, why="settled a question",
+                          for_goal=answer["goal"], done=True)
+    return report
+
+
+def history_for(g: Graph, thread: str, c: str) -> tuple:
+    """The applications that REALLY ran and could have established this constraint. The honest "why".
+
+    ⚠ **History, never reconstruction.** This looks only at entries marked `done`, and it matches on the
+    *roles* an application's function establishes resolved against that application's own bindings — so
+    `conclude_mortal(p=paul)` explains *paul* being mortal and says nothing about anyone else. Anything less
+    specific would offer a plausible-looking cause for a fact it did not produce."""
+    from . import application as ap
+    out = []
+    sort = g.attr(c, "sort")
+    want_label = g.attr(c, "label") if sort == "link" else g.attr(c, "key")
+    kind = {"link": "link", "attr": "attr"}.get(sort)
+    subject, obj = g.target(c, "subject"), g.target(c, "object")
+    for entry in T.entries(g, thread):
+        if g.kind(entry) != "application" or not g.attr(entry, "done"):
+            continue
+        name = g.attr(entry, "function") or g.attr(entry, "name")
+        if name is None:
+            continue
+        bound = ap.bindings_of(g, entry)
+        effects, _unknown = D.establishes(g, name)
+        for k, lbl, sp, op in effects:
+            if kind is not None and (k != kind or lbl != want_label):
+                continue
+            if D.role_node(g, bound, sp) != subject:
+                continue
+            if obj is not None and D.role_node(g, bound, op) != obj:
+                continue
+            out.append((entry, name, bound))
+            break
+    return tuple(out)
 
 
 # --- why -----------------------------------------------------------------------------------------
@@ -231,9 +278,42 @@ def explain(g: Graph, answer: dict) -> str:
     return "\n".join(lines)
 
 
+def account(g: Graph, question: str, thread: str, subject: str = "root") -> str:
+    """**Why does this hold?** — the causal explanation, answered from history where there is one.
+
+    ⭐ Three genuinely different situations, and the whole value here is refusing to blur them:
+
+    * **it does not hold** — then there is no "why". The honest response redirects to asking whether it
+      *could*, which is a different question with a different answer.
+    * **it holds and something here made it hold** — `history_for` names the application. This is the only
+      case that is really a cause.
+    * **it holds and nothing here made it hold** — it was given, not derived. Saying so is the answer.
+
+    ⚠ **The tempting fourth behaviour is deliberately absent: re-deriving it hypothetically.** For a fact
+    that is already true, a fresh search would answer *"here is a way this could follow"* — which is a
+    perfectly good question (`ask` it of a world where the fact is absent) and a **lie** when presented as
+    the reason something actually happened. An engine that manufactures plausible history is worse than one
+    that admits it kept none, because nothing downstream can tell the two apart."""
+    lines = []
+    for c in G.world_constraints(g, question):
+        claim = G.describe_constraint(g, c)
+        if not G.holds(g, c):
+            lines.append(f"{claim}: does not hold - there is nothing to explain "
+                         f"(ask whether it could be derived instead)")
+            continue
+        found = history_for(g, thread, c)
+        if not found:
+            lines.append(f"{claim}: holds, but nothing here derived it - it was given, not worked out")
+            continue
+        for _entry, name, bound in found:
+            who = ", ".join(f"{p}={g.attr(n, 'label') or n}" for p, n in sorted(bound.items()))
+            lines.append(f"{claim}: because {name}({who}) ran")
+    return "\n".join(lines) if lines else "nothing was asked"
+
+
 def describe(g: Graph, answer: dict) -> str:
     return f"{answer['verdict'].upper()} - {answer['why']} ({answer['steps']} step(s) considered)"
 
 
 __all__ = ["YES", "NO", "UNKNOWN", "is_pure", "derivations", "refutes", "ask", "settle",
-           "why", "explain", "describe"]
+           "history_for", "steps_of", "why", "explain", "account", "describe"]

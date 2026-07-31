@@ -2951,6 +2951,98 @@ def check_unknown_is_not_no_unless_you_say_so():
             "an_absent_edge_refutes_nothing": open_world["verdict"] != Q.NO}
 
 
+def _lines(*parts):
+    """Join CNL lines. ⚠ Written this way on purpose: an earlier version of these checks embedded `\n`
+    escapes inside generated source and they collapsed into real newlines, producing an unterminated
+    string literal. Building the text from parts has no escapes to get wrong."""
+    return "\n".join(parts)
+
+
+_BODY = "    paul.mortal = true"
+
+
+def check_one_grammar_three_verbs():
+    """⭐⭐ A question is a goal, so `goal`, `ask` and `why` share ONE grammar and one node shape. The
+    constraints parse identically; only the recorded verb differs, because which speech act something was
+    is genuinely not recoverable from what it says.
+
+    ⚠ Vacuity guard: the two blocks must produce the SAME constraints, or "one grammar" is a claim about
+    the parser rather than about the data model. And a plan constraint has to work inside a question -
+    `never conclude_mortal` asks "is this derivable without that rule?", which is a real question that
+    needed nothing added to support."""
+    from . import goal as G, intake as I, thread as T
+    g, _paul = _mortality_library()
+    verb_g, as_goal = I.read(g, _lines("goal make paul mortal:", _BODY))
+    verb_a, as_ask = I.read(g, _lines("ask is paul mortal?:", _BODY))
+
+    def shape(node):
+        return tuple(sorted((g.attr(c, "sort"), g.attr(c, "key"), g.attr(c, "value"))
+                            for c in G.constraints(g, node)))
+
+    th = T.open_thread(g, "t")
+    banned = I.respond(g, _lines("ask without that rule?:", _BODY, "    never conclude_mortal"), th)
+    plain = I.respond(g, _lines("ask is paul mortal?:", _BODY), th)
+    return {"the_verbs_are_read": (verb_g, verb_a) == ("goal", "ask"),
+            "SAME_CONSTRAINTS_FROM_BOTH": shape(as_goal) == shape(as_ask),
+            "the_verb_is_recorded": g.attr(as_ask, "verb") == "ask",
+            "and_round_trips": I.describe(g, as_ask).startswith("ask "),
+            "read_goal_refuses_a_question": _read_goal_refuses_an_ask(),
+            "A_PLAN_CONSTRAINT_WORKS_IN_A_QUESTION": banned.startswith("UNKNOWN"),
+            "and_it_pruned_rather_than_searched": "(0 step(s)" in banned,
+            "while_the_same_question_unconstrained_is_yes": plain.startswith("YES")}
+
+
+def _read_goal_refuses_an_ask() -> bool:
+    from . import intake as I
+    g, _paul = _mortality_library()
+    try:
+        I.read_goal(g, _lines("ask is paul mortal?:", _BODY))
+        return False
+    except I.Unreadable:
+        return True
+
+
+def check_why_answers_from_history_and_never_invents_it():
+    """⭐ "Why" means *find a causal explanation*, and the only honest source is what really ran. Three
+    situations, kept apart on purpose: derived here (a cause), true but given (no cause to give), and not
+    true at all (nothing to explain).
+
+    ⚠⚠ THE ABSENT FOURTH BEHAVIOUR IS THE POINT. For a fact that already holds, a fresh search would
+    happily produce "here is a way this could follow" - a fine answer to a different question and a lie as
+    an account of history. `AND_INVENTS_NO_DERIVATION` asserts the engine says it does not know rather than
+    manufacturing one, which is the failure that would make every explanation untrustworthy.
+
+    ⚠ Vacuity guard: `settle` must record on the thread, or the first case degrades into the second
+    silently - the fact would be committed and then unexplainable."""
+    from . import intake as I, thread as T
+    why_block = _lines("why is paul mortal?:", _BODY)
+    ask_block = _lines("ask is paul mortal?:", _BODY)
+
+    derived, _p = _mortality_library()
+    th = T.open_thread(derived, "t")
+    I.respond(derived, ask_block, th)                       # settles by default
+    from_history = I.respond(derived, why_block, th)
+
+    given, p2 = _mortality_library()
+    given.put(p2, mortal=True)
+    was_given = I.respond(given, why_block, T.open_thread(given, "t"))
+
+    absent, _p3 = _mortality_library()
+    untrue = I.respond(absent, why_block, T.open_thread(absent, "t"))
+
+    unkept, _p4 = _mortality_library()
+    th4 = T.open_thread(unkept, "t")
+    I.respond(unkept, ask_block, th4, keep=False)
+    unkept_why = I.respond(unkept, why_block, th4)
+    return {"derived_here_names_the_cause": "because conclude_mortal(p=paul) ran" in from_history,
+            "TRUE_BUT_GIVEN_ADMITS_IT": "it was given, not worked out" in was_given,
+            "AND_INVENTS_NO_DERIVATION": "because" not in was_given,
+            "not_true_means_nothing_to_explain": "does not hold" in untrue,
+            "and_it_redirects_to_the_question_that_DOES_apply": "could be derived" in untrue,
+            "settling_is_what_makes_history": "because" in from_history,
+            "SO_AN_UNKEPT_ANSWER_LEAVES_NONE": "because" not in unkept_why}
+
+
 # ⚠ THE ENTRY POINT MUST BE THE LAST THING IN THIS FILE. `_checks()` reads `globals()` at call time,
 # so any check defined BELOW this block is simply not executed - the count stays put and the report looks
 # healthy. That is the same false-green `_checks()` own docstring records, one level up, and it bit again

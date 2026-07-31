@@ -41,6 +41,32 @@ goal stack them:
     must paint                  the plan has to include this
     at most 3 steps             a budget
 ```
+
+## ⭐⭐ Three verbs, ONE grammar — because a question IS a goal
+
+`goal`, `ask` and `why` take **exactly the same body**. That is not an economy in the parser; it is the
+data model showing through. A goal is a set of constraints, a question is a set of constraints, and what
+differs is only what you then *do* with them — pursue, answer, or explain.
+
+```
+goal make it so:      ask is it so?:        why is it so?:
+    a on b                a on b                a on b
+```
+
+**⚠ So what distinguishes them in the graph? Only a record of how it arrived.** The constraints are
+identical, and the `verb` attribute is *not* a labelling error of the kind `HANDOFF.md` warns about —
+structure does not entail it. Which speech act something was is genuinely extra information, unrecoverable
+from the constraints, and it is exactly the project's standing **force-is-the-missing-axis** finding: force
+is a property of the intake **route**, not of the form. Two people can want and doubt the same proposition.
+
+**⭐ Plan constraints work in a question, and mean something useful.** `never phone_the_registrar` in an
+`ask` block is *"is this derivable without asking anyone?"*; `at most 2 steps` is *"is it derivable in two
+steps?"*. Nothing had to be added for this — constraining the route is constraining the route, whether the
+route is a plan of action or a derivation.
+
+⚠ `why` differs from `ask` in **what it reports, not in what it searches**: it wants the history behind
+something that already holds (`query.account`), where `ask` wants a verdict on something that may not. A
+`why` about a fact that is not true is answered by saying so, never by inventing a derivation for it.
 """
 from __future__ import annotations
 
@@ -111,11 +137,14 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
                          f"must f | at most n steps)")
 
 
-def read_goal(g: Graph, text: str, *, under: str = "root") -> str:
-    """Parse one `goal <label>:` block into a goal node with its constraints. Raises `Unreadable`.
+VERBS = ("goal", "ask", "why")
 
-    Nothing is minted until the whole block parses — a half-built goal would be worse than none, because
-    the driver would pursue it and appear to be working."""
+
+def read(g: Graph, text: str, *, under: str = "root") -> tuple:
+    """Parse one `<verb> <label>:` block. Returns `(verb, goal)`. Raises `Unreadable`.
+
+    One grammar, three verbs — see the module docstring. The verb is recorded on the node so that *how it
+    arrived* survives, which nothing about the constraints could tell you afterwards."""
     lines = [(i + 1, ln.split("#")[0].rstrip())
              for i, ln in enumerate(text.splitlines())]
     lines = [(i, ln) for i, ln in lines if ln.strip()]
@@ -123,12 +152,15 @@ def read_goal(g: Graph, text: str, *, under: str = "root") -> str:
         raise Unreadable("nothing to read")
 
     lineno, header = lines[0]
-    m = re.fullmatch(r"goal\s+(.+?)\s*:", header.strip())
+    m = re.fullmatch(r"(%s)\s+(.+?)\s*:" % "|".join(VERBS), header.strip())
     if not m:
-        raise Unreadable(f"line {lineno}: expected `goal <label>:`, got {header.strip()!r}")
+        raise Unreadable(f"line {lineno}: expected `<verb> <label>:` with verb one of "
+                         f"{', '.join(VERBS)}, got {header.strip()!r}")
+    verb = m.group(1)
 
     # Parse into a throwaway goal first so a bad line leaves nothing behind.
-    goal = G.open_goal(g, label=m.group(1))
+    goal = G.open_goal(g, label=m.group(2))
+    g.put(goal, verb=verb)
     try:
         for lineno, raw in lines[1:]:
             _constrain(g, goal, raw.split(), raw.strip(), lineno, under)
@@ -139,15 +171,44 @@ def read_goal(g: Graph, text: str, *, under: str = "root") -> str:
         raise Unreadable(f"line {lineno}: {e}" if "line " not in str(e) else str(e)) from None
     if not G.constraints(g, goal):
         g.drop(goal)
-        raise Unreadable("a goal with no constraints wants nothing")
+        raise Unreadable(f"a {verb} with no constraints says nothing")
+    return verb, goal
+
+
+def read_goal(g: Graph, text: str, *, under: str = "root") -> str:
+    """Parse a `goal …:` block. Refuses `ask` and `why` — a caller wanting one of those wants `read`."""
+    verb, goal = read(g, text, under=under)
+    if verb != "goal":
+        g.drop(goal)
+        raise Unreadable(f"this is a {verb!r} block, not a goal; use `read` to take any of {VERBS}")
     return goal
+
+
+def respond(g: Graph, text: str, thread: str, subject: str = "root", *,
+            under: str = "root", keep: bool = True, **kw) -> str:
+    """Read something said and do the right thing with it. The whole conversational surface, in one call.
+
+    ⚠ **`ask` settles by default (`keep=True`), and that is a choice worth seeing.** The derivation ran on
+    a workbench, so nothing is committed unless it is replayed; keeping it means the next question does not
+    re-derive what this one worked out, and — the part that matters more — it is what gives `why` anything
+    to answer from later. Pass `keep=False` for a question that should leave no trace."""
+    from . import query as Q
+    verb, goal = read(g, text, under=under)
+    if verb == "goal":
+        return G.describe(g, goal)                 # pursuing is the caller's to schedule, not intake's
+    if verb == "why":
+        return Q.account(g, goal, thread, subject)
+    answer = Q.ask(g, goal, thread, subject, **kw)
+    if keep and answer["verdict"] == Q.YES:
+        Q.settle(g, answer, thread)
+    return Q.describe(g, answer) + ("\n" + Q.explain(g, answer) if answer["proof"] else "")
 
 
 def describe(g: Graph, goal: str) -> str:
     """Render a goal back to the surface it came from — the round trip a model reads to check itself."""
-    lines = [f"goal {g.attr(goal, 'label')}:"]
+    lines = [f"{g.attr(goal, 'verb') or 'goal'} {g.attr(goal, 'label')}:"]
     lines.extend(f"    {G.describe_constraint(g, c)}" for c in G.constraints(g, goal))
     return "\n".join(lines)
 
 
-__all__ = ["Unreadable", "resolve", "read_goal", "describe"]
+__all__ = ["Unreadable", "VERBS", "resolve", "read", "read_goal", "respond", "describe"]
