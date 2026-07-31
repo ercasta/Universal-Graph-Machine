@@ -74,6 +74,14 @@ INVOKE = _ins("INVOKE")
 # the ONE way an effect leaves the graph — routed through `dispatch.service`'s checkpoint
 DISPATCH = _ins("DISPATCH")
 
+# Opcodes whose FIRST operand is a register they OVERWRITE. Stated here, beside the interpreter that does
+# the overwriting, because a static reader of a stored body (`driver.establishes`) has to know exactly when
+# a register stops denoting what it used to — and a list of those maintained anywhere else would drift.
+WRITES_REGISTER = frozenset({
+    "NEW", "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
+    "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
+    "INVOKE", "DISPATCH"})
+
 
 class Machine:
     MAX_STEPS = 100_000        # a runaway program halts LOUDLY; termination is still unsolved in general
@@ -236,7 +244,7 @@ def run(program, g: Graph, focus: Focus | None = None, **regs):
     return Machine(program).run(g, focus, **regs)
 
 
-__all__ = ["R", "F", "I", "Ref", "Machine", "run",
+__all__ = ["R", "F", "I", "Ref", "Machine", "run", "WRITES_REGISTER",
            "NEW", "SET", "LINK", "LINK_AT", "UNLINK", "DROP", "SETREF",
            "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
            "FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS",

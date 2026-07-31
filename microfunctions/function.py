@@ -138,6 +138,27 @@ def producers(g: Graph, type_name: str) -> tuple:
     return tuple(name for _more_specific, name in sorted(hits))
 
 
+def param_names(g: Graph, name: str) -> tuple:
+    """The parameter names, in order. `load` returns them too, but as the first half of a pair — and
+    `load(g, name)[0][1]` is a wretched way to ask for the second parameter's name, which is what
+    `../pystrider` was reduced to writing.
+
+    ⭐ **THE FIRST PARAMETER IS THE SUBJECT, and that is a GUARANTEE, not a convention.** A function is a
+    **cast** (`types.declare_type`) — it takes a thing and leaves it satisfying a stronger schema — so
+    "which thing" is the first parameter, and two mechanisms here already depend on it: `execution.run`
+    falls back to the first argument when a body sets no `result`, because a cast returns its subject, and
+    `execution._settle` then makes the first parameter's mapping name the cast node. `../pystrider` asked
+    whether it could build on this; it can. Anything that changes it has to change those two as well."""
+    fn = find(g, name)
+    return () if fn is None else tuple(g.attr(p, "name") for p in g.targets(fn, "param"))
+
+
+def subject_param(g: Graph, name: str) -> str | None:
+    """The parameter a call is *about* — the first one. See `param_names` for why that is guaranteed."""
+    params = param_names(g, name)
+    return params[0] if params else None
+
+
 def param_types(g: Graph, name: str) -> dict:
     """`{param: declared type}`. What candidate generation reads to ask whether a function could apply."""
     fn = find(g, name)
@@ -225,4 +246,4 @@ def invoke(g: Graph, name: str, args: dict | None = None, **regs):
     return focus, out
 
 
-__all__ = ["define", "find", "load", "names", "invoke", "doc_of", "notes_of", "catalogue", "param_types", "returns_of", "producers", "mocks_of", "mocks_target"]
+__all__ = ["define", "find", "load", "names", "invoke", "doc_of", "notes_of", "catalogue", "param_names", "subject_param", "param_types", "returns_of", "producers", "mocks_of", "mocks_target"]

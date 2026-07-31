@@ -460,9 +460,114 @@ cites as prior art. Two detectors, for two different questions:
 **And the harness gained a fix of its own:** the `FALSE` marker added in §5g used a non-ASCII glyph, which
 made the report unpipeable on a cp1252 console. ASCII now.
 
+## 5k. The first consumer's feedback, worked through (2026-07-31)
+
+`../pystrider/docs/feedback_microfunctions.md` — written against `d7110c4` by the team building `strider/`
+on this engine, 5 modules and 79 pins doing Python source → graph → neutral descriptions → recognition.
+Every item arrived as *measured repro* plus *hypothesis about the cause*, with the hypotheses flagged as
+things to check rather than findings. **Every one of their diagnoses was right**, which is worth recording
+because the same document explains that several of their confident diagnoses against the *old* engine were
+inverted. Reading effects off a stored body turns out to be a thing an outsider can reason about correctly.
+
+**⭐⭐ The big one: a role is a PATH, not a parameter name (`driver.establishes`).** A function whose
+operands are parameters read beautifully; one that had to **navigate** went dark.
+
+```
+fn lower_threshold(c: comparison) -> comparison:
+    GET R(rhs) F(c) "right"        # ← the subject is now in a register
+    ATTR R(v) R(rhs) "value"
+    ADD R(v2) R(v) -1
+    SET R(rhs) "value" R(v2)       # ← writes to a register: reported as an effect on NOTHING
+```
+
+An operation whose entire purpose is to change the comparison statically appeared to change nothing. Their
+framing is the one that generalises: *read a part, write to that part* is what most operations on
+structured data look like, so the functions that were invisible were exactly the ones doing real work on a
+structure — and a bridge between two vocabularies is nothing **but** navigation.
+
+The fix is provenance, and it is static and free: `R(rhs)` was assigned by `GET R(rhs) F(c) "right"`, so it
+denotes *`c`'s `right`*. Three role forms now, distinguishable by inspection — `c` (a parameter), `c.right`
+(navigated, `c.child[2]` for an indexed hop), `$it` (minted locally).
+
+**⭐ The half that was not obvious: the path is resolved DYNAMICALLY, in `driver.role_node`.**
+`establishes` can say *`c`'s `right`* without knowing which node that is; only a caller holding bindings
+can turn that into an individual and ask whether it is the one a constraint is about. Static provenance
+plus dynamic resolution is what restores band 4 for a navigating operator, and splitting it that way is the
+whole trick — neither half alone does anything.
+
+Measured on two comparisons with a goal to lower one literal (`check_ranking_sees_through_a_navigating_operator`):
+
+| | imagined states |
+|---|---|
+| guided, with paths | **3** |
+| guided, without them (the previous behaviour) | 5–10 |
+| blind | 5–10 |
+
+⚠ **The step counts are not the finding; the band is.** Without paths, *no proposal could reach band 4 at
+all* — so the guided search and the blind one were the same search, tie-broken by frontier insertion order,
+which is why the two controls straddle each other run to run. That is `../pystrider`'s "found essentially
+unguided" in this engine's own numbers, and it is why the check asserts band reachability rather than a
+timing.
+
+**⭐ `unknown` says WHAT it could not read.** It was whole-function, so an unreadable write to `y` darkened
+a description that was provably complete for `x`. It is now a **frozenset of the roles** the unreadable
+instructions concern, `None` meaning "somewhere we cannot name at all". Empty is falsy, so every existing
+`if unknown:` reads unchanged. Their deeper point is now in the docstring: **`establishes` is an
+over-approximation by contract** — conservative for ranking, a false-positive generator for recognition —
+and the same return value carries opposite safety for its two consumers. That should have been said out
+loud the first time.
+
+**⭐ `INVOKE` had no operand-shape check, and it is the only opcode with a shape** (`asm.py`). Every opcode
+*name* was validated; `INVOKE`'s third operand is a *mapping*, there was no way to write one in `.mf`, so
+the natural positional form parsed, defined, and failed at run time inside the interpreter with
+`AttributeError: 'str' object has no attribute 'items'` — no line, no opcode, nothing naming the operand.
+Exactly the silent acceptance `asm.py`'s own docstring says it exists to prevent. There is now a surface
+(`INVOKE R(out) as_iteration it=F(f) seq=R(s)`) and anything else is refused with a line number.
+
+That was filed as a bug and the feature request behind it mattered more: **a microfunction was not
+composable from another in the authored surface**, so `strider/` duplicated a vocabulary across two `.mf`
+files and checked for drift itself. It is now. ⚠ Fixing the surface exposed a second silent break: `unparse`
+rendered the raw Python dict, so a **learned** function (`application.compile_episode` builds `INVOKE`
+operands in Python) could not be read back in. The only guard was that the word `INVOKE` appeared in the
+dump — a vacuous green of exactly the kind §7 keeps catching.
+
+**⭐ Compose-time interference (`conflict.interference_between`).** Their hypothesis — "`interference` over
+a frame chain, the same function with a different source of claims" — was right, with one correction: it
+takes **two** chains, never one. A single chain is one committed plan, and steps within one plan are a
+deliberate sequence; reading one would report the ordinary sequels the `done` filter and the different-goal
+requirement exist to suppress. With two plans it is nearly free, `claims_of` reused unchanged, and it
+reports a collision **before either plan runs**. ⚠ It is the only detector here that reports something that
+has not happened, so it is the only one that can be wrong about the future, and it records nothing on the
+thread for that reason.
+
+**Papercuts, both load-bearing.** `function.param_names` exists (they were reduced to `load(g, name)[0][1]`),
+and — the question worth answering — **"the first parameter is the subject" is a GUARANTEE, not a
+convention**, now said out loud in `function.subject_param`, which `execution.py`'s two dependent sites call
+instead of re-deriving it.
+
+**Documented rather than changed, because the gap was in the docs:** `pursue` now says that the failure
+report hands back the `workbench` **so the explored frames can be interrogated** — a refusal's reason lives
+there and nowhere else — with the authoring rule that follows and had never been written down: *an
+operation that wants to explain itself must record its reason where the frames are.* A microfunction that
+quietly does nothing when a precondition fails is unexplainable after a failed search; one that writes
+`unsupported_confirmation_step` is diagnosable. Silence costs nothing at planning time and everything
+afterwards.
+
+**Left alone, deliberately.** `types.schema_of` being flat is not a defect: a schema constrains each label
+independently and so can never say "the `body` and the `element` are related this way", which is why their
+patterns are read off function bodies via `establishes`. `types.recognize` classifies structure, theirs
+carries joins, and the two are complementary rather than one subsuming the other. And **quantifiers**: an
+open question ("who is admitted") becomes one search per candidate here, which they measured at 2 searches
+and 22 imagined states against one saturation, called affordable, and explicitly did not ask for. Noted as
+a shape consumers will keep bringing rather than as a thing to build.
+
+**Verification:** 126 checks 0 FAILED here, and `../pystrider`'s 110 `strider` pins pass unchanged against
+the modified engine — including the `unknown` bool → frozenset change, which they consume as `if unknown:`.
+
 ## 5. What to do next
 
-**2. ⚠ Conflict detection — a regression, not a deferral.** The old rule engine surfaced two conclusions
+**2. ✅ DONE — see §5j and §5k.** Conflict detection landed (`unsatisfiable`, `interference`, and
+`interference_between` for the compose-time case). Left here for the reasoning: The old rule engine surfaced two conclusions
 disagreeing rather than letting one silently overwrite, and the composition-safety argument for the open
 middle tier *rested on it*. The new engine has nothing; mutable last-write-wins. The intended answer is
 reflective microfunctions — functions that read applications and the graph and detect conflicts — which

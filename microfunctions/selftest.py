@@ -430,6 +430,70 @@ def check_assembly_refuses_an_unknown_opcode_loudly():
                 "lists_alternatives": "CHECK" in str(e)}
 
 
+def check_assembly_refuses_a_malformed_invoke():
+    """⭐ REPORTED BY `../pystrider`. Every opcode NAME was checked; `INVOKE`'s operand SHAPE was not — and
+    it is the one opcode taking a structured operand, a mapping of parameter names. So the natural
+    positional form parsed, defined, and failed only when run, with `AttributeError: 'str' object has no
+    attribute 'items'` — no line, no opcode, nothing naming the operand that was wrong. Squarely the
+    silent-acceptance failure this module exists to prevent.
+
+    Vacuity guards: the well-formed named-binding version must actually parse AND run (a check that only
+    refuses things would pass with `INVOKE` rejected outright), and the refusal must name the line."""
+    from . import asm, function as fn
+    g, car, _ = _car_world()
+    asm.load_text(g, "\n".join([
+        'fn wash(c):',
+        '    SET F(c) "washed" true',
+        'fn full_wash(c):',
+        '    INVOKE R(out) wash c=F(c)',
+    ]))
+
+    def refuses(text):
+        try:
+            asm.parse(text)
+            return None
+        except asm.AsmError as e:
+            return str(e)
+
+    positional = refuses('fn bad(c):\n    INVOKE R(out) wash F(c)')
+    no_name = refuses('fn bad(c):\n    INVOKE R(out)')
+    not_a_register = refuses('fn bad(c):\n    INVOKE F(c) wash c=F(c)')
+    fn.invoke(g, "full_wash", {"c": car})
+    return {"THE_POSITIONAL_FORM_IS_REFUSED": positional is not None,
+            "naming_the_line": "line 2" in (positional or ""),
+            "and_showing_the_form": "param=operand" in (positional or ""),
+            "a_missing_function_name_is_refused": no_name is not None,
+            "a_non_register_destination_is_refused": not_a_register is not None,
+            "but_the_named_form_parses": "INVOKE" in asm.dump(g, "full_wash"),
+            "AND_REALLY_DELEGATES": g.attr(car, "washed") is True}
+
+
+def check_an_invoke_round_trips_through_the_surface():
+    """The other half of §6: a mapping operand had no textual form, so `unparse` rendered the raw Python
+    dict and the round trip was broken — silently, because the only check was that the word `INVOKE`
+    appeared in the dump. That matters most for a function nothing authored: `compile_episode` builds
+    `INVOKE` operands in Python, so a LEARNED function could not be read back in.
+
+    Vacuity guard: the learned function must genuinely contain an `INVOKE` with bindings, or a round trip
+    over an empty program would prove nothing."""
+    from . import application as ap, asm, function as fn
+    g, car, _ = _car_world()
+    asm.load_text(g, 'fn wash(c):\n    SET F(c) "washed" true')
+    ep = ap.open_episode(g, "washing")
+    fn.invoke(g, "wash", {"c": car})
+    ap.record(g, "wash", {"c": car}, episode=ep)
+    ap.compile_episode(g, ep, "wash_it")
+
+    text = asm.dump(g, "wash_it")
+    reparsed = asm.parse(text)[0]
+    stored = fn.load(g, "wash_it")[1]
+    return {"the_learned_function_invokes": stored[0].op == "INVOKE",
+            "with_a_real_binding": isinstance(stored[0].args[2], dict) and stored[0].args[2] != {},
+            "IT_RENDERS_AS_NAMED_BINDINGS": "=" in text.splitlines()[-1],
+            "no_python_dict_leaks_into_the_text": "{" not in text,
+            "AND_PARSES_BACK_IDENTICALLY": reparsed.program == stored}
+
+
 def check_a_function_can_invoke_another():
     """Composition is by CALLING, not by a fixed control-flow graph — the no-seam claim in miniature."""
     from . import asm, function as fn
@@ -2125,7 +2189,8 @@ def check_a_minted_node_keeps_the_join_through_a_register():
     A register holding something minted *in this body* is a local subject, marked `$` so it can never be
     confused with a parameter. Vacuity guards: all three effects must name the *same* subject (the join is
     the whole point); a parameter role must still be a bare name; and a register that is later reassigned
-    must lose the role rather than keep claiming to be the minted node."""
+    must stop claiming to be the minted node — it now denotes whatever was put in it instead, which is the
+    navigation case checked below, and the thing that must never happen is it still answering `$it`."""
     from . import asm, driver as D
     g = new_graph()
     declare_type(g, "seq", attrs={"kind_of": "seq"})
@@ -2151,8 +2216,202 @@ def check_a_minted_node_keeps_the_join_through_a_register():
             "the_parameter_role_is_still_a_bare_name":
                 ("link", "over", "$it", "seq") in eff,
             "and_it_is_known_statically": not unknown,
-            "a_reassigned_register_loses_the_role":
-                ("attr", "kind", None, None) in later}
+            "a_reassigned_register_stops_being_the_minted_node":
+                not any(e[2] == "$it" for e in later if e[0] == "attr"),
+            "and_denotes_what_was_put_in_it":
+                ("attr", "kind", "seq.other", None) in later}
+
+
+def _threshold_library():
+    """Two comparisons, each with a literal right-hand side, and operators that repair one by NAVIGATING
+    to it. The shape `../pystrider` reported: *read a part, write to that part*."""
+    from . import asm
+    g = new_graph()
+    declare_type(g, "comparison", {"right": ("literal", 1)})
+    declare_type(g, "literal")
+    asm.load_text(g, "\n".join([
+        "# Make the comparison easier to pass by lowering its threshold.",
+        "fn lower_threshold(c: comparison) -> comparison:",
+        '    GET R(rhs) F(c) "right"',
+        '    ATTR R(v) R(rhs) "value"',
+        "    ADD R(v2) R(v) -1",
+        '    SET R(rhs) "value" R(v2)',
+        "",
+        "fn raise_threshold(c: comparison) -> comparison:",
+        '    GET R(rhs) F(c) "right"',
+        '    ATTR R(v) R(rhs) "value"',
+        "    ADD R(v2) R(v) 1",
+        '    SET R(rhs) "value" R(v2)',
+    ]))
+    root, lits = g.mint("rule"), []
+    for v in (3, 7):
+        c, lit = g.mint("comparison"), g.mint("literal", value=v)
+        g.link(c, "right", lit)
+        g.link(root, "case", c)
+        tag(g, c, "comparison")
+        tag(g, lit, "literal")
+        lits.append(lit)
+    return g, root, lits
+
+
+def check_a_navigated_register_keeps_the_join():
+    """⭐⭐ REPORTED BY `../pystrider`. A function whose operands are parameters read beautifully; one that
+    had to *navigate* went dark — and a bridge between two vocabularies is nothing but navigation, so the
+    functions they most wanted to read were exactly the ones that could not be read.
+
+    `GET R(s) F(a) "over"` makes `R(s)` denote a derivable thing: *the `over` of `a`*. So a role is a PATH,
+    and the write keeps its join to the parameter it came from.
+
+    Vacuity guards: the plain-parameter roles must be unchanged (a path must not swallow the simple case);
+    the path must survive into a real repair operator whose write lands two hops from its parameter; and a
+    register overwritten by something unreadable — an `ATTR` holds a *value*, not a node — must lose the
+    role rather than keep claiming a stale one."""
+    from . import asm, driver as D
+    g = new_graph()
+    asm.load_text(g, "\n".join([
+        "fn navigate(a, b) -> t:",
+        '    GET R(s) F(a) "over"',
+        '    LINK F(b) "seq" R(s)',
+        '    LINK F(b) "direct" F(a)',
+        "fn clobbered(a, b) -> t:",
+        '    GET R(s) F(a) "over"',
+        '    ATTR R(s) F(b) "name"',
+        '    LINK F(b) "seq" R(s)',
+    ]))
+    eff, _u = D.establishes(g, "navigate")
+    lost, _u2 = D.establishes(g, "clobbered")
+
+    gt, _root, _lits = _threshold_library()
+    repair, unknown = D.establishes(gt, "lower_threshold")
+    return {"the_plain_parameter_case_is_unchanged":
+                ("link", "direct", "b", "a") in eff,
+            "AND_THE_NAVIGATED_ROLE_IS_KEPT":
+                ("link", "seq", "b", "a.over") in eff,
+            "no_effect_has_a_null_object_any_more":
+                not any(e[3] is None for e in eff),
+            "A_REPAIR_OPERATOR_NOW_REPORTS_ITS_EFFECT":
+                repair == frozenset({("attr", "value", "c.right", None)}),
+            "and_reports_it_as_fully_read": not unknown,
+            "but_a_value_bearing_register_claims_nothing":
+                ("link", "seq", "b", None) in lost}
+
+
+def check_a_role_path_is_resolved_against_the_world():
+    """The other half of the same mechanism, and the reason it is split in two: `establishes` says *`c`'s
+    `right`* without knowing which node that is, and only a caller holding bindings can turn that into an
+    individual. Static provenance, dynamic resolution.
+
+    Vacuity guards: the same role must resolve to DIFFERENT nodes under different bindings (or it is not
+    resolution at all), a locally-minted `$` role must resolve to nothing, and a path through an absent edge
+    must answer `None` rather than raising."""
+    from . import driver as D
+    g, _root, lits = _threshold_library()
+    first, second = (g.sources(lit, "right")[0] for lit in lits)
+    return {"resolves_under_one_binding": D.role_node(g, {"c": first}, "c.right") == lits[0],
+            "AND_DIFFERENTLY_UNDER_ANOTHER": D.role_node(g, {"c": second}, "c.right") == lits[1],
+            "a_bare_parameter_is_just_a_lookup": D.role_node(g, {"c": first}, "c") == first,
+            "a_minted_role_names_nothing_outside": D.role_node(g, {"c": first}, "$it") is None,
+            "and_a_missing_edge_is_None_not_an_error":
+                D.role_node(g, {"c": first}, "c.nowhere.deeper") is None}
+
+
+def check_ranking_sees_through_a_navigating_operator():
+    """⭐⭐ WHY THE PATH IS WORTH ITS COST TO THE DRIVER ITSELF, not only to a consumer reading descriptions.
+
+    Two comparisons; the goal wants one literal lowered. `lower_threshold` writes to a register, so before
+    paths it established nothing anyone could name — and band 4 ("this call writes exactly this constraint")
+    could never be reached by *any* candidate. Every proposal tied, and the guidance had nothing to rank
+    with. `../pystrider` measured 5 imagined states against 6 blind on their own repair and said so.
+
+    ⚠ The control is the whole check: blind search alone would not show that PATHS did it, so the middle
+    figure re-runs the identical search with path roles pretended not to exist — the behaviour before this
+    change. Guided must beat that, not merely beat blind.
+
+    ⚠ **The step counts are compared one way only, deliberately.** With paths the search is decisive and
+    lands on 3 every time; the other two are tie-broken by frontier insertion order and measure 5 or 10 run
+    to run, because *without a reachable band 4 the guided search and the blind one are the same search* —
+    which is `../pystrider`'s "found essentially unguided" in this engine's own numbers. So the load-bearing
+    assertion is the structural one below: before paths, **no proposal could reach band 4 at all**."""
+    from . import driver as D, goal as G, thread as T, workbench as W
+
+    def search(guided, paths=True):
+        g, root, lits = _threshold_library()
+        goal = G.open_goal(g, about=root, label="lower the first threshold")
+        G.require_attr(g, goal, lits[0], "value", 1)
+        real = D.role_node
+        if not paths:
+            D.role_node = lambda gr, bound, role: (
+                None if not role or "." in role or role.startswith("$") else bound.get(role))
+        try:
+            r = D.pursue(g, goal, T.open_thread(g, "t"), root, guided=guided, max_steps=60)
+        finally:
+            D.role_node = real
+        return g, r
+
+    def bands(paths=True):
+        """The band every root proposal scores — what the ranking has to work with before it moves."""
+        g, root, lits = _threshold_library()
+        goal = G.open_goal(g, about=root)
+        G.require_attr(g, goal, lits[0], "value", 1)
+        wb = W.open_workbench(g, root)
+        f0 = W.root_frame(g, wb)
+        open_now = G.unmet(g, goal, view=D.view_in(g, f0),
+                           under=W.image_of(g, W.mapping_for(g, f0, root)))
+        real = D.role_node
+        if not paths:
+            D.role_node = lambda gr, bound, role: (
+                None if not role or "." in role or role.startswith("$") else bound.get(role))
+        try:
+            return {D.relevance(g, n, b, open_now) for n, b in D.proposals(g, f0)}
+        finally:
+            D.role_node = real
+
+    (gp, with_paths), (_gw, without), (_gb, blind) = (
+        search(True), search(True, paths=False), search(False))
+    return {"it_finds_the_two_step_repair":
+                D.plan_steps(gp, with_paths) == ("lower_threshold", "lower_threshold"),
+            "NO_PROPOSAL_COULD_SCORE_A_HIT_BEFORE": bands(paths=False) == {1},
+            "AND_NOW_ONE_CAN": 4 in bands(),
+            "but_not_every_one_of_them": bands() != {4},
+            "GUIDED_WITH_PATHS": with_paths["steps"],
+            "guided_without_them": without["steps"],
+            "blind": blind["steps"],
+            "paths_beat_the_previous_guidance": with_paths["steps"] < without["steps"],
+            "and_beat_blind_too": with_paths["steps"] < blind["steps"]}
+
+
+def check_unknown_says_what_it_could_not_read():
+    """⭐ REPORTED BY `../pystrider`, which abstains from recognising a node whenever anything in a body was
+    unreadable. A whole-function flag darkened descriptions that were provably complete: the unreadable
+    write here targets `y`, and the readable effect describes `x`.
+
+    `unknown` is now the set of ROLES the unreadable instructions concern, `None` meaning "somewhere we
+    cannot name at all". Empty is falsy, so every existing `if unknown:` reads as it did.
+
+    Vacuity guards: a fully readable body must still report nothing unknown, and a call — whose effects
+    genuinely happen elsewhere — must still darken everything by reporting `None`."""
+    from . import asm, driver as D
+    g = new_graph()
+    asm.load_text(g, "\n".join([
+        "fn side(x, y) -> t:",
+        '    LINK F(x) "clear" F(y)',
+        '    ATTR R(k) F(y) "name"',
+        "    SET F(y) R(k) true",
+        "fn plain(x, y) -> t:",
+        '    LINK F(x) "clear" F(y)',
+        "fn calls_out(x, y) -> t:",
+        '    LINK F(x) "clear" F(y)',
+        '    INVOKE R(_) plain x=F(x) y=F(y)',
+    ]))
+    eff, unknown = D.establishes(g, "side")
+    _p, plain_unknown = D.establishes(g, "plain")
+    _c, call_unknown = D.establishes(g, "calls_out")
+    return {"the_readable_effect_survives": eff == frozenset({("link", "clear", "x", "y")}),
+            "still_truthy_so_old_callers_are_unaffected": bool(unknown),
+            "AND_IT_NAMES_THE_ROLE_IT_COULD_NOT_READ": unknown == frozenset({"y"}),
+            "so_a_consumer_can_see_x_IS_fully_described": "x" not in unknown and None not in unknown,
+            "a_fully_readable_body_reports_nothing": plain_unknown == frozenset(),
+            "but_a_call_still_darkens_everything": call_unknown == frozenset({None})}
 
 
 def check_a_contradictory_goal_is_refused_before_searching():
@@ -2243,6 +2502,52 @@ def check_interference_between_two_goals_is_surfaced():
             "an_empty_thread_has_none": C.interference(g, T.open_thread(g)) == (),
             "ONE_PLAN_REALLY_DID_WRITE_THE_SLOT_TWICE": len(wrote_twice) >= 2,
             "but_a_sequel_is_NOT_a_conflict": sequel == ()}
+
+
+def check_two_plans_collide_before_either_runs():
+    """⭐ REQUESTED AS A USE CASE BY `../pystrider`: their previous engine caught a collider between two
+    independently authored fragments *before anything ran*, and the value was that the author learns at
+    compose time rather than after a run that has already clobbered something.
+
+    Their hypothesis — "`interference` over a frame chain, the same function with a different source of
+    claims" — is right, with one correction: it takes **two** chains. One chain is a single committed plan,
+    and steps within one plan are a deliberate sequence, so reading one would report ordinary sequels.
+
+    Vacuity guards: nothing must have run (the block's colour is still untouched afterwards, or this is
+    the ordinary after-the-fact detector wearing a hat); two plans that agree must report nothing; and one
+    plan alone must report nothing however many times it writes the slot."""
+    from . import asm, conflict as C, driver as D, goal as G, thread as T
+    g, world = _blocks()
+    a = g.targets(world, "block")[0]
+    asm.load_text(g, "\n".join([
+        "# Independently authored, and it happens to write the slot `paint` writes.",
+        "fn varnish(b: block) -> block:",
+        '    SET F(b) "colour" "clear"',
+        "fn polish(b: block) -> block:",
+        '    SET F(b) "shine" true',
+    ]))
+    th = T.open_thread(g, "composing")
+
+    def plan_for(label, key, value):
+        goal = G.open_goal(g, label=label)
+        G.require_attr(g, goal, a, key, value)
+        return D.pursue(g, goal, th, world, max_steps=200)
+
+    red, clear, shiny = (plan_for("make it red", "colour", "red"),
+                         plan_for("varnish it", "colour", "clear"),
+                         plan_for("polish it", "shine", True))
+    collide = C.interference_between(g, [red, clear])
+    agree = C.interference_between(g, [red, shiny])
+    alone = C.interference_between(g, [red])
+    first = collide[0] if collide else (None,) * 6
+    return {"both_plans_were_found": red["found"] and clear["found"] and shiny["found"],
+            "NOTHING_HAS_RUN": g.attr(a, "colour") is None,
+            "TWO_PLANS_COLLIDE": len(collide) == 1,
+            "it_names_the_slot": first[3] == "colour",
+            "and_both_intended_values": {first[4], first[5]} == {"red", "clear"},
+            "and_the_two_goals_differ": first[0] is not None and first[0] != first[1],
+            "plans_touching_different_slots_do_not": agree == (),
+            "and_ONE_plan_is_never_in_conflict_with_itself": alone == ()}
 
 
 def check_types_are_recognised_bottom_up():

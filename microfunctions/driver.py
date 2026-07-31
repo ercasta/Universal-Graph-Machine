@@ -36,11 +36,13 @@ adequate for a handful of blocks and should not be mistaken for a planner.
 """
 from __future__ import annotations
 
+import re
 from itertools import product
 
 from . import execution as X
 from . import function as fn
 from . import goal as G
+from . import isa
 from . import thread as T
 from . import workbench as W
 from .graph import Graph
@@ -125,71 +127,142 @@ def establishes(g: Graph, name: str) -> tuple:
     statically here — and it is what lets a goal of "some file exists" find `scan_dir` at all. Without it,
     an opaque tool call is maximally relevant to everything and informative about nothing.
 
-    ⚠ **Conservative on purpose.** If a label or key comes from a register, or the body calls out to
-    another function, we cannot tell statically — so `unknown` is returned and the caller must treat the
-    function as potentially relevant. This orders candidates; it never rules one out. An over-approximation
-    that loses no solutions is the only kind safe to use here."""
+    **⭐ A role is a PATH, not just a parameter name, which is what lets this read a function that has to
+    NAVIGATE.** Three forms, distinguishable by inspection and never confusable with each other:
+
+    | role | means |
+    |---|---|
+    | `c` | the parameter `c` |
+    | `c.right` | what the body reached by `GET`ting `c`'s `right` — `c.child[2]` for an indexed hop |
+    | `$it` | a node this body MINTED, held in register `it` — a local subject with no caller-side identity |
+
+    Without the middle form, `lower_threshold(c)` — `GET R(rhs) F(c) "right"` then `SET R(rhs) …` — reported
+    **no effect on anything**, because the write landed on a register rather than a parameter. Reported by
+    `../pystrider`, and the case is general: *read a part, write to that part* is what most operations on
+    structured data look like, so the functions whose effects were invisible were exactly the ones that do
+    real work on a structure. The provenance is derivable from the instruction list and costs nothing at
+    runtime, since it is read statically off a body that is already stored.
+
+    ⚠ A path is only as good as the register's last assignment: **anything else written into that register
+    clears the role** (`isa.WRITES_REGISTER` is the authority on what counts), and an `ATTR` clears it too,
+    because a register holding an attribute *value* denotes no node at all.
+
+    ⚠ **Conservative on purpose, and `unknown` now says WHAT it is unsure about.** If a label or key comes
+    from a register, or the body calls out to another function, we cannot tell statically. `unknown` is a
+    **frozenset of the roles the unreadable instructions concern**, with `None` meaning "somewhere we cannot
+    name at all" (a call, a computed subject). Empty means the body was read completely, so `if unknown:`
+    and `not unknown` read exactly as they did when this was a bool.
+
+    That granularity is for consumers reading effects as a **description** rather than as a ranking hint:
+    `../pystrider` abstains from recognising a node whenever anything was unreadable, and a whole-function
+    flag darkened descriptions that were provably complete for their own subject — an unreadable write to
+    `y` said nothing about `x`, but looked as though it might.
+
+    ⚠ **The return value is an OVER-APPROXIMATION by contract.** It exists to ORDER candidates and it never
+    rules one out, so it is deliberately safe in the direction that loses no solutions — and *unsafe* in the
+    other. A consumer using it to decide that something IS the case (recognition, admission) inherits false
+    positives and must guard them itself; that is the opposite safety from the one this is built for."""
     return _effects(g, name, include_mocks=True)
 
 
 def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
     params, program = fn.load(g, name)
 
-    # ⭐ Registers that hold something this function MINTED are subjects too. Reported by `../pystrider`,
-    # which uses `establishes` for *recognition* rather than for ranking: a pattern written as `NEW R(it)`
-    # then `LINK R(it) …` came back as three effects with no subject at all — "orphan facts that no longer
-    # claim to describe one node" — because only `F(param)` counted as a role. That forced patterns to be
-    # authored as casts, which is a real expressive loss, so the join is restored here.
-    #
-    # A minted register gets a `$`-prefixed role: it names *a local subject*, distinguishable from a
-    # parameter by inspection and never confusable with one. `relevance` matches roles against bound
-    # arguments, so a `$` role simply never matches — no existing score can change.
-    minted_regs: set = set()
+    # ⭐ What each register currently DENOTES, as a role — see `establishes` for the three forms. Reported
+    # by `../pystrider`, which uses `establishes` for *recognition* rather than for ranking: first a pattern
+    # authored as `NEW R(it)` then `LINK R(it) …` came back as effects with no subject at all — "orphan
+    # facts that no longer claim to describe one node" — and then, once minting was fixed, a function that
+    # navigated with `GET` before writing came back the same way.
+    roles: dict = {}
 
     def role(operand):
-        """The subject an operand names: a parameter, or a register holding something minted here."""
+        """The subject an operand names: a parameter, or whatever a register was last made to denote."""
         if isinstance(operand, F) and operand.name in params:
             return operand.name
-        if isinstance(operand, R) and operand.name in minted_regs:
-            return "$" + operand.name
+        if isinstance(operand, R):
+            return roles.get(operand.name)
         return None
 
-    effects, unknown = set(), False
+    effects, unknown = set(), set()
     for ins in program:
         if isinstance(ins, str):
             continue                                        # a label, not an instruction
         a = ins.args
         arg = a[1] if len(a) > 1 else None
-        if ins.op == "NEW":
-            # ⭐ Bringing something into existence is an effect too — the one a goal like "some file
-            # exists" is looking for, and the one a type signature cannot express.
-            if len(a) > 1 and isinstance(a[1], str) and isinstance(a[0], R):
-                minted_regs.add(a[0].name)
-                effects.add(("mint", a[1], "$" + a[0].name, None))
-            else:
-                unknown = True
+
+        if ins.op in isa.WRITES_REGISTER:
+            if not (a and isinstance(a[0], R)):
+                unknown.add(None)                           # malformed for this opcode: say nothing
+                continue
+            # Derive the NEW role before clearing the old one — `GET R(x) R(x) "l"` reads then overwrites.
+            fresh = None
+            if ins.op == "NEW":
+                # ⭐ Bringing something into existence is an effect too — the one a goal like "some file
+                # exists" is looking for, and the one a type signature cannot express.
+                if len(a) > 1 and isinstance(a[1], str):
+                    fresh = "$" + a[0].name
+                    effects.add(("mint", a[1], fresh, None))
+                else:
+                    unknown.add(None)
+            elif ins.op == "GET" and len(a) > 2 and isinstance(a[2], str):
+                base = role(a[1])
+                fresh = None if base is None else f"{base}.{a[2]}"
+            elif ins.op == "GET_AT" and len(a) > 3 and isinstance(a[2], str) and isinstance(a[3], int):
+                base = role(a[1])
+                fresh = None if base is None else f"{base}.{a[2]}[{a[3]}]"
+            elif ins.op in ("INVOKE", "DISPATCH"):
+                unknown.add(None)                           # the effect happens somewhere else
+            roles.pop(a[0].name, None)
+            if fresh is not None:
+                roles[a[0].name] = fresh
             continue
-        # ⚠ Any other write to a register means it no longer denotes what was minted into it.
-        if a and isinstance(a[0], R) and ins.op not in ("SET", "LINK", "LINK_AT", "UNLINK"):
-            minted_regs.discard(a[0].name)
 
         if ins.op in ("LINK", "LINK_AT", "UNLINK"):
             if isinstance(arg, str):
                 obj = a[-1] if ins.op != "UNLINK" else None
                 effects.add(("link", arg, role(a[0]), role(obj) if obj is not None else None))
             else:
-                unknown = True
+                unknown.add(role(a[0]))                     # a computed label, on a subject we can name
         elif ins.op == "SET":
-            effects.add(("attr", arg, role(a[0]), None)) if isinstance(arg, str) else (unknown := True)
-        elif ins.op in ("INVOKE", "CALL", "DISPATCH"):
-            unknown = True                                  # the effect happens somewhere else
+            if isinstance(arg, str):
+                effects.add(("attr", arg, role(a[0]), None))
+            else:
+                unknown.add(role(a[0]))
+        elif ins.op == "CALL":
+            unknown.add(None)                               # a local jump: the body runs out of order
 
     if include_mocks:
         for outcome in fn.mocks_of(g, name):                # depth 1: a mock has no mocks of its own
             more, more_unknown = _effects(g, outcome, include_mocks=False)
             effects |= more
-            unknown = unknown or more_unknown
-    return frozenset(effects), unknown
+            unknown |= more_unknown
+    return frozenset(effects), frozenset(unknown)
+
+
+_HOP = re.compile(r"([^\[\]]+)(?:\[(-?\d+)\])?$")
+
+
+def role_node(g: Graph, bound: dict, role: str | None):
+    """The node a role from `establishes` names, given `{param: node}` — `None` if it names none.
+
+    ⭐ **The path is resolved HERE, against the world, not statically.** `establishes` can say that a write
+    lands on `c`'s `right` without knowing which node that is; only a caller with bindings in hand can turn
+    that into an individual and ask whether it is the one a constraint is about. Static provenance plus
+    dynamic resolution is what restores the exact-match band for a navigating operator.
+
+    A `$` role names something minted inside the callee, which no binding can identify, so it resolves to
+    `None` — the same answer it gave when it could not be resolved at all."""
+    if role is None or role.startswith("$"):
+        return None
+    base, *hops = role.split(".")
+    node = bound.get(base)
+    for hop in hops:
+        if node is None:
+            return None
+        m = _HOP.match(hop)
+        node = g.target(node, m.group(1)) if m.group(2) is None \
+            else g.at(node, m.group(1), int(m.group(2)))
+    return node
 
 
 def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
@@ -231,8 +304,13 @@ def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
         subject, obj = g.target(c, "subject"), g.target(c, "object")
 
         for _k, _lbl, sp, op in matching:                   # does a role assignment line up exactly?
-            if sp is not None and bound.get(sp) == subject and \
-                    (obj is None or (op is not None and bound.get(op) == obj)):
+            # ⭐ A role may be a PATH (`c.right`), so it is resolved against the world rather than looked
+            # up. Measured on `../pystrider`'s repair operator, whose whole purpose is to change part of
+            # its argument: without this it wrote to a register, established nothing anyone could name, and
+            # the guidance had nothing to rank with (5 imagined states against 6 unguided).
+            here = role_node(g, bound, sp)
+            if here is not None and here == subject and \
+                    (obj is None or role_node(g, bound, op) == obj):
                 best = max(best, 4)
         wants = {n for n in (subject, obj) if n is not None}
         if wants and wants <= involved:
@@ -278,7 +356,23 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
 
     `rank` overrides `relevance` — the hook where a better judgement (a learned policy, a language model
     reading `function.catalogue`) plugs in, and the same shape `selection.score` already uses for the same
-    reason. Passing a constant turns this back into blind search, which is how the guidance is measured."""
+    reason. Passing a constant turns this back into blind search, which is how the guidance is measured.
+
+    **⭐ ON FAILURE THE REPORT HANDS BACK THE `workbench`, and it is there SO THE SEARCH CAN BE
+    INTERROGATED.** Forward chaining used to leave its diagnosis lying in a saturated graph; here every
+    imagined state was on a workbench and the world afterwards looks untouched, so a reader who stops at
+    `how` (`None` on failure) concludes the failure path says nothing. It is not so — `unmet` and `why` are
+    on the report, and `W.frames`, `W.mappings`, `W.resolve` and `W.image_of` reach every state that was
+    explored. `../pystrider` turned "no plan found" into a refusal naming its cause in about fifteen lines
+    of that. ⚠ For a single-constraint goal `unmet` merely restates the goal, so it says *what* was not
+    achieved and never *why*; the why is domain knowledge, and it lives in the frames or nowhere.
+
+    **⚠ The authoring rule that follows, which is not obvious and is easy to get wrong: an operation that
+    wants to explain itself must record its reason WHERE THE FRAMES ARE.** A microfunction that quietly does
+    nothing when a precondition fails is unexplainable after a failed search — it leaves no trace in any
+    imagined state. One that writes something (`unsupported_confirmation_step`) is diagnosable, because the
+    frame that tried it still holds the mark. Silence costs nothing at planning time and everything
+    afterwards."""
     # ⭐ Refuse the provably impossible before spending anything on it. `conflict.unsatisfiable` reports
     # only decidable contradictions, so this can never reject a goal that was actually reachable.
     from . import conflict as C
@@ -524,5 +618,5 @@ def describe(g: Graph, result: dict) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["proposals", "state_of", "establishes", "relevance", "view_in",
+__all__ = ["proposals", "state_of", "establishes", "role_node", "relevance", "view_in",
            "pursue", "carry_out", "plan_steps", "describe"]

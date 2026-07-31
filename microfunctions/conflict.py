@@ -24,6 +24,11 @@ risk the open middle tier really carries, and it is a different question from "d
 * **`interference`** — *two applications serving **different goals** wrote the same slot different ways.*
   The different-goal requirement is what separates interference from an ordinary sequel: steps within one
   plan are a deliberate sequence, and treating them as conflicting would be noise.
+* **`interference_between`** — the same question asked of two *plans*, **before either has run**. Added on
+  `../pystrider`'s use case: the value of a compose-time check is that the author learns before the run that
+  clobbers something, not after. Same claim-reading, different source — a frame chain rather than a thread —
+  and the correction their hypothesis needed is that it takes **two** chains, never one, for the reason the
+  bullet above gives.
 
 **⭐ A detected conflict needs no new node kind.** It is a `connection` between two thread entries with the
 relation `conflicts` — the cross-link mechanism `thread.py` already has, and which exists precisely so that
@@ -42,6 +47,7 @@ from . import application as ap
 from . import function as fn
 from . import goal as G
 from . import thread as T
+from . import workbench as W
 from .graph import Graph
 from .isa import F
 
@@ -127,6 +133,60 @@ def interference(g: Graph, thread: str, *, record: bool = True) -> tuple:
     return tuple(found)
 
 
+# --- interference between PLANS, before anything has run --------------------------------------------
+def plan_claims(g: Graph, report: dict) -> dict:
+    """`{(node, key): value}` — what a found plan WOULD claim if it were carried out.
+
+    The same reading as `wrote`, off a different source: a plan is a **frame chain**, and each frame
+    records the transformation that produced it. Nothing here has happened yet."""
+    out: dict = {}
+    for frame in report.get("plan", ())[1:]:
+        tr = g.target(frame, "via")
+        if tr is None:
+            continue
+        bindings = {}
+        for b in g.targets(tr, "arg"):
+            m = g.target(b, "mapping")
+            bindings[g.attr(b, "param")] = W.resolve(g, m) or W.image_of(g, m)
+        for param, key, value in claims_of(g, g.attr(tr, "function")):
+            node = bindings.get(param)
+            if node is not None:
+                out[(node, key)] = value                  # a plan's net claim is its last
+    return out
+
+
+def interference_between(g: Graph, reports) -> tuple:
+    """⭐ Two PLANS that collide, detected **at compose time — before either one runs**.
+
+    Returns `(goal_a, goal_b, node, key, value_a, value_b)`. Reported as a use case by `../pystrider`,
+    whose previous engine caught an injected collider between two independently authored fragments in one
+    pass before anything ran, the value being that the author learns at compose time rather than after a
+    run that has already clobbered something.
+
+    **⭐ Their hypothesis was right, with one correction that matters.** This is `interference` with a
+    different source of claims — but the source cannot be *a* frame chain, it must be **two**. A single
+    chain is one committed plan, and steps within one plan are a deliberate sequence: reading one chain for
+    conflicts reports ordinary sequels, which is precisely the noise the `done` filter and the different-goal
+    requirement exist to suppress. Interference is a property of two intents, so it needs two plans, and
+    then it is nearly free — `claims_of` is reused unchanged.
+
+    ⚠ **This is the only detector here that reports something which has not happened**, and it is therefore
+    the only one that can be wrong about the future: a plan may be replanned, or never carried out at all.
+    That is the trade an earliness check makes, and it is why nothing is recorded on the thread — a
+    `conflicts` connection between two thread entries is a claim about two things that were *done*.
+
+    ⚠ A report that found no plan claims nothing, rather than claiming everything it explored."""
+    by_goal = [(r["goal"], plan_claims(g, r)) for r in reports if r.get("found")]
+    found = []
+    for i, (goal_a, claims_a) in enumerate(by_goal):
+        for goal_b, claims_b in by_goal[i + 1:]:
+            for slot in sorted(set(claims_a) & set(claims_b)):
+                if claims_a[slot] != claims_b[slot]:
+                    found.append((goal_a, goal_b, slot[0], slot[1],
+                                  claims_a[slot], claims_b[slot]))
+    return tuple(found)
+
+
 def conflicts_on(g: Graph, thread: str) -> tuple:
     """Every conflict already recorded on this thread — a lookup, not a re-computation."""
     out = []
@@ -177,4 +237,4 @@ def describe(g: Graph, thread: str) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["claims_of", "wrote", "interference", "conflicts_on", "unsatisfiable", "describe"]
+__all__ = ["claims_of", "wrote", "interference", "plan_claims", "interference_between", "conflicts_on", "unsatisfiable", "describe"]

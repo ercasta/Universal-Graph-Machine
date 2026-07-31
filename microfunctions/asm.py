@@ -32,6 +32,21 @@ engineering against, because it produces a function that runs and does the wrong
 | `.loop` | a label reference (a string) |
 | `.loop:` on its own line | a label definition |
 | `bare_word` | a string literal — deliberately forgiving, since a model writing `SET F(c) colour red` means the obvious thing |
+| `param=F(x)` | a named binding — **only** in `INVOKE`, where the operand is a mapping rather than a list |
+
+**⭐ `INVOKE` is the one opcode whose OPERAND SHAPE is checked, because it is the one with a shape.**
+Everywhere else an operand list is positional and any arity mistake shows up as a wrong argument; `INVOKE`
+takes a *mapping* of parameter names to operands, and there was no way to write one, so the natural thing to
+write was positional:
+
+    INVOKE R(out) as_iteration F(f) R(s)          # parses, defines, and fails only when run
+
+Reported by `../pystrider`, which hit exactly that and got `AttributeError: 'str' object has no attribute
+'items'` at run time with no line, no opcode and nothing naming the bad operand — silent acceptance of a
+plausible-looking wrong instruction, which is the failure mode this module exists to prevent. The bindings
+now have a surface (`INVOKE R(out) as_iteration it=F(f) seq=R(s)`) and anything else is refused at the
+boundary. That also makes one microfunction **composable from another in the authored surface**, which it
+was not: a bridge can delegate to a pattern instead of restating its labels.
 """
 from __future__ import annotations
 
@@ -52,6 +67,7 @@ _HEADER = re.compile(r"^fn\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:->\s*(\w+)\s*)?(?
 # without it nothing can ask "which functions could apply to this node?"
 _PARAM = re.compile(r"^(\w+)\s*(?::\s*(\w+))?$")
 _CALLABLE = re.compile(r"^([FR])\((\w+)\)$")
+_BINDING = re.compile(r"^(\w+)=(.+)$")
 
 
 class AsmError(SyntaxError):
@@ -75,6 +91,40 @@ def _operand(tok: str, lineno: int):
     if re.fullmatch(r"-?\d+\.\d+", tok):
         return float(tok)
     return tok                      # bare word, including `.label` references
+
+
+_INVOKE_FORM = 'INVOKE R(dst) function_name param=operand ...'
+
+
+def _invoke_args(toks: list, lineno: int) -> tuple:
+    """Validate and build `INVOKE`'s operands: `(R(dst), name, {param: operand})`.
+
+    ⚠ **The only operand-shape check in this module, and it is here because this is the only opcode with a
+    shape.** Every other instruction is a positional list the ISA reads element by element; `INVOKE`'s third
+    operand is a *mapping*, so a positional call parses cleanly and then explodes at run time inside the
+    interpreter — far from the line that was wrong. See the module docstring for the report."""
+    if len(toks) < 2:
+        raise AsmError(f"line {lineno}: INVOKE needs at least a destination and a function name — "
+                       f"expected `{_INVOKE_FORM}`")
+    dst = _operand(toks[0], lineno)
+    if not isinstance(dst, R):
+        raise AsmError(f"line {lineno}: INVOKE's first operand must be a register to put the result in, "
+                       f"not {toks[0]!r} — expected `{_INVOKE_FORM}`")
+    name = _operand(toks[1], lineno)
+    if not isinstance(name, (str, R)):
+        raise AsmError(f"line {lineno}: INVOKE's second operand must be a function name, "
+                       f"not {toks[1]!r} — expected `{_INVOKE_FORM}`")
+    bindings = {}
+    for tok in toks[2:]:
+        m = _BINDING.match(tok)
+        if not m:
+            raise AsmError(
+                f"line {lineno}: INVOKE binds parameters BY NAME, so {tok!r} has nowhere to go — "
+                f"expected `{_INVOKE_FORM}`, e.g. `INVOKE R(out) {name} it={tok}`")
+        if m.group(1) in bindings:
+            raise AsmError(f"line {lineno}: INVOKE binds {m.group(1)!r} twice")
+        bindings[m.group(1)] = _operand(m.group(2), lineno)
+    return (dst, name, bindings)
 
 
 @dataclass
@@ -156,7 +206,8 @@ def parse(text: str) -> list:
         if op not in _OPCODES:
             raise AsmError(f"line {lineno}: unknown opcode {op!r}. "
                            f"Known: {', '.join(sorted(_OPCODES))}")
-        program.append(I(op, tuple(_operand(t, lineno) for t in args)))
+        program.append(I(op, _invoke_args(args, lineno) if op == "INVOKE"
+                         else tuple(_operand(t, lineno) for t in args)))
     flush()
     if not out:
         raise AsmError("no functions found — every instruction must sit under an `fn name(...):` header")
@@ -164,6 +215,11 @@ def parse(text: str) -> list:
 
 
 def _fmt(operand) -> str:
+    if isinstance(operand, dict):
+        # `INVOKE`'s bindings. Rendering the raw dict was a broken round trip that nothing noticed, because
+        # `application.compile_episode` builds this operand in Python and the only check was that the word
+        # INVOKE appeared in the dump — so a LEARNED function could not be read back in.
+        return " ".join(f"{k}={_fmt(v)}" for k, v in operand.items())
     if isinstance(operand, F):
         return f"F({operand.name})"
     if isinstance(operand, R):

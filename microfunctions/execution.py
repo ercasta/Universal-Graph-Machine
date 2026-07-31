@@ -106,7 +106,7 @@ def _settle(g: Graph, tr: str, frame: str, result, minted: list, bound: dict, no
     """Record what a real call produced: bind the nodes it minted, and point the subject's mapping at the
     result — **a cast returns its subject**, so the first parameter's mapping now names the cast node."""
     _bind_minted(g, frame, minted, bound, notes)
-    first_param = fn.load(g, g.attr(tr, "function"))[0][0]
+    first_param = fn.subject_param(g, g.attr(tr, "function"))
     for b in g.targets(tr, "arg"):
         m = g.target(b, "mapping")
         if m in bound and g.attr(b, "param") == first_param:
@@ -159,7 +159,7 @@ def _replay(g: Graph, frames: tuple, bound: dict, notes: list, ran: list):
         before = set(g.nodes)
         _focus, out = fn.invoke(g, name, args)
         minted = sorted(set(g.nodes) - before)
-        result = out.get("result") or args.get(fn.load(g, name)[0][0])
+        result = out.get("result") or args.get(fn.subject_param(g, name))
         ran.append(name)
 
         assumed = (g.attr(g.target(tr, "assumes"), "label")
