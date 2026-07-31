@@ -83,6 +83,95 @@ def require_type(g: Graph, goal: str, type_name: str, *, about: str | None = Non
     return c
 
 
+# --- constraints on the PLAN, not the world -----------------------------------------------------
+#
+# ⭐ This is what having the plan *in the graph* buys. A plan is not a value a planner returned — it is
+# frames and transformations, so "which actions may I use, and how many" is an ordinary question about
+# ordinary data, asked with the same machinery as "what must be true at the end".
+#
+# ⚠ **The distinction that decides everything here is safety versus liveness.**
+#
+# * **Safety** — "never unstack", "at most five steps". Violated by a prefix ⇒ violated by *every*
+#   extension of it. So a breach is a **proof** that this branch is dead, and pruning is sound.
+# * **Liveness** — "the plan must include a verification step". A prefix lacking it is not in violation,
+#   it is merely unfinished. Checking it eagerly would prune every branch at step one.
+#
+# Getting this backwards fails in both directions: defer a safety constraint and the search burns itself
+# out on branches that died at step one; prune on a liveness constraint and nothing survives at all. So
+# the *sort* of a constraint determines *when* it is checked, and that is why they are distinguished here
+# rather than left to the caller to remember.
+PLAN_SORTS = frozenset({"never", "eventually", "at_most"})
+SAFETY_SORTS = frozenset({"never", "at_most"})       # prunable: a breach cannot be repaired later
+
+
+def forbid_action(g: Graph, goal: str, *, function: str | None = None,
+                  on: str | None = None, reason: str | None = None) -> str:
+    """*Never do this.* Either a function by name, a node that must not be touched, or both."""
+    c = _constrain(g, goal, "never", function=function, reason=reason)
+    if on is not None:
+        g.link(c, "on", on)
+    return c
+
+
+def require_action(g: Graph, goal: str, *, function: str | None = None, on: str | None = None) -> str:
+    """*The plan must include this.* Liveness — never prunes, checked only when the world is satisfied."""
+    c = _constrain(g, goal, "eventually", function=function)
+    if on is not None:
+        g.link(c, "on", on)
+    return c
+
+
+def limit_steps(g: Graph, goal: str, n: int) -> str:
+    """*At most `n` actions.* Safety, so it prunes — a plan cannot get shorter by continuing."""
+    return _constrain(g, goal, "at_most", limit=n)
+
+
+def _matches(g: Graph, c: str, step: tuple) -> bool:
+    """Does one planned action match this constraint? `step` is `(function, {real argument nodes})`.
+
+    An unspecified `function` or `on` means "any" — so `forbid_action(function="unstack")` bans the
+    operator everywhere, and `forbid_action(on=c)` bans touching that block by any means."""
+    name, args = step
+    want_fn, want_on = g.attr(c, "function"), g.target(c, "on")
+    if want_fn is not None and want_fn != name:
+        return False
+    if want_on is not None and want_on not in args:
+        return False
+    return want_fn is not None or want_on is not None
+
+
+def breached(g: Graph, goal: str, trace: tuple) -> tuple:
+    """Safety constraints this plan prefix has already violated — **prunable, because it is a proof.**
+
+    ⚠ Contrast with `driver.relevance`, which only ever *ranks*: relevance is a guess about what will help,
+    so filtering on it could lose a solution (Sussman's anomaly needs a move that scores low). A safety
+    breach is not a guess — no continuation of a plan that used a forbidden action makes it unused. Ranking
+    a guess and pruning a proof are both correct, and confusing the two is how search goes wrong."""
+    out = []
+    for c in constraints(g, goal):
+        sort = g.attr(c, "sort")
+        if sort == "never" and any(_matches(g, c, s) for s in trace):
+            out.append(c)
+        elif sort == "at_most" and len(trace) > g.attr(c, "limit", 0):
+            out.append(c)
+    return tuple(out)
+
+
+def outstanding(g: Graph, goal: str, trace: tuple) -> tuple:
+    """Liveness constraints this plan has not yet met. Empty is required *at the end*, never before."""
+    return tuple(c for c in constraints(g, goal)
+                 if g.attr(c, "sort") == "eventually" and not any(_matches(g, c, s) for s in trace))
+
+
+def plan_constraints(g: Graph, goal: str) -> tuple:
+    return tuple(c for c in constraints(g, goal) if g.attr(c, "sort") in PLAN_SORTS)
+
+
+def world_constraints(g: Graph, goal: str) -> tuple:
+    """The constraints about the state of the world — what `unmet` and `satisfied` ask about."""
+    return tuple(c for c in constraints(g, goal) if g.attr(c, "sort") not in PLAN_SORTS)
+
+
 def constraints(g: Graph, goal: str) -> tuple:
     return g.targets(goal, "requires")
 
@@ -117,11 +206,14 @@ def unmet(g: Graph, goal: str, *, view=None, under: str | None = None) -> tuple:
     This is what turns planning from generate-and-test into means–ends: a goal that can only say "no"
     leaves a searcher with nothing to aim at, while a goal that names its unfinished business lets one ask
     *which rules could make this particular thing true*."""
-    return tuple(c for c in constraints(g, goal) if not holds(g, c, view=view, under=under))
+    return tuple(c for c in world_constraints(g, goal)
+                 if not holds(g, c, view=view, under=under))
 
 
 def satisfied(g: Graph, goal: str, *, view=None, under: str | None = None) -> bool:
-    cs = constraints(g, goal)
+    """Whether the WORLD constraints hold. ⚠ Says nothing about constraints on the plan — those are asked
+    of a trace (`breached`, `outstanding`), because they are properties of the route, not the destination."""
+    cs = world_constraints(g, goal)
     return bool(cs) and not unmet(g, goal, view=view, under=under)
 
 
@@ -173,6 +265,13 @@ def wanted(g: Graph, goal: str):
 def describe_constraint(g: Graph, c: str) -> str:
     sort, subject = g.attr(c, "sort"), g.target(c, "subject")
     who = (g.attr(subject, "label") or subject) if subject else "something"
+    if sort in PLAN_SORTS:
+        if sort == "at_most":
+            return f"at most {g.attr(c, 'limit')} step(s)"
+        on = g.target(c, "on")
+        what = g.attr(c, "function") or "anything"
+        where = f" on {g.attr(on, 'label') or on}" if on is not None else ""
+        return ("never " if sort == "never" else "must ") + what + where
     if sort == "link":
         obj = g.target(c, "object")
         return f"{who} {g.attr(c, 'label')} {g.attr(obj, 'label') or obj}"
@@ -190,6 +289,7 @@ def describe(g: Graph, goal: str) -> str:
     return head + " — MET" + (f" in {seen}" if seen else "")
 
 
-__all__ = ["open_goal", "require_link", "require_attr", "require_type", "constraints",
-           "holds", "unmet", "satisfied", "witness", "close_goal", "is_closed", "wanted",
-           "describe_constraint", "describe"]
+__all__ = ["PLAN_SORTS", "SAFETY_SORTS", "open_goal", "require_link", "require_attr", "require_type",
+           "forbid_action", "require_action", "limit_steps", "constraints", "plan_constraints",
+           "world_constraints", "breached", "outstanding", "holds", "unmet", "satisfied", "witness",
+           "close_goal", "is_closed", "wanted", "describe_constraint", "describe"]

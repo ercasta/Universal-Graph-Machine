@@ -7,7 +7,7 @@ loop. `ugm/` and `units/` are untouched — nothing was deleted.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 101 checks, 0 errored
+python -m microfunctions.selftest      # 105 checks, 0 errored
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -263,6 +263,41 @@ means-ends would be stuck; ranking keeps it reachable. Found in 3 steps.
    score, while mediocre moves two levels down scored better, so the good move was abandoned permanently.
    **A proposal must be judged by the world it would produce, not the one it starts from** — hence
    `expected = open − 1 if the move exactly writes an open constraint`.
+
+## 5e. Constraints on the PLAN, not just the world (2026-07-31)
+
+A goal can now constrain the route as well as the destination: `forbid_action` (by operator, by node, or
+both), `require_action`, `limit_steps`. This is what having the plan *in the graph* is for — it is not a
+value a planner returned, it is frames and transformations, so "which actions may I use" is an ordinary
+question about ordinary data.
+
+**⚠ Safety versus liveness is the distinction that decides the whole design.**
+
+- **Safety** ("never unstack", "never touch c", "at most 3 steps") — violated by a prefix ⇒ violated by
+  every extension. A breach is a **proof** the branch is dead, so it prunes, and prunes *before* the step is
+  imagined: a forbidden action costs nothing.
+- **Liveness** ("must include a paint step") — a prefix without it is unfinished, not in violation. Checked
+  only once the world constraints are met; must never prune.
+
+Backwards in either direction fails: defer safety and the search burns out on branches that died at step
+one; prune on liveness and nothing survives.
+
+**⚠ This is where filtering is RIGHT, and it does not contradict §5d's "rank, never filter".** Relevance is
+a *guess*, so filtering on it could lose a solution (Sussman needs a low-scoring move). A safety breach is a
+*proof*. **Rank a guess; prune a proof.** Worth keeping both sentences together — they look contradictory
+out of context and are not.
+
+**⚠ Liveness changes search-node identity.** Two routes to the same world differ if one has already done a
+required action and the other has not, so the visited key is `(state, still outstanding)`. Deduping on the
+world alone would silently discard the finished route — the same class of bug as §5c's action-vs-state
+dedup, caught this time by thinking about it rather than by a failing check.
+
+**Distinct from `dispatch.forbid`**, which vetoes a *dispatch* at the world boundary at execution time and
+cannot express "don't use this operator". Different layers; both wanted.
+
+Checked: forbidding `unstack` turns Sussman's anomaly from solvable into honestly-unsolvable, and the banned
+operator is *never once imagined*; forbidding a node keeps it untouched; a required action appears in a plan
+that has no other reason to contain it; a step limit refuses at 2 and succeeds at 3.
 
 ## 5. What to do next
 

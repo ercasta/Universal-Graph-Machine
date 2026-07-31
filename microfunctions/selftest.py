@@ -1800,6 +1800,119 @@ def check_the_sussman_anomaly_is_solvable_because_ranking_never_filters():
                 g.target(a, "on") == b and g.target(b, "on") == c and g.target(c, "on") == ground}
 
 
+def _sussman(g, world):
+    """C on A; A and B on the ground. The goal is A on B on C."""
+    from . import goal as G
+    a, b, c = g.targets(world, "block")
+    g.unlink(c, "on", index=0)
+    g.link(c, "on", a)
+    g.put(a, clear=None)
+    g.put(c, height=2)
+    goal = G.open_goal(g, label="A on B on C")
+    G.require_link(g, goal, a, "on", b)
+    G.require_link(g, goal, b, "on", c)
+    return goal, (a, b, c)
+
+
+def check_a_forbidden_action_prunes_and_can_make_a_goal_unreachable():
+    """⭐⭐ CONSTRAINTS ON THE PLAN ITSELF — what having the plan in the graph is for. Sussman's anomaly is
+    solvable only by `unstack`ing C first, so forbidding `unstack` must turn a solved problem into an
+    honestly-unsolvable one.
+
+    Vacuity guards: the identical goal without the prohibition must succeed (so the prohibition is what
+    changed the answer); the refusal must name the constraint; and the search must have been *cheaper*, not
+    merely fruitless — a forbidden action is pruned before it is ever imagined."""
+    from . import driver as D, goal as G, thread as T
+    g, world = _blocks()
+    goal, _abc = _sussman(g, world)
+    free = D.pursue(g, goal, T.open_thread(g), world, max_steps=400, max_depth=5)
+
+    g2, world2 = _blocks()
+    goal2, _abc2 = _sussman(g2, world2)
+    G.forbid_action(g2, goal2, function="unstack", reason="the crane is out of service")
+    _banned_thread = T.open_thread(g2)
+    banned = D.pursue(g2, goal2, _banned_thread, world2, max_steps=400, max_depth=5)
+    from . import application as ap
+    imagined = {g2.attr(e, "function") for e in ap.steps(g2, _banned_thread)}
+    return {"solvable_when_allowed": free["found"],
+            "and_it_needed_the_forbidden_move": "unstack" in D.plan_steps(g, free),
+            "unsolvable_when_forbidden": not banned["found"],
+            "says_what_ruled_it_out": banned["blocked_by"] == ("never unstack",),
+            "refusals_were_all_the_banned_operator": all(n == "unstack" for n, _r in banned["refused"]),
+            "AND_IT_WAS_NEVER_ONCE_IMAGINED": "unstack" not in imagined,
+            "the_search_still_ran": banned["steps"] > 0 and "stack" in imagined}
+
+
+def check_forbidding_a_node_bans_touching_it_by_any_means():
+    """A prohibition can name an individual rather than an operator — "leave block c alone" — which no
+    declared parameter type could express. Vacuity guard: the plan that IS found must genuinely never bind
+    c, and the unconstrained answer must have used it."""
+    from . import driver as D, goal as G, thread as T, workbench as W
+    g, world = _blocks()
+    a, b, c = g.targets(world, "block")
+    goal = G.open_goal(g, label="a on b, without touching c")
+    G.require_link(g, goal, a, "on", b)
+    G.forbid_action(g, goal, on=c, reason="c is fragile")
+    result = D.pursue(g, goal, T.open_thread(g), world, max_steps=200)
+
+    used = set()
+    for f in result["plan"][1:]:
+        tr = g.target(f, "via")
+        for bd in g.targets(tr, "arg"):
+            used.add(W.resolve(g, g.target(bd, "mapping")))
+    return {"found_a_plan": result["found"],
+            "one_step": D.plan_steps(g, result) == ("stack",),
+            "and_c_was_never_touched": c not in used,
+            "a_is_on_b": b in used and a in used,
+            "the_ban_is_readable": G.describe_constraint(g, G.plan_constraints(g, goal)[0])
+                                   == "never anything on c"}
+
+
+def check_a_required_action_is_liveness_and_must_not_prune():
+    """⭐ THE OTHER HALF. "The plan must include a `paint` step" is not violated by a prefix without one —
+    it is merely unfinished. Checking it eagerly would prune every branch at step one.
+
+    Vacuity guards: `paint` does nothing towards the world constraints, so it can only appear because it
+    was required; and the same goal without the requirement must NOT include it."""
+    from . import driver as D, goal as G, thread as T
+    g, world = _blocks()
+    a, b, c = g.targets(world, "block")
+    goal = G.open_goal(g, label="a on b, and paint something")
+    G.require_link(g, goal, a, "on", b)
+    G.require_action(g, goal, function="paint")
+    result = D.pursue(g, goal, T.open_thread(g), world, max_steps=300)
+
+    g2, world2 = _blocks()
+    a2, b2, _c2 = g2.targets(world2, "block")
+    plain = G.open_goal(g2, label="a on b")
+    G.require_link(g2, plain, a2, "on", b2)
+    without = D.pursue(g2, plain, T.open_thread(g2), world2, max_steps=300)
+    return {"found_a_plan": result["found"],
+            "it_includes_the_required_step": "paint" in D.plan_steps(g, result),
+            "which_does_nothing_for_the_world": "paint" not in D.plan_steps(g2, without),
+            "so_it_is_there_because_it_was_required": D.plan_steps(g2, without) == ("stack",),
+            "nothing_was_pruned_for_it": result["refused"] == ()}
+
+
+def check_a_step_limit_prunes_by_length():
+    """A budget is safety — a plan cannot get shorter by continuing — so it prunes. Vacuity guard: the
+    same problem must be solvable at the honest limit and refused one below it."""
+    from . import driver as D, goal as G, thread as T
+    def attempt(limit):
+        g, world = _blocks()
+        goal, _abc = _sussman(g, world)
+        G.limit_steps(g, goal, limit)
+        return g, D.pursue(g, goal, T.open_thread(g), world, max_steps=400, max_depth=5)
+
+    g3, three = attempt(3)
+    _g2, two = attempt(2)
+    return {"three_is_enough": three["found"] and len(D.plan_steps(g3, three)) == 3,
+            "two_is_not": not two["found"],
+            "and_it_says_so": "at most 2 step(s)" in two["blocked_by"],
+            "refused_by_length_not_by_operator": all("at most" in r for _n, rs in two["refused"]
+                                                     for r in rs)}
+
+
 def check_end_to_end_a_goal_to_produce_a_plan():
     """⭐⭐ THE WHOLE LOOP, END TO END. Materialise a world and a goal, bootstrap a thread, and let the
     driver imagine its way to a state satisfying the goal. The plan is then FOUND, not built: it is the

@@ -226,8 +226,8 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
 
     score = rank if rank is not None else relevance
     view, under = asked_of(root)
-    if G.satisfied(g, goal, view=view, under=under):
-        return _done(g, goal, thread, wb, root, opened, "already satisfied", 0)
+    if G.satisfied(g, goal, view=view, under=under) and not G.outstanding(g, goal, ()):
+        return _done(g, goal, thread, wb, root, opened, "already satisfied", 0, ())
 
     def still_open(frame):
         v, u = asked_of(frame)
@@ -254,24 +254,41 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
     # Hence `expected`: a band-4 proposal writes exactly an open constraint, so it is expected to close
     # one. That is the whole heuristic — cheap, obviously derived from the constraints, and it is what
     # makes the guidance real (measured: 3 imagined states, against 55 unguided).
-    frontier: list = []
-    seen, steps = {state_of(g, root)}, 0
+    def visited_key(frame: str, trace: tuple):
+        """⚠ The state alone is NOT the identity of a search node once liveness is in play. Two routes to
+        the same world differ if one has already done a required action and the other has not — deduping on
+        the world would silently discard the finished one. So what is still outstanding is part of the key."""
+        return (state_of(g, frame), G.outstanding(g, goal, trace))
 
-    def offer(frame: str, depth: int) -> None:
+    frontier: list = []
+    seen, steps, refused = {visited_key(root, ())}, 0, []
+
+    def offer(frame: str, depth: int, trace: tuple) -> None:
         open_now = still_open(frame)
         for name, bindings in proposals(g, frame):
+            # ⭐ CONSTRAINTS ON THE PLAN, checked BEFORE imagining — so a forbidden action costs nothing.
+            # ⚠ This FILTERS where `relevance` only RANKS, and the difference is principled: relevance is
+            # a guess about what will help, so filtering on it could lose a solution (Sussman's anomaly
+            # needs a low-scoring move). A safety breach is a proof — no continuation of a plan that used
+            # a forbidden action makes it unused — so pruning is sound. Rank a guess; prune a proof.
+            ahead = trace + ((name, frozenset(W.resolve(g, m) or W.image_of(g, m)
+                                              for m in bindings.values())),)
+            hit = G.breached(g, goal, ahead)
+            if hit:
+                refused.append((name, tuple(G.describe_constraint(g, c) for c in hit)))
+                continue
             if not guided:
-                frontier.append(((0, 0, depth), frame, depth, name, bindings, len(open_now)))
+                frontier.append(((0, 0, depth), frame, depth, name, bindings, len(open_now), ahead))
                 continue
             rank_here = score(g, name, bindings, open_now)
             expected = len(open_now) - (1 if rank_here >= 4 else 0)
             frontier.append(((expected, -rank_here, depth), frame, depth,
-                             name, bindings, len(open_now)))
+                             name, bindings, len(open_now), ahead))
 
-    offer(root, 0)
+    offer(root, 0, ())
     while frontier and steps < max_steps:
         frontier.sort(key=lambda item: item[0])
-        _key, frame, depth, name, bindings, open_count = frontier.pop(0)
+        _key, frame, depth, name, bindings, open_count, trace = frontier.pop(0)
         steps += 1
 
         nxt, _tr = W.step(g, wb, frame, name, bindings)
@@ -279,27 +296,32 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
                   why=f"depth {depth + 1}, {open_count} constraint(s) open")
 
         nview, nunder = asked_of(nxt)
-        if G.satisfied(g, goal, view=nview, under=nunder):
-            return _done(g, goal, thread, wb, nxt, opened, "found", steps)
+        # ⚠ Both halves, and liveness only here: the world must be right AND the plan must have done
+        # everything it was required to. A plan that reaches the state without its mandated step is not
+        # finished — but it was never in violation on the way, which is why this is not a pruning test.
+        if G.satisfied(g, goal, view=nview, under=nunder) and not G.outstanding(g, goal, trace):
+            return _done(g, goal, thread, wb, nxt, opened, "found", steps, tuple(refused))
 
-        reached = state_of(g, nxt)
+        reached = visited_key(nxt, trace)
         if reached in seen:
             continue                           # this world has been imagined before, by another route
         seen.add(reached)
         if depth + 1 < max_depth:
-            offer(nxt, depth + 1)
+            offer(nxt, depth + 1, trace)
 
     view, under = asked_of(root)
     still_open = ", ".join(G.describe_constraint(g, c)
                            for c in G.unmet(g, goal, view=view, under=under))
+    blocked = sorted({r for _n, rs in refused for r in rs})
     T.attend(g, thread, goal, why="exhausted the search", note="no plan found")
     return {"found": False, "workbench": wb, "steps": steps, "goal": goal,
-            "unmet": still_open,
-            "why": f"no state meeting [{still_open}] within depth {max_depth} "
-                   f"after {steps} imagined steps"}
+            "unmet": still_open, "refused": tuple(refused), "blocked_by": tuple(blocked),
+            "why": f"no state meeting [{still_open}] within depth {max_depth} after {steps} "
+                   f"imagined steps" + (f"; {len(refused)} action(s) ruled out by [{', '.join(blocked)}]"
+                                        if blocked else "")}
 
 
-def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined) -> dict:
+def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused) -> dict:
     """Close the goal, and tie the moment that closed it back to the moment it was taken on."""
     subject = g.target(wb, "subject")
     under = W.image_of(g, W.mapping_for(g, frame, subject))
@@ -311,7 +333,8 @@ def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined) -> dict:
                        note=f"plan is {len(plan) - 1} step(s)")
     T.connect(g, closing, opened, "achieves")
     return {"found": True, "workbench": wb, "frame": frame, "goal": goal, "witness": found,
-            "plan": plan, "length": len(plan) - 1, "steps": imagined, "how": how}
+            "plan": plan, "length": len(plan) - 1, "steps": imagined, "how": how,
+            "refused": refused, "blocked_by": tuple(sorted({r for _n, rs in refused for r in rs}))}
 
 
 def plan_steps(g: Graph, result: dict) -> tuple:

@@ -438,6 +438,43 @@ reachable, and it is found in 3 steps.
 Guidance measured against the identical breadth-first search: **3 imagined states versus 55**, same optimal
 plan.
 
+## Constraints on the plan itself
+
+A goal can constrain not just the world but **the route taken to it** — which is what having the plan *in
+the graph* is for. It is not a value a planner returned; it is frames and transformations, so "which actions
+may I use, and how many" is an ordinary question about ordinary data.
+
+```
+goal: [a on b, never anything on c, must paint]
+plan found in 2 step(s) after imagining 2
+  stack(b=a, onto=b)
+  paint(b=b)
+```
+
+**⚠ The distinction that decides everything here is safety versus liveness.**
+
+* **Safety** — "never `unstack`", "never touch block c", "at most 3 steps". Violated by a prefix ⇒ violated
+  by *every* extension. A breach is a **proof** the branch is dead, so it prunes — and prunes *before* the
+  step is imagined, so a forbidden action costs nothing at all.
+* **Liveness** — "the plan must include a `paint` step". A prefix without it is not in violation, merely
+  unfinished. Checked only when the world constraints are met; it must never prune.
+
+Get it backwards and it fails in both directions: defer a safety constraint and the search burns out on
+branches that died at step one; prune on a liveness constraint and nothing survives.
+
+**⚠ This is where filtering is right, and it does not contradict "rank, never filter".** Relevance is a
+*guess* about what will help, so filtering on it could lose a solution — Sussman's anomaly needs a
+low-scoring move. A safety breach is a *proof*: no continuation of a plan that used a forbidden action makes
+it unused. **Rank a guess; prune a proof.**
+
+⚠ Liveness also changes what counts as the same search node: two routes to the same world differ if one has
+already done a required action and the other has not, so the visited-set key is `(state, still outstanding)`.
+Deduping on the world alone would silently discard the finished route.
+
+**Distinct from `dispatch.forbid`**, which vetoes a *dispatch* at the world boundary at execution time.
+That is the last line of defence and cannot express "don't use this operator"; these shape what is ever
+proposed. Both layers, different jobs.
+
 **⭐ The plan is FOUND, not built.** `execution.path_to(wb, winning_frame)` already *is* a plan: the frame
 tree records every imagined state and the transformation that reached it, so the path to the frame that
 satisfies the goal is replayable — and `execute`, written long before any of this, runs it against the real
