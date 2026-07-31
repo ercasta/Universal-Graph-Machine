@@ -17,6 +17,8 @@ earned per item by the audit in `north_star.md` §6.
 | `asm.py` | the text surface and LLM border — one instruction per line, natural-language comments kept as data, `.mf` files |
 | `application.py` | applications and episodes — the record of what the system did, as ordinary nodes |
 | `thread.py` | **materialised short-term memory** — what we just did, navigable; an episode extended with attention shifts |
+| `goal.py` | a wanted state as **constraint nodes** — link, attribute or type; `unmet` is what drives planning |
+| `driver.py` | **the outer loop** — pursue a goal by imagining; the plan is *found*, not built |
 | `plan.py` | **backward chaining over return types into a LAZY chain** — plans are data, nothing runs until the action |
 | `dispatch.py` | the one place an effect leaves the graph, and the checkpoint guarding it |
 | `workbench.py` | **imagining effects on a copy** — frames, mappings, forking, backtracking |
@@ -399,8 +401,71 @@ thread session (4 entries)
   3. attend wheel#22  (checking the tyres)
 ```
 
-**Not here yet:** nothing appends to the thread automatically — the outer loop that does is the next piece,
-and System 1 (bounded association from the thread head) after it.
+## The outer loop, end to end
+
+`driver.pursue` is the piece that was missing: something that actually *invokes* the rest. The scenario it
+is checked against is blocks-world, and the goal is **to produce a plan**, not to act — a goal *about*
+planning, which is the homoiconicity claim paying rent rather than being asserted.
+
+```
+plan found in 3 step(s) after imagining 50, goal: A on B on C [a on b, b on c] — MET
+  unstack(b=c, floor=ground#849)
+  stack(b=b, onto=c)
+  stack(b=a, onto=b)
+```
+
+**A goal is a set of constraint nodes**, materialised like everything else — `a on b`, `b on c`. Three
+sorts: a **link** between named individuals, an **attribute** value, or a **type** (`types.py`). ⚠ Link
+constraints cannot just be types: a schema says `{label: (kind, count)}`, never a *particular* target,
+because a schema is reusable and individuals are not.
+
+**⭐ `unmet` is what makes this means–ends.** A goal that only answers yes/no forces blind search; a goal
+that names *which constraints are still false* lets the driver ask what could close them. Three signals,
+all derived from the constraints, order the search: how many constraints a move is expected to leave open,
+how relevant the move is, then depth.
+
+**Relevance is read off the function body** — `driver.establishes`. Nothing declares effects; a function
+*is* graph data, so what it could make true is read from its instructions, and it cannot fall out of date
+with the body because it *is* the body. ⭐ Effects carry their **roles** — `stack` links *its parameter `b`*
+onto *its parameter `onto`* — without which `stack(b=b, onto=a)` looks as good as `stack(b=a, onto=b)` for
+the constraint "a on b".
+
+**⚠ It RANKS, it never FILTERS.** Measured, on Sussman's anomaly (C on A; want A on B and B on C): the plan
+must *start* with `unstack`, a move that closes no constraint and scores low. A greedy means-ends planner
+that only tried constraint-closing moves would be stuck; because relevance only orders, the move stays
+reachable, and it is found in 3 steps.
+
+Guidance measured against the identical breadth-first search: **3 imagined states versus 55**, same optimal
+plan.
+
+**⭐ The plan is FOUND, not built.** `execution.path_to(wb, winning_frame)` already *is* a plan: the frame
+tree records every imagined state and the transformation that reached it, so the path to the frame that
+satisfies the goal is replayable — and `execute`, written long before any of this, runs it against the real
+world unchanged. There was never a plan-construction step to write.
+
+**Why forward search here, when `plan.py` chains backwards.** These answer different questions, and neither
+is a defect in the other:
+
+* `plan.py` — *what sequence of casts reaches this type?* No imagining, cheap, right when operators form a
+  pipeline of distinct stages.
+* `driver.py` — *what do I get if I try this, then this?* A frame per step, right when the **same operator
+  applies repeatedly** and the interesting thing is the resulting state.
+
+⚠ Backward chaining **cannot express repetition**: a function has one declared return type, so "stack a
+block, then stack another" is not a chain of distinct casts. Repetition comes from the *loop*.
+
+**Binding search lives here on purpose.** `selection.candidates` handles single-parameter functions only and
+says why — inventing bindings is search, and should not hide inside candidate generation. `driver.proposals`
+is that search, in the module where it belongs; `selection.py` is untouched.
+
+⚠ **A limit of the type system the scenario surfaced:** a schema constrains **one argument at one call
+site**, so `stack(b, onto)` cannot declare `b ≠ onto` — `proposals` enforces it instead. (Schemas are also
+only one level deep, which is why "a tower of three" was unexpressible as a type; constraint goals removed
+the need to try.)
+
+**Not here yet:** nothing appends to the thread outside `driver.pursue`, and System 1 (bounded association
+from the thread head, to order candidates) is designed but unbuilt — the driver currently tries proposals in
+declaration order.
 
 ## Recovering from a divergence
 

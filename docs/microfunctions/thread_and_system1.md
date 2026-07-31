@@ -1,6 +1,16 @@
 # Thread, System 1, and bottom-up type recognition — design
 
-**Status:** §1 **BUILT** (`microfunctions/thread.py`, 8 checks, suite at 91/0). §§2–5 designed, not built.
+**Status:** §1 **BUILT** (`microfunctions/thread.py`), and §6's step 4 — the outer loop — is built and runs
+**end to end** (`goal.py` + `driver.py`, blocks-world scenario; suite at 97/0). §§2–4 (System 1) and §5
+(recognition) remain designed only. See `HANDOFF.md` §5b–§5c.
+
+⚠ **One thing the end-to-end changed about §6's ordering:** System 1 was to come last because of its
+unresolved measurement question, and that held — but the loop turned out **not to need it at all** to work.
+The driver tries proposals in declaration order and still solves a three-block tower. So System 1 is an
+*ordering* improvement over a working loop, not a prerequisite for one, which is a much safer place to
+build it from. Also learned: backward chaining cannot express *repetition* (one declared return type per
+function), so repetition comes from the loop — `plan.py` and `driver.py` answer different questions.
+
 Written 2026-07-31, after the replanning-on-divergence work (`HANDOFF.md` §5a). Every quantitative claim
 below was measured; the probe is reproduced in §7.
 

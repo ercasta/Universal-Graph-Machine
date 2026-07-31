@@ -7,13 +7,15 @@ loop. `ugm/` and `units/` are untouched — nothing was deleted.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 91 checks, 0 errored
+python -m microfunctions.selftest      # 101 checks, 0 errored
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
 > but they are no longer the top of the list: **`docs/microfunctions/thread_and_system1.md` supersedes §5
 > for what to do next.** The engine had no outer loop at all — nothing invoked plan/workbench/execution —
-> and that design is it. Its §1 (the thread) is **built**; see §5b below.
+> and that design is it. Its §1 (the thread) is **built** (§5b), and the loop itself now **runs end to
+> end** on a blocks-world scenario (§5c). What remains from that design is System 1 and bottom-up type
+> recognition.
 
 ---
 
@@ -61,7 +63,10 @@ the data model was genuinely independent of the execution model.
 | `plan.py` | backward chaining over return types into a **lazy** chain |
 | `dispatch.py` | the one place an effect leaves the graph, and its checkpoint |
 | `workbench.py` | **imagining** effects on a copy — frames, mappings, mocks, forking |
-| `execution.py` | **following a plan for real** — replay, deviation, contingencies |
+| `execution.py` | **following a plan for real** — replay, deviation, contingencies, recovery |
+| `thread.py` | **materialised short-term memory** — attention shifts + applications, navigable, cross-linkable |
+| `goal.py` | a wanted state as **constraint nodes**; `unmet` is what drives planning |
+| `driver.py` | **the outer loop** — pursue a goal by imagining; the plan is *found*, not built |
 
 ## 4. The decisions that took the longest to reach
 
@@ -186,6 +191,78 @@ Three planted-bug probes confirmed the new checks bite: dropping the `prev` chai
 **Next:** the outer loop (nothing appends to the thread automatically yet), then System 1. And while the
 reasoning is fresh, `thread_and_system1.md` §5b records a **live defect**: `types.tag` stamps `is_a` and
 `application.generalise` reads it as authoritative, so the type cache already drifts today.
+
+## 5c. Done since — goals, the outer loop, and END TO END (2026-07-31)
+
+`microfunctions/goal.py` + `microfunctions/driver.py`, and a blocks-world scenario that runs the whole
+thing. 6 checks (91 → 97). **The engine now has a computation model**: a goal is materialised, a thread is
+bootstrapped, and `driver.pursue` imagines its way to a state satisfying the goal.
+
+The goal in the scenario is **to produce a plan**, not to act — a goal *about* planning, which is what
+homoiconicity was for. Nothing dispatches; the search is entirely on a workbench, guaranteed rather than
+intended because `dispatch.service` refuses an imagined target.
+
+**⭐ The plan is FOUND, not built.** `execution.path_to(wb, winning_frame)` already *is* a plan, and
+`execute` — written for `workbench.step` plans long before this existed — replays it against the real world
+unchanged. Checked end to end: real blocks `[1,1,1]` before, `[1,2,3]` after.
+
+**⚠ Backward chaining cannot express repetition.** A function has one declared return type, so "stack a
+block, then stack another" is not a chain of distinct casts. Repetition comes from the **loop**. `plan.py`
+and `driver.py` answer different questions and both are right; do not try to make one do the other's job.
+
+**Two limits of the type system the scenario surfaced** — recorded, not worked around:
+
+- schemas are **one level deep** (`schema_of` never recurses), so "on a block which is on a block" has no
+  declared form; blocks carry `height` as an attribute instead;
+- a schema constrains **one argument at one call site**, so `stack(b, onto)` cannot declare `b ≠ onto`.
+  `driver.proposals` enforces it.
+
+**`selection.py`'s boundary held.** It excludes multi-parameter functions because "inventing bindings is a
+different problem (search) that should not hide inside candidate generation". That search went into the
+driver, and `selection.py` needed no change — the module boundary was drawn correctly the first time.
+
+**⚠ The bug worth remembering, because of how it failed.** The first driver deduped on the *action*
+(`function` + arguments) rather than the *state*. The root frame enumerates every pair, so every action was
+marked seen at depth 1 and every branch below had nothing left to try — three-block towers became
+unreachable. It did not crash: it reported a plausible **"no plan found"**. A silent wrong answer, from a
+visited-set that looked obviously correct. Dedupe on the state (`driver.state_of`).
+
+## 5d. Goals are CONSTRAINTS, and planning is driven by the unmet ones (2026-07-31)
+
+A goal is no longer a wanted type name — it is a set of **constraint nodes**, materialised like everything
+else: `a on b`, `b on c`. Three sorts (link between named individuals / attribute value / type). ⚠ Link
+constraints cannot be folded into `types.py`: a schema says `{label: (kind, count)}` and never a *particular*
+target, because a schema is reusable and individuals are not.
+
+**⭐ `goal.unmet` is the whole point.** A goal that can only answer yes/no forces blind search. One that
+names *which constraints are still false* lets the driver ask what could close them — means-ends instead of
+generate-and-test. Measured against the identical breadth-first search: **3 imagined states versus 55**,
+same optimal plan.
+
+**⭐ Relevance is read off the function body** (`driver.establishes`). Nothing declares effects — the
+repoint deliberately moved away from operators carrying declarative effect descriptions — but a function
+*is* graph data, so what it could make true is read from its instructions, and cannot drift from the body
+because it *is* the body. Conservative: an unreadable label yields `unknown`, which orders but never rules
+out. **Effects carry their roles** (`stack` links *param `b`* onto *param `onto`*), without which
+`stack(b=b, onto=a)` scores identically to `stack(b=a, onto=b)` for "a on b".
+
+**⚠ It RANKS, it never FILTERS — now proved, not asserted.** Sussman's anomaly (C on A; want A on B, B on
+C) is checked: the plan must *begin* with `unstack`, which closes no constraint and scores low. Greedy
+means-ends would be stuck; ranking keeps it reachable. Found in 3 steps.
+
+**Three wrong search designs, in order, all with the same lesson — measure the guidance, don't assume it:**
+
+1. **Depth-first over frames.** Adding *one* irrelevant rule (`paint`) to the library was enough to burn
+   the whole budget down a branch that could never close the goal, while the sibling that solved it in one
+   more move sat untouched on the stack.
+2. **Best-first over frames.** Fixed that, and measured **no better than unguided** (15 against 14) —
+   because every proposal in a frame was imagined before any frame was chosen. Ordering inside a frame
+   cannot save work already done. The frontier must hold *proposals*.
+3. **Best-first over proposals, keyed by the parent's open count.** Made the guided search *worse than
+   breadth-first*: an unexplored root proposal that would obviously close a constraint carried its parent's
+   score, while mediocre moves two levels down scored better, so the good move was abandoned permanently.
+   **A proposal must be judged by the world it would produce, not the one it starts from** — hence
+   `expected = open − 1 if the move exactly writes an open constraint`.
 
 ## 5. What to do next
 

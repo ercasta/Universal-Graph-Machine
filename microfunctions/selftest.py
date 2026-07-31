@@ -837,6 +837,7 @@ _METADATA_KINDS = frozenset({
     "function", "param", "instr", "arg",
     "application", "binding", "episode",
     "attention", "connection",                             # the thread — memory is metadata, never world
+    "goal",                                                # what we are trying to do is metadata too
     "hypothesis", "backup",
     "chain", "pending_call",
     "forbidden",
@@ -1571,6 +1572,305 @@ def check_a_stored_microfunction_walks_the_thread_with_no_new_primitive():
             "which_is_the_car": two_back == car,
             "and_it_really_moved": out.get("result") != T.attended(g, tip),
             "no_new_ops_needed": True}
+
+
+# --- END TO END: a goal to produce a plan -------------------------------------------------------------
+def _blocks():
+    """⭐ THE END-TO-END SCENARIO. Three blocks on the ground; the goal is to find a plan that stacks them.
+
+    ⚠ Height is an ATTRIBUTE because `types.py` schemas are one level deep: `schema_of` checks a label's
+    target kind and count, and never recurses into the target's own type. So "on a block which is on a
+    block" has no declared form, and the world model carries the derived fact instead. That is a real limit
+    of the type system, recorded here rather than worked around silently."""
+    from . import asm
+    g = new_graph()
+    declare_type(g, "block", attrs={"kind_of": "block"})
+    declare_type(g, "clear_block", base="block", attrs={"clear": True})
+    declare_type(g, "three_high", base="block", attrs={"height": 3})
+    declare_type(g, "floor", attrs={"kind_of": "ground"})
+    asm.load_text(g, "\n".join([
+        "# Put a clear block on top of another clear block.",
+        "fn stack(b: clear_block, onto: clear_block) -> block:",
+        '    GET R(was) F(b) "on"',
+        '    UNLINK F(b) "on" 0',
+        '    LINK F(b) "on" F(onto)',
+        '    SET R(was) "clear" true',
+        '    SET F(onto) "clear" false',
+        '    ATTR R(h) F(onto) "height"',
+        "    ADD R(h2) R(h) 1",
+        '    SET F(b) "height" R(h2)',
+        "",
+        "# Take a clear block off whatever it is on and put it on the ground.",
+        "fn unstack(b: clear_block, floor: floor) -> block:",
+        '    GET R(was) F(b) "on"',
+        '    UNLINK F(b) "on" 0',
+        '    LINK F(b) "on" F(floor)',
+        '    SET R(was) "clear" true',
+        '    SET F(b) "height" 1',
+        "",
+        "# Nothing to do with stacking — here so 'ranks, never filters' has something to be true of.",
+        "fn paint(b: block) -> block:",
+        '    SET F(b) "colour" "red"',
+    ]))
+    world = g.mint("world")
+    g.link("root", "has", world)                       # real things hang off root
+    ground = g.mint("ground", kind_of="ground", height=0, clear=True)
+    g.link(world, "ground", ground)
+    for name in "abc":
+        b = g.mint("block", kind_of="block", label=name, clear=True, height=1)
+        g.link(b, "on", ground)
+        g.link(world, "block", b)
+    return g, world
+
+
+def check_a_goal_is_a_node_and_satisfaction_is_rechecked():
+    """A goal is data, so it can be pointed at and recorded — the same gap `thread.py` closed for
+    attention. Vacuity guard: `is_closed` (recorded) and `satisfied` (structural) must be able to disagree,
+    or the recording would be indistinguishable from the fact."""
+    from . import goal as G
+    g, car = _garage()
+    goal = G.open_goal(g, "serviced_car", about=car)
+    before = G.satisfied(g, goal)
+    __import__("microfunctions.function", fromlist=["invoke"]).invoke(g, "service", {"c": car})
+    after = G.satisfied(g, goal)
+    G.close_goal(g, goal, car)
+    g.put(car, serviced=None)                          # the world moves on under a recorded goal
+    return {"a_goal_is_a_node": g.kind(goal) == "goal",
+            "unsatisfied_before": not before,
+            "satisfied_after": after,
+            "recorded_as_closed": G.is_closed(g, goal),
+            "but_no_longer_true": not G.satisfied(g, goal),
+            "so_the_two_are_not_the_same_question": True}
+
+
+def check_a_goal_without_a_subject_asks_whether_anything_satisfies_it():
+    """"Make SOMETHING a three_high" cannot name its subject in advance — demanding one would be asking
+    the caller to guess the answer. Vacuity guard: the region must decide, so the same goal must give
+    different answers under different `under`."""
+    from . import goal as G
+    g, world = _blocks()
+    a = g.targets(world, "block")[0]
+    goal = G.open_goal(g, "three_high")
+    nothing_yet = G.satisfied(g, goal, under=world)
+    g.put(a, height=3)
+    return {"no_subject": g.target(goal, "about") is None,
+            "unsatisfied_while_nothing_qualifies": not nothing_yet,
+            "satisfied_once_something_does": G.satisfied(g, goal, under=world),
+            "and_names_the_witness": G.witness(g, goal, under=world) == a,
+            "region_decides": not G.satisfied(g, goal, under=g.mint("elsewhere"))}
+
+
+def check_proposals_invent_bindings_that_selection_deliberately_will_not():
+    """⚠ `selection.candidates` handles single-parameter functions only, and says why: inventing bindings
+    is search, and should not hide inside candidate generation. This is that search, in the module where
+    it belongs. Vacuity guard: `selection` must still refuse `stack`, or this proves nothing."""
+    from . import driver as D, selection as sel, workbench as W
+    g, world = _blocks()
+    blocks = g.targets(world, "block")
+    wb = W.open_workbench(g, world)
+    f0 = W.root_frame(g, wb)
+    props = [(n, b) for n, b in D.proposals(g, f0) if n == "stack"]
+    pairs = {tuple(sorted(g.attr(W.image_of(g, m), "label") for m in b.values())) for _n, b in props}
+    return {"selection_still_refuses_the_two_parameter_one":
+                "stack" not in sel.candidates(g, blocks[0]),
+            "though_it_handles_the_one_parameter_one": sel.candidates(g, blocks[0]) == ("paint",),
+            "proposals_finds_stack": len(props) == 6,
+            "never_binds_one_node_to_two_roles": all(len(p) == 2 for p in pairs),
+            "and_only_clear_blocks": len(pairs) == 3}
+
+
+def _tower_goal(g, world):
+    """The goal as CONSTRAINTS on individuals: a on b, b on c. ⭐ Note what this removed — the earlier
+    version wanted a `three_high` *type*, which the type system could only express as a `height` attribute
+    because schemas are one level deep. "a on b" is stated directly and the workaround is gone."""
+    from . import goal as G
+    a, b, c = g.targets(world, "block")
+    goal = G.open_goal(g, label="stack a on b on c")
+    G.require_link(g, goal, a, "on", b)
+    G.require_link(g, goal, b, "on", c)
+    return goal, (a, b, c)
+
+
+def check_a_goal_is_constraints_and_they_are_graph_data():
+    """⭐ A goal is a set of constraint NODES — materialised, so a rule can read a goal and a goal can be
+    reasoned about. Vacuity guard: `unmet` must shrink as constraints become true, one at a time, or it is
+    not tracking anything."""
+    from . import goal as G
+    g, world = _blocks()
+    goal, (a, b, c) = _tower_goal(g, world)
+    cs = G.constraints(g, goal)
+    both_open = G.unmet(g, goal)
+    g.unlink(a, "on", index=0)
+    g.link(a, "on", b)                                  # make ONE of them true
+    one_open = G.unmet(g, goal)
+    g.unlink(b, "on", index=0)
+    g.link(b, "on", c)
+    return {"constraints_are_nodes": all(g.kind(x) == "constraint" for x in cs) and len(cs) == 2,
+            "they_point_at_the_individuals": g.target(cs[0], "subject") == a,
+            "both_open_initially": len(both_open) == 2,
+            "one_closes_at_a_time": len(one_open) == 1,
+            "and_names_which_is_left": G.describe_constraint(g, one_open[0]) == "b on c",
+            "satisfied_when_none_remain": G.satisfied(g, goal)}
+
+
+def check_a_functions_effects_are_read_off_its_stored_body():
+    """⭐ HOMOICONICITY EARNING ITS KEEP. Nothing declares effects — the repoint moved away from operators
+    carrying declarative effect descriptions — but a function IS graph data, so what it could establish is
+    read from its instructions. It cannot fall out of date with the body because it *is* the body.
+
+    Vacuity guard: a function that writes something else must not claim the `on` label."""
+    from . import asm, driver as D
+    g, _world = _blocks()
+    effects, unknown = D.establishes(g, "stack")
+    asm.load_text(g, "\n".join([
+        "# Writes a label that is computed, so its effect cannot be known statically.",
+        "fn opaque(b: block) -> block:", '    ATTR R(k) F(b) "label"', "    SET F(b) R(k) true",
+    ]))
+    _o_eff, o_unknown = D.establishes(g, "opaque")
+    labels = {(kind, lbl) for kind, lbl, _s, _o in effects}
+    return {"reads_the_link_it_writes": ("link", "on") in labels,
+            "and_the_attributes": {("attr", "clear"), ("attr", "height")} <= labels,
+            "nothing_it_does_not_write": ("link", "holds") not in labels,
+            "AND_WHICH_PARAMETER_PLAYS_WHICH_ROLE":
+                ("link", "on", "b", "onto") in effects,
+            "known_statically": not unknown,
+            "but_a_computed_key_is_admitted_as_unknown": o_unknown}
+
+
+def check_planning_is_driven_by_the_open_constraints():
+    """⭐⭐ MEANS–ENDS, MEASURED. Ranking proposals by relevance to what is still false must cut the number
+    of imagined states against the identical blind search — otherwise the ranking is decoration.
+
+    ⚠ And it must RANK, not filter: a proposal scoring 0 has to remain reachable, or Hanoi and the Sussman
+    anomaly become unsolvable. Vacuity guard: the zero-scoring proposals must actually exist here."""
+    from . import driver as D, goal as G, thread as T, workbench as W
+    g, world = _blocks()
+    goal, (a, b, c) = _tower_goal(g, world)
+    wb = W.open_workbench(g, world)
+    f0 = W.root_frame(g, wb)
+    open_now = G.unmet(g, goal, view=D.view_in(g, f0), under=W.image_of(g, W.mapping_for(g, f0, world)))
+    scored = {D.relevance(g, n, bd, open_now) for n, bd in D.proposals(g, f0)}
+
+    guided = D.pursue(g, goal, T.open_thread(g), world)
+    g2, world2 = _blocks()
+    goal2, _ = _tower_goal(g2, world2)
+    blind = D.pursue(g2, goal2, T.open_thread(g2), world2,
+                     guided=False)                          # identical search, breadth-first, no guidance
+    every = D.proposals(g, f0)
+    painting = [(n, bd) for n, bd in every if n == "paint"]
+    return {"both_find_it": guided["found"] and blind["found"],
+            "same_plan_length": D.plan_steps(g, guided) == D.plan_steps(g2, blind) == ("stack", "stack"),
+            "guided_imagines_far_fewer": guided["steps"] * 3 < blind["steps"],
+            "steps_guided_vs_blind": (guided["steps"], blind["steps"]),
+            "roles_separate_the_right_move_from_its_mirror": max(scored) == 4 and 3 in scored,
+            "an_irrelevant_rule_scores_zero":
+                all(D.relevance(g, n, bd, open_now) == 0 for n, bd in painting),
+            "but_is_still_offered": len(painting) == 3 and len(every) == 12}
+
+
+def check_the_sussman_anomaly_is_solvable_because_ranking_never_filters():
+    """⭐⭐ THE CASE THAT JUSTIFIES 'RANK, NEVER FILTER'. Sussman's anomaly: C sits on A, and the goal is
+    A on B and B on C. No move that *directly* closes a constraint is available first — C must come off A
+    even though unstacking closes nothing and looks irrelevant. A greedy means-ends planner that only tried
+    constraint-closing moves would be stuck here; because relevance only *orders*, the move stays reachable.
+
+    Vacuity guards: the plan must actually begin with the unrewarded move, must be three steps, and must
+    really produce the tower when replayed for real."""
+    from . import driver as D, execution as X, goal as G, thread as T
+    g, world = _blocks()
+    a, b, c = g.targets(world, "block")
+    ground = g.target(world, "ground")
+    g.unlink(c, "on", index=0)
+    g.link(c, "on", a)                                  # C on A — the anomaly
+    g.put(a, clear=None)
+    g.put(c, height=2)
+
+    goal = G.open_goal(g, label="A on B on C")
+    G.require_link(g, goal, a, "on", b)
+    G.require_link(g, goal, b, "on", c)
+    result = D.pursue(g, goal, T.open_thread(g), world, max_steps=400, max_depth=5)
+    steps = D.plan_steps(g, result) if result["found"] else ()
+
+    X.execute(g, result["workbench"], result["frame"])
+    return {"found_a_plan": result["found"],
+            "three_steps": steps == ("unstack", "stack", "stack"),
+            "it_starts_with_the_move_that_closes_nothing": steps[:1] == ("unstack",),
+            "imagined": result.get("steps"),
+            "and_it_really_builds_the_tower":
+                g.target(a, "on") == b and g.target(b, "on") == c and g.target(c, "on") == ground}
+
+
+def check_end_to_end_a_goal_to_produce_a_plan():
+    """⭐⭐ THE WHOLE LOOP, END TO END. Materialise a world and a goal, bootstrap a thread, and let the
+    driver imagine its way to a state satisfying the goal. The plan is then FOUND, not built: it is the
+    frame path, which `execution.execute` already replays.
+
+    Vacuity guards, because a green here could mean almost anything: the real world must be untouched (the
+    search happened entirely in imagination); the plan must be exactly two `stack`s (a three-block tower);
+    the winning frame must really contain a three-high block; and the thread must have recorded the work
+    rather than the driver merely returning an answer."""
+    from . import driver as D, goal as G, thread as T
+    g, world = _blocks()
+    t = T.open_thread(g, "session")
+    goal, (a, b, c) = _tower_goal(g, world)
+
+    result = D.pursue(g, goal, t, world)
+
+    real_heights = sorted(g.attr(x, "height") for x in g.targets(world, "block"))
+    entries = T.entries(g, t)
+    closing = entries[-1]
+    return {"found_a_plan": result["found"],
+            "the_plan_is_two_stacks": D.plan_steps(g, result) == ("stack", "stack"),
+            "every_constraint_met": G.unmet(g, goal, view=D.view_in(g, result["frame"])) == (),
+            "REAL_WORLD_UNTOUCHED": real_heights == [1, 1, 1],
+            "goal_recorded_as_met": G.is_closed(g, goal),
+            "but_only_in_imagination": g.target(goal, "seen_in") == result["frame"],
+            "the_thread_recorded_the_work": len(entries) > 4,
+            "and_ties_the_close_back_to_the_opening":
+                T.connected(g, closing, "achieves") == (entries[1],)}
+
+
+def check_the_found_plan_is_replayable_for_real():
+    """⭐ The payoff of the plan being a frame path rather than a new kind of object: `execute` — written
+    for `workbench.step` plans, before any of this existed — replays it against the real world unchanged.
+
+    Vacuity guard: the world must be untouched before and genuinely stacked after."""
+    from . import driver as D, execution as X, goal as G, thread as T
+    g, world = _blocks()
+    t = T.open_thread(g, "session")
+    goal, (a, b, c) = _tower_goal(g, world)
+    result = D.pursue(g, goal, t, world)
+
+    before = sorted(g.attr(x, "height") for x in g.targets(world, "block"))
+    replay = X.execute(g, result["workbench"], result["frame"])
+    after = sorted(g.attr(x, "height") for x in g.targets(world, "block"))
+    return {"untouched_before": before == [1, 1, 1],
+            "replayed_the_same_steps": replay["ran"] == ("stack", "stack"),
+            "completed": replay["completed"],
+            "the_real_blocks_are_now_a_tower": after == [1, 2, 3],
+            "a_really_is_on_b_on_c": g.target(a, "on") == b and g.target(b, "on") == c,
+            "and_the_goal_is_now_really_satisfied": G.satisfied(g, goal)}
+
+
+def check_an_unreachable_goal_is_an_ordinary_answer():
+    """Exhausting the search is a report, not an exception — the same discipline as a failed `move`
+    emptying a head. Vacuity guard: the identical setup with a reachable goal must succeed, so the
+    negative is about reachability and not about the driver being broken."""
+    from . import driver as D, goal as G, thread as T
+    g, world = _blocks()
+    declare_type(g, "four_high", base="block", attrs={"height": 4})
+    t = T.open_thread(g, "session")
+    impossible = G.open_goal(g, "four_high", label="stack four blocks")
+    result = D.pursue(g, impossible, t, world, max_depth=4)
+
+    g2, world2 = _blocks()
+    t2 = T.open_thread(g2, "session")
+    ok = D.pursue(g2, G.open_goal(g2, "three_high"), t2, world2)
+    return {"not_found": not result["found"],
+            "says_why": "four_high" in result["why"],
+            "did_not_raise": True,
+            "goal_left_open": not G.is_closed(g, impossible),
+            "and_the_reachable_one_still_works": ok["found"]}
 
 
 if __name__ == "__main__":
