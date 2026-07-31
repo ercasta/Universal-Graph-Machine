@@ -185,13 +185,13 @@ def notes_of(g: Graph, name: str) -> dict:
 def catalogue(g: Graph) -> dict:
     """`{name: doc}` for the whole library — the handle a model or a selector is given to choose with."""
     return {g.attr(n, "name"): g.attr(n, "doc")
-            for n in g.nodes if g.kind(n) == "function"}
+            for n in g.of_kind("function")}
 
 
 # --- loading -------------------------------------------------------------------------------------
 def find(g: Graph, name: str):
-    for n in g.nodes:
-        if g.kind(n) == "function" and g.attr(n, "name") == name:
+    for n in g.of_kind("function"):
+        if g.attr(n, "name") == name:
             return n
     return None
 
@@ -224,7 +224,7 @@ def load(g: Graph, name: str) -> tuple:
 
 def names(g: Graph) -> tuple:
     """Every function in the library. This is what a selection layer ranks over."""
-    return tuple(sorted(g.attr(n, "name") for n in g.nodes if g.kind(n) == "function"))
+    return tuple(sorted(g.attr(n, "name") for n in g.of_kind("function")))
 
 
 # --- calling -------------------------------------------------------------------------------------

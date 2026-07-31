@@ -5,6 +5,16 @@
 drift defect **FIXED** (`types.tagged_as`). Only **§§2–4, System 1 itself, remain designed-only.**
 See `HANDOFF.md` §5b–§5i.
 
+⚠ **The threshold has been MEASURED, 2026-07-31, and it has not arrived — see `HANDOFF.md` §5l.**
+`proposals` runs `is_a` over every mapping × every parameter, so world content that can bind to nothing
+still costs: 200 inert nodes bought a **57× enumeration cost and zero extra proposals**. That is genuinely
+the shape System 1 addresses (bounded neighbourhood instead of whole-frame scan) — but §5b below already
+names a cheaper lever for exactly it (**index declared types by their required labels**), and that should
+be tried and re-measured first. ⚠ The measurement also found the search was **irreproducible** — the copy
+order fell out of a `set` of node ids — which had made an *apparent* capability wall at 5 blocks. With that
+fixed the guidance is optimal (n blocks → n−1 imagined states), so the case for System 1 got weaker, not
+stronger.
+
 ⚠ **And System 1 turned out to be an OPTIMISATION, not a capability** — at this scale. The loop plans,
 acts, detects divergence and replans without it; `driver.relevance` does the candidate ordering this design
 imagined System 1 doing, and needs none of the neighbourhood/radius question resolved. It becomes

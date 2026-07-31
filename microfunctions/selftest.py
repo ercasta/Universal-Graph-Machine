@@ -86,6 +86,58 @@ def check_journal_is_transactional_not_hypothetical():
             "reverted": g.attr(n, "flag") is None and g.count(n, "child") == 0}
 
 
+def check_the_kind_index_cannot_disagree_with_a_scan():
+    """⚠ A HAND-MAINTAINED INDEX, so it earns a test — the kind that guards a discipline a human must
+    follow (only `mint` adds and only `drop` removes), which is the kind this project keeps.
+
+    `of_kind` exists because `types.find_type` and `function.find` scanned every node in the graph on
+    every lookup, and `violations` reached `find_type` four times per call. Measured on one
+    `driver.proposals` enumeration over a world with 200 nodes that bind to nothing: 21,525 `find_type`
+    calls and 21,575 whole-graph tuple builds — which is why inert content cost 57× the enumeration time
+    for zero extra proposals.
+
+    It is legitimate where `types.tag`'s `is_a` stamp is not, and the difference is worth stating: this is
+    maintained by the **substrate** on the only operation that can create a kind, so it cannot drift;
+    a stamp is a **claim** a rule made, so it must be re-validated on read (`tagged_as`).
+
+    Vacuity guard: `drop` and `rollback` must both be exercised, since a write-only index would pass any
+    test that never removed anything."""
+    g = new_graph()
+    def scan(kind):
+        return sorted(n for n in g.nodes if g.kind(n) == kind)
+
+    a, b = g.mint("widget", label="a"), g.mint("widget", label="b")
+    g.mint("gadget")
+    after_mint = sorted(g.of_kind("widget")) == scan("widget") == sorted([a, b])
+
+    sp = g.savepoint()
+    c = g.mint("widget", label="c")
+    during = sorted(g.of_kind("widget")) == scan("widget") == sorted([a, b, c])
+    g.rollback(sp)
+    after_rollback = sorted(g.of_kind("widget")) == scan("widget") == sorted([a, b])
+
+    g.drop(b)
+    after_drop = sorted(g.of_kind("widget")) == scan("widget") == [a]
+
+    sp2 = g.savepoint()
+    g.drop(a)
+    g.rollback(sp2)
+    after_undropping = sorted(g.of_kind("widget")) == scan("widget") == [a]
+
+    try:                                   # kind is fixed at mint, or the index would drift silently
+        g.put(a, kind="gadget")
+        refused = False
+    except ValueError:
+        refused = True
+    return {"after_mint": after_mint,
+            "MINT_IS_ROLLED_BACK": during and after_rollback,
+            "DROP_REMOVES": after_drop,
+            "AND_IS_ITSELF_ROLLED_BACK": after_undropping,
+            "changing_kind_is_refused": refused,
+            "still_the_kind_it_was_minted_as": g.kind(a) == "widget",
+            "unknown_kind_is_empty_not_an_error": g.of_kind("nonesuch") == ()}
+
+
 # --- focus ----------------------------------------------------------------------------------------
 def check_focus_navigates_forward_backward_and_through_refs():
     g = new_graph()
@@ -991,6 +1043,52 @@ def check_the_copy_is_complete_and_the_original_untouched():
             "structure_copied": g.count(copy, "wheel") == 4 and g.target(copy, "body") is not None,
             "copy_is_not_the_original": copy != car,
             "original_untouched": g.sources(car, "image") == ()}
+
+
+def check_the_copy_order_is_a_fact_about_the_graph_not_about_node_ids():
+    """⭐⭐ THE SAME WORLD, BUILT TWICE, MUST BE COPIED IN THE SAME ORDER — and this was false, silently,
+    for as long as the workbench has existed.
+
+    `reachable` traverses deterministically (`g.labels` is sorted, `g.targets` is an insertion-ordered
+    tuple) and then returned a **`set`**, throwing that order away and substituting the iteration order of
+    the node-id *strings*. Ids come from a process-global counter, so the second identical world in a
+    process gets different ids, hashes differently, and is copied in a different order. `mappings` order
+    is `proposals` order, and `driver.pursue` breaks frontier ties by insertion order — so the search was
+    **irreproducible**: the identical five-block goal measured 12 imagined states, then 306, then
+    budget-exhausted failure, on consecutive runs of one process.
+
+    ⚠ **Nothing was ever lost** — the *set* of proposals is identical every time — so this never yielded a
+    wrong plan, only an arbitrary one at an arbitrary cost. That is exactly why 132 checks passed over it:
+    a single run of anything is self-consistent, and only a measurement *repeated in one process* can see
+    it. Every performance number in the docs was taken under it.
+
+    Vacuity guard: the two worlds must genuinely get **different node ids**, or identical order would be
+    proving nothing at all."""
+    from . import driver as D
+    from . import goal as G
+    from . import thread as T
+    from . import workbench as W
+
+    def built():
+        g, world = _blocks()
+        blocks = g.targets(world, "block")
+        wb = W.open_workbench(g, world)
+        order = tuple(g.attr(W.resolve(g, m) or W.image_of(g, m), "label")
+                      or g.kind(W.image_of(g, m)) for m in W.mappings(g, W.root_frame(g, wb)))
+        goal = G.open_goal(g, label="tower")
+        for x, y in zip(blocks, blocks[1:]):
+            G.require_link(g, goal, x, "on", y)
+        rep = D.pursue(g, goal, T.open_thread(g), world)
+        return order, blocks[0], (rep["found"], rep["steps"], D.plan_steps(g, rep))
+
+    first_order, first_id, first_run = built()
+    second_order, second_id, second_run = built()
+    return {"THE_IDS_REALLY_DO_DIFFER": first_id != second_id,
+            "so_hash_order_would_have_differed": True,
+            "COPY_ORDER_IS_STABLE": first_order == second_order,
+            "AND_SO_IS_THE_SEARCH": first_run == second_run,
+            "the_search_still_succeeds": first_run[0],
+            "and_the_guidance_is_optimal": first_run[1] == 2}
 
 
 def check_a_mapping_resolves_to_the_real_node():

@@ -37,27 +37,46 @@ from .graph import Graph
 
 
 # --- copying ----------------------------------------------------------------------------------------
-def reachable(g: Graph, start: str) -> set:
+def reachable(g: Graph, start: str) -> dict:
     """Everything reachable from `start` by outgoing edges. The copy boundary, per the design decision.
 
     Metadata is not reached, by the direction invariant — mappings, applications, hypotheses and plans all
-    point *at* domain nodes and are never pointed at by them."""
-    seen, stack = set(), [start]
+    point *at* domain nodes and are never pointed at by them.
+
+    **⚠ Returns an ORDERED set (a dict used as one), and the order is load-bearing.** The traversal itself
+    is already deterministic — `g.labels` is sorted and `g.targets` is an insertion-ordered tuple — so the
+    visit order is a fact about the graph. Returning a `set` threw it away and substituted the iteration
+    order of the node-id *strings*, which is a fact about nothing: ids come from a process-global counter,
+    so the same world built twice in one process gets different ids, hashes in a different order, and is
+    copied in a different order. That reached all the way up to `driver.pursue`, whose frontier breaks
+    ties by insertion order — making the search **irreproducible**: the identical five-block goal was
+    measured at 12 imagined states, 306, and budget-exhausted-failure on consecutive runs of one process.
+
+    Nothing was ever *lost* — the set of proposals is identical every time — so this never produced a wrong
+    plan, only an arbitrary one, at an arbitrary cost. That is exactly why it survived: every check still
+    passed, and only a measurement repeated in one process could see it.
+
+    A dict rather than a tuple so membership stays O(1) for the callers that only ask `in`."""
+    seen, stack = {}, [start]
     while stack:
         n = stack.pop()
         if n in seen:
             continue
-        seen.add(n)
+        seen[n] = None
         for label in g.labels(n):
             stack.extend(t for t in g.targets(n, label) if t not in seen)
     return seen
 
 
-def _copy_set(g: Graph, originals: set) -> dict:
+def _copy_set(g: Graph, originals) -> dict:
     """Copy nodes and the edges among them. Returns `{original: image}`.
 
     Edge properties are carried across positionally, which is safe because targets are appended in the
-    same order they appear in the source."""
+    same order they appear in the source.
+
+    ⚠ `originals` must be an **ordered** collection, because minting walks it and the ids it mints decide
+    the order of the resulting mappings — see `reachable`. Passing a `set` here is the defect that made
+    the search irreproducible."""
     image = {}
     for o in originals:
         attrs = {k: v for k, v in g.attrs.get(o, {}).items() if k != "kind"}   # `kind` is positional
@@ -179,7 +198,10 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     `assumes` records the hypothesis this step took on faith — which is how a plan carries its own
     dependence on guesses, inspectably."""
     prev_images = {m: image_of(g, m) for m in mappings(g, frame)}
-    originals = set(prev_images.values())
+    # ⚠ ORDERED dedupe, not `set`. `mappings` is an ordered tuple, so this frame's order is a fact; a set
+    # would replace it with node-id hash order and make every subsequent frame's mapping order — and hence
+    # `driver.proposals` order, and hence the search — arbitrary. Same defect as `reachable`'s.
+    originals = dict.fromkeys(prev_images.values())
     image = _copy_set(g, originals)
 
     new_frame = g.mint("frame", index=g.attr(frame, "index", 0) + 1)

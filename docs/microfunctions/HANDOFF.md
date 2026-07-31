@@ -7,7 +7,7 @@ loop. `ugm/` and `units/` are untouched — nothing was deleted.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 118 checks, 0 FAILED
+python -m microfunctions.selftest      # 134 checks, 0 FAILED
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -563,6 +563,144 @@ a shape consumers will keep bringing rather than as a thing to build.
 
 **Verification:** 126 checks 0 FAILED here, and `../pystrider`'s 110 `strider` pins pass unchanged against
 the modified engine — including the `unknown` bool → frozenset change, which they consume as `if unknown:`.
+
+## 5l. ⚠⚠ THE SEARCH WAS IRREPRODUCIBLE — root cause found and fixed (2026-07-31)
+
+Found while asking a different question: *has the world got big enough for System 1 to be worth
+building?* The scaling measurement disagreed with itself, and that turned out to matter far more than the
+question that prompted it. 133 checks, 0 FAILED.
+
+**The defect.** `workbench.reachable` traverses deterministically — `g.labels` is sorted, `g.targets` is an
+insertion-ordered tuple — and then returned a **`set`**, discarding that order. Set iteration order of node
+ids then decided the copy order. Ids come from a **process-global** counter (`kind#N`), so the same world
+built twice in one process gets different ids, hashes in a different order, and is copied in a different
+order. `mappings` order is `proposals` order, and `pursue`'s frontier breaks ties by insertion order. Same
+defect a second time at `workbench.step`, which rebuilt `set(prev_images.values())` per frame.
+
+Measured on one identical five-block goal, consecutive runs of one process:
+
+```
+found=False imagined=400 (budget exhausted)
+found=False imagined=400
+found=True  imagined= 12
+```
+
+**⭐ Nothing was ever lost, and that is the whole reason it survived.** The *set* of proposals is identical
+every time — checked — so this never produced a wrong plan, only an **arbitrary plan at an arbitrary cost**.
+A single run of anything is self-consistent, so all 132 checks passed over it, every scenario worked, and
+only a measurement *repeated inside one process* could see it. It also survives `PYTHONHASHSEED=0`, because
+the varying thing is the id strings, not the hash function.
+
+**⚠ Every performance number in these docs was taken under it.** They are now stable and were re-measured;
+the claims all survive, the figures moved:
+
+| claim | recorded | now (identical across 3 runs) |
+|---|---|---|
+| §5d guided vs blind | 3 vs 55 | **2 vs 67** |
+| §5k paths / without / blind | 3 / 5–10 / 5–10 | **3 / 10 / 10** |
+
+**⚠ And it corrects §5k's explanation of its own controls.** That section attributed the two controls
+"straddling each other run to run" to band-4 being unreachable, leaving the search "tie-broken by frontier
+insertion order". The first half is right and is the finding; the second half named the mechanism without
+noticing that *insertion order was not stable*. The controls now sit still at 10 and 10, which is the
+stronger version of the same claim.
+
+**⭐ The apparent capability wall was an artifact.** Before the fix, towers of 5+ blocks looked unsolvable
+(budget-exhausted at 400 imagined states) and 4 blocks cost 11 — which read as a plateau in greedy
+best-first and nearly bought a redesign of `driver.relevance` around deleted preconditions. With the order
+stable, the guidance is **optimal**: n blocks costs n−1 imagined states, with no search at all.
+
+```
+3 blocks -> 2 imagined   5 blocks -> 4 imagined
+4 blocks -> 3 imagined   6 blocks -> 5 imagined
+```
+
+**The fix** is to return the traversal order rather than to sort — the order is a *fact about the graph*
+and was already deterministic; only the container threw it away. `reachable` returns a dict used as an
+ordered set (membership stays O(1) for the callers that only ask `in`), and `step` dedupes with
+`dict.fromkeys`. `types.instances` and `intake` also consume `reachable` and were silently order-unstable
+too; both are now stable for free.
+
+`check_the_copy_order_is_a_fact_about_the_graph_not_about_node_ids` builds one world twice in a process and
+compares. **Vacuity guard: it asserts the two builds really do get different ids**, or stable order would
+prove nothing. Planted-bug probe run per §7 — restoring the `set` turns `COPY_ORDER_IS_STABLE` and
+`AND_SO_IS_THE_SEARCH` red while `the_search_still_succeeds` stays green, which is the defect's signature
+in one line.
+
+> **A deterministic computation that ends in a `set` has an undeclared tie-break in it.** Anywhere order
+> reaches a ranking, a frontier, or a "first match", that tie-break is load-bearing and nobody declared it.
+
+### What the System 1 question actually measured
+
+The prompting question is answered, and the answer is **not yet, and the first lever is not System 1**:
+
+| | proposals at root | ms/enumeration | imagined |
+|---|---|---|---|
+| 3 blocks | 12 | 0.65 | 2 |
+| 3 blocks + 200 inert nodes | 12 | **37.2** | 2 |
+| 3 blocks + 100 extra operators | 312 | 37.4 | 2 |
+
+`proposals` runs `is_a` over every mapping × every parameter, so **world content that can bind to nothing
+still costs**: 200 inert nodes bought a 57× enumeration cost and *zero* extra proposals. That is the
+System-1-shaped problem (bounded neighbourhood instead of whole-frame scan) — but `thread_and_system1.md`
+§5b already names a cheaper lever for exactly it: **index declared types by their required labels**, so a
+node with no `wheel` edge is never tested against `car`. Do that first and re-measure; System 1 is still
+waiting on a threshold that has not arrived.
+
+## 5m. The enumeration cost — and the named lever was aimed at the wrong thing (2026-07-31)
+
+§5l ended by recommending `thread_and_system1.md` §5b's lever (index declared types by required labels).
+**Profiling first showed that lever would not have touched the measured cost**, which is worth recording
+because the reasoning was plausible and wrong for a reason that generalises. 134 checks, 0 FAILED.
+
+**Where the cost actually was.** `types.find_type` and `function.find` scanned `g.nodes` — materialising a
+tuple of *every node in the graph* — on every lookup, and `violations` reached `find_type` **four times per
+call** (itself, `schema_of`, `attrs_of`, plus a hop per `base`). One `driver.proposals` enumeration over a
+world with 200 nodes that can bind to nothing:
+
+```
+21,525 find_type calls        0.321s cumulative   \  out of ~0.47s in violations
+21,575 g.nodes tuple builds   0.112s tottime      /
+```
+
+**⭐ So the cost was never in *testing candidates* — it was in *looking the type up by name*, once per
+test.** The named lever skips hopeless tests, and would have left four whole-graph scans inside each
+surviving one. ⚠ And it would not have applied here at all: it keys on required *labels*, and
+`clear_block` is `{kind_of: block, clear: True}` — **no required labels whatsoever**. The lever was written
+from `car`-needs-`wheel` and silently assumed schemas are structural.
+
+**Two fixes, both structural, neither a heuristic.**
+
+1. **`Graph.of_kind`** — a kind index maintained by `mint` and `drop`. **⭐ This is the same shape as `inc`
+   and legitimate for the same reason: the SUBSTRATE maintains it on the only operation that can create a
+   kind, so it cannot drift.** Contrast `types.tag`, whose `is_a` stamp is a *claim a rule made* and so must
+   be re-validated on read (§5i). Same word, opposite status — worth keeping the two straight. `put` now
+   **refuses** to change `kind` rather than maintaining machinery for a case that should not exist
+   (`_copy_set` already excluded `kind` as "positional").
+2. **`violations` resolves the name once** — `_schema_at`/`_attrs_at` take the type *node*, so a caller
+   that has already resolved a name does not resolve it three more times.
+
+| | before | after |
+|---|---|---|
+| 3 blocks, enumeration | 0.65 ms | **0.37 ms** |
+| + 200 inert nodes | 37.2 ms | **7.95 ms** |
+| + 100 extra operators | 37.4 ms | **7.86 ms** |
+| `../pystrider`'s 143 pins | 91.5 s | **32.1 s** |
+
+`check_the_kind_index_cannot_disagree_with_a_scan` guards it — a hand-maintained index is exactly the kind
+of discipline a test earns its place on. **Vacuity guard: it exercises `drop` and `rollback`**, since a
+write-only index passes any test that never removes anything. Planted-bug probes per §7: a `drop` that
+leaves a stale entry, and a permissive `put`, each turn distinct keys red.
+
+**Still not System 1.** Inert content still costs ~20× the baseline enumeration, because `proposals` does
+genuinely test every mapping against every parameter type. That residue *is* the System-1-shaped problem —
+but it is now ~8 ms where it was ~37 ms, and the next lever is still cheaper than a new subsystem: index
+types by required labels **and required attribute keys** (the correction above), or narrow `proposals`'
+candidate set. Re-measure before building §§2–4.
+
+> **Profile before choosing a lever, even one you wrote down yourself after measuring.** §5l's measurement
+> was right that enumeration was the cost; the *inference* about which part was a guess, and it named a fix
+> that did not apply to its own benchmark.
 
 ## 5. What to do next
 

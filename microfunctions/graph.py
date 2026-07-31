@@ -52,12 +52,13 @@ class Ref:
 
 
 class Graph:
-    __slots__ = ("attrs", "out", "inc", "eprops", "_journal", "_recording")
+    __slots__ = ("attrs", "out", "inc", "bykind", "eprops", "_journal", "_recording")
 
     def __init__(self) -> None:
         self.attrs: dict[str, dict] = {}
         self.out: dict[tuple, list] = {}       # (src, label) -> [dst, …] ordered
         self.inc: dict[str, set] = {}          # dst -> {(src, label), …}
+        self.bykind: dict[str, dict] = {}      # kind -> {node: None} in mint order — see `of_kind`
         self.eprops: dict[tuple, dict] = {}    # (src, label, index) -> {k: v}
         self._journal: list = []
         self._recording = True
@@ -129,14 +130,44 @@ class Graph:
     def nodes(self) -> tuple:
         return tuple(self.attrs)
 
+    def of_kind(self, kind: str) -> tuple:
+        """Every node of `kind`, in mint order — O(#that kind), maintained by `mint` and `drop`.
+
+        **⭐ This is the same shape as `inc`, and legitimate for the same reason: the SUBSTRATE maintains
+        it, so it cannot drift.** It is not a rule asserting a claim about a node — the only way to acquire
+        a kind is to be minted with one, and `put` refuses to change it. Contrast `types.tag`, which stamps
+        `is_a` and *is* a claim, and so has to be re-validated on every read.
+
+        Why it exists: `types.find_type` and `function.find` scanned `g.nodes` — materialising a tuple of
+        every node in the graph — on **every** lookup, and `violations` reaches `find_type` about four
+        times per call (itself, plus `schema_of` and `attrs_of`, plus one per `base` hop). Measured on one
+        `driver.proposals` enumeration over a world holding 200 nodes that can bind to nothing: 21,525
+        `find_type` calls and 21,575 `g.nodes` tuple builds. That is why inert world content cost 57× the
+        enumeration time while yielding *zero* extra proposals — the cost was never in testing candidates,
+        it was in looking up the type by name once per test."""
+        return tuple(self.bykind.get(kind, ()))
+
     # --- writing (in place, journalled) -------------------------------------------------------------
     def mint(self, kind: str, **attrs) -> str:
         node = f"{kind}#{next(_ids)}"
         self.attrs[node] = {"kind": kind, **attrs}
-        self._undo(lambda: self.attrs.pop(node, None))
+        self.bykind.setdefault(kind, {})[node] = None
+
+        def undo():
+            self.attrs.pop(node, None)
+            self.bykind.get(kind, {}).pop(node, None)
+        self._undo(undo)
         return node
 
     def put(self, node: str, **attrs) -> str:
+        # ⚠ `kind` is set once, at mint, and `of_kind` indexes on it. Letting `put` change it would make
+        # the index drift silently — the defect class this codebase keeps re-finding. Nothing does it
+        # (`_copy_set` already excludes `kind` explicitly, calling it "positional"), so this refuses rather
+        # than maintaining machinery for a case that should not exist.
+        if "kind" in attrs and attrs["kind"] != self.attrs.get(node, {}).get("kind"):
+            raise ValueError(
+                f"kind is fixed at mint and indexed by `of_kind`; cannot put kind={attrs['kind']!r} "
+                f"on {node}. Mint a new node instead.")
         existing = self.attrs.setdefault(node, {})
         before = {k: existing.get(k, _MISSING) for k in attrs}
 
@@ -228,7 +259,14 @@ class Graph:
             self._undo(lambda lbl=lbl, saved=saved: self.out.__setitem__((node, lbl), saved))
         attrs = self.attrs.pop(node, None)
         if attrs is not None:
-            self._undo(lambda: self.attrs.__setitem__(node, attrs))
+            kind = attrs.get("kind")
+            self.bykind.get(kind, {}).pop(node, None)
+
+            def undo():
+                self.attrs[node] = attrs
+                if kind is not None:
+                    self.bykind.setdefault(kind, {})[node] = None
+            self._undo(undo)
 
     # --- edge-property index maintenance ------------------------------------------------------------
     def _label_props(self, src, label) -> dict:

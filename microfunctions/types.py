@@ -46,48 +46,66 @@ def declare_type(g: Graph, name: str, requires: dict | None = None,
 
 
 def find_type(g: Graph, name: str):
-    for n in g.nodes:
-        if g.kind(n) == "type" and g.attr(n, "name") == name:
+    """⚠ Reached about four times per `violations` call (here, `schema_of`, `attrs_of`, plus a hop per
+    `base`), so this being a scan of every node in the graph was the dominant cost of planning — see
+    `Graph.of_kind`, which is what makes it a lookup over declared types instead."""
+    for n in g.of_kind("type"):
+        if g.attr(n, "name") == name:
             return n
     return None
 
 
-def schema_of(g: Graph, name: str) -> dict:
-    """Edge requirements, including any inherited through `base`."""
-    t = find_type(g, name)
+def _schema_at(g: Graph, t) -> dict:
+    """`schema_of` given the type NODE — so a caller that already resolved the name does not resolve it
+    again. See `violations`, which used to resolve the same name four times over."""
     if t is None:
         return {}
-    out = dict(schema_of(g, g.attr(t, "base"))) if g.attr(t, "base") else {}
+    base = g.attr(t, "base")
+    out = _schema_at(g, find_type(g, base)) if base else {}
     out.update({g.attr(r, "label"): (g.attr(r, "target_kind"), g.attr(r, "count"))
                 for r in g.targets(t, "requires")})
     return out
 
 
-def attrs_of(g: Graph, name: str) -> dict:
-    """Attribute requirements, including inherited ones — the STATE half of a type."""
-    t = find_type(g, name)
+def _attrs_at(g: Graph, t) -> dict:
     if t is None:
         return {}
-    out = dict(attrs_of(g, g.attr(t, "base"))) if g.attr(t, "base") else {}
+    base = g.attr(t, "base")
+    out = _attrs_at(g, find_type(g, base)) if base else {}
     out.update({g.attr(r, "key"): g.attr(r, "value") for r in g.targets(t, "requires_attr")})
     return out
+
+
+def schema_of(g: Graph, name: str) -> dict:
+    """Edge requirements, including any inherited through `base`."""
+    return _schema_at(g, find_type(g, name))
+
+
+def attrs_of(g: Graph, name: str) -> dict:
+    """Attribute requirements, including inherited ones — the STATE half of a type."""
+    return _attrs_at(g, find_type(g, name))
 
 
 def violations(g: Graph, node, type_name: str) -> dict:
     """Every way `node` fails to be a `type_name`, as `{label: (expected, actual)}`; empty means valid.
 
     Returned as data rather than raised, so a caller that wants to *ask* (a selection layer ranking
-    candidates) uses the same code as one that wants to *insist* (`check`)."""
-    if find_type(g, type_name) is None:
+    candidates) uses the same code as one that wants to *insist* (`check`).
+
+    ⚠ The name is resolved **once**. It used to be resolved four times — here, inside `schema_of`, inside
+    `attrs_of`, and again per `base` hop — which was invisible while `find_type` looked cheap and dominated
+    planning once it was measured."""
+    t = find_type(g, type_name)
+    if t is None:
         return {"<type>": (type_name, "undeclared")}
     if node is None:
         return {"<node>": ("a node", "None")}
     bad = {}
-    for label, (kind, n) in schema_of(g, type_name).items():
-        right_kind = [t for t in g.targets(node, label) if g.kind(t) == kind]
+    for label, (kind, n) in _schema_at(g, t).items():
+        right_kind = [x for x in g.targets(node, label) if g.kind(x) == kind]
         if len(right_kind) != n:
             bad[label] = (f"{n} of kind {kind}", str(len(right_kind)))
-    for key, want in attrs_of(g, type_name).items():
+    for key, want in _attrs_at(g, t).items():
         got = g.attr(node, key)
         if got != want:
             bad[f"@{key}"] = (repr(want), repr(got))
@@ -122,7 +140,7 @@ def subsumes(g: Graph, general: str, specific: str) -> bool:
 
 def subtypes(g: Graph, general: str) -> tuple:
     """Every declared type that is a subtype of `general`, itself included."""
-    return tuple(sorted(n for n in (g.attr(t, "name") for t in g.nodes if g.kind(t) == "type")
+    return tuple(sorted(n for n in (g.attr(t, "name") for t in g.of_kind("type"))
                         if subsumes(g, general, n)))
 
 
@@ -157,7 +175,7 @@ def type_names(g: Graph) -> tuple:
     """Every declared type that constrains anything. A type with no requirements at all is satisfied by
     everything, so it is not recognition — the same stance `subsumes` already takes."""
     return tuple(sorted(
-        n for n in (g.attr(t, "name") for t in g.nodes if g.kind(t) == "type")
+        n for n in (g.attr(t, "name") for t in g.of_kind("type"))
         if schema_of(g, n) or attrs_of(g, n)))
 
 
