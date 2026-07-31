@@ -2788,5 +2788,172 @@ def check_recovering_from_a_broken_prediction():
             "completed": rec.get("result", {}).get("completed", False)}
 
 
+
+# --- query: a question is a goal -------------------------------------------------------------------
+def _mortality_library():
+    """Paul is a person. One PURE way to conclude mortality, and one that reaches the world.
+
+    ⚠ Both write the *same* attribute, deliberately. If the impure one were merely ranked lower rather
+    than barred, the verdict would still come back `yes` — so a check asserting only the answer would be
+    vacuous about the thing that matters. It has to assert WHICH function was used.
+
+    ⚠⚠ **And the impure one must SORT first, which is load-bearing rather than cosmetic.** Both establish
+    the same effect, so `relevance` ties them; the frontier sort is stable, so the tie breaks on the order
+    `function.names` returns — which is **alphabetical**, not declaration order. With the pure name winning
+    that race, a planted removal of the purity bar still produced a proof naming `conclude_mortal`, so
+    `AND_NEVER_APPEARS_IN_A_PROOF` passed *while testing nothing*. Hence `ask_the_registrar`: it sorts
+    before `conclude_mortal`, making the trap the path the search takes by default, which is the only
+    arrangement under which that key means anything. ⚠ Reordering the source text does NOT achieve this
+    (the first attempt did exactly that and changed nothing) - the NAME is what decides."""
+    from . import asm
+    g = new_graph()
+    declare_type(g, "person")
+    declare_type(g, "mortal_thing", attrs={"mortal": True})
+    asm.load_text(g, "\n".join([
+        "# Establishes the fact by reaching the world - must never answer a question.",
+        "# Declared FIRST on purpose: see the docstring. This is the one the search would otherwise take.",
+        "fn ask_the_registrar(p: person) -> mortal_thing:",
+        '    DISPATCH R(out) "registrar" F(p)',
+        '    SET F(p) "mortal" true',
+        "",
+        "# Everyone who is a person is mortal. Concludes; never acts.",
+        "fn conclude_mortal(p: person) -> mortal_thing:",
+        '    SET F(p) "mortal" true',
+    ]))
+    paul = g.mint("person", label="paul")
+    g.link("root", "person", paul)
+    tag(g, paul, "person")
+    return g, paul
+
+
+def check_a_question_is_a_goal_and_the_plan_is_the_proof():
+    """⭐ Asking is pursuing. The question is an ordinary goal node, the answer comes from `driver.pursue`,
+    and the plan it FINDS is the derivation - so the justification arrives with the verdict rather than
+    being reconstructed afterwards.
+
+    ⚠ Vacuity guard: asking must leave the world UNTOUCHED. The derivation ran on a workbench, so `paul`
+    is not mortal until `settle` replays it. A version that concluded straight into the graph would pass
+    every other key here while making a question a destructive act."""
+    from . import goal as G, query as Q, thread as T
+    g, paul = _mortality_library()
+    q = G.open_goal(g, about=paul, label="is paul mortal?")
+    G.require_attr(g, q, paul, "mortal", True)
+    ans = Q.ask(g, q, T.open_thread(g, "t"), "root")
+    used = [name for name, _b in Q.steps_of(g, ans)]
+    before = g.attr(paul, "mortal")
+    rep = Q.settle(g, ans)
+    return {"verdict_is_yes": ans["verdict"] == Q.YES,
+            "the_proof_is_the_plan": len(ans["proof"]) == 2,      # start frame + one step
+            "and_it_names_the_derivation": used == ["conclude_mortal"],
+            "ASKING_CHANGED_NOTHING": before is None,
+            "settling_commits_it": rep["completed"] and g.attr(paul, "mortal") is True,
+            "explained_as_a_cause": "because" in Q.explain(g, ans)}
+
+
+def check_a_derivation_may_never_act():
+    """⭐⭐ The one genuinely new rule: concluding and doing are both "running a microfunction", so the
+    difference cannot be left to intent. A function that could reach the world is barred from answering a
+    question - PROVED off the stored body, and pruned rather than ranked.
+
+    ⚠ THE LOAD-BEARING ASSERTIONS ARE THE LAST THREE KEYS, not the verdict. Both functions establish
+    `mortal`, so the answer is `yes` either way; what distinguishes a working bar from an absent one is
+    that the impure function is never even proposed.
+
+    ⭐ **What removing the bar actually does, measured rather than assumed.** It does not quietly send mail:
+    the search is on a workbench, so `dispatch.service` refuses the imagined target and the whole question
+    dies with `Imagined`. The last key plants exactly that and asserts the raise - which is *also* the proof
+    that `ask_the_registrar` is the path the search really takes, since a search that ignored it could not
+    crash on it. The genuine exposure is at `settle`, where the proof is replayed for real; that is why the
+    bar exists rather than leaning on the workbench guard."""
+    from . import dispatch as DP, driver as D, goal as G, query as Q, thread as T, workbench as W
+    g, paul = _mortality_library()
+    q = G.open_goal(g, about=paul, label="is paul mortal?")
+    G.require_attr(g, q, paul, "mortal", True)
+    ans = Q.ask(g, q, T.open_thread(g, "t"), "root")
+
+    wb = W.open_workbench(g, "root")                  # what the search was allowed to see
+    f0 = W.root_frame(g, wb)
+    allowed = frozenset(Q.derivations(g))
+    offered = {n for n, _b in D.proposals(g, f0, allow=allowed.__contains__)}
+    unfiltered = {n for n, _b in D.proposals(g, f0)}
+    return {"the_pure_one_is_a_derivation": Q.is_pure(g, "conclude_mortal"),
+            "THE_DISPATCHING_ONE_IS_NOT": not Q.is_pure(g, "ask_the_registrar"),
+            "both_establish_the_same_fact":
+                ("attr", "mortal", "p", None) in D.establishes(g, "conclude_mortal")[0]
+                and ("attr", "mortal", "p", None) in D.establishes(g, "ask_the_registrar")[0],
+            "so_it_WOULD_have_been_available_unfiltered": "ask_the_registrar" in unfiltered,
+            "BUT_IT_IS_NEVER_PROPOSED": "ask_the_registrar" not in offered,
+            "AND_NEVER_APPEARS_IN_A_PROOF":
+                "ask_the_registrar" not in [n for n, _b in Q.steps_of(g, ans)],
+            "AND_WITHOUT_THE_BAR_THE_QUESTION_DIES_ON_IT": _without_the_purity_bar_it_raises()}
+
+
+def _without_the_purity_bar_it_raises() -> bool:
+    """Plant the removal of the purity bar and confirm the question becomes unanswerable.
+
+    ⚠ This is an in-harness version of the probe §7 asks for, kept because the key it guards was a **false
+    green** first: with the bar removed the search still returned a proof naming the pure function, so
+    `AND_NEVER_APPEARS_IN_A_PROOF` passed while testing nothing. It only bites once the impure name sorts
+    first (`function.names` sorts alphabetically), and this probe is what demonstrates that it now does."""
+    from . import dispatch as DP, goal as G, query as Q, thread as T, function as F
+    g, paul = _mortality_library()
+    q = G.open_goal(g, about=paul)
+    G.require_attr(g, q, paul, "mortal", True)
+    real = Q.derivations
+    Q.derivations = lambda gr: F.names(gr)                  # the bar, removed
+    try:
+        Q.ask(g, q, T.open_thread(g, "probe"), "root")
+        return False                                        # it answered anyway: the probe proves nothing
+    except DP.Imagined:
+        return True
+    except Exception:
+        return False
+    finally:
+        Q.derivations = real
+
+
+def check_unknown_is_not_no_unless_you_say_so():
+    """⭐ Three answers, and `unknown` is the honest default. A search that found no derivation has learned
+    about its own library, not about the world - so only an explicit closed-world STANCE turns that into
+    `no`. Refutation is the separate, stronger claim: something incompatible holds NOW.
+
+    ⚠ The stance is a parameter rather than a constant because it is an opinion, which is the same reason
+    the old engine kept CWA/OWA in a policy object instead of in the engine."""
+    from . import goal as G, query as Q, thread as T
+    g = new_graph()
+    declare_type(g, "person")
+    jo = g.mint("person", label="jo")
+    g.link("root", "person", jo)
+    tag(g, jo, "person")
+
+    def asking(**kw):
+        q = G.open_goal(g, about=jo, label="is jo mortal?")
+        G.require_attr(g, q, jo, "mortal", True)
+        return Q.ask(g, q, T.open_thread(g, "t%d" % len(g.attrs)), "root", **kw)
+
+    open_world, closed_world = asking(), asking(assume_complete=True)
+
+    g2 = new_graph()                                   # zed is recorded as NOT mortal
+    declare_type(g2, "person")
+    zed = g2.mint("person", label="zed", mortal=False)
+    g2.link("root", "person", zed)
+    tag(g2, zed, "person")
+    q2 = G.open_goal(g2, about=zed)
+    G.require_attr(g2, q2, zed, "mortal", True)
+    refuted = Q.ask(g2, q2, T.open_thread(g2, "t"), "root")
+
+    return {"no_derivation_means_UNKNOWN": open_world["verdict"] == Q.UNKNOWN,
+            "the_stance_is_what_makes_it_NO": closed_world["verdict"] == Q.NO,
+            "and_it_says_so": "assumed complete" in closed_world["why"],
+            "refutation_is_the_stronger_claim": refuted["verdict"] == Q.NO,
+            "WITHOUT_ANY_STANCE": "already" in refuted["why"],
+            "and_it_reports_what_HOLDS_not_what_was_wanted": "is already False" in refuted["why"],
+            "an_absent_edge_refutes_nothing": open_world["verdict"] != Q.NO}
+
+
+# ⚠ THE ENTRY POINT MUST BE THE LAST THING IN THIS FILE. `_checks()` reads `globals()` at call time,
+# so any check defined BELOW this block is simply not executed - the count stays put and the report looks
+# healthy. That is the same false-green `_checks()` own docstring records, one level up, and it bit again
+# when the query checks were appended after it.
 if __name__ == "__main__":
     print(report())

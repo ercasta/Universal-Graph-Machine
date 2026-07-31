@@ -50,13 +50,18 @@ from .isa import F, R
 from .types import is_a
 
 
-def proposals(g: Graph, frame: str) -> tuple:
+def proposals(g: Graph, frame: str, *, allow=None) -> tuple:
     """Every `(function, {param: mapping})` that could be applied in this frame.
 
     The cartesian product of type-valid bindings, minus the ones binding one node to two parameters —
     which is not a heuristic but a correctness rule for operators like `stack(b, onto)`, where the type
     system cannot say `b ≠ onto`. ⚠ `types.py` validates ONE argument at ONE call site by design, so a
-    relation *between* parameters has no declared form and has to be enforced here or in the body."""
+    relation *between* parameters has no declared form and has to be enforced here or in the body.
+
+    `allow` is a predicate on the function name, and it EXCLUDES rather than orders. ⚠ That is only
+    legitimate for a proof, never for a guess — the same line `relevance` sits on the other side of.
+    `query.py` uses it to bar any function that could dispatch from being used as a derivation, which is a
+    proof about the stored body, not an opinion about what will help."""
     here = W.mappings(g, frame)
     out = []
     for name in fn.names(g):
@@ -66,6 +71,8 @@ def proposals(g: Graph, frame: str) -> tuple:
         # real operator is stepped, which is where that belongs. Invisible in a library without mocks,
         # which is exactly why it went unnoticed until a scenario had one.
         if fn.mocks_target(g, name) is not None:
+            continue
+        if allow is not None and not allow(name):
             continue
         params, _ = fn.load(g, name)
         ptypes = fn.param_types(g, name)
@@ -347,7 +354,7 @@ def state_of(g: Graph, frame: str) -> frozenset:
 
 
 def pursue(g: Graph, goal: str, thread: str, subject: str, *,
-           max_steps: int = 60, max_depth: int = 6, rank=None, guided: bool = True) -> dict:
+           max_steps: int = 60, max_depth: int = 6, rank=None, guided: bool = True, allow=None) -> dict:
     """Search for a state satisfying `goal`, imagining every step. Returns a report.
 
     Everything the system considers is recorded on the thread as it happens, so *how* it got there is
@@ -432,7 +439,7 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
 
     def offer(frame: str, depth: int, trace: tuple) -> None:
         open_now = still_open(frame)
-        for name, bindings in proposals(g, frame):
+        for name, bindings in proposals(g, frame, allow=allow):
             # ⭐ CONSTRAINTS ON THE PLAN, checked BEFORE imagining — so a forbidden action costs nothing.
             # ⚠ This FILTERS where `relevance` only RANKS, and the difference is principled: relevance is
             # a guess about what will help, so filtering on it could lose a solution (Sussman's anomaly
