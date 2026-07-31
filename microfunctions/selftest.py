@@ -2113,6 +2113,68 @@ def check_planning_looks_for_an_expectation_not_a_type_signature():
             "in_one_step": result["steps"] == 1}
 
 
+def check_intake_turns_a_said_thing_into_a_goal_and_the_loop_runs_it():
+    """⭐⭐ INTAKE. The loop is driven entirely by a goal, and until now the only way to get one was to call
+    `goal.py` from Python — so the one thing that *starts* the system was the one thing it could not receive.
+
+    ⚠ Tractable now only because a goal is no longer arbitrary structure: it is a handful of constraint
+    nodes from a closed vocabulary. The `ugm/`-era attempts translated prose into anything and got 0/50.
+
+    Vacuity guard: the parsed goal must drive a real plan, not merely parse."""
+    from . import driver as D, goal as G, intake as I, thread as T
+    g, world = _blocks()
+    goal = I.read_goal(g, "\n".join([
+        "goal stack a on b on c:",
+        "    # what must be true of the world",
+        "    a on b",
+        "    b on c",
+        "    never unstack",
+    ]))
+    a, b, c = g.targets(world, "block")
+    world_cs = G.world_constraints(g, goal)
+    result = D.pursue(g, goal, T.open_thread(g), world, max_steps=400)
+    return {"it_read_two_world_constraints": len(world_cs) == 2,
+            "pointing_at_the_right_individuals":
+                (g.target(world_cs[0], "subject"), g.target(world_cs[0], "object")) == (a, b),
+            "and_one_constraint_on_the_plan": len(G.plan_constraints(g, goal)) == 1,
+            "comments_are_ignored": len(G.constraints(g, goal)) == 3,
+            "it_round_trips": "never unstack" in I.describe(g, goal),
+            "AND_THE_LOOP_ACTUALLY_RUNS_IT": result["found"],
+            "with_the_prohibition_in_force": "unstack" not in D.plan_steps(g, result)}
+
+
+def check_intake_refuses_rather_than_guessing():
+    """⚠ REFUSAL IS THE FEATURE. Three ways in, all loud: a sentence outside the closed vocabulary, a name
+    that matches nothing, and — the one the project learned the hard way — a name that matches **more than
+    one thing**. Nodes are nameless and a `label` is a convenience, so *never identify by name alone*.
+
+    Vacuity guards: a well-formed goal in the same graph must parse; and a refusal must leave **nothing
+    behind**, or the caller could pursue a half-built goal and appear to be working."""
+    from . import goal as G, intake as I
+    g, world = _blocks()
+    before = len(g.nodes)
+
+    def refuses(text):
+        try:
+            I.read_goal(g, text)
+            return None
+        except I.Unreadable as e:
+            return str(e)
+
+    unknown_form = refuses("goal x:\n    please make it nice")
+    unknown_name = refuses("goal x:\n    a on zzz")
+    g.link(world, "block", g.mint("block", kind_of="block", label="a", clear=True, height=1))
+    ambiguous = refuses("goal x:\n    a on b")
+    leftovers = len(g.nodes) - before - 1                 # the duplicate block we just added
+    ok = I.read_goal(g, "goal x:\n    some block")
+    return {"refuses_an_unreadable_line": unknown_form is not None and "vocabulary is closed" in unknown_form,
+            "refuses_an_unknown_name": unknown_name is not None and "nothing here is called" in unknown_name,
+            "REFUSES_AN_AMBIGUOUS_NAME": ambiguous is not None and "ambiguous" in ambiguous,
+            "and_says_a_name_is_not_an_identity": "not an identity" in (ambiguous or ""),
+            "a_refusal_leaves_nothing_behind": leftovers == 0,
+            "but_a_good_goal_still_parses": len(G.constraints(g, ok)) == 1}
+
+
 def check_END_TO_END_plan_act_diverge_replan_succeed():
     """⭐⭐⭐ THE WHOLE LOOP, IN ONE RUN. Materialise a world and a goal, bootstrap a thread, then:
     plan by imagining → act for real → reality disagrees → replan from where we actually are → succeed.

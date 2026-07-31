@@ -4,7 +4,7 @@
 document in code. `ugm/` and `units/` stay as the findings they are — nothing deleted, and deletion is
 earned per item by the audit in `north_star.md` §6.
 
-`python -m microfunctions.selftest` — **112 checks, 0 FAILED.**
+`python -m microfunctions.selftest` — **114 checks, 0 FAILED.**
 
 | module | what it is |
 |---|---|
@@ -19,6 +19,7 @@ earned per item by the audit in `north_star.md` §6.
 | `thread.py` | **materialised short-term memory** — what we just did, navigable; an episode extended with attention shifts |
 | `goal.py` | a wanted state as **constraint nodes** — link, attribute or type; `unmet` is what drives planning |
 | `driver.py` | **the outer loop** — pursue a goal by imagining; the plan is *found*, not built |
+| `intake.py` | **the goal border** — a closed CNL for goals, which can and does refuse |
 | `plan.py` | **backward chaining over return types into a LAZY chain** — plans are data, nothing runs until the action |
 | `dispatch.py` | the one place an effect leaves the graph, and the checkpoint guarding it |
 | `workbench.py` | **imagining effects on a copy** — frames, mappings, forking, backtracking |

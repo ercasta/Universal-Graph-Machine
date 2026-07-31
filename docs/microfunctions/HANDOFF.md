@@ -7,7 +7,7 @@ loop. `ugm/` and `units/` are untouched — nothing was deleted.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 112 checks, 0 FAILED
+python -m microfunctions.selftest      # 114 checks, 0 FAILED
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -67,6 +67,7 @@ the data model was genuinely independent of the execution model.
 | `thread.py` | **materialised short-term memory** — attention shifts + applications, navigable, cross-linkable |
 | `goal.py` | a wanted state as **constraint nodes**; `unmet` is what drives planning |
 | `driver.py` | **the outer loop** — pursue a goal by imagining; the plan is *found*, not built |
+| `intake.py` | **the goal border** — a closed CNL for goals, which can and does refuse |
 
 ## 4. The decisions that took the longest to reach
 
@@ -361,6 +362,36 @@ latent `False` was hiding.
 The run: first listing finds nothing, the prediction breaks, it replans from the real state, a file has
 appeared, the second attempt completes, and the goal is closed *only then*. Ten thread entries hold the
 whole story.
+
+## 5h. Intake — something said becomes a goal (2026-07-31)
+
+`microfunctions/intake.py`. The loop is driven entirely by a goal, and the only way to get one was to call
+`goal.py` from Python — so the one thing that *starts* the system was the one thing it could not receive.
+
+**⭐ Why this is a small module now, when it was a research programme before.** The `ugm/`-era attempts
+translated prose into *arbitrary graph structure* and scored 0/50 on raw prose, with the gap recorded as
+"100% constructional" — unsurprising, since the target was unbounded. A goal is no longer arbitrary
+structure: it is a handful of **constraint nodes from a closed vocabulary**. Eight forms is a different
+problem from anything. The intake problem changed shape because §5d changed what a goal is.
+
+**The border is unchanged from the standing position:** a model may *write this text*; the parser then
+accepts or refuses it deterministically. What a model must never do is reach past the surface and write
+graph structure, because then nothing could refuse it. `asm.py` is this for functions; `intake.py` is its
+sibling for goals.
+
+**⚠ Refusal is the feature**, three ways, all loud: a line outside the vocabulary; a name matching nothing;
+and a name matching **more than one thing**. That last is the recorded lesson — nodes are nameless and a
+`label` is a convenience, so *never identify by name alone*; guessing between candidates would invent a
+referent. A refusal leaves **nothing behind**, because a half-built goal would be pursued and would look
+like it was working.
+
+```
+goal stack a on b on c:      ->  carried out: True in 1 attempt
+    a on b                       plan: ('stack', 'stack')
+    b on c                       reality: a on b? True
+    never unstack
+    at most 4 steps
+```
 
 ## 5. What to do next
 
