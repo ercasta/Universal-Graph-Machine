@@ -7,7 +7,7 @@ loop. `ugm/` and `units/` are untouched — nothing was deleted.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 116 checks, 0 FAILED
+python -m microfunctions.selftest      # 118 checks, 0 FAILED
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -68,6 +68,7 @@ the data model was genuinely independent of the execution model.
 | `goal.py` | a wanted state as **constraint nodes**; `unmet` is what drives planning |
 | `driver.py` | **the outer loop** — pursue a goal by imagining; the plan is *found*, not built |
 | `intake.py` | **the goal border** — a closed CNL for goals, which can and does refuse |
+| `conflict.py` | contradictory goals, and **interference** between goals over one slot |
 
 ## 4. The decisions that took the longest to reach
 
@@ -417,6 +418,47 @@ removing a wheel de-recognises it with nothing to invalidate.
 That closes §5 of `thread_and_system1.md`. What remains from that design is System 1 itself, which the
 end-to-end work showed to be an **optimisation** at this scale rather than a capability — it becomes
 load-bearing only when the world is too large for `driver.proposals` to enumerate.
+
+## 5j. Conflict detection — the regression, addressed (2026-07-31)
+
+`microfunctions/conflict.py`. §5 item 2 called this a **regression, not a deferral**.
+
+**⚠ The old notion does not transfer, and copying it would have been wrong.** That engine *derived facts*,
+so two rules concluding contradictory things was a contradiction outright. This one *performs actions in
+sequence*, where a later write legitimately overrides an earlier one — `stack` sets `clear` false on one
+block and true on another every time it runs. Reporting that would bury the real cases.
+
+What survives is **interference**: two independently authored functions, composed by a library that grew,
+writing one slot for unrelated reasons — the telecom feature-interaction problem `function.py` already
+cites as prior art. Two detectors, for two different questions:
+
+- **`unsatisfiable(goal)`** — decidable contradictions only, so no false positives: two attribute
+  constraints on one slot demanding different values, `never f` with `must f`, a budget of zero. `pursue`
+  now refuses such a goal at zero cost instead of searching for it.
+- **`interference(thread)`** — two goals that really did write one slot differently.
+
+**⭐ A conflict needs no new node kind:** it is a `connection` with relation `conflicts`, the cross-link
+`thread.py` already had. "No new mechanism, only writing them" turned out to be true.
+
+**Three wrong versions, each caught by a vacuity guard rather than by a green.**
+
+1. **Latest-value scanning.** Comparing each write against a running latest value silently lost the pairs
+   it was looking for: the second goal re-imagined the *same* action before its differing one, so a
+   same-goal entry overwrote the running value and the cross-goal disagreement never met. Interference is
+   a property of two *intents*, so claims must be grouped per intent and compared afterwards.
+2. **⚠ Analysing the search instead of the actions.** The driver records every proposal it considers,
+   most from branches it abandons — so a goal that *considered* `paint` before choosing `varnish` looked
+   like it claimed both. The thread held planning and nothing about what actually happened.
+   `driver._record_execution` now puts what really ran on the thread marked `done`, and `interference`
+   looks only at those. **This closed a gap listed as missing since §5b: execution never reached the
+   thread.**
+3. **Recording workbench copies as the subject.** Two goals open two workbenches, so their entries could
+   never refer to the same node and no reflective reader could line them up. The driver now records the
+   real node a copy stands for — more truthful anyway, since an application says which function was
+   applied to which *subject*.
+
+**And the harness gained a fix of its own:** the `FALSE` marker added in §5g used a non-ASCII glyph, which
+made the report unpipeable on a cp1252 console. ASCII now.
 
 ## 5. What to do next
 

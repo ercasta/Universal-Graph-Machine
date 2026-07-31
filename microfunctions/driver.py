@@ -256,6 +256,16 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
     `rank` overrides `relevance` — the hook where a better judgement (a learned policy, a language model
     reading `function.catalogue`) plugs in, and the same shape `selection.score` already uses for the same
     reason. Passing a constant turns this back into blind search, which is how the guidance is measured."""
+    # ⭐ Refuse the provably impossible before spending anything on it. `conflict.unsatisfiable` reports
+    # only decidable contradictions, so this can never reject a goal that was actually reachable.
+    from . import conflict as C
+    impossible = C.unsatisfiable(g, goal)
+    if impossible:
+        T.attend(g, thread, goal, why="the goal contradicts itself", note="; ".join(impossible))
+        return {"found": False, "workbench": None, "steps": 0, "goal": goal,
+                "contradictory": impossible, "refused": (), "blocked_by": (),
+                "why": "the goal cannot be met: " + "; ".join(impossible)}
+
     wb = W.open_workbench(g, subject, label=f"pursuing {g.attr(goal, 'label')}")
     root = W.root_frame(g, wb)
     opened = T.attend(g, thread, goal, why="taking on the goal", note=G.describe(g, goal))
@@ -332,8 +342,14 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
         steps += 1
 
         nxt, _tr = W.step(g, wb, frame, name, bindings)
-        T.applied(g, thread, name, {p: W.image_of(g, m) for p, m in bindings.items()},
-                  why=f"depth {depth + 1}, {open_count} constraint(s) open")
+        # ⚠ Record the REAL node the imagined one stands for, falling back to the copy only for something
+        # that does not exist yet. Recording the copy was more literal and less truthful: an application
+        # says *which function was applied to which subject*, and the subject is the block — the copy is
+        # only how we imagined it. It also made the record useless to any reflective reader, because two
+        # goals open two workbenches, so their entries could never refer to the same thing.
+        T.applied(g, thread, name,
+                  {p: (W.resolve(g, m) or W.image_of(g, m)) for p, m in bindings.items()},
+                  why=f"depth {depth + 1}, {open_count} constraint(s) open", for_goal=goal)
 
         nview, nunder = asked_of(nxt)
         # ⚠ Both halves, and liveness only here: the world must be right AND the plan must have done
@@ -379,6 +395,24 @@ def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused) -> 
             "refused": refused, "blocked_by": tuple(sorted({r for _n, rs in refused for r in rs}))}
 
 
+def _record_execution(g: Graph, thread: str, goal: str, plan: dict, report: dict) -> None:
+    """Put what really ran on the thread, marked `done`.
+
+    ⚠ Until this existed the thread held only *planning* — every proposal considered, including abandoned
+    branches — and nothing about what actually happened. Anything reasoning over consequences was therefore
+    reading the search rather than the actions, which is how `conflict.interference` first came to report
+    two goals disagreeing over an idea neither of them acted on."""
+    for frame, name in zip(plan["plan"][1:], report["ran"]):
+        tr = g.target(frame, "via")
+        if tr is None:
+            continue
+        args = {}
+        for b in g.targets(tr, "arg"):
+            m = g.target(b, "mapping")
+            args[g.attr(b, "param")] = W.resolve(g, m) or W.image_of(g, m)
+        T.applied(g, thread, name, args, why="carried out for real", for_goal=goal, done=True)
+
+
 def carry_out(g: Graph, goal: str, thread: str, subject: str, *,
               attempts: int = 3, **kw) -> dict:
     """⭐⭐ PLAN, ACT, CHECK, REPLAN — the loop closed. Returns a report of every attempt.
@@ -409,6 +443,7 @@ def carry_out(g: Graph, goal: str, thread: str, subject: str, *,
         T.attend(g, thread, goal, why=f"attempt {attempt + 1}: carrying out the plan",
                  note=" then ".join(plan_steps(g, plan)) or "(nothing)")
         report = X.execute(g, plan["workbench"], plan["frame"])
+        _record_execution(g, thread, goal, plan, report)
         step = {"attempt": attempt, "planned": True, "steps": plan_steps(g, plan),
                 "ran": report["ran"], "completed": report["completed"]}
 

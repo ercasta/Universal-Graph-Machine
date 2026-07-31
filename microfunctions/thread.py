@@ -90,12 +90,24 @@ def attend(g: Graph, thread: str, node: str, *, why: str | None = None, note: st
 
 
 def applied(g: Graph, thread: str, name: str, bindings: dict, *,
-            why: str | None = None, outcome=None) -> str:
+            why: str | None = None, outcome=None, for_goal: str | None = None,
+            done: bool = False) -> str:
     """Record that a microfunction was applied. The entry **is** the `application` node.
 
     `application.record` is called without `episode=` precisely so the `step` edge is written once, here —
     letting it link too would produce the duplicate ordering this module exists to avoid."""
     app = ap.record(g, name, bindings, outcome=outcome)
+    if done:
+        # ⚠ IMAGINED versus DONE. The driver records every proposal it considers, most of them from
+        # branches it abandons — so "what was done for this goal" is not "what appears on the thread for
+        # this goal". Anything reasoning about consequences (`conflict.py`) must look only at what really
+        # ran, or it is analysing the search rather than the actions.
+        g.put(app, done=True)
+    if for_goal is not None:
+        # What this was done *for*. Two applications writing one slot are a deliberate sequel when they
+        # serve the same goal and interference when they do not (`conflict.py`), and nothing else in the
+        # record distinguishes those.
+        g.link(app, "for_goal", for_goal)
     return _append(g, thread, app, why)
 
 

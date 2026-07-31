@@ -355,7 +355,8 @@ def report() -> str:
         bad = sorted(k for k, v in r.items() if v is False)
         if bad:
             failures += 1
-        lines.append(f"{fn.__name__[6:]:<52} {r}" + (f"\n{'':<52} ⚠ FALSE: {bad}" if bad else ""))
+        # ASCII marker on purpose: the report is piped, and a Windows console is cp1252.
+        lines.append(f"{fn.__name__[6:]:<52} {r}" + (f"\n{'':<52} !! FALSE: {bad}" if bad else ""))
     lines.append(f"\n{len(checks)} checks, {failures} FAILED")
     return "\n".join(lines)
 
@@ -2113,6 +2114,96 @@ def check_planning_looks_for_an_expectation_not_a_type_signature():
             "in_one_step": result["steps"] == 1}
 
 
+def check_a_contradictory_goal_is_refused_before_searching():
+    """⭐ Decidable contradictions only, so this can never reject a reachable goal. Vacuity guard: the same
+    goal minus the contradiction must plan normally, and the refusal must cost zero imagined steps."""
+    from . import conflict as C, driver as D, goal as G, thread as T
+    g, world = _blocks()
+    a, b, _c = g.targets(world, "block")
+    bad = G.open_goal(g, label="contradictory")
+    G.require_attr(g, bad, a, "clear", True)
+    G.require_attr(g, bad, a, "clear", False)
+    refused = D.pursue(g, bad, T.open_thread(g), world)
+
+    both = G.open_goal(g, label="required and forbidden")
+    G.require_link(g, both, a, "on", b)
+    G.require_action(g, both, function="stack")
+    G.forbid_action(g, both, function="stack")
+
+    fine = G.open_goal(g, label="fine")
+    G.require_link(g, fine, a, "on", b)
+    return {"contradiction_found": len(C.unsatisfiable(g, bad)) == 1,
+            "refused_without_searching": not refused["found"] and refused["steps"] == 0,
+            "and_says_why": "contradicts" in refused["why"],
+            "required_and_forbidden_too":
+                any("both required and forbidden" in r for r in C.unsatisfiable(g, both)),
+            "no_false_positive_on_a_good_goal": C.unsatisfiable(g, fine) == (),
+            "which_still_plans": D.pursue(g, fine, T.open_thread(g), world, max_steps=200)["found"]}
+
+
+def check_interference_between_two_goals_is_surfaced():
+    """⭐⭐ THE REGRESSION, ADDRESSED — but not by copying the old notion. That engine *derived facts*, so
+    two contradictory conclusions were a contradiction. This one *performs actions in sequence*, where a
+    later write legitimately overrides an earlier one. What survives is **interference**: two independently
+    authored functions, composed by a library that grew, writing one slot for unrelated reasons — the
+    telecom feature-interaction problem `function.py` cites as prior art.
+
+    ⚠ The different-goal requirement is the whole distinction. Vacuity guards: steps within ONE plan
+    overwrite each other constantly and must NOT be reported; and the conflict must be recorded as ordinary
+    data (a `conflicts` connection) rather than only returned."""
+    from . import asm, conflict as C, driver as D, goal as G, thread as T
+    g, world = _blocks()
+    a, _b, _c = g.targets(world, "block")
+    asm.load_text(g, "\n".join([
+        "# A second, independently authored feature that happens to write the same slot.",
+        "fn varnish(b: block) -> block:",
+        '    SET F(b) "colour" "clear"',
+    ]))
+    declare_type(g, "red_block", base="block", attrs={"colour": "red"})
+    declare_type(g, "varnished_block", base="block", attrs={"colour": "clear"})
+
+    th = T.open_thread(g, "session")
+    red = G.open_goal(g, label="make it red")
+    G.require_attr(g, red, a, "colour", "red")
+    D.carry_out(g, red, th, world, max_steps=200)
+
+    varnished = G.open_goal(g, label="varnish it")
+    G.require_attr(g, varnished, a, "colour", "clear")
+    D.carry_out(g, varnished, th, world, max_steps=200)
+
+    found = C.interference(g, th)
+
+    # ⚠ THE VACUITY GUARD THAT MATTERS: one goal whose plan MUST write the slot twice (paint sets red,
+    # varnish sets clear) — a deliberate sequel, and it must NOT be reported.
+    g2, world2 = _blocks()
+    a2 = g2.targets(world2, "block")[0]
+    asm.load_text(g2, "\n".join(["# the same second feature",
+                                 "fn varnish(b: block) -> block:",
+                                 '    SET F(b) "colour" "clear"']))
+    th2 = T.open_thread(g2, "one goal")
+    both_writes = G.open_goal(g2, label="varnish, having painted")
+    G.require_attr(g2, both_writes, a2, "colour", "clear")
+    G.require_action(g2, both_writes, function="paint")
+    D.carry_out(g2, both_writes, th2, world2, max_steps=300)
+    sequel = C.interference(g2, th2)
+    wrote_twice = [e for e in T.entries(g2, th2)
+                   if g2.attr(e, "function") in ("paint", "varnish") and g2.attr(e, "done")]
+    first = found[0] if found else (None, None, None, None, None, None)
+    return {"two_goals_wrote_one_slot": len(found) >= 1,
+            "it_names_the_slot": first[3] == "colour",
+            "and_both_values": {first[4], first[5]} == {"red", "clear"},
+            "and_the_two_functions_differ":
+                first[0] is not None
+                and g.attr(first[0], "function") != g.attr(first[1], "function"),
+            "RECORDED_AS_ORDINARY_DATA": len(C.conflicts_on(g, th)) >= 1,
+            "reusing_the_threads_cross_link": all(g.kind(c) == "connection"
+                                                  for c in C.conflicts_on(g, th)),
+            "readable": "conflict(s)" in C.describe(g, th),
+            "an_empty_thread_has_none": C.interference(g, T.open_thread(g)) == (),
+            "ONE_PLAN_REALLY_DID_WRITE_THE_SLOT_TWICE": len(wrote_twice) >= 2,
+            "but_a_sequel_is_NOT_a_conflict": sequel == ()}
+
+
 def check_types_are_recognised_bottom_up():
     """⭐ **What IS this?** — the direction this module was missing. Every entry point was top-down
     (`is_a` and `instances` both take a *named* type); nothing asked what a node turns out to be.
@@ -2263,7 +2354,10 @@ def check_END_TO_END_plan_act_diverge_replan_succeed():
             "the_tool_really_ran_twice": calls["n"] == 2,
             "GOAL_TRUE_IN_REALITY": G.satisfied(g, goal, under=d),
             "and_only_now_recorded_closed": G.is_closed(g, goal),
-            "the_thread_holds_the_whole_story": len(T.entries(g, th)) == 10}
+            "the_thread_holds_the_PLANNING": any(
+                g.kind(e) == "application" and not g.attr(e, "done") for e in T.entries(g, th)),
+            "and_what_was_actually_DONE": [g.attr(e, "function") for e in T.entries(g, th)
+                                           if g.attr(e, "done")] == ["scan_dir", "scan_dir"]}
 
 
 def check_a_mock_is_never_proposed_as_an_action():
