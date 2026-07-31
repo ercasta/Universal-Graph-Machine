@@ -86,6 +86,38 @@ def attrs_of(g: Graph, name: str) -> dict:
     return _attrs_at(g, find_type(g, name))
 
 
+def requirements(g: Graph, type_name: str):
+    """A type's demands, gathered once: `(schema, attrs)`, or `None` if it is undeclared.
+
+    **⭐ For a caller testing MANY nodes against ONE type — which is what candidate enumeration is — this
+    is the loop-invariant half of `violations`.** Resolving the name, walking the `base` chain and building
+    the two requirement dicts depends only on the type, yet it was being redone per candidate:
+    `driver.proposals` over a world with 200 nodes that bind to nothing did it 1,025 times per enumeration.
+
+    ⚠ **Not a cache, and deliberately not one.** Nothing is stored, so nothing can drift — this is the same
+    answer `schema_of`/`attrs_of` give, computed at the point where it is still valid to hoist. A caller
+    that mutates a type mid-loop must re-ask, which is the honest contract; a cache would have to guess."""
+    t = find_type(g, type_name)
+    return None if t is None else (_schema_at(g, t), _attrs_at(g, t))
+
+
+def fails(g: Graph, node, reqs) -> dict:
+    """`violations` against already-gathered `requirements`. The shared implementation of both."""
+    if node is None:
+        return {"<node>": ("a node", "None")}
+    schema, attrs = reqs
+    bad = {}
+    for label, (kind, n) in schema.items():
+        right_kind = [x for x in g.targets(node, label) if g.kind(x) == kind]
+        if len(right_kind) != n:
+            bad[label] = (f"{n} of kind {kind}", str(len(right_kind)))
+    for key, want in attrs.items():
+        got = g.attr(node, key)
+        if got != want:
+            bad[f"@{key}"] = (repr(want), repr(got))
+    return bad
+
+
 def violations(g: Graph, node, type_name: str) -> dict:
     """Every way `node` fails to be a `type_name`, as `{label: (expected, actual)}`; empty means valid.
 
@@ -94,22 +126,12 @@ def violations(g: Graph, node, type_name: str) -> dict:
 
     ⚠ The name is resolved **once**. It used to be resolved four times — here, inside `schema_of`, inside
     `attrs_of`, and again per `base` hop — which was invisible while `find_type` looked cheap and dominated
-    planning once it was measured."""
-    t = find_type(g, type_name)
-    if t is None:
+    planning once it was measured. A caller testing many nodes against one type should hoist that out
+    entirely with `requirements` + `fails`, which is what this is made of."""
+    reqs = requirements(g, type_name)
+    if reqs is None:
         return {"<type>": (type_name, "undeclared")}
-    if node is None:
-        return {"<node>": ("a node", "None")}
-    bad = {}
-    for label, (kind, n) in _schema_at(g, t).items():
-        right_kind = [x for x in g.targets(node, label) if g.kind(x) == kind]
-        if len(right_kind) != n:
-            bad[label] = (f"{n} of kind {kind}", str(len(right_kind)))
-    for key, want in _attrs_at(g, t).items():
-        got = g.attr(node, key)
-        if got != want:
-            bad[f"@{key}"] = (repr(want), repr(got))
-    return bad
+    return fails(g, node, reqs)
 
 
 def is_a(g: Graph, node, type_name: str) -> bool:

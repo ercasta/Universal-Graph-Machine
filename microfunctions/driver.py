@@ -47,7 +47,36 @@ from . import thread as T
 from . import workbench as W
 from .graph import Graph
 from .isa import F, R
+from . import types as TY
 from .types import is_a
+
+
+# --- deliberation: the verbs a decision can return ------------------------------------------------
+#
+# ⭐ THE SEAM `pursue` NEVER HAD. It was a closed loop — nothing could intervene between two imagined
+# steps — so "what should I do next?" was not an expressible question, only a `while` condition. That made
+# deliberation the thing this system computes *with* and cannot compute *about*: the same defect attention
+# had before `thread.py` and the goal had before `goal.py`, in its third place. See `deliberation.md`.
+#
+# ⚠ The set is CLOSED on purpose. It is the vocabulary everything authored has to speak, and a verb that
+# means "something else" would make a decision unreadable to the reflective functions that are the point.
+EXPAND = "expand"            # imagine the best-ranked proposal — the default, and today's whole behaviour
+DECOMPOSE = "decompose"      # post subgoals instead of enumerating actions   (needs goal hierarchy)
+COMMIT = "commit"            # stop planning; what we have is what we will do
+SENSE = "sense"              # stop planning and act IN ORDER TO LEARN        (needs ignorance)
+REFUSE = "refuse"            # no sanctioned way to proceed; do not improvise
+
+VERBS = (EXPAND, DECOMPOSE, COMMIT, SENSE, REFUSE)
+_STOPS = (COMMIT, SENSE, REFUSE)
+
+#: Verbs whose machinery does not exist yet. Returning one raises rather than being ignored — a decision
+#: silently doing nothing is exactly the class of failure this project keeps catching.
+_UNBUILT = {DECOMPOSE: "goal hierarchy (goal.py has no subgoal relation)",
+            SENSE: "a representation of ignorance (unmet cannot say 'unknown')"}
+
+
+class Undecidable(Exception):
+    """A decision named a verb whose machinery is not built. Loud, and naming what is missing."""
 
 
 def proposals(g: Graph, frame: str, *, allow=None) -> tuple:
@@ -80,7 +109,14 @@ def proposals(g: Graph, frame: str, *, allow=None) -> tuple:
             continue
         per_param = []
         for p in params:
-            fits = [m for m in here if is_a(g, W.image_of(g, m), ptypes[p])]
+            # ⚠ Gather the type's demands ONCE per parameter, not once per candidate. Resolving the name
+            # and walking its `base` chain depends only on the type, and redoing it per candidate was the
+            # dominant remaining cost of enumeration — 1,025 rebuilds per enumeration in a world with 200
+            # nodes that fit nothing. `requirements` stores nothing, so this hoists without a cache.
+            reqs = TY.requirements(g, ptypes[p])
+            if reqs is None:
+                break                          # undeclared parameter type — no candidate can satisfy it
+            fits = [m for m in here if not TY.fails(g, W.image_of(g, m), reqs)]
             if not fits:
                 break
             per_param.append(fits)
@@ -355,7 +391,7 @@ def state_of(g: Graph, frame: str) -> frozenset:
 
 def pursue(g: Graph, goal: str, thread: str, subject: str, *,
            max_steps: int = 60, max_depth: int = 6, rank=None, guided: bool = True, allow=None,
-           trace=None) -> dict:
+           trace=None, decide=None) -> dict:
     """Search for a state satisfying `goal`, imagining every step. Returns a report.
 
     Everything the system considers is recorded on the thread as it happens, so *how* it got there is
@@ -374,6 +410,20 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
     explored. `../pystrider` turned "no plan found" into a refusal naming its cause in about fifteen lines
     of that. ⚠ For a single-constraint goal `unmet` merely restates the goal, so it says *what* was not
     achieved and never *why*; the why is domain knowledge, and it lives in the frames or nowhere.
+
+    **⭐ `decide` is the deliberation seam** (`deliberation.md`). Called once per imagined step, *before*
+    the chosen proposal is imagined, with the situation as it already stands. Returning `None` — or
+    `EXPAND` — means "nothing to say", so the loop's disposition is unchanged and **the default is to keep
+    planning**; a decision has to speak up to alter it. Returns `verb` or `(verb, reason)`.
+
+    ⚠ This is an **engine seam, not an extension point.** The decider that eventually lives here reads
+    *decision rules as data* and is shipped with the engine; it is not somewhere a domain author writes
+    Python. It is a parameter for the same reason `rank` is — so the behaviour can be substituted in a
+    check and so the loop does not have to know what decides.
+
+    ⚠ Only `COMMIT`, `SENSE` and `REFUSE` can be honoured today, and of those `SENSE` needs ignorance and
+    `DECOMPOSE` needs goal hierarchy — both raise `Undecidable` naming what is missing, rather than being
+    quietly ignored. A decision that silently does nothing is the failure mode this project keeps catching.
 
     **⚠ The authoring rule that follows, which is not obvious and is easy to get wrong: an operation that
     wants to explain itself must record its reason WHERE THE FRAMES ARE.** A microfunction that quietly does
@@ -501,6 +551,44 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
     while frontier and steps < max_steps:
         frontier.sort(key=lambda item: item[0])
         _key, frame, depth, name, bindings, open_count, trace = frontier.pop(0)
+
+        # ⭐ THE DECISION POINT. Everything above chose the *best* proposal; this asks whether imagining it
+        # is what we should be doing at all. Returning `None` means "nothing to say", which is why the
+        # default behaviour is to keep planning — the loop's disposition is unchanged and a rule has to
+        # speak up to alter it.
+        #
+        # ⚠ UNLIKE `trace`, THIS IS A PARTICIPANT, so it is handed the real thing. `trace` gets labels
+        # because a watcher must not be able to steer and a rendering is all it needs; a decision is made
+        # *on* structure, so giving it renderings would force it to reconstruct state from strings — the
+        # exact confusion `trace`'s own comment warns against, arrived at from the other side.
+        #
+        # ⚠ Built from what is ALREADY computed. This runs once per imagined step — hundreds of times in a
+        # normal search — so anything costly here inverts the cost of what it exists to save.
+        # `open_count` is carried on the frontier item precisely so nothing is recomputed. `deliberation.md`
+        # §4 is the standing rule: methods per goal, stop-rules per step, guidelines per proposal.
+        if decide is not None:
+            verdict = decide({"goal": goal, "frame": frame, "depth": depth, "function": name,
+                              "bindings": bindings, "open": open_count, "trace": trace,
+                              "steps": steps, "frontier": len(frontier), "workbench": wb,
+                              "thread": thread, "subject": subject})
+            if verdict is not None and verdict != EXPAND:
+                verb, why_stop = verdict if isinstance(verdict, tuple) else (verdict, None)
+                if verb in _UNBUILT:
+                    raise Undecidable(f"{verb!r} needs {_UNBUILT[verb]}; see deliberation.md")
+                if verb not in _STOPS:
+                    raise Undecidable(f"{verb!r} is not one of {VERBS}")
+                # Recorded ONLY when a decision actually fires, which is what keeps the default path
+                # byte-identical to the behaviour that existed before this seam.
+                T.attend(g, thread, goal, why=f"decided to {verb}",
+                         note=why_stop or f"before imagining {name}")
+                if watch:
+                    emit(verb, action=name, on=shown(bindings), depth=depth, because=why_stop)
+                return {"found": False, "workbench": wb, "steps": steps, "goal": goal,
+                        "stopped": verb, "frame": frame, "plan": X.path_to(g, wb, frame),
+                        "refused": tuple(refused),
+                        "blocked_by": tuple(sorted({r for _n, rs in refused for r in rs})),
+                        "why": why_stop or f"stopped by decision: {verb}"}
+
         steps += 1
 
         nxt, _tr = W.step(g, wb, frame, name, bindings)

@@ -2,12 +2,18 @@
 
 **Read this first if you are picking this up cold.** One session, and it went further than a normal one:
 the project's north star was repointed, a new engine was started, and it now runs a full plan-act-check
-loop. `ugm/` and `units/` are untouched — nothing was deleted.
+loop.
+
+> ⚠ **Corrected 2026-07-31:** this paragraph used to end "`ugm/` and `units/` are untouched — nothing was
+> deleted." **Both directories are gone from the repo now**, so the scenario audit in §5 item 3 ("before
+> deleting anything from `ugm/`") is moot as written, and `../pystrider`'s `test_conformance_strider.py`
+> and `test_rulestrider.py` fail collection on `import ugm` — two dead test files over there, unrelated to
+> any engine change.
 
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 134 checks, 0 FAILED
+python -m microfunctions.selftest      # 135 checks, 0 FAILED
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -692,15 +698,100 @@ of discipline a test earns its place on. **Vacuity guard: it exercises `drop` an
 write-only index passes any test that never removes anything. Planted-bug probes per §7: a `drop` that
 leaves a stale entry, and a permissive `put`, each turn distinct keys red.
 
-**Still not System 1.** Inert content still costs ~20× the baseline enumeration, because `proposals` does
-genuinely test every mapping against every parameter type. That residue *is* the System-1-shaped problem —
-but it is now ~8 ms where it was ~37 ms, and the next lever is still cheaper than a new subsystem: index
-types by required labels **and required attribute keys** (the correction above), or narrow `proposals`'
-candidate set. Re-measure before building §§2–4.
+**Then the residue turned out to be loop-invariant work, not candidate testing either.** With `of_kind` in,
+profiling again put the cost in the 5,125 `violations` calls — but the waste *inside* them was that
+`_schema_at`/`_attrs_at` rebuild the same type's requirement dicts **once per candidate**. Resolving a name
+and walking its `base` chain depends only on the type. So `types.requirements` gathers `(schema, attrs)`
+once and `types.fails` tests against them; `violations` is now those two composed, so there is **one
+implementation and nothing that can disagree** — no test needed, which is the structural answer rather than
+a guarded one. `driver.proposals` hoists it per parameter.
+
+⚠ **`requirements` is deliberately NOT a cache.** Nothing is stored, so nothing can drift; it is the same
+answer `schema_of`/`attrs_of` give, computed where it is still valid to hoist. A caller that mutates a type
+mid-loop must re-ask — the honest contract, where a cache would have to guess.
+
+| enumeration | at §5l | after `of_kind` | after hoisting | total |
+|---|---|---|---|---|
+| 3 blocks | 0.65 ms | 0.37 ms | **0.26 ms** | 2.5× |
+| + 200 inert nodes | 37.2 ms | 7.95 ms | **2.08 ms** | **17.9×** |
+| + 100 extra operators | 37.4 ms | 7.86 ms | **6.2 ms** | 6× |
+| `../pystrider`'s 143 pins | 91.5 s | 32.1 s | **27.3 s** | 3.4× |
+
+⚠ One reading was **noise**: the 100-operator row first measured 9.15 ms and looked like a regression from
+hoisting. Repeated, it is 6.1–6.5. Single timings are not measurements — the §5l lesson applies to its own
+follow-up. What remains in that row is library size (100 functions × `load` + `param_types`), which is a
+different axis from world size and untouched by any of this.
+
+**Still not System 1, and the case is now much weaker.** Inert world content costs ~8× baseline enumeration,
+down from ~57×. `proposals` does still test every mapping against every parameter type, which is the
+System-1-shaped residue — but it is 2 ms. Re-measure before building §§2–4; the threshold has moved further
+away, not closer.
 
 > **Profile before choosing a lever, even one you wrote down yourself after measuring.** §5l's measurement
 > was right that enumeration was the cost; the *inference* about which part was a guess, and it named a fix
 > that did not apply to its own benchmark.
+
+## 5n. Deliberation — DESIGNED, not built (2026-07-31)
+
+`docs/microfunctions/deliberation.md`. Out of a design conversation, not a probe — **nothing in it is
+measured**, which is worth flagging given how consistently measurement has weakened claims here.
+
+**The one architectural change it turns on:** `pursue` is a closed loop with no yield point, and
+`pursue`/`carry_out` are Python, never reachable from the ISA — checked. So deliberation is the thing the
+system computes *with* and cannot compute *about*. ⭐ **The same defect in its third incarnation**, after
+attention (fixed by `thread.py`) and the goal (fixed by `goal.py`, whose docstring names the pattern).
+
+Everything else follows: five verbs (`EXPAND`/`DECOMPOSE`/`COMMIT`/`SENSE`/`REFUSE`), and guidelines,
+methods, procedures and stop-and-act become four *kinds of decision* rather than four features.
+
+**⭐⭐ The distinction the doc exists for: force is about FAILURE, not strength.** A **method** that does not
+fit falls back to search; a **procedure** that does not fit must `REFUSE`, because for compliance "no plan
+found" beats "found a plan another way". That inverts every existing reflex — `carry_out` replans,
+`recover` tries contingencies. It cannot be inferred from content and must be declared.
+
+**⚠ Frequency is the thing most likely to be got wrong.** Methods per goal (few, may be expensive);
+stop-rules per search step (hundreds, must be structural); guidelines per proposal (thousands, must be a
+pure ranker — and that is the existing `rank=` hook, so guidelines need *no new mechanism* and are the
+cheapest slice).
+
+**Prior art survives the code deletion, and should be read before re-deriving:**
+`docs/design/procedures_design.md` §3 is a *stepping bank* — the yield point, built and green in the old
+engine — and `docs/units/goal_machinery.md` §8 is "a subgoal with its own condition", also built. Expect
+§5j's outcome: the findings transfer, the mechanism probably does not.
+
+**First slice, deliberately inert:** steppable search plus a `decide()` that always returns `EXPAND` —
+zero behaviour change, verified by the existing 134 checks and by the search staying deterministic.
+
+## 5o. Deliberation slice 1 — the seam, inert (2026-07-31)
+
+`driver.pursue(..., decide=...)` plus the five verbs. 135 checks, 0 FAILED, default path identical, search
+still deterministic. `deliberation.md` §11 has the detail.
+
+**⚠ The vacuity guard is the whole test, and it is the point of the slice.** A seam nothing can steer is
+indistinguishable from no seam, and would pass any check asserting only "default behaviour unchanged" —
+precisely the false green §7 keeps catching. So `check_the_deliberation_seam_is_inert_by_default_and_live_when_used`
+requires **both**: identical by default, *and* a decision really diverting the search. Planted-bug probe: a
+`pursue` that consults `decide` and discards the answer fails it.
+
+⚠ **And the check caught a mistake in its own author.** `AND_IT_REACHES_THE_THREAD` was silently `False`
+because it read `g.attr(entry, "why")` — but `why` is an edge property of the *transition* and must be read
+through `thread.why`. Exactly the §5g failure mode, landing on the person who wrote §5g's fix.
+
+**`decide` is a participant, so it gets the real thing** — the opposite of `trace`, which gets labels
+because a watcher must not be able to steer. Same reasoning, opposite conclusion; the two must not be made
+to look alike. Built only from what the frontier item already carries, per `deliberation.md` §4.
+
+**Unbuilt verbs raise and name what is missing** (`DECOMPOSE` → goal hierarchy, `SENSE` → ignorance) rather
+than being ignored. ⚠ Not done: the search is not *externally* steppable — no resumable generator — and
+nothing yet executes the prefix `COMMIT` hands back.
+
+**⭐⭐ And a standing principle was stated: MICROFUNCTIONS SHIP WITH THE ENGINE.** They are *how the engine
+works*, not user-definable; everything a domain contributes is **data**. That collapses the four-surfaces
+worry (`asm.py` becomes internal) and narrows the LLM border in the safe direction. ⚠ **It is in tension
+with `north_star.md` ("rules become microfunctions"), `function.py` ("a rule is a function"), `asm.py`
+being documented as the LLM border, `../pystrider` authoring `.mf`, and §5k's `INVOKE` surface added
+expressly to help them.** The unsettled question is where *domain actions* sit; `deliberation.md` §12 works
+it through and proposes the line at **knowledge versus capability**.
 
 ## 5. What to do next
 

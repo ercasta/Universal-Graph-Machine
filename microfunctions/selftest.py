@@ -138,6 +138,71 @@ def check_the_kind_index_cannot_disagree_with_a_scan():
             "unknown_kind_is_empty_not_an_error": g.of_kind("nonesuch") == ()}
 
 
+def check_the_deliberation_seam_is_inert_by_default_and_live_when_used():
+    """⭐ SLICE 1 of `deliberation.md`: `pursue` gains a decision point and changes nothing.
+
+    The loop was closed — nothing could intervene between two imagined steps — so "what should I do next?"
+    was not an expressible question, only a `while` condition. That made deliberation the thing this system
+    computes *with* and cannot compute *about*: the same defect attention had before `thread.py` and the
+    goal had before `goal.py`, in its third place.
+
+    **⚠ The vacuity guard is the whole test.** A seam nothing can steer is indistinguishable from no seam,
+    and it would pass any check that only asserted "default behaviour is unchanged" — which is exactly the
+    green this project keeps catching as false. So both halves are required: the default path must be
+    **identical**, and a decision must **actually divert** the search.
+
+    Also checked: an unbuilt verb raises and names what is missing, rather than being silently ignored;
+    and a fired decision reaches the thread, since a decision nobody can audit afterwards is no use to the
+    compliance case the design exists for."""
+    from . import driver as D
+    from . import goal as G
+    from . import thread as T
+
+    def tower(decide=None):
+        g, world = _blocks()
+        a, b, c = g.targets(world, "block")
+        goal = G.open_goal(g, label="tower")
+        G.require_link(g, goal, a, "on", b)
+        G.require_link(g, goal, b, "on", c)
+        t = T.open_thread(g)
+        return g, t, D.pursue(g, goal, t, world, decide=decide)
+
+    g0, t0, plain = tower()
+    g1, t1, silent = tower(decide=lambda s: None)             # a decider with nothing to say
+    g2, t2, always = tower(decide=lambda s: D.EXPAND)          # ...and one that says the default aloud
+
+    # THE VACUITY GUARD: a decision must be able to change the outcome, or none of the above means anything.
+    g3, t3, stopped = tower(decide=lambda s: (D.COMMIT, "that's enough planning"))
+
+    def unbuilt(verb):
+        try:
+            tower(decide=lambda s: verb)
+            return None
+        except D.Undecidable as e:
+            return str(e)
+
+    return {"default_finds_it": plain["found"],
+            "IDENTICAL_WHEN_THE_DECIDER_IS_SILENT":
+                (silent["found"], silent["steps"], D.plan_steps(g1, silent))
+                == (plain["found"], plain["steps"], D.plan_steps(g0, plain)),
+            "and_when_it_says_EXPAND": (always["found"], always["steps"]) == (plain["found"], plain["steps"]),
+            "A_DECISION_REALLY_DIVERTS_IT": not stopped["found"] and stopped["stopped"] == D.COMMIT,
+            "it_stopped_before_imagining_anything": stopped["steps"] == 0,
+            "and_hands_back_the_prefix_it_had": "plan" in stopped and "frame" in stopped,
+            "it_says_who_stopped_it": stopped["why"] == "that's enough planning",
+            # ⚠ `why` is an edge property of the TRANSITION, not an attribute of the entry — read it
+            # through `thread.why`. Reading `g.attr(entry, "why")` returns None and this key was silently
+            # False until the tally caught it, which is §5g's lesson landing on its own author.
+            "AND_IT_REACHES_THE_THREAD": any(
+                "decided to commit" in (T.why(g3, e) or "") for e in T.entries(g3, t3)),
+            "nothing_reached_the_thread_by_default": not any(
+                "decided to" in (T.why(g0, e) or "") for e in T.entries(g0, t0)),
+            "an_unbuilt_verb_RAISES_and_says_what_is_missing":
+                "goal hierarchy" in (unbuilt(D.DECOMPOSE) or ""),
+            "for_both_of_them": "ignorance" in (unbuilt(D.SENSE) or ""),
+            "and_so_does_a_nonsense_verb": unbuilt("dance") is not None}
+
+
 # --- focus ----------------------------------------------------------------------------------------
 def check_focus_navigates_forward_backward_and_through_refs():
     g = new_graph()
