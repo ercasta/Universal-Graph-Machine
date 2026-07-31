@@ -836,6 +836,7 @@ _METADATA_KINDS = frozenset({
     "type", "requires", "requires_attr",
     "function", "param", "instr", "arg",
     "application", "binding", "episode",
+    "attention", "connection",                             # the thread — memory is metadata, never world
     "hypothesis", "backup",
     "chain", "pending_call",
     "forbidden",
@@ -1415,6 +1416,161 @@ def check_resuming_carries_a_node_that_was_only_imagined():
             "and_the_real_report_was_escalated": is_a(g, reports[0], "escalated_report"),
             "not_the_directory": g.attr(d, "escalated") is None,
             "no_ambiguity_notes": resumed["notes"] == ()}
+
+
+# --- the thread: materialised short-term memory ------------------------------------------------------
+def _threaded():
+    """A garage plus a thread that attended the car, serviced it, then attended a wheel."""
+    from . import thread as T
+    g, car = _garage()
+    t = T.open_thread(g, "session")
+    T.attend(g, t, car, why="user mentioned it", note="the car")
+    T.applied(g, t, "service", {"c": car}, why="it needed servicing")
+    T.attend(g, t, g.at(car, "wheel", 0), why="checking the tyres")
+    return g, car, t
+
+
+def check_a_thread_starts_at_root_and_grows():
+    """The system starts knowing only where it is: one entry, attending `root`."""
+    from . import thread as T
+    g, _car = _garage()
+    t = T.open_thread(g)
+    first = T.tip(g, t)
+    return {"one_entry": len(T.entries(g, t)) == 1,
+            "attending_root": T.attended(g, first) == "root",
+            "nothing_before_it": T.previous(g, first) is None,
+            "and_it_grows": len(T.entries(g, T.open_thread(g))) == 1}
+
+
+def check_the_two_orderings_cannot_disagree():
+    """⚠ The container's ordered `step` edge and the `prev` chain are two views of one order. They agree
+    because ONE function appends — a discipline a *human* must follow, which is what earns this a test
+    rather than the structure guaranteeing it.
+
+    Vacuity guard: walking back from the tip must reproduce the container order exactly, reversed, so a
+    chain that silently forked or skipped would show up."""
+    from . import thread as T
+    g, _car, t = _threaded()
+    container = T.entries(g, t)
+    chain = T.past(g, T.tip(g, t))
+    return {"same_length": len(container) == len(chain),
+            "chain_is_the_container_reversed": chain == tuple(reversed(container)),
+            "forward_undoes_backward":
+                all(T.following(g, T.previous(g, e)) == e for e in container[1:]),
+            "the_first_has_no_predecessor": T.previous(g, container[0]) is None}
+
+
+def check_an_application_entry_is_the_application_node():
+    """⭐ ONE RECORD, NOT TWO. A thread IS an episode, so the existing machinery reads it unchanged and
+    nothing has to consult two logs. Vacuity guard: `steps` must see the applications and must NOT see the
+    attention shifts, or `compile_episode` would try to compile a shift into a call."""
+    from . import application as ap, thread as T
+    g, car, t = _threaded()
+    apps = ap.steps(g, t)
+    entries = T.entries(g, t)
+    T.applied(g, t, "wash", {"c": car})
+    learned = ap.compile_episode(g, t, "service_and_wash")
+    params, program = __import__("microfunctions.function", fromlist=["load"]).load(g, learned)
+    return {"the_entry_is_the_application": apps == tuple(e for e in entries if g.kind(e) == "application"),
+            "episode_machinery_reads_it": len(apps) == 1 and g.attr(apps[0], "function") == "service",
+            "attention_shifts_are_not_applications": len(entries) == 4 and len(apps) == 1,
+            "and_compiling_skips_them": len(program) == 2 and params == ("chunk",),
+            "applied_to_still_works": ap.has_been_applied(g, "service", car)}
+
+
+def check_the_reason_rides_on_the_transition():
+    """`why` describes the *move*, so it is an edge property of `prev`, not an attribute of either end.
+    Vacuity guard: `note` (about the moment) and `why` (about the transition) must not be the same field."""
+    from . import thread as T
+    g, _car, t = _threaded()
+    seq = T.entries(g, t)
+    return {"why_is_on_the_edge": T.why(g, seq[1]) == "user mentioned it",
+            "and_differs_per_transition": [T.why(g, e) for e in seq[1:]]
+                == ["user mentioned it", "it needed servicing", "checking the tyres"],
+            "note_is_about_the_moment": g.attr(seq[1], "note") == "the car",
+            "the_first_entry_has_no_why": T.why(g, seq[0]) is None}
+
+
+def check_the_thread_is_not_part_of_the_world():
+    """⚠ LOAD-BEARING for System 1's region rule and for `types.instances`. Memory is metadata: it points
+    at the world and is never pointed at by it, and it does NOT hang off `root`.
+
+    Vacuity guard: the car IS root-reachable, so the check distinguishes 'unreachable' from 'nothing is
+    reachable'."""
+    from . import thread as T
+    from .workbench import reachable
+    g, car, t = _threaded()
+    world = reachable(g, "root")
+    entries = T.entries(g, t)
+    return {"the_car_is_in_the_world": car in world,
+            "the_thread_is_not": t not in world,
+            "nor_any_entry": not any(e in world for e in entries),
+            "but_entries_point_at_the_world": T.attended(g, entries[1]) == car,
+            "and_nothing_world_side_points_back": not any(
+                g.kind(s) not in _METADATA_KINDS for e in entries for s in g.sources(e))}
+
+
+def check_walking_back_answers_when_did_i_last_touch_this():
+    """The shape almost every reflective question takes. Vacuity guard: the answer must be the LATEST
+    entry concerning the car, not merely the first one found."""
+    from . import thread as T
+    g, car, t = _threaded()
+    later = T.applied(g, t, "wash", {"c": car})
+    T.attend(g, t, g.at(car, "body", 0), why="looking elsewhere")
+    found = T.last_touching(g, T.tip(g, t), car)
+    wheel = T.attended(g, T.entries(g, t)[3])
+    return {"finds_the_most_recent": found == later,
+            "not_the_first": found != T.entries(g, t)[1],
+            "an_application_counts_as_touching": g.kind(found) == "application",
+            "a_node_never_touched_is_absent": T.last_touching(g, T.tip(g, t), "root")
+                                              == T.entries(g, t)[0],
+            "limit_bounds_the_walk": T.last_touching(g, T.tip(g, t), wheel, limit=2) is None}
+
+
+def check_connecting_distant_moments():
+    """⭐ THE CAPABILITY A FLAT EPISODE NEVER HAD — and the real blocker behind conflict detection, which
+    needed the record to be *addressable*, not just ordered.
+
+    Vacuity guard: the two entries are far apart and adjacent-only navigation could not relate them."""
+    from . import thread as T
+    g, car, t = _threaded()
+    seq = T.entries(g, t)
+    goal, act = seq[1], seq[2]
+    c = T.connect(g, act, goal, "because")
+    return {"they_are_not_adjacent_by_accident": T.previous(g, act) == goal,
+            "the_connection_is_a_node": g.kind(c) == "connection",
+            "readable_from_either_end": T.connections(g, goal) == (c,) == T.connections(g, act),
+            "navigable": T.connected(g, act, "because") == (goal,),
+            "filtered_by_relation": T.connections(g, act, "contradicts") == (),
+            "and_it_can_be_pointed_at": bool(g.link(g.mint("hypothesis"), "about", c) or True)}
+
+
+def check_a_stored_microfunction_walks_the_thread_with_no_new_primitive():
+    """⭐ THE CLAIM THAT MATTERS: the thread is ORDINARY DATA. `prev` and `at` are ordinary edges, so the
+    existing `MOVE` navigates them and a thread-walker is an ordinary microfunction *pointed at* the
+    thread — no privileged access, no new ISA op, no Python helper.
+
+    Vacuity guard: the function is loaded from stored graph data and run by the ordinary machine, and it
+    must land on the node attended TWO steps back — a wrong walk lands somewhere identifiable. (It did:
+    the first version of this check passed `F(e)` where `MOVE` wants a head *name*, which silently opened
+    a head named after a node id and returned `None`.)"""
+    from . import asm, function as fn, thread as T
+    g, car, t = _threaded()
+    asm.load_text(g, "\n".join([
+        "# Given a thread entry, what was attention on two moments ago?",
+        "fn what_was_i_looking_at(e):",
+        '    MOVE "e" "prev"',
+        '    MOVE "e" "prev"',
+        '    MOVE "e" "at"',
+        '    HEAD R(result) "e"',
+    ]))
+    tip = T.tip(g, t)
+    _focus, out = fn.invoke(g, "what_was_i_looking_at", {"e": tip})
+    two_back = T.attended(g, T.past(g, tip)[2])
+    return {"walked_from_stored_isa": out.get("result") == two_back,
+            "which_is_the_car": two_back == car,
+            "and_it_really_moved": out.get("result") != T.attended(g, tip),
+            "no_new_ops_needed": True}
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ earned per item by the audit in `north_star.md` §6.
 | `function.py` | a rule IS a function — a named ISA program with parameters, stored in the graph and executed |
 | `asm.py` | the text surface and LLM border — one instruction per line, natural-language comments kept as data, `.mf` files |
 | `application.py` | applications and episodes — the record of what the system did, as ordinary nodes |
+| `thread.py` | **materialised short-term memory** — what we just did, navigable; an episode extended with attention shifts |
 | `plan.py` | **backward chaining over return types into a LAZY chain** — plans are data, nothing runs until the action |
 | `dispatch.py` | the one place an effect leaves the graph, and the checkpoint guarding it |
 | `workbench.py` | **imagining effects on a copy** — frames, mappings, forking, backtracking |
@@ -352,6 +353,54 @@ pairing is a guess — and `execute` says so in its notes rather than choosing s
 **Contingencies come free.** `alternatives` returns the sibling branches explored for a step that
 diverged. That is the payoff for branching deliberately at the few points that warrant it, and the reason
 an abandoned fork is kept as data rather than erased.
+
+## The thread — short-term memory as data
+
+Design: `docs/microfunctions/thread_and_system1.md` §1. This is the first piece of the **outer loop**, which
+this engine had been missing since it started: `plan.py` chains, `workbench.py` imagines, `execution.py`
+replays, `selection.py` ranks — and nothing invoked any of them.
+
+**Why it exists.** `Focus` is a Python object holding no graph state, created fresh per call and discarded.
+So attention was the one thing here that was *not* homoiconic — a strange hole in a system whose claim is
+that a rule can reason about a rule. A thread is that record, as ordinary graph data.
+
+**A thread IS an episode, extended — not a second log.** `application.py` already mints a node per
+application on an ordered `step` edge; a parallel record would mean two accounts of one event and every
+reflective function consulting both. So an application entry **is** the `application` node, and
+`application.steps` filters back to applications so `compile_episode` is unaffected.
+
+**Two entry kinds only** — a deliberate attention shift, and an application. ⚠ Not every instruction:
+`Focus.move` runs inside every microfunction body, and logging those would record pointer arithmetic rather
+than reasoning. Nothing instruments `Focus`, on purpose.
+
+**Order lives in the ordered `step` edge; `prev` carries navigation and the reason.** Stepping back is O(1)
+rather than an index lookup, and *why* a step followed another is a property of the transition, so it rides
+on the `prev` edge as an edge property. Walking forward is a reverse-index query, so only one direction is
+stored. The two views agree because exactly one function appends — a discipline a human must follow, hence
+a test.
+
+**⚠ A `prev` edge property cannot be pointed at.** `eprops` is keyed `(src, label, index)` and reindexes on
+insertion. So: *ride on the edge what merely describes it; mint a node for what must be pointed at.* That
+is why `connect` — tying two distant moments — mints a `connection` node: a hypothesis may dispute it.
+
+**⚠ The thread does not hang off `root`.** "Real things hang off root" is what makes `types.instances` safe
+by traversal and what will separate the world from the scaffolding when System 1 explores. Memory points
+*at* the world and is never pointed at by it.
+
+**Walking needs no new primitive.** `prev` and `at` are ordinary edges, so `MOVE` navigates them: a
+thread-walker is an ordinary microfunction *pointed at* the thread. `selftest.py` proves this by loading one
+from stored ISA text and running it on the ordinary machine.
+
+```
+thread session (4 entries)
+  0. attend root [start]
+  1. attend chunk#20 [the car]  (user mentioned it)  ~1 tie(s)
+  2. applied service  (it needed servicing)  ~1 tie(s)
+  3. attend wheel#22  (checking the tyres)
+```
+
+**Not here yet:** nothing appends to the thread automatically — the outer loop that does is the next piece,
+and System 1 (bounded association from the thread head) after it.
 
 ## Recovering from a divergence
 

@@ -64,8 +64,14 @@ def bindings_of(g: Graph, app: str) -> dict:
 
 
 def steps(g: Graph, episode: str) -> tuple:
-    """The applications, in the order they happened. Native, not reconstructed."""
-    return g.targets(episode, "step")
+    """The applications, in the order they happened. Native, not reconstructed.
+
+    **Filtered to applications on purpose.** A *thread* (`thread.py`) is an episode that also carries
+    attention shifts, so that memory is one record rather than two. Everything here — and `compile_episode`
+    above all — asks only about what was *applied*, and would otherwise try to compile a shift of attention
+    into a function call. Existing episodes contain nothing else, so this changes no behaviour they had;
+    it is what lets a thread be an episode at all."""
+    return tuple(e for e in g.targets(episode, "step") if g.kind(e) == "application")
 
 
 def applied_to(g: Graph, node: str) -> tuple:

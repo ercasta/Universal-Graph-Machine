@@ -7,10 +7,13 @@ loop. `ugm/` and `units/` are untouched — nothing was deleted.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 83 checks, 0 errored
+python -m microfunctions.selftest      # 91 checks, 0 errored
 ```
 
-> **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand.
+> **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
+> but they are no longer the top of the list: **`docs/microfunctions/thread_and_system1.md` supersedes §5
+> for what to do next.** The engine had no outer loop at all — nothing invoked plan/workbench/execution —
+> and that design is it. Its §1 (the thread) is **built**; see §5b below.
 
 ---
 
@@ -148,6 +151,41 @@ question, not a missing function: turning a chain into workbench steps needs a r
 call's *output* to a mapping, and for a minting call that is the same open question as `compile_episode`'s
 multi-argument replay. A guessed binding yields a plan that *looks* rehearsed. Also first-wins, not
 arbitrated: among several matching branches, and among several leaves below one.
+
+## 5b. Done since — the thread (2026-07-31)
+
+`microfunctions/thread.py` — materialised, navigable short-term memory. 8 checks (83 → 91). Full reasoning
+in `thread_and_system1.md` §1; the short version:
+
+**The gap it closes is not "no memory", it is "attention is not data".** `Focus` is a Python object holding
+no graph state, fresh per call, discarded. In a system whose claim is that a rule can reason about a rule,
+the thing it looks *with* was the one thing it could not look *at*.
+
+**A thread IS an episode, extended** — an application entry *is* the `application` node, and
+`application.steps` now filters to applications so `compile_episode` is unaffected. One record, not two;
+a parallel log would mean every reflective function consulting both.
+
+**Decisions that survived building:** two entry kinds only (deliberate attention shift, application — ⚠ not
+every ISA instruction, which would log pointer arithmetic); order in the ordered `step` edge with `prev`
+carrying O(1) backward navigation *and* the reason as an edge property; `connect` mints a **node** because
+`eprops` is index-keyed and reindexes, so an edge property has no stable address and cannot be pointed at;
+the thread does **not** hang off `root`, which is load-bearing for the coming region rule.
+
+**⚠ One design argument was wrong and is corrected in the doc.** Backward-linking was justified by the copy
+boundary — it does not discriminate, since nothing in the world points at the thread either way. The real
+reasons are O(1) back-stepping and the reason-on-the-transition.
+
+**Walking needs no new ISA op**, and that is checked rather than asserted: a thread-walker loaded from
+stored `.mf` text runs on the ordinary machine. The first version of that check passed `F(e)` where `MOVE`
+wants a head *name* — it silently opened a head named after a node id and returned `None`. Caught by the
+vacuity guard, not by the green.
+
+Three planted-bug probes confirmed the new checks bite: dropping the `prev` chain, unfiltering `steps()`
+(which crashes `compile_episode` loudly — the right failure), and hanging the thread off `root`.
+
+**Next:** the outer loop (nothing appends to the thread automatically yet), then System 1. And while the
+reasoning is fresh, `thread_and_system1.md` §5b records a **live defect**: `types.tag` stamps `is_a` and
+`application.generalise` reads it as authoritative, so the type cache already drifts today.
 
 ## 5. What to do next
 

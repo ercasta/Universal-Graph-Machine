@@ -1,7 +1,18 @@
 # Thread, System 1, and bottom-up type recognition — design
 
-**Status:** designed, not built. Written 2026-07-31, after the replanning-on-divergence work (`HANDOFF.md`
-§5a). Every quantitative claim below was measured; the probe is reproduced in §7.
+**Status:** §1 **BUILT** (`microfunctions/thread.py`, 8 checks, suite at 91/0). §§2–5 designed, not built.
+Written 2026-07-31, after the replanning-on-divergence work (`HANDOFF.md` §5a). Every quantitative claim
+below was measured; the probe is reproduced in §7.
+
+**What building §1 confirmed, and the one thing it corrected.** The design argued for backward-linking on
+the grounds that `reachable` is outgoing-only, so world nodes would not drag history into a workbench copy.
+⚠ **That argument does not actually discriminate** — nothing in the world points at the thread either way,
+so both link directions are safe for the copy boundary. The real justifications are the two that survived
+contact: stepping back from an entry is O(1) rather than an index lookup, and **the reason a step followed
+another is a property of the transition**, which only the `prev` edge can carry. The container's ordered
+edge and the `prev` chain being two views of one order is a genuine redundancy, accepted deliberately and
+guarded by `check_the_two_orderings_cannot_disagree` — a test guarding a discipline a *human* must follow
+(only `_append` appends), which is the kind that earns its place.
 
 ---
 
