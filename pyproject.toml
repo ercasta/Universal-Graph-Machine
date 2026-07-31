@@ -19,4 +19,4 @@ norecursedirs = [".venv", "__pycache__", ".git", "*.egg-info"]
 markers = ["slow: marks tests as slow"]
 
 [tool.setuptools]
-packages = ["ugm", "ugm.cnl", "units"]
+packages = ["ugm", "ugm.cnl", "units", "microfunctions"]

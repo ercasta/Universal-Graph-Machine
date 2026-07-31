@@ -44,7 +44,7 @@ from . import goal as G
 from . import thread as T
 from . import workbench as W
 from .graph import Graph
-from .isa import F
+from .isa import F, R
 from .types import is_a
 
 
@@ -135,9 +135,24 @@ def establishes(g: Graph, name: str) -> tuple:
 def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
     params, program = fn.load(g, name)
 
+    # ⭐ Registers that hold something this function MINTED are subjects too. Reported by `../pystrider`,
+    # which uses `establishes` for *recognition* rather than for ranking: a pattern written as `NEW R(it)`
+    # then `LINK R(it) …` came back as three effects with no subject at all — "orphan facts that no longer
+    # claim to describe one node" — because only `F(param)` counted as a role. That forced patterns to be
+    # authored as casts, which is a real expressive loss, so the join is restored here.
+    #
+    # A minted register gets a `$`-prefixed role: it names *a local subject*, distinguishable from a
+    # parameter by inspection and never confusable with one. `relevance` matches roles against bound
+    # arguments, so a `$` role simply never matches — no existing score can change.
+    minted_regs: set = set()
+
     def role(operand):
-        """The parameter an operand names, if it names one — otherwise nothing we can reason about."""
-        return operand.name if isinstance(operand, F) and operand.name in params else None
+        """The subject an operand names: a parameter, or a register holding something minted here."""
+        if isinstance(operand, F) and operand.name in params:
+            return operand.name
+        if isinstance(operand, R) and operand.name in minted_regs:
+            return "$" + operand.name
+        return None
 
     effects, unknown = set(), False
     for ins in program:
@@ -145,6 +160,19 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
             continue                                        # a label, not an instruction
         a = ins.args
         arg = a[1] if len(a) > 1 else None
+        if ins.op == "NEW":
+            # ⭐ Bringing something into existence is an effect too — the one a goal like "some file
+            # exists" is looking for, and the one a type signature cannot express.
+            if len(a) > 1 and isinstance(a[1], str) and isinstance(a[0], R):
+                minted_regs.add(a[0].name)
+                effects.add(("mint", a[1], "$" + a[0].name, None))
+            else:
+                unknown = True
+            continue
+        # ⚠ Any other write to a register means it no longer denotes what was minted into it.
+        if a and isinstance(a[0], R) and ins.op not in ("SET", "LINK", "LINK_AT", "UNLINK"):
+            minted_regs.discard(a[0].name)
+
         if ins.op in ("LINK", "LINK_AT", "UNLINK"):
             if isinstance(arg, str):
                 obj = a[-1] if ins.op != "UNLINK" else None
@@ -153,11 +181,6 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
                 unknown = True
         elif ins.op == "SET":
             effects.add(("attr", arg, role(a[0]), None)) if isinstance(arg, str) else (unknown := True)
-        elif ins.op == "NEW":
-            # ⭐ Bringing something into existence is an effect too — the one a goal like "some file
-            # exists" is looking for, and the one a type signature cannot express.
-            effects.add(("mint", a[1], None, None)) if len(a) > 1 and isinstance(a[1], str) \
-                else (unknown := True)
         elif ins.op in ("INVOKE", "CALL", "DISPATCH"):
             unknown = True                                  # the effect happens somewhere else
 

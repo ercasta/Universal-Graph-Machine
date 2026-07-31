@@ -2107,11 +2107,52 @@ def check_planning_looks_for_an_expectation_not_a_type_signature():
     result = D.pursue(g, goal, T.open_thread(g), d, max_steps=50)
     return {"the_signature_mentions_no_file": fn_returns(g, "scan_dir") == "listing",
             "and_its_own_body_establishes_none": not any(e[0] == "mint" for e in own),
-            "BUT_ITS_MOCK_PREDICTS_ONE": ("mint", "file", None, None) in withmocks,
+            "BUT_ITS_MOCK_PREDICTS_ONE":
+                any(e[:2] == ("mint", "file") for e in withmocks),
             "so_the_goal_finds_the_call": result["found"],
             "and_plans_the_REAL_call": D.plan_steps(g, result) == ("scan_dir",),
             "NOT_THE_MOCK": "found_two" not in D.plan_steps(g, result),
             "in_one_step": result["steps"] == 1}
+
+
+def check_a_minted_node_keeps_the_join_through_a_register():
+    """⭐⭐ REPORTED BY `../pystrider`, the engine's first real user, which uses `establishes` for
+    *recognition* rather than for ranking. A pattern authored as `NEW R(it)` then `LINK R(it) …` came back
+    as three effects with **no subject at all** — "orphan facts that no longer claim to describe one node" —
+    because only `F(param)` counted as a role. That forced every pattern to be authored as a cast, which is
+    a real expressive loss, and it was invisible here because ranking does not care.
+
+    A register holding something minted *in this body* is a local subject, marked `$` so it can never be
+    confused with a parameter. Vacuity guards: all three effects must name the *same* subject (the join is
+    the whole point); a parameter role must still be a bare name; and a register that is later reassigned
+    must lose the role rather than keep claiming to be the minted node."""
+    from . import asm, driver as D
+    g = new_graph()
+    declare_type(g, "seq", attrs={"kind_of": "seq"})
+    asm.load_text(g, "\n".join([
+        "# A minting pattern: build an iteration over a sequence.",
+        "fn as_iteration(seq: seq) -> seq:",
+        '    NEW R(it) "iteration"',
+        '    LINK R(it) "over" F(seq)',
+        '    SET R(it) "kind" "loop"',
+        "",
+        "# The register stops denoting the minted node once something else is put in it.",
+        "fn reassigned(seq: seq) -> seq:",
+        '    NEW R(it) "iteration"',
+        '    GET R(it) F(seq) "other"',
+        '    SET R(it) "kind" "loop"',
+    ]))
+    eff, unknown = D.establishes(g, "as_iteration")
+    subjects = {e[2] for e in eff}
+    later, _u = D.establishes(g, "reassigned")
+    return {"three_effects": len(eff) == 3,
+            "THEY_ALL_NAME_ONE_SUBJECT": len(subjects) == 1 and subjects != {None},
+            "marked_as_local_not_a_parameter": subjects == {"$it"},
+            "the_parameter_role_is_still_a_bare_name":
+                ("link", "over", "$it", "seq") in eff,
+            "and_it_is_known_statically": not unknown,
+            "a_reassigned_register_loses_the_role":
+                ("attr", "kind", None, None) in later}
 
 
 def check_a_contradictory_goal_is_refused_before_searching():
