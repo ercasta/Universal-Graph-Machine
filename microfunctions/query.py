@@ -237,22 +237,12 @@ def history_for(g: Graph, thread: str, c: str) -> tuple:
 
 # --- why -----------------------------------------------------------------------------------------
 def steps_of(g: Graph, answer: dict) -> tuple:
-    """The proof's frame path read back as `(function, {param: real node})` per step.
+    """The proof read back as `(function, {param: real node})` per step.
 
-    ⚠ A plan is a path of FRAMES, and the step that reached each one hangs off it as `via`. Bindings point
-    at *mappings*, never raw nodes — that indirection is what makes a plan replayable — so each is resolved
-    back to the real node it stands for, which is what a reader of an explanation is asking about."""
-    out = []
-    for frame in answer.get("proof", ())[1:]:          # frame 0 is the starting world, reached by nothing
-        tr = g.target(frame, "via")
-        if tr is None:
-            continue
-        bound = {}
-        for b in g.targets(tr, "arg"):
-            m = g.target(b, "mapping")
-            bound[g.attr(b, "param")] = (W.resolve(g, m) or W.image_of(g, m)) if m else None
-        out.append((g.attr(tr, "function"), bound))
-    return tuple(out)
+    A proof *is* a plan, so this is `driver.plan_bindings` — one implementation, deliberately, so that a
+    derivation and a plan of action read identically. They are the same object arrived at by different
+    verbs, and two readers would eventually disagree about one of them."""
+    return D.plan_bindings(g, answer.get("proof", ()))
 
 
 def why(g: Graph, answer: dict) -> tuple:

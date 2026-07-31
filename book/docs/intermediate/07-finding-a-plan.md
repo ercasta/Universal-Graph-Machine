@@ -36,8 +36,20 @@ actions, same goal:
   guided=False found=True imagined= 87 plan=2 steps
 ```
 
-Both find the same two-step plan. One looks at three possibilities; the other
-looks at eighty-seven.
+Both find the same two-step plan. One looks at three possibilities; the other at
+eighty-seven.
+
+Those are single runs, and honesty requires the ranges. Over forty runs each:
+
+| | states imagined | plan |
+|---|---|---|
+| guided | **2–3** | always 2 steps |
+| blind | **53–87** | always 2 steps |
+
+The wobble is tie-breaking: when several moves score the same the machine takes
+whichever came to hand first, and that ordering shifts between runs. The plan
+never moves. Neither does the conclusion — roughly **twenty-five times** fewer
+situations considered, for the same answer.
 
 The difference is that the guided search asks, of every move it might make:
 **would this close something that's still missing?** Which it can only ask
@@ -83,6 +95,8 @@ found: True | imagined: 51 | plan length: 3
     stack(b=b, onto=c)
     stack(b=a, onto=b)
 ```
+
+(51 to 53 across runs; the three-step plan is always the same one.)
 
 Look at the first move. **`unstack` closes nothing.** It doesn't make `a on b`
 true, or `b on c`. By any measure of relevance it's a bad move — and the puzzle

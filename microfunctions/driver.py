@@ -354,7 +354,8 @@ def state_of(g: Graph, frame: str) -> frozenset:
 
 
 def pursue(g: Graph, goal: str, thread: str, subject: str, *,
-           max_steps: int = 60, max_depth: int = 6, rank=None, guided: bool = True, allow=None) -> dict:
+           max_steps: int = 60, max_depth: int = 6, rank=None, guided: bool = True, allow=None,
+           trace=None) -> dict:
     """Search for a state satisfying `goal`, imagining every step. Returns a report.
 
     Everything the system considers is recorded on the thread as it happens, so *how* it got there is
@@ -434,8 +435,36 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
         the world would silently discard the finished one. So what is still outstanding is part of the key."""
         return (state_of(g, frame), G.outstanding(g, goal, trace))
 
+    # ⭐ THE TRACE HOOK — an OBSERVER, never a participant. It is handed a dict per event and its return
+    # value is discarded, so a watcher cannot steer the search: turning tracing on must not change what is
+    # found. That is why this is a callback taking finished facts rather than, say, a filter or a ranker —
+    # those already exist (`allow`, `rank`) and are honest about influencing the outcome.
+    #
+    # ⚠ Node ids are useless to a reader, so every event carries LABELS. The thread and the workbench keep
+    # the identities; a trace is for watching, and the two must not be confused — anything reconstructing
+    # state from these strings is reconstructing it from a rendering.
+    # ⚠ Aliased, and NOT optional: `trace` is already the name of the action-prefix threaded through
+    # `offer` and unpacked from the frontier, so the callback was being clobbered by a tuple mid-search.
+    # Renaming the parameter would change the public surface; aliasing here fixes it where it belongs.
+    watch = trace
+
+    def emit(kind, **fields):
+        watch(dict(kind=kind, step=steps, **fields))
+
+    def label(n):
+        return g.attr(n, "label") or g.kind(n) or n
+
+    def shown(bindings):
+        return {p: label(W.resolve(g, m) or W.image_of(g, m)) for p, m in bindings.items()}
+
     frontier: list = []
     seen, steps, refused = {visited_key(root, ())}, 0, []
+
+    # ⚠ After `steps` exists: `emit` closes over it, so calling this any earlier is an UnboundLocalError.
+    if watch:
+        emit("goal", goal=g.attr(goal, "label"),
+             wants=[G.describe_constraint(g, c) for c in G.constraints(g, goal)],
+             open=[G.describe_constraint(g, c) for c in still_open(root)])
 
     def offer(frame: str, depth: int, trace: tuple) -> None:
         open_now = still_open(frame)
@@ -449,13 +478,22 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
                                               for m in bindings.values())),)
             hit = G.breached(g, goal, ahead)
             if hit:
-                refused.append((name, tuple(G.describe_constraint(g, c) for c in hit)))
+                reasons = tuple(G.describe_constraint(g, c) for c in hit)
+                refused.append((name, reasons))
+                # ⭐ Worth emitting: this is the machine declining to even IMAGINE something, which is
+                # invisible in any after-the-fact record precisely because nothing happened.
+                if watch:
+                    emit("refuse", action=name, on=shown(bindings),
+                         because=list(reasons), depth=depth)
                 continue
             if not guided:
                 frontier.append(((0, 0, depth), frame, depth, name, bindings, len(open_now), ahead))
                 continue
             rank_here = score(g, name, bindings, open_now)
             expected = len(open_now) - (1 if rank_here >= 4 else 0)
+            if watch:
+                emit("consider", action=name, on=shown(bindings), band=rank_here,
+                     open=len(open_now), depth=depth)
             frontier.append(((expected, -rank_here, depth), frame, depth,
                              name, bindings, len(open_now), ahead))
 
@@ -476,11 +514,20 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
                   why=f"depth {depth + 1}, {open_count} constraint(s) open", for_goal=goal)
 
         nview, nunder = asked_of(nxt)
+        if watch:
+            emit("imagine", action=name, on=shown(bindings), depth=depth + 1,
+                 open=[G.describe_constraint(g, c)
+                       for c in G.unmet(g, goal, view=nview, under=nunder)])
         # ⚠ Both halves, and liveness only here: the world must be right AND the plan must have done
         # everything it was required to. A plan that reaches the state without its mandated step is not
         # finished — but it was never in violation on the way, which is why this is not a pruning test.
         if G.satisfied(g, goal, view=nview, under=nunder) and not G.outstanding(g, goal, trace):
-            return _done(g, goal, thread, wb, nxt, opened, "found", steps, tuple(refused))
+            done = _done(g, goal, thread, wb, nxt, opened, "found", steps, tuple(refused))
+            if watch:
+                emit("found", imagined=steps, length=done["length"],
+                     plan=[(f, {p: label(n) for p, n in b.items()})
+                           for f, b in plan_bindings(g, done["plan"])])
+            return done
 
         reached = visited_key(nxt, trace)
         if reached in seen:
@@ -494,11 +541,40 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
                            for c in G.unmet(g, goal, view=view, under=under))
     blocked = sorted({r for _n, rs in refused for r in rs})
     T.attend(g, thread, goal, why="exhausted the search", note="no plan found")
+    if watch:
+        emit("exhausted", imagined=steps, unmet=still_open, blocked_by=blocked)
     return {"found": False, "workbench": wb, "steps": steps, "goal": goal,
             "unmet": still_open, "refused": tuple(refused), "blocked_by": tuple(blocked),
             "why": f"no state meeting [{still_open}] within depth {max_depth} after {steps} "
                    f"imagined steps" + (f"; {len(refused)} action(s) ruled out by [{', '.join(blocked)}]"
                                         if blocked else "")}
+
+
+def plan_bindings(g: Graph, plan: tuple) -> tuple:
+    """A plan (a path of FRAMES) read back as `(function, {param: real node})` per step.
+
+    ⚠ Distinct from `plan_steps`, which takes a *result dict* and returns bare function names. Naming this
+    `plan_steps` too silently shadowed that one — which `../pystrider` calls — and every consumer of it
+    began receiving a frame path it could not read. Two readers of a plan at two levels of detail is fine;
+    two of them sharing a name is not.
+
+    ⚠ The first frame is the starting world, reached by nothing, so it contributes no step. Bindings point
+    at *mappings* rather than raw nodes — that indirection is what makes a plan replayable at all — so each
+    resolves back to the node it stands for, which is what any reader of a plan is actually asking about.
+
+    Lives here rather than in `query.py` because `driver` cannot import `query` (that way lies a cycle) and
+    both need it. One implementation, so a plan reads the same whether it came from a question or a goal."""
+    out = []
+    for frame in plan[1:]:
+        tr = g.target(frame, "via")
+        if tr is None:
+            continue
+        bound = {}
+        for b in g.targets(tr, "arg"):
+            m = g.target(b, "mapping")
+            bound[g.attr(b, "param")] = (W.resolve(g, m) or W.image_of(g, m)) if m else None
+        out.append((g.attr(tr, "function"), bound))
+    return tuple(out)
 
 
 def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused) -> dict:
@@ -626,4 +702,4 @@ def describe(g: Graph, result: dict) -> str:
 
 
 __all__ = ["proposals", "state_of", "establishes", "role_node", "relevance", "view_in",
-           "pursue", "carry_out", "plan_steps", "describe"]
+           "pursue", "carry_out", "plan_steps", "plan_bindings", "describe"]

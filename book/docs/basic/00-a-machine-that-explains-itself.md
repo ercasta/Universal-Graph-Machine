@@ -62,7 +62,15 @@ Three hypothetical situations considered, in total, to find a two-step plan. The
 machine wasn't grinding through every combination of crates and actions. It was
 working out which moves could possibly help, trying those first, and leaving the
 rest alone. Chapter 7 is about how — and about the honest measurement that the
-same search, run *without* that judgement, needs 87.
+same search, run *without* that judgement, takes 53 to 87.
+
+!!! note "Why that's a range, and this one isn't"
+    Run this again and you may see 2 rather than 3. When several moves look
+    equally good the machine takes whichever came to hand first, and that
+    ordering shifts between runs — so the *number of states considered* wobbles
+    a little. The **plan** doesn't: it's the same two steps every time. Numbers
+    in this book are real measurements, so where one varies, you'll see the
+    range.
 
 !!! note "The word 'imagined' is literal"
     The machine did not stack anything to find this plan. It made a private copy

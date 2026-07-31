@@ -3043,6 +3043,53 @@ def check_why_answers_from_history_and_never_invents_it():
             "SO_AN_UNKEPT_ANSWER_LEAVES_NONE": "because" not in unkept_why}
 
 
+def check_the_trace_is_an_observer_not_a_participant():
+    """⭐ The hook the live pages are built on. It reports what the search does; it must not change it.
+
+    ⚠ THE LOAD-BEARING KEY IS `identical_plan`. A watcher that perturbed the search would make every
+    animated explanation a description of a *different* run than the one a user gets untraced - the exact
+    failure this project keeps catching in other forms.
+
+    ⚠⚠ **The first version of this check compared IMAGINED-STEP COUNTS, and it was wrong — the search is
+    tie-break nondeterministic.** Two identical searches on fresh graphs, in one process, at a fixed hash
+    seed, imagine 2 or 3 states (measured: 17 and 23 out of 40). Node ids shift between runs, mapping
+    enumeration order follows, and the stable frontier sort then breaks ties differently. The PLAN is
+    invariant; the number of states considered on the way to it is not. So a step-count comparison was
+    reporting engine nondeterminism as a tracing defect - a check that fails for a true reason it does not
+    name is barely better than one that passes for a false one.
+
+    ⚠ `refuse` events matter most and are the easiest to omit: a pruned action leaves NO trace anywhere
+    afterwards, precisely because nothing happened. Without emitting it, "it never even considered painting"
+    is invisible - which is the single most interesting thing the search does."""
+    from . import driver as D, intake as I, thread as T
+    text = _lines("goal build a tower:", "    a on b", "    b on c", "    never paint")
+
+    def run(trace=None):
+        g, world = _blocks()
+        goal = I.read_goal(g, text)
+        r = D.pursue(g, goal, T.open_thread(g, "t"), world, trace=trace)
+        return [(f, tuple(sorted(b))) for f, b in D.plan_bindings(g, r["plan"])] if r["found"] else None
+
+    seen = []
+    watched = run(trace=seen.append)
+    quiet = run()
+    kinds = [e["kind"] for e in seen]
+    refused = [e for e in seen if e["kind"] == "refuse"]
+    found = [e for e in seen if e["kind"] == "found"]
+    return {"identical_plan": watched is not None and watched == quiet,
+            "it_opens_with_the_goal": kinds[0] == "goal",
+            "and_ends_with_the_verdict": kinds[-1] == "found",
+            "PRUNING_IS_VISIBLE": bool(refused),
+            "and_it_names_the_constraint": refused[0]["because"] == ["never paint"],
+            "the_forbidden_action_is_NEVER_imagined":
+                not any(e["kind"] == "imagine" and e["action"] == "paint" for e in seen),
+            "ranking_is_visible": {e["band"] for e in seen if e["kind"] == "consider"} != {0},
+            "the_plan_carries_labels_not_ids":
+                found[0]["plan"] == [("stack", {"b": "b", "onto": "c"}),
+                                     ("stack", {"b": "a", "onto": "b"})],
+            "an_untraced_search_still_finds_it": quiet is not None}
+
+
 # ⚠ THE ENTRY POINT MUST BE THE LAST THING IN THIS FILE. `_checks()` reads `globals()` at call time,
 # so any check defined BELOW this block is simply not executed - the count stays put and the report looks
 # healthy. That is the same false-green `_checks()` own docstring records, one level up, and it bit again
