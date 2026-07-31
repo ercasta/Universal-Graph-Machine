@@ -1751,11 +1751,12 @@ def check_planning_is_driven_by_the_open_constraints():
     open_now = G.unmet(g, goal, view=D.view_in(g, f0), under=W.image_of(g, W.mapping_for(g, f0, world)))
     scored = {D.relevance(g, n, bd, open_now) for n, bd in D.proposals(g, f0)}
 
-    guided = D.pursue(g, goal, T.open_thread(g), world)
+    guided = D.pursue(g, goal, T.open_thread(g), world, max_steps=5000)
     g2, world2 = _blocks()
     goal2, _ = _tower_goal(g2, world2)
-    blind = D.pursue(g2, goal2, T.open_thread(g2), world2,
-                     guided=False)                          # identical search, breadth-first, no guidance
+    blind = D.pursue(g2, goal2, T.open_thread(g2), world2, max_steps=5000,
+                     guided=False)      # identical search, breadth-first, no guidance — and given ample
+                                        # budget, so this measures the guidance rather than the cap
     every = D.proposals(g, f0)
     painting = [(n, bd) for n, bd in every if n == "paint"]
     return {"both_find_it": guided["found"] and blind["found"],
@@ -1984,6 +1985,204 @@ def check_an_unreachable_goal_is_an_ordinary_answer():
             "did_not_raise": True,
             "goal_left_open": not G.is_closed(g, impossible),
             "and_the_reachable_one_still_works": ok["found"]}
+
+
+# --- expectations: divergence the declared type cannot catch -------------------------------------------
+def _scanner_fs():
+    """A tool call whose mocks predict **concrete state**, not just a type.
+
+    ⚠ Both mocks return `listing`, which is exactly the point: reality *will* satisfy the declared return
+    type, so the cast check passes and only the concrete prediction can catch the disagreement."""
+    from . import asm, dispatch as D
+    g = new_graph()
+    declare_type(g, "dir", attrs={"kind_of": "dir"})
+    declare_type(g, "listing", base="dir", attrs={"listed": True})
+    asm.load_text(g, "\n".join([
+        "# Really list a directory. Reaches the world.",
+        "fn scan_dir(d: dir) -> listing:",
+        '    DISPATCH R(out) "ls" F(d)',
+        '    SET F(d) "listed" true',
+        "",
+        "# Assume it turns out to hold two files.",
+        "fn found_two(d: dir) -> listing mocks scan_dir:",
+        '    SET F(d) "listed" true',
+        '    NEW R(f1) "file"', '    LINK F(d) "file" R(f1)',
+        '    NEW R(f2) "file"', '    LINK F(d) "file" R(f2)',
+        "",
+        "# Assume it turns out empty.",
+        "fn found_none(d: dir) -> listing mocks scan_dir:",
+        '    SET F(d) "listed" true',
+        '    SET F(d) "count" 0',
+    ]))
+    d = g.mint("dir", kind_of="dir")
+    g.link("root", "has", d)
+    return g, d
+
+
+def check_an_expectation_is_derived_from_the_two_frames():
+    """⭐ Nothing is authored and nothing is stored — frame N−1 and frame N *are* the before and after, so
+    the expectation is their difference. Vacuity guard: it must name the minted files AND the attribute that
+    changed, and must NOT mention attributes the step left alone."""
+    from . import workbench as W
+    g, d = _scanner_fs()
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    f1, _tr = W.step(g, wb, f0, "scan_dir", {"d": W.mapping_for(g, f0, d)}, assume="found_two")
+    pred = W.predicted_changes(g, f0, f1)
+    changed = {key for _m, key, _v in pred["attrs"]}
+    return {"predicts_that_files_APPEAR": pred["minted"] == frozenset({"file"}),
+            "NOT_HOW_MANY": not isinstance(pred["minted"], dict),
+            "edges_are_presence_not_count":
+                [(lbl, p) for _m, lbl, p, _t in pred["links"]] == [("file", "some")],
+            "the_types_own_claim_is_left_to_the_cast": "listed" not in changed,
+            "nothing_it_did_not_touch": "count" not in changed}
+
+
+def check_a_prediction_that_does_not_materialise_is_a_divergence():
+    """⭐⭐ THE CASE THE DECLARED TYPE CANNOT CATCH. The plan assumed listing the directory would produce
+    two file nodes. Reality lists it and produces none — but the result still satisfies `listing`, so the
+    cast passes and only the concrete expectation notices.
+
+    Vacuity guards: the cast must genuinely pass (otherwise the type check is what caught it, not the
+    expectation); and the identical plan against a reality that DOES produce the files must complete."""
+    from . import dispatch as D, execution as X, workbench as W
+
+    def plan_assuming_two(g, d):
+        wb = W.open_workbench(g, d)
+        f0 = W.root_frame(g, wb)
+        f1, tr = W.step(g, wb, f0, "scan_dir", {"d": W.mapping_for(g, f0, d)}, assume="found_two")
+        return wb, f1, tr
+
+    g, d = _scanner_fs()
+    D.register("ls", lambda gr, target: gr.put(target, count=0))        # reality: nothing there
+    wb, f1, tr = plan_assuming_two(g, d)
+    diverged = X.execute(g, wb, f1)
+
+    g2, d2 = _scanner_fs()
+    def two_files(gr, target):                                          # reality: two files, as assumed
+        for _ in range(2):
+            gr.link(target, "file", gr.mint("file"))
+    D.register("ls", two_files)
+    wb2, f1b, _ = plan_assuming_two(g2, d2)
+    matched = X.execute(g2, wb2, f1b)
+
+    dev = diverged["deviation"] or {}
+    return {"diverged": not diverged["completed"],
+            "THE_CAST_ITSELF_PASSED": W.deviates(g, tr, d) == {},
+            "so_only_the_expectation_caught_it": "unmet_expectations" in dev,
+            "and_it_says_what_was_missing":
+                any("some new file node, found none" in m for m in dev.get("unmet_expectations", ())),
+            "names_the_step": dev.get("step") == "scan_dir",
+            "matching_reality_completes": matched["completed"]}
+
+
+def check_planning_looks_for_an_expectation_not_a_type_signature():
+    """⭐⭐ THE OTHER DIRECTION. A goal of "some file must exist" cannot be served by looking at signatures:
+    `scan_dir(d: dir) -> listing` mentions no file, and its *body* is a `DISPATCH` — everything interesting
+    happens on the far side of a tool call. The knowledge that listing a directory *produces files* lives in
+    the **mock**, which is the declared assumption about how the call turns out.
+
+    Vacuity guards: the real function's own body must establish nothing about files (so the mock is doing
+    the work); a function with no such mock must not be offered for it; and the search must actually plan
+    the call rather than merely score it."""
+    from . import driver as D, goal as G, thread as T
+    g, d = _scanner_fs()
+    declare_type(g, "file", attrs={"kind_of": None})
+    own, _u = D._effects(g, "scan_dir", include_mocks=False)
+    withmocks, _u2 = D.establishes(g, "scan_dir")
+
+    goal = G.open_goal(g, label="find a file")
+    G.require_type(g, goal, "file")                     # SOMETHING of this type — no subject named
+    result = D.pursue(g, goal, T.open_thread(g), d, max_steps=50)
+    return {"the_signature_mentions_no_file": fn_returns(g, "scan_dir") == "listing",
+            "and_its_own_body_establishes_none": not any(e[0] == "mint" for e in own),
+            "BUT_ITS_MOCK_PREDICTS_ONE": ("mint", "file", None, None) in withmocks,
+            "so_the_goal_finds_the_call": result["found"],
+            "and_plans_the_REAL_call": D.plan_steps(g, result) == ("scan_dir",),
+            "NOT_THE_MOCK": "found_two" not in D.plan_steps(g, result),
+            "in_one_step": result["steps"] == 1}
+
+
+def check_a_mock_is_never_proposed_as_an_action():
+    """⚠ A mock is an assumption about how a real call turns out, not something to do. Proposing one would
+    plan to *assume* rather than to act, and the plan would name a function that must never be executed for
+    real. `workbench.step` substitutes it when the real operator is stepped — that is where it belongs.
+
+    This was a live bug, invisible until a scenario had mocks: the first run of the check above planned
+    `found_two` instead of `scan_dir`. Vacuity guard: the mocks must genuinely be type-valid candidates
+    here, or excluding them proves nothing."""
+    from . import driver as D, function as fnm, workbench as W
+    g, d = _scanner_fs()
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    offered = {n for n, _b in D.proposals(g, f0)}
+    mocks = set(fnm.mocks_of(g, "scan_dir"))
+    return {"the_mocks_exist": mocks == {"found_two", "found_none"},
+            "and_would_otherwise_qualify":
+                all(fnm.param_types(g, m) == {"d": "dir"} for m in mocks),
+            "but_none_is_offered": offered & mocks == set(),
+            "the_real_operator_is": offered == {"scan_dir"}}
+
+
+def fn_returns(g, name):
+    from . import function as fnm
+    return fnm.returns_of(g, name)
+
+
+def check_a_different_number_of_files_is_not_a_divergence():
+    """⭐⭐ THE CORRECTION THAT MATTERS. A listing produces a *variable* number of files, so the `2` in the
+    mock is a **witness, not a promise**. Expecting exactly two would diverge on noise and make the whole
+    mechanism useless in practice. The expectation is existential: *some* file exists.
+
+    Vacuity guards: one file and five files must both complete (either side of the mock's two), and zero
+    must still diverge — otherwise the expectation would be vacuous rather than merely lenient."""
+    from . import dispatch as D, execution as X, workbench as W
+
+    def reality_with(n):
+        g, d = _scanner_fs()
+        def ls(gr, target):
+            for _ in range(n):
+                gr.link(target, "file", gr.mint("file"))
+        D.register("ls", ls)
+        wb = W.open_workbench(g, d)
+        f0 = W.root_frame(g, wb)
+        f1, _ = W.step(g, wb, f0, "scan_dir", {"d": W.mapping_for(g, f0, d)}, assume="found_two")
+        return X.execute(g, wb, f1)
+
+    return {"the_mock_predicted_two": True,
+            "one_file_is_fine": reality_with(1)["completed"],
+            "five_files_are_fine": reality_with(5)["completed"],
+            "but_none_still_diverges": not reality_with(0)["completed"]}
+
+
+def check_recovering_from_a_broken_prediction():
+    """⭐ The whole loop closing: an expectation-based divergence recovers through the ordinary contingency
+    machinery. The plan assumed two files; reality found none; the branch that assumed *none* was explored,
+    so execution continues down it.
+
+    ⚠ Vacuity guard that matters most: the sibling must be chosen because ITS predictions hold, not merely
+    because its declared type matches — both mocks return `listing`, so the type cannot be what selected it."""
+    from . import dispatch as D, execution as X, function as fnm, workbench as W
+    g, d = _scanner_fs()
+    fnm.define(g, "archive", ("x",), (), "Archive a listed directory.", None, {"x": "listing"}, "listing")
+    D.register("ls", lambda gr, target: gr.put(target, count=0))        # reality: empty
+
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    m0 = W.mapping_for(g, f0, d)
+    two, tr_two = W.step(g, wb, f0, "scan_dir", {"d": m0}, assume="found_two")
+    none, tr_none = W.fork(g, wb, f0, "scan_dir", {"d": m0}, assume="found_none")
+    W.step(g, wb, none, "archive", {"x": X._successor_in(g, m0, none)})
+
+    result = X.execute(g, wb, two)
+    rec = X.recover(g, result)
+    return {"diverged_on_a_prediction": "unmet_expectations" in (result["deviation"] or {}),
+            "BOTH_MOCKS_DECLARE_THE_SAME_TYPE":
+                g.attr(tr_two, "expects") == g.attr(tr_none, "expects") == "listing",
+            "recovered_by_contingency": rec["kind"] == "contingency",
+            "onto_the_branch_that_assumed_empty": rec.get("branch") == none,
+            "and_it_carried_on": rec.get("result", {}).get("ran") == ("scan_dir", "archive"),
+            "completed": rec.get("result", {}).get("completed", False)}
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@
 document in code. `ugm/` and `units/` stay as the findings they are — nothing deleted, and deletion is
 earned per item by the audit in `north_star.md` §6.
 
-`python -m microfunctions.selftest` — **78 checks, 0 errored.**
+`python -m microfunctions.selftest` — **111 checks, 0 errored.**
 
 | module | what it is |
 |---|---|
@@ -474,6 +474,36 @@ Deduping on the world alone would silently discard the finished route.
 **Distinct from `dispatch.forbid`**, which vetoes a *dispatch* at the world boundary at execution time.
 That is the last line of defence and cannot express "don't use this operator"; these shape what is ever
 proposed. Both layers, different jobs.
+
+## Expectations — what the type cannot catch
+
+A plan step predicts more than a type. `workbench.predicted_changes` **derives** that prediction from the
+two frames the workbench already holds — frame N−1 and frame N *are* the before and after — so nothing is
+authored and nothing is stored.
+
+```
+DIVERGED at scan_dir
+  it had assumed: scan_dir turns out listing
+  expected some 'file' edge, found none
+  expected some new file node, found none
+```
+
+**⚠ Qualitative, never quantitative.** A mock that mints two file nodes is giving a **witness, not a
+promise** — a listing produces a variable number, and diverging on three-instead-of-two is diverging on
+noise. The expectation is existential: *some* file exists. One file and five both complete; zero diverges.
+
+The division of labour: the **declared return type** carries the discriminating claim (empty vs non-empty)
+and is checked by the cast; the **derived expectation** carries the qualitative shape of the change. An
+expectation never re-checks what the type checks, so a failure is reported once.
+
+**⭐ The same knowledge drives planning.** `establishes` unions in each declared outcome's effects and reads
+`NEW` as a `mint`. `scan_dir(d: dir) -> listing` mentions no file and its body is just a `DISPATCH` — the
+fact that listing produces files lives in the **mock**. So a goal of "some file must exist" finds the call,
+which no parameter or return signature could express.
+
+⚠ **A mock is never proposed as an action.** It is an assumption about how a real call turns out, so
+planning one would plan to *assume* rather than to act, and name a function that must never really run.
+`workbench.step` substitutes it when the real operator is stepped.
 
 **⭐ The plan is FOUND, not built.** `execution.path_to(wb, winning_frame)` already *is* a plan: the frame
 tree records every imagined state and the transformation that reached it, so the path to the frame that

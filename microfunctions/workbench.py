@@ -286,6 +286,123 @@ def deviates(g: Graph, transformation: str, real_result) -> dict:
     return {} if expected is None else violations(g, real_result, expected)
 
 
+# --- expectations -----------------------------------------------------------------------------------
+def _newly_minted(g: Graph, frame: str) -> tuple:
+    """Mappings for nodes this step brought into existence — imagined, and with no predecessor."""
+    return tuple(m for m in mappings(g, frame)
+                 if is_imagined(g, m) and not g.sources(m, "next"))
+
+
+def _predecessor(g: Graph, mapping: str, prev_frame: str):
+    for src in g.sources(mapping, "next"):
+        if g.kind(src) == "mapping" and src in g.targets(prev_frame, "mapping"):
+            return src
+    return None
+
+
+def predicted_changes(g: Graph, prev_frame: str, frame: str) -> dict:
+    """⭐ What the imagined step said would happen — **derived from the two frames, never recorded.**
+
+    The declared return type (`deviates`) is a good check and a narrow one: it asks whether *one* node
+    satisfies *one* schema. It cannot express "the file listing will materialise three file nodes", which
+    is exactly the sort of thing a tool call predicts and exactly where reality disagrees.
+
+    The workbench has already imagined the answer. Frame N−1 and frame N *are* the before and after, so the
+    expectation is their difference and there is nothing to author, nothing to store, and nothing that can
+    fall out of step with the plan. Recording expectation nodes was the obvious alternative and would have
+    been a labelling error — asserting what the structure already entails — as well as costing a node per
+    imagined step, of which the driver makes hundreds.
+
+    **⚠ Only what CHANGED, which is what keeps this from being a whole-subgraph diff.** That comparison was
+    rejected early for good reason: irrelevant differences swamp the real ones. A changed attribute is by
+    definition something the step did, so the difference is already the tight set.
+
+    **⭐⭐ QUALITATIVE, NEVER QUANTITATIVE — the correction that matters most here.** The first version of
+    this compared magnitudes: the mock minted two file nodes, so it expected exactly two. That is wrong, and
+    wrong in a way that would have made the mechanism useless in practice: listing a directory produces a
+    *variable* number of files, and a plan that diverges because three arrived instead of two is diverging
+    on noise. **The number in a mock is a witness, not a promise.**
+
+    So the division of labour, which was already implicit and is now explicit:
+
+    * **The declared return type carries the discriminating claim** — empty versus non-empty, serviced
+      versus not. That is what a mock *is*: an outcome named by its return type. Checked by the cast
+      (`deviates`), and deliberately **not re-checked here**, so a failure is reported once, in the place
+      that owns it.
+    * **The derived expectation carries the qualitative shape of the change** — files appeared, the
+      directory got marked, an edge was added. Direction, presence, absence. Never how many.
+
+    A magnitude that genuinely matters belongs in a type (`{"count": 0}`) or in a goal constraint, both of
+    which say so on purpose rather than by accident of how a mock was written."""
+    from .types import attrs_of
+    tr = g.target(frame, "via")
+    settled = set(attrs_of(g, g.attr(tr, "expects"))) if tr is not None else set()
+
+    attrs, links, minted = [], [], set()
+    for m in _newly_minted(g, frame):
+        minted.add(g.kind(image_of(g, m)))          # WHICH KINDS appeared, not how many
+
+    for m in mappings(g, frame):
+        prev_m = _predecessor(g, m, prev_frame)
+        if prev_m is None:
+            continue
+        was, now = image_of(g, prev_m), image_of(g, m)
+        keys = set(g.attrs.get(was, {})) | set(g.attrs.get(now, {}))
+        for key in sorted(keys - {"kind"} - settled):    # `settled` is the cast's business, not ours
+            if g.attr(was, key) != g.attr(now, key):
+                # A boolean or a clearing is qualitative and kept exact; any other value is an
+                # illustration, so only the fact that it was written is expected.
+                want = g.attr(now, key)
+                exact = isinstance(want, bool) or want is None
+                attrs.append((m, key, want if exact else "<set>"))
+        for label in sorted(set(g.labels(was)) | set(g.labels(now))):
+            before, after = g.count(was, label), g.count(now, label)
+            if before == after:
+                continue
+            # Name the real target when there is one; an imagined target can only be expected to *appear*,
+            # because it does not exist yet and what stands for it is decided at execution time.
+            target = None
+            for t in g.targets(now, label):
+                tm = next((x for x in g.sources(t, "image")
+                           if g.kind(x) == "mapping" and x in g.targets(frame, "mapping")), None)
+                if tm is not None and resolve(g, tm) is not None:
+                    target = resolve(g, tm)
+            links.append((m, label, "some" if after else "none", target))
+    return {"attrs": tuple(attrs), "links": tuple(links), "minted": frozenset(minted)}
+
+
+def unmet_expectations(g: Graph, prediction: dict, bound: dict, minted: list) -> tuple:
+    """Which of the imagined step's predictions reality did not deliver. Empty means it went as planned.
+
+    Each is an existential constraint — *some* file exists, the directory *was* marked — never a count.
+    `bound` maps a mapping to the real node standing for it; `minted` is what the real call created."""
+    missed = []
+    for m, key, want in prediction["attrs"]:
+        node = bound.get(m)
+        if node is None:
+            continue                            # nothing real stands for it; not an expectation failure
+        got = g.attr(node, key)
+        if want == "<set>":
+            if got is None:
+                missed.append(f"expected {key!r} to be set, but it was not")
+        elif got != want:
+            missed.append(f"expected {key}={want!r} but found {got!r}")
+    for m, label, presence, target in prediction["links"]:
+        node = bound.get(m)
+        if node is None:
+            continue
+        if target is not None and target not in g.targets(node, label):
+            missed.append(f"expected a {label!r} edge to {target}")
+        elif target is None and presence == "some" and g.count(node, label) == 0:
+            missed.append(f"expected some {label!r} edge, found none")
+        elif presence == "none" and g.count(node, label):
+            missed.append(f"expected no {label!r} edge, found {g.count(node, label)}")
+    kinds = {g.kind(n) for n in minted}
+    for kind in sorted(prediction["minted"] - kinds):
+        missed.append(f"expected some new {kind} node, found none")
+    return tuple(missed)
+
+
 def assumption_of(g: Graph, transformation: str):
     """The hypothesis this step took on faith, or `None` if it assumed nothing."""
     return g.target(transformation, "assumes")
@@ -302,5 +419,6 @@ def fragile_steps(g: Graph, wb: str) -> tuple:
     return tuple(out)
 
 
-__all__ = ["deviates", "assumption_of", "fragile_steps", "reachable", "open_workbench", "root_frame", "mappings", "mapping_for",
+__all__ = ["deviates", "predicted_changes", "unmet_expectations",
+           "assumption_of", "fragile_steps", "reachable", "open_workbench", "root_frame", "mappings", "mapping_for",
            "image_of", "resolve", "is_imagined", "frames", "history", "step", "fork", "discard"]

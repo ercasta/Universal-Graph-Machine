@@ -162,14 +162,26 @@ def _replay(g: Graph, frames: tuple, bound: dict, notes: list, ran: list):
         result = out.get("result") or args.get(fn.load(g, name)[0][0])
         ran.append(name)
 
+        assumed = (g.attr(g.target(tr, "assumes"), "label")
+                   if g.target(tr, "assumes") else None)
+
         violations = W.deviates(g, tr, result)
         if violations:
             return {"step": name, "frame": frame, "transformation": tr, "result": result,
                     "minted": tuple(minted), "expected": g.attr(tr, "expects"), "violations": violations,
-                    "assumed": g.attr(g.target(tr, "assumes"), "label")
-                               if g.target(tr, "assumes") else None}
+                    "assumed": assumed}
 
         _settle(g, tr, frame, result, minted, bound, notes)
+
+        # ⭐ THE SECOND, WIDER CHECK. The cast above asks whether one node satisfies one schema; this asks
+        # whether the concrete things the step predicted actually happened — the file nodes materialised,
+        # the count came back zero, the edge appeared. Checked AFTER `_settle` because binding what the
+        # real call minted is what makes an imagined node addressable at all.
+        missed = W.unmet_expectations(g, W.predicted_changes(g, prev, frame), bound, minted)
+        if missed:
+            return {"step": name, "frame": frame, "transformation": tr, "result": result,
+                    "minted": tuple(minted), "expected": g.attr(tr, "expects"),
+                    "unmet_expectations": missed, "assumed": assumed}
     return None
 
 
@@ -210,7 +222,7 @@ def alternatives(g: Graph, wb: str, transformation: str) -> tuple:
 
 
 # --- recovery ---------------------------------------------------------------------------------------
-def matching_alternative(g: Graph, wb: str, deviation: dict):
+def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None = None):
     """The explored branch that assumed **what reality actually did**, or `None`.
 
     This is the whole payoff of forking deliberately: the test is the same `deviates` used to detect the
@@ -226,8 +238,23 @@ def matching_alternative(g: Graph, wb: str, deviation: dict):
         tr = g.target(sib, "via")
         if tr is None or g.attr(tr, "function") != deviation["step"]:
             continue
-        if not W.deviates(g, tr, deviation["result"]):
-            return sib
+        if W.deviates(g, tr, deviation["result"]):
+            continue
+        # ⚠ A sibling must survive the SAME questions the failed branch did. When the divergence was a
+        # broken prediction rather than a failed cast, matching the declared type is not enough — this
+        # branch predicted concrete things too, and offering it without checking them would swap one wrong
+        # assumption for another. Its bindings are carried from the shared parent, as `resume` does.
+        if "unmet_expectations" in deviation and result is not None:
+            parent = _parent_of(g, wb, sib)
+            if parent is None:
+                continue
+            bound = dict(result["bindings"])
+            _carry(g, parent, sib, bound)
+            _settle(g, tr, sib, deviation["result"], list(deviation["minted"]), bound, [])
+            if W.unmet_expectations(g, W.predicted_changes(g, parent, sib),
+                                    bound, list(deviation["minted"])):
+                continue
+        return sib
     return None
 
 
@@ -243,7 +270,7 @@ def resume(g: Graph, result: dict, *, branch=None, leaf=None):
     `leaf` chooses among several ends below the branch; the default takes the first, matching the planner's
     first-solution-wins discipline rather than pretending to arbitrate."""
     wb, dev = result["workbench"], result["deviation"]
-    branch = branch if branch is not None else matching_alternative(g, wb, dev)
+    branch = branch if branch is not None else matching_alternative(g, wb, dev, result)
     if branch is None:
         return None
     parent = _parent_of(g, wb, branch)
@@ -313,6 +340,8 @@ def report(g: Graph, result: dict) -> str:
             lines.append(f"  it had assumed: {dev['assumed']}")
         if dev.get("violations"):
             lines.append(f"  expected {dev['expected']}, but: {dev['violations']}")
+        for missed in dev.get("unmet_expectations", ()):
+            lines.append(f"  {missed}")
         if dev.get("why"):
             lines.append(f"  {dev['why']}")
     lines.extend(f"  note: {n}" for n in result["notes"])

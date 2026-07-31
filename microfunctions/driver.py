@@ -58,6 +58,13 @@ def proposals(g: Graph, frame: str) -> tuple:
     here = W.mappings(g, frame)
     out = []
     for name in fn.names(g):
+        # ⚠ A MOCK IS NOT AN ACTION. It is an assumption about how a real call turns out, so proposing one
+        # would be planning to *assume* something rather than to do it — and the resulting "plan" would name
+        # a function that must never be executed for real. `workbench.step` substitutes the mock when the
+        # real operator is stepped, which is where that belongs. Invisible in a library without mocks,
+        # which is exactly why it went unnoticed until a scenario had one.
+        if fn.mocks_target(g, name) is not None:
+            continue
         params, _ = fn.load(g, name)
         ptypes = fn.param_types(g, name)
         if not params or any(p not in ptypes for p in params):
@@ -107,10 +114,25 @@ def establishes(g: Graph, name: str) -> tuple:
     blocks — and the ranking degrades to little better than blind. Roles are read from the operands, so this
     costs nothing extra.
 
+    **⭐⭐ A function's effects INCLUDE ITS MOCKS', and that is what makes planning look at expectations
+    rather than at type signatures.** `scan_dir`'s own body is a `DISPATCH` and a `SET` — statically it
+    establishes almost nothing, because everything interesting happens on the other side of a tool call. The
+    knowledge that listing a directory *produces file nodes* is not in the signature and not in the body: it
+    is in the **mock**, which is precisely the declared assumption about how the call turns out.
+
+    So the effects of an operator are the union of what its body writes and what each of its assumed
+    outcomes writes. That is the same thing `workbench.predicted_changes` derives at planning time, reached
+    statically here — and it is what lets a goal of "some file exists" find `scan_dir` at all. Without it,
+    an opaque tool call is maximally relevant to everything and informative about nothing.
+
     ⚠ **Conservative on purpose.** If a label or key comes from a register, or the body calls out to
     another function, we cannot tell statically — so `unknown` is returned and the caller must treat the
     function as potentially relevant. This orders candidates; it never rules one out. An over-approximation
     that loses no solutions is the only kind safe to use here."""
+    return _effects(g, name, include_mocks=True)
+
+
+def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
     params, program = fn.load(g, name)
 
     def role(operand):
@@ -131,8 +153,19 @@ def establishes(g: Graph, name: str) -> tuple:
                 unknown = True
         elif ins.op == "SET":
             effects.add(("attr", arg, role(a[0]), None)) if isinstance(arg, str) else (unknown := True)
+        elif ins.op == "NEW":
+            # ⭐ Bringing something into existence is an effect too — the one a goal like "some file
+            # exists" is looking for, and the one a type signature cannot express.
+            effects.add(("mint", a[1], None, None)) if len(a) > 1 and isinstance(a[1], str) \
+                else (unknown := True)
         elif ins.op in ("INVOKE", "CALL", "DISPATCH"):
             unknown = True                                  # the effect happens somewhere else
+
+    if include_mocks:
+        for outcome in fn.mocks_of(g, name):                # depth 1: a mock has no mocks of its own
+            more, more_unknown = _effects(g, outcome, include_mocks=False)
+            effects |= more
+            unknown = unknown or more_unknown
     return frozenset(effects), unknown
 
 
@@ -162,6 +195,13 @@ def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
         sort = g.attr(c, "sort")
         want_label = g.attr(c, "label") if sort == "link" else g.attr(c, "key")
         kind = {"link": "link", "attr": "attr"}.get(sort)
+        # ⭐ "SOMETHING of this type must exist" is answered by an operator that MINTS one — the existential
+        # case, which no parameter or return signature could express, and which is only visible because
+        # `establishes` reads the mocks. Purely additive: type constraints stay conservatively matched
+        # below, so no proposal can score lower than it did before.
+        if sort == "type" and g.target(c, "subject") is None and \
+                any(e[0] == "mint" and e[1] == g.attr(c, "type") for e in effects):
+            best = max(best, 4)
         matching = [e for e in effects if kind is None or (e[0] == kind and e[1] == want_label)]
         if not matching and not unknown:
             continue                                        # cannot touch this constraint at all

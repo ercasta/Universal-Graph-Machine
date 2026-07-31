@@ -7,7 +7,7 @@ loop. `ugm/` and `units/` are untouched — nothing was deleted.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 105 checks, 0 errored
+python -m microfunctions.selftest      # 111 checks, 0 errored
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -298,6 +298,40 @@ cannot express "don't use this operator". Different layers; both wanted.
 Checked: forbidding `unstack` turns Sussman's anomaly from solvable into honestly-unsolvable, and the banned
 operator is *never once imagined*; forbidding a node keeps it untouched; a required action appears in a plan
 that has no other reason to contain it; a step limit refuses at 2 and succeeds at 3.
+
+## 5f. Expectations — divergence the declared type cannot catch (2026-07-31)
+
+`workbench.predicted_changes` / `unmet_expectations`, checked by `execution._replay`. 6 checks (105 → 111).
+
+**⭐ Derived from the two frames, never authored and never stored.** The workbench already imagined the
+outcome, so frame N−1 and frame N *are* the before and after: the expectation is their difference. Storing
+expectation nodes was the obvious alternative and would have been a labelling error, plus a node per
+imagined step, of which the driver makes hundreds.
+
+**⭐⭐ QUALITATIVE, NEVER QUANTITATIVE — the correction that matters most.** The first version compared
+magnitudes: the mock minted two file nodes, so it expected two. That is useless in practice, because a
+listing produces a *variable* number and a plan diverging on three-instead-of-two is diverging on noise.
+**The number in a mock is a witness, not a promise.** The expectation is existential — *some* file exists.
+Checked: one file and five both complete; zero still diverges.
+
+The division of labour, now explicit:
+
+- **the declared return type carries the discriminating claim** (empty vs non-empty) — checked by the cast,
+  and deliberately *not* re-checked as an expectation, so a failure is reported once where it belongs;
+- **the derived expectation carries the qualitative shape** (files appeared, the directory got marked).
+
+**⭐⭐ The same knowledge drives PLANNING, and it comes from the mocks.** `establishes` now unions in each
+declared outcome's effects, and records `NEW` as a `mint` effect. `scan_dir(d: dir) -> listing` mentions no
+file and its body is a `DISPATCH`; the fact that listing produces files lives in the **mock**, which is the
+declared assumption. So a goal of "some file must exist" finds the call — something no parameter or return
+signature could express. Recovery through the ordinary contingency machinery works on these too, and
+`matching_alternative` now judges a sibling by *its own* expectations, not merely its type.
+
+**⚠ A LIVE BUG this surfaced: mocks were being proposed as actions.** A mock is an assumption about how a
+real call turns out, not something to do — the first run planned `found_two` instead of `scan_dir`, i.e. a
+plan naming a function that must never be executed for real. Invisible in a library without mocks, which is
+why blocks-world never showed it. Fixed in `driver.proposals`; `workbench.step` substitutes the mock when
+the real operator is stepped, which is where that belongs.
 
 ## 5. What to do next
 
