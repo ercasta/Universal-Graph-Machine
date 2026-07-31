@@ -63,12 +63,6 @@ extra_css:
 extra_javascript:
   - javascripts/playground.js
 
-# The four playground pages still run the OLD engine (a Pyodide `ugm` wheel driving a
-# trace API `microfunctions` does not emit). They are excluded until they are rebuilt on
-# the planning loop; the files are kept so that rebuild starts from them rather than blank.
-exclude_docs: |
-  playground/
-
 nav:
   - Home: index.md
   - "Part 1 — Basic":
@@ -95,4 +89,8 @@ nav:
       - "17 · Types as shapes": deep/17-types-as-shapes.md
       - "18 · Reading a rule": deep/18-reading-a-rule.md
       - "19 · Concluding versus acting": deep/19-concluding-vs-acting.md
+  - "Playground":
+      - "Watch it plan": playground/tower.md
+      - "Ask it something": playground/asking.md
+      - "Make it check itself": playground/selftest.md
   - "Appendix — concepts": appendix/index.md

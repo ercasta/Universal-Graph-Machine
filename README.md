@@ -1,491 +1,302 @@
 # UGM — Universal Graph Machine
 
-**A substrate for performing computation over graphs.**
-
-> 📘 **New here? Start with the [illustrated tutorial →](https://ercasta.github.io/Universal-Graph-Machine/)** — a plain-language, mobile-friendly book that teaches the machine from scratch, with **live examples you can run in your browser**. No background needed. (The rest of this README is the technical overview.)
-
-UGM doesn't *break* the wall between (controlled) language and computation — it **dissolves**
-it. Parsing, reasoning, and explanation are one process (graph rewriting over one substrate),
-so language isn't a layer bolted onto an engine — it's made of the same thing. ([see how](#the-cnl-layer-ugmcnl))
-
-UGM is a self-contained Python library: a label-less attribute graph substrate, a
-declarative instruction set architecture (ISA) for graph computation, a demand-driven
-reasoning **firmware** on top, and an optional Controlled Natural Language (CNL) surface
-for authoring and rendering. The core is pure symbolic graph computation — no neural nets,
-no LLMs, no external solvers (the graded layer is *sparse named* attributes in `[0,1]`, not
-dense/neural embeddings).
-
-New here? Start at **`docs/README.md`** (the doc index), read **`docs/architecture.md`** for the
-layering, then the **`docs/engine_user_guide.md`** (build on UGM) or
-**`docs/engine_developer_guide.md`** (extend/fork it).
-
----
-
-## Core idea
-
-The whole system is one idea applied without exception: **everything is in the graph**.
-Knowledge, rules, goals, the control flow of computation, and the source language are
-all nodes in the same graph. Computation is rewriting that graph.
-
-**Edges are typeless.** An edge is a bare, untyped connection between two nodes. All
-meaning lives in nodes. Where other systems write a typed relation, UGM writes a *node*
-bearing that word, wired to its arguments by plain edges:
-
-```
-paul ── is_a ── person          (three nodes; two untyped edges)
-```
-
-`is_a` is not an edge type. It is an ordinary node, matchable and rewritable like any
-other. A **relation** is always a node — never an edge label.
-
-**Nodes carry attributes.** A node holds a bundle of `(key, value, comparator)`
-attributes: crisp symbolic facts (`person: 1`), graded characters (`urgent: 0.9`), and
-scalar valued attributes (`name = "Paul"`, `age = 42`). Reasoning happens on attributes;
-opaque blobs stay as nodes for tools to open.
-
-**Fact and control are segregated.** `<angle-bracket>` nodes are control tokens —
-working state the engine creates and destroys. Ordinary nodes are the persistent fact
-layer. A rule that creates a control token leaves facts untouched; teardown is DROP_CTRL,
-never fact deletion. The fact layer is **monotone**: nothing is ever deleted from it.
-
-**Matching is set-at-a-time, not single-token.** A program doesn't walk the graph one
-value at a time and loop where it needs to branch; each step runs over a whole *set* of
-in-flight candidate matches at once, and an instruction that has multiple valid
-continuations (e.g. a node with several outgoing edges) expands that set — one candidate
-in, several out — for free. There is no separate loop construct for "for each match": it
-falls out of every step operating on a set instead of a single candidate. This isn't
-primarily a performance trick: a rule's meaning IS "every binding that satisfies the
-body," so enumerating the full set is what correct matching means, independent of speed —
-and it does so without mutating anything mid-search (no backtrack-and-undo), which is
-what lets semi-naive fixpoint iteration, demand-driven CHAIN, and per-derivation RECORD
-provenance all build on it directly. That every candidate in the set is independent does
-make the fold embarrassingly parallel, but parallel execution is deliberately kept a
-semantics-invisible *accelerator*, never a semantics of its own (`processing_modes.md`
-§6's forbidden-concurrent-actors line). See below.
-
----
-
-## Architecture — the layers
-
-UGM is built in layers, from the most **generic** (knows no domain, takes no position) to the
-most **opinionated** (a reasoning stance). The bottom layers are reusable by any firmware; the
-opinions live at the top, as data — so you can swap the reasoning firmware without forking the
-engine.
-
-```
-  CNL surface     forms · load_corpus · ask_goal · render
-  ─────────────────────────────────────────────────────────────────────────
-  STANCE          FirmwarePolicy (CWA/OWA default, on_cycle)     ← opinion, as DATA
-  FIRMWARE        CHAIN · CHECK · CHOOSE · SUPPOSE · mode-calls   ← the reasoning "psychology"
-  reified rules   write_rule · head index                        ← homoiconic: rules are graph too
-  TOOLS (§8)      <call> nodes · Tool registry · service_calls    ← generic calculator boundary
-  ENGINE (ISA)    Machine (data path) · ControlMachine (control path) · run_bank   ← the stupid scheduler
-  SUBSTRATE       AttrGraph (label-less attribute graph)          ← one kind of thing: a node
-```
-
-Everything below the STANCE line is generic and reused unchanged by any firmware; a different
-reasoning firmware is a bank-and-policy swap, not an engine fork. Full detail —
-**`docs/architecture.md`**. The opcode set and processing modes below are the ENGINE and
-FIRMWARE rows expanded.
-
----
-
-## The ISA — the opcode set
-
-Every rule and mode compiles down to a small, closed instruction set: a WAM-style register
-machine over the label-less attribute substrate (`ugm/machine.py`). Like any register machine
-it has a register file — but a register here is not a scalar or a memory cell, it is a
-**pointer to a node in the graph**: `State.regs` is a `name -> node identity` map, and every
-opcode either binds a register to a node (SEED/FOLLOW/MINT/...), reads the node a register
-already points to (TEST/EMIT/...), or compares two registers for pointer equality (SAME). The
-graph *is* the machine's addressable memory; there is no separate data space. A program is
-always **match-then-apply** — matching opcodes (purely positive, non-mutating) followed by
-effect opcodes (mutating); a matching opcode after an effect opcode is a `ProgramError`.
-
-One more thing the register-file framing can obscure: `State` is a *single* binding, but
-the interpreter never runs just one `State` through a program — it runs a **list** of
-them, threaded through instruction-by-instruction, where a match opcode maps one input
-state to zero-or-more output states (e.g. `FOLLOW` yields one state per matching edge).
-So a register is single-valued *within one state*, but a program step routinely turns one
-state into many. There's a full worked example after the opcode table.
-
-| Opcode | Phase | What it does |
-|--------|-------|--------------|
-| **SEED** | match | bind a register to every node carrying a key (the rarest anchor); optional valued filter |
-| **FUZZY** | match | graded SEED: bind to every node whose key's degree clears a threshold, scaling `score` |
-| **FOLLOW** | match | pointer-register cursor: bind to an out/in-neighbour across a bare edge |
-| **TEST** | match | crisp filter on an already-bound register (key presence, optional valued comparison) |
-| **JOIN** | match | sugar for FOLLOW + TEST in one step |
-| **GRADE** | match | filter a bound register on a graded (α-cut, scales `score`) or valued attribute |
-| **SET** | match | bind a register directly to a known ground identity |
-| **DUP** | match | copy one register into another |
-| **SAME** | match | keep the state iff two registers are bound to the same node (join consistency) |
-| **VMATCH** | match | keep the state iff two bound registers carry matching values on a key (value-join across distinct nodes) |
-| **ITERATE** | match | bounded loop: fork the state stream over a range, binding a register counter (the bulk/REP convenience) |
-| **MINT** | effect | create a fresh node (Skolem / reified relation / chunk head), write attrs, wire edges |
-| **EMIT** | effect | assert a fact attribute on a bound node (graded: monotone raise; valued: set) |
-| **DROP_CTRL** | effect | delete a bare edge — refuses and raises if the edge is a FACT edge |
-| **INTERPOSE** | effect | reversibly hide an edge by splicing in a control marker (the sole *reasoning-reachable* fact-edge mutation) |
-| **RESTORE** | effect | the exact inverse of INTERPOSE |
-| **RETIRE** | effect | privileged real deletion of a reified relation — the retraction mechanism; **not** in the rule-lowering vocabulary |
-
-There is no NAC/`CHECK-ABSENT` opcode — the matching core is purely positive. Negation is
-not an ISA primitive but a FIRMWARE decision: in the forward driver a rule's NAC is a
-match-time filter, and in the demand-driven firmware a `not L` clause is resolved on demand by
-stratified **negation-as-failure** — `chain_sip` demands the positive to closure and reads
-absence, never an exhaustive-search opcode (`docs/attic/demand_driven_negation_design.md`). Nothing
-is materialized or retracted for a negation. No opcode *reachable from rule lowering* deletes or
-lowers a fact — that invariant is a property of the opcode set, not a lint pass. The one real
-fact-deletion opcode, `RETIRE`, is **privileged**: the rule→program lowering never emits it; only
-the retraction/GC policy driver assembles a program containing it, so monotonicity is a policy
-imposed *between* passes, never something ordinary reasoning can express.
-
-### The control path — control flow as instructions
-
-The opcodes above are the machine's **data path**: they run a rule as one straight-line *basic
-block* — match-then-apply, executed once. That leaves a gap the engine used to fill with Python:
-a rule body is a basic block, but the *control flow around it* — looping a fixpoint to quiescence,
-descending into a subgoal, waiting on a tool — lived in Python driver functions, outside the
-machine. UGM closes that gap with a **control path**: a program counter over a program of labeled
-basic blocks, plus explicit control-transfer instructions, so control flow composes as instructions
-the same way data flow does (`ugm/machine.py`'s `ControlMachine`).
-
-| Instruction | What it does |
-|-------------|--------------|
-| **BRANCH / BRANCH_IF** | jump / conditional jump — a loop is a branch *back* over a basic block |
-| **CALL / RET** | call a subroutine / return; a control **stack** carries subgoals to arbitrary depth |
-| **SUSPEND / RESUME** | capture the whole control state as a resumable *continuation* — for a tool call or a wait |
-| **SETI / DEC** | scalar control-register ops (loop counters), distinct from the per-state register file |
-| **PRIM** | run one step of an upper-level interpreter (the demand solver, a fixpoint round) under machine control |
-
-So the engine's own procedures are now programs on this machine, not Python:
-
-- a **bounded loop** is `SETI i,N; L: <body>; DEC i; BRANCH_IF i>0,L` — the bulk `ITERATE` opcode
-  decomposed into primitives (kept as a convenience for the data-parallel common case);
-- a **subgoal** is a `CALL`, so the demand solver's negation-as-failure descent runs on an explicit
-  control stack, not Python recursion — it closes a 600-deep stratified query with the interpreter's
-  recursion limit turned down to 200;
-- the **forward fixpoint** (`run_bank`) is a `PRIM` round with a branch-back over a "changed?" flag;
-- a **tool call** is inline when synchronous and `SUSPEND`/`RESUME` when it must wait on the outside
-  world (an async tool, a user prompt): the machine yields a continuation, the host answers, and it
-  resumes exactly where it paused.
-
-There is no backtracking and no reverse execution — reasoning is monotone and set-at-a-time, so the
-control plane is **forward-only**; "backward" (demand-driven) reasoning is itself a *program* on the
-forward plane (a tabled solver that `CALL`s subgoals), not a second engine. The instruction set is
-the stable contract and the interpreter is swappable — a compiled backend can replace the reference
-Python one without touching semantics. Full detail: `docs/attic/isa_control_machine.md` and
-`docs/reference/isa_reference.md`.
-
-## Processing modes — nine KB-level operations built on the ISA
-
-Rules, goals, and control flow lower to opcode programs; on top of that substrate UGM
-exposes a closed inventory of nine composed computation modes, each corresponding to a
-recognisable step in deliberate reasoning:
-
-| Mode | What it computes | Analogue |
-|------|-----------------|----------|
-| **SATURATE** | forward closure within a demand scope | automatic association |
-| **ITERATE** | cursor over a reified collection | walking a list |
-| **CHAIN** | demand-driven rule application | deliberate inference |
-| **CHECK** | bounded completion with CWA verdict | looking and possibly not finding |
-| **CHOOSE** | graded α-cut selection over candidates | comparing and picking |
-| **SUPPOSE** | pencil/ink hypothesis scope | "what if" reasoning |
-| **WALK** | fueled variable-length traversal | scouting at distance |
-| **CALL** | reified tool calls folded back | using a calculator |
-| **RECORD** | provenance journaling woven through every mode | remembering what you did |
-
-Every computation the system performs is one of these, or a KB-authored composition of
-them (a *procedure*). There are no other moving parts.
-
-> **Note (WALK).** WALK's standalone fuelled-traversal implementation was retired as
-> superseded: long-range reachability over a declared-transitive relation is now handled by
-> demand-driven CHAIN (fuel-bounded), so the current firmware realizes the other eight modes
-> directly. WALK is kept as a design mode in `processing_modes.md`; a dedicated walker would be
-> re-added only if a workload needs traversal that CHAIN over declared transitivity can't
-> express.
-
-**SATURATE / CHAIN** are the forward and backward engines respectively. Rules are
-reified as graph structure (a `<rule>` node with `rl_lhs`, `rl_rhs` relations). SATURATE
-walks the rule body forward, emitting derivations into the graph; CHAIN pulls the same
-reified rules backward from a demand (magic-sets), so it never over-derives.
-
-**CHECK** answers a yes/no/unknown question with four statuses: `POSITIVE` (proved),
-`ENTAILED_NEG` (negation proved), `ASSUMED_NO` (CWA: no evidence), `UNKNOWN` (open
-world). This closed-vs-open reading of absence is the firmware **stance**, carried as
-declared data on a `FirmwarePolicy` (`ugm/policy.py`), not baked into the engine.
-**CWA is the shipped default**: an underivable goal is a defeasible `no`. **OWA is opt-in**
-— per predicate (`FirmwarePolicy(open_preds=…)`) or as the default (`negation_default="open"`)
-— for concepts where absence should not be taken as false ("no sighting" ≠ "no mice"), so the
-verdict stays `UNKNOWN` and defers to evidence-gathering. A different firmware activates a
-different stance by swapping the policy object.
-
-**CHOOSE** selects the best option from a candidate set using graded α-cut: an option
-wins if it satisfies the goal at a level no other option does. Ties are retained.
-Graded attributes (`urgent: 0.9`) feed directly into the selection.
-
-**SUPPOSE** enables safe hypothesis reasoning via a pencil/ink split. Assumed facts are
-written as control-scoped (`pencil`) nodes; derivations run inside the scope. On
-confirmation the assumptions are committed to the fact layer (`ink`); on refutation the
-entire scope is dropped. The fact layer is never tentatively modified.
-
-**ITERATE** walks a reified collection one member at a time via a `<current>` cursor
-token advancing a `next`-chain — the domino/forall pattern. There is no hidden Python
-`for` loop or recursion: the list is graph structure, and stepping the cursor is the
-only iteration primitive. Counting/totaling over the walked members is delegated to CALL,
-keeping the rule layer itself arithmetic-free.
-
-**CALL** folds tool use back into the graph: a reified `<call>` node holds argument
-slots, is serviced at fixpoint by the tool registry (arithmetic, aggregation, temporal,
-external solvers, an SLM), and its result is written back as an ordinary fact. This is
-the generic calculator boundary (`§8` in the architecture diagram) — arithmetic and
-aggregation are never smuggled in as hidden rule-layer helpers.
-
-**RECORD** is provenance journaling woven through every other mode, not a bolt-on debug
-flag: every MINT/EMIT carries a `<j:…>` journal entry recording which rule fired, over
-which bindings, from which facts. It is free (no fuel cost) and mandatory. Explanations
-(`why …`) are a replay of this journal rendered back to CNL, not post-hoc template text
-— in the Horn fragment the journal *is* the proof object.
-
----
-
-## The CNL layer (`ugm.cnl`)
-
-The `ugm.cnl` subpackage provides a Controlled Natural Language surface over the ISA.
-Rules and facts are authored as plain English-like text files:
-
-```
-alice wants vanilla
-vanilla is in_stock
-alice gets vanilla when alice wants vanilla and vanilla is in_stock
-```
-
-CNL is parsed into graph structure by `load_facts` / `load_rules`, which run the ISA
-forward engine over the form-recognition grammar. There is no separate parser; parsing
-IS graph rewriting. Explanations render back to CNL via `explain(graph, fact_id)`.
-
-**There is no wall between language and computation — it isn't broken, it's dissolved.**
-Parsing and reasoning are *both* graph rewriting: each lowers to the same opcode ISA over
-the same label-less graph, so there is no AST handed from a parser to a distinct engine.
-They differ only in *driver* — recognition is a whole-batch forward pass (`run_bank` over
-the form grammar), reasoning is demand-first (`chain_sip` / CHAIN), because recognizing all
-of the input is a closure while answering a question is goal-scoped. A fact, a rule, a
-question, and the control tokens of computation are all nodes in one graph, and *what a line
-is* emerges from which form rewrites it, not from a classifier that routes before reasoning
-begins. `why` closes the loop: an explanation is the RECORD journal rendered back *to* CNL,
-so language-out is the inverse of language-in over the same structure. Language and inference
-are one rewriting process at different points on a continuum — not two systems with glue
-between them. The one boundary UGM draws **on purpose** is at CNL itself: free English is
-translated in by an external model ("CNL as surface, not engine input," the Attempto
-stance); from CNL inward, language and computation are made of the same thing.
-
-Key CNL concepts:
-- **Facts**: subject–predicate–object triples (`alice wants vanilla`)
-- **Rules**: `HEAD when BODY` with `and`, `not`, graded conditions (`is very urgent`)
-- **Universals**: `if BODY then HEAD` and `ADJ things are PRED` laws
-- **Gradable dimensions**: declared with `X is gradable`; used in rules as `?x is very X`
-- **Comparatives**: `ada is more suspicious than bo` (a decomposed comparison — the dimension
-  stays first-class; *less* is the same arrow reversed); transitivity is a generated per-dimension
-  rule asked on demand; `is cy more suspicious than dan` answers `yes`/`no`/**`unknown`** — a
-  partial order's gaps are honest answers. Ranks meet the graded rungs (`fay is very suspicious`
-  outranks `gil is slightly suspicious`), and contradictory rankings are flagged
-  (`lint_comparisons`), never silently repaired (`ugm/cnl/comparative.py`)
-- **Uncertainty (possibilistic)**: hedged facts (`cy is unlikely alibied`, KB-extensible via
-  `probable means 0.7`), correlated ranked alternatives (`culprit is either bo or more likely
-  cy`), graded verdicts (`is cy thief → likely`, `who is thief → cy is thief (likely)`) under the
-  firmware stance `FirmwarePolicy(uncertainty="banded")`. Qualitative, never probability
-  arithmetic: doubt min-accumulates along a chain (weakest link), a conclusion leaning on
-  *not P* is only as strong as P is unlikely (necessity `1−Π`), mutually-exclusive scenarios are
-  never combined (ATMS environments), and the NAF jump is θ-gated — one visible
-  cautious↔decisive dial (`policy.theta`). `guess` collapses to the most-possible alternative
-  *as a recorded, retractable assumption* naming the competitors it did not rule out
-  (`docs/possibilistic.md`)
-- **Closed/open world**: CWA is the query-time default (an underivable goal is a defeasible
-  `no`); a concept is opted into OWA through the firmware **stance**
-  (`FirmwarePolicy(open_preds=…)` / `negation_default`), so absence stays `UNKNOWN` and defers
-  to evidence. Negation itself is demand-driven negation-as-failure — nothing is completed or
-  retracted (`docs/attic/demand_driven_negation_design.md`)
-
-### Lowering: CNL rule → ISA program
-
-CNL never reaches the engine as text at reasoning time — it authors a `Rule` (an LHS/RHS
-list of `Pat`s), and `lowering.lower_rule` compiles that `Rule` into the opcode program
-CHAIN/SATURATE actually run. Given the rule behind the last line of the CNL snippet above:
-
-```python
-from ugm.production_rule import Pat, Rule
-from ugm.lowering import lower_rule
-
-rule = Rule(
-    key="gets_when_wants_and_stocked",
-    lhs=[Pat("?x", "wants", "?y"), Pat("?y", "is", "in_stock")],
-    rhs=[Pat("?x", "gets", "?y")],
-)
-for ins in lower_rule(rule):
-    print(ins)
-```
-
-produces (register names elided to their role):
-
-```
-SEED   _rel0 key=wants                       # anchor: every "wants" relation node
-FOLLOW ?x   <- _rel0 (in)                    # its subject
-FOLLOW ?y   <- _rel0 (out)                   # its object
-FOLLOW _rel1 <- ?y (out)                     # ?y's outgoing relations
-TEST   _rel1 key=is                          # ... that are an "is" relation
-FOLLOW _ts1 <- _rel1 (in)                    # that relation's subject
-SAME   _ts1 == ?y                            # join-consistency: must be ?y itself
-FOLLOW _to1 <- _rel1 (out)                   # that relation's object
-TEST   _to1 name = "in_stock"                # ... must be named in_stock
-MINT   _head0 name=gets, gets=1.0            #   |
-       edges=[?y] in_edges=[?x]              #   } effect: reify "?x gets ?y"
-       dedup=True                            #   (reuse if this relation already exists)
-```
-
-The first nine instructions are the **match phase** (purely positive, no mutation); `MINT`
-is the sole **effect**, run only for surviving states. This is the whole story: no separate
-rule interpreter, no AST walk at runtime — a rule IS this program, and running it to
-fixpoint (`run_bank` / `apply_to_fixpoint` / `chain_sip`) is what SATURATE/CHAIN mean above.
-
-**A register holds a set of bindings, not one value — this is where "iterate over every
-matching edge" comes from.** It's tempting to read `FOLLOW _rel1 <- ?y (out)` as "follow
-the one edge out of `?y`" and the `TEST` after it as a single check on that one result. That's
-not what happens. `Machine.match` (`ugm/machine.py`) runs the program as a fold over a
-**list of states**: `states = [State()]` to start, then for every instruction it computes
-`states = [st2 for st in states for st2 in _match_step(ins, st)]`. `FOLLOW`'s step is a
-generator that yields one new state per matching edge — `for nid in g.succ(src): yield
-st.bind(dst, nid)` — so one `?y` with three outgoing relations turns one input state into
-three output states, each with `_rel1` bound to a different edge. The next instruction
-(`TEST`) then runs once per state independently, so "`FOLLOW` then `TEST`" reads as *for
-every outgoing edge of `?y`, keep it iff it's an `is` relation* — with no explicit loop in
-the program text, because the iteration is the fold in `match`, not something a rule author
-writes.
-
----
-
-## What is expressible
-
-UGM targets a deliberately small, well-understood logic fragment:
-
-- **Definite Horn rules** with conjunctive bodies (Datalog; least-fixpoint semantics)
-- **Stratified negation** decided on demand (negation-as-failure) with a CWA-default stance
-- **Defeasible rules with priorities** — defaults, exceptions, overrides (no contraposition)
-- **Deontic statuses** as reified ranked predicates (`forbidden` … `obligatory`)
-- **Declared congruence** (`same_as`) propagated over KB-declared predicates only
-- **Graded attributes** in `[0,1]` unified with the rule matching layer (α-cut)
-- **Gradable comparatives** as strict partial orders per dimension (transitive on demand;
-  incomparability is an honest `unknown`; conflicts lint, never ⊥)
-- **Possibilistic uncertainty** (qualitative, Dubois–Prade style): banded facts and
-  conclusions, weakest-link chains, θ-cut NAF with graded necessity, ATMS environments for
-  mutually-exclusive scenarios, and a defeasible-guess act with inspectable provenance
-- **Scoped hypothetical reasoning** (SUPPOSE) without possible-worlds machinery
-
-Formal anchors are kept for correctness; general theorem proving is not the goal.
-
----
-
-## Usage
-
-Load a knowledge base and ask it questions — answering is demand-driven (it derives only
-what the goal needs), so there is no forward `run_rules` pass required first:
-
-```python
-import ugm as h
-
-kb, rules = h.load_corpus("""
-alice wants vanilla
-vanilla is in_stock
-alice gets vanilla when alice wants vanilla and vanilla is in_stock
-""")
-
-h.ask_goal(kb, "who gets vanilla", rules)      # ['alice gets vanilla']
-h.ask_goal(kb, "is vanilla in_stock", rules)   # ['yes']
-h.ask_goal(kb, "why alice gets vanilla", rules)  # a CNL derivation trace
-```
-
-The uncertain + comparative surfaces compose in one text through the composite loader, and
-the graded answers are a firmware **stance**:
-
-```python
-import ugm as h
-from ugm.cnl.world import load_world, ask_world
-
-kb, rules = load_world("""
-cy is a suspect
-cy is unlikely alibied
-ada is more suspicious than bo
-?p is thief when ?p is a suspect and ?p is not alibied
-""")
-
-banded = h.FirmwarePolicy(uncertainty="banded")
-ask_world(kb, rules, "is cy thief", policy=banded)                  # ['likely']
-ask_world(kb, rules, "who is thief", policy=banded)                 # ['cy is thief (likely)']
-ask_world(kb, rules, "is ada more suspicious than bo", policy=banded)   # ['yes']
-
-# A stance is a session choice: a CAUTIOUS firmware (low θ) refuses the jump.
-kb2, rules2 = load_world("cy is a suspect\ncy is unlikely alibied\n"
-                         "?p is thief when ?p is a suspect and ?p is not alibied")
-cautious = h.FirmwarePolicy(uncertainty="banded", theta=0.2)
-ask_world(kb2, rules2, "is cy thief", policy=cautious)              # ['no']
-```
-
-Pick a reasoning stance with a `FirmwarePolicy`, register your own tools, or drop to the
-lower-level demand-driven API (`chain_sip`, `check`, `choose`, `suppose`) — see
-**`docs/engine_user_guide.md`** (consuming UGM) and **`docs/engine_developer_guide.md`**
-(extending it). For a full forward snapshot when you need one, `h.run_rules(kb, rules)`.
-
----
-
-## Try it out
-
-The **`demos/`** folder has five runnable, self-contained walkthroughs of increasing
-complexity. Each is a single `.cnl` file — facts, rules, questions, and an inline
-walkthrough (as comments) explaining what the engine does at each step — and each ends
-with a **NOW TRY CHANGING IT** section: concrete edits to make, with the outcome to expect.
+**An agent that plans, acts, and can always show you the reasoning — because the reasoning
+is data it can read.**
+
+> 📘 **New here? Start with the [illustrated tutorial →](https://ercasta.github.io/Universal-Graph-Machine/)**
+> — a plain-language, mobile-friendly book that teaches the machine from scratch, with **live
+> pages that run the real engine in your browser**. No background needed. (The rest of this
+> README is the technical overview.)
+
+UGM is a self-contained Python library with no dependencies. It holds a world in a graph,
+takes goals, finds plans by imagining, carries them out, notices when reality disagrees, and
+answers questions with the derivation that produced the answer.
 
 ```bash
-python demos/run.py                          # run all five, in order
-python demos/run.py demos/01_basics.cnl      # run just one
+python -m microfunctions.selftest      # 132 checks, 0 FAILED
 ```
 
-| # | Demo | Teaches |
-|---|------|---------|
-| 1 | `demos/01_basics.cnl` | Facts, one rule, forward chaining, `who` / `why` |
-| 2 | `demos/02_chains_and_recursion.cnl` | Rules feeding rules: chaining and self-feeding **recursion** (transitive closure) |
-| 3 | `demos/03_negation_and_worlds.cnl` | **Negation-as-failure** and the **closed- vs open-world** reading of "no" |
-| 4 | `demos/04_graded_and_defeasible.cnl` | **Graded attributes** (the α-cut) and **defeasible defaults** |
-| 5 | `demos/05_card_trader_playground.cnl` | **Playground** — a card-trading agent that *decides* what to buy/sell (market, rarity, named cards), with many knobs to turn |
+---
 
-See **`demos/README.md`** for the index and the CNL surface rules the demos rely on.
+## The one idea
+
+**Everything is in one graph, in one representation.** Facts, rules, goals, plans,
+hypotheses, memories, explanations, conflicts — all ordinary nodes and named edges. So the
+machine can reason *about* a rule as easily as it reasons *with* one.
+
+That isn't a slogan about elegance; it's what every capability below is made of. The
+planner works by **reading the instructions of the rules it might use**. Learning is a rule
+that writes a rule. Refusing to answer a question with a dangerous rule is *inspecting* that
+rule before running it. None of those needed a subsystem — they needed the same substrate,
+asked a different question.
+
+### A rule is a function you point at something
+
+The second idea, and the one that most distinguishes this from a rule engine:
+
+> **Nothing fires.** A rule has parameters and runs when something calls it, on the arguments
+> it was given, and never otherwise.
+
+```
+# Put the lid on a jar.
+fn seal(j: jar) -> sealed_jar:
+    SET F(j) "sealed" true
+```
+
+There is no `when` clause, because the circumstances are the caller's business. The trade is
+explicit: you lose automatic cascades, and you gain a rule that cannot fire twice by
+accident, cannot be triggered by a fact you didn't expect, and cannot interact with a rule
+written by someone who never heard of it. The library grows without any global program
+needing re-verification.
+
+`F(j)` reads a *head* — the thing this rule was pointed at. A callee gets a fresh set of
+heads holding only its own arguments, never its caller's.
+
+### Types are shapes, so change needs no representation
+
+A type is a **schema over a subgraph** — structure *and* attributes — checked by looking at
+the node, never by consulting a tag. So `seal(j: jar) -> sealed_jar` is a **cast**, and
+whatever it changes is merely how the cast is achieved. Nothing records that a mutation
+happened, because a node either satisfies the stronger shape now or it does not.
+
+Precondition and effect collapse into parameter type and return type. Multi-type membership
+and de-recognition fall out rather than needing mechanism.
+
+---
+
+## What it does
+
+### Goals, and plans that are *found* rather than built
+
+A goal is a set of **constraint** nodes. `unmet` — *which constraints are still false* — is
+what turns search from generate-and-test into means–ends.
+
+The machine imagines each step on a **workbench** (a private copy of the world), keeping a
+**frame** per step. When a frame satisfies the goal, the path to it already *is* a
+replayable plan. There was never a plan-construction step to write.
+
+```python
+from microfunctions import asm, types as TY, thread as T, driver as D, intake as I
+from microfunctions.graph import Graph
+
+g = Graph()
+TY.declare_type(g, "jar", attrs={"kind_of": "jar"})
+TY.declare_type(g, "sealed_jar", base="jar", attrs={"sealed": True})
+asm.load_text(g, 'fn seal(j: jar) -> sealed_jar:\n    SET F(j) "sealed" true')
+
+shelf = g.mint("shelf"); g.link("root", "has", shelf)
+salt = g.mint("jar", kind_of="jar", label="salt")
+g.link(shelf, "jar", salt); TY.tag(g, salt, "jar")
+
+th   = T.open_thread(g, "session")
+goal = I.read_goal(g, "goal seal the salt:\n    salt.sealed = true")
+
+D.carry_out(g, goal, th, shelf)      # {'done': True, 'tries': 1}
+g.attr(salt, "sealed")               # True
+```
+
+**Guidance, measured.** On a three-crate tower: **2–3** imagined states guided against
+**53–87** blind, same optimal plan. (Both are ranges because tie-breaking varies between
+runs; the *plan* is invariant.)
+
+**Rank a guess; prune a proof.** Relevance is a guess about what will help, so it only ever
+*orders* candidates — filtering on it would make Sussman's anomaly unsolvable, since that
+puzzle must *begin* with a move that closes nothing. A safety constraint (`never unstack`,
+`at most 3 steps`) is a proof that a branch is dead, so it prunes, before the step is
+imagined.
+
+### Questions are goals
+
+"Is Paul mortal?" is the goal *find out whether Paul is mortal*. There is no second control
+loop and no query evaluator — the same search runs, and **the plan it finds is the proof**.
+
+Asked of the same world *before* anything sealed the salt:
+
+```python
+I.respond(g, "ask is the salt sealed?:\n    salt.sealed = true", th)
+# YES - derived in 1 step(s) (1 step(s) considered)
+# yes, because:
+#   seal(j=salt)
+```
+
+⚠ **Asking changes nothing.** The derivation ran on a workbench, so the salt is not sealed
+by having asked; `respond` then settles a `yes` so the next question needn't re-derive it.
+Ask the same thing *after* the goal above has been carried out and the honest answer is
+`YES - already known`, in zero steps.
+
+Three verdicts, and the third is not a failure: `yes`, `no` (something incompatible holds
+*now*), and `unknown`. A failed search has learned about its own library, not about the
+world. Closing the world is a **stance** you pass per question, never a property of the
+machinery.
+
+**⚠ A derivation may never act.** Concluding and doing are both "running a rule" here, so a
+rule may answer a question only if it **provably never dispatches** — read off its stored
+body, transitively. That is a proof, so it prunes. It is deliberately conservative in the
+refusing direction: an unreadable body is barred.
+
+### Explanations that refuse to be invented
+
+```python
+I.respond(g, "why is the salt sealed?:\n    salt.sealed = true", th)
+# salt.sealed = True: because seal(j=salt) ran
+```
+
+Three honest answers — *derived here*, *true but given*, *not true at all* — and a
+deliberately absent fourth. For a fact that already holds with no recorded history, a fresh
+search would happily produce "here is a way this could follow". That is a fine answer to a
+*different* question and a lie as an account of history, so the machine says it doesn't
+know. An engine that manufactures plausible history makes **every** explanation
+untrustworthy.
+
+### When reality disagrees
+
+Expectations are **derived** from the two frames the workbench already holds — never
+authored, never stored — and they are **qualitative, never quantitative**: a mock minting two
+files is a *witness, not a promise*. One file completes the plan, five complete it, zero
+diverges.
+
+On divergence the machine stops at that step (everything after it assumed the step held) and
+does **not** roll back — real effects have already left. Then either **resume** onto an
+explored branch that assumed what actually happened, or **replan** by re-pursuing the goal
+from the world as it now is.
+
+### Memory, learning, conflict
+
+- **The thread** — attention shifts and applications, in order, each carrying *why* it
+  followed the last. Ordinary graph data, so a rule can walk it.
+- **Learning** — compiling an episode produces a new rule, stored identically to an authored
+  one and indistinguishable from it. No learning subsystem; writing a rule is writing nodes.
+- **Interference** — two independently authored rules writing one slot for *different goals*.
+  Distinguished from a deliberate sequel (same goal), without which the detector is noise.
+
+---
+
+## Modules
+
+| module | what it is |
+|---|---|
+| `graph.py` | the substrate — nodes, **named edges**, **ordered targets**, edge properties, references, a maintained reverse index, an undo journal |
+| `focus.py` | addressing — named heads; move forward/backward/through references, fork, spread, close |
+| `types.py` | a type is a subgraph schema; structural sub/supertyping; bottom-up `recognize` |
+| `function.py` | a rule **is** a function — a named ISA program with typed parameters, stored in the graph |
+| `asm.py` | the text surface and LLM border; `.mf` files; comments kept as data |
+| `isa.py` | the imperative instruction set; `F(head)` operands make a program *pointed* |
+| `plan.py` | backward chaining over return types into a **lazy** chain |
+| `workbench.py` | **imagining** — frames, mappings, mocks, forking |
+| `execution.py` | **following a plan for real** — replay, divergence, contingencies, recovery |
+| `driver.py` | **the outer loop** — `pursue`, `carry_out`, `establishes`, and the trace hook |
+| `goal.py` | a wanted state as constraint nodes; `unmet` drives planning |
+| `query.py` | **asking** — verdicts, purity, `settle`, `account` |
+| `intake.py` | the border — a closed CNL for `goal` / `ask` / `why`, which can and does refuse |
+| `thread.py` | materialised short-term memory |
+| `application.py` | applications and episodes — the record of what the system did |
+| `conflict.py` | contradictory goals, and interference between goals over one slot |
+| `dispatch.py` | the one place an effect leaves the graph, and its checkpoint |
+| `selection.py` | candidates → rank → apply → record |
+
+---
+
+## Talking to it
+
+Three verbs over **one grammar**, because a question is a goal:
+
+```
+goal build a tower:      ask is it built?:      why is it built?:
+    a on b                   a on b                 a on b
+    b on c                   b on c                 b on c
+```
+
+The whole vocabulary is eight forms — a relationship, an attribute value, an existential, a
+type; plus `never f`, `never touch x`, `must f`, `at most n steps`. The route constraints
+work in questions too: `never phone_the_registrar` asks *"can you establish this without
+reaching outside?"*
+
+**Refusal is the feature**, three ways, all loud: a line outside the vocabulary, a name
+matching nothing, and a name matching **more than one thing** — because guessing between two
+candidates would invent a referent. A refusal leaves nothing behind.
+
+**Where a language model fits:** a model may *write this text*; the parser then accepts or
+refuses it deterministically. What a model must never do is reach past the surface and write
+graph structure, because then nothing could refuse it.
+
+⚠ **Known limitation:** a mistyped *action* name in a `never` / `must` line is currently
+accepted and silently constrains nothing (unlike a mistyped *thing* name, which is refused).
+Failing loudly is the intended fix.
+
+---
+
+## Three limits, three jobs
+
+They are layers, not duplicates — each catches something the others structurally cannot.
+
+| limit | where | stops |
+|---|---|---|
+| goal constraints | while planning | actions being *considered* |
+| the dispatch door | at the moment of acting | effects reaching the world |
+| the purity bar | while answering | thinking that would *act* |
+
+Two rules govern the door, both established by probe before anything was built on them:
+**check when the action happens, not when it is planned** (so a prohibition recorded later
+still blocks it), and **commit the graph before going through** (once an effect leaves, no
+rollback reaches it — so a rollback boundary must never span a dispatch).
+
+---
+
+## Honest limits
+
+- **Planner:** depth-limited best-first, first solution wins. No cost model, no backtracking
+  across a committed subgoal. Adequate for a handful of steps; not a general-purpose planner.
+- **Copy cost:** a full copy per frame. Copy-on-write implements *exactly* these semantics
+  more cheaply and is the known lever — deliberately not taken; measure first.
+- **Type schemas are one level deep** and constrain one argument at one call site, so
+  `stack(b, onto)` cannot declare `b ≠ onto`. The planner enforces that itself.
+- **`compile_episode`** generalises single-argument operations on one subject. Multi-argument
+  replay is a real question about *analogy*, not a missing mechanism.
+- **Search is tie-break nondeterministic:** the plan is invariant, the number of imagined
+  states is not.
+- **Termination and conflict arbitration** are both open. The ISA fails loudly at `MAX_STEPS`
+  as an honest stand-in for the first.
+- **No indexing** beyond the reverse index.
 
 ---
 
 ## Installation
 
 ```bash
-pip install ugm              # core (no dependencies)
+pip install universal-graph-machine     # no dependencies
 ```
 
-Pure Python, requires Python ≥ 3.8.
+Pure Python, requires Python ≥ 3.9. Verification is `python -m microfunctions.selftest`, not
+pytest.
 
 ---
 
-## Design philosophy
+## History
 
-> *The whole system is one idea applied without exception: there is a single substrate —
-> a graph of nodes — and everything is in it. Computation is the rewriting of that graph.
-> There are no other moving parts, and crucially, no seams.*
->
-> — `docs/vision.md`
+This engine supersedes an earlier one — a label-less attribute graph with a WAM-style
+matching ISA, demand-driven firmware, possibilistic bands, and a large CNL. That engine
+(`ugm/`), its experimental successor (`units/`), and their test suites were **retired and
+removed**; they remain in git history.
 
-The design is informed by:
-- Datalog / Prolog (definite clause engines)
-- Defeasible logic (Nute, Governatori)
-- Magic-sets demand-driven evaluation
-- Attempto Controlled English (CNL as surface, not engine input)
-- Provenance / truth-maintenance traditions
+The repoint that produced this one: the bet was always **content as data** — rules, goals,
+plans and explanations in one graph so anything can be reasoned about. It was never
+**pattern matching as the execution model**. Those two had been welded together from the
+start, and essentially all of the accidental complexity came from the weld. Separating them
+changed almost nothing about what the system represents and almost everything about how it
+computes.
 
-See `docs/vision.md`, `docs/reference/logic_fragment.md`, and `docs/reference/processing_modes.md` for the
-canonical design rationale; `docs/architecture.md` for the as-built layering; and
-`docs/engine_user_guide.md` / `docs/engine_developer_guide.md` for building on and extending
-the engine.
+Design documents live in `docs/microfunctions/` — start with `HANDOFF.md`, then
+`north_star.md`. ⚠ The rest of `docs/` describes the retired engine and has not been updated.
+
+## Prior art
+
+Microfunctions over a graph, goal-directed planning, and structural typing are each
+well-trodden. The claim here is narrower and specific: **the same representation for rules
+and for everything else**, so that a rule can read another rule's body — which is what makes
+effects derivable rather than declared, learning a rule that writes a rule, and safety a
+matter of inspecting a body before running it.
+
+The design is informed by classical planning (means–ends, Sussman's anomaly as a test),
+feature-interaction analysis from telecoms, controlled natural language as a *surface* rather
+than engine input, and the Spark separation between composing transformations and
+materialising them.

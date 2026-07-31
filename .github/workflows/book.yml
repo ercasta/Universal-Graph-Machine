@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "book/**"
-      - "ugm/**"
+      - "microfunctions/**"
       - "pyproject.toml"
       - ".github/workflows/book.yml"
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
           python -m pip install build
           python -m pip install -r book/requirements.txt
 
-      - name: Build the ugm wheel (for the in-browser Pyodide engine)
+      - name: Build the microfunctions wheel (for the in-browser Pyodide engine)
         run: |
           python -m build --wheel --outdir book/docs/wheels .
           echo "Built wheels:"
