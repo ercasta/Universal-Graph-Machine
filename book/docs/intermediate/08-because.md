@@ -1,154 +1,129 @@
 # Because…
 
-We opened this whole book with a promise: a machine that reasons *and can always
-show its work*. You've seen the trick in passing every time you typed `why`. This
-chapter is about how it actually works — and why it might be the machine's most
-important feature of all.
+This is the chapter the book is named for, in spirit. A machine that works
+things out is useful. A machine that can tell you *how* is trustworthy.
 
-## Every conclusion remembers where it came from
+And the interesting part isn't the explaining. It's what the machine **refuses**
+to explain.
 
-Here's the key idea. When the machine derives a new fact, it doesn't just add the
-fact to the graph and forget how it got there. It also records a little
-**receipt**: *which rule fired, and which facts it stood on*. This bookkeeping has
-a name — **provenance** — and the machine does it automatically, for every single
-conclusion, all the time.
+## The answer already contains its reasons
 
-So the graph doesn't just hold *what* the machine believes. It holds *why* it
-believes each thing. Nothing is an unexplained assertion.
-
-## "Why" is just reading the receipts back
-
-When you ask `why cy is thief`, the machine isn't inventing an explanation after
-the fact, or dressing up its answer in nice words. It's **replaying the receipts**
-— walking back through the conclusions that led here, and reading them out. Recall
-the chained case from Part 1:
+Back to the pantry. Nobody has sealed anything; we ask whether the salt is
+sealed:
 
 ```
-why bo is cleared
+YES - derived in 1 step(s) (1 step(s) considered)
+yes, because:
+  seal(j=salt)
+```
+
+You saw this in Chapter 3. What's worth understanding now is *where that
+explanation came from*, because it wasn't generated.
+
+By Chapter 7, an answer **is** a route: a path through imagined situations from
+what the machine knows to what you asked about. The explanation is that route,
+read out. Finding the answer and finding the explanation were the same act.
+
+Which is why the machine can't give you a wrong explanation for a right answer.
+There's no second system reconstructing a story from a trace, no summariser that
+might paraphrase badly. There's one object, and you're being shown it.
+
+## Then it can be asked *why*
+
+Once something has actually been worked out and kept, you can ask:
+
+```
+why is the salt sealed?:
+    salt.sealed = true
 ```
 
 ```
-bo is cleared  <- rule.?someone.is.cleared
-  bo is innocent  <- rule.?someone.is.innocent
-    bo in library  (given)
+salt.sealed = True: because seal(j=salt) ran
 ```
 
-Every line is a receipt. *bo is cleared* came from the cleared-rule; that rule
-stood on *bo is innocent*; which came from the innocent-rule; which stood on the
-one thing we simply told it — *bo in library*, marked `(given)`. The explanation
-isn't a story *about* the reasoning. It **is** the reasoning, read back to you.
+Note the tense. Not *"here is how that could follow"* — **it ran**. The machine
+is reporting its own history: an action that really happened, to that particular
+jar.
 
-And the receipts don't stop at what the machine *proved*. When a conclusion
-leans on an **absence** — the thief rule's *"not cleared"* — the receipt says so
-in as many words: `assumed not: cy is cleared (no evidence for it was found)`,
-followed by the indented `looked for:` lines of the search that came up empty.
-You saw this in Chapter 0's very first trail. Facts, rules, *and leaps* — all on
-the record.
+That history lives in the machine's notes — the ones you saw at the end of
+Chapter 0 — filtered to what genuinely *ran*. While searching, the machine
+considers all sorts of moves it then abandons; if "why" looked at those, it
+would answer with roads not taken. It looks only at what was really done.
 
-## Why this matters so much
+## The three honest answers — and the fourth that would be a lie
 
-Three reasons, and they're big ones.
+Here's where the chapter earns its place. There are three situations, and
+blurring them is how explanation becomes worthless.
 
-**You can trust it.** An answer you can't inspect is an answer you have to take on
-faith. An answer with a because-trail is one you can *check*. If the machine says
-cy is the thief, you can follow the trail and satisfy yourself that the logic
-holds — or catch it standing on a fact that's wrong.
+**It was worked out here.** There's a real cause and the machine names it, as
+above.
 
-**You can correct it.** When an explanation rests on a bad clue — *"…because bo in
-library,"* but bo was actually in the cellar — you know exactly which fact to fix.
-The machine even tells you which conclusions depended on it. Contrast that with a
-machine that just says "cy is the thief" and offers nothing: when it's wrong, you
-have nowhere to start. (And when the bad clue is *withdrawn* — by you, or by the
-machine noticing on its own, as the next section shows — these same receipts are
-what let it take back everything that stood on it, cleanly;
-[Chapter 20](../deep/20-firmware.md#taking-a-fact-back) shows the machinery.)
-
-**It can't bluff.** A system that generates confident-sounding text has no
-built-in tether to the truth — it can be fluent and wrong. This machine's "why"
-is not generated prose; it's a faithful record of steps it actually took. It can
-be *mistaken* (if you fed it a wrong fact), but it cannot **bluff** — there's no
-gap between what it did and what it says it did.
-
-## When the machine changes its own mind
-
-Here's where the receipts stop being mere bookkeeping and start doing something
-remarkable. Watch a small case unfold as a *conversation*:
+**It's true, but nobody here worked it out.** Perhaps you simply told the
+machine:
 
 ```
-ada is a suspect
-is ada thief                →  yes
+holds, but nothing here derived it - it was given, not worked out
 ```
 
-A reasonable conclusion — a suspect, and nothing clears her. But remember what
-that `yes` stood on: an **absence**. Its receipt says, in as many words,
-*"assumed not: ada is cleared."* Now the case develops:
+**It isn't true at all.** Then there is no "why", and the machine says so rather
+than answering a question you didn't ask:
 
 ```
-ada is alibied
-?x is cleared when ?x is alibied
-is ada thief                →  no (assumed)
+does not hold - there is nothing to explain (ask whether it could be derived instead)
 ```
 
-Nobody told the machine to clean up after itself. When the alibi and the new
-rule arrived, it quietly noted what kind of knowledge had changed. At the next
-question — *before answering* — it went back to the recorded leaps that change
-could touch, re-asked the one in question (*is ada cleared?* — now provable),
-and found the old `yes` standing on an assumption that no longer holds. So it
-**took the conclusion back** — and, receipts in hand, everything that had been
-built on top of it — then answered the question from the revised case. That's
-the defeasible "no" of Chapter 5 keeping its promise in the other direction: a
-conclusion held *only until something better comes along* really is let go when
-something better comes along.
+Now the fourth behaviour — the one the machine deliberately does **not** have.
 
-Notice the new answer still says `(assumed)`. Ada is off the hook *on current
-knowledge* — and the machine remains exactly as ready to revise this verdict as
-the last one.
+Take that middle case: something true, with no recorded history. The machine
+*could* run a fresh search and find a way it might follow. That search would
+usually succeed, and it would produce something that reads beautifully:
 
-??? info "Deep dive: lazy about revision, too"
-    The machine doesn't police its whole belief store every time you speak —
-    that would betray its demand-driven soul (Chapter 6). New knowledge only
-    leaves a small *mark* saying what kind of thing changed; the re-checking
-    happens at the next question, only for recorded assumptions that mark could
-    actually touch. The withdrawal itself is the retraction machinery of
-    [Chapter 20](../deep/20-firmware.md#taking-a-fact-back): the withdrawn
-    belief isn't shredded but archived, together with the assumption that broke
-    it. Nothing is ever *silently* different — it's all in the graph.
+```
+    because seal(j=salt) ran      ← a plausible story. Nobody did this.
+```
 
-## No conclusion without a cause
+That would be a lie. Not a small one: a perfectly-formed explanation for
+something that never happened, indistinguishable from a true one. And the moment
+a system manufactures plausible history, **every** explanation it gives becomes
+untrustworthy — because nothing downstream can separate the manufactured ones
+from the real ones.
 
-Put the last few chapters together and a picture emerges. The machine only works
-things out on demand (Chapter 6). It's honest about what it can't establish
-(Chapter 5). And now: everything it *does* establish comes with a traceable
-reason (this chapter). That's a strikingly honest way to think — it does the work
-the question needs, admits the gaps, and shows the receipts for the rest.
+So the machine says it doesn't know. *"It was given, not worked out."*
 
-??? info "Deep dive: the proof *is* the record"
-    In the slice of logic this machine works in, the trail of receipts isn't
-    merely *a* proof — it's *the* proof object itself. There's no separate,
-    hidden "real" derivation that the `why` output approximates; the receipts the
-    machine kept while reasoning are exactly the justification, rendered back into
-    the language you speak. Explanation and proof are the same thing. The
-    [appendix has a short note on provenance](../appendix/index.md).
+!!! warning "The distinction, in one line"
+    *How could this be true?* and *how did this come to be true?* are different
+    questions. The first is a search; the second is a memory. Answering the
+    first while being asked the second is the most seductive failure available
+    to a reasoning system, because the output looks better than the honest
+    answer does.
 
-## Try it
+## Why "because" and never "therefore"
 
-Ask `why` about several things in the playground. Ask `why cy is thief`. Then ask
-`why bo is cleared` and watch a longer chain unfold. Try asking `why` about a fact
-you simply *stated* (like `why bo in library`) and see the trail bottom out at
-`(given)` — the machine's way of saying *"because you told me so."*
+The machine's explanations say *because X ran*. They don't say *X, therefore Y*.
 
-[:material-play-circle: **Open the playground**](../playground/detective.md){ .md-button .md-button--primary }
+That's a deliberate limit on the claim. What the machine actually knows is: this
+action was applied, and afterwards this was true. That's causation in the only
+sense it can honour — something it did, and what followed. It isn't claiming to
+have proved a logical entailment, so it doesn't borrow the word for one.
+
+A small matter of wording. It's also the difference between a machine that
+reports what it did and one that dresses its history up as logic.
+
+## Explanations you can act on
+
+One last thing, and it points forward. These explanations aren't text — they're
+the same graph objects as everything else. So the machine can *read its own
+reasoning*, which supports things text never could:
+
+- noticing that two of its own intentions wrote the same thing for unrelated
+  reasons (Chapter 15);
+- working out which parts of a plan rest on guesses rather than on knowledge;
+- turning a sequence of things it did into a new named rule (Chapter 14).
+
+An explanation you can only print is a courtesy. An explanation you can reason
+about is a capability.
 
 ---
 
-## End of Part 2
-
-You now understand *how the machine thinks*: why it's lazy, how it tells "no" from
-"I don't know," the careful little language it speaks, and how it justifies every
-step. That's the working mind, fully open.
-
-**Part 3 — Advanced** goes further out: reasoning about things that *aren't* true
-(yet), untangling when two names mean one person, gathering evidence it doesn't
-have, and — at last — a look at the tiny machine humming underneath it all.
-
-[Begin Part 3 → Supposing](../advanced/09-supposing.md)
+**Next:** we've been writing `goal`, `ask` and `why` at the machine all book.
+Time to look at that language properly. [Talking to it →](09-talking-to-it.md)

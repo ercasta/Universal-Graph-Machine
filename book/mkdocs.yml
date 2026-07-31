@@ -63,37 +63,36 @@ extra_css:
 extra_javascript:
   - javascripts/playground.js
 
+# The four playground pages still run the OLD engine (a Pyodide `ugm` wheel driving a
+# trace API `microfunctions` does not emit). They are excluded until they are rebuilt on
+# the planning loop; the files are kept so that rebuild starts from them rather than blank.
+exclude_docs: |
+  playground/
+
 nav:
   - Home: index.md
   - "Part 1 — Basic":
-      - "0 · A machine that explains itself": basic/00-a-machine-that-explains-itself.md
+      - "0 · A machine that shows its work": basic/00-a-machine-that-explains-itself.md
       - "1 · The substrate": basic/01-the-substrate.md
-      - "2 · Telling the machine facts": basic/02-facts.md
-      - "3 · Asking questions": basic/03-questions.md
-      - "4 · Rules: the word \"when\"": basic/04-rules.md
+      - "2 · Telling it things": basic/02-facts.md
+      - "3 · Asking: yes, no, and I don't know": basic/03-questions.md
+      - "4 · A rule is a little program you point at": basic/04-rules.md
   - "Part 2 — Intermediate":
-      - "5 · \"No\" and \"I don't know\"": intermediate/05-no-and-unknown.md
-      - "6 · Only chase what you need": intermediate/06-only-what-you-need.md
-      - "7 · Talking to the machine": intermediate/07-controlled-language.md
+      - "5 · Wanting something": intermediate/05-wanting-something.md
+      - "6 · Imagining": intermediate/06-imagining.md
+      - "7 · Finding a plan": intermediate/07-finding-a-plan.md
       - "8 · Because…": intermediate/08-because.md
+      - "9 · Talking to it": intermediate/09-talking-to-it.md
   - "Part 3 — Advanced":
-      - "9 · Supposing": advanced/09-supposing.md
-      - "10 · Living in an uncertain world": advanced/10-uncertain-world.md
-      - "11 · More or less": advanced/11-more-or-less.md
-      - "12 · Same name, same person?": advanced/12-identity.md
-      - "13 · Gathering evidence": advanced/13-gathering-evidence.md
-      - "14 · Paying attention": advanced/14-paying-attention.md
-      - "15 · Getting things done": advanced/15-getting-things-done.md
-      - "16 · The machine underneath": advanced/16-the-machine-underneath.md
+      - "10 · When reality disagrees": advanced/10-when-reality-disagrees.md
+      - "11 · Contingencies and replanning": advanced/11-contingencies.md
+      - "12 · What it may never do": advanced/12-what-it-may-never-do.md
+      - "13 · Remembering": advanced/13-remembering.md
+      - "14 · Learning from what it did": advanced/14-learning.md
+      - "15 · When two intentions collide": advanced/15-collisions.md
   - "Part 4 — The internals":
-      - "17 · A rule is a little program": deep/17-instruction-set.md
-      - "18 · Nine ways to think": deep/18-modes.md
-      - "19 · Shades of maybe: the machinery": deep/19-uncertain-world-internals.md
-      - "20 · The machine's attitude": deep/20-firmware.md
-      - "21 · Thinking harder": deep/21-thinking-harder.md
-  - "Playground":
-      - "The detective case": playground/detective.md
-      - "The uncertain case": playground/uncertain.md
-      - "The hard case": playground/harder.md
-      - "The procedures case": playground/procedures.md
+      - "16 · The instruction set": deep/16-instruction-set.md
+      - "17 · Types as shapes": deep/17-types-as-shapes.md
+      - "18 · Reading a rule": deep/18-reading-a-rule.md
+      - "19 · Concluding versus acting": deep/19-concluding-vs-acting.md
   - "Appendix — concepts": appendix/index.md

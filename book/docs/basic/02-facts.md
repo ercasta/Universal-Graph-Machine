@@ -1,117 +1,113 @@
-# Telling the machine facts
+# Telling it things
 
-We've seen the world is made of dots and arrows. Now let's learn how to *put*
-things into it. Everything you tell the machine is a **fact** — a small,
-definite claim about the world. This chapter covers the handful of ways to
-write one.
+We've seen the world is made of dots and named arrows. Now let's put something
+into it — and then meet the machine's idea of *what counts as a proper shelf*.
 
-The good news: there aren't many, and they read like English.
+That second half is the interesting one, and it works in a way that surprises
+most people.
 
-## Three ways to state a fact
+## Building a bit of world
 
-### 1. "is a" — what kind of thing something is
-
-```
-ada is a suspect
-cy is a detective
-```
-
-`is a` (or `is an`) says something belongs to a **category**. It's the arrow we
-drew as `ada ──is_a──▶ suspect` back in the substrate chapter. Use it whenever
-you'd naturally say "so-and-so is a kind of thing."
-
-### 2. "is …" — a quality or state
+There are only two moves. **Mint** a node, and **link** it to another:
 
 ```
-ada is nervous
-ada is alibied
-bo is guilty
+shelf  = mint a "shelf"
+salt   = mint a "jar", labelled salt
+link shelf ──jar──> salt
 ```
 
-Plain `is` (with no "a") attaches a **quality** to a thing — a property it has
-right now. `ada is nervous` doesn't put ada in a category; it describes her.
+That's the whole vocabulary for building. Everything you'll ever tell the
+machine is some number of mints and links, plus attributes set on nodes.
 
-!!! tip "The little word 'a' changes everything"
-    `ada is a suspect` (category) and `ada is nervous` (quality) look almost
-    identical, but the `a` is the difference between *"ada is one of the
-    suspects"* and *"ada is in a nervous state."* The machine treats them
-    differently — so watch that little word.
+One rule of housekeeping matters more than it looks: **real things hang off the
+root**. There's a node called `root`, and anything genuinely part of the world
+is reachable from it. This isn't bureaucracy — in Chapter 6 the machine starts
+making private copies of the world to think in, and "reachable from root" is
+exactly what separates the real shelf from an imagined one. Without it, the
+machine would eventually offer you a plan about a shelf it only daydreamed.
 
-### 3. "in" — where something is
+## What makes something a shelf?
 
-```
-bo in library
-cy in kitchen
-```
-
-`in` places one thing inside another. It's how our detective records *where
-people were* — often the key to an alibi.
-
-## That's (almost) all you need
-
-With just these three shapes you can describe a whole scene:
+Here's where it gets interesting. We can describe what a shelf *is*:
 
 ```
-ada is a suspect
-bo is a suspect
-cy is a suspect
-
-ada is nervous
-ada is alibied
-bo in library
+a shelf has 3 jars
 ```
 
-Six facts, and we've set a stage: three suspects, one of them nervous, one with
-an alibi, one seen in the library. Every rule and question in the rest of the
-book runs on facts written exactly like this.
+That's a **type**. And now the important question: how does the machine decide
+whether some node is a shelf?
 
-## The machine believes you
+It doesn't look for a tag. It **looks at the node**.
 
-Here's something important — and a little bit dangerous. **The machine believes
-every fact you give it.** It doesn't fact-check. If you tell it
-`the moon is a suspect`, then as far as it's concerned, the moon is a suspect,
-and it will reason accordingly.
-
-This is by design. Your job is to tell it what's true about *your* world; its
-job is to work out the consequences. Garbage in, garbage out — so the facts you
-feed it matter.
-
-## But it won't pretend to understand nonsense
-
-There's a flip side to that trust. The machine only understands the shapes it
-knows. If you type something that doesn't fit any pattern —
+We have a shelf with two jars on it. Ask:
 
 ```
-glorp the flarn
+is it a shelf?     : False
+what's wrong       : {'jar': ('3 of kind jar', '2')}
 ```
 
-— it does **not** quietly swallow it or guess what you meant. It flags the line
-as **unrecognized** and moves on, so a typo can never silently rot your
-knowledge. (In this book's playground you'll see it simply decline to act on a
-line it can't read.)
+Not a shelf — and it tells you precisely why: it wanted 3 jars of kind `jar`,
+and found 2. Now put a third jar on:
 
-This honesty has a name in language design — *habitability* — and it's a
-deliberate feature: a controlled language you can trust is one that tells you
-when you've stepped outside it, rather than misinterpreting you.
+```
+after a third jar  : True
+```
 
-??? info "Deep dive: why a *controlled* language?"
-    Ordinary English is gloriously ambiguous — "I saw the man with the
-    telescope" has two meanings. A reasoning machine can't afford that. So UGM
-    speaks a **controlled natural language (CNL)**: a small, carefully chosen
-    slice of English where every accepted sentence has exactly one meaning.
-    That's why the fact forms feel a little rigid — the rigidity is what buys
-    you unambiguous reasoning. We'll look at the CNL properly in the
-    intermediate part; the [appendix has a short note](../appendix/index.md) too.
+Nothing was declared. Nothing was tagged or re-registered. The node became a
+shelf **because its structure changed**, and the answer is recomputed the moment
+you ask.
 
-## Try it
+!!! note "A type is a shape, not a badge"
+    This is the opposite of how most systems work. Usually a thing "is a Shelf"
+    because someone stamped it Shelf, and the stamp can drift out of line with
+    reality — you can remove every jar and the stamp still says shelf. Here
+    there's nothing to drift, because there's no stamp. A node satisfies the
+    shape or it doesn't, checkable now, every time.
 
-Open the playground and add a couple of facts of your own to the world — try
-`cy is nervous` or `ada in library` — then, in the next chapter, we'll start
-asking the machine questions about what you told it.
+## Working out what something is
 
-[:material-play-circle: **Open the playground**](../playground/detective.md){ .md-button }
+Because types are shapes, you can also ask the open question — *what is this?*
+
+```
+what is it, then?  : ('shelf',)
+```
+
+Nothing was searched for. The machine checked the shapes it knows against the
+node in front of it. And two consequences fall straight out, without any
+machinery to support them:
+
+- **A thing can be several types at once.** A washed car is also a serviced car,
+  if it satisfies both shapes. No conflict to resolve.
+- **A thing can stop being a type.** Take a jar off, and it's no longer a shelf.
+  Nothing needs invalidating, because nothing was ever stored.
+
+Those two behaviours usually cost real effort to build. Getting them for free is
+a sign the shape of the idea is right.
+
+## Why this matters later
+
+Hold on to this, because Chapter 4 leans on it entirely:
+
+> **If a type is a shape, then changing a thing's type is just changing its
+> shape.**
+
+Sealing a jar doesn't *record* that a sealing happened. It puts the lid on — and
+afterwards the jar satisfies the shape "sealed jar". There's no separate notion
+of an action's *effect* to keep in sync with what the action does, because the
+effect is just the shape the thing ends up satisfying.
+
+That one move deletes a surprising amount of machinery. We'll see it work in two
+chapters.
+
+!!! note "Deep dive: the honest limit"
+    A shape describes each arrow-name independently: *3 jars*, *1 lid*. It can't
+    say "the jar on the left must be taller than the jar on the right", because
+    that's a relationship *between* two parts. Nor can it reach two levels deep
+    — "a crate on a crate that's on the ground" isn't expressible as a shape,
+    which is exactly why the tower in Chapter 0 was described as two separate
+    `on` facts rather than as a type. Real limit, stated rather than hidden.
 
 ---
 
-**Next:** we can describe a world — now let's *interrogate* it.
-[Asking questions →](03-questions.md)
+**Next:** now that the machine holds a world, let's ask it something — and meet
+the three answers it can give. [Asking →](03-questions.md)

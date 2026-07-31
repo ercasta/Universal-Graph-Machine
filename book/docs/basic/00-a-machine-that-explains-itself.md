@@ -62,7 +62,7 @@ Three hypothetical situations considered, in total, to find a two-step plan. The
 machine wasn't grinding through every combination of crates and actions. It was
 working out which moves could possibly help, trying those first, and leaving the
 rest alone. Chapter 7 is about how — and about the honest measurement that the
-same search, run *without* that judgement, needs 55.
+same search, run *without* that judgement, needs 87.
 
 !!! note "The word 'imagined' is literal"
     The machine did not stack anything to find this plan. It made a private copy

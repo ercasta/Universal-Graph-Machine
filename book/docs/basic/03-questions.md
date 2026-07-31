@@ -1,106 +1,136 @@
-# Asking questions
+# Asking: yes, no, and *I don't know*
 
-A world full of facts isn't much use if you can't ask about it. This chapter is
-about the other half of the conversation: **questions**. We'll use this little
-world throughout —
+A world full of things isn't much use if you can't ask about it. This chapter is
+the other half of the conversation.
 
-```
-ada is a suspect
-bo is a suspect
-cy is a suspect
-ada is nervous
-bo in library
-ada is alibied
-```
+It's also where the machine does something most software refuses to do: admit
+ignorance, and be precise about what its ignorance means.
 
-— and just ask things.
+## A question is a wish that you're not going to act on
 
-## Yes-or-no questions
-
-Start any yes/no question with **`is`** (or **`does`**). The machine checks its
-world and answers:
+Look at how you ask:
 
 ```
-is ada a suspect          →  yes
-is bo nervous             →  no (assumed)
-is bo in library          →  yes
-is ada in library         →  no (assumed)
+ask is the salt sealed?:
+    salt.sealed = true
 ```
 
-Notice the pattern: a yes/no question is just a *fact with a question mark*.
-`ada is nervous` is a statement; `is ada nervous` asks whether that statement
-holds. If the machine can establish it, you get **yes**; if not, **no** — and
-look closely at how it says no: **`no (assumed)`**. That little tag is the
-machine being honest about *what kind* of no this is. We'll come back to it.
-
-## "Who" questions — let the machine find them
-
-Often you don't know *who* fits — that's the whole point of asking. Start with
-**`who`** and leave the subject blank:
+Now look back at the goal from Chapter 0:
 
 ```
-who is nervous            →  ada is nervous
-who is a suspect          →  ada is a suspect, bo is a suspect, cy is a suspect
+goal build a tower:
+    a on b
 ```
 
-The machine sweeps its world and hands back **everyone** who fits. Ask
-`who is nervous` and it finds ada; ask `who is a suspect` and it finds all three. This
-is the same kind of question we opened the book with — `who is thief` — except
-that one needed *rules* to work out the answer (that's the next chapter).
+**Same shape.** A word, a label, and a body of things that should be true. That
+is not a coincidence in the notation — it's the machine's actual position:
 
-## "Why" questions — make it show its work
+> **A question is a goal.** *"Is the salt sealed?"* is the goal *find out whether
+> the salt is sealed*, and answering it is pursuing it.
 
-This is the machine's party trick, and you met it in Chapter 0. Put **`why`** in
-front of any fact and it hands back the *reasoning*, not just the verdict:
+There's no separate question-answering engine here. The thing that searched for
+a way to build a tower is the thing that searches for a way to establish that
+the salt is sealed. Only the verb differs — `goal` means *go and make it so*,
+`ask` means *tell me whether it could be so*.
+
+## The answer comes with its reasons
+
+The pantry knows one action: **seal** a jar. Nobody has sealed anything. Ask
+anyway:
 
 ```
-why cy is thief
+YES - derived in 1 step(s) (1 step(s) considered)
+yes, because:
+  seal(j=salt)
 ```
 
-gives back the trail of rules and facts that led there. For a fact you simply
-*told* it, the "why" is short — *"because you said so."* For a fact it *worked
-out*, the trail shows every step. We'll lean on `why` heavily once rules enter
-the picture.
+Yes — *and here is what would make it so*: seal the salt jar. The machine didn't
+just check; it **worked out a way**, and the way is the answer's justification.
 
-## The three answers: yes, no, and *I don't know*
+That's worth dwelling on. The explanation was not assembled afterwards by some
+reporting layer looking back over a trace. Finding the answer and finding the
+explanation were **the same act**, because what the machine searches for is
+precisely a route from what it knows to what you asked. Chapter 8 is about
+reading those routes as causes.
 
-Most machines only ever say yes or no. This one has a **third** answer, and it's
-one of the most important ideas in the whole book:
+## Three answers, not two
 
-| Answer | What it means |
-|--------|---------------|
-| **yes** | The machine could establish the fact. |
-| **no** | It could not — *as far as it knows*. |
-| **unknown** | It has no basis to decide either way, and won't guess. |
+Ask about something the machine has no way to establish — nothing in the pantry
+has anything to do with being organic:
 
-That middle row hides a subtlety — and the machine wears it on its sleeve. When
-it says **`no (assumed)`**, it doesn't mean *"this is impossible"* — it means
-*"I found no reason to believe it."* Ask `is bo nervous` and you get
-`no (assumed)`, not because bo is provably calm, but because nothing in the
-world says he's nervous. (A **plain `no`** is reserved for the rarer, harder
-case: when the machine can actually *prove* the opposite.)
+```
+UNKNOWN - no derivation found - this says nothing about the world
+```
 
-And sometimes even that "no" is too strong. If the machine is told to keep an
-open mind — because its information might be incomplete — it will say
-**`unknown`** instead of pretending the absence of a clue is a clue. You saw
-this with the stranger `zz` back in Chapter 0.
+**Unknown.** Not *no*. And read the second half of that line, because the
+machine is being careful about something subtle: *this says nothing about the
+world.* A search that came up empty has learned about **its own library**, not
+about reality. The salt may well be organic; nobody here knows how to find out.
 
-!!! note "This deserves a whole chapter — and gets one"
-    *Why* is "no" usually really "I didn't find it," and when should a machine
-    say "unknown" instead? That question — the **closed world** versus the
-    **open world** — is the heart of the intermediate part. For now, just hold
-    onto the idea that this machine can tell the difference between *"no"* and
-    *"I don't know,"* and that it considers that difference a matter of honesty.
+Now the third answer. This time the pepper is recorded as *not* sealed:
 
-## Try it
+```
+NO - refuted: pepper.sealed is already False, not True
+```
 
-Open the playground and ask away. Try a yes/no question, then a `who` question,
-then a `why`. Change a clue and watch an answer flip.
+That's a real **no** — not "I couldn't prove yes", but "I hold something
+incompatible with yes". Two genuinely different situations, kept apart:
 
-[:material-play-circle: **Open the playground**](../playground/detective.md){ .md-button }
+| | what happened | what it means |
+|---|---|---|
+| `yes` | found a route | it holds, or can be made to |
+| `no` | found a contradiction | something incompatible is true *now* |
+| `unknown` | found nothing | I have no way to settle this |
+
+## Closing the world, on purpose
+
+Sometimes "I couldn't find it" really *should* mean no. If your list of staff is
+complete, then someone not on it doesn't work here. That assumption has a name —
+**closing the world** — and the machine will make it, if you ask:
+
+```
+NO - nothing known makes it true, and the library is assumed complete
+```
+
+Same question, same world, different answer — and it says exactly which
+assumption it leaned on. That's the point. Closing the world is a **stance**, a
+thing you choose, not something baked into the machinery. The default is the
+humble one.
+
+!!! warning "This is the crack most reasoners fall through"
+    The tempting shortcut is to treat "no derivation found" as *false*, because
+    it makes the system look decisive. But a missing arrow isn't a denial: the
+    graph not saying the salt is organic is not the graph saying it isn't. Once
+    a system quietly converts ignorance into denial, every answer it gives is
+    slightly untrustworthy and you can't tell which ones.
+
+## Asking changes nothing
+
+One last property, easy to miss and load-bearing. When the machine answered
+*yes* by working out that sealing the salt would do it — **it did not seal the
+salt**. The route was worked out in a private copy of the world.
+
+So you can ask freely. Questions don't saturate the graph with everything the
+machine happened to derive along the way, and asking twice doesn't compound.
+
+If you *want* to keep what it worked out, you say so, and then the derivation is
+replayed for real. Which sets up the question the next chapter answers: what
+exactly *is* one of these steps that the machine can either imagine or run?
+
+## It refuses what it can't read
+
+Ask about a jar that isn't there:
+
+```
+refused: line 2: nothing here is called 'vinegar'
+```
+
+Not an empty answer, not a guess — a refusal, with a line number. The same
+happens if two things answer to one name, because guessing between them would be
+inventing what you meant. A machine that can't refuse can't be trusted to
+understand.
 
 ---
 
-**Next:** so far the machine only knows what we *tell* it. Time to teach it to
-**work things out on its own** — the word `when`, and the magic of rules.
-[Rules: the word "when" →](04-rules.md)
+**Next:** the thing at the centre of all this — a rule. It's not what you're
+expecting. [A rule is a little program →](04-rules.md)

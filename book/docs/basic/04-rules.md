@@ -1,186 +1,151 @@
-# Rules: the word "when"
+# A rule is a little program you point at
 
-So far the machine only knows what we hand it. Tell it `ada is nervous` and it
-knows ada is nervous — no more, no less. That's a filing cabinet, not a mind.
+So far the machine only knows what we hand it, plus whatever shapes those things
+happen to satisfy. This chapter adds the thing that turns a filing cabinet into
+something that reasons: **rules**.
 
-This chapter adds the one thing that turns facts into *reasoning*: **rules**. A
-rule lets the machine **work things out for itself**. And it all hinges on one
-small word — **`when`**.
+But the machine's idea of a rule is probably not the one you're carrying, and
+the difference is the single most important idea in this book. So let's start
+with what a rule is **not**.
 
-## Your first rule
+## The usual idea, and why it isn't this one
 
-Here's a rule:
-
-```
-?someone is watched when ?someone is nervous
-```
-
-Read it out loud and it's just common sense: *"someone is watched **when** they
-are nervous."* Now, in a world where `ada is nervous`, watch what happens:
+In most reasoning systems, a rule looks like this:
 
 ```
-is ada watched            →  yes
-is bo watched             →  no (assumed)
+    a jar is sealed   when   someone puts a lid on it
 ```
 
-We never wrote `ada is watched` anywhere. The machine **derived** it — it applied
-the rule to a fact it already had and reached a brand-new conclusion. That's the
-whole idea of a rule.
+and it works by **firing**. You drop a fact into the system, the system finds
+every rule whose left-hand side matches, and those rules go off — adding facts,
+which match more rules, which go off too, until nothing new happens.
 
-### The anatomy of a rule
+It's a lovely idea and it has a hard problem at the centre. **Nothing is
+pointed at anything.** A rule fires wherever the world happens to match, so as
+your rulebook grows you stop being able to predict what will happen when you add
+a fact. You start writing rules whose job is to stop other rules. You add
+markers meaning "already done" so things don't fire forever — and forgetting one
+produces an endless stream of effects with no obvious culprit.
 
-Every rule has two halves joined by `when`:
+This machine doesn't do that. Here:
 
-```
-   ?someone is watched   when   ?someone is nervous
-   └─────────┬────────┘         └────────┬────────┘
-        the CONCLUSION               the CONDITION
-     (what becomes true …)        (… whenever this is true)
-```
+> **A rule is a function. It has parameters. It runs when something calls it,
+> on the arguments it's given, and never otherwise.**
 
-- The **condition** (after `when`) is what the machine looks for.
-- The **conclusion** (before `when`) is what it gets to add if the condition holds.
+## What one looks like
 
-And `?someone`? That's our **stand-in for anybody**, from Chapter 0. The `?`
-marks it as a variable — a blank the machine fills with whoever fits. This one
-rule works for ada, bo, cy, or a thousand suspects, because `?someone` matches
-them all.
-
-## Rules can feed other rules
-
-Here's where it gets powerful. A rule's conclusion is a fact like any other — so
-**it can trigger the next rule.** Watch a chain form:
+Here's the whole of a rule, exactly as the machine stores it — this is its own
+output, read back out of the graph:
 
 ```
-?someone is innocent when ?someone in library
-?someone is cleared when ?someone is innocent
+# Put the lid on a jar.
+fn seal(j: jar) -> sealed_jar:
+    SET F(j) "sealed" true
 ```
 
-Now ask about bo, who was in the library:
+Four lines, and three of them are about the outside:
+
+- **`fn seal`** — its name.
+- **`(j: jar)`** — it takes one argument, called `j`, and that argument must be
+  a jar. Remember Chapter 2: *jar* is a shape, so this is checked by looking at
+  the thing, not by trusting a label.
+- **`-> sealed_jar`** — when it's done, its argument will satisfy the shape
+  *sealed jar*.
+- **`SET F(j) "sealed" true`** — the body. Put the lid on.
+
+The comment isn't decoration either. It's stored *in the graph* alongside the
+instructions, because a note that lives only in a text file is invisible to the
+running system.
+
+!!! note "Why does the body look like assembly?"
+    Because it's honest, and because it's early. A friendlier surface will
+    compile to exactly this, and nothing is wasted when it does. Assembly has
+    one virtue worth a lot right now: it's unambiguous, so a translation from
+    English is either right or *loudly* wrong, with no interpretive layer to
+    hide a mistake in. Read `SET F(j) "sealed" true` as *"set the thing I was
+    handed as `j` to sealed"* and you have it.
+
+## Notice what the rule doesn't say
+
+Read it again and look for the condition. **There isn't one.**
+
+There's no `when`. Nothing in `seal` describes the circumstances under which
+sealing should happen. That information isn't missing — it was never this
+rule's business. The circumstances are decided by whoever calls it.
+
+That's the trade at the heart of the design. A rule gives up the power to decide
+when it runs, and in exchange it becomes something you can reason *about*: it
+can't surprise you, it can't fire twice, and it can't interact with a rule
+written by someone else who never heard of it.
+
+## Pointing it at something
+
+We have two jars, salt and pepper. Neither is sealed:
 
 ```
-is bo cleared             →  yes
+before             : salt None | pepper None
 ```
 
-Think about everything that just happened. Bo being *cleared* was never stated,
-and no single rule concludes it directly from a fact we gave. The machine had to
-**chain**:
-
-1. `bo in library` — a fact we gave it.
-2. …so by the first rule, `bo is innocent`.
-3. …so by the second rule, `bo is cleared`.
-
-Don't take my word for it — make it show its work:
+Now point `seal` at the salt:
 
 ```
-why bo is cleared
+after seal(j=salt) : salt True | pepper None
 ```
 
-```
-bo is cleared  <- rule.?someone.is.cleared
-  bo is innocent  <- rule.?someone.is.innocent
-    bo in library  (given)
-```
+**The pepper is untouched.** That's the whole chapter in one line.
 
-Read it bottom-up and it's the exact chain: *in the library → innocent →
-cleared*, each `<-` a rule firing, resting finally on the one fact we `given`.
-**This** is what "reasoning" means here — not one lookup, but a trail of
-conclusions, each standing on the last.
+In a firing system, a rule about jars is a rule about *all* jars, and keeping it
+off the pepper means writing a condition to exclude it. Here the pepper was
+never in question, because nobody pointed at it. Wrong firing isn't unlikely —
+it's structurally impossible.
 
-## Rules with "and" — more than one condition
-
-A `when` can demand several things at once, joined with **`and`**:
+And by Chapter 2's logic, the salt is now a different kind of thing:
 
 ```
-?someone is cleared when ?someone is alibied
+is it a sealed_jar now? True | pepper: False
 ```
 
-Add that alongside the first cleared-rule and now there are *two* ways to be
-cleared — an alibi **or** being innocent. Ask `who is cleared` and both ada (the
-alibi) and bo (the library) come back. Conditions joined by `and` must **all**
-hold; separate rules for the same conclusion give **alternative** ways to reach
-it.
+Nothing recorded that a sealing happened. The lid is on, so the jar satisfies
+the shape. That's what "changing a type is changing a shape" buys.
 
-## Rules with "not" — a first taste
+## The rule is data, and that changes everything
 
-Finally, the rule we opened the whole book with:
+Here's the part that pays off for the rest of the book. That rule isn't code
+sitting in a file — it's nodes and edges in the same graph as the jars. Which
+means the machine can **read it**.
 
-```
-?someone is thief when ?someone is a suspect and ?someone is not cleared
-```
-
-Two conditions: be a suspect, **and** *not* be cleared. That little `not` is
-doing something deep. How does the machine decide someone is **not** cleared?
-
-It does exactly what you'd do: it **goes looking for a reason they're cleared,
-and if it can't find one, it concludes they're not.** In the playground's step
-view, that's the 🔍 check you can watch happen:
-
-> *"is cy cleared?" → found no evidence → so cy is **not** cleared → cy is the
-> thief.*
-
-For cy — no alibi, not in the library — the search comes up empty, so `not
-cleared` holds, and the thief rule fires.
-
-!!! warning "Here be dragons (the good kind)"
-    "Look for a reason, and if you can't find one, assume the opposite" is a
-    surprisingly bold move. What if the machine's information is just
-    *incomplete*? What if there's an alibi it hasn't been told about? That exact
-    question — when it's safe to treat *"I couldn't find it"* as *"it's false"*
-    — is the doorway into **Part 2**, and one of the most important ideas in the
-    book. For now, enjoy that the thief rule works; soon we'll ask when it
-    *should*.
-
-## It only bothers when you ask
-
-One last thing, tying back to Chapter 0's "lazy on purpose." The machine does
-**not** grind through every rule the moment you load them. All this
-chaining — innocent, cleared, thief — happens **on demand**, only for the
-question you actually ask. Ask `is bo cleared` and it works out bo's story and
-stops; it never bothers deciding whether ada is watched unless you ask. Rules
-are *potential* conclusions; a question is what makes the machine cash them in.
-
-## Putting it all together
-
-You now know every piece of the case from Chapter 0. Here it is, whole — facts,
-then rules — and there's nothing in it you can't read:
+Watch it work out what `seal` does, by looking at the instructions:
 
 ```
-ada is a suspect
-bo is a suspect
-cy is a suspect
-
-ada is nervous
-bo in library
-ada is alibied
-
-?someone is innocent when ?someone in library
-?someone is cleared when ?someone is innocent
-?someone is cleared when ?someone is alibied
-?someone is thief when ?someone is a suspect and ?someone is not cleared
+effects read off the body: [('attr', 'sealed', 'j', None)]
 ```
 
-Six facts, four rules, and a machine that can name the thief **and** explain how
-it knows. That's the entirety of Part 1.
+*Setting the attribute `sealed`, on whatever gets passed as `j`.* Nobody
+declared that. No one wrote an "effects" section that could drift out of date
+with the body — it **is** the body, read at the moment of asking.
 
-## Try it
+This is how the machine planned the tower in Chapter 0. Faced with a goal it
+can't yet satisfy, it asks each rule *could you make this true?* and reads the
+answer off the rule's own instructions. That's what let it consider only three
+possibilities instead of fifty-five.
 
-Open the playground, ask `who is thief`, and this time **watch the step view**:
-the questions it asks itself, the checks that come up empty, the conclusion. Then
-change a rule — make being nervous enough to be a suspect, or add a third way to
-be cleared — and see how the machine's reasoning shifts.
+!!! note "Deep dive: a rule that writes a rule"
+    Because a rule is ordinary data, a rule can build another rule and store it.
+    That isn't a party trick reserved for a test suite — it's how the machine
+    learns in Chapter 14, turning a sequence of things it did into a new
+    named rule it can call later. Nothing special is needed. Writing a rule is
+    writing nodes and edges, and every rule can already do that.
 
-[:material-play-circle: **Open the playground**](../playground/detective.md){ .md-button .md-button--primary }
+## What you give up, and what you get
+
+Being honest about the cost: **nothing happens on its own any more.** In a
+firing system, adding a fact sets off a cascade and you get consequences for
+free. Here, if nobody calls anything, nothing runs. The machine needs something
+to *decide* — and that decision is now the whole game.
+
+Which is exactly where Part 2 begins. The machine decides by wanting something.
 
 ---
 
-## End of Part 1
-
-You can now describe a world, ask it questions, and teach it rules that reason —
-with answers it can always justify. That's a genuinely capable little mind.
-
-**Part 2 — Intermediate** opens up *how* it thinks: why it's lazy, the deep
-difference between *"no"* and *"I don't know,"* the controlled language you've
-been speaking all along, and how the "because" trail really works.
-
-[Begin Part 2 → "No" and "I don't know"](../intermediate/05-no-and-unknown.md)
+**Next:** goals — how you tell it what you want, and why "what must be true" beats
+"what to do". [Wanting something →](../intermediate/05-wanting-something.md)
