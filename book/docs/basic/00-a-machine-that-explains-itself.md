@@ -1,150 +1,151 @@
-# A machine that explains itself
+# A machine that shows its work
 
 Most computers are oracles. You ask, they answer, and you just have to trust
-them. Type a question into a search box and you get back "42" with no way to see
-how it got there.
+them. Type a question into a box and you get back "42" with no way to see how it
+got there.
 
-The Universal Graph Machine is different. It *reasons* — and it can always show
-its work. Let's watch it solve a crime.
+This machine is different. It works things out — and it can always show you the
+working. Let's watch it do something small and completely honest: build a tower.
 
-## The case
+## A very small world
 
-Three suspects. Here's everything we know, written the way you'd tell a friend:
-
-```
-ada is a suspect
-bo is a suspect
-cy is a suspect
-
-ada is nervous         # ada seems on edge
-bo in library          # bo was in the library
-ada is alibied         # ada has an alibi
-```
-
-And here's how a detective *thinks* — a few rules. The `?someone` is a
-**stand-in for anybody**: a rule with `?someone` in it applies to every person
-the machine knows about. Read the last line as *"anybody who is a suspect and
-isn't cleared is the thief."*
+Three crates on the ground, labelled `a`, `b` and `c`. That's the entire world.
 
 ```
-?someone is innocent when ?someone in library
-?someone is cleared when ?someone is innocent
-?someone is cleared when ?someone is alibied
-?someone is thief when ?someone is a suspect and ?someone is not cleared
+        [a]   [b]   [c]
+    ────────────────────────
+            the ground
 ```
 
-Now we ask the machine to name the thief:
+The machine also knows two things it can *do*. Not facts — **actions**:
+
+- **stack** — put a crate on top of another crate, if both have clear tops.
+- **unstack** — take a crate off whatever it's on and set it on the ground.
+
+And, because we'll want it in a minute, a third action with nothing to do with
+towers at all: **paint** a crate red.
+
+## Tell it what you want, not what to do
+
+Here's the whole instruction. Read it out loud — it's a wish list:
 
 ```
-who is thief
+goal build a tower:
+    a on b
+    b on c
+    never paint
 ```
+
+Three lines. The first two say what must be **true when it's finished**: `a` on
+top of `b`, `b` on top of `c`. The third says something about **how it's allowed
+to get there**: don't paint anything, ever.
+
+Notice what we did *not* write. We never said "first stack b onto c, then stack
+a onto b". We never mentioned the order, or which crate to move first, or that
+`b` has to move before `a` does. We described the destination and left the route
+to the machine.
 
 ## Watch it work
 
-The machine doesn't grind through every fact it knows. It's **lazy on
-purpose** — it only chases the leads the question actually needs. Here's every
-step it takes:
-
-1. **The question sets a goal:** find someone who *is the thief*.
-2. **Which rule makes a thief?** → *"a suspect who is not cleared."* So the
-   machine needs two things about a person: are they a suspect, and are they
-   *not* cleared?
-3. **Who are the suspects?** → ada, bo, cy. It checks each one.
-4. **Is ada cleared?** ada is alibied → *cleared*. So ada is **not**
-   "not-cleared." **ada is out** — never mind that she's *nervous*; an alibi is
-   an alibi, and the machine doesn't mistake a jitter for guilt.
-5. **Is bo cleared?** bo was in the library → *innocent* → *cleared*.
-   **bo is out.**
-6. **Is cy cleared?** The machine looks for any reason cy is cleared… and finds
-   none. No alibi, not in the library. **It has no evidence cy is cleared** — so
-   "cy is not cleared" holds.
-7. cy is a suspect **and** not cleared → **cy is the thief.**
-
 ```
-→ cy is thief
+found: True | imagined: 3 | plan length: 2
+    stack(b=b, onto=c)
+    stack(b=a, onto=b)
 ```
 
-!!! note "Notice what it *didn't* do"
-    It never bothered to work out every fact about this world — it never even
-    asked whether ada owns a bicycle. It followed *only* the trail the question
-    needed. That laziness has a name, **demand-driven reasoning**, and it's one
-    of the machine's most important ideas. We'll come back to it.
+There's the plan: put `b` on `c`, then put `a` on `b`. Which is right — and it's
+also the *shortest* right answer.
 
-## Now make it prove it
+But look at the middle number. **It imagined 3.**
 
-Here's the part other machines can't do. Ask:
+Three hypothetical situations considered, in total, to find a two-step plan. The
+machine wasn't grinding through every combination of crates and actions. It was
+working out which moves could possibly help, trying those first, and leaving the
+rest alone. Chapter 7 is about how — and about the honest measurement that the
+same search, run *without* that judgement, needs 55.
 
-```
-why cy is thief
-```
+!!! note "The word 'imagined' is literal"
+    The machine did not stack anything to find this plan. It made a private copy
+    of the world and moved crates around **in the copy**. Nothing real moved
+    until it had a plan it believed in. That copy is an actual object with an
+    actual name — the *workbench* — and Chapter 6 is entirely about it.
 
-and the machine hands back its actual reasoning — this is real output, exactly
-what it prints:
+## The line you didn't need
 
-```
-cy is thief  <- rule.?someone.is.thief
-  cy is_a suspect  (given)
-  assumed not: cy is cleared  (no evidence for it was found)
-    looked for: cy is alibied
-    looked for: cy is innocent
-      looked for: cy in library
-```
-
-Read it top to bottom: *cy is the thief* — the `<-` means **"this follows
-from"** — from the **thief rule** (`rule.?someone.is.thief`). That rule stood
-on two legs. One is a fact we handed it directly: *cy is a suspect* (`given`
-means "you told me this; I didn't have to work it out").
-
-The other leg is the remarkable one: **`assumed not`**. The rule needed cy to be
-*not cleared* — and the machine admits, right in the receipt, that it never
-*proved* that. It **assumed** it, and it shows the grounds: the indented
-`looked for:` lines are the actual search it ran — an alibi? innocence? the
-library? — each coming up empty. That's step 6 from above, on the record.
-
-Every conclusion the machine reaches leaves a trail like this — its facts, its
-rules, *and its leaps* — and you can always pull on it.
-
-## One more thing: it knows what it *doesn't* know
-
-That `assumed not` line deserves a pause. When the machine couldn't find
-evidence that cy was cleared, it made a *choice*: treat "no evidence" as "not
-cleared." That's called **closing the world** — assuming that whatever you can't
-prove is false. It's how detectives (and databases) usually work.
-
-But sometimes that's the wrong stance. Suppose a stranger, **zz**, wanders into
-the story — someone the machine has never heard a single fact about. We ask:
+Remember `never paint`? Here's what the machine says about it afterwards:
 
 ```
-is zz thief
+blocked: ('never paint',)
 ```
 
-With a **closed world**, the machine reasons "I have nothing on zz, so — no" —
-and it is honest that this is an assumption, not a proof:
+It's telling us the rule *did something* — a move it would otherwise have
+considered got refused. And here's the part worth pausing on: a forbidden action
+costs **nothing**. The machine doesn't imagine painting a crate and then throw
+the result away. It never imagines it at all.
+
+That sounds like an optimisation. It isn't. It's the difference between a
+machine that *might* do the thing you forbade and then think better of it, and
+one for which the forbidden thing was never on the table. Chapter 12 is about
+that difference, and about where each kind of limit belongs.
+
+## Then it actually does it
+
+Planning is not doing. So far every crate is exactly where it started. When we
+tell it to go ahead:
 
 ```
-→ no (assumed)
+carried out: True | ran: ('stack', 'stack')
+
+  a is on b
+  b is on c
+  c is on the ground
 ```
 
-But if we tell it the clue list might be *incomplete* and it should **keep an
-open mind**, the very same question gets a very different, more honest answer:
+The tower is real now. Two actions ran, and they were the ones it had rehearsed.
+
+The rehearsal matters more than it looks. Because the machine had already
+imagined each step, it knows what each one is *supposed* to produce. So when
+reality doesn't match the rehearsal — the crate slips, the shelf is full, the
+file isn't there — it notices immediately, and it knows exactly which step
+surprised it. That's Chapter 10, and it's where this machine earns its keep.
+
+## And it remembers doing it
+
+One more thing. The machine kept notes:
 
 ```
-→ unknown
+thread session (5 entries)
+  0. attend root [start]
+  1. attend goal#80 [goal: build a tower [a on b, b on c, never paint]]  (taking on the goal)
+  2. applied stack  (depth 1, 2 constraint(s) open)
+  3. applied stack  (depth 2, 1 constraint(s) open)
+  4. attend goal#80 [plan is 2 step(s)]  (goal met (found))
 ```
 
-Not "no." Not a guess. **`unknown`** — *"I don't have what I'd need to decide."*
-A machine that can tell the difference between *"I've proven it's false"* and
-*"I just don't know"* is doing something most software never does.
+You can read the whole episode: it took on a goal, applied `stack` twice, and
+finished. Look at entry 2 — *"2 constraint(s) open"*. It's recording not just
+what it did but **how much of the goal was still unfinished when it did it**.
+Entry 3 says one. It was closing in.
 
-That honesty — reasoning only as far as the evidence allows, and saying so —
-is what the rest of this book is about.
+This isn't a log file. It's ordinary data in the same graph as everything else,
+which means the machine can *read its own notes* and reason about them. That's
+how it answers "why did you do that?" in Chapter 8, and how it notices two of
+its own intentions colliding in Chapter 15.
 
-[:material-play-circle: **Try the whole case live**](../playground/detective.md){ .md-button .md-button--primary }
+## What you just saw
 
-Edit a clue, re-ask, and watch the steps change. Delete `ada is alibied` and ask
-`who is thief` again — see what happens to ada.
+Four ideas. The rest of the book is these four getting sharper:
+
+1. **You describe the destination; it finds the route.** Goals are things that
+   must be true, not scripts to run.
+2. **It imagines before it acts.** Plans are rehearsed in a copy of the world,
+   so nothing is committed by thinking.
+3. **Limits are part of the goal.** "Never do this" shapes the search instead of
+   being checked afterwards.
+4. **It keeps its working.** Not a summary written after the fact — the actual
+   steps, still readable.
 
 ---
 
-**Next:** we'll open up the world the machine lives in — a world made of nothing
-but dots and arrows. [The substrate →](01-the-substrate.md)
+**Next:** what this world is actually made of. It's simpler than you'd expect —
+one kind of thing, joined by named arrows. [The substrate →](01-the-substrate.md)
