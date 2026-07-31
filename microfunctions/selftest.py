@@ -1232,5 +1232,190 @@ def check_a_node_imagined_during_planning_is_bound_by_provenance():
             "no_ambiguity_notes": result["notes"] == ()}
 
 
+# --- recovering from a divergence -------------------------------------------------------------------
+def _filesystem_with_followups():
+    """`_filesystem`, plus a distinct next step for each outcome — so a branch has something left to do
+    after the deviating call, which is the whole point of resuming onto one."""
+    from . import asm
+    g, d = _filesystem()
+    declare_type(g, "archived_dir", base="full_listing", attrs={"archived": True})
+    declare_type(g, "removed_dir", base="empty_listing", attrs={"removed": True})
+    asm.load_text(g, "\n".join([
+        "# What you do with a directory that turned out to have plenty in it.",
+        "fn archive(d: full_listing) -> archived_dir:",
+        '    SET F(d) "archived" true',
+        "",
+        "# What you do with one that turned out empty.",
+        "fn remove(d: empty_listing) -> removed_dir:",
+        '    SET F(d) "removed" true',
+    ]))
+    return g, d
+
+
+def _both_branches(g, d):
+    """Plan for empty (and remove it), fork for full (and archive it). Returns the two leaves."""
+    from . import workbench as W
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    m0 = W.mapping_for(g, f0, d)
+    e1, _ = W.step(g, wb, f0, "list_dir", {"d": m0}, assume="list_empty")
+    e2, _ = W.step(g, wb, e1, "remove", {"d": g.target(W.mapping_for(g, f0, d), "next")})
+    f1, _ = W.fork(g, wb, f0, "list_dir", {"d": m0}, assume="list_full")
+    f2, _ = W.step(g, wb, f1, "archive", {"d": _successor(g, m0, f1)})
+    return wb, e2, f2
+
+
+def _successor(g, mapping, frame):
+    from . import execution as X
+    return X._successor_in(g, mapping, frame)
+
+
+def check_leaves_under_finds_the_end_of_every_branch():
+    """A frame with no successor is a leaf, `frame` itself included — which is what makes resuming onto a
+    one-step branch a no-op rather than an error."""
+    from . import execution as X, workbench as W
+    g, d = _filesystem_with_followups()
+    wb, e2, f2 = _both_branches(g, d)
+    f0 = W.root_frame(g, wb)
+    return {"two_branches_two_leaves": set(X.leaves_under(g, wb, f0)) == {e2, f2},
+            "a_leaf_is_its_own_leaf": X.leaves_under(g, wb, f2) == (f2,)}
+
+
+def check_recovery_resumes_onto_the_branch_reality_took():
+    """⭐ THE PAYOFF OF FORKING. The plan assumed EMPTY and reality is FULL — but that outcome was explored,
+    so the rest of that branch is already a verified plan for the world we are now in, and execution
+    continues down it instead of replanning.
+
+    Three vacuity guards, because this check could pass for uninteresting reasons: the diverged call must
+    have reached the world **exactly once** (re-running it is the likeliest bug here); the abandoned
+    branch's own next step must NOT have run; and the resumed branch's next step must have really landed."""
+    from . import dispatch as D, execution as X
+    g, d = _filesystem_with_followups()
+    calls = []
+    D.register("ls", lambda gr, target: calls.append(target) or gr.put(target, many=True))
+    wb, empty_leaf, full_leaf = _both_branches(g, d)
+
+    result = X.execute(g, wb, empty_leaf)                 # commit to the empty branch
+    rec = X.recover(g, result, want="archived_dir")
+    resumed = rec["result"]
+    return {"diverged_first": not result["completed"] and result["deviation"]["step"] == "list_dir",
+            "recovered_by_contingency": rec["kind"] == "contingency",
+            "onto_the_branch_that_assumed_full": rec["assuming"] == "full_listing",
+            "completed": resumed["completed"],
+            "ran": resumed["ran"] == ("list_dir", "archive"),
+            "the_real_call_happened_exactly_once": len(calls) == 1,
+            "the_abandoned_step_never_ran": g.attr(d, "removed") is None,
+            "and_the_world_really_changed": is_a(g, d, "archived_dir")}
+
+
+def check_a_sibling_applying_a_different_function_is_not_resumable():
+    """⚠ Siblings are alternative SUCCESSORS, not necessarily alternative OUTCOMES. Resuming into a branch
+    whose step never ran would skip a call and report success. Vacuity guard: the sibling's promise is one
+    reality *does* satisfy, so only the same-function restriction can be what rejects it."""
+    from . import dispatch as D, execution as X, workbench as W
+    g, d = _filesystem_with_followups()
+    D.register("ls", lambda gr, target: gr.put(target, many=True))
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    m0 = W.mapping_for(g, f0, d)
+    a, _ = W.step(g, wb, f0, "list_dir", {"d": m0}, assume="list_empty")
+    b, trb = W.fork(g, wb, f0, "list_full", {"d": m0})     # a DIFFERENT function, same promise
+    result = X.execute(g, wb, a)
+    dev = result["deviation"]
+    return {"the_sibling_promises_what_reality_delivered":
+                g.attr(trb, "expects") == "full_listing" and W.deviates(g, trb, dev["result"]) == {},
+            "but_it_is_not_offered": X.matching_alternative(g, wb, dev) is None,
+            "and_recovery_does_not_take_it": X.recover(g, result)["kind"] == "stuck",
+            "sibling_was_a_candidate_at_all": b in X.alternatives(g, wb, dev["transformation"])}
+
+
+def check_replanning_proposes_from_the_world_as_it_actually_is():
+    """When nothing explored fits, the only sound move is a fresh proposal taking the REAL result as the
+    subject. Vacuity guards: no fork exists, so the contingency path cannot be what answered; the chain is
+    lazy, so the world must be unchanged until it is run; and running it must actually reach the goal."""
+    from . import dispatch as D, execution as X, plan as P, workbench as W
+    g, d = _filesystem_with_followups()
+    D.register("ls", lambda gr, target: gr.put(target, many=True))
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    e1, _ = W.step(g, wb, f0, "list_dir", {"d": W.mapping_for(g, f0, d)}, assume="list_empty")
+    e2, _ = W.step(g, wb, e1, "remove", {"d": _successor(g, W.mapping_for(g, f0, d), e1)})
+
+    result = X.execute(g, wb, e2)
+    without_a_goal = X.recover(g, result)
+    rec = X.recover(g, result, want="archived_dir")
+    unchanged = g.attr(d, "archived") is None
+    reached = P.run(g, rec["chain"])
+    return {"no_fork_to_fall_back_on": X.alternatives(g, wb, result["deviation"]["transformation"]) == (),
+            "without_a_goal_it_says_so": without_a_goal["kind"] == "stuck",
+            "with_one_it_replans": rec["kind"] == "replanned",
+            "from_the_real_result": g.target(rec["chain"], "subject") == d,
+            "the_plan_is_archive": "archive" in rec["plan"],
+            "nothing_committed_by_proposing": unchanged,
+            "and_running_it_reaches_the_goal": reached == d and is_a(g, d, "archived_dir")}
+
+
+def _scanner():
+    """A dispatching call that MINTS, with two outcomes — so resuming has to carry a node that did not
+    exist at planning time across onto a different branch's mappings."""
+    from . import asm, dispatch as D
+    g = new_graph()
+    declare_type(g, "dir", attrs={"kind_of": "dir"})
+    declare_type(g, "report", attrs={"kind_of": "report"})
+    declare_type(g, "escalated_report", base="report", attrs={"escalated": True})
+    declare_type(g, "scanned", base="dir", attrs={"scanned": True})
+    declare_type(g, "clean_scan", base="scanned", attrs={"faults": 0})
+    declare_type(g, "faulty_scan", base="scanned", attrs={"faulty": True})
+    body = ['    NEW R(r) "report"', '    SET R(r) "kind_of" "report"',
+            '    LINK F(d) "report" R(r)', '    SET F(d) "scanned" true']
+    asm.load_text(g, "\n".join([
+        "# Really scan a directory, filing a report. Reaches the world.",
+        "fn scan(d: dir) -> scanned:", '    DISPATCH R(out) "scan" F(d)', *body, "",
+        "# Assume it comes back clean.",
+        "fn scan_clean(d: dir) -> clean_scan mocks scan:", *body, '    SET F(d) "faults" 0', "",
+        "# Assume it comes back with faults.",
+        "fn scan_faulty(d: dir) -> faulty_scan mocks scan:", *body, '    SET F(d) "faulty" true', "",
+        "# Escalate the REPORT itself — not the directory.",
+        "fn escalate(r: report) -> escalated_report:", '    SET F(r) "escalated" true',
+    ]))
+    d = g.mint("dir", kind_of="dir")
+    g.link("root", "has", d)
+    D.register("scan", lambda gr, target: gr.put(target, faulty=True))
+    return g, d
+
+
+def check_resuming_carries_a_node_that_was_only_imagined():
+    """⭐ The hard half of resuming. `scan` MINTS a report, so the branch being resumed onto refers to a
+    node that did not exist when planning started — and the follow-up step operates on *that*, not on the
+    directory. Binding it wrongly would either crash or escalate the wrong node.
+
+    Vacuity guards: the report must genuinely have been imagined (no `original`); exactly one real report
+    must exist, so 'the right one' is a real claim; and the directory must NOT be what got escalated."""
+    from . import execution as X, workbench as W
+    g, d = _scanner()
+    wb = W.open_workbench(g, d)
+    f0 = W.root_frame(g, wb)
+    m0 = W.mapping_for(g, f0, d)
+    clean, _ = W.step(g, wb, f0, "scan", {"d": m0}, assume="scan_clean")
+    faulty, _ = W.fork(g, wb, f0, "scan", {"d": m0}, assume="scan_faulty")
+    imagined = [m for m in W.mappings(g, faulty) if W.is_imagined(g, m)]
+    tail, _ = W.step(g, wb, faulty, "escalate", {"r": imagined[0]})
+
+    result = X.execute(g, wb, clean)                      # commit to the clean branch; reality is faulty
+    rec = X.recover(g, result)
+    resumed = rec["result"]
+    reports = g.targets(d, "report")
+    return {"planning_imagined_a_report": len(imagined) == 1,
+            "which_had_no_original": W.resolve(g, imagined[0]) is None,
+            "diverged_then_recovered": not result["completed"] and rec["kind"] == "contingency",
+            "ran": resumed["ran"] == ("scan", "escalate"),
+            "exactly_one_real_report": len(reports) == 1,
+            "the_imagined_one_bound_to_it": resumed["bindings"].get(
+                _successor(g, imagined[0], tail)) == reports[0],
+            "and_the_real_report_was_escalated": is_a(g, reports[0], "escalated_report"),
+            "not_the_directory": g.attr(d, "escalated") is None,
+            "no_ambiguity_notes": resumed["notes"] == ()}
+
+
 if __name__ == "__main__":
     print(report())

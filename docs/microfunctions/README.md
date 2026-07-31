@@ -11,6 +11,7 @@ behind it.
 | `the_data_model.md` | plain-language prose: what a goal, a plan and a hypothesis *are*; the operations; why they nest without limit | to understand the model |
 | `graph_data_model.md` | the same as signature tables, a closure check, named gaps, and the probe results | to verify something |
 | `planning_workbench.md` | the workbench design — mappings, frames, mocks, the direction invariant, and the decisions that were got wrong first | before touching `workbench.py` |
+| **`thread_and_system1.md`** | ⭐ the missing outer loop — thread as materialised short-term memory, System 1 as bounded association, types recognised bottom-up; all figures measured | **next up**; the computation model was never specified until this |
 
 ---
 

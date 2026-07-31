@@ -7,8 +7,10 @@ loop. `ugm/` and `units/` are untouched — nothing was deleted.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 78 checks, 0 errored
+python -m microfunctions.selftest      # 83 checks, 0 errored
 ```
+
+> **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand.
 
 ---
 
@@ -110,11 +112,44 @@ planning *useful*; `dispatch.service` refusing an imagined target makes it *safe
 forgotten or bypassed, a dispatching function still could not reach the world. Putting the guarantee in the
 substitution would put it in the wrong place.
 
-## 5. What to do next
+## 5a. Done since — replanning on divergence (2026-07-31)
 
-**1. Replanning on divergence** — the obvious next piece, and small now. `execute` reports a deviation and
-`alternatives` returns the sibling branches already explored; nothing yet chooses one and continues, or
-re-proposes from the actual state. Everything it needs exists.
+`execution.py` gained `matching_alternative`, `resume`, `replan` and `recover`, plus `leaves_under`; the
+replay loop was factored into `_replay`/`_carry`/`_settle` so it can start mid-path. Five checks (78 → 83).
+
+**The shape.** Once a step diverges there are exactly two honest moves, and `recover` picks on structure,
+not policy. **`resume`** asks each sibling the *same* question that detected the problem — `deviates`,
+against that sibling's own promise. A sibling that survives it is a plan for the world we are now in,
+already imagined and already checked, so continuing down it is not replanning at all but following the
+contingency the fork was for. Tried first on evidence: it is verified against this world, a fresh proposal
+is not. **`replan`** handles the rest — propose afresh with the diverged step's real result as the subject,
+since that node *is* the actual state. It returns a lazy chain, so re-proposing still commits to nothing.
+
+**⚠ Three things that were easy to get wrong, and are now test-enforced.**
+
+- **The diverged call is not re-run.** It reached the world once; running it again doubles its effects.
+  Its real outcome is instead *settled* onto the chosen branch's own mappings, carried from the shared
+  parent frame — siblings do not share mapping nodes.
+- **The sibling must be the same function.** Siblings are alternative *successors*, not necessarily
+  alternative *outcomes*; a fork may try a different action. Resuming into one of those skips a call that
+  never ran and then reports success.
+- **A resumed branch may refer to a node that was only imagined,** and the follow-up step may operate on
+  *that* rather than on the subject. Whatever the real call minted has to be bound onto the *other*
+  branch's imagined mappings.
+
+**Probed rather than believed**, per §7. Each of the three was planted as a bug and confirmed to turn the
+relevant keys red — including the last, which was found only because a spy showed `_bind_minted` was
+running with an empty list on the resume path, i.e. the first version of that check was passing without
+testing anything.
+
+**Deliberately not done: rehearsing a re-proposal.** `replan` returns a chain; nothing runs that chain on a
+workbench, so a re-proposal is unverified where the original plan was verified. The blocker is a real
+question, not a missing function: turning a chain into workbench steps needs a rule binding each pending
+call's *output* to a mapping, and for a minting call that is the same open question as `compile_episode`'s
+multi-argument replay. A guessed binding yields a plan that *looks* rehearsed. Also first-wins, not
+arbitrated: among several matching branches, and among several leaves below one.
+
+## 5. What to do next
 
 **2. ⚠ Conflict detection — a regression, not a deferral.** The old rule engine surfaced two conclusions
 disagreeing rather than letting one silently overwrite, and the composition-safety argument for the open

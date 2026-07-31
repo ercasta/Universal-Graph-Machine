@@ -353,10 +353,48 @@ pairing is a guess — and `execute` says so in its notes rather than choosing s
 diverged. That is the payoff for branching deliberately at the few points that warrant it, and the reason
 an abandoned fork is kept as data rather than erased.
 
+## Recovering from a divergence
+
+Once a step has diverged there are exactly two honest moves, and `recover` picks between them on the
+structure rather than on a policy.
+
+**`resume` — was this outcome already explored?** A fork exists precisely because someone thought a call
+could turn out more than one way. `matching_alternative` asks each sibling the same question that detected
+the problem — `deviates`, against the sibling's own promise — and a sibling that survives it is a plan for
+the world we are now in, *already imagined and already checked*. Continuing down it is not replanning; it
+is following the contingency the fork was for. This is tried first on evidence, not taste: a matching
+branch is verified against this world and a fresh proposal is not.
+
+**⚠ The diverged call is not re-run.** It reached the world once, and running it again would double its
+effects — the single most likely bug here. Its real outcome is instead *settled* onto the chosen branch's
+own mappings, carried from the shared parent frame, since siblings do not share mapping nodes. That
+includes anything the call **minted**: a branch may refer to a node that did not exist at planning time,
+and the follow-up step may operate on *that* rather than on the original subject.
+
+**⚠ Resuming requires the sibling to be the same function.** Siblings are alternative *successors*, which
+need not be alternative *outcomes* — a fork may try a different action entirely. Resuming into one of those
+would silently skip a call that never ran and then report success.
+
+**`replan` — nothing explored fits.** Then the branch tree has nothing to say, and the only sound move is
+to propose afresh **from the world as it actually is**, taking the diverged step's real result as the
+subject, because that node *is* the actual state. What comes back is a lazy chain, so re-proposing still
+commits to nothing. With no goal to aim at, `recover` says `stuck` rather than inventing one.
+
+```
+ran: list_dir, archive
+  (resumed on the branch assuming full_listing)
+completed as planned
+```
+
 ## Not here yet
 
-- **Replanning on divergence.** Execution reports a deviation and offers explored alternatives, but
-  nothing yet chooses one and continues, or re-proposes from the actual state.
+- **Rehearsing a re-proposal.** `replan` returns a chain; nothing runs that chain on a workbench first, so
+  a re-proposal is unverified where the original plan was verified. The blocker is real rather than
+  missing code: turning a chain into workbench steps needs a rule binding each pending call's *output* to a
+  mapping, and for a call that mints something that is the same open question as `compile_episode`'s. A
+  guessed binding would produce a plan that *looks* rehearsed.
+- **Arbitrating between several matching branches, or several leaves below one.** Both take the first,
+  matching the planner's first-solution-wins discipline rather than pretending to choose.
 - **⚠ A policy against enumerating mocks eagerly.** Nothing currently stops a caller forking every outcome
   of every uncertain call — three calls with three outcomes each is twenty-seven plans, and that is a small
   plan. `step` assumes the preferred outcome, which is the right default, but the discipline (branch only
