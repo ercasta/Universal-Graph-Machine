@@ -4,7 +4,7 @@
 document in code. `ugm/` and `units/` stay as the findings they are — nothing deleted, and deletion is
 earned per item by the audit in `north_star.md` §6.
 
-`python -m microfunctions.selftest` — **111 checks, 0 errored.**
+`python -m microfunctions.selftest` — **112 checks, 0 FAILED.**
 
 | module | what it is |
 |---|---|
@@ -504,6 +504,30 @@ which no parameter or return signature could express.
 ⚠ **A mock is never proposed as an action.** It is an assumption about how a real call turns out, so
 planning one would plan to *assume* rather than to act, and name a function that must never really run.
 `workbench.step` substitutes it when the real operator is stepped.
+
+## The loop closed — `driver.carry_out`
+
+Plan by imagining → act for real → reality disagrees → replan from where we actually are → succeed.
+
+```
+attempt 0: planned ('scan_dir',) -> ran ('scan_dir',), completed=False
+   DIVERGED at scan_dir | expected some 'file' edge, found none
+attempt 1: planned ('scan_dir',) -> ran ('scan_dir',), completed=True
+goal: find a file [something is a file] - MET
+```
+
+**⚠ Replanning comes back here, not to `plan.py`.** Backward chaining knows nothing about a goal's
+constraints — asked to recover a diverged "some file must exist" it answered *"listing: already
+satisfied"*: true, and useless. Re-pursuing the **goal** is the only recovery that means anything, and it
+needs no new state because `pursue` opens a fresh workbench on the current real subject.
+
+**⚠ A goal is closed only by reality.** `pursue` records that a plan was *found* (`record_plan`); nothing
+but a completed execution closes it. These were one method, and conflating them meant a goal read as met
+while execution had diverged and nothing had happened.
+
+**⚠ Known limit:** `pursue` does not fork on mock outcomes — it takes the preferred one — so a plan it
+produces has no sibling branches and `resume` can never offer a contingency for one. The loop leans on
+replanning instead. Stated rather than hidden.
 
 **⭐ The plan is FOUND, not built.** `execution.path_to(wb, winning_frame)` already *is* a plan: the frame
 tree records every imagined state and the transformation that reached it, so the path to the frame that

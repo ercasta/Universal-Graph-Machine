@@ -366,7 +366,9 @@ def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused) -> 
     subject = g.target(wb, "subject")
     under = W.image_of(g, W.mapping_for(g, frame, subject))
     found = G.witness(g, goal, view=view_in(g, frame), under=under)
-    G.close_goal(g, goal, found, seen_in=frame)
+    # ⚠ PLANNED, not closed. The goal is met in an imagined frame; the world is untouched. Closing it here
+    # would report success for something that has not happened.
+    G.record_plan(g, goal, seen_in=frame, witness=found)
 
     plan = X.path_to(g, wb, frame)
     closing = T.attend(g, thread, goal, why=f"goal met ({how})",
@@ -375,6 +377,61 @@ def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused) -> 
     return {"found": True, "workbench": wb, "frame": frame, "goal": goal, "witness": found,
             "plan": plan, "length": len(plan) - 1, "steps": imagined, "how": how,
             "refused": refused, "blocked_by": tuple(sorted({r for _n, rs in refused for r in rs}))}
+
+
+def carry_out(g: Graph, goal: str, thread: str, subject: str, *,
+              attempts: int = 3, **kw) -> dict:
+    """⭐⭐ PLAN, ACT, CHECK, REPLAN — the loop closed. Returns a report of every attempt.
+
+    `pursue` finds a plan in imagination; this is what actually does it, notices when reality disagrees, and
+    goes round again from the world as it really is.
+
+    **⚠ Replanning has to come back HERE, not to `plan.py`.** `execution.replan` chains backwards over
+    return types and knows nothing about a goal's constraints — asked to recover a diverged
+    "some file must exist", it answered *"listing: already satisfied"*: true, and useless. Re-pursuing the
+    **goal** is the only recovery that can mean anything, and it needs no new state because `pursue` opens a
+    fresh workbench on the current real subject. Replanning is just going round the loop again.
+
+    **⚠ A contingency is still tried first**, for the reason `execution.recover` gives: an explored sibling
+    is already verified against this world, a fresh plan is not. It rarely applies to a plan *this* function
+    produced, because `pursue` does not fork on mock outcomes — it takes the preferred one. That is a real
+    limitation, stated rather than hidden, and the reason the loop leans on replanning.
+
+    **The goal is closed only by reality.** `pursue` records that a plan was *found*; nothing but a
+    completed execution closes the goal."""
+    history: list = []
+    for attempt in range(attempts):
+        plan = pursue(g, goal, thread, subject, **kw)
+        if not plan["found"]:
+            history.append({"attempt": attempt, "planned": False, "why": plan["why"]})
+            break
+
+        T.attend(g, thread, goal, why=f"attempt {attempt + 1}: carrying out the plan",
+                 note=" then ".join(plan_steps(g, plan)) or "(nothing)")
+        report = X.execute(g, plan["workbench"], plan["frame"])
+        step = {"attempt": attempt, "planned": True, "steps": plan_steps(g, plan),
+                "ran": report["ran"], "completed": report["completed"]}
+
+        if not report["completed"]:
+            rec = X.recover(g, report)          # an explored sibling, if there is one
+            if rec["kind"] == "contingency" and rec["result"]["completed"]:
+                report, step["recovered"] = rec["result"], "contingency"
+                step["completed"], step["ran"] = True, report["ran"]
+            else:
+                step["diverged"] = X.report(g, report)
+        history.append(step)
+
+        if report["completed"] and G.satisfied(g, goal, under=subject):
+            found = G.witness(g, goal, under=subject)
+            G.close_goal(g, goal, found)
+            T.attend(g, thread, goal, why="done for real", note=G.describe(g, goal))
+            return {"done": True, "attempts": tuple(history), "witness": found, "tries": attempt + 1}
+
+    T.attend(g, thread, goal, why="gave up", note=f"after {len(history)} attempt(s)")
+    return {"done": False, "attempts": tuple(history), "tries": len(history),
+            "why": f"{len(history)} attempt(s) did not reach ["
+                   + "; ".join(G.describe_constraint(g, c)
+                               for c in G.unmet(g, goal, under=subject)) + "]"}
 
 
 def plan_steps(g: Graph, result: dict) -> tuple:
@@ -409,4 +466,5 @@ def describe(g: Graph, result: dict) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["proposals", "state_of", "pursue", "plan_steps", "describe"]
+__all__ = ["proposals", "state_of", "establishes", "relevance", "view_in",
+           "pursue", "carry_out", "plan_steps", "describe"]

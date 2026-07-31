@@ -7,7 +7,7 @@ loop. `ugm/` and `units/` are untouched — nothing was deleted.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 111 checks, 0 errored
+python -m microfunctions.selftest      # 112 checks, 0 FAILED
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -332,6 +332,35 @@ real call turns out, not something to do — the first run planned `found_two` i
 plan naming a function that must never be executed for real. Invisible in a library without mocks, which is
 why blocks-world never showed it. Fixed in `driver.proposals`; `workbench.step` substitutes the mock when
 the real operator is stepped, which is where that belongs.
+
+## 5g. END TO END — plan, act, diverge, replan, succeed (2026-07-31)
+
+`driver.carry_out`. Asked "do we have an end to end?", the honest answer was **no** — every piece was
+checked in isolation and running the whole chain broke in three places. All three are now fixed.
+
+**⚠ Replanning was going to the wrong planner.** `execution.recover` chains backwards over return types via
+`plan.py`, which knows nothing about a goal's constraints. Asked to recover a diverged "some file must
+exist", it answered *"listing: already satisfied"* — true, and useless. Recovery for a driver-made plan has
+to come back to `carry_out` and re-pursue the **goal**; replanning is just going round the loop again, and
+it needs no new state because `pursue` opens a fresh workbench on the current real subject.
+
+**⚠ The driver closed a world goal on IMAGINED evidence.** After a diverged execution the goal read as met
+while nothing had happened. Split into `record_plan` (a plan was found — met in imagination) and
+`close_goal` (met in reality). "I know how to do this" and "this is now true" are different claims.
+
+**⚠ The driver never forks on mock outcomes**, so a plan it produced has no sibling branches and `resume`
+can never apply to one. Stated rather than hidden; it is why the loop leans on replanning. Closing it is
+`§5` item 4's question from the other side.
+
+**⚠ AND THE HARNESS WAS NOT FAILING ON `False`.** It tallied only exceptions, so a check that ran fine and
+answered "no" printed among a hundred lines and a skim missed it — the mistake §7 already records having
+made once, made again with `goal_recorded_as_met`. `report()` now counts any key that is exactly `False`;
+the tally reads **FAILED**, not "errored". Non-boolean values (counts, reasons) are left alone. No other
+latent `False` was hiding.
+
+The run: first listing finds nothing, the prediction breaks, it replans from the real state, a file has
+appeared, the second attempt completes, and the goal is closed *only then*. Ten thread entries hold the
+whole story.
 
 ## 5. What to do next
 

@@ -346,8 +346,17 @@ def report() -> str:
             r = fn()
         except Exception as e:                       # a probe that explodes is a red, not a crash
             r, failures = {"ERROR": f"{type(e).__name__}: {e}"}, failures + 1
-        lines.append(f"{fn.__name__[6:]:<52} {r}")
-    lines.append(f"\n{len(checks)} checks, {failures} errored")
+        # ⚠ A KEY REPORTING `False` IS A FAILURE, and it did not used to count. The harness only tallied
+        # exceptions, so a probe that ran fine and answered "no" printed among a hundred lines and a skim
+        # missed it — which is exactly the mistake `HANDOFF.md` §7 already records having made once. It
+        # then happened again, to `goal_recorded_as_met`, which is what prompted this. Non-boolean values
+        # are data a check chose to report (counts, reasons) and are left alone; only an explicit `False`
+        # is a red.
+        bad = sorted(k for k, v in r.items() if v is False)
+        if bad:
+            failures += 1
+        lines.append(f"{fn.__name__[6:]:<52} {r}" + (f"\n{'':<52} ⚠ FALSE: {bad}" if bad else ""))
+    lines.append(f"\n{len(checks)} checks, {failures} FAILED")
     return "\n".join(lines)
 
 
@@ -1937,8 +1946,9 @@ def check_end_to_end_a_goal_to_produce_a_plan():
             "the_plan_is_two_stacks": D.plan_steps(g, result) == ("stack", "stack"),
             "every_constraint_met": G.unmet(g, goal, view=D.view_in(g, result["frame"])) == (),
             "REAL_WORLD_UNTOUCHED": real_heights == [1, 1, 1],
-            "goal_recorded_as_met": G.is_closed(g, goal),
-            "but_only_in_imagination": g.target(goal, "seen_in") == result["frame"],
+            "recorded_as_PLANNED": G.is_planned(g, goal),
+            "but_NOT_as_done": not G.is_closed(g, goal),
+            "and_it_says_where_it_was_seen": g.target(goal, "seen_in") == result["frame"],
             "the_thread_recorded_the_work": len(entries) > 4,
             "and_ties_the_close_back_to_the_opening":
                 T.connected(g, closing, "achieves") == (entries[1],)}
@@ -2101,6 +2111,43 @@ def check_planning_looks_for_an_expectation_not_a_type_signature():
             "and_plans_the_REAL_call": D.plan_steps(g, result) == ("scan_dir",),
             "NOT_THE_MOCK": "found_two" not in D.plan_steps(g, result),
             "in_one_step": result["steps"] == 1}
+
+
+def check_END_TO_END_plan_act_diverge_replan_succeed():
+    """⭐⭐⭐ THE WHOLE LOOP, IN ONE RUN. Materialise a world and a goal, bootstrap a thread, then:
+    plan by imagining → act for real → reality disagrees → replan from where we actually are → succeed.
+
+    The first listing finds nothing (the plan's prediction breaks); a file appears; the retry finds it.
+
+    Vacuity guards, because a green here could mean almost anything: attempt 1 must genuinely have
+    diverged (not merely been skipped); the goal must be closed only *after* reality delivered, and must be
+    structurally true at the end rather than merely recorded; and the thread must hold the whole story."""
+    from . import dispatch as D, driver as Dr, goal as G, thread as T
+    g, d = _scanner_fs()
+    declare_type(g, "file", attrs={"kind_of": None})
+    th = T.open_thread(g, "session")
+    goal = G.open_goal(g, label="find a file")
+    G.require_type(g, goal, "file")
+
+    calls = {"n": 0}
+    def ls(gr, target):
+        calls["n"] += 1
+        if calls["n"] >= 2:                     # the world changes between attempts
+            gr.link(target, "file", gr.mint("file"))
+    D.register("ls", ls)
+
+    out = Dr.carry_out(g, goal, th, d, max_steps=50)
+    first, second = out["attempts"][0], out["attempts"][1]
+    return {"done": out["done"],
+            "took_two_attempts": out["tries"] == 2,
+            "the_first_really_diverged": not first["completed"] and "diverged" in first,
+            "on_a_broken_prediction": "expected some new file node" in first["diverged"],
+            "it_replanned_rather_than_giving_up": second["steps"] == ("scan_dir",),
+            "and_the_second_completed": second["completed"],
+            "the_tool_really_ran_twice": calls["n"] == 2,
+            "GOAL_TRUE_IN_REALITY": G.satisfied(g, goal, under=d),
+            "and_only_now_recorded_closed": G.is_closed(g, goal),
+            "the_thread_holds_the_whole_story": len(T.entries(g, th)) == 10}
 
 
 def check_a_mock_is_never_proposed_as_an_action():

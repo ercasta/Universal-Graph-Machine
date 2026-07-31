@@ -238,9 +238,27 @@ def witness(g: Graph, goal: str, *, view=None, under: str | None = None):
 
 
 # --- recording ----------------------------------------------------------------------------------
+def record_plan(g: Graph, goal: str, *, seen_in: str, witness=None) -> str:
+    """⭐ A plan was found — the goal is met **in imagination**, which is not the world having changed.
+
+    ⚠ These were one method, and conflating them was a real defect: the driver closed a world goal the
+    moment an imagined frame satisfied it, so a goal read as *met* while execution had diverged and nothing
+    had happened. "I know how to do this" and "this is now true" are different claims and the record has to
+    keep them apart, or every downstream reader inherits the confusion."""
+    g.put(goal, planned=True)
+    g.link(goal, "seen_in", seen_in)
+    if witness is not None:
+        g.link(goal, "planned_witness", witness)
+    return goal
+
+
+def is_planned(g: Graph, goal: str) -> bool:
+    """A plan reaching this goal has been found. Says nothing about whether it was carried out."""
+    return bool(g.attr(goal, "planned"))
+
+
 def close_goal(g: Graph, goal: str, by, *, seen_in: str | None = None) -> str:
-    """Record what closed this goal. `seen_in` names the region — an *imagined* state closing a goal about
-    planning is not the world having changed, and conflating those would be a lie."""
+    """Record that this goal was met **in reality**. `seen_in` is for the imagined case only."""
     if by is not None:
         g.link(goal, "met_by", by)
     if seen_in is not None:
@@ -283,13 +301,14 @@ def describe_constraint(g: Graph, c: str) -> str:
 def describe(g: Graph, goal: str) -> str:
     want = ", ".join(describe_constraint(g, c) for c in constraints(g, goal))
     head = f"goal: {g.attr(goal, 'label')} [{want}]"
-    if not is_closed(g, goal):
-        return head
-    seen = g.target(goal, "seen_in")
-    return head + " — MET" + (f" in {seen}" if seen else "")
+    if is_closed(g, goal):
+        return head + " — MET"
+    if is_planned(g, goal):
+        return head + f" — PLANNED (in {g.target(goal, 'seen_in')})"
+    return head
 
 
 __all__ = ["PLAN_SORTS", "SAFETY_SORTS", "open_goal", "require_link", "require_attr", "require_type",
            "forbid_action", "require_action", "limit_steps", "constraints", "plan_constraints",
            "world_constraints", "breached", "outstanding", "holds", "unmet", "satisfied", "witness",
-           "close_goal", "is_closed", "wanted", "describe_constraint", "describe"]
+           "record_plan", "is_planned", "close_goal", "is_closed", "wanted", "describe_constraint", "describe"]
