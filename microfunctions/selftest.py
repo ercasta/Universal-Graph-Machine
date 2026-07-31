@@ -2113,6 +2113,60 @@ def check_planning_looks_for_an_expectation_not_a_type_signature():
             "in_one_step": result["steps"] == 1}
 
 
+def check_types_are_recognised_bottom_up():
+    """⭐ **What IS this?** — the direction this module was missing. Every entry point was top-down
+    (`is_a` and `instances` both take a *named* type); nothing asked what a node turns out to be.
+
+    Vacuity guards, because two of these look like features and are not: multi-type and de-recognition must
+    fall out of independent structural predicates rather than needing mechanism, so the same three-line
+    function must produce both — and a type constraining nothing must not be 'recognised' on everything."""
+    from . import function as fnm
+    from .types import recognize, type_names
+    g, car = _garage()
+    declare_type(g, "anything")                          # constrains nothing at all
+    fresh = recognize(g, car)
+    fnm.invoke(g, "service", {"c": car})
+    serviced = recognize(g, car)
+    fnm.invoke(g, "wash", {"c": car})
+    washed = recognize(g, car)
+    g.unlink(car, "wheel", index=0)
+    return {"a_plain_car": fresh == ("car",),
+            "MULTI_TYPE_FALLS_OUT": washed == ("car", "serviced_car", "washed_car"),
+            "one_at_a_time": serviced == ("car", "serviced_car"),
+            "DE_RECOGNITION_FALLS_OUT": recognize(g, car) == (),
+            "with_nothing_to_invalidate_because_nothing_was_stored": g.attr(car, "is_a") is None,
+            "a_type_constraining_nothing_is_not_recognition": "anything" not in type_names(g)}
+
+
+def check_a_stale_type_tag_is_never_trusted():
+    """⚠ **THE DEFECT, FIXED.** `tag` stamps `is_a` and that stamp is a claim about the *past*, while `is_a`
+    is computed from current structure. `application.generalise` read the raw attribute as authoritative, so
+    a node that had since changed would name a learned function's parameter — and declare its type — after
+    a class it no longer belonged to, producing a function that refuses its own training example.
+
+    Vacuity guards: the stale attribute must still be *present* (so `tagged_as` is what rejects it, not its
+    absence); and the same tag while still true must be honoured, or the fix would just be "ignore tags"."""
+    from . import application as ap, function as fnm
+    from .types import is_a, tag, tagged_as
+    g, car = _garage()
+    tag(g, car, "car")
+    honoured = tagged_as(g, car)
+
+    ep = ap.open_episode(g, "servicing")
+    ap.record(g, "service", {"c": car}, episode=ep)
+    g.unlink(car, "wheel", index=0)                       # the world moves on under the stamp
+    stale_attr = g.attr(car, "is_a")
+    params, _m, ptypes = ap.generalise(g, ep)
+    learned = ap.compile_episode(g, ep, "learned")
+    return {"honoured_while_true": honoured == "car",
+            "the_stamp_is_still_there": stale_attr == "car",
+            "but_it_no_longer_holds": not is_a(g, car, "car"),
+            "SO_IT_IS_NOT_TRUSTED": tagged_as(g, car) is None,
+            "and_generalise_does_not_use_it": params == ("chunk",) and ptypes == {},
+            "so_the_learned_function_declares_no_false_type":
+                fnm.param_types(g, learned) == {}}
+
+
 def check_intake_turns_a_said_thing_into_a_goal_and_the_loop_runs_it():
     """⭐⭐ INTAKE. The loop is driven entirely by a goal, and until now the only way to get one was to call
     `goal.py` from Python — so the one thing that *starts* the system was the one thing it could not receive.

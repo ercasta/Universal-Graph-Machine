@@ -7,7 +7,7 @@ loop. `ugm/` and `units/` are untouched — nothing was deleted.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 114 checks, 0 FAILED
+python -m microfunctions.selftest      # 116 checks, 0 FAILED
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -392,6 +392,31 @@ goal stack a on b on c:      ->  carried out: True in 1 attempt
     never unstack
     at most 4 steps
 ```
+
+## 5i. The type-cache drift defect — FIXED, and recognition gained (2026-07-31)
+
+`thread_and_system1.md` §5b recorded this as a **live defect**, measured rather than hypothesised:
+`types.tag` stamps `is_a`, and `application.generalise` read that raw attribute as authoritative. A stamp
+is a claim about the *past*; `is_a` is computed from current structure. Remove a wheel from a tagged car and
+the stamp still said `car` — so a learned function took its parameter name *and its declared type* from a
+class the node no longer belonged to, producing a function that would refuse its own training example.
+
+**The rule, as designed: cache the candidate, re-validate on read.** `types.tagged_as` returns the hint only
+if it still holds. The cost that justifies a cache is the *search over all types* (linear in how many are
+declared); one check against a *named* type is ~25µs, so re-validating is nearly free and drift becomes
+structurally impossible rather than merely unlikely. The raw attribute is now documented as a hint about
+what to check, never an answer, and `tagged_as` is the only sanctioned reader.
+
+**⭐ And `types.recognize` — the bottom-up direction the module never had.** Every entry point was top-down:
+`is_a` asks about a *named* type, `instances` enumerates for a *named* type, nothing asked what a node turns
+out to be. Three lines, because typing was already structural and dynamic — only the direction was absent.
+**Multi-type and de-recognition fall out** rather than needing mechanism, which is the evidence the shape is
+right: independent structural predicates, so of course a washed car is also a serviced car, and of course
+removing a wheel de-recognises it with nothing to invalidate.
+
+That closes §5 of `thread_and_system1.md`. What remains from that design is System 1 itself, which the
+end-to-end work showed to be an **optimisation** at this scale rather than a capability — it becomes
+load-bearing only when the world is too large for `driver.proposals` to enumerate.
 
 ## 5. What to do next
 

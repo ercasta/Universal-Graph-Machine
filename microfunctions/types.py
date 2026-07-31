@@ -153,12 +153,58 @@ def instances(g: Graph, type_name: str, under: str = "root") -> tuple:
     return tuple(n for n in reachable(g, under) if is_a(g, n, type_name))
 
 
+def type_names(g: Graph) -> tuple:
+    """Every declared type that constrains anything. A type with no requirements at all is satisfied by
+    everything, so it is not recognition — the same stance `subsumes` already takes."""
+    return tuple(sorted(
+        n for n in (g.attr(t, "name") for t in g.nodes if g.kind(t) == "type")
+        if schema_of(g, n) or attrs_of(g, n)))
+
+
+def recognize(g: Graph, node) -> tuple:
+    """⭐ **What IS this?** — the bottom-up direction, which was the one missing from this module.
+
+    Every entry point here was top-down: `is_a` asks about a *named* type, `instances` enumerates for a
+    *named* type. Nothing asked what a node turns out to be. That question is five lines, because typing was
+    already structural and dynamic; only the direction was absent.
+
+    Two properties fall out rather than needing mechanism, which is the evidence the shape is right:
+    **multi-type** (a washed car is also a serviced car and a car — independent structural predicates, so
+    of course), and **de-recognition** (remove a wheel and it stops being a car, with nothing to invalidate
+    because nothing was stored)."""
+    if node is None or g.kind(node) == "type":
+        return ()
+    return tuple(name for name in type_names(g) if is_a(g, node, name))
+
+
 def tag(g: Graph, node, type_name: str):
-    """Record a validated type on the node, so later callers pass a pointer instead of re-validating."""
+    """Validate loudly, and leave a **hint** for later readers.
+
+    ⚠ The hint is not the answer, and treating it as one was a live defect. `is_a` is computed from current
+    structure; a stamped attribute is a claim about the past. Remove a wheel from a tagged car and the
+    stamp still says `car` while the structure says otherwise — measured, and `application.generalise` was
+    reading it as authoritative, so a learned function took its parameter name and declared type from a
+    class the node no longer belonged to.
+
+    **The rule: cache the candidate, re-validate on read.** The cost is the *search over all types*
+    (linear in how many are declared); one check against a *named* type is ~25µs, so re-validating is
+    nearly free and drift becomes structurally impossible rather than merely unlikely. Read it through
+    `tagged_as`, never as a raw attribute."""
     check(g, node, type_name)
     g.put(node, is_a=type_name)
     return node
 
 
+def tagged_as(g: Graph, node):
+    """The node's hinted type — **only if it still holds**. `None` when it never had one or has drifted.
+
+    This is the sanctioned reader. `g.attr(node, "is_a")` is a hint about what to check, not a fact."""
+    hint = g.attr(node, "is_a")
+    if hint is None:
+        return None
+    return hint if is_a(g, node, hint) else None
+
+
 __all__ = ["TypeViolation", "declare_type", "find_type", "schema_of",
-           "attrs_of", "violations", "is_a", "subsumes", "subtypes", "check", "instances", "tag"]
+           "attrs_of", "violations", "is_a", "subsumes", "subtypes", "check", "instances",
+           "type_names", "recognize", "tag", "tagged_as"]

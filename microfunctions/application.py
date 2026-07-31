@@ -27,6 +27,7 @@ from __future__ import annotations
 from . import function as fn
 from .graph import Graph
 from .isa import F, I, R
+from .types import tagged_as
 
 
 def open_episode(g: Graph, label: str = "episode", *, about=None) -> str:
@@ -115,13 +116,18 @@ def generalise(g: Graph, episode: str, keep_constant=()) -> tuple:
         for node in bindings_of(g, a).values():
             if node is None or node in keep or node in mapping:
                 continue
-            kind = g.attr(node, "is_a") or g.kind(node) or "arg"
+            # ⚠ Read the type hint through `tagged_as`, which RE-VALIDATES it. Reading the raw `is_a`
+            # attribute was a live defect: it is a claim about the past, so a node that has since changed
+            # would name the learned function's parameter — and declare its type — after a class it no
+            # longer belongs to, producing a function that refuses its own training example.
+            declared = tagged_as(g, node)
+            kind = declared or g.kind(node) or "arg"
             seen[kind] = seen.get(kind, 0) + 1
             name = kind if seen[kind] == 1 else f"{kind}{seen[kind]}"
             mapping[node] = name
             order.append(name)
-            if g.attr(node, "is_a"):
-                ptypes[name] = g.attr(node, "is_a")
+            if declared:
+                ptypes[name] = declared
     return tuple(order), mapping, ptypes
 
 

@@ -1,8 +1,15 @@
 # Thread, System 1, and bottom-up type recognition — design
 
-**Status:** §1 **BUILT** (`microfunctions/thread.py`), and §6's step 4 — the outer loop — is built and runs
-**end to end** (`goal.py` + `driver.py`, blocks-world scenario; suite at 97/0). §§2–4 (System 1) and §5
-(recognition) remain designed only. See `HANDOFF.md` §5b–§5c.
+**Status:** §1 **BUILT** (`thread.py`); §6 steps 1–4 **BUILT** — the outer loop runs **end to end**
+(`goal.py`, `driver.py`, `intake.py`; suite at 116/0); §5 **BUILT** (`types.recognize`) and its recorded
+drift defect **FIXED** (`types.tagged_as`). Only **§§2–4, System 1 itself, remain designed-only.**
+See `HANDOFF.md` §5b–§5i.
+
+⚠ **And System 1 turned out to be an OPTIMISATION, not a capability** — at this scale. The loop plans,
+acts, detects divergence and replans without it; `driver.relevance` does the candidate ordering this design
+imagined System 1 doing, and needs none of the neighbourhood/radius question resolved. It becomes
+load-bearing only when the world is too large for `driver.proposals` to enumerate at all — a real threshold,
+but a long way from the toy. §6's ordering was right for the wrong reason.
 
 ⚠ **One thing the end-to-end changed about §6's ordering:** System 1 was to come last because of its
 unresolved measurement question, and that held — but the loop turned out **not to need it at all** to work.
@@ -213,7 +220,7 @@ start from root. The region rule of §2 is what has to carry it.
 
 ## 5. Types are recognised, not declared
 
-### 5a. ⭐ It is already free — measured, not assumed
+### 5a. ⭐ It is already free — measured, not assumed — **BUILT 2026-07-31** as `types.recognize`
 
 Typing here is *already* structural and dynamic: `is_a` is `not violations(...)`, computed from current
 structure, and `declare_type`'s docstring already states the consequence ("checkable at any moment rather
@@ -234,7 +241,7 @@ after losing a wheel -> ()                                        de-recognition
 Multi-type is not a feature to add — it is what a set of independent structural predicates already does.
 De-recognition needs no invalidation because nothing was stored.
 
-### 5b. ⚠ The cache already exists, and it already drifts
+### 5b. ⚠ The cache already exists, and it already drifts — **FIXED 2026-07-31**, see `HANDOFF.md` §5i
 
 `types.tag` stamps `is_a` on the node, and `application.generalise` reads that attribute as **authoritative**
 when choosing parameter names and types. Measured:

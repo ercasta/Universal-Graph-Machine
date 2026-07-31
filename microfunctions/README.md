@@ -4,7 +4,7 @@
 document in code. `ugm/` and `units/` stay as the findings they are — nothing deleted, and deletion is
 earned per item by the audit in `north_star.md` §6.
 
-`python -m microfunctions.selftest` — **114 checks, 0 FAILED.**
+`python -m microfunctions.selftest` — **116 checks, 0 FAILED.**
 
 | module | what it is |
 |---|---|
