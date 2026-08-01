@@ -47,6 +47,7 @@ would make a plan that looks verified and is not.
 """
 from __future__ import annotations
 
+from . import activation as ACT
 from . import function as fn
 from . import workbench as W
 from .graph import Graph
@@ -156,9 +157,10 @@ def _replay(g: Graph, frames: tuple, bound: dict, notes: list, ran: list):
                     "why": f"unbound argument(s) {missing} — the plan referred to "
                            f"something that does not exist in the real graph"}
 
-        before = set(g.nodes)
-        _focus, out = fn.invoke(g, name, args)
-        minted = sorted(set(g.nodes) - before)
+        called, out = fn.invoke(g, name, args)
+        # WARN Read off the call itself, never off a whole-graph diff - `activation.minted`. The diff
+        # counted every node that appeared while the call ran, the interpreter's own state included.
+        minted = list(ACT.minted(g, ACT.for_focus(g, called.node)))
         result = out.get("result") or args.get(fn.subject_param(g, name))
         ran.append(name)
 

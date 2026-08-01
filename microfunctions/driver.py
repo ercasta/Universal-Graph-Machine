@@ -441,87 +441,9 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
                 "contradictory": impossible, "refused": (), "blocked_by": (),
                 "why": "the goal cannot be met: " + "; ".join(impossible)}
 
-    wb = W.open_workbench(g, subject, label=f"pursuing {g.attr(goal, 'label')}")
-    root = W.root_frame(g, wb)
-    opened = T.attend(g, thread, goal, why="taking on the goal", note=G.describe(g, goal))
-
-    def asked_of(frame):
-        """`(view, under)` — how the goal is checked inside this imagined frame."""
-        return view_in(g, frame), W.image_of(g, W.mapping_for(g, frame, subject))
-
-    score = rank if rank is not None else relevance
-    view, under = asked_of(root)
-    if G.satisfied(g, goal, view=view, under=under) and not G.outstanding(g, goal, ()):
-        return _done(g, goal, thread, wb, root, opened, "already satisfied", 0, ())
-
-    def still_open(frame):
-        v, u = asked_of(frame)
-        return G.unmet(g, goal, view=v, under=u)
-
-    # ⭐ THE FRONTIER HOLDS PROPOSALS, NOT FRAMES — and that is what makes the guidance worth anything.
-    #
-    # ⚠ Two wrong versions preceded this, and both are worth recording. First it was depth-first over
-    # frames: it committed to the first promising child and explored it to exhaustion, and adding *one*
-    # irrelevant rule to the library was enough to burn the whole budget down a branch that could never
-    # close the goal, while the sibling that solved it in one more move sat untouched. Then it was
-    # best-first over frames — which fixed that, but *measured no better than unguided* (15 imagined states
-    # against 14), because every proposal in a frame was imagined before any frame was chosen. Ordering
-    # inside a frame cannot save work you have already done.
-    #
-    # Ranking whole proposals globally is what lets the search commit one step at a time.
-    #
-    # ⚠ The third wrong version — subtle, and it made the guided search *worse than breadth-first*. The key
-    # was `(constraints open, -relevance, depth)`, where "constraints open" was the PARENT frame's count.
-    # So an unexplored root proposal that would obviously close a constraint carried its parent's score of
-    # 2, while mediocre moves two levels down carried 1, and the search abandoned the good move for them
-    # permanently. A proposal must be judged by the world it would PRODUCE, not the one it starts from.
-    #
-    # Hence `expected`: a band-4 proposal writes exactly an open constraint, so it is expected to close
-    # one. That is the whole heuristic — cheap, obviously derived from the constraints, and it is what
-    # makes the guidance real (measured: 3 imagined states, against 55 unguided).
-    def visited_key(frame: str, trace: tuple):
-        """⚠ The state alone is NOT the identity of a search node once liveness is in play. Two routes to
-        the same world differ if one has already done a required action and the other has not — deduping on
-        the world would silently discard the finished one. So what is still outstanding is part of the key."""
-        return (state_of(g, frame), G.outstanding(g, goal, trace))
-
-    # ⭐ THE TRACE HOOK — an OBSERVER, never a participant. It is handed a dict per event and its return
-    # value is discarded, so a watcher cannot steer the search: turning tracing on must not change what is
-    # found. That is why this is a callback taking finished facts rather than, say, a filter or a ranker —
-    # those already exist (`allow`, `rank`) and are honest about influencing the outcome.
-    #
-    # ⚠ Node ids are useless to a reader, so every event carries LABELS. The thread and the workbench keep
-    # the identities; a trace is for watching, and the two must not be confused — anything reconstructing
-    # state from these strings is reconstructing it from a rendering.
-    # ⚠ Aliased, and NOT optional: `trace` is already the name of the action-prefix threaded through
-    # `offer` and unpacked from the frontier, so the callback was being clobbered by a tuple mid-search.
-    # Renaming the parameter would change the public surface; aliasing here fixes it where it belongs.
+    search = open_planning(g, goal, thread, subject, max_steps=max_steps, max_depth=max_depth,
+                           guided=guided, rank=rank, allow=allow, trace=trace)
     watch = trace
-
-    def emit(kind, **fields):
-        watch(dict(kind=kind, step=S.steps_taken(g, search), **fields))
-
-    def label(n):
-        return g.attr(n, "label") or g.kind(n) or n
-
-    def shown(bindings):
-        return {p: label(W.resolve(g, m) or W.image_of(g, m)) for p, m in bindings.items()}
-
-    # ⭐⭐ THE SEARCH'S OWN STATE IS GRAPH DATA (`search.py`). The frontier, the visited set, the step
-    # count and the refusals used to be Python locals — the one part of the system the system could not
-    # read, which is `composability-principle`'s unreachable island exactly. ⚠ This slice moves them and
-    # changes nothing else, so the existing checks are a real oracle for it.
-    search = S.open_search(g, goal, wb, thread, subject, opened=opened,
-                           max_steps=max_steps, max_depth=max_depth, guided=guided)
-    S.mark_seen(g, search, S.digest(*visited_key(root, ())), root)
-
-    # ⚠ After `steps` exists: `emit` closes over it, so calling this any earlier is an UnboundLocalError.
-    if watch:
-        emit("goal", goal=g.attr(goal, "label"),
-             wants=[G.describe_constraint(g, c) for c in G.constraints(g, goal)],
-             open=[G.describe_constraint(g, c) for c in still_open(root)])
-
-    _offer(g, search, root, 0, None, rank=rank, allow=allow, watch=watch)
 
     # >> THE LOOP IS NOW A LOOP OVER `step`, AND THAT IS THE WHOLE POINT OF THIS SLICE. `pursue` used to
     # BE the search; it now merely drives it. Everything between two imagined states is a return, so
@@ -532,6 +454,45 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
         out = step(g, search, rank=rank, allow=allow, trace=watch, decide=decide)
         if out is not None:
             return out
+
+
+def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
+                  max_steps: int = 60, max_depth: int = 6, guided: bool = True,
+                  rank=None, allow=None, trace=None) -> str:
+    """Open a search on `goal` and seed its frontier. Returns the `search` node, ready to be stepped.
+
+    ** This is `pursue`'s setup, extracted so there is ONE of it.** `pursue` calls it and then loops; the
+    `PLAN` opcode calls it and hands the node back to an ISA program. Two setups that could drift apart is
+    exactly the defect shape this codebase keeps recording, and the drift would be silent - a second path
+    that forgot to seed the visited set with the root would re-imagine the starting world forever.
+
+    WARN **The already-satisfied case is recorded on the SEARCH, not returned**, so that both drivers agree.
+    `pursue` used to return early here; an ISA program calling `PLAN` would then have had no way to learn
+    that the goal needed nothing done. Now `step` reports it, and there is one answer whoever asks.
+
+    THE TRACE HOOK is an OBSERVER, never a participant: it is handed a dict per event and its return value
+    is discarded, so turning tracing on cannot change what is found. Node ids are useless to a reader, so
+    every event carries LABELS - the thread and the workbench keep the identities, and anything
+    reconstructing state from these strings is reconstructing it from a rendering."""
+    wb = W.open_workbench(g, subject, label=f"pursuing {g.attr(goal, 'label')}")
+    root = W.root_frame(g, wb)
+    opened = T.attend(g, thread, goal, why="taking on the goal", note=G.describe(g, goal))
+    search = S.open_search(g, goal, wb, thread, subject, opened=opened,
+                           max_steps=max_steps, max_depth=max_depth, guided=guided)
+    S.mark_seen(g, search, S.digest(*_visited_key(g, goal, root, ())), root)
+
+    view, under = _asked_of(g, subject, root)
+    if G.satisfied(g, goal, view=view, under=under) and not G.outstanding(g, goal, ()):
+        g.put(search, already=True)
+        return search
+
+    if trace:
+        trace(dict(kind="goal", step=0, goal=g.attr(goal, "label"),
+                   wants=[G.describe_constraint(g, c) for c in G.constraints(g, goal)],
+                   open=[G.describe_constraint(g, c)
+                         for c in _still_open(g, goal, subject, root)]))
+    _offer(g, search, root, 0, None, rank=rank, allow=allow, watch=trace)
+    return search
 
 
 def _label(g: Graph, n):
@@ -644,6 +605,9 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
     def emit(kind, **fields):
         watch(dict(kind=kind, step=S.steps_taken(g, search), **fields))
 
+    if g.attr(search, "already"):
+        return _done(g, goal, thread, wb, W.root_frame(g, wb), c["opened"],
+                     "already satisfied", 0, (), search)
     if S.steps_taken(g, search) >= c["max_steps"]:
         return _exhausted(g, search, c, watch)
     chosen = S.take_best(g, search)
@@ -680,6 +644,7 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
                 raise Undecidable(f"{verb!r} is not one of {VERBS}")
             # Recorded ONLY when a decision actually fires, which is what keeps the default path
             # byte-identical to the behaviour that existed before this seam.
+            g.put(search, done=True, found=False, how=verb)
             T.attend(g, thread, goal, why=f"decided to {verb}",
                      note=why_stop or f"before imagining {name}")
             if watch:
@@ -737,6 +702,7 @@ def _exhausted(g: Graph, search: str, c: dict, watch) -> dict:
                       for x in G.unmet(g, goal, view=view, under=under))
     blocked = list(S.blocked_by(g, search))
     steps = S.steps_taken(g, search)
+    g.put(search, done=True, found=False, how="exhausted")
     T.attend(g, c["thread"], goal, why="exhausted the search", note="no plan found")
     if watch:
         watch(dict(kind="exhausted", step=steps, imagined=steps, unmet=unmet, blocked_by=blocked))
@@ -784,6 +750,12 @@ def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused, sea
     G.record_plan(g, goal, seen_in=frame, witness=found)
 
     plan = X.path_to(g, wb, frame)
+    if search is not None:
+        # WARN The OUTCOME is graph data too, not only the returned dict. An ISA program driving `step`
+        # reads its answer with an ordinary ATTR, exactly as it would read anything else - the report dict
+        # is a convenience for Python callers, never the only place the answer exists.
+        g.put(search, done=True, found=True, how=how, length=len(plan) - 1)
+        g.link(search, "reached", frame)
     closing = T.attend(g, thread, goal, why=f"goal met ({how})",
                        note=f"plan is {len(plan) - 1} step(s)")
     T.connect(g, closing, opened, "achieves")
@@ -989,5 +961,5 @@ def describe(g: Graph, result: dict) -> str:
 
 
 __all__ = ["proposals", "state_of", "establishes", "role_node", "relevance", "view_in",
-           "step",
+           "open_planning", "step",
            "pursue", "carry_out", "plan_steps", "plan_bindings", "describe"]

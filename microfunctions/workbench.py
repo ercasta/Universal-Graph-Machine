@@ -31,6 +31,7 @@ both frames and mappings, so a node's history branches with the frames it lives 
 """
 from __future__ import annotations
 
+from . import activation as ACT
 from . import function as fn
 from . import hypothesis
 from .graph import Graph
@@ -232,15 +233,18 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     executed = chosen or function
 
     args = {p: image_of(g, carried[m]) for p, m in bindings.items()}
-    before = set(g.nodes)
-    fn.invoke(g, executed, args)
+    called, _out = fn.invoke(g, executed, args)
 
     # A function may MINT something while imagining. Those nodes get mappings too, with **no `original`** —
     # which is meaningful rather than broken: it says *this does not exist yet and must be created when the
     # plan runs for real*. What ties such a node to reality later is not a pointer but the transformation
     # that produced it, which is recorded anyway. Without this, `is_imagined` could never fire and
     # execution would have nothing to bind a newly minted real node to.
-    for n in sorted(set(g.nodes) - before):
+    # ⚠ What the call minted is READ OFF THE CALL, not off a whole-graph diff — see `activation.minted`.
+    # The diff also caught anything else that happened to be minted while the call ran, which stopped being
+    # theoretical once the interpreter's own state (focus, heads, activation, registers) became graph data.
+    ran = ACT.for_focus(g, called.node)
+    for n in ACT.minted(g, ran):
         m = g.mint("mapping")
         g.link(m, "image", n)
         g.link(new_frame, "mapping", m)
@@ -255,6 +259,11 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     tr = g.mint("transformation", function=function, executed=executed,
                 expects=fn.returns_of(g, executed))
     g.link(tr, "applies", fn.find(g, function))
+    # ⭐ The activation that imagined this step, kept where the rest of the step's record is. It answers
+    # "which instruction did this get to, and what did it mint" without a second log — and it is what
+    # `discard` scraps, so an abandoned workbench leaves no interpreter residue behind either.
+    if ran is not None:
+        g.link(tr, "ran", ran)
     for param, m in bindings.items():
         b = g.mint("binding", param=param)
         g.link(b, "mapping", carried[m])      # binds the MAPPING, not the raw node
@@ -288,6 +297,9 @@ def discard(g: Graph, wb: str) -> None:
         if via is not None:
             for b in g.targets(via, "arg"):   # bindings are the transformation's own nodes; they leak
                 g.drop(b)                     # otherwise, since nothing else points at them
+            ran = g.target(via, "ran")        # and so does the activation that imagined the step
+            if ran is not None:
+                ACT.scrap(g, ran)
             g.drop(via)
         g.drop(f)
     g.drop(wb)

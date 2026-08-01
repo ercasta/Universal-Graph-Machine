@@ -697,7 +697,7 @@ def check_focus_navigates_forward_backward_and_through_refs():
     g.link(car, "body", body)
     g.set_ref(body, "owner", car)
 
-    f = Focus().open("h")
+    f = Focus(g).open("h")
     f.move(g, "h", "has")
     at_car = f.at("h")
     f.move(g, "h", "body")
@@ -713,7 +713,7 @@ def check_focus_navigates_forward_backward_and_through_refs():
 
 def check_a_failed_move_empties_rather_than_raises():
     g = new_graph()
-    f = Focus().open("h")
+    f = Focus(g).open("h")
     f.move(g, "h", "nonexistent")
     return {"head_exists_but_empty": not f.has("h") and "h" in f.names,
             "further_moves_stay_safe": (f.move(g, "h", "anything"), f.has("h"))[1] is False}
@@ -724,12 +724,16 @@ def check_fork_explores_two_candidates_without_copying_the_world():
     a, b = g.mint("car"), g.mint("car")
     g.link("root", "option", a)
     g.link("root", "option", b)
-    f = Focus().open("h")
+    f = Focus(g).open("h")
     f.fork("alt", "h")
     f.move(g, "h", "option", 0)
     f.move(g, "alt", "option", 1)
+    # ⚠ This used to assert `len(g.nodes) == 3`, which stopped meaning "the world was not copied" the
+    # moment the heads themselves became graph data. What it always meant is asserted directly instead:
+    # the two candidates are still the SAME two nodes, not images of them, and forking cost two heads.
     return {"two_heads": (f.at("h"), f.at("alt")) == (a, b),
-            "one_graph": len(g.nodes) == 3}
+            "the_world_was_not_copied": g.of_kind("car") == (a, b),
+            "forking_cost_one_head": f.names == ("alt", "h")}
 
 
 def check_spread_fans_out_one_head_per_target():
@@ -738,7 +742,7 @@ def check_spread_fans_out_one_head_per_target():
     g.link("root", "list", lst)
     for n in "abc":
         g.link(lst, "item", g.mint("item", label=n))
-    f = Focus().open("h")
+    f = Focus(g).open("h")
     f.move(g, "h", "list")
     made = f.spread(g, "h", "item")
     return {"heads_made": made,
@@ -928,6 +932,176 @@ def check_isa_program_is_data_and_can_be_generated():
             "inspectable": repr(generated[0]) == "NEW R(name='c') chunk"}
 
 
+def _counting_function(g):
+    """A stored function with a loop in it — so a pause can land in the middle of a repetition, which is
+    the case a straight-line program cannot exercise."""
+    from . import asm
+    asm.load_text(g, "\n".join([
+        "fn count_wheels(c):",
+        '    CONST R(i) 0',
+        '    COUNT R(n) F(c) "wheel"',
+        "    .loop:",
+        "    LT R(more) R(i) R(n)",
+        '    JMPNOT R(more) ".done"',
+        "    ADD R(i) R(i) 1",
+        '    JMP ".loop"',
+        "    .done:",
+        "    COPY R(result) R(i)",
+    ]))
+
+
+def check_the_executor_can_be_STOPPED_BETWEEN_ANY_TWO_INSTRUCTIONS():
+    """⭐⭐⭐ **The test the whole arc is organised around** (HANDOFF §6b): *can the executor be stopped
+    between any two primitive operations, and can the system say what it was doing?*
+
+    Before this, no. §5z made **planning** steppable — but `isa.Machine._loop` was an ordinary Python
+    `while` holding `pc`, `stack` and `regs` as locals, so the `think` microfunction that drives the
+    steppable search ran inside an **atomic** invocation. Steppability at the wrong level: one seam removed
+    and an identical one left below it, inverted.
+
+    ⚠ **Two vacuity guards, and between them they are the check.** First, driving it by hand must reach the
+    **same answer** as `run` — a yield point that changed the computation would be a fork, not a seam.
+    Second, it must genuinely be *mid-flight* at a pause: unfinished, with the loop counter partway to its
+    final value. A `tick` that quietly ran the whole program and returned once would pass every structural
+    assertion here."""
+    from . import activation as A, function as fn
+    from .isa import Machine
+
+    g, car, _t = _car_world()
+    _counting_function(g)
+    _params, program = fn.load(g, "count_wheels")
+
+    # the control: the supported entry point, run to completion
+    _f, whole = fn.invoke(g, "count_wheels", {"c": car})
+
+    # the same program, ticked by hand
+    focus = Focus(g).open("c", car)
+    act = Machine(program).start(g, focus, of=fn.find(g, "count_wheels"))
+    paused = []
+    turns = 0
+    while Machine(program).tick(g, act):
+        turns += 1
+        if A.get_reg(g, act, "i") == 2:
+            # ⭐ STOPPED. Everything about what it is doing is graph data, read here as data.
+            paused.append({"pc": A.pc(g, act), "doing": g.attr(A.doing(g, act), "op"),
+                           "says": A.describe(g, act), "regs": A.registers(g, act),
+                           "head": focus.at("c"), "finished": A.finished(g, act)})
+
+    mid = paused[0] if paused else {}
+    return {"driven_by_hand_gets_the_same_answer": A.get_reg(g, act, "result") == whole.get("result") == 4,
+            "IT_REALLY_PAUSED_MID_FLIGHT": bool(paused) and mid["finished"] is False,
+            "and_it_says_what_it_was_doing": "count_wheels" in mid.get("says", ""),
+            "naming_the_instruction_not_just_an_index": mid.get("doing") in isa.WRITES_REGISTER
+                                                        or mid.get("doing", "").startswith("J"),
+            "THE_STATE_IS_DATA_NOT_A_PYTHON_LOCAL": mid.get("regs", {}).get("i") == 2
+                                                     and mid.get("regs", {}).get("n") == 4,
+            "including_where_it_was_LOOKING": mid.get("head") == car,
+            "and_the_pause_was_partway_not_at_the_end": 0 < mid.get("pc", 0) < len(program),
+            "ticks": turns}
+
+
+def check_a_paused_program_is_readable_by_an_ORDINARY_MICROFUNCTION():
+    """⭐⭐ The homoiconicity claim, applied to the interpreter itself: a **stored** microfunction reads the
+    state of a **paused** one. Nothing new was needed for it — an activation is a node, a register is a
+    node, so `GET`/`ATTR` reach them the way they reach anything else.
+
+    Same move as `thread.py`'s walker check (§5b): if walking the new structure needed a new opcode, the
+    structure would not really be ordinary data. It does not.
+
+    ⚠ Vacuity guard: the reader must be looking at a program that is genuinely **suspended**, not one that
+    has finished — so it is asserted unfinished *before* the reader runs, and the value it reads back must
+    be the intermediate one, not the final one."""
+    from . import activation as A, asm, function as fn
+    from .isa import Machine
+
+    g, car, _t = _car_world()
+    _counting_function(g)
+    _params, program = fn.load(g, "count_wheels")
+    m = Machine(program)
+    act = m.start(g, Focus(g).open("c", car), of=fn.find(g, "count_wheels"))
+    while A.get_reg(g, act, "i") != 3 and m.tick(g, act):
+        pass
+    suspended = not A.finished(g, act)
+
+    asm.load_text(g, "\n".join([
+        "# How far has that computation got, and what is it running?",
+        "fn how_far(a):",
+        '    ATTR R(result) F(a) "pc"',
+        '    GET R(fn) F(a) "of"',
+        '    ATTR R(whose) R(fn) "name"',
+        '    GET R(r) F(a) "register"',
+        '    ATTR R(first) R(r) "name"',
+    ]))
+    _f, out = fn.invoke(g, "how_far", {"a": act})
+
+    while m.tick(g, act):                              # and it resumes afterwards, unharmed
+        pass
+    return {"IT_WAS_SUSPENDED_WHEN_READ": suspended,
+            "and_the_reader_saw_a_partway_pc": 0 < out.get("result") < len(program),
+            "it_named_the_function_being_run": out.get("whose") == "count_wheels",
+            "the_registers_are_ordinary_nodes": out.get("first") == "i",
+            "reading_it_did_not_disturb_it": A.get_reg(g, act, "result") == 4,
+            "no_new_ops_needed": True}
+
+
+def check_an_invocation_knows_what_called_it():
+    """⭐ A nested `INVOKE` used to be a nested Python frame — invisible to the system running it — so
+    *"what was it doing?"* could only ever answer about the outermost program. The callee now points at its
+    caller, and `activation.chain` is the ISA's own stack trace.
+
+    ⚠ Vacuity guard: the chain must be **two deep and in the right order**, and the outer activation must
+    be the one that is *not* pointed at, or a chain of length two proves nothing about direction."""
+    from . import activation as A, asm, function as fn
+    g = new_graph()
+    asm.load_text(g, "\n".join([
+        "fn inner(x):",
+        '    SET F(x) "touched" true',
+        "fn outer(x):",
+        "    INVOKE R(_) inner x=F(x)",
+    ]))
+    thing = g.mint("thing")
+    g.link("root", "thing", thing)
+    fn.invoke(g, "outer", {"x": thing})
+
+    inner_act = [a for a in g.of_kind("activation")
+                 if g.attr(g.target(a, "of"), "name") == "inner"]
+    chain = A.chain(g, inner_act[0]) if inner_act else ()
+    named = tuple(g.attr(g.target(a, "of"), "name") for a in chain)
+    return {"the_inner_call_is_a_node": len(inner_act) == 1,
+            "AND_IT_NAMES_ITS_CALLER": named == ("inner", "outer"),
+            "the_outer_one_has_no_caller": len(chain) == 2 and g.target(chain[1], "caller") is None,
+            "and_the_effect_really_happened": g.attr(thing, "touched") is True}
+
+
+def check_a_finished_activation_is_retired_but_a_LIVE_one_cannot_be():
+    """⚠ Retirement is not the same as being uninterruptible. A finished activation is not state anybody
+    can be *inside* of, so `run` drops it — but `retire` **refuses** a live one, because the whole point of
+    materialising the state was that something may be stopped in the middle of it.
+
+    Same shape as `dispatch.commit()`: the honest admission that a boundary has been crossed, not a licence
+    to throw away what has not."""
+    from . import activation as A, function as fn
+    from .isa import Machine
+    g, car, _t = _car_world()
+    _counting_function(g)
+    _params, program = fn.load(g, "count_wheels")
+    m = Machine(program)
+    act = m.start(g, Focus(g).open("c", car), of=fn.find(g, "count_wheels"))
+    m.tick(g, act)
+    try:
+        A.retire(g, act)
+        refused = False
+    except RuntimeError:
+        refused = True
+    while m.tick(g, act):
+        pass
+    A.retire(g, act)
+    return {"a_live_activation_cannot_be_retired": refused,
+            "a_finished_one_can": act not in g.nodes,
+            "and_its_registers_went_with_it": g.of_kind("register") == (),
+            "RUN_RETIRES_ITS_OWN": (m.run(g, Focus(g).open("c", car)), g.of_kind("register") == ())[1]}
+
+
 def check_runaway_program_halts_loudly():
     """DELIBERATE NEGATIVE. Termination is unsolved in general; failing loudly is the honest stand-in."""
     try:
@@ -1008,7 +1182,7 @@ def check_callee_gets_a_fresh_focus_not_the_callers():
     from . import function as fn
     g, car, _ = _car_world()
     fn.define(g, "peek", ("x",), (HEAD(R("result"), "x"), HASFOCUS(R("leaked"), "secret")))
-    caller = Focus().open("secret", car)
+    caller = Focus(g).open("secret", car)
     _f, out = fn.invoke(g, "peek", {"x": car})
     return {"param_bound": out["result"] == car,
             "callers_head_invisible": out["leaked"] is False,
@@ -1516,9 +1690,12 @@ def check_a_producer_of_a_subtype_satisfies_the_goal():
 _METADATA_KINDS = frozenset({
     "type", "requires", "requires_attr", "requires_rel",
     "search", "candidate", "candidate_arg", "trace_step", "signature", "refusal",
+    # the interpreter's own state: an activation points at the function it is running, at the focus it is
+    # running on, and at what it minted — and nothing in the world points back at any of them
+    "activation", "register", "focus", "head",
     "function", "param", "instr", "arg",
     "application", "binding", "episode",
-    "attention", "connection",                             # the thread — memory is metadata, never world
+    "attention", "connection", "observation",              # the thread — memory is metadata, never world
     "goal",                                                # what we are trying to do is metadata too
     "hypothesis", "backup",
     "chain", "pending_call",
@@ -3949,7 +4126,7 @@ def check_a_write_through_an_unset_register_is_refused_not_null_linked():
     g.link("root", "has", f)
     prog = Machine((GET(R("seq"), F("f"), "over"), LINK(F("f"), "repeats_over", R("seq"))))
     try:
-        prog.run(g, Focus().open("f", f))
+        prog.run(g, Focus(g).open("f", f))
         refused, why = False, ""
     except RuntimeError as e:
         refused, why = True, str(e)
@@ -4162,6 +4339,281 @@ def check_the_search_can_be_DRIVEN_FROM_OUTSIDE_one_step_at_a_time():
             "the_visited_set_grew_as_it_went":
                 pauses[-1][1] > pauses[0][1],
             "turns": turns}
+
+
+def check_a_microfunction_can_DRIVE_THE_PLANNER_and_read_its_answer():
+    """⭐⭐⭐ **Deliberation, reachable as data.** `composability-principle` is the standing foundation:
+    reflexive mechanisms must combine on ONE substrate, and *a hardcoded mechanism is an unreachable
+    island*. `pursue` was Python and unreachable from the ISA, so the system could plan but could not be
+    told to plan, and could not reason about its own planning. `deliberation.md` named it — deliberation
+    was the third thing computed **with** and not **about**, after attention (fixed by `thread.py`) and
+    the goal (by `goal.py`).
+
+    This is the function that closes it, and it is **authored as text**, not Python:
+
+        fn think(goal, subject, thread) -> plan:
+            PLAN R(s) F(goal) F(subject) F(thread)
+            .again:
+            STEP R(more) R(s)
+            JMPIF R(more) ".again"
+            ATTR R(result) R(s) "found"
+
+    ⚠ `PLAN` and `STEP` are new **primitives**, and they earn that by the project's own closed-class test:
+    searching cannot be composed from GET/SET/LINK, so this is not sugar. `STEP` is deliberately one
+    iteration rather than a whole search — an opcode that ran to completion would be one opaque
+    instruction and would buy nothing, since the point is being able to stop between two imagined states.
+
+    ⚠ Vacuity guard: the plan reached this way must be the SAME plan `pursue` finds at the same cost, and
+    the answer must be readable as ordinary graph data (`ATTR`), not only via a Python return value."""
+    from . import asm, driver as D, execution as X, function as fn, intake as I, thread as T
+    text = _lines("goal build a tower:", "    a on b", "    b on c")
+
+    g1, w1 = _blocks()
+    ref = D.pursue(g1, I.read_goal(g1, text), T.open_thread(g1, "t"), w1)
+
+    g, world = _blocks()
+    goal = I.read_goal(g, text)
+    asm.load_text(g, _lines('fn think(goal, subject, thread) -> plan:',
+                            '    PLAN R(s) F(goal) F(subject) F(thread)',
+                            '    .again:',
+                            '    STEP R(more) R(s)',
+                            '    JMPIF R(more) ".again"',
+                            '    ATTR R(result) R(s) "found"'))
+    _f, out = fn.invoke(g, "think", {"goal": goal, "subject": world,
+                                     "thread": T.open_thread(g, "t")}, check_types=False)
+    s = out["s"]
+    plan = X.path_to(g, g.target(s, "workbench"), g.target(s, "reached"))
+    return {"THE_ANSWER_CAME_BACK_THROUGH_AN_ORDINARY_ATTR": out["result"] is True,
+            "the_search_is_a_node_the_program_holds": g.kind(s) == "search",
+            "the_outcome_is_graph_data":
+                (g.attr(s, "done"), g.attr(s, "how"), g.attr(s, "length")) == (True, "found", 2),
+            "SAME_PLAN_AS_pursue":
+                tuple(f for f, _b in D.plan_bindings(g, plan))
+                == tuple(f for f, _b in D.plan_bindings(g1, ref["plan"])),
+            "AND_THE_SAME_COST": g.attr(s, "steps") == ref["steps"],
+            "the_program_is_data_not_python": bool(fn.load(g, "think")[1])}
+
+
+def check_asm_refuses_an_export_that_is_not_an_opcode():
+    """⚠ `isa.__all__` also exports `WRITES_REGISTER` — a frozenset — and `_OPCODES` filtered only on
+    `isupper()`, so `asm` **accepted it as an instruction** at load time and would have failed opaquely
+    inside the interpreter. Exactly the silent acceptance `asm.py`'s own docstring says it exists to
+    prevent, and the same shape `../pystrider` reported for `INVOKE`'s operand (§6).
+
+    Vacuity guard: a real opcode added at the same time must still load, or this would pass by refusing
+    everything."""
+    from . import asm, function as fn
+    g = new_graph()
+    try:
+        asm.load_text(g, _lines("fn bad(x) -> t:", "    WRITES_REGISTER R(a) F(x)"))
+        refused = False
+    except asm.AsmError:
+        refused = True
+    asm.load_text(g, _lines("fn fine(x) -> t:", '    ATTR R(a) F(x) "k"'))
+    return {"a_non_opcode_export_is_REFUSED": refused,
+            "and_it_is_gone_from_the_known_set": "WRITES_REGISTER" not in asm._OPCODES,
+            "real_opcodes_still_load": len(fn.load(g, "fine")[1]) == 1,
+            "PLAN_and_STEP_are_known_opcodes": {"PLAN", "STEP"} <= asm._OPCODES}
+
+
+def check_the_surface_can_DRIVE_the_system_and_still_cannot_touch_the_world():
+    """⭐⭐ **`plan` — where the CNL stops only describing and starts driving.** Every other verb records
+    something (`goal`, `type`, `method`, `prefer`) or asks something (`ask`, `why`); none of them could
+    make the system *work*. It reaches `driver.pursue`, which is reachable at all only because
+    deliberation stopped being a closed Python loop (§5z).
+
+    ⭐ It is a **fourth force on the same body**, not a new family — `goal` / `ask` / `why` / `plan` take
+    identical bodies and differ in what is done with them, which is this module's own thesis paying rent.
+
+    ⚠⚠ **The safety property, and it is structural rather than intended:** planning happens entirely on a
+    workbench, so a `plan` block cannot change the world however wrong the text is. That is what makes it
+    safe to put a *driving* verb on a surface a language model may write. A verb that CARRIED OUT the plan
+    would cross into real effects and is deliberately absent.
+
+    ⚠ Vacuity guard: the same body as a `goal` block must still merely record, or "plan drove it" would be
+    indistinguishable from "every block drives it"; and a plan constraint must still be able to refuse, or
+    this would only show the happy path."""
+    from . import intake as I, thread as T
+    body = ("    a on b", "    b on c")
+    g, world = _blocks()
+    th = T.open_thread(g, "t")
+    a = I.resolve(g, "a", under=world)
+    b = I.resolve(g, "b", under=world)
+    # ⚠ NOT `== ()`: `a` starts out `on` the ground, so an emptiness test would be false before anything
+    # ran and would report a safety breach that had not happened. Snapshot, then compare.
+    before = g.targets(a, "on")
+
+    stated = I.respond(g, _lines("goal build a tower:", *body), th, world)
+    nothing_happened = g.targets(a, "on") == before and b not in before
+
+    driven = I.respond(g, _lines("plan build a tower:", *body), th, world)
+    refused = I.respond(g, _lines("plan build a tower:", *body, "    never stack"), th, world)
+
+    try:
+        I.read_goal(g, _lines("plan build a tower:", *body))
+        read_goal_took_it = True
+    except I.Unreadable:
+        read_goal_took_it = False
+
+    return {"a_goal_block_only_RECORDS": "PLANNED" not in stated and "plan found" not in stated,
+            "A_PLAN_BLOCK_DRIVES_IT": driven.startswith("plan found in 2 step(s)"),
+            "and_names_the_steps": "stack(b=b, onto=c)" in driven,
+            "THE_WORLD_IS_UNTOUCHED_BY_EITHER":
+                nothing_happened and g.targets(a, "on") == before and b not in g.targets(a, "on"),
+            "a_plan_constraint_still_refuses": refused.startswith("no plan:")
+                                               and "never stack" in refused,
+            "read_goal_still_refuses_a_plan_block": not read_goal_took_it}
+
+
+# --- memory: what was seen, and whether the agent did it ----------------------------------------------
+def _watched_world():
+    """A directory the agent can look at, and an external world it does not control."""
+    from . import asm, dispatch as DP, thread as T
+    g = new_graph()
+    d = g.mint("dir", label="d", count=0)
+    g.link("root", "has", d)
+    th = T.open_thread(g, "session")
+    disk = {"count": 3}
+    DP.register("scan", lambda gg, target: gg.put(target, count=disk["count"]))
+    asm.load_text(g, 'fn empty_it(d) -> dir:\n    SET F(d) "count" 0')
+
+    def look():
+        DP.service(g, "scan", d, record_on=T.attend(g, th, d, why="going to look"))
+    return g, th, d, disk, look
+
+
+def check_the_agent_can_tell_ITS_OWN_changes_from_the_WORLDS():
+    """⭐⭐⭐ *"Was it me?"* — and the answer is **derived**, not recorded.
+
+    A journal delta records only the agent's own writes; when a file changes on disk **nothing happens in
+    the graph at all**, and the belief is simply wrong until someone looks. Worse, the second look is
+    itself a write, so a naive delta log would say *"the agent changed `count` from 3 to 5"* when the truth
+    is *"the agent looked, and found 5 where it had recorded 3."*
+
+    Attribution needs no new record: two sightings differ, and either some `done` application between them
+    could have written that slot, or the world moved. ⭐ **"Could have written" is read off the stored
+    function body** — `empty_it` is never told it writes `count`; `driver.establishes` works it out, and
+    `role_node` resolves the role against the bindings actually used.
+
+    ⚠ Vacuity guards, and they are the whole check: the two verdicts must **differ** (labelling everything
+    one way would otherwise pass), and the attributed one must **name the function**, or "mine" could be a
+    default rather than a finding."""
+    from . import memory as M, thread as T, function as fn
+    g, th, d, disk, look = _watched_world()
+
+    look()
+    disk["count"] = 5                       # somebody else added two files
+    look()
+    (a1, b1), = M.transitions(g, th, d, "count")
+    world_did_it = M.attribute(g, th, a1, b1)
+
+    fn.invoke(g, "empty_it", {"d": d}, check_types=False)
+    T.applied(g, th, "empty_it", {"d": d}, why="tidying up", done=True)
+    disk["count"] = 0
+    look()
+    a2, b2 = M.transitions(g, th, d, "count")[1]
+    i_did_it = M.attribute(g, th, a2, b2)
+
+    return {"THE_WORLDS_CHANGE_IS_EXTERNAL": world_did_it["verdict"] == M.EXTERNAL,
+            "MY_CHANGE_IS_MINE": i_did_it["verdict"] == M.MINE,
+            "THE_TWO_VERDICTS_DIFFER": world_did_it["verdict"] != i_did_it["verdict"],
+            "and_it_names_the_function":
+                {g.attr(x, "function") for x in i_did_it["by"]} == {"empty_it"},
+            "read_off_the_body_not_declared":
+                ("attr", "count", "d", None) in _writes_of(g, "empty_it")}
+
+
+def _writes_of(g, name):
+    """What `establishes` reads off the stored body — nothing declared it."""
+    from . import driver as D
+    return D.establishes(g, name)[0]
+
+
+def check_change_and_back_is_visible_to_a_third_look():
+    """⚠ **I claimed this was invisible and was wrong** — corrected by the user, and the correction is
+    worth pinning. A round trip is visible whenever an observation falls **inside** the excursion, and
+    three sightings showing A, B, A are exactly that. It is invisible only when nothing looks during the
+    window, which makes it a **sampling-rate** question rather than an impossibility.
+
+    ⚠ It also settles why an observation is recorded even when the value is unchanged: collapsing to "only
+    on difference" would store A, B, A as *no change*, so the agent would have watched a round trip happen
+    and recorded that nothing did.
+
+    ⚠ What remains true: sightings bound change **from below** and never count it. A, B, A proves at least
+    two changes and cannot distinguish two from six."""
+    from . import memory as M
+    g, th, d, disk, look = _watched_world()
+    look()                                   # 3
+    disk["count"] = 9
+    look()                                   # 9
+    disk["count"] = 3
+    look()                                   # 3 again — back where it started
+    moved = M.transitions(g, th, d, "count")
+    return {"the_round_trip_is_VISIBLE": len(moved) == 2,
+            "and_both_legs_are_external":
+                all(M.attribute(g, th, a, b)["verdict"] == M.EXTERNAL for a, b in moved),
+            "THE_END_STATE_ALONE_WOULD_SHOW_NOTHING":
+                g.attr(M.sightings(g, th, d, "count")[0], "value") == g.attr(d, "count"),
+            "every_sighting_is_kept_not_just_the_differing_ones":
+                len(M.sightings(g, th, d, "count")) == 3}
+
+
+def check_volatility_gives_SENSE_something_to_aim_at():
+    """⭐ `driver.py` records that the `SENSE` verb "needs ignorance", and ignorance was the only trigger
+    available — *I do not know, so go and look*. Volatility supplies the one that actually arises for an
+    agent whose world has other people in it: **I knew, and it is probably stale.**
+
+    ⚠ Vacuity guard: a slot nobody else touches must score zero, or "volatile" would just mean "observed"."""
+    from . import memory as M, thread as T, function as fn
+    g, th, d, disk, look = _watched_world()
+    for v in (3, 5, 9, 2):
+        disk["count"] = v
+        look()
+    volatile = M.volatility(g, th, d, "count")
+
+    g2, th2, d2, disk2, look2 = _watched_world()
+    look2()
+    fn.invoke(g2, "empty_it", {"d": d2}, check_types=False)
+    T.applied(g2, th2, "empty_it", {"d": d2}, done=True)
+    disk2["count"] = 0
+    look2()
+    steady = M.volatility(g2, th2, d2, "count")
+    return {"a_world_that_moves_under_us_scores_high": volatile["rate"] > 0.5,
+            "AND_A_SLOT_ONLY_I_TOUCH_SCORES_ZERO": steady["unattributed"] == 0,
+            "so_the_two_are_distinguishable": volatile["rate"] != steady["rate"],
+            "volatile": volatile, "steady": steady}
+
+
+def check_a_sighting_is_distinct_from_a_belief():
+    """⚠ `g.attr(node, key)` is the **current belief** and is what everything reasons over; a sighting is
+    *what was actually seen, and when*. Keeping them apart is what lets a belief be recognised as stale
+    rather than silently trusted — and it is why memory is metadata pointing INWARD rather than a change
+    to how the world is stored.
+
+    ⚠ **A sighting covers every slot of the thing looked at**, because that is what "I checked this" means
+    — the state it was in at that moment, not only the fields the tool happened to rewrite. That is what
+    makes *"when did I last check?"* answerable for **stable** slots too, which a difference-only record
+    could never do: it cannot tell *unchanged* from *unobserved*, which is the `UNKNOWN` conflation one
+    level up.
+
+    ⚠ Vacuity guard: something **never looked at** must answer `None` rather than fabricating a sighting
+    from the current value — that is the whole distinction, and it needs a node the agent never visited,
+    not merely a quiet field on one it did."""
+    from . import memory as M
+    g, th, d, disk, look = _watched_world()
+    elsewhere = g.mint("dir", label="never-visited", count=99)
+    g.link("root", "has", elsewhere)
+    look()
+    return {"the_belief_is_where_it_always_was": g.attr(d, "count") == 3,
+            "the_sighting_records_it_separately":
+                g.attr(M.believed(g, th, d, "count"), "value") == 3,
+            "a_stable_slot_of_what_I_LOOKED_at_is_covered_too":
+                g.attr(M.believed(g, th, d, "label"), "value") == "d",
+            "SOMETHING_NEVER_LOOKED_AT_HAS_NO_SIGHTING":
+                M.believed(g, th, elsewhere, "count") is None,
+            "even_though_it_has_a_value": g.attr(elsewhere, "count") == 99,
+            "nothing_in_the_world_points_at_a_sighting":
+                g.sources(M.sightings(g, th, d, "count")[0], "of") == ()}
 
 
 # ⚠ THE ENTRY POINT MUST BE THE LAST THING IN THIS FILE. `_checks()` reads `globals()` at call time,

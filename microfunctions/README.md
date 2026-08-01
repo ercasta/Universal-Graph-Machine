@@ -9,10 +9,11 @@ earned per item by the audit in `north_star.md` §6.
 | module | what it is |
 |---|---|
 | `graph.py` | the substrate — mutable nodes, **named edges**, **ordered targets** (index addressing), **edge properties**, **references**, a maintained reverse index, and an undo journal |
-| `focus.py` | **the control mechanism** — named heads pointing into the graph; move forward, backward, through references, fork, spread, close |
+| `focus.py` | **the control mechanism** — named heads pointing into the graph, **stored in it**; move forward, backward, through references, fork, spread, close |
 | `types.py` | a type is a subgraph schema, declared as ordinary graph data; validation, never dispatch |
 | `hypothesis.py` | a hypothesis is an ordinary **node**, with ordinary subgraphs under it. No scopes, no relativization, no supposition primitive |
-| `isa.py` | imperative ISA over named/indexed edges, focus heads, and references; programs are data |
+| `isa.py` | imperative ISA over named/indexed edges, focus heads, and references; programs are data, and `run` is a loop over `tick` |
+| `activation.py` | **the interpreter's own state as graph data** — `pc`, the call stack, the registers, and exactly what a call minted. The yield point: an executor that can be stopped between any two instructions and say what it was doing |
 | `function.py` | a rule IS a function — a named ISA program with parameters, stored in the graph and executed |
 | `asm.py` | the text surface and LLM border — one instruction per line, natural-language comments kept as data, `.mf` files |
 | `application.py` | applications and episodes — the record of what the system did, as ordinary nodes |

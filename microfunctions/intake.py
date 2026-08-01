@@ -28,7 +28,7 @@ structure directly, because then nothing could refuse it.
 **The grammar**, deliberately boring — each form is recognisable by its shape or leading keyword:
 
 ```
-goal stack them:
+goal stack them:            # or `ask`, `why`, `plan` — same body, different force
     # what must be true of the world
     a on b                      a link between individuals
     b.clear = true              an attribute value
@@ -68,7 +68,7 @@ surfaces with nothing else in common:
 | block | the base is | depth available |
 |---|---|---|
 | `type` | the node being checked | **any** — a type only ever *checks*, so nothing downstream can be misled |
-| `goal` / `ask` / `why` | a **named individual**, resolved by `resolve` | one hop, to an attribute |
+| `goal` / `ask` / `why` / `plan` | a **named individual**, resolved by `resolve` | one hop, to an attribute |
 | `method` / `procedure` | a **role** (`subject`, `object`), never a name | one hop, to an attribute |
 | `prefer` / `avoid` | a named individual (whole, no hops) | none |
 | `establishes` (not authored) | a **parameter** of the function | any |
@@ -81,16 +81,31 @@ looking right. What blocks the honest version is downstream of intake: `conflict
 `goal.undetermined` and `query.refutes` all read the attribute off the **base** node rather than the one
 the reference reaches. Until they understand a navigated subject, `_one_hop` refuses and says so.
 
-## ⭐⭐ Three verbs, ONE grammar — because a question IS a goal
+## ⭐⭐ FOUR verbs, ONE grammar — because a question IS a goal, and so is an instruction
 
-`goal`, `ask` and `why` take **exactly the same body**. That is not an economy in the parser; it is the
-data model showing through. A goal is a set of constraints, a question is a set of constraints, and what
-differs is only what you then *do* with them — pursue, answer, or explain.
+`goal`, `ask`, `why` and `plan` take **exactly the same body**. That is not an economy in the parser; it
+is the data model showing through. A goal is a set of constraints, a question is a set of constraints, and
+what differs is only what you then *do* with them — record, answer, explain, or pursue.
 
 ```
-goal make it so:      ask is it so?:        why is it so?:
-    a on b                a on b                a on b
+goal make it so:   ask is it so?:   why is it so?:   plan make it so:
+    a on b             a on b           a on b           a on b
 ```
+
+**⭐⭐ `plan` is where this surface stops only DESCRIBING and starts DRIVING.** Every other verb records
+something or asks something; none could make the system *work*. It reaches `driver.pursue`, which is
+reachable at all only because deliberation stopped being a closed Python loop (`HANDOFF.md` §5z).
+
+**⚠⚠ And it stops at a plan. The safety property is structural, not intended:** the whole search happens
+on a workbench and `dispatch.service` refuses an imagined target, so a `plan` block **cannot change the
+world however wrong the text is**. That is what makes it safe to put a driving verb on a surface a
+language model may write. A verb that *carried out* the plan would cross into real effects, and it is
+deliberately absent until that is discussed on its own terms.
+
+⚠ **`replan` is NOT here, and the reason is a real gap rather than an omission.** Re-pursuing means naming
+a goal that already exists, and `resolve` finds individuals by `label` **under `root`** — goals do not hang
+off root, so the CNL has no form for referring to one. Inventing one here would be the same guess this
+module exists to refuse.
 
 **⚠ So what distinguishes them in the graph? Only a record of how it arrived.** The constraints are
 identical, and the `verb` attribute is *not* a labelling error of the kind `HANDOFF.md` warns about —
@@ -217,7 +232,17 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
                          f"must f | at most n steps)")
 
 
-GOAL_VERBS = ("goal", "ask", "why")
+# ⭐⭐ FOUR forces on ONE body. `plan` is the fourth, and it joins here rather than getting its own family
+# because it changes nothing about what is *said* — only what is then done with it. That is the module's
+# own thesis paying rent: a goal is a set of constraints, and `goal` / `ask` / `why` / `plan` differ in
+# force, not in form.
+#
+# ⚠ **`plan` is safe to put on the surface, and `do` is not — the difference is not a matter of degree.**
+# Planning happens entirely on a workbench, so `plan` cannot touch the world however wrong the text is;
+# `dispatch.service` refusing an imagined target makes that structural rather than intended. A verb that
+# *carried out* the plan would cross into real effects, and it is deliberately absent until that is
+# discussed on its own terms rather than arriving as a fifth item in a tuple.
+GOAL_VERBS = ("goal", "ask", "why", "plan")
 ADVICE_VERBS = ("prefer", "avoid")
 METHOD_VERBS = ("method", "procedure")
 TYPE_VERBS = ("type",)
@@ -403,7 +428,7 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
 
     | verb | produces |
     |---|---|
-    | `goal` / `ask` / `why` | a **goal** — same body, different thing done with it |
+    | `goal` / `ask` / `why` / `plan` | a **goal** — same body, different thing done with it |
     | `prefer` / `avoid` | a **guideline** — reorders, can never exclude |
     | `method` / `procedure` | a **method** — a decomposition, advisory or mandatory |
     | `type` | a **type** — a schema over a subgraph, of any depth |
@@ -514,13 +539,24 @@ def respond(g: Graph, text: str, thread: str, subject: str = "root", *,
     ⚠ **`ask` settles by default (`keep=True`), and that is a choice worth seeing.** The derivation ran on
     a workbench, so nothing is committed unless it is replayed; keeping it means the next question does not
     re-derive what this one worked out, and — the part that matters more — it is what gives `why` anything
-    to answer from later. Pass `keep=False` for a question that should leave no trace."""
-    from . import query as Q
+    to answer from later. Pass `keep=False` for a question that should leave no trace.
+
+    ⭐⭐ **`plan` is where the surface stops only describing and starts driving**, which is what this module
+    was missing: every other verb either records something or asks something, and none of them could make
+    the system *work*. It reaches `driver.pursue`, which is reachable at all because deliberation stopped
+    being a closed Python loop (`HANDOFF.md` §5z).
+
+    ⚠ **And it stops at a plan.** Nothing is carried out — the whole search is on a workbench, so a `plan`
+    block cannot change the world no matter what it says. Acting is a separate verb that does not exist
+    yet, on purpose."""
+    from . import driver as D, query as Q
     verb, goal = read(g, text, under=under)
     if verb in TYPE_VERBS:
         return TY.describe(g, g.attr(goal, "name"))     # declaring is the whole of what a type block does
     if verb == "goal":
         return G.describe(g, goal)                 # pursuing is the caller's to schedule, not intake's
+    if verb == "plan":
+        return D.describe(g, D.pursue(g, goal, thread, subject, **kw))
     if verb == "why":
         return Q.account(g, goal, thread, subject)
     answer = Q.ask(g, goal, thread, subject, **kw)

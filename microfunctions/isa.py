@@ -17,12 +17,24 @@ head it acts on, never "whatever matches."
 (named heads). It runs inside a savepoint, so a failed or hypothetical run rewinds in O(changes) —
 `north_star.md` §4's hypothesis-by-running, with the economics the copy-on-write version had backwards.
 
+**⭐⭐ And that state is GRAPH DATA, so the executor has a yield point.** `_loop` was an ordinary Python
+`while` holding `pc`, `stack` and `regs` as locals; it is now `tick`, one primitive operation over an
+**activation record** that lives in the graph (`activation.py`). `run` is a loop over `tick` and nothing
+else — there is one implementation of a step, deliberately, because two executors that are supposed to
+agree is the drift class this codebase keeps re-finding (HANDOFF §6b).
+
+What that buys is the test the whole arc is organised around: *can the executor be stopped between any two
+primitive operations, and can the system say what it was doing?* Before this, `driver.step` made **planning**
+steppable while the microfunction driving it ran inside an atomic invocation — steppability at the wrong
+level, one seam removed and an identical one left below it.
+
 **Control flow** is by label: a bare string in the program is a jump target, not an instruction.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from . import activation as A
 from .focus import Focus
 from .graph import Graph, Ref
 from .types import check
@@ -67,6 +79,8 @@ CONST, COPY, ADD, LT, EQ, NOT = (_ins(o) for o in ("CONST", "COPY", "ADD", "LT",
 # control
 JMP, JMPIF, JMPNOT, CALL, RET, HALT = (
     _ins(o) for o in ("JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT"))
+# deliberation - see the PLAN/STEP handlers for why these are primitives rather than sugar
+PLAN, STEP = (_ins(o) for o in ("PLAN", "STEP"))
 # the demoted match
 CHECK = _ins("CHECK")
 # calling a STORED function (graph-resident), as opposed to CALL's jump to a local label
@@ -80,7 +94,7 @@ DISPATCH = _ins("DISPATCH")
 WRITES_REGISTER = frozenset({
     "NEW", "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
     "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
-    "INVOKE", "DISPATCH"})
+    "INVOKE", "DISPATCH", "PLAN", "STEP"})
 
 
 class Machine:
@@ -90,49 +104,84 @@ class Machine:
         self.program = tuple(program)
         self.labels = {ins: i for i, ins in enumerate(self.program) if isinstance(ins, str)}
 
-    def run(self, g: Graph, focus: Focus | None = None, *, rollback_on_error: bool = True, **regs):
+    def start(self, g: Graph, focus: Focus | None = None, *, of: str | None = None,
+              caller: str | None = None, label: str | None = None, **regs) -> str:
+        """Open an activation on this program and return the **node**. Nothing has run yet.
+
+        ⭐ This is the seam. A caller that wants to be able to stop between two instructions drives `tick`
+        itself and owns the activation; `run` is the convenience that ticks to completion."""
+        focus = focus if focus is not None else Focus(g).open("root")
+        return A.open_activation(g, focus.node, size=len(self.program), of=of, caller=caller,
+                                 label=label, regs=regs)
+
+    def tick(self, g: Graph, act: str) -> bool:
+        """**ONE primitive operation.** Returns `True` while there is more to do, `False` once the program
+        has run off its end or halted — so `while m.tick(g, a): ...` is the whole of running it.
+
+        ⚠ Every piece of what happens between two ticks is on the activation, which is what makes stopping
+        here a *pause* rather than a loss. Nothing is carried in a Python local across the boundary."""
+        if A.finished(g, act):
+            return False
+        if A.took_a_step(g, act) > self.MAX_STEPS:
+            raise RuntimeError(f"ISA program exceeded {self.MAX_STEPS} steps — not silently truncated")
+        here = A.pc(g, act)
+        ins = self.program[here]
+        if isinstance(ins, str):                       # a label is a jump target, not an instruction
+            A.set_pc(g, act, here + 1)
+            return not A.finished(g, act)
+        nxt, stop = self._step(ins, g, act, Focus(g, A.focus_node(g, act)), here)
+        A.set_pc(g, act, nxt)
+        if stop:
+            A.halt(g, act)
+        return not A.finished(g, act)
+
+    def run(self, g: Graph, focus: Focus | None = None, *, rollback_on_error: bool = True,
+            retire: bool = True, of: str | None = None, caller: str | None = None,
+            label: str | None = None, **regs):
         """Execute against `g`, mutating it in place. On error, rewind to the entry savepoint so a failed
         program leaves no half-written graph behind — the transactional discipline mutability makes
-        possible and copy-on-write was faking."""
-        focus = focus if focus is not None else Focus().open("root")
+        possible and copy-on-write was faking.
+
+        ⚠ **This is a loop over `tick` and contains no interpreter of its own.** Keeping a fast Python loop
+        beside the ticked one "just for the hot path" is the trap HANDOFF §6b names: it would drift, and it
+        would drift silently. Slow and singular beats fast and forked.
+
+        `retire=False` keeps the finished activation in the graph — for a caller that wants to read back
+        how far it got, or what it was doing when it stopped."""
+        # ⚠ The savepoint is taken FIRST, before the default focus is minted, or a failed run would leave
+        # its own focus and head nodes behind — "a failed program leaves no half-written graph" has to
+        # include the interpreter's own state now that the state is in the graph.
         sp = g.savepoint()
+        focus = focus if focus is not None else Focus(g).open("root")
         try:
-            return self._loop(g, focus, dict(regs))
+            act = self.start(g, focus, of=of, caller=caller, label=label, **regs)
+            while self.tick(g, act):
+                pass
+            out = A.registers(g, act)
+            if retire:
+                A.retire(g, act)
+            return g, focus, out
         except Exception:
             if rollback_on_error:
                 g.rollback(sp)
             raise
 
-    def _loop(self, g, focus, regs):
-        pc, stack, steps = 0, [], 0
-        while pc < len(self.program):
-            steps += 1
-            if steps > self.MAX_STEPS:
-                raise RuntimeError(f"ISA program exceeded {self.MAX_STEPS} steps — not silently truncated")
-            ins = self.program[pc]
-            if isinstance(ins, str):
-                pc += 1
-                continue
-            pc, stop = self._step(ins, g, focus, regs, pc, stack)
-            if stop:
-                break
-        return g, focus, regs
-
-    def _v(self, g, focus, regs, x):
+    def _v(self, g, focus, act, x):
         if isinstance(x, R):
-            return regs.get(x.name)
+            return A.get_reg(g, act, x.name)
         if isinstance(x, F):
             return focus.at(x.name)
         return x
 
-    def _step(self, ins, g: Graph, focus: Focus, regs, pc, stack):
+    def _step(self, ins, g: Graph, act: str, focus: Focus, pc: int):
         op, a = ins.op, ins.args
-        v = lambda x: self._v(g, focus, regs, x)        # noqa: E731
+        v = lambda x: self._v(g, focus, act, x)                     # noqa: E731
+        w = lambda dst, val: A.set_reg(g, act, dst.name, val)       # noqa: E731
 
         def node(x):
             """⭐⭐ **An operand that must be a NODE, refused when it is nothing.**
 
-            ⚠ `regs.get` answers `None` for a register that was never assigned — including one assigned by
+            ⚠ `activation.get_reg` answers `None` for a register that was never assigned — including one by
             a `GET` that found no edge, which is an ordinary occurrence the moment a part of the input can
             be missing. `g.link` then appended that `None`, and the graph gained **an edge whose target is
             `None`**: `targets` came back non-empty, so every "is this part present?" test answered *yes*,
@@ -160,7 +209,11 @@ class Machine:
 
         # --- graph writes ---
         if op == "NEW":
-            regs[a[0].name] = g.mint(v(a[1]))
+            # ⭐ The ONE instruction that mints, so the activation can record exactly what this call
+            # created — see `activation.minted` for why that replaced a whole-graph diff.
+            made = g.mint(v(a[1]))
+            A.record_mint(g, act, made)
+            w(a[0], made)
         elif op == "SET":
             # ⚠ The SUBJECT must exist; the VALUE may legitimately be `None`, which is an ordinary
             # attribute value and distinct from `UNKNOWN`. Guarding the value would ban saying so.
@@ -178,19 +231,19 @@ class Machine:
 
         # --- graph reads ---
         elif op == "GET":
-            regs[a[0].name] = g.target(v(a[1]), v(a[2]))
+            w(a[0], g.target(v(a[1]), v(a[2])))
         elif op == "GET_AT":
-            regs[a[0].name] = g.at(v(a[1]), v(a[2]), int(v(a[3])))
+            w(a[0], g.at(v(a[1]), v(a[2]), int(v(a[3]))))
         elif op == "COUNT":
-            regs[a[0].name] = g.count(v(a[1]), v(a[2]))
+            w(a[0], g.count(v(a[1]), v(a[2])))
         elif op == "ATTR":
-            regs[a[0].name] = g.attr(v(a[1]), v(a[2]))
+            w(a[0], g.attr(v(a[1]), v(a[2])))
         elif op == "EPROP":
-            regs[a[0].name] = g.edge_prop(v(a[1]), v(a[2]), int(v(a[3])), v(a[4]))
+            w(a[0], g.edge_prop(v(a[1]), v(a[2]), int(v(a[3])), v(a[4])))
         elif op == "DEREF":
-            regs[a[0].name] = g.deref(v(a[1]), v(a[2]))
+            w(a[0], g.deref(v(a[1]), v(a[2])))
         elif op == "SOURCES":
-            regs[a[0].name] = g.sources(v(a[1]), v(a[2]) if len(a) > 2 else None)
+            w(a[0], g.sources(v(a[1]), v(a[2]) if len(a) > 2 else None))
 
         # --- focus ---
         elif op == "FOCUS":
@@ -207,23 +260,23 @@ class Machine:
         elif op == "FOLLOW":
             focus.follow_ref(g, v(a[0]), v(a[1]))
         elif op == "SPREAD":
-            regs[a[0].name] = focus.spread(g, v(a[1]), v(a[2]))
+            w(a[0], focus.spread(g, v(a[1]), v(a[2])))
         elif op == "HEAD":
-            regs[a[0].name] = focus.at(v(a[1]))
+            w(a[0], focus.at(v(a[1])))
         elif op == "HASFOCUS":
-            regs[a[0].name] = focus.has(v(a[1]))
+            w(a[0], focus.has(v(a[1])))
 
         # --- values ---
         elif op == "CONST" or op == "COPY":
-            regs[a[0].name] = v(a[1])
+            w(a[0], v(a[1]))
         elif op == "ADD":
-            regs[a[0].name] = v(a[1]) + v(a[2])
+            w(a[0], v(a[1]) + v(a[2]))
         elif op == "LT":
-            regs[a[0].name] = v(a[1]) < v(a[2])
+            w(a[0], v(a[1]) < v(a[2]))
         elif op == "EQ":
-            regs[a[0].name] = v(a[1]) == v(a[2])
+            w(a[0], v(a[1]) == v(a[2]))
         elif op == "NOT":
-            regs[a[0].name] = not v(a[1])
+            w(a[0], not v(a[1]))
 
         # --- control ---
         elif op == "JMP":
@@ -235,10 +288,11 @@ class Machine:
             if not v(a[0]):
                 return self.labels[v(a[1])], False
         elif op == "CALL":
-            stack.append(pc + 1)
+            A.push(g, act, pc + 1)
             return self.labels[v(a[0])], False
         elif op == "RET":
-            return (stack.pop() if stack else len(self.program)), False
+            ret = A.pop(g, act)
+            return (len(self.program) if ret is None else ret), False
         elif op == "HALT":
             return pc, True
 
@@ -252,17 +306,57 @@ class Machine:
             # arguments arrive as `F(param)`, the fixed ones as a stored pointer to that exact node.
             bindings = {k: (x.node if isinstance(x, Ref) else v(x))
                         for k, x in (v(a[2]) or {}).items()} if len(a) > 2 else {}
-            _f, out = _invoke(g, v(a[1]), bindings)
+            # ⚠ `caller=act` is what keeps the call chain readable. A nested invocation used to be a nested
+            # Python frame — invisible to the system running it — so "what was it doing?" could only ever
+            # answer about the outermost program. `activation.chain` walks it.
+            _f, out = _invoke(g, v(a[1]), bindings, caller=act)
             if isinstance(a[0], R):
-                regs[a[0].name] = out.get("result")
+                w(a[0], out.get("result"))
 
         elif op == "DISPATCH":
             # `DISPATCH R(dst), "tool", F(head)` — the only escape hatch to the outside world, and it
             # goes through the one checkpoint (`dispatch.service`): veto checked at APPLY time, graph
             # committed before the handler runs. A `Vetoed` propagates, so a forbidden effect fails
             # loudly rather than being skipped in silence.
+            #
+            # ⚠ A handler mints straight into the graph — it is the world arriving, not an instruction —
+            # so this is the one place a diff is still the honest way to learn what appeared. It is scoped
+            # to the single call that crosses the boundary rather than to a whole invocation, and dispatch
+            # is rare by construction.
             from .dispatch import service as _service
-            regs[a[0].name] = _service(g, v(a[1]), v(a[2]))
+            before = set(g.nodes)
+            got = _service(g, v(a[1]), v(a[2]))
+            for made in sorted(set(g.nodes) - before):
+                A.record_mint(g, act, made)
+            w(a[0], got)
+
+        elif op == "PLAN":
+            # `PLAN R(dst), F(goal), F(subject), F(thread)` - open a search and seed it; the register
+            # receives the `search` NODE, so everything about it is readable with ordinary GET/ATTR.
+            #
+            # ** WHY THIS IS A PRIMITIVE AND NOT SUGAR.** The closed-class test this project applies is:
+            # can it be composed from what already exists? Searching cannot - there is no sequence of
+            # GET/SET/LINK that imagines a state, and the frontier ordering is not expressible as data
+            # manipulation. So it earns its place in the opcode set the way DISPATCH does.
+            #
+            # WARN This is what makes deliberation reachable AS DATA, which `composability-principle`
+            # requires (a hardcoded mechanism is an unreachable island) and which `deliberation.md` named
+            # as missing: deliberation was the third thing the system computed *with* and could not compute
+            # *about*, after attention and the goal. It is deliberately NOT policed - see HANDOFF 5y.
+            from . import driver as _driver
+            w(a[0], _driver.open_planning(g, node(a[1]), node(a[3]), node(a[2])))
+
+        elif op == "STEP":
+            # `STEP R(more), R(search)` - one iteration. The register receives True while the search
+            # should continue and False once it is finished; the ANSWER lands on the search node
+            # (`done`, `found`, `how`, and a `reached` edge), so it is read with an ordinary ATTR.
+            #
+            # WARN Deliberately not "run the search to completion": an opcode that did that would be one
+            # opaque instruction and would buy nothing, because the point is being able to stop BETWEEN
+            # two imagined states. `pursue` is a loop over this; so is a program that wants to think about
+            # its own thinking partway through.
+            from . import driver as _driver
+            w(a[0], _driver.step(g, node(a[1])) is None)
 
         elif op == "CHECK":
             check(g, v(a[0]), v(a[1]))
@@ -280,4 +374,5 @@ __all__ = ["R", "F", "I", "Ref", "Machine", "run", "WRITES_REGISTER",
            "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
            "FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS",
            "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
-           "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "CHECK", "INVOKE", "DISPATCH"]
+           "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "CHECK", "INVOKE", "DISPATCH",
+           "PLAN", "STEP"]

@@ -228,7 +228,8 @@ def names(g: Graph) -> tuple:
 
 
 # --- calling -------------------------------------------------------------------------------------
-def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool = True, **regs):
+def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool = True,
+           caller: str | None = None, **regs):
     """Call a stored function. `args` binds parameter names to nodes; each becomes a focus head.
 
     Returns `(focus, regs)` of the callee, so a caller reads results out of `regs["result"]` (or any
@@ -267,10 +268,18 @@ def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool =
                 raise TY.TypeViolation(
                     f"{name}({p}=…): {args[p]} is not a {want}: {bad}")
     from .isa import Machine
-    callee = Focus()
+    callee = Focus(g)
     for p in params:
         callee.open(p, args[p])
-    _, focus, out = Machine(program).run(g, callee, **regs)
+    # ⭐ `of=` is what lets a stopped activation say which instruction of which function it is on —
+    # `function.define` already stores the body as an ordered `instr` edge in the order `load` returns it,
+    # so the program counter indexes that list directly and no second record is needed.
+    # ⚠ `retire=False`: the callee's activation is the record of what this call did — which nodes it
+    # minted, where its heads ended up, which instruction it finished on — and a Python caller holding the
+    # returned focus reaches it through `activation.for_focus`. `workbench.step` and `execution._replay`
+    # both need exactly that, and used to get a whole-graph diff instead.
+    _, focus, out = Machine(program).run(g, callee, of=find(g, name), caller=caller,
+                                         retire=False, **regs)
     return focus, out
 
 

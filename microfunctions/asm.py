@@ -58,8 +58,13 @@ from . import isa
 from .graph import Graph, Ref
 from .isa import F, I, R
 
+# ⚠ `callable`, not just `isupper()`. `isa.__all__` also exports `WRITES_REGISTER` — a frozenset, not an
+# opcode — so the old filter let it through, and `asm` would ACCEPT `WRITES_REGISTER` as an instruction at
+# load time and fail opaquely inside the interpreter at run time. That is precisely the silent-acceptance
+# failure this module's docstring says it exists to prevent, and the same shape `../pystrider` reported for
+# `INVOKE`'s operands (`feedback_microfunctions.md` §6). An opcode is a thing you can call to build an `I`.
 _OPCODES = {name for name in isa.__all__
-            if name.isupper() and name not in {"R", "F", "I"}}
+            if name.isupper() and name not in {"R", "F", "I"} and callable(getattr(isa, name, None))}
 
 _TOKEN = re.compile(r'"[^"]*"|[^\s]+')
 _HEADER = re.compile(r"^fn\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:->\s*(\w+)\s*)?(?:mocks\s+(\w+)\s*)?:\s*$")

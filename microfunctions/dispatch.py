@@ -69,7 +69,7 @@ def _in_workbench(g: Graph, node) -> bool:
     return node is not None and any(g.kind(m) == "mapping" for m in g.sources(node, "image"))
 
 
-def service(g: Graph, tool: str, target, *, record_on=None):
+def service(g: Graph, tool: str, target, *, record_on=None, remember=None):
     """THE choke point. Refuse imagined targets, check the veto, commit, then run the handler.
 
     Returns the handler's value. Raises `Imagined` if the target is inside a workbench, `Vetoed` if a
@@ -95,12 +95,35 @@ def service(g: Graph, tool: str, target, *, record_on=None):
         raise Vetoed(f"dispatch of {tool!r} on {target} blocked by {blocked}")
     if tool not in _TOOLS:
         raise KeyError(f"no tool named {tool!r}; registered: {registered()}")
+    # ⭐⭐ THE ONE PLACE THE WORLD CROSSES, so the one place a SIGHTING can be recorded. `service` is
+    # already "the ONE way an effect leaves the graph"; it is equally the only way information enters, and
+    # that symmetry is what makes memory need no second checkpoint.
+    #
+    # ⚠ Snapshot BEFORE the commit, because the commit is what destroys the ability to say what preceded
+    # this. `commit()` stays exactly as it is — it answers *"can I reverse this?"*, and once the effect has
+    # left, the honest answer is no. What it must not also answer is *"can I remember what preceded it?"*,
+    # which is a different question. The snapshot is the two being separated.
+    before = dict(g.attrs.get(target, {})) if target is not None else {}
+    thread = _thread_of(g, record_on)
     # ⚠ Commit BEFORE the effect leaves. Nothing after this line is undoable.
     g.commit()
     value = _TOOLS[tool](g, target)
     if record_on is not None:
         g.put(record_on, dispatched=True)
+    if thread is not None and target is not None:
+        from . import memory as M
+        M.record_sighting(g, thread, target, before, source=tool, keep=remember)
     return value
+
+
+def _thread_of(g: Graph, entry):
+    """The thread an entry sits on — **derived**, never passed. A thread appends with an ordered `step`
+    edge, so the reverse index already answers this; threading a `thread=` parameter down through the
+    dispatch surface would be plumbing for something the graph already knows."""
+    if entry is None:
+        return None
+    holders = [s for s in g.sources(entry, "step") if g.attr(s, "thread")]
+    return holders[0] if len(holders) == 1 else None
 
 
 __all__ = ["VETO", "Vetoed", "register", "registered", "forbid", "veto_reason", "service"]

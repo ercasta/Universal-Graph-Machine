@@ -74,6 +74,63 @@ could not detect do not need one. When in doubt, write the line — it costs one
   cost.
 - **`search.context(g, search)`** — the graph-resident half of a step's context. The hooks (`rank`,
   `allow`, `trace`, `decide`) stay Python callables passed per call.
+- **Two ISA opcodes: `PLAN R(dst), F(goal), F(subject), F(thread)` and `STEP R(more), R(search)`.**
+  A `.mf`-authored microfunction can now drive the planner and read its answer. `PLAN` returns the search
+  node; `STEP` performs one iteration and answers `True` while it should continue.
+- **`driver.open_planning(…)`** — opens and seeds a search, returning the node. `pursue` and `PLAN` share
+  it, so there is one setup rather than two that could drift.
+- **The search's outcome is graph data**: `done`, `found`, `how`, `length` attributes and a `reached` edge
+  on the search node. The report dict is a convenience for Python callers, not the only place the answer
+  exists.
+
+- **`plan` is a CNL verb** — a fourth force on the goal body (`GOAL_VERBS` is now
+  `("goal", "ask", "why", "plan")`). `intake.respond` pursues it and returns the plan.
+  ⚠ It cannot touch the world: the search is entirely on a workbench. `read_goal` still refuses a `plan`
+  block, as it refuses `ask` and `why`.
+
+### Fixed — `asm`
+
+- **`asm` accepted `WRITES_REGISTER` as an opcode.** `_OPCODES` filtered `isa.__all__` on `isupper()`
+  alone, so a non-opcode export loaded fine and failed opaquely inside the interpreter. Now filtered on
+  `callable`. ⚠ **Consumer impact:** a program containing such a token now fails at load with a line
+  number, which is where it always should have failed.
+
+### Added — memory
+
+- **`memory.py`** — sightings, and attribution of change. `observe`, `sightings`, `believed`,
+  `transitions`, `attribute`, `volatility`, `describe`.
+- **`dispatch.service` gains `remember=`** (a `keep(slot) -> bool` seam, **inert by default**) and now
+  records a sighting of the target after a tool runs, when it can derive the thread from `record_on`.
+  ⚠ **Consumer impact:** none unless you pass `record_on`; nothing else changes, and `commit()` semantics
+  are untouched. New node kind `observation`, appended to the thread like an application.
+
+### Added — the INTERPRETER's own state is graph data (⚠ two breaking signatures)
+
+- **`activation.py`** — `pc`, the call stack, the registers and what a call minted, as `activation` and
+  `register` nodes. `isa.Machine._loop` was an ordinary Python `while`; it is now `Machine.tick`, one
+  primitive operation, and `Machine.run` is a loop over it and contains no interpreter of its own.
+- **⚠ BREAKING: `Focus()` is now `Focus(g)`.** A focus is a `focus` node and each head is a `head` node
+  with an `at` edge, so the class needs the graph it lives in. **Migration:** pass the graph —
+  `Focus().open("h")` becomes `Focus(g).open("h")`. Every method signature is otherwise unchanged, the
+  navigation methods still take `g`, and an emptied head is still distinct from a closed one.
+- **⚠ BREAKING (behaviour): `Machine.run` retires its activation by default.** The `(g, focus, regs)`
+  return is unchanged and `regs` is read out before retirement, so ordinary callers see nothing new. Pass
+  `retire=False` to keep the finished activation for inspection. `function.invoke` already does.
+- **`Machine.start(g, focus, *, of=, caller=, label=, **regs) -> activation node`** and
+  **`Machine.tick(g, act) -> bool`** — the yield point. `True` while there is more to do.
+- **`Machine.run` gains `of=` / `caller=` / `label=`**, passed through to the activation. `of` is the
+  stored `function` node, which is what lets `activation.doing` name the instruction a pause landed on.
+- **`function.invoke` gains `caller=`** (an activation node) and now runs with `retire=False`, so the
+  returned focus can be turned into the call's activation with `activation.for_focus`. The `(focus, regs)`
+  return shape is unchanged.
+- **`activation.minted(g, act)`** — exactly what a call created, its callees included. ⚠ This replaces the
+  `before = set(g.nodes)` … `set(g.nodes) - before` diff inside `workbench.step` and `execution._replay`.
+  A consumer reading `execute(...)["deviation"]["minted"]` gets the same shape and a **more precise** list:
+  the diff also counted anything else minted while the call ran.
+- **`workbench.step`'s transformation gains a `ran` edge** to the activation that imagined it, and
+  `workbench.discard` scraps it along with everything else.
+- **New node kinds:** `activation`, `register`, `focus`, `head`. All metadata — they point at the world and
+  nothing in the world points back — so `workbench.reachable` never copies one.
 
 ### Refused, deliberately — so nobody reports it as a bug
 

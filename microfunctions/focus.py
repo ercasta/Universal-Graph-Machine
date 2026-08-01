@@ -23,74 +23,132 @@ episode machinery built on it works unchanged.
 **A move that fails does not raise.** It empties the head, and `has(name)` reports it. A failed navigation
 is an ordinary answer to an ordinary question ("is there a body?"), not an exception — the same reasoning
 that makes an out-of-range index `None` rather than an error.
+
+## ⭐⭐ The heads are GRAPH DATA, and that is the correction made on 2026-08-01
+
+This class used to hold a Python `dict[str, str]` and its docstring said, approvingly, that it "holds no
+graph state itself". That was the defect, not the feature. `thread.py` exists because *attention was not
+data* — a deliberate shift of attention had to be recordable — and it materialised the shifts while leaving
+**the pointers themselves** in a Python object that was fresh per call and discarded. HANDOFF §6b's
+inventory names it: focus is as much interpreter state as `pc` and the registers, and it is easy to miss
+because `Focus` looks like a helper rather than a loop variable.
+
+So a focus is a node, a head is a node, and where a head points is an edge:
+
+```
+focus ──head──▶ head(name="c") ──at──▶ car#7
+```
+
+⚠ **An emptied head is not a closed one**, and the two must stay distinguishable — `move` off the end of
+the world leaves the head node with no `at` edge, while `close` removes the head node altogether. That
+distinction predates this change and is what `has` versus `names` reports; storing heads as edges preserves
+it exactly, because "a node with no outgoing edge" and "no node" are different states of the graph.
+
+⚠ **Direction invariant** (`planning_workbench.md` §2): a head points **at** the node it is on, and nothing
+in the world points back at a head. A focus is metadata about a computation, like an application or a
+mapping, and it does not hang off `root` — so `workbench.reachable` never copies one.
 """
 from __future__ import annotations
 
 from .graph import Graph
 
+KINDS = ("focus", "head")
+
 
 class Focus:
-    """Named pointers into one graph. Cheap to copy, cheap to fork, and holds no graph state itself."""
+    """Named pointers into one graph, **stored in that graph**. Cheap to fork; readable by the system."""
 
-    __slots__ = ("_heads",)
+    __slots__ = ("g", "node")
 
-    def __init__(self, heads: dict[str, str] | None = None) -> None:
-        self._heads: dict[str, str | None] = dict(heads or {})
+    def __init__(self, g: Graph, node: str | None = None, heads: dict[str, str] | None = None) -> None:
+        self.g = g
+        self.node = node if node is not None else g.mint("focus")
+        for name, at in (heads or {}).items():
+            self._point(name, at)
+
+    # --- the head nodes -----------------------------------------------------------------------------
+    def head(self, name: str, make: bool = False):
+        """The head node called `name`, or `None`. `make=True` mints it, pointing nowhere."""
+        for h in self.g.targets(self.node, "head"):
+            if self.g.attr(h, "name") == name:
+                return h
+        if not make:
+            return None
+        h = self.g.mint("head", name=name)
+        self.g.link(self.node, "head", h)
+        return h
+
+    def _point(self, name: str, at: str | None) -> None:
+        """Where a head points is ONE edge, replaced rather than appended — a head is a pointer, not a
+        collection, and letting `at` grow would make `Focus.at` silently answer with a stale first target."""
+        h = self.head(name, make=True)
+        while self.g.count(h, "at"):
+            self.g.unlink(h, "at", index=0)
+        if at is not None:
+            self.g.link(h, "at", at)
 
     # --- opening and closing ------------------------------------------------------------------------
     def open(self, name: str, node: str = "root") -> "Focus":
-        self._heads[name] = node
+        self._point(name, node)
         return self
 
     def fork(self, new_name: str, existing: str) -> "Focus":
         """Two candidates become two heads — the alternative to copying the world to explore both."""
-        self._heads[new_name] = self._heads.get(existing)
+        self._point(new_name, self.at(existing))
         return self
 
     def close(self, name: str) -> "Focus":
-        self._heads.pop(name, None)
+        h = self.head(name)
+        if h is not None:
+            self.g.unlink(self.node, "head", dst=h)
+            self.g.drop(h)
         return self
 
     # --- reading ------------------------------------------------------------------------------------
     def at(self, name: str):
-        return self._heads.get(name)
+        h = self.head(name)
+        return None if h is None else self.g.target(h, "at")
 
     def has(self, name: str) -> bool:
         """A head exists AND points somewhere. An emptied head is not the same as a closed one."""
-        return self._heads.get(name) is not None
+        return self.at(name) is not None
 
     @property
     def names(self) -> tuple:
-        return tuple(sorted(self._heads))
+        return tuple(sorted(self.g.attr(h, "name") for h in self.g.targets(self.node, "head")))
 
     def snapshot(self) -> dict:
-        return dict(self._heads)
+        return {self.g.attr(h, "name"): self.g.target(h, "at")
+                for h in self.g.targets(self.node, "head")}
 
     def restore(self, snap: dict) -> "Focus":
-        self._heads = dict(snap)
+        for name in self.names:
+            self.close(name)
+        for name, at in snap.items():
+            self._point(name, at)
         return self
 
     # --- navigation ---------------------------------------------------------------------------------
     def move(self, g: Graph, name: str, label: str, index: int = 0) -> "Focus":
         """Forward along a named edge. `index` addresses the ordered 1:N case."""
-        here = self._heads.get(name)
-        self._heads[name] = None if here is None else g.at(here, label, index)
+        here = self.at(name)
+        self._point(name, None if here is None else g.at(here, label, index))
         return self
 
     def back(self, g: Graph, name: str, label: str | None = None, index: int = 0) -> "Focus":
         """Backward through an incoming edge — O(1) on the reverse index. `label=None` means any."""
-        here = self._heads.get(name)
+        here = self.at(name)
         if here is None:
-            self._heads[name] = None
+            self._point(name, None)
             return self
         srcs = g.sources(here, label)
-        self._heads[name] = srcs[index] if -len(srcs) <= index < len(srcs) else None
+        self._point(name, srcs[index] if -len(srcs) <= index < len(srcs) else None)
         return self
 
     def follow_ref(self, g: Graph, name: str, key: str) -> "Focus":
         """Through a stored reference rather than an edge — dereferencing a pointer held as data."""
-        here = self._heads.get(name)
-        self._heads[name] = None if here is None else g.deref(here, key)
+        here = self.at(name)
+        self._point(name, None if here is None else g.deref(here, key))
         return self
 
     def spread(self, g: Graph, name: str, label: str, prefix: str | None = None) -> tuple:
@@ -98,18 +156,18 @@ class Focus:
 
         This is the closest thing here to what matching did — but bounded, explicit, and rooted at a node
         the caller already chose, rather than a scan over the whole graph."""
-        here = self._heads.get(name)
+        here = self.at(name)
         if here is None:
             return ()
         prefix = prefix or f"{name}_"
         made = []
         for i, t in enumerate(g.targets(here, label)):
-            self._heads[f"{prefix}{i}"] = t
+            self._point(f"{prefix}{i}", t)
             made.append(f"{prefix}{i}")
         return tuple(made)
 
     def __repr__(self) -> str:
-        return "Focus(" + ", ".join(f"{k}->{v}" for k, v in sorted(self._heads.items())) + ")"
+        return "Focus(" + ", ".join(f"{k}->{v}" for k, v in sorted(self.snapshot().items())) + ")"
 
 
-__all__ = ["Focus"]
+__all__ = ["Focus", "KINDS"]

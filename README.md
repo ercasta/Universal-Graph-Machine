@@ -13,7 +13,7 @@ takes goals, finds plans by imagining, carries them out, notices when reality di
 answers questions with the derivation that produced the answer.
 
 ```bash
-python -m microfunctions.selftest      # 154 checks, 0 FAILED
+python -m microfunctions.selftest      # 161 checks, 0 FAILED
 ```
 
 ---
