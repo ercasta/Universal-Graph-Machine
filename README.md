@@ -13,7 +13,7 @@ takes goals, finds plans by imagining, carries them out, notices when reality di
 answers questions with the derivation that produced the answer.
 
 ```bash
-python -m microfunctions.selftest      # 132 checks, 0 FAILED
+python -m microfunctions.selftest      # 154 checks, 0 FAILED
 ```
 
 ---
@@ -252,9 +252,9 @@ rollback reaches it — so a rollback boundary must never span a dispatch).
   `b ≠ onto`. The planner enforces that itself. (They are no longer one level deep — `Req(type=…)`
   recurses and `Rel` relates two places inside a subgraph, both authored as `type …:` blocks.)
 - **References reach any depth in a `type` block, one hop in a `goal` or `method` one.** Not an
-  omission: `conflict.py` keys a slot by `(subject, key)` and `query.settle` writes with
-  `g.put(subject, …)`, so a navigated subject would be silently mishandled by both. Refused loudly
-  at intake until they understand one.
+  omission: `conflict.unsatisfiable` keys a slot by `(subject, key)`, and `goal.holds` /
+  `query.refutes` read the attribute off the base node — so a navigated subject would be silently
+  mishandled. Refused loudly at intake until they understand one.
 - **`compile_episode`** generalises single-argument operations on one subject. Multi-argument
   replay is a real question about *analogy*, not a missing mechanism.
 - **Search is tie-break nondeterministic:** the plan is invariant, the number of imagined

@@ -129,21 +129,52 @@ class Machine:
         op, a = ins.op, ins.args
         v = lambda x: self._v(g, focus, regs, x)        # noqa: E731
 
+        def node(x):
+            """⭐⭐ **An operand that must be a NODE, refused when it is nothing.**
+
+            ⚠ `regs.get` answers `None` for a register that was never assigned — including one assigned by
+            a `GET` that found no edge, which is an ordinary occurrence the moment a part of the input can
+            be missing. `g.link` then appended that `None`, and the graph gained **an edge whose target is
+            `None`**: `targets` came back non-empty, so every "is this part present?" test answered *yes*,
+            and whatever dereferenced the binding was handed `None` as though it were a node. Reported by
+            `../pystrider` (`feedback_microfunctions.md` §10) with a repro, and confirmed here.
+
+            **It converts a MISSING part into a PRESENT-BUT-NULL one**, so the failure surfaces arbitrarily
+            far from the instruction that caused it. That is precisely the distinction `graph.UNKNOWN` was
+            built to protect one slot over — *not there* versus *not looked at* — and a null edge destroys
+            a third one underneath both: *no part* versus *a part that is nothing*.
+
+            Refused here rather than in `Graph.link`, for the reason their suggestion gives: this layer
+            knows the **opcode and the operand**, so the message can name them, while the substrate would
+            only know that something passed it a `None`. `run` rolls back on any exception, so a refusal
+            leaves no half-written graph."""
+            got = v(x)
+            if got is None:
+                where = f"R({x.name})" if isinstance(x, R) else f"F({x.name})" if isinstance(x, F) else x
+                raise RuntimeError(
+                    f"{op}: operand {where} is not a node — it holds nothing. A register is unset until "
+                    f"something assigns it, and a GET that found no edge assigns nothing. Writing this "
+                    f"would mint an edge to None, and the graph would stop being able to tell 'no part' "
+                    f"from 'a part that is nothing'.")
+            return got
+
         # --- graph writes ---
         if op == "NEW":
             regs[a[0].name] = g.mint(v(a[1]))
         elif op == "SET":
-            g.put(v(a[0]), **{v(a[1]): v(a[2])})
+            # ⚠ The SUBJECT must exist; the VALUE may legitimately be `None`, which is an ordinary
+            # attribute value and distinct from `UNKNOWN`. Guarding the value would ban saying so.
+            g.put(node(a[0]), **{v(a[1]): v(a[2])})
         elif op == "SETREF":
-            g.set_ref(v(a[0]), v(a[1]), v(a[2]))
+            g.set_ref(node(a[0]), v(a[1]), node(a[2]))
         elif op == "LINK":
-            g.link(v(a[0]), v(a[1]), v(a[2]))
+            g.link(node(a[0]), v(a[1]), node(a[2]))
         elif op == "LINK_AT":
-            g.link_at(v(a[0]), v(a[1]), int(v(a[2])), v(a[3]))
+            g.link_at(node(a[0]), v(a[1]), int(v(a[2])), node(a[3]))
         elif op == "UNLINK":
-            g.unlink(v(a[0]), v(a[1]), index=int(v(a[2])))
+            g.unlink(node(a[0]), v(a[1]), index=int(v(a[2])))
         elif op == "DROP":
-            g.drop(v(a[0]))
+            g.drop(node(a[0]))
 
         # --- graph reads ---
         elif op == "GET":

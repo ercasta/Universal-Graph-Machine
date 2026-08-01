@@ -1515,6 +1515,7 @@ def check_a_producer_of_a_subtype_satisfies_the_goal():
 # thing it describes, and never pointed at BY it — see `docs/microfunctions/planning_workbench.md` §2.
 _METADATA_KINDS = frozenset({
     "type", "requires", "requires_attr", "requires_rel",
+    "search", "candidate", "candidate_arg", "trace_step", "signature", "refusal",
     "function", "param", "instr", "arg",
     "application", "binding", "episode",
     "attention", "connection",                             # the thread — memory is metadata, never world
@@ -3929,6 +3930,238 @@ def check_a_reference_is_one_language_and_the_surface_refuses_what_it_cannot_hon
                 refused("goal x:\n    a.wheel[0].pressure = 3\n"),
             "but_a_type_takes_any_depth":
                 not refused("type deep:\n    wheel[0].rim.serial == wheel[1].rim.serial\n")}
+
+
+# --- consumer-reported defects (../pystrider/docs/feedback_microfunctions.md) ------------------------
+def check_a_write_through_an_unset_register_is_refused_not_null_linked():
+    """⭐⭐ §10, reported 2026-08-01 with a repro. `regs.get` answers `None` for a register a `GET` never
+    filled — an ordinary case the moment a part of the input can be missing — and `g.link` appended it, so
+    the graph gained **an edge whose target is `None`**. `targets` then came back non-empty, every "is
+    this part present?" test answered *yes*, and the `None` surfaced arbitrarily far away in whatever
+    dereferenced it.
+
+    ⚠ Vacuity guard: the control asserts the `GET` genuinely found nothing, so this cannot pass merely
+    because the program failed for some earlier reason. And the graph must be UNCHANGED afterwards — a
+    refusal that still left the edge behind would be worse than the bug."""
+    from .isa import GET, Machine
+    g = new_graph()
+    f = g.mint("for_stmt")
+    g.link("root", "has", f)
+    prog = Machine((GET(R("seq"), F("f"), "over"), LINK(F("f"), "repeats_over", R("seq"))))
+    try:
+        prog.run(g, Focus().open("f", f))
+        refused, why = False, ""
+    except RuntimeError as e:
+        refused, why = True, str(e)
+    return {"the_register_really_is_empty": g.target(f, "over") is None,
+            "REFUSED_INSTEAD_OF_LINKING_TO_NOTHING": refused,
+            "and_it_names_the_operand": "R(seq)" in why and "LINK" in why,
+            "no_null_edge_was_left_behind": g.targets(f, "repeats_over") == (),
+            "so_the_part_still_reads_as_ABSENT": g.count(f, "repeats_over") == 0}
+
+
+def check_a_declared_parameter_type_is_enforced_at_the_call_site():
+    """⭐ §9, reported with the case that makes it bite: a safety property carried entirely in a parameter
+    type. It was checked only by `driver.proposals`, so the guarantee was *"no plan builds it"* while the
+    documentation said *"it is unbuildable"* — and a consumer had to hand-write a `CHECK` as the first
+    instruction, making the declared type and the enforced type two things kept in step by hand.
+
+    ⚠ Vacuity guard: the valid call must still run, and the opt-out must still bypass — otherwise this
+    would pass by refusing everything."""
+    from . import function as fn
+    from .types import declare_type as dt
+    g = new_graph()
+    dt(g, "build", attrs={"kind_of": "build"})
+    dt(g, "reversible_build", base="build", attrs={"reversible": True})
+    ok = g.mint("b", kind_of="build", reversible=True)
+    unsafe = g.mint("b", kind_of="build", reversible=False)
+    g.link("root", "has", ok)
+    g.link("root", "has", unsafe)
+    fn.define(g, "finish", ("b",), (SET(F("b"), "finished", True),),
+              ptypes={"b": "reversible_build"})
+    fn.define(g, "touch", ("x",), (SET(F("x"), "touched", True),))     # untyped parameter
+
+    def call(node, **kw):
+        try:
+            fn.invoke(g, "finish", {"b": node}, **kw)
+            return True
+        except TypeViolation:
+            return False
+
+    return {"the_valid_call_still_runs": call(ok) and g.attr(ok, "finished") is True,
+            "THE_UNSAFE_CALL_IS_REFUSED": not call(unsafe),
+            "and_it_left_nothing_behind": g.attr(unsafe, "finished") is None,
+            "the_opt_out_still_bypasses": call(unsafe, check_types=False),
+            "an_untyped_parameter_is_unconstrained":
+                fn.invoke(g, "touch", {"x": unsafe}) is not None}
+
+
+def check_the_reference_language_refuses_what_it_cannot_express():
+    """⭐ Found by probing whether WHERE/WHEN/WHAT are sugar (see `HANDOFF.md` §5x). Two silent
+    acceptances, both the same class as the mis-parse §5v records:
+
+    * `path.parse("contains*")` **succeeded**, yielding a label literally named `contains*` — matching
+      nothing, forever, silently. Anyone writing that is reaching for transitive closure, which this
+      grammar genuinely does not have; a label that will never match is the worst possible answer.
+    * `has 1 ^contains` accepted `^contains` as a plain edge label. `require_edge` counts
+      `g.targets(node, label)` and does not navigate, so the requirement counted an edge nobody has —
+      silently zero, unmeetable, and it rendered back looking correct.
+
+    ⚠ Vacuity guard: the legal forms must still parse, or this would pass by refusing everything."""
+    from . import intake as I, path as P
+
+    def bad_path(t):
+        try:
+            P.parse(t)
+            return False
+        except P.BadPath:
+            return True
+
+    def why_refused(t):
+        try:
+            P.parse(t)
+            return ""
+        except P.BadPath as e:
+            return str(e)
+
+    g = new_graph()
+    try:
+        I.read(g, "type t:\n    has 1 ^contains each of kind box\n")
+        has_refused = False
+    except I.Unreadable:
+        has_refused = True
+    return {"CLOSURE_IS_REFUSED_NOT_READ_AS_A_LABEL":
+                all(bad_path(t) for t in ("contains*", "contains+", "a.b?", "(a|b)")),
+            "and_the_message_names_the_gap":
+                "no repetition operator" in why_refused("contains*"),
+            "A_HAS_LABEL_IS_NOT_A_REFERENCE": has_refused,
+            "legal_paths_still_parse":
+                len(P.parse("wheel[0].rim.serial").hops) == 3 and len(P.parse("^has").hops) == 1,
+            "hyphens_and_digits_are_legal_in_a_label": len(P.parse("part-2.name").hops) == 2}
+
+
+# --- the search's own state, as graph data ------------------------------------------------------------
+def check_the_search_is_reproducible_in_COST_not_just_in_ANSWER():
+    """⚠⚠ **The check the worst defect this project has found would have needed, and did not have.**
+
+    `search-was-irreproducible-set-tiebreak`: `workbench.reachable` returned a **`set`**, so copy order
+    fell to node-id hash order, `pursue`'s frontier tie-break became arbitrary, and one 5-block goal gave
+    `400/fail`, `400/fail`, `12/found` **in a single process**. The plan was never *wrong*, only arbitrary
+    at arbitrary cost — which is exactly why **132 checks passed over it**. Every one of them asserted the
+    answer; none asserted the price.
+
+    So this asserts the price. Same goal, several runs, one process: the number of imagined states must be
+    **identical**, not merely the plan. A tie broken by hash order shows up here and nowhere else.
+
+    ⚠ **Run BLIND, and with headroom, because that is the discriminating case.** Guided search on this
+    goal imagines 2 states — too few for a tie-break to matter, so a guided-only check would pass over the
+    very bug it exists to catch. Unguided, every frontier key is `(0, 0, depth)`, so **essentially
+    everything ties** and the order is decided purely by insertion — which is exactly the condition that
+    made the original defect visible. 67 states, six runs, one process.
+
+    ⚠ Vacuity guard: the search must succeed and do real work (dozens of imagined states), or identical
+    counts would be trivially true — and note it must NOT be left at the default `max_steps`, where blind
+    search merely exhausts at 60 every time and would look "deterministic" by hitting the ceiling.
+
+    **⭐ Verified by re-injecting the original defect**, rather than by assuming it would catch it: patching
+    `search.take_best` to sort `set(frontier)` — the exact shape of the 2026-07-31 bug — gives
+
+        THE_COST_IS_IDENTICAL_ACROSS_RUNS: False      81 imagined states, varying
+        and_so_is_the_plan:                True       the plan is still correct
+
+    which is the defect's signature exactly: **the answer stays right and only the price wanders**, which
+    is why a hundred assertions about answers never saw it."""
+    from . import driver as D, intake as I, thread as T
+    runs = []
+    for _ in range(6):
+        g, world = _blocks()
+        goal = I.read_goal(g, _lines("goal build a tower:", "    a on b", "    b on c"))
+        r = D.pursue(g, goal, T.open_thread(g, "t"), world, guided=False, max_steps=400)
+        runs.append((r["found"], r["steps"],
+                     tuple(f for f, _b in D.plan_bindings(g, r["plan"])) if r["found"] else None))
+    first = runs[0]
+    return {"it_found_a_plan": first[0],
+            "and_it_did_real_work_not_just_hit_the_ceiling": 1 < first[1] < 400,
+            "THE_COST_IS_IDENTICAL_ACROSS_RUNS": all(r[1] == first[1] for r in runs),
+            "and_so_is_the_plan": all(r[2] == first[2] for r in runs),
+            "imagined_states": first[1]}
+
+
+def check_the_search_can_be_read_by_the_system_that_ran_it():
+    """⭐⭐ The point of moving the frontier, the visited set, the step count and the refusals out of
+    Python locals: `composability-principle` — a hardcoded mechanism is an **unreachable island**, and the
+    homoiconicity claim fails exactly where the mechanism is Python. The search was the last part of the
+    planner the planner could not read.
+
+    ⚠ Vacuity guard: the visited set must name FRAMES that really were imagined, not merely be non-empty —
+    a signature recording only a digest would terminate the search and answer nothing about it."""
+    from . import driver as D, intake as I, thread as T, search as S, workbench as W
+    g, world = _blocks()
+    goal = I.read_goal(g, _lines("goal build a tower:", "    a on b", "    b on c", "    never paint"))
+    r = D.pursue(g, goal, T.open_thread(g, "t"), world)
+    s = r["search"]
+    considered = S.considered(g, s)
+    return {"the_search_is_a_node": g.kind(s) == "search",
+            "IT_KNOWS_WHAT_IT_ALREADY_CONSIDERED": len(considered) > 1,
+            "and_they_are_real_imagined_frames":
+                all(g.kind(f) == "frame" for f in considered)
+                and all(f in W.frames(g, r["workbench"]) for f in considered),
+            "it_knows_what_it_refused": bool(S.refusals(g, s)),
+            "and_why": S.blocked_by(g, s) == ("never paint",),
+            "the_step_count_is_data": S.steps_taken(g, s) == r["steps"],
+            "the_frontier_is_ordered_not_a_set":
+                isinstance(S.frontier(g, s), tuple),
+            "nothing_in_the_world_points_at_the_search": g.sources(s) == ()}
+
+
+def check_the_search_can_be_DRIVEN_FROM_OUTSIDE_one_step_at_a_time():
+    """⭐⭐ **The yield point.** `pursue` was a closed loop: nothing could happen between two imagined
+    states, so *"what should I do next?"* was not an expressible question, only a `while` condition. That
+    is what `deliberation.md` means by deliberation being the third thing the system computes **with** and
+    cannot compute **about** — after attention (fixed by `thread.py`) and the goal (by `goal.py`).
+
+    `driver.step` performs one iteration and returns: `None` to continue, the report when finished. So a
+    caller that is not `pursue` can drive it, look at the search between steps, and resume.
+
+    ⚠ Vacuity guard, and it is the whole check: driving it by hand must reach the **same plan at the same
+    cost** as `pursue`. A yield point that changed the search would not be a seam, it would be a fork. And
+    the search must be observably *mid-flight* partway through — a frontier that is empty at every pause
+    would mean `step` had quietly run the whole thing."""
+    from . import driver as D, intake as I, thread as T, search as S, workbench as W
+    text = _lines("goal build a tower:", "    a on b", "    b on c")
+
+    # the control: the supported entry point
+    g1, w1 = _blocks()
+    ref = D.pursue(g1, I.read_goal(g1, text), T.open_thread(g1, "t"), w1,
+                   guided=False, max_steps=400)
+
+    # the same search, driven from outside one step at a time
+    g2, w2 = _blocks()
+    goal = I.read_goal(g2, text)
+    th = T.open_thread(g2, "t")
+    wb = W.open_workbench(g2, w2, label="by hand")
+    root = W.root_frame(g2, wb)
+    opened = T.attend(g2, th, goal, why="taking on the goal")
+    s = S.open_search(g2, goal, wb, th, w2, opened=opened, max_steps=400, max_depth=6, guided=False)
+    S.mark_seen(g2, s, S.digest(*D._visited_key(g2, goal, root, ())), root)
+    D._offer(g2, s, root, 0, None)
+
+    pauses, out, turns = [], None, 0
+    while out is None and turns < 500:
+        turns += 1
+        pauses.append((len(S.frontier(g2, s)), len(S.considered(g2, s))))
+        out = D.step(g2, s)
+
+    mid = [p for p in pauses[:-1] if p[0] > 0]
+    return {"driven_by_hand_finds_it_too": bool(out and out["found"]),
+            "SAME_PLAN": (out and tuple(f for f, _b in D.plan_bindings(g2, out["plan"]))
+                          == tuple(f for f, _b in D.plan_bindings(g1, ref["plan"]))),
+            "AND_THE_SAME_COST": bool(out) and out["steps"] == ref["steps"],
+            "it_really_yielded_between_steps": turns > 1,
+            "and_was_observably_mid_flight": bool(mid),
+            "the_visited_set_grew_as_it_went":
+                pauses[-1][1] > pauses[0][1],
+            "turns": turns}
 
 
 # ⚠ THE ENTRY POINT MUST BE THE LAST THING IN THIS FILE. `_checks()` reads `globals()` at call time,

@@ -76,10 +76,10 @@ surfaces with nothing else in common:
 ⚠ **The goal and method rows are a REFUSAL, not an omission, and they were a silent bug first.**
 `a.wheel[1].pressure = 3` used to split on the first dot and build a constraint about an attribute
 literally called `wheel[1].pressure` — a slot nothing has, and `describe_constraint` rendered it back
-looking right. What blocks the honest version is downstream of intake: `conflict.py` identifies a slot as
-`(subject, key)` and would read two different wheels' pressures as one contended slot, and `query.settle`
-writes an answer with `g.put(subject, …)`, which would land on the base rather than on the node the
-reference reaches. Until both understand a navigated subject, `_one_hop` refuses and says so.
+looking right. What blocks the honest version is downstream of intake: `conflict.unsatisfiable` keys a slot as
+`(subject, key)` and would read two different wheels' pressures as one contended slot, while `goal.holds`,
+`goal.undetermined` and `query.refutes` all read the attribute off the **base** node rather than the one
+the reference reaches. Until they understand a navigated subject, `_one_hop` refuses and says so.
 
 ## ⭐⭐ Three verbs, ONE grammar — because a question IS a goal
 
@@ -164,13 +164,18 @@ def _one_hop(text: str, lineno: int, what: str) -> tuple:
     could never be met, and `describe_constraint` rendered it back looking exactly right. A round trip that
     a model checks itself against must not be able to lie.
 
-    ⚠ **Why refused rather than supported here, when a `type` block takes any depth.** A goal constraint is
-    not only *read*: `conflict.py` identifies a slot as `(subject, key)` and would conflate
-    `a.wheel[0].pressure` with `a.wheel[1].pressure` into a conflict that is not one, and `query.settle`
-    writes an answer with `g.put(subject, …)` and would write it to the base node rather than the one the
-    reference reaches. Both are silent wrongness. A type schema has neither problem because it only ever
-    *checks*. So the depth is available where it is correct, and refused — loudly, with this reason —
-    where the machinery behind it has not caught up. That boundary is recorded rather than papered over."""
+    ⚠ **Why refused rather than supported here, when a `type` block takes any depth.** Three readers take
+    a constraint's subject to BE the node the constraint is about, which a navigated subject makes false:
+
+    * `conflict.unsatisfiable` identifies a slot as `(subject, key)`, so `a.wheel[0].pressure` and
+      `a.wheel[1].pressure` would look like one contended slot — a contradiction reported where there is
+      none, which is the unsound direction;
+    * `goal.holds` and `goal.undetermined` read `g.attr(view(subject), key)` — the wrong node;
+    * `query.refutes` does the same, and would answer a positive *no* about a slot nobody asked about.
+
+    A type schema has none of these problems **because it only ever checks**. So the depth is available
+    where it is correct, and refused — loudly, with this reason — where the machinery behind it has not
+    caught up. That boundary is recorded rather than papered over."""
     base, rest = P.split_base(text)
     if rest is None or len(rest.hops) != 1 or rest.hops[0].index is not None or rest.hops[0].back:
         raise Unreadable(
@@ -339,6 +344,14 @@ def _type_line(g: Graph, t: str, words: list, line: str, lineno: int) -> None:
                                  f"be is (each a TYPE | each of kind KIND)")
             rest = head
         lo, hi, label = _count(rest, lineno, line)
+        # ⚠ **A `has` label is ONE named edge, not a reference**, and saying so out loud matters because
+        # the two look alike. `has 1 ^contains` read `^contains` as a plain label and counted the targets
+        # of an edge nobody has — silently zero, so the requirement was unmeetable and looked fine.
+        # `require_edge` counts `g.targets(node, label)`; it does not navigate. Refuse rather than pretend.
+        if P.is_reference(label) or label.startswith("^"):
+            raise Unreadable(f"line {lineno}: `has` counts the targets of ONE named edge, and {label!r} is "
+                             f"a reference. Depth belongs on a comparison line "
+                             f"(`{label}.something == …`), which is navigated; a count is not")
         TY.require_edge(g, t, label, TY.Req(kind=kind, type=type_, lo=lo, hi=hi))
     elif len(words) == 5 and words[1] == "between" and words[3] == "and":
         _demand(g, t, words[0], "between", words[2], lineno, line, hi=words[4])

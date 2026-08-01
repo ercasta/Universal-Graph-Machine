@@ -57,7 +57,12 @@ from typing import NamedTuple
 
 from .graph import Graph
 
-_SEG = re.compile(r"(\^?)([^.\[\]^]+)(?:\[(-?\d+)\])?$")
+# ⚠ The label charset is CLOSED, and it was not at first. `[^.\[\]^]+` accepted anything, so `contains*`
+# and `contains+` parsed happily — as a label *literally named* `contains*`, which matches nothing, silently.
+# Someone writing that is reaching for transitive closure (see `REPETITION` below), and the grammar owes
+# them an answer rather than a label that will never match.
+_SEG = re.compile(r"(\^?)([A-Za-z_][A-Za-z0-9_-]*)(?:\[(-?\d+)\])?$")
+_REPETITION = ("*", "+", "?", "{", "}", "(", ")", "|")
 _NUMBER = re.compile(r"-?\d+(?:\.\d+)?$")
 _WORDS = ("true", "false", "null", "none")
 
@@ -90,8 +95,14 @@ def parse(text: str) -> Path:
     for seg in text.split("."):
         m = _SEG.fullmatch(seg)
         if m is None:
+            if any(ch in seg for ch in _REPETITION):
+                raise BadPath(
+                    f"cannot read {seg!r} in {text!r} — this grammar has no repetition operator, so "
+                    f"there is no way to say 'at any depth'. A path is a FIXED sequence of hops. "
+                    f"Transitive reach (containment, ancestry, dependency) is a real gap, recorded in "
+                    f"HANDOFF.md; it is refused here rather than parsed into a label nothing will match")
             raise BadPath(f"cannot read {seg!r} in {text!r} — a segment is "
-                          f"[^]label or [^]label[index]")
+                          f"[^]label or [^]label[index], with a label of letters, digits, _ and -")
         hops.append(Hop(m.group(2), None if m.group(3) is None else int(m.group(3)), bool(m.group(1))))
     return Path(tuple(hops), text)
 

@@ -13,7 +13,7 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 141 checks, 0 FAILED
+python -m microfunctions.selftest      # 154 checks, 0 FAILED
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -1034,7 +1034,8 @@ per search step. Frequency, not absence.
 
 ## 5v. ⭐⭐ One reference language, and types that use it (2026-08-01)
 
-**148 checks, 0 FAILED.** New module `path.py`; `types.py` widened; `type` is the eighth CNL verb.
+**150 checks, 0 FAILED.** New module `path.py`; `types.py` widened; `type` is the eighth CNL verb;
+two consumer-reported defects fixed (§9, §10 of `../pystrider/docs/feedback_microfunctions.md`); `CHANGELOG.md`.
 
 **⭐⭐ The reference language already existed, three times, and that is why schemas were flat.**
 `driver.role_node` had a private regex resolving `c.right` and `c.child[2]`; `intake._constrain` split
@@ -1070,15 +1071,234 @@ lost candidate is recoverable, an unsound one is not.
 `a.wheel[1].pressure = 3` in a goal split on the first dot and built a constraint about an attribute
 literally named `wheel[1].pressure` — unmeetable, and `describe_constraint` rendered it back looking
 correct, so the round trip *lied*. It is refused now. ⚠ **And refused rather than supported, for a reason
-worth keeping:** `conflict.py` keys a contended slot by `(subject, key)` and would read two wheels'
-pressures as one slot; `query.settle` writes with `g.put(subject, …)` and would land the answer on the base
-rather than on the node the reference reaches. A type schema has neither problem **because it only ever
+worth keeping:** `conflict.unsatisfiable` keys a contended slot by `(subject, key)` and would read two
+wheels' pressures as one slot (a contradiction reported where there is none — the unsound direction);
+`goal.holds`, `goal.undetermined` and `query.refutes` all read the attribute off the base node. A type schema has neither problem **because it only ever
 checks**. Depth is available where it is correct, refused loudly where the machinery behind it has not
 caught up, and the boundary is a table in `intake.py`'s docstring rather than folklore.
 
-**Next, if this is picked up:** teach `conflict.py` and `query.settle` a navigated subject, then the goal
-and method rows of that table open up. `driver.relevance` would also rank a navigated goal constraint at
-band 4 instead of 3, since `establishes` already speaks in the same paths — that is the interesting half.
+**Next, if this is picked up:** teach `conflict.unsatisfiable`, `goal.holds`/`undetermined` and
+`query.refutes` a navigated subject, then the goal and method rows of that table open up.
+`driver.relevance` would also rank a navigated goal constraint at band 4 instead of 3, since `establishes`
+already speaks in the same paths — that is the interesting half.
+
+## 5w. The second consumer round — two real defects, and a CHANGELOG we owed (2026-08-01)
+
+`../pystrider/docs/feedback_microfunctions.md`, re-read after §5v landed. §1–§4, §6–§8 were already worked
+through in §5k. Three items were live.
+
+**⭐⭐ §10 — a write through an unset register minted an edge whose target was `None`.** `regs.get` answers
+`None` for a register a `GET` never filled, which is an *ordinary* case the moment a part of the input can
+be missing, and `g.link` appended it. `targets` then came back non-empty, so every "is this part present?"
+test answered **yes**, and the `None` was handed on as though it were a node — surfacing arbitrarily far
+from the instruction that caused it. **It converts a MISSING part into a PRESENT-BUT-NULL one**, which
+destroys a distinction sitting one underneath `graph.UNKNOWN`'s: *no part* versus *a part that is nothing*.
+Now refused at the write ops in `isa._step`, naming opcode and operand — their suggestion, and right:
+this layer knows the operand, the substrate would only know something passed it a `None`. `run` already
+rolls back on any exception, so a refusal leaves nothing behind.
+
+**⭐ §9 — a declared parameter type was enforced only by `driver.proposals`.** They carried a safety
+property entirely in a signature and had documented it as *"the unsafe app is unbuildable"* when it was
+only ever *"no plan builds it"*. `function.invoke` now checks, with `check_types=False` as the opt-out.
+⚠ An **undeclared** parameter type refuses too, because `proposals` already treats one as satisfiable by
+nothing — allowing it here would recreate exactly the divergence being closed. Their `CHECK`-as-first-
+instruction workaround can go; it was the "declared type and enforced type kept in step by hand" shape.
+
+**⭐ §11 — and this one was our fault, made this session.** `types.attrs_of` changed return shape
+mid-session (a bare value became `AttrReq`) while they were working against it, and from outside there is
+no way to tell *"upstream grew a capability"* from *"we broke something"* without bisecting. `CHANGELOG.md`
+now exists, with the rule stated in it: **every change to what a public function returns or accepts gets a
+line on the day it happens**, release or not.
+
+**⭐ §5 is answered rather than fixed, and worth telling them.** They recorded — *as a non-defect* — that
+they could not build recognition on `types.py` because a schema constrains each label independently and so
+can never say "the `body` and the `element` are related this way". §5v's `Rel` says exactly that. Their
+`recognizes` still carries joins we do not (theirs are read off function bodies, ours off declared data),
+so the two stay complementary; but the specific thing they said a schema structurally could not express,
+it now can.
+
+## 5x. WHERE / WHEN / WHAT — probed against the closed class, not argued (2026-08-01)
+
+**The question, from the user:** the CNL must not only *describe* but *drive*, and `why`/`where`/`when`/
+`what` are fundamental — **about the world**, so a built-in KB is legitimate; what has to be justified is
+the **machinery** underneath it, in the sense of language's ~50-element **closed class**
+(`docs/units/closed_class_inventory.md`).
+
+⚠ **The framing matters and I had it wrong twice.** First I mapped these to engine *introspection*
+("when did **we** touch this" → `thread.last_touching`); they are about the world ("when did it
+**happen**"). Then I treated a built-in KB as a violation of *everything a domain contributes is data*; it
+is not. **Content shipping with the engine is fine. Machinery shipping with the engine has to earn it.**
+The test is the standing one — `baroque-vs-fundamental`, and `causation-core-was-sugar`'s lesson: probe
+first, because a whole conceptual core once turned out to be sugar.
+
+**So it was probed, not argued** (scratchpad, blocks below are the measured output).
+
+**`what` — already machinery, no surface.** `types.recognize` is the world question *what kind of thing is
+this*, structural and bottom-up. The split is already clean: classification is machinery, the kinds are
+data. Needs a verb, nothing else.
+
+**`when` — sugar, and it became sugar THIS MORNING.** Ordering and interval containment over a comparable
+value is the closed-class residue, and §5v built exactly that: `arrived between 0 and 6` and
+`arrived < next.arrived` (a `Rel` between two paths) both hold, measured. Allen's interval relations
+(before / during / overlaps / meets) reduce to comparisons on two endpoints, so they are sugar too. What is
+left is *vocabulary* — a conventional `time` attribute — which is content, and content may ship.
+
+**⭐⭐ `where` — NOT sugar. The residue is TRANSITIVE CLOSURE, and it is genuinely absent.** Measured three
+ways on a parcel nested inside a box inside a warehouse:
+
+* a fixed-depth type cannot reach it (a path is a fixed sequence of hops — nothing counts them, but nothing
+  repeats them either);
+* a goal link constraint `wh contains parcel` is **false**, because the parcel is not a direct target;
+* the path grammar has no repetition operator at all.
+
+⭐ **And this corroborates `closed_class_rechallenged.md` from a completely different direction.** That
+document probed five relational forms and found four pure sugar — causation, quantification's open case,
+force/level, identity/merge — with **transitivity the one that needed a real engine extension**. Arriving
+at the same single item by walking backwards from "what does *where* need" is the strongest evidence
+available here that it is a genuine closed-class member rather than a convenience.
+
+**⭐ So the item to build is not `where`; it is transitive closure over a named edge.** Domain-neutral, and
+one primitive serves containment, ancestry, part-of, dependency and reachability at once. `where` then
+becomes a **built-in KB** — a `contains` edge plus a small type library, authored in the ordinary surface —
+which is the legitimate kind of shipping-with-the-engine.
+
+**⚠ The real design problem, which is not the parser.** Closure makes a path **multi-valued**, and
+`path.py` is built on single-node resolution (`node_at` returns one node or `None`, and `_step` already
+refuses to guess between two backward sources). Two positions, very different costs:
+
+* **predicate position** — *is X reachable from Y via `contains`?* Stays boolean, stays single-valued,
+  breaks no contract, and answers "where is it" completely. Needs cycle protection, for which the
+  coinductive discipline in `types._target_ok` is the precedent.
+* **reference position** — `a.contains+.label` denotes a *set*, which breaks `node_at`'s contract and
+  every caller that assumes one node.
+
+**Recommendation: predicate position first.** Small, closed, checkable, and it does not force a decision
+about multi-valued references that nothing yet needs.
+
+**⚠ Two silent acceptances the probe caught in §5v's own work**, both fixed and pinned
+(`check_the_reference_language_refuses_what_it_cannot_express`): `path.parse("contains*")` *succeeded*,
+yielding a label literally named `contains*` that would match nothing forever — the person writing it is
+reaching for closure, and a never-matching label is the worst possible answer; and `has 1 ^contains`
+accepted `^contains` as a plain edge label, counting the targets of an edge nobody has. Same class as the
+mis-parse §5v records. **A probe of "is this sugar?" found two defects in the thing being probed**, which
+is the argument for probing rather than reasoning.
+
+**Not yet surfaced, and deliberately:** `plan` / `replan` / `do`. Verified — `pursue` and `carry_out`
+appear nowhere in `isa.py`, `dispatch.py`, `function.py` or `asm.py`, so planning is not reachable from a
+microfunction at all. A control verb today would be a surface saying what the machinery cannot honour,
+which is precisely §5v's defect. `deliberation.md` records why it is not mere plumbing: `pursue` is a
+closed loop with no yield point, so deliberation is the third thing the system computes *with* and cannot
+compute *about*. **Steppable search is the prerequisite**, and it was already the listed one.
+
+## 5y. DECISION — builtins are not policed, and the risk is accepted (2026-08-01)
+
+**Decided by the user, after the objection below was raised and answered.** Recorded here rather than left
+implicit, because "we chose not to guard this" is exactly the kind of thing that becomes an invisible
+assumption and then reads later as an oversight.
+
+**The finding that reframed it: there is no boundary to relax.** `microfunctions/` has **no privilege
+mechanism at all** — no privileged/trusted/builtin distinction anywhere in the package, and `asm` accepts
+every opcode in `isa.__all__` from any `.mf` file it loads. The "two levels" of `deliberation.md` §12 are
+entirely **de facto**: `pursue` happens to be Python and happens not to be exposed. So exposing deliberation
+is **additive work**, not the lifting of a restriction.
+
+**The objection, for the record.** Because there is no privilege mechanism, making deliberation callable
+from the ISA makes it callable *by domain data too*. `metaprocedure-model-defined` identified **load-time
+rule-authoring privilege** as one of two independent gaps in the *old* engine; it was never carried over,
+and this is that gap arriving again with more at stake.
+
+**The decision: do not police it. Accept that an author can reach privileged machinery. For now.**
+
+**Why that is defensible, not merely expedient.** `composability-principle` is the standing foundation:
+*reflexive mechanisms must combine on ONE substrate; hardcoding = an unreachable island.* A Python-only
+`pursue` **is** that island, and the homoiconicity claim — the thing argued to be the real edge over a
+language model — is that a rule can write a rule. If deliberation is Python, the system cannot reason about
+its own deliberating, which is the capability the architecture exists to buy. Policing first would mean
+building the guard before the thing being guarded, and this project's standing advice runs the other way:
+probe first, and delete aggressively.
+
+**⚠ What to revisit it on, so "for now" has a trigger rather than being forever:**
+
+* the moment a `.mf` file that the engine did not ship is loaded from an untrusted source;
+* the moment a domain author's mistake (not malice) reaches deliberation and produces a failure that is
+  hard to attribute — that is the cheap early warning, and it will arrive before any adversarial case;
+* if `establishes` stops being exact because machinery entered the **action** population. That payoff is
+  the measured reason the two-level split existed, and it survives only while builtins are never
+  *proposed*. Keep that structural — an action is something `proposals` can bind arguments to — rather
+  than a flag. `labelling-error-and-when-tests-earn-their-place`: the workbench fix was **not scanning**,
+  not a filter, and no marker was needed once isolation was structural.
+
+**⚠ And one cost that stops being theoretical.** §6 lists termination as open with `MAX_STEPS` an "honest
+stand-in". Deliberation that can deliberate about deliberation makes that load-bearing rather than
+academic.
+
+## 5z. Steppable search — the state became data, then the loop got a yield point (2026-08-01)
+
+**154 checks, 0 FAILED.** New module `search.py`; `driver.pursue` rewired onto it and then split
+around `driver.step`; **no semantics changed by either half.**
+
+**What moved.** `pursue` held its whole working state in Python locals — a `frontier` list, a `seen` set,
+a step counter, a list of refusals. Everything else it touches was already graph data, so the search was
+the one part of the planner the planner could not read. That is `composability-principle`'s **unreachable
+island** exactly, and it is where the homoiconicity claim was failing quietly. Now: `search`, `candidate`,
+`candidate_arg`, `trace_step`, `signature`, `refusal`.
+
+**⚠ This slice deliberately changes nothing else.** Swapping four containers *and* altering behaviour at
+once would leave nothing to check the swap against. The 153 checks are the oracle; `pursue`'s report gained
+`search` and lost nothing.
+
+**⭐ The plan-so-far became a linked list and should always have been one.** The old `trace + ((name, …),)`
+copied the whole prefix per candidate. `trace_step ──after──▶ trace_step` shares prefixes for free — the
+expression was already describing a linked list.
+
+**⭐⭐ The check this needed, which did not exist and would have caught the worst bug this project has had.**
+`search-was-irreproducible-set-tiebreak`: a `set` made the frontier tie-break hash-ordered, and **132
+checks passed over it** because every one asserted the *answer* and none asserted the *price*. So there is
+now a check that asserts the price — same goal, six runs, one process, identical imagined-state counts.
+
+⚠ **Run BLIND and with headroom, because that is the only discriminating case.** Guided search on the
+tower imagines 2 states, far too few for a tie-break to matter; a guided-only check would sail past the very
+bug it exists for. Unguided, every frontier key is `(0, 0, depth)` so essentially *everything* ties and the
+order is purely insertion — 67 states. And it must not sit at the default `max_steps`, where blind search
+merely exhausts at 60 every run and looks deterministic by hitting the ceiling.
+
+**⭐ Verified by re-injecting the defect rather than by assuming.** Patching `take_best` to sort
+`set(frontier)` gives `THE_COST_IS_IDENTICAL_ACROSS_RUNS: False` at 81 varying states while
+`and_so_is_the_plan` stays `True` — **the defect's exact signature: the answer stays right and only the
+price wanders.**
+
+**Two rules `search.py` is built to keep, stated in it:** the frontier is an *ordered* edge list and the
+sort over it is *stable*, so ties break exactly as they did when it was a Python list; and a signature is
+*canonicalised by sorting* before comparison, never iterated, because `state_of` really does return a
+`frozenset`.
+
+⚠ `already_seen` is a linear scan bounded by `max_steps`, so a search costs O(steps²) attribute reads — a
+few thousand. Not indexed on purpose: an index is a second structure that can disagree with the first.
+Revisit only with a measurement (`measure-before-optimizing-ugm`).
+
+**⭐⭐ Slice 2 — THE YIELD POINT — landed the same day. `driver.step` is it.** One iteration; returns
+`None` to continue, the report when finished (found / stopped / exhausted). `pursue` is now a loop *over*
+it and is unchanged in behaviour. What made this a mechanical change rather than a rewrite is slice 1:
+because every piece of a step's state hangs off one `search` node, an iteration can be a module-level
+function instead of a closure inside a `while`.
+
+⚠ **The context splits in two, and the split is the honest one.** `search.context` returns the
+graph-resident half (goal, workbench, thread, subject, bounds, the thread entry the goal was opened at);
+`rank`, `allow`, `trace` and `decide` stay Python callables passed per call, because a callable cannot
+live in a graph. Hooks are substitutable *behaviour*; everything else is *state*.
+
+⚠ **Stepping is a yield point, not isolation.** The graph is mutable and the frontier refers to frames, so
+driving one search while something else edits its workbench is undefined. Said in `step`'s docstring so
+nobody assumes otherwise.
+
+**Verified by driving it by hand**: the 67-state blind search, 67 turns, reaching the **same plan at the
+same cost** as `pursue`. That equivalence is the whole check — a yield point that changed the search would
+be a fork, not a seam — plus a guard that the frontier is non-empty at some pause, or `step` could have
+quietly run the whole thing and returned once.
+
+**Next: slice 3 — the surface.** Reach `step` from the ISA, then `plan` / `replan` as CNL verbs, which
+§5y's decision unblocks. ⚠ And note what slice 2 did *not* do: `pursue` is still called from Python.
+Deliberation is now *steppable*, not yet *reachable as data*.
 
 ## 5. What to do next
 

@@ -43,6 +43,7 @@ from . import function as fn
 from . import goal as G
 from . import isa
 from . import path as P
+from . import search as S
 from . import thread as T
 from . import workbench as W
 from .graph import Graph
@@ -498,7 +499,7 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
     watch = trace
 
     def emit(kind, **fields):
-        watch(dict(kind=kind, step=steps, **fields))
+        watch(dict(kind=kind, step=S.steps_taken(g, search), **fields))
 
     def label(n):
         return g.attr(n, "label") or g.kind(n) or n
@@ -506,8 +507,13 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
     def shown(bindings):
         return {p: label(W.resolve(g, m) or W.image_of(g, m)) for p, m in bindings.items()}
 
-    frontier: list = []
-    seen, steps, refused = {visited_key(root, ())}, 0, []
+    # ⭐⭐ THE SEARCH'S OWN STATE IS GRAPH DATA (`search.py`). The frontier, the visited set, the step
+    # count and the refusals used to be Python locals — the one part of the system the system could not
+    # read, which is `composability-principle`'s unreachable island exactly. ⚠ This slice moves them and
+    # changes nothing else, so the existing checks are a real oracle for it.
+    search = S.open_search(g, goal, wb, thread, subject, opened=opened,
+                           max_steps=max_steps, max_depth=max_depth, guided=guided)
+    S.mark_seen(g, search, S.digest(*visited_key(root, ())), root)
 
     # ⚠ After `steps` exists: `emit` closes over it, so calling this any earlier is an UnboundLocalError.
     if watch:
@@ -515,126 +521,230 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
              wants=[G.describe_constraint(g, c) for c in G.constraints(g, goal)],
              open=[G.describe_constraint(g, c) for c in still_open(root)])
 
-    def offer(frame: str, depth: int, trace: tuple) -> None:
-        open_now = still_open(frame)
-        for name, bindings in proposals(g, frame, allow=allow):
-            # ⭐ CONSTRAINTS ON THE PLAN, checked BEFORE imagining — so a forbidden action costs nothing.
-            # ⚠ This FILTERS where `relevance` only RANKS, and the difference is principled: relevance is
-            # a guess about what will help, so filtering on it could lose a solution (Sussman's anomaly
-            # needs a low-scoring move). A safety breach is a proof — no continuation of a plan that used
-            # a forbidden action makes it unused — so pruning is sound. Rank a guess; prune a proof.
-            ahead = trace + ((name, frozenset(W.resolve(g, m) or W.image_of(g, m)
-                                              for m in bindings.values())),)
-            hit = G.breached(g, goal, ahead)
-            if hit:
-                reasons = tuple(G.describe_constraint(g, c) for c in hit)
-                refused.append((name, reasons))
-                # ⭐ Worth emitting: this is the machine declining to even IMAGINE something, which is
-                # invisible in any after-the-fact record precisely because nothing happened.
-                if watch:
-                    emit("refuse", action=name, on=shown(bindings),
-                         because=list(reasons), depth=depth)
-                continue
-            if not guided:
-                frontier.append(((0, 0, depth), frame, depth, name, bindings, len(open_now), ahead))
-                continue
-            rank_here = score(g, name, bindings, open_now)
-            expected = len(open_now) - (1 if rank_here >= 4 else 0)
+    _offer(g, search, root, 0, None, rank=rank, allow=allow, watch=watch)
+
+    # >> THE LOOP IS NOW A LOOP OVER `step`, AND THAT IS THE WHOLE POINT OF THIS SLICE. `pursue` used to
+    # BE the search; it now merely drives it. Everything between two imagined states is a return, so
+    # something other than this function can do the driving - which is what "steppable" has to mean before
+    # deliberation can be reached as data. Note `pursue` remains the supported entry point and its
+    # behaviour is unchanged; `step` is the seam, not a replacement.
+    while True:
+        out = step(g, search, rank=rank, allow=allow, trace=watch, decide=decide)
+        if out is not None:
+            return out
+
+
+def _label(g: Graph, n):
+    return g.attr(n, "label") or g.kind(n) or n
+
+
+def _shown(g: Graph, bindings: dict) -> dict:
+    return {p: _label(g, W.resolve(g, m) or W.image_of(g, m)) for p, m in bindings.items()}
+
+
+def _asked_of(g: Graph, subject: str, frame: str) -> tuple:
+    """`(view, under)` - how a goal is checked inside this imagined frame."""
+    return view_in(g, frame), W.image_of(g, W.mapping_for(g, frame, subject))
+
+
+def _still_open(g: Graph, goal: str, subject: str, frame: str) -> tuple:
+    v, u = _asked_of(g, subject, frame)
+    return G.unmet(g, goal, view=v, under=u)
+
+
+def _visited_key(g: Graph, goal: str, frame: str, trace: tuple) -> tuple:
+    """WARN The state alone is NOT the identity of a search node once liveness is in play. Two routes to
+    the same world differ if one has already done a required action and the other has not - deduping on
+    the world would silently discard the finished one. So what is still outstanding is part of the key."""
+    return (state_of(g, frame), G.outstanding(g, goal, trace))
+
+
+def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
+           rank=None, allow=None, watch=None) -> None:
+    """Put every proposal available in `frame` onto the frontier, ranked.
+
+    THE FRONTIER HOLDS PROPOSALS, NOT FRAMES - and that is what makes the guidance worth anything.
+
+    WARN Two wrong versions preceded this, both worth recording. First it was depth-first over frames: it
+    committed to the first promising child and explored it to exhaustion, and adding *one* irrelevant rule
+    to the library burned the whole budget down a branch that could never close the goal while the sibling
+    that solved it in one more move sat untouched. Then it was best-first over frames - which fixed that,
+    but *measured no better than unguided* (15 imagined states against 14), because every proposal in a
+    frame was imagined before any frame was chosen. Ordering inside a frame cannot save work already done.
+
+    WARN The third wrong version - subtle, and it made the guided search *worse than breadth-first*. The
+    key was `(constraints open, -relevance, depth)` where "constraints open" was the PARENT frame's count,
+    so an unexplored root proposal that would obviously close a constraint carried its parent's score of 2
+    while mediocre moves two levels down carried 1, and the search abandoned the good move permanently.
+    A proposal must be judged by the world it would PRODUCE, not the one it starts from. Hence `expected`."""
+    c = S.context(g, search)
+    goal, guided = c["goal"], c["guided"]
+    score = rank if rank is not None else relevance
+    open_now = _still_open(g, goal, c["subject"], frame)
+    prefix = S.trace_tuple(g, trace_node)
+
+    def emit(kind, **fields):
+        watch(dict(kind=kind, step=S.steps_taken(g, search), **fields))
+
+    for name, bindings in proposals(g, frame, allow=allow):
+        # CONSTRAINTS ON THE PLAN, checked BEFORE imagining - so a forbidden action costs nothing.
+        # WARN This FILTERS where `relevance` only RANKS, and the difference is principled: relevance is a
+        # guess about what will help, so filtering on it could lose a solution (Sussman's anomaly needs a
+        # low-scoring move). A safety breach is a proof - no continuation of a plan that used a forbidden
+        # action makes it unused - so pruning is sound. Rank a guess; prune a proof.
+        touched = frozenset(W.resolve(g, m) or W.image_of(g, m) for m in bindings.values())
+        ahead = prefix + ((name, touched),)
+        hit = G.breached(g, goal, ahead)
+        if hit:
+            reasons = tuple(G.describe_constraint(g, x) for x in hit)
+            S.refuse(g, search, name, reasons)
+            # Worth emitting: this is the machine declining to even IMAGINE something, which is invisible
+            # in any after-the-fact record precisely because nothing happened.
             if watch:
-                emit("consider", action=name, on=shown(bindings), band=rank_here,
-                     open=len(open_now), depth=depth)
-            frontier.append(((expected, -rank_here, depth), frame, depth,
-                             name, bindings, len(open_now), ahead))
-
-    offer(root, 0, ())
-    while frontier and steps < max_steps:
-        frontier.sort(key=lambda item: item[0])
-        _key, frame, depth, name, bindings, open_count, trace = frontier.pop(0)
-
-        # ⭐ THE DECISION POINT. Everything above chose the *best* proposal; this asks whether imagining it
-        # is what we should be doing at all. Returning `None` means "nothing to say", which is why the
-        # default behaviour is to keep planning — the loop's disposition is unchanged and a rule has to
-        # speak up to alter it.
-        #
-        # ⚠ UNLIKE `trace`, THIS IS A PARTICIPANT, so it is handed the real thing. `trace` gets labels
-        # because a watcher must not be able to steer and a rendering is all it needs; a decision is made
-        # *on* structure, so giving it renderings would force it to reconstruct state from strings — the
-        # exact confusion `trace`'s own comment warns against, arrived at from the other side.
-        #
-        # ⚠ Built from what is ALREADY computed. This runs once per imagined step — hundreds of times in a
-        # normal search — so anything costly here inverts the cost of what it exists to save.
-        # `open_count` is carried on the frontier item precisely so nothing is recomputed. `deliberation.md`
-        # §4 is the standing rule: methods per goal, stop-rules per step, guidelines per proposal.
-        if decide is not None:
-            verdict = decide({"goal": goal, "frame": frame, "depth": depth, "function": name,
-                              "bindings": bindings, "open": open_count, "trace": trace,
-                              "steps": steps, "frontier": len(frontier), "workbench": wb,
-                              "thread": thread, "subject": subject})
-            if verdict is not None and verdict != EXPAND:
-                verb, why_stop = verdict if isinstance(verdict, tuple) else (verdict, None)
-                if verb in _UNBUILT:
-                    raise Undecidable(f"{verb!r} needs {_UNBUILT[verb]}; see deliberation.md")
-                if verb not in _STOPS:
-                    raise Undecidable(f"{verb!r} is not one of {VERBS}")
-                # Recorded ONLY when a decision actually fires, which is what keeps the default path
-                # byte-identical to the behaviour that existed before this seam.
-                T.attend(g, thread, goal, why=f"decided to {verb}",
-                         note=why_stop or f"before imagining {name}")
-                if watch:
-                    emit(verb, action=name, on=shown(bindings), depth=depth, because=why_stop)
-                return {"found": False, "workbench": wb, "steps": steps, "goal": goal,
-                        "stopped": verb, "frame": frame, "plan": X.path_to(g, wb, frame),
-                        "refused": tuple(refused),
-                        "blocked_by": tuple(sorted({r for _n, rs in refused for r in rs})),
-                        "why": why_stop or f"stopped by decision: {verb}"}
-
-        steps += 1
-
-        nxt, _tr = W.step(g, wb, frame, name, bindings)
-        # ⚠ Record the REAL node the imagined one stands for, falling back to the copy only for something
-        # that does not exist yet. Recording the copy was more literal and less truthful: an application
-        # says *which function was applied to which subject*, and the subject is the block — the copy is
-        # only how we imagined it. It also made the record useless to any reflective reader, because two
-        # goals open two workbenches, so their entries could never refer to the same thing.
-        T.applied(g, thread, name,
-                  {p: (W.resolve(g, m) or W.image_of(g, m)) for p, m in bindings.items()},
-                  why=f"depth {depth + 1}, {open_count} constraint(s) open", for_goal=goal)
-
-        nview, nunder = asked_of(nxt)
+                emit("refuse", action=name, on=_shown(g, bindings),
+                     because=list(reasons), depth=depth)
+            continue
+        # WARN Minted only AFTER the breach check, so a refused action leaves no trace step behind.
+        ahead_node = S.extend_trace(g, trace_node, name, touched)
+        if not guided:
+            S.offer(g, search, key=(0, 0, depth), frame=frame, depth=depth, function=name,
+                    bindings=bindings, open_count=len(open_now), trace=ahead_node)
+            continue
+        rank_here = score(g, name, bindings, open_now)
+        expected = len(open_now) - (1 if rank_here >= 4 else 0)
         if watch:
-            emit("imagine", action=name, on=shown(bindings), depth=depth + 1,
-                 open=[G.describe_constraint(g, c)
-                       for c in G.unmet(g, goal, view=nview, under=nunder)])
-        # ⚠ Both halves, and liveness only here: the world must be right AND the plan must have done
-        # everything it was required to. A plan that reaches the state without its mandated step is not
-        # finished — but it was never in violation on the way, which is why this is not a pruning test.
-        if G.satisfied(g, goal, view=nview, under=nunder) and not G.outstanding(g, goal, trace):
-            done = _done(g, goal, thread, wb, nxt, opened, "found", steps, tuple(refused))
+            emit("consider", action=name, on=_shown(g, bindings), band=rank_here,
+                 open=len(open_now), depth=depth)
+        S.offer(g, search, key=(expected, -rank_here, depth), frame=frame, depth=depth,
+                function=name, bindings=bindings, open_count=len(open_now), trace=ahead_node)
+
+
+def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=None):
+    """** ONE iteration of the search - the yield point `pursue` never had.**
+
+    Returns `None` while the search should continue, and the finished report when it should not (found,
+    stopped by a decision, or exhausted). So a caller other than `pursue` can drive the search, stop
+    between two imagined states, look at what has been considered so far, and resume - which is what
+    `deliberation.md` means by deliberation becoming something the system can compute *about* rather than
+    only *with*. `pursue` was a closed loop with no yield point, so "what should I do next?" was not an
+    expressible question, only a `while` condition.
+
+    WARN **The state is entirely in the graph** (`search.py`), so two calls need share nothing but the
+    search node. The four hooks are Python callables and are passed per call, because a callable cannot
+    live in a graph - that split is the honest boundary between substitutable behaviour and state.
+
+    WARN This does not make the search *re-entrant across mutation*: the graph is mutable and the frontier
+    refers to frames, so driving one search while something else edits its workbench is undefined.
+    Stepping is a yield point, not isolation."""
+    c = S.context(g, search)
+    goal, wb, thread = c["goal"], c["workbench"], c["thread"]
+    subject, max_depth = c["subject"], c["max_depth"]
+    watch = trace
+
+    def emit(kind, **fields):
+        watch(dict(kind=kind, step=S.steps_taken(g, search), **fields))
+
+    if S.steps_taken(g, search) >= c["max_steps"]:
+        return _exhausted(g, search, c, watch)
+    chosen = S.take_best(g, search)
+    if chosen is None:
+        return _exhausted(g, search, c, watch)
+
+    _c = S.read(g, chosen)
+    frame, depth, name = _c["frame"], _c["depth"], _c["function"]
+    bindings, open_count, trace_node = _c["bindings"], _c["open_count"], _c["trace_node"]
+    tr = S.trace_tuple(g, trace_node)
+
+    # THE DECISION POINT. Everything above chose the *best* proposal; this asks whether imagining it is
+    # what we should be doing at all. Returning `None` means "nothing to say", which is why the default
+    # behaviour is to keep planning - the loop's disposition is unchanged and a rule has to speak up.
+    #
+    # WARN UNLIKE `trace`, THIS IS A PARTICIPANT, so it is handed the real thing. `trace` gets labels
+    # because a watcher must not be able to steer and a rendering is all it needs; a decision is made *on*
+    # structure, so giving it renderings would force it to reconstruct state from strings.
+    #
+    # WARN Built from what is ALREADY computed. This runs once per imagined step - hundreds of times in a
+    # normal search - so anything costly here inverts the cost of what it exists to save. `open_count` is
+    # carried on the candidate precisely so nothing is recomputed.
+    if decide is not None:
+        verdict = decide({"goal": goal, "frame": frame, "depth": depth, "function": name,
+                          "bindings": bindings, "open": open_count, "trace": tr,
+                          "steps": S.steps_taken(g, search), "frontier": len(S.frontier(g, search)),
+                          "workbench": wb, "search": search,
+                          "thread": thread, "subject": subject})
+        if verdict is not None and verdict != EXPAND:
+            verb, why_stop = verdict if isinstance(verdict, tuple) else (verdict, None)
+            if verb in _UNBUILT:
+                raise Undecidable(f"{verb!r} needs {_UNBUILT[verb]}; see deliberation.md")
+            if verb not in _STOPS:
+                raise Undecidable(f"{verb!r} is not one of {VERBS}")
+            # Recorded ONLY when a decision actually fires, which is what keeps the default path
+            # byte-identical to the behaviour that existed before this seam.
+            T.attend(g, thread, goal, why=f"decided to {verb}",
+                     note=why_stop or f"before imagining {name}")
             if watch:
-                emit("found", imagined=steps, length=done["length"],
-                     plan=[(f, {p: label(n) for p, n in b.items()})
-                           for f, b in plan_bindings(g, done["plan"])])
-            return done
+                emit(verb, action=name, on=_shown(g, bindings), depth=depth, because=why_stop)
+            return {"found": False, "workbench": wb, "steps": S.steps_taken(g, search),
+                    "goal": goal, "search": search,
+                    "stopped": verb, "frame": frame, "plan": X.path_to(g, wb, frame),
+                    "refused": S.refusals(g, search),
+                    "blocked_by": S.blocked_by(g, search),
+                    "why": why_stop or f"stopped by decision: {verb}"}
 
-        reached = visited_key(nxt, trace)
-        if reached in seen:
-            continue                           # this world has been imagined before, by another route
-        seen.add(reached)
-        if depth + 1 < max_depth:
-            offer(nxt, depth + 1, trace)
+    steps = S.took_a_step(g, search)
 
-    view, under = asked_of(root)
-    still_open = ", ".join(G.describe_constraint(g, c)
-                           for c in G.unmet(g, goal, view=view, under=under))
-    blocked = sorted({r for _n, rs in refused for r in rs})
-    T.attend(g, thread, goal, why="exhausted the search", note="no plan found")
+    nxt, _tr = W.step(g, wb, frame, name, bindings)
+    # WARN Record the REAL node the imagined one stands for, falling back to the copy only for something
+    # that does not exist yet. Recording the copy was more literal and less truthful: an application says
+    # *which function was applied to which subject*, and the subject is the block - the copy is only how we
+    # imagined it. It also made the record useless to any reflective reader, because two goals open two
+    # workbenches, so their entries could never refer to the same thing.
+    T.applied(g, thread, name,
+              {p: (W.resolve(g, m) or W.image_of(g, m)) for p, m in bindings.items()},
+              why=f"depth {depth + 1}, {open_count} constraint(s) open", for_goal=goal)
+
+    nview, nunder = _asked_of(g, subject, nxt)
     if watch:
-        emit("exhausted", imagined=steps, unmet=still_open, blocked_by=blocked)
-    return {"found": False, "workbench": wb, "steps": steps, "goal": goal,
-            "unmet": still_open, "refused": tuple(refused), "blocked_by": tuple(blocked),
-            "why": f"no state meeting [{still_open}] within depth {max_depth} after {steps} "
-                   f"imagined steps" + (f"; {len(refused)} action(s) ruled out by [{', '.join(blocked)}]"
-                                        if blocked else "")}
+        emit("imagine", action=name, on=_shown(g, bindings), depth=depth + 1,
+             open=[G.describe_constraint(g, x)
+                   for x in G.unmet(g, goal, view=nview, under=nunder)])
+    # WARN Both halves, and liveness only here: the world must be right AND the plan must have done
+    # everything it was required to. A plan that reaches the state without its mandated step is not
+    # finished - but it was never in violation on the way, which is why this is not a pruning test.
+    if G.satisfied(g, goal, view=nview, under=nunder) and not G.outstanding(g, goal, tr):
+        done = _done(g, goal, thread, wb, nxt, c["opened"], "found", steps,
+                     S.refusals(g, search), search)
+        if watch:
+            emit("found", imagined=steps, length=done["length"],
+                 plan=[(f, {p: _label(g, n) for p, n in b.items()})
+                       for f, b in plan_bindings(g, done["plan"])])
+        return done
+
+    reached = S.digest(*_visited_key(g, goal, nxt, tr))
+    if S.already_seen(g, search, reached):
+        return None                            # this world has been imagined before, by another route
+    S.mark_seen(g, search, reached, nxt)
+    if depth + 1 < max_depth:
+        _offer(g, search, nxt, depth + 1, trace_node, rank=rank, allow=allow, watch=watch)
+    return None
+
+
+def _exhausted(g: Graph, search: str, c: dict, watch) -> dict:
+    goal, wb = c["goal"], c["workbench"]
+    root = W.root_frame(g, wb)
+    view, under = _asked_of(g, c["subject"], root)
+    unmet = ", ".join(G.describe_constraint(g, x)
+                      for x in G.unmet(g, goal, view=view, under=under))
+    blocked = list(S.blocked_by(g, search))
+    steps = S.steps_taken(g, search)
+    T.attend(g, c["thread"], goal, why="exhausted the search", note="no plan found")
+    if watch:
+        watch(dict(kind="exhausted", step=steps, imagined=steps, unmet=unmet, blocked_by=blocked))
+    return {"found": False, "workbench": wb, "steps": steps, "goal": goal, "search": search,
+            "unmet": unmet, "refused": S.refusals(g, search), "blocked_by": tuple(blocked),
+            "why": f"no state meeting [{unmet}] within depth {c['max_depth']} after {steps} "
+                   f"imagined steps" + (f"; {len(S.refusals(g, search))} action(s) ruled out by "
+                                        f"[{', '.join(blocked)}]" if blocked else "")}
 
 
 def plan_bindings(g: Graph, plan: tuple) -> tuple:
@@ -664,7 +774,7 @@ def plan_bindings(g: Graph, plan: tuple) -> tuple:
     return tuple(out)
 
 
-def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused) -> dict:
+def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused, search=None) -> dict:
     """Close the goal, and tie the moment that closed it back to the moment it was taken on."""
     subject = g.target(wb, "subject")
     under = W.image_of(g, W.mapping_for(g, frame, subject))
@@ -679,6 +789,7 @@ def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused) -> 
     T.connect(g, closing, opened, "achieves")
     return {"found": True, "workbench": wb, "frame": frame, "goal": goal, "witness": found,
             "plan": plan, "length": len(plan) - 1, "steps": imagined, "how": how,
+            "search": search,
             "refused": refused, "blocked_by": tuple(sorted({r for _n, rs in refused for r in rs}))}
 
 
@@ -878,4 +989,5 @@ def describe(g: Graph, result: dict) -> str:
 
 
 __all__ = ["proposals", "state_of", "establishes", "role_node", "relevance", "view_in",
+           "step",
            "pursue", "carry_out", "plan_steps", "plan_bindings", "describe"]

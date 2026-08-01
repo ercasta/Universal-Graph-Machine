@@ -228,16 +228,44 @@ def names(g: Graph) -> tuple:
 
 
 # --- calling -------------------------------------------------------------------------------------
-def invoke(g: Graph, name: str, args: dict | None = None, **regs):
+def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool = True, **regs):
     """Call a stored function. `args` binds parameter names to nodes; each becomes a focus head.
 
     Returns `(focus, regs)` of the callee, so a caller reads results out of `regs["result"]` (or any
-    register the callee set) and can inspect where the callee's heads ended up."""
+    register the callee set) and can inspect where the callee's heads ended up.
+
+    ⭐⭐ **A declared parameter type is a PRECONDITION, and it is enforced here.** It used to be checked
+    only by `driver.proposals`, which is the right place for *planning* — but a signature reads like a
+    precondition and is written like one, so a caller reasonably assumes it holds wherever the function is
+    called. Reported by `../pystrider` (`feedback_microfunctions.md` §9) with the case that makes it bite:
+    they carried a safety property entirely in a parameter type — an irreversible checkout cannot bind to
+    the operation that finishes without a confirmation gate — and had documented the guarantee as *"the
+    unsafe app is unbuildable"* when it was only ever *"no plan builds it"*. Their workaround was a
+    hand-written `CHECK` as the first instruction, which makes the declared type and the enforced type two
+    things an author has to keep in step by hand: exactly the defect shape the rest of this design avoids.
+
+    ⚠ **An UNDECLARED parameter type refuses too**, and that is deliberate rather than incidental:
+    `driver.proposals` already treats one as satisfiable by nothing (line 117), so letting it through here
+    would recreate the same divergence one layer up. A parameter with no type at all is unconstrained and
+    passes — that is saying nothing, which is different from naming a type that does not exist.
+
+    `check_types=False` is the opt-out for a hot path that has already checked."""
     params, program = load(g, name)
     args = args or {}
     missing = [p for p in params if p not in args]
     if missing:
         raise TypeError(f"{name}() missing bound parameter(s): {missing}")
+    if check_types:
+        from . import types as TY
+        ptypes = param_types(g, name)
+        for p in params:
+            want = ptypes.get(p)
+            if want is None:
+                continue                       # untyped parameter: nothing was claimed, nothing to check
+            bad = TY.violations(g, args[p], want)
+            if bad:
+                raise TY.TypeViolation(
+                    f"{name}({p}=…): {args[p]} is not a {want}: {bad}")
     from .isa import Machine
     callee = Focus()
     for p in params:
