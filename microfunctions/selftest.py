@@ -1841,6 +1841,203 @@ def check_a_goal_of_REACH_can_be_authored_and_PLANNED_FOR():
             "steps": report["attempts"][0].get("steps", ()) if report["attempts"] else ()}
 
 
+def check_what_and_where_LOCATE_a_thing_in_an_order_the_world_ALREADY_HAS():
+    """⭐⭐ *What is it?* and *where is it?* needed a **verb** and no machinery, which is what §5x measured
+    and this asserts: `types.recognize` is the subsumption order read bottom-up, and `where` is §6h's reach
+    walked backwards. Neither searches, neither imagines, neither records.
+
+    ⚠ **Vacuity guard 1: `where` must reach PAST the immediate container**, or it is `g.sources` with a
+    longer name and the whole transitive-reach arc bought nothing at the surface. The parcel is in the box
+    *and* in the warehouse, and the order must be nearest first — a set would have thrown that away
+    (`search-was-irreproducible-set-tiebreak`).
+
+    ⚠ **Vacuity guard 2: `what` must DISCRIMINATE.** The nested parcel is held and the loose one is not, so
+    they must come back with different types; a `what` answering "thing" for everything would pass any
+    check that only asked whether it answered.
+
+    ⚠ **Vacuity guard 3: the word is not the machinery.** The same function answers a world that writes the
+    relation the other way round (`part_of`, forwards) — otherwise `where` is about containment rather than
+    about reach, and the domain vocabulary has leaked into the engine."""
+    from . import locate as L
+    g, _world, wh, box, parcel = _warehouse(nested=True)
+    loose_g, _w2, _wh2, _box2, loose = _warehouse(nested=False)
+
+    # A second world, written the other way round: a wheel is `part_of` a car, forwards.
+    p = new_graph()
+    car, hub, wheel = (p.mint("thing", label=n) for n in ("car", "hub", "wheel"))
+    p.link("root", "has", car)
+    p.link(wheel, "part_of", hub)
+    p.link(hub, "part_of", car)
+
+    return {"WHAT_reads_the_types_it_satisfies_NOW": L.what(g, parcel) == ("thing",),
+            "AND_IT_DISCRIMINATES": L.what(loose_g, loose) == ("loose", "thing"),
+            "a_type_itself_is_not_a_thing_with_a_what": L.what(g, "root") == (),
+            "WHERE_CLIMBS_OUT_OF_THE_CONTAINER": L.where(g, parcel) == (box, wh),
+            "AND_IT_REACHES_PAST_THE_IMMEDIATE_ONE": wh in L.where(g, parcel),
+            "nearest_first_because_it_is_not_a_set": L.where(g, parcel)[0] == box,
+            "nothing_holds_the_warehouse_and_it_SAYS_so": (
+                L.where(g, wh) == ()
+                and "nothing here holds wh" in L.describe(g, "where", wh)),
+            "THE_SAME_TRAVERSAL_ANSWERS_THE_OTHER_CONVENTION": (
+                L.where(p, wheel, by="part_of") == (hub, car)),
+            "and_the_default_word_finds_nothing_there": L.where(p, wheel) == (),
+            "it_renders_for_a_reader": L.describe(g, "where", parcel).startswith("parcel is in: box, wh")}
+
+
+def _dated():
+    """Four events, three of them intervals and one a point — the vocabulary `when` reads."""
+    g = new_graph()
+    made = {}
+    for label, span in (("build", (1, 5)), ("paint", (5, 9)), ("inspect", (3, 4)), ("ship", (12, 12))):
+        n = g.mint("event", label=label, start=span[0], end=span[1], at=span[0])
+        g.link("root", "has", n)
+        made[label] = n
+    undated = g.mint("event", label="someday")
+    g.link("root", "has", undated)
+    return g, made, undated
+
+
+def check_WHEN_is_SUGAR_and_an_authored_TYPE_BLOCK_agrees():
+    """⭐⭐ §5x measured `when` as **sugar**: ordering and interval containment over a comparable value,
+    with Allen's relations reducing to comparisons on two endpoints. That was an argument, and this is the
+    probe — **the same judgement is authored as an ordinary `type` block**, with `Rel` comparing two places
+    inside one subgraph, and the two must agree. If `relate` could say something a `type` block cannot,
+    `when` was a capability and not a verb, and §5x was wrong.
+
+    ⚠ **Vacuity guard: the type must REFUSE the other pair.** A schema that accepted both orders would
+    agree with `relate` on the positive case while testing nothing at all.
+
+    ⚠ A point is an interval whose endpoints coincide, which keeps *when did it happen* and *how long did
+    it last* one question. `inspect` sits inside `build`, and that is `during` on both routes.
+
+    ⚠ And **incomparable is a third answer**: an event dated `"tuesday"` against one dated `3` is not
+    before it, not after it, and saying so beats inventing an order between two vocabularies."""
+    from . import locate as L, types as TY
+    g, ev, undated = _dated()
+
+    # The same claim, authored: a pair whose first ends before its second begins.
+    TY.declare_type(g, "event_thing", attrs={"kind_of": "event"})
+    TY.declare_type(g, "runs_before", requires={"first": TY.Req(kind="event", lo=1, hi=1),
+                                                "second": TY.Req(kind="event", lo=1, hi=1)},
+                    relates=[TY.Rel("first.end", "<", "second.start")])
+
+    def pair(a, b):
+        n = g.mint("pair")
+        g.link(n, "first", ev[a])
+        g.link(n, "second", ev[b])
+        return n
+
+    # ⚠ **THE BOUNDARY IS WHERE THE AGREEMENT MEANS SOMETHING.** `first.end < second.start` is *strict*, so
+    # it says `before` and NOT `meets` — and the first version of this check asserted the type would accept
+    # `build`/`paint` (which meet at 5) because it lumped the two relations together. The type was right and
+    # the assertion was wrong. Three pairs now, straddling the boundary in both directions.
+    agree = tuple((TY.is_a(g, pair(a, b), "runs_before"),
+                   L.relate(L.interval(g, ev[a]), L.interval(g, ev[b])) == L.BEFORE)
+                  for a, b in (("build", "ship"), ("build", "paint"), ("paint", "build")))
+    by_comparison = L.relate(L.interval(g, ev["build"]), L.interval(g, ev["paint"]))
+
+    # ⚠ READ THE COUNT BEFORE MUTATING — §5u and §6h both record this exact trap, and it caught me again:
+    # `tuesday` below is incomparable, so a count taken in the return dict measures the omission rather
+    # than the placement, and reads wrong for the right reason.
+    placed = len(L.when(g, ev["build"]))
+    odd = g.mint("event", label="tuesday", at="tuesday")
+    g.link("root", "has", odd)
+    return {
+        "MEETS_because_one_ends_where_the_next_begins": by_comparison == L.MEETS,
+        "before_when_there_is_a_gap": L.relate(L.interval(g, ev["build"]),
+                                              L.interval(g, ev["ship"])) == L.BEFORE,
+        "DURING_for_an_interval_inside_another": L.relate(L.interval(g, ev["inspect"]),
+                                                          L.interval(g, ev["build"])) == L.DURING,
+        "a_POINT_is_an_interval_with_equal_ends": L.interval(g, ev["ship"]) == (12, 12),
+        "and_a_point_inside_one_is_DURING_it_too": L.relate((4, 4), (1, 5)) == L.DURING,
+        "equal_before_meets_so_two_points_at_one_time_are_EQUAL": L.relate((3, 3), (3, 3)) == L.EQUAL,
+        "overlaps_is_distinguishable_from_both": L.relate((1, 6), (5, 9)) == L.OVERLAPS,
+        # ⭐⭐ the sugar claim, checked rather than argued: an AUTHORED type block and the comparison agree
+        "AND_AN_AUTHORED_TYPE_BLOCK_AGREES_EVERY_TIME": all(a == b for a, b in agree),
+        "including_at_the_boundary_where_MEETS_is_not_BEFORE": agree[1] == (False, False),
+        "THE_TYPE_REFUSES_THE_OTHER_ORDER": agree[2] == (False, False),
+        "and_it_is_not_vacuous_because_one_pair_PASSES": agree[0] == (True, True),
+        "INCOMPARABLE_IS_A_THIRD_ANSWER": L.relate(L.interval(g, odd), L.interval(g, ev["ship"])) is None,
+        "undated_means_the_question_does_not_apply": (L.interval(g, undated) is None
+                                                      and L.when(g, undated) == ()),
+        "and_it_says_so_rather_than_dating_it": "nothing here says when" in L.describe(g, "when", undated),
+        "an_event_is_placed_against_every_other_dated_one": placed == 3,
+        # ⚠ ...and an INCOMPARABLE one is left out rather than guessed at, which is why the count above
+        # had to be read before `tuesday` existed.
+        "AND_AN_INCOMPARABLE_ONE_IS_LEFT_OUT": len(L.when(g, ev["build"])) == placed}
+
+
+def check_a_READER_answers_and_records_NOTHING():
+    """⭐⭐ `what` / `where` / `when` as CNL verbs — §9 item 1, and the smallest capability left. They are a
+    different **form**, not a fifth force: `goal` / `ask` / `why` / `plan` state a whole proposition and
+    differ in what is done with it, while these have a **gap** and are answered by locating a thing.
+
+    ⚠⚠ **THE PROPERTY THAT MATTERS IS THAT NOTHING IS KEPT**, and it is §6g's rule applied to answers:
+    *keep what you cannot re-derive.* A reader's answer is a traversal away at any moment, so storing one
+    could only ever let it drift from the world it describes — `types.tag`'s stamp still said `car` after
+    the wheel came off (§5i). So the world must be **unchanged** by asking, and — the discriminating half —
+    the answer must **follow the world when it moves**. A cached answer passes the first and fails the
+    second, which is the planted bug's exact signature.
+
+    ⚠ `ask` settling by default is not inconsistent with this and the contrast is the reason both are
+    right: a derivation *ran*, and repeating it costs a search.
+
+    ⚠ Refusal is the feature here as everywhere on this border: an unknown name, an empty body, and a line
+    that *says* something rather than naming something."""
+    from . import intake as I, locate as L, thread as T
+    from .workbench import reachable
+    g, _world, _wh, box, parcel = _warehouse(nested=True)
+    th = T.open_thread(g, "t")
+
+    before_world = tuple(reachable(g, "root"))
+    first = I.respond(g, _lines("where it is:", "    parcel"), th, under="root")
+    again = I.respond(g, _lines("where it is:", "    parcel"), th, under="root")
+    after_world = tuple(reachable(g, "root"))
+
+    what_said = I.respond(g, _lines("what it is:", "    parcel"), th, under="root")
+    verb, q = I.read(g, _lines("where it is:", "    by ^contains", "    parcel"), under="root")
+
+    def refused(*lines):
+        try:
+            I.read(g, _lines(*lines), under="root")
+            return False
+        except I.Unreadable:
+            return True
+
+    dg, ev, _u = _dated()
+    when_said = I.respond(dg, _lines("when it was:", "    inspect"), T.open_thread(dg, "t"))
+
+    g.unlink(box, "contains", dst=parcel)              # ⚠ the world moves under the question
+    moved = I.respond(g, _lines("where it is:", "    parcel"), th, under="root")
+    return {
+        "a_WHERE_block_answers": "parcel is in: box, wh" in first,
+        "a_WHAT_block_answers": what_said == "parcel is: thing",
+        "a_WHEN_block_answers": when_said.startswith("inspect at 3-4") and "during build" in when_said,
+        "THE_WORLD_IS_UNCHANGED_BY_ASKING": after_world == before_world,
+        "asking_twice_says_the_same_thing": first == again,
+        "AND_THE_ANSWER_FOLLOWS_THE_WORLD_WHEN_IT_MOVES": "nothing here holds parcel" in moved,
+        "the_question_itself_IS_data": g.kind(q) == "question" and g.attr(q, "verb") == "where",
+        # ⚠ The QUESTION reaches the thread — that it was asked is history — and the answer does not.
+        "the_asking_is_history_even_though_the_answer_is_not": any(
+            g.kind(T.attended(g, e) or "") == "question" for e in T.entries(g, th)),
+        "three_readers_and_no_more": L.VERBS == ("what", "where", "when"),
+        "it_round_trips_to_what_was_ASKED": I.describe(g, q) == _lines(
+            "where it is:", "    by ^contains", "    parcel"),
+        "an_unknown_name_is_REFUSED": refused("what it is:", "    nobody"),
+        "a_question_about_nothing_is_REFUSED": refused("where it is:", "    by ^contains"),
+        "and_so_is_a_line_that_SAYS_something": refused("what it is:", "    parcel is a thing"),
+        "read_goal_still_refuses_a_question_block": refused_as_goal(g)}
+
+
+def refused_as_goal(g) -> bool:
+    from . import intake as I
+    try:
+        I.read_goal(g, _lines("what it is:", "    parcel"), under="root")
+        return False
+    except I.Unreadable:
+        return True
+
+
 def check_runaway_program_halts_loudly():
     """DELIBERATE NEGATIVE. Termination is unsolved in general; failing loudly is the honest stand-in."""
     try:

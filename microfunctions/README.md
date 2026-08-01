@@ -21,6 +21,7 @@ earned per item by the audit in `north_star.md` §6.
 | `goal.py` | a wanted state as **constraint nodes** — link, attribute or type; `unmet` is what drives planning |
 | `driver.py` | **the outer loop** — pursue a goal by imagining; the plan is *found*, not built |
 | `intake.py` | **the goal border** — a closed CNL for goals, which can and does refuse |
+| `locate.py` | **the wh-questions** — `what` / `where` / `when`. A gap, not a proposition: locate a thing in the subsumption, containment or temporal order the world already has. Answers, and records nothing |
 | `conflict.py` | contradictory goals, and **interference** between goals over one slot |
 | `plan.py` | **backward chaining over return types into a LAZY chain** — plans are data, nothing runs until the action |
 | `dispatch.py` | the one place an effect leaves the graph, and the checkpoint guarding it |

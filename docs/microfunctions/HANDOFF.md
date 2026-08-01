@@ -13,15 +13,15 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 179 checks, 0 FAILED
+python -m microfunctions.selftest      # 182 checks, 0 FAILED
 ```
 
-> **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
-> but they are no longer the top of the list: **`docs/microfunctions/thread_and_system1.md` supersedes §5
-> for what to do next.** The engine had no outer loop at all — nothing invoked plan/workbench/execution —
-> and that design is it. Its §1 (the thread) is **built** (§5b), and the loop itself now **runs end to
-> end** on a blocks-world scenario (§5c). What remains from that design is System 1 and bottom-up type
-> recognition.
+> **⭐⭐⭐ Update, 2026-08-01 — READ §6c–§6i BEFORE §5.** The whole of §6b's arc landed in one day and
+> **§5 below is largely historical**: §6c made the ISA tick, §6d built the single outer loop (`loop.py`),
+> §6e probed the strong version (b) and recommends **not** doing it, §6f showed the system can judge its
+> own computation, §6g made **forgetting the default**, §6h built **transitive reach**, and §6i added the
+> **wh-questions** (`locate.py`). §5's items 3–5 still stand and are listed there; **§9 is the current
+> list.**
 
 ---
 
@@ -76,7 +76,8 @@ the data model was genuinely independent of the execution model.
 | `thread.py` | **materialised short-term memory** — attention shifts + applications, navigable, cross-linkable |
 | `goal.py` | a wanted state as **constraint nodes**; `unmet` drives planning; **hierarchy** gives context |
 | `driver.py` | **the outer loop** — pursue a goal by imagining; the plan is *found*, not built |
-| `intake.py` | **the border** — one closed CNL for goals, guidelines and methods; refuses |
+| `intake.py` | **the border** — one closed CNL for goals, guidelines, methods, types and questions; refuses |
+| `locate.py` | **the wh-questions** — `what` / `where` / `when`: locate a thing in an order that already exists, and record nothing |
 | `conflict.py` | contradictory goals, and **interference** between goals over one slot |
 | `guideline.py` | **authored preference as data** — reorders within a band, can never exclude |
 | `method.py` | **authored decompositions as data** that select themselves; prune on *authority* |
@@ -2003,7 +2004,110 @@ need no machinery at all (`types.recognize` and the ordering comparisons already
 verb. ⚠ And `via` returns a set-shaped answer for a caller that has somewhere to put one; it is
 deliberately **not** wired into any path.
 
-## 5. What to do next
+## 6i. ⭐⭐ THE WH-QUESTIONS — what / where / when, and they needed a verb (2026-08-01)
+
+**182 checks, 0 FAILED.** New module `locate.py`; three more CNL verbs. §9 item 1, and the claim it rested
+on — *no machinery needed* — held up under probing, which is not what usually happens here.
+
+**⭐⭐ They are a different FORM, not a fifth force, and getting that wrong would have been the easy
+version.** `goal` / `ask` / `why` / `plan` share one body because a goal, a question and an instruction are
+the same set of constraints differing only in **force** (§5h). The obvious move was to add `what` as a
+fifth verb on that body. It is not one: these have a **gap** in them, and answering one is not searching —
+it is **locating a thing in an order the world already has**. So they take a different body (one bare name
+per line) and they **answer** instead of recording. In the project's own vocabulary that is the *content*
+axis moving where `ask`-versus-`goal` was the *force* axis.
+
+| verb | the order it reads | the machinery, which already existed |
+|---|---|---|
+| `what` | subsumption | `types.recognize` (§5i) |
+| `where` | containment | §6h's reach, walked backwards |
+| `when` | temporal | comparisons on two endpoints |
+
+⚠ **The three are not one operation and saying so would be too neat:** `what` compares a node against a
+population of *types*, the other two against a population of *nodes*. What they really share is the part
+that matters — each reads an order that is already there, so none of them searches.
+
+**⭐⭐ `when` is SUGAR, and it is now CHECKED rather than argued.** §5x *measured* it as sugar and that was
+still an argument. The check authors the same judgement twice — once as `locate.relate`, once as an
+ordinary `type` block whose `Rel` says `first.end < second.start` — and requires them to agree. ⚠ **The
+first version of that check was wrong and the type block was right**: `<` is strict, so it says `before`
+and **not** `meets`, and I had lumped the two relations together. Three pairs now straddle the boundary in
+both directions, which is a much better test than the one I meant to write. Allen's thirteen relations are
+eleven comparisons on four endpoints and add no expressive power to what a schema could already demand.
+
+**⭐ `where` is the caller `path.via` was written for and did not have.** §6h shipped `via` set-shaped and
+deliberately unwired, because a *reference* denoting a set breaks `node_at`. A question is exactly the
+position with somewhere to put one: *where is it* has no single answer — the parcel is in the box **and**
+in the warehouse — so reach stays a predicate everywhere a single node is demanded, and the set surfaces
+only here.
+
+**⚠ The vocabulary is content; only the traversal had to be earned.** `by` names one hop **as walked from
+the thing**, reusing `path.py`'s `^` for direction — so `by ^contains` climbs out of a container and
+`by part_of` climbs the opposite convention, with the same traversal. Checked on a world written each way.
+Without that, `where` would be about containment rather than about reach, and a domain word would have
+leaked into the engine.
+
+**⭐⭐ A READER RECORDS NOTHING, and that is §6g's rule applied to answers.** *Keep what you cannot
+re-derive.* A reader's answer is a traversal away at any moment, so storing one could only ever let it
+drift from the world it describes — precisely `types.tag`'s stamp still saying `car` after the wheel came
+off (§5i). ⚠ **The contrast with `ask` settling by default is not an inconsistency**: a derivation *ran*,
+and repeating it costs a search. Recomputing beats remembering exactly when recomputing is cheap. What
+*does* reach the thread is the **question** — that it was asked is history — and never the answer.
+
+**Five planted-bug probes, each biting a distinct key**, and the second has the ideal signature:
+
+* `where` as one hop rather than reach → `AND_IT_REACHES_PAST_THE_IMMEDIATE_ONE` red;
+* ⭐ a reader that **caches off-graph** → `THE_WORLD_IS_UNCHANGED_BY_ASKING` stays green, the answer still
+  looks right, and only `AND_THE_ANSWER_FOLLOWS_THE_WORLD_WHEN_IT_MOVES` goes red. *That* key is the whole
+  property, and a check asserting only "asking changes nothing" would have passed the bug;
+* `relate` folding `meets` into `before` → the type-block agreement goes red;
+* `where` returning a `set` → `nearest_first_because_it_is_not_a_set` red;
+* a `_seal` that accepts an empty question → its refusal key red.
+
+**⚠ And the §5u/§6h trap caught me for the third time in this file:** a count read *in the return dict*,
+after an incomparable event had been minted, measured the omission rather than the placement. It read
+`False` for the right reason and the wrong question. Both readings are now keys, taken in the right order.
+
+**⭐ Verified against the consumer, which §9 said was owed.** `../pystrider` is **157 passed, 0 failed** —
+and its previously-red pin (§6c, §5w's unset-register refusal) is **green**, fixed on their side. That debt
+is closed; `Focus(g)` evidently reached them too.
+
+## 9. ⭐ WHAT TO DO NEXT (current as of 2026-08-01)
+
+Ranked. Everything above §5 is history; this is the list.
+
+**1. ✅ DONE — see §6i.** `what` / `where` / `when` are CNL verbs (`locate.py`), and the *no machinery
+needed* claim survived probing: `when`'s sugar status is now checked against an authored `type` block
+rather than argued.
+
+**2. `PIN` is unexercised, and compacting old thread entries is the case that would make it matter.**
+`forget.also=` exists and no check drives it. ⚠ Compacting the thread is also what would turn `observation`
+from a *redundant* root into a load-bearing one (§6g) — so build the two together or neither.
+
+**3. Sightings cover attributes only.** §6a's own gap: an absent *edge* has nowhere to hang a marker, so a
+folder's **contents** cannot be observed the way its `count` can. `workbench.expectations` already faced
+this and answered **qualitatively** ("files appeared", never how many); the same granularity should apply.
+
+**4. `pursue` does not fork on mock outcomes**, so a plan the driver produced has no sibling branches and
+`resume` can essentially never apply to one (§5g). The loop leans on replanning instead. Closing it is §5
+item 4's question from the other side — *branch only where being wrong is expensive*.
+
+**5. Copy-on-write, but MEASURE FIRST.** §6's known limit. The multiplier is workbench **stack depth**, not
+the size of one copy, and copy-on-write implements exactly the same semantics rather than a smaller
+boundary. `measure-before-optimizing-ugm`, and §5m's stronger version: *profile before choosing a lever,
+even one you wrote down yourself after measuring.*
+
+**Deliberately NOT on this list:** §6b's **(b)** — removing the loop opcodes. §6e probed all three of its
+payoffs and they came out at zero, relocated, and moot respectively. Revisit only if untrusted `.mf` is
+ever loaded, which is the same trigger §5y names for policing builtins.
+
+✅ **The debt to `../pystrider` is CLOSED.** It is **157 passed / 0 failed** against this engine as of
+§6i — the pin that was red (§5w's unset-register refusal, §6c) has been fixed on their side, and `Focus(g)`
+evidently reached them. ⚠ The lesson it was recorded for stands: *predicting a consumer impact in a
+CHANGELOG is not the same as telling the consumer*, and the pins should be run after every engine change,
+as §5k did and §5w did not.
+
+## 5. What to do next (HISTORICAL — see §9)
 
 **2. ✅ DONE — see §5j and §5k.** Conflict detection landed (`unsatisfiable`, `interference`, and
 `interference_between` for the compose-time case). Left here for the reasoning: The old rule engine surfaced two conclusions

@@ -55,6 +55,17 @@ type car:
     wheel[0].rim is not wheel[1].rim           ...and not being the same node
 ```
 
+```
+what it is:          where it is:         when it was:
+    parcel               parcel               by start        # or `by at`, a point
+                         by contains          delivery
+```
+
+⭐⭐ **The wh-questions are a different FORM, not a fifth force.** `goal` / `ask` / `why` / `plan` state a
+whole proposition and differ in what is done with it; `what` / `where` / `when` have a **gap** in them and
+are answered by locating a thing in an order the world already has (`locate.py`). Hence a different body —
+one bare name per line — and an answer that is **returned and never recorded**.
+
 ## ⭐⭐ ONE reference language, and where each block may use it
 
 Everything that refers to something not directly at hand goes through `path.py`: `car.wheel[1].pressure`,
@@ -129,6 +140,7 @@ import re
 from . import goal as G
 from .graph import Graph
 from . import guideline as GL
+from . import locate as L
 from . import method as M
 from . import path as P
 from . import types as TY
@@ -249,7 +261,20 @@ GOAL_VERBS = ("goal", "ask", "why", "plan")
 ADVICE_VERBS = ("prefer", "avoid")
 METHOD_VERBS = ("method", "procedure")
 TYPE_VERBS = ("type",)
-VERBS = GOAL_VERBS + ADVICE_VERBS + METHOD_VERBS + TYPE_VERBS
+
+# ⭐⭐ **THE WH-QUESTIONS, AND THEY ARE A DIFFERENT FORM — not a fifth force on the same body.** Every verb
+# above states a whole proposition and differs only in what is then done with it (`goal.py`'s constraints,
+# four ways). These three have a **gap** in them: they name a thing and ask which way it stands in an order
+# the world already has — `locate.py`. So they take a different body, one bare name per line, and they
+# **answer** rather than record. `docs/units`' standing finding is that a category is a PRODUCT of content,
+# force and level; this is the content axis moving, where `ask` versus `goal` was the force axis.
+#
+# ⚠ `when` is also a *body* keyword in an advice and a method block (`when T`, a guard). No parse can
+# confuse them — only the first line of a block is read as a verb — but the two are unrelated words and
+# nobody should try to unify them.
+READER_VERBS = L.VERBS
+
+VERBS = GOAL_VERBS + ADVICE_VERBS + METHOD_VERBS + TYPE_VERBS + READER_VERBS
 
 ROLES = (M.SUBJECT, M.OBJECT)
 
@@ -267,6 +292,29 @@ def _advise(g: Graph, gl: str, words: list, line: str, lineno: int, under: str) 
     else:
         raise Unreadable(f"line {lineno}: cannot read {line!r} — the advice vocabulary is closed "
                          f"(action f | touching x | when T | because …)")
+
+
+def _reader(g: Graph, q: str, words: list, line: str, lineno: int, under: str) -> None:
+    """One line of a `what` / `where` / `when` block: a bare name, or the word the question walks.
+
+    ⭐ **The body is the smallest one on this surface, and that is the finding rather than an economy.**
+    §5x measured all three as needing no machinery — `types.recognize` exists, and ordering over a
+    comparable value became sugar the same morning — so what was missing was a *verb*, and a verb needs
+    nowhere near the vocabulary a goal does. Anything richer here would be a question the reader could
+    not answer.
+
+    ⚠ **`by` keeps the vocabulary out of the machinery.** `where` walks `contains` and `when` reads `at`
+    because those are conventions worth shipping as content, not because anything here knows what a
+    container or a clock is. An author who keeps parts in `part_of` writes `by part_of` and the same
+    traversal answers."""
+    if words[0] == "by" and len(words) == 2:
+        g.put(q, by=words[1])
+    elif len(words) == 1:
+        g.link(q, "about", resolve(g, words[0], under=under))
+    else:
+        raise Unreadable(f"line {lineno}: cannot read {line!r} — a question names ONE thing per line, "
+                         f"or the word it walks (`by part_of`). It asks about what is there; it does not "
+                         f"say anything about it")
 
 
 def _step(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
@@ -435,6 +483,7 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
     | `prefer` / `avoid` | a **guideline** — reorders, can never exclude |
     | `method` / `procedure` | a **method** — a decomposition, advisory or mandatory |
     | `type` | a **type** — a schema over a subgraph, of any depth |
+    | `what` / `where` / `when` | a **question** — a gap, answered by locating a thing in an order |
 
     ⚠ **`method` and `procedure` differ ONLY in force, and that is the point.** The bodies are identical;
     what changes is what happens when a step does not work out — fall back to searching, or refuse to
@@ -478,6 +527,11 @@ def _open(g: Graph, verb: str, label: str) -> str:
         return goal
     if verb in ADVICE_VERBS:
         return g.mint("guideline", stance=GL.PREFER if verb == "prefer" else GL.AVOID, label=label)
+    if verb in READER_VERBS:
+        # ⚠ A question node is minted for the same reason a goal is, and it is NOT the labelling error this
+        # codebase keeps catching: *that this was asked* is not entailed by any structure, exactly as force
+        # is not (`force-is-the-missing-axis`). What it must never hold is the ANSWER — see `locate.py`.
+        return g.mint("question", verb=verb, label=label)
     if verb in TYPE_VERBS:
         # ⚠ Refuses a REDECLARATION rather than minting a second type of the same name. Two would both
         # be found by `type_names` and `find_type` would answer with whichever came first — the same
@@ -493,6 +547,8 @@ def _open(g: Graph, verb: str, label: str) -> str:
 def _body(g: Graph, verb: str, node: str, words: list, line: str, lineno: int, under: str) -> None:
     if verb in GOAL_VERBS:
         _constrain(g, node, words, line, lineno, under)
+    elif verb in READER_VERBS:
+        _reader(g, node, words, line, lineno, under)
     elif verb in ADVICE_VERBS:
         _advise(g, node, words, line, lineno, under)
     elif verb in TYPE_VERBS:
@@ -509,6 +565,10 @@ def _seal(g: Graph, verb: str, node: str, label: str) -> None:
     if verb in GOAL_VERBS:
         if not G.constraints(g, node):
             raise Unreadable(f"a {verb} with no constraints says nothing")
+    elif verb in READER_VERBS:
+        if not g.targets(node, "about"):
+            raise Unreadable(f"`{verb} {label}` asks about nothing; a question needs something to be "
+                             f"about (a `by` line on its own only says how to look)")
     elif verb in ADVICE_VERBS:
         if g.attr(node, "function") is None and g.target(node, "on") is None:
             raise Unreadable(f"`{verb} {label}` names neither an action nor a thing — advice that "
@@ -552,8 +612,16 @@ def respond(g: Graph, text: str, thread: str, subject: str = "root", *,
     ⚠ **And it stops at a plan.** Nothing is carried out — the whole search is on a workbench, so a `plan`
     block cannot change the world no matter what it says. Acting is a separate verb that does not exist
     yet, on purpose."""
-    from . import driver as D, query as Q
+    from . import driver as D, query as Q, thread as T
     verb, goal = read(g, text, under=under)
+    if verb in READER_VERBS:
+        # ⚠ **Answered, never settled.** `ask` keeps what it derived because a derivation ran and costs a
+        # search to repeat; a reader computed nothing that is not a traversal away, so keeping the answer
+        # would be storing something that can drift from the world it describes (§6g, and `types.tag`).
+        # The *question* reaches the thread — that it was asked is history — and the answer does not.
+        T.attend(g, thread, goal, why="asked", note=verb)
+        return "\n".join(L.describe(g, verb, n, by=g.attr(goal, "by"), under=under)
+                         for n in g.targets(goal, "about"))
     if verb in TYPE_VERBS:
         return TY.describe(g, g.attr(goal, "name"))     # declaring is the whole of what a type block does
     if verb == "goal":
@@ -574,6 +642,14 @@ def describe(g: Graph, goal: str) -> str:
     ⚠ **Refuses anything that is not a goal rather than rendering it badly.** Handed a guideline it would
     otherwise emit `goal <label>:` with an empty body — well-formed, wrong, and exactly the "best effort"
     this module exists to refuse. A round trip a model checks itself against must not be able to lie."""
+    if g.kind(goal) == "question":
+        # ⚠ A question round-trips to what was ASKED, never to what was answered. A rendering that included
+        # the answer would read back as a block nobody wrote and could not be re-parsed to the same thing.
+        lines = [f"{g.attr(goal, 'verb')} {g.attr(goal, 'label')}:"]
+        if g.attr(goal, "by"):
+            lines.append(f"    by {g.attr(goal, 'by')}")
+        lines.extend(f"    {g.attr(n, 'label') or n}" for n in g.targets(goal, "about"))
+        return "\n".join(lines)
     if g.kind(goal) != "goal":
         raise Unreadable(f"describe renders a goal; {goal} is a {g.kind(goal)}")
     lines = [f"{g.attr(goal, 'verb') or 'goal'} {g.attr(goal, 'label')}:"]
@@ -581,5 +657,6 @@ def describe(g: Graph, goal: str) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["Unreadable", "VERBS", "GOAL_VERBS", "ADVICE_VERBS", "METHOD_VERBS", "TYPE_VERBS", "ROLES",
+__all__ = ["Unreadable", "VERBS", "GOAL_VERBS", "ADVICE_VERBS", "METHOD_VERBS", "TYPE_VERBS",
+           "READER_VERBS", "ROLES",
            "resolve", "read", "read_goal", "respond", "describe"]

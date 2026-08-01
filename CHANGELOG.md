@@ -207,3 +207,23 @@ could not detect do not need one. When in doubt, write the line — it costs one
   `wheel[1].pressure`. What blocks the honest version is downstream — `conflict.unsatisfiable` keys a slot
   as `(subject, key)` and would read two wheels' pressures as one contended slot, and `goal.holds` /
   `query.refutes` read the attribute off the base node. See `HANDOFF.md` §5v.
+
+### Added — the wh-questions: `what` / `where` / `when`
+
+- **`locate.py`** — `what` (which declared types a node satisfies now, = `types.recognize`), `where` (what
+  holds it, at any depth, nearest first), `when` (how its interval stands against every other dated thing).
+  Plus `interval`, `relate` (Allen's thirteen relations), `locate` and `describe`.
+  ⚠ **A reader records nothing.** Every answer is a traversal away, so keeping one could only let it drift.
+- **`locate.where(g, node, by="^contains")`** — `by` is one hop written **as walked from the thing**, with
+  `path.py`'s `^` for the backward direction. A world writing the relation the other way is asked with
+  `by part_of`; nothing here is wired to a containment vocabulary. This is the caller `path.via` was added
+  for and did not have.
+- **`locate.relate(a, b)`** returns `None` when the endpoints are not comparable — incomparable is a third
+  answer, not `before`.
+- **Three more CNL verbs.** `intake.VERBS` now includes `what`, `where`, `when` (`intake.READER_VERBS`).
+  ⚠ **Their body is different from every other block's**: one bare name per line, or `by <label>`. They
+  produce a `question` node (new kind) with ordered `about` edges, and `intake.respond` returns the
+  **answer text**; nothing is written to the world. `intake.describe` renders a question back to what was
+  *asked*, never to what was answered. `read_goal` refuses them, as it refuses `ask` / `why` / `plan`.
+  ⚠ **Consumer impact:** if you match on `intake.VERBS` or on the set of block headers, there are three
+  more. Nothing existing changed shape.
