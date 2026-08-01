@@ -17,7 +17,7 @@ Write what you want to be true. Press **Run** and watch it think:
 - **✔ Plan found** — and then it carries the plan out for real.
 
 <div class="ugm-playground"
-     data-wheel="../wheels/universal_graph_machine-0.2.0-py3-none-any.whl"
+     data-wheel="../wheels/universal_graph_machine-0.3.0-py3-none-any.whl"
      data-mode="plan">
 
   <label class="ugm-label" for="ugm-goal">What must be true</label>

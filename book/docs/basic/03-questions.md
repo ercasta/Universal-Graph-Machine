@@ -130,6 +130,13 @@ happens if two things answer to one name, because guessing between them would be
 inventing what you meant. A machine that can't refuse can't be trusted to
 understand.
 
+!!! note "There is a fourth kind of question, much later"
+    Everything in this chapter offers the machine a claim and asks it to check
+    one. *Where is the parcel?* doesn't — it has a **gap** in it, and the machine
+    fills the blank rather than answering yes or no.
+    [Chapter 28](../watching/28-what-where-when.md) covers those, and they turn
+    out to need a different shape entirely.
+
 ---
 
 **Next:** the thing at the centre of all this — a rule. It's not what you're

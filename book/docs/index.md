@@ -35,7 +35,7 @@ technicality. It's the whole game, and by the end of Part 2 you'll see why.
 
 ## How to read this book
 
-Five parts, each building on the last. The last is an optional deep dive.
+Six parts, each building on the last. The last two are optional deep dives.
 
 <div class="grid cards" markdown>
 
@@ -83,6 +83,16 @@ Five parts, each building on the last. The last is an optional deep dive.
     a rule's consequences straight off the rule itself.
 
     [:octicons-arrow-right-24: Part 5](deep/20-instruction-set.md)
+
+- :material-numeric-6-circle:{ .lg .middle } **Watching itself — reasoning about its own work**
+
+    ---
+
+    Telling its own changes from the world's, running everything as one
+    interruptible loop, judging a computation while it runs, forgetting what it
+    can work out again, and questions with a gap in them.
+
+    [:octicons-arrow-right-24: Part 6](watching/24-what-it-saw.md)
 
 </div>
 

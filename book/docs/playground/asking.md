@@ -17,7 +17,7 @@ something different:
 - **`why`** — tell me how it came to be true.
 
 <div class="ugm-playground"
-     data-wheel="../wheels/universal_graph_machine-0.2.0-py3-none-any.whl"
+     data-wheel="../wheels/universal_graph_machine-0.3.0-py3-none-any.whl"
      data-mode="ask">
 
   <label class="ugm-label" for="ugm-ask-text">Say something to it</label>

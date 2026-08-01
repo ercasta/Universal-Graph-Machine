@@ -383,5 +383,121 @@ candidates, unsafe for concluding that a rule definitely does something.
 
 ---
 
+## Belief, and sighting
+
+A **belief** is what the machine currently holds to be true — `count: 3` — and is
+what everything reasons over. A **sighting** is what was actually *seen*, and
+when.
+
+Keeping them apart is what lets a belief be recognised as **stale** rather than
+silently trusted. Something never looked at has no sighting at all — not a
+cautious one.
+
+→ [Chapter 24](../watching/24-what-it-saw.md)
+
+---
+
+## Attribution — "was it me?"
+
+Given two sightings that differ, deciding whether the machine's own actions
+account for the change or the world moved on its own.
+
+It is **derived**, never logged: a journal of the machine's writes would miss
+every external change (nothing happens in the graph when a file appears) and
+would misreport the machine's own *look* as a change it made.
+
+→ [Chapter 24](../watching/24-what-it-saw.md)
+
+---
+
+## Volatility
+
+How often a slot changed in ways the machine could **not** attribute to itself.
+
+It gives *go and look* a second trigger beside ignorance: not only *I don't
+know*, but **I do know, and it's probably stale.**
+
+→ [Chapter 24](../watching/24-what-it-saw.md)
+
+---
+
+## Agenda, tick, and task
+
+An **agenda** is an ordered list of work. A **tick** advances the task at the
+front by exactly **one primitive step** and moves it to the back.
+
+A running program, a search, a plan being carried out, and a goal being pursued
+are all tasks, all steppable the same way. Interleaving isn't a policy — it's
+what falls out of rotating an ordered list.
+
+→ [Chapter 25](../watching/25-one-loop.md)
+
+---
+
+## Look versus act
+
+Whether the next step is reversible. `imagine` and `look` cost time; **`act`**
+cannot be taken back.
+
+A tool declares which it is, and anything that doesn't declare is assumed to
+**act** — being wrong that way costs a pause, and being wrong the other way
+spends an action somebody meant to withhold.
+
+→ [Chapter 25](../watching/25-one-loop.md)
+
+---
+
+## Keep what you cannot re-derive
+
+The forgetting rule. Two kinds of record are irreducible — **a crossing of the
+world** (a tool call's result) and **a surprise** (a change nothing the machine
+did explains). Everything else can be worked out again from the goal and the
+library.
+
+Implemented by naming what to **keep** rather than what to drop, so it can't
+drift as new kinds of record appear.
+
+→ [Chapter 27](../watching/27-forgetting.md)
+
+---
+
+## Superseded — compaction
+
+Dropping a record that a **better** record already makes. Once a goal is closed
+by something real, its pointer into the imagined version of events is a snapshot
+of a world that no longer exists.
+
+A goal that was planned and *not* carried out is the opposite case: its imagined
+frame is the only account it has, and removing it would be forgetting the plan.
+
+→ [Chapter 27](../watching/27-forgetting.md)
+
+---
+
+## Reach — `contains+`
+
+*Is X reachable from Y by following this arrow, at any depth?* The one genuine
+gap this project found in its own vocabulary — a parcel in a box in a warehouse
+*is* in the warehouse, and nothing could previously say so.
+
+Deliberately a **question only**: as a way of *naming* something it would denote
+a set, and every name in this machine promises one node or nothing.
+
+→ [Chapter 28](../watching/28-what-where-when.md)
+
+---
+
+## Reader — what, where, when
+
+A question with a **gap** in it, answered by locating a thing in an order the
+world already has, rather than by searching.
+
+A reader **records nothing**, because its answer is one traversal away at any
+moment and a stored one could only drift. What reaches memory is the *question*.
+
+→ [Chapter 28](../watching/28-what-where-when.md)
+
+---
+
 *This appendix grows with the book. The project lives on
 [GitHub](https://github.com/ercasta/Universal-Graph-Machine).*

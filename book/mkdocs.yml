@@ -94,6 +94,12 @@ nav:
       - "21 · Types as shapes": deep/21-types-as-shapes.md
       - "22 · Reading a rule": deep/22-reading-a-rule.md
       - "23 · Concluding versus acting": deep/23-concluding-vs-acting.md
+  - "Part 6 — Watching itself":
+      - "24 · What it saw, and whether it was me": watching/24-what-it-saw.md
+      - "25 · One loop, and everything on it": watching/25-one-loop.md
+      - "26 · Noticing it's taking too long": watching/26-taking-too-long.md
+      - "27 · Forgetting is the default": watching/27-forgetting.md
+      - "28 · What, where, and when": watching/28-what-where-when.md
   - "Playground":
       - "Watch it plan": playground/tower.md
       - "Ask it something": playground/asking.md

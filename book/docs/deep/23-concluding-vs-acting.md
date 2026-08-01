@@ -99,30 +99,11 @@ where it can't be forgotten and it's a wall.
 
 ---
 
-## That's the book
+That's Part 5, and it completes the account of how the machine reasons about the
+**world**.
 
-Where you've been:
+One thing has been left out of every chapter so far, and it's the thing doing the
+reasoning. Part 6 turns the machinery on itself.
 
-- **Part 1** — a world of nodes and named arrows; shapes rather than badges; and
-  a rule that runs only when you point it at something.
-- **Part 2** — wanting things, imagining them, finding routes, and explaining
-  what happened without inventing what didn't.
-- **Part 3** — reality disagreeing, contingencies, hard limits, memory, learning,
-  and noticing its own intentions colliding.
-- **Part 4** — telling it how to work: advice it may ignore, recipes that
-  replace the search, procedures it may not work around, and the difference
-  between *not there* and *not looked*.
-- **Part 5** — the instructions underneath, and the two readings of a rule's body
-  that make planning and safety possible.
-
-The thread running through all of it is one property. **Everything is made of
-the same stuff.** Rules, goals, plans, memories, explanations, conflicts — all
-ordinary data in one graph. Every capability in Parts 2 to 5 is a consequence:
-the machine can plan because it can read its rules, explain because its
-reasoning is an object, learn because it can write a rule, and refuse to reason
-with a dangerous rule because it can inspect one before running it.
-
-None of those needed a subsystem. They needed the same substrate, asked a
-different question.
-
-[Back to the start :octicons-arrow-left-24:](../index.md){ .md-button }
+**Next:** what it saw, and who moved it.
+[What it saw, and whether it was me →](../watching/24-what-it-saw.md)

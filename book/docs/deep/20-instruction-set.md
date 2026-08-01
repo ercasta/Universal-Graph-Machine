@@ -42,6 +42,13 @@ rather than free-floating:
 | `R(v)` | a **register** — scratch space, local to this run |
 | `F(j)` | a **head** — one of the things this rule was handed |
 
+!!! note "A run is itself a thing in the graph"
+    "Local to this run" used to mean *local to a Python object nobody could look
+    at*. It doesn't any more: a run — its registers, its program counter, its
+    stack, and what it's pointed at — is ordinary graph data, so a half-finished
+    program can be paused, read, and resumed by anything. [Chapter
+    25](../watching/25-one-loop.md) is what that buys.
+
 `F(j)` is the important one. It's how the body refers to *the thing you pointed
 me at*. A rule can't reach out and find things to operate on; it works on what
 it was given.

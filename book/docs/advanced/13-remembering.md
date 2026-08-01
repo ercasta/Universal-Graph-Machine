@@ -100,6 +100,18 @@ from stored text, running on the ordinary machinery.
 That's what makes the next two chapters possible. A machine that can read its
 own history can learn from it, and can notice when it's working against itself.
 
+!!! note "Two things this chapter deliberately leaves for Part 6"
+    The thread records what the machine **thought**. It says nothing about what
+    the machine **looked at** — and *I believe the folder holds three files* and
+    *I saw three files, at 4pm* are very different claims.
+    [Chapter 24](../watching/24-what-it-saw.md) separates them, and uses the
+    separation to answer *did I change this, or did somebody else?*
+
+    And nothing here ever gets thrown away, which cannot be right for a machine
+    meant to run for a long time.
+    [Chapter 27](../watching/27-forgetting.md) makes forgetting the default —
+    without any of the questions above becoming unanswerable.
+
 ---
 
 **Next:** turning what it did into something it can do again.

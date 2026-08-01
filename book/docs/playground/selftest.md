@@ -9,7 +9,7 @@ fails if any of its keys is exactly `False`, and the tally at the bottom counts
 them.
 
 <div class="ugm-playground"
-     data-wheel="../wheels/universal_graph_machine-0.2.0-py3-none-any.whl"
+     data-wheel="../wheels/universal_graph_machine-0.3.0-py3-none-any.whl"
      data-mode="selftest">
 
   <div class="ugm-controls">
@@ -20,7 +20,7 @@ them.
 </div>
 
 !!! note "It takes a moment"
-    A hundred and forty-odd checks, each building a small world and searching
+    A hundred and eighty-odd checks, each building a small world and searching
     it, inside a Python runtime that is itself running in your browser. Give it
     a few seconds.
 
@@ -48,6 +48,20 @@ assertions. A few worth hunting for:
   behave oppositely.
 - **`ignorance_is_representable_and_sensing_closes_it`** — Chapter 19: *not
   there* versus *not looked*, end to end.
+- **`the_agent_can_tell_ITS_OWN_changes_from_the_WORLDS`** — Chapter 24. The two
+  verdicts must **differ**, or "mine" would be a default rather than a finding.
+- **`ONE_OUTER_LOOP_interleaves_everything_and_names_the_irreversible_step`** —
+  Chapter 25. `and_really_alternated` is the key that carries it: a *set* of
+  what ran would have stayed green with the rotation broken.
+- **`the_system_can_JUDGE_ITS_OWN_COMPUTATION_and_act_on_the_judgement`** —
+  Chapter 26, and mostly vacuity guards. The verdict must land while the search
+  is **still open**, and the same search unwatched must **succeed**.
+- **`FORGETTING_IS_THE_DEFAULT_and_no_answer_changes`** — Chapter 27. Note that
+  the node count is *reported* but never asserted; what's asserted is that six
+  questions about the past come back identical.
+- **`a_READER_answers_and_records_NOTHING`** — Chapter 28, and the pair worth
+  reading together: asking changes nothing, **and** the answer follows the world
+  when it moves. Only the second one catches a cache.
 
 ## Why the keys are named like that
 
