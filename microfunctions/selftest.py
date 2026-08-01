@@ -763,8 +763,13 @@ def _car_world():
 
 
 def check_type_is_graph_data_and_validation_discriminates():
+    """⚠ `schema_of` answers with `Req`s now, not bare `(kind, count)` pairs — a count is a RANGE and a
+    target may be constrained by type as well as kind. The two-tuple stays legal to *write*, and this
+    pins that it still means what it always meant: exactly four, of that kind, nothing said about more."""
+    from .types import Req
     g, car, trike = _car_world()
-    return {"schema_is_data": schema_of(g, "car") == {"body": ("body", 1), "wheel": ("wheel", 4)},
+    return {"schema_is_data": schema_of(g, "car") == {"body": Req(kind="body", lo=1, hi=1),
+                                                      "wheel": Req(kind="wheel", lo=4, hi=4)},
             "car_valid": is_a(g, car, "car"),
             "tricycle_refused": not is_a(g, trike, "car"),
             "reason": violations(g, trike, "car"),
@@ -1509,7 +1514,7 @@ def check_a_producer_of_a_subtype_satisfies_the_goal():
 # Kinds that are ABOUT something rather than part of the domain. Anything here must be pointed AT the
 # thing it describes, and never pointed at BY it — see `docs/microfunctions/planning_workbench.md` §2.
 _METADATA_KINDS = frozenset({
-    "type", "requires", "requires_attr",
+    "type", "requires", "requires_attr", "requires_rel",
     "function", "param", "instr", "arg",
     "application", "binding", "episode",
     "attention", "connection",                             # the thread — memory is metadata, never world
@@ -3736,6 +3741,194 @@ def check_the_trace_is_an_observer_not_a_participant():
                 found[0]["plan"] == [("stack", {"b": "b", "onto": "c"}),
                                      ("stack", {"b": "a", "onto": "b"})],
             "an_untraced_search_still_finds_it": quiet is not None}
+
+
+# --- the reference language, and types that use it ---------------------------------------------------
+def _garage_cnl():
+    """A `wheel` and a `car` authored the way a domain would author them: as text."""
+    from . import intake as I
+    g = new_graph()
+    I.read(g, _lines("type wheel:",
+                     "    has 1 rim each of kind rim",
+                     "    pressure between 2.0 and 2.6"))
+    I.read(g, _lines("type car:",
+                     "    has 1 body each of kind body",
+                     "    has 4 wheel each a wheel",
+                     "    has at most 1 trailer",
+                     "    weight between 800 and 2000",
+                     "    wheel[0].pressure == wheel[1].pressure",
+                     "    wheel[0].rim is not wheel[1].rim"))
+    return g
+
+
+def _a_car(g, *, pressures=(2.2,) * 4, weight=1200, rims=True, one_rim=False, trailers=0):
+    c = g.mint("chunk", weight=weight)
+    g.link("root", "has", c)
+    g.link(c, "body", g.mint("body"))
+    shared = g.mint("rim")
+    for p in pressures:
+        w = g.mint("wheel", pressure=p)
+        if rims:
+            g.link(w, "rim", shared if one_rim else g.mint("rim"))
+        g.link(c, "wheel", w)
+    for _ in range(trailers):
+        g.link(c, "trailer", g.mint("trailer"))
+    return c
+
+
+def check_a_type_is_authored_as_text_and_round_trips():
+    """⭐ A type was the last thing on the surface that could only be authored by calling Python, which is
+    exactly the "reach past the surface and write graph structure" `intake.py` says must never happen.
+
+    Vacuity guard: the round trip is compared to the AUTHORED text, not to a re-render of itself, so a
+    renderer that agreed with a broken parser could not pass."""
+    from . import intake as I, types as TY
+    g = _garage_cnl()
+    authored = _lines("type wheel:",
+                      "    has 1 rim each of kind rim",
+                      "    pressure between 2.0 and 2.6")
+    refusals = {}
+    for name, text in (("says_nothing", "type t:\n    because just a word\n"),
+                       ("count_left_out", "type t:\n    has wheel\n"),
+                       ("unknown_form", "type t:\n    has 4 wheel each blue\n"),
+                       ("redeclaration", "type car:\n    has 4 wheel\n")):
+        try:
+            I.read(g, text)
+            refusals[name] = False
+        except I.Unreadable:
+            refusals[name] = True
+    return {"round_trips_to_what_was_written": TY.describe(g, "wheel") == authored,
+            "declared_as_ordinary_graph_data": g.kind(TY.find_type(g, "car")) == "type",
+            **refusals}
+
+
+def check_a_schema_reaches_deeper_than_one_level():
+    """⭐⭐ **The one-level limit is gone.** `README.md` recorded it as an honest limit: a schema checked a
+    label's targets by graph KIND and could say nothing about what those targets were, so "on a block which
+    is on a block" had no schema and a magnitude had to be smuggled in as an attribute.
+
+    Vacuity guard: the flat-tyred car has four targets of the right *kind*, so anything that only counted
+    kinds would call it a car. It is refused because each wheel is checked as a `wheel`."""
+    from . import types as TY
+    g = _garage_cnl()
+    good, flat = _a_car(g), _a_car(g, pressures=(0.4,) * 4)
+    rimless = _a_car(g, rims=False)
+    return {"a_well_formed_car_passes": TY.is_a(g, good, "car"),
+            "KIND_ALONE_WOULD_HAVE_PASSED_IT":
+                len([w for w in g.targets(flat, "wheel") if g.kind(w) == "wheel"]) == 4,
+            "but_the_nested_type_refuses_it": not TY.is_a(g, flat, "car"),
+            "and_a_missing_grandchild_refuses_too": not TY.is_a(g, rimless, "car"),
+            "the_reason_names_the_label": "wheel" in TY.violations(g, flat, "car")}
+
+
+def check_a_recursive_type_terminates_on_cyclic_data():
+    """⚠ Recursion into a target's schema makes a cycle in the DATA reachable — two people who are each
+    other's friend. The coinductive stance (assume it holds while proving it holds) is what terminates
+    without banning recursive declarations, and it is the same stance `subsumes` takes."""
+    from . import intake as I, types as TY
+    g = new_graph()
+    I.read(g, _lines("type person:", "    has some friend each a person"))
+    a, b, lonely = g.mint("p"), g.mint("p"), g.mint("p")
+    for n in (a, b, lonely):
+        g.link("root", "has", n)
+    g.link(a, "friend", b)
+    g.link(b, "friend", a)
+    return {"mutual_friends_terminate_and_pass": TY.is_a(g, a, "person"),
+            "someone_with_no_friends_is_refused": not TY.is_a(g, lonely, "person")}
+
+
+def check_a_type_relates_two_of_its_children():
+    """⭐⭐ The demand a per-label requirement structurally cannot express: not *what a label holds* but
+    *two places reached from the same subject agreeing*. Both sides are `path.py` references.
+
+    ⚠ `==` compares VALUES and `is` compares IDENTITIES — the position deciding how the last segment of
+    each path is read. Both are checked here, because a single one would not discriminate the two."""
+    from . import types as TY
+    g = _garage_cnl()
+    good = _a_car(g)
+    uneven = _a_car(g, pressures=(2.2, 2.4, 2.2, 2.2))
+    shared = _a_car(g, one_rim=True)
+    return {"agreeing_children_pass": TY.is_a(g, good, "car"),
+            "DISAGREEING_VALUES_REFUSED": not TY.is_a(g, uneven, "car"),
+            "SHARED_IDENTITY_REFUSED": not TY.is_a(g, shared, "car"),
+            "and_the_reason_quotes_the_reference":
+                any("wheel[0].pressure" in k for k in TY.violations(g, uneven, "car")),
+            "the_two_failures_are_different_constraints":
+                set(TY.violations(g, uneven, "car")) != set(TY.violations(g, shared, "car"))}
+
+
+def check_a_count_is_a_range_and_a_value_may_be_bounded():
+    """A count used to be one exact number and an attribute one exact value, so "between 800 and 2000" and
+    "at most one trailer" had nowhere to live. Vacuity guard: the zero-trailer and one-trailer cars must
+    BOTH pass, or `at most 1` would be indistinguishable from `exactly 1`."""
+    from . import types as TY
+    g = _garage_cnl()
+    return {"no_trailer_passes": TY.is_a(g, _a_car(g, trailers=0), "car"),
+            "one_trailer_passes_too": TY.is_a(g, _a_car(g, trailers=1), "car"),
+            "two_trailers_refused": not TY.is_a(g, _a_car(g, trailers=2), "car"),
+            "weight_in_range_passes": TY.is_a(g, _a_car(g, weight=1999), "car"),
+            "weight_out_of_range_refused": not TY.is_a(g, _a_car(g, weight=2001), "car")}
+
+
+def check_subsumption_compares_tightness_not_equality():
+    """⚠ Once a demand is a RANGE, "the subtype demands everything the supertype does" stops being dict
+    equality. A type narrowing its base's range must still be a subtype, or every widened type would stop
+    subsuming its own base and `function.producers` would quietly lose candidates.
+
+    ⚠ Undecidable cases answer **False** on purpose — a lost candidate is recoverable, an unsound one is
+    not. `!=` is the witness: it implies nothing this is willing to claim."""
+    from .types import declare_type, subsumes, AttrReq, Req
+    g = new_graph()
+    declare_type(g, "loaded", attrs={"weight": AttrReq("between", 800, 2000)})
+    declare_type(g, "midweight", attrs={"weight": AttrReq("between", 900, 1000)})
+    declare_type(g, "exact", attrs={"weight": AttrReq("==", 950)})
+    declare_type(g, "heavy", attrs={"weight": AttrReq("between", 1500, 3000)})
+    declare_type(g, "unequal", attrs={"weight": AttrReq("!=", 0)})
+    declare_type(g, "wheeled", {"wheel": Req(lo=1)})
+    declare_type(g, "quad", {"wheel": Req(lo=4, hi=4)})
+    return {"a_narrower_range_is_a_subtype": subsumes(g, "loaded", "midweight"),
+            "an_exact_value_inside_it_too": subsumes(g, "loaded", "exact"),
+            "a_wider_range_is_NOT": not subsumes(g, "midweight", "loaded"),
+            "an_overlapping_range_is_NOT": not subsumes(g, "loaded", "heavy"),
+            "a_tighter_count_is_a_subtype": subsumes(g, "wheeled", "quad"),
+            "and_the_undecidable_case_says_no": not subsumes(g, "unequal", "exact")}
+
+
+def check_a_reference_is_one_language_and_the_surface_refuses_what_it_cannot_honour():
+    """⭐ The path grammar existed three times, undeclared — `driver.role_node`'s private regex,
+    `intake`'s hand-split on the first dot, and the dotted roles `establishes` emitted. One module now.
+
+    ⚠ **The composition finding, and it was a live silent defect.** `a.wheel[1].pressure = 3` in a goal
+    split on the first dot and produced a constraint about an attribute literally named
+    `wheel[1].pressure` — unmeetable, and `describe_constraint` rendered it back looking correct. It is
+    refused now, because `conflict.py` keys a slot by `(subject, key)` and `query.settle` writes with
+    `g.put(subject, …)`; both would be silently wrong for a navigated subject. Depth is available where
+    only checking happens, and refused where it is not yet honoured."""
+    from . import intake as I, driver as D, path as P
+    g = new_graph()
+    a = g.mint("chunk", label="a", clear=False)
+    g.link("root", "has", a)
+    w = g.mint("wheel", pressure=2.2)
+    g.link(a, "wheel", w)
+
+    def refused(text):
+        try:
+            I.read(g, text)
+            return False
+        except I.Unreadable:
+            return True
+
+    p = P.parse("wheel[0].rim.serial")
+    return {"one_grammar_parses_and_renders": P.render(p) == "wheel[0].rim.serial" and len(p.hops) == 3,
+            "a_bare_word_on_the_right_is_a_value": not P.is_reference("red"),
+            "and_a_hop_makes_it_a_reference": P.is_reference("body.colour"),
+            "the_driver_resolves_through_the_same_module":
+                D.role_node(g, {"c": a}, "c.wheel[0]") == w and D.role_node(g, {"c": a}, "c.nope") is None,
+            "shallow_goal_reference_still_reads": not refused("goal x:\n    a.clear = true\n"),
+            "DEEP_GOAL_REFERENCE_IS_REFUSED_NOT_MISREAD":
+                refused("goal x:\n    a.wheel[0].pressure = 3\n"),
+            "but_a_type_takes_any_depth":
+                not refused("type deep:\n    wheel[0].rim.serial == wheel[1].rim.serial\n")}
 
 
 # ⚠ THE ENTRY POINT MUST BE THE LAST THING IN THIS FILE. `_checks()` reads `globals()` at call time,

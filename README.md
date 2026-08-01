@@ -248,8 +248,13 @@ rollback reaches it — so a rollback boundary must never span a dispatch).
   across a committed subgoal. Adequate for a handful of steps; not a general-purpose planner.
 - **Copy cost:** a full copy per frame. Copy-on-write implements *exactly* these semantics
   more cheaply and is the known lever — deliberately not taken; measure first.
-- **Type schemas are one level deep** and constrain one argument at one call site, so
-  `stack(b, onto)` cannot declare `b ≠ onto`. The planner enforces that itself.
+- **Type schemas constrain one argument at one call site**, so `stack(b, onto)` cannot declare
+  `b ≠ onto`. The planner enforces that itself. (They are no longer one level deep — `Req(type=…)`
+  recurses and `Rel` relates two places inside a subgraph, both authored as `type …:` blocks.)
+- **References reach any depth in a `type` block, one hop in a `goal` or `method` one.** Not an
+  omission: `conflict.py` keys a slot by `(subject, key)` and `query.settle` writes with
+  `g.put(subject, …)`, so a navigated subject would be silently mishandled by both. Refused loudly
+  at intake until they understand one.
 - **`compile_episode`** generalises single-argument operations on one subject. Multi-argument
   replay is a real question about *analogy*, not a missing mechanism.
 - **Search is tie-break nondeterministic:** the plan is invariant, the number of imagined

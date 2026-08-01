@@ -222,10 +222,12 @@ and `driver.py` answer different questions and both are right; do not try to mak
 
 **Two limits of the type system the scenario surfaced** — recorded, not worked around:
 
-- schemas are **one level deep** (`schema_of` never recurses), so "on a block which is on a block" has no
-  declared form; blocks carry `height` as an attribute instead;
+- ~~schemas are **one level deep** (`schema_of` never recurses), so "on a block which is on a block" has no
+  declared form; blocks carry `height` as an attribute instead;~~ **RETIRED 2026-08-01 — see §5v.**
+  `Req(type=…)` recurses to any depth and `Rel` relates two places inside one subgraph.
 - a schema constrains **one argument at one call site**, so `stack(b, onto)` cannot declare `b ≠ onto`.
-  `driver.proposals` enforces it.
+  `driver.proposals` enforces it. **Still true** — a type is about one subgraph, and two parameters are
+  two subgraphs with no node above them to hang the demand on.
 
 **`selection.py`'s boundary held.** It excludes multi-parameter functions because "inventing bindings is a
 different problem (search) that should not hide inside candidate generation". That search went into the
@@ -561,10 +563,13 @@ quietly does nothing when a precondition fails is unexplainable after a failed s
 `unsupported_confirmation_step` is diagnosable. Silence costs nothing at planning time and everything
 afterwards.
 
-**Left alone, deliberately.** `types.schema_of` being flat is not a defect: a schema constrains each label
-independently and so can never say "the `body` and the `element` are related this way", which is why their
-patterns are read off function bodies via `establishes`. `types.recognize` classifies structure, theirs
-carries joins, and the two are complementary rather than one subsuming the other. And **quantifiers**: an
+**Left alone, deliberately.** ⚠ **Reversed 2026-08-01 — see §5v.** `types.schema_of` being flat was argued
+here to be not a defect: a schema constrains each label independently and so can never say "the `body` and
+the `element` are related this way", which is why their patterns are read off function bodies via
+`establishes`. That argument was right about the *limit* and wrong about it being the right one to keep —
+`Rel` says exactly that, in the same graph data, checked by the same code that checks a count.
+`types.recognize` classifies structure, theirs carries joins, and the two are still complementary rather
+than one subsuming the other. And **quantifiers**: an
 open question ("who is admitted") becomes one search per candidate here, which they measured at 2 searches
 and 22 imagined states against one saturation, called affordable, and explicitly did not ask for. Noted as
 a shape consumers will keep bringing rather than as a thing to build.
@@ -1027,6 +1032,54 @@ in every box.
 want of a goal hierarchy (that exists) but because a method applies **per goal** via `driver.attempt`, never
 per search step. Frequency, not absence.
 
+## 5v. ⭐⭐ One reference language, and types that use it (2026-08-01)
+
+**148 checks, 0 FAILED.** New module `path.py`; `types.py` widened; `type` is the eighth CNL verb.
+
+**⭐⭐ The reference language already existed, three times, and that is why schemas were flat.**
+`driver.role_node` had a private regex resolving `c.right` and `c.child[2]`; `intake._constrain` split
+`b.clear` by hand on the first dot; `establishes` emitted dotted roles and nothing said what one *was*.
+Three copies of an unwritten grammar is the shape a missing module makes, and the cost was not duplication
+— it was that **no other part of the surface could refer to anything more than one hop away**. The
+one-level schema limit was downstream of a missing module, not a decision about types.
+
+`path.py` is that grammar, once: `seg ('.' seg)*`, `seg := ['^'] label ('[' int ']')?`. Nothing counts
+hops, so depth was never the hard part.
+
+**⭐⭐ The last segment is an attribute or a node according to what the POSITION demands** — `==` compares
+values, `is` compares identities, so `value_at` reads the last segment as an attribute and `node_at` walks
+it as an edge. ⚠ The tempting alternative — *follow the edge if there is one, else read the attribute* —
+would make a written path mean whatever the world happens to contain when it is read, so adding an edge
+could silently change what an old declaration said. That is this codebase's standing drift class
+(`types.tag`, the kind index). **Nothing in `path.py` consults the graph to decide what a path MEANS**,
+only to find what it denotes.
+
+**Types gained three things, all ordinary graph data:** `Req(type=…)` recurses into the target's own
+schema (⚠ coinductively, so `person.friend: person` terminates on two mutual friends); counts became
+ranges; `AttrReq` carries a comparison. And **`Rel` relates two places inside one subgraph** —
+`wheel[0].pressure == wheel[1].pressure` — which is the demand a per-label requirement structurally cannot
+express, and which §5k's "left alone, deliberately" argued was correctly out of scope. That argument was
+right about the limit and wrong about keeping it.
+
+**⚠ `subsumes` stopped being dict equality and had to.** Once a demand is a range, a subtype narrowing its
+base's range must still subsume, or every widened type would stop subsuming itself and `function.producers`
+would quietly lose candidates. Undecidable cases (`!=`, unordered values) answer **False** on purpose: a
+lost candidate is recoverable, an unsound one is not.
+
+**⭐⭐ The composition review found a live silent defect, which is the argument for doing it.**
+`a.wheel[1].pressure = 3` in a goal split on the first dot and built a constraint about an attribute
+literally named `wheel[1].pressure` — unmeetable, and `describe_constraint` rendered it back looking
+correct, so the round trip *lied*. It is refused now. ⚠ **And refused rather than supported, for a reason
+worth keeping:** `conflict.py` keys a contended slot by `(subject, key)` and would read two wheels'
+pressures as one slot; `query.settle` writes with `g.put(subject, …)` and would land the answer on the base
+rather than on the node the reference reaches. A type schema has neither problem **because it only ever
+checks**. Depth is available where it is correct, refused loudly where the machinery behind it has not
+caught up, and the boundary is a table in `intake.py`'s docstring rather than folklore.
+
+**Next, if this is picked up:** teach `conflict.py` and `query.settle` a navigated subject, then the goal
+and method rows of that table open up. `driver.relevance` would also rank a navigated goal constraint at
+band 4 instead of 3, since `establishes` already speaks in the same paths — that is the interesting half.
+
 ## 5. What to do next
 
 **2. ✅ DONE — see §5j and §5k.** Conflict detection landed (`unsatisfiable`, `interference`, and
@@ -1065,6 +1118,12 @@ planning became the control flow. Learned preference over subsequences needs the
   stand-in for the first; nothing addresses the second.
 - **The undo journal is transactional only.** A rollback boundary must never span a dispatch. Do not design
   around it; if nothing outside `selftest.py` uses it, delete it.
+- **A reference reaches any depth in a `type` block, one hop in a `goal` or `method` one** — see §5v for
+  why that is a refusal rather than an omission, and what has to change to lift it.
+- **A type constrains ONE subgraph**, so `stack(b, onto)` still cannot declare `b ≠ onto`: two parameters
+  are two subgraphs with no node above them to hang the demand on. `driver.proposals` enforces it.
+- **A quoted literal cannot contain a space** anywhere in the CNL — every block splits its lines on
+  whitespace. Pre-existing, now shared by one more surface.
 
 ## 7. Process notes that earned their place
 

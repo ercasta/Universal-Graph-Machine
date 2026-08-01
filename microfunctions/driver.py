@@ -36,13 +36,13 @@ adequate for a handful of blocks and should not be mistaken for a planner.
 """
 from __future__ import annotations
 
-import re
 from itertools import product
 
 from . import execution as X
 from . import function as fn
 from . import goal as G
 from . import isa
+from . import path as P
 from . import thread as T
 from . import workbench as W
 from .graph import Graph
@@ -282,9 +282,6 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
     return frozenset(effects), frozenset(unknown)
 
 
-_HOP = re.compile(r"([^\[\]]+)(?:\[(-?\d+)\])?$")
-
-
 def role_node(g: Graph, bound: dict, role: str | None):
     """The node a role from `establishes` names, given `{param: node}` — `None` if it names none.
 
@@ -294,18 +291,20 @@ def role_node(g: Graph, bound: dict, role: str | None):
     dynamic resolution is what restores the exact-match band for a navigating operator.
 
     A `$` role names something minted inside the callee, which no binding can identify, so it resolves to
-    `None` — the same answer it gave when it could not be resolved at all."""
+    `None` — the same answer it gave when it could not be resolved at all.
+
+    ⚠ The path grammar itself now lives in `path.py` and is shared with the type and goal surfaces. It used
+    to be a private regex here, which is why nothing else on the surface could refer past one hop. What is
+    left here is the only part that is genuinely this module's: **the base names a PARAMETER**, not
+    something in the graph, so only a caller holding bindings can start the walk."""
     if role is None or role.startswith("$"):
         return None
-    base, *hops = role.split(".")
+    try:
+        base, rest = P.split_base(role)
+    except P.BadPath:
+        return None
     node = bound.get(base)
-    for hop in hops:
-        if node is None:
-            return None
-        m = _HOP.match(hop)
-        node = g.target(node, m.group(1)) if m.group(2) is None \
-            else g.at(node, m.group(1), int(m.group(2)))
-    return node
+    return node if rest is None else P.node_at(g, node, rest)
 
 
 def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:

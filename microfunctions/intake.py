@@ -43,6 +43,44 @@ goal stack them:
     at most 3 steps             a budget
 ```
 
+```
+type car:
+    is a vehicle                    inherit another type's demands
+    has 4 wheel each a wheel        a count, a label, and what each target must BE (recursive)
+    has 1 body each of kind body    ...or merely what it was minted as (one level, cheap)
+    has at most 1 trailer           a count is a RANGE
+    weight between 800 and 2000     an attribute, bounded
+    colour = "red"                  an attribute, exact
+    wheel[0].pressure == wheel[1].pressure     two places inside the subgraph agreeing
+    wheel[0].rim is not wheel[1].rim           ...and not being the same node
+```
+
+## ⭐⭐ ONE reference language, and where each block may use it
+
+Everything that refers to something not directly at hand goes through `path.py`: `car.wheel[1].pressure`,
+unbounded depth, `^label` for the backward direction. It is one grammar because it used to be three — a
+private regex in `driver.role_node`, a hand-split on the first dot here, and the dotted roles
+`establishes` emits, none of which knew about the others.
+
+**What differs per block is only what the FIRST segment names**, which is why one language can serve
+surfaces with nothing else in common:
+
+| block | the base is | depth available |
+|---|---|---|
+| `type` | the node being checked | **any** — a type only ever *checks*, so nothing downstream can be misled |
+| `goal` / `ask` / `why` | a **named individual**, resolved by `resolve` | one hop, to an attribute |
+| `method` / `procedure` | a **role** (`subject`, `object`), never a name | one hop, to an attribute |
+| `prefer` / `avoid` | a named individual (whole, no hops) | none |
+| `establishes` (not authored) | a **parameter** of the function | any |
+
+⚠ **The goal and method rows are a REFUSAL, not an omission, and they were a silent bug first.**
+`a.wheel[1].pressure = 3` used to split on the first dot and build a constraint about an attribute
+literally called `wheel[1].pressure` — a slot nothing has, and `describe_constraint` rendered it back
+looking right. What blocks the honest version is downstream of intake: `conflict.py` identifies a slot as
+`(subject, key)` and would read two different wheels' pressures as one contended slot, and `query.settle`
+writes an answer with `g.put(subject, …)`, which would land on the base rather than on the node the
+reference reaches. Until both understand a navigated subject, `_one_hop` refuses and says so.
+
 ## ⭐⭐ Three verbs, ONE grammar — because a question IS a goal
 
 `goal`, `ask` and `why` take **exactly the same body**. That is not an economy in the parser; it is the
@@ -77,6 +115,8 @@ from . import goal as G
 from .graph import Graph
 from . import guideline as GL
 from . import method as M
+from . import path as P
+from . import types as TY
 from .workbench import reachable
 
 
@@ -95,6 +135,8 @@ def _literal(tok: str):
         return None
     if re.fullmatch(r"-?\d+", tok):
         return int(tok)
+    if re.fullmatch(r"-?\d+\.\d+", tok):
+        return float(tok)                # a range like `pressure between 2.1 and 2.5` needs these
     return tok
 
 
@@ -111,6 +153,31 @@ def resolve(g: Graph, name: str, *, under: str = "root") -> str:
         raise Unreadable(f"{name!r} is ambiguous — {len(hits)} things are called that; "
                          f"a name is not an identity")
     return hits[0]
+
+
+def _one_hop(text: str, lineno: int, what: str) -> tuple:
+    """`"b.clear"` → `("b", "clear")`. **Refuses a deeper reference rather than mis-reading one.**
+
+    ⚠ **This was a silent mis-parse, and it is the reason a shared reference language had to come with a
+    composition review rather than after one.** `a.wheel[1].pressure = 3` split on the first dot and left a
+    constraint whose *attribute* was literally named `wheel[1].pressure` — a slot nothing has, so the goal
+    could never be met, and `describe_constraint` rendered it back looking exactly right. A round trip that
+    a model checks itself against must not be able to lie.
+
+    ⚠ **Why refused rather than supported here, when a `type` block takes any depth.** A goal constraint is
+    not only *read*: `conflict.py` identifies a slot as `(subject, key)` and would conflate
+    `a.wheel[0].pressure` with `a.wheel[1].pressure` into a conflict that is not one, and `query.settle`
+    writes an answer with `g.put(subject, …)` and would write it to the base node rather than the one the
+    reference reaches. Both are silent wrongness. A type schema has neither problem because it only ever
+    *checks*. So the depth is available where it is correct, and refused — loudly, with this reason —
+    where the machinery behind it has not caught up. That boundary is recorded rather than papered over."""
+    base, rest = P.split_base(text)
+    if rest is None or len(rest.hops) != 1 or rest.hops[0].index is not None or rest.hops[0].back:
+        raise Unreadable(
+            f"line {lineno}: {text!r} reaches deeper than a {what} can go. One hop from a named "
+            f"individual to one of its attributes is what this form supports (`b.clear`); a `type` block "
+            f"takes references of any depth")
+    return base, rest.hops[0].label
 
 
 def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: str) -> None:
@@ -132,10 +199,10 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
     elif len(words) == 2 and words[1] == "known" and "." in words[0]:
         # ⭐ A KNOWLEDGE claim: *go and look*, as opposed to *make it so*. The surface distinguishes them
         # because the system now can — see `graph.UNKNOWN`.
-        subject, key = words[0].split(".", 1)
+        subject, key = _one_hop(words[0], lineno, "goal constraint")
         G.require_known(g, goal, node(subject), key)
     elif len(words) == 3 and words[1] == "=" and "." in words[0]:
-        subject, key = words[0].split(".", 1)
+        subject, key = _one_hop(words[0], lineno, "goal constraint")
         G.require_attr(g, goal, node(subject), key, _literal(words[2]))
     elif len(words) == 3:
         G.require_link(g, goal, node(words[0]), words[1], node(words[2]))
@@ -148,7 +215,8 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
 GOAL_VERBS = ("goal", "ask", "why")
 ADVICE_VERBS = ("prefer", "avoid")
 METHOD_VERBS = ("method", "procedure")
-VERBS = GOAL_VERBS + ADVICE_VERBS + METHOD_VERBS
+TYPE_VERBS = ("type",)
+VERBS = GOAL_VERBS + ADVICE_VERBS + METHOD_VERBS + TYPE_VERBS
 
 ROLES = (M.SUBJECT, M.OBJECT)
 
@@ -180,7 +248,7 @@ def _step(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
         return w
 
     if len(words) == 3 and words[1] == "=" and "." in words[0]:
-        who, key = words[0].split(".", 1)
+        who, key = _one_hop(words[0], lineno, "method step")
         M.step(g, m, sort="attr", key=key, value=_literal(words[2]), subject=role(who), note=line)
     elif len(words) == 4 and words[1:3] == ["is", "a"]:
         M.step(g, m, sort="type", label=words[3], subject=role(words[0]), note=line)
@@ -214,6 +282,103 @@ def _method_line(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
                          f"(handles S l | when T | within m | because … | step …)")
 
 
+_COUNTS = {"some": (1, None), "no": (0, 0), "a": (1, 1), "an": (1, 1), "one": (1, 1),
+           "any": (0, None)}
+
+
+def _count(words: list, lineno: int, line: str) -> tuple:
+    """A count spec and the label it counts, from the words between `has` and the end of the phrase.
+
+    ⚠ **A bare `has wheel` is REFUSED**, and the temptation to read it as "at least one" is exactly what a
+    controlled language exists to resist: the author who wrote it may have meant one, or four, or any. The
+    surface has a word for each of those, so it costs nothing to say which."""
+    if len(words) >= 2:
+        head, label = words[:-1], words[-1]
+        if len(head) == 1 and head[0] in _COUNTS:
+            return _COUNTS[head[0]] + (label,)
+        if len(head) == 1 and re.fullmatch(r"\d+", head[0]):
+            return int(head[0]), int(head[0]), label
+        if len(head) == 3 and head[1] == "to" and all(re.fullmatch(r"\d+", h) for h in (head[0], head[2])):
+            return int(head[0]), int(head[2]), label
+        if len(head) == 3 and head[:2] == ["at", "least"] and re.fullmatch(r"\d+", head[2]):
+            return int(head[2]), None, label
+        if len(head) == 3 and head[:2] == ["at", "most"] and re.fullmatch(r"\d+", head[2]):
+            return 0, int(head[2]), label
+    raise Unreadable(f"line {lineno}: cannot read the count in {line!r} — a count is "
+                     f"(n | n to m | at least n | at most n | some | no | a | any), and it is never "
+                     f"left out")
+
+
+def _type_line(g: Graph, t: str, words: list, line: str, lineno: int) -> None:
+    """One line of a `type` block. Ordered most-specific first, so a keyword form is never shadowed.
+
+    ⭐ **Both sides of a comparison are `path.py` references, so a demand may reach as deep as it likes.**
+    That is the whole of what lifted the one-level limit at the surface: nothing here counts hops, and
+    nothing here has its own idea of what a reference is."""
+    if words and words[0] == "-":
+        words = words[1:]                            # a bullet is punctuation, not vocabulary
+    if not words:
+        return
+    is_ref = lambda w: P.is_reference(w)          # noqa: E731
+
+    if words[:2] == ["is", "a"] and len(words) == 3:
+        g.put(t, base=words[2])
+    elif words[0] == "because" and len(words) > 1:
+        g.put(t, because=" ".join(words[1:]))
+    elif words[0] == "has":
+        rest = words[1:]
+        kind = type_ = None
+        if "each" in rest:
+            head, tail = rest[:rest.index("each")], rest[rest.index("each"):]
+            if len(tail) == 3 and tail[1] in ("a", "an"):
+                type_ = tail[2]
+            elif len(tail) == 4 and tail[1:3] == ["of", "kind"]:
+                kind = tail[3]
+            else:
+                raise Unreadable(f"line {lineno}: cannot read {' '.join(tail)!r} — what each target must "
+                                 f"be is (each a TYPE | each of kind KIND)")
+            rest = head
+        lo, hi, label = _count(rest, lineno, line)
+        TY.require_edge(g, t, label, TY.Req(kind=kind, type=type_, lo=lo, hi=hi))
+    elif len(words) == 5 and words[1] == "between" and words[3] == "and":
+        _demand(g, t, words[0], "between", words[2], lineno, line, hi=words[4])
+    elif len(words) == 4 and words[1:3] == ["is", "not"]:
+        TY.require_relation(g, t, TY.Rel(words[0], "is not", words[3], True))
+    elif len(words) == 3 and words[1] == "is":
+        TY.require_relation(g, t, TY.Rel(words[0], "is", words[2], True))
+    elif len(words) == 3 and words[1] in ("=",) + TY.VALUE_OPS:
+        _demand(g, t, words[0], "==" if words[1] == "=" else words[1], words[2], lineno, line)
+    else:
+        raise Unreadable(
+            f"line {lineno}: cannot read {line!r} — the type vocabulary is closed "
+            f"(is a T | has <count> label [each a T | each of kind K] | key = v | key <op> v | "
+            f"key between lo and hi | path <op> path | path is [not] path | because …)")
+
+
+def _demand(g: Graph, t: str, left: str, op: str, right: str, lineno: int, line: str, hi=None) -> None:
+    """⭐⭐ **The one place the surface decides ATTRIBUTE-OF-THIS-NODE versus RELATION-BETWEEN-TWO-PLACES**,
+    and it decides it by reading the operands rather than by asking the graph.
+
+    `weight between 800 and 2000` constrains *this* node's weight; `wheel[0].pressure == wheel[1].pressure`
+    relates two places within the subgraph. A bare word on the left is a one-hop path — this node's own
+    attribute — and a bare word on the right is a **literal**, so `colour = red` compares against the
+    string. An author who means a reference on the right writes a hop (`colour = body.colour`). That rule
+    lives in `path.is_reference`, once, so every block reads it identically."""
+    try:
+        P.parse(left)
+    except P.BadPath as e:
+        raise Unreadable(f"line {lineno}: {e} (in {line!r})") from None
+    if not P.is_reference(left) and not P.is_reference(right):
+        TY.require_value(g, t, left, TY.AttrReq(op, _literal(right),
+                                                None if hi is None else _literal(hi)))
+        return
+    if op == "between":
+        raise Unreadable(f"line {lineno}: `between` constrains one attribute of this node, so its left "
+                         f"side is a bare key — {left!r} is a reference")
+    ref = P.is_reference(right)
+    TY.require_relation(g, t, TY.Rel(left, op, right if ref else _literal(right), ref))
+
+
 def read(g: Graph, text: str, *, under: str = "root") -> tuple:
     """Parse one `<verb> <label>:` block. Returns `(verb, node)`. Raises `Unreadable`.
 
@@ -228,6 +393,7 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
     | `goal` / `ask` / `why` | a **goal** — same body, different thing done with it |
     | `prefer` / `avoid` | a **guideline** — reorders, can never exclude |
     | `method` / `procedure` | a **method** — a decomposition, advisory or mandatory |
+    | `type` | a **type** — a schema over a subgraph, of any depth |
 
     ⚠ **`method` and `procedure` differ ONLY in force, and that is the point.** The bodies are identical;
     what changes is what happens when a step does not work out — fall back to searching, or refuse to
@@ -271,6 +437,14 @@ def _open(g: Graph, verb: str, label: str) -> str:
         return goal
     if verb in ADVICE_VERBS:
         return g.mint("guideline", stance=GL.PREFER if verb == "prefer" else GL.AVOID, label=label)
+    if verb in TYPE_VERBS:
+        # ⚠ Refuses a REDECLARATION rather than minting a second type of the same name. Two would both
+        # be found by `type_names` and `find_type` would answer with whichever came first — the same
+        # "a name is not an identity" failure `resolve` refuses for individuals, one level up.
+        if TY.find_type(g, label) is not None:
+            raise Unreadable(f"{label!r} is already declared; a second declaration would not replace it, "
+                             f"it would sit beside it")
+        return TY.declare_type(g, label)
     return g.mint("method", name=label, handles="link", force=(G.MANDATORY if verb == "procedure"
                                                                else G.ADVISORY))
 
@@ -280,6 +454,8 @@ def _body(g: Graph, verb: str, node: str, words: list, line: str, lineno: int, u
         _constrain(g, node, words, line, lineno, under)
     elif verb in ADVICE_VERBS:
         _advise(g, node, words, line, lineno, under)
+    elif verb in TYPE_VERBS:
+        _type_line(g, node, words, line, lineno)
     else:
         _method_line(g, node, words, line, lineno)
 
@@ -296,6 +472,14 @@ def _seal(g: Graph, verb: str, node: str, label: str) -> None:
         if g.attr(node, "function") is None and g.target(node, "on") is None:
             raise Unreadable(f"`{verb} {label}` names neither an action nor a thing — advice that "
                              f"matches everything is not advice")
+    elif verb in TYPE_VERBS:
+        # ⚠ A type that demands nothing is satisfied by everything, so it is not recognition — the same
+        # stance `types.type_names` and `subsumes` already take, enforced at the surface that authors one.
+        # A bare `is a <base>` is enough: it demands whatever the base demands.
+        if not (g.attr(node, "base") or TY.schema_of(g, label) or TY.attrs_of(g, label)
+                or TY.rels_of(g, label)):
+            raise Unreadable(f"`type {label}` demands nothing, so everything is one; "
+                             f"that is not a type, it is a word")
     elif not M.steps_of(g, node):
         raise Unreadable(f"`{verb} {label}` has no steps; it would decompose into nothing")
 
@@ -320,6 +504,8 @@ def respond(g: Graph, text: str, thread: str, subject: str = "root", *,
     to answer from later. Pass `keep=False` for a question that should leave no trace."""
     from . import query as Q
     verb, goal = read(g, text, under=under)
+    if verb in TYPE_VERBS:
+        return TY.describe(g, g.attr(goal, "name"))     # declaring is the whole of what a type block does
     if verb == "goal":
         return G.describe(g, goal)                 # pursuing is the caller's to schedule, not intake's
     if verb == "why":
@@ -343,5 +529,5 @@ def describe(g: Graph, goal: str) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["Unreadable", "VERBS", "GOAL_VERBS", "ADVICE_VERBS", "METHOD_VERBS", "ROLES",
+__all__ = ["Unreadable", "VERBS", "GOAL_VERBS", "ADVICE_VERBS", "METHOD_VERBS", "TYPE_VERBS", "ROLES",
            "resolve", "read", "read_goal", "respond", "describe"]
