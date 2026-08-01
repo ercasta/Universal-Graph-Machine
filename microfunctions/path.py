@@ -97,14 +97,92 @@ def parse(text: str) -> Path:
         if m is None:
             if any(ch in seg for ch in _REPETITION):
                 raise BadPath(
-                    f"cannot read {seg!r} in {text!r} — this grammar has no repetition operator, so "
-                    f"there is no way to say 'at any depth'. A path is a FIXED sequence of hops. "
-                    f"Transitive reach (containment, ancestry, dependency) is a real gap, recorded in "
-                    f"HANDOFF.md; it is refused here rather than parsed into a label nothing will match")
+                    f"cannot read {seg!r} in {text!r} — a path is a FIXED sequence of hops and has "
+                    f"no repetition operator. Transitive reach EXISTS, but only as a PREDICATE: write "
+                    f"`{seg.rstrip(''.join(_REPETITION))}+` in a link position (a goal or a query), where "
+                    f"it asks *is this reachable at any depth*. It cannot appear in a reference, because "
+                    f"a reference must denote ONE node and reach denotes a set — see `path.reaches`")
             raise BadPath(f"cannot read {seg!r} in {text!r} — a segment is "
                           f"[^]label or [^]label[index], with a label of letters, digits, _ and -")
         hops.append(Hop(m.group(2), None if m.group(3) is None else int(m.group(3)), bool(m.group(1))))
     return Path(tuple(hops), text)
+
+
+# --- transitive reach: the one genuine closed-class gap this project measured -------------------------
+#
+# ⭐⭐ **`closed_class_rechallenged.md` probed five relational forms and found four pure sugar — causation,
+# quantification's open case, force/level, identity/merge — with TRANSITIVITY the one that needed a real
+# engine extension.** HANDOFF §5x arrived at the same single item from a completely different direction, by
+# asking what the word *where* needs: a parcel inside a box inside a warehouse is not reachable by a
+# fixed-depth type, a goal's link constraint reads false because it is not a *direct* target, and this
+# grammar has no repetition operator. Two independent routes to one item is the strongest evidence
+# available here that it is a genuine closed-class member rather than a convenience.
+#
+# ⚠⚠ **PREDICATE POSITION ONLY, and that restriction is the whole design.** *Is X reachable from Y?* stays
+# boolean and single-valued, so it breaks no contract here. A *reference* — `a.contains+.label` — would
+# denote a **set**, which breaks `node_at`'s promise to return one node or `None` and every caller that
+# assumes it. `parse` therefore still refuses `+` in a path, and points at this instead.
+
+CLOSURE = "+"
+
+
+def parse_link(text: str) -> tuple:
+    """A relation in a **link position**: `"contains"` → `("contains", False)`, `"contains+"` → transitive.
+
+    ⚠ Deliberately not part of `parse`. A path is a reference and this is a predicate; letting one grammar
+    produce both is how `node_at` would end up sometimes returning a set."""
+    if text.endswith(CLOSURE):
+        label = text[:-1]
+        if not label:
+            raise BadPath(f"{text!r} is a repetition of nothing — write a label before the {CLOSURE!r}")
+        if _SEG.fullmatch(label) is None or "." in label:
+            raise BadPath(f"cannot read {label!r} in {text!r} — transitive reach applies to ONE named "
+                          f"edge, not to a path. Write `contains+`, never `a.contains+`")
+        return label, True
+    if _SEG.fullmatch(text) is None:
+        raise BadPath(f"cannot read {text!r} as a relation — a label of letters, digits, _ and -, "
+                      f"optionally followed by {CLOSURE!r} for reach at any depth")
+    return text, False
+
+
+def reaches(g: Graph, start, label: str, dst, *, back: bool = False) -> bool:
+    """Is `dst` reachable from `start` by **one or more** `label` hops?
+
+    ⚠ **One or more, never zero** — a node does not contain itself. Reflexivity would make every containment
+    goal trivially true of its own subject, which is the kind of vacuity this codebase keeps catching.
+
+    ⚠ Cycle-safe, and it has to be: containment is *supposed* to be acyclic and a graph does not enforce
+    that, so a mis-authored world would hang the planner. The discipline is `types._target_ok`'s — carry
+    what has already been visited — and it is why this returns rather than recurses."""
+    if start is None or dst is None:
+        return False
+    seen, frontier = {start: None}, [start]
+    while frontier:
+        here = frontier.pop(0)                       # breadth-first: nearest first, and deterministic
+        for nxt in (g.sources(here, label) if back else g.targets(here, label)):
+            if nxt == dst:
+                return True
+            if nxt not in seen:
+                seen[nxt] = None
+                frontier.append(nxt)
+    return False
+
+
+def via(g: Graph, start, label: str, *, back: bool = False) -> tuple:
+    """Everything reachable from `start` by one or more `label` hops, **nearest first**.
+
+    ⚠ Offered for a caller that has somewhere to put a set — `where is it kept?` answered as a list. It is
+    **not** wired into any path, and must not be: a reference that denoted a set would break `node_at`.
+    Ordered breadth-first rather than returned as a `set`, per `search-was-irreproducible-set-tiebreak`."""
+    seen, out, frontier = {start: None}, [], [start]
+    while frontier:
+        here = frontier.pop(0)
+        for nxt in (g.sources(here, label) if back else g.targets(here, label)):
+            if nxt not in seen:
+                seen[nxt] = None
+                out.append(nxt)
+                frontier.append(nxt)
+    return tuple(out)
 
 
 def render(p: Path) -> str:
@@ -172,5 +250,5 @@ def resolve(g: Graph, start, text: str, *, want: str = "node"):
     return node_at(g, start, p) if want == "node" else value_at(g, start, p)
 
 
-__all__ = ["BadPath", "Hop", "Path", "parse", "render", "is_reference",
-           "node_at", "value_at", "split_base", "resolve"]
+__all__ = ["BadPath", "Hop", "Path", "CLOSURE", "parse", "parse_link", "render",
+           "is_reference", "reaches", "via", "node_at", "value_at", "split_base", "resolve"]

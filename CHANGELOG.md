@@ -181,6 +181,24 @@ could not detect do not need one. When in doubt, write the line — it costs one
   reference to but that no root reaches **will be dropped** — pin it with
   `open_forgetting(also=(node,))`, or schedule it on a loop.
 
+- **`forget.compact(g)`** — drops `seen_in` / `planned_witness` from goals that are `closed`, i.e.
+  imagined evidence superseded by real evidence. Runs eagerly inside `open_forgetting`; pass
+  `compacting=False` to skip it. ⚠ A goal that is planned and **not** closed keeps its imagined frame,
+  which is the correctness condition, not an optimisation.
+
+### Added — transitive reach
+
+- **`path.reaches(g, start, label, dst, *, back=False)`** — is `dst` reachable by **one or more** `label`
+  hops? Cycle-safe, breadth-first, never reflexive.
+- **`path.via(g, start, label)`** — everything so reachable, nearest first. ⚠ Not wired into any path: a
+  reference must denote one node, and this denotes a set.
+- **`path.parse_link(text)`** — `"contains+"` → `("contains", True)`. For a **link position** only;
+  `path.parse` still refuses `+` in a reference, and now names the predicate form in the message.
+- **`goal.require_link(..., transitive=True)`** — reach instead of adjacency. Stored as the same `link`
+  sort with a `transitive` attribute, so every other reader of a constraint is unaffected;
+  `describe_constraint` renders it back as `wh contains+ parcel`.
+- **The CNL link form accepts `a b+ c`** in a goal / ask / why / plan body.
+
 ### Refused, deliberately — so nobody reports it as a bug
 
 - **A reference reaches any depth in a `type` block, one hop in a `goal` or `method` one.** Deeper is

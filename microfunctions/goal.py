@@ -196,9 +196,20 @@ def _constrain(g: Graph, goal: str, sort: str, **attrs) -> str:
     return c
 
 
-def require_link(g: Graph, goal: str, subject: str, label: str, obj: str) -> str:
-    """*`subject` must be `label` `obj`* — e.g. `a` on `b`."""
-    c = _constrain(g, goal, "link", label=label)
+def require_link(g: Graph, goal: str, subject: str, label: str, obj: str, *,
+                 transitive: bool = False) -> str:
+    """*`subject` must be `label` `obj`* — e.g. `a` on `b`.
+
+    ⭐⭐ `transitive=True` asks for **reach at any depth** rather than adjacency: *the parcel is in the
+    warehouse* is true when it sits in a box in the warehouse, which a direct-target test calls false.
+    HANDOFF §5x measured this as the one genuine closed-class gap behind the word *where*, and
+    `closed_class_rechallenged.md` reached the same single item from the other direction.
+
+    ⚠ It stays the **link** sort rather than becoming a new one, because that is what it is — the same
+    subject, label and object, asked as reach instead of adjacency. A separate sort would have to be taught
+    to every reader of a constraint (`query.refutes`, `conflict`, `driver.relevance`, `describe`) for no
+    difference any of them care about except the one line in `holds`."""
+    c = _constrain(g, goal, "link", label=label, transitive=bool(transitive) or None)
     g.link(c, "subject", subject)
     g.link(c, "object", obj)
     return c
@@ -321,7 +332,14 @@ def holds(g: Graph, c: str, *, view=None, under: str | None = None) -> bool:
         return False                       # not present in this world at all
     if sort == "link":
         there = view(g.target(c, "object"))
-        return there is not None and there in g.targets(here, g.attr(c, "label"))
+        if there is None:
+            return False
+        if g.attr(c, "transitive"):
+            # ⭐ Reach, not adjacency — and it is the same question one hop further out, so it lives here
+            # rather than in a sort of its own. `path.reaches` carries the cycle protection.
+            from .path import reaches
+            return reaches(g, here, g.attr(c, "label"), there)
+        return there in g.targets(here, g.attr(c, "label"))
     if sort == "known":
         # ⭐ A KNOWLEDGE claim rather than a world-state claim — `goal_machinery.md` §8's third variant of
         # this same shape. It asks that the slot have been *looked at*, not that it hold any value.
@@ -497,7 +515,8 @@ def describe_constraint(g: Graph, c: str) -> str:
         return ("never " if sort == "never" else "must ") + what + where
     if sort == "link":
         obj = g.target(c, "object")
-        return f"{who} {g.attr(c, 'label')} {g.attr(obj, 'label') or obj}"
+        rel = g.attr(c, "label") + ("+" if g.attr(c, "transitive") else "")
+        return f"{who} {rel} {g.attr(obj, 'label') or obj}"
     if sort == "known":
         return f"{who}.{g.attr(c, 'key')} must be known"
     if sort == "attr":

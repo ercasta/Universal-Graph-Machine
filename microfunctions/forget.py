@@ -145,10 +145,54 @@ def kept_because(g: Graph, node: str, *, also=()) -> str:
     return "nothing keeps it"
 
 
+# --- COMPACT: imagined evidence is superseded by real evidence -----------------------------------------
+def compact(g: Graph) -> tuple:
+    """Drop the **imagined** evidence for a claim that has since acquired **real** evidence.
+
+    ⭐⭐ This is §6a's `COMPACT`, and it turned out to be a *rule* rather than a mechanism — the whole of it
+    is knowing **when a record is superseded**. `goal.py` already keeps the two kinds of evidence rigorously
+    apart, because conflating them was a real defect (§5g: the driver closed a world goal on imagined
+    evidence, so a goal read as met while nothing had happened):
+
+    | record | means |
+    |---|---|
+    | `planned` + `seen_in` + `planned_witness` | *I know how to do this* — an imagined frame |
+    | `closed` + `met_by` | *this is now true* — a real node |
+
+    So once a goal is **closed**, `seen_in` points into an imagination of a world that no longer exists,
+    while `met_by` is the same claim with better evidence. Dropping the first loses nothing and releases the
+    workbench behind it — measured at **51 further nodes** on a three-goal session, 22% of what survives a
+    sweep, because one edge into one frame keeps every frame, mapping and transformation it can reach.
+
+    ⚠ **Only when closed, and that is the entire correctness condition.** A goal that is planned and *not*
+    carried out has no other evidence — its imagined frame is the only account of how it would be met, and
+    `execution.recover` needs the frame tree it belongs to. Compacting that would not be tidying, it would
+    be forgetting the plan.
+
+    ⚠ `planned` itself stays. The distinction §5g exists to protect is between *knowing how* and *it being
+    true*, and both flags survive; what goes is only the pointer into the imagination."""
+    freed = []
+    for x in g.of_kind("goal"):
+        if not g.attr(x, "closed"):
+            continue
+        for label in ("seen_in", "planned_witness"):
+            while g.count(x, label):
+                freed.append((x, label, g.target(x, label)))
+                g.unlink(x, label, index=0)
+    return tuple(freed)
+
+
 # --- the pass, as a task ------------------------------------------------------------------------------
-def open_forgetting(g: Graph, *, also=(), label: str = "forgetting") -> str:
-    """Work out what is re-derivable, and queue it to be dropped one record per tick."""
+def open_forgetting(g: Graph, *, also=(), label: str = "forgetting", compacting: bool = True) -> str:
+    """Work out what is re-derivable, and queue it to be dropped one record per tick.
+
+    ⚠ `compact` runs **first and eagerly**, before the doomed set is worked out, because it changes what is
+    reachable — that is the point of it. It is not queued a-record-per-tick like the sweep: an unlink is not
+    a loss, it is the removal of a claim that a *better* record already makes, so there is nothing to be
+    stopped in the middle of."""
     f = g.mint("forgetting", label=label, at=0, dropped=0)
+    if compacting:
+        g.put(f, compacted=len(compact(g)))
     for n in doomed(g, also=tuple(also) + (f,)):
         g.link(f, "doomed", n)
     g.put(f, planned=g.count(f, "doomed"))
@@ -190,5 +234,5 @@ def describe(g: Graph, f: str) -> str:
             f"{g.count(f, 'doomed')} still queued")
 
 
-__all__ = ["KINDS", "ROOT_KINDS", "roots", "keepers", "doomed", "kept_because",
+__all__ = ["KINDS", "ROOT_KINDS", "roots", "keepers", "doomed", "kept_because", "compact",
            "open_forgetting", "step", "finished", "describe"]

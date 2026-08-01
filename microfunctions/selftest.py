@@ -1566,6 +1566,53 @@ def check_FORGETTING_IS_THE_DEFAULT_and_no_answer_changes():
             "before": before_nodes, "after": len(g.nodes)}
 
 
+def check_IMAGINED_evidence_is_superseded_by_REAL_evidence():
+    """⭐⭐ §6a's `COMPACT`, and it turned out to be a **rule rather than a mechanism** — the whole of it is
+    knowing when a record is superseded.
+
+    `goal.py` already keeps two kinds of evidence rigorously apart, because conflating them was a real
+    defect (§5g: the driver closed a world goal on imagined evidence, so a goal read as *met* while nothing
+    had happened). `planned` + `seen_in` is *I know how to do this*, pointing at an imagined frame;
+    `closed` + `met_by` is *this is now true*, pointing at a real node. **Once the second exists, the first
+    is a snapshot of a world that no longer does** — and one edge into one frame keeps every frame, mapping
+    and transformation reachable from it alive.
+
+    Measured: **51 further nodes**, 22% of what survives an ordinary sweep.
+
+    ⚠⚠ **The vacuity guard is the whole correctness condition.** A goal that was *planned and not carried
+    out* has no other evidence — its imagined frame is the only account of how it would be met, and
+    `execution.recover` needs the frame tree it belongs to. So the check requires the two goals to be
+    treated **oppositely**, and a compaction that ignored `closed` would be forgetting the plan rather than
+    tidying up. ⚠ `planned` itself survives on both: what goes is only the pointer into the imagination."""
+    from . import driver as D, forget as FG, goal as G, intake as I, loop as L, thread as T
+    g, world = _blocks()
+    th = T.open_thread(g, "t")
+    done = I.read_goal(g, _lines("goal build a tower:", "    a on b", "    b on c"))
+    D.carry_out(g, done, th, world, max_steps=200)
+
+    # a second goal that is PLANNED and never carried out — the contrast
+    merely = I.read_goal(g, _lines("goal put a on c:", "    a on c"))
+    plan = D.pursue(g, merely, th, world, max_steps=200)
+
+    before = (g.target(done, "seen_in"), g.target(merely, "seen_in"), len(g.nodes))
+    freed = FG.compact(g)
+    lp = L.open_loop(g, "tidy")
+    L.schedule(g, lp, FG.open_forgetting(g))
+    L.run(g, lp, max_ticks=6000)
+
+    return {"the_carried_out_goal_HAD_imagined_evidence": before[0] is not None,
+            "IT_IS_GONE_NOW": g.target(done, "seen_in") is None,
+            "but_the_REAL_evidence_remains": g.target(done, "met_by") is not None,
+            "and_it_still_reads_as_planned_AND_closed":
+                G.is_planned(g, done) and G.is_closed(g, done),
+            "AND_THE_MERELY_PLANNED_GOAL_KEEPS_ITS_OWN": g.target(merely, "seen_in") is not None,
+            "which_is_still_a_real_frame": g.target(merely, "seen_in") in g.nodes,
+            "so_its_plan_can_still_be_read":
+                D.plan_steps(g, plan) == ("stack",) or len(D.plan_steps(g, plan)) > 0,
+            "compaction_freed_something": len(freed) > 0,
+            "freed_edges": len(freed), "nodes": len(g.nodes)}
+
+
 def check_A_TOOL_CALL_AND_A_SURPRISE_are_what_survives():
     """⭐⭐⭐ **The two exceptions the rule is actually about** — *the result of a tool call*, and
     *something that surprised us* — and until this existed **nothing tested either of them.** The blocks
@@ -1672,6 +1719,126 @@ def check_forgetting_says_what_it_still_remembers_and_why():
                                       (reasons["observation"], reasons["deviation"],
                                        reasons["function"]),
             "ORDINARY_SCAFFOLDING_IS_NOT_KEPT": FG.kept_because(g, scaffold) == "nothing keeps it"}
+
+
+def _warehouse(nested: bool = True):
+    """A box inside a warehouse — §5x's measurement case for the word *where*. With `nested`, the parcel
+    is already in the box (so reach can be *asked*); without it, the parcel is loose (so reach can be
+    *planned for*)."""
+    from . import asm
+    g = new_graph()
+    declare_type(g, "thing", attrs={"kind_of": "thing"})
+    declare_type(g, "loose", base="thing", attrs={"held": False})
+    asm.load_text(g, "\n".join([
+        "# Put a loose thing inside a container.",
+        "fn put_in(t: loose, box: thing) -> thing:",
+        '    LINK F(box) "contains" F(t)',
+        '    SET F(t) "held" true',
+    ]))
+    world = g.mint("world")
+    g.link("root", "has", world)
+    wh = g.mint("thing", kind_of="thing", label="wh", held=True)
+    box = g.mint("thing", kind_of="thing", label="box", held=True)
+    parcel = g.mint("thing", kind_of="thing", label="parcel", held=False)
+    for n in (wh, box, parcel):
+        g.link(world, "thing", n)
+    g.link(wh, "contains", box)
+    if nested:
+        g.link(box, "contains", parcel)
+        g.put(parcel, held=True)
+    return g, world, wh, box, parcel
+
+
+def check_TRANSITIVE_REACH_is_the_one_thing_a_fixed_PATH_cannot_say():
+    """⭐⭐⭐ **The one genuine closed-class gap this project measured**, arrived at twice independently:
+    `closed_class_rechallenged.md` probed five relational forms and found four pure sugar with
+    **transitivity** the one needing a real extension, and §5x reached the same single item by asking what
+    the word *where* requires. A parcel in a box in a warehouse *is* in the warehouse, and nothing here
+    could say so: a fixed-depth type cannot reach it, a link constraint reads false because it is not a
+    direct target, and the path grammar has no repetition operator.
+
+    ⚠⚠ **Predicate position only, and that restriction is the design.** *Is X reachable from Y?* stays
+    boolean and single-valued, so it breaks no contract. A **reference** — `a.contains+.label` — would
+    denote a *set*, breaking `node_at`'s promise of one node or `None`; `parse` still refuses it and now
+    says where to go instead.
+
+    ⚠ Vacuity guards: the direct case and the nested case must **differ** for a plain link constraint (or
+    reach would be indistinguishable from adjacency); reach must not be reflexive; and a **cycle** must
+    terminate, because containment is only supposed to be acyclic and a graph does not enforce it."""
+    from . import goal as G, path as P
+    g, world, wh, box, parcel = _warehouse(nested=True)
+
+    plain = G.open_goal(g, label="directly in")
+    G.require_link(g, plain, wh, "contains", parcel)
+    deep = G.open_goal(g, label="in, at any depth")
+    G.require_link(g, deep, wh, "contains", parcel, transitive=True)
+    adjacent = G.open_goal(g, label="the box is directly in")
+    G.require_link(g, adjacent, wh, "contains", box)
+
+    refused = None
+    try:
+        P.parse("wh.contains+")
+    except P.BadPath as e:
+        refused = str(e)
+
+    # ⚠ READ EVERY CONTRAST BEFORE MUTATING. §5u records this exact trap: the cycle below makes `wh`
+    # genuinely reachable from itself, so a reflexivity key evaluated in the return dict would have been
+    # measuring the cycle rather than reflexivity — and it read False for the right reason and the wrong
+    # question. Caught here for the second time in this file.
+    before = {"direct": G.satisfied(g, plain, under=world),
+              "really_in_there": P.reaches(g, wh, "contains", parcel),
+              "deep": G.satisfied(g, deep, under=world),
+              "adjacent": G.satisfied(g, adjacent, under=world),
+              "reflexive": P.reaches(g, wh, "contains", wh)}
+
+    g.link(parcel, "contains", wh)                     # ⚠ a cycle: a mis-authored world must not hang
+    cyclic = G.satisfied(g, deep, under=world)
+    # ⚠⚠ AND THE CYCLE GUARD NEEDS A QUESTION WITH NO ANSWER. Asking for something that IS there returns
+    # before the loop is ever re-entered, so a version with no cycle protection at all passes — measured,
+    # by planting exactly that. Only a MISS has to walk the whole cycle.
+    stray = g.mint("thing", kind_of="thing", label="stray")
+    g.link(world, "thing", stray)
+    missing = P.reaches(g, wh, "contains", stray)
+    return {"a_DIRECT_link_constraint_reads_FALSE": not before["direct"],
+            "though_the_parcel_really_is_in_there": before["really_in_there"],
+            "AND_THE_TRANSITIVE_ONE_READS_TRUE": before["deep"],
+            "adjacency_still_works_the_old_way": before["adjacent"],
+            "reach_is_NOT_reflexive": not before["reflexive"],
+            "A_CYCLE_TERMINATES": cyclic is True,
+            "AND_A_MISS_TERMINATES_TOO_which_is_the_real_guard": missing is False,
+            "and_it_renders_back_with_the_plus": G.describe_constraint(g, G.constraints(g, deep)[0])
+                                                 == "wh contains+ parcel",
+            "A_REFERENCE_STILL_REFUSES_IT": refused is not None and "PREDICATE" in refused,
+            "and_says_where_to_go_instead": refused is not None and "contains+" in refused}
+
+
+def check_a_goal_of_REACH_can_be_authored_and_PLANNED_FOR():
+    """⭐⭐ End to end: *put the parcel in the warehouse* — where "in" means at any depth — **authored as
+    text**, planned, carried out, and true in reality afterwards.
+
+    ⚠ This is the half that a predicate alone does not give you. `driver.relevance` scores a proposal by
+    what the function's body *establishes*, and `put_in` links `box contains parcel` — which is not the
+    constraint being asked (`wh contains+ parcel`). So the closing move does **not** match exactly and
+    cannot reach the top band: the plan is found by ranking, which is precisely the *rank a guess, prune a
+    proof* discipline. Had relevance been a filter, this goal would be unreachable.
+
+    ⚠ Vacuity guard: the plan must close the goal by putting the parcel in the **box**, not in the
+    warehouse directly — otherwise the transitive step was never exercised and a direct link would have
+    done."""
+    from . import driver as D, goal as G, intake as I, path as P, thread as T
+    g, world, wh, box, parcel = _warehouse(nested=False)
+    # WARN `never touch wh` is what makes this exercise REACH rather than adjacency: without it the
+    # planner would simply put the parcel straight into the warehouse, and a plain link constraint would
+    # have done. Two authored forms composing - a plan constraint and a transitive world constraint.
+    goal = I.read_goal(g, _lines("goal stow it:", "    wh contains+ parcel", "    never touch wh"))
+    report = D.carry_out(g, goal, T.open_thread(g, "t"), world, max_steps=200)
+
+    return {"it_was_authored_as_TEXT": len(G.world_constraints(g, goal)) == 1,
+            "AND_CARRIED_OUT": report["done"] is True,
+            "the_parcel_is_now_in_the_warehouse": P.reaches(g, wh, "contains", parcel),
+            "BUT_NOT_DIRECTLY": parcel not in g.targets(wh, "contains"),
+            "it_went_into_the_BOX": parcel in g.targets(box, "contains"),
+            "steps": report["attempts"][0].get("steps", ()) if report["attempts"] else ()}
 
 
 def check_runaway_program_halts_loudly():

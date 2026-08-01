@@ -225,11 +225,14 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
         subject, key = _one_hop(words[0], lineno, "goal constraint")
         G.require_attr(g, goal, node(subject), key, _literal(words[2]))
     elif len(words) == 3:
-        G.require_link(g, goal, node(words[0]), words[1], node(words[2]))
+        # ⭐ `wh contains+ parcel` — reach at any depth, the one closed-class item §5x measured as real.
+        # The `+` is read here rather than in `resolve`, because it qualifies the RELATION, not a name.
+        label, transitive = P.parse_link(words[1])
+        G.require_link(g, goal, node(words[0]), label, node(words[2]), transitive=transitive)
     else:
         raise Unreadable(f"line {lineno}: cannot read {line!r} — the goal vocabulary is closed "
-                         f"(a b c | a.k = v | a.k known | some T | a is a T | never f | never touch x | "
-                         f"must f | at most n steps)")
+                         f"(a b c | a b+ c | a.k = v | a.k known | some T | a is a T | never f | "
+                         f"never touch x | must f | at most n steps)")
 
 
 # ⭐⭐ FOUR forces on ONE body. `plan` is the fourth, and it joins here rather than getting its own family

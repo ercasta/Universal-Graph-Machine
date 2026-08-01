@@ -13,7 +13,7 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 176 checks, 0 FAILED
+python -m microfunctions.selftest      # 179 checks, 0 FAILED
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -1913,9 +1913,95 @@ and `observation` are **currently redundant** — all reached via the thread —
 keep what we saw* into *until the thread is tidied*. That is the difference between a redundant root and a
 dead one.
 
-**Still open:** the rest of §6a's vocabulary. `KEEP` and `DROP` exist; **`COMPACT`** does not, and there
-is a measured case for it — a goal points at the imagined frame it was met in (`record_plan`), which keeps
-a whole workbench alive to record one fact. `PIN` is `also=`, unexercised.
+### ⭐⭐ COMPACT — and it is a RULE, not a mechanism
+
+Added the same day. §6a's vocabulary is now `KEEP` / `COMPACT` / `DROP`, with `PIN` as `also=`.
+
+`goal.py` already keeps two kinds of evidence rigorously apart, because conflating them was a real defect
+(§5g: the driver closed a world goal on imagined evidence, so a goal read as *met* while nothing had
+happened):
+
+| record | means |
+|---|---|
+| `planned` + `seen_in` + `planned_witness` | *I know how to do this* — pointing at an imagined frame |
+| `closed` + `met_by` | *this is now true* — pointing at a real node |
+
+**Once the second exists the first is a snapshot of a world that no longer does**, and one edge into one
+frame keeps every frame, mapping and transformation reachable from it alive. So the whole of `COMPACT`
+turned out to be *knowing when a record is superseded* — two unlinks and a condition. **Measured: 51
+further nodes, 22% of what survives an ordinary sweep.**
+
+⚠⚠ **The condition IS the correctness argument.** A goal that was planned and *not* carried out has no
+other evidence: its imagined frame is the only account of how it would be met, and `execution.recover`
+needs the frame tree it belongs to. The check requires the two goals to be treated **oppositely**, and the
+planted-bug probe — a compaction that ignores `closed` — turns three keys red while the tidying still
+appears to work: the merely-planned goal loses its evidence, its frame is swept, and its plan becomes
+unreadable. ⚠ `planned` survives on both; what goes is only the pointer into the imagination.
+
+⚠ Compaction runs **eagerly**, before the doomed set is computed, and is not queued a-record-per-tick like
+the sweep. An unlink here is not a loss — it removes a claim a *better* record already makes — so there is
+nothing to be stopped in the middle of.
+
+**Still open:** ⚠ `PIN` (`also=`) is unexercised, and compaction of **old thread entries** is the case
+that would make `observation` a load-bearing root rather than a redundant one.
+
+## 6h. ⭐⭐⭐ TRANSITIVE REACH — the one genuine closed-class gap, built (2026-08-01)
+
+**179 checks, 0 FAILED.** `path.reaches` / `via` / `parse_link`; `goal.require_link(..., transitive=True)`;
+the CNL form `wh contains+ parcel`.
+
+**⭐⭐ Two independent routes reached this single item, which is the strongest evidence available here.**
+`closed_class_rechallenged.md` probed five relational forms and found four **pure sugar** — causation,
+quantification's open case, force/level, identity/merge — with **transitivity** the one needing a real
+engine extension. §5x arrived at the same item by walking backwards from *what does the word `where`
+need*: a parcel in a box in a warehouse is not reachable by a fixed-depth type, a goal's link constraint
+reads **false** because the parcel is not a direct target, and the path grammar has no repetition operator.
+
+**⚠⚠ PREDICATE POSITION ONLY, and that restriction is the design rather than a first slice.** *Is X
+reachable from Y?* stays boolean and single-valued, so it breaks no contract. A **reference** —
+`a.contains+.label` — would denote a *set*, breaking `node_at`'s promise of one node or `None` and every
+caller that assumes it. `parse` still refuses `+` in a path and now **says where to go instead**, which is
+the difference between a refusal and a dead end.
+
+**⭐ It stayed the `link` sort rather than becoming a new one.** It *is* the same subject, label and object
+asked as reach instead of adjacency, so one line in `goal.holds` covers it; a new sort would have had to be
+taught to `query.refutes`, `conflict`, `driver.relevance` and `describe` for a difference none of them care
+about.
+
+**⭐⭐ And the planning half is the part a predicate alone does not give you.** `driver.relevance` scores a
+proposal by what a body *establishes*, and `put_in` links `box contains parcel` — which is **not** the
+constraint being asked (`wh contains+ parcel`). So the closing move cannot reach the top band, and the plan
+is found by **ranking**. This is *rank a guess, prune a proof* (§5e) earning its keep in a case that did not
+exist when it was written: had relevance been a filter, a reach goal would be unreachable. Checked end to
+end — authored as text, planned, carried out, and the parcel really ends up in the box.
+
+**⚠ Two authored forms compose to make the check mean something.** `never touch wh` is what forces the
+transitive route; without it the planner puts the parcel straight into the warehouse and a plain link
+constraint would have done. A plan constraint and a transitive world constraint, in one block.
+
+### ⚠ Two vacuous checks caught by probing, both mine
+
+1. **⚠⚠ THE CYCLE GUARD WAS TESTED BY A QUESTION THAT HAS AN ANSWER.** Containment is only *supposed* to be
+   acyclic and a graph does not enforce it, so `reaches` carries `types._target_ok`'s discipline. But asking
+   whether something that **is** there is reachable returns before the loop is ever re-entered — a version
+   with **no cycle protection at all** passed. Measured, by planting exactly that. Only a **miss** walks the
+   whole cycle, so the check now asks for a node that is not there, and the naive version raises
+   `RecursionError`. *A termination guard is tested by a query that fails, never by one that succeeds.*
+2. **⚠ A contrast evaluated after the mutation it was contrasting with.** `reach_is_NOT_reflexive` sat in
+   the return dict, so it ran *after* the cycle was added — at which point `wh` genuinely is reachable from
+   `wh`. It read `False` for the right reason and the wrong question. §5u records this exact trap; this is
+   the second time in this file.
+
+Four planted-bug probes bite: reach implemented as adjacency (the transitive goal reads false and the plan
+is never found), reach made reflexive, no cycle protection (`RecursionError`), and a surface that silently
+drops the `+` (the goal is never carried out).
+
+**What this unlocks, and what it deliberately does not.** `where` is now a **built-in KB** rather than
+machinery — a `contains` edge and a small type library, authored in the ordinary surface, which is the
+legitimate kind of shipping-with-the-engine (§5x). ⚠ Still unbuilt: the `what` and `when` readers, which
+need no machinery at all (`types.recognize` and the ordering comparisons already exist) and only want a
+verb. ⚠ And `via` returns a set-shaped answer for a caller that has somewhere to put one; it is
+deliberately **not** wired into any path.
 
 ## 5. What to do next
 
