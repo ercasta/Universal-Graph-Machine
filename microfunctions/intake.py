@@ -61,6 +61,18 @@ what it is:          where it is:         when it was:
                          by contains          delivery
 ```
 
+```
+criterion clear the block that must move:   # expert judgement — see `criterion.py`
+    wants link on               key on an UNMET goal constraint; binds `subject` and `object`
+    some top in subject by ^on  bind a FURTHER role by walking a relation, transitively
+    when top is a clear_block   a condition; also `unless …`, and `x.k = v`, `x l y`, `x is there`
+    unless wants link on from object        a condition about the GOAL, not the world
+    do unstack b = top, floor = the ground  the action, WITH its arguments
+    because …
+
+directive …:                    # the same body, MANDATORY force
+```
+
 ⭐⭐ **The wh-questions are a different FORM, not a fifth force.** `goal` / `ask` / `why` / `plan` state a
 whole proposition and differ in what is done with it; `what` / `where` / `when` have a **gap** in them and
 are answered by locating a thing in an order the world already has (`locate.py`). Hence a different body —
@@ -82,6 +94,7 @@ surfaces with nothing else in common:
 | `goal` / `ask` / `why` / `plan` | a **named individual**, resolved by `resolve` | one hop, to an attribute |
 | `method` / `procedure` | a **role** (`subject`, `object`), never a name | one hop, to an attribute |
 | `prefer` / `avoid` | a named individual (whole, no hops) | none |
+| `criterion` / `directive` | a **role** — `subject`, `object`, or one drawn by `some` — or `the <name>` | **any** |
 | `establishes` (not authored) | a **parameter** of the function | any |
 
 ⚠ **The goal and method rows are a REFUSAL, not an omission, and they were a silent bug first.**
@@ -262,7 +275,7 @@ GOAL_VERBS = ("goal", "ask", "why", "plan")
 ADVICE_VERBS = ("prefer", "avoid")
 METHOD_VERBS = ("method", "procedure")
 TYPE_VERBS = ("type",)
-CRITERION_VERBS = ("criterion",)
+CRITERION_VERBS = ("criterion", "directive")
 
 # ⭐⭐ **THE WH-QUESTIONS, AND THEY ARE A DIFFERENT FORM — not a fifth force on the same body.** Every verb
 # above states a whole proposition and differs only in what is then done with it (`goal.py`'s constraints,
@@ -283,7 +296,7 @@ ROLES = (M.SUBJECT, M.OBJECT)
 _SORTS = ("link", "attr", "type")
 
 
-def _ref(g: Graph, text: str, lineno: int, line: str, under: str) -> str:
+def _ref(g: Graph, text: str, lineno: int, line: str, under: str, names=None) -> str:
     """Validate a reference at AUTHORING time, so a bad one is refused where it is written.
 
     ⚠ The alternative — checking when the criterion is consulted — would report a typo from inside a
@@ -293,7 +306,7 @@ def _ref(g: Graph, text: str, lineno: int, line: str, under: str) -> str:
     words = text.split()
     if len(words) == 4 and words[0] in CR.SELECTORS and words[2] == "by":
         P.parse_link(words[3].lstrip("^") or words[3])
-        return _ref(g, words[1], lineno, line, under) and text
+        return _ref(g, words[1], lineno, line, under, names) and text
     if len(words) == 2 and words[0] == "the":
         # ⚠ Resolved HERE, not when the criterion is consulted — `prefer`/`avoid` already resolves
         # `touching x` at parse time, and the reason is sharper for a criterion: a name that resolves to
@@ -305,10 +318,12 @@ def _ref(g: Graph, text: str, lineno: int, line: str, under: str) -> str:
         raise Unreadable(f"line {lineno}: cannot read the reference {text!r} — a reference is a role, "
                          f"a path from one, `the <name>`, or `<{'|'.join(CR.SELECTORS)}> <ref> by <link>`")
     base, rest = P.split_base(words[0])
-    if base not in CR.ROLES:
+    legal = CR.ROLES if names is None else names
+    if base not in legal:
         raise Unreadable(f"line {lineno}: {base!r} is not a role — a criterion speaks of "
-                         f"{' or '.join(CR.ROLES)}, never a named individual, or it would be about that "
-                         f"individual and could not be reused")
+                         f"{', '.join(legal)}, never a named individual, or it would be about that "
+                         f"individual and could not be reused. A further role is introduced by "
+                         f"`some <name> in <ref> by <link>`, BEFORE it is used")
     _ = rest                                          # `split_base` already parsed and would have raised
     return text
 
@@ -321,19 +336,19 @@ def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lin
         if words[1] not in _SORTS:
             raise Unreadable(f"line {lineno}: a goal wants {', '.join(_SORTS)} — not {words[1]!r}")
         CR.test(g, c, sort="wants", negated=negated, want_sort=words[1],
-                label=words[2] if len(words) == 5 else None, left=_ref(g, words[-1], lineno, line, under))
+                label=words[2] if len(words) == 5 else None, left=_ref(g, words[-1], lineno, line, under, CR.names_of(g, c)))
     elif len(words) >= 3 and words[-2] == "is" and words[-1] == "there":
-        CR.test(g, c, sort="exists", negated=negated, left=_ref(g, " ".join(words[:-2]), lineno, line, under))
+        CR.test(g, c, sort="exists", negated=negated, left=_ref(g, " ".join(words[:-2]), lineno, line, under, CR.names_of(g, c)))
     elif len(words) >= 4 and words[-3] == "is" and words[-2] == "a":
         CR.test(g, c, sort="type", negated=negated, label=words[-1],
-                left=_ref(g, " ".join(words[:-3]), lineno, line, under))
+                left=_ref(g, " ".join(words[:-3]), lineno, line, under, CR.names_of(g, c)))
     elif len(words) == 3 and words[1] == "=" and "." in words[0]:
         who, key = _one_hop(words[0], lineno, "criterion")
         CR.test(g, c, sort="attr", negated=negated, key=key, value=_literal(words[2]),
-                left=_ref(g, who, lineno, line, under))
+                left=_ref(g, who, lineno, line, under, CR.names_of(g, c)))
     elif len(words) == 3:
         CR.test(g, c, sort="link", negated=negated, label=words[1],
-                left=_ref(g, words[0], lineno, line, under), right=_ref(g, words[2], lineno, line, under))
+                left=_ref(g, words[0], lineno, line, under, CR.names_of(g, c)), right=_ref(g, words[2], lineno, line, under, CR.names_of(g, c)))
     else:
         raise Unreadable(f"line {lineno}: cannot read {line!r} — a condition is (x l y | x.k = v | "
                          f"x is a T | x is there | wants <sort> <label> from x)")
@@ -345,6 +360,14 @@ def _criterion_line(g: Graph, c: str, words: list, line: str, lineno: int, under
             raise Unreadable(f"line {lineno}: a goal wants {', '.join(_SORTS)} — not {words[1]!r}. "
                              f"That vocabulary is closed because it is also what an index would key on")
         CR.wants(g, c, words[1], words[2] if len(words) == 3 else None)
+    elif words[0] == "some" and len(words) == 6 and words[2] == "in" and words[4] == "by":
+        name = words[1]
+        if name in CR.names_of(g, c):
+            raise Unreadable(f"line {lineno}: {name!r} is already bound here; a second `some` of the "
+                             f"same name would silently shadow the first")
+        label, back = (words[5][1:], True) if words[5].startswith("^") else (words[5], False)
+        P.parse_link(label)
+        CR.draw(g, c, name, _ref(g, words[3], lineno, line, under, CR.names_of(g, c)), label, back=back)
     elif words[0] in ("when", "unless") and len(words) > 1:
         _criterion_test(g, c, words[1:], words[0] == "unless", line, lineno, under)
     elif words[0] == "do" and len(words) > 1:
@@ -356,7 +379,7 @@ def _criterion_line(g: Graph, c: str, words: list, line: str, lineno: int, under
             if not eq:
                 raise Unreadable(f"line {lineno}: cannot read {piece.strip()!r} — an argument is "
                                  f"`param = <reference>`")
-            args[param.strip()] = _ref(g, ref.strip(), lineno, line, under)
+            args[param.strip()] = _ref(g, ref.strip(), lineno, line, under, CR.names_of(g, c))
         if not args:
             raise Unreadable(f"line {lineno}: `do {name}` binds no arguments; a criterion names an "
                              f"action WITH its arguments, which is the whole of what it adds")
@@ -365,7 +388,7 @@ def _criterion_line(g: Graph, c: str, words: list, line: str, lineno: int, under
         g.put(c, because=" ".join(words[1:]))
     else:
         raise Unreadable(f"line {lineno}: cannot read {line!r} — the criterion vocabulary is closed "
-                         f"(wants <sort> [label] | when … | unless … | do f a = r, … | because …)")
+                         f"(wants <sort> [label] | some x in r by l | when … | unless … | do f a = r, … | because …)")
 
 
 def _advise(g: Graph, gl: str, words: list, line: str, lineno: int, under: str) -> None:
@@ -576,7 +599,13 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
     | `prefer` / `avoid` | a **guideline** — reorders, can never exclude |
     | `method` / `procedure` | a **method** — a decomposition, advisory or mandatory |
     | `type` | a **type** — a schema over a subgraph, of any depth |
+    | `criterion` / `directive` | a **criterion** — expert judgement, naming an action with its arguments |
     | `what` / `where` / `when` | a **question** — a gap, answered by locating a thing in an order |
+
+    ⚠ **`criterion` and `directive` differ ONLY in force, exactly as `method` and `procedure` do.** An
+    advisory criterion suppresses enumeration but **defers** it, so being wrong costs imagined states; a
+    directive says the alternatives are not worth building, and **refuses** when it recognises a situation
+    it cannot act in. `deliberation.md` §3 in a third place: force is about *failure*.
 
     ⚠ **`method` and `procedure` differ ONLY in force, and that is the point.** The bodies are identical;
     what changes is what happens when a step does not work out — fall back to searching, or refuse to
@@ -634,7 +663,9 @@ def _open(g: Graph, verb: str, label: str) -> str:
         # is not (`force-is-the-missing-axis`). What it must never hold is the ANSWER — see `locate.py`.
         return g.mint("question", verb=verb, label=label)
     if verb in CRITERION_VERBS:
-        return CR.declare(g, label)
+        # ⚠ Two verbs, ONE body — the `method`/`procedure` pattern exactly, and for the same reason:
+        # force is about FAILURE and cannot be inferred from content, so the author has to say the word.
+        return CR.declare(g, label, force=(G.MANDATORY if verb == "directive" else G.ADVISORY))
     if verb in TYPE_VERBS:
         # ⚠ Refuses a REDECLARATION rather than minting a second type of the same name. Two would both
         # be found by `type_names` and `find_type` would answer with whichever came first — the same

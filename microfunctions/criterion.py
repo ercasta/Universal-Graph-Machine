@@ -77,11 +77,30 @@ def criteria(g: Graph) -> tuple:
 
 
 # --- authoring ----------------------------------------------------------------------------------------
-def declare(g: Graph, label: str, *, because: str | None = None) -> str:
-    c = g.mint("criterion", label=label)
+def declare(g: Graph, label: str, *, because: str | None = None, force: str = G.ADVISORY) -> str:
+    """A criterion. `force` is `ADVISORY` (a `criterion`) or `MANDATORY` (a `directive`).
+
+    ⭐⭐ **Force is about FAILURE, not strength** — `deliberation.md` §3, in a third place. An advisory
+    criterion that turns out wrong costs imagined states, because the enumeration it suppressed was only
+    **deferred**. A directive that turns out wrong makes the goal **unreachable**, because it says the
+    alternatives are not worth building — and when it recognises a situation it cannot act in, it
+    **refuses** rather than quietly letting the search improvise.
+
+    ⚠ That is exactly what §2 said only a claim about the SITUATION is entitled to: *"in this situation,
+    this is the move"*, not *"this move looks good here"*. The surface makes the author say which word,
+    the way `method`/`procedure` already does, because force cannot be inferred from content."""
+    c = g.mint("criterion", label=label, force=force)
     if because:
         g.put(c, because=because)
     return c
+
+
+def force_of(g: Graph, c: str) -> str:
+    return g.attr(c, "force", G.ADVISORY)
+
+
+def is_mandatory(g: Graph, c: str) -> bool:
+    return force_of(g, c) == G.MANDATORY
 
 
 def wants(g: Graph, c: str, sort: str, label: str | None = None) -> str:
@@ -94,6 +113,41 @@ def wants(g: Graph, c: str, sort: str, label: str | None = None) -> str:
     if label is not None:
         g.put(c, wants_label=label)
     return c
+
+
+def draw(g: Graph, c: str, name: str, ref: str, label: str, *, back: bool = False) -> str:
+    """`some <name> in <ref> by <link>` — bind a **further** role by walking a relation.
+
+    **⭐⭐ This is the answer to the one thing a second domain proved unsayable** (`expert_judgement.md`
+    §8f): a criterion could *reach* a third individual by a path but could not **choose** among several,
+    because `nearest`/`furthest … by <link>` selects over a **traversal** and nothing selected by a
+    **condition**. A draw introduces the candidate as an ordinary role, so the filter is written as
+    ordinary `when` / `unless` lines — which keeps it **decomposable**, and therefore keeps `governing`
+    able to say which line ruled a candidate out. An inline `such that …` would have made the condition
+    opaque again, which is the whole thing §5 says not to do.
+
+    ⭐ **It also subsumes the selector, and says more.** `furthest subject by ^on` picks the top of a pile
+    because of *where it sits*; `some b in subject by ^on` + `when b is a clear_block` picks it because of
+    *what is true of it* — the same block, for a stated reason.
+
+    ⚠ **Transitive, like `path.via` and like the goal's own `contains+`.** Candidates come back
+    nearest-first, and `speaks` tries them in that order, so a criterion that could apply to several says
+    the nearest thing first. Termination is `via`'s: a finite, already-materialised traversal."""
+    d = g.mint("draw", name=name, ref=ref, label=label, back=back)
+    g.link(c, "draw", d)
+    return d
+
+
+def draws_of(g: Graph, c: str) -> tuple:
+    return g.targets(c, "draw")
+
+
+def names_of(g: Graph, c: str) -> tuple:
+    """Every role a criterion may speak of: the two `wants` binds, plus whatever it has drawn **so far**.
+
+    ⚠ *So far* is what makes the surface enforce declaration before use, free — `intake` reads lines in
+    order, so a `when` mentioning an undrawn name simply does not find it."""
+    return ROLES + tuple(g.attr(d, "name") for d in draws_of(g, c))
 
 
 def test(g: Graph, c: str, *, sort: str, negated: bool = False, **fields) -> str:
@@ -177,7 +231,8 @@ def resolve_ref(g: Graph, ref: str, bound: dict, frame: str, *, under: str = "ro
 
     base, rest = P.split_base(words[0])
     if base not in bound:
-        raise Unresolvable(f"{base!r} is not bound here; a criterion speaks of {' or '.join(ROLES)}")
+        raise Unresolvable(f"{base!r} is not bound here; a criterion speaks of {' or '.join(ROLES)} "
+                           f"and whatever it has drawn with `some`")
     node = bound[base]
     if rest is None:
         return node
@@ -224,6 +279,19 @@ def _open_constraints(g: Graph, node: str, frame: str, bound: dict) -> tuple:
     return bound.get("__unmet__", ())
 
 
+#: Which field carries a constraint's label, per sort. ⚠ **Three different names for one idea**, and a
+#: criterion keying on `type` silently matched NOTHING until a second domain was tried: `goal.require_type`
+#: stores `type`, a link stores `label`, an attribute stores `key`. `relevance` reads the same three by
+#: hand. This is the one place that has to know, and the fact that it is a table rather than an expression
+#: is the honest record of a substrate irregularity nobody has collapsed.
+_LABEL_FIELD = {"link": "label", "attr": "key", "type": "type"}
+
+
+def constraint_label(g: Graph, c: str):
+    """What a criterion's `wants <sort> <label>` line has to match against."""
+    return g.attr(c, _LABEL_FIELD.get(g.attr(c, "sort"), "label"))
+
+
 def _bindings_for(g: Graph, c: str, goal: str, frame: str, subject: str) -> tuple:
     """Every way this criterion's `wants` line matches, as `{role: real node}` — in constraint order."""
     from . import driver as D
@@ -235,17 +303,52 @@ def _bindings_for(g: Graph, c: str, goal: str, frame: str, subject: str) -> tupl
     for k in unmet:
         if g.attr(k, "sort") != sort:
             continue
-        if label is not None and (g.attr(k, "label") or g.attr(k, "key")) != label:
+        if label is not None and constraint_label(g, k) != label:
             continue
-        bound = {SUBJECT: g.target(k, "subject"), "__unmet__": unmet, "__constraint__": k}
+        bound = {SUBJECT: g.target(k, "subject"), "__unmet__": unmet, "__constraint__": k,
+                 "__goal__": goal}
         if g.target(k, "object") is not None:
             bound[OBJECT] = g.target(k, "object")
         out.append(bound)
-    return tuple(out)
+    return _expand(g, tuple(out), draws_of(g, c), frame, "root")
+
+
+def _expand(g: Graph, bounds: tuple, draws: tuple, frame: str, under: str) -> tuple:
+    """Every combination of drawn candidates, nearest-first, in declaration order.
+
+    ⚠ A draw that reaches nothing **removes** its binding rather than passing it through empty-handed:
+    *"some container inside the warehouse"* when there is none is a situation the criterion has nothing to
+    say about, not a criterion with a hole in it.
+
+    ⚠ Nested draws multiply, which is the one place a criterion's cost is not bounded by the goal. It is
+    still bounded — by the traversal, which is finite and already materialised — but an author writing
+    three draws over a large relation should expect to pay for it. Nothing here is memoised because
+    nothing has yet measured it as worth memoising."""
+    for d in draws:
+        name, label, back = g.attr(d, "name"), g.attr(d, "label"), bool(g.attr(d, "back"))
+        nxt = []
+        for b in bounds:
+            try:
+                start = resolve_ref(g, g.attr(d, "ref"), b, frame, under=under)
+            except (Unresolvable, P.BadPath):
+                continue
+            for n in P.via(g, _here(g, frame, start), label, back=back):
+                real = W.original_of(g, n)
+                if real is None:
+                    continue
+                nxt.append({**b, name: real})
+        bounds = tuple(nxt)
+    return bounds
 
 
 def _try(g: Graph, c: str, bound: dict, frame: str, under: str) -> tuple:
-    """One binding, tried: `(Call, ())` if this criterion speaks, `(None, reasons)` if it does not.
+    """One binding, tried: `(Call, reasons, recognised)`.
+
+    `recognised` is True once every `when`/`unless` line has held — i.e. the criterion **recognises this
+    situation** — whether or not its action turns out to apply. That distinction is what force needs: a
+    directive refuses when it recognises a situation it cannot act in, and stays silent when it does not
+    recognise the situation at all. Conflating them would make a directive refuse everywhere it merely had
+    nothing to say.
 
     **⭐ ONE place, because `speaks` and `governing` must never disagree.** They did: `governing` checked
     only the `test` lines while `speaks` also required the action's references to resolve — so on Sussman's
@@ -261,7 +364,11 @@ def _try(g: Graph, c: str, bound: dict, frame: str, under: str) -> tuple:
     reasons = [describe_test(g, t) for t in tests_of(g, c)
                if _holds(g, t, bound, frame, under) == bool(g.attr(t, "negated"))]
     if reasons:
-        return None, tuple(reasons)
+        return None, tuple(reasons), False
+    # From here the criterion RECOGNISES the situation; anything that fails now is the action, not the
+    # condition. ⭐ That line is what force needs: a directive refuses when it recognises a situation it
+    # cannot act in, and stays silent when it does not recognise the situation at all. Conflating the two
+    # would make a directive refuse everywhere it simply had nothing to say.
     act = action_of(g, c)
     args = {}
     for a in g.targets(act, "arg"):
@@ -269,28 +376,53 @@ def _try(g: Graph, c: str, bound: dict, frame: str, under: str) -> tuple:
         try:
             got = resolve_ref(g, ref, bound, frame, under=under)
         except (Unresolvable, P.BadPath) as e:
-            return None, (f"{ref} — {e}",)
+            return None, (f"{ref} — {e}",), True
         if got is None:
-            return None, (f"{ref} reaches nothing",)
+            return None, (f"{ref} reaches nothing",), True
         args[g.attr(a, "param")] = got
-    return Call(g.attr(act, "function"), args,
+    call = Call(g.attr(act, "function"), args,
                 why=g.attr(c, "label") + (f" — {g.attr(c, 'because')}"
-                                          if g.attr(c, "because") else "")), ()
+                                          if g.attr(c, "because") else ""))
+
+    # ⚠⚠ **A criterion whose action does not apply here is SILENT, not loud — and the second domain is
+    # what settled that.** `driver.check_call` raises, which is right for a *Python* decider: one that
+    # names an ill-typed or forbidden call is a bug in the caller. A criterion is different. It is general
+    # knowledge meeting a particular world, so *"the first container happens to be the one this goal
+    # forbids"* is a **situation**, not a mistake — and raising there abandoned a search that plain
+    # enumeration could finish. Measured in the warehouse with two containers.
+    #
+    # ⭐ Silent, but never silently: the reason is handed back, so `governing` can say *"this criterion
+    # would have said put_in(crate), and the goal forbids it"*. Silence that cannot be interrogated is the
+    # thing §6 exists to prevent.
+    from .driver import Undecidable, check_call
+    try:
+        check_call(g, bound["__goal__"], frame, call, bound.get("__prefix__"))
+    except Undecidable as e:
+        return None, (str(e),), True
+    return call, (), True
 
 
-def speaks(g: Graph, c: str, goal: str, frame: str, subject: str, *, under: str = "root"):
-    """Does this criterion have something to say here? Returns `driver.Call`, or `None`.
+def speaks(g: Graph, c: str, goal: str, frame: str, subject: str, *, under: str = "root",
+           prefix=None):
+    """Does this criterion have something to say here? Returns `(Call | None, blocked)`.
+
+    `blocked` is non-empty when the criterion **recognised** the situation and still could not act — which
+    only a directive treats as a refusal; for a criterion it is ordinary silence with a reason attached.
 
     ⚠ Every failure is silence. A reference that resolves to nothing, a test that does not hold, an action
     whose arguments cannot be found — each means *this criterion has nothing to say about this situation*,
     which is an ordinary answer and the one that keeps `relevance` in charge by default."""
     if action_of(g, c) is None:
-        return None
+        return None, ()
+    blocked = []
     for bound in _bindings_for(g, c, goal, frame, subject):
-        call, _why = _try(g, c, bound, frame, under)
+        bound["__prefix__"] = prefix
+        call, why, recognised = _try(g, c, bound, frame, under)
         if call is not None:
-            return call
-    return None
+            return call._replace(final=is_mandatory(g, c)), ()
+        if recognised:
+            blocked.extend(why)
+    return None, tuple(dict.fromkeys(blocked))
 
 
 def decide(g: Graph, goal: str, subject: str, *, under: str = "root"):
@@ -301,9 +433,18 @@ def decide(g: Graph, goal: str, subject: str, *, under: str = "root"):
     otherwise builds the whole O(N²) product and then throws it away."""
     def propose(situation):
         for c in criteria(g):
-            got = speaks(g, c, goal, situation["frame"], subject, under=under)
+            got, blocked = speaks(g, c, goal, situation["frame"], subject, under=under,
+                                  prefix=situation.get("prefix"))
             if got is not None:
                 return got
+            # ⭐⭐ A DIRECTIVE THAT RECOGNISES A SITUATION IT CANNOT ACT IN **REFUSES**, and this is the
+            # whole of what mandatory force buys. Letting it fall through to the next criterion — or to
+            # enumeration — is precisely the improvising a procedure exists to forbid, and it would make
+            # `directive` indistinguishable from `criterion` except when everything already worked.
+            if blocked and is_mandatory(g, c):
+                from .driver import REFUSE
+                return REFUSE, (f"{g.attr(c, 'label')!r} governs here and cannot be followed: "
+                                + "; ".join(blocked))
         return None
     return propose
 
@@ -328,13 +469,74 @@ def governing(g: Graph, goal: str, frame: str, subject: str, *, under: str = "ro
             continue
         failed, spoke = [], False
         for bound in matches:
-            call, why = _try(g, c, bound, frame, under)
+            call, why, _recognised = _try(g, c, bound, frame, under)
             if call is not None:
                 spoke, failed = True, []
                 break
             failed.extend(why)
         out.append((c, spoke, () if spoke else tuple(dict.fromkeys(failed))))
     return tuple(out)
+
+
+def proposals_here(g: Graph, goal: str, frame: str, subject: str, *, under: str = "root",
+                   prefix=None) -> tuple:
+    """`(criterion, Call)` for **every** criterion that would speak here — not just the winner.
+
+    ⭐ The list `decide` throws away. First-match-wins is the whole control rule, so everything after the
+    first is invisible at run time; this is what makes it visible to a reader."""
+    out = []
+    for c in criteria(g):
+        got, _blocked = speaks(g, c, goal, frame, subject, under=under, prefix=prefix)
+        if got is not None:
+            out.append((c, got))
+    return tuple(out)
+
+
+def disagreements(g: Graph, goal: str, frame: str, subject: str, *, under: str = "root",
+                  prefix=None) -> tuple:
+    """Criteria that would act **differently** from the one that wins here.
+
+    Returns `(winner, winning_call, loser, losing_call)` per disagreement, in precedence order.
+
+    **⭐ This is `expert_judgement.md` §5's last untested claim, made good.** §10 of `deliberation.md`
+    rejected program-conditions partly because *"`conflict.py` cannot say two rules disagree by comparing
+    two programs"*, and §5 answered that the cost **degrades rather than dies**, because a criterion's
+    **return** is a named function with denoted arguments — trivially comparable — even when its condition
+    is not. That was an argument. This is the thing itself, and it is cheap: `speaks` already answers per
+    criterion, so the comparison is a pass over answers rather than over conditions.
+
+    **⚠ Naming the SAME call is redundancy, not disagreement.** `conflict.py`'s standing correction applies
+    here unchanged: *a later action overriding an earlier one is not a disagreement, it is what doing
+    things looks like.* Two criteria that agree are simply two ways of saying one thing, and reporting them
+    would bury the real cases.
+
+    ⚠ **This is EXACT and situational — it needs a frame, and it reports no false positives.** A static
+    comparison of two criteria's conditions could only over-report, and `conflict.py`'s stance is that an
+    honest miss beats a false alarm because *a conflict report nobody trusts is worse than no report at
+    all*. So this answers *"here, now, who else wanted something different"* and never *"could these two
+    ever clash"*."""
+    spoke = proposals_here(g, goal, frame, subject, under=under, prefix=prefix)
+    if not spoke:
+        return ()
+    winner, winning = spoke[0]
+    return tuple((winner, winning, loser, losing) for loser, losing in spoke[1:]
+                 if (losing.function, losing.bindings) != (winning.function, winning.bindings))
+
+
+def describe_disagreements(g: Graph, goal: str, frame: str, subject: str, **kw) -> str:
+    found = disagreements(g, goal, frame, subject, **kw)
+    if not found:
+        return "no criterion here wanted anything different"
+    lines = [f"{len(found)} disagreement(s):"]
+    for winner, winning, loser, losing in found:
+        lines.append(f"  {g.attr(winner, 'label')!r} does {_call_text(g, winning)}, "
+                     f"but {g.attr(loser, 'label')!r} would have done {_call_text(g, losing)}")
+    return "\n".join(lines)
+
+
+def _call_text(g: Graph, call) -> str:
+    args = ", ".join(f"{p}={g.attr(n, 'label') or n}" for p, n in sorted(call.bindings.items()))
+    return f"{call.function}({args})"
 
 
 def describe_test(g: Graph, t: str) -> str:
@@ -362,4 +564,6 @@ def describe(g: Graph, c: str) -> str:
 
 __all__ = ["SUBJECT", "OBJECT", "ROLES", "NEAREST", "FURTHEST", "SELECTORS", "Unresolvable",
            "criteria", "declare", "wants", "test", "does", "action_of", "tests_of",
-           "resolve_ref", "speaks", "decide", "governing", "describe_test", "describe"]
+           "draw", "draws_of", "names_of", "constraint_label",
+           "resolve_ref", "speaks", "decide", "governing", "force_of", "is_mandatory", "proposals_here", "disagreements",
+           "describe_disagreements", "describe_test", "describe"]

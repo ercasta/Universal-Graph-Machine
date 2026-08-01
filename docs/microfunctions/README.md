@@ -10,6 +10,8 @@ behind it.
 | `north_star.md` | the repoint — content as data, mechanism as mini-algorithms; triggers; microfunctions; what gets cut | first, always |
 | **`plural_step.md`** | ⭐ **an action on EACH of many** — scope for the one thing a KB provably cannot supply: a collection can be built and cannot be planned over. Measured blockers, the lift-don't-author decision, four slices | before building anything plural |
 | **`not_supported.md`** | ⭐ **what cannot be said** — expressions that fail for lack of a *capability*, separated from the ones that only look that way. Verdicts are SUGAR / KB / CAPABILITY, measured over a real file KB | before proposing a new form, and before assuming something is missing |
+| **`cnl.md`** | ⭐ **the authoring guide** — the one text surface a domain writes: every verb family, every body form, the reference language, and what gets refused. Its examples are **extracted from the file and parsed by the self-test**, so it cannot rot | **before authoring anything**; whenever you need the grammar |
+| **`expert_judgement.md`** | ⭐ **criteria** — expert judgement as an ordered list. The measurements: size-independent search, `propose` vs `rank` vs `decide`, force, and the claims each one overturned | before touching `criterion.py` |
 | `the_data_model.md` | plain-language prose: what a goal, a plan and a hypothesis *are*; the operations; why they nest without limit | to understand the model |
 | `graph_data_model.md` | the same as signature tables, a closure check, named gaps, and the probe results | to verify something |
 | `planning_workbench.md` | the workbench design — mappings, frames, mocks, the direction invariant, and the decisions that were got wrong first | before touching `workbench.py` |

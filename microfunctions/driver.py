@@ -105,6 +105,11 @@ class Call(NamedTuple):
     function: str
     bindings: dict
     why: str | None = None
+    #: ⭐⭐ FORCE. `False` — advisory: the enumeration this call suppresses is **deferred**, so being wrong
+    #: costs imagined states. `True` — mandatory: the alternatives are **not built at all**, so a wrong
+    #: call makes the goal unreachable rather than merely expensive. `deliberation.md` §3's finding, in a
+    #: third place: *force is about FAILURE* — a method falls back to search, a procedure must refuse.
+    final: bool = False
 
 
 def proposals(g: Graph, frame: str, *, allow=None) -> tuple:
@@ -881,7 +886,22 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
     # ⚠ The suppressed enumeration is DEFERRED, not skipped — see `_defer`.
     if propose is not None:
         suggested = propose({"goal": goal, "frame": frame, "depth": depth, "subject": c["subject"],
-                             "search": search, "thread": c["thread"], "open": len(open_now)})
+                             "search": search, "thread": c["thread"], "open": len(open_now),
+                             "prefix": trace_node})
+        # ⚠ A proposer may also REFUSE — `(REFUSE, why)`, the same shape `decide` already returns. That is
+        # what a MANDATORY criterion does when it recognises the situation and cannot act in it: a
+        # procedure refuses rather than improvising, and quietly falling back to enumeration would be
+        # exactly the improvisation it exists to forbid. Written on the search, so whichever driver is
+        # stepping it gets the same answer.
+        # ⚠ `not isinstance(..., Call)`, NOT `isinstance(..., tuple)` — a NamedTuple IS a tuple, so the
+        # obvious test swallowed every ordinary proposal. Caught by the checks; it would otherwise have
+        # been a silent "nothing proposes anything any more".
+        if suggested is not None and not isinstance(suggested, Call):
+            verb, why_stop = suggested
+            g.put(search, stop=verb, stop_why=why_stop)
+            if watch:
+                emit("refuse", action=None, because=why_stop, depth=depth)
+            return
         if suggested is not None:
             bound, touched = check_call(g, goal, frame, suggested, trace_node)
             ahead = S.extend_trace(g, trace_node, suggested.function, touched)
@@ -889,10 +909,15 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
             S.offer(g, search, key=(len(open_now) - (1 if rank_here >= 4 else 0), -rank_here, 0, depth),
                     frame=frame, depth=depth, function=suggested.function, bindings=bound,
                     open_count=len(open_now), trace=ahead)
-            _defer(g, search, frame, depth, trace_node)
+            # ⭐⭐ ADVISORY defers; MANDATORY does not. This one line is the whole of force at this seam,
+            # and it is the honest consequence of §2: only a claim about the SITUATION ("in this
+            # situation, this is the move") is entitled to remove the alternatives, because only that
+            # claim is wrong in a way the author meant to be fatal.
+            if not suggested.final:
+                _defer(g, search, frame, depth, trace_node)
             if watch:
                 emit("propose", action=suggested.function, on=_shown(g, bound), depth=depth,
-                     because=suggested.why)
+                     because=suggested.why, final=suggested.final)
             return
 
     here, blocked = enumerate_frame(g, frame, allow=allow)

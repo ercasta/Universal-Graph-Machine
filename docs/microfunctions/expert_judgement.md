@@ -24,6 +24,20 @@
 >    8.59s). A criterion's variables come from an **unmet goal constraint**, which is also §7's index key.
 >    §8e.
 >
+> 7. **⭐⭐ IT SURVIVES A SECOND DOMAIN** — a **type** goal (subject, no object) and a goal whose right
+>    action names a **third individual**, reachable by a path from a bound role. ⚠⚠ It found a silent bug
+>    (`wants type` matched nothing) and corrected a decision (a forbidden action makes a criterion **stand
+>    down**, not raise). ⭐ Residue: a criterion can REACH a third individual but cannot **choose** among
+>    several — `some x such that …` is the missing form. §8f.
+>
+> 8. **⭐⭐ `some x in r by l` — BUILT.** A criterion can now **choose** among several, not merely reach
+>    one. It binds a **further role** rather than filtering inline, so the filter stays ordinary `when`
+>    lines and remains decomposable for §6 — and it subsumes the selector while saying *why*. §8g.
+>
+> 9. **⭐⭐ CRITERIA THAT DISAGREE can be told from criteria that AGREE** — §5's last untested claim,
+>    made good and cheap: the comparison is over **answers**, not conditions, so structurally unlike
+>    conditions compare fine. ⚠ It reports **shadowing, not error**. §8h.
+>
 > The ⚠ marks are the load-bearing content.
 
 Written out of a design conversation on 2026-08-01. It answers the question `deliberation.md` §10 left
@@ -501,14 +515,186 @@ That also settles a design question by force: **an action's arguments are part o
 the topmost block off the pile above x"* does not apply when there is no pile, and making the author write
 a separate guard would mean a forgotten guard becomes a crash mid-search rather than silence.
 
-### What is still not settled
+---
 
-- Blocks world only, throughout.
-- **The index is still not built** — and now there is finally a corpus shape to build it against. §7's rule
-  stands: every condition form contributes an index key or nothing.
+## 8f. A SECOND DOMAIN — 2026-08-01. `probe_second_domain.py`, `192 checks, 0 FAILED`
+
+Everything above was measured on blocks world, whose goals are `a on b`: a **link** constraint naming
+exactly the two individuals that must move. The design rests on one assumption —
+
+> **A criterion's variables come from an unmet goal constraint.**
+
+— and two worlds already in `selftest.py` attack it from different sides.
+
+**The GARAGE.** Goal `car is a washed_car`: a **type** constraint, one subject, **no object**. Ordering
+knowledge (service before wash) needs only the subject and survives — 2 imagined states against
+`relevance`'s 3.
+
+**The WAREHOUSE.** Goal `wh contains+ parcel` with `never touch wh`. The right action puts the parcel in
+the **box**, which the goal never names — a **third individual**. ⭐ And it is reachable, by an ordinary
+path from a bound role:
+
+```
+criterion stow it in something already inside:
+    wants link contains
+    do put_in t = object, box = subject.contains
+```
+
+Planned, carried out, and the parcel really ends up in the warehouse *and not directly in it*. So binding
+only two roles is **not** the ceiling it looked like: `path.py` extends the reach from wherever `wants`
+lands.
+
+### ⚠⚠ Two things the second domain corrected, which is what a second domain is for
+
+**1. `wants type X` matched nothing, silently.** `goal.require_type` stores its label under `type`, a link
+under `label`, an attribute under `key` — three names for one idea, and `relevance` reads all three by
+hand. A criterion keying on the wrong field is indistinguishable from a criterion with nothing to say.
+Now one table, `criterion.constraint_label`, and it is a table rather than an expression because that is
+the honest record of a substrate irregularity nobody has collapsed.
+
+**2. A criterion whose action the goal FORBIDS now stands down instead of raising.** `driver.check_call`
+raising is right for a *Python* decider: one naming a forbidden call is a caller bug. A criterion is
+general knowledge meeting a particular world, so *"the first container happens to be the one this goal
+forbids"* is a **situation**. Raising abandoned a search plain enumeration could finish.
+
+> **Silent, but never silently.** The reason is handed back, so `governing` says *"this criterion would
+> have said `put_in(crate)`, and the goal forbids it"*. Silence that cannot be interrogated is exactly
+> what §6 exists to prevent.
+
+### ⭐ The residue, and it is precise
+
+Two containers, the first one forbidden. `subject.contains` denotes **the first**. The criterion can
+**reach** a third individual and cannot **choose** among several:
+
+> `nearest` / `furthest … by <link>` selects over a **traversal**. Nothing selects by a **condition**.
+> The missing form is `some x such that …` — a set position with a **filter**, where §8.4 needed only a
+> **selector**.
+
+⚠ It is not currently fatal: the criterion stands down and deferral finds the box. But the knowledge
+*"put it in a container that is allowed"* is not sayable, so the author's only recourse is to let the
+search work it out — which is precisely the thing criteria exist to avoid.
+
+---
+
+## 8g. `some` — a criterion can now CHOOSE among several. BUILT 2026-08-01, `193 checks, 0 FAILED`
+
+§8f's residue, closed. The form binds a **further role** rather than filtering inline:
+
+```
+criterion stow it in a container that is open:
+    wants link contains
+    some spot in subject by contains
+    unless spot.sealed = true
+    do put_in t = object, box = spot
+```
+
+**⭐ Binding a role rather than an inline `such that …` is the whole design choice.** An inline filter
+would have made the condition opaque again — precisely what §5 says not to do. As a role, the filter is
+written with the ordinary `when` / `unless` lines, so it stays **decomposable** and `governing` can still
+name the line that ruled a candidate out.
+
+**⭐ It subsumes the selector and says more.** `furthest subject by ^on` picks the top of a pile because of
+*where it sits*; `some top in subject by ^on` + `when top is a clear_block` picks the same block because
+of *what is true of it*. Sussman is unchanged at 3 imagined states written either way.
+
+⚠ **Transitive and nearest-first**, like `path.via` and like the goal's own `contains+`. Candidates are
+tried in that order, so a criterion that applies to several says the nearest thing first. Termination is
+`via`'s: a finite, already-materialised traversal — still no iteration in the surface.
+
+⚠ **Nested draws multiply.** This is the one place a criterion's cost is not bounded by the goal. Still
+bounded — by the traversal — but three draws over a large relation will be paid for, and nothing is
+memoised because nothing has measured it as worth memoising.
+
+### ⚠ The guard that nearly did not exist
+
+Candidates are tried in order and an inapplicable one makes the criterion stand down (§8f), **so an
+unfiltered draw still reaches the right answer by backtracking**. The first version of this test used a
+type that was never declared, so the `unless` never fired and the criterion succeeded purely by
+backtracking — a green test proving nothing. The check now requires the filtered version to pick the right
+container *first*, and separately that the unfiltered one lands in the **sealed crate**.
+
+---
+
+## 8h. CRITERIA THAT DISAGREE — §5's last untested claim, made good. `194 checks, 0 FAILED`
+
+`criterion.disagreements` returns `(winner, winning call, loser, losing call)` for every criterion that
+would have acted **differently** from the one precedence picks.
+
+`deliberation.md` §10 rejected program-conditions partly because *"`conflict.py` cannot say two rules
+disagree by comparing two programs"*, and §5 of this document answered that the cost **degrades rather
+than dies** — a criterion's *return* is a named function with denoted arguments, trivially comparable,
+even when its condition is not. That was an argument in a document otherwise full of measurements.
+
+**⭐ It is made good, and it was cheap.** `speaks` already answers per criterion, so the comparison is a
+pass over **answers** rather than over conditions. The two criteria the check compares have structurally
+different conditions — one draws a role and tests it, the other tests nothing at all — and it makes no
+difference whatsoever, which is precisely the claim.
+
+**⚠ Naming the SAME call is redundancy, not disagreement**, and the check requires that distinction.
+`conflict.py`'s standing correction transfers unchanged: *a later action overriding an earlier one is not a
+disagreement, it is what doing things looks like.* Reporting two criteria that agree would bury the real
+cases — the failure that makes a conflict report worth nothing.
+
+**⚠ What it reports is SHADOWING, not error.** A criterion that loses on precedence may be perfectly good.
+First-match-wins is the control rule, so everything after the first is invisible at run time; this makes it
+visible. That matters more here than it ever did for `guideline`, because criteria **suppress
+enumeration** — what precedence discards was never built, so this is the only record of it.
+
+⚠ Exact and situational: it takes a frame and reports no false positives. A static comparison of two
+conditions could only over-report, and `conflict.py`'s stance is that an honest miss beats a false alarm,
+because a conflict report nobody trusts is worse than no report at all.
+
+---
+
+## 8i. FORCE — `criterion` vs `directive`. BUILT 2026-08-01, `195 checks, 0 FAILED`
+
+§2 asked what entitles a criterion to prune and never answered; §8b then measured that the answer matters.
+Force is now a **word the author says**, the way `method`/`procedure` already works, because
+`deliberation.md` §3's finding is that force is about **failure** and cannot be inferred from content.
+
+| | suppresses enumeration | when it cannot act |
+|---|---|---|
+| `criterion` | **defers** it — being wrong costs imagined states | falls silent; the search carries on |
+| `directive` | does **not** defer — the alternatives are never built | **refuses** |
+
+That is §2's distinction made operational: only a claim about the **situation** — *"in this situation,
+this is the move"* — is entitled to remove the alternatives, because only that claim is wrong in a way its
+author meant to be fatal.
+
+**⚠ Recognising is not the same as having something to say, and everything turns on it.** A directive
+refuses when every `when`/`unless` line held and the *action* still could not be applied. It stays silent
+when it never recognised the situation. Conflating the two would make a directive refuse everywhere it
+merely had nothing to do.
+
+### ⚠⚠ The practical cost, found by the check rather than predicted
+
+**An unguarded directive is a blanket veto over everything declared after it.** *"Recognises the
+situation"* is exactly what the `when` lines say — so a directive with none recognises **every** matching
+unmet constraint, including ones it has no business in. The first version of the check had
+
+```
+directive take the block directly on it off:
+    wants link on
+    do unstack b = subject.^on, floor = the ground
+```
+
+which cleared the pile and then, with nothing left on the subject, recognised the situation, could not
+act, and refused — before the stacking criterion after it was ever consulted. It needed **two** changes:
+a guard (`when subject.^on is there`) and a second criterion to cover the rest of the task.
+
+> **Mandatory force obliges the author to say what to do in every case they claimed to govern.** That is
+> the price of removing the fallback, and it is the same obligation a procedure has always carried.
+
+### What is still not settled
+- **The index is still not built** — there is finally a corpus shape to build it against. §7's rule stands:
+  every condition form contributes an index key or nothing.
 - `decide`-time `Call` remains the seam with no measured payoff; its case is audit, not cost.
-- Nothing has tested criteria that *disagree* — `conflict.py` can compare what two criteria return, and
-  nothing does. Whether two criteria stay two on a domain with more operators is untested, and that
+- ~~**There is no CNL document.**~~ **WRITTEN: `docs/microfunctions/cnl.md`**, and it is **executable** —
+  every ` ```cnl ` block in it is extracted from the file and parsed by `check_the_CNL_GUIDE_parses`. The
+  previous reference was a docstring nothing obliged anyone to update, and it had gone stale on a whole
+  verb family; a guide checked only by a human rots exactly like a comment.
+- Whether a **static** conflict report is worth having at all — §8h is situational by choice, and nothing
+  yet tells an author two criteria may clash *before* a run. Whether two criteria stay two on a domain with more operators is untested, and that
   is the number question 2 actually cares about.
 - Nothing here was authored in CNL; the criteria are Python. The condition **vocabulary** — the real
   design — is still unwritten.

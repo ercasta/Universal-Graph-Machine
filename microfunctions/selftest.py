@@ -4040,15 +4040,20 @@ def check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT_and_it_drives_the_search():
     deep = D.pursue(g2, goal2, T.open_thread(g2), w2, max_steps=400, max_depth=7,
                     propose=CR.decide(g2, goal2, w2))
 
-    # ⚠ THE SELECTOR'S OWN VACUITY GUARD: `nearest` names a BURIED block, which `unstack` refuses.
+    # ⚠ THE SELECTOR'S OWN VACUITY GUARD: `nearest` names a BURIED block, which is not a `clear_block`.
+    # ⭐ The criterion therefore falls SILENT and the search finishes by enumerating what was deferred —
+    # which is the two halves of the design meeting: an inapplicable action is a situation rather than an
+    # authoring error, and deferral means being wrong costs states rather than the goal.
     g3, w3, goal3 = world_with_criteria(two_deep)
     for c in CR.criteria(g3):
         for a in g3.targets(CR.action_of(g3, c), "arg"):
             if "furthest" in (g3.attr(a, "ref") or ""):
                 g3.put(a, ref=g3.attr(a, "ref").replace("furthest", "nearest"))
-    nearest_refused = _raises(lambda: D.pursue(g3, goal3, T.open_thread(g3), w3, max_steps=400,
-                                               max_depth=7, propose=CR.decide(g3, goal3, w3)),
-                              D.Undecidable)
+    wb3 = W.open_workbench(g3, w3)
+    near_told = {g3.attr(c, "label"): (spoke, why)
+                 for c, spoke, why in CR.governing(g3, goal3, W.root_frame(g3, wb3), w3)}
+    near_ran = D.pursue(g3, goal3, T.open_thread(g3), w3, max_steps=400, max_depth=7,
+                        propose=CR.decide(g3, goal3, w3))
 
     def refused(text):
         g, _w = _blocks()
@@ -4069,7 +4074,13 @@ def check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT_and_it_drives_the_search():
             "imagined_guided_vs_plain": (guided["steps"], plain["steps"]),
             "THE_SELECTOR_HANDLES_A_TWO_DEEP_PILE":
                 deep["found"] and D.plan_steps(g2, deep) == ("unstack", "unstack", "stack"),
-            "and_NEAREST_would_name_a_buried_block": nearest_refused,
+            # `nearest` names a buried block: the criterion goes SILENT, says why, and the deferred
+            # enumeration still finds a plan. Silence that cannot be interrogated is what §6 forbids.
+            "NEAREST_makes_the_criterion_SILENT":
+                near_told["clear the block that must move"][0] is False,
+            "and_says_it_is_not_a_clear_block":
+                any("clear_block" in r for r in near_told["clear the block that must move"][1]),
+            "but_the_DEFERRED_enumeration_still_finds_a_plan": near_ran["found"],
             "a_closed_vocabulary_refuses_the_rest":
                 "vocabulary is closed" in (refused("criterion x:\n    hope for the best") or ""),
             "a_name_is_not_a_role":
@@ -4087,6 +4098,403 @@ def check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT_and_it_drives_the_search():
                 "furthest object by ^on" in told["clear the destination"][1][0],
             "while_the_one_that_fired_has_nothing_against_it":
                 told["clear the block that must move"] == (True, ())}
+
+
+def check_the_CNL_GUIDE_parses():
+    """⭐⭐ **The authoring guide is EXECUTABLE.** Every ` ```cnl ` block in `docs/microfunctions/cnl.md` is
+    extracted from the file and fed to the parser.
+
+    ⚠ **This exists because the previous reference rotted, and rotted silently.** The CNL's only
+    description was `intake.py`'s module docstring — which nothing obliged anyone to update, and which had
+    already gone stale on an entire verb family (`criterion`) before anyone noticed. A document that is
+    merely *checked by a human* decays exactly like a comment does.
+
+    ⚠ **It also caught the guide's first draft.** The examples explained each line with trailing prose
+    rather than a `#` comment, so not one of them would have parsed — a guide whose examples cannot be
+    copied is worse than no guide. They are comments now, which the check enforces.
+
+    ⚠ The world here supplies whatever the examples name. That is part of the point: an example naming
+    something the reader has no way to create is not an example."""
+    import pathlib
+    import re
+    from . import intake as I
+
+    doc = pathlib.Path(__file__).resolve().parents[1] / "docs" / "microfunctions" / "cnl.md"
+    if not doc.exists():                       # the guide is documentation, not a runtime dependency
+        return {"guide_present": False}
+    blocks = re.findall(r"```cnl\n(.*?)```", doc.read_text(encoding="utf-8"), re.S)
+
+    def world():
+        """Everything the guide's examples mention, so each one can be read as written."""
+        g, w = _blocks()
+        for name in ("d", "wh", "parcel", "file1"):
+            n = g.mint("thing", kind_of="thing", label=name, clear=True, contents=None)
+            g.link(w, "thing", n)
+        for t in ("vehicle", "file", "wheel", "body", "rim", "trailer"):
+            declare_type(g, t, attrs={"kind_of": t})
+        declare_type(g, "serviced_car", attrs={"serviced": True})
+        declare_type(g, "washed_car", attrs={"washed": True})
+        return g
+
+    read, failed = [], []
+    for body in blocks:
+        g = world()
+        try:
+            verb, node = I.read(g, body)
+            read.append(verb)
+        except Exception as e:
+            failed.append(f"{body.splitlines()[0]!r}: {type(e).__name__}: {e}")
+
+    return {"guide_present": True,
+            "EVERY_cnl_BLOCK_PARSES": not failed,
+            "failures": tuple(failed),
+            "blocks_checked": len(blocks),
+            # ⚠ Vacuity: an empty guide, or one whose fences stopped being marked, would pass trivially.
+            "and_there_are_enough_of_them_to_mean_something": len(blocks) >= 9,
+            "COVERING_EVERY_FAMILY":
+                {"goal", "type", "prefer", "method", "criterion", "directive",
+                 "what", "where", "when"} <= set(read)}
+
+
+def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
+    """⭐⭐ FORCE, in its third place. `deliberation.md` §3's finding is that force is about **failure**,
+    not strength — a method falls back to searching, a procedure must refuse — and `expert_judgement.md`
+    §2 asked what entitles a criterion to prune. The answer the surface now makes the author say:
+
+    | | suppresses enumeration | when it cannot act |
+    |---|---|---|
+    | `criterion` | **defers** it — being wrong costs imagined states | falls silent; the search carries on |
+    | `directive` | does **not** defer — the alternatives are not built | **refuses** |
+
+    That is §2's distinction made operational: only a claim about the **situation** (*"in this situation,
+    this is the move"*) is entitled to remove the alternatives, because only that claim is wrong in a way
+    its author meant to be fatal.
+
+    **⚠ Recognising is not the same as having something to say, and the whole thing turns on it.** A
+    directive refuses when every `when`/`unless` line held and the *action* still could not be applied. It
+    stays silent when it never recognised the situation at all — otherwise a directive would refuse
+    everywhere it simply had nothing to do, which would make it useless rather than strict.
+
+    ⚠ Vacuity guards: the SAME body under the other verb must behave differently, or the word means
+    nothing; and the refusal must name the directive that caused it."""
+    from . import criterion as CR, driver as D, intake as I, thread as T
+
+    # The pile is two deep, so `unstack` can only apply to the top. Asking for the block DIRECTLY on the
+    # subject therefore names a buried one — recognised, and unactionable.
+    def two_deep(verb, complete=False):
+        g, world = _blocks()
+        a, b, c = g.targets(world, "block")
+        d = g.mint("block", kind_of="block", label="d", clear=True, height=1)
+        g.link(world, "block", d)
+        g.link(d, "on", g.target(world, "ground"))
+        for top, under in ((c, a), (d, c)):
+            g.unlink(top, "on", index=0)
+            g.link(top, "on", under)
+            g.put(under, clear=None)
+        goal = G.open_goal(g, label="a on b")
+        G.require_link(g, goal, a, "on", b)
+        # ⭐⭐ THE GUARD IS THE POINT, and only the `complete` version has it. "Recognises the situation"
+        # is *exactly what the `when` lines say*, so an unguarded directive recognises EVERY unmet `on`
+        # constraint — including ones where nothing is on the subject at all — and refuses there. A
+        # directive must therefore say when it applies; without that, mandatory force is a blanket veto
+        # over everything declared after it.
+        guard = ["    when subject.^on is there"] if complete else []
+        I.read(g, _lines(f"{verb} take the block directly on it off:",
+                         "    wants link on", *guard,
+                         "    do unstack b = "
+                         + ("furthest subject by ^on" if complete else "subject.^on")
+                         + ", floor = the ground"))
+        if complete:
+            # ⚠⚠ A DIRECTIVE MUST COVER ITS SITUATION COMPLETELY, and finding that out is half of what
+            # this check is for. The clearing directive above recognises every unmet `on` constraint, so
+            # once the pile is gone it recognises the situation, cannot act, and REFUSES — there being no
+            # fallback, by definition. Mandatory force is therefore not free: it obliges the author to say
+            # what to do in every case they claimed to govern. `criterion` gets deferral instead.
+            I.read(g, _lines("criterion build from the bottom up:", "    wants link on",
+                             "    when subject is a clear_block", "    when object is a clear_block",
+                             "    unless wants link on from object",
+                             "    do stack b = subject, onto = object"))
+        return g, goal, world
+
+    from . import goal as G
+    g1, goal1, w1 = two_deep("criterion")
+    advisory = D.pursue(g1, goal1, T.open_thread(g1), w1, max_steps=400, max_depth=7,
+                        propose=CR.decide(g1, goal1, w1))
+    g2, goal2, w2 = two_deep("directive")
+    mandatory = D.pursue(g2, goal2, T.open_thread(g2), w2, max_steps=400, max_depth=7,
+                         propose=CR.decide(g2, goal2, w2))
+
+    # ⚠ And a directive that CAN be followed must still work, or "refuses" would just mean "broken".
+    g3, goal3, w3 = two_deep("directive", complete=True)
+    followed = D.pursue(g3, goal3, T.open_thread(g3), w3, max_steps=400, max_depth=7,
+                        propose=CR.decide(g3, goal3, w3))
+
+    return {"the_two_verbs_read": CR.is_mandatory(g2, CR.criteria(g2)[0])
+                and not CR.is_mandatory(g1, CR.criteria(g1)[0]),
+            "A_CRITERION_FALLS_BACK_AND_STILL_FINDS_A_PLAN": advisory["found"],
+            "A_DIRECTIVE_REFUSES_INSTEAD": not mandatory["found"],
+            "and_says_which_directive_governed":
+                "take the block directly on it off" in (mandatory.get("why") or ""),
+            "it_stopped_by_REFUSING": mandatory.get("stopped") == D.REFUSE,
+            # ⚠ THE VACUITY GUARD: same body, same world, different word, different outcome.
+            "SAME_BODY_DIFFERENT_WORD_DIFFERENT_OUTCOME":
+                advisory["found"] is not mandatory["found"],
+            # ⚠ ...and a directive that can be followed is not merely a way of failing.
+            # ⚠ ...and a directive that can be followed is not merely a way of failing. Note it took a
+            # SECOND criterion to make that true: mandatory force obliges the author to cover every case
+            # they claimed to govern, which is the price of removing the fallback.
+            "A_DIRECTIVE_THAT_CAN_BE_FOLLOWED_STILL_WORKS": followed["found"],
+            "and_it_really_clears_the_pile_top_down":
+                D.plan_steps(g3, followed) == ("unstack", "unstack", "stack"),
+            "IT_TOOK_A_SECOND_CRITERION_TO_COVER_THE_CASE": len(CR.criteria(g3)) == 2}
+
+
+def check_two_criteria_that_DISAGREE_can_be_told_apart_from_two_that_AGREE():
+    """⭐⭐ `expert_judgement.md` §5's last untested claim, made good.
+
+    `deliberation.md` §10 rejected program-conditions partly because *"`conflict.py` cannot say two rules
+    disagree by comparing two programs"*. §5 answered that the cost **degrades rather than dies**: a
+    criterion's **return** is a named function with denoted arguments — trivially comparable — even when
+    its condition is not. That was an argument. This is the thing itself, and it turned out cheap, because
+    `speaks` already answers per criterion, so the comparison is a pass over *answers* rather than over
+    conditions. ⭐ The two criteria compared here have structurally different conditions — one draws a role
+    and tests it, one tests nothing at all — and it makes no difference, which is the whole claim.
+
+    **⚠ Naming the SAME call is redundancy, not disagreement**, and the check requires that distinction to
+    be made. `conflict.py`'s standing correction applies unchanged: *a later action overriding an earlier
+    one is not a disagreement, it is what doing things looks like.* Reporting two criteria that agree would
+    bury the real cases, which is the failure mode that makes a conflict report worth nothing.
+
+    **⚠ What this reports is SHADOWING, not error.** `build from the bottom up` is a perfectly good
+    criterion that simply loses on precedence. First-match-wins is the control rule, so everything after
+    the first is invisible at run time; this makes it visible. That is §6's contrastive purpose, and it
+    matters more here than for `guideline`, because criteria **suppress enumeration** — what they discard
+    was never built.
+
+    ⚠ Exact and situational: it needs a frame and reports no false positives. A static comparison of two
+    conditions could only over-report, and `conflict.py`'s stance is that an honest miss beats a false
+    alarm."""
+    from . import criterion as CR, intake as I, workbench as W
+
+    g, world = _blocks()
+    goal, (a, b, c) = _sussman(g, world)
+    top = ("    wants link on", "    some top in subject by ^on", "    when top is a clear_block",
+           "    do unstack b = top, floor = the ground")
+    for t in (_lines("criterion take the top of the pile off:", *top),
+              _lines("criterion says exactly the same thing:", *top),
+              _lines("criterion would rather paint it:", "    wants link on",
+                     "    do paint b = subject"),
+              _lines("criterion never speaks here:", "    wants attr colour",
+                     "    do paint b = subject")):
+        I.read(g, t)
+
+    frame = W.root_frame(g, W.open_workbench(g, world))
+    spoke = CR.proposals_here(g, goal, frame, world)
+    found = CR.disagreements(g, goal, frame, world)
+    label = lambda n: g.attr(n, "label")
+
+    return {"three_of_the_four_speak_here": tuple(label(x) for x, _ in spoke) ==
+                ("take the top of the pile off", "says exactly the same thing", "would rather paint it"),
+            "ONE_DISAGREEMENT_IS_FOUND": len(found) == 1,
+            "and_it_names_the_winner_and_the_loser":
+                (label(found[0][0]), label(found[0][2]))
+                == ("take the top of the pile off", "would rather paint it"),
+            "and_what_each_would_have_DONE":
+                (found[0][1].function, found[0][3].function) == ("unstack", "paint"),
+            # ⚠ THE DISTINCTION THAT MATTERS: agreeing is not disagreeing.
+            "THE_REDUNDANT_ONE_IS_NOT_REPORTED":
+                "says exactly the same thing" not in [label(x) for _w, _wc, x, _lc in found],
+            "though_it_really_did_speak": "says exactly the same thing" in [label(x) for x, _ in spoke],
+            # ⚠ No false positives: one that has nothing to say here is not a conflict.
+            "a_SILENT_criterion_is_not_a_conflict":
+                "never speaks here" not in [label(x) for x, _ in spoke],
+            # ⭐ The §5 claim itself: conditions differ structurally, returns compare anyway.
+            "conditions_differ_structurally_and_it_does_not_matter":
+                len(CR.draws_of(g, found[0][0])) == 1 and len(CR.tests_of(g, found[0][2])) == 0,
+            "it_reads_back_in_words": "would have done paint" in
+                CR.describe_disagreements(g, goal, frame, world)}
+
+
+def check_SOME_draws_a_further_role_so_a_criterion_can_CHOOSE_among_several():
+    """⭐⭐ `some <name> in <ref> by <link>` — the one thing §8f measured as unsayable.
+
+    A criterion could **reach** a third individual by a path (`box = subject.contains`) but could not
+    **choose** among several: `nearest`/`furthest … by <link>` selects over a **traversal**, and nothing
+    selected by a **condition**. So *"put it in a container that is allowed"* had no form, and the author's
+    only recourse was to let the search work it out — the thing criteria exist to avoid.
+
+    **⭐ The form binds a role rather than filtering inline, and that is the whole point.** An inline
+    `such that …` would have made the condition opaque, which is exactly what §5 says not to do. As a role,
+    the filter is written with the ordinary `when` / `unless` lines, stays **decomposable**, and
+    `governing` can still name the line that ruled a candidate out.
+
+    **⭐ It subsumes the selector and says more.** `furthest subject by ^on` picks the top of a pile
+    because of *where it sits*; `some top in subject by ^on` + `when top is a clear_block` picks the same
+    block because of *what is true of it*.
+
+    ⚠ **Two guards, because there are two ways to reach the right answer and only one is the feature.**
+    Candidates are tried in traversal order, so a criterion with NO filter still gets there by
+    backtracking once the wrong candidate is refused — which is real, and would make a filter test pass
+    while proving nothing. So the check requires the filtered version to pick the right container
+    **first**, and separately that an unfiltered one needs more attempts."""
+    from . import criterion as CR, driver as D, execution as X, intake as I, path as P, thread as T
+
+    def stow(*body, sealed=True):
+        """Two containers inside the warehouse. The crate comes first and is **sealed**."""
+        g, world, wh, box, parcel = _warehouse(nested=False)
+        crate = g.mint("thing", kind_of="thing", label="crate", held=True, sealed=True)
+        g.link(world, "thing", crate)
+        g.link_at(wh, "contains", 0, crate)          # ahead of the box, so a plain path finds it first
+        goal = I.read_goal(g, _lines("goal stow it:", "    wh contains+ parcel", "    never touch wh"))
+        I.read(g, _lines("criterion stow it in a container that is open:", *body))
+        got = D.pursue(g, goal, T.open_thread(g), world, max_steps=200, max_depth=6,
+                       propose=CR.decide(g, goal, world))
+        if got["found"]:
+            X.execute(g, got["workbench"], got["frame"])
+        return g, got, wh, box, crate, parcel
+
+    g1, filtered, wh1, box1, crate1, parcel1 = stow(
+        "    wants link contains",
+        "    some spot in subject by contains",
+        "    unless spot.sealed = true",
+        "    do put_in t = object, box = spot")
+
+    # ⚠ THE VACUITY GUARD: without the filter the FIRST candidate is the sealed crate.
+    g2, unfiltered, wh2, box2, crate2, parcel2 = stow(
+        "    wants link contains",
+        "    some spot in subject by contains",
+        "    do put_in t = object, box = spot")
+
+    # `some` doing the selector's job, with a reason attached.
+    g3, w3 = _blocks()
+    goal3, _abc = _sussman(g3, w3)
+    for t in (_lines("criterion take the top of the pile off:", "    wants link on",
+                     "    some top in subject by ^on", "    when top is a clear_block",
+                     "    do unstack b = top, floor = the ground"),
+              _lines("criterion build from the bottom up:", "    wants link on",
+                     "    when subject is a clear_block", "    when object is a clear_block",
+                     "    unless wants link on from object", "    do stack b = subject, onto = object")):
+        I.read(g3, t)
+    blocks = D.pursue(g3, goal3, T.open_thread(g3), w3, max_steps=400, max_depth=7,
+                      propose=CR.decide(g3, goal3, w3))
+
+    def refused(text):
+        g, _w = _blocks()
+        try:
+            I.read(g, text)
+            return None
+        except I.Unreadable as e:
+            return str(e)
+
+    return {"A_FILTERED_DRAW_PICKS_THE_RIGHT_CONTAINER": filtered["found"]
+                and parcel1 in g1.targets(box1, "contains"),
+            "and_not_the_sealed_one": parcel1 not in g1.targets(crate1, "contains"),
+            "it_really_reaches_the_warehouse": P.reaches(g1, wh1, "contains", parcel1),
+            # ⚠ Vacuity: unfiltered lands in the sealed crate — the filter is doing the work, not the order.
+            "WITHOUT_THE_FILTER_IT_TAKES_THE_SEALED_ONE":
+                unfiltered["found"] and parcel2 in g2.targets(crate2, "contains"),
+            "SOME_ALSO_DOES_THE_SELECTORS_JOB":
+                blocks["found"] and D.plan_steps(g3, blocks) == ("unstack", "stack", "stack"),
+            "a_name_must_be_drawn_BEFORE_it_is_used":
+                "not a role" in (refused("criterion x:\n    wants link on\n"
+                                         "    when spot is a thing\n"
+                                         "    some spot in subject by contains\n"
+                                         "    do stack b = subject, onto = object") or ""),
+            "and_cannot_be_drawn_twice":
+                "already bound" in (refused("criterion x:\n    wants link on\n"
+                                            "    some spot in subject by contains\n"
+                                            "    some spot in object by contains\n"
+                                            "    do stack b = subject, onto = object") or "")}
+
+
+def check_criteria_survive_a_SECOND_DOMAIN_and_where_they_STOP():
+    """⭐⭐ Everything in `expert_judgement.md` was measured on blocks world, whose goals are `a on b` — a
+    **link** constraint naming exactly the two individuals that must move. The load-bearing assumption is
+    *a criterion's variables come from an unmet goal constraint*, and two other worlds attack it:
+
+    * **the GARAGE**, whose goal `car is a washed_car` is a **type** constraint — one subject, no object.
+    * **the WAREHOUSE**, whose goal `wh contains+ parcel` names neither the box the parcel must go into
+      nor anything about it. The right action mentions a **third individual**.
+
+    **⭐ Both survive, and the second is the interesting one:** a third individual is reachable by an
+    ordinary path from a bound role (`subject.contains`), so `wants` binding only two roles is not the
+    ceiling it looked like — `path.py` extends the reach.
+
+    ⚠⚠ **But it found a real bug first, which is the point of a second domain.** `wants type washed_car`
+    matched **nothing**, silently: `goal.require_type` stores its label under `type`, a link under `label`,
+    an attribute under `key`. Three names for one idea, and a criterion keying on the wrong one is
+    indistinguishable from a criterion with nothing to say.
+
+    ⚠⚠ **And it settled a design question by force.** A criterion whose action the goal FORBIDS is now
+    **silent, not loud**. `driver.check_call` raising is right for a Python decider — one naming a
+    forbidden call is a caller bug — but a criterion is general knowledge meeting a particular world, so
+    *"the first container happens to be the one this goal forbids"* is a situation. Raising abandoned a
+    search that plain enumeration could finish; here `never touch crate` makes the criterion stand down
+    and the deferred enumeration finds the box.
+
+    ⭐ **The residue, and it is precise:** `subject.contains` denotes the **first** container. A criterion
+    can REACH a third individual and cannot **CHOOSE** among several — `nearest`/`furthest … by <link>`
+    selects over a *traversal*, never by a *condition*. What is missing is `some x such that …`: a set
+    position with a **filter**, where §8.4 only needed a **selector**."""
+    from . import criterion as CR, driver as D, execution as X, goal as G, intake as I
+    from . import path as P, thread as T
+
+    # --- the garage: a TYPE goal, subject and no object ---
+    g, car = _garage()
+    g.put(car, label="car")
+    goal = I.read_goal(g, _lines("goal clean it:", "    car is a washed_car"))
+    plain = D.pursue(g, goal, T.open_thread(g), car, max_steps=200, max_depth=6)
+    for t in (_lines("criterion service it before washing:", "    wants type washed_car",
+                     "    unless subject is a serviced_car", "    do service c = subject"),
+              _lines("criterion then wash it:", "    wants type washed_car",
+                     "    when subject is a serviced_car", "    do wash c = subject")):
+        I.read(g, t)
+    garage = D.pursue(g, goal, T.open_thread(g), car, max_steps=200, max_depth=6,
+                      propose=CR.decide(g, goal, car))
+
+    # --- the warehouse: the action names a THIRD individual ---
+    def stow(extra_crate: bool):
+        gg, world, wh, box, parcel = _warehouse(nested=False)
+        forbid = ["    never touch wh"]
+        if extra_crate:
+            crate = gg.mint("thing", kind_of="thing", label="crate", held=True)
+            gg.link(world, "thing", crate)
+            gg.link_at(wh, "contains", 0, crate)      # ahead of the box, so `.contains` finds it first
+            forbid.append("    never touch crate")
+        goal2 = I.read_goal(gg, _lines("goal stow it:", "    wh contains+ parcel", *forbid))
+        I.read(gg, _lines("criterion stow it in something already inside:",
+                          "    wants link contains",
+                          "    do put_in t = object, box = subject.contains"))
+        got = D.pursue(gg, goal2, T.open_thread(gg), world, max_steps=200, max_depth=6,
+                       propose=CR.decide(gg, goal2, world))
+        if got["found"]:
+            X.execute(gg, got["workbench"], got["frame"])
+        return gg, got, wh, box, parcel
+
+    g1, one_box, wh1, box1, parcel1 = stow(False)
+    g2, two_boxes, wh2, box2, parcel2 = stow(True)
+
+    return {"a_TYPE_goal_binds_a_subject_and_criteria_drive_it":
+                garage["found"] and D.plan_steps(g, garage) == ("service", "wash"),
+            "and_beat_relevance": garage["steps"] < plain["steps"],
+            "imagined_criteria_vs_relevance": (garage["steps"], plain["steps"]),
+            "A_THIRD_INDIVIDUAL_IS_REACHABLE_BY_A_PATH": one_box["found"],
+            "it_really_ends_up_in_the_warehouse": P.reaches(g1, wh1, "contains", parcel1),
+            "BUT_NOT_DIRECTLY": parcel1 not in g1.targets(wh1, "contains"),
+            # ⚠ THE RESIDUE: the first container is forbidden, so the criterion stands down rather than
+            # overruling the constraint — and the deferred enumeration still finds the right box.
+            "A_FORBIDDEN_ACTION_MAKES_THE_CRITERION_STAND_DOWN": two_boxes["found"],
+            "and_the_parcel_still_reaches_the_warehouse": P.reaches(g2, wh2, "contains", parcel2),
+            "the_goal_kept_the_crate_untouched":
+                parcel2 not in g2.targets(_only(g2, "crate"), "contains"),
+            # The vacuity guard for the whole check: `wants type` really did match nothing before the fix.
+            "and_a_type_constraint_labels_itself_differently_from_a_link":
+                CR.constraint_label(g, G.world_constraints(g, goal)[0]) == "washed_car"}
+
+
+def _only(g, label):
+    hits = [n for n in g.nodes if g.attr(n, "label") == label]
+    return hits[0]
 
 
 def _sussman(g, world):
