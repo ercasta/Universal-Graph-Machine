@@ -31,6 +31,7 @@ Everything you can say:
 ```
 a on b                  a relationship between two named things
 b.clear = true          an attribute with a value
+box.contents known      go and find out — rather than make it so
 some file               something of this kind must exist
 a is a sealed_jar       this thing must satisfy this shape
 
@@ -40,7 +41,24 @@ must paint              include this somewhere
 at most 3 steps         a budget
 ```
 
-Eight forms. That's the entire language.
+Nine forms. That's the entire language.
+
+The third one is the odd one, and it's worth reading twice. `box.contents =
+"a spanner"` says *make it so*. `box.contents known` says *go and look*. Those
+are different requests, and Chapter 19 is about why the machine couldn't tell
+them apart until recently.
+
+## Four more verbs, and the same block
+
+`goal`, `ask` and `why` are three of seven. The others turn up in Part 4:
+`prefer` and `avoid` write a guideline, `method` and `procedure` write a
+decomposition. Same `verb label:` block, same indented body, same refusals.
+
+That mattered more than it looks. For a while, a goal could be *said* while a
+guideline could only be built by calling into the machine's own code — which is
+precisely the "reach past the surface" the box at the end of this chapter says
+must never happen. The principle was written down and quietly unenforced, for
+everything except goals.
 
 ## Constraints on the route work in questions too
 

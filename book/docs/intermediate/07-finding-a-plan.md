@@ -19,37 +19,46 @@ actions. There was never any plan to build.
 That's why the machine's own report reads the way it does:
 
 ```
-found: True | imagined: 3 | plan length: 2
+found: True | imagined: 2 | plan length: 2
     stack(b=b, onto=c)
     stack(b=a, onto=b)
 ```
 
-Two steps, found by imagining three situations.
+Two steps, found by imagining two situations.
 
-## Why three and not eighty-seven
+## Why two and not sixty-seven
 
 Turn off the machine's judgement and run the identical search — same world, same
 actions, same goal:
 
 ```
-  guided=True  found=True imagined=  3 plan=2 steps
-  guided=False found=True imagined= 87 plan=2 steps
+  guided=True  found=True imagined=  2 plan=2 steps
+  guided=False found=True imagined= 67 plan=2 steps
 ```
 
-Both find the same two-step plan. One looks at three possibilities; the other at
-eighty-seven.
+Both find the same two-step plan. One looks at two possibilities; the other at
+sixty-seven. Around **thirty times** fewer situations considered, for the same
+answer.
 
-Those are single runs, and honesty requires the ranges. Over forty runs each:
+Run either of them again and you get the same numbers. That's worth a moment,
+because it wasn't always true.
 
-| | states imagined | plan |
-|---|---|---|
-| guided | **2–3** | always 2 steps |
-| blind | **53–87** | always 2 steps |
+!!! note "Deep dive: the search used to give a different answer each time"
+    For a while these figures wobbled — the same puzzle measured 12 situations,
+    then 306, then 400-and-give-up, in a single session. The plan was never
+    *wrong*, just arbitrary, and arbitrary at wildly varying cost.
 
-The wobble is tie-breaking: when several moves score the same the machine takes
-whichever came to hand first, and that ordering shifts between runs. The plan
-never moves. Neither does the conclusion — roughly **twenty-five times** fewer
-situations considered, for the same answer.
+    The cause was one line. A helper that collects what's reachable in the
+    world handed back an unordered collection, so when the machine copied the
+    world onto the workbench, the order it copied things in came down to
+    where each node happened to land in memory. Two moves that scored the same
+    were then separated by nothing at all.
+
+    The lesson generalises past this machine: **a computation that's supposed
+    to be repeatable and ends in an unordered collection has a hidden
+    tie-break in it.** Over a hundred checks passed straight over this one,
+    because every one of them asked whether the plan was right — and it always
+    was.
 
 The difference is that the guided search asks, of every move it might make:
 **would this close something that's still missing?** Which it can only ask
@@ -90,13 +99,11 @@ Because it breaks. Try this famous little puzzle — `c` is sitting on `a`, and 
 want `a` on `b` and `b` on `c`:
 
 ```
-found: True | imagined: 51 | plan length: 3
+found: True | imagined: 50 | plan length: 3
     unstack(b=c, floor=ground)
     stack(b=b, onto=c)
     stack(b=a, onto=b)
 ```
-
-(51 to 53 across runs; the three-step plan is always the same one.)
 
 Look at the first move. **`unstack` closes nothing.** It doesn't make `a on b`
 true, or `b on c`. By any measure of relevance it's a bad move — and the puzzle
@@ -118,6 +125,10 @@ soundly.
 
 The two sentences look contradictory out of context. They're the same principle:
 match your confidence to what you actually know.
+
+It also settles a question you might not have thought to ask yet: what happens
+when *you* want to steer the search. Chapter 17 is that chapter, and this rule
+is why the answer is "you may reorder it, and you may not prune it."
 
 !!! note "Deep dive: three search designs that failed first"
     Depth-first burned an entire budget down one branch that could never work,

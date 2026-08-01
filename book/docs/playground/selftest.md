@@ -20,7 +20,7 @@ them.
 </div>
 
 !!! note "It takes a moment"
-    A hundred and thirty-odd checks, each building a small world and searching
+    A hundred and forty-odd checks, each building a small world and searching
     it, inside a Python runtime that is itself running in your browser. Give it
     a few seconds.
 
@@ -29,7 +29,7 @@ them.
 Scroll the output and you'll find the claims from this book, stated as
 assertions. A few worth hunting for:
 
-- **`a_derivation_may_never_act`** — the purity bar from Chapter 19. Its last
+- **`a_derivation_may_never_act`** — the purity bar from Chapter 23. Its last
   key plants the removal of the bar and confirms the question *dies* rather than
   quietly reaching outside.
 - **`why_answers_from_history_and_never_invents_it`** — Chapter 8's refusal.
@@ -40,6 +40,14 @@ assertions. A few worth hunting for:
   imaginings can't be mistaken for the world.
 - **`one_grammar_three_verbs`** — Chapter 9: `goal` and `ask` produce the *same*
   constraints.
+- **`a_guideline_reorders_and_can_never_exclude`** — Chapter 17, and the two keys
+  that carry it sit next to each other: forbidding a move makes the puzzle
+  unreachable, *avoiding* the same move still solves it.
+- **`a_procedure_refuses_where_a_method_falls_back`** — Chapter 18. Two
+  decompositions built identically apart from one declared word, required to
+  behave oppositely.
+- **`ignorance_is_representable_and_sensing_closes_it`** — Chapter 19: *not
+  there* versus *not looked*, end to end.
 
 ## Why the keys are named like that
 

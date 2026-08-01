@@ -48,7 +48,7 @@ to the machine.
 ## Watch it work
 
 ```
-found: True | imagined: 3 | plan length: 2
+found: True | imagined: 2 | plan length: 2
     stack(b=b, onto=c)
     stack(b=a, onto=b)
 ```
@@ -56,21 +56,18 @@ found: True | imagined: 3 | plan length: 2
 There's the plan: put `b` on `c`, then put `a` on `b`. Which is right — and it's
 also the *shortest* right answer.
 
-But look at the middle number. **It imagined 3.**
+But look at the middle number. **It imagined 2.**
 
-Three hypothetical situations considered, in total, to find a two-step plan. The
+Two hypothetical situations considered, in total, to find a two-step plan. The
 machine wasn't grinding through every combination of crates and actions. It was
 working out which moves could possibly help, trying those first, and leaving the
 rest alone. Chapter 7 is about how — and about the honest measurement that the
-same search, run *without* that judgement, takes 53 to 87.
+same search, run *without* that judgement, takes 67.
 
-!!! note "Why that's a range, and this one isn't"
-    Run this again and you may see 2 rather than 3. When several moves look
-    equally good the machine takes whichever came to hand first, and that
-    ordering shifts between runs — so the *number of states considered* wobbles
-    a little. The **plan** doesn't: it's the same two steps every time. Numbers
-    in this book are real measurements, so where one varies, you'll see the
-    range.
+!!! note "Every number in this book is a real measurement"
+    Nothing here is illustrative. Run this yourself and you get 2, and you get
+    2 again — the search is repeatable, and Chapter 7's deep dive is about the
+    period when it wasn't and nobody noticed.
 
 !!! note "The word 'imagined' is literal"
     The machine did not stack anything to find this plan. It made a private copy

@@ -84,11 +84,16 @@ nav:
       - "13 · Remembering": advanced/13-remembering.md
       - "14 · Learning from what it did": advanced/14-learning.md
       - "15 · When two intentions collide": advanced/15-collisions.md
-  - "Part 4 — The internals":
-      - "16 · The instruction set": deep/16-instruction-set.md
-      - "17 · Types as shapes": deep/17-types-as-shapes.md
-      - "18 · Reading a rule": deep/18-reading-a-rule.md
-      - "19 · Concluding versus acting": deep/19-concluding-vs-acting.md
+  - "Part 4 — Deliberation":
+      - "16 · Choosing what to do next": deliberation/16-choosing-what-to-do-next.md
+      - "17 · Advice it may ignore": deliberation/17-advice-it-may-ignore.md
+      - "18 · Recipes, and rules you must follow": deliberation/18-recipes-and-rules.md
+      - "19 · Not knowing": deliberation/19-not-knowing.md
+  - "Part 5 — The internals":
+      - "20 · The instruction set": deep/20-instruction-set.md
+      - "21 · Types as shapes": deep/21-types-as-shapes.md
+      - "22 · Reading a rule": deep/22-reading-a-rule.md
+      - "23 · Concluding versus acting": deep/23-concluding-vs-acting.md
   - "Playground":
       - "Watch it plan": playground/tower.md
       - "Ask it something": playground/asking.md

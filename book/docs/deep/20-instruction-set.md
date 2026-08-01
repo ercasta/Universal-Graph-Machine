@@ -1,6 +1,6 @@
 # The instruction set
 
-Part 4 is optional. If you've read this far you can use the machine without any
+Part 5 is optional. If you've read this far you can use the machine without any
 of it. What follows is how the pieces actually work, for the curious.
 
 We start at the bottom: what a rule's body is really made of.
@@ -65,7 +65,7 @@ The dividing line the machine uses:
 > **Python for machinery nothing reasons about. Instructions for anything that
 > must be inspectable, generated, or learned.**
 
-Chapter 14's learned rule is the proof this isn't theoretical. So is Chapter 18,
+Chapter 14's learned rule is the proof this isn't theoretical. So is Chapter 22,
 which is entirely about reading a rule's instructions to work out what it does.
 
 ## Failing loudly
@@ -87,7 +87,7 @@ kind.
 `DISPATCH` is the only way to affect anything outside the graph. That's Chapter
 12's single door, and its being a single *instruction* is what makes the door
 enforceable: whether a rule can reach the world is a question you answer by
-reading its body, which is exactly what Chapter 19 does.
+reading its body, which is exactly what Chapter 23 does.
 
 ## The undo journal, and its deliberately small claim
 
@@ -107,4 +107,4 @@ its test suite turns out to use it, delete it.
 ---
 
 **Next:** the type system, which is smaller than you'd think and removes more
-than you'd expect. [Types as shapes →](17-types-as-shapes.md)
+than you'd expect. [Types as shapes →](21-types-as-shapes.md)

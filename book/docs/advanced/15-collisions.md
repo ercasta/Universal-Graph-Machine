@@ -122,5 +122,7 @@ later reads like history.
 That's Part 3. The machine plans, acts, recovers, remembers, learns, and notices
 when it's working against itself.
 
-**Next, and optional:** how the pieces actually work.
-[The instruction set →](../deep/16-instruction-set.md)
+**Next:** everything so far has been the machine deciding for itself. Part 4 is
+about telling it how you want it to work — and about the difference between
+advice, a recipe, and a rule it may not work around.
+[Choosing what to do next →](../deliberation/16-choosing-what-to-do-next.md)

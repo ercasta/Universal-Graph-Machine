@@ -125,4 +125,4 @@ express, and it's why an opaque outside call isn't simply a blind spot.
 ---
 
 **Next:** the last chapter, and the sharpest line in the machine.
-[Concluding versus acting →](19-concluding-vs-acting.md)
+[Concluding versus acting →](23-concluding-vs-acting.md)

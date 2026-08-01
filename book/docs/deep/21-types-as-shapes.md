@@ -130,4 +130,4 @@ other.
 ---
 
 **Next:** if a shape can't say what a rule does, what can?
-[Reading a rule →](18-reading-a-rule.md)
+[Reading a rule →](22-reading-a-rule.md)

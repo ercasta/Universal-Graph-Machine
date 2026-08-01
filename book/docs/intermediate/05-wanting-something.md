@@ -51,7 +51,7 @@ constraints are still false** lets the machine ask a much better question:
 
 That's the shift from **generate-and-test** to **means–ends**: instead of
 guessing and checking, work backwards from what's actually missing. In Chapter 7
-we'll see it cost three imagined situations instead of eighty-seven.
+we'll see it cost two imagined situations instead of sixty-seven.
 
 And it only works because the goal was kept as separate constraints. Squash
 those two lines into one indivisible wish and there's nothing to work backwards

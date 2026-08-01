@@ -6,7 +6,7 @@ has two ways to establish that someone is mortal:
 - `conclude_mortal` — works it out. Touches nothing outside.
 - `ask_the_registrar` — reaches the outside world to find out.
 
-Only one of those may be used to answer a question (Chapter 19). Watch which one
+Only one of those may be used to answer a question (Chapter 23). Watch which one
 turns up in the reasoning.
 
 Three verbs share one grammar. Change the first word and the same body means

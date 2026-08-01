@@ -29,6 +29,11 @@ So removing the branch can't lose a solution. Contrast relevance, which is a
 What this limit is good at: shaping the space of plans. What it cannot do:
 protect you from anything outside the planner.
 
+There's a softer thing that looks like this and isn't — `avoid unstack`, which
+means *later* rather than *never*. Keeping those two apart is Chapter 17's whole
+subject, because a preference that quietly hardened into a prohibition would
+lose you solutions while still producing plans.
+
 ## Limit two: the one door to the outside
 
 Every action that touches the world — every message, every file write, every

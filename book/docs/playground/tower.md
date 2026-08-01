@@ -73,8 +73,8 @@ nothing for the goal. Compare where `paint` lands in the plan.
     These cards come from the engine's own trace hook, and the engine's self-test
     asserts that a traced search finds the **identical plan** to an untraced one.
     So you're watching the actual search, not a replay someone wrote to look like
-    one. You may see 2 or 3 imagined states on the same goal — that's genuine
-    tie-breaking, explained in Chapter 7.
+    one. The same goal gives the same number of imagined states every time —
+    Chapter 7's deep dive covers why that guarantee had to be earned.
 
 ---
 

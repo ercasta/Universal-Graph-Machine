@@ -12,7 +12,7 @@ license = { text = "MIT" }
 keywords = ["graph", "reasoning", "knowledge-representation", "planning", "agent"]
 dependencies = []
 
-# Verification is `python -m microfunctions.selftest` — 132 checks, 0 FAILED — not pytest.
+# Verification is `python -m microfunctions.selftest` — 141 checks, 0 FAILED — not pytest.
 # ⚠ That is a deliberate consequence of retiring `ugm/`: 92 of the 94 pytest files existed to test it,
 # so they went with it. The selftest is a single runner that reports every check's keys and counts any
 # `False` as a failure.

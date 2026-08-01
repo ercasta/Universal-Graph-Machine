@@ -48,7 +48,7 @@ Two things fall out for free: a thing can satisfy several shapes at once, and it
 stops satisfying one the moment its structure changes — with nothing to
 invalidate, because nothing was stored.
 
-→ [Chapter 2](../basic/02-facts.md), [Chapter 17](../deep/17-types-as-shapes.md)
+→ [Chapter 2](../basic/02-facts.md), [Chapter 21](../deep/21-types-as-shapes.md)
 
 ---
 
@@ -61,7 +61,7 @@ alters along the way is merely how the cast is achieved.
 Nothing records that a change happened. A node satisfies the stronger shape or
 it doesn't — checkable now, rather than a claim about the past.
 
-→ [Chapter 17](../deep/17-types-as-shapes.md)
+→ [Chapter 21](../deep/21-types-as-shapes.md)
 
 ---
 
@@ -247,6 +247,86 @@ the detector reports everything and becomes noise.
 
 ---
 
+## The five words
+
+The search consults a decision once per imagined step, and the answer is one of
+five: **expand** (imagine the best move — the default), **decompose** (raise
+subgoals instead), **commit** (stop planning, act on what we have), **sense**
+(stop planning and act in order to *find out*), **refuse** (there's no
+sanctioned way, don't improvise).
+
+Closed on purpose: it's the vocabulary everything authored has to speak, and a
+vocabulary nobody can enumerate is one nobody can check.
+
+→ [Chapter 16](../deliberation/16-choosing-what-to-do-next.md)
+
+---
+
+## Guideline
+
+Authored preference — `prefer` and `avoid`. The weakest kind of knowledge here
+and the only one that cannot cause harm: a guideline **reorders candidate moves
+inside a relevance band** and does nothing else.
+
+**`avoid` means later, never never.** The word that means never is `never`, and
+it prunes because it's a proof. Advice is a guess.
+
+→ [Chapter 17](../deliberation/17-advice-it-may-ignore.md)
+
+---
+
+## Method, procedure, and force
+
+Both are authored decompositions: *for a goal of this shape, raise these
+subgoals in this order.* They can be written identically, and what separates
+them is **force** — what happens when a step doesn't work out.
+
+- **method** (advisory) — fall back to searching.
+- **procedure** (mandatory) — **refuse**, and don't look for another route.
+
+Force is about failure, not strength, and it can't be inferred from the content,
+so it has to be declared.
+
+Both prune on **authority** rather than on evidence or proof, which is a third
+kind of justification and the only one that can make a reachable goal
+unreachable.
+
+→ [Chapter 18](../deliberation/18-recipes-and-rules.md)
+
+---
+
+## Subgoal
+
+A goal inside a goal. The child points at the parent, so *"am I inside a
+procedure?"* is a short walk up a chain — the question a decision actually asks.
+
+A cycle is impossible (a goal's parent is fixed when it's created), but **depth
+isn't bounded**: a recipe that raises a goal matching the same recipe recurses
+happily forever. That's open.
+
+→ [Chapter 18](../deliberation/18-recipes-and-rules.md)
+
+---
+
+## Not there, versus not looked
+
+An absent attribute means *hasn't got one*. A slot explicitly marked `UNKNOWN`
+means *nobody has looked* — present, but not a value, and false to anything that
+tests it.
+
+So a condition can be unmet for two different reasons, and only the second is a
+reason to go and look:
+
+- **false** → find an action that makes it true;
+- **unknown** → find an action that would reveal it.
+
+The machine senses only when the plan **bottoms out** in ignorance, never when
+it merely touches it.
+
+→ [Chapter 19](../deliberation/19-not-knowing.md)
+
+---
+
 ## Dispatch — the one door
 
 Every effect on the world goes through a single place. That's what makes one
@@ -270,7 +350,7 @@ Deliberately conservative in the opposite direction from effect-reading, because
 the costs differ: overstating what a rule *might do* wastes a step; understating
 what it *could reach* sends an email you can't unsend.
 
-→ [Chapter 19](../deep/19-concluding-vs-acting.md)
+→ [Chapter 23](../deep/23-concluding-vs-acting.md)
 
 ---
 
@@ -283,7 +363,7 @@ Operands are literals, **registers** (local scratch), or **heads** — the thing
 the rule was pointed at. A rule gets fresh heads holding only its own arguments,
 never its caller's.
 
-→ [Chapter 16](../deep/16-instruction-set.md)
+→ [Chapter 20](../deep/20-instruction-set.md)
 
 ---
 
@@ -299,7 +379,7 @@ The path is resolved late, against real arguments.
 The result is an **over-approximation by contract** — safe for ordering
 candidates, unsafe for concluding that a rule definitely does something.
 
-→ [Chapter 18](../deep/18-reading-a-rule.md)
+→ [Chapter 22](../deep/22-reading-a-rule.md)
 
 ---
 

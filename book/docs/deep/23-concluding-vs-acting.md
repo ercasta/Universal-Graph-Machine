@@ -34,13 +34,13 @@ usable to answer a question: ('conclude_mortal',)
 > the outside** — read off its stored instructions, following every rule it
 > calls in turn.
 
-That's Chapter 18's machinery, used for something different. And it's a
+That's Chapter 22's machinery, used for something different. And it's a
 **proof**, not a guess — which by Chapter 7's rule means it *prunes*. The
 impure rule isn't ranked lower and left available. It's not offered at all.
 
 ## Conservative in the opposite direction
 
-Chapter 18's reading is an over-approximation: it errs toward saying a rule
+Chapter 22's reading is an over-approximation: it errs toward saying a rule
 might do something. This one errs the other way.
 
 If the machine **can't tell** whether a rule reaches outside — a call to
@@ -109,12 +109,15 @@ Where you've been:
   what happened without inventing what didn't.
 - **Part 3** — reality disagreeing, contingencies, hard limits, memory, learning,
   and noticing its own intentions colliding.
-- **Part 4** — the instructions underneath, and the two readings of a rule's body
+- **Part 4** — telling it how to work: advice it may ignore, recipes that
+  replace the search, procedures it may not work around, and the difference
+  between *not there* and *not looked*.
+- **Part 5** — the instructions underneath, and the two readings of a rule's body
   that make planning and safety possible.
 
 The thread running through all of it is one property. **Everything is made of
 the same stuff.** Rules, goals, plans, memories, explanations, conflicts — all
-ordinary data in one graph. Every capability in Parts 2 to 4 is a consequence:
+ordinary data in one graph. Every capability in Parts 2 to 5 is a consequence:
 the machine can plan because it can read its rules, explain because its
 reasoning is an object, learn because it can write a rule, and refuse to reason
 with a dangerous rule because it can inspect one before running it.

@@ -24,6 +24,10 @@ book/
   docs/
     index.md            # landing page
     basic/              # Part 1 — Basic
+    intermediate/       # Part 2 — how it decides
+    advanced/           # Part 3 — when things go wrong
+    deliberation/       # Part 4 — guidelines, methods, procedures, sensing
+    deep/               # Part 5 — the internals
     playground/         # live Pyodide pages
     appendix/           # plain-language concept explainers
     javascripts/        # the playground widget (Pyodide loader)

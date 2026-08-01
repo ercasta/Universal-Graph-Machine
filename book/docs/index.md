@@ -35,7 +35,7 @@ technicality. It's the whole game, and by the end of Part 2 you'll see why.
 
 ## How to read this book
 
-Four parts, each building on the last. The fourth is an optional deep dive.
+Five parts, each building on the last. The last is an optional deep dive.
 
 <div class="grid cards" markdown>
 
@@ -66,14 +66,23 @@ Four parts, each building on the last. The fourth is an optional deep dive.
 
     [:octicons-arrow-right-24: Part 3](advanced/10-when-reality-disagrees.md)
 
-- :material-numeric-4-circle:{ .lg .middle } **The internals — for the curious**
+- :material-numeric-4-circle:{ .lg .middle } **Deliberation — telling it how to work**
+
+    ---
+
+    Advice it may ignore, recipes it should follow, procedures it must not work
+    around, and knowing the difference between *not there* and *not looked*.
+
+    [:octicons-arrow-right-24: Part 4](deliberation/16-choosing-what-to-do-next.md)
+
+- :material-numeric-5-circle:{ .lg .middle } **The internals — for the curious**
 
     ---
 
     Optional. The instruction set, types as schemas, and how the machine reads
     a rule's consequences straight off the rule itself.
 
-    [:octicons-arrow-right-24: Part 4](deep/16-instruction-set.md)
+    [:octicons-arrow-right-24: Part 5](deep/20-instruction-set.md)
 
 </div>
 
