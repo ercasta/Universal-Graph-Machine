@@ -13,7 +13,7 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 165 checks, 0 FAILED
+python -m microfunctions.selftest      # 176 checks, 0 FAILED
 ```
 
 > **Update, 2026-07-31.** §5's item 1 (replanning on divergence) is **done** — see §5a. Items 2–5 stand,
@@ -60,6 +60,8 @@ the data model was genuinely independent of the execution model.
 | `graph.py` | substrate — mutable, **named edges**, **ordered targets** (index addressing), edge properties, **references** (`Ref` ≠ edge), maintained reverse index, undo journal |
 | `focus.py` | addressing — named heads **as graph data**; move forward/backward/through refs, fork, spread, close |
 | `activation.py` | **the interpreter's own state** — `pc`, stack, registers, what a call minted; the yield point |
+| `loop.py` | **THE OUTER LOOP** — one agenda, one tick, one primitive step; `imagine` / `look` / `act` / `forget` |
+| `forget.py` | **the slower clock** — forgetting is the DEFAULT; a tool call and a surprise are the exceptions |
 | `types.py` | a type is a **subgraph schema** (structure *and* attributes); structural sub/supertyping |
 | `function.py` | **a rule is a function** — a named ISA program with typed params, stored in the graph |
 | `asm.py` | the text surface and LLM border; `.mf` files; comments kept as data |
@@ -1636,6 +1638,285 @@ steppers — materialising them separately first would build the very thing §6b
 motion. ⚠ `_replay` also crosses `dispatch`, so its yield points are where the `look` / `act` asymmetry has
 to be honoured rather than merely tidied.
 
+## 6d. ⭐⭐⭐ ONE OUTER LOOP — every control loop is now data (2026-08-01)
+
+**170 checks, 0 FAILED**, and the self-test is *faster* than before the arc started (6.4 s against 7.2 s —
+`activation.minted` removed two whole-graph scans). New module `loop.py`; `execution._replay` and
+`driver.carry_out` materialised. **§6b's inventory is empty.**
+
+**⭐ Almost nothing in `loop.py` is mechanism, and that is the evidence the earlier slices were the right
+ones.** Every control loop had already become *a node plus a `step`*, so the outer loop is an **ordered
+agenda and a dispatch on `kind`**:
+
+| task | one primitive step is | state lives in |
+|---|---|---|
+| `activation` | one ISA instruction | `activation.py` (§6c) |
+| `search` | one imagined state | `search.py` (§5z) |
+| `replay` | one real action | `execution.py` (here) |
+| `pursuit` | one step of plan/act/check/replan | `driver.py` (here) |
+
+Adding a kind of work means writing its `step`, not touching `loop.py`.
+
+**⭐ Round-robin, and the rotation IS the data.** `tick` takes the head of the agenda, advances it one
+step, and re-links it at the tail — so interleaving is not a policy the module implements but the ordinary
+consequence of the agenda being an ordered edge, and *which task is next* is a question anyone can ask of
+the graph. Checked with a stored microfunction and a whole goal-pursuit on one agenda, alternating.
+
+**⚠ A tick of a pursuit is NOT "one attempt", and getting that wrong would have been the easy version.**
+An attempt contains a whole search and a whole replay. So a pursuit holds a **current sub-task** and
+advancing it advances *that* by one primitive step, changing phase only when it finishes — and a phase
+transition costs a tick of its own, because *"the plan is in hand and nothing has been done yet"* is a
+state the system may legitimately be stopped in. It is the last moment before anything becomes
+irreversible. The check requires `ticks > 2 × attempts`, and the planted-bug probe (a tick that runs a
+whole attempt) turns exactly that key red while the verdict stays right.
+
+**⭐⭐ The one thing that must NOT become uniform is irreversibility, and it is now expressible.**
+`loop.verb_of` answers **before** a step is taken: `imagine` costs time, `act` cannot be taken back. §6b
+named the missing piece and it is closed — `dispatch.register(name, handler, observes=True)` distinguishes
+a directory scan from a sent email, ⚠ **declared rather than inferred, defaulting to the unsafe-to-assume
+answer** (unmarked means *acts*). ⚠ Declining is something a *caller* does, not something `run` does on
+its behalf: `run(until=)` stops after a tick, and stopping *before* an act means reading `verb_of` off the
+head of the agenda and simply not calling `tick`. That asymmetry is deliberate.
+
+**⭐ `open_execution` and the contradiction check both became ONE setup.** Extracting the replay's seeding
+had the same motive as §5z's `open_planning`, and the second one was found by writing the bug: the first
+draft of `pursuit_step` re-implemented `conflict.unsatisfiable` because `pursue` did it as an early
+`return`. Now it is recorded **on the search node** (`contradictory=`) and reported by `step`, exactly as
+`already=` was — so every driver gives the same answer and there is nothing to keep in step by hand.
+
+**Five planted-bug probes, each biting a distinct key, all with the right signature** — the answer stays
+right and only the property is lost:
+
+* a greedy `execution.step` → `IT_PAUSED_BETWEEN_TWO_REAL_ACTIONS` red;
+* a pursuit tick that runs a whole attempt → `A_TICK_IS_A_PRIMITIVE_STEP_NOT_AN_ATTEMPT` red;
+* a `tick` that re-links at the **front** (the "just finish this one" trap) → `and_really_alternated` red;
+* a `verb_of` that always answers `run` → the loop takes the irreversible step, and
+  `AND_THE_WORLD_WAS_STILL_UNTOUCHED_THEN` goes red, which is the proof the stop was load-bearing;
+* a `dispatch.observes` that always says yes → `a_changing_one_is_an_ACT` red.
+
+**⚠ And the third probe justified a key I nearly did not write.** `THEY_INTERLEAVED` (the *set* of kinds
+advanced) stayed **green** under the no-rotation bug, because both tasks still ran eventually. Only
+`and_really_alternated` (the *order*) caught it. A set answers "did both happen"; interleaving is a claim
+about order, and the obvious assertion was the wrong shape.
+
+**⚠ A refusal that is the honest boundary of the whole arc.** `loop.advance` **refuses** an activation
+with no `of` — a program that exists only as a Python tuple cannot be reconstructed, so it can be resumed
+by nothing but the caller holding it, which is `composability-principle`'s unreachable island exactly.
+Saying so beats skipping it. The vacuity guard is that the same program *stored* is driven without
+complaint, so the refusal is about reconstructability, not about activations.
+
+### ⚠ (b) is STILL not ready, and now for a sharper reason
+
+> **Superseded by §6e the same day: (b) was probed and the recommendation is NOT to do it.**
+> The continuation question below is real, but it turned out not to need answering — see §6e.3.
+
+§6c said (b) — removing backward jumps — waits on the outer loop. The loop exists, and the real blocker is
+now visible and is **not** the opcodes:
+
+```
+fn think(goal, subject, thread) -> plan:
+    PLAN R(s) …
+    .again:  STEP R(more) R(s) ;  JMPIF R(more) ".again"
+```
+
+Under the principle, `think` should `PLAN`, put the search **on the agenda**, and return — the outer loop
+advances it. But then `think` cannot *use* the plan: its invocation is over before the search finishes.
+**So (b) needs an answer to "how does a program wait for a task it scheduled", and that is a question
+about continuations as data, not about jumps.** Removing the loop opcodes first would delete the only way
+to express the thing while the replacement is still undesigned. ⭐ The three-site blast radius stands
+(`../pystrider` uses no loop opcode), so this is a design gap, not a compatibility one.
+
+**Also still open:** `remember` / `forget` are in §6b's verb set and are not scheduled by the loop — they
+are the "slower clock", and `memory.py`'s retention seam (§6a) is the thing they would drive.
+
+## 6e. ⚠⚠ (b) PROBED, AND THE RECOMMENDATION IS: DO NOT DO IT (2026-08-01)
+
+**171 checks, 0 FAILED.** §6b's strong version — remove the looping instructions so a microfunction
+*cannot* cheat — was carried through three sections as the arc's destination. It was probed rather than
+built, per §7, and **all three of its payoffs are weaker than recorded**. Nothing was removed; one check
+and one measurement were added.
+
+**⭐⭐ 1. The `establishes` payoff is ZERO on this library, and the reasoning behind it was wrong about the
+code.** §6b said: *"`deliberation.md` §12 already concluded that a closed, branch-free vocabulary makes
+`establishes` EXACT — every one of its `unknown` cases is an artefact of reading a general-purpose ISA.
+Confirmed in code: `driver._effects` does `unknown.add(None)` on `CALL`."* Measured over every function the
+engine's own scenarios define:
+
+| | functions |
+|---|---|
+| already **exact** | **8** |
+| darkened by `DISPATCH` | 2 |
+| darkened by control flow | **0** |
+
+And the reason is worse than the count. **`_effects` never reads jumps at all** — the walk is linear, so
+`JMP`/`JMPIF`/`JMPNOT` are skipped entirely: a write in a loop body is reported once, a conditional write
+is reported as unconditional. Removing backward jumps would therefore change `establishes` **only** by
+deleting the unexercised `CALL` case. The two real `unknown`s are `DISPATCH` — the world — which no
+branch-free vocabulary touches. Now stated in `_effects` itself, because it was a silent property of an
+over-approximation whose contract says *that* it over-approximates but never *which constructs* do it.
+
+**⭐⭐ 2. The termination payoff is RELOCATED, not delivered.** (b) promised *termination becomes
+structural, `MAX_STEPS` becomes unnecessary*. But §6b in the same breath says **repetition must come from
+the outer loop** — so an agenda that can re-schedule is exactly where unbounded repetition moves to, and
+`loop.run(max_ticks=…)` is the same honest stand-in one level up. What (b) would actually buy is *"one ISA
+program terminates"*, which is true and much smaller than *"termination becomes one problem"*. ⚠ The
+budgets that remain are `Machine.MAX_STEPS` (a runaway guard), `search.max_steps`/`max_depth` and
+`pursuit.attempts` (**policy** — how much is this goal worth?), and `loop.run`'s `max_ticks` (the one that
+bounds everything the loop drives). Collapsing them would be wrong: they are not four stand-ins for one
+question any more, which is itself progress, but it is not the promised single budget.
+
+**⭐⭐⭐ 3. And the practical motive is GONE, because every level ticks.** The argument that made (b) feel
+urgent was §6b's own diagram: `think` spins on `STEP`, so *"an interruptible search driven from inside an
+atomic invocation"*. **The invocation is not atomic any more.** The loop advances the activation one
+instruction at a time, that instruction advances the search one imagined state at a time, and unrelated
+work runs in between — checked, with the discriminating guard that the other task must advance **while
+`think`'s search is still open**, not merely before or after it. Three levels of stepping compose, and a
+blocking program no longer holds the loop.
+
+That was the whole reason to force repetition out of the ISA. **So a microfunction does not need to be
+rewritten in continuation-passing style, and `AFTER`/`SCHEDULE` opcodes are not needed either** — which is
+just as well, since CPS-ing the authoring surface would have been paid by every author forever.
+
+**⚠ What (b) would still buy, stated fairly so the decision can be revisited:** a program whose termination
+is decidable by inspection, which matters if untrusted `.mf` is ever loaded (§5y names that as the trigger
+to revisit builtin policing, and it is the same trigger). If that day comes, the blast radius is still
+three sites in `selftest.py` and `../pystrider` still uses no loop opcode. **Until then the cost is
+certain and the benefit is measured at zero.**
+
+> **Every claim in this arc that was checked got weaker, and the weakened version is the one worth
+> keeping** — §7, holding for the fourth time in two days. The strong version survived three sections of
+> being written down as the destination, and eleven lines of measurement.
+
+## 6f. ⭐⭐⭐ WHAT THE ARC WAS FOR: the system can judge its own computation (2026-08-01)
+
+**172 checks, 0 FAILED.** **The user's observation, and it is the payoff no single slice delivered:** this
+architecture allows heuristics about the *status of the computations themselves* — *"I have been planning
+for too long"* — which is monitoring and control of the system's own process.
+
+**⭐⭐ It was probed rather than agreed with, and it came out true with one line missing.** A watcher
+authored as **text** reads a live `search` node, judges it mid-flight, and stops it:
+
+```
+# Am I taking too long over this? If so, stop planning.
+fn watch_planning(s, budget):
+    .again:
+    ATTR R(over) F(s) "done"  ;  JMPIF R(over) ".end"
+    ATTR R(n) F(s) "steps"    ;  ATTR R(b) F(budget) "value"
+    LT R(ok) R(n) R(b)        ;  JMPIF R(ok) ".again"
+    SET F(s) "stop" "REFUSE"
+    SET F(s) "stop_why" "planning has gone on too long"
+    .end:
+```
+
+Measured: the verdict lands **while the search is still open** (15 states in, phase `planning`), the
+pursuit gives up honestly, and the world is untouched. The control — the identical search with a generous
+budget — imagines all 67 and **succeeds**, so the stop is what ended it and not exhaustion.
+
+**⚠ Three things had to already be true, and each came from a different slice:**
+
+* **the state of a running computation is data** — `search.steps`, the frontier, the phase, the program
+  counter (§5z, §6c, §6d). Nothing to add;
+* **the watcher runs *while* the watched thing runs** — because it is a task on the same agenda and the
+  loop rotates (§6d). Without that it could only ever deliver a post-mortem;
+* **the judgement can have an effect** — and *this* was the missing line. `stop` as ordinary data, honoured
+  by `driver.step` beside the other termination conditions, and by `loop.finished` for every kind of task.
+
+**⭐ Monitoring and control are separable, and the planted-bug probe separated them.** With `stop` ignored,
+the watcher still judges correctly — and the world gets built anyway. With interleaving removed, it cannot
+even judge. Two probes, two distinct halves, both red in the right places.
+
+**⭐ `decide` is not made redundant by this and the distinction is worth keeping.** `decide` is a Python
+callable consulted **per proposal** — the right frequency for a ranker-shaped decision (`deliberation.md`
+§4) and the wrong thing for something a domain author writes. `stop`-as-data is the same decision expressed
+as **data**, which the standing principle requires. They produce the *same verbs and the same report*,
+through one `_stopped` builder, deliberately: a caller cannot tell which route fired, so two report
+builders would drift invisibly.
+
+**⚠ Stopping a `replay` is the valuable case and the dangerous one.** It means *do not take the next
+irreversible action* — exactly what a monitor should be able to say — and it leaves a plan half
+carried-out. That is honest rather than new: a divergence already leaves one, and nothing is ever undone
+because real effects have left the graph.
+
+**⭐⭐ And it is a third, independent argument against (b).** A watcher must poll, so it **needs**
+repetition; under (b) it could not be written as a single microfunction at all. §6e reached the same
+conclusion from exactness and from termination — three directions, one answer.
+
+⚠ **On the word.** This is metacognitive monitoring in the plain functional sense: the system's own process
+is an object it can inspect and steer, the way it already inspects a goal or a plan. That is a specific,
+checkable capability and it is what the checks assert. It is not a claim about anything else the word
+"self" gets used for, and the docs should not start making one.
+
+## 6g. ⭐⭐⭐ FORGETTING IS THE DEFAULT (2026-08-01)
+
+**176 checks, 0 FAILED.** New module `forget.py`. **The user's rule:** *forgetting is the default;
+remembering is the exception — the result of a tool call, something that surprises us. Not ordinary
+things.*
+
+**⚠ It looks like a reversal of §6a and is not, which is the first thing to get straight.** §6a's table
+has **retention defaulting to KEEP**, argued from *dropping what you reasoned from can contradict
+conclusions already drawn*. That argument was about **sightings**, and every one of them is kept here. What
+§6a never had is the category the outer-loop arc then created — **the engine's own scaffolding** — so the
+rule generalises rather than reverses:
+
+> **Keep what you cannot re-derive.** The two irreducible kinds are **a crossing of the world** and **a
+> surprise**. Everything else is re-derivable from the goal and the library, by thinking again.
+
+**⭐ Surprise needed no invention.** The engine already computes it three ways — `memory.attribute`
+answering `EXTERNAL`, a `deviation` node, `workbench.unmet_expectations`. Retention had never been asked to
+consult them.
+
+**⭐⭐ Name the ROOTS, not the rubbish.** A list of droppable *kinds* would drift the moment a module added
+one. A root set states the belief directly, and the **direction invariant does the rest for free**:
+metadata points at what it describes, so the world drags nothing in while a surprise drags in exactly what
+it was a surprise *about*. ⭐ `loop` is a root, which makes **live work safe with no special case at all**
+— being scheduled *is* the statement "this is what I am doing", and the closure protects the pursuit, its
+search and its workbench. (The first version took a hand-passed pin and promptly swept the loop node out
+from under the sweep running on it.)
+
+**⚠ Forgetting is a TASK, not a pass** — one record per tick, on the same agenda, interleaved and
+stoppable. A sweep that ran to completion inside one call would be exactly the uninterruptible fixpoint
+this arc exists to remove, and it is the *worst* candidate for one. ⭐ It is also not exempt from its own
+rule: a finished sweep is ordinary scaffolding, and the next one forgets it — asserted.
+
+**Measured, on three ordinary goals over the three-block world: 892 nodes to 238.**
+
+**⚠⚠ THE CHECK IS NOT THE NODE COUNT.** A sweep that dropped everything would score beautifully on size,
+so every question the engine can ask of its past is asked before and after and must come back
+**identical**: what is true, why (`query.history_for`), what I did, whether two intentions collided, which
+goals are met, and whether the library still thinks.
+
+### ⚠ Four defects, and three were found by probing rather than by the green
+
+1. **⭐⭐ THE WORKLIST WAS AN EDGE LIST BEING CONSUMED BY SOMETHING THAT DELETES EDGES.** `Graph.drop`
+   removes every edge into the node it drops — *including the sweep's own `doomed` edge to it* — so a
+   cursor walked a list shrinking underneath it and **silently forgot every other record**: 892 to 564
+   where 798 were marked. It looked like a working sweep: every answer it had to preserve was preserved and
+   the count really did fall. Same family as `search-was-irreproducible-set-tiebreak` — not a wrong
+   answer, a *quietly partial* one, from a container whose behaviour the walk did not account for. Now
+   consumed from the front, and `EVERY_SURVIVOR_IS_KEPT_FOR_A_REASON` is the key that catches it.
+2. **⚠ `"thread"` was a DEAD root** — it names no kind, because §5b made a thread *an episode extended*.
+   The protection was coming from `episode` all along. Found by a planted-bug probe that removed it and
+   changed nothing.
+3. **⚠⚠ The two exceptions the rule is actually about were UNTESTED.** The blocks world never dispatches,
+   so it has **zero** observations — a sweep over it could have dropped every observation there is and
+   every key would have stayed green. Found by a probe removing `observation` from the roots that changed
+   nothing. There is now a check on a world the agent really looks at, where a directory moves under it.
+4. **⚠ And my own scenario was wrong twice** in ways the code was right about: the third `look()` re-scans
+   and overwrites what `empty_it` did, and an action invoked directly never reaches the thread, so
+   `attribute` called both changes external. Both fixed in the check, neither in the engine.
+
+**⚠ Which roots actually protect anything — MEASURED, because assuming was wrong twice.** `function`,
+`type` and `episode` are load-bearing (`episode` carries the most, 83 nodes); `deviation` once its replay
+is swept; `loop` only while work is live, which this table cannot see and a probe proved. `root`, `goal`
+and `observation` are **currently redundant** — all reached via the thread — and are kept deliberately
+**as statements of the rule**, because the first compaction of old thread entries would otherwise turn *we
+keep what we saw* into *until the thread is tidied*. That is the difference between a redundant root and a
+dead one.
+
+**Still open:** the rest of §6a's vocabulary. `KEEP` and `DROP` exist; **`COMPACT`** does not, and there
+is a measured case for it — a goal points at the imagined frame it was met in (`record_plan`), which keeps
+a whole workbench alive to record one fact. `PIN` is `also=`, unexercised.
+
 ## 5. What to do next
 
 **2. ✅ DONE — see §5j and §5k.** Conflict detection landed (`unsatisfiable`, `interference`, and
@@ -1670,6 +1951,26 @@ planning became the control flow. Learned preference over subsequences needs the
   a decision about how old bindings map to new — a real question about *analogy*, not a missing mechanism.
 - **Imagined-node matching** within one transformation is by kind and order. Two minted nodes of the same
   kind make the pairing a guess; `execute` says so in `notes` rather than choosing silently.
+- **⚠⚠ NOTHING FORGETS, and the loop arc made that measurable rather than theoretical.** Every computation
+  is now a record — searches, candidates, trace steps, replays, bindings, pursuits, attempts, and the
+  interpreter's own activations and registers — and none of it is ever dropped. Measured 2026-08-01 on the
+  three-block world (80 nodes), carrying out three ordinary goals in one session:
+
+  | after | nodes | grew by |
+  |---|---|---|
+  | the world alone | 80 | — |
+  | "build a tower" | 259 | +179 |
+  | "stack the other way" | 467 | +208 |
+  | "put a on c" | 892 | +425 |
+
+  **96 world nodes against 796 records — 8×, and the per-goal cost is rising.** ⚠ It is not a leak and
+  `workbench.discard` is not the answer: these are the records that make the system able to say what it
+  did and why, which is the whole point of materialising them. What is missing is the *other* half — §6a's
+  retention vocabulary (KEEP / COMPACT / DROP / PIN) is **designed and inert**, and §6b's verb set lists
+  `remember` / `forget` as "a slower clock" that the loop does not schedule. ⚠ And §6a already settled the
+  hard part: **retention defaults to KEEP**, because dropping what was reasoned from can contradict
+  conclusions already drawn — so this is not garbage collection, and anything that forgets has to justify
+  itself against `why`, `memory.attribute` and `conflict.interference`, all of which read history.
 - **Termination and conflict arbitration** are both open. The ISA fails loudly at `MAX_STEPS` as an honest
   stand-in for the first; nothing addresses the second.
 - **The undo journal is transactional only.** A rollback boundary must never span a dispatch. Do not design

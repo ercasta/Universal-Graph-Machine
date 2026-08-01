@@ -275,6 +275,19 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
         elif ins.op == "CALL":
             unknown.add(None)                               # a local jump: the body runs out of order
 
+    # ⚠⚠ **JUMPS ARE NOT READ AT ALL, and that is a silent part of the over-approximation.** This walk is
+    # linear: `JMP` / `JMPIF` / `JMPNOT` are skipped, so a write inside a loop body is reported **once** and
+    # a *conditional* write is reported as **unconditional**. Both are false positives, which is the
+    # documented contract (`establishes` is an over-approximation, conservative for ranking and a
+    # false-positive generator for recognition) — but the contract does not say *which* constructs generate
+    # them, and only `CALL` marks itself unknown.
+    #
+    # ⭐ Measured 2026-08-01, because HANDOFF §6b argued the other way: it predicted that removing local
+    # control flow would remove `establishes`'s blindness. Over every function the engine's own scenarios
+    # define, **8 of 10 are already exact and the other 2 are darkened by `DISPATCH`** — the world, which no
+    # branch-free vocabulary touches. Not one is darkened by control flow. So the exactness payoff claimed
+    # for retiring the loop opcodes is, on this library, **zero**.
+
     if include_mocks:
         for outcome in fn.mocks_of(g, name):                # depth 1: a mock has no mocks of its own
             more, more_unknown = _effects(g, outcome, include_mocks=False)
@@ -431,16 +444,6 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
     imagined state. One that writes something (`unsupported_confirmation_step`) is diagnosable, because the
     frame that tried it still holds the mark. Silence costs nothing at planning time and everything
     afterwards."""
-    # ⭐ Refuse the provably impossible before spending anything on it. `conflict.unsatisfiable` reports
-    # only decidable contradictions, so this can never reject a goal that was actually reachable.
-    from . import conflict as C
-    impossible = C.unsatisfiable(g, goal)
-    if impossible:
-        T.attend(g, thread, goal, why="the goal contradicts itself", note="; ".join(impossible))
-        return {"found": False, "workbench": None, "steps": 0, "goal": goal,
-                "contradictory": impossible, "refused": (), "blocked_by": (),
-                "why": "the goal cannot be met: " + "; ".join(impossible)}
-
     search = open_planning(g, goal, thread, subject, max_steps=max_steps, max_depth=max_depth,
                            guided=guided, rank=rank, allow=allow, trace=trace)
     watch = trace
@@ -474,6 +477,18 @@ def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
     is discarded, so turning tracing on cannot change what is found. Node ids are useless to a reader, so
     every event carries LABELS - the thread and the workbench keep the identities, and anything
     reconstructing state from these strings is reconstructing it from a rendering."""
+    # ⭐ Refuse the provably impossible before spending anything on it, and record it ON THE SEARCH so that
+    # whoever drives it gets the same answer. `conflict.unsatisfiable` reports only decidable
+    # contradictions, so this can never reject a goal that was actually reachable.
+    from . import conflict as C
+    impossible = C.unsatisfiable(g, goal)
+    if impossible:
+        T.attend(g, thread, goal, why="the goal contradicts itself", note="; ".join(impossible))
+        s = S.open_search(g, goal, W.open_workbench(g, subject, label="refused"), thread, subject,
+                          max_steps=max_steps, max_depth=max_depth, guided=guided)
+        g.put(s, contradictory=tuple(impossible), done=True, found=False)
+        return s
+
     wb = W.open_workbench(g, subject, label=f"pursuing {g.attr(goal, 'label')}")
     root = W.root_frame(g, wb)
     opened = T.attend(g, thread, goal, why="taking on the goal", note=G.describe(g, goal))
@@ -605,9 +620,34 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
     def emit(kind, **fields):
         watch(dict(kind=kind, step=S.steps_taken(g, search), **fields))
 
+    if g.attr(search, "contradictory"):
+        # ⚠ Recorded at setup, reported here, so every driver gives the same answer. It used to be an early
+        # `return` inside `pursue`, which meant a second driver had to know to make the check itself —
+        # and `driver.pursuit_step` promptly did, i.e. two copies of it existed for as long as it took to
+        # notice. Same fix as `already`, for the same reason.
+        why = "; ".join(g.attr(search, "contradictory"))
+        return {"found": False, "workbench": None, "steps": 0, "goal": goal,
+                "contradictory": g.attr(search, "contradictory"), "refused": (), "blocked_by": (),
+                "why": "the goal cannot be met: " + why, "search": search}
     if g.attr(search, "already"):
         return _done(g, goal, thread, wb, W.root_frame(g, wb), c["opened"],
                      "already satisfied", 0, (), search)
+    # ⭐⭐⭐ **A STOP WRITTEN ON THE SEARCH — self-monitoring, and it needed no new mechanism.** Everything
+    # about a running computation is now graph data (`search.steps`, the frontier, the phase), so a rule can
+    # ask *"have I been planning too long?"* — and this is the one line that lets it do something about the
+    # answer. A watcher is an ordinary microfunction on the ordinary agenda, interleaved with the search it
+    # is watching, writing `stop` on the search node it is reading.
+    #
+    # ⚠ **The `decide` hook already did this and is NOT redundant** — it is a Python callable consulted
+    # *per proposal*, which is right for a ranker-frequency decision (`deliberation.md` §4) and wrong for
+    # anything a domain author should be able to write. This is the same decision expressed as **data**,
+    # which the standing principle requires: everything a domain contributes is data. They are the same
+    # verbs and the same report, deliberately, so a reader cannot tell which route stopped a search.
+    told = g.attr(search, "stop")
+    if told:
+        verb = told if told in _STOPS else REFUSE
+        return _stopped(g, search, c, verb, g.attr(search, "stop_why")
+                        or "stopped by a rule watching this search", watch)
     if S.steps_taken(g, search) >= c["max_steps"]:
         return _exhausted(g, search, c, watch)
     chosen = S.take_best(g, search)
@@ -644,17 +684,10 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
                 raise Undecidable(f"{verb!r} is not one of {VERBS}")
             # Recorded ONLY when a decision actually fires, which is what keeps the default path
             # byte-identical to the behaviour that existed before this seam.
-            g.put(search, done=True, found=False, how=verb)
-            T.attend(g, thread, goal, why=f"decided to {verb}",
-                     note=why_stop or f"before imagining {name}")
             if watch:
                 emit(verb, action=name, on=_shown(g, bindings), depth=depth, because=why_stop)
-            return {"found": False, "workbench": wb, "steps": S.steps_taken(g, search),
-                    "goal": goal, "search": search,
-                    "stopped": verb, "frame": frame, "plan": X.path_to(g, wb, frame),
-                    "refused": S.refusals(g, search),
-                    "blocked_by": S.blocked_by(g, search),
-                    "why": why_stop or f"stopped by decision: {verb}"}
+            return _stopped(g, search, c, verb, why_stop or f"stopped by decision: {verb}", None,
+                            frame=frame, note=why_stop or f"before imagining {name}")
 
     steps = S.took_a_step(g, search)
 
@@ -692,6 +725,27 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
     if depth + 1 < max_depth:
         _offer(g, search, nxt, depth + 1, trace_node, rank=rank, allow=allow, watch=watch)
     return None
+
+
+def _stopped(g: Graph, search: str, c: dict, verb: str, why: str, watch,
+             *, frame=None, note: str | None = None) -> dict:
+    """The report for a search that was **told to stop** — by a `decide` verdict or by a rule that wrote
+    `stop` on the search node.
+
+    ⚠ ONE implementation, deliberately. Two routes into "stopped" with two report builders is the drift
+    shape this codebase keeps recording, and here it would be invisible: a caller cannot tell which route
+    fired, so a divergence between them would look like a bug in whichever one it noticed second."""
+    goal, wb = c["goal"], c["workbench"]
+    frame = frame if frame is not None else W.root_frame(g, wb)
+    g.put(search, done=True, found=False, how=verb)
+    T.attend(g, c["thread"], goal, why=f"decided to {verb}", note=note or why)
+    if watch:
+        watch(dict(kind=verb, step=S.steps_taken(g, search), because=why))
+    return {"found": False, "workbench": wb, "steps": S.steps_taken(g, search),
+            "goal": goal, "search": search,
+            "stopped": verb, "frame": frame, "plan": X.path_to(g, wb, frame),
+            "refused": S.refusals(g, search), "blocked_by": S.blocked_by(g, search),
+            "why": why}
 
 
 def _exhausted(g: Graph, search: str, c: dict, watch) -> dict:
@@ -803,40 +857,211 @@ def carry_out(g: Graph, goal: str, thread: str, subject: str, *,
 
     **The goal is closed only by reality.** `pursue` records that a plan was *found*; nothing but a
     completed execution closes the goal."""
-    history: list = []
-    for attempt in range(attempts):
-        plan = pursue(g, goal, thread, subject, **kw)
-        if not plan["found"]:
-            history.append({"attempt": attempt, "planned": False, "why": plan["why"]})
-            break
+    data, hooks = _split_pursuit_kw(kw)
+    p = open_pursuit(g, goal, thread, subject, attempts=attempts, **data)
+    while pursuit_step(g, p, **hooks):
+        pass
+    return pursuit_report(g, p)
 
-        T.attend(g, thread, goal, why=f"attempt {attempt + 1}: carrying out the plan",
-                 note=" then ".join(plan_steps(g, plan)) or "(nothing)")
-        report = X.execute(g, plan["workbench"], plan["frame"])
-        _record_execution(g, thread, goal, plan, report)
-        step = {"attempt": attempt, "planned": True, "steps": plan_steps(g, plan),
-                "ran": report["ran"], "completed": report["completed"]}
 
-        if not report["completed"]:
-            rec = X.recover(g, report)          # an explored sibling, if there is one
-            if rec["kind"] == "contingency" and rec["result"]["completed"]:
-                report, step["recovered"] = rec["result"], "contingency"
-                step["completed"], step["ran"] = True, report["ran"]
-            else:
-                step["diverged"] = X.report(g, report)
-        history.append(step)
+# --- the pursuit: plan / act / check / replan, as PHASES over graph-resident state --------------------
+#
+# ⭐⭐⭐ `carry_out` was the last Python control loop in the engine, and the outermost one — the thing that
+# decides whether to try again. Its state (which attempt, the plan in hand, the execution under way, the
+# history) lived in locals, so the system could be *inside* a plan-act-check cycle and unable to say so.
+# HANDOFF §6b's principle applied without exception: the pursuit is a node, one tick is ONE PRIMITIVE
+# STEP, and `carry_out` is a driver over it exactly as `Machine.run` is over `tick` and `execute` over
+# `execution.step`.
+#
+# ⚠ **A tick of a pursuit is not "one attempt".** An attempt contains a whole search and a whole replay,
+# and an opcode-sized step is the only size that makes "stop between any two" mean anything. So a pursuit
+# holds a **current sub-task** — a `search` while planning, a `replay` while acting — and advancing the
+# pursuit advances that sub-task by one primitive step, changing phase only when it finishes. That is what
+# makes the whole loop uniform: every level down from here is already steppable.
+#
+# ⚠ The phases are DATA on the node rather than a Python state variable, so `describe_pursuit` can say
+# what the system is in the middle of without having been watching.
 
-        if report["completed"] and G.satisfied(g, goal, under=subject):
-            found = G.witness(g, goal, under=subject)
-            G.close_goal(g, goal, found)
-            T.attend(g, thread, goal, why="done for real", note=G.describe(g, goal))
-            return {"done": True, "attempts": tuple(history), "witness": found, "tries": attempt + 1}
+PLANNING, ACTING, RECOVERING, CHECKING, SETTLED = "planning", "acting", "recovering", "checking", "done"
 
-    T.attend(g, thread, goal, why="gave up", note=f"after {len(history)} attempt(s)")
-    return {"done": False, "attempts": tuple(history), "tries": len(history),
+_PURSUIT_DATA = ("max_steps", "max_depth", "guided")
+
+
+def _split_pursuit_kw(kw: dict) -> tuple:
+    """Bounds are DATA and live on the node; `rank`/`allow`/`trace`/`decide` are Python callables and are
+    passed per call. Same split as `search.context`, for the same reason: a callable cannot live in a
+    graph, and everything that can, must."""
+    return ({k: v for k, v in kw.items() if k in _PURSUIT_DATA},
+            {k: v for k, v in kw.items() if k not in _PURSUIT_DATA})
+
+
+def open_pursuit(g: Graph, goal: str, thread: str, subject: str, *, attempts: int = 3,
+                 max_steps: int = 60, max_depth: int = 6, guided: bool = True) -> str:
+    """A pursuit of `goal`, at attempt 0, about to plan. Nothing has happened yet."""
+    p = g.mint("pursuit", at=0, attempts=attempts, phase=PLANNING, done=False,
+               max_steps=max_steps, max_depth=max_depth, guided=guided)
+    g.link(p, "goal", goal)
+    g.link(p, "thread", thread)
+    g.link(p, "subject", subject)
+    return p
+
+
+def _attempt(g: Graph, p: str, **fields) -> str:
+    a = g.mint("attempt", **fields)
+    g.link(p, "attempt", a)
+    return a
+
+
+def _history(g: Graph, p: str) -> tuple:
+    return tuple({k: v for k, v in g.attrs[a].items() if k != "kind"} for a in g.targets(p, "attempt"))
+
+
+def pursuit_report(g: Graph, p: str) -> dict:
+    """`carry_out`'s report, rendered from the pursuit. Unchanged in shape — this is a reading of the node,
+    not a second record."""
+    goal, subject = g.target(p, "goal"), g.target(p, "subject")
+    history = _history(g, p)
+    if g.attr(p, "done"):
+        return {"done": True, "attempts": history, "witness": g.target(p, "witness"),
+                "tries": g.attr(p, "at", 0) + 1, "pursuit": p}
+    return {"done": False, "attempts": history, "tries": len(history), "pursuit": p,
             "why": f"{len(history)} attempt(s) did not reach ["
                    + "; ".join(G.describe_constraint(g, c)
                                for c in G.unmet(g, goal, under=subject)) + "]"}
+
+
+def describe_pursuit(g: Graph, p: str) -> str:
+    """What the system is in the middle of, in one line — the answer the outer loop's test demands of
+    every task it can be stopped inside."""
+    phase = g.attr(p, "phase")
+    label = g.attr(g.target(p, "goal"), "label") or g.target(p, "goal")
+    at = g.attr(p, "at", 0) + 1
+    sub = g.target(p, "search") if phase == PLANNING else g.target(p, "replay")
+    detail = ""
+    if phase == PLANNING and sub is not None:
+        detail = f" ({S.steps_taken(g, sub)} states imagined)"
+    elif sub is not None:
+        detail = f" (step {g.attr(sub, 'at', 0)} of {g.count(sub, 'frame') - 1})"
+    return f"pursuing {label!r}, attempt {at}: {phase}{detail}"
+
+
+def pursuit_step(g: Graph, p: str, **hooks) -> bool:
+    """**One primitive step of the whole plan-act-check-replan loop.** `True` while there is more to do.
+
+    Exactly one of these happens per call: one imagined state, one real action, or one phase transition.
+    ⚠ A transition costs a tick of its own rather than being folded into the step that caused it, because
+    *"the plan is in hand and nothing has been done yet"* is a state the system may legitimately be stopped
+    in — it is the last moment before anything becomes irreversible."""
+    phase = g.attr(p, "phase")
+    if phase == SETTLED:
+        return False
+    return _PHASES[phase](g, p, **hooks)
+
+
+def _phase_planning(g: Graph, p: str, **hooks) -> bool:
+    goal, thread, subject = (g.target(p, "goal"), g.target(p, "thread"), g.target(p, "subject"))
+    s = g.target(p, "search")
+    if s is None:
+        g.link(p, "search", open_planning(
+            g, goal, thread, subject, max_steps=g.attr(p, "max_steps"),
+            max_depth=g.attr(p, "max_depth"), guided=g.attr(p, "guided"),
+            rank=hooks.get("rank"), allow=hooks.get("allow"), trace=hooks.get("trace")))
+        return True
+
+    out = step(g, s, **hooks)
+    if out is None:
+        return True                              # one imagined state; still planning
+    if not out["found"]:
+        _attempt(g, p, attempt=g.attr(p, "at", 0), planned=False, why=out["why"])
+        g.put(p, phase=SETTLED)
+        return False
+
+    T.attend(g, thread, goal, why=f"attempt {g.attr(p, 'at', 0) + 1}: carrying out the plan",
+             note=" then ".join(plan_steps(g, out)) or "(nothing)")
+    g.link(p, "plan_frame", out["frame"])
+    g.link(p, "replay", X.open_execution(g, out["workbench"], out["frame"]))
+    g.put(p, phase=ACTING)
+    return True
+
+
+def _phase_acting(g: Graph, p: str, **_hooks) -> bool:
+    r = g.target(p, "replay")
+    if X.step(g, r):
+        return True                              # one real action; still acting
+    report = X.report_of(g, r)
+    plan = _plan_of(g, p)
+    _record_execution(g, g.target(p, "thread"), g.target(p, "goal"), plan, report)
+    a = _attempt(g, p, attempt=g.attr(p, "at", 0), planned=True, steps=plan_steps(g, plan),
+                 ran=report["ran"], completed=report["completed"])
+    g.link(p, "record", a)
+
+    if report["completed"]:
+        g.put(p, phase=CHECKING)
+        return True
+    # ⚠ A contingency is tried before replanning, on evidence rather than taste: an explored sibling is
+    # already verified against this world and a fresh plan is not (`execution.recover`).
+    resumed = X.resume_replay(g, report)
+    if resumed is None:
+        g.put(a, diverged=X.report(g, report))
+        g.put(p, phase=CHECKING)
+        return True
+    g.link(p, "replay", resumed)                 # the pursuit's current replay is now the contingency
+    g.put(p, phase=RECOVERING)
+    return True
+
+
+def _phase_recovering(g: Graph, p: str, **_hooks) -> bool:
+    r = g.targets(p, "replay")[-1]
+    if X.step(g, r):
+        return True
+    report, a = X.report_of(g, r), g.target(p, "record")
+    if report["completed"]:
+        g.put(a, recovered="contingency", completed=True, ran=report["ran"])
+    else:
+        # ⚠ The DIVERGENCE REPORTED IS THE ORIGINAL ONE. A contingency that also failed does not replace
+        # the account of what went wrong first — that is what the next attempt has to reason from.
+        g.put(a, diverged=X.report(g, X.report_of(g, g.targets(p, "replay")[0])))
+    g.put(p, phase=CHECKING)
+    return True
+
+
+def _phase_checking(g: Graph, p: str, **_hooks) -> bool:
+    goal, thread, subject = (g.target(p, "goal"), g.target(p, "thread"), g.target(p, "subject"))
+    a = g.target(p, "record")
+    if a is not None and g.attr(a, "completed") and G.satisfied(g, goal, under=subject):
+        found = G.witness(g, goal, under=subject)
+        G.close_goal(g, goal, found)
+        T.attend(g, thread, goal, why="done for real", note=G.describe(g, goal))
+        g.link(p, "witness", found)
+        g.put(p, done=True, phase=SETTLED)
+        return False
+
+    at = g.attr(p, "at", 0) + 1
+    if at >= g.attr(p, "attempts", 1):
+        T.attend(g, thread, goal, why="gave up", note=f"after {at} attempt(s)")
+        g.put(p, phase=SETTLED)
+        return False
+    # ⭐ Round again, and it needs no new state: `open_planning` opens a fresh workbench on the current
+    # real subject, so replanning IS going round the loop. The sub-tasks are released rather than kept,
+    # because "which search am I in" must have one answer.
+    for label in ("search", "replay", "plan_frame", "record"):
+        while g.count(p, label):
+            g.unlink(p, label, index=0)
+    g.put(p, at=at, phase=PLANNING)
+    return True
+
+
+_PHASES = {PLANNING: _phase_planning, ACTING: _phase_acting,
+           RECOVERING: _phase_recovering, CHECKING: _phase_checking}
+
+
+def _plan_of(g: Graph, p: str) -> dict:
+    """The bits of a `pursue` report that `_record_execution` and `plan_steps` read, rebuilt from the
+    pursuit. ⚠ Not a stored copy of the report — a rendering, so it cannot fall out of step with it."""
+    s = g.target(p, "search")
+    wb, frame = g.target(s, "workbench"), g.target(p, "plan_frame")
+    return {"found": True, "frame": frame, "workbench": wb, "plan": X.path_to(g, wb, frame),
+            "how": g.attr(s, "how"), "search": s, "goal": g.target(p, "goal")}
 
 
 def follow(g: Graph, goal: str, thread: str, subject: str, **kw) -> dict:

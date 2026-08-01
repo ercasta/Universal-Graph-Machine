@@ -27,6 +27,7 @@ from __future__ import annotations
 from .graph import Graph
 
 _TOOLS: dict = {}
+_OBSERVES: set = set()
 VETO = "forbidden"
 
 
@@ -34,9 +35,33 @@ class Vetoed(Exception):
     """A dispatch refused by a standing prohibition. Loud, and carrying the node that blocked it."""
 
 
-def register(name: str, handler) -> None:
-    """Register a tool. `handler(graph, target) -> value`."""
+def register(name: str, handler, *, observes: bool = False) -> None:
+    """Register a tool. `handler(graph, target) -> value`.
+
+    **⭐ `observes=True` says this tool only LOOKS.** HANDOFF §6b named the absence of this as a concrete
+    gap: `register` took any callable, and the veto and commit machinery treated a directory scan and a
+    sent email identically. `loop.verb_of` needs the distinction to tell **look** from **act**, and those
+    are not peers — one costs time and the other cannot be taken back.
+
+    ⚠ **Declared, not inferred, and it defaults to the SAFE answer.** Nothing about a Python callable says
+    whether it changes the world, so this is a claim its author makes; an unmarked tool counts as changing
+    it, because being wrong that way costs an unnecessary pause and being wrong the other way spends an
+    irreversible act the caller meant to withhold.
+
+    ⚠ It is **not** a permission and does not weaken anything: `service` still commits before every
+    handler, observing or not, because reading the world is also a moment after which the journal is a lie
+    about what could be undone."""
     _TOOLS[name] = handler
+    (_OBSERVES.add if observes else _OBSERVES.discard)(name)
+
+
+def observes(_g=None, name: str | None = None) -> bool:
+    """Was this tool registered as only looking? Unknown tools answer `False` — see `register`.
+
+    ⚠ The unused graph parameter is there because every other reader in the engine takes one and callers
+    reach for it; it is not consulted, since this is a fact about the *registration*, not about the graph."""
+    tool = name if name is not None else _g
+    return tool in _OBSERVES
 
 
 def registered() -> tuple:
@@ -126,4 +151,5 @@ def _thread_of(g: Graph, entry):
     return holders[0] if len(holders) == 1 else None
 
 
-__all__ = ["VETO", "Vetoed", "register", "registered", "forbid", "veto_reason", "service"]
+__all__ = ["VETO", "Vetoed", "register", "registered", "observes", "forbid", "veto_reason",
+           "service"]

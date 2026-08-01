@@ -95,29 +95,151 @@ def leaves_under(g: Graph, wb: str, frame: str) -> tuple:
     return tuple(out)
 
 
-def _carry(g: Graph, prev: str, frame: str, bound: dict) -> None:
+# --- the replay's state, as graph data ----------------------------------------------------------------
+#
+# ⭐⭐ `_replay` was a Python `for` holding `bound`, `notes`, `ran` and its position in local variables, so
+# a plan being carried out for real — the one loop that touches the world — was the thing the system could
+# least say anything about mid-flight. HANDOFF §6b's inventory names it; §6c made the ISA tick; this is the
+# same move one level up, and `execute` is now a loop over `step` exactly as `Machine.run` is a loop over
+# `tick`.
+#
+# ⚠ **A binding is a node, not a dict entry, and it is looked up through the REVERSE INDEX.** The obvious
+# encoding — an attribute per mapping on the replay node — would make every lookup a scan, and `_carry`
+# does one per mapping per frame. `bound ──mapping──▶ mapping` with `sources` answering backwards is O(few)
+# and needs no index of our own to maintain.
+
+KINDS = ("replay", "bound", "deviation")
+
+
+def open_replay(g: Graph, wb: str, frames: tuple, *, bound: dict | None = None,
+                notes=(), ran=()) -> str:
+    """A replay of `frames`, positioned at the start and ready to be stepped.
+
+    `bound`, `notes` and `ran` seed it — which is what `resume` needs: it continues a diverged execution
+    from state that already exists rather than starting a second, blank one."""
+    r = g.mint("replay", at=0, notes=tuple(notes), ran=tuple(ran))
+    g.link(r, "workbench", wb)
+    for f in frames:
+        g.link(r, "frame", f)                   # ORDERED — the path, and the position indexes into it
+    for m, real in (bound or {}).items():
+        bind(g, r, m, real)
+    return r
+
+
+def bind(g: Graph, r: str, mapping: str, real: str) -> str:
+    """Say which real node a mapping stands for in this replay. Rebinding replaces, since `_settle` points
+    the subject's mapping at the cast's result."""
+    got = _binding(g, r, mapping)
+    if got is None:
+        got = g.mint("bound")
+        g.link(got, "mapping", mapping)
+        g.link(got, "in", r)                    # which replay this belongs to — see `_binding`
+        g.link(r, "bound", got)
+    while g.count(got, "node"):
+        g.unlink(got, "node", index=0)
+    g.link(got, "node", real)
+    return got
+
+
+def _binding(g: Graph, r: str, mapping: str):
+    for s in g.sources(mapping, "mapping"):
+        if g.kind(s) == "bound" and g.target(s, "in") == r:
+            return s
+    return None
+
+
+def bound_to(g: Graph, r: str, mapping: str):
+    got = _binding(g, r, mapping)
+    return None if got is None else g.target(got, "node")
+
+
+def is_bound(g: Graph, r: str, mapping: str) -> bool:
+    return _binding(g, r, mapping) is not None
+
+
+def bindings_of(g: Graph, r: str) -> dict:
+    """`{mapping: real node}` — the dict the report has always carried, read back out of the graph."""
+    return {g.target(b, "mapping"): g.target(b, "node") for b in g.targets(r, "bound")}
+
+
+def _note(g: Graph, r: str, text: str) -> None:
+    g.put(r, notes=g.attr(r, "notes", ()) + (text,))
+
+
+def _ran(g: Graph, r: str, name: str) -> None:
+    g.put(r, ran=g.attr(r, "ran", ()) + (name,))
+
+
+def finished(g: Graph, r: str) -> bool:
+    """Off the end of the path, or stopped by a deviation. A deviation is terminal for *this* replay —
+    what happens next is `recover`'s decision, not a continuation of the same walk."""
+    return (g.target(r, "deviation") is not None
+            or g.attr(r, "at", 0) + 1 >= g.count(r, "frame"))
+
+
+def _diverge(g: Graph, r: str, **fields) -> str:
+    """Record the deviation on the replay. ⚠ It is a NODE, so a stopped replay says why it stopped without
+    the caller having to have been holding the return value at the moment it happened."""
+    d = g.mint("deviation", **{k: v for k, v in fields.items()
+                               if k not in ("frame", "transformation", "minted")})
+    for label in ("frame", "transformation"):
+        if fields.get(label) is not None:
+            g.link(d, label, fields[label])
+    for n in fields.get("minted", ()):
+        g.link(d, "minted", n)
+    g.link(r, "deviation", d)
+    return d
+
+
+def deviation_of(g: Graph, r: str):
+    """The deviation as the dict every caller here already speaks — `None` if the replay is clean."""
+    d = g.target(r, "deviation")
+    if d is None:
+        return None
+    out = {k: v for k, v in g.attrs[d].items() if k != "kind"}
+    out["frame"] = g.target(d, "frame")
+    out["transformation"] = g.target(d, "transformation")
+    out["minted"] = g.targets(d, "minted")
+    return out
+
+
+def report_of(g: Graph, r: str) -> dict:
+    """The execution report. Unchanged in shape — this is a rendering of the replay node, not a second
+    record of what happened."""
+    dev = deviation_of(g, r)
+    out = {"ran": g.attr(r, "ran", ()), "deviation": dev, "completed": dev is None,
+           "bindings": bindings_of(g, r), "notes": g.attr(r, "notes", ()),
+           "workbench": g.target(r, "workbench"), "replay": r}
+    if g.target(r, "resumed_on") is not None:   # a resumed replay says so, as its report always did
+        out["resumed_on"] = g.target(r, "resumed_on")
+        out["resumed_assuming"] = g.attr(r, "resumed_assuming")
+    return out
+
+
+# --- carrying and settling ----------------------------------------------------------------------------
+def _carry(g: Graph, r: str, prev: str, frame: str) -> None:
     """A node keeps its identity across frames, so its binding follows its mapping's successor."""
     for m in W.mappings(g, prev):
         nxt = _successor_in(g, m, frame)
-        if nxt is not None and m in bound:
-            bound[nxt] = bound[m]
+        if nxt is not None and is_bound(g, r, m):
+            bind(g, r, nxt, bound_to(g, r, m))
 
 
-def _settle(g: Graph, tr: str, frame: str, result, minted: list, bound: dict, notes: list) -> None:
+def _settle(g: Graph, r: str, tr: str, frame: str, result, minted) -> None:
     """Record what a real call produced: bind the nodes it minted, and point the subject's mapping at the
     result — **a cast returns its subject**, so the first parameter's mapping now names the cast node."""
-    _bind_minted(g, frame, minted, bound, notes)
+    _bind_minted(g, r, frame, minted)
     first_param = fn.subject_param(g, g.attr(tr, "function"))
     for b in g.targets(tr, "arg"):
         m = g.target(b, "mapping")
-        if m in bound and g.attr(b, "param") == first_param:
-            bound[m] = result
+        if is_bound(g, r, m) and g.attr(b, "param") == first_param:
+            bind(g, r, m, result)
 
 
-def _bind_minted(g: Graph, frame: str, minted: list, bound: dict, notes: list) -> None:
+def _bind_minted(g: Graph, r: str, frame: str, minted) -> None:
     """Match nodes the real call just created to the imagined mappings that predicted them."""
     pending = [m for m in W.mappings(g, frame)
-               if W.is_imagined(g, m) and m not in bound]
+               if W.is_imagined(g, m) and not is_bound(g, r, m)]
     by_kind: dict = {}
     for n in minted:
         by_kind.setdefault(g.kind(n), []).append(n)
@@ -125,66 +247,81 @@ def _bind_minted(g: Graph, frame: str, minted: list, bound: dict, notes: list) -
         want = g.kind(W.image_of(g, m))
         pool = by_kind.get(want, [])
         if not pool:
-            notes.append(f"planned a {want} that the real call did not produce")
+            _note(g, r, f"planned a {want} that the real call did not produce")
             continue
         if len(pool) > 1:
-            notes.append(f"ambiguous: {len(pool)} real {want} nodes for a planned one — paired by order")
-        bound[m] = pool.pop(0)
+            _note(g, r, f"ambiguous: {len(pool)} real {want} nodes for a planned one — paired by order")
+        bind(g, r, m, pool.pop(0))
 
 
-def _replay(g: Graph, frames: tuple, bound: dict, notes: list, ran: list):
-    """Walk a path of frames, running each frame's `via` for real. Returns the first deviation, or `None`.
+# --- ONE STEP ------------------------------------------------------------------------------------------
+def step(g: Graph, r: str) -> bool:
+    """**Advance the replay by one frame: carry the bindings across, and run that frame's call for real.**
+    Returns `True` while there is more to do.
 
-    A deviation carries the `frame`, the `transformation`, the real `result` and what the call `minted`,
-    because recovery needs all four: which fork to look at, whether a sibling assumed what happened, and
-    what to hand the continuation given that **the call is not run again**."""
-    for prev, frame in zip(frames, frames[1:]):
-        _carry(g, prev, frame, bound)
+    ⚠⚠ **This is the one stepper whose steps are IRREVERSIBLE.** An imagined step can be rewound and a
+    search step costs only time; a step here reaches the world through `dispatch`, whose `commit()` is the
+    honest admission that nothing after it can be undone. So the yield point matters more here than
+    anywhere else — it is where *"should I do the next one?"* becomes an expressible question — and the
+    asymmetry `dispatch.py` calls the single most important safety property in the design must survive it.
+    Pausing between two real acts is a capability; making acting look like any other tick is not.
 
-        tr = g.target(frame, "via")
-        if tr is None:
-            continue
-        name = g.attr(tr, "function")           # the REAL function, not the mock that was imagined
-        args, missing = {}, []
-        for b in g.targets(tr, "arg"):
-            param, m = g.attr(b, "param"), g.target(b, "mapping")
-            if m in bound:
-                args[param] = bound[m]
-            else:
-                missing.append(param)
-        if missing:
-            return {"step": name, "frame": frame, "transformation": tr, "result": None, "minted": (),
-                    "why": f"unbound argument(s) {missing} — the plan referred to "
-                           f"something that does not exist in the real graph"}
+    A deviation is recorded and stops the replay: what to do about it is `recover`'s decision, and it needs
+    the `frame`, the `transformation`, the real `result` and what the call `minted`, because **the call is
+    not re-run**."""
+    if finished(g, r):
+        return False
+    i = g.attr(r, "at", 0)
+    frames = g.targets(r, "frame")
+    prev, frame = frames[i], frames[i + 1]
+    g.put(r, at=i + 1)
+    _carry(g, r, prev, frame)
 
-        called, out = fn.invoke(g, name, args)
-        # WARN Read off the call itself, never off a whole-graph diff - `activation.minted`. The diff
-        # counted every node that appeared while the call ran, the interpreter's own state included.
-        minted = list(ACT.minted(g, ACT.for_focus(g, called.node)))
-        result = out.get("result") or args.get(fn.subject_param(g, name))
-        ran.append(name)
+    tr = g.target(frame, "via")
+    if tr is None:
+        return not finished(g, r)
+    name = g.attr(tr, "function")               # the REAL function, not the mock that was imagined
+    args, missing = {}, []
+    for b in g.targets(tr, "arg"):
+        param, m = g.attr(b, "param"), g.target(b, "mapping")
+        if is_bound(g, r, m):
+            args[param] = bound_to(g, r, m)
+        else:
+            missing.append(param)
+    if missing:
+        _diverge(g, r, step=name, frame=frame, transformation=tr, result=None, minted=(),
+                 why=f"unbound argument(s) {missing} — the plan referred to "
+                     f"something that does not exist in the real graph")
+        return False
 
-        assumed = (g.attr(g.target(tr, "assumes"), "label")
-                   if g.target(tr, "assumes") else None)
+    called, out = fn.invoke(g, name, args)
+    # WARN Read off the call itself, never off a whole-graph diff - `activation.minted`. The diff
+    # counted every node that appeared while the call ran, the interpreter's own state included.
+    minted = list(ACT.minted(g, ACT.for_focus(g, called.node)))
+    result = out.get("result") or args.get(fn.subject_param(g, name))
+    _ran(g, r, name)
 
-        violations = W.deviates(g, tr, result)
-        if violations:
-            return {"step": name, "frame": frame, "transformation": tr, "result": result,
-                    "minted": tuple(minted), "expected": g.attr(tr, "expects"), "violations": violations,
-                    "assumed": assumed}
+    assumed = (g.attr(g.target(tr, "assumes"), "label")
+               if g.target(tr, "assumes") else None)
 
-        _settle(g, tr, frame, result, minted, bound, notes)
+    violations = W.deviates(g, tr, result)
+    if violations:
+        _diverge(g, r, step=name, frame=frame, transformation=tr, result=result, minted=minted,
+                 expected=g.attr(tr, "expects"), violations=violations, assumed=assumed)
+        return False
 
-        # ⭐ THE SECOND, WIDER CHECK. The cast above asks whether one node satisfies one schema; this asks
-        # whether the concrete things the step predicted actually happened — the file nodes materialised,
-        # the count came back zero, the edge appeared. Checked AFTER `_settle` because binding what the
-        # real call minted is what makes an imagined node addressable at all.
-        missed = W.unmet_expectations(g, W.predicted_changes(g, prev, frame), bound, minted)
-        if missed:
-            return {"step": name, "frame": frame, "transformation": tr, "result": result,
-                    "minted": tuple(minted), "expected": g.attr(tr, "expects"),
-                    "unmet_expectations": missed, "assumed": assumed}
-    return None
+    _settle(g, r, tr, frame, result, minted)
+
+    # ⭐ THE SECOND, WIDER CHECK. The cast above asks whether one node satisfies one schema; this asks
+    # whether the concrete things the step predicted actually happened — the file nodes materialised,
+    # the count came back zero, the edge appeared. Checked AFTER `_settle` because binding what the
+    # real call minted is what makes an imagined node addressable at all.
+    missed = W.unmet_expectations(g, W.predicted_changes(g, prev, frame), bindings_of(g, r), minted)
+    if missed:
+        _diverge(g, r, step=name, frame=frame, transformation=tr, result=result, minted=minted,
+                 expected=g.attr(tr, "expects"), unmet_expectations=missed, assumed=assumed)
+        return False
+    return not finished(g, r)
 
 
 def execute(g: Graph, wb: str, leaf: str) -> dict:
@@ -192,20 +329,30 @@ def execute(g: Graph, wb: str, leaf: str) -> dict:
 
     Returns a report: the steps that ran, the first deviation if any, the mapping-to-real bindings, and
     any notes about imagined nodes that could not be matched cleanly. The workbench travels in the report
-    so recovery takes one argument — a deviation is only interpretable against the tree it came from."""
-    frames = path_to(g, wb, leaf)
-    bound: dict = {}
-    notes: list = []
-    ran: list = []
+    so recovery takes one argument — a deviation is only interpretable against the tree it came from.
 
-    for m in W.mappings(g, frames[0]):          # seed from frame 0: these already exist for real
+    ⚠ **A loop over `step`, and nothing else** — the same relationship `Machine.run` has to `Machine.tick`.
+    A caller that wants to stop between two real actions drives `step` itself and owns the replay node."""
+    r = open_execution(g, wb, leaf)
+    while step(g, r):
+        pass
+    return report_of(g, r)
+
+
+def open_execution(g: Graph, wb: str, leaf: str) -> str:
+    """The replay `execute` would run, seeded and positioned at the start but **not yet stepped**.
+
+    ⭐ Extracted so there is ONE setup. `execute` calls it and loops; a pursuit being driven a tick at a
+    time calls it and hands the node to the outer loop. Two setups that could drift is the defect shape
+    this codebase keeps recording — a second one that forgot to seed frame 0's bindings would report every
+    argument as unbound and call the plan impossible."""
+    frames = path_to(g, wb, leaf)
+    seed = {}
+    for m in W.mappings(g, frames[0]):          # frame 0: these already exist for real
         real = W.resolve(g, m)
         if real is not None:
-            bound[m] = real
-
-    deviation = _replay(g, frames, bound, notes, ran)
-    return {"ran": tuple(ran), "deviation": deviation, "completed": deviation is None,
-            "bindings": bound, "notes": tuple(notes), "workbench": wb}
+            seed[m] = real
+    return open_replay(g, wb, frames, bound=seed)
 
 
 def alternatives(g: Graph, wb: str, transformation: str) -> tuple:
@@ -250,19 +397,39 @@ def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None
             parent = _parent_of(g, wb, sib)
             if parent is None:
                 continue
-            bound = dict(result["bindings"])
-            _carry(g, parent, sib, bound)
-            _settle(g, tr, sib, deviation["result"], list(deviation["minted"]), bound, [])
-            if W.unmet_expectations(g, W.predicted_changes(g, parent, sib),
-                                    bound, list(deviation["minted"])):
+            # ⚠ A SCRATCH replay, dropped afterwards. Asking "would this sibling have held up?" means
+            # settling reality onto its mappings, and doing that on the live replay would answer the
+            # question by committing to it. The dict this used to copy was doing the same job; a node has
+            # to be scrapped explicitly, which is the one cost of the state being real.
+            scratch = open_replay(g, wb, (), bound=dict(result["bindings"]))
+            _carry(g, scratch, parent, sib)
+            _settle(g, scratch, tr, sib, deviation["result"], list(deviation["minted"]))
+            missed = W.unmet_expectations(g, W.predicted_changes(g, parent, sib),
+                                          bindings_of(g, scratch), list(deviation["minted"]))
+            discard_replay(g, scratch)
+            if missed:
                 continue
         return sib
     return None
 
 
-def resume(g: Graph, result: dict, *, branch=None, leaf=None):
-    """Continue a diverged execution down a branch that assumed what actually happened. `None` if there is
-    no such branch and nothing was passed.
+def discard_replay(g: Graph, r: str) -> None:
+    """Scrap a replay and its bindings. Used for the scratch one `matching_alternative` reasons over."""
+    for b in tuple(g.targets(r, "bound")):
+        g.drop(b)
+    d = g.target(r, "deviation")
+    if d is not None:
+        g.drop(d)
+    g.drop(r)
+
+
+def resume_replay(g: Graph, result: dict, *, branch=None, leaf=None):
+    """Set up the continuation of a diverged execution down a branch that assumed what actually happened,
+    and return the **replay node**, ready to be stepped. `None` if there is no such branch.
+
+    ⚠ Split from `resume` so recovery is steppable too. An outer loop that could pause between two acts of
+    the original plan but not between two acts of its contingency would have a seam exactly where things
+    have already started going wrong — which is the worst place to lose the ability to stop.
 
     **The diverged call is not re-run.** It reached the world once; running it again would double its
     effects and is the single thing most likely to be got wrong here. Instead its real outcome is settled
@@ -280,17 +447,29 @@ def resume(g: Graph, result: dict, *, branch=None, leaf=None):
     if parent is None or tr is None:
         return None
 
-    bound, notes, ran = dict(result["bindings"]), list(result["notes"]), list(result["ran"])
-    _carry(g, parent, branch, bound)
-    _settle(g, tr, branch, dev["result"], list(dev["minted"]), bound, notes)
-
     if leaf is None:
         leaf = leaves_under(g, wb, branch)[0]
     path = path_to(g, wb, leaf)
-    deviation = _replay(g, path[path.index(branch):], bound, notes, ran)
-    return {"ran": tuple(ran), "deviation": deviation, "completed": deviation is None,
-            "bindings": bound, "notes": tuple(notes), "workbench": wb,
-            "resumed_on": branch, "resumed_assuming": g.attr(tr, "expects")}
+    # ⭐ A FRESH replay seeded from the diverged one's state — not a continuation of it. The old replay
+    # stopped on a deviation and that is a fact about it; carrying on inside it would erase the record of
+    # where it stopped, which is the one thing recovery is reasoning from.
+    r = open_replay(g, wb, path[path.index(branch):],
+                    bound=dict(result["bindings"]), notes=result["notes"], ran=result["ran"])
+    g.link(r, "resumed_on", branch)
+    g.put(r, resumed_assuming=g.attr(tr, "expects"))
+    _carry(g, r, parent, branch)
+    _settle(g, r, tr, branch, dev["result"], list(dev["minted"]))
+    return r
+
+
+def resume(g: Graph, result: dict, *, branch=None, leaf=None):
+    """`resume_replay` run to completion — a loop over `step`, like `execute`."""
+    r = resume_replay(g, result, branch=branch, leaf=leaf)
+    if r is None:
+        return None
+    while step(g, r):
+        pass
+    return report_of(g, r)
 
 
 def replan(g: Graph, result: dict, want: str, *, subject=None, depth: int = 8):
@@ -350,5 +529,7 @@ def report(g: Graph, result: dict) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["path_to", "leaves_under", "execute", "alternatives",
-           "matching_alternative", "resume", "replan", "recover", "report"]
+__all__ = ["KINDS", "path_to", "leaves_under", "execute", "alternatives",
+           "matching_alternative", "resume", "replan", "recover", "report",
+           "open_replay", "step", "finished", "resume_replay", "report_of", "deviation_of", "bindings_of",
+           "bind", "bound_to", "is_bound", "discard_replay"]

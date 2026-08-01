@@ -25,8 +25,10 @@ earned per item by the audit in `north_star.md` §6.
 | `plan.py` | **backward chaining over return types into a LAZY chain** — plans are data, nothing runs until the action |
 | `dispatch.py` | the one place an effect leaves the graph, and the checkpoint guarding it |
 | `workbench.py` | **imagining effects on a copy** — frames, mappings, forking, backtracking |
-| `execution.py` | **following a plan for real** — replay, deviation detection, contingencies |
+| `execution.py` | **following a plan for real** — a `replay` node and `execution.step`; deviation detection, contingencies |
+| `loop.py` | **THE OUTER LOOP** — one ordered agenda over every steppable task, one primitive step per tick, round-robin. Reports the verb of a step (`imagine` / `look` / `act`) *before* taking it, so the irreversible one can be declined |
 | `selection.py` | candidates, ranking, applying one function at a time |
+| `forget.py` | **the slower clock** — forgetting is the DEFAULT. Keep what cannot be re-derived: the world, the library, intent, a tool call's result, a surprise, and live work. Sweep the rest, one record per tick |
 | `rules/*.mf` | the KB on disk |
 
 ## The substrate

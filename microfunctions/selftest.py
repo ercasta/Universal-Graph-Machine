@@ -1102,6 +1102,578 @@ def check_a_finished_activation_is_retired_but_a_LIVE_one_cannot_be():
             "RUN_RETIRES_ITS_OWN": (m.run(g, Focus(g).open("c", car)), g.of_kind("register") == ())[1]}
 
 
+def check_carrying_a_plan_OUT_is_steppable_and_the_steps_are_the_IRREVERSIBLE_ones():
+    """⭐⭐ `execution._replay` was a Python `for` — so the one loop that *touches the world* was the one
+    the system could say least about mid-flight. It is now a `replay` node and `execution.step`, and
+    `execute` is a loop over it.
+
+    ⚠ **Vacuity guards.** Driving it by hand must reach the same report as `execute` — a yield point that
+    changed the outcome would be a fork. And the pause must be observably *between two real actions*: the
+    first block really moved and the second really did not, which is the whole reason a yield point here is
+    worth more than one anywhere else."""
+    from . import execution as X, intake as I, thread as T, driver as D
+    text = _lines("goal build a tower:", "    a on b", "    b on c")
+
+    g1, w1 = _blocks()                                # the control
+    plan1 = D.pursue(g1, I.read_goal(g1, text), T.open_thread(g1, "t"), w1)
+    whole = X.execute(g1, plan1["workbench"], plan1["frame"])
+
+    g2, w2 = _blocks()                                # the same plan, one real action at a time
+    plan2 = D.pursue(g2, I.read_goal(g2, text), T.open_thread(g2, "t"), w2)
+    a, b, c = g2.targets(w2, "block")
+    on_before = (g2.target(a, "on"), g2.target(b, "on"))
+    r = X.open_execution(g2, plan2["workbench"], plan2["frame"])
+    X.step(g2, r)                                     # exactly ONE real action
+    mid = {"finished": X.finished(g2, r), "ran": g2.attr(r, "ran", ()), "at": g2.attr(r, "at"),
+           "on": (g2.target(a, "on"), g2.target(b, "on"))}
+    turns = 1
+    while not X.finished(g2, r):                      # ⚠ `step` answers "is there more", not "did I act"
+        X.step(g2, r)
+        turns += 1
+    by_hand = X.report_of(g2, r)
+
+    # ⚠ "One move happened and the other did not" is asserted against what CHANGED, not against what is
+    # non-empty: every block starts `on` the ground, so a null check would have passed before anything ran.
+    moved = sum(1 for was, now in zip(on_before, mid["on"]) if was != now)
+    return {"driven_by_hand_ran_the_same_steps": by_hand["ran"] == whole["ran"] != (),
+            "AND_REACHED_THE_SAME_VERDICT": by_hand["completed"] == whole["completed"] is True,
+            "IT_PAUSED_BETWEEN_TWO_REAL_ACTIONS": mid["finished"] is False and len(mid["ran"]) == 1,
+            "EXACTLY_ONE_MOVE_HAD_REALLY_HAPPENED": moved == 1,
+            "the_replay_is_a_node_anyone_can_read": g2.kind(r) == "replay",
+            "and_it_says_how_far_it_got": mid["at"] == 1,
+            "turns": turns}
+
+
+def check_the_WHOLE_plan_act_check_loop_is_steppable():
+    """⭐⭐⭐ `driver.carry_out` was the last Python control loop, and the outermost one: the system could
+    be inside a plan-act-check-replan cycle and unable to say so. It is now a `pursuit` node whose phases
+    are data, and one tick is one **primitive** step — one imagined state, one real action, or one phase
+    transition.
+
+    ⚠ **Vacuity guards.** The by-hand drive must reach the same verdict as `carry_out`; the pursuit must
+    be caught in **more than one phase**, or a single-phase run would prove nothing about the state machine;
+    and it must take **many more ticks than there are attempts**, which is what distinguishes *a tick is a
+    primitive step* from *a tick is an attempt*."""
+    from . import driver as D, intake as I, thread as T
+    text = _lines("goal build a tower:", "    a on b", "    b on c")
+
+    g1, w1 = _blocks()                                # the control
+    whole = D.carry_out(g1, I.read_goal(g1, text), T.open_thread(g1, "t"), w1)
+
+    g2, w2 = _blocks()                                # ticked by hand
+    p = D.open_pursuit(g2, I.read_goal(g2, text), T.open_thread(g2, "t"), w2)
+    phases, said, ticks = [], [], 0
+    while D.pursuit_step(g2, p):
+        ticks += 1
+        phases.append(g2.attr(p, "phase"))
+        said.append(D.describe_pursuit(g2, p))
+    by_hand = D.pursuit_report(g2, p)
+    a, b, c = g2.targets(w2, "block")
+
+    return {"driven_by_hand_reaches_the_same_verdict": by_hand["done"] == whole["done"] is True,
+            "AND_THE_WORLD_REALLY_CHANGED": g2.target(a, "on") == b and g2.target(b, "on") == c,
+            "IT_WAS_CAUGHT_IN_MORE_THAN_ONE_PHASE": len(set(phases)) > 1,
+            "which_were": tuple(sorted(set(phases))),
+            "A_TICK_IS_A_PRIMITIVE_STEP_NOT_AN_ATTEMPT": ticks > 2 * whole["tries"],
+            "and_it_says_what_it_is_doing": all("pursuing" in s for s in said),
+            "ticks": ticks}
+
+
+def check_ONE_OUTER_LOOP_interleaves_everything_and_names_the_irreversible_step():
+    """⭐⭐⭐ **The arc's destination** (HANDOFF §6b): a single outer loop, everything on one agenda, one
+    primitive step per tick, nothing that cannot be interrupted.
+
+    Two unrelated tasks — a stored microfunction and a whole goal-pursuit — are scheduled together and
+    genuinely **interleave**, because the agenda is an ordered edge and `tick` rotates it. And the loop can
+    say, *before* taking a step, whether that step is reversible: `imagine` costs time, `act` cannot be
+    taken back. That asymmetry is the one thing §6b says must not become uniform.
+
+    ⚠ **Vacuity guards.** The interleaving must be observable — both tasks must have advanced before
+    either finished, or "round-robin" would be a claim about nothing. The verbs must include **both**
+    `imagine` and `act`, or `verb_of` could be returning a constant. And an `act` must really have been
+    available to decline, or the stopping rule would be untested."""
+    from . import driver as D, intake as I, loop as L, thread as T, function as fn
+    g, w = _blocks()
+    _counting_function(g)
+    car = g.mint("car")                               # something for the microfunction to count
+    for _ in range(3):
+        g.link(car, "wheel", g.mint("wheel"))
+
+    lp = L.open_loop(g, "one loop")
+    from .isa import Machine
+    act = Machine(fn.load(g, "count_wheels")[1]).start(
+        g, Focus(g).open("c", car), of=fn.find(g, "count_wheels"))
+    p = D.open_pursuit(g, I.read_goal(g, _lines("goal build a tower:", "    a on b", "    b on c")),
+                       T.open_thread(g, "t"), w)
+    L.schedule(g, lp, act, why="count the wheels")
+    L.schedule(g, lp, p, why="build the tower")
+
+    a, b, _c = g.targets(w, "block")
+    untouched = (g.target(a, "on"), g.target(b, "on"))
+
+    # ⭐ Stop BEFORE the first irreversible step — read the verb off the head of the agenda and decline.
+    verbs, advanced, kinds_in_order = [], set(), []
+    first_act = None
+    while L.agenda(g, lp):
+        head = L.agenda(g, lp)[0]
+        if L.verb_of(g, head) in L.IRREVERSIBLE:
+            first_act = {"task": head, "doing": L.describe(g, head)}
+            break
+        rec = L.tick(g, lp)
+        if rec is None:
+            break
+        verbs.append(rec["verb"])
+        advanced.add(rec["kind"])
+        kinds_in_order.append(rec["kind"])
+
+    # ⚠ THE WORLD, READ AT THE MOMENT WE DECLINED. An earlier version of this key was the literal `True`,
+    # which is the false-green §7 keeps catching — it asserted nothing at exactly the point the check
+    # exists to make a claim about.
+    still_untouched = (g.target(a, "on"), g.target(b, "on")) == untouched
+    then = L.run(g, lp, max_ticks=400)                # and it carries on when we let it
+    return {"two_unrelated_tasks_on_ONE_agenda": len(verbs) > 0,
+            "THEY_INTERLEAVED": advanced == {"activation", "pursuit"},
+            "and_really_alternated": kinds_in_order[:4] == ["activation", "pursuit"] * 2,
+            "and_it_named_both_kinds_of_step": {L.IMAGINE, L.RUN} <= set(verbs),
+            "IT_STOPPED_BEFORE_THE_IRREVERSIBLE_ONE": first_act is not None,
+            "naming_what_that_step_would_be": "acting" in (first_act or {}).get("doing", ""),
+            "AND_THE_WORLD_WAS_STILL_UNTOUCHED_THEN": still_untouched,
+            "when_allowed_it_finishes_the_job": g.target(a, "on") == b,
+            "the_agenda_empties": then["why"] == "the agenda is empty",
+            "ticks": L.ticks(g, lp)}
+
+
+def check_the_loop_refuses_a_program_it_cannot_reconstruct():
+    """⚠ DELIBERATE NEGATIVE, and it is the honest boundary of the whole arc. An activation whose program
+    exists only as a Python tuple cannot be resumed by anything but the caller holding it — which is the
+    unreachable island `composability-principle` warns about. The loop says so instead of skipping it.
+
+    Vacuity guard: the same program **stored** as a function is driven by the loop without complaint, so
+    the refusal is about reconstructability and not about activations."""
+    from . import asm, function as fn, loop as L
+    from .isa import Machine, CONST
+    g = new_graph()
+    anonymous = Machine((CONST(R("x"), 1),)).start(g, Focus(g))
+    lp = L.open_loop(g)
+    L.schedule(g, lp, anonymous)
+    try:
+        L.tick(g, lp)
+        refused = False
+    except ValueError as e:
+        refused = "STORED" in str(e) or "stored" in str(e)
+
+    asm.load_text(g, "\n".join(["fn one(c):", '    CONST R(result) 1']))
+    stored = Machine(fn.load(g, "one")[1]).start(g, Focus(g).open("c", "root"), of=fn.find(g, "one"))
+    lp2 = L.open_loop(g)
+    L.schedule(g, lp2, stored)
+    out = L.run(g, lp2, max_ticks=20)
+    return {"an_anonymous_program_is_REFUSED": refused,
+            "but_a_STORED_one_is_driven_fine": out["why"] == "the agenda is empty",
+            "and_it_really_ran": out["ticks"] >= 1}
+
+
+def check_a_tool_says_whether_it_LOOKS_or_ACTS():
+    """⭐ HANDOFF §6b named this as a concrete gap: `dispatch.register` took any callable and nothing said
+    whether a tool observes or changes, so the veto and commit machinery treated a directory scan and a
+    sent email identically. `loop.verb_of` needs it to tell **look** from **act**.
+
+    ⚠ The default is the SAFE one — unmarked means *acts* — because being wrong that way costs a pause and
+    being wrong the other way spends an irreversible act somebody meant to withhold. Vacuity guard: the two
+    tools are registered identically apart from that one flag, and must be classified oppositely."""
+    from . import asm, dispatch as D, function as fn, loop as L
+    from .isa import Machine
+    g = new_graph()
+    D.register("peek", lambda _g, t: "saw it", observes=True)
+    D.register("poke", lambda _g, t: _g.put(t, poked=True))
+    asm.load_text(g, "\n".join([
+        "fn look_at(t):", '    DISPATCH R(result) "peek" F(t)',
+        "fn change(t):", '    DISPATCH R(result) "poke" F(t)']))
+    thing = g.mint("thing")
+    g.link("root", "thing", thing)
+
+    verbs = {}
+    for name in ("look_at", "change"):
+        a = Machine(fn.load(g, name)[1]).start(g, Focus(g).open("t", thing), of=fn.find(g, name))
+        while L.verb_of(g, a) == L.RUN and Machine(fn.load(g, name)[1]).tick(g, a):
+            pass
+        verbs[name] = L.verb_of(g, a)
+    return {"an_observing_tool_is_a_LOOK": verbs["look_at"] == L.LOOK,
+            "a_changing_one_is_an_ACT": verbs["change"] == L.ACT,
+            "AND_ONLY_ONE_OF_THEM_IS_IRREVERSIBLE": (verbs["change"] in L.IRREVERSIBLE
+                                                     and verbs["look_at"] not in L.IRREVERSIBLE),
+            "an_unregistered_stance_defaults_to_acting": not D.observes(g, "poke"),
+            "and_the_declaration_is_readable": D.observes(g, "peek")}
+
+
+def check_a_BLOCKING_microfunction_still_interleaves_because_every_level_ticks():
+    """⭐⭐⭐ **Three levels of stepping compose, and that is what retires the case for CPS.**
+
+    `think` is a microfunction that spins on `STEP` until its search finishes — a *blocking* program by any
+    ordinary reading, and HANDOFF §6c called it "an interruptible search driven from inside an **atomic**
+    invocation". It is not atomic any more. The outer loop advances the **activation** one instruction at a
+    time, that instruction advances the **search** one imagined state at a time, and unrelated work on the
+    agenda runs in between. So a program does **not** have to be rewritten in continuation-passing style to
+    stop holding the loop.
+
+    That matters because it removes the last practical motive for §6b's strong version (b): the reason to
+    forbid backward jumps was that `think`'s loop was uninterruptible, and it no longer is.
+
+    ⚠ **Vacuity guards, and they carry the whole claim.** The other task must advance **while the search
+    inside `think` is genuinely unfinished** — not merely before or after it — or "interleaving" would be a
+    statement about scheduling two things that never overlapped. And `think` must still reach the same plan
+    as `pursue`, at the same cost, or the interleaving was bought by changing the computation."""
+    from . import asm, driver as D, function as fn, intake as I, loop as L, thread as T
+    from .isa import Machine
+    text = _lines("goal build a tower:", "    a on b", "    b on c")
+
+    g1, w1 = _blocks()                                # the control
+    ref = D.pursue(g1, I.read_goal(g1, text), T.open_thread(g1, "t"), w1)
+
+    g, world = _blocks()
+    goal = I.read_goal(g, text)
+    asm.load_text(g, _lines('fn think(goal, subject, thread) -> plan:',
+                            '    PLAN R(s) F(goal) F(subject) F(thread)',
+                            '    .again:',
+                            '    STEP R(more) R(s)',
+                            '    JMPIF R(more) ".again"',
+                            '    ATTR R(result) R(s) "found"'))
+    _counting_function(g)
+    car = g.mint("car")
+    for _ in range(4):
+        g.link(car, "wheel", g.mint("wheel"))
+
+    thinking = Machine(fn.load(g, "think")[1]).start(
+        g, Focus(g).open("goal", goal).open("subject", world).open("thread", T.open_thread(g, "t")),
+        of=fn.find(g, "think"))
+    counting = Machine(fn.load(g, "count_wheels")[1]).start(
+        g, Focus(g).open("c", car), of=fn.find(g, "count_wheels"))
+
+    lp = L.open_loop(g, "two programs")
+    L.schedule(g, lp, thinking)
+    L.schedule(g, lp, counting)
+
+    # ⚠ Watch for the discriminating moment: the OTHER task advancing while `think`'s search is open and
+    # unfinished. Anything less would not distinguish interleaving from running them back to back.
+    overlapped = False
+    while L.agenda(g, lp):
+        head = L.agenda(g, lp)[0]
+        s = g.attr(thinking, "pc") is not None and _search_of(g, thinking)
+        if head == counting and s and not g.attr(s, "done"):
+            overlapped = True
+        if L.tick(g, lp) is None:
+            break
+
+    s = _search_of(g, thinking)
+    return {"the_blocking_program_finished": g.attr(thinking, "halted") or L.finished(g, thinking),
+            "and_found_the_SAME_plan_as_pursue": g.target(s, "reached") is not None
+                                                 and g.attr(s, "length") == ref["length"],
+            "at_the_SAME_cost": g.attr(s, "steps") == ref["steps"],
+            "THE_OTHER_TASK_RAN_WHILE_ITS_SEARCH_WAS_STILL_OPEN": overlapped,
+            "and_the_counter_finished_too": _reg_of(g, counting, "result") == 4,
+            "ticks": L.ticks(g, lp)}
+
+
+def _search_of(g, activation):
+    """The search a `think`-style activation opened, read off its registers — no new record needed."""
+    from . import activation as A
+    s = A.get_reg(g, activation, "s")
+    return s if s is not None and g.kind(s) == "search" else None
+
+
+def _reg_of(g, activation, name):
+    from . import activation as A
+    return A.get_reg(g, activation, name)
+
+
+def check_the_system_can_JUDGE_ITS_OWN_COMPUTATION_and_act_on_the_judgement():
+    """⭐⭐⭐ **"I have been planning for too long" — as an ordinary microfunction, watching an ordinary
+    task, on the ordinary agenda.**
+
+    This is what materialising every control loop was *for*, and it is worth stating plainly because no
+    single slice delivered it: once the state of a running computation is graph data, a rule can read it;
+    once the reader is a task on the same agenda, it runs **while** the thing it is watching is still
+    running; and once `stop` is data, the judgement has an effect. Monitoring and control of the system's
+    own process, with **no mechanism that was built for it** — the watcher below is text, and the engine
+    change it needed was one attribute lookup.
+
+    ⚠ It is worth being exact about the claim: this is *metacognitive monitoring* in the plain functional
+    sense — the system's own computational process is an object it can inspect and steer, the way it can
+    inspect a goal or a plan. It says nothing about anything else the word "self" is used for.
+
+    ⭐ **And it is a third, independent argument against §6b's (b).** A watcher must poll, so it *needs*
+    repetition; under (b) it could not be written as one microfunction at all. §6e reached the same
+    conclusion from exactness and from termination.
+
+    ⚠ **Vacuity guards, and the check is mostly guards.** The verdict must be written while the search is
+    genuinely **still open** — a judgement delivered after the fact is not monitoring. The identical search
+    with a generous budget must **succeed**, or the stop would be indistinguishable from exhaustion. And
+    the world must be untouched, since planning was stopped before anything was carried out."""
+    from . import asm, driver as D, function as fn, intake as I, loop as L, thread as T
+    from .isa import Machine
+    text = _lines("goal build a tower:", "    a on b", "    b on c")
+
+    # The watcher, authored as TEXT. It reads a search node and judges it.
+    def world():
+        g, w = _blocks()
+        asm.load_text(g, _lines(
+            "# Am I taking too long over this? If so, stop planning.",
+            "fn watch_planning(s, budget):",
+            "    .again:",
+            '    ATTR R(over) F(s) "done"',
+            '    JMPIF R(over) ".end"',
+            '    ATTR R(n) F(s) "steps"',
+            '    ATTR R(b) F(budget) "value"',
+            "    LT R(ok) R(n) R(b)",
+            '    JMPIF R(ok) ".again"',
+            '    SET F(s) "stop" "REFUSE"',
+            '    SET F(s) "stop_why" "planning has gone on too long"',
+            "    .end:"))
+        return g, w
+
+    def run_with(budget_value):
+        g, w = world()
+        p = D.open_pursuit(g, I.read_goal(g, text), T.open_thread(g, "t"), w,
+                           guided=False, max_steps=400)
+        D.pursuit_step(g, p)                          # one tick: the search now exists
+        s = g.target(p, "search")
+        budget = g.mint("budget", value=budget_value)
+        mon = Machine(fn.load(g, "watch_planning")[1]).start(
+            g, Focus(g).open("s", s).open("budget", budget), of=fn.find(g, "watch_planning"))
+        lp = L.open_loop(g, "the work, and a watcher")
+        L.schedule(g, lp, p, why="build the tower")
+        L.schedule(g, lp, mon, why="notice if planning drags")
+        judged = None
+        while L.agenda(g, lp):
+            if L.tick(g, lp) is None:
+                break
+            if g.attr(s, "stop") and judged is None:
+                judged = {"open": not g.attr(s, "done"), "at": g.attr(s, "steps"),
+                          "phase": g.attr(p, "phase")}
+        return g, w, p, s, judged
+
+    g, w, p, s, judged = run_with(8)                  # a budget the search will exceed
+    a, b, _c = g.targets(w, "block")
+    generous, _w2, p2, s2, _j2 = run_with(400)        # the control: same everything, budget it will not
+
+    return {"a_TEXT_rule_watched_a_LIVE_computation": judged is not None,
+            "AND_JUDGED_IT_WHILE_IT_WAS_STILL_RUNNING": bool(judged and judged["open"]),
+            "partway_through": bool(judged and 0 < judged["at"] < 67),
+            "THE_JUDGEMENT_STOPPED_IT": g.attr(s, "how") == D.REFUSE,
+            "and_it_says_why_in_the_rules_own_words": g.attr(s, "stop_why") ==
+                                                      "planning has gone on too long",
+            "it_stopped_EARLY_not_at_the_budget": g.attr(s, "steps") < 67,
+            "THE_WORLD_IS_UNTOUCHED": g.target(a, "on") != b,
+            "the_pursuit_gave_up_honestly": not g.attr(p, "done"),
+            # ⚠ the control: without the watcher's verdict the identical search SUCCEEDS, so the stop is
+            # what ended it and not exhaustion or a bad goal
+            "AND_THE_SAME_SEARCH_UNWATCHED_SUCCEEDS": generous.attr(p2, "done") is True,
+            "having_imagined_all_of_them": generous.attr(s2, "steps") == 67}
+
+
+def _worked_session():
+    """Three ordinary goals carried out on the blocks world — a session with a past."""
+    from . import driver as D, intake as I, thread as T
+    g, world = _blocks()
+    th = T.open_thread(g, "t")
+    for label, body in [("build a tower", ["    a on b", "    b on c"]),
+                        ("stack the other way", ["    c on b", "    b on a"]),
+                        ("put a on c", ["    a on c"])]:
+        D.carry_out(g, I.read_goal(g, _lines(f"goal {label}:", *body)), th, world, max_steps=200)
+    return g, world, th
+
+
+def _still_answerable(g, world, th):
+    """The questions the engine can answer from its past. **This is the specification of forgetting**:
+    whatever it drops, every one of these must come back the same."""
+    from . import conflict as C, driver as D, goal as G, query as Q, thread as T
+    a, b, c = g.targets(world, "block")
+    return {
+        # what is true, and what did it
+        "a_on_b": g.target(a, "on"),
+        "why_a_is_where_it_is": tuple(sorted(
+            g.attr(e, "function") or g.attr(e, "name")
+            for e, _n, _bd in Q.history_for(g, th, _a_constraint(g, a, b)))),
+        # what did I do, in order
+        "what_i_did": tuple(g.attr(e, "function") or g.attr(e, "name")
+                            for e in T.entries(g, th)
+                            if g.kind(e) == "application" and g.attr(e, "done")),
+        # did two intentions collide over one slot
+        "interference": len(C.interference(g, th)),
+        # what did I want, and is it still met
+        "goals_met": tuple(sorted(g.attr(x, "label") for x in g.of_kind("goal")
+                                  if G.satisfied(g, x, under=world))),
+        # the library is still there to think with
+        "can_still_plan": D.establishes(g, "stack")[0] != frozenset(),
+    }
+
+
+def _a_constraint(g, subject, obj):
+    """A throwaway `a on b` constraint node to ask `history_for` about."""
+    from . import goal as G
+    probe = G.open_goal(g, label="probe")
+    return G.require_link(g, probe, subject, "on", obj)
+
+
+def check_FORGETTING_IS_THE_DEFAULT_and_no_answer_changes():
+    """⭐⭐⭐ **Forgetting is the default; remembering is the exception** — the user's rule, 2026-08-01.
+
+    Measured: three ordinary goals on a three-block world take it from 80 nodes to 892, of which **76% is
+    scaffolding** — searches, candidates, trace steps, frames, mappings, replays, activations, registers.
+    None of it is a leak; it is what made the system able to say what it was doing. But it is all
+    **re-derivable from the goal and the library, by thinking again**, and that is the line:
+
+    > Keep what you cannot re-derive. The two irreducible kinds are **a crossing of the world** and **a
+    > surprise**. Everything else is ordinary.
+
+    ⚠ **This is not a reversal of §6a**, which looks like it says the opposite. §6a's *retention defaults
+    to KEEP* was argued about **sightings** — results of tool calls — and every one of those is kept here.
+    Scaffolding is the category §6a never had, because the outer-loop arc had not created it yet.
+
+    ⚠⚠ **THE CHECK IS NOT THE NODE COUNT — IT IS THAT NOTHING BECAME UNANSWERABLE.** A forgetting pass
+    that dropped everything would score beautifully on size. So every question the engine can ask of its
+    past is asked *before* and *after*, and they must come back **identical**: what is true, why, what I
+    did, whether two intentions collided, which goals are met, and whether the library still thinks."""
+    from . import forget as FG, loop as L
+    g, world, th = _worked_session()
+    before_nodes = len(g.nodes)
+    before = _still_answerable(g, world, th)
+
+    lp = L.open_loop(g, "a quiet moment")
+    f = FG.open_forgetting(g)
+    L.schedule(g, lp, f, why="the past is mostly scaffolding")
+    out = L.run(g, lp, max_ticks=5000)
+
+    after = _still_answerable(g, world, th)
+    kinds_left = {g.kind(n) for n in g.nodes}
+    return {"THE_ANSWERS_ARE_UNCHANGED": after == before,
+            "and_they_were_not_all_empty": bool(before["what_i_did"]) and before["a_on_b"] is not None,
+            "MOST_OF_THE_PAST_WAS_ORDINARY": len(g.nodes) < before_nodes * 0.4,
+            "the_world_survived": {"block", "ground", "world"} <= kinds_left,
+            "so_did_the_library": {"function", "instr"} <= kinds_left,
+            "AND_SO_DID_WHAT_I_DID": "application" in kinds_left,
+            "but_the_search_scaffolding_is_gone":
+                not ({"candidate", "trace_step", "signature"} & kinds_left),
+            # ⚠ THE KEY THAT CATCHES A PARTIAL SWEEP. Everything still here must be here *for a
+            # reason* — the worklist bug (indexing an edge list that `drop` shrinks) left unreachable
+            # records behind while every other key above stayed green.
+            "EVERY_SURVIVOR_IS_KEPT_FOR_A_REASON": all(
+                FG.kept_because(g, n) != "nothing keeps it"
+                for n in g.nodes if g.kind(n) != "forgetting"),
+            # ⭐ and the sweep itself is ordinary: a finished pass is re-derivable scaffolding like any
+            # other, so the NEXT one forgets it. Nothing here is exempt from its own rule.
+            "AND_THE_SWEEP_IS_ITSELF_FORGETTABLE": f in FG.doomed(g),
+            "it_forgot_one_record_per_tick": out["ticks"] == g.attr(f, "at"),
+            "before": before_nodes, "after": len(g.nodes)}
+
+
+def check_A_TOOL_CALL_AND_A_SURPRISE_are_what_survives():
+    """⭐⭐⭐ **The two exceptions the rule is actually about** — *the result of a tool call*, and
+    *something that surprised us* — and until this existed **nothing tested either of them.** The blocks
+    world never dispatches, so it produces zero observations; a sweep over it could have dropped every
+    observation there is and every key would have stayed green. Caught by a planted-bug probe that removed
+    `observation` from the roots and changed nothing.
+
+    Here the agent really looks at a directory whose contents move under it. What must survive:
+
+    * **what it saw**, because a tool call cannot be re-done — the world has moved on, and re-doing it may
+      not even be safe;
+    * **what surprised it** — a change nothing it did could account for (`memory.attribute` → `EXTERNAL`),
+      which is information precisely because the system's own model did not predict it.
+
+    ⚠ Vacuity guards: the sweep must actually drop something, the belief must be **re-readable** after it
+    (not merely present as a node), and the *unsurprising* half of the past must be gone — otherwise
+    "remembering is the exception" would be indistinguishable from remembering everything."""
+    from . import forget as FG, loop as L, memory as M
+    g, th, d, disk, look = _watched_world()
+    look()                                            # 3
+    disk["count"] = 5
+    look()                                            # 5 — nothing I did could explain this
+    from . import function as fn, thread as T
+    fn.invoke(g, "empty_it", {"d": d})                # and this change IS mine
+    T.applied(g, th, "empty_it", {"d": d}, why="tidying up", done=True)
+    disk["count"] = 0                                 # ⚠ the world must agree, or the next scan
+    look()                                            #    overwrites it and the sighting reads 5 again
+
+    seen_before = tuple(g.attr(o, "value") for o in M.sightings(g, th, d, "count"))
+    moves = M.transitions(g, th, d, "count")
+    verdicts_before = tuple(M.attribute(g, th, a, b)["verdict"] for a, b in moves)
+    before_nodes = len(g.nodes)
+
+    lp = L.open_loop(g, "a quiet moment")
+    L.schedule(g, lp, FG.open_forgetting(g))
+    L.run(g, lp, max_ticks=4000)
+
+    seen_after = tuple(g.attr(o, "value") for o in M.sightings(g, th, d, "count"))
+    verdicts_after = tuple(M.attribute(g, th, a, b)["verdict"]
+                           for a, b in M.transitions(g, th, d, "count"))
+    kinds_left = {g.kind(n) for n in g.nodes}
+    return {"WHAT_IT_SAW_SURVIVED": seen_after == seen_before == (3, 5, 0),
+            "AND_SO_DID_WHETHER_IT_WAS_A_SURPRISE": verdicts_after == verdicts_before,
+            "and_the_verdicts_are_not_all_the_same": len(set(verdicts_before)) > 1,
+            "which_is_what_makes_the_key_above_mean_anything": M.EXTERNAL in verdicts_before,
+            "the_sweep_really_dropped_something": len(g.nodes) < before_nodes,
+            "the_ordinary_scaffolding_went": not ({"activation", "register", "focus"} & kinds_left),
+            "observations": len(g.of_kind("observation"))}
+
+
+def check_a_LIVE_computation_is_never_forgotten():
+    """⚠ The one way forgetting can be catastrophic rather than merely lossy: sweeping work that is still
+    in progress. A task on an agenda is not scaffolding, it is *what the system is doing*.
+
+    ⭐ It needs no special case — a live task is passed as an extra **root**, and the transitive closure
+    does the rest, because a pursuit points at its search which points at its workbench.
+
+    ⚠ Vacuity guard: the pursuit must be genuinely **mid-flight** when the sweep is computed (a search open
+    and unfinished), and it must still complete and change the world afterwards. A sweep run against an
+    already-finished pursuit would prove nothing."""
+    from . import driver as D, forget as FG, intake as I, loop as L, thread as T
+    g, world = _blocks()
+    p = D.open_pursuit(g, I.read_goal(g, _lines("goal build a tower:", "    a on b", "    b on c")),
+                       T.open_thread(g, "t"), world, guided=False, max_steps=400)
+    for _ in range(12):                                # get it properly under way
+        D.pursuit_step(g, p)
+    s = g.target(p, "search")
+    mid_flight = not g.attr(s, "done") and g.attr(s, "steps", 0) > 0
+
+    lp = L.open_loop(g, "sweep while working")
+    L.schedule(g, lp, p)
+    L.schedule(g, lp, FG.open_forgetting(g), why="forget, but not what I am doing")
+    L.run(g, lp, max_ticks=6000)
+
+    a, b, _c = g.targets(world, "block")
+    return {"the_pursuit_was_mid_flight_when_the_sweep_was_computed": mid_flight,
+            "ITS_WORKBENCH_SURVIVED": g.target(s, "workbench") in g.nodes,
+            "and_so_did_the_search_itself": s in g.nodes,
+            "IT_STILL_FINISHED_THE_JOB": g.attr(p, "done") is True,
+            "and_really_changed_the_world": g.target(a, "on") == b,
+            "the_sweep_still_dropped_something": any(g.kind(n) == "forgetting" for n in g.nodes)}
+
+
+def check_forgetting_says_what_it_still_remembers_and_why():
+    """⭐ *What do you still remember, and why?* has to be answerable, or "remembering is the exception"
+    is a slogan rather than a rule anybody could audit.
+
+    Vacuity guard: the two exceptions the user named — **the result of a tool call** and **a surprise** —
+    must be distinguishable from each other and from the world, so the reasons must not collapse to one."""
+    from . import dispatch as DI, forget as FG
+    g, _car, _t = _car_world()
+    reasons = {}
+    for kind, node in (("goal", g.mint("goal", label="q")),
+                       ("observation", g.mint("observation", key="count")),
+                       ("deviation", g.mint("deviation", step="scan")),
+                       ("function", g.mint("function", name="f"))):
+        reasons[kind] = FG.kept_because(g, node)
+    scaffold = g.mint("candidate")
+    _ = DI
+    return {"a_tool_call_result_is_kept": "tool call" in reasons["observation"],
+            "A_SURPRISE_IS_KEPT_AND_SAYS_SO": "surprise" in reasons["deviation"],
+            "the_library_is_kept_for_a_DIFFERENT_reason": "library" in reasons["function"],
+            "and_intent_for_another": reasons["goal"] not in
+                                      (reasons["observation"], reasons["deviation"],
+                                       reasons["function"]),
+            "ORDINARY_SCAFFOLDING_IS_NOT_KEPT": FG.kept_because(g, scaffold) == "nothing keeps it"}
+
+
 def check_runaway_program_halts_loudly():
     """DELIBERATE NEGATIVE. Termination is unsolved in general; failing loudly is the honest stand-in."""
     try:
@@ -1700,6 +2272,7 @@ _METADATA_KINDS = frozenset({
     "hypothesis", "backup",
     "chain", "pending_call",
     "forbidden",
+    "replay", "bound", "deviation",                        # carrying a plan out is metadata about a plan
     "workbench", "frame", "mapping", "transformation",     # not built yet — listed so it stays true
 })
 

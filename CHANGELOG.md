@@ -132,6 +132,55 @@ could not detect do not need one. When in doubt, write the line — it costs one
 - **New node kinds:** `activation`, `register`, `focus`, `head`. All metadata — they point at the world and
   nothing in the world points back — so `workbench.reachable` never copies one.
 
+### Added — the OUTER LOOP, and the last two Python control loops
+
+- **`loop.py`** — one ordered agenda, `tick` advances the head task by **one primitive step** and rotates
+  it to the back, `run` is a driver over `tick`. It advances any of `activation` / `search` / `replay` /
+  `pursuit`. `verb_of(g, task)` answers `imagine` / `look` / `act` / `run` **before** the step is taken;
+  `IRREVERSIBLE` is the set to decline on.
+  ⚠ `advance` **refuses** an `activation` with no `of` — an anonymous program cannot be reconstructed
+  from the graph and so cannot be driven by anything but the Python caller holding it.
+- **`execution.step(g, replay)`** and **`execution.open_replay` / `open_execution` / `report_of` /
+  `deviation_of` / `bindings_of` / `bind` / `bound_to` / `is_bound` / `finished` / `discard_replay`.**
+  `execute` is now a loop over `step` and its **report shape is unchanged** (plus a new `replay` key).
+  ⚠ `execution._replay` is gone; it was private.
+- **`execution.resume_replay(g, result, …)`** returns the contingency's replay node, ready to step;
+  `resume` is that plus the loop, and its report is unchanged.
+- **`driver.open_pursuit` / `pursuit_step` / `pursuit_report` / `describe_pursuit`**, and the phase
+  constants `PLANNING` / `ACTING` / `RECOVERING` / `CHECKING` / `SETTLED`. `carry_out` is a driver over
+  `pursuit_step` and its report is unchanged (plus a new `pursuit` key).
+- **`dispatch.register(name, handler, *, observes=False)`** and **`dispatch.observes(name)`**. ⚠ The
+  default says a tool *changes* the world, which is the safe assumption; mark read-only tools explicitly if
+  you want them classified as `look`.
+- **A contradictory goal is recorded on the SEARCH** (`contradictory=`) rather than short-circuited inside
+  `pursue`, so every driver reports it identically. `pursue`'s report for that case is unchanged apart from
+  now carrying `search`.
+- **New node kinds:** `loop`, `replay`, `bound`, `deviation`, `pursuit`, `attempt`. All metadata.
+
+### Added — a rule can stop a computation it is watching
+
+- **`stop` on a `search` node is honoured by `driver.step`.** Write `stop` (truthy, or one of the stop
+  verbs) and optionally `stop_why`; the search reports exactly as a `decide` verdict does — one
+  `_stopped` report builder serves both, so the two routes cannot drift. This is the `decide` hook
+  expressed as **data**: `decide` stays, and is still the right thing for a per-proposal decision.
+- **`stop` on ANY task is honoured by `loop.finished`**, so "stop this" means the same for an
+  `activation`, a `search`, a `replay` or a `pursuit`. ⚠ Stopping a `replay` means *do not take the
+  next irreversible action* and leaves a plan half carried-out — honest rather than new, since a
+  divergence already does, and nothing is ever undone.
+
+### Added — forgetting
+
+- **`forget.py`** — `roots` / `keepers` / `doomed` / `kept_because`, and `open_forgetting` / `step` /
+  `finished` / `describe`. A mark-and-sweep whose root set is *what cannot be re-derived*: the world, the
+  library, intent, the thread, **the result of a tool call**, **a surprise**, and anything on a live
+  agenda. ⚠ Everything else is dropped — searches, candidates, frames, mappings, replays, activations,
+  registers. Measured 892 to 238 nodes on a three-goal session, with every answer unchanged.
+- **`forgetting` is a task kind** on `loop`, one record per tick, with verb `loop.FORGET`. Nothing runs it
+  for you; schedule it when you want it.
+- ⚠ **Consumer impact:** none unless you schedule a pass. If you do, anything you hold a Python
+  reference to but that no root reaches **will be dropped** — pin it with
+  `open_forgetting(also=(node,))`, or schedule it on a loop.
+
 ### Refused, deliberately — so nobody reports it as a bug
 
 - **A reference reaches any depth in a `type` block, one hop in a `goal` or `method` one.** Deeper is
