@@ -8,6 +8,8 @@ behind it.
 |---|---|---|
 | **`HANDOFF.md`** | ⭐ **start here if picking this up cold** — state, decisions and their wrong versions, what to do next, known limits | first |
 | `north_star.md` | the repoint — content as data, mechanism as mini-algorithms; triggers; microfunctions; what gets cut | first, always |
+| **`plural_step.md`** | ⭐ **an action on EACH of many** — scope for the one thing a KB provably cannot supply: a collection can be built and cannot be planned over. Measured blockers, the lift-don't-author decision, four slices | before building anything plural |
+| **`not_supported.md`** | ⭐ **what cannot be said** — expressions that fail for lack of a *capability*, separated from the ones that only look that way. Verdicts are SUGAR / KB / CAPABILITY, measured over a real file KB | before proposing a new form, and before assuming something is missing |
 | `the_data_model.md` | plain-language prose: what a goal, a plan and a hypothesis *are*; the operations; why they nest without limit | to understand the model |
 | `graph_data_model.md` | the same as signature tables, a closure check, named gaps, and the probe results | to verify something |
 | `planning_workbench.md` | the workbench design — mappings, frames, mocks, the direction invariant, and the decisions that were got wrong first | before touching `workbench.py` |

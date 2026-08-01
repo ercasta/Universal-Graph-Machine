@@ -137,6 +137,7 @@ from __future__ import annotations
 
 import re
 
+from . import criterion as CR
 from . import goal as G
 from .graph import Graph
 from . import guideline as GL
@@ -261,6 +262,7 @@ GOAL_VERBS = ("goal", "ask", "why", "plan")
 ADVICE_VERBS = ("prefer", "avoid")
 METHOD_VERBS = ("method", "procedure")
 TYPE_VERBS = ("type",)
+CRITERION_VERBS = ("criterion",)
 
 # ⭐⭐ **THE WH-QUESTIONS, AND THEY ARE A DIFFERENT FORM — not a fifth force on the same body.** Every verb
 # above states a whole proposition and differs only in what is then done with it (`goal.py`'s constraints,
@@ -274,9 +276,96 @@ TYPE_VERBS = ("type",)
 # nobody should try to unify them.
 READER_VERBS = L.VERBS
 
-VERBS = GOAL_VERBS + ADVICE_VERBS + METHOD_VERBS + TYPE_VERBS + READER_VERBS
+VERBS = GOAL_VERBS + ADVICE_VERBS + METHOD_VERBS + TYPE_VERBS + READER_VERBS + CRITERION_VERBS
 
 ROLES = (M.SUBJECT, M.OBJECT)
+
+_SORTS = ("link", "attr", "type")
+
+
+def _ref(g: Graph, text: str, lineno: int, line: str, under: str) -> str:
+    """Validate a reference at AUTHORING time, so a bad one is refused where it is written.
+
+    ⚠ The alternative — checking when the criterion is consulted — would report a typo from inside a
+    search, thousands of steps later, as *silence*. A criterion that says nothing because it is
+    mis-written is indistinguishable from one that says nothing because the situation does not call for
+    it, and that is the single worst failure this surface could have."""
+    words = text.split()
+    if len(words) == 4 and words[0] in CR.SELECTORS and words[2] == "by":
+        P.parse_link(words[3].lstrip("^") or words[3])
+        return _ref(g, words[1], lineno, line, under) and text
+    if len(words) == 2 and words[0] == "the":
+        # ⚠ Resolved HERE, not when the criterion is consulted — `prefer`/`avoid` already resolves
+        # `touching x` at parse time, and the reason is sharper for a criterion: a name that resolves to
+        # nothing would surface thousands of search steps later AS SILENCE, indistinguishable from a
+        # criterion that simply had nothing to say. A typo must never look like a judgement.
+        resolve(g, words[1], under=under)
+        return text
+    if len(words) != 1:
+        raise Unreadable(f"line {lineno}: cannot read the reference {text!r} — a reference is a role, "
+                         f"a path from one, `the <name>`, or `<{'|'.join(CR.SELECTORS)}> <ref> by <link>`")
+    base, rest = P.split_base(words[0])
+    if base not in CR.ROLES:
+        raise Unreadable(f"line {lineno}: {base!r} is not a role — a criterion speaks of "
+                         f"{' or '.join(CR.ROLES)}, never a named individual, or it would be about that "
+                         f"individual and could not be reused")
+    _ = rest                                          # `split_base` already parsed and would have raised
+    return text
+
+
+def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lineno: int,
+                    under: str) -> None:
+    """One `when` / `unless` line. ⭐ Each becomes its OWN node, which is what lets `governing` say
+    *which* line stopped a criterion — the property §6 needs and an opaque predicate could never give."""
+    if words[0] == "wants" and len(words) in (4, 5) and words[-2] == "from":
+        if words[1] not in _SORTS:
+            raise Unreadable(f"line {lineno}: a goal wants {', '.join(_SORTS)} — not {words[1]!r}")
+        CR.test(g, c, sort="wants", negated=negated, want_sort=words[1],
+                label=words[2] if len(words) == 5 else None, left=_ref(g, words[-1], lineno, line, under))
+    elif len(words) >= 3 and words[-2] == "is" and words[-1] == "there":
+        CR.test(g, c, sort="exists", negated=negated, left=_ref(g, " ".join(words[:-2]), lineno, line, under))
+    elif len(words) >= 4 and words[-3] == "is" and words[-2] == "a":
+        CR.test(g, c, sort="type", negated=negated, label=words[-1],
+                left=_ref(g, " ".join(words[:-3]), lineno, line, under))
+    elif len(words) == 3 and words[1] == "=" and "." in words[0]:
+        who, key = _one_hop(words[0], lineno, "criterion")
+        CR.test(g, c, sort="attr", negated=negated, key=key, value=_literal(words[2]),
+                left=_ref(g, who, lineno, line, under))
+    elif len(words) == 3:
+        CR.test(g, c, sort="link", negated=negated, label=words[1],
+                left=_ref(g, words[0], lineno, line, under), right=_ref(g, words[2], lineno, line, under))
+    else:
+        raise Unreadable(f"line {lineno}: cannot read {line!r} — a condition is (x l y | x.k = v | "
+                         f"x is a T | x is there | wants <sort> <label> from x)")
+
+
+def _criterion_line(g: Graph, c: str, words: list, line: str, lineno: int, under: str) -> None:
+    if words[0] == "wants" and len(words) in (2, 3):
+        if words[1] not in _SORTS:
+            raise Unreadable(f"line {lineno}: a goal wants {', '.join(_SORTS)} — not {words[1]!r}. "
+                             f"That vocabulary is closed because it is also what an index would key on")
+        CR.wants(g, c, words[1], words[2] if len(words) == 3 else None)
+    elif words[0] in ("when", "unless") and len(words) > 1:
+        _criterion_test(g, c, words[1:], words[0] == "unless", line, lineno, under)
+    elif words[0] == "do" and len(words) > 1:
+        rest = " ".join(words[1:])
+        name, _, argtext = rest.partition(" ")
+        args = {}
+        for piece in argtext.split(",") if argtext.strip() else []:
+            param, eq, ref = piece.strip().partition("=")
+            if not eq:
+                raise Unreadable(f"line {lineno}: cannot read {piece.strip()!r} — an argument is "
+                                 f"`param = <reference>`")
+            args[param.strip()] = _ref(g, ref.strip(), lineno, line, under)
+        if not args:
+            raise Unreadable(f"line {lineno}: `do {name}` binds no arguments; a criterion names an "
+                             f"action WITH its arguments, which is the whole of what it adds")
+        CR.does(g, c, name, args)
+    elif words[0] == "because" and len(words) > 1:
+        g.put(c, because=" ".join(words[1:]))
+    else:
+        raise Unreadable(f"line {lineno}: cannot read {line!r} — the criterion vocabulary is closed "
+                         f"(wants <sort> [label] | when … | unless … | do f a = r, … | because …)")
 
 
 def _advise(g: Graph, gl: str, words: list, line: str, lineno: int, under: str) -> None:
@@ -308,6 +397,10 @@ def _reader(g: Graph, q: str, words: list, line: str, lineno: int, under: str) -
     container or a clock is. An author who keeps parts in `part_of` writes `by part_of` and the same
     traversal answers."""
     if words[0] == "by" and len(words) == 2:
+        # ⚠ Validated HERE rather than when the answer is computed. `by ^` would otherwise author cleanly
+        # and raise from inside `locate.where` at reading time, which is the wrong place to find out and
+        # the wrong exception to get.
+        P.parse_link(words[1].lstrip("^") or words[1])
         g.put(q, by=words[1])
     elif len(words) == 1:
         g.link(q, "about", resolve(g, words[0], under=under))
@@ -514,7 +607,15 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
         for lineno, raw in lines[1:]:
             _body(g, verb, node, raw.split(), raw.strip(), lineno, under)
         _seal(g, verb, node, label)
-    except Unreadable as e:
+    except (Unreadable, P.BadPath) as e:
+        # ⚠⚠ **A `BadPath` USED TO ESCAPE, and with it the whole no-half-built-goal guarantee.** A goal
+        # line of three words is read as a link, so `a.size > b.size` reached `parse_link(">")`, which
+        # raises `BadPath` — a different exception, uncaught, so the savepoint was never rolled back and
+        # an EMPTY GOAL was left in the graph. Measured. The module docstring says a refusal leaves
+        # nothing behind *because a half-built goal would be pursued and would look like it was working*;
+        # that held for every refusal this border authored and not for one it merely passed through.
+        # A reference that cannot be read IS unreadable here, so it is re-raised in this border's own
+        # vocabulary and callers keep having exactly one exception type to catch.
         g.rollback(sp)
         raise Unreadable(str(e) if "line " in str(e) else f"line {lineno}: {e}") from None
     return verb, node
@@ -532,6 +633,8 @@ def _open(g: Graph, verb: str, label: str) -> str:
         # codebase keeps catching: *that this was asked* is not entailed by any structure, exactly as force
         # is not (`force-is-the-missing-axis`). What it must never hold is the ANSWER — see `locate.py`.
         return g.mint("question", verb=verb, label=label)
+    if verb in CRITERION_VERBS:
+        return CR.declare(g, label)
     if verb in TYPE_VERBS:
         # ⚠ Refuses a REDECLARATION rather than minting a second type of the same name. Two would both
         # be found by `type_names` and `find_type` would answer with whichever came first — the same
@@ -553,6 +656,8 @@ def _body(g: Graph, verb: str, node: str, words: list, line: str, lineno: int, u
         _advise(g, node, words, line, lineno, under)
     elif verb in TYPE_VERBS:
         _type_line(g, node, words, line, lineno)
+    elif verb in CRITERION_VERBS:
+        _criterion_line(g, node, words, line, lineno, under)
     else:
         _method_line(g, node, words, line, lineno)
 
@@ -581,6 +686,16 @@ def _seal(g: Graph, verb: str, node: str, label: str) -> None:
                 or TY.rels_of(g, label)):
             raise Unreadable(f"`type {label}` demands nothing, so everything is one; "
                              f"that is not a type, it is a word")
+    elif verb in CRITERION_VERBS:
+        # ⚠ Both halves, and each is a different way of saying nothing. Without `wants` a criterion has
+        # no variables and no index key; without `do` it recognises a situation and then declines to say
+        # what to do about it, which is the one thing it exists for.
+        if g.attr(node, "wants_sort") is None:
+            raise Unreadable(f"`criterion {label}` never says what it keys on; a criterion without a "
+                             f"`wants` line has no variables to speak of")
+        if CR.action_of(g, node) is None:
+            raise Unreadable(f"`criterion {label}` names no action; recognising a situation and not "
+                             f"saying what to do in it is not judgement")
     elif not M.steps_of(g, node):
         raise Unreadable(f"`{verb} {label}` has no steps; it would decompose into nothing")
 

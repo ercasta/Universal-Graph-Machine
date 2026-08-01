@@ -318,6 +318,67 @@ def _target_ok(g: Graph, x, req: Req, sub, seen: frozenset) -> bool:
     return not fails(g, x, sub, seen | {key})
 
 
+def _matching(g: Graph, node, label: str, req: Req, sub, seen: frozenset) -> tuple:
+    """The targets of `label` that SATISFY this requirement — the thing a count is a count *of*.
+
+    ⭐ Extracted so `fails` and `offenders` cannot disagree: one counts these, the other names them
+    (§5m's *one implementation and nothing that can disagree*, which is the structural answer rather than
+    a guarded one). Order is `g.targets`, which is insertion order — never a `set`."""
+    return tuple(x for x in g.targets(node, label) if _target_ok(g, x, req, sub, seen))
+
+
+def offenders(g: Graph, node, type_name: str) -> dict:
+    """⭐⭐ **WHICH targets make this node fail — the names behind the count.**
+
+    `{label: (node, …)}`, empty when the node satisfies the type. This is the *planning* half of a
+    universal, and without it a universal constraint is a yes/no: `plural_step.md` §1 measured that even a
+    **singular** action that would close `d is a tidied_dir` scored band 1, because `goal.unmet` could say
+    *that* the constraint was false and never *which members* made it so — §5d's founding defect
+    (*"a goal that can only answer yes/no forces blind search"*) reappearing one level up.
+
+    ⚠⚠ **ONLY the too-many case has witnesses, and the asymmetry is the open world, not an omission.**
+    `has no file each a ungone_file` fails because *these* files are un-gone, and each of them is a thing
+    an action could change. `has 4 wheel` failing with three wheels has **no witness at all** — the missing
+    wheel does not exist, so there is nothing to point at. That case is already served, from the other
+    side, by `relevance`'s existential branch: *something of this type must exist* is answered by an
+    operator that MINTS one. Between them the two directions are covered; conflating them would mean
+    inventing a node to blame.
+
+    ⚠ **Derived, never stored.** §5f faced this exact choice for expectations and refused to materialise
+    them, because the driver imagines hundreds of frames and a node per step is a node per step. The same
+    reasoning applies with more force here, and §5i is the other half of it: a stored witness list is a
+    claim about the past, and this is a question about now."""
+    reqs = requirements(g, type_name)
+    if reqs is None or node is None:
+        return {}
+    schema, _attrs, _rels = reqs
+    out = {}
+    for label, req in schema.items():
+        if req.hi is None:
+            continue                                 # no upper bound: too many is not a way to fail
+        sub = requirements(g, req.type) if req.type is not None else None
+        if req.type is not None and sub is None:
+            continue                                 # undeclared target type: `fails` reports it, we cannot
+        hits = _matching(g, node, label, req, sub, frozenset())
+        if len(hits) > req.hi:
+            out[label] = hits
+    return out
+
+
+def offending_type(g: Graph, type_name: str, label: str) -> str | None:
+    """The type a target must STOP satisfying for `label`'s count to come down, or `None`.
+
+    ⭐ This is what keeps the witness branch a *discriminating* ranker rather than an optimistic one: it
+    lets a caller ask whether an effect could plausibly change the offending membership at all, instead of
+    scoring every write to a witness as though it helped."""
+    reqs = requirements(g, type_name)
+    if reqs is None:
+        return None
+    schema, _a, _r = reqs
+    req = schema.get(label)
+    return None if req is None else req.type
+
+
 def fails(g: Graph, node, reqs, _seen: frozenset = frozenset()) -> dict:
     """`violations` against already-gathered `requirements`. The shared implementation of both.
 
@@ -334,7 +395,7 @@ def fails(g: Graph, node, reqs, _seen: frozenset = frozenset()) -> dict:
             if sub is None:
                 bad[label] = (f"targets that are a {req.type}", f"no type {req.type} is declared")
                 continue
-        n = sum(1 for x in g.targets(node, label) if _target_ok(g, x, req, sub, _seen))
+        n = len(_matching(g, node, label, req, sub, _seen))
         if n < req.lo or (req.hi is not None and n > req.hi):
             bad[label] = (_phrase(req), str(n))
     for key, a in attrs.items():
@@ -592,6 +653,7 @@ def describe(g: Graph, name: str) -> str:
 
 
 __all__ = ["TypeViolation", "UNBOUNDED", "Req", "AttrReq", "Rel", "VALUE_OPS", "IDENTITY_OPS",
+           "offenders", "offending_type",
            "declare_type", "require_edge", "require_value", "require_relation",
            "find_type", "schema_of", "attrs_of", "rels_of", "requirements", "fails",
            "violations", "is_a", "subsumes", "subtypes", "check", "instances",

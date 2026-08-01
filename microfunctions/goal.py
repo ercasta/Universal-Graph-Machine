@@ -36,7 +36,7 @@ A goal is metadata: it points at the world and is never pointed at by it.
 from __future__ import annotations
 
 from .graph import UNKNOWN, Graph
-from .types import instances, is_a
+from .types import instances, is_a, offenders as _offenders
 
 
 def _same(node):
@@ -285,20 +285,55 @@ def _matches(g: Graph, c: str, step: tuple) -> bool:
     return want_fn is not None or want_on is not None
 
 
+def prohibitions(g: Graph, goal: str) -> tuple:
+    """Every `never` binding this goal — **its own, and every ancestor's.**
+
+    ⭐⭐ **A ban a child could sidestep is not a ban.** `breached` used to read `constraints(g, goal)`, so a
+    prohibition on "arrange the trip" said nothing to the search planning "book the hotel" underneath it —
+    the parent constrains the plan and the child does the planning, and the constraint did not cross the
+    boundary. Since a subgoal points at its parent, the fix is a walk that `ancestry` already provides.
+
+    ⚠ **The three plan sorts do NOT cross a boundary alike, and treating them alike is the mistake this
+    function exists to avoid** (`granularity.md` §6):
+
+    | sort | across the boundary | why |
+    |---|---|---|
+    | `never` | **inherits unchanged**, at any depth | a breach is a proof wherever it happens |
+    | `eventually` | **must not inherit** | discharged by *some* step *somewhere* below, never by each child separately — inherited, every child would be separately required to paint |
+    | `at_most` | **not inherited, and deliberately not** — see `budget_of` | |"""
+    return tuple(c for anc in ancestry(g, goal)
+                 for c in constraints(g, anc) if g.attr(c, "sort") == "never")
+
+
+def budget_of(g: Graph, goal: str) -> tuple:
+    """This goal's OWN `at_most` constraints. ⚠ Ancestors' budgets are **not** included, and that is a
+    refusal rather than an omission.
+
+    **A budget counts at the grain of the level that declared it** — "at most 4 steps" on the vacation
+    means four of *the vacation's* steps, where a subgoal counts as one. Inheriting it downward would apply
+    a parent's count to a child's *actions*, so authoring a method that expands one step into five would
+    silently break a limit that nothing about the goal had changed. And copying it to each child unchanged
+    is worse than useless: three children would each be allowed to spend the whole budget.
+
+    ⚠ So a budget is **consumed, not copied**, and consuming it needs a level that knows how many of *its
+    own* steps have been taken — which is the decomposition rung that has no state node yet
+    (`granularity.md` §2, §7). Enforcing it at the wrong grain would be a wrong answer; not enforcing it
+    across levels is a gap. **A gap that is written down beats a wrong answer**, so this is the gap."""
+    return tuple(c for c in constraints(g, goal) if g.attr(c, "sort") == "at_most")
+
+
 def breached(g: Graph, goal: str, trace: tuple) -> tuple:
     """Safety constraints this plan prefix has already violated — **prunable, because it is a proof.**
 
     ⚠ Contrast with `driver.relevance`, which only ever *ranks*: relevance is a guess about what will help,
     so filtering on it could lose a solution (Sussman's anomaly needs a move that scores low). A safety
     breach is not a guess — no continuation of a plan that used a forbidden action makes it unused. Ranking
-    a guess and pruning a proof are both correct, and confusing the two is how search goes wrong."""
-    out = []
-    for c in constraints(g, goal):
-        sort = g.attr(c, "sort")
-        if sort == "never" and any(_matches(g, c, s) for s in trace):
-            out.append(c)
-        elif sort == "at_most" and len(trace) > g.attr(c, "limit", 0):
-            out.append(c)
+    a guess and pruning a proof are both correct, and confusing the two is how search goes wrong.
+
+    Prohibitions are read from the whole ancestry and budgets only from this goal — see `prohibitions` and
+    `budget_of` for why those two differ."""
+    out = [c for c in prohibitions(g, goal) if any(_matches(g, c, s) for s in trace)]
+    out += [c for c in budget_of(g, goal) if len(trace) > g.attr(c, "limit", 0)]
     return tuple(out)
 
 
@@ -357,6 +392,43 @@ def holds(g: Graph, c: str, *, view=None, under: str | None = None) -> bool:
             return False
         return any(n for n in instances(g, want, under) if g.kind(n) != "type")
     return False
+
+
+def witnesses(g: Graph, c: str, *, view=None, under: str | None = None) -> tuple:
+    """⭐⭐ **WHICH nodes have to change for this constraint to become true** — in the same world `holds`
+    looked at, so the two can never disagree about which world they mean.
+
+    `unmet` says *which constraints* are still false, and that is what turned planning from
+    generate-and-test into means–ends (§5d). A **universal** constraint reintroduces exactly the defect
+    that removed: `d is a tidied_dir` can only answer yes/no, so `plural_step.md` §1 measured even a
+    *singular* action that would close it at band 1 against band 4 for the equivalent singular constraint.
+    This is the missing half, one level up: name the members that make it false.
+
+    ⚠ **Returns nodes in the VIEW's space** (frame images when a view is given), because that is where the
+    failure was determined. A caller comparing them against real individuals must come back through
+    `workbench.original_of` — the round trip is explicit rather than assumed.
+
+    ⚠ **A constraint that HOLDS has no witnesses**, and that is the vacuity guard rather than an
+    optimisation: a reader that named nodes for a satisfied constraint would be describing the world, not
+    the unfinished business.
+
+    ⚠ **Some failures have no witness at all, and saying so is the honest answer.** A missing wheel does
+    not exist, so there is nothing to point at — see `types.offenders`. Those are the *existential* case
+    and `driver.relevance` already serves them from the other side, by scoring an operator that MINTS."""
+    if holds(g, c, view=view, under=under):
+        return ()
+    view = view or _same
+    subject = g.target(c, "subject")
+    here = view(subject) if subject is not None else None
+    sort = g.attr(c, "sort")
+    if sort == "type":
+        if here is None:
+            return ()                      # existential: nothing exists yet to blame
+        found = _offenders(g, here, g.attr(c, "type"))
+        return tuple(dict.fromkeys(n for hits in found.values() for n in hits))
+    # ⭐ For every other sort the subject IS the thing that must change, so one uniform question serves
+    # them all and no consumer has to branch on sort to ask it.
+    return () if here is None else (here,)
 
 
 def unmet(g: Graph, goal: str, *, view=None, under: str | None = None) -> tuple:
@@ -541,5 +613,5 @@ __all__ = ["PLAN_SORTS", "SAFETY_SORTS", "BY_CONSTRAINTS", "BY_STEPS", "MET_BY",
            "require_link", "require_attr", "require_type", "require_known",
            "undetermined", "blocked_on_ignorance",
            "forbid_action", "require_action", "limit_steps", "constraints", "plan_constraints",
-           "world_constraints", "breached", "outstanding", "holds", "unmet", "satisfied", "witness",
+           "world_constraints", "breached", "prohibitions", "budget_of", "outstanding", "holds", "unmet", "witnesses", "satisfied", "witness",
            "record_plan", "is_planned", "close_goal", "is_closed", "wanted", "describe_constraint", "describe"]

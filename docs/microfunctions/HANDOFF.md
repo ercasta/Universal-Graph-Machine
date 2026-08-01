@@ -13,14 +13,14 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 182 checks, 0 FAILED
+python -m microfunctions.selftest      # 184 checks, 0 FAILED
 ```
 
 > **⭐⭐⭐ Update, 2026-08-01 — READ §6c–§6i BEFORE §5.** The whole of §6b's arc landed in one day and
 > **§5 below is largely historical**: §6c made the ISA tick, §6d built the single outer loop (`loop.py`),
 > §6e probed the strong version (b) and recommends **not** doing it, §6f showed the system can judge its
-> own computation, §6g made **forgetting the default**, §6h built **transitive reach**, and §6i added the
-> **wh-questions** (`locate.py`). §5's items 3–5 still stand and are listed there; **§9 is the current
+> own computation, §6g made **forgetting the default**, §6h built **transitive reach**, §6i added the
+> **wh-questions** (`locate.py`), and §6j made a universal constraint **rankable**. §5's items 3–5 still stand and are listed there; **§9 is the current
 > list.**
 
 ---
@@ -2072,6 +2072,41 @@ after an incomparable event had been minted, measured the omission rather than t
 and its previously-red pin (§6c, §5w's unset-register refusal) is **green**, fixed on their side. That debt
 is closed; `Focus(g)` evidently reached them too.
 
+## 6j. ⭐⭐ WITNESSES — a universal constraint stops being a yes/no (2026-08-01)
+
+**184 checks, 0 FAILED.** `plural_step.md` slice A. Full reasoning there; the short version:
+
+**The finding, measured before anything was built.** A universal is expressible today
+(`has no file each a ungone_file`, measured as sugar in `not_supported.md`) and was **invisible to
+planning**: against `d is a tidied_dir`, even a *singular* action that would certainly close it scored
+**band 1**, where the same action against the equivalent singular constraint scored **4**. That is §5d's
+founding defect one level up — *a goal that can only answer yes/no forces blind search* — and it is the
+same *predicate-expressible, planning-half-missing* split §6h found for transitive reach.
+
+`goal.witnesses` names the members that make a constraint false; `types.offenders` computes them.
+Measured acceptance: **1 → 4**, with no plural machinery at all.
+
+**⚠⚠ Getting the measurement right took two tries and the first proved nothing.** `relevance` binds
+**mappings**, not raw nodes, so passing raw nodes collapsed *every* score to band 1 — including the
+control. A measurement whose control does not light up is not a measurement.
+
+**⭐ Only the too-many direction has witnesses, and the asymmetry is the open world.** A missing wheel does
+not exist, so there is nothing to blame; that direction was already served from the other side by
+`relevance`'s existential `mint` branch. Between them the two are covered, and conflating them would mean
+inventing a node to blame — planted as a probe, and it turns exactly that key red.
+
+**⭐ `relevance` kept its four-argument signature** by recovering the frame from its bindings rather than
+accepting a `view` — a `view=` parameter would have to cross the `rank=` hook and `guideline.compose`, and
+a module-level stash would be the hidden Python channel §6b exists to remove.
+
+**⚠ Witnesses are derived, never stored**, over-ruling *keep it in the graph* on two precedents: §5f
+refused to materialise expectations (hundreds of frames), and §5i's drift defect is exactly what a stored
+witness list would be. What *did* come into the open is the **question**, previously buried in a local
+`sum()` inside `types.fails`.
+
+**Every measured search cost is unchanged** — guided vs blind still 2 vs 67, role paths still 3/10/10 —
+which is what makes this additive rather than a re-tuning of §5d's hard-won bands.
+
 ## 9. ⭐ WHAT TO DO NEXT (current as of 2026-08-01)
 
 Ranked. Everything above §5 is history; this is the list.
@@ -2079,6 +2114,12 @@ Ranked. Everything above §5 is history; this is the list.
 **1. ✅ DONE — see §6i.** `what` / `where` / `when` are CNL verbs (`locate.py`), and the *no machinery
 needed* claim survived probing: `when`'s sugar status is now checked against an authored `type` block
 rather than argued.
+
+**1b. ⭐ THE PLURAL STEP — `plural_step.md` is the current arc.** Slice A is **done** (§6j). Next is
+slice B (a distributive role, so a *plural* action becomes rankable too), then C (imagine/replay over N
+members, which the loop arc makes nearly free), then D (surface). ⚠ The doc's four *do nots* are the
+valuable part: do not expand at plan time, do not teach `_effects` to read loops, do not make the plural
+step atomic, and measure `proposals` cost before and after.
 
 **2. `PIN` is unexercised, and compacting old thread entries is the case that would make it matter.**
 `forget.also=` exists and no check drives it. ⚠ Compacting the thread is also what would turn `observation`

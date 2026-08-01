@@ -223,8 +223,30 @@ def load(g: Graph, name: str) -> tuple:
 
 
 def names(g: Graph) -> tuple:
-    """Every function in the library. This is what a selection layer ranks over."""
-    return tuple(sorted(g.attr(n, "name") for n in g.of_kind("function")))
+    """Every function in the library, in **declaration order**. This is what a selection layer ranks over.
+
+    ⚠⚠ **THIS ORDER IS LOAD-BEARING, AND IT USED TO BE THE ALPHABET.** `driver.proposals` enumerates in
+    this order, and the search frontier's key ends in a tie-break, so wherever two proposals score alike
+    *this* decides which world is imagined first. `sorted()` made that decision arbitrary — and measurably
+    so. Measured 2026-08-01 on a three-step plan whose first move scores band 0 (a prerequisite that writes
+    a different slot from the goal's), against a growing library of irrelevant operators:
+
+        the prerequisite named `buy_ticket`     3 / 3 / 3 imagined states
+        the same function named `zz_buy_ticket` 7 / 11 / 17
+
+    **The planner's cost depended on the name of a function.** Renaming a function is not supposed to be a
+    performance decision. The blind controls in `selftest.py` moved by up to 2.4x under reordering for the
+    same reason — a control has no band at all, so the tie-break is its *entire* ordering.
+
+    ⭐ Declaration order is what the rest of this engine already uses for exactly this purpose, and says so:
+    `mock` preference, `guideline` precedence and `method` precedence are all "declaration order, free via
+    `of_kind`'s mint order". `driver.py`'s own module docstring has claimed "candidate ordering is
+    declaration order" the whole time. This makes that true. **An author can now order their library and
+    have it mean something**, which is the difference between a declared tie-break and an undeclared one.
+
+    ⚠ Note what this does NOT fix: a tie is still broken by *something*, and an author who has not thought
+    about order gets whatever order they wrote. That is a knowable, statable default; the alphabet was not."""
+    return tuple(g.attr(n, "name") for n in g.of_kind("function"))
 
 
 # --- calling -------------------------------------------------------------------------------------
@@ -265,8 +287,13 @@ def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool =
                 continue                       # untyped parameter: nothing was claimed, nothing to check
             bad = TY.violations(g, args[p], want)
             if bad:
-                raise TY.TypeViolation(
-                    f"{name}({p}=…): {args[p]} is not a {want}: {bad}")
+                # ⚠ The failure carries STRUCTURE, not only a message. A caller that has to react to it —
+                # `execution.step`, where a precondition gone false mid-plan is a *divergence* rather than a
+                # crash — would otherwise have to re-derive which parameter failed and how, which is a
+                # second implementation of this check and exactly the drift this codebase keeps recording.
+                err = TY.TypeViolation(f"{name}({p}=…): {args[p]} is not a {want}: {bad}")
+                err.function, err.param, err.want, err.violations = name, p, want, bad
+                raise err
     from .isa import Machine
     callee = Focus(g)
     for p in params:

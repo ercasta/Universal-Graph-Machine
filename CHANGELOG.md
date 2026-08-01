@@ -15,6 +15,53 @@ could not detect do not need one. When in doubt, write the line — it costs one
 
 ## 2026-08-01
 
+### Changed — a prohibition now binds a goal's descendants
+
+- **⚠ `goal.breached` now reads `never` constraints from the whole ANCESTRY, was the goal's own only.** A
+  ban declared on a parent goal previously said nothing to a search planning one of its subgoals — a ban a
+  child could sidestep. **Migration:** a subgoal that was reachable may now be refused, which is the point;
+  nothing else changes for a goal with no parent. `at_most` and `eventually` are deliberately **not**
+  inherited — see `goal.budget_of` and `goal.prohibitions` for why the three sorts differ.
+- New readers: **`goal.prohibitions(g, goal)`** (own + inherited `never`) and **`goal.budget_of(g, goal)`**
+  (own `at_most`, and a docstring saying why it is not inherited).
+
+### Changed — enumeration order, effect shape, and a new frontier component
+
+- **⚠⚠ `function.names` now returns DECLARATION order, was alphabetical.** This is the tie-break
+  `driver.proposals` enumerates in, so it decides which world is imagined first wherever two proposals
+  score alike. It was measurably load-bearing: the same function renamed `buy_ticket` → `zz_buy_ticket`
+  took a search from 3 imagined states to 17. **Migration:** nothing in the signature changes, but any
+  recorded *cost* figure taken before today may move — guided figures did not move in our measurements,
+  blind/unguided ones moved by up to 2.4x. If you pin a step count, re-measure. ⭐ An author can now order
+  a library and have it mean something; `driver.py` has documented this order as declaration order all
+  along, and it was not.
+- **⚠ `driver.establishes` — an `attr` effect's fourth element is now the VALUE WRITTEN, was always
+  `None`.** The tuple is `(kind, label, subject_role, fourth)` and the fourth slot is tagged by the first:
+  for `link` it remains the object role, for `attr` it is the value, or the sentinel `driver.UNREADABLE`
+  when the body computes it. **Migration:** a consumer pattern-matching `("attr", key, role, None)` must
+  now match the value (or `driver.UNREADABLE`). `None` is a legitimate attribute value, which is why the
+  sentinel exists rather than reusing `None`.
+- **`driver.proposals` is unchanged**; new `driver.enumerate_frame(g, frame, allow=)` returns
+  `(proposals, blocked_function_names)`, and `proposals` is a wrapper over it. New:
+  `driver.wants_that_unblock`, `driver.unlocks`, `driver.stands_for`, `driver.UNREADABLE`.
+- **The search frontier key gained a component**, `(expected, -band, -unlocks, depth)`, was 4-tuple
+  without `-unlocks`. Internal to `driver`/`search`; a caller passing `rank=` is unaffected, since a
+  custom ranker still supplies the band.
+
+### Fixed — a `TypeViolation` no longer escapes `execution.step`
+
+- **`execution.step`** now catches `types.TypeViolation` from the call it makes and records an ordinary
+  **`deviation`** instead of letting it propagate. A plan whose precondition went false while it was
+  suspended used to raise straight through `execution.step`, `driver.pursuit_step` and `loop.tick` —
+  stranding that pursuit mid-`acting` **and killing every other task on the agenda with it**. The
+  deviation carries `stale_precondition=True`, `param`, `expected` and `violations`, so the existing
+  recovery ladder applies unchanged. **Migration:** a caller that wrapped `execute` / `pursuit_step` /
+  `loop.tick` in `except TypeViolation` to survive this will now see the failure as a normal deviation
+  report instead; the exception no longer arrives. ⚠ `result` is `None` on this deviation, so
+  `matching_alternative` declines and recovery goes to replanning — correct, because the call never ran.
+- **`function.invoke`** now attaches `function`, `param`, `want` and `violations` to the `TypeViolation`
+  it raises. Purely additive; the message is unchanged.
+
 ### Changed — return shapes
 
 - **`types.schema_of`** now returns `{label: Req}` instead of `{label: (target_kind, count)}`.
@@ -227,3 +274,27 @@ could not detect do not need one. When in doubt, write the line — it costs one
   *asked*, never to what was answered. `read_goal` refuses them, as it refuses `ask` / `why` / `plan`.
   ⚠ **Consumer impact:** if you match on `intake.VERBS` or on the set of block headers, there are three
   more. Nothing existing changed shape.
+
+### Added — witnesses for a universal constraint (`plural_step.md` slice A)
+
+- **`types.offenders(g, node, type_name)`** → `{label: (node, …)}` — which targets make a node fail a
+  type, empty when it passes. ⚠ Only the **too-many** direction has witnesses: `has no file each a
+  ungone_file` blames the un-gone files, while `has 4 wheel` with three wheels has nothing to point at,
+  because the missing wheel does not exist. The too-few direction is served, from the other side, by
+  `relevance`'s existing existential branch (an operator that MINTS one).
+- **`types.offending_type(g, type_name, label)`** → the type a target must stop satisfying, or `None`.
+- **`goal.witnesses(g, c, *, view=, under=)`** → the nodes that must change for one constraint to become
+  true, in the same world `holds` looked at. `()` when the constraint holds. For attr/link/known sorts it
+  is the subject, so one uniform question serves every sort and no consumer branches to ask it.
+- **`workbench.original_of(g, node)`** → the real node an image stands for, identity for a real node.
+  `driver.view_in`'s inverse, which existed only as an inline idiom.
+- ⚠ **Behaviour change: `driver.relevance` can now score band 4 for a `type` constraint with a subject**,
+  when the call writes something that could stop a witness from offending. Previously such a constraint
+  could reach at most band 1, so *"all the files are deleted"* was effectively unguided. **Consumer
+  impact:** proposal ordering changes for goals containing a subject-bearing type constraint; nothing else
+  moves — the engine's measured search costs are unchanged (guided vs blind still 2 vs 67, role paths
+  still 3/10/10). `relevance` keeps its four-argument signature: the frame is **recovered from the
+  bindings** rather than passed, so no `rank=` hook and no `guideline.compose` caller changes.
+- ⚠ Witnesses are **derived, never stored** — §5f refused to materialise expectations for the same reason
+  (the driver imagines hundreds of frames) and §5i is the other half (a stored list is a claim about the
+  past; this is a question about now).

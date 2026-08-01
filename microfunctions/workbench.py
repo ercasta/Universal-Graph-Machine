@@ -145,6 +145,25 @@ def image_of(g: Graph, mapping: str):
     return g.target(mapping, "image")
 
 
+def original_of(g: Graph, node):
+    """The REAL node an imagined one stands for — `view_in`'s inverse, and identity for a real node.
+
+    ⭐ `driver.view_in` translates a real individual into this frame's image of it; every reader that
+    computes something *inside* a frame and then has to compare it against a constraint (which names real
+    individuals) needs the way back. That way existed only as an inline idiom, which is the shape a missing
+    reader makes — see `path.py`, which was three undeclared copies of one grammar.
+
+    ⚠ Derived from structure, never marked: a node is an image exactly when a mapping points at it as
+    `image`, and O(1) through the reverse index. A node minted purely in imagination resolves to `None`
+    (it has no original), which callers must keep distinct from *a real node that is its own answer*."""
+    if node is None:
+        return None
+    for m in g.sources(node, "image"):
+        if g.kind(m) == "mapping":
+            return resolve(g, m)
+    return node
+
+
 def resolve(g: Graph, mapping: str):
     """Walk `original` upward until leaving every workbench, and return the REAL node.
 

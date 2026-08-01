@@ -1455,19 +1455,29 @@ def check_the_system_can_JUDGE_ITS_OWN_COMPUTATION_and_act_on_the_judgement():
     a, b, _c = g.targets(w, "block")
     generous, _w2, p2, s2, _j2 = run_with(400)        # the control: same everything, budget it will not
 
+    # ⚠ THE FULL COST IS MEASURED FROM THE CONTROL, NEVER PINNED TO A LITERAL. This check used to compare
+    # against a hardcoded 67, three times. That number was the blind search's cost *under the alphabetical
+    # ordering of `function.names`* — an undeclared tie-break, and a blind control has no band, so the
+    # tie-break was its entire ordering. Declaring the order (declaration order, 2026-08-01) moved it to 28
+    # and turned this check red, which is the right outcome for a pin on an arbitrary number and the wrong
+    # one for what the check is actually about. What it means to assert is *"the watcher stopped it earlier
+    # than the same search unwatched"* — a relation between two runs in this process, which is stable under
+    # any ordering because both runs share it.
+    full = generous.attr(s2, "steps")
     return {"a_TEXT_rule_watched_a_LIVE_computation": judged is not None,
             "AND_JUDGED_IT_WHILE_IT_WAS_STILL_RUNNING": bool(judged and judged["open"]),
-            "partway_through": bool(judged and 0 < judged["at"] < 67),
+            "partway_through": bool(judged and 0 < judged["at"] < full),
             "THE_JUDGEMENT_STOPPED_IT": g.attr(s, "how") == D.REFUSE,
             "and_it_says_why_in_the_rules_own_words": g.attr(s, "stop_why") ==
                                                       "planning has gone on too long",
-            "it_stopped_EARLY_not_at_the_budget": g.attr(s, "steps") < 67,
+            "it_stopped_EARLY_not_at_the_budget": g.attr(s, "steps") < full,
             "THE_WORLD_IS_UNTOUCHED": g.target(a, "on") != b,
             "the_pursuit_gave_up_honestly": not g.attr(p, "done"),
             # ⚠ the control: without the watcher's verdict the identical search SUCCEEDS, so the stop is
             # what ended it and not exhaustion or a bad goal
             "AND_THE_SAME_SEARCH_UNWATCHED_SUCCEEDS": generous.attr(p2, "done") is True,
-            "having_imagined_all_of_them": generous.attr(s2, "steps") == 67}
+            "and_it_really_did_search_rather_than_stumble_on_it": full > g.attr(s, "steps") > 0,
+            "full_blind_cost": full}
 
 
 def _worked_session():
@@ -2036,6 +2046,135 @@ def refused_as_goal(g) -> bool:
         return False
     except I.Unreadable:
         return True
+
+
+def check_a_REFUSAL_leaves_nothing_behind_even_when_the_REFERENCE_LANGUAGE_raises():
+    """⚠⚠ **A real defect, found by probing a file KB.** `intake.read` rolls back on `Unreadable`, and a
+    reference that cannot be read raises `BadPath` — a *different* exception, from a *different* module.
+    So `a.size > b.size` (three words, therefore read as a link, therefore `parse_link('>')`) escaped the
+    handler, the savepoint was never rolled back, and **an empty goal was left in the graph**. The module
+    docstring says a refusal leaves nothing behind *because a half-built goal would be pursued and would
+    look like it was working*; that held for every refusal this border authored and not for one it merely
+    passed through.
+
+    ⚠ Vacuity guard: the graph must be **byte-identical** afterwards, not merely goal-free — a rollback
+    that dropped the goal and kept its constraints would pass a weaker check. And the border must raise
+    exactly one exception type, or a caller caring about refusals has to know which module failed."""
+    from . import intake as I
+    g = new_graph()
+    a, b = g.mint("thing", label="a"), g.mint("thing", label="b")
+    g.link("root", "has", a)
+    g.link("root", "has", b)
+    before = (len(g.nodes), sorted(g.of_kind("goal")), sorted(g.of_kind("question")))
+
+    def refusal(block):
+        try:
+            I.read(g, block)
+            return None
+        except I.Unreadable as e:
+            return str(e)
+        except Exception as e:                     # anything else is the defect, by definition
+            return e
+
+    from_reference = refusal(_lines("goal compare them:", "    a.size > b.size"))
+    from_reader = refusal(_lines("where it is:", "    by ^", "    a"))
+    from_vocabulary = refusal(_lines("goal nonsense:", "    a b c d e"))
+    return {
+        "A_BAD_REFERENCE_IS_REFUSED_IN_THIS_BORDERS_OWN_VOCABULARY": isinstance(from_reference, str),
+        "and_it_names_the_line": isinstance(from_reference, str) and "line 2" in from_reference,
+        "a_readers_by_line_is_validated_when_AUTHORED_not_when_answered":
+            isinstance(from_reader, str),
+        "an_ordinary_vocabulary_refusal_still_works": isinstance(from_vocabulary, str),
+        "AND_NOTHING_IS_LEFT_BEHIND_BY_ANY_OF_THEM":
+            (len(g.nodes), sorted(g.of_kind("goal")), sorted(g.of_kind("question"))) == before,
+        "the_world_itself_is_untouched": g.attr(a, "label") == "a" and len(g.targets("root", "has")) == 2}
+
+
+def _bin_world():
+    """A bin of items, some dirty, and two actions — one that helps and one that does not."""
+    from . import asm, intake as I
+    g = new_graph()
+    I.read(g, 'type item:\n    kind_of = "item"\n')
+    I.read(g, 'type dirty_item:\n    kind_of = "item"\n    clean != true\n')
+    I.read(g, 'type bin:\n    kind_of = "bin"\n')
+    I.read(g, "type tidy_bin:\n    is a bin\n    has no item each a dirty_item\n")
+    asm.load_text(g, "\n".join([
+        "fn clean_one(i: item) -> item:",
+        '    SET F(i) "clean" true',
+        "",
+        "fn weigh(i: item) -> item:",
+        '    SET F(i) "weighed" true',
+    ]))
+    b = g.mint("bin", kind_of="bin", label="b")
+    g.link("root", "has", b)
+    items = []
+    for name in ("one", "two"):
+        it = g.mint("item", kind_of="item", label=name)
+        g.link(b, "item", it)
+        items.append(it)
+    return g, b, items
+
+
+def check_a_UNIVERSAL_constraint_names_the_members_that_make_it_FALSE():
+    """⭐⭐⭐ **`unmet` says WHICH CONSTRAINTS are false; this says WHICH MEMBERS make one false.**
+
+    §5d's founding argument was that a goal answering only yes/no forces blind search, while one naming its
+    unfinished business enables means-ends. A **universal** constraint reintroduced exactly that defect one
+    level up: `b is a tidy_bin` is expressible (`has no item each a dirty_item`, and
+    `not_supported.md` measured it as sugar) but could only answer yes/no — so `plural_step.md` §1 measured
+    even a *singular* action that would certainly close it at **band 1**, against band 4 for the equivalent
+    singular constraint. Same *predicate-expressible, planning-half-missing* split §6h found for reach.
+
+    ⚠ **Vacuity guard 1: a SATISFIED constraint must have no witnesses.** A reader that named nodes for a
+    constraint that holds would be describing the world rather than the unfinished business, and every
+    other key here would still pass.
+
+    ⚠⚠ **Vacuity guard 2: it must DISCRIMINATE.** For a type constraint there is no label to filter
+    effects on, so a witness branch that scored any write to a witness would rank `weigh` — which changes
+    nothing relevant — as highly as `clean_one`. The two must land in different bands or the guidance is
+    noise with a high number on it.
+
+    ⚠ **Vacuity guard 3: the TOO-FEW case has no witness, and that is the open world.** A bin needing two
+    more items has nothing to point at, because the missing item does not exist. That direction is served
+    by `relevance`'s existential `mint` branch, and conflating them would mean inventing a node to blame."""
+    from . import driver as D, goal as G, intake as I, types as TY, workbench as W
+    g, b, items = _bin_world()
+    universal = I.read_goal(g, _lines("goal tidy it:", "    b is a tidy_bin"))
+    singular = I.read_goal(g, _lines("goal clean one:", "    one.clean = true"))
+
+    wb = W.open_workbench(g, b)
+    f0 = W.frames(g, wb)[0]
+    m_one = W.mapping_for(g, f0, items[0])
+
+    open_u, open_s = G.unmet(g, universal, under="root"), G.unmet(g, singular, under="root")
+    wit = G.witnesses(g, open_u[0])
+    helps = D.relevance(g, "clean_one", {"i": m_one}, open_u)
+    idles = D.relevance(g, "weigh", {"i": m_one}, open_u)
+    was_singular = D.relevance(g, "clean_one", {"i": m_one}, open_s)
+
+    # ⚠ Guard 1: clean both, and the constraint that now HOLDS must name nobody.
+    for it in items:
+        g.put(it, clean=True)
+    satisfied_now = G.holds(g, open_u[0])
+    after = G.witnesses(g, open_u[0])
+
+    # ⚠ Guard 3: a too-FEW failure has no witness to point at.
+    TY.declare_type(g, "full_bin", requires={"item": TY.Req(kind="item", lo=5, hi=None)}, base="bin")
+    too_few = I.read_goal(g, _lines("goal fill it:", "    b is a full_bin"))
+    short = G.unmet(g, too_few, under="root")
+
+    return {
+        "THE_UNIVERSAL_NAMES_ITS_OFFENDING_MEMBERS": set(wit) == set(items),
+        "and_they_are_the_ITEMS_not_the_subject": b not in wit,
+        "SO_A_SINGULAR_ACTION_CAN_NOW_REACH_BAND_4": helps == 4,
+        "AND_AN_IRRELEVANT_ONE_CANNOT": idles < 4,
+        "the_singular_constraint_still_scores_as_it_did": was_singular == 4,
+        "a_SATISFIED_constraint_names_NOBODY": satisfied_now and after == (),
+        "TOO_FEW_HAS_NO_WITNESS_because_the_missing_one_does_not_exist":
+            bool(short) and G.witnesses(g, short[0]) == (),
+        "and_fails_and_offenders_cannot_disagree":
+            len(TY.offenders(g, b, "tidy_bin").get("item", ())) == 0
+            and TY.is_a(g, b, "tidy_bin")}
 
 
 def check_runaway_program_halts_loudly():
@@ -3456,7 +3595,7 @@ def _blocks():
     ]))
     world = g.mint("world")
     g.link("root", "has", world)                       # real things hang off root
-    ground = g.mint("ground", kind_of="ground", height=0, clear=True)
+    ground = g.mint("ground", kind_of="ground", label="ground", height=0, clear=True)
     g.link(world, "ground", ground)
     for name in "abc":
         b = g.mint("block", kind_of="block", label=name, clear=True, height=1)
@@ -3641,6 +3780,313 @@ def check_the_sussman_anomaly_is_solvable_because_ranking_never_filters():
             "imagined": result.get("steps"),
             "and_it_really_builds_the_tower":
                 g.target(a, "on") == b and g.target(b, "on") == c and g.target(c, "on") == ground}
+
+
+def check_a_decision_can_NAME_THE_ACTION_and_the_displaced_one_stays_reachable():
+    """⭐⭐ `expert_judgement.md` §1: a decision that says **what to do**, not only whether to keep going.
+
+    `decide` used to be consulted *after* `take_best` had chosen, so it could veto but never substitute —
+    which meant expert judgement could stop a search and never steer it. `driver.Call` names a function
+    **with its bindings**, which is also the job `selection.candidates` refuses to do (*"inventing bindings
+    is search"*): here authored knowledge does it instead of enumeration.
+
+    **⚠ The vacuity guard is that the substitution must actually change the plan.** A seam that returns the
+    same action ranking would have chosen anyway is indistinguishable from no seam. So this drives Sussman
+    to a plan whose FIRST step is `stack`, which the guided search never chooses first.
+
+    **⚠⚠ ONCE PER FRAME PER CALL, and that is not a detail — without it this livelocks.** The displaced
+    candidate goes back on the frontier (§2: the fallback must stay reachable), the search re-takes it, a
+    deterministic decider names the same action, which reaches an already-imagined state, and the candidate
+    goes back again. Measured before the fix: 12 steps, 9 of them the same substitution from one frame,
+    goal never reached. Same answer `DECOMPOSE` already gives — frequency, not absence.
+
+    ⚠ **A guess may not overrule a proof.** An ill-typed binding, one node in two roles, and an action the
+    goal forbids are each refused loudly, because `relevance` ranks and `forbid_action` prunes, and a
+    decision arriving from outside must not be able to launder the second into the first."""
+    from . import driver as D, goal as G, thread as T
+
+    def run(decide, **kw):
+        g, world = _blocks()
+        goal, (a, b, c) = _sussman(g, world)
+        ground, th = g.target(world, "ground"), T.open_thread(g)
+        got = D.pursue(g, goal, th, world, max_steps=60, max_depth=5,
+                       decide=decide(g, a, b, c, ground) if decide else None, **kw)
+        return g, got, th
+
+    _g0, plain, _th0 = run(None)
+
+    # A decider that insists on stacking C onto B first — a move ranking never puts first.
+    def stack_c_first(g, a, b, c, ground):
+        fired = []
+        def decide(s):
+            if fired:
+                return None
+            fired.append(1)
+            return D.Call("stack", {"b": c, "onto": b}, why="because the check says so")
+        return decide
+    g1, steered, th1 = run(stack_c_first)
+
+    def refused(mk):
+        try:
+            run(mk)
+            return None
+        except D.Undecidable as e:
+            return str(e)
+
+    ill_typed = refused(lambda g, a, b, c, ground: lambda s: D.Call("stack", {"b": a, "onto": b}))
+    two_roles = refused(lambda g, a, b, c, ground: lambda s: D.Call("stack", {"b": b, "onto": b}))
+    not_a_fn = refused(lambda g, a, b, c, ground: lambda s: D.Call("levitate", {"b": c}))
+    wrong_arity = refused(lambda g, a, b, c, ground: lambda s: D.Call("stack", {"b": c}))
+
+    # ⚠ A decider that NEVER stops naming the same call — the livelock case. It must terminate.
+    # Guarded only on type validity (c must still be clear), which is what keeps it a *repetition* test
+    # rather than an ill-typed-call test; the pressure is that it names the SAME action from every frame.
+    def always(g, a, b, c, ground):
+        def decide(s):
+            img = D.view_in(g, s["frame"])(c)
+            if img is not None and g.attr(img, "clear"):
+                return D.Call("unstack", {"b": c, "floor": ground}, why="over and over")
+            return None
+        return decide
+    g2, insistent, _th2 = run(always)
+
+    def first_imagined(g, th):
+        """The first action the search actually IMAGINED, as a whole CALL.
+
+        ⚠ Not the first step of the plan: substituting one step steers what gets explored, and the search
+        may still find a better route down another branch. Asserting the plan would over-claim what one
+        decision does, and the check would then be testing the search rather than the seam.
+
+        ⚠ And not the function NAME either — ranking's first move here is `stack(b, c)` and the decision
+        names `stack(c, b)`, so a name comparison passes while proving nothing. The bindings are the whole
+        difference between the right move and its mirror, which is `relevance`'s own band-4-versus-3
+        lesson arriving in the test."""
+        from . import application as AP
+        e = next((e for e in T.entries(g, th) if g.kind(e) == "application"), None)
+        return None if e is None else (
+            g.attr(e, "function"),
+            tuple(f"{p}={g.attr(n, 'label') or g.kind(n)}"
+                  for p, n in sorted(AP.bindings_of(g, e).items())))
+
+    return {"default_still_finds_it": plain["found"] and D.plan_steps(_g0, plain)[0] == "unstack",
+            "ranking_imagines_its_own_first_move":
+                first_imagined(_g0, _th0) == ("stack", ("b=b", "onto=c")),
+            "A_DECISION_REALLY_STEERS_IT":
+                first_imagined(g1, th1) == ("stack", ("b=c", "onto=b")),
+            "and_the_search_still_succeeds": steered["found"],
+            "the_displaced_candidate_came_back": steered["steps"] > len(D.plan_steps(g1, steered)),
+            "AN_INSISTENT_DECIDER_TERMINATES": insistent["found"],
+            "ill_typed_binding_refused": ill_typed is not None and "clear_block" in ill_typed,
+            "one_node_two_roles_refused": two_roles is not None and "two roles" in two_roles,
+            "unknown_function_refused": not_a_fn is not None and "not a function" in not_a_fn,
+            "wrong_arity_refused": wrong_arity is not None and "every parameter" in wrong_arity,
+            "it_reaches_the_thread": any("decided to do stack" in (T.why(g1, e) or "")
+                                         for e in T.entries(g1, th1))}
+
+
+def check_deciding_BEFORE_enumerating_suppresses_the_product_but_never_LOSES_it():
+    """⭐⭐⭐ `expert_judgement.md` §8c. With criteria the search visited four frames whatever the world's
+    size — yet still built the whole O(N²) product in each, which was *all* of the residual cost and all of
+    it thrown away. `decide` could not remove it: it is consulted after `_offer` has already run. `propose`
+    is the same knowledge asked one step earlier, where the saving is.
+
+    **⚠⚠ THE WHOLE RISK IS COMPLETENESS, and it is a stronger claim than ranking ever makes.** `relevance`
+    ranks rather than filters so a low-scoring move stays reachable; offering only what a criterion names
+    would make the FRONTIER itself incomplete, and authored knowledge is a guess. So the suppressed
+    enumeration is **deferred, not skipped**: when the frontier empties, `_backfill` builds one deferred
+    frame and the search carries on. Only a search with nothing left deferred is exhausted.
+
+    The guard is therefore not "it is faster" but **"a WRONG proposer still finds the plan"** — checked
+    here with a proposer that names `paint`, which can never close anything, on every frame."""
+    from . import driver as D, thread as T, workbench as W
+
+    def run(propose):
+        g, world = _blocks()
+        goal, (a, b, c) = _sussman(g, world)
+        built = []
+        real_enumerate = D.enumerate_frame
+
+        def counting(gr, frame, *, allow=None):
+            out, blocked = real_enumerate(gr, frame, allow=allow)
+            built.append(len(out))
+            return out, blocked
+        D.enumerate_frame = counting
+        try:
+            got = D.pursue(g, goal, T.open_thread(g), world, max_steps=200, max_depth=5,
+                           propose=propose(g, a, b, c, g.target(world, "ground")))
+        finally:
+            D.enumerate_frame = real_enumerate
+        return g, got, sum(built)
+
+    _g0, plain, plain_built = run(lambda *a: None)
+
+    # ⭐ A GOOD proposer: unstack whatever sits on a block the goal wants clear, else stack bottom-up.
+    def good(g, a, b, c, ground):
+        def propose(s):
+            frame = s["frame"]
+            view = D.view_in(g, frame)
+            for x, y in ((a, b), (b, c)):
+                rider = next((n for n in g.sources(view(x), "on")
+                              if g.attr(n, "kind_of") == "block"), None)
+                if rider is not None and g.attr(rider, "clear"):
+                    return D.Call("unstack", {"b": W.original_of(g, rider), "floor": ground})
+            for x, y in ((b, c), (a, b)):
+                if g.target(view(x), "on") != view(y) \
+                        and g.attr(view(x), "clear") and g.attr(view(y), "clear"):
+                    return D.Call("stack", {"b": x, "onto": y})
+            return None
+        return propose
+    g1, guided, guided_built = run(good)
+
+    # ⚠ A WRONG proposer: always `paint`, which closes nothing and leads nowhere.
+    def useless(g, a, b, c, ground):
+        return lambda s: D.Call("paint", {"b": a})
+    g2, despite, _ = run(useless)
+
+    return {"default_unchanged": plain["found"] and D.plan_steps(_g0, plain) == ("unstack", "stack", "stack"),
+            "A_GOOD_PROPOSER_FINDS_THE_SAME_PLAN":
+                guided["found"] and D.plan_steps(g1, guided) == ("unstack", "stack", "stack"),
+            "AND_BUILDS_FAR_FEWER_PROPOSALS": guided_built * 2 < plain_built,
+            "built_guided_vs_default": (guided_built, plain_built),
+            # ⭐ COMPLETENESS: the goal is still reached. This is the guard the whole slice rests on.
+            "A_WRONG_PROPOSER_STILL_FINDS_IT": despite["found"],
+            "and_the_real_plan_is_still_in_there":
+                D.plan_steps(g2, despite)[-3:] == ("unstack", "stack", "stack"),
+            # ⚠⚠ BUT NOT FOR FREE, and this is recorded rather than asserted away: backtracking to the
+            # newest deferral extends the bad prefix before the root's alternatives are built, so a wrong
+            # proposer costs PLAN QUALITY. `relevance`'s rank-never-filter does not pay this at all.
+            "IT_COSTS_PLAN_QUALITY_THOUGH":
+                len(D.plan_steps(g2, despite)) > len(D.plan_steps(_g0, plain)),
+            "degraded_plan": D.plan_steps(g2, despite),
+            "an_ill_typed_proposal_is_still_refused": _raises(
+                lambda: run(lambda g, a, b, c, ground: lambda s: D.Call("stack", {"b": a, "onto": b})),
+                D.Undecidable)}
+
+
+CRITERIA_TEXT = ["""criterion clear the block that must move:
+    wants link on
+    do unstack b = furthest subject by ^on, floor = the ground
+    because nothing can be stacked while something sits on it""",
+"""criterion clear the destination:
+    wants link on
+    do unstack b = furthest object by ^on, floor = the ground""",
+"""criterion build from the bottom up:
+    wants link on
+    when subject is a clear_block
+    when object is a clear_block
+    unless wants link on from object
+    do stack b = subject, onto = object
+    because stacking onto something that still has to move undoes itself"""]
+
+
+def check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT_and_it_drives_the_search():
+    """⭐⭐⭐ `expert_judgement.md`, the whole arc, arriving at a surface. Three criteria in the CNL, and
+    the search stops depending on the size of the world: measured at 5, 20 and **60** blocks, the same
+    four imagined states and — because `propose` is consulted before the cartesian product — **zero
+    proposals built**, against `relevance`, which stops finding a plan at all between six and seven.
+
+    **⭐⭐ A criterion may not name individuals; its variables come from an UNMET GOAL CONSTRAINT.**
+    `wants link on` binds `subject` and `object` — `method.py`'s trick in a second place, and also exactly
+    the index key §7 identified, so the vocabulary stays indexable without anyone arranging it.
+
+    **⭐⭐ `furthest subject by ^on` is a SET POSITION WITH A SELECTOR, and it is what replaces a loop.**
+    `path.via` walks nearest-first, so the topmost of a pile is the last one. The two-deep blocker is the
+    scenario that needs it and the vacuity guard for it: with `nearest` instead of `furthest` the criterion
+    names a buried block and the call is refused.
+
+    ⚠ **The refusals are the feature.** A closed body vocabulary, a name that is not a role, an individual
+    that resolves to nothing — each is refused where it is WRITTEN, because a criterion that is silent
+    because of a typo is indistinguishable from one that is silent because the situation does not call
+    for it.
+
+    ⚠⚠ **`speaks` and `governing` must agree, and they did not.** `governing` checked only the `when`
+    lines while `speaks` also required the action's references to resolve, so it reported all three
+    criteria as having spoken when only one could. Two paths computing the same thing differently, in the
+    one feature whose whole job is to explain truthfully."""
+    from . import criterion as CR, driver as D, intake, thread as T, workbench as W
+
+    def world_with_criteria(build):
+        g, world, goal = build()
+        for t in CRITERIA_TEXT:
+            intake.read(g, t)
+        return g, world, goal
+
+    def sussman_world():
+        g, world = _blocks()
+        goal, _abc = _sussman(g, world)
+        return g, world, goal
+
+    def two_deep():
+        g, world = _blocks()
+        a, b, c = g.targets(world, "block")
+        d = g.mint("block", kind_of="block", label="d", clear=True, height=1)
+        g.link(world, "block", d)
+        g.link(d, "on", g.target(world, "ground"))
+        for top, under in ((c, a), (d, c)):
+            g.unlink(top, "on", index=0)
+            g.link(top, "on", under)
+            g.put(under, clear=None)
+        goal = G.open_goal(g, label="a on b")
+        G.require_link(g, goal, a, "on", b)
+        return g, world, goal
+
+    from . import goal as G
+    g1, w1, goal1 = world_with_criteria(sussman_world)
+    plain = D.pursue(*(lambda gg: (gg, goal1, T.open_thread(gg), w1))(g1), max_steps=400, max_depth=7)
+    guided = D.pursue(g1, goal1, T.open_thread(g1), w1, max_steps=400, max_depth=7,
+                      propose=CR.decide(g1, goal1, w1))
+
+    g2, w2, goal2 = world_with_criteria(two_deep)
+    deep = D.pursue(g2, goal2, T.open_thread(g2), w2, max_steps=400, max_depth=7,
+                    propose=CR.decide(g2, goal2, w2))
+
+    # ⚠ THE SELECTOR'S OWN VACUITY GUARD: `nearest` names a BURIED block, which `unstack` refuses.
+    g3, w3, goal3 = world_with_criteria(two_deep)
+    for c in CR.criteria(g3):
+        for a in g3.targets(CR.action_of(g3, c), "arg"):
+            if "furthest" in (g3.attr(a, "ref") or ""):
+                g3.put(a, ref=g3.attr(a, "ref").replace("furthest", "nearest"))
+    nearest_refused = _raises(lambda: D.pursue(g3, goal3, T.open_thread(g3), w3, max_steps=400,
+                                               max_depth=7, propose=CR.decide(g3, goal3, w3)),
+                              D.Undecidable)
+
+    def refused(text):
+        g, _w = _blocks()
+        try:
+            intake.read(g, text)
+            return None
+        except intake.Unreadable as e:
+            return str(e)
+
+    wb = W.open_workbench(g1, w1)
+    told = {g1.attr(c, "label"): (spoke, why)
+            for c, spoke, why in CR.governing(g1, goal1, W.root_frame(g1, wb), w1)}
+
+    return {"three_criteria_read": len(CR.criteria(g1)) == 3,
+            "AND_THEY_DRIVE_THE_SEARCH": guided["found"]
+                and D.plan_steps(g1, guided) == ("unstack", "stack", "stack"),
+            "FAR_FEWER_IMAGINED_STATES": guided["steps"] * 4 < plain["steps"],
+            "imagined_guided_vs_plain": (guided["steps"], plain["steps"]),
+            "THE_SELECTOR_HANDLES_A_TWO_DEEP_PILE":
+                deep["found"] and D.plan_steps(g2, deep) == ("unstack", "unstack", "stack"),
+            "and_NEAREST_would_name_a_buried_block": nearest_refused,
+            "a_closed_vocabulary_refuses_the_rest":
+                "vocabulary is closed" in (refused("criterion x:\n    hope for the best") or ""),
+            "a_name_is_not_a_role":
+                "not a role" in (refused("criterion x:\n    wants link on\n"
+                                         "    do unstack b = a, floor = the ground") or ""),
+            "an_unknown_individual_is_refused_WHERE_IT_IS_WRITTEN":
+                "nothing here is called" in (refused("criterion x:\n    wants link on\n"
+                                                     "    do unstack b = subject, floor = the moon") or ""),
+            "a_criterion_with_no_wants_is_refused":
+                "no variables" in (refused("criterion x:\n    do unstack b = subject") or ""),
+            "a_criterion_with_no_action_is_refused":
+                "names no action" in (refused("criterion x:\n    wants link on") or ""),
+            "GOVERNING_AGREES_WITH_SPEAKS": told["clear the destination"][0] is False,
+            "and_names_the_reference_that_failed":
+                "furthest object by ^on" in told["clear the destination"][1][0],
+            "while_the_one_that_fired_has_nothing_against_it":
+                told["clear the block that must move"] == (True, ())}
 
 
 def _sussman(g, world):
@@ -3987,7 +4433,7 @@ def check_a_minted_node_keeps_the_join_through_a_register():
             "a_reassigned_register_stops_being_the_minted_node":
                 not any(e[2] == "$it" for e in later if e[0] == "attr"),
             "and_denotes_what_was_put_in_it":
-                ("attr", "kind", "seq.other", None) in later}
+                ("attr", "kind", "seq.other", "loop") in later}
 
 
 def _threshold_library():
@@ -4058,7 +4504,7 @@ def check_a_navigated_register_keeps_the_join():
             "no_effect_has_a_null_object_any_more":
                 not any(e[3] is None for e in eff),
             "A_REPAIR_OPERATOR_NOW_REPORTS_ITS_EFFECT":
-                repair == frozenset({("attr", "value", "c.right", None)}),
+                repair == frozenset({("attr", "value", "c.right", D.UNREADABLE)}),
             "and_reports_it_as_fully_read": not unknown,
             "but_a_value_bearing_register_claims_nothing":
                 ("link", "seq", "b", None) in lost}
@@ -4647,8 +5093,8 @@ def check_a_derivation_may_never_act():
     return {"the_pure_one_is_a_derivation": Q.is_pure(g, "conclude_mortal"),
             "THE_DISPATCHING_ONE_IS_NOT": not Q.is_pure(g, "ask_the_registrar"),
             "both_establish_the_same_fact":
-                ("attr", "mortal", "p", None) in D.establishes(g, "conclude_mortal")[0]
-                and ("attr", "mortal", "p", None) in D.establishes(g, "ask_the_registrar")[0],
+                ("attr", "mortal", "p", True) in D.establishes(g, "conclude_mortal")[0]
+                and ("attr", "mortal", "p", True) in D.establishes(g, "ask_the_registrar")[0],
             "so_it_WOULD_have_been_available_unfiltered": "ask_the_registrar" in unfiltered,
             "BUT_IT_IS_NEVER_PROPOSED": "ask_the_registrar" not in offered,
             "AND_NEVER_APPEARS_IN_A_PROOF":
@@ -5457,7 +5903,7 @@ def check_the_agent_can_tell_ITS_OWN_changes_from_the_WORLDS():
             "and_it_names_the_function":
                 {g.attr(x, "function") for x in i_did_it["by"]} == {"empty_it"},
             "read_off_the_body_not_declared":
-                ("attr", "count", "d", None) in _writes_of(g, "empty_it")}
+                ("attr", "count", "d", 0) in _writes_of(g, "empty_it")}
 
 
 def _writes_of(g, name):
@@ -5519,6 +5965,391 @@ def check_volatility_gives_SENSE_something_to_aim_at():
             "AND_A_SLOT_ONLY_I_TOUCH_SCORES_ZERO": steady["unattributed"] == 0,
             "so_the_two_are_distinguishable": volatile["rate"] != steady["rate"],
             "volatile": volatile, "steady": steady}
+
+
+def _school_library(n_idle=0):
+    """A three-step plan whose FIRST move closes nothing. To be at school you must be home; to fly home you
+    need a ticket; buying one writes `ticket`, which is **a different slot from the goal's `where`**.
+
+    ⚠ The prerequisite is declared LAST, after every irrelevant operator. That is the guard: the ordering
+    of `function.names` is a real tie-break, so a check that let the prerequisite sort or declare itself
+    first would be measuring the tie-break and calling it guidance."""
+    from . import asm
+    g = new_graph()
+    declare_type(g, "person")
+    declare_type(g, "at_home", attrs={"where": "home"})
+    declare_type(g, "at_abroad", attrs={"where": "abroad"})
+    declare_type(g, "at_school", attrs={"where": "school"})
+    declare_type(g, "ready_to_fly", base="at_abroad", attrs={"ticket": True})
+    body = [f'fn idle{i}(p: person) -> person:\n    SET F(p) "i{i}" true' for i in range(n_idle)]
+    body += ['fn nap(p: person) -> person:\n    SET F(p) "rested" true',
+             # ⚠ Present so the DOMINANCE of the band over the unlock count is testable. From home this is
+             # offered, it writes the goal's own slot (so it is not irrelevant), and it unlocks `fly_home`
+             # — yet going to school directly is obviously right. If `-unlocks` came before `-band` in the
+             # frontier key the search would fly abroad first, and without an operator of this shape that
+             # inversion passes every other check here.
+             # ⚠ It unlocks BOTH blocked requirements, so it out-unlocks the move that actually closes the
+             # goal (which unlocks one, incidentally). A detour that merely ties on the unlock count cannot
+             # test dominance at all — the first version of this operator wrote only `where`, scored the
+             # same unlock count as `go_to_school`, and every inversion of the key passed.
+             'fn prepare_trip(p: at_home) -> at_abroad:\n    SET F(p) "where" "abroad"\n'
+             '    SET F(p) "ticket" true',
+             'fn go_to_school(p: at_home) -> at_school:\n    SET F(p) "where" "school"',
+             'fn fly_home(p: ready_to_fly) -> at_home:\n    SET F(p) "where" "home"',
+             'fn buy_ticket(p: at_abroad) -> ready_to_fly:\n    SET F(p) "ticket" true']
+    asm.load_text(g, "\n\n".join(body))
+    me = g.mint("person", label="me", where="abroad")
+    g.link("root", "has", me)
+    tag(g, me, "person")
+    return g, me
+
+
+def check_an_attribute_effect_carries_the_VALUE_it_writes():
+    """⚠ `_effects` recorded a `SET` as `("attr", key, subject_role, None)` — the value was hardcoded, even
+    when the instruction states it outright. So an attribute effect carried its slot and its subject and
+    never what it WRITES, while a link effect carried both roles all along.
+
+    The consequence was not cosmetic: `relevance` scores band 4 for *"this call writes exactly the
+    constraint"*, and with no value to check, `SET where "home"` scored band 4 against a goal wanting
+    `where = school`. Right slot, right individual, wrong world — the guidance in the school scenario was
+    **entirely this accident**, and it looked like the mechanism working.
+
+    ⚠ `UNREADABLE`, not `None`: `None` is an ordinary attribute value, so a sentinel is what keeps *"writes
+    something we cannot name"* apart from *"writes the value None"*. And an unreadable value must keep
+    band 4 — `establishes` is an over-approximation by contract, so what cannot be read must never cost a
+    candidate a rank."""
+    from . import driver as D, goal as G, workbench as W
+    g, me = _school_library()
+    goal = G.open_goal(g, about=me)
+    G.require_attr(g, goal, me, "where", "school")
+    wb = W.open_workbench(g, me)
+    f0 = W.root_frame(g, wb)
+    open_now = G.unmet(g, goal, view=D.view_in(g, f0),
+                       under=W.image_of(g, W.mapping_for(g, f0, me)))
+    bands = {n: D.relevance(g, n, b, open_now) for n, b in D.proposals(g, f0)}
+
+    # ⚠ A SECOND WORLD, because `fly_home` is not proposable from the first at all — it needs a ticket, so
+    # `bands` has no entry for it and the first version of the comparison below was reading a default of 0
+    # against a default of 0. Ranking two proposals requires a frame in which both are actually offered.
+    g2, me2 = _school_library()
+    g2.put(me2, ticket=True)
+    goal2 = G.open_goal(g2, about=me2)
+    G.require_attr(g2, goal2, me2, "where", "school")
+    wb2 = W.open_workbench(g2, me2)
+    f2 = W.root_frame(g2, wb2)
+    open2 = G.unmet(g2, goal2, view=D.view_in(g2, f2),
+                    under=W.image_of(g2, W.mapping_for(g2, f2, me2)))
+    bands2 = {n: D.relevance(g2, n, b, open2) for n, b in D.proposals(g2, f2)}
+
+    gt, _root, _lits = _threshold_library()
+    computed, _u = D.establishes(gt, "lower_threshold")     # SET from a register: not statically readable
+    return {"the_value_is_read_off_the_instruction":
+                ("attr", "where", "p", "school") in D.establishes(g, "go_to_school")[0],
+            "and_a_different_value_is_a_DIFFERENT_effect":
+                ("attr", "where", "p", "home") in D.establishes(g, "fly_home")[0],
+            "A_COMPUTED_VALUE_IS_UNREADABLE_NOT_NONE":
+                computed == frozenset({("attr", "value", "c.right", D.UNREADABLE)}),
+            "and_UNREADABLE_is_not_None": D.UNREADABLE is not None,
+            "and_it_prints_as_itself": repr(D.UNREADABLE) == "UNREADABLE",
+            # The payoff: the wrong-value write no longer claims to close the constraint.
+            "fly_home_is_not_even_offered_without_a_ticket": "fly_home" not in bands,
+            "WRITING_THE_WRONG_VALUE_IS_NO_LONGER_BAND_4": bands2["fly_home"] != 4,
+            "but_it_is_still_related_so_it_outranks_the_irrelevant":
+                bands2["nap"] < bands2["fly_home"],
+            "the_RIGHT_value_still_scores_band_4":
+                D.relevance(g, "go_to_school",
+                            {"p": W.mapping_for(g, f0, me)}, open_now) == 4}
+
+
+def check_the_search_can_see_a_PREREQUISITE_which_no_band_can_express():
+    """⭐⭐ A band classifies *this move against the goal* — it answers "does this close a constraint?".
+    A prerequisite closes nothing, so it is band 0, **correctly**, and tied with every irrelevant operator
+    in the library. No refinement of a match-quality scale fixes that: a prerequisite is not a worse match,
+    it is a **different distance**, which a match scale does not measure.
+
+    So the frontier key gains a component derived from what enumeration was already computing and throwing
+    away — `types.fails` returns *which* requirement failed — and `unlocks` counts the blocking
+    requirements a proposal would write. Key: `(expected, -band, -unlocks, depth)`.
+
+    ⚠ **A closing move must still beat an unlocking detour** — §5p's dominance invariant, which is what
+    makes derived and authored orderings safe to combine at all. ⚠⚠ Probing showed that property is
+    **over-determined**: `expected` folds in `rank >= 4` *and* `-band` precedes `-unlocks`, and removing
+    either alone changes nothing. Only removing both degrades the plan. So this key is a guard on the
+    behaviour and **not** on any one line of the frontier key — worth knowing before someone "simplifies"
+    one of the two and finds every check still green.
+
+    ⚠⚠ **The guard that matters is the LIBRARY SIZE, not the step count.** Before this, the guided cost
+    grew with the number of *irrelevant* operators — 4 / 6 / 10 / 16 for 0 / 2 / 6 / 12 of them — because
+    the search had to try each one before reaching the prerequisite. A check pinning a single number would
+    have passed on a library of one size and said nothing. Flatness is the claim.
+
+    ⚠ Second guard: the prerequisite is **declared last** (`_school_library`), so it cannot win on the
+    tie-break. ⚠ Third: `unlocks` must still only ORDER — the Sussman check next door is the standing
+    proof that a move scoring nothing stays reachable."""
+    from . import driver as D, goal as G, thread as T, workbench as W
+
+    def cost(n_idle):
+        g, me = _school_library(n_idle)
+        goal = G.open_goal(g, about=me)
+        G.require_attr(g, goal, me, "where", "school")
+        r = D.pursue(g, goal, T.open_thread(g, "t"), me, max_steps=4000)
+        return r["steps"] if r["found"] else None, D.plan_steps(g, r)
+
+    costs = {k: cost(k) for k in (0, 2, 6, 12)}
+    steps = [c[0] for c in costs.values()]
+
+    g, me = _school_library(2)
+    goal = G.open_goal(g, about=me)
+    G.require_attr(g, goal, me, "where", "school")
+    wb = W.open_workbench(g, me)
+    f0 = W.root_frame(g, wb)
+    open_now = G.unmet(g, goal, view=D.view_in(g, f0),
+                       under=W.image_of(g, W.mapping_for(g, f0, me)))
+    here, blocked = D.enumerate_frame(g, f0)
+    wants = D.wants_that_unblock(g, f0, blocked, open_now)
+    scored = {n: (D.relevance(g, n, b, open_now), D.unlocks(g, n, b, wants)) for n, b in here}
+
+    # The control: the identical search with the component switched off is the previous behaviour.
+    real = D.unlocks
+    D.unlocks = lambda *a, **k: 0
+    try:
+        without = {k: cost(k)[0] for k in (0, 12)}
+    finally:
+        D.unlocks = real
+
+    # ⭐ THE DOMINANCE CONTROL. From home the goal is one move away, and a *detour that unlocks something*
+    # must not be preferred to it. This is the only assertion that distinguishes `(-band, -unlocks)` from
+    # `(-unlocks, -band)` — the inversion passed every other key in this check.
+    gh, meh = _school_library(2)
+    gh.put(meh, where="home")
+    goalh = G.open_goal(gh, about=meh)
+    G.require_attr(gh, goalh, meh, "where", "school")
+    from_home = D.pursue(gh, goalh, T.open_thread(gh, "t"), meh, max_steps=4000)
+
+    return {"A_CLOSING_MOVE_STILL_BEATS_AN_UNLOCKING_DETOUR":
+                D.plan_steps(gh, from_home) == ("go_to_school",),
+            "at_one_imagined_state": from_home["steps"] == 1,
+            "it_finds_the_three_step_plan":
+                all(c[1] == ("buy_ticket", "fly_home", "go_to_school") for c in costs.values()),
+            "at_the_OPTIMAL_cost": steps == [3, 3, 3, 3],
+            "AND_THE_COST_DOES_NOT_GROW_WITH_IRRELEVANT_OPERATORS": len(set(steps)) == 1,
+            "steps_by_library_size": {k: v[0] for k, v in costs.items()},
+            # ⚠ the vacuity guard: without the component the SAME search degrades with library size,
+            # or "flat" is a property of the scenario rather than of the guidance.
+            "WITHOUT_IT_THE_COST_GROWS": without[12] > without[0],
+            "control_steps": without,
+            "THE_PREREQUISITE_IS_STILL_BAND_0": scored["buy_ticket"][0] == 0,
+            "AND_THAT_IS_WHY_A_BAND_COULD_NEVER_HAVE_DONE_IT":
+                scored["buy_ticket"][0] == scored["nap"][0] == scored["idle0"][0],
+            "IT_IS_THE_UNLOCK_COUNT_THAT_SEPARATES_THEM":
+                scored["buy_ticket"][1] > 0 and scored["nap"][1] == scored["idle0"][1] == 0,
+            "and_the_want_is_the_requirement_that_blocked_a_relevant_action":
+                any(label == "@ticket" for label, _n in wants),
+            "which_was_computed_from_a_BLOCKED_action": "fly_home" in blocked}
+
+
+def check_a_PROHIBITION_crosses_a_goal_boundary_and_the_other_two_sorts_do_not():
+    """⭐⭐ The parent constrains the plan and the child does the planning. `goal.breached` read
+    `constraints(g, goal)` — the goal's **own** — so a ban on "arrange the trip" said nothing whatever to
+    the search planning "get to school" underneath it. A ban a child can sidestep is not a ban.
+
+    ⚠⚠ **The three plan sorts must NOT cross alike, and the whole value of this check is that it tests all
+    three against each other** (`granularity.md` §6):
+
+    * **`never`** inherits unchanged, at any depth — a breach is a proof wherever it happens;
+    * **`eventually`** must *not* inherit — it is discharged by some step somewhere below, so inheriting it
+      would separately require **every** child to do the thing;
+    * **`at_most`** is not inherited either, and that is a **refusal with a reason** rather than an
+      omission: a budget counts at the grain of the level that declared it, so applying a parent's count to
+      a child's actions would break a limit the moment somebody authored a method — and copying it to each
+      child would let three children each spend the whole thing. Consuming it needs the decomposition rung
+      that has no state node yet. A gap that is written down beats a wrong answer.
+
+    ⚠ **The discriminating control is a ban declared on an UNRELATED goal**, not the absence of a ban. Two
+    worlds that differ only in whether the goal holding the prohibition is an *ancestor* is the only pair
+    that tests ancestry; comparing "banned" against "not banned" would pass for an implementation that
+    ignored ancestry and read every goal in the graph. That is the vacuous-negative §5s records."""
+    from . import driver as D, goal as G, thread as T
+
+    def solve(place_ban=None, place_must=None, place_budget=None):
+        g, me = _school_library()
+        parent = G.open_goal(g, about=me, label="arrange the trip")
+        other = G.open_goal(g, about=me, label="an unrelated goal")
+        child = G.open_goal(g, about=me, label="be at school", under=parent)
+        G.require_attr(g, child, me, "where", "school")
+        where = {"parent": parent, "other": other, "child": child}
+        if place_ban:
+            G.forbid_action(g, where[place_ban], function="buy_ticket")
+        if place_must:
+            G.require_action(g, where[place_must], function="nap")
+        if place_budget:
+            G.limit_steps(g, where[place_budget], 1)
+        r = D.pursue(g, child, T.open_thread(g, "t"), me, max_steps=2000)
+        return r["found"], D.plan_steps(g, r), G.prohibitions(g, child), G.budget_of(g, child)
+
+    free, plan_free, _p, _b = solve()
+    from_parent, _pf, seen_from_parent, _b2 = solve(place_ban="parent")
+    from_other, plan_other, seen_from_other, _b3 = solve(place_ban="other")
+    from_child, _pc, _p4, _b4 = solve(place_ban="child")
+    must_above, plan_must, _p5, _b5 = solve(place_must="parent")
+    budget_above, plan_budget, _p6, budget_seen = solve(place_budget="parent")
+
+    return {"the_plan_exists_when_nothing_bans_it":
+                free and plan_free == ("buy_ticket", "fly_home", "go_to_school"),
+            # NEVER: inherits.
+            "A_BAN_ON_THE_PARENT_BINDS_THE_CHILD": not from_parent,
+            "and_the_child_can_SEE_it": len(seen_from_parent) == 1,
+            "the_same_ban_on_the_child_itself_also_binds": not from_child,
+            # ⚠ THE CONTROL: identical in every way except that the goal holding the ban is not an ancestor.
+            "A_BAN_ON_AN_UNRELATED_GOAL_DOES_NOT": from_other,
+            "and_the_child_cannot_see_that_one": len(seen_from_other) == 0,
+            # ⚠ Indexed defensively. An over-broad `prohibitions` that reads every goal in the graph makes
+            # this plan empty, and `plan_other[0]` then raised IndexError — which the harness does count,
+            # but as an ERROR, so the report says the check blew up rather than *which property broke*.
+            # §5g's lesson has a mirror image: a red key beats an exception just as it beats a quiet False.
+            "so_the_plan_still_uses_the_action": plan_other[:1] == ("buy_ticket",),
+            # EVENTUALLY: must not inherit.
+            "AN_OBLIGATION_ON_THE_PARENT_DOES_NOT_BIND_THE_CHILD": must_above,
+            "and_the_child_is_not_made_to_discharge_it": "nap" not in plan_must,
+            # AT_MOST: not inherited, deliberately.
+            "A_BUDGET_ON_THE_PARENT_IS_NOT_INHERITED": budget_above,
+            "the_child_plan_is_longer_than_the_parents_limit": len(plan_budget) > 1,
+            "and_budget_of_says_so_by_returning_NOTHING": budget_seen == (),
+            # ...but a budget on the goal that owns the steps still bites, or nothing tests the sort at all.
+            "THOUGH_A_BUDGET_ON_THE_CHILD_ITSELF_STILL_BITES":
+                not solve(place_budget="child")[0]}
+
+
+def _two_plans_world():
+    """A person who must get to school, and an unrelated box that must be packed. Two goals, two
+    pursuits, one agenda, and **nothing shared between them** - which is what makes the second one a
+    control on the first rather than more of the same."""
+    from . import asm
+    g = new_graph()
+    declare_type(g, "person")
+    declare_type(g, "at_home", attrs={"where": "home"})
+    declare_type(g, "at_abroad", attrs={"where": "abroad"})
+    declare_type(g, "at_school", attrs={"where": "school"})
+    declare_type(g, "ready_to_fly", base="at_abroad", attrs={"ticket": True})
+    declare_type(g, "box")
+    # ⚠ THREE casts, not one, and that is the whole point of the control. With a one-step box plan the
+    # box finished BEFORE the school plan reached its second act, so "the other task survived" was true
+    # even when the exception wrecked the agenda - the guard passed the planted-bug probe and was
+    # therefore guarding nothing. A control has to still be RUNNING at the moment of the failure.
+    declare_type(g, "filled_box", base="box", attrs={"filled": True})
+    declare_type(g, "taped_box", base="filled_box", attrs={"taped": True})
+    declare_type(g, "packed_box", base="taped_box", attrs={"packed": True})
+    asm.load_text(g, "\n".join([
+        "# Go to school - only possible from home.",
+        "fn go_to_school(p: at_home) -> at_school:",
+        '    SET F(p) "where" "school"',
+        "",
+        "# Fly home - only possible from abroad, and only with a ticket.",
+        "fn fly_home(p: ready_to_fly) -> at_home:",
+        '    SET F(p) "where" "home"',
+        "",
+        "fn buy_ticket(p: at_abroad) -> ready_to_fly:",
+        '    SET F(p) "ticket" true',
+        "",
+        "# Nothing to do with any of the above - the unrelated second plan, in three steps.",
+        "fn fill(b: box) -> filled_box:",
+        '    SET F(b) "filled" true',
+        "",
+        "fn tape(b: filled_box) -> taped_box:",
+        '    SET F(b) "taped" true',
+        "",
+        "fn pack(b: taped_box) -> packed_box:",
+        '    SET F(b) "packed" true',
+    ]))
+    me = g.mint("person", label="me", where="abroad", ticket=True)
+    box = g.mint("box", label="box")
+    g.link("root", "has", me)
+    g.link("root", "has", box)
+    tag(g, me, "person")
+    tag(g, box, "box")
+    return g, me, box
+
+
+def check_a_precondition_that_went_false_is_a_DEVIATION_not_an_ESCAPING_EXCEPTION():
+    """⭐⭐ A plan is verified against a world, and then the world moves while it is suspended - because a
+    child is running, because another pursuit got the tick, because something simply happened. `fn.invoke`
+    re-validates each parameter type **at the call**, which is the property that stops a plan acting on a
+    world it was never verified against, and it is the right check in the right place.
+
+    ⚠⚠ **But it reported by RAISING, and nothing caught it.** The `TypeViolation` went straight through
+    `execution.step`, `driver.pursuit_step` and `loop.tick`: the pursuit was stranded mid-`acting`, and
+    **every other task on the agenda died with it**. Detection existed; recovery did not.
+
+    ⚠ **The vacuity guard is the SECOND PLAN, and without it this check is worth very little.** A version
+    asserting only that the school pursuit recovers would pass over an implementation that swallowed the
+    exception locally and left the agenda wrecked - and a wrecked agenda is invisible to any test that
+    schedules one thing. The box shares no node, no type and no operator with the school plan, so its
+    completing *for real* is evidence about the loop rather than about the fix.
+
+    ⚠ Second guard: the divergence must be **reported as one**, not merely survived. A `step` that
+    returned `False` on the exception without minting a `deviation` would leave the loop alive and the
+    pursuit silently claiming it had finished its plan.
+
+    ⚠ Third guard: recovery must be **replanning, not a contingency**. The call never ran, so there is no
+    real outcome to settle onto a sibling's mappings, and `matching_alternative` must decline - which it
+    does because `result` is `None`. Offering a contingency here would be resuming a branch on the
+    strength of an outcome that does not exist."""
+    from . import driver as D, execution as X, goal as G, loop as L, thread as T
+    g, me, box = _two_plans_world()
+    th = T.open_thread(g, "t")
+    school = G.open_goal(g, about=me, label="be at school")
+    G.require_attr(g, school, me, "where", "school")
+    packed = G.open_goal(g, about=box, label="pack the box")
+    G.require_attr(g, packed, box, "packed", True)
+
+    p_school = D.open_pursuit(g, school, th, me, attempts=3)
+    p_box = D.open_pursuit(g, packed, th, box)
+    lp = L.open_loop(g, "two plans")
+    L.schedule(g, lp, p_school, why="school")
+    L.schedule(g, lp, p_box, why="box")
+
+    # The moment the school plan takes its FIRST REAL ACT, something puts the subject back abroad. Its
+    # next step requires being at home, and that requirement is now false.
+    moved, escaped, box_live_at_failure = False, None, None
+    try:
+        for _ in range(400):
+            rec = L.tick(g, lp)
+            if rec is None:
+                break
+            if not moved and rec["task"] == p_school and rec["verb"] == L.ACT:
+                g.put(me, where="abroad")
+                moved = True
+            # ⚠ Recorded AT the failure, not afterwards. "The box finished eventually" is compatible with
+            # the box having finished long before anything went wrong, which is exactly how the first
+            # version of this guard passed its own planted-bug probe.
+            if box_live_at_failure is None and any(
+                    X.deviation_of(g, r) is not None for r in g.targets(p_school, "replay")):
+                box_live_at_failure = not L.finished(g, p_box)
+    except Exception as e:                          # noqa: BLE001 - the escape IS the thing under test
+        escaped = f"{type(e).__name__}: {e}"
+
+    school_report, box_report = D.pursuit_report(g, p_school), D.pursuit_report(g, p_box)
+    first = school_report["attempts"][0] if school_report["attempts"] else {}
+    diverged_on = [a for a in school_report["attempts"] if a.get("diverged")]
+    return {"the_world_really_did_move_mid_plan": moved,
+            "NOTHING_ESCAPED_THE_OUTER_LOOP": escaped is None,
+            "escaped": escaped,
+            "IT_IS_REPORTED_AS_A_DIVERGENCE": bool(diverged_on),
+            "and_it_names_the_step_that_could_not_be_applied":
+                bool(diverged_on) and "go_to_school" in diverged_on[0]["diverged"],
+            "and_says_the_requirement_is_no_longer_true":
+                bool(diverged_on) and "no longer satisfies" in diverged_on[0]["diverged"],
+            "the_first_attempt_did_not_complete": first.get("completed") is False,
+            "NO_CONTINGENCY_WAS_OFFERED_BECAUSE_THE_CALL_NEVER_RAN":
+                all(a.get("recovered") is None for a in school_report["attempts"]),
+            "IT_REPLANNED_AND_SUCCEEDED": school_report["done"],
+            "and_needed_a_second_attempt": school_report["tries"] == 2,
+            "the_world_agrees": g.attr(me, "where") == "school",
+            # THE VACUITY GUARD: an unrelated plan sharing nothing must be untouched by all of it.
+            "the_other_plan_was_STILL_RUNNING_when_it_failed": box_live_at_failure is True,
+            "THE_OTHER_TASK_ON_THE_AGENDA_SURVIVED": box_report["done"],
+            "and_it_really_acted": g.attr(box, "packed") is True,
+            "it_never_diverged": all(not a.get("diverged") for a in box_report["attempts"])}
 
 
 def check_a_sighting_is_distinct_from_a_belief():

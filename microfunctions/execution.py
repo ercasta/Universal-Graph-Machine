@@ -49,6 +49,7 @@ from __future__ import annotations
 
 from . import activation as ACT
 from . import function as fn
+from . import types as TY
 from . import workbench as W
 from .graph import Graph
 
@@ -294,7 +295,30 @@ def step(g: Graph, r: str) -> bool:
                      f"something that does not exist in the real graph")
         return False
 
-    called, out = fn.invoke(g, name, args)
+    # ⚠⚠ A PRECONDITION THAT WENT FALSE WHILE WE WERE NOT LOOKING IS A DIVERGENCE, NOT A CRASH.
+    # `fn.invoke` re-validates each parameter type at the call, which is the property that stops a plan
+    # acting on a world it was not verified against — the *right* check in the right place. But it reports
+    # by raising, and nothing between here and `loop.tick` caught it: the exception escaped the outer loop
+    # entirely, stranding this pursuit mid-`acting` **and killing every other task on the agenda with it**.
+    # A single-plan test cannot see that; it is exactly what concurrency makes routine.
+    #
+    # ⭐ Recorded as an ordinary deviation, so the whole existing recovery ladder applies with no new
+    # machinery. ⚠ `result=None` is load-bearing rather than a placeholder: the call **never ran**, so
+    # `matching_alternative` correctly declines to offer a contingency — there is no real outcome to settle
+    # onto a sibling's mappings — and recovery goes to replanning, which is the honest move when the world
+    # has moved rather than merely surprised us.
+    try:
+        called, out = fn.invoke(g, name, args)
+    except TY.TypeViolation as e:
+        _diverge(g, r, step=name, frame=frame, transformation=tr, result=None, minted=(),
+                 stale_precondition=True, param=getattr(e, "param", None),
+                 expected=getattr(e, "want", None), violations=getattr(e, "violations", None),
+                 # ASCII only: §5j records the report being made unpipeable on a cp1252 console by one
+                 # non-ASCII glyph. And no `{e}` here - `expected` and `violations` above already carry it,
+                 # and `report` prints them; repeating it says the same thing twice in one paragraph.
+                 why=f"{name} could not be applied: its {getattr(e, 'param', '?')} no longer satisfies "
+                     f"what it requires. The world moved after this plan was verified.")
+        return False
     # WARN Read off the call itself, never off a whole-graph diff - `activation.minted`. The diff
     # counted every node that appeared while the call ran, the interpreter's own state included.
     minted = list(ACT.minted(g, ACT.for_focus(g, called.node)))

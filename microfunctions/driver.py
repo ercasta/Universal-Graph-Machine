@@ -37,6 +37,7 @@ adequate for a handful of blocks and should not be mistaken for a planner.
 from __future__ import annotations
 
 from itertools import product
+from typing import NamedTuple
 
 from . import execution as X
 from . import function as fn
@@ -45,6 +46,7 @@ from . import isa
 from . import path as P
 from . import search as S
 from . import thread as T
+from . import types as TY
 from . import workbench as W
 from .graph import Graph
 from .isa import F, R
@@ -80,8 +82,69 @@ class Undecidable(Exception):
     """A decision named a verb whose machinery is not built. Loud, and naming what is missing."""
 
 
+class Call(NamedTuple):
+    """⭐⭐ A decision that names **what to do**, not merely whether to keep going.
+
+    The five verbs say something about the search's *disposition*; this says which action to imagine next,
+    with its arguments. That is what `expert_judgement.md` §1 needs and what the seam could not express:
+    `decide` was consulted *after* `take_best` had already chosen, so a decision could veto but never
+    substitute.
+
+    `bindings` maps each parameter to **a real node or a mapping in the current frame** — either, because a
+    criterion reasons about individuals (`stands_for`) and should not have to know what a workbench is.
+
+    **⭐ Naming a binding is the point.** `selection.candidates` refuses multi-parameter functions on the
+    grounds that *"inventing bindings is a different problem (search) that should not hide inside candidate
+    generation"*. A `Call` is that job done by authored knowledge instead of by enumeration — which is the
+    wall coming down deliberately (`expert_judgement.md` §9), not by accident.
+
+    ⚠ **It is still checked, and against the same requirements the enumeration applies.** A decision may
+    name a binding the search never proposed; it may not name an ill-typed one, one node in two roles, or
+    a **forbidden** action. Rank a guess, prune a proof: a criterion is a guess and `goal.forbid_action` is
+    a proof, so the proof wins and the attempt raises rather than being quietly downgraded."""
+    function: str
+    bindings: dict
+    why: str | None = None
+
+
 def proposals(g: Graph, frame: str, *, allow=None) -> tuple:
-    """Every `(function, {param: mapping})` that could be applied in this frame.
+    """Every `(function, {param: mapping})` that could be applied in this frame. See `enumerate_frame`."""
+    return enumerate_frame(g, frame, allow=allow)[0]
+
+
+def stands_for(g: Graph, mapping: str):
+    """**The node a mapping names, as everything that reasons about individuals must see it.**
+
+    A mapping has two nodes: the workbench `image` that an imagined step reads and writes, and the
+    `original` it stands for in the real world. A constraint, a want, a trace entry and a thread record all
+    talk about the *original* — so anything comparing them has to agree on which one it means.
+
+    ⚠ This exists because they disagreed once. `wants_that_unblock` keyed its requirements by the image
+    while `unlocks` resolved to the original, so the two never matched and the whole component scored zero
+    on every proposal — a silent no-op that looked exactly like "the idea does not help". The expression was
+    already written out seven times in this module; it is written once now, which is the difference between
+    a convention and a guarantee."""
+    return W.resolve(g, mapping) or W.image_of(g, mapping)
+
+
+def enumerate_frame(g: Graph, frame: str, *, allow=None) -> tuple:
+    """`(proposals, blocked)` — what can be applied here, **and why the rest cannot**.
+
+    ⭐⭐ `blocked` is the half that used to be computed and thrown away. Testing a candidate against a
+    parameter type calls `types.fails`, which returns `{label: (expected, actual)}` — *precisely which
+    requirement failed* — and this loop kept only its truthiness. So "this action is one requirement away
+    from being possible" was already being computed on every candidate in every enumeration, and discarded.
+
+    `blocked` maps `function -> {(requirement label, node)}`: for each function with **no** valid binding
+    here, the requirements that stopped each candidate. `_offer` turns that into the search's only notion of
+    *making progress towards being able to act*, which nothing else in this module has.
+
+    ⚠ Deliberately in the same pass. Computing it separately would re-run `fails` over every mapping and
+    every parameter — doubling the dominant cost of enumeration to recover information the first pass
+    already had. §5m records paying for exactly that mistake once.
+
+⚠ `blocked` is only the NAMES. What each of them was missing is recomputed by
+    `wants_that_unblock`, for the few that matter — see there for why that is cheaper than keeping it.
 
     The cartesian product of type-valid bindings, minus the ones binding one node to two parameters —
     which is not a heuristic but a correctness rule for operators like `stack(b, onto)`, where the type
@@ -93,7 +156,7 @@ def proposals(g: Graph, frame: str, *, allow=None) -> tuple:
     `query.py` uses it to bar any function that could dispatch from being used as a derivation, which is a
     proof about the stored body, not an opinion about what will help."""
     here = W.mappings(g, frame)
-    out = []
+    out, blocked = [], []
     for name in fn.names(g):
         # ⚠ A MOCK IS NOT AN ACTION. It is an assumption about how a real call turns out, so proposing one
         # would be planning to *assume* something rather than to do it — and the resulting "plan" would name
@@ -117,17 +180,25 @@ def proposals(g: Graph, frame: str, *, allow=None) -> tuple:
             reqs = TY.requirements(g, ptypes[p])
             if reqs is None:
                 break                          # undeclared parameter type — no candidate can satisfy it
-            fits = [m for m in here if not TY.fails(g, W.image_of(g, m), reqs)]
+            fits = []
+            for m in here:
+                # ⚠ TESTED against the image (the world as imagined here), KEYED by what it stands for
+                # (the individual a constraint talks about). Those are different nodes and conflating
+                # them is what made this component silently score zero.
+                if not TY.fails(g, W.image_of(g, m), reqs):
+                    fits.append(m)
             if not fits:
+                per_param = None
                 break
             per_param.append(fits)
-        if len(per_param) != len(params):
+        if per_param is None or len(per_param) != len(params):
+            blocked.append(name)
             continue
         for combo in product(*per_param):
             if len(set(combo)) != len(combo):
                 continue                       # one node cannot fill two roles
             out.append((name, dict(zip(params, combo))))
-    return tuple(out)
+    return tuple(out), blocked
 
 
 def view_in(g: Graph, frame: str):
@@ -144,6 +215,22 @@ def view_in(g: Graph, frame: str):
     return view
 
 
+class _Unreadable:
+    """The value of an attribute write the body computes rather than states.
+
+    ⚠ A singleton with a name, not `None` and not a bare `object()`. `None` is an ordinary attribute value,
+    so it cannot double as *"we could not read this"* without recreating the UNKNOWN-versus-NO conflation
+    `query.py` exists to keep apart; and a bare sentinel prints as an address, which makes every check
+    output that contains one unreadable."""
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "UNREADABLE"
+
+
+UNREADABLE = _Unreadable()
+
+
 def establishes(g: Graph, name: str) -> tuple:
     """What this function could make true, read **off its stored body**. Returns `(effects, unknown)`.
 
@@ -154,7 +241,9 @@ def establishes(g: Graph, name: str) -> tuple:
     because it *is* the body.
 
     **⭐ Effects carry their ROLES, and that turned out to matter more than the label.** An effect is
-    `(kind, label, subject_param, object_param)`: `stack` does not merely "write an `on` edge", it links
+    `(kind, label, subject_role, fourth)`, and **the fourth slot is tagged by the first**: for a `link` it
+    is the *object role*, for an `attr` it is **the value written** (or `UNREADABLE` when the instruction
+    computes it). `stack` does not merely "write an `on` edge", it links
     *its parameter `b`* on *its parameter `onto`*. Without that, `stack(b=b, onto=a)` looks exactly as
     promising for the constraint "a on b" as `stack(b=a, onto=b)` does, because both involve the same two
     blocks — and the ranking degrades to little better than blind. Roles are read from the operands, so this
@@ -269,7 +358,19 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
                 unknown.add(role(a[0]))                     # a computed label, on a subject we can name
         elif ins.op == "SET":
             if isinstance(arg, str):
-                effects.add(("attr", arg, role(a[0]), None))
+                # ⭐ THE VALUE, when the instruction states it outright. It used to be hardcoded `None`, so
+                # an attribute effect carried its slot and its subject but never what it WRITES — and
+                # `relevance` therefore scored band 4 ("this call writes exactly the constraint") for
+                # `SET where "home"` against a goal wanting `where = school`. Right slot, right subject,
+                # value never consulted. Link effects always carried both roles, so link constraints were
+                # checked exactly and attribute ones were not; this closes the asymmetry.
+                #
+                # ⚠ `UNREADABLE`, not `None`: `None` is an ordinary attribute value (isa.py's `SET` handler
+                # says so in as many words), so a sentinel is what keeps *"writes nothing we can name"*
+                # distinct from *"writes the value None"*. Conflating them is the UNKNOWN-versus-NO mistake
+                # this engine has a whole check about.
+                effects.add(("attr", arg, role(a[0]),
+                             a[2] if len(a) > 2 and not isinstance(a[2], (R, F)) else UNREADABLE))
             else:
                 unknown.add(role(a[0]))
         elif ins.op == "CALL":
@@ -321,6 +422,52 @@ def role_node(g: Graph, bound: dict, role: str | None):
     return node if rest is None else P.node_at(g, node, rest)
 
 
+def _frame_of(g: Graph, bindings: dict):
+    """The frame these bindings were taken from — **recovered from the graph, never passed in**.
+
+    ⚠ This is why `relevance` keeps its four-argument shape. A `view` parameter would have to be threaded
+    through `pursue`'s `rank=` hook and through `guideline.compose`, so every author of a ranker would
+    have to know about frames; and a module-level stash of "the current view" would be exactly the hidden
+    Python channel the loop arc exists to remove. A frame points at its mappings, so the reverse index
+    already answers this — the same reasoning as `dispatch._thread_of`, which derives a thread rather than
+    accepting one."""
+    for m in bindings.values():
+        for f in g.sources(m, "mapping"):
+            if g.kind(f) == "frame":
+                return f
+    return None
+
+
+def _witness_band(g: Graph, c: str, bound: dict, matching: tuple, bindings: dict) -> int:
+    """Band 4 when this call writes something that could stop a WITNESS from offending; 0 otherwise.
+
+    ⚠ **Discriminating, not optimistic.** For a type constraint `matching` is every effect the function
+    has, because there is no label to filter on — so scoring band 4 for merely touching a witness would
+    rank `measure(f)` as highly as `delete(f)` for a tidiness goal. The effect's `(kind, label)` therefore
+    has to appear in the requirements of the type the witness must *stop* satisfying. That keeps this a
+    ranker in §5d's sense: it is still only a guess, and it still never filters."""
+    subject = g.target(c, "subject")
+    if subject is None:
+        return 0                                        # existential: the `mint` branch above serves it
+    frame = _frame_of(g, bindings)
+    view = view_in(g, frame) if frame is not None else None
+    here = view(subject) if view is not None else subject
+    if here is None:
+        return 0
+    found = TY.offenders(g, here, g.attr(c, "type"))
+    for label, hits in found.items():
+        want = TY.offending_type(g, g.attr(c, "type"), label)
+        if want is None:
+            continue
+        schema, attrs, _rels = TY.requirements(g, want) or ({}, {}, ())
+        real = {W.original_of(g, n) for n in hits}
+        for kind, lbl, sp, _op in matching:
+            if (kind == "attr" and lbl in attrs) or (kind == "link" and lbl in schema):
+                if role_node(g, bound, sp) in real:
+                    return 4
+    return 0
+
+
 def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
     """How promising this proposal looks against the constraints that are still false. Higher is sooner.
 
@@ -340,7 +487,7 @@ def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
     solvable while the easy ones stop being searched blindly. This is also System 1's first real job, and
     notably it needs none of the neighbourhood/radius question resolved."""
     effects, unknown = establishes(g, name)
-    bound = {p: (W.resolve(g, m) or W.image_of(g, m)) for p, m in bindings.items()}
+    bound = {p: stands_for(g, m) for p, m in bindings.items()}
     involved = set(bound.values())
     best = 0
     for c in unmet:
@@ -359,7 +506,24 @@ def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
             continue                                        # cannot touch this constraint at all
         subject, obj = g.target(c, "subject"), g.target(c, "object")
 
+        # ⭐⭐ THE WITNESS BRANCH — what makes a UNIVERSAL constraint rankable at all.
+        # `d is a tidied_dir` names `d` as its subject, but the nodes that have to change are the *files*,
+        # so the exact-role test below can never fire and every proposal scored band 1 — measured, in
+        # `plural_step.md` §1, for a singular action that would certainly close it. `goal.witnesses` names
+        # the members that make it false, which is §5d's *"which constraints are still false"* one level
+        # further in: *which members are still wrong*.
+        if sort == "type":
+            best = max(best, _witness_band(g, c, bound, matching, bindings))
         for _k, _lbl, sp, op in matching:                   # does a role assignment line up exactly?
+            # ⚠ AN ATTRIBUTE EFFECT MUST WRITE THE VALUE THE CONSTRAINT WANTS. Band 4 claims this call
+            # writes *exactly* the constraint; for a link the object role already carried that claim, but
+            # an attribute effect had no value at all, so `SET where "home"` scored band 4 against a goal
+            # wanting `where = school` — the right slot on the right node, and the wrong world. Measured:
+            # the school scenario's guidance was entirely this accident.
+            # ⚠ `UNREADABLE` keeps band 4, and deliberately: `establishes` is an over-approximation by
+            # contract, so what we cannot read must never *lose* a candidate a rank.
+            if _k == "attr" and op is not UNREADABLE and g.attr(c, "value") != op:
+                continue
             # ⭐ A role may be a PATH (`c.right`), so it is resolved against the world rather than looked
             # up. Measured on `../pystrider`'s repair operator, whose whole purpose is to change part of
             # its argument: without this it wrote to a register, established nothing anyone could name, and
@@ -376,6 +540,105 @@ def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
         else:
             best = max(best, 1)
     return best
+
+
+def _could_close(g: Graph, effects: frozenset, unmet: tuple) -> bool:
+    """Could a function with these effects close any of these constraints, given the right world?
+
+    Label-level only, and that is the point: it is asked of a function that **cannot run here**, so there
+    are no bindings to be exact with. Over-approximating is safe because the answer only ever *orders*."""
+    for c in unmet:
+        sort = g.attr(c, "sort")
+        if sort not in ("link", "attr"):
+            return True                                     # a type constraint: cannot cheaply tell
+        kind = "link" if sort == "link" else "attr"
+        want = g.attr(c, "label") if sort == "link" else g.attr(c, "key")
+        if any(e[0] == kind and e[1] == want for e in effects):
+            return True
+    return False
+
+
+def wants_that_unblock(g: Graph, frame: str, blocked: tuple, unmet: tuple) -> frozenset:
+    """`{(requirement label, node)}` — what would have to become true for some **relevant but currently
+    impossible** action to become possible.
+
+    ⭐⭐ THE MISSING HALF OF THE GUIDANCE, and why `relevance` alone could not supply it. A band classifies
+    *this move against the goal*: it answers "does this close a constraint?". A prerequisite closes nothing,
+    so it is band 0 — **correctly**, and tied with every irrelevant operator in the library. Measured on a
+    three-step plan whose first move writes a different slot from the goal's: guided cost grew 4 / 6 / 10 /
+    16 as 0 / 2 / 6 / 12 irrelevant operators were added, because the search had to try each of them first.
+    No refinement of a match-quality scale can fix that, because a prerequisite is not a worse match — it is
+    a **different distance**, which a match scale does not measure.
+
+    ⚠ Restricted to actions that could *close an open constraint*. Without that, every blocked action in
+    the library contributes wants and the score becomes "make something possible", which is not a goal.
+
+    ⚠⚠ **The requirements are recomputed HERE rather than collected during enumeration, and that inversion
+    is the whole cost story.** The obvious design — record what failed while testing candidates, since
+    `fails` is being called anyway — puts a set insertion on the path taken by *most* candidate tests, which
+    is what enumeration mostly does. Measured: §5m's benchmark went 2.08ms to 6.98ms, and even gated by
+    relevance it stayed at 6.30. **A blocked function is one that contributed no proposal at all, so blocked
+    functions are few by definition** — recomputing for just those is `|blocked and relevant| x |params| x
+    |mappings|`, which on the blocks world with 200 irrelevant nodes is **zero calls**, because nothing
+    relevant is blocked there. The expensive case is exactly the case that needs the answer.
+
+    ⭐ The general shape, worth keeping: *doing the work eagerly for everything cost more than doing it
+    lazily for the few that need it* — even though the eager version was reusing a value already computed."""
+    here = W.mappings(g, frame)
+    wants = set()
+    for name in blocked:
+        if not _could_close(g, establishes(g, name)[0], unmet):
+            continue
+        params, _ = fn.load(g, name)
+        ptypes = fn.param_types(g, name)
+        for p in params:
+            reqs = TY.requirements(g, ptypes.get(p))
+            if reqs is None:
+                continue
+            for m in here:
+                # ⚠ TESTED against the image (the world as imagined in this frame), KEYED by what it
+                # stands for (the individual a constraint talks about). Those are different nodes, and
+                # conflating them made this component silently score zero on every proposal.
+                for label in TY.fails(g, W.image_of(g, m), reqs):
+                    wants.add((label, stands_for(g, m)))
+    return frozenset(wants)
+
+
+def unlocks(g: Graph, name: str, bindings: dict, wants: frozenset) -> int:
+    """How many blocking requirements this proposal would write. Higher is sooner — **after the band.**
+
+    ⚠⚠ **What guarantees that this cannot outrank a real closing move is `expected`, NOT the key position
+    — and that correction came from a probe.** The first version of this docstring said the guarantee was
+    that `-opens` sits after `-rank_here`. It does, but that is a *redundant second guard*: `expected` is
+    the key's first component and already folds in `rank >= 4`, so a band-4 move sorts ahead whatever
+    happens further along the tuple. Probed all three ways against a detour that unlocks **two**
+    requirements where the closing move unlocks one — neutering `expected` alone changes nothing, swapping
+    the two components alone changes nothing, and **only removing both together** degrades the plan. So
+    §5p's dominance invariant holds here, over-determined, and no single line of it is load-bearing.
+
+    ⚠ What the position *does* decide is the order among moves that close nothing: band 1-3 ("mentions the
+    goal's label") currently beats "would unblock something relevant". That is an unexamined preference —
+    the bands below 4 are weak evidence (they only ever meant *related to*), while an unlock is derived
+    from a requirement that really does block a really relevant action. It is left as it was found rather
+    than changed on a hunch, and it is named here so the next person knows it was never argued.
+
+    Like everything else in this module except a safety breach it only ever ORDERS — `guideline.py`'s
+    planted-bug probe showed that a frontier which merely orders cannot put a move out of reach however
+    badly it is scored."""
+    if not wants:
+        return 0
+    bound = {p: stands_for(g, m) for p, m in bindings.items()}
+    hit = set()
+    for kind, label, subject_role, _fourth in establishes(g, name)[0]:
+        node = role_node(g, bound, subject_role)
+        if node is None:
+            continue
+        # `types.fails` keys attribute requirements with a leading `@` and link requirements with the bare
+        # label — the same spelling `violations` reports to a human, reused rather than re-derived.
+        key = (f"@{label}" if kind == "attr" else label, node)
+        if key in wants:
+            hit.add(key)
+    return len(hit)
 
 
 def state_of(g: Graph, frame: str) -> frozenset:
@@ -404,7 +667,7 @@ def state_of(g: Graph, frame: str) -> frozenset:
 
 def pursue(g: Graph, goal: str, thread: str, subject: str, *,
            max_steps: int = 60, max_depth: int = 6, rank=None, guided: bool = True, allow=None,
-           trace=None, decide=None) -> dict:
+           trace=None, decide=None, propose=None) -> dict:
     """Search for a state satisfying `goal`, imagining every step. Returns a report.
 
     Everything the system considers is recorded on the thread as it happens, so *how* it got there is
@@ -445,7 +708,7 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
     frame that tried it still holds the mark. Silence costs nothing at planning time and everything
     afterwards."""
     search = open_planning(g, goal, thread, subject, max_steps=max_steps, max_depth=max_depth,
-                           guided=guided, rank=rank, allow=allow, trace=trace)
+                           guided=guided, rank=rank, allow=allow, trace=trace, propose=propose)
     watch = trace
 
     # >> THE LOOP IS NOW A LOOP OVER `step`, AND THAT IS THE WHOLE POINT OF THIS SLICE. `pursue` used to
@@ -454,14 +717,14 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
     # deliberation can be reached as data. Note `pursue` remains the supported entry point and its
     # behaviour is unchanged; `step` is the seam, not a replacement.
     while True:
-        out = step(g, search, rank=rank, allow=allow, trace=watch, decide=decide)
+        out = step(g, search, rank=rank, allow=allow, trace=watch, decide=decide, propose=propose)
         if out is not None:
             return out
 
 
 def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
                   max_steps: int = 60, max_depth: int = 6, guided: bool = True,
-                  rank=None, allow=None, trace=None) -> str:
+                  rank=None, allow=None, trace=None, propose=None) -> str:
     """Open a search on `goal` and seed its frontier. Returns the `search` node, ready to be stepped.
 
     ** This is `pursue`'s setup, extracted so there is ONE of it.** `pursue` calls it and then loops; the
@@ -506,7 +769,7 @@ def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
                    wants=[G.describe_constraint(g, c) for c in G.constraints(g, goal)],
                    open=[G.describe_constraint(g, c)
                          for c in _still_open(g, goal, subject, root)]))
-    _offer(g, search, root, 0, None, rank=rank, allow=allow, watch=trace)
+    _offer(g, search, root, 0, None, rank=rank, allow=allow, watch=trace, propose=propose)
     return search
 
 
@@ -515,7 +778,7 @@ def _label(g: Graph, n):
 
 
 def _shown(g: Graph, bindings: dict) -> dict:
-    return {p: _label(g, W.resolve(g, m) or W.image_of(g, m)) for p, m in bindings.items()}
+    return {p: _label(g, stands_for(g, m)) for p, m in bindings.items()}
 
 
 def _asked_of(g: Graph, subject: str, frame: str) -> tuple:
@@ -535,8 +798,55 @@ def _visited_key(g: Graph, goal: str, frame: str, trace: tuple) -> tuple:
     return (state_of(g, frame), G.outstanding(g, goal, trace))
 
 
+def _defer(g: Graph, search: str, frame: str, depth: int, trace_node) -> str:
+    """Record that this frame was **not fully enumerated**, so it can be later.
+
+    ⭐⭐ This is what makes deciding-before-enumerating **complete rather than merely cheap**. A criterion
+    that speaks for a frame suppresses the O(N²) product there — but the product is *deferred*, never
+    dropped, and `_backfill` builds it if the criteria's own line runs out. So authored knowledge can be
+    wrong without a solution becoming unreachable, which is exactly the property `relevance` protects by
+    ranking rather than filtering (`expert_judgement.md` §2), obtained here by a different means.
+
+    ⚠ Deferral is the honest word. *Skipping* would make the frontier incomplete — a far stronger claim
+    than anything a guess is entitled to make."""
+    d = g.mint("deferred", depth=depth)
+    g.link(d, "frame", frame)
+    if trace_node is not None:
+        g.link(d, "trace", trace_node)
+    g.link(search, "deferred", d)
+    return d
+
+
+def _backfill(g: Graph, search: str, *, rank=None, allow=None, watch=None) -> bool:
+    """The frontier is empty — build the enumeration of one frame a decision spoke for. `False` if none.
+
+    ⚠ **Most recently deferred first**, i.e. chronological backtracking. Measured against the alternative:
+    oldest-first floods the frontier with one frame's whole product while the proposer keeps deferring new
+    frames behind it, and a Sussman run with a deliberately useless proposer then **fails outright**
+    (budget of 200 exhausted, no plan) where newest-first finds one. Insertion order is a fact of the edge
+    list, so this needs no key.
+
+    ⚠⚠ **What deferral preserves is the GOAL, not the plan's quality.** Backtracking to the newest deferral
+    extends the bad prefix before the root's alternatives are ever built, so a wrong proposer yields a
+    *worse* plan rather than none: measured on Sussman, a proposer that always says `paint` still succeeds,
+    with `(paint, paint, unstack, stack, stack)` against the default's `(unstack, stack, stack)`. That is
+    the honest cost of suppressing enumeration on a guess, and it is strictly milder than losing the
+    solution — but it is not nothing, and `relevance`'s rank-never-filter does not pay it at all."""
+    waiting = g.targets(search, "deferred")
+    if not waiting:
+        return False
+    d = waiting[-1]
+    g.unlink(search, "deferred", dst=d)
+    if watch:
+        watch(dict(kind="backfill", step=S.steps_taken(g, search), depth=g.attr(d, "depth"),
+                   why="the decision's line ran out; enumerating what it suppressed"))
+    _offer(g, search, g.target(d, "frame"), g.attr(d, "depth"), g.target(d, "trace"),
+           rank=rank, allow=allow, watch=watch)          # ⚠ no `propose` — never defer the same frame twice
+    return True
+
+
 def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
-           rank=None, allow=None, watch=None) -> None:
+           rank=None, allow=None, watch=None, propose=None) -> None:
     """Put every proposal available in `frame` onto the frontier, ranked.
 
     THE FRONTIER HOLDS PROPOSALS, NOT FRAMES - and that is what makes the guidance worth anything.
@@ -562,13 +872,40 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
     def emit(kind, **fields):
         watch(dict(kind=kind, step=S.steps_taken(g, search), **fields))
 
-    for name, bindings in proposals(g, frame, allow=allow):
+    # ⭐⭐⭐ DECIDE BEFORE ENUMERATING. Measured (`expert_judgement.md` §8c): with criteria the search
+    # visits four frames whatever the world's size, yet still built 1,526 proposals at twenty blocks —
+    # *all* of the residual cost, and all of it thrown away. `decide` could not remove it because it is
+    # consulted after this function has already run. `propose` is the same knowledge, asked one step
+    # earlier, where the saving actually is.
+    #
+    # ⚠ The suppressed enumeration is DEFERRED, not skipped — see `_defer`.
+    if propose is not None:
+        suggested = propose({"goal": goal, "frame": frame, "depth": depth, "subject": c["subject"],
+                             "search": search, "thread": c["thread"], "open": len(open_now)})
+        if suggested is not None:
+            bound, touched = check_call(g, goal, frame, suggested, trace_node)
+            ahead = S.extend_trace(g, trace_node, suggested.function, touched)
+            rank_here = score(g, suggested.function, bound, open_now)
+            S.offer(g, search, key=(len(open_now) - (1 if rank_here >= 4 else 0), -rank_here, 0, depth),
+                    frame=frame, depth=depth, function=suggested.function, bindings=bound,
+                    open_count=len(open_now), trace=ahead)
+            _defer(g, search, frame, depth, trace_node)
+            if watch:
+                emit("propose", action=suggested.function, on=_shown(g, bound), depth=depth,
+                     because=suggested.why)
+            return
+
+    here, blocked = enumerate_frame(g, frame, allow=allow)
+    # ⭐ Once per frame, not once per proposal — `deliberation.md` §4's frequency rule, and §5m's record of
+    # what ignoring it costs. `wants` is the same for every proposal offered from this frame.
+    wants = wants_that_unblock(g, frame, blocked, open_now) if guided else frozenset()
+    for name, bindings in here:
         # CONSTRAINTS ON THE PLAN, checked BEFORE imagining - so a forbidden action costs nothing.
         # WARN This FILTERS where `relevance` only RANKS, and the difference is principled: relevance is a
         # guess about what will help, so filtering on it could lose a solution (Sussman's anomaly needs a
         # low-scoring move). A safety breach is a proof - no continuation of a plan that used a forbidden
         # action makes it unused - so pruning is sound. Rank a guess; prune a proof.
-        touched = frozenset(W.resolve(g, m) or W.image_of(g, m) for m in bindings.values())
+        touched = frozenset(stands_for(g, m) for m in bindings.values())
         ahead = prefix + ((name, touched),)
         hit = G.breached(g, goal, ahead)
         if hit:
@@ -583,19 +920,123 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
         # WARN Minted only AFTER the breach check, so a refused action leaves no trace step behind.
         ahead_node = S.extend_trace(g, trace_node, name, touched)
         if not guided:
-            S.offer(g, search, key=(0, 0, depth), frame=frame, depth=depth, function=name,
+            S.offer(g, search, key=(0, 0, 0, depth), frame=frame, depth=depth, function=name,
                     bindings=bindings, open_count=len(open_now), trace=ahead_node)
             continue
         rank_here = score(g, name, bindings, open_now)
         expected = len(open_now) - (1 if rank_here >= 4 else 0)
+        opens = unlocks(g, name, bindings, wants)
         if watch:
             emit("consider", action=name, on=_shown(g, bindings), band=rank_here,
-                 open=len(open_now), depth=depth)
-        S.offer(g, search, key=(expected, -rank_here, depth), frame=frame, depth=depth,
+                 open=len(open_now), unlocks=opens, depth=depth)
+        # ⚠ `-opens` sits AFTER `-rank_here`: a move that merely makes something possible can never
+        # outrank one that actually closes a constraint. It only ever separates the moves that were tied.
+        S.offer(g, search, key=(expected, -rank_here, -opens, depth), frame=frame, depth=depth,
                 function=name, bindings=bindings, open_count=len(open_now), trace=ahead_node)
 
 
-def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=None):
+def check_call(g: Graph, goal: str, frame: str, call: Call, prefix: str | None) -> tuple:
+    """Is this `Call` something that could actually be applied here? Returns `(bindings, touched)`.
+
+    ⭐ **One place, because there are now two callers** — `_honour` (a decision substituting for the ranked
+    choice) and `_offer` (a decision spoken *before* enumeration). Two copies of a validation that must not
+    drift is the defect shape this codebase keeps recording, and here the drift would be silent: one route
+    would admit a call the other refuses.
+
+    ⚠ **A binding the enumeration never proposed is fine; an ill-typed one is not.** Naming a binding is
+    the whole point (`selection.candidates`' *"inventing bindings is search"*). What is checked is exactly
+    what `enumerate_frame` checks — declared parameter types, no node in two roles — plus the one thing
+    ranking may never overturn: `goal.breached`. Rank a guess, prune a proof."""
+    if fn.find(g, call.function) is None:
+        raise Undecidable(f"a decision named {call.function!r}, which is not a function in this library")
+    params, _ = fn.load(g, call.function)
+    if set(params) != set(call.bindings):
+        raise Undecidable(f"a decision named {call.function}({', '.join(sorted(call.bindings))}), but it "
+                          f"takes ({', '.join(params)}) — a call must bind every parameter and no others")
+
+    mine = W.mappings(g, frame)
+    bound = {}
+    for p, given in call.bindings.items():
+        m = given if given in mine else W.mapping_for(g, frame, given)
+        if m is None or m not in mine:
+            raise Undecidable(f"a decision bound {call.function}.{p} to {given!r}, which is not in the "
+                              f"world being imagined here")
+        bound[p] = m
+    if len(set(bound.values())) != len(bound):
+        raise Undecidable(f"a decision gave {call.function} one node in two roles; the type system cannot "
+                          f"say a != b, so the search enforces it and so must this")
+
+    ptypes = fn.param_types(g, call.function)
+    for p, m in bound.items():
+        reqs = TY.requirements(g, ptypes.get(p))
+        if reqs is None:
+            raise Undecidable(f"{call.function}.{p} has no declared type, so nothing can satisfy it")
+        missing = TY.fails(g, W.image_of(g, m), reqs)
+        if missing:
+            raise Undecidable(f"a decision named {call.function} with {p}={_label(g, stands_for(g, m))!r}, "
+                              f"which is not a {ptypes[p]}: {missing}")
+
+    touched = frozenset(stands_for(g, m) for m in bound.values())
+    hit = G.breached(g, goal, S.trace_tuple(g, prefix) + ((call.function, touched),))
+    if hit:
+        raise Undecidable(f"a decision named {call.function}, which this goal forbids: "
+                          + "; ".join(G.describe_constraint(g, x) for x in hit)
+                          + " — advice may reorder, never overrule a constraint on the plan")
+    return bound, touched
+
+
+def _honour(g: Graph, search: str, c: dict, call: Call, displaced: str, frame: str, prefix: str | None):
+    """Carry out a `Call` — substitute the decision's action for the one ranking chose.
+
+    Returns `(function, {param: mapping}, trace_node)`, or **`None` when this decision is spent** — see the
+    frequency rule below.
+
+    **⚠⚠ A DECISION APPLIES ONCE PER FRAME PER CALL, and discovering why is the main thing this seam
+    taught.** Putting the displaced candidate back and letting a deterministic criterion speak again are in
+    direct tension: the search re-takes the displaced candidate, the criterion names the same action, that
+    action reaches a state already imagined, the candidate goes back again — a **livelock**, measured
+    (12 steps, 9 of them the same substitution from the same frame, goal never reached).
+
+    So a substitution is recorded on the frame and is not repeated. This is not a new principle: it is
+    `deliberation.md` §4's frequency rule and the same answer `DECOMPOSE` already gives — *"a method applies
+    once per GOAL, never once per search step. Frequency, not absence."* And it is honest rather than
+    silent: the decision is not ignored, it has **already been carried out here**, and the trace says so.
+
+    **⭐⭐ THE DISPLACED CANDIDATE GOES BACK ON THE FRONTIER, and that is the load-bearing line.**
+    `expert_judgement.md` §2's rule is that a criterion may prune freely *provided the prune is recorded and
+    the fallback is reachable* — because a prune here happens while **imagining**, so being wrong costs
+    imagined states rather than actions. Dropping the displaced candidate instead would make a criterion's
+    mistake unrecoverable, which is the one thing that turns cheap-to-be-wrong into expensive-to-be-wrong.
+
+    ⚠ **Re-offered by re-linking, so its key survives** — the candidate node was only unlinked by
+    `take_best`, never destroyed. It therefore returns to the *end* of insertion order, which changes the
+    tie-break among candidates with identical keys. That is a real if small semantic change, and it happens
+    only when a decision actually fires; the default path never reaches this function.
+
+    ⚠ **A fresh trace step, not the displaced one's.** The candidate's `trace` already includes *its own*
+    action, so reusing it would record a plan that took a step nobody took. The prefix is one link up.
+
+    ⚠ Every refusal here is `Undecidable` — loud, naming what was wrong. A decision that silently does
+    nothing is the failure this project keeps catching, and a decision silently *corrected* is worse."""
+    goal, thread = c["goal"], c["thread"]
+    bound, touched = check_call(g, goal, frame, call, prefix)
+
+    # ⚠ SPENT? See the frequency rule above. Compared on (function, individuals), not on the candidate,
+    # because the same action reached from the same frame by a different route is the same action.
+    for prior in g.targets(frame, "decided"):
+        if g.attr(prior, "function") == call.function and \
+                frozenset(g.targets(prior, "touched")) == touched:
+            return None
+
+    g.link(search, "candidate", displaced)          # ⭐ THE FALLBACK STAYS REACHABLE
+    ahead = S.extend_trace(g, prefix, call.function, touched)
+    g.link(frame, "decided", ahead)                 # ⚠ once per frame per call — the frequency rule
+    T.attend(g, thread, goal, why=f"decided to do {call.function}",
+             note=call.why or f"instead of {g.attr(displaced, 'function')}")
+    return call.function, bound, ahead
+
+
+def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=None, propose=None):
     """** ONE iteration of the search - the yield point `pursue` never had.**
 
     Returns `None` while the search should continue, and the finished report when it should not (found,
@@ -652,6 +1093,11 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
         return _exhausted(g, search, c, watch)
     chosen = S.take_best(g, search)
     if chosen is None:
+        # ⭐ Nothing left to try — but a decision may have SUPPRESSED alternatives rather than ruled them
+        # out. Build one deferred frame's enumeration and carry on; only a search with nothing deferred
+        # is really exhausted. This is what keeps `propose` complete rather than merely cheap.
+        if _backfill(g, search, rank=rank, allow=allow, watch=watch):
+            return None
         return _exhausted(g, search, c, watch)
 
     _c = S.read(g, chosen)
@@ -676,6 +1122,26 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
                           "steps": S.steps_taken(g, search), "frontier": len(S.frontier(g, search)),
                           "workbench": wb, "search": search,
                           "thread": thread, "subject": subject})
+        if isinstance(verdict, Call):
+            # ⭐ A decision that NAMES AN ACTION. `_honour` validates it, puts the displaced candidate back
+            # on the frontier, and hands back what to imagine instead — so the rest of this function is
+            # unchanged and does not know a substitution happened.
+            was = name
+            got = _honour(g, search, c, verdict, chosen, frame,
+                          g.target(_c["trace_node"], "after")
+                          if _c["trace_node"] is not None else None)
+            if got is None:
+                # Already carried out from this frame — spent, not ignored. Say so and let ranking run.
+                if watch:
+                    emit("spent", action=verdict.function, instead_of=was, depth=depth,
+                         because=verdict.why)
+            else:
+                name, bindings, trace_node = got
+                tr = S.trace_tuple(g, trace_node)
+                if watch:
+                    emit("decide", action=name, on=_shown(g, bindings), instead_of=was, depth=depth,
+                         because=verdict.why)
+            verdict = None
         if verdict is not None and verdict != EXPAND:
             verb, why_stop = verdict if isinstance(verdict, tuple) else (verdict, None)
             if verb in _UNBUILT:
@@ -698,7 +1164,7 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
     # imagined it. It also made the record useless to any reflective reader, because two goals open two
     # workbenches, so their entries could never refer to the same thing.
     T.applied(g, thread, name,
-              {p: (W.resolve(g, m) or W.image_of(g, m)) for p, m in bindings.items()},
+              {p: stands_for(g, m) for p, m in bindings.items()},
               why=f"depth {depth + 1}, {open_count} constraint(s) open", for_goal=goal)
 
     nview, nunder = _asked_of(g, subject, nxt)
@@ -723,7 +1189,8 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
         return None                            # this world has been imagined before, by another route
     S.mark_seen(g, search, reached, nxt)
     if depth + 1 < max_depth:
-        _offer(g, search, nxt, depth + 1, trace_node, rank=rank, allow=allow, watch=watch)
+        _offer(g, search, nxt, depth + 1, trace_node, rank=rank, allow=allow, watch=watch,
+               propose=propose)
     return None
 
 
@@ -789,7 +1256,7 @@ def plan_bindings(g: Graph, plan: tuple) -> tuple:
         bound = {}
         for b in g.targets(tr, "arg"):
             m = g.target(b, "mapping")
-            bound[g.attr(b, "param")] = (W.resolve(g, m) or W.image_of(g, m)) if m else None
+            bound[g.attr(b, "param")] = stands_for(g, m) if m else None
         out.append((g.attr(tr, "function"), bound))
     return tuple(out)
 
@@ -833,7 +1300,7 @@ def _record_execution(g: Graph, thread: str, goal: str, plan: dict, report: dict
         args = {}
         for b in g.targets(tr, "arg"):
             m = g.target(b, "mapping")
-            args[g.attr(b, "param")] = W.resolve(g, m) or W.image_of(g, m)
+            args[g.attr(b, "param")] = stands_for(g, m)
         T.applied(g, thread, name, args, why="carried out for real", for_goal=goal, done=True)
 
 
@@ -1186,5 +1653,6 @@ def describe(g: Graph, result: dict) -> str:
 
 
 __all__ = ["proposals", "state_of", "establishes", "role_node", "relevance", "view_in",
-           "open_planning", "step",
+           "open_planning", "step", "Call", "Undecidable",
+           "EXPAND", "DECOMPOSE", "COMMIT", "SENSE", "REFUSE", "VERBS",
            "pursue", "carry_out", "plan_steps", "plan_bindings", "describe"]
