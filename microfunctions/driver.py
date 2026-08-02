@@ -763,7 +763,7 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
 
 def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
                   max_steps: int = 60, max_depth: int = 6, guided: bool = True,
-                  rank=None, allow=None, trace=None, propose=None) -> str:
+                  rank=None, allow=None, trace=None, propose=None, decider=None) -> str:
     """Open a search on `goal` and seed its frontier. Returns the `search` node, ready to be stepped.
 
     ** This is `pursue`'s setup, extracted so there is ONE of it.** `pursue` calls it and then loops; the
@@ -796,6 +796,10 @@ def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
     opened = T.attend(g, thread, goal, why="taking on the goal", note=G.describe(g, goal))
     search = S.open_search(g, goal, wb, thread, subject, opened=opened,
                            max_steps=max_steps, max_depth=max_depth, guided=guided)
+    # ⭐ WHAT IS DECIDING THIS SEARCH, as an edge — so the outer loop can advance it without the caller
+    # holding a closure. See `criterion.decider` for the measurement that forced this.
+    if decider is not None:
+        g.link(search, "decided_by", decider)
     S.mark_seen(g, search, S.digest(*_visited_key(g, goal, root, ())), root)
 
     view, under = _asked_of(g, subject, root)
@@ -808,7 +812,11 @@ def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
                    wants=[G.describe_constraint(g, c) for c in G.constraints(g, goal)],
                    open=[G.describe_constraint(g, c)
                          for c in _still_open(g, goal, subject, root)]))
-    _offer(g, search, root, 0, None, rank=rank, allow=allow, watch=trace, propose=propose)
+    # ⚠ The SEED must be guided too, and forgetting that cost 3 extra imagined states in the measurement
+    # — the fix in `step` alone took the loop-ticked search from 52 to 6 rather than to 3, because the
+    # first frontier was still built by enumeration. One resolution point, used by both.
+    _offer(g, search, root, 0, None, rank=rank, allow=allow, watch=trace,
+           propose=propose if propose is not None else _proposer_of(g, search))
     return search
 
 
@@ -1095,6 +1103,17 @@ def _honour(g: Graph, search: str, c: dict, call: Call, displaced: str, frame: s
     return call.function, bound, ahead
 
 
+def _proposer_of(g: Graph, search: str):
+    """The proposer this search node itself names, or `None`. ⚠ Rebuilt per step rather than cached: the
+    criteria are read from the graph when asked, so a criterion withdrawn mid-search stops being consulted
+    — caching the closure would keep a retracted block deciding, which `discourse.py` exists to prevent."""
+    d = g.target(search, "decided_by")
+    if d is None:
+        return None
+    from . import criterion as CR
+    return CR.proposer_for(g, d)
+
+
 def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=None, propose=None):
     """** ONE iteration of the search - the yield point `pursue` never had.**
 
@@ -1143,6 +1162,12 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
     # anything a domain author should be able to write. This is the same decision expressed as **data**,
     # which the standing principle requires: everything a domain contributes is data. They are the same
     # verbs and the same report, deliberately, so a reader cannot tell which route stopped a search.
+    # ⭐⭐ NO HOOK? ASK THE GRAPH. This is what makes a guided search resumable by anything — `loop.tick`
+    # forwards only the hooks its own caller held, so before this a search ticked by the outer loop
+    # silently lost its guidance (3 imagined states became 52, measured). An explicit `propose=` still
+    # wins, because a caller naming a proposer is being deliberate.
+    if propose is None:
+        propose = _proposer_of(g, search)
     told = g.attr(search, "stop")
     if told:
         verb = told if told in _STOPS else REFUSE

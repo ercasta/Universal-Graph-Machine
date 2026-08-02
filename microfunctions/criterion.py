@@ -439,6 +439,39 @@ def speaks(g: Graph, c: str, goal: str, frame: str, subject: str, *, under: str 
     return None, tuple(dict.fromkeys(blocked))
 
 
+def decider(g: Graph, goal: str, subject: str, *, under: str = "root") -> str:
+    """The decision procedure **as a node**, so a search can point at what is deciding it.
+
+    ⭐⭐ **Because it was a Python keyword argument, and that made it invisible AND unresumable.**
+    `decide` returns a closure handed to `pursue(propose=…)`; `search.open_search`'s docstring concedes
+    the split in as many words — *"everything a step needs THAT IS NOT A PYTHON CALLABLE lives here"*.
+    Measured (`docs/microfunctions/probe_hidden_decision.py`): the identical search node, with the
+    identical criteria in the graph, takes **3** imagined states when `pursue` passes the hook and **52**
+    when `loop.tick` advances it — because `loop.advance` forwards whatever `**hooks` its *caller* held.
+    Guidance was a property of the Python caller rather than of the search.
+
+    ⚠ This is the same move `search.stop` already makes one screen up in `driver.step`, and for the
+    reason recorded there: *the same decision expressed as data, which the standing principle requires.*
+    A `decide=` hook stays available and is not redundant — a Python callable consulted per proposal is
+    right for a ranker-frequency decision and wrong for anything a domain author should be able to write.
+
+    ⚠ It records what to consult, never a frozen answer: the criteria are read from the graph when the
+    search asks, so withdrawing one (`discourse.live`) still takes effect mid-search."""
+    d = g.mint("decider", how="criteria", under=under)
+    g.link(d, "goal", goal)
+    g.link(d, "subject", subject)
+    return d
+
+
+def proposer_for(g: Graph, d: str):
+    """Rebuild the proposer a `decider` node describes. ⚠ The dispatch on `how` is deliberately a closed
+    vocabulary of ONE: a second kind of decider is a decision about execution, not a string somebody adds."""
+    how = g.attr(d, "how")
+    if how != "criteria":
+        raise ValueError(f"decider {d} says how={how!r}; the only decision procedure is 'criteria'")
+    return decide(g, g.target(d, "goal"), g.target(d, "subject"), under=g.attr(d, "under") or "root")
+
+
 def decide(g: Graph, goal: str, subject: str, *, under: str = "root"):
     """The `propose=` / `decide=` hook that reads the authored list. **First match wins.**
 
@@ -581,6 +614,7 @@ def describe(g: Graph, c: str) -> str:
 
 __all__ = ["SUBJECT", "OBJECT", "ROLES", "NEAREST", "FURTHEST", "SELECTORS", "Unresolvable",
            "criteria", "declare", "wants", "test", "does", "action_of", "tests_of",
+           "decider", "proposer_for",
            "draw", "draws_of", "names_of", "constraint_label",
            "resolve_ref", "speaks", "decide", "governing", "force_of", "is_mandatory", "proposals_here", "disagreements",
            "describe_disagreements", "describe_test", "describe"]

@@ -13,7 +13,7 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 212 checks, 0 FAILED
+python -m microfunctions.selftest      # 213 checks, 0 FAILED
 ```
 
 > **⭐⭐⭐ Update, 2026-08-01 — READ §6c–§6i BEFORE §5.** The whole of §6b's arc landed in one day and
@@ -2423,7 +2423,7 @@ conditions (they lived only in `type`), and **edges have identity** (substrate s
 by id, `inc` generalised so an edge is an ordinary link target, three index-maintenance functions
 deleted). Also new: `clock.py`, time as a node that points at what it dates.
 
-⚠ **Verify before believing any of this: `python -m microfunctions.selftest` → 212 checks, 0 FAILED.**
+⚠ **Verify before believing any of this: `python -m microfunctions.selftest` → 213 checks, 0 FAILED.**
 
 What remains, in order:
 1. ✅ **DONE — the typed consequent, SLICE ONE.** `consequent.py`: one node kind, one edge label, two
@@ -2473,8 +2473,14 @@ What remains, in order:
    ⚠ **J itself is NOT cheap** — binding the real node would run the function against the real graph
    inside a workbench, breaking the guarantee `workbench_copies_are_structurally_unreachable` holds. The
    answer is copy-on-demand into the frame: a slice, not a patch.
-2. **The sidecar executor.** ⚠⚠ `loop.py` claims *"the Python-control-loop inventory is empty"* and **it is
-   not true**: `criterion.decide` returns a closure that loops `for c in criteria(g)` to completion, once
+2. **The sidecar executor.** ✅ **Half of this landed 2026-08-02 — the HIDDEN CHANNEL.** Guidance reached
+   a search as a `propose=` keyword, so it was a property of the Python caller and **the outer loop lost
+   it**: the identical search node with the identical criteria took **3** imagined states via `pursue` and
+   **52** ticked by `loop.tick`, and nothing in the graph said which had happened. A search now points at
+   a `decider` node (`criterion.decider` / `search.decided_by`), resolved when no hook is given — 3 and 3,
+   control lit at 52. ⚠ Fixing `driver.step` alone gave **6**, not 3: the frontier SEED had to be guided
+   too, and `found=True` would have called that done.
+   ⚠ **The remainder is what the item was really about**, and it is unchanged: `criterion.decide` returns a closure that loops `for c in criteria(g)` to completion, once
    per imagined step, invisible to the agenda because it is a `propose=` **hook parameter** — the same
    hidden Python channel `plural_step.md` invoked to reject a `view=` argument. Deleting it is the vacuity
    test for the whole architecture: the claim becomes true for the first time.

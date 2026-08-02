@@ -8028,6 +8028,85 @@ def check_the_KERNEL_cannot_see_the_representation_above_it():
             "a_SECOND_claim_on_one_name_is_refused": dup is not None}
 
 
+def check_a_guided_search_is_RESUMABLE_by_anything_because_the_decider_is_a_NODE():
+    """⭐⭐⭐ **GUIDANCE WAS A PROPERTY OF THE PYTHON CALLER, NOT OF THE SEARCH.**
+
+    `criterion.decide` returns a closure handed to `pursue(propose=…)`, and `search.open_search`'s own
+    docstring concedes the split in as many words — *"everything a step needs THAT IS NOT A PYTHON
+    CALLABLE lives here"*. `loop.advance` forwards `**hooks` from whoever called `tick`, so the outer
+    loop — the thing whose whole claim is that it can advance anything — **silently lost the guidance**.
+
+    Measured (`docs/microfunctions/probe_hidden_decision.py`): the identical search node, with the
+    identical criteria in the graph, took **3** imagined states via `pursue` and **52** ticked by the
+    loop. Nothing recorded which had happened, so *"what is deciding this search?"* had no answer in the
+    graph — the project's signature defect, one more time.
+
+    ⭐ The fix is the move `search.stop` already makes one screen up in `driver.step`, for the reason
+    recorded there: *the same decision expressed as data, which the standing principle requires.* The
+    search points at a `decider` node; `driver.step` and `open_planning` resolve it when no hook is given.
+
+    ⚠⚠ **Vacuity guards, and the first version needed the second one.** Asserting `looped == guided`
+    passes for an engine that always answers 3, so the control is the same search with **no** decider,
+    which must fall back to enumeration and cost far more. And the SEED must be guided too: fixing only
+    `driver.step` took the loop-ticked search from 52 to **6**, not to 3, because the first frontier was
+    still built by enumeration — a partial fix that a `found=True` assertion would have called done.
+
+    ⚠ Complaint (a) of `islands.md` G is NOT closed by this: `criterion.decide` is still a Python loop.
+    It is reachable from the graph rather than handed in, which is what makes a search resumable; it is
+    not yet data."""
+    from . import criterion as CR, driver as D, intake, loop as L, thread as T
+
+    def build():
+        g, world = _blocks()
+        goal, _abc = _sussman(g, world)
+        for t in CRITERIA_TEXT:
+            intake.read(g, t)
+        return g, world, goal
+
+    def on_loop(g, search):
+        lp = L.open_loop(g)
+        L.schedule(g, lp, search, why="plan it")
+        L.run(g, lp, max_ticks=2000)
+        return g.attr(search, "steps")
+
+    g1, w1, goal1 = build()
+    guided = D.pursue(g1, goal1, T.open_thread(g1), w1, max_steps=400, max_depth=7,
+                      propose=CR.decide(g1, goal1, w1))
+
+    g2, w2, goal2 = build()
+    s2 = D.open_planning(g2, goal2, T.open_thread(g2), w2, max_steps=400, max_depth=7,
+                         decider=CR.decider(g2, goal2, w2))
+    looped = on_loop(g2, s2)
+
+    g3, w3, goal3 = build()
+    s3 = D.open_planning(g3, goal3, T.open_thread(g3), w3, max_steps=400, max_depth=7)
+    plain = on_loop(g3, s3)
+
+    dec = g2.target(s2, "decided_by")
+    return {"THE_OUTER_LOOP_REPRODUCES_THE_GUIDED_SEARCH": looped == guided["steps"],
+            "guided_vs_looped_vs_unguided": (guided["steps"], looped, plain),
+            "and_it_actually_FOUND_the_plan": bool(g2.attr(s2, "found")) and guided["found"],
+            "AN_UNGUIDED_SEARCH_STILL_COSTS_FAR_MORE_so_the_match_is_not_a_constant": plain > looped * 4,
+            "THE_SEARCH_CAN_SAY_WHAT_IS_DECIDING_IT": dec is not None,
+            "and_the_decider_names_its_goal_and_subject":
+                g2.target(dec, "goal") == goal2 and g2.target(dec, "subject") == w2,
+            "an_EXPLICIT_hook_still_wins_over_the_node": callable(CR.decide(g2, goal2, w2)),
+            "a_search_with_NO_decider_resolves_to_nothing_rather_than_raising":
+                D._proposer_of(g3, s3) is None,
+            "and_an_UNKNOWN_decision_procedure_is_REFUSED":
+                _refuses(lambda: CR.proposer_for(g2, g2.mint("decider", how="vibes")))}
+
+
+def _refuses(fn) -> bool:
+    """⚠ Named `_refuses`, not `_raises`: this file already has a two-argument `_raises` and defining a
+    second one silently clobbered it, breaking four unrelated checks."""
+    try:
+        fn()
+        return False
+    except Exception:
+        return True
+
+
 # ⚠ THE ENTRY POINT MUST BE THE LAST THING IN THIS FILE. `_checks()` reads `globals()` at call time,
 # so any check defined BELOW this block is simply not executed - the count stays put and the report looks
 # healthy. That is the same false-green `_checks()` own docstring records, one level up, and it bit again

@@ -5,7 +5,7 @@ calls. This module is that border's concrete form: a tiny, line-oriented assembl
 programs and unparses back, so a model can emit it, a human can read it, and the round trip can be checked.
 
     fn service_car(car):
-        CHECK F(car) "car"
+        NATIVE "check" F(car) "car"
         SET F(car) "serviced" true
 
 **Why assembly rather than a CNL, for now.** A controlled natural language is the eventual surface and is
@@ -65,28 +65,6 @@ from .isa import F, I, R
 # `INVOKE`'s operands (`feedback_microfunctions.md` §6). An opcode is a thing you can call to build an `I`.
 _OPCODES = {name for name in isa.__all__
             if name.isupper() and name not in {"R", "F", "I"} and callable(getattr(isa, name, None))}
-
-#: ⭐⭐ **MNEMONICS — a spelling in the TEXT SURFACE, expanded to a primitive the kernel reaches by name.**
-#: `CHECK F(x) "car"` becomes `NATIVE "check" F(x) "car"`.
-#:
-#: ⚠⚠ **This exists because removing the `CHECK` OPCODE broke a live consumer's stated safety property.**
-#: `isa.py` had to stop importing `types` — a type is a representation we decided, so type semantics in
-#: the instruction set is the kernel seeing the layer above (`docs/microfunctions/kernel_boundary.md`).
-#: But `../pystrider`'s `strider/rules/app.mf` carries half of a safety guarantee on this instruction:
-#: *"NO PLAN builds the unsafe app — carried by the parameter type. NO CALL builds it either — carried by
-#: `CHECK`, at invocation time, which is the only thing that makes the declared type binding on someone
-#: who bypasses the planner."* Deleting the spelling would have failed their load loudly and taken the
-#: second half of that guarantee with it.
-#:
-#: ⭐ A translator mapping a surface word onto a primitive is exactly what this module is for, and it is
-#: the right layer: the **kernel** stays clean, the **text** stays compatible. `asm.py` is already "the
-#: text surface and LLM border"; knowing a spelling is not knowing a representation.
-#:
-#: ⚠ Deliberately NOT given to `plan`/`plan_step`, and the asymmetry is the point rather than an
-#: oversight: `CHECK` has a consumer with a property riding on it, those two have none — no shipped `.mf`
-#: used them. Adding unused spellings would be inventing surface nobody asked for, and every mnemonic is
-#: a second name for one thing that a reader has to learn.
-MNEMONICS = {"CHECK": "check"}
 
 _TOKEN = re.compile(r'"[^"]*"|[^\s]+')
 _HEADER = re.compile(r"^fn\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:->\s*(\w+)\s*)?(?:mocks\s+(\w+)\s*)?:\s*$")
@@ -230,14 +208,9 @@ def parse(text: str) -> list:
             continue
         toks = _TOKEN.findall(code)
         op, args = toks[0], toks[1:]
-        if op in MNEMONICS:
-            # Expanded HERE rather than at run time, so a stored body holds the primitive and every static
-            # reader (`driver.establishes`, `function.catalogue`) sees one instruction set, not two.
-            program.append(I("NATIVE", (MNEMONICS[op],) + tuple(_operand(t, lineno) for t in args)))
-            continue
         if op not in _OPCODES:
             raise AsmError(f"line {lineno}: unknown opcode {op!r}. "
-                           f"Known: {', '.join(sorted(_OPCODES | set(MNEMONICS)))}")
+                           f"Known: {', '.join(sorted(_OPCODES))}")
         program.append(I(op, _invoke_args(args, lineno) if op == "INVOKE"
                          else tuple(_operand(t, lineno) for t in args)))
     flush()

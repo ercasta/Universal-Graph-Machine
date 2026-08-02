@@ -70,19 +70,18 @@ name→callable table: the kernel reaches a primitive **by name**, and the modul
 there. Registration lives beside the thing registered, never in the table — a dict of names in the kernel
 would be the same leak with an extra hop.
 
-⚠⚠ **Removing the `CHECK` opcode broke a live consumer, and that is why `asm.MNEMONICS` exists.**
-`../pystrider`'s `strider/rules/app.mf` carries half a safety guarantee on it: *"NO PLAN builds the unsafe
-app — carried by the parameter type. NO CALL builds it either — carried by `CHECK`, at invocation time,
-which is the only thing that makes the declared type binding on someone who bypasses the planner."*
-Deleting the spelling would have failed their load and taken that half with it. So `CHECK F(x) "T"` is
-now a **mnemonic in the assembler** that compiles to `NATIVE "check" F(x) "T"` — the kernel stays clean,
-the text stays compatible, and a translator mapping a surface word onto a primitive is exactly what
-`asm.py` is for. ⚠ Not given to `plan`/`plan_step`: they had no consumer, and unused spellings are
-surface nobody asked for.
+⚠⚠ **Removing the `CHECK` opcode breaks `../pystrider`**, whose `strider/rules/app.mf` carries half a
+safety guarantee on it: *"NO PLAN builds the unsafe app — carried by the parameter type. NO CALL builds it
+either — carried by `CHECK`, at invocation time, which is the only thing that makes the declared type
+binding on someone who bypasses the planner."* Their `.mf` must change to `NATIVE "check" F(b) "T"`; the
+guarantee itself is unaffected, since it is the same primitive.
 
-**Verified, not assumed:** the consumer's source loads unchanged, compiles to the primitive, and **still
-refuses an ill-typed node with `check_types=False`** — so it is `CHECK` enforcing, not the parameter type.
-Their suite is **221 passed / 5 failed / 44 errors, identical to the baseline** taken before any of this.
+> ⭐ **An `asm.MNEMONICS` table was built to spare them that edit, and then REMOVED** when the constraint
+> was withdrawn (*"i don't care about pystrider, they will adapt"*). Keeping it would have left a second
+> name for one primitive, an asymmetry against `plan`/`plan_step` that had to be apologised for in a
+> comment, and — worst — a **stale reason** in the source. `islands.md` §5 item 3 records exactly this
+> hazard: *closing a gap can invalidate the justification for a design without invalidating the design,
+> and a stale reason is what somebody copies into a new module because they trusted it.*
 
 ⚠ Enforced rather than achieved once: `check_the_KERNEL_cannot_see_the_representation_above_it` parses
 `isa.py`'s import graph from source. A single `from . import driver` inside a handler would restore the
@@ -116,8 +115,13 @@ Ranked by how much of the boundary each one buys back:
 
 1. ✅ **DONE — `isa.PLAN` / `isa.STEP` / `isa.CHECK`.** The only leak *below* the line is closed; the
    kernel now names nothing from the layer above.
-2. **`criterion.decide`'s Python loop** (`islands.md` G) — the vacuity test for the architecture, and it
-   makes `loop.py`'s standing claim true for the first time.
+2. **`criterion.decide`'s Python loop** (`islands.md` G) — **half done.** The *hidden channel* is closed:
+   guidance was a `propose=` keyword and therefore a property of the Python caller, so the outer loop lost
+   it (3 imagined states became 52, measured; `probe_hidden_decision.py`). A search now points at a
+   `decider` node and resolves it when no hook is given — 3 and 3, with the no-decider control at 52.
+   ⚠ The **loop itself** is still Python: reachable from the graph rather than handed in, which is what
+   makes a search resumable, but not yet data. That remainder is the architecture's vacuity test and
+   `loop.py`'s standing claim is still false until it lands.
 3. **`driver.follow`** (`HANDOFF` §9 item 0, the nested pursuit) — design already done in
    `granularity.md` §7.
 
