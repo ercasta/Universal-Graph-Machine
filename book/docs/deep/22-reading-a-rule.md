@@ -29,7 +29,7 @@ fn lower_threshold(c: comparison) -> comparison:
 ```
 
 ```
-effects : [('attr', 'value', 'c.right', None)]
+effects : [('attr', 'value', 'c.right', UNREADABLE)]
 unknown : frozenset()
 ```
 
@@ -72,6 +72,51 @@ reading plus late resolution — neither half does anything alone.
 Without it, the guided search couldn't reach its top confidence band for any
 navigating rule, which made it, in measured practice, the same as no guidance
 at all.
+
+## What it writes, not just where
+
+There's a fourth slot in that description, and for a long time it was a lie.
+
+An effect on an attribute recorded three real things — *sets*, *the slot
+`value`*, *on `c`'s right* — and then a hardcoded blank where the **value**
+should be. Even when the instruction said it outright:
+
+```
+SET F(p) "where" "home"     →  ('attr', 'where', 'p', ???)
+```
+
+Cosmetic, surely? It wasn't. The top confidence band means *"this call writes
+exactly the thing the goal wants"*, and with no value to compare, a rule that
+sets `where = home` scored top band against a goal wanting `where = school`.
+
+Right slot. Right individual. **Wrong world.** And it looked precisely like the
+guidance working — which is the expensive kind of bug this book keeps naming.
+
+So the value is read off the instruction now, and *going home* and *going to
+school* are different effects rather than the same one:
+
+```
+go_to_school : ('attr', 'where', 'p', 'school')
+fly_home     : ('attr', 'where', 'p', 'home')
+```
+
+### Why not just leave a blank when you can't tell?
+
+Because sometimes the value genuinely can't be read — it's computed, sitting in
+a register, and only known at run time. That's the `lower_threshold` rule above.
+
+And *nothing* is a perfectly good attribute value. Something can legitimately be
+set to nothing. So a blank would collapse two different statements into one:
+
+| | means |
+|---|---|
+| `UNREADABLE` | it writes something, and I cannot name what |
+| `None` | it writes the value *nothing* |
+
+Hence the marker that prints as itself. And it deliberately **keeps** the top
+confidence band, because of the over-approximation rule two sections below: a
+description that errs toward *might* must never let "I couldn't read this" cost
+a candidate its rank.
 
 ## Saying what it couldn't read
 

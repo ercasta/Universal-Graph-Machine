@@ -145,6 +145,12 @@ ask is paul mortal?:
 That round trip is what lets a writer — human or model — check what the machine
 actually understood, rather than what they hoped they'd said.
 
+!!! note "Everything here is you talking *to* it"
+    The machine can also **ask you** something, and it records both directions
+    the same way: who said what, in one order, retractable. That's
+    [Chapter 30](../world/30-who-said-it.md) — and it's what makes it possible
+    to *correct* the machine rather than only to instruct it.
+
 ---
 
 That's Part 2. The machine can want things, imagine them, find routes, explain

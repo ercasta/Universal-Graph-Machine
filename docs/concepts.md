@@ -30,8 +30,12 @@ Reification stays available and stops being mandatory.
 **Ordered targets.** Order is a property of the substrate, not something reconstructed from
 sequencing facts. This removed a real defect: compiling an episode into a rule had previously needed
 a turn counter stamped by the driver purely to recover an order the substrate could not represent.
-Insertion and removal shift edge properties along with their edges, which is checked explicitly
-because getting it wrong misattributes a property silently.
+
+**Edges have identity.** An edge id is an ordinary string, minted and journalled like a node, so
+edge properties are keyed by identity rather than by position: an insertion moves positions and
+never properties, and there is no reindexing pass to get wrong. The payoff beyond that is that an
+edge can be *pointed at* — a moment can date the arrival of a connection, which "when did this file
+appear under this directory?" needs and no attribute on either end can express.
 
 **References are not edges, and the distinction is load-bearing.** An edge is a relation — part of
 what the graph asserts. A reference (`Ref`, held as an attribute value) is a stored pointer, the

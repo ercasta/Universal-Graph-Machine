@@ -20,16 +20,17 @@ in the machine — authored or learned — is a list of them stored in the graph
 Here's the whole vocabulary:
 
 ```
-ADD  ATTR  BACK  CALL  CHECK  CLOSE  CONST  COPY  COUNT  DEREF  DISPATCH
-DROP  EPROP  EQ  FOCUS  FOLLOW  FORK  GET  GET_AT  HALT  HASFOCUS  HEAD
-INVOKE  JMP  JMPIF  JMPNOT  LINK  LINK_AT  LT  MOVE  NEW  NOT  RET
-SET  SETREF  SOURCES  SPREAD  UNLINK
+ADD  ATTR  BACK  CALL  CLOSE  CONST  COPY  COUNT  DEREF  DISPATCH  DROP
+EPROP  EQ  FOCUS  FOLLOW  FORK  GET  GET_AT  HALT  HASFOCUS  HEAD  INVOKE
+JMP  JMPIF  JMPNOT  LINK  LINK_AT  LT  MOVE  NATIVE  NEW  NOT  RET  SET
+SETREF  SOURCES  SPREAD  UNLINK
 ```
 
 Roughly: read something (`GET`, `ATTR`, `COUNT`), write something (`SET`,
 `LINK`, `NEW`, `UNLINK`), move around (`MOVE`, `BACK`, `FOLLOW`, `SPREAD`),
-branch (`JMPIF`, `CALL`, `RET`), call another rule (`INVOKE`), and exactly one
-that reaches the outside world (`DISPATCH`).
+branch (`JMPIF`, `CALL`, `RET`), call another rule (`INVOKE`), reach a primitive
+the instruction set doesn't itself contain (`NATIVE`), and exactly one that
+reaches the outside world (`DISPATCH`).
 
 ## Three kinds of thing an instruction can point at
 
@@ -95,6 +96,60 @@ kind.
 12's single door, and its being a single *instruction* is what makes the door
 enforceable: whether a rule can reach the world is a question you answer by
 reading its body, which is exactly what Chapter 23 does.
+
+## One instruction that stands for all the others
+
+There used to be three more instructions than the list above: `PLAN` and `STEP`
+started a search and advanced it, and `CHECK` asked whether a node satisfied a
+shape. They looked entirely reasonable. Searching really is a primitive — there
+is no arrangement of `GET` and `SET` and `LINK` that *imagines a state* — so it
+seemed to belong down here with the rest of the machinery.
+
+The trouble showed up when someone asked what it would take to rebuild this
+machine on something other than Python. Rust, say. Or, as the project's own
+notes put it, Excel macros or a redstone contraption in Minecraft.
+
+The answer was: you'd have to port the planner and the type system **just to
+implement three instructions**. Which means those three instructions weren't
+machinery at all. They were decisions — about what a plan is, about what a type
+is — smuggled in below the line where decisions are supposed to live.
+
+So the rule the machine now holds itself to:
+
+> The layer underneath may do the **substrate** — nodes, arrows, pointers, the
+> journal, running instructions, taking turns. It may never do the
+> **business** — anything we *decided* about how to represent plans, goals,
+> time, or judgement. It must never see the representation above it.
+
+The fix keeps both halves. Searching is still primitive, and still runs in one
+uninterruptible go where it must. What changed is how it's reached:
+
+```
+before:   the instruction set  ── knows about ──▶  the planner
+
+after:    the instruction set  ── looks up ──▶  a table  ◀── puts itself in ──  the planner
+```
+
+`NATIVE` is that lookup. The instruction set knows there is a table of
+primitives reachable by name; it does not know what's in it. The planner puts
+itself there. The dependency is inverted, and a port now has to reimplement the
+substrate and nothing else.
+
+The useful question, if you ever find yourself drawing this kind of line, turns
+out not to be *is this a loop?* or *is this fast?* It's:
+
+> **Would someone rebuilding this from scratch have to make a decision here?**
+
+If yes, it isn't machinery, however low-level it looks.
+
+!!! note "How the boundary is kept, rather than merely achieved"
+    This is exactly the kind of property that quietly comes undone. One import
+    added inside one handler restores the old tangle, passes every behaviour
+    test, and nobody notices. So the machine's own check doesn't test behaviour
+    here — it **reads its own source code** and asserts that the instruction set
+    imports nothing from the layer above. And to prove that check isn't vacuous,
+    it also confirms that modules *above* the line do import upward: an empty
+    answer then means a boundary, not a blind test.
 
 ## The undo journal, and its deliberately small claim
 

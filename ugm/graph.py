@@ -18,8 +18,8 @@ Named edges with ordered targets. A label maps to an ordered list of targets: a 
 relation is length 1, a one-to-many relation is longer, and index addressing is a list index.
 
 Edge properties. What role nodes used to buy — saying something about a connection — without
-charging a node per connection. Keyed by position, and shifted whenever an insert or removal
-moves the edges they describe.
+charging a node per connection. Keyed by the edge's own identity, so an insert or removal moves
+positions and never properties, and an edge is itself a thing that can be pointed at.
 
 References. A node attribute may hold a `Ref` to another node, and this is distinct from an edge.
 An edge is a relation, part of what the graph asserts; a reference is a stored pointer, the

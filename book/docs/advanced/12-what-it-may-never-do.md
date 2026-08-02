@@ -113,6 +113,12 @@ rather than by you inspecting the proof first.
 They're layers, not duplicates. Each catches something the others structurally
 cannot, and none of them is a substitute for another.
 
+All three are **absolute**, which is right for the things they're for. But most
+of what people mean by "you may not do that" isn't absolute at all — *we don't
+normally sell on Sundays* is a rule that today's instruction can overrule, and
+*never counterfeit* is a rule that nothing can. Telling those two apart, without
+softening `never` itself, is [Chapter 31](../world/31-overruled.md).
+
 !!! warning "The general lesson, which outlives this machine"
     A guarantee belongs where it cannot be forgotten. When the machine plans, an
     outward-reaching action gets substituted for a harmless assumed version —

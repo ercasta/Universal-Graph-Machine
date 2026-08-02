@@ -28,6 +28,8 @@ book/
     advanced/           # Part 3 — when things go wrong
     deliberation/       # Part 4 — guidelines, methods, procedures, sensing
     deep/               # Part 5 — the internals
+    watching/           # Part 6 — reasoning about its own work
+    world/              # Part 7 — time, discourse, norms, waiting
     playground/         # live Pyodide pages
     appendix/           # plain-language concept explainers
     javascripts/        # the playground widget (Pyodide loader)

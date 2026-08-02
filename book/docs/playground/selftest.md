@@ -20,7 +20,7 @@ them.
 </div>
 
 !!! note "It takes a moment"
-    A hundred and eighty-odd checks, each building a small world and searching
+    Two hundred-odd checks, each building a small world and searching
     it, inside a Python runtime that is itself running in your browser. Give it
     a few seconds.
 

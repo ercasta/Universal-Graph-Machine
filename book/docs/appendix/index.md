@@ -499,5 +499,54 @@ moment and a stored one could only drift. What reaches memory is the *question*.
 
 ---
 
+## Moment
+
+A point in time, held as a **node that points at what it dates** — never as a
+stamp written onto the thing dated. One look dates many facts, dating disturbs
+nothing, and a moment may carry no clock reading at all and be placed only by
+what it comes after.
+
+One action is one moment, and that covers what the action *produced*.
+
+→ [Chapter 29](../world/29-when-things-happened.md)
+
+---
+
+## Utterance
+
+The fact that somebody **said** something, as a thing in the world. Its speaker
+is a node, not a name, and it points at whatever it authored — so it can be
+attributed, withdrawn, or answered.
+
+Withdrawing marks the authored block rather than deleting it: the outcome
+changes, the history survives, and the retraction is itself on the record.
+
+→ [Chapter 30](../world/30-who-said-it.md)
+
+---
+
+## Norm
+
+A prohibition or permission about one action, attributed to a **source**, which
+can be defeated by a source that outranks it — or declared *inviolable*, which
+puts it outside the ranking rather than at the top of it.
+
+Settled before planning starts, and written into the goal as ordinary `never`
+constraints, so nothing downstream knows norms exist.
+
+→ [Chapter 31](../world/31-overruled.md)
+
+---
+
+## Timer
+
+A moment on a task, saying when it may first run. The agenda **waits and says
+so** rather than rotating the task and retrying, because busy-looping looks
+exactly like progress.
+
+→ [Chapter 32](../world/32-waiting.md)
+
+---
+
 *This appendix grows with the book. The project lives on
 [GitHub](https://github.com/ercasta/Universal-Graph-Machine).*

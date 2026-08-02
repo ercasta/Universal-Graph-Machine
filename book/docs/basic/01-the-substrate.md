@@ -78,6 +78,39 @@ get to Chapter 14 and the machine turns a sequence of things it did into a
 reusable procedure, the order of those steps is native to the substrate rather
 than something bolted on with a counter.
 
+## An arrow is a thing too
+
+Nodes aren't the only things you can point at. Every edge has its own
+**identity** — a name of its own — and that identity survives having other
+arrows inserted around it:
+
+```
+jars, in order  : ['salt', 'pepper', 'oil']
+                  ↑        ↑         ↑
+                  e1       e3        e2      ← the arrows' own names
+```
+
+`pepper` was slipped into the middle *after* the other two. Its position is
+second; its identity is whatever it always was. Positions shift; identities
+don't.
+
+An edge can also carry **properties** of its own — small notes about the
+connection rather than about either end. *The shelf has this jar* is the edge;
+*and it was put there second* is a property of that edge.
+
+Why this matters: because an edge is a thing, other things can point at it. In
+[Chapter 29](../world/29-when-things-happened.md) a moment in time points at
+an arrow to say *this connection appeared then* — which is how the machine can
+answer "when did this jar arrive on this shelf?" rather than only "what's on the
+shelf now?"
+
+!!! note "The alternative that was tried and dropped"
+    An earlier version of the machine had nameless arrows, and turned every
+    *role* into a node so that connections could be pointed at. That worked and
+    charged a node plus two extra arrows for **every** connection in the graph,
+    to buy something needed in a small minority of cases. Named arrows that can
+    optionally be pointed at cost nothing in the common case.
+
 ## Arrows run backwards too
 
 Ask any node what points *at* it:

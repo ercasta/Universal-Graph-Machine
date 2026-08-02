@@ -81,6 +81,79 @@ passes, and only the derived expectation can catch the disagreement. Had the
 machine relied on types alone, it would have sailed on to archive a listing that
 contained nothing.
 
+## A stand-in can be a *model*, not just an assumption
+
+Everything above treats the imagined outcome as a guess: *suppose the folder has
+files in it*. That's how the stand-ins in Chapter 6 were written, and it made
+them look like the only thing they could be.
+
+They aren't. A stand-in is an ordinary rule, so it can **read the world and work
+the answer out**.
+
+Take a machine that can run `git status` on a repository. Here's the same
+unedited stand-in, consulted twice:
+
+```
+in a repository nobody has touched   →  predicts: dirty = False
+in a repository I have just edited   →  predicts: dirty = True
+```
+
+One stand-in. Two worlds. Two different predictions, *because the worlds
+differ*. That's not an assumption — it's an **anticipation**, and it's the
+difference between *suppose it comes back clean* and *I know I changed three
+files, so it had better come back dirty*.
+
+Nothing was added to the machine to make this possible. It had simply never been
+written down that a stand-in could do it.
+
+And notice what it buys. Run `git status` for real in the edited repository and
+have it report *clean*, and:
+
+```
+completed : False
+diverged at: git_status
+  assumed: git_status turns out report
+  expected: report                        ← the declared shape: passes
+  unmet_expectations: ('expected dirty=True but found False',)
+```
+
+The shape check passes because `report` says nothing about `dirty` — the answer
+is a perfectly well-formed status report either way. Only the anticipation
+catches it. That's a genuine surprise about the world, detected because the
+machine had a model of what it was about to see rather than a hope.
+
+## Where the relation between acting and looking comes from
+
+There's something slightly odd about the example above, worth pulling out.
+
+*Editing files* and *running `git status`* are two completely different
+operations. Nothing in either one mentions the other. So how does the machine
+know they're connected — that having done the first is a reason to expect
+something of the second?
+
+The obvious answer is to write the connection down: an arrow saying `git_status`
+*reflects* `edit`. And it's the wrong answer, for a reason this book keeps
+returning to — an authored connection can drift away from what the rules
+actually do, and then it's a confident lie.
+
+The machine derives it instead, from two things it already has:
+
+| | comes from | says |
+|---|---|---|
+| what the **act** does | `edit`'s own body | it writes `changed_file` |
+| what the **look** watches | `git_status`'s **stand-in** | it reports on `changed_file` |
+
+Overlap them and the relation falls out. And the asymmetry is the interesting
+part: for the *act* you read the body, but for the *look* you must read the
+**stand-in** — because a look's body is just "reach outside and ask", which
+establishes nothing at all. Read the look's body and every look in the world
+relates to nothing.
+
+The payoff is drift. Refactor `edit` to write a differently-named slot and leave
+the stand-in untouched, and the relation **disappears** — correctly, because the
+model is now watching the wrong thing. An authored arrow would still be sitting
+there, still saying the two are connected, still true-looking.
+
 ## Fail fast, and don't pretend to undo
 
 When a step diverges, the machine **stops**. It doesn't attempt the rest of the

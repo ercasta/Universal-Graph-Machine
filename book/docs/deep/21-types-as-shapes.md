@@ -108,22 +108,59 @@ de-recognition usually cost real machinery, and here they're consequences.
     read.** Checking one named shape is cheap; searching all of them isn't. Drift
     became structurally impossible rather than merely unlikely.
 
-## The honest limits
+## Shapes go all the way down
 
-Two, both real, both stated rather than worked around.
+A shape used to be one level deep: it could check that an arrow pointed at
+something of a *kind*, and stop there. That limit is gone. A requirement can
+name a **type** for what's on the other end, and that type is checked in full:
 
-**A shape is one level deep.** It checks that an arrow points at something of a
-kind — it doesn't recurse into *that* thing's shape. So "a crate on a crate
-that's on the ground" isn't expressible, which is why Chapter 0's tower was two
-separate `on` facts.
+```
+type wheel:
+    pressure >= 2.0
+
+type car:
+    has 4 wheel each a wheel
+    wheel[0].pressure == wheel[1].pressure
+```
+
+```
+four good wheels           : True
+one wheel down to 1.0 bar  : False   {'wheel': ('4 that is a wheel', '3')}
+```
+
+Read that failure carefully, because it's the recursion doing its work. Nobody
+removed a wheel. The car still has four arrows labelled `wheel`. But one of the
+things on the end of them stopped being a **wheel**, so the car counts three.
+
+And two places *inside* one shape can be required to agree — or to differ:
+
+```
+wheel[0].pressure == wheel[1].pressure  →  ('wheel[1].pressure', '2.5 vs 2.1')
+wheel[0].rim is not wheel[1].rim
+```
+
+Note what the report gives you: not "invalid", but which pair, and what the two
+values were.
+
+!!! note "Where the depth came from"
+    This wasn't a missing feature so much as a missing *module*. The little
+    language for reaching something — `car.wheel[1].pressure` — existed three
+    separate times inside the machine, undeclared, each written for one purpose:
+    once in the planner, once in the goal parser, once in the effect reader.
+
+    Three copies of an unwritten grammar is the shape a missing module makes.
+    Writing it down once made shapes deep almost as a side effect, because the
+    one-level limit had only ever been a symptom of nobody owning the path.
+
+## The honest limit that remains
 
 **A shape constrains one argument at one call site.** It can't say `b ≠ onto`
 for `stack(b, onto)`, because it describes each thing independently and never a
-relationship between two of them. The planner enforces that particular one
+relationship between two *arguments*. The planner enforces that particular one
 itself.
 
-Both are the same underlying limit: a shape describes *a* thing, and some truths
-are about *pairs* of things. That's what Chapter 5's goal constraints are for —
+Which is the underlying shape of the thing: a schema describes *a* thing, and
+some truths are about a call. That's what Chapter 5's goal constraints are for —
 and it's why goals and types stayed separate rather than one swallowing the
 other.
 

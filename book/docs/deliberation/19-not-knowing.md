@@ -124,6 +124,63 @@ in people too.
     don't know what colour `a` is"* does. That's a real limitation of the
     substrate, and writing it down beats inventing a workaround that hides it.
 
+## Breaking off to actually go and look
+
+Knowing you're stuck is one thing. Doing something about it, halfway through a
+plan, is another — and it's the thing the outer loop of Chapter 25 was really
+wanted for.
+
+Here's a world built to make the point sharply. The machine has one action,
+`scan_dir`, whose entire effect is behind the door to the outside. Read its body
+and you learn nothing:
+
+```
+what scan_dir establishes : nothing readable
+```
+
+So the ordinary guidance — *which action would close an open part of my goal?*
+— is **structurally blind** to it. `scan_dir` can never be proposed as a step
+toward anything, because as far as the machine can tell it does nothing. Ask it
+to plan "know how many files are in `src`" and planning fails, every time.
+
+Now give the same goal to the loop instead of the planner:
+
+```
+verbs taken : imagine, imagine, …, look, imagine, …
+sensed      : ('scan_dir',)
+src.count   : 3
+goal        : MET
+```
+
+What happened between the two runs of `imagine` is the whole point. The search
+ran out of ideas, the machine asked *why* — and the answer wasn't "there's no
+route", it was "I can't plan this until I go and look". So it **stopped
+planning and performed a real action**, and then carried on.
+
+Three details are load-bearing.
+
+**A failed search now has three outcomes, not two.** *No route exists* is
+defeat. *No route exists given what I know* is a reason to go and look. Reading
+both as failure is what kept this from working for so long.
+
+**Sensing picks differently.** Since the usual "what would this close?"
+reasoning is blind here, the machine can't use it. It picks directly: an action
+that applies to what I'm looking at, whose body reaches the outside through
+something registered as *only looking*.
+
+**It replans rather than resuming.** The half-built search is thrown away, not
+continued. That's deliberate and it costs something: what the machine just
+learned might invalidate the whole plan, so a frontier assembled in ignorance is
+worse than no frontier at all. You can see it in the record — two searches, not
+one.
+
+!!! note "The tick has to admit what it's about to do"
+    Chapter 25 made a point of every tick announcing its verb *before* taking
+    the step, so a caller can stop before anything irreversible. The first
+    version of sensing reported `imagine` — while performing a real dispatch to
+    the outside world. It reports `look` now. A tick that lies about its verb
+    defeats the entire point of having one.
+
 ## When to assume and when to go and look
 
 The machine assumes things constantly. Every imagined step substitutes a

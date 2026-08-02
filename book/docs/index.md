@@ -35,7 +35,7 @@ technicality. It's the whole game, and by the end of Part 2 you'll see why.
 
 ## How to read this book
 
-Six parts, each building on the last. The last two are optional deep dives.
+Seven parts, each building on the last. Parts 5 and 6 are optional deep dives.
 
 <div class="grid cards" markdown>
 
@@ -93,6 +93,16 @@ Six parts, each building on the last. The last two are optional deep dives.
     can work out again, and questions with a gap in them.
 
     [:octicons-arrow-right-24: Part 6](watching/24-what-it-saw.md)
+
+- :material-numeric-7-circle:{ .lg .middle } **Out in the world — clocks, people, and waiting**
+
+    ---
+
+    When things happened and what dates what, a conversation with more than one
+    person in it, prohibitions somebody with standing can overrule, and waiting
+    for a timer without spinning.
+
+    [:octicons-arrow-right-24: Part 7](world/29-when-things-happened.md)
 
 </div>
 
