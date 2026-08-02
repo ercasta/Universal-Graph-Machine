@@ -508,6 +508,40 @@ def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lin
                     left=ref(shape[1]), right=ref(shape[3]))
 
 
+def _action(g: Graph, name: str, args: dict, lineno: int, line: str) -> None:
+    """Validate `do <fn> <param> = <ref>, …` against the function library, AT AUTHORING TIME.
+
+    **⚠⚠ Because the alternative is a criterion that is broken in every possible world and fails as
+    SILENCE.** `driver.check_call` refuses an unknown function and a wrong parameter set — but a criterion
+    treats every refusal from there as *"nothing to say about this situation"*, deliberately and for a good
+    reason (`criterion._try`: *"the first container happens to be the one this goal forbids"* is a
+    situation, not a mistake, and raising there abandoned a search plain enumeration could finish).
+
+    ⭐ **These two are not situations.** A criterion naming a function that does not exist, or binding
+    parameters the function does not take, is wrong in *every* world and for *every* subject — no
+    arrangement of things could make it speak. Folding them into the same silence made a typo
+    indistinguishable from advice that lost, which is `islands.md` §3(c) exactly: *a form that parses and
+    does nothing is worse than a missing form; silent acceptance is the bug.* Measured — `do frobnicate
+    f = subject` authored clean and was silent forever.
+
+    ⚠ This is the same argument, in the same file, that `_ref` already makes for **references**: refuse it
+    where it is written, rather than reporting a typo from inside a search thousands of steps later as
+    silence. The two halves of a `do` line now get the same treatment.
+
+    ⚠ Declaration before use, as everywhere else on this surface (`within` requires the method to exist,
+    `_ref` requires the individual to). A library loaded after its criteria is refused, and says so."""
+    from . import function as FN
+    if FN.find(g, name) is None:
+        known = ", ".join(FN.names(g))
+        raise Unreadable(f"line {lineno}: `do {name}` names no function in this library"
+                         + (f" (known: {known})" if known else
+                            " — nothing is declared yet, so load the library before the criteria"))
+    params, _ = FN.load(g, name)
+    if set(params) != set(args):
+        raise Unreadable(f"line {lineno}: `do {name} {', '.join(sorted(args))}` — {name} takes "
+                         f"({', '.join(params)}); a call must bind every parameter and no others")
+
+
 def _criterion_line(g: Graph, c: str, words: list, line: str, lineno: int, under: str) -> None:
     if words[0] == "wants" and len(words) in (2, 3):
         if words[1] not in _SORTS:
@@ -537,6 +571,7 @@ def _criterion_line(g: Graph, c: str, words: list, line: str, lineno: int, under
         if not args:
             raise Unreadable(f"line {lineno}: `do {name}` binds no arguments; a criterion names an "
                              f"action WITH its arguments, which is the whole of what it adds")
+        _action(g, name, args, lineno, line)
         CR.does(g, c, name, args)
     elif words[0] == "because" and len(words) > 1:
         g.put(c, because=" ".join(words[1:]))

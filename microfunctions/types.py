@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import NamedTuple
 
 from . import path as P
+from . import native as N
 from .graph import Graph
 
 
@@ -655,6 +656,12 @@ def describe(g: Graph, name: str) -> str:
         lines.append(f"    {g.attr(r, 'left')} {g.attr(r, 'op')} "
                      f"{right if g.attr(r, 'right_is_path') else _value_surface(right)}")
     return "\n".join(lines)
+
+
+# ⚠ `check` was the `CHECK` opcode, which made `isa.py` import this module — a type is a representation
+# we decided, so the instruction set was carrying type semantics. Same fix as the planner's: registered
+# here, reached by name. See `native.py`.
+N.register("check", check)
 
 
 __all__ = ["TypeViolation", "UNBOUNDED", "Req", "AttrReq", "Rel", "VALUE_OPS", "IDENTITY_OPS", "compare",

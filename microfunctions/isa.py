@@ -37,7 +37,6 @@ from dataclasses import dataclass
 from . import activation as A
 from .focus import Focus
 from .graph import Graph, Ref
-from .types import check
 
 
 @dataclass(frozen=True)
@@ -79,10 +78,9 @@ CONST, COPY, ADD, LT, EQ, NOT = (_ins(o) for o in ("CONST", "COPY", "ADD", "LT",
 # control
 JMP, JMPIF, JMPNOT, CALL, RET, HALT = (
     _ins(o) for o in ("JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT"))
-# deliberation - see the PLAN/STEP handlers for why these are primitives rather than sugar
-PLAN, STEP = (_ins(o) for o in ("PLAN", "STEP"))
-# the demoted match
-CHECK = _ins("CHECK")
+# ⭐ a primitive the kernel does not KNOW — see the NATIVE handler. Replaced `PLAN`/`STEP`, which made
+# this module import `driver` and so put the planner below the kernel boundary.
+NATIVE = _ins("NATIVE")
 # calling a STORED function (graph-resident), as opposed to CALL's jump to a local label
 INVOKE = _ins("INVOKE")
 # the ONE way an effect leaves the graph — routed through `dispatch.service`'s checkpoint
@@ -94,7 +92,7 @@ DISPATCH = _ins("DISPATCH")
 WRITES_REGISTER = frozenset({
     "NEW", "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
     "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
-    "INVOKE", "DISPATCH", "PLAN", "STEP"})
+    "INVOKE", "DISPATCH", "NATIVE"})
 
 
 class Machine:
@@ -330,36 +328,32 @@ class Machine:
                 A.record_mint(g, act, made)
             w(a[0], got)
 
-        elif op == "PLAN":
-            # `PLAN R(dst), F(goal), F(subject), F(thread)` - open a search and seed it; the register
-            # receives the `search` NODE, so everything about it is readable with ordinary GET/ATTR.
+        elif op == "NATIVE":
+            # `NATIVE R(dst), "name", <operand>…` — call a primitive the kernel does NOT know.
             #
-            # ** WHY THIS IS A PRIMITIVE AND NOT SUGAR.** The closed-class test this project applies is:
-            # can it be composed from what already exists? Searching cannot - there is no sequence of
-            # GET/SET/LINK that imagines a state, and the frontier ordering is not expressible as data
-            # manipulation. So it earns its place in the opcode set the way DISPATCH does.
+            # ⭐⭐ **THIS IS WHERE THE KERNEL STOPS AND THE REPRESENTATION BEGINS.** It used to be two
+            # opcodes, `PLAN` and `STEP`, whose handlers imported `driver` — so the instruction set, the
+            # most kernel thing there is, knew what a plan was, and a Rust port would have had to port the
+            # whole planner to implement two instructions (`docs/microfunctions/kernel_boundary.md`).
             #
-            # WARN This is what makes deliberation reachable AS DATA, which `composability-principle`
-            # requires (a hardcoded mechanism is an unreachable island) and which `deliberation.md` named
-            # as missing: deliberation was the third thing the system computed *with* and could not compute
-            # *about*, after attention and the goal. It is deliberately NOT policed - see HANDOFF 5y.
-            from . import driver as _driver
-            w(a[0], _driver.open_planning(g, node(a[1]), node(a[3]), node(a[2])))
+            # ⭐ The old docstring's argument was RIGHT and is preserved: search is a **primitive**, not
+            # sugar — no sequence of GET/SET/LINK imagines a state, and a frontier ordering is not data
+            # manipulation. What was wrong was concluding that a primitive must therefore be an *opcode*.
+            # It must be reachable and uncomposable; it need not be NAMED here. `native.py` is the table,
+            # `driver` puts the planner in it, and this instruction knows only a string.
+            #
+            # ⚠ Operands resolve with `node()`, so both `F(x)` and `R(x)` work in any position — which is
+            # what the two mnemonics needed between them (`PLAN` took focus heads, `STEP` a register).
+            # ⚠ The destination is OPTIONAL and told apart by TYPE, not by counting: a register operand
+            # is an `R`, a name is a string literal, so `NATIVE R(s) "plan" …` and `NATIVE "check" …`
+            # cannot be confused. `CHECK` needed that — it answers by raising, not by returning.
+            from .native import call as _native
+            dst = a[0] if isinstance(a[0], R) else None
+            rest = a[1:] if dst is not None else a
+            got = _native(g, v(rest[0]), tuple(node(x) for x in rest[1:]))
+            if dst is not None:
+                w(dst, got)
 
-        elif op == "STEP":
-            # `STEP R(more), R(search)` - one iteration. The register receives True while the search
-            # should continue and False once it is finished; the ANSWER lands on the search node
-            # (`done`, `found`, `how`, and a `reached` edge), so it is read with an ordinary ATTR.
-            #
-            # WARN Deliberately not "run the search to completion": an opcode that did that would be one
-            # opaque instruction and would buy nothing, because the point is being able to stop BETWEEN
-            # two imagined states. `pursue` is a loop over this; so is a program that wants to think about
-            # its own thinking partway through.
-            from . import driver as _driver
-            w(a[0], _driver.step(g, node(a[1])) is None)
-
-        elif op == "CHECK":
-            check(g, v(a[0]), v(a[1]))
         else:
             raise ValueError(f"unknown opcode {op!r}")
         return pc + 1, False
@@ -374,5 +368,5 @@ __all__ = ["R", "F", "I", "Ref", "Machine", "run", "WRITES_REGISTER",
            "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
            "FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS",
            "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
-           "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "CHECK", "INVOKE", "DISPATCH",
-           "PLAN", "STEP"]
+           "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "INVOKE", "DISPATCH",
+           "NATIVE"]

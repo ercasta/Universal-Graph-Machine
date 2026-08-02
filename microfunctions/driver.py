@@ -42,6 +42,7 @@ from typing import NamedTuple
 from . import execution as X
 from . import function as fn
 from . import goal as G
+from . import native as N
 from . import isa
 from . import path as P
 from . import search as S
@@ -1708,6 +1709,21 @@ def describe(g: Graph, result: dict) -> str:
                          for b in g.targets(tr, "arg"))
         lines.append(f"  {g.attr(tr, 'function')}({args})")
     return "\n".join(lines)
+
+
+# ⭐⭐ THE PLANNER REGISTERS ITSELF AS A PRIMITIVE, and this is the whole of the kernel-boundary fix.
+# `isa.py` used to import THIS module so that two opcodes could call these two functions — so the
+# instruction set knew what a plan was, and a Rust port would have had to port the planner in order to
+# implement two instructions (`docs/microfunctions/kernel_boundary.md`). The dependency now points the
+# other way: the kernel looks a name up in a table it does not populate, and this is where it is put.
+#
+# ⚠ The registration lives HERE, beside what it registers, and never in `native.py` — a table of names in
+# the kernel would be the same leak with an extra hop.
+#
+# ⚠ `plan`'s operand order is the old `PLAN R(dst) F(goal) F(subject) F(thread)`, so a body translates
+# mnemonic-for-name with the operands untouched.
+N.register("plan", lambda g, goal, subject, thread: open_planning(g, goal, thread, subject))
+N.register("plan_step", lambda g, search: step(g, search) is None)
 
 
 __all__ = ["proposals", "state_of", "establishes", "role_node", "relevance", "view_in",

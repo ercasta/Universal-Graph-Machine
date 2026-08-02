@@ -13,7 +13,7 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 196 checks, 0 FAILED
+python -m microfunctions.selftest      # 212 checks, 0 FAILED
 ```
 
 > **⭐⭐⭐ Update, 2026-08-01 — READ §6c–§6i BEFORE §5.** The whole of §6b's arc landed in one day and
@@ -96,6 +96,7 @@ the data model was genuinely independent of the execution model.
 | `guideline.py` | **authored preference as data** — reorders within a band, can never exclude |
 | `method.py` | **authored decompositions as data** that select themselves; prune on *authority* |
 | `criterion.py` | a concurrent arc, not covered here — see `expert_judgement.md` and `cnl.md` |
+| `consequent.py` | **the one right-hand side, tagged** — `achieve` / `call`; both families mint through it, one reader asks either |
 
 ## 4. The decisions that took the longest to reach
 
@@ -2422,13 +2423,56 @@ conditions (they lived only in `type`), and **edges have identity** (substrate s
 by id, `inc` generalised so an edge is an ordinary link target, three index-maintenance functions
 deleted). Also new: `clock.py`, time as a node that points at what it dates.
 
-⚠ **Verify before believing any of this: `python -m microfunctions.selftest` → 208 checks, 0 FAILED.**
+⚠ **Verify before believing any of this: `python -m microfunctions.selftest` → 212 checks, 0 FAILED.**
 
 What remains, in order:
-1. **The typed consequent** — collapse `step` / `do` / a memory write into **conditions → consequent**.
-   ⭐ This is the user's framing and it is what makes `remember` and `learn` cheap rather than two more
-   islands: `learn` writes a **criterion**, so it needs no new family at all. ⚠ Open: whether a consequent
-   is a fourth tagged shape or its own small grammar.
+1. ✅ **DONE — the typed consequent, SLICE ONE.** `consequent.py`: one node kind, one edge label, two
+   tags (`achieve`, `call`); `method.step` and `criterion.does` mint through it and `consequent.of`
+   answers *"what does this rule do?"* for either family. **The open question is settled — a TAGGED
+   SHAPE**, because the two differ in shape irreducibly (a proposition with roles vs. a function with
+   named bindings) and one grammar over both would be their union with the tag left off.
+   ⚠⚠ **The REASON for it came out weaker, and that is the version to keep.** `probe_consequent.py`
+   tried twice to build a world where a criterion's `do` reaches something means-ends search cannot, and
+   **the control went dark both times** — `driver.establishes` unions in each mock's effects, so every
+   operator a criterion can name is one search could already select. The two right-hand sides **do not
+   differ in reach**; the slice buys nothing in capability and everything in what the *next* consequent
+   costs.
+   ⭐ Also weakened: the step-vs-`do` reference-language asymmetry is **sugar** (`some n in r by l` + a
+   step reaches the same node, measured past the parser), and `the <name>` in a step is refused *on
+   purpose*.
+   ⚠⚠ **SLICE TWO WAS PROBED — DO NOT BUILD IT AS WRITTEN.** Neither proposed tag survived:
+   **`effect` is sugar for a `mocks` declaration** (a mock IS a declared effect, written as a body;
+   `establishes` unions it in and planning selects on it — control lit with a mock declaring a *different*
+   effect). The "declared effects" half of island A was already closed; what is left of A is the `.mf`
+   **body** surface. **`record` is one decision about EXECUTION, not a surface question**: a body can
+   already mint a criterion (`NEW R(c) "criterion"` — verified from a real `.mf` body — enumerated by
+   `criterion.criteria` with no `wants` and no `do`, having passed none of `intake`'s refusals; `NEW`'s
+   kind operand is unconstrained). Inert today and `.mf` is trusted, so it is a **design hazard, not a
+   hole** — decide before `learn` exists: **either `learn` authors through the refusing surface (then it
+   is an ordinary `call` and needs no tag) or it is a `record` consequent with its own executor.** Never
+   `NEW`/`SET`/`LINK` in a body. See `islands.md` §5 item 2.
+   ⭐ **Third time a proposed mechanism turned out to be sugar for an existing one** (the universal, the
+   reference language, now effects) — **probe the existing mechanism first.**
+   ⚠⚠ **And a false success turned up while chasing c1's control, worse than any gap on the list:**
+   `do f x = the <name>` authors clean, resolves to exactly one real node, and **can never speak**,
+   because `speaks` looks in the *imagined* world and a name outside the subject's copied neighbourhood
+   is not in it. It fails as ordinary silence, so the search finds a plan by enumeration and reports
+   success. `islands.md` item J, and see §2b there for the layering.
+
+   ✅ **Its two SIBLINGS are closed, and they were worse** — `intake._action`. An unknown function
+   (`do frobnicate f = x`) and a wrong parameter set also authored clean and were silent forever, because
+   `driver.check_call` raises **one exception for six causes** and `criterion._try` turns all of them into
+   silence — which is *correct* for the cause it was built for (*"the first container happens to be the
+   one this goal forbids"* is a situation, measured) and wrong for these two, which are wrong in **every**
+   world. They are refused at the line now, naming the signature.
+   ⭐ Side effect worth having: the CNL guide's `do unstack …` example must now name a function that
+   really exists with those parameters, so the guide's actions cannot drift from their signatures.
+   ⭐ Generalisable: **an exception type is a claim about whose fault it is.** One exception for six
+   causes forced the consuming layer to pick a single interpretation for a typo, a modelling error and a
+   fact about the world.
+   ⚠ **J itself is NOT cheap** — binding the real node would run the function against the real graph
+   inside a workbench, breaking the guarantee `workbench_copies_are_structurally_unreachable` holds. The
+   answer is copy-on-demand into the frame: a slice, not a patch.
 2. **The sidecar executor.** ⚠⚠ `loop.py` claims *"the Python-control-loop inventory is empty"* and **it is
    not true**: `criterion.decide` returns a closure that loops `for c in criteria(g)` to completion, once
    per imagined step, invisible to the agenda because it is a `propose=` **hook parameter** — the same
@@ -2445,6 +2489,36 @@ What remains, in order:
 ⚠ **Also open from §6o:** the discourse moves have **no CNL surface** — `retract` is a Python call, and
 *"ignore that"* does not fit `<verb> <label>:` + body. That is a **shape** question, not a vocabulary one,
 and `remember` may want the same bare-line shape. Decide it once, for all three.
+
+**⭐⭐⭐ 0-PRIME. READ `docs/microfunctions/kernel_boundary.md` — it reframes items 0 and G into one.**
+The rule, from the user, 2026-08-02: Python is a **kernel** that may do the **substrate** (nodes, edges,
+refs, indices, journal, focus, the instruction set, scheduling) and must **never** do *business* — where
+business is **anything we decided about how to represent** plans, time, goals, criteria. *The kernel never
+sees the representation above it.* The point is portability to any substrate (Rust, Excel, redstone):
+porting re-implements the kernel, the data carries over.
+
+⭐ **The operative test is not "is this a control loop?" but "would a Rust port have to re-make a decision
+here?"** So counting Python loops measures the wrong thing — `criterion.decide`'s loop is bad because it
+is Python that **knows what a criterion is**, not because it loops.
+
+Measured: `graph`/`focus`/`activation`/`path` hardcode **zero** upper-layer vocabulary and import nothing
+upward — the bottom is genuinely clean, and that zero is the control.
+
+✅ **THE ONE LEAK BELOW THE LINE IS CLOSED — `native.py`, 212 checks.** `isa.py` imported `driver` (for
+`PLAN`/`STEP`) and `types` (for `CHECK`), so a Rust port would have had to port the planner and the type
+system to implement three instructions. It now imports **nothing** from above. ⭐ Both principles held
+once a primitive stopped having to be an **opcode**: search really is primitive (nothing composes it), but
+the kernel can reach it **by name** through a table it does not populate — `isa → native ← driver`.
+⚠⚠ Removing `CHECK` **broke a live consumer** whose `.mf` carries half a safety guarantee on it, so
+`asm.MNEMONICS` keeps the spelling (`CHECK …` → `NATIVE "check" …`): kernel clean, text compatible.
+Verified — their source still loads AND still refuses an ill-typed node with `check_types=False`, and
+their suite is **identical to baseline**. ⚠ The property is now **enforced structurally**
+(`check_the_KERNEL_cannot_see_the_representation_above_it` parses the import graph), because a single
+`from . import driver` in a handler would restore the leak and pass every behavioural test.
+
+⚠ ~84% of the engine (10,005 of 11,904 lines) is above the line and currently Python. **That is context,
+not a work item** — do not start a mass migration; keep converting the things that *decide*, one at a
+time, each with a vacuity guard.
 
 **0. ⭐⭐⭐ THE NESTED PURSUIT — §6n, and it is the top of the list.** `driver.follow` is a Python `for`
 loop and the last one; the decomposition rung is the only rung with no state node. Design is done in
@@ -2497,7 +2571,24 @@ even one you wrote down yourself after measuring.*
 payoffs and they came out at zero, relocated, and moot respectively. Revisit only if untrusted `.mf` is
 ever loaded, which is the same trigger §5y names for policing builtins.
 
-⚠⚠ **`../pystrider` HAS NOT BEEN RE-RUN SINCE §6l, AND §6l CHANGED TWO THINGS THEY CONSUME.**
+✅ **RUN, 2026-08-02 — and the consequent arc caused NONE of it.** `python -m pytest tests/ -q
+--continue-on-collection-errors` → **221 passed, 5 failed, 44 collection errors.** Attribution was
+**bisected, not assumed**: the same 5 fail with this arc's changes `git stash`ed, so they are all
+pre-existing. Breakdown:
+
+* **44 collection errors** — `import ugm`, which was deleted. Not 2 dead test files as recorded below but
+  **the whole `pystrider/` package**, because `pystrider/__init__.py` → `semantics.py` → `from ugm import
+  …`. Their `strider/` package (the one on `microfunctions`) is unaffected and is what the 221 are.
+* **2 failures** in `test_economic_test.py` — same `ugm` import.
+* **3 failures** that ARE engine-caused and are **§6l's, as predicted**: a different operator chosen
+  (`relax_compa…` where `lower_threshold` was pinned) and an imagined-state count of 20 where 24 was
+  pinned — i.e. `function.names` enumeration order and the `establishes` `attr` shape, exactly the two
+  things §6l changed. The prediction in this document was right and, per the lesson below, *that is still
+  not the same as telling them*.
+
+⚠ So the debt is now **measured rather than owed**: 3 real pins to hand back, from §6l, not from here.
+
+⚠⚠ **(historical) `../pystrider` HAS NOT BEEN RE-RUN SINCE §6l, AND §6l CHANGED TWO THINGS THEY CONSUME.**
 `driver.establishes` changed the shape of an `attr` effect (fourth element is now the value, not `None`)
 and `function.names` changed enumeration order. Both are in the CHANGELOG; per the lesson below, that is
 **not the same as telling them**, and the pins should be run. This is the first thing to do before any new

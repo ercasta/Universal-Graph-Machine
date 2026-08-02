@@ -54,6 +54,7 @@ which criterion, which an opaque predicate could never do.
 """
 from __future__ import annotations
 
+from . import consequent as CQ
 from . import goal as G
 from . import path as P
 from . import workbench as W
@@ -162,17 +163,16 @@ def test(g: Graph, c: str, *, sort: str, negated: bool = False, **fields) -> str
 
 
 def does(g: Graph, c: str, function: str, bindings: dict) -> str:
-    """The action this criterion names. `bindings` maps each parameter to a **reference**, as text."""
-    d = g.mint("does", function=function)
-    for param in sorted(bindings):
-        a = g.mint("binds", param=param, ref=bindings[param])
-        g.link(d, "arg", a)
-    g.link(c, "does", d)
-    return d
+    """The action this criterion names. `bindings` maps each parameter to a **reference**, as text.
+
+    ⭐ An action **is a consequent** — the `call` kind, per `consequent.py`, sharing one node kind and one
+    edge label with a method's rung so that a reader can ask both families the same question."""
+    return CQ.call(g, c, function=function, bindings=bindings)
 
 
 def action_of(g: Graph, c: str):
-    return g.target(c, "does")
+    got = CQ.of(g, c)
+    return got[0] if got else None
 
 
 def tests_of(g: Graph, c: str) -> tuple:

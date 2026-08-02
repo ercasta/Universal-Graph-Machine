@@ -260,6 +260,25 @@ not a bug; it is what you asked for by writing `directive`.
 ⚠ A criterion with no `wants` has no variables; one with no `do` recognises a situation and then declines
 to say what to do in it. Both are refused.
 
+**⚠⚠ A `do` line is checked against the function library WHERE IT IS WRITTEN**, so the function must
+already be loaded, must exist, and the arguments must bind **every** parameter and no others:
+
+```
+do frobnicate f = subject      → refused: names no function in this library (known: unstack, …)
+do unstack b = top             → refused: unstack takes (b, floor)
+```
+
+⭐ **Because the alternative is silence, and silence here is indistinguishable from advice that lost.**
+A criterion that cannot act in a situation is *silent by design* — that is the whole difference between
+`criterion` and `directive`, and it is correct: *"the first container happens to be the one this goal
+forbids"* is a **situation**, not a mistake. But a criterion naming a function that does not exist is
+wrong in **every** world, for every subject, and folding it into the same silence made a typo look
+exactly like judgement that did not apply. It used to author clean, mint a node, and never speak.
+
+⚠ **The refusal is about what could NEVER work, not about what does not apply here.** A well-formed `do`
+whose arguments happen to resolve to nothing, or to something the goal forbids, stays silent — that is
+still a situation, and `why not` will tell you about it.
+
 ---
 
 ## 7. `what` / `where` / `when`

@@ -12,9 +12,9 @@ locals, so the microfunction that drove the steppable search —
 
 ```
 fn think(goal, subject, thread) -> plan:
-    PLAN R(s) F(goal) F(subject) F(thread)
+    NATIVE R(s) "plan" F(goal) F(subject) F(thread)
     .again:
-    STEP R(more) R(s)
+    NATIVE R(more) "plan_step" R(s)
     JMPIF R(more) ".again"
 ```
 

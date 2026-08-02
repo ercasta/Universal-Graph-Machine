@@ -49,6 +49,17 @@ and a parser test would have scored both of them green.
 > **The standing lesson, now with a third year of evidence: every claim in this project that got checked
 > came out weaker, and the weakened version is the one worth keeping.**
 
+**⭐⭐ A second probe, `probe_consequent.py`, 2026-08-02**, asking §5 item 2's question — *is there one
+right-hand side, or four?* — the same way: each right-hand side written where a **different** family's
+conditions already are, pushed to execution. Six cases, and the method held again:
+
+* **two controls went dark in a row** on the one case that mattered, and the honest verdict is
+  `NOT MEASURABLE` rather than the `SUGAR` the first run reported. Recorded in the probe with the reason;
+* the *reference-language* asymmetry, which looked like the cleanest island of the six, is **sugar**;
+* and the case that produced the most — item J below — is one **nobody was looking for**. It turned up
+  only because a control refused to light, which is the second time this session that a failed measurement
+  was worth more than the claim it was measuring.
+
 ---
 
 ## 2. What was found, classified
@@ -85,6 +96,44 @@ and a parser test would have scored both of them green.
 | G | `criterion.decide`'s Python loop | **ISLAND** | ⚠⚠ `loop.py` claims *"the Python-control-loop inventory is empty"* and **it is not true** — a `propose=` hook loops to completion, invisible to the agenda. |
 | H | `remember`, `learn`, `forbid`, `ignore that` | **PARSE (shape)** | four things now want a surface, and two do not fit `<verb> <label>:` + body. One decision, not four. |
 | I | `type` / `prefer` bodies | **ISLAND** | the last two parser islands, not yet on `_shape`. |
+| J | `do f x = the <name>` | **⚠⚠ false success** | ⭐⭐ authors clean, resolves to exactly one real node, and **can never speak** — `speaks` looks in the *imagined* world, and a name outside the subject's copied neighbourhood is not in it. Fails as **ordinary silence**, so the search then finds a plan by enumeration and reports success. Found while chasing c1's control in `probe_consequent.py`, not while looking for it. ⚠ **Not cheap:** see §6 for why, and for the two siblings that were closed. |
+
+---
+
+## 2b. ⭐⭐ ONE LAYER, THREE FAILURES — and only one of them was a situation
+
+Chasing item J turned up two **worse** siblings, and separating them is the finding.
+
+`driver.check_call` refuses a call for six reasons and raises one exception for all of them;
+`criterion._try` turns every one of those into **silence**. That silence is *correct* for what it was
+built for, and the reason is recorded and measured: *"the first container happens to be the one this goal
+forbids"* is a **situation**, not a mistake, and raising there abandoned a search plain enumeration could
+finish. But three different things were riding on it:
+
+| the call is refused because… | is it a situation? | verdict |
+|---|---|---|
+| the goal forbids it / it is ill-typed here / two roles | **yes** — a different world would let it speak | silence, correctly |
+| the function is not in the library; the parameter set is wrong | **no** — wrong in *every* world, for *every* subject | ✅ **closed** — `intake._action` refuses it where it is written |
+| the binding names a real node outside the *imagined* world (**J**) | **neither** | ⚠ open |
+
+✅ **The middle row is closed, and it was the worse defect.** `do frobnicate f = x` authored clean, minted
+a node and never spoke — a typo indistinguishable from advice that lost. It is now refused at the line,
+naming the signature, which is the argument `intake._ref` already made for the *other half of the same
+line*: refuse it where it is written, rather than reporting a typo from inside a search as silence.
+⭐ It also made the CNL guide honest — its `do unstack …` example now has to name a function that exists
+with those parameters, so the guide's actions can no longer drift from their signatures unnoticed.
+
+⚠⚠ **J is a third kind and that is why it is still open.** It is not a mistake by the author — the name
+denotes exactly one real thing — and it is not a fact about the domain either. It is an artifact of the
+**workbench boundary**: the imagined world is whatever was reachable from the subject, so whether the
+criterion can ever speak depends on something the author cannot see or control. The obvious cheap fix —
+bind the real node — is **unsound**: the function would then run against the real graph inside a workbench,
+which is the one guarantee `workbench_copies_are_structurally_unreachable` exists to hold. The real answer
+is copy-on-demand into the frame, which is a slice, not a patch.
+
+> ⭐ **The generalisable form: an exception type is a claim about whose fault it is.** One exception for
+> six causes made a modelling error, a typo and a fact about the world indistinguishable — and the layer
+> that consumed it had to pick one interpretation for all three.
 
 ---
 
@@ -163,6 +212,59 @@ where nesting does not.
    `conditions → consequent`. ⭐ This is what makes `remember` and `learn` cheap rather than two more
    islands, and **operator-as-data is the motivating case**: it is the last island in the domain surface,
    and declared effects are *exact* where `establishes` currently walks a body linearly and skips jumps.
+
+   ✅ **SLICE ONE DONE — `consequent.py`.** One node kind, one edge label, two tags (`achieve`, `call`);
+   `method.step` and `criterion.does` both mint through it, and `consequent.of` answers *"what does this
+   rule do?"* for either family, which no reader could ask before. **211 checks.**
+
+   ⭐ **The open question is settled: a TAGGED SHAPE, not its own grammar.** The two consequents differ
+   in shape irreducibly — a proposition with roles versus a function with named bindings — so one grammar
+   over both would be their union with the tag left off.
+
+   ⚠⚠ **And the probe weakened the reason for doing it, which is the version worth keeping.**
+   `probe_consequent.py` tried twice to build a world where a criterion's `do` reaches something
+   means-ends search cannot, and **the control went dark both times.** It is structural, not a bad world:
+   `driver.establishes` unions in each **mock's** effects, so every operator a criterion can name is one
+   search could already select, and every binding it can name is one enumeration could already produce.
+   > **The two right-hand sides do not differ in REACH. They differ in shape, and in who chooses.** So
+   > this slice buys nothing in capability — its whole value is that the *next* consequent is cheap
+   > rather than a third node kind with its own accessor, which is §3(b) four more times.
+
+   ⭐ A second claim came out weaker too: *"a step and a `do` speak different reference languages"* looked
+   like a clean island — `do` takes `subject.owner` and `the ada`, a step takes only a bare role — and it
+   is **sugar**. `some o in subject by owner` + `step o …` raises a subgoal about the same node, measured
+   past the parser. And `the ada` is refused **on purpose**: a method that named an individual could not
+   be reused.
+
+   ⚠⚠ **SLICE TWO WAS PROBED AND SHOULD NOT BE BUILT AS WRITTEN.** Both proposed tags were measured
+   (`probe_consequent.py` c8, c9), and neither survived as specified:
+
+   * **`effect` is SUGAR for a `mocks` declaration.** A mock *is* a declared effect — written as a body,
+     so it keeps the property `establishes` exists for (*"it cannot fall out of date with the body because
+     it IS the body"*), and `establishes` unions it in. Measured end to end: `tidy`'s own body reads as
+     `frozenset()` with `unknown={None}`, with its mock it reads the effect, **and planning selects the
+     operator on the strength of the declaration.** Control lit: the same operator with a mock declaring a
+     *different* effect makes the goal unreachable. ⭐ So the "declared effects" half of island A **was
+     already closed** and the doc above overstated it. What remains of A is authoring the **mechanics** —
+     the body — which is the `.mf` surface, a different and larger thing.
+     > This is the third time a proposed mechanism turned out to be sugar for one that existed
+     > (the universal, the reference language, now effects). ⚠ **Probe the existing mechanism first.**
+   * **`record` is one decision about EXECUTION, and it is not a surface question.** `learn` writes a
+     criterion, and a criterion is graph structure, so a body can already mint one — verified from an
+     actual `.mf` body, not argued: `NEW R(c) "criterion"` produces a node `criterion.criteria`
+     enumerates, **with no `wants` and no `do`**, having passed none of the refusals `intake` enforces.
+     `NEW`'s kind operand is unconstrained. Inert today (`speaks` returns immediately with no action) and
+     `.mf` is trusted, so this is a **design hazard, not a live hole** — but it is exactly the shape of
+     finding #14 (parsed, minted, inert, indistinguishable from advice that lost), and the time to decide
+     is *before* `learn` exists.
+     > **The decision: `learn` authors THROUGH the refusing surface** — then it is an ordinary `call`
+     > consequent and needs no new tag at all — **or** it is a `record` consequent with its own executor.
+     > What it must not be is `NEW`/`SET`/`LINK` in a body, which is authoring with the refusals switched
+     > off, and `intake.py`'s own docstring already forbids it: *reach past the surface and write graph
+     > structure, and then nothing can refuse it.*
+
+   **So what is actually left of the typed consequent:** nothing that needs a new tag. Slice one stands on
+   its own, and the next real work is elsewhere on this list.
 3. ✅ **DONE — edge identity (substrate slice one).** `eprops` keyed by id, `inc` generalised so an edge
    is an ordinary link target, `_reindex`/`_label_props`/`_restore_props` **deleted**. Edges follow the
    node pattern: journalled mint, fresh ids in a copy. ⭐ Back-refs were free — `g.sources(eid)` answers

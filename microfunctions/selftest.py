@@ -12,7 +12,7 @@ from . import hypothesis as H
 from . import isa
 from .focus import Focus
 from .graph import Ref, new_graph
-from .isa import (ADD, BACK, CHECK, CLOSE, CONST, COUNT, DEREF, F, FOCUS, FOLLOW, FORK, HASFOCUS,
+from .isa import (ADD, BACK, NATIVE, CLOSE, CONST, COUNT, DEREF, F, FOCUS, FOLLOW, FORK, HASFOCUS,
                   HEAD, LINK, LT, MOVE, NEW, R, SET, SETREF, SPREAD, run)
 from .types import TypeViolation, declare_type, instances, is_a, schema_of, tag, violations
 
@@ -595,6 +595,11 @@ def check_ONE_proposition_grammar_serves_every_position():
 
     def refusal(text):
         g = _garage_cnl()
+        from . import asm
+        # ⚠ `do f x = …` needs `f` to BE a function now: a criterion naming one that does not exist is
+        # refused where it is written, because it could never speak in any world (`intake._action`).
+        # These cases are about the CONDITION grammar, so the action has to be well-formed to reach it.
+        asm.load_text(g, _lines("fn f(x: thing) -> thing:", '    SET F(x) "touched" true'))
         b = g.mint("chunk", kind_of="box", label="b")
         g.link("root", "has", b)
         p = g.mint("chunk", kind_of="thing", label="p")
@@ -1905,7 +1910,7 @@ def check_isa_rolls_back_a_failed_program():
     """Transactional, not hypothetical: a raising program leaves no half-written graph."""
     g, car, trike = _car_world()
     before = len(g.nodes)
-    prog = (NEW(R("x"), "junk"), LINK(R("x"), "junk", R("x")), CHECK(R("t"), "car"))
+    prog = (NEW(R("x"), "junk"), LINK(R("x"), "junk", R("x")), NATIVE("check", R("t"), "car"))
     try:
         run(prog, g, t=trike)
         raised = False
@@ -2327,9 +2332,9 @@ def check_a_BLOCKING_microfunction_still_interleaves_because_every_level_ticks()
     g, world = _blocks()
     goal = I.read_goal(g, text)
     asm.load_text(g, _lines('fn think(goal, subject, thread) -> plan:',
-                            '    PLAN R(s) F(goal) F(subject) F(thread)',
+                            '    NATIVE R(s) "plan" F(goal) F(subject) F(thread)',
                             '    .again:',
-                            '    STEP R(more) R(s)',
+                            '    NATIVE R(more) "plan_step" R(s)',
                             '    JMPIF R(more) ".again"',
                             '    ATTR R(result) R(s) "found"'))
     _counting_function(g)
@@ -3221,18 +3226,18 @@ def check_a_function_is_stored_as_ordered_graph_data():
     from . import function as fn
     g, car, _ = _car_world()
     node = fn.define(g, "service", ("car",),
-                     (CHECK(F("car"), "car"), SET(F("car"), "serviced", True)))
+                     (NATIVE("check", F("car"), "car"), SET(F("car"), "serviced", True)))
     ops = [g.attr(g.at(node, "instr", i), "op") for i in range(g.count(node, "instr"))]
     return {"is_a_node": g.kind(node) == "function",
             "params_stored": [g.attr(p, "name") for p in g.targets(node, "param")] == ["car"],
-            "instructions_in_order": ops == ["CHECK", "SET"],
+            "instructions_in_order": ops == ["NATIVE", "SET"],
             "in_the_library": "service" in fn.names(g)}
 
 
 def check_a_stored_function_lifts_back_and_runs():
     from . import function as fn
     g, car, trike = _car_world()
-    fn.define(g, "service", ("car",), (CHECK(F("car"), "car"), SET(F("car"), "serviced", True)))
+    fn.define(g, "service", ("car",), (NATIVE("check", F("car"), "car"), SET(F("car"), "serviced", True)))
     params, program = fn.load(g, "service")
     fn.invoke(g, "service", {"car": car})
     try:
@@ -3263,7 +3268,7 @@ def check_assembly_round_trips_through_the_graph():
     """The LLM border. Text in, graph data, text back out — identical."""
     from . import asm
     g, car, _ = _car_world()
-    text = 'fn service_car(car):\n    CHECK F(car) "car"\n    SET F(car) "serviced" true'
+    text = 'fn service_car(car):\n    NATIVE "check" F(car) "car"\n    SET F(car) "serviced" true'
     defined = asm.load_text(g, text)
     return {"defined": defined, "round_trips": asm.dump(g, "service_car") == text}
 
@@ -3278,7 +3283,7 @@ def check_assembly_refuses_an_unknown_opcode_loudly():
         return {"refused": False}
     except asm.AsmError as e:
         return {"refused": True, "names_the_line": "line 2" in str(e),
-                "lists_alternatives": "CHECK" in str(e)}
+                "lists_alternatives": "NATIVE" in str(e)}
 
 
 def check_assembly_refuses_a_malformed_invoke():
@@ -3384,7 +3389,7 @@ def check_natural_language_comments_become_data():
         "# Mark a car serviced once it type-checks.",
         "fn service_car(car):",
         "    # refuse anything malformed",
-        '    CHECK F(car) "car"',
+        '    NATIVE "check" F(car) "car"',
         '    SET F(car) "serviced" true',
     ])
     asm.load_text(g, text)
@@ -3400,7 +3405,7 @@ def check_comments_round_trip_through_the_graph():
         "# Mark a car serviced.",
         "fn service_car(car):",
         "    # only if it is really a car",
-        '    CHECK F(car) "car"',
+        '    NATIVE "check" F(car) "car"',
         '    SET F(car) "serviced" true',
     ])
     asm.load_text(g, text)
@@ -5084,8 +5089,13 @@ def check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT_and_it_drives_the_search():
             "an_unknown_individual_is_refused_WHERE_IT_IS_WRITTEN":
                 "nothing here is called" in (refused("criterion x:\n    wants link on\n"
                                                      "    do unstack b = subject, floor = the moon") or ""),
+            # ⚠ The action here is deliberately WELL-FORMED (both parameters bound), so the refusal can
+            # only be about the missing `wants`. It used to bind `b` alone, and once `intake._action`
+            # started checking parameter sets that case was refused for the *other* reason — a check
+            # asserting a message it was no longer the cause of.
             "a_criterion_with_no_wants_is_refused":
-                "no variables" in (refused("criterion x:\n    do unstack b = subject") or ""),
+                "no variables" in (refused("criterion x:\n"
+                                           "    do unstack b = subject, floor = the ground") or ""),
             "a_criterion_with_no_action_is_refused":
                 "names no action" in (refused("criterion x:\n    wants link on") or ""),
             "GOVERNING_AGREES_WITH_SPEAKS": told["clear the destination"][0] is False,
@@ -5129,6 +5139,14 @@ def check_the_CNL_GUIDE_parses():
             declare_type(g, t, attrs={"kind_of": t})
         declare_type(g, "serviced_car", attrs={"serviced": True})
         declare_type(g, "washed_car", attrs={"washed": True})
+        # ⭐ The guide's criterion examples say `do unstack b = …, floor = …`, and `intake._action` now
+        # checks a `do` against the library — so the guide is only honest if `unstack` EXISTS with those
+        # parameters. That is this check's own stated principle applied one level further: *an example
+        # naming something the reader has no way to create is not an example*. It also means the guide's
+        # actions can no longer drift from their signatures without this going red.
+        from . import asm
+        asm.load_text(g, _lines("fn unstack(b: thing, floor: thing) -> thing:",
+                                '    SET F(b) "clear" true'))
         return g
 
     read, failed = [], []
@@ -7138,16 +7156,25 @@ def check_a_microfunction_can_DRIVE_THE_PLANNER_and_read_its_answer():
     This is the function that closes it, and it is **authored as text**, not Python:
 
         fn think(goal, subject, thread) -> plan:
-            PLAN R(s) F(goal) F(subject) F(thread)
+            NATIVE R(s) "plan" F(goal) F(subject) F(thread)
             .again:
-            STEP R(more) R(s)
+            NATIVE R(more) "plan_step" R(s)
             JMPIF R(more) ".again"
             ATTR R(result) R(s) "found"
 
-    ⚠ `PLAN` and `STEP` are new **primitives**, and they earn that by the project's own closed-class test:
-    searching cannot be composed from GET/SET/LINK, so this is not sugar. `STEP` is deliberately one
-    iteration rather than a whole search — an opcode that ran to completion would be one opaque
-    instruction and would buy nothing, since the point is being able to stop between two imagined states.
+    ⚠ `plan` and `plan_step` are **primitives**, and they earn that by the project's own closed-class
+    test: searching cannot be composed from GET/SET/LINK, so this is not sugar. `plan_step` is
+    deliberately one iteration rather than a whole search — a primitive that ran to completion would be
+    one opaque instruction and would buy nothing, since the point is being able to stop between two
+    imagined states.
+
+    ⚠⚠ **They were the OPCODES `PLAN` and `STEP` until 2026-08-02, and that was a kernel-boundary
+    violation:** their handlers imported `driver`, so the instruction set knew what a plan was and a Rust
+    port would have had to port the planner to implement two instructions. The closed-class argument above
+    was right and is preserved — what was wrong was concluding that a primitive must be an *opcode*. They
+    are natives now (`native.py`), reached by name through a table the kernel does not populate. See
+    `check_the_KERNEL_cannot_see_the_representation_above_it` and
+    `docs/microfunctions/kernel_boundary.md`.
 
     ⚠ Vacuity guard: the plan reached this way must be the SAME plan `pursue` finds at the same cost, and
     the answer must be readable as ordinary graph data (`ATTR`), not only via a Python return value."""
@@ -7160,9 +7187,9 @@ def check_a_microfunction_can_DRIVE_THE_PLANNER_and_read_its_answer():
     g, world = _blocks()
     goal = I.read_goal(g, text)
     asm.load_text(g, _lines('fn think(goal, subject, thread) -> plan:',
-                            '    PLAN R(s) F(goal) F(subject) F(thread)',
+                            '    NATIVE R(s) "plan" F(goal) F(subject) F(thread)',
                             '    .again:',
-                            '    STEP R(more) R(s)',
+                            '    NATIVE R(more) "plan_step" R(s)',
                             '    JMPIF R(more) ".again"',
                             '    ATTR R(result) R(s) "found"'))
     _f, out = fn.invoke(g, "think", {"goal": goal, "subject": world,
@@ -7199,7 +7226,12 @@ def check_asm_refuses_an_export_that_is_not_an_opcode():
     return {"a_non_opcode_export_is_REFUSED": refused,
             "and_it_is_gone_from_the_known_set": "WRITES_REGISTER" not in asm._OPCODES,
             "real_opcodes_still_load": len(fn.load(g, "fine")[1]) == 1,
-            "PLAN_and_STEP_are_known_opcodes": {"PLAN", "STEP"} <= asm._OPCODES}
+            # ⚠ Was `{"PLAN", "STEP"} <= _OPCODES`. Those two are GONE — they made `isa.py` import
+            # `driver`, putting the planner below the kernel boundary. `NATIVE` replaces both, and the
+            # planner registers itself (`native.py`, `docs/microfunctions/kernel_boundary.md`).
+            "NATIVE_is_a_known_opcode": "NATIVE" in asm._OPCODES,
+            "and_the_two_that_KNEW_the_planner_are_gone":
+                not ({"PLAN", "STEP"} & asm._OPCODES)}
 
 
 def check_the_surface_can_DRIVE_the_system_and_still_cannot_touch_the_world():
@@ -7785,6 +7817,215 @@ def check_a_sighting_is_distinct_from_a_belief():
             "even_though_it_has_a_value": g.attr(elsewhere, "count") == 99,
             "nothing_in_the_world_points_at_a_sighting":
                 g.sources(M.sightings(g, th, d, "count")[0], "of") == ()}
+
+
+def check_a_method_and_a_criterion_answer_ONE_question_about_what_they_do():
+    """⭐⭐ **THE TYPED CONSEQUENT, slice one.** `islands.md` §3(e) claimed every rule here is
+    `conditions → consequent` and only the consequent and the executor differ. It was an aspiration: a
+    method's rung was an `mstep` node reached by `steps_of`, a criterion's action a `does` node reached by
+    `action_of`, and **no reader could ask both what they do** without knowing which it was holding.
+
+    Now both mint `consequent` nodes on one edge label, tagged `achieve` or `call`, and `consequent.of`
+    answers for either.
+
+    **⭐ The tag was the open question** (`HANDOFF.md` §9 item 1: *a fourth tagged shape or its own small
+    grammar?*), and `probe_consequent.py` settled it by pushing to execution rather than to the parser:
+    the two consequents differ in **shape** irreducibly — a proposition with roles versus a function with
+    named bindings — so one grammar over both would be their union with the tag left off.
+
+    ⚠⚠ **And what the probe measured is that they do NOT differ in REACH.** Two attempts to build a world
+    where a criterion's `do` gets somewhere means-ends search cannot, and the control went dark both
+    times: `driver.establishes` unions in each mock's effects, so every operator a criterion can name is
+    one search could already select. So this slice buys **nothing in capability**, and that is the honest
+    reason for it — it is what makes the *next* consequent (`effect`, `remember`, `learn`, which have no
+    verb at all today) cheap instead of two more islands created by a second caller.
+
+    ⚠ **Vacuity guards, because "behaviour unchanged" passes for a seam that does nothing** (§5o):
+    the uniform enumerator must return **both** families' consequents and they must carry **different**
+    tags — one call answering with one kind twice would be a merge, not a collapse. And `describe` must
+    refuse a node that is not a consequent, or a reader would be guessing what a rule does."""
+    from . import consequent as CQ, criterion as CR, intake as I, method as M
+
+    g = new_graph()
+    declare_type(g, "file", attrs={"kind_of": "file"})
+    declare_type(g, "linted_file", base="file", attrs={"linted": True})
+    f = g.mint("chunk", kind_of="file", label="parser", size=100)
+    g.link("root", "has", f)
+
+    from . import asm
+    asm.load_text(g, _lines("fn lint(f: file) -> linted_file:", '    SET F(f) "linted" true'))
+    I.read(g, _lines("method lint it:", "    handles attr linted", "    step subject.linted = true"))
+    I.read(g, _lines("criterion big ones get linted:", "    wants attr linted",
+                     "    when subject.size > 50", "    do lint f = subject"))
+    m, c = M.methods(g)[0], CR.criteria(g)[0]
+
+    # ⭐ ONE call, two families. This is the whole of what the collapse adds.
+    from_method, from_criterion = CQ.of(g, m), CQ.of(g, c)
+    tags = (CQ.kind(g, from_method[0]), CQ.kind(g, from_criterion[0]))
+
+    def refusal(fn):
+        try:
+            fn()
+            return None
+        except Exception as e:
+            return str(e)
+
+    return {"ONE_ENUMERATOR_ANSWERS_FOR_A_METHOD": len(from_method) == 1,
+            "AND_FOR_A_CRITERION": len(from_criterion) == 1,
+            "THEY_ARE_ONE_NODE_KIND": g.kind(from_method[0]) == g.kind(from_criterion[0]) == "consequent",
+            "but_TAGGED_DIFFERENTLY_so_it_is_a_collapse_not_a_merge":
+                tags == (CQ.ACHIEVE, CQ.CALL),
+            "and_each_reads_back_in_words_without_knowing_the_family":
+                CQ.describe(g, from_method[0]) == "step subject.linted = true"
+                and CQ.describe(g, from_criterion[0]) == "do lint(f = subject)",
+            "the_call_still_carries_its_bindings":
+                CQ.bindings_of(g, from_criterion[0]) == (("f", "subject"),),
+            "and_the_achieve_carries_none": CQ.bindings_of(g, from_method[0]) == (),
+            "A_READER_MUST_NOT_GUESS_what_a_non_consequent_does":
+                "not a consequent" in (refusal(lambda: CQ.describe(g, f)) or ""),
+            "the_old_family_accessors_still_agree":
+                M.steps_of(g, m) == from_method and CR.action_of(g, c) == from_criterion[0]}
+
+
+def check_a_criterion_naming_a_function_that_cannot_exist_is_refused_WHERE_IT_IS_WRITTEN():
+    """⭐⭐ **A criterion that is broken in EVERY world used to fail as SILENCE.** `do frobnicate f = x`
+    authored clean, minted a node, and never spoke — indistinguishable from advice whose conditions simply
+    did not hold. Measured, then closed in `intake._action`.
+
+    **⚠⚠ The subtlety is why `driver.check_call` could not close it.** It already refuses an unknown
+    function — but `criterion._try` deliberately turns every refusal from there into silence, and that is
+    *correct* for what it was built for: *"the first container happens to be the one this goal forbids"* is
+    a **situation**, not a mistake, and raising there abandoned a search plain enumeration could finish.
+    So the two were folded together at the wrong layer. An unknown function and a wrong parameter set are
+    not situations — **no arrangement of the world could make them speak** — so they belong at authoring
+    time, which is the argument `intake._ref` already makes for the *other* half of the same line.
+
+    ⚠ Vacuity guards. A **correct** `do` must still author, or this is just a broken parser. The refusal
+    must **name the signature**, since *"that is wrong"* without saying how is what sent authors into a
+    search to find out. And a refusal must **leave nothing behind** — a half-built criterion sitting in the
+    graph looking as though it worked is the failure mode this whole surface exists to prevent."""
+    from . import asm, criterion as CR, intake as I
+
+    def g_with_lint():
+        g = new_graph()
+        declare_type(g, "file", attrs={"kind_of": "file"})
+        declare_type(g, "linted_file", base="file", attrs={"linted": True})
+        asm.load_text(g, _lines("fn lint(f: file, style: file) -> linted_file:",
+                                '    SET F(f) "linted" true'))
+        f = g.mint("chunk", kind_of="file", label="parser")
+        g.link("root", "has", f)
+        return g
+
+    def refused(*body):
+        g = g_with_lint()
+        before = len(g.attrs)
+        try:
+            I.read(g, _lines("criterion c:", "    wants attr linted", *body))
+            return None, len(g.attrs) == before, len(CR.criteria(g))
+        except Exception as e:
+            return str(e), len(g.attrs) == before, len(CR.criteria(g))
+
+    unknown, u_clean, u_left = refused("    do frobnicate f = subject")
+    wrong, w_clean, w_left = refused("    do lint f = subject")
+    good, _, g_left = refused("    do lint f = subject, style = subject")
+
+    # ⚠ And the case that motivated the whole pass: with NO library loaded at all, the refusal must say
+    # so rather than listing an empty set of known functions.
+    g2 = new_graph()
+    declare_type(g2, "file", attrs={"kind_of": "file"})
+    try:
+        I.read(g2, _lines("criterion c:", "    wants attr linted", "    do lint f = subject"))
+        empty = None
+    except Exception as e:
+        empty = str(e)
+
+    return {"AN_UNKNOWN_FUNCTION_IS_REFUSED": unknown is not None,
+            "and_it_lists_what_there_IS": unknown is not None and "lint" in unknown,
+            "A_WRONG_PARAMETER_SET_IS_REFUSED": wrong is not None,
+            "and_it_names_the_SIGNATURE": wrong is not None and "(f, style)" in wrong,
+            "A_CORRECT_ACTION_STILL_AUTHORS": good is None and g_left == 1,
+            "and_the_refusals_LEFT_NOTHING_BEHIND": u_clean and w_clean and u_left == w_left == 0,
+            "AN_EMPTY_LIBRARY_SAYS_SO_rather_than_listing_nothing":
+                empty is not None and "nothing is declared yet" in empty}
+
+
+def check_the_KERNEL_cannot_see_the_representation_above_it():
+    """⭐⭐⭐ **THE KERNEL BOUNDARY, ENFORCED RATHER THAN ACHIEVED ONCE.**
+
+    The rule: Python is a **kernel** that may do the **substrate** — nodes, edges, refs, indices, the
+    journal, focus, the instruction set, scheduling — and must never do *business*, where business is
+    **anything we decided about how to represent** plans, time, goals, criteria. *The kernel never sees
+    the representation above it.* The point is portability: another substrate (Rust, Excel macros, a
+    redstone machine) re-implements the kernel, and the data carries over unchanged. Anything
+    decided-but-written-in-Python has to be re-decided by every port, which means it was never really a
+    representation.
+
+    **⚠⚠ `isa.py` violated it, and it was the only leak BELOW the line.** `PLAN` and `STEP` called
+    `driver.open_planning` / `driver.step`, and `CHECK` called `types.check` — so **a Rust port would have
+    had to port the planner and the type system in order to implement three instructions.**
+
+    ⭐ The fix keeps both principles, which had genuinely collided. `isa.py`'s own argument — search is a
+    **primitive**, because no sequence of GET/SET/LINK imagines a state — was right. What was wrong was
+    concluding that a primitive must be an **opcode**. `native.py` is a name→callable table: the kernel
+    reaches a primitive by name, and the module that owns the primitive puts it there. The dependency
+    inverts from `isa → driver` to `isa → native ← driver`.
+
+    ⚠⚠ **This check is structural on purpose, because the property is one that drifts back silently.**
+    A single `from . import driver` inside a handler restores the leak, passes every behavioural test, and
+    would never be noticed — which is exactly how it got there. So the import graph is parsed from source.
+
+    ⚠ Vacuity guards: the natives must actually WORK (a body that plans through `NATIVE` still plans, or
+    this traded a boundary for a broken engine); an unregistered name must refuse **naming what is
+    registered**, since the real failure mode is a primitive whose owning module nobody imported; and
+    `native.py` itself must name nothing from above, or the leak just moved."""
+    import ast
+    import pathlib
+    from . import asm, native as N
+
+    ABOVE = {"driver", "types", "goal", "criterion", "method", "plan", "norm", "clock", "discourse",
+             "memory", "workbench", "search", "query", "conflict", "guideline", "hypothesis", "locate",
+             "consequent", "execution", "intake", "selection", "thread", "loop", "forget", "application"}
+
+    def imports_of(mod):
+        src = pathlib.Path(__file__).resolve().parent / f"{mod}.py"
+        tree = ast.parse(src.read_text(encoding="utf-8"))
+        got = set()
+        for n in ast.walk(tree):
+            if isinstance(n, ast.ImportFrom):
+                if n.level and n.module:
+                    got.add(n.module.split(".")[0])
+                if n.level and not n.module:
+                    got |= {a.name for a in n.names}
+        return got
+
+    isa_up = imports_of("isa") & ABOVE
+    native_up = imports_of("native") & ABOVE
+    # ⭐ The control: modules ABOVE the line genuinely do import upward, so an empty set below means the
+    # boundary, not that this test cannot see imports at all.
+    driver_up = imports_of("driver") & ABOVE
+
+    def refusal(fn):
+        try:
+            fn()
+            return None
+        except Exception as e:
+            return str(e)
+
+    unknown = refusal(lambda: N.call(new_graph(), "no_such_primitive", ()))
+    dup = refusal(lambda: N.register("plan", lambda g: None))
+
+    return {"THE_INSTRUCTION_SET_IMPORTS_NOTHING_FROM_ABOVE": isa_up == set(),
+            "leaked": tuple(sorted(isa_up)),
+            "NOR_DOES_THE_TABLE_ITSELF": native_up == set(),
+            "and_the_test_CAN_see_imports_so_the_empty_set_means_something": bool(driver_up),
+            "THE_TWO_OPCODES_THAT_KNEW_THE_PLANNER_ARE_GONE":
+                not ({"PLAN", "STEP", "CHECK"} & asm._OPCODES),
+            "and_NATIVE_replaced_them": "NATIVE" in asm._OPCODES,
+            "THE_PLANNER_IS_STILL_REACHABLE_BY_NAME": {"plan", "plan_step", "check"} <= set(N.names()),
+            "an_UNREGISTERED_native_refuses": unknown is not None,
+            "and_NAMES_WHAT_IS_REGISTERED": unknown is not None and "plan" in unknown,
+            "and_says_WHY_it_might_be_missing": unknown is not None and "imported" in unknown,
+            "a_SECOND_claim_on_one_name_is_refused": dup is not None}
 
 
 # ⚠ THE ENTRY POINT MUST BE THE LAST THING IN THIS FILE. `_checks()` reads `globals()` at call time,

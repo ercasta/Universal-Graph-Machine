@@ -29,6 +29,7 @@ otherwise a method would be about individuals and could not be reused, which is 
 """
 from __future__ import annotations
 
+from . import consequent as CQ
 from . import goal as G
 from .graph import Graph
 from .types import is_a
@@ -57,14 +58,12 @@ def method(g: Graph, *, handles: str, label: str | None = None, when: str | None
 def step(g: Graph, m: str, *, sort: str, label: str | None = None, key: str | None = None,
          value=None, subject: str = SUBJECT, object: str = OBJECT, note: str | None = None) -> str:
     """Append a step. Steps are an **ordered** edge, so declaration order is the `then` order, free —
-    the same free ordering `mock` and `guideline` already rely on."""
-    s = g.mint("mstep", sort=sort, subject_role=subject,
-               **{k: v for k, v in (("label", label), ("key", key), ("object_role", object),
-                                    ("note", note)) if v is not None})
-    if value is not None:
-        g.put(s, value=value)
-    g.link(m, "step", s)
-    return s
+    the same free ordering `mock` and `guideline` already rely on.
+
+    ⭐ A step **is a consequent** — the `achieve` kind, per `consequent.py`. It was its own `mstep` node
+    until the two right-hand sides were measured and found to differ in shape but not in reach."""
+    return CQ.achieve(g, m, sort=sort, label=label, key=key, value=value,
+                      subject=subject, object=object, note=note)
 
 
 def draw(g: Graph, m: str, *, name: str, ref: str, label: str, back: bool = False) -> str:
@@ -99,7 +98,7 @@ def roles_of(g: Graph, m: str) -> tuple:
 
 
 def steps_of(g: Graph, m: str) -> tuple:
-    return g.targets(m, "step")
+    return CQ.of(g, m)
 
 
 def methods(g: Graph) -> tuple:
