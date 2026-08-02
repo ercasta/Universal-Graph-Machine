@@ -13,6 +13,46 @@ could not detect do not need one. When in doubt, write the line — it costs one
 
 ---
 
+## 2026-08-02 (later)
+
+### Changed — ⚠ EDGES HAVE IDENTITY (substrate)
+
+- **`Graph.link` / `link_at` now RETURN the edge's id**, a stable string for as long as the edge exists.
+  **Migration:** none — they returned `None`, so nothing can be relying on it.
+- **⚠ `Graph.eprops` is keyed by edge id, not `(src, label, index)`.** Anything reading `g.eprops`
+  directly must move to `g.edge_props(eid)` / `g.edge_at(src, label, i)`. `g.edge_prop(src, label, index,
+  key)` is **unchanged** and still works positionally. ⚠ We had exactly one direct reader (`workbench`)
+  and it silently returned `{}` after the change — check for `g.eprops[` in your tree.
+- **New:** `edge_at`, `edge_ids`, `edge_ends`, `edge_props`, `edge_between`, `is_edge`. An edge id is an
+  ordinary string, so it can be a link **target** — `g.sources(eid)` answers *"what refers to this edge"*
+  in O(1), which is what makes *"when did this file appear under this directory"* expressible.
+- **Removed (private):** `_reindex`, `_label_props`, `_restore_props` — they existed only to shift
+  properties on insertion. Properties now belong to an edge, which does not move when its neighbours do.
+
+### Added — `clock.py`: time is a node that points at what it dates
+
+- **`moment` / `now` / `stamp` / `dated` / `precedes` / `ordered`.** A moment carries an absolute stamp or
+  none at all (relative and undefined), ordered by a `before` partial order via `path.reaches`. The
+  timestamp **points at** what it dates, so one look dates many facts and nothing is modified to acquire a
+  time. **No migration:** additive. ⚠ `memory.observe` now stamps every observation, and one
+  `record_sighting` shares **one** moment across every slot it saw.
+
+### Changed — ⚠ the comparison operators reach goals and conditions
+
+- **`goal.require_attr` takes `op=` (default `"=="`)**, and `!= < <= > >=` are now legal in a goal
+  constraint and in a `when`/`unless` condition, not only in a `type` block. **Migration:** none for
+  existing callers.
+- **⚠ Three readers changed behaviour**, and all three were previously *wrong* for anything but equality:
+  `goal.holds` and `criterion._holds` evaluate the operator; `query.refutes` refutes when the comparison
+  **fails** rather than when the value differs; `conflict.unsatisfiable` no longer calls two constraints
+  on one slot contradictory merely because their values differ (`size > 10` with `size > 20` is fine).
+  ⚠ If you relied on `unsatisfiable` flagging any differing pair, it now reports fewer — deliberately;
+  the old behaviour refused achievable goals.
+- **`types.compare(op, got, want, hi=None)` is public** — the one comparator all of the above share.
+- **⚠ A reference on the right of a comparison is now REFUSED** (`a.size > b.size`). It was refused by
+  accident before (unknown middle word → read as a link); widening made it parse as a string comparison
+  that can never hold, so the refusal is explicit and names the `type` block instead.
+
 ## 2026-08-02
 
 ### Added — `norm.py`: a prohibition that can be defeated (`feedback_from_harneskills` §3)

@@ -240,8 +240,13 @@ def requirements(g: Graph, type_name: str):
     return None if t is None else (_schema_at(g, t), _attrs_at(g, t), _rels_at(g, t))
 
 
-def _holds(op, got, want, hi=None) -> bool:
-    """One comparison, total. ⚠ Returns `False` where Python would raise — comparing a string to a number
+def compare(op, got, want, hi=None) -> bool:
+    """One comparison, total. **THE comparator** — `goal.holds`, `criterion._holds` and every schema check
+    share it, so `>=` cannot come to mean different things in a `type` block and in a goal.
+
+    ⚠ It was private (`_holds`) while only schemas compared values. The moment the comparison operators
+    were widened past `type`, a second implementation was the obvious thing to write and would have been
+    the drift this codebase keeps finding — three parsers for one proposition grammar, most recently. ⚠ Returns `False` where Python would raise — comparing a string to a number
     is a failed constraint, never a crash, because a schema is checked against whatever the world happens
     to hold and the world is not obliged to cooperate."""
     try:
@@ -300,7 +305,7 @@ def _rel_holds(g: Graph, node, rel: Rel) -> bool:
         return left is not None and left == right
     if rel.op == "is not":
         return left is not None and right is not None and left != right
-    return _holds(rel.op, left, right)
+    return compare(rel.op, left, right)
 
 
 def _target_ok(g: Graph, x, req: Req, sub, seen: frozenset) -> bool:
@@ -400,7 +405,7 @@ def fails(g: Graph, node, reqs, _seen: frozenset = frozenset()) -> dict:
             bad[label] = (_phrase(req), str(n))
     for key, a in attrs.items():
         got = g.attr(node, key)
-        if not _holds(a.op, got, a.value, a.hi):
+        if not compare(a.op, got, a.value, a.hi):
             bad[f"@{key}"] = (_attr_phrase(a), repr(got))
     for rel in rels:
         if not _rel_holds(g, node, rel):
@@ -652,7 +657,7 @@ def describe(g: Graph, name: str) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["TypeViolation", "UNBOUNDED", "Req", "AttrReq", "Rel", "VALUE_OPS", "IDENTITY_OPS",
+__all__ = ["TypeViolation", "UNBOUNDED", "Req", "AttrReq", "Rel", "VALUE_OPS", "IDENTITY_OPS", "compare",
            "offenders", "offending_type",
            "declare_type", "require_edge", "require_value", "require_relation",
            "find_type", "schema_of", "attrs_of", "rels_of", "requirements", "fails",

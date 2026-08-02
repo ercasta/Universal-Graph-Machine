@@ -321,6 +321,20 @@ def _shape(words: list, line: str, lineno: int, *, what: str, ops=("=",)):
     if len(words) >= 4 and words[-3] == "is" and words[-2] == "a":
         return ("type", " ".join(words[:-3]), words[-1])
     if len(words) == 3 and words[1] in ops and "." in words[0]:
+        # ⚠⚠ **A REFERENCE ON THE RIGHT IS REFUSED, and widening the operators is what made this
+        # reachable.** `a.size > b.size` used to be three words with an unknown middle, so it was read as
+        # a link and `parse_link('>')` refused it loudly. With `>` a legal comparison it parses — and the
+        # right-hand side is a LITERAL here, so it silently became `a.size > "b.size"`, a string/number
+        # comparison that can never hold. That is the *parses, runs, means the wrong thing* failure this
+        # session catalogued, introduced by the fix for something else.
+        # ⚠ Refused rather than supported: `not_supported.md` §1 records comparing two individuals as
+        # needing a minted node to hang the pair on, and a `type` block is where a comparison may name two
+        # places (`wheel[0].pressure == wheel[1].pressure`).
+        if "." in words[2]:
+            raise Unreadable(
+                f"line {lineno}: the right of a comparison is a literal in a {what}, so {words[2]!r} "
+                f"would be the string {words[2]!r} rather than a reference. Relating two places is what a "
+                f"`type` block does (`wheel[0].pressure == wheel[1].pressure`)")
         return ("attr", words[0], words[1], words[2])
     if len(words) == 3 and words[1] in TY.VALUE_OPS and "." in words[0]:
         raise Unreadable(f"line {lineno}: {words[1]!r} is not available in a {what}; here a comparison is "
@@ -357,7 +371,7 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
         # ⭐ Everything below is the SHARED proposition grammar — see `_shape`. What stays here is only
         # what a goal does with each shape, plus the plan constraints above, which are about the ROUTE
         # rather than about the world and so are genuinely a goal's own vocabulary.
-        shape = _shape(words, line, lineno, what="goal constraint")
+        shape = _shape(words, line, lineno, what="goal constraint", ops=TY.VALUE_OPS + ("=",))
         if shape is None:
             raise _shape_refused(words, line, lineno, "goal")
         kind = shape[0]
@@ -370,7 +384,9 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
             G.require_known(g, goal, node(subject), key)
         elif kind == "attr":
             subject, key = _one_hop(shape[1], lineno, "goal constraint")
-            G.require_attr(g, goal, node(subject), key, _literal(shape[3]))
+            # ⚠ `=` is spelled that way on this surface and means `==` to the comparator.
+            G.require_attr(g, goal, node(subject), key, _literal(shape[3]),
+                           op="==" if shape[2] == "=" else shape[2])
         elif kind == "exists":
             # ⚠ `x is there` has no home in a goal: a goal says what must BE true, and *"it resolves"* is
             # a claim about the reference rather than about the world. Refused with the form that means it.
@@ -465,7 +481,7 @@ def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lin
         # and a step make; what differs is that a referring position may be a role, a drawn name or
         # `the <name>`, and may reach any depth — because a condition only ever CHECKS.
         ref = lambda t: _ref(g, t, lineno, line, under, CR.names_of(g, c))     # noqa: E731
-        shape = _shape(words, line, lineno, what="condition")
+        shape = _shape(words, line, lineno, what="condition", ops=TY.VALUE_OPS + ("=",))
         if shape is None:
             raise _shape_refused(words, line, lineno, "condition")
         kind = shape[0]
@@ -476,7 +492,7 @@ def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lin
         elif kind == "attr":
             who, key = _one_hop(shape[1], lineno, "criterion")
             CR.test(g, c, sort="attr", negated=negated, key=key, value=_literal(shape[3]),
-                    left=ref(who))
+                    op="==" if shape[2] == "=" else shape[2], left=ref(who))
         elif kind == "known":
             # ⚠ Deliberately still refused here, and now the refusal is stated once. `known` reads an
             # attribute slot for ignorance; `criterion.test` has no `known` sort, so accepting it would

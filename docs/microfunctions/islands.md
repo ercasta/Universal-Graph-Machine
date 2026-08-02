@@ -147,15 +147,31 @@ where nesting does not.
 
 ## 5. What to do, in order
 
-1. **`type` / `prefer` onto `_shape`** (I) — the last parser islands; `type` holds the full operator set
-   and could *supply* the widened comparisons rather than merely being where they are legal.
+1. ✅ **DONE — the comparison operators reach goals and conditions.** `type` held the full set, and it was
+   an accident of where the comparison code sat. ⚠ **Not a parser edit:** three readers assumed equality
+   and each was wrong differently — `goal.holds` never held, `query.refutes` reported a positive *no*
+   about a satisfied range, and `conflict.unsatisfiable` called `size > 10` with `size > 20` impossible,
+   which **refuses an achievable goal**. All three share `types.compare` now.
+   ⚠⚠ **Widening it re-created a defect that had only ever been refused BY ACCIDENT:** `a.size > b.size`
+   was three words with an unknown middle, so it was read as a link and `parse_link('>')` rejected it.
+   With `>` legal it parses, and the right side is a **literal** — silently `a.size > "b.size"`, which can
+   never hold. *A refusal that exists by accident is not a refusal; it survives only until the accident
+   stops holding.*
+   ⭐ `prefer`/`avoid` is **closed, not pending**: its body names an action and an individual
+   (`action f | touching x | when T`), not a proposition. There is nothing real to share.
 2. **The typed consequent** (A, H) — collapse `step` / `do` / a memory write / **effects** into
    `conditions → consequent`. ⭐ This is what makes `remember` and `learn` cheap rather than two more
    islands, and **operator-as-data is the motivating case**: it is the last island in the domain surface,
    and declared effects are *exact* where `establishes` currently walks a body linearly and skips jumps.
-3. **Edge identity** (F) — substrate slice one: identity, `eprops` keyed by it, `inc` generalised. ⚠ The
-   sizing says this is ~7 sites outside `graph.py`; 223 accessor call sites are insulated. Edges follow
-   **the same pattern as nodes** — journaled mint, fresh ids in a copy, mapped original→image.
+3. ✅ **DONE — edge identity (substrate slice one).** `eprops` keyed by id, `inc` generalised so an edge
+   is an ordinary link target, `_reindex`/`_label_props`/`_restore_props` **deleted**. Edges follow the
+   node pattern: journalled mint, fresh ids in a copy. ⭐ Back-refs were free — `g.sources(eid)` answers
+   *"what refers to this edge"* with no change to the reverse index.
+   ⚠⚠ **Two silent bugs it introduced, both of which passed the full suite:** `drop` popped `out` without
+   `eids`/`edges`, and `workbench` read `eprops` by the **old** key, silently returning `{}` — a copied
+   edge lost its properties and *nothing failed, because no check had ever copied one.*
+   **Slice two, not started:** edge refs on the surface (`path.py`), and `thread.py`'s `connect`-node
+   workaround can now go, since a `prev` edge property is finally pointable.
 4. **`becoming`** (D, E) — minted where a plan meets reality, from frames that already exist, dated with
    moments. ⚠ Imagined becomings stay derived: §5f's cost refusal still holds for the hundreds a search
    makes.

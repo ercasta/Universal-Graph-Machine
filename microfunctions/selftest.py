@@ -640,7 +640,14 @@ def check_ONE_proposition_grammar_serves_every_position():
     goal_plus = refusal(_lines("goal g:", "    b contains+ p"))          # still fine in a goal
     step_plus = refusal(_lines("method m:", "    handles type car",
                                "    step subject contains+ object"))     # refused, with a reason
-    bad_op = refusal(_lines("goal g:", "    b.size >= 3"))               # named, not silently unmatched
+    # ⭐ WIDENED: the five comparisons used to live only in a `type` block, and `_shape` refused them
+    # elsewhere with a message pointing there. They are goal constraints and conditions now — the readers
+    # (`goal.holds`, `query.refutes`, `conflict.unsatisfiable`) went through `types.compare` to get it.
+    wide_goal = refusal(_lines("goal g:", "    b.size >= 3"))
+    wide_cond = refusal(_lines(*HEAD, "    when subject.size > 10", "    do f x = subject"))
+    # ⚠ ...and a reference on the RIGHT stays refused, which widening made reachable: `a.size > b.size`
+    # would silently compare against the string "b.size".
+    ref_right = refusal(_lines("goal g:", "    b.size > b.width"))
     goal_there = refusal(_lines("goal g:", "    b is there"))            # refused, pointed at `some T`
     cond_known = refusal(_lines(*HEAD, "    when subject.x known", "    do f x = subject"))
     deep_goal = refusal(_lines("goal g:", "    b.wheel[0].pressure = 3"))  # the PRINCIPLED limit
@@ -653,8 +660,10 @@ def check_ONE_proposition_grammar_serves_every_position():
             "it_still_works_in_a_goal": goal_plus is None,
             "A_STEP_REFUSES_IT_because_no_edge_would_achieve_it":
                 step_plus is not None and "any depth" in step_plus,
-            "AN_UNSUPPORTED_OPERATOR_IS_NAMED":
-                bad_op is not None and "type" in bad_op and ">=" in bad_op,
+            "THE_COMPARISONS_WORK_IN_A_GOAL_NOW": wide_goal is None,
+            "and_in_a_condition": wide_cond is None,
+            "but_a_REFERENCE_on_the_right_is_refused":
+                ref_right is not None and "literal" in ref_right,
             "is_there_is_refused_in_a_goal_and_points_at_some":
                 goal_there is not None and "some" in goal_there,
             "known_is_refused_in_a_condition": cond_known is not None,
@@ -1035,6 +1044,159 @@ def check_TIME_is_a_node_that_points_at_what_it_dates():
             "undated_moments_are_DROPPED_from_a_timeline_not_appended":
                 C.ordered(g, (hot, done, early, late)) == (early, late),
             "a_moment_cannot_follow_itself": refused(lambda: C.follows(g, hot, hot))}
+
+
+def check_an_EDGE_HAS_AN_IDENTITY_and_can_be_pointed_at():
+    """⭐⭐⭐ Substrate slice one. Edges had **no identity**: `eprops` was keyed by `(src, label, index)`
+    and reindexed on every insertion, so nothing could refer to an edge and `thread.py` recorded the
+    consequence — *"a `prev` edge property cannot be pointed at"*. That blocked *"when did this file
+    appear under this directory"*, and it forced three functions of index maintenance
+    (`_reindex` / `_label_props` / `_restore_props`) which this slice **deletes**.
+
+    **Edges follow the same pattern as nodes** (the user's ruling): a journalled mint, fresh ids in a
+    workbench copy, an id that is an ordinary string. ⭐ That last point is what makes *"what refers to
+    this edge?"* free — `inc` is keyed by whatever is pointed at, so an edge is a link target with no
+    change to the reverse index at all.
+
+    ⚠ **`eids` runs parallel to `out` rather than packing `(dst, eid)` into it**, because `targets` is the
+    hottest read in the engine (161 call sites) and stays allocation-free. Parallel structures drift, so
+    there is exactly **one writer** — the discipline `thread._append` keeps for the same reason — and this
+    check asserts they cannot disagree.
+
+    ⚠⚠ **Two silent bugs this slice introduced and this check exists to have caught.** `drop` popped
+    `out` without `eids`/`edges`, so `edge_ends` answered confidently about a dropped edge; and
+    `workbench` read `eprops` by the **old** key, silently returning `{}` — a copied edge lost its
+    properties and nothing failed, because no check had ever copied one. Both are keys below."""
+    from . import workbench as W
+
+    g = new_graph()
+    lst = g.mint("list")
+    a = g.link(lst, "item", g.mint("item", label="x"), note="first")
+    c = g.link(lst, "item", g.mint("item", label="z"), note="last")
+    b = g.link_at(lst, "item", 1, g.mint("item", label="y"), note="inserted")
+
+    # ⚠ THE POSITION SHIFTS AND THE ID DOES NOT — the whole point.
+    ids_in_order = g.edge_ids(lst, "item") == (a, b, c)
+    props_follow = [g.edge_props(e).get("note") for e in (a, b, c)] == ["first", "inserted", "last"]
+    parallel = len(g.out[(lst, "item")]) == len(g.eids[(lst, "item")])
+
+    # An edge is a THING: a moment can date it, and the back-reference is free.
+    from . import clock as C
+    when = C.now(g)
+    C.stamp(g, when, b)
+    pointable = C.dated(g, b) == (when,) and b in g.targets(when, C.DATES)
+    back_ref = g.sources(b) == (when,)
+
+    # `edge_between` names an edge you can only describe.
+    y = g.at(lst, "item", 1)
+    named = g.edge_between(lst, "item", y) == b
+
+    # ⚠ Rollback must bring the SAME id back, or anything pointing at the edge dangles.
+    sp = g.savepoint()
+    g.unlink(lst, "item", index=1)
+    gone = g.edge_ends(b) is None and g.edge_props(b) == {}
+    g.rollback(sp)
+    same_id_back = g.edge_ends(b) == (lst, "item", y) and g.edge_props(b).get("note") == "inserted"
+
+    # ⚠ `drop` must take the id indexes with it.
+    g2 = new_graph()
+    holder = g2.mint("list")
+    e2 = g2.link(holder, "item", g2.mint("item"), note="doomed")
+    g2.drop(holder)
+    dropped_cleanly = g2.edge_ends(e2) is None and g2.edge_props(e2) == {}
+
+    # ⚠ A workbench copy gets FRESH ids and keeps the properties.
+    g3 = new_graph()
+    src = g3.mint("chunk", kind_of="thing", label="src")
+    g3.link("root", "has", src)
+    orig = g3.link(src, "part", g3.mint("chunk", kind_of="thing"), note="kept")
+    wb = W.open_workbench(g3, src)
+    f0 = W.frames(g3, wb)[0]
+    image = W.image_of(g3, W.mapping_for(g3, f0, src))
+    copied = g3.edge_at(image, "part", 0)
+    fresh_and_kept = (copied is not None and copied != orig
+                      and g3.edge_props(copied).get("note") == "kept")
+
+    return {"AN_EDGE_HAS_AN_ID": isinstance(a, str) and g.is_edge(a),
+            "and_it_names_its_own_ends": g.edge_ends(a) == (lst, "item", g.at(lst, "item", 0)),
+            "INSERTION_SHIFTS_POSITIONS_NOT_IDS": ids_in_order,
+            "and_properties_follow_without_reindexing": props_follow,
+            "the_two_orderings_cannot_disagree": parallel,
+            "A_MOMENT_CAN_DATE_AN_EDGE": pointable,
+            "and_the_BACK_REFERENCE_is_free": back_ref,
+            "an_edge_can_be_named_by_its_ends": named,
+            "unlinking_removes_it": gone,
+            "ROLLBACK_RESTORES_THE_SAME_ID": same_id_back,
+            "DROP_takes_the_id_indexes_with_it": dropped_cleanly,
+            "A_COPY_GETS_FRESH_IDS_AND_KEEPS_PROPS": fresh_and_kept}
+
+
+def check_the_COMPARISONS_reach_the_goal_and_its_three_readers():
+    """⭐⭐ *"the file is bigger than 1k"* — an ordinary thing to want of a goal, and the five comparisons
+    lived **only inside a `type` block**. That was an accident of where the comparison code happened to
+    sit, not a decision.
+
+    **⚠ This is why it was not a parser edit.** Three readers assumed equality, and each is wrong in a
+    different way once `>=` is legal:
+
+    * `goal.holds` compared with `==` — the constraint would never hold;
+    * `query.refutes` read *refuted* as `got != want` — but a value may differ and still satisfy `>=`,
+      so it would report a positive **no** about a goal that was fine;
+    * `conflict.unsatisfiable` called two constraints on one slot contradictory whenever their values
+      differed — `size > 10` and `size > 20` are jointly satisfiable, and reporting them impossible
+      **refuses a goal that was achievable**, which is the unsound direction.
+
+    ⭐ All three now go through `types.compare` — the one comparator, made public for exactly this, so
+    `>=` cannot come to mean different things in a schema and in a goal.
+
+    ⚠⚠ **And widening the parser reintroduced a defect it had to be given back.** `a.size > b.size` was
+    three words with an unknown middle, so it was read as a link and refused loudly by `parse_link('>')`.
+    With `>` legal it *parses* — and the right-hand side is a **literal**, so it silently became
+    `a.size > "b.size"`, a string/number comparison that can never hold. Refused explicitly now, pointing
+    at the `type` block where relating two places is what the form is for.
+
+    ⚠ Vacuity guard: `conflict` must still catch the contradictions it caught before. Two equalities and
+    an equality outside a range are both asserted, or "fewer false positives" is just "detects less"."""
+    from . import conflict as CF, goal as G, intake as I
+
+    g = new_graph()
+    f = g.mint("chunk", kind_of="file", label="report", size=120)
+    g.link("root", "has", f)
+
+    def holds(line):
+        goal = I.read_goal(g, _lines("goal g:", "    " + line))
+        return G.holds(g, G.constraints(g, goal)[0])
+
+    def impossible(*lines):
+        return bool(CF.unsatisfiable(g, I.read_goal(g, _lines("goal g:", *("    " + x for x in lines)))))
+
+    evaluated = [holds("report.size > 100"), holds("report.size > 500"),
+                 holds("report.size >= 120"), holds("report.size != 120"),
+                 holds("report.size <= 120"), holds("report.size = 120")]
+
+    # `refutes` — a differing value must NOT refute a satisfied range constraint.
+    from . import query as Q
+    ranged = G.constraints(g, I.read_goal(g, _lines("goal g:", "    report.size > 100")))[0]
+    exact = G.constraints(g, I.read_goal(g, _lines("goal g:", "    report.size = 999")))[0]
+
+    try:
+        I.read_goal(g, _lines("goal g:", "    report.size > report.width"))
+        ref_right = None
+    except Exception as e:
+        ref_right = str(e)
+
+    return {"ALL_FIVE_COMPARISONS_EVALUATE":
+                evaluated == [True, False, True, False, True, True],
+            "a_RANGE_constraint_is_not_refuted_by_a_differing_value": not Q.refutes(g, ranged),
+            "but_a_FALSE_equality_still_is": Q.refutes(g, exact),
+            "JOINTLY_SATISFIABLE_RANGES_ARE_NOT_A_CONTRADICTION":
+                not impossible("report.size > 10", "report.size > 20"),
+            "and_two_equalities_still_are": impossible("report.size = 5", "report.size = 9"),
+            "and_an_equality_OUTSIDE_a_range_still_is":
+                impossible("report.size = 5", "report.size > 20"),
+            "but_one_INSIDE_it_is_fine": not impossible("report.size = 30", "report.size > 20"),
+            "A_REFERENCE_ON_THE_RIGHT_IS_REFUSED":
+                ref_right is not None and "literal" in ref_right}
 
 
 def check_authored_knowledge_arrives_as_text_that_can_be_refused():

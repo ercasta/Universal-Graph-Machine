@@ -52,14 +52,23 @@ class Ref:
 
 
 class Graph:
-    __slots__ = ("attrs", "out", "inc", "bykind", "eprops", "_journal", "_recording")
+    __slots__ = ("attrs", "out", "eids", "edges", "inc", "bykind", "eprops", "_journal", "_recording")
 
     def __init__(self) -> None:
         self.attrs: dict[str, dict] = {}
         self.out: dict[tuple, list] = {}       # (src, label) -> [dst, …] ordered
-        self.inc: dict[str, set] = {}          # dst -> {(src, label), …}
+        # ⭐⭐ EDGES HAVE IDENTITY. `eids` runs parallel to `out`, same order, written only by `_insert`
+        # and `unlink`. ⚠ Parallel rather than packing `(dst, eid)` into `out` on purpose: `targets` is
+        # the hottest read in the engine (161 call sites) and stays an allocation-free dict lookup.
+        # The sync risk is handled the way `thread._append` handles its two orderings — one writer, and
+        # a check that they cannot disagree.
+        self.eids: dict[tuple, list] = {}      # (src, label) -> [eid, …] parallel to `out`
+        self.edges: dict[str, tuple] = {}      # eid -> (src, label, dst)
+        # ⚠ `inc` is keyed by whatever is pointed AT, and an eid is an ordinary string, so an edge can be
+        # a link target with no change here. That is what makes "what refers to this edge?" O(1).
+        self.inc: dict[str, set] = {}          # dst -> {(src, label), …}   dst may be a node OR an edge
         self.bykind: dict[str, dict] = {}      # kind -> {node: None} in mint order — see `of_kind`
-        self.eprops: dict[tuple, dict] = {}    # (src, label, index) -> {k: v}
+        self.eprops: dict[str, dict] = {}      # eid -> {k: v}   ← keyed by IDENTITY, never by position
         self._journal: list = []
         self._recording = True
 
@@ -111,7 +120,11 @@ class Graph:
         return tuple(sorted(lbl for (s, lbl) in self.out if s == src))
 
     def edge_prop(self, src: str, label: str, index: int, key: str, default=None):
-        return self.eprops.get((src, label, index), {}).get(key, default)
+        """⚠ Kept, signature unchanged, because five callers address an edge positionally and that is
+        still a reasonable thing to do. It now resolves the position to an **id** and reads the property
+        off that, so what used to be maintained by shifting is a lookup."""
+        eid = self.edge_at(src, label, index)
+        return default if eid is None else self.eprops.get(eid, {}).get(key, default)
 
     def sources(self, dst: str, label: str | None = None) -> tuple:
         """Who points at `dst` — O(1) via the maintained reverse index. This is what `BACK` needs, and
@@ -185,40 +198,42 @@ class Graph:
         """Store a pointer to `target` as an attribute. See the module docstring on refs vs edges."""
         self.put(node, **{key: Ref(target)})
 
-    def link(self, src: str, label: str, dst: str, **props) -> None:
+    def link(self, src: str, label: str, dst: str, **props) -> str:
+        """Append an edge. **Returns its id**, which is stable for as long as the edge exists."""
+        return self._insert(src, label, len(self.out.get((src, label), ())), dst, props)
+
+    def link_at(self, src: str, label: str, index: int, dst: str, **props) -> str:
+        """Insert at a position, shifting later edges right. **Their properties come with them**, and now
+        for free: a property belongs to an edge id, so nothing has to be reindexed to keep it attached."""
+        return self._insert(src, label, index, dst, props)
+
+    def _insert(self, src: str, label: str, index: int, dst: str, props: dict) -> str:
+        """⚠ **THE ONLY PLACE AN EDGE IS CREATED**, so `out` and `eids` cannot disagree about order. That
+        is the same discipline `thread._append` keeps for its two orderings, and it earns a check for the
+        same reason: two parallel lists maintained in more than one place would drift silently."""
         tgts = self.out.setdefault((src, label), [])
-        index = len(tgts)
-        tgts.append(dst)
+        ids = self.eids.setdefault((src, label), [])
+        index = max(0, min(index, len(tgts)))
+        eid = f"edge#{next(_ids)}"
+        tgts.insert(index, dst)
+        ids.insert(index, eid)
+        self.edges[eid] = (src, label, dst)
         self.inc.setdefault(dst, set()).add((src, label))
         if props:
-            self.eprops[(src, label, index)] = dict(props)
-
-        def undo():
-            tgts.pop()
-            self.eprops.pop((src, label, index), None)
-            if not tgts:
-                self.out.pop((src, label), None)
-            if dst not in tgts:
-                self.inc.get(dst, set()).discard((src, label))
-        self._undo(undo)
-
-    def link_at(self, src: str, label: str, index: int, dst: str, **props) -> None:
-        """Insert, shifting later edges — and their properties — right."""
-        tgts = self.out.setdefault((src, label), [])
-        index = max(0, min(index, len(tgts)))
-        before_props = self._label_props(src, label)
-        tgts.insert(index, dst)
-        self.inc.setdefault(dst, set()).add((src, label))
-        self._reindex(src, label, before_props, shift_from=index, delta=+1, new=(index, props))
+            self.eprops[eid] = dict(props)
 
         def undo():
             tgts.pop(index)
-            self._restore_props(src, label, before_props)
+            ids.pop(index)
+            self.edges.pop(eid, None)
+            self.eprops.pop(eid, None)
             if not tgts:
                 self.out.pop((src, label), None)
+                self.eids.pop((src, label), None)
             if dst not in tgts:
                 self.inc.get(dst, set()).discard((src, label))
         self._undo(undo)
+        return eid
 
     def unlink(self, src: str, label: str, *, index: int | None = None, dst: str | None = None) -> None:
         tgts = self.out.get((src, label))
@@ -230,20 +245,28 @@ class Graph:
             index = tgts.index(dst)
         if not (0 <= index < len(tgts)):
             return
-        removed = tgts[index]
-        before_props = self._label_props(src, label)
+        ids = self.eids.get((src, label), [])
+        removed, eid = tgts[index], ids[index]
+        props = self.eprops.pop(eid, None)
         tgts.pop(index)
-        self._reindex(src, label, before_props, shift_from=index, delta=-1, drop=index)
+        ids.pop(index)
+        self.edges.pop(eid, None)
         if removed not in tgts:
             self.inc.get(removed, set()).discard((src, label))
-        empty = not tgts
-        if empty:
+        if not tgts:
             self.out.pop((src, label), None)
+            self.eids.pop((src, label), None)
 
         def undo():
+            # ⚠ The SAME id comes back. A rollback that minted a fresh one would leave anything pointing
+            # at this edge — a moment that dated it, say — dangling at something that no longer exists,
+            # which is exactly the guarantee edge identity was added to provide.
             self.out.setdefault((src, label), tgts).insert(index, removed)
+            self.eids.setdefault((src, label), ids).insert(index, eid)
+            self.edges[eid] = (src, label, removed)
+            if props is not None:
+                self.eprops[eid] = props
             self.inc.setdefault(removed, set()).add((src, label))
-            self._restore_props(src, label, before_props)
         self._undo(undo)
 
     def drop(self, node: str) -> None:
@@ -256,7 +279,20 @@ class Graph:
             for d in self.targets(node, lbl):
                 self.inc.get(d, set()).discard((node, lbl))
             saved = self.out.pop((node, lbl))
-            self._undo(lambda lbl=lbl, saved=saved: self.out.__setitem__((node, lbl), saved))
+            # ⚠ The id indexes must go with the targets. Popping `out` alone left `eids` and `edges`
+            # holding ids for edges that no longer exist — `edge_ends` would answer confidently about a
+            # dropped edge, which is worse than answering `None`.
+            saved_ids = self.eids.pop((node, lbl), [])
+            saved_props = {e: self.eprops.pop(e) for e in saved_ids if e in self.eprops}
+            saved_ends = {e: self.edges.pop(e) for e in saved_ids if e in self.edges}
+
+            def undo(lbl=lbl, saved=saved, saved_ids=saved_ids,
+                     saved_props=saved_props, saved_ends=saved_ends):
+                self.out[(node, lbl)] = saved
+                self.eids[(node, lbl)] = saved_ids
+                self.edges.update(saved_ends)
+                self.eprops.update(saved_props)
+            self._undo(undo)
         attrs = self.attrs.pop(node, None)
         if attrs is not None:
             kind = attrs.get("kind")
@@ -268,24 +304,36 @@ class Graph:
                     self.bykind.setdefault(kind, {})[node] = None
             self._undo(undo)
 
-    # --- edge-property index maintenance ------------------------------------------------------------
-    def _label_props(self, src, label) -> dict:
-        return {k: dict(v) for k, v in self.eprops.items() if k[0] == src and k[1] == label}
+    # --- edges as things you can point at -----------------------------------------------------------
+    # ⭐⭐⭐ `_reindex` / `_label_props` / `_restore_props` used to live here — three functions and a
+    # rollback dance that existed for one reason: `eprops` was keyed by `(src, label, index)`, so every
+    # insertion had to walk the label's properties and shift them. Edge identity deletes all of it. A
+    # property belongs to an **edge**, and an edge does not move when its neighbours do.
 
-    def _restore_props(self, src, label, saved: dict) -> None:
-        for k in [k for k in self.eprops if k[0] == src and k[1] == label]:
-            del self.eprops[k]
-        self.eprops.update(saved)
+    def edge_at(self, src: str, label: str, index: int):
+        """The id of the edge at this position, or `None`. ⚠ The POSITION is what shifts; the id does not."""
+        ids = self.eids.get((src, label), ())
+        return ids[index] if -len(ids) <= index < len(ids) else None
 
-    def _reindex(self, src, label, before, *, shift_from, delta, new=None, drop=None) -> None:
-        for k in [k for k in self.eprops if k[0] == src and k[1] == label]:
-            del self.eprops[k]
-        for (s, lbl, i), v in before.items():
-            if drop is not None and i == drop:
-                continue
-            self.eprops[(s, lbl, i + delta if i >= shift_from else i)] = v
-        if new is not None and new[1]:
-            self.eprops[(src, label, new[0])] = dict(new[1])
+    def edge_ids(self, src: str, label: str) -> tuple:
+        return tuple(self.eids.get((src, label), ()))
+
+    def edge_ends(self, eid: str):
+        """`(src, label, dst)` for this edge, or `None` if it no longer exists."""
+        return self.edges.get(eid)
+
+    def is_edge(self, thing: str) -> bool:
+        return thing in self.edges
+
+    def edge_props(self, eid: str) -> dict:
+        return dict(self.eprops.get(eid, {}))
+
+    def edge_between(self, src: str, label: str, dst: str):
+        """The id of the first edge `src -label-> dst`, or `None`. What names an edge you can only describe."""
+        for eid in self.eids.get((src, label), ()):
+            if self.edges.get(eid, (None, None, None))[2] == dst:
+                return eid
+        return None
 
 
 class _Missing:

@@ -2413,16 +2413,23 @@ the failure.
 
 Ranked. Everything above §5 is history; this is the list.
 
-**⭐⭐⭐ 0a. THE SURFACE ARC (§6o) IS A THIRD DONE.** In order, because each makes the next cheap:
+**⭐⭐⭐ 0a. READ `docs/microfunctions/islands.md` FIRST — it is this session's real output.** *Which
+expressions can the engine not MODEL* (PARSE / EXECUTION / **ISLAND**), as against `not_supported.md`'s
+*what cannot be SAID*. Its **§5 is the live list**; the rest of this section summarises it.
 
-1. **`type` and `prefer`/`avoid` onto `_shape`.** `type` is the interesting one — it holds the full
-   operator set and the `relates` forms, so it is the position that could *supply* the widened comparisons
-   to the others rather than merely being where they are legal.
-2. **The typed consequent** — collapse `step` / `do` / a memory write into **conditions → consequent**.
+✅ **Two of its items are DONE since §6o was written:** the comparison operators reach goals and
+conditions (they lived only in `type`), and **edges have identity** (substrate slice one — `eprops` keyed
+by id, `inc` generalised so an edge is an ordinary link target, three index-maintenance functions
+deleted). Also new: `clock.py`, time as a node that points at what it dates.
+
+⚠ **Verify before believing any of this: `python -m microfunctions.selftest` → 208 checks, 0 FAILED.**
+
+What remains, in order:
+1. **The typed consequent** — collapse `step` / `do` / a memory write into **conditions → consequent**.
    ⭐ This is the user's framing and it is what makes `remember` and `learn` cheap rather than two more
    islands: `learn` writes a **criterion**, so it needs no new family at all. ⚠ Open: whether a consequent
    is a fourth tagged shape or its own small grammar.
-3. **The sidecar executor.** ⚠⚠ `loop.py` claims *"the Python-control-loop inventory is empty"* and **it is
+2. **The sidecar executor.** ⚠⚠ `loop.py` claims *"the Python-control-loop inventory is empty"* and **it is
    not true**: `criterion.decide` returns a closure that loops `for c in criteria(g)` to completion, once
    per imagined step, invisible to the agenda because it is a `propose=` **hook parameter** — the same
    hidden Python channel `plural_step.md` invoked to reject a `view=` argument. Deleting it is the vacuity

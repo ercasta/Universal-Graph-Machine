@@ -127,7 +127,12 @@ def refutes(g: Graph, c: str, *, view=None) -> bool:
     if subject is None:
         return False
     key = g.attr(c, "key")
-    return key in g.attrs.get(subject, {}) and g.attr(subject, key) != g.attr(c, "value")
+    # ⚠ Refuting a `>=` constraint is *not* `got != want` — the value may differ and still satisfy it.
+    # Equality was assumed here while comparisons lived only in `type` blocks; with the operators widened
+    # to goals, this had to become "the slot is present and the comparison FAILS".
+    from .types import compare
+    return key in g.attrs.get(subject, {}) and \
+        not compare(g.attr(c, "op") or "==", g.attr(subject, key), g.attr(c, "value"))
 
 
 # --- asking --------------------------------------------------------------------------------------

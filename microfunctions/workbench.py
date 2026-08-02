@@ -86,7 +86,11 @@ def _copy_set(g: Graph, originals) -> dict:
         for label in g.labels(o):
             for i, t in enumerate(g.targets(o, label)):
                 if t in image:
-                    props = g.eprops.get((o, label, i), {})
+                    # ⚠ Edge properties are keyed by edge **id** now, not by `(src, label, index)`.
+                    # Reading the old key here returned `{}` silently, so a copied edge quietly lost its
+                    # properties — and nothing failed, because no check copied one. See the check that
+                    # now does.
+                    props = g.edge_props(g.edge_at(o, label, i))
                     g.link(image[o], label, image[t], **props)
     return image
 

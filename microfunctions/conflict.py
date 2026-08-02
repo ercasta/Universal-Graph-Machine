@@ -50,6 +50,7 @@ from . import thread as T
 from . import workbench as W
 from .graph import Graph
 from .isa import F
+from .types import compare
 
 
 # --- what a function claims ---------------------------------------------------------------------
@@ -210,10 +211,23 @@ def unsatisfiable(g: Graph, goal: str) -> tuple:
         if g.attr(c, "sort") != "attr":
             continue
         slot = (g.target(c, "subject"), g.attr(c, "key"))
-        if slot in wants and wants[slot][1] != g.attr(c, "value"):
-            reasons.append(f"{G.describe_constraint(g, wants[slot][0])} contradicts "
-                           f"{G.describe_constraint(g, c)}")
-        wants[slot] = (c, g.attr(c, "value"))
+        op, value = g.attr(c, "op") or "==", g.attr(c, "value")
+        # ⚠⚠ **Two constraints on one slot no longer contradict merely by wanting different values.**
+        # `size > 10` and `size > 20` are jointly satisfiable; so are `size >= 10` and `size != 40`. Only
+        # an EQUALITY demand can be contradicted this cheaply, because it names the single value the slot
+        # must hold — and then the other constraint is a contradiction exactly when that value fails it.
+        # ⚠ Anything else is left alone rather than guessed at: this reader reports *impossible*, and a
+        # false positive here refuses a goal that was perfectly achievable. Deciding the general case
+        # needs interval reasoning over the operators, which is a real piece of work and not this one.
+        if slot in wants:
+            prev_c, prev_op, prev_value = wants[slot]
+            clash = ((op == "==" and not compare(prev_op, value, prev_value))
+                     or (prev_op == "==" and not compare(op, prev_value, value)))
+            if clash:
+                reasons.append(f"{G.describe_constraint(g, prev_c)} contradicts "
+                               f"{G.describe_constraint(g, c)}")
+        if op == "==" or slot not in wants:
+            wants[slot] = (c, op, value)
 
     banned = {g.attr(c, "function") for c in G.constraints(g, goal)
               if g.attr(c, "sort") == "never" and g.attr(c, "function")}

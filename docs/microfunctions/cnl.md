@@ -309,14 +309,20 @@ x l y          x l+ y          x.k = v          x.k known          x is a T     
 | `x l y` | ✓ | ✓ | ✓ |
 | `x l+ y` — reach at any depth | ✓ | ⚠ refused: no single edge achieves it | ✓ **new** |
 | `x.k = v` | ✓ | ✓ | ✓ |
+| `x.k != v`, `< <= > >=` | ✓ **new** | ⚠ refused: a step is something to *achieve* | ✓ **new** |
 | `x is a T` | ✓ | ✓ | ✓ |
 | `x is there` | ⚠ refused: say `some T` | ⚠ refused | ✓ |
 | `x.k known` | ✓ | ⚠ refused | ⚠ refused |
 | negation | via `never` (the route) | — | ✓ via `unless` |
 
-**⭐ A refusal now names the form and the reason**, rather than a position simply not matching. `b.size >= 3`
-in a goal says the operator exists in a `type` block and why it does not work here, instead of falling
-through to "vocabulary is closed".
+**⭐ A refusal now names the form and the reason**, rather than a position simply not matching.
+
+**⚠⚠ On the right of a comparison a bare word is a LITERAL, and a reference there is refused.**
+`a.size > b.size` reads `b.size` as the *string* `"b.size"`, which can never compare to a number — so it
+is refused, pointing at the `type` block, where relating two places is what the form is for
+(`wheel[0].pressure == wheel[1].pressure`). ⚠ This was a **loud refusal by accident** until the operators
+were widened: `>` was an unknown middle word, so the line was read as a link and `parse_link` rejected it.
+Widening made it parse, and it had to be given its refusal back deliberately.
 
 **⚠⚠ What is deliberately NOT unified: depth.** A goal and a step take **one hop**; a condition takes
 **any**. That is §8's rule and it is principled — `conflict.unsatisfiable` keys a slot as `(subject, key)`,

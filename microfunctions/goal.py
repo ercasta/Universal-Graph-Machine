@@ -215,8 +215,21 @@ def require_link(g: Graph, goal: str, subject: str, label: str, obj: str, *,
     return c
 
 
-def require_attr(g: Graph, goal: str, subject: str, key: str, value) -> str:
-    c = _constrain(g, goal, "attr", key=key, value=value)
+def require_attr(g: Graph, goal: str, subject: str, key: str, value, op: str = "==") -> str:
+    """*This slot must compare this way to this value.*
+
+    ⭐ `op` defaults to `==`, which is every existing caller and every existing meaning. The wider set
+    (`!= < <= > >=`) used to exist **only inside a `type` block** — an accident of where the comparison
+    code happened to live, not a decision, and `intake._shape` refused the others with a message pointing
+    at `type`. *"the file is bigger than 1k"* is an ordinary thing to want of a goal.
+
+    ⚠ Widening the surface meant teaching the **readers**, which is why this was not a parser edit:
+    `holds`, `conflict.unsatisfiable` and `query.refutes` all assumed equality. All three now go through
+    `types.compare`, the one comparator, so `>=` cannot mean different things in a schema and in a goal."""
+    from .types import VALUE_OPS
+    if op not in VALUE_OPS:
+        raise ValueError(f"a comparison is one of {VALUE_OPS}, not {op!r}")
+    c = _constrain(g, goal, "attr", key=key, value=value, op=op)
     g.link(c, "subject", subject)
     return c
 
@@ -383,7 +396,11 @@ def holds(g: Graph, c: str, *, view=None, under: str | None = None) -> bool:
         got = g.attr(here, g.attr(c, "key"))
         # ⚠ An unknown slot does NOT satisfy a value constraint, and it does not *falsify* it either — see
         # `undetermined`. Here it is simply not satisfied, which keeps `holds` a predicate.
-        return got is not UNKNOWN and got == g.attr(c, "value")
+        # ⚠ `types.compare` is total: comparing a string to a number is a failed constraint, never a
+        # crash, which matters more here than in a schema because a goal is checked against a world that
+        # is under no obligation to hold the type the author had in mind.
+        from .types import compare
+        return got is not UNKNOWN and compare(g.attr(c, "op") or "==", got, g.attr(c, "value"))
     if sort == "type":
         want = g.attr(c, "type")
         if here is not None:
