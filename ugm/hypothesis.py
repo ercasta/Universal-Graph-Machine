@@ -1,38 +1,37 @@
-"""HYPOTHESIS — an ordinary node, with ordinary subgraphs under it. No special mechanism.
+"""Hypothesis — an ordinary node, with ordinary subgraphs under it. No special mechanism.
 
-**The decision this module implements, stated plainly:** a hypothesis is a *node*. If entertaining it needs
-a different version of something, it *builds* that version as an ordinary subgraph and hangs it off the
-hypothesis. If it needs to remember what a value used to be, it writes an explicit backup. There is no
-scope, no relativization, no pencil/ink layer, no supposition primitive — none of the machinery the old
-substrate spent years on.
+A hypothesis is a node. If entertaining it needs a different version of something, it builds that
+version as an ordinary subgraph and hangs it off the hypothesis; if it needs to remember what a
+value used to be, it writes an explicit backup. There is no scope, no relativization, no
+pencil-and-ink layer and no supposition primitive.
 
-**⚠ The undo journal in `graph.py` is NOT the hypothesis mechanism, and conflating them would be a
-mistake.** The journal is transactional: it exists so a program that raises halfway leaves no half-written
-graph. Its unit is "a run that failed," and its lifetime is one call. A hypothesis outlives any call,
-must be inspectable while it exists, must be comparable against a sibling hypothesis, and must be able to
-reach a verdict a rule can read. Those are different jobs. Rollback cannot represent "two rival hypotheses
-side by side"; two nodes can.
+The undo journal is not the hypothesis mechanism, and conflating them would be a mistake. The
+journal is transactional: it exists so a program that raises halfway leaves no half-written
+graph, its unit is a run that failed and its lifetime is one call. A hypothesis outlives any
+call, must be inspectable while it exists, must be comparable against a sibling, and must reach a
+verdict a rule can read. Rollback cannot represent two rival hypotheses side by side; two nodes
+can.
 
-**Why this is better than the mechanism it replaces**, beyond being smaller:
+Three things follow, and they are why this is better than the mechanism it replaces rather than
+merely smaller.
 
-* **Two hypotheses coexist.** The old supposition machinery entertained one assumption at a time and
-  discarded it; comparing candidate plans meant re-running. Here rival hypotheses are two nodes, both
-  present, both readable, and choosing between them is an ordinary comparison — which is exactly what
-  §5c's selection residue needs.
-* **⭐ The verdict is a fact.** `docs/concepts.md` recorded a real gap: a supposition's verdict came
-  back as a Python value and the scope was retired, so no rule could ever react to "that hypothesis was
-  refuted." Here the verdict is an attribute on a node that persists. **That gap closes for free** — not
-  by being fixed, but by not being reintroduced.
-* **Nothing leaks, because nothing was ever global.** Old suppositions needed a tunnel discipline to stop
-  hypothetical conclusions escaping into real belief. A hypothesis's subgraph is only reachable by
-  navigating into it, so "leaking" would require a microfunction to deliberately walk there and copy
-  something out. Isolation is a consequence of addressing, not a mechanism.
+* Two hypotheses coexist. Machinery that entertains one assumption at a time and discards it
+  means comparing candidate plans requires re-running. Here rivals are two nodes, both present,
+  both readable, and choosing between them is an ordinary comparison.
+* The verdict is a fact. It is an attribute on a node that persists, so a rule can react to "that
+  hypothesis was refuted" — which a verdict returned as a Python value into a retired scope could
+  never support.
+* Nothing leaks, because nothing was ever global. A hypothesis's subgraph is reachable only by
+  navigating into it, so leaking would require deliberately walking there and copying something
+  out. Isolation is a consequence of addressing rather than a mechanism.
 
-**The cost, stated honestly.** Nothing is shared implicitly. If a hypothesis needs an altered copy of a
-large structure, something must build that copy — there is no free relativized view. For the agentic cases
-this project cares about (a handful of candidate plans, a counterfactual about one value) that is cheap and
-explicit. For a hypothesis that perturbs a large subgraph it is real work, and the honest answer is to
-build only what differs and reference the rest.
+The cost, stated honestly: nothing is shared implicitly. If a hypothesis needs an altered copy of
+a large structure, something must build that copy — there is no free relativized view. For a
+handful of candidate plans or a counterfactual about one value that is cheap and explicit; for a
+hypothesis that perturbs a large subgraph it is real work, and the answer is to build only what
+differs and reference the rest.
+
+See `docs/concepts.md`.
 """
 from __future__ import annotations
 
@@ -78,7 +77,7 @@ def variant(g: Graph, h: str, original: str, **attrs) -> str:
 
 
 def backup(g: Graph, h: str, node: str, key: str) -> str:
-    """An EXPLICIT record of a value before the hypothesis touched it — the user's "explicit backups."
+    """An explicit record of a value before the hypothesis touched it — the user's "explicit backups."
 
     A node, not a hidden shadow copy, so it is inspectable, explainable, and restorable by anything that
     can navigate to it."""
@@ -101,7 +100,7 @@ def restore(g: Graph, h: str) -> int:
 
 
 def conclude(g: Graph, h: str, verdict: str, *, because=None) -> str:
-    """Settle a hypothesis. THE verdict-as-a-fact that `docs/concepts.md` found missing."""
+    """Settle a hypothesis. The verdict-as-a-fact that `docs/concepts.md` found missing."""
     g.put(h, status=verdict)
     if because is not None:
         g.link(h, "because", because)

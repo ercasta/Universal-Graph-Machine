@@ -1,38 +1,40 @@
-"""DRIVER — the outer loop. Pursue a goal by imagining, and let the record of what worked BE the plan.
+"""Driver — the outer loop. Pursue a goal by imagining, and let the record of what worked be the plan.
 
-This is the piece the engine never had. `plan.py` chains, `workbench.py` imagines, `execution.py` replays,
-`selection.py` ranks — and until now *nothing invoked any of them*. The computation model was unspecified.
+`plan.py` chains, `workbench.py` imagines, `execution.py` replays and `selection.py` ranks; this
+is what invokes them.
 
-**The goal here is to produce a plan, not to act** — a goal *about* planning, which is the homoiconicity
-claim paying rent rather than being asserted: a plan is a node like any other, so wanting one is an ordinary
-goal. Nothing dispatches, nothing touches the world; the whole search happens on a workbench, and
-`dispatch.service` refusing an imagined target means that is guaranteed rather than merely intended.
+The goal here is to produce a plan rather than to act — a goal about planning, which is an
+ordinary goal because a plan is an ordinary node. Nothing dispatches and nothing touches the
+world: the whole search happens on a workbench, and `dispatch.service` refusing an imagined
+target makes that guaranteed rather than merely intended.
 
-**⭐ The plan is not built, it is FOUND. `execution.path_to(wb, winning_frame)` already is one.** The
-frame tree records every state the system imagined and every transformation that got there, so the path to
-the frame that satisfies the goal is a replayable plan — and `execution.execute` runs it, unchanged. There
-was never a plan-construction step to write.
+The plan is not built, it is found. `execution.path_to(wb, winning_frame)` already is one. The
+frame tree records every state imagined and every transformation that reached it, so the path to
+the frame that satisfies the goal is replayable, and `execution.execute` runs it unchanged.
 
-**Why forward search here, when `plan.py` chains backwards.** Backward chaining over return types cannot
-express *applying the same operator repeatedly*: a function has one declared return type, so "stack a block,
-then stack another" is not a chain of distinct casts. Blocks-world needs repetition, and repetition comes
-from the **loop**, not from the planner. That is not a defect in `plan.py` — the two answer different
-questions, and this is the honest division:
+Forward search here, where `plan.py` chains backwards, because the two answer different
+questions. Backward chaining over return types cannot express applying the same operator
+repeatedly: a function has one declared return type, so "stack a block, then stack another" is
+not a chain of distinct casts, and repetition comes from the loop.
 
-* `plan.py` — *what sequence of casts reaches this type?* Cheap, no imagining, right when the operators form
-  a pipeline of distinct stages.
-* here — *what do I get if I try this, and then this?* Costly (a frame per step), right when the same
-  operator applies repeatedly and the interesting question is the resulting **state**.
+* `plan.py` — what sequence of casts reaches this type? Cheap, no imagining, right when the
+  operators form a pipeline of distinct stages.
+* here — what do I get if I try this, and then this? Costly, a frame per step, right when the
+  same operator applies repeatedly and the interesting question is the resulting state.
 
-**Binding search lives here, deliberately.** `selection.candidates` is restricted to single-parameter
-functions, and says why: "a multi-parameter function needs a *binding* proposed, not just a subject, and
-inventing bindings is a different problem (search) that should not hide inside candidate generation." This
-is that different problem, in the module where search belongs. `selection.py` is unchanged.
+Binding search lives here deliberately. `selection.candidates` is restricted to single-parameter
+functions because a multi-parameter function needs a binding proposed, and inventing bindings is
+search, which should not hide inside candidate generation.
 
-**⚠ Honest scope.** Depth-first with a visited set, first solution wins, bounded by `max_steps`. No cost
-model, no heuristic, no System 1 — candidate ordering is declaration order. The frame tree makes this
-expensive (a full copy per imagined step), which is a known and measured limit, not a surprise. It is
-adequate for a handful of blocks and should not be mistaken for a planner.
+Effects are read off a function's stored body rather than declared, so they cannot fall out of
+date with it, and they carry their roles — `stack` links its parameter `b` onto its parameter
+`onto`. Relevance only ever orders; a prohibition or budget prunes.
+
+Honest scope: best-first with a visited set, first solution wins, bounded by `max_steps`. No cost
+model and no backtracking across a committed subgoal. The frame tree makes this expensive, a full
+copy per imagined step, which is a known and measured limit rather than a surprise.
+
+See `docs/planning.md`.
 """
 from __future__ import annotations
 
@@ -58,17 +60,17 @@ from .types import is_a
 
 # --- deliberation: the verbs a decision can return ------------------------------------------------
 #
-# ⭐ THE SEAM `pursue` NEVER HAD. It was a closed loop — nothing could intervene between two imagined
+# The seam `pursue` Never had. It was a closed loop — nothing could intervene between two imagined
 # steps — so "what should I do next?" was not an expressible question, only a `while` condition. That made
 # deliberation the thing this system computes *with* and cannot compute *about*: the same defect attention
 # had before `thread.py` and the goal had before `goal.py`, in its third place. See `docs/deliberation.md`.
 #
-# ⚠ The set is CLOSED on purpose. It is the vocabulary everything authored has to speak, and a verb that
+# The set is closed on purpose. It is the vocabulary everything authored has to speak, and a verb that
 # means "something else" would make a decision unreadable to the reflective functions that are the point.
 EXPAND = "expand"            # imagine the best-ranked proposal — the default, and today's whole behaviour
 DECOMPOSE = "decompose"      # post subgoals instead of enumerating actions   (needs goal hierarchy)
 COMMIT = "commit"            # stop planning; what we have is what we will do
-SENSE = "sense"              # stop planning and act IN ORDER TO LEARN        (needs ignorance)
+SENSE = "sense"              # stop planning and act in order to learn        (needs ignorance)
 REFUSE = "refuse"            # no sanctioned way to proceed; do not improvise
 
 VERBS = (EXPAND, DECOMPOSE, COMMIT, SENSE, REFUSE)
@@ -85,32 +87,32 @@ class Undecidable(Exception):
 
 
 class Call(NamedTuple):
-    """⭐⭐ A decision that names **what to do**, not merely whether to keep going.
+    """A decision that names what to do, not merely whether to keep going.
 
     The five verbs say something about the search's *disposition*; this says which action to imagine next,
     with its arguments. That is what `docs/deliberation.md` needs and what the seam could not express:
     `decide` was consulted *after* `take_best` had already chosen, so a decision could veto but never
     substitute.
 
-    `bindings` maps each parameter to **a real node or a mapping in the current frame** — either, because a
+    `bindings` maps each parameter to a real node or a mapping in the current frame — either, because a
     criterion reasons about individuals (`stands_for`) and should not have to know what a workbench is.
 
-    **⭐ Naming a binding is the point.** `selection.candidates` refuses multi-parameter functions on the
+    Naming a binding is the point. `selection.candidates` refuses multi-parameter functions on the
     grounds that *"inventing bindings is a different problem (search) that should not hide inside candidate
     generation"*. A `Call` is that job done by authored knowledge instead of by enumeration — which is the
     wall coming down deliberately (`docs/deliberation.md`, not by accident.
 
-    ⚠ **It is still checked, and against the same requirements the enumeration applies.** A decision may
+    It is still checked, and against the same requirements the enumeration applies. A decision may
     name a binding the search never proposed; it may not name an ill-typed one, one node in two roles, or
-    a **forbidden** action. Rank a guess, prune a proof: a criterion is a guess and `goal.forbid_action` is
+    a forbidden action. Rank a guess, prune a proof: a criterion is a guess and `goal.forbid_action` is
     a proof, so the proof wins and the attempt raises rather than being quietly downgraded."""
     function: str
     bindings: dict
     why: str | None = None
-    #: ⭐⭐ FORCE. `False` — advisory: the enumeration this call suppresses is **deferred**, so being wrong
-    #: costs imagined states. `True` — mandatory: the alternatives are **not built at all**, so a wrong
+    #: Force. `False` — advisory: the enumeration this call suppresses is deferred, so being wrong
+    #: costs imagined states. `True` — mandatory: the alternatives are not built at all, so a wrong
     #: call makes the goal unreachable rather than merely expensive. `docs/deliberation.md`'s finding, in a
-    #: third place: *force is about FAILURE* — a method falls back to search, a procedure must refuse.
+    #: third place: *force is about failure* — a method falls back to search, a procedure must refuse.
     final: bool = False
 
 
@@ -120,13 +122,13 @@ def proposals(g: Graph, frame: str, *, allow=None) -> tuple:
 
 
 def stands_for(g: Graph, mapping: str):
-    """**The node a mapping names, as everything that reasons about individuals must see it.**
+    """The node a mapping names, as everything that reasons about individuals must see it.
 
     A mapping has two nodes: the workbench `image` that an imagined step reads and writes, and the
     `original` it stands for in the real world. A constraint, a want, a trace entry and a thread record all
     talk about the *original* — so anything comparing them has to agree on which one it means.
 
-    ⚠ This exists because they disagreed once. `wants_that_unblock` keyed its requirements by the image
+    This exists because they disagreed once. `wants_that_unblock` keyed its requirements by the image
     while `unlocks` resolved to the original, so the two never matched and the whole component scored zero
     on every proposal — a silent no-op that looked exactly like "the idea does not help". The expression was
     already written out seven times in this module; it is written once now, which is the difference between
@@ -135,37 +137,37 @@ def stands_for(g: Graph, mapping: str):
 
 
 def enumerate_frame(g: Graph, frame: str, *, allow=None) -> tuple:
-    """`(proposals, blocked)` — what can be applied here, **and why the rest cannot**.
+    """`(proposals, blocked)` — what can be applied here, and why the rest cannot.
 
-    ⭐⭐ `blocked` is the half that used to be computed and thrown away. Testing a candidate against a
+    `blocked` is the half that used to be computed and thrown away. Testing a candidate against a
     parameter type calls `types.fails`, which returns `{label: (expected, actual)}` — *precisely which
     requirement failed* — and this loop kept only its truthiness. So "this action is one requirement away
     from being possible" was already being computed on every candidate in every enumeration, and discarded.
 
-    `blocked` maps `function -> {(requirement label, node)}`: for each function with **no** valid binding
+    `blocked` maps `function -> {(requirement label, node)}`: for each function with no valid binding
     here, the requirements that stopped each candidate. `_offer` turns that into the search's only notion of
     *making progress towards being able to act*, which nothing else in this module has.
 
-    ⚠ Deliberately in the same pass. Computing it separately would re-run `fails` over every mapping and
+    Deliberately in the same pass. Computing it separately would re-run `fails` over every mapping and
     every parameter — doubling the dominant cost of enumeration to recover information the first pass
-    already had. §5m records paying for exactly that mistake once.
+    already had. records paying for exactly that mistake once.
 
-⚠ `blocked` is only the NAMES. What each of them was missing is recomputed by
+`blocked` is only the names. What each of them was missing is recomputed by
     `wants_that_unblock`, for the few that matter — see there for why that is cheaper than keeping it.
 
     The cartesian product of type-valid bindings, minus the ones binding one node to two parameters —
     which is not a heuristic but a correctness rule for operators like `stack(b, onto)`, where the type
-    system cannot say `b ≠ onto`. ⚠ `types.py` validates ONE argument at ONE call site by design, so a
+    system cannot say `b ≠ onto`. `types.py` validates one argument at one call site by design, so a
     relation *between* parameters has no declared form and has to be enforced here or in the body.
 
-    `allow` is a predicate on the function name, and it EXCLUDES rather than orders. ⚠ That is only
+    `allow` is a predicate on the function name, and it excludes rather than orders. That is only
     legitimate for a proof, never for a guess — the same line `relevance` sits on the other side of.
     `query.py` uses it to bar any function that could dispatch from being used as a derivation, which is a
     proof about the stored body, not an opinion about what will help."""
     here = W.mappings(g, frame)
     out, blocked = [], []
     for name in fn.names(g):
-        # ⚠ A MOCK IS NOT AN ACTION. It is an assumption about how a real call turns out, so proposing one
+        # A mock is NOT an action. It is an assumption about how a real call turns out, so proposing one
         # would be planning to *assume* something rather than to do it — and the resulting "plan" would name
         # a function that must never be executed for real. `workbench.step` substitutes the mock when the
         # real operator is stepped, which is where that belongs. Invisible in a library without mocks,
@@ -180,7 +182,7 @@ def enumerate_frame(g: Graph, frame: str, *, allow=None) -> tuple:
             continue
         per_param = []
         for p in params:
-            # ⚠ Gather the type's demands ONCE per parameter, not once per candidate. Resolving the name
+            # Gather the type's demands once per parameter, not once per candidate. Resolving the name
             # and walking its `base` chain depends only on the type, and redoing it per candidate was the
             # dominant remaining cost of enumeration — 1,025 rebuilds per enumeration in a world with 200
             # nodes that fit nothing. `requirements` stores nothing, so this hoists without a cache.
@@ -189,7 +191,7 @@ def enumerate_frame(g: Graph, frame: str, *, allow=None) -> tuple:
                 break                          # undeclared parameter type — no candidate can satisfy it
             fits = []
             for m in here:
-                # ⚠ TESTED against the image (the world as imagined here), KEYED by what it stands for
+                # Tested against the image (the world as imagined here), keyed by what it stands for
                 # (the individual a constraint talks about). Those are different nodes and conflating
                 # them is what made this component silently score zero.
                 if not TY.fails(g, W.image_of(g, m), reqs):
@@ -225,7 +227,7 @@ def view_in(g: Graph, frame: str):
 class _Unreadable:
     """The value of an attribute write the body computes rather than states.
 
-    ⚠ A singleton with a name, not `None` and not a bare `object()`. `None` is an ordinary attribute value,
+    A singleton with a name, not `None` and not a bare `object()`. `None` is an ordinary attribute value,
     so it cannot double as *"we could not read this"* without recreating the UNKNOWN-versus-NO conflation
     `query.py` exists to keep apart; and a bare sentinel prints as an address, which makes every check
     output that contains one unreadable."""
@@ -239,66 +241,66 @@ UNREADABLE = _Unreadable()
 
 
 def establishes(g: Graph, name: str) -> tuple:
-    """What this function could make true, read **off its stored body**. Returns `(effects, unknown)`.
+    """What this function could make true, read off its stored body. Returns `(effects, unknown)`.
 
-    ⭐ This is homoiconicity earning its keep rather than being asserted. Nothing declares effects — the
+    This is homoiconicity earning its keep rather than being asserted. Nothing declares effects — the
     north star deliberately moved away from operators carrying declarative effect descriptions — but a
     function *is* graph data, so we can look at what its instructions write and ask "could this establish an
     `on` edge?". No new representation, no authoring burden, and it cannot fall out of date with the body
     because it *is* the body.
 
-    **⭐ Effects carry their ROLES, and that turned out to matter more than the label.** An effect is
-    `(kind, label, subject_role, fourth)`, and **the fourth slot is tagged by the first**: for a `link` it
-    is the *object role*, for an `attr` it is **the value written** (or `UNREADABLE` when the instruction
+    Effects carry their ROLES, and that turned out to matter more than the label. An effect is
+    `(kind, label, subject_role, fourth)`, and the fourth slot is tagged by the first: for a `link` it
+    is the *object role*, for an `attr` it is the value written (or `UNREADABLE` when the instruction
     computes it). `stack` does not merely "write an `on` edge", it links
     *its parameter `b`* on *its parameter `onto`*. Without that, `stack(b=b, onto=a)` looks exactly as
     promising for the constraint "a on b" as `stack(b=a, onto=b)` does, because both involve the same two
     blocks — and the ranking degrades to little better than blind. Roles are read from the operands, so this
     costs nothing extra.
 
-    **⭐⭐ A function's effects INCLUDE ITS MOCKS', and that is what makes planning look at expectations
-    rather than at type signatures.** `scan_dir`'s own body is a `DISPATCH` and a `SET` — statically it
+    A function's effects include its mocks', and that is what makes planning look at expectations
+    rather than at type signatures. `scan_dir`'s own body is a `DISPATCH` and a `SET` — statically it
     establishes almost nothing, because everything interesting happens on the other side of a tool call. The
     knowledge that listing a directory *produces file nodes* is not in the signature and not in the body: it
-    is in the **mock**, which is precisely the declared assumption about how the call turns out.
+    is in the mock, which is precisely the declared assumption about how the call turns out.
 
     So the effects of an operator are the union of what its body writes and what each of its assumed
     outcomes writes. That is the same thing `workbench.predicted_changes` derives at planning time, reached
     statically here — and it is what lets a goal of "some file exists" find `scan_dir` at all. Without it,
     an opaque tool call is maximally relevant to everything and informative about nothing.
 
-    **⭐ A role is a PATH, not just a parameter name, which is what lets this read a function that has to
-    NAVIGATE.** Three forms, distinguishable by inspection and never confusable with each other:
+    A role is a path, not just a parameter name, which is what lets this read a function that has to
+    Navigate. Three forms, distinguishable by inspection and never confusable with each other:
 
     | role | means |
     |---|---|
     | `c` | the parameter `c` |
     | `c.right` | what the body reached by `GET`ting `c`'s `right` — `c.child[2]` for an indexed hop |
-    | `$it` | a node this body MINTED, held in register `it` — a local subject with no caller-side identity |
+    | `$it` | a node this body minted, held in register `it` — a local subject with no caller-side identity |
 
     Without the middle form, `lower_threshold(c)` — `GET R(rhs) F(c) "right"` then `SET R(rhs) …` — reported
-    **no effect on anything**, because the write landed on a register rather than a parameter. Reported by
-    `../pystrider`, and the case is general: *read a part, write to that part* is what most operations on
+    no effect on anything, because the write landed on a register rather than a parameter. Reported by
+    the first consumer, and the case is general: *read a part, write to that part* is what most operations on
     structured data look like, so the functions whose effects were invisible were exactly the ones that do
     real work on a structure. The provenance is derivable from the instruction list and costs nothing at
     runtime, since it is read statically off a body that is already stored.
 
-    ⚠ A path is only as good as the register's last assignment: **anything else written into that register
-    clears the role** (`isa.WRITES_REGISTER` is the authority on what counts), and an `ATTR` clears it too,
+    A path is only as good as the register's last assignment: anything else written into that register
+    clears the role (`isa.WRITES_REGISTER` is the authority on what counts), and an `ATTR` clears it too,
     because a register holding an attribute *value* denotes no node at all.
 
-    ⚠ **Conservative on purpose, and `unknown` now says WHAT it is unsure about.** If a label or key comes
+    Conservative on purpose, and `unknown` now says what it is unsure about. If a label or key comes
     from a register, or the body calls out to another function, we cannot tell statically. `unknown` is a
-    **frozenset of the roles the unreadable instructions concern**, with `None` meaning "somewhere we cannot
+    frozenset of the roles the unreadable instructions concern, with `None` meaning "somewhere we cannot
     name at all" (a call, a computed subject). Empty means the body was read completely, so `if unknown:`
     and `not unknown` read exactly as they did when this was a bool.
 
-    That granularity is for consumers reading effects as a **description** rather than as a ranking hint:
-    `../pystrider` abstains from recognising a node whenever anything was unreadable, and a whole-function
+    That granularity is for consumers reading effects as a description rather than as a ranking hint:
+    the first consumer abstains from recognising a node whenever anything was unreadable, and a whole-function
     flag darkened descriptions that were provably complete for their own subject — an unreadable write to
     `y` said nothing about `x`, but looked as though it might.
 
-    ⚠ **The return value is an OVER-APPROXIMATION by contract.** It exists to ORDER candidates and it never
+    The return value is an over-approximation by contract. It exists to order candidates and it never
     rules one out, so it is deliberately safe in the direction that loses no solutions — and *unsafe* in the
     other. A consumer using it to decide that something IS the case (recognition, admission) inherits false
     positives and must guard them itself; that is the opposite safety from the one this is built for."""
@@ -306,7 +308,7 @@ def establishes(g: Graph, name: str) -> tuple:
 
 
 def _denotes(ins, role):
-    """What this instruction's destination register will DENOTE afterwards, or `None` for "nothing we can
+    """What this instruction's destination register will denote afterwards, or `None` for "nothing we can
     name". Derived from the operands *before* the write lands — `GET R(x) R(x) "l"` reads then overwrites."""
     a = ins.args
     if ins.op == "NEW":
@@ -321,22 +323,22 @@ def _denotes(ins, role):
 
 
 def _walk(g: Graph, name: str):
-    """One pass over a stored body, yielding `(instruction, role)` — **the single place that knows what a
-    register denotes.**
+    """One pass over a stored body, yielding `(instruction, role)` — the single place that knows what a
+    register denotes.
 
-    ⭐ What each register currently DENOTES, as a role — see `establishes` for the three forms. Reported
-    by `../pystrider`, which uses `establishes` for *recognition* rather than for ranking: first a pattern
+    What each register currently denotes, as a role — see `establishes` for the three forms. Reported
+    by the first consumer, which uses `establishes` for *recognition* rather than for ranking: first a pattern
     authored as `NEW R(it)` then `LINK R(it) …` came back as effects with no subject at all — "orphan
     facts that no longer claim to describe one node" — and then, once minting was fixed, a function that
     navigated with `GET` before writing came back the same way.
 
-    ⚠⚠ **Factored out because there are now TWO static readers of a body** — `_effects` (what it writes)
+    Factored out because there are now two static readers of a body — `_effects` (what it writes)
     and `_reads` (what it reads) — and they must agree exactly about which node `R(x)` stands for at each
     instruction. Two copies of this bookkeeping is the drift shape this codebase keeps recording, and one
     that silently disagreed would make an act and a look look unrelated when they are related, which is
     precisely the defect `confirms` exists to catch.
 
-    `role` is valid **at the instruction it is yielded with**, before that instruction's own register
+    `role` is valid at the instruction it is yielded with, before that instruction's own register
     write — which is what both readers need, since operands are read before the destination is clobbered."""
     params, program = fn.load(g, name)
     roles: dict = {}
@@ -372,7 +374,7 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
                 unknown.add(None)                           # malformed for this opcode: say nothing
                 continue
             if ins.op == "NEW":
-                # ⭐ Bringing something into existence is an effect too — the one a goal like "some file
+                # Bringing something into existence is an effect too — the one a goal like "some file
                 # exists" is looking for, and the one a type signature cannot express.
                 if len(a) > 1 and isinstance(a[1], str):
                     effects.add(("mint", a[1], "$" + a[0].name, None))
@@ -390,14 +392,14 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
                 unknown.add(role(a[0]))                     # a computed label, on a subject we can name
         elif ins.op == "SET":
             if isinstance(arg, str):
-                # ⭐ THE VALUE, when the instruction states it outright. It used to be hardcoded `None`, so
-                # an attribute effect carried its slot and its subject but never what it WRITES — and
+                # The value, when the instruction states it outright. It used to be hardcoded `None`, so
+                # an attribute effect carried its slot and its subject but never what it writes — and
                 # `relevance` therefore scored band 4 ("this call writes exactly the constraint") for
                 # `SET where "home"` against a goal wanting `where = school`. Right slot, right subject,
                 # value never consulted. Link effects always carried both roles, so link constraints were
                 # checked exactly and attribute ones were not; this closes the asymmetry.
                 #
-                # ⚠ `UNREADABLE`, not `None`: `None` is an ordinary attribute value (isa.py's `SET` handler
+                # `UNREADABLE`, not `None`: `None` is an ordinary attribute value (isa.py's `SET` handler
                 # says so in as many words), so a sentinel is what keeps *"writes nothing we can name"*
                 # distinct from *"writes the value None"*. Conflating them is the UNKNOWN-versus-NO mistake
                 # this engine has a whole check about.
@@ -408,18 +410,18 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
         elif ins.op == "CALL":
             unknown.add(None)                               # a local jump: the body runs out of order
 
-    # ⚠⚠ **JUMPS ARE NOT READ AT ALL, and that is a silent part of the over-approximation.** This walk is
-    # linear: `JMP` / `JMPIF` / `JMPNOT` are skipped, so a write inside a loop body is reported **once** and
-    # a *conditional* write is reported as **unconditional**. Both are false positives, which is the
+    # Jumps are NOT read AT all, and that is a silent part of the over-approximation. This walk is
+    # linear: `JMP` / `JMPIF` / `JMPNOT` are skipped, so a write inside a loop body is reported once and
+    # a *conditional* write is reported as unconditional. Both are false positives, which is the
     # documented contract (`establishes` is an over-approximation, conservative for ranking and a
     # false-positive generator for recognition) — but the contract does not say *which* constructs generate
     # them, and only `CALL` marks itself unknown.
     #
-    # ⭐ Measured 2026-08-01, because the design notes argued the other way: it predicted that removing local
+    # Measured, because an earlier note argued the other way: it predicted that removing local
     # control flow would remove `establishes`'s blindness. Over every function the engine's own scenarios
-    # define, **8 of 10 are already exact and the other 2 are darkened by `DISPATCH`** — the world, which no
+    # define, 8 of 10 are already exact and the other 2 are darkened by `DISPATCH` — the world, which no
     # branch-free vocabulary touches. Not one is darkened by control flow. So the exactness payoff claimed
-    # for retiring the loop opcodes is, on this library, **zero**.
+    # for retiring the loop opcodes is, on this library, zero.
 
     if include_mocks:
         for outcome in fn.mocks_of(g, name):                # depth 1: a mock has no mocks of its own
@@ -431,22 +433,22 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
 
 # --- the read side, and the relation between an ACT and a LOOK ------------------------------------------
 #
-# ⭐⭐⭐ **THE USER'S EXAMPLE, 2026-08-02:** *"I change some files, I expect `git status` to not return
-# empty. In some way, I RELATED THE TWO. I think it's because I can anticipate the behaviour of git status
+# The USER's example: *"I change some files, I expect `git status` to not return
+# empty. In some way, i related the two. I think it's because I can anticipate the behaviour of git status
 # when I know some files have changed."*
 #
 # Two things had to be separated to answer that, and only the second was missing:
 #
-#   * **the anticipation** — already possible and never written down. A mock is an ordinary microfunction,
-#     so it can READ THE GRAPH and compute its prediction from world state instead of asserting a constant.
+#   * the anticipation — already possible and never written down. A mock is an ordinary microfunction,
+#     so it can read the graph and compute its prediction from world state instead of asserting a constant.
 #     Every mock in this repo's fixtures asserts a constant (`found_two` always predicts two files), which
 #     made mocks *look* like assumptions when they are really models. Measured in
 #     an earlier probe: one unedited mock, two worlds, two different predictions.
-#   * **the relation** — nothing related the act to the look. `anticipate` reads `changed_file` because it
+#   * the relation — nothing related the act to the look. `anticipate` reads `changed_file` because it
 #     was authored that way, and nothing checked that `edit` writes `changed_file`. Rename one and the
 #     anticipation still parses, still runs, and silently models the wrong thing.
 #
-# ⚠⚠ **THE ASYMMETRY IS THE FINDING: read the ACT's BODY, and the LOOK's MOCK.** An act's body is what it
+# The asymmetry is the finding: read the ACT's body, and the LOOK's mock. An act's body is what it
 # does. A look's body is a `DISPATCH` and therefore says nothing at all — `establishes` already found this
 # out from the other side ("`scan_dir`'s own body establishes almost nothing"), so the mock is the only
 # account of what the tool reports on. Reading the look's body instead yields the empty set every time,
@@ -454,7 +456,7 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
 
 
 def _reads(g: Graph, name: str, *, include_mocks: bool) -> tuple:
-    """What this body READS, as `(kind, label, subject_role)` — the dual of `_effects`.
+    """What this body reads, as `(kind, label, subject_role)` — the dual of `_effects`.
 
     Same three role forms, same over-approximation contract, and deliberately the same shape minus the
     fourth slot: a read has no value to carry."""
@@ -468,7 +470,7 @@ def _reads(g: Graph, name: str, *, include_mocks: bool) -> tuple:
         if isinstance(slot, str):
             out.add((isa.READS_GRAPH[ins.op], slot, subject))
         else:
-            # ⚠ `SOURCES R(x) R(n)` with no label reads EVERY label, which is honestly unreadable rather
+            # `SOURCES R(x) R(n)` with no label reads every label, which is honestly unreadable rather
             # than a read of nothing. Same discipline as `_effects`: name the subject we could not finish
             # reading, so a consumer knows how much of the answer is missing and about what.
             unknown.add(subject)
@@ -483,14 +485,14 @@ def _reads(g: Graph, name: str, *, include_mocks: bool) -> tuple:
 def reads(g: Graph, name: str) -> tuple:
     """What this function's own body reads. Returns `(reads, unknown)`, mirroring `establishes`.
 
-    ⚠ For a function that reaches the world this is almost always **empty**, and that is correct rather
+    For a function that reaches the world this is almost always empty, and that is correct rather
     than a failure: everything a tool call learns happens on the far side of the `DISPATCH`. Use
     `reports_on` for a look."""
     return _reads(g, name, include_mocks=False)
 
 
 def reports_on(g: Graph, look: str) -> tuple:
-    """**What a LOOK reports on** — read off its MOCKS, never its body. Returns `(slots, unknown)`.
+    """What a LOOK reports on — read off its mocks, never its body. Returns `(slots, unknown)`.
 
     A mock of a look is a *model of the tool*: it says which parts of the world the tool's answer depends
     on. `anticipate`'s `COUNT R(n) F(t) "changed_file"` is the sentence *"git status reports on the
@@ -499,22 +501,22 @@ def reports_on(g: Graph, look: str) -> tuple:
 
 
 def confirms(g: Graph, act: str, look: str) -> frozenset:
-    """**The slots by which `look` could confirm `act`** — what the act writes and the look's model reads.
+    """The slots by which `look` could confirm `act` — what the act writes and the look's model reads.
     Empty means this look cannot tell you anything about whether that act landed.
 
-    ⭐ Derived, never declared. Both halves are already graph data, and nothing had thought to join them.
+    Derived, never declared. Both halves are already graph data, and nothing had thought to join them.
     Declaring the relation instead was the obvious alternative and would have been the labelling error this
     codebase keeps recording: an authored `git_status reflects edit` edge can drift from the bodies, and a
     derivation cannot, because it *is* the bodies.
 
-    ⚠ **STATIC, so it matches on `(kind, label)` and not on the individual.** "This act writes a
+    Static, so it matches on `(kind, label)` and not on the individual. "This act writes a
     `changed_file` link and this look watches `changed_file` links" is a fact about the two functions.
     Whether they touch *the same tree* is a question about one pair of calls, which only a caller holding
     bindings can ask — the same static-provenance/dynamic-resolution split `establishes` and `role_node`
     already draw, and for the same reason.
 
-    ⚠ Inherits `establishes`'s over-approximation on the write side, so a non-empty answer means *could*
-    confirm, never *does*. The **empty** answer is the sharp one: nothing the act writes is watched, so no
+    Inherits `establishes`'s over-approximation on the write side, so a non-empty answer means *could*
+    confirm, never *does*. The empty answer is the sharp one: nothing the act writes is watched, so no
     outcome of the look is evidence about it."""
     effects, _unknown = establishes(g, act)
     watched, _ = reports_on(g, look)
@@ -525,7 +527,7 @@ def confirms(g: Graph, act: str, look: str) -> frozenset:
 def role_node(g: Graph, bound: dict, role: str | None):
     """The node a role from `establishes` names, given `{param: node}` — `None` if it names none.
 
-    ⭐ **The path is resolved HERE, against the world, not statically.** `establishes` can say that a write
+    The path is resolved here, against the world, not statically. `establishes` can say that a write
     lands on `c`'s `right` without knowing which node that is; only a caller with bindings in hand can turn
     that into an individual and ask whether it is the one a constraint is about. Static provenance plus
     dynamic resolution is what restores the exact-match band for a navigating operator.
@@ -533,9 +535,9 @@ def role_node(g: Graph, bound: dict, role: str | None):
     A `$` role names something minted inside the callee, which no binding can identify, so it resolves to
     `None` — the same answer it gave when it could not be resolved at all.
 
-    ⚠ The path grammar itself now lives in `path.py` and is shared with the type and goal surfaces. It used
+    The path grammar itself now lives in `path.py` and is shared with the type and goal surfaces. It used
     to be a private regex here, which is why nothing else on the surface could refer past one hop. What is
-    left here is the only part that is genuinely this module's: **the base names a PARAMETER**, not
+    left here is the only part that is genuinely this module's: the base names a parameter, not
     something in the graph, so only a caller holding bindings can start the walk."""
     if role is None or role.startswith("$"):
         return None
@@ -548,9 +550,9 @@ def role_node(g: Graph, bound: dict, role: str | None):
 
 
 def _frame_of(g: Graph, bindings: dict):
-    """The frame these bindings were taken from — **recovered from the graph, never passed in**.
+    """The frame these bindings were taken from — recovered from the graph, never passed in.
 
-    ⚠ This is why `relevance` keeps its four-argument shape. A `view` parameter would have to be threaded
+    This is why `relevance` keeps its four-argument shape. A `view` parameter would have to be threaded
     through `pursue`'s `rank=` hook and through `guideline.compose`, so every author of a ranker would
     have to know about frames; and a module-level stash of "the current view" would be exactly the hidden
     Python channel the loop arc exists to remove. A frame points at its mappings, so the reverse index
@@ -564,13 +566,13 @@ def _frame_of(g: Graph, bindings: dict):
 
 
 def _witness_band(g: Graph, c: str, bound: dict, matching: tuple, bindings: dict) -> int:
-    """Band 4 when this call writes something that could stop a WITNESS from offending; 0 otherwise.
+    """Band 4 when this call writes something that could stop a witness from offending; 0 otherwise.
 
-    ⚠ **Discriminating, not optimistic.** For a type constraint `matching` is every effect the function
+    Discriminating, not optimistic. For a type constraint `matching` is every effect the function
     has, because there is no label to filter on — so scoring band 4 for merely touching a witness would
     rank `measure(f)` as highly as `delete(f)` for a tidiness goal. The effect's `(kind, label)` therefore
     has to appear in the requirements of the type the witness must *stop* satisfying. That keeps this a
-    ranker in §5d's sense: it is still only a guess, and it still never filters."""
+    ranker's sense: it is still only a guess, and it still never filters."""
     subject = g.target(c, "subject")
     if subject is None:
         return 0                                        # existential: the `mint` branch above serves it
@@ -596,17 +598,17 @@ def _witness_band(g: Graph, c: str, bound: dict, matching: tuple, bindings: dict
 def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
     """How promising this proposal looks against the constraints that are still false. Higher is sooner.
 
-    Four bands: **4** — this call, with these bindings, writes *exactly* the constraint (right label, and
+    Four bands: 4 — this call, with these bindings, writes *exactly* the constraint (right label, and
     the right individual in each role); 3 — right label, both individuals involved but the roles do not
     line up; 2 — right label, one of the right individuals; 1 — right label; 0 — nothing to do with any
     open constraint.
 
-    ⚠ **Band 4 versus band 3 is the one that earns its place.** Without roles, `stack(b=b, onto=a)` scores
+    Band 4 versus band 3 is the one that earns its place. Without roles, `stack(b=b, onto=a)` scores
     the same as `stack(b=a, onto=b)` for the constraint "a on b", since both involve a and b — and the
     ranking barely beats blind search (measured: 13 imagined states versus 15). Distinguishing them is what
     makes the guidance real.
 
-    **⚠ This RANKS, it never FILTERS, and that is the whole design.** A greedy means–ends planner that only
+    This ranks, it never filters, and that is the whole design. A greedy means–ends planner that only
     tries constraint-satisfying moves cannot solve Hanoi or the Sussman anomaly, where progress requires
     *undoing* something first. Scoring 0 puts a move last, not out of reach — so the hard cases stay
     solvable while the easy ones stop being searched blindly. This is also System 1's first real job, and
@@ -619,7 +621,7 @@ def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
         sort = g.attr(c, "sort")
         want_label = g.attr(c, "label") if sort == "link" else g.attr(c, "key")
         kind = {"link": "link", "attr": "attr"}.get(sort)
-        # ⭐ "SOMETHING of this type must exist" is answered by an operator that MINTS one — the existential
+        # "Something of this type must exist" is answered by an operator that mints one — the existential
         # case, which no parameter or return signature could express, and which is only visible because
         # `establishes` reads the mocks. Purely additive: type constraints stay conservatively matched
         # below, so no proposal can score lower than it did before.
@@ -631,26 +633,26 @@ def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
             continue                                        # cannot touch this constraint at all
         subject, obj = g.target(c, "subject"), g.target(c, "object")
 
-        # ⭐⭐ THE WITNESS BRANCH — what makes a UNIVERSAL constraint rankable at all.
+        # The witness BRANCH — what makes a universal constraint rankable at all.
         # `d is a tidied_dir` names `d` as its subject, but the nodes that have to change are the *files*,
         # so the exact-role test below can never fire and every proposal scored band 1 — measured, in
         # `docs/limits.md`, for a singular action that would certainly close it. `goal.witnesses` names
-        # the members that make it false, which is §5d's *"which constraints are still false"* one level
+        # the members that make it false, which is's *"which constraints are still false"* one level
         # further in: *which members are still wrong*.
         if sort == "type":
             best = max(best, _witness_band(g, c, bound, matching, bindings))
         for _k, _lbl, sp, op in matching:                   # does a role assignment line up exactly?
-            # ⚠ AN ATTRIBUTE EFFECT MUST WRITE THE VALUE THE CONSTRAINT WANTS. Band 4 claims this call
+            # An attribute effect must write the value the constraint wants. Band 4 claims this call
             # writes *exactly* the constraint; for a link the object role already carried that claim, but
             # an attribute effect had no value at all, so `SET where "home"` scored band 4 against a goal
             # wanting `where = school` — the right slot on the right node, and the wrong world. Measured:
             # the school scenario's guidance was entirely this accident.
-            # ⚠ `UNREADABLE` keeps band 4, and deliberately: `establishes` is an over-approximation by
+            # `UNREADABLE` keeps band 4, and deliberately: `establishes` is an over-approximation by
             # contract, so what we cannot read must never *lose* a candidate a rank.
             if _k == "attr" and op is not UNREADABLE and g.attr(c, "value") != op:
                 continue
-            # ⭐ A role may be a PATH (`c.right`), so it is resolved against the world rather than looked
-            # up. Measured on `../pystrider`'s repair operator, whose whole purpose is to change part of
+            # A role may be a path (`c.right`), so it is resolved against the world rather than looked
+            # up. Measured on the first consumer's repair operator, whose whole purpose is to change part of
             # its argument: without this it wrote to a register, established nothing anyone could name, and
             # the guidance had nothing to rank with (5 imagined states against 6 unguided).
             here = role_node(g, bound, sp)
@@ -670,7 +672,7 @@ def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
 def _could_close(g: Graph, effects: frozenset, unmet: tuple) -> bool:
     """Could a function with these effects close any of these constraints, given the right world?
 
-    Label-level only, and that is the point: it is asked of a function that **cannot run here**, so there
+    Label-level only, and that is the point: it is asked of a function that cannot run here, so there
     are no bindings to be exact with. Over-approximating is safe because the answer only ever *orders*."""
     for c in unmet:
         sort = g.attr(c, "sort")
@@ -684,30 +686,30 @@ def _could_close(g: Graph, effects: frozenset, unmet: tuple) -> bool:
 
 
 def wants_that_unblock(g: Graph, frame: str, blocked: tuple, unmet: tuple) -> frozenset:
-    """`{(requirement label, node)}` — what would have to become true for some **relevant but currently
-    impossible** action to become possible.
+    """`{(requirement label, node)}` — what would have to become true for some relevant but currently
+    impossible action to become possible.
 
-    ⭐⭐ THE MISSING HALF OF THE GUIDANCE, and why `relevance` alone could not supply it. A band classifies
+    The missing half of the guidance, and why `relevance` alone could not supply it. A band classifies
     *this move against the goal*: it answers "does this close a constraint?". A prerequisite closes nothing,
-    so it is band 0 — **correctly**, and tied with every irrelevant operator in the library. Measured on a
+    so it is band 0 — correctly, and tied with every irrelevant operator in the library. Measured on a
     three-step plan whose first move writes a different slot from the goal's: guided cost grew 4 / 6 / 10 /
     16 as 0 / 2 / 6 / 12 irrelevant operators were added, because the search had to try each of them first.
     No refinement of a match-quality scale can fix that, because a prerequisite is not a worse match — it is
-    a **different distance**, which a match scale does not measure.
+    a different distance, which a match scale does not measure.
 
-    ⚠ Restricted to actions that could *close an open constraint*. Without that, every blocked action in
+    Restricted to actions that could *close an open constraint*. Without that, every blocked action in
     the library contributes wants and the score becomes "make something possible", which is not a goal.
 
-    ⚠⚠ **The requirements are recomputed HERE rather than collected during enumeration, and that inversion
-    is the whole cost story.** The obvious design — record what failed while testing candidates, since
+    The requirements are recomputed here rather than collected during enumeration, and that inversion
+    is the whole cost story. The obvious design — record what failed while testing candidates, since
     `fails` is being called anyway — puts a set insertion on the path taken by *most* candidate tests, which
-    is what enumeration mostly does. Measured: §5m's benchmark went 2.08ms to 6.98ms, and even gated by
-    relevance it stayed at 6.30. **A blocked function is one that contributed no proposal at all, so blocked
-    functions are few by definition** — recomputing for just those is `|blocked and relevant| x |params| x
-    |mappings|`, which on the blocks world with 200 irrelevant nodes is **zero calls**, because nothing
+    is what enumeration mostly does. Measured:'s benchmark went 2.08ms to 6.98ms, and even gated by
+    relevance it stayed at 6.30. A blocked function is one that contributed no proposal at all, so blocked
+    functions are few by definition — recomputing for just those is `|blocked and relevant| x |params| x
+    |mappings|`, which on the blocks world with 200 irrelevant nodes is zero calls, because nothing
     relevant is blocked there. The expensive case is exactly the case that needs the answer.
 
-    ⭐ The general shape, worth keeping: *doing the work eagerly for everything cost more than doing it
+    The general shape, worth keeping: *doing the work eagerly for everything cost more than doing it
     lazily for the few that need it* — even though the eager version was reusing a value already computed."""
     here = W.mappings(g, frame)
     wants = set()
@@ -721,7 +723,7 @@ def wants_that_unblock(g: Graph, frame: str, blocked: tuple, unmet: tuple) -> fr
             if reqs is None:
                 continue
             for m in here:
-                # ⚠ TESTED against the image (the world as imagined in this frame), KEYED by what it
+                # Tested against the image (the world as imagined in this frame), keyed by what it
                 # stands for (the individual a constraint talks about). Those are different nodes, and
                 # conflating them made this component silently score zero on every proposal.
                 for label in TY.fails(g, W.image_of(g, m), reqs):
@@ -730,24 +732,23 @@ def wants_that_unblock(g: Graph, frame: str, blocked: tuple, unmet: tuple) -> fr
 
 
 def unlocks(g: Graph, name: str, bindings: dict, wants: frozenset) -> int:
-    """How many blocking requirements this proposal would write. Higher is sooner — **after the band.**
+    """How many blocking requirements this proposal would write. Higher is sooner — after the band.
 
-    ⚠⚠ **What guarantees that this cannot outrank a real closing move is `expected`, NOT the key position
-    — and that correction came from a probe.** The first version of this docstring said the guarantee was
+    What guarantees that this cannot outrank a real closing move is `expected`, NOT the key position
+    — and that correction came from a probe. The first version of this docstring said the guarantee was
     that `-opens` sits after `-rank_here`. It does, but that is a *redundant second guard*: `expected` is
     the key's first component and already folds in `rank >= 4`, so a band-4 move sorts ahead whatever
-    happens further along the tuple. Probed all three ways against a detour that unlocks **two**
+    happens further along the tuple. Probed all three ways against a detour that unlocks two
     requirements where the closing move unlocks one — neutering `expected` alone changes nothing, swapping
-    the two components alone changes nothing, and **only removing both together** degrades the plan. So
-    §5p's dominance invariant holds here, over-determined, and no single line of it is load-bearing.
+    the two components alone changes nothing, and only removing both together degrades the plan. So's dominance invariant holds here, over-determined, and no single line of it is load-bearing.
 
-    ⚠ What the position *does* decide is the order among moves that close nothing: band 1-3 ("mentions the
+    What the position *does* decide is the order among moves that close nothing: band 1-3 ("mentions the
     goal's label") currently beats "would unblock something relevant". That is an unexamined preference —
     the bands below 4 are weak evidence (they only ever meant *related to*), while an unlock is derived
     from a requirement that really does block a really relevant action. It is left as it was found rather
     than changed on a hunch, and it is named here so the next person knows it was never argued.
 
-    Like everything else in this module except a safety breach it only ever ORDERS — `guideline.py`'s
+    Like everything else in this module except a safety breach it only ever orders — `guideline.py`'s
     planted-bug probe showed that a frontier which merely orders cannot put a move out of reach however
     badly it is scored."""
     if not wants:
@@ -769,7 +770,7 @@ def unlocks(g: Graph, name: str, bindings: dict, wants: frozenset) -> int:
 def state_of(g: Graph, frame: str) -> frozenset:
     """A canonical signature of the world as imagined in this frame — the visited-set key.
 
-    ⚠ **Dedupe on the STATE, not on the action, and the difference is not academic.** The first version of
+    Dedupe on the state, not on the action, and the difference is not academic. The first version of
     this driver skipped any `(function, arguments)` triple it had already imagined anywhere. That silently
     made the search unable to solve a three-block tower: the root frame enumerates every pair, so *every*
     action is marked seen at depth 1, and each branch below it then has nothing left to try. Two-step
@@ -791,21 +792,21 @@ def state_of(g: Graph, frame: str) -> frozenset:
 
 
 def _warn_if_advice_is_inert(g: Graph, rank) -> None:
-    """⚠⚠ **AUTHORED ADVICE THAT NOTHING WILL CONSULT IS A SILENT WRONG ANSWER.**
+    """authored advice that nothing will consult is a silent wrong answer.
 
-    a consumer's feedback, and it cost them one. A `prefer` block parses, mints a `guideline`,
+    A consumer hit this, and it cost them one. A `prefer` block parses, mints a `guideline`,
     sits in the graph — and changes nothing unless the caller passed `rank=guideline.ranker(g)`. From
-    outside, "the advice was ignored" is **indistinguishable** from "the advice was consulted and lost",
+    outside, "the advice was ignored" is indistinguishable from "the advice was consulted and lost",
     which is a legitimate outcome, so there is nothing to notice.
 
     That is the one place this engine's refusal discipline stopped at the parser. Everywhere else,
     authored text that cannot do anything is refused loudly — a guideline naming neither an action nor a
     thing, a type demanding nothing, a method with no steps. Here the text was *accepted* and made inert
-    by a keyword argument at a call site the author never sees. ⚠ They hit it **through the CNL**, which
+    by a keyword argument at a call site the author never sees. They hit it through the CNL, which
     is the path a language model writes: a model emitting a good `prefer` block sees no effect and has no
     way to tell it was ignored.
 
-    ⚠ **A warning, not a refusal, and `rank=` stays explicit.** The composition is deliberate — a caller
+    A warning, not a refusal, and `rank=` stays explicit. The composition is deliberate — a caller
     may legitimately supply its own ranker, and that ranker may or may not read guidelines — so refusing
     would break a supported arrangement. What was missing is only that nobody was *told*. Anything passed
     as `rank` is taken at its word for the same reason: this cannot know whether a custom ranker consults
@@ -829,37 +830,37 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
 
     Everything the system considers is recorded on the thread as it happens, so *how* it got there is
     inspectable afterwards rather than reconstructible only by re-running it. On success the report carries
-    the winning frame and the **plan**, which is the frame path — already replayable by `execute`.
+    the winning frame and the plan, which is the frame path — already replayable by `execute`.
 
     `rank` overrides `relevance` — the hook where a better judgement (a learned policy, a language model
     reading `function.catalogue`) plugs in, and the same shape `selection.score` already uses for the same
     reason. Passing a constant turns this back into blind search, which is how the guidance is measured.
 
-    **⭐ ON FAILURE THE REPORT HANDS BACK THE `workbench`, and it is there SO THE SEARCH CAN BE
-    INTERROGATED.** Forward chaining used to leave its diagnosis lying in a saturated graph; here every
+    On failure the report hands BACK the `workbench`, and it is there so the search can be
+    Interrogated. Forward chaining used to leave its diagnosis lying in a saturated graph; here every
     imagined state was on a workbench and the world afterwards looks untouched, so a reader who stops at
     `how` (`None` on failure) concludes the failure path says nothing. It is not so — `unmet` and `why` are
     on the report, and `W.frames`, `W.mappings`, `W.resolve` and `W.image_of` reach every state that was
-    explored. `../pystrider` turned "no plan found" into a refusal naming its cause in about fifteen lines
-    of that. ⚠ For a single-constraint goal `unmet` merely restates the goal, so it says *what* was not
+    explored. the first consumer turned "no plan found" into a refusal naming its cause in about fifteen lines
+    of that. For a single-constraint goal `unmet` merely restates the goal, so it says *what* was not
     achieved and never *why*; the why is domain knowledge, and it lives in the frames or nowhere.
 
-    **⭐ `decide` is the deliberation seam** (`docs/deliberation.md`). Called once per imagined step, *before*
+    `decide` is the deliberation seam (`docs/deliberation.md`). Called once per imagined step, *before*
     the chosen proposal is imagined, with the situation as it already stands. Returning `None` — or
-    `EXPAND` — means "nothing to say", so the loop's disposition is unchanged and **the default is to keep
-    planning**; a decision has to speak up to alter it. Returns `verb` or `(verb, reason)`.
+    `EXPAND` — means "nothing to say", so the loop's disposition is unchanged and the default is to keep
+    planning; a decision has to speak up to alter it. Returns `verb` or `(verb, reason)`.
 
-    ⚠ This is an **engine seam, not an extension point.** The decider that eventually lives here reads
+    This is an engine seam, not an extension point. The decider that eventually lives here reads
     *decision rules as data* and is shipped with the engine; it is not somewhere a domain author writes
     Python. It is a parameter for the same reason `rank` is — so the behaviour can be substituted in a
     check and so the loop does not have to know what decides.
 
-    ⚠ Only `COMMIT`, `SENSE` and `REFUSE` can be honoured today, and of those `SENSE` needs ignorance and
+    Only `COMMIT`, `SENSE` and `REFUSE` can be honoured today, and of those `SENSE` needs ignorance and
     `DECOMPOSE` needs goal hierarchy — both raise `Undecidable` naming what is missing, rather than being
     quietly ignored. A decision that silently does nothing is the failure mode this project keeps catching.
 
-    **⚠ The authoring rule that follows, which is not obvious and is easy to get wrong: an operation that
-    wants to explain itself must record its reason WHERE THE FRAMES ARE.** A microfunction that quietly does
+    The authoring rule that follows, which is not obvious and is easy to get wrong: an operation that
+    wants to explain itself must record its reason where the frames are. A microfunction that quietly does
     nothing when a precondition fails is unexplainable after a failed search — it leaves no trace in any
     imagined state. One that writes something (`unsupported_confirmation_step`) is diagnosable, because the
     frame that tried it still holds the mark. Silence costs nothing at planning time and everything
@@ -869,7 +870,7 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
                            guided=guided, rank=rank, allow=allow, trace=trace, propose=propose)
     watch = trace
 
-    # >> THE LOOP IS NOW A LOOP OVER `step`, AND THAT IS THE WHOLE POINT OF THIS SLICE. `pursue` used to
+    # >> the loop is now a loop over `step`, and that is the whole point of this slice. `pursue` used to
     # BE the search; it now merely drives it. Everything between two imagined states is a return, so
     # something other than this function can do the driving - which is what "steppable" has to mean before
     # deliberation can be reached as data. Note `pursue` remains the supported entry point and its
@@ -885,20 +886,20 @@ def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
                   rank=None, allow=None, trace=None, propose=None, decider=None) -> str:
     """Open a search on `goal` and seed its frontier. Returns the `search` node, ready to be stepped.
 
-    ** This is `pursue`'s setup, extracted so there is ONE of it.** `pursue` calls it and then loops; the
+     This is `pursue`'s setup, extracted so there is one of it. `pursue` calls it and then loops; the
     `PLAN` opcode calls it and hands the node back to an ISA program. Two setups that could drift apart is
     exactly the defect shape this codebase keeps recording, and the drift would be silent - a second path
     that forgot to seed the visited set with the root would re-imagine the starting world forever.
 
-    WARN **The already-satisfied case is recorded on the SEARCH, not returned**, so that both drivers agree.
+    Warn The already-satisfied case is recorded on the search, not returned, so that both drivers agree.
     `pursue` used to return early here; an ISA program calling `PLAN` would then have had no way to learn
     that the goal needed nothing done. Now `step` reports it, and there is one answer whoever asks.
 
-    THE TRACE HOOK is an OBSERVER, never a participant: it is handed a dict per event and its return value
+    The trace hook is an observer, never a participant: it is handed a dict per event and its return value
     is discarded, so turning tracing on cannot change what is found. Node ids are useless to a reader, so
-    every event carries LABELS - the thread and the workbench keep the identities, and anything
+    every event carries labels - the thread and the workbench keep the identities, and anything
     reconstructing state from these strings is reconstructing it from a rendering."""
-    # ⭐ Refuse the provably impossible before spending anything on it, and record it ON THE SEARCH so that
+    # Refuse the provably impossible before spending anything on it, and record it on the search so that
     # whoever drives it gets the same answer. `conflict.unsatisfiable` reports only decidable
     # contradictions, so this can never reject a goal that was actually reachable.
     from . import conflict as C
@@ -915,7 +916,7 @@ def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
     opened = T.attend(g, thread, goal, why="taking on the goal", note=G.describe(g, goal))
     search = S.open_search(g, goal, wb, thread, subject, opened=opened,
                            max_steps=max_steps, max_depth=max_depth, guided=guided)
-    # ⭐ WHAT IS DECIDING THIS SEARCH, as an edge — so the outer loop can advance it without the caller
+    # What is deciding this search, as an edge — so the outer loop can advance it without the caller
     # holding a closure. See `criterion.decider` for the measurement that forced this.
     if decider is not None:
         g.link(search, "decided_by", decider)
@@ -931,7 +932,7 @@ def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
                    wants=[G.describe_constraint(g, c) for c in G.constraints(g, goal)],
                    open=[G.describe_constraint(g, c)
                          for c in _still_open(g, goal, subject, root)]))
-    # ⚠ The SEED must be guided too, and forgetting that cost 3 extra imagined states in the measurement
+    # The seed must be guided too, and forgetting that cost 3 extra imagined states in the measurement
     # — the fix in `step` alone took the loop-ticked search from 52 to 6 rather than to 3, because the
     # first frontier was still built by enumeration. One resolution point, used by both.
     _offer(g, search, root, 0, None, rank=rank, allow=allow, watch=trace,
@@ -958,22 +959,22 @@ def _still_open(g: Graph, goal: str, subject: str, frame: str) -> tuple:
 
 
 def _visited_key(g: Graph, goal: str, frame: str, trace: tuple) -> tuple:
-    """WARN The state alone is NOT the identity of a search node once liveness is in play. Two routes to
+    """Warn The state alone is NOT the identity of a search node once liveness is in play. Two routes to
     the same world differ if one has already done a required action and the other has not - deduping on
     the world would silently discard the finished one. So what is still outstanding is part of the key."""
     return (state_of(g, frame), G.outstanding(g, goal, trace))
 
 
 def _defer(g: Graph, search: str, frame: str, depth: int, trace_node) -> str:
-    """Record that this frame was **not fully enumerated**, so it can be later.
+    """Record that this frame was not fully enumerated, so it can be later.
 
-    ⭐⭐ This is what makes deciding-before-enumerating **complete rather than merely cheap**. A criterion
+    This is what makes deciding-before-enumerating complete rather than merely cheap. A criterion
     that speaks for a frame suppresses the O(N²) product there — but the product is *deferred*, never
     dropped, and `_backfill` builds it if the criteria's own line runs out. So authored knowledge can be
     wrong without a solution becoming unreachable, which is exactly the property `relevance` protects by
     ranking rather than filtering (`docs/deliberation.md`, obtained here by a different means.
 
-    ⚠ Deferral is the honest word. *Skipping* would make the frontier incomplete — a far stronger claim
+    Deferral is the honest word. *Skipping* would make the frontier incomplete — a far stronger claim
     than anything a guess is entitled to make."""
     d = g.mint("deferred", depth=depth)
     g.link(d, "frame", frame)
@@ -986,13 +987,13 @@ def _defer(g: Graph, search: str, frame: str, depth: int, trace_node) -> str:
 def _backfill(g: Graph, search: str, *, rank=None, allow=None, watch=None) -> bool:
     """The frontier is empty — build the enumeration of one frame a decision spoke for. `False` if none.
 
-    ⚠ **Most recently deferred first**, i.e. chronological backtracking. Measured against the alternative:
+    Most recently deferred first, i.e. chronological backtracking. Measured against the alternative:
     oldest-first floods the frontier with one frame's whole product while the proposer keeps deferring new
-    frames behind it, and a Sussman run with a deliberately useless proposer then **fails outright**
+    frames behind it, and a Sussman run with a deliberately useless proposer then fails outright
     (budget of 200 exhausted, no plan) where newest-first finds one. Insertion order is a fact of the edge
     list, so this needs no key.
 
-    ⚠⚠ **What deferral preserves is the GOAL, not the plan's quality.** Backtracking to the newest deferral
+    What deferral preserves is the goal, not the plan's quality. Backtracking to the newest deferral
     extends the bad prefix before the root's alternatives are ever built, so a wrong proposer yields a
     *worse* plan rather than none: measured on Sussman, a proposer that always says `paint` still succeeds,
     with `(paint, paint, unstack, stack, stack)` against the default's `(unstack, stack, stack)`. That is
@@ -1007,7 +1008,7 @@ def _backfill(g: Graph, search: str, *, rank=None, allow=None, watch=None) -> bo
         watch(dict(kind="backfill", step=S.steps_taken(g, search), depth=g.attr(d, "depth"),
                    why="the decision's line ran out; enumerating what it suppressed"))
     _offer(g, search, g.target(d, "frame"), g.attr(d, "depth"), g.target(d, "trace"),
-           rank=rank, allow=allow, watch=watch)          # ⚠ no `propose` — never defer the same frame twice
+           rank=rank, allow=allow, watch=watch)          # no `propose` — never defer the same frame twice
     return True
 
 
@@ -1015,20 +1016,20 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
            rank=None, allow=None, watch=None, propose=None) -> None:
     """Put every proposal available in `frame` onto the frontier, ranked.
 
-    THE FRONTIER HOLDS PROPOSALS, NOT FRAMES - and that is what makes the guidance worth anything.
+    The frontier holds proposals, NOT frames - and that is what makes the guidance worth anything.
 
-    WARN Two wrong versions preceded this, both worth recording. First it was depth-first over frames: it
+    Warn Two wrong versions preceded this, both worth recording. First it was depth-first over frames: it
     committed to the first promising child and explored it to exhaustion, and adding *one* irrelevant rule
     to the library burned the whole budget down a branch that could never close the goal while the sibling
     that solved it in one more move sat untouched. Then it was best-first over frames - which fixed that,
     but *measured no better than unguided* (15 imagined states against 14), because every proposal in a
     frame was imagined before any frame was chosen. Ordering inside a frame cannot save work already done.
 
-    WARN The third wrong version - subtle, and it made the guided search *worse than breadth-first*. The
-    key was `(constraints open, -relevance, depth)` where "constraints open" was the PARENT frame's count,
+    Warn The third wrong version - subtle, and it made the guided search *worse than breadth-first*. The
+    key was `(constraints open, -relevance, depth)` where "constraints open" was the parent frame's count,
     so an unexplored root proposal that would obviously close a constraint carried its parent's score of 2
     while mediocre moves two levels down carried 1, and the search abandoned the good move permanently.
-    A proposal must be judged by the world it would PRODUCE, not the one it starts from. Hence `expected`."""
+    A proposal must be judged by the world it would produce, not the one it starts from. Hence `expected`."""
     c = S.context(g, search)
     goal, guided = c["goal"], c["guided"]
     score = rank if rank is not None else relevance
@@ -1038,23 +1039,23 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
     def emit(kind, **fields):
         watch(dict(kind=kind, step=S.steps_taken(g, search), **fields))
 
-    # ⭐⭐⭐ DECIDE BEFORE ENUMERATING. Measured (`docs/deliberation.md`: with criteria the search
+    # Decide BEFORE enumerating. Measured (`docs/deliberation.md`: with criteria the search
     # visits four frames whatever the world's size, yet still built 1,526 proposals at twenty blocks —
     # *all* of the residual cost, and all of it thrown away. `decide` could not remove it because it is
     # consulted after this function has already run. `propose` is the same knowledge, asked one step
     # earlier, where the saving actually is.
     #
-    # ⚠ The suppressed enumeration is DEFERRED, not skipped — see `_defer`.
+    # The suppressed enumeration is deferred, not skipped — see `_defer`.
     if propose is not None:
         suggested = propose({"goal": goal, "frame": frame, "depth": depth, "subject": c["subject"],
                              "search": search, "thread": c["thread"], "open": len(open_now),
                              "prefix": trace_node})
-        # ⚠ A proposer may also REFUSE — `(REFUSE, why)`, the same shape `decide` already returns. That is
+        # A proposer may also REFUSE — `(REFUSE, why)`, the same shape `decide` already returns. That is
         # what a MANDATORY criterion does when it recognises the situation and cannot act in it: a
         # procedure refuses rather than improvising, and quietly falling back to enumeration would be
         # exactly the improvisation it exists to forbid. Written on the search, so whichever driver is
         # stepping it gets the same answer.
-        # ⚠ `not isinstance(..., Call)`, NOT `isinstance(..., tuple)` — a NamedTuple IS a tuple, so the
+        # `not isinstance(..., Call)`, NOT `isinstance(..., tuple)` — a NamedTuple IS a tuple, so the
         # obvious test swallowed every ordinary proposal. Caught by the checks; it would otherwise have
         # been a silent "nothing proposes anything any more".
         if suggested is not None and not isinstance(suggested, Call):
@@ -1070,8 +1071,8 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
             S.offer(g, search, key=(len(open_now) - (1 if rank_here >= 4 else 0), -rank_here, 0, depth),
                     frame=frame, depth=depth, function=suggested.function, bindings=bound,
                     open_count=len(open_now), trace=ahead)
-            # ⭐⭐ ADVISORY defers; MANDATORY does not. This one line is the whole of force at this seam,
-            # and it is the honest consequence of §2: only a claim about the SITUATION ("in this
+            # ADVISORY defers; MANDATORY does not. This one line is the whole of force at this seam,
+            # and it is the honest consequence: only a claim about the situation ("in this
             # situation, this is the move") is entitled to remove the alternatives, because only that
             # claim is wrong in a way the author meant to be fatal.
             if not suggested.final:
@@ -1082,12 +1083,12 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
             return
 
     here, blocked = enumerate_frame(g, frame, allow=allow)
-    # ⭐ Once per frame, not once per proposal — `docs/deliberation.md`'s frequency rule, and §5m's record of
+    # Once per frame, not once per proposal — `docs/deliberation.md`'s frequency rule, and's record of
     # what ignoring it costs. `wants` is the same for every proposal offered from this frame.
     wants = wants_that_unblock(g, frame, blocked, open_now) if guided else frozenset()
     for name, bindings in here:
-        # CONSTRAINTS ON THE PLAN, checked BEFORE imagining - so a forbidden action costs nothing.
-        # WARN This FILTERS where `relevance` only RANKS, and the difference is principled: relevance is a
+        # Constraints on the PLAN, checked BEFORE imagining - so a forbidden action costs nothing.
+        # Warn This filters where `relevance` only ranks, and the difference is principled: relevance is a
         # guess about what will help, so filtering on it could lose a solution (Sussman's anomaly needs a
         # low-scoring move). A safety breach is a proof - no continuation of a plan that used a forbidden
         # action makes it unused - so pruning is sound. Rank a guess; prune a proof.
@@ -1103,7 +1104,7 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
                 emit("refuse", action=name, on=_shown(g, bindings),
                      because=list(reasons), depth=depth)
             continue
-        # WARN Minted only AFTER the breach check, so a refused action leaves no trace step behind.
+        # Warn Minted only AFTER the breach check, so a refused action leaves no trace step behind.
         ahead_node = S.extend_trace(g, trace_node, name, touched)
         if not guided:
             S.offer(g, search, key=(0, 0, 0, depth), frame=frame, depth=depth, function=name,
@@ -1115,7 +1116,7 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
         if watch:
             emit("consider", action=name, on=_shown(g, bindings), band=rank_here,
                  open=len(open_now), unlocks=opens, depth=depth)
-        # ⚠ `-opens` sits AFTER `-rank_here`: a move that merely makes something possible can never
+        # `-opens` sits AFTER `-rank_here`: a move that merely makes something possible can never
         # outrank one that actually closes a constraint. It only ever separates the moves that were tied.
         S.offer(g, search, key=(expected, -rank_here, -opens, depth), frame=frame, depth=depth,
                 function=name, bindings=bindings, open_count=len(open_now), trace=ahead_node)
@@ -1124,12 +1125,12 @@ def _offer(g: Graph, search: str, frame: str, depth: int, trace_node, *,
 def check_call(g: Graph, goal: str, frame: str, call: Call, prefix: str | None) -> tuple:
     """Is this `Call` something that could actually be applied here? Returns `(bindings, touched)`.
 
-    ⭐ **One place, because there are now two callers** — `_honour` (a decision substituting for the ranked
+    One place, because there are now two callers — `_honour` (a decision substituting for the ranked
     choice) and `_offer` (a decision spoken *before* enumeration). Two copies of a validation that must not
     drift is the defect shape this codebase keeps recording, and here the drift would be silent: one route
     would admit a call the other refuses.
 
-    ⚠ **A binding the enumeration never proposed is fine; an ill-typed one is not.** Naming a binding is
+    A binding the enumeration never proposed is fine; an ill-typed one is not. Naming a binding is
     the whole point (`selection.candidates`' *"inventing bindings is search"*). What is checked is exactly
     what `enumerate_frame` checks — declared parameter types, no node in two roles — plus the one thing
     ranking may never overturn: `goal.breached`. Rank a guess, prune a proof."""
@@ -1174,56 +1175,56 @@ def check_call(g: Graph, goal: str, frame: str, call: Call, prefix: str | None) 
 def _honour(g: Graph, search: str, c: dict, call: Call, displaced: str, frame: str, prefix: str | None):
     """Carry out a `Call` — substitute the decision's action for the one ranking chose.
 
-    Returns `(function, {param: mapping}, trace_node)`, or **`None` when this decision is spent** — see the
+    Returns `(function, {param: mapping}, trace_node)`, or `None` when this decision is spent — see the
     frequency rule below.
 
-    **⚠⚠ A DECISION APPLIES ONCE PER FRAME PER CALL, and discovering why is the main thing this seam
-    taught.** Putting the displaced candidate back and letting a deterministic criterion speak again are in
+    A decision applies once per frame per CALL, and discovering why is the main thing this seam
+    taught. Putting the displaced candidate back and letting a deterministic criterion speak again are in
     direct tension: the search re-takes the displaced candidate, the criterion names the same action, that
-    action reaches a state already imagined, the candidate goes back again — a **livelock**, measured
+    action reaches a state already imagined, the candidate goes back again — a livelock, measured
     (12 steps, 9 of them the same substitution from the same frame, goal never reached).
 
     So a substitution is recorded on the frame and is not repeated. This is not a new principle: it is
     `docs/deliberation.md`'s frequency rule and the same answer `DECOMPOSE` already gives — *"a method applies
-    once per GOAL, never once per search step. Frequency, not absence."* And it is honest rather than
-    silent: the decision is not ignored, it has **already been carried out here**, and the trace says so.
+    once per goal, never once per search step. Frequency, not absence."* And it is honest rather than
+    silent: the decision is not ignored, it has already been carried out here, and the trace says so.
 
-    **⭐⭐ THE DISPLACED CANDIDATE GOES BACK ON THE FRONTIER, and that is the load-bearing line.**
+    The displaced candidate goes BACK on the frontier, and that is the load-bearing line.
     `docs/deliberation.md`'s rule is that a criterion may prune freely *provided the prune is recorded and
-    the fallback is reachable* — because a prune here happens while **imagining**, so being wrong costs
+    the fallback is reachable* — because a prune here happens while imagining, so being wrong costs
     imagined states rather than actions. Dropping the displaced candidate instead would make a criterion's
     mistake unrecoverable, which is the one thing that turns cheap-to-be-wrong into expensive-to-be-wrong.
 
-    ⚠ **Re-offered by re-linking, so its key survives** — the candidate node was only unlinked by
+    Re-offered by re-linking, so its key survives — the candidate node was only unlinked by
     `take_best`, never destroyed. It therefore returns to the *end* of insertion order, which changes the
     tie-break among candidates with identical keys. That is a real if small semantic change, and it happens
     only when a decision actually fires; the default path never reaches this function.
 
-    ⚠ **A fresh trace step, not the displaced one's.** The candidate's `trace` already includes *its own*
+    A fresh trace step, not the displaced one's. The candidate's `trace` already includes *its own*
     action, so reusing it would record a plan that took a step nobody took. The prefix is one link up.
 
-    ⚠ Every refusal here is `Undecidable` — loud, naming what was wrong. A decision that silently does
+    Every refusal here is `Undecidable` — loud, naming what was wrong. A decision that silently does
     nothing is the failure this project keeps catching, and a decision silently *corrected* is worse."""
     goal, thread = c["goal"], c["thread"]
     bound, touched = check_call(g, goal, frame, call, prefix)
 
-    # ⚠ SPENT? See the frequency rule above. Compared on (function, individuals), not on the candidate,
+    # Spent? See the frequency rule above. Compared on (function, individuals), not on the candidate,
     # because the same action reached from the same frame by a different route is the same action.
     for prior in g.targets(frame, "decided"):
         if g.attr(prior, "function") == call.function and \
                 frozenset(g.targets(prior, "touched")) == touched:
             return None
 
-    g.link(search, "candidate", displaced)          # ⭐ THE FALLBACK STAYS REACHABLE
+    g.link(search, "candidate", displaced)          # The fallback stays reachable
     ahead = S.extend_trace(g, prefix, call.function, touched)
-    g.link(frame, "decided", ahead)                 # ⚠ once per frame per call — the frequency rule
+    g.link(frame, "decided", ahead)                 # once per frame per call — the frequency rule
     T.attend(g, thread, goal, why=f"decided to do {call.function}",
              note=call.why or f"instead of {g.attr(displaced, 'function')}")
     return call.function, bound, ahead
 
 
 def _proposer_of(g: Graph, search: str):
-    """The proposer this search node itself names, or `None`. ⚠ Rebuilt per step rather than cached: the
+    """The proposer this search node itself names, or `None`. Rebuilt per step rather than cached: the
     criteria are read from the graph when asked, so a criterion withdrawn mid-search stops being consulted
     — caching the closure would keep a retracted block deciding, which `discourse.py` exists to prevent."""
     d = g.target(search, "decided_by")
@@ -1234,7 +1235,7 @@ def _proposer_of(g: Graph, search: str):
 
 
 def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=None, propose=None):
-    """** ONE iteration of the search - the yield point `pursue` never had.**
+    """ one iteration of the search - the yield point `pursue` never had.
 
     Returns `None` while the search should continue, and the finished report when it should not (found,
     stopped by a decision, or exhausted). So a caller other than `pursue` can drive the search, stop
@@ -1243,11 +1244,11 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
     only *with*. `pursue` was a closed loop with no yield point, so "what should I do next?" was not an
     expressible question, only a `while` condition.
 
-    WARN **The state is entirely in the graph** (`search.py`), so two calls need share nothing but the
+    Warn The state is entirely in the graph (`search.py`), so two calls need share nothing but the
     search node. The four hooks are Python callables and are passed per call, because a callable cannot
     live in a graph - that split is the honest boundary between substitutable behaviour and state.
 
-    WARN This does not make the search *re-entrant across mutation*: the graph is mutable and the frontier
+    Warn This does not make the search *re-entrant across mutation*: the graph is mutable and the frontier
     refers to frames, so driving one search while something else edits its workbench is undefined.
     Stepping is a yield point, not isolation."""
     c = S.context(g, search)
@@ -1259,7 +1260,7 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
         watch(dict(kind=kind, step=S.steps_taken(g, search), **fields))
 
     if g.attr(search, "contradictory"):
-        # ⚠ Recorded at setup, reported here, so every driver gives the same answer. It used to be an early
+        # Recorded at setup, reported here, so every driver gives the same answer. It used to be an early
         # `return` inside `pursue`, which meant a second driver had to know to make the check itself —
         # and `driver.pursuit_step` promptly did, i.e. two copies of it existed for as long as it took to
         # notice. Same fix as `already`, for the same reason.
@@ -1270,18 +1271,18 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
     if g.attr(search, "already"):
         return _done(g, goal, thread, wb, W.root_frame(g, wb), c["opened"],
                      "already satisfied", 0, (), search)
-    # ⭐⭐⭐ **A STOP WRITTEN ON THE SEARCH — self-monitoring, and it needed no new mechanism.** Everything
+    # A stop written on the search — self-monitoring, and it needed no new mechanism. Everything
     # about a running computation is now graph data (`search.steps`, the frontier, the phase), so a rule can
     # ask *"have I been planning too long?"* — and this is the one line that lets it do something about the
     # answer. A watcher is an ordinary microfunction on the ordinary agenda, interleaved with the search it
     # is watching, writing `stop` on the search node it is reading.
     #
-    # ⚠ **The `decide` hook already did this and is NOT redundant** — it is a Python callable consulted
+    # The `decide` hook already did this and is NOT redundant — it is a Python callable consulted
     # *per proposal*, which is right for a ranker-frequency decision (`docs/deliberation.md` and wrong for
-    # anything a domain author should be able to write. This is the same decision expressed as **data**,
+    # anything a domain author should be able to write. This is the same decision expressed as data,
     # which the standing principle requires: everything a domain contributes is data. They are the same
     # verbs and the same report, deliberately, so a reader cannot tell which route stopped a search.
-    # ⭐⭐ NO HOOK? ASK THE GRAPH. This is what makes a guided search resumable by anything — `loop.tick`
+    # NO hook? Ask the graph. This is what makes a guided search resumable by anything — `loop.tick`
     # forwards only the hooks its own caller held, so before this a search ticked by the outer loop
     # silently lost its guidance (3 imagined states became 52, measured). An explicit `propose=` still
     # wins, because a caller naming a proposer is being deliberate.
@@ -1296,7 +1297,7 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
         return _exhausted(g, search, c, watch)
     chosen = S.take_best(g, search)
     if chosen is None:
-        # ⭐ Nothing left to try — but a decision may have SUPPRESSED alternatives rather than ruled them
+        # Nothing left to try — but a decision may have suppressed alternatives rather than ruled them
         # out. Build one deferred frame's enumeration and carry on; only a search with nothing deferred
         # is really exhausted. This is what keeps `propose` complete rather than merely cheap.
         if _backfill(g, search, rank=rank, allow=allow, watch=watch):
@@ -1308,15 +1309,15 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
     bindings, open_count, trace_node = _c["bindings"], _c["open_count"], _c["trace_node"]
     tr = S.trace_tuple(g, trace_node)
 
-    # THE DECISION POINT. Everything above chose the *best* proposal; this asks whether imagining it is
+    # The decision point. Everything above chose the *best* proposal; this asks whether imagining it is
     # what we should be doing at all. Returning `None` means "nothing to say", which is why the default
     # behaviour is to keep planning - the loop's disposition is unchanged and a rule has to speak up.
     #
-    # WARN UNLIKE `trace`, THIS IS A PARTICIPANT, so it is handed the real thing. `trace` gets labels
+    # Warn unlike `trace`, this is a participant, so it is handed the real thing. `trace` gets labels
     # because a watcher must not be able to steer and a rendering is all it needs; a decision is made *on*
     # structure, so giving it renderings would force it to reconstruct state from strings.
     #
-    # WARN Built from what is ALREADY computed. This runs once per imagined step - hundreds of times in a
+    # Warn Built from what is already computed. This runs once per imagined step - hundreds of times in a
     # normal search - so anything costly here inverts the cost of what it exists to save. `open_count` is
     # carried on the candidate precisely so nothing is recomputed.
     if decide is not None:
@@ -1326,7 +1327,7 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
                           "workbench": wb, "search": search,
                           "thread": thread, "subject": subject})
         if isinstance(verdict, Call):
-            # ⭐ A decision that NAMES AN ACTION. `_honour` validates it, puts the displaced candidate back
+            # A decision that names an action. `_honour` validates it, puts the displaced candidate back
             # on the frontier, and hands back what to imagine instead — so the rest of this function is
             # unchanged and does not know a substitution happened.
             was = name
@@ -1351,7 +1352,7 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
                 raise Undecidable(f"{verb!r} needs {_UNBUILT[verb]}; see deliberation.md")
             if verb not in _STOPS:
                 raise Undecidable(f"{verb!r} is not one of {VERBS}")
-            # Recorded ONLY when a decision actually fires, which is what keeps the default path
+            # Recorded only when a decision actually fires, which is what keeps the default path
             # byte-identical to the behaviour that existed before this seam.
             if watch:
                 emit(verb, action=name, on=_shown(g, bindings), depth=depth, because=why_stop)
@@ -1360,21 +1361,21 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
 
     steps = S.took_a_step(g, search)
 
-    # ⚠⚠ **AN OPERATOR THAT CANNOT BE IMAGINED IS UNUSABLE HERE, NOT A CRASH.** A body whose effect is
+    # An operator that cannot be imagined is unusable here, NOT a crash. A body whose effect is
     # behind a `DISPATCH` and which declares no `mocks` cannot be run on a workbench: `dispatch.service`
     # refuses an imagined target, which is the single most important safety property in the design and
-    # must stay. But the refusal was **escaping the outer loop** — stranding this pursuit and, because the
+    # must stay. But the refusal was escaping the outer loop — stranding this pursuit and, because the
     # agenda is shared, killing every other task with it. Exactly the failure `execution.step` already
     # records for `TypeViolation`: *"it reports by raising, and nothing between here and `loop.tick` caught
     # it"*. Same shape, one phase earlier.
     #
-    # ⭐ And skipping is the RIGHT answer rather than a patch: an operator nobody can imagine is one
+    # And skipping is the right answer rather than a patch: an operator nobody can imagine is one
     # means-ends cannot use, so the search should carry on and — if what remains is ignorance — say so.
     # That is precisely what lets `_phase_sensing` see `blocked_on_ignorance` and go and look.
     try:
         nxt, _tr = W.step(g, wb, frame, name, bindings)
     except DP.Imagined as e:
-        # ⚠ SKIPPED, BUT NEVER SILENTLY — recorded on the search so a report can say *"there was a route
+        # Skipped, but never silently — recorded on the search so a report can say *"there was a route
         # here and nothing could imagine it"*. A capability gap that reads as an ordinary "no plan found"
         # is the silent-acceptance failure this project keeps catching; `_exhausted` can now name it.
         g.put(search, unimaginable=tuple(dict.fromkeys(
@@ -1382,7 +1383,7 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
         if watch:
             emit("unimaginable", action=name, on=_shown(g, bindings), depth=depth, because=str(e))
         return None
-    # WARN Record the REAL node the imagined one stands for, falling back to the copy only for something
+    # Warn Record the real node the imagined one stands for, falling back to the copy only for something
     # that does not exist yet. Recording the copy was more literal and less truthful: an application says
     # *which function was applied to which subject*, and the subject is the block - the copy is only how we
     # imagined it. It also made the record useless to any reflective reader, because two goals open two
@@ -1396,7 +1397,7 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
         emit("imagine", action=name, on=_shown(g, bindings), depth=depth + 1,
              open=[G.describe_constraint(g, x)
                    for x in G.unmet(g, goal, view=nview, under=nunder)])
-    # WARN Both halves, and liveness only here: the world must be right AND the plan must have done
+    # Warn Both halves, and liveness only here: the world must be right and the plan must have done
     # everything it was required to. A plan that reaches the state without its mandated step is not
     # finished - but it was never in violation on the way, which is why this is not a pruning test.
     if G.satisfied(g, goal, view=nview, under=nunder) and not G.outstanding(g, goal, tr):
@@ -1420,10 +1421,10 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
 
 def _stopped(g: Graph, search: str, c: dict, verb: str, why: str, watch,
              *, frame=None, note: str | None = None) -> dict:
-    """The report for a search that was **told to stop** — by a `decide` verdict or by a rule that wrote
+    """The report for a search that was told to stop — by a `decide` verdict or by a rule that wrote
     `stop` on the search node.
 
-    ⚠ ONE implementation, deliberately. Two routes into "stopped" with two report builders is the drift
+    One implementation, deliberately. Two routes into "stopped" with two report builders is the drift
     shape this codebase keeps recording, and here it would be invisible: a caller cannot tell which route
     fired, so a divergence between them would look like a bug in whichever one it noticed second."""
     goal, wb = c["goal"], c["workbench"]
@@ -1459,14 +1460,14 @@ def _exhausted(g: Graph, search: str, c: dict, watch) -> dict:
 
 
 def plan_bindings(g: Graph, plan: tuple) -> tuple:
-    """A plan (a path of FRAMES) read back as `(function, {param: real node})` per step.
+    """A plan (a path of frames) read back as `(function, {param: real node})` per step.
 
-    ⚠ Distinct from `plan_steps`, which takes a *result dict* and returns bare function names. Naming this
-    `plan_steps` too silently shadowed that one — which `../pystrider` calls — and every consumer of it
+    Distinct from `plan_steps`, which takes a *result dict* and returns bare function names. Naming this
+    `plan_steps` too silently shadowed that one — which the first consumer calls — and every consumer of it
     began receiving a frame path it could not read. Two readers of a plan at two levels of detail is fine;
     two of them sharing a name is not.
 
-    ⚠ The first frame is the starting world, reached by nothing, so it contributes no step. Bindings point
+    The first frame is the starting world, reached by nothing, so it contributes no step. Bindings point
     at *mappings* rather than raw nodes — that indirection is what makes a plan replayable at all — so each
     resolves back to the node it stands for, which is what any reader of a plan is actually asking about.
 
@@ -1490,13 +1491,13 @@ def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused, sea
     subject = g.target(wb, "subject")
     under = W.image_of(g, W.mapping_for(g, frame, subject))
     found = G.witness(g, goal, view=view_in(g, frame), under=under)
-    # ⚠ PLANNED, not closed. The goal is met in an imagined frame; the world is untouched. Closing it here
+    # Planned, not closed. The goal is met in an imagined frame; the world is untouched. Closing it here
     # would report success for something that has not happened.
     G.record_plan(g, goal, seen_in=frame, witness=found)
 
     plan = X.path_to(g, wb, frame)
     if search is not None:
-        # WARN The OUTCOME is graph data too, not only the returned dict. An ISA program driving `step`
+        # Warn The outcome is graph data too, not only the returned dict. An ISA program driving `step`
         # reads its answer with an ordinary ATTR, exactly as it would read anything else - the report dict
         # is a convenience for Python callers, never the only place the answer exists.
         g.put(search, done=True, found=True, how=how, length=len(plan) - 1)
@@ -1513,7 +1514,7 @@ def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused, sea
 def _record_execution(g: Graph, thread: str, goal: str, plan: dict, report: dict) -> None:
     """Put what really ran on the thread, marked `done`.
 
-    ⚠ Until this existed the thread held only *planning* — every proposal considered, including abandoned
+    Until this existed the thread held only *planning* — every proposal considered, including abandoned
     branches — and nothing about what actually happened. Anything reasoning over consequences was therefore
     reading the search rather than the actions, which is how `conflict.interference` first came to report
     two goals disagreeing over an idea neither of them acted on."""
@@ -1530,23 +1531,23 @@ def _record_execution(g: Graph, thread: str, goal: str, plan: dict, report: dict
 
 def carry_out(g: Graph, goal: str, thread: str, subject: str, *,
               attempts: int = 3, **kw) -> dict:
-    """⭐⭐ PLAN, ACT, CHECK, REPLAN — the loop closed. Returns a report of every attempt.
+    """PLAN, ACT, CHECK, replan — the loop closed. Returns a report of every attempt.
 
     `pursue` finds a plan in imagination; this is what actually does it, notices when reality disagrees, and
     goes round again from the world as it really is.
 
-    **⚠ Replanning has to come back HERE, not to `plan.py`.** `execution.replan` chains backwards over
+    Replanning has to come back here, not to `plan.py`. `execution.replan` chains backwards over
     return types and knows nothing about a goal's constraints — asked to recover a diverged
     "some file must exist", it answered *"listing: already satisfied"*: true, and useless. Re-pursuing the
-    **goal** is the only recovery that can mean anything, and it needs no new state because `pursue` opens a
+    goal is the only recovery that can mean anything, and it needs no new state because `pursue` opens a
     fresh workbench on the current real subject. Replanning is just going round the loop again.
 
-    **⚠ A contingency is still tried first**, for the reason `execution.recover` gives: an explored sibling
+    A contingency is still tried first, for the reason `execution.recover` gives: an explored sibling
     is already verified against this world, a fresh plan is not. It rarely applies to a plan *this* function
     produced, because `pursue` does not fork on mock outcomes — it takes the preferred one. That is a real
     limitation, stated rather than hidden, and the reason the loop leans on replanning.
 
-    **The goal is closed only by reality.** `pursue` records that a plan was *found*; nothing but a
+    The goal is closed only by reality. `pursue` records that a plan was *found*; nothing but a
     completed execution closes the goal."""
     data, hooks = _split_pursuit_kw(kw)
     p = open_pursuit(g, goal, thread, subject, attempts=attempts, **data)
@@ -1555,33 +1556,33 @@ def carry_out(g: Graph, goal: str, thread: str, subject: str, *,
     return pursuit_report(g, p)
 
 
-# --- the pursuit: plan / act / check / replan, as PHASES over graph-resident state --------------------
+# --- the pursuit: plan / act / check / replan, as phases over graph-resident state --------------------
 #
-# ⭐⭐⭐ `carry_out` was the last Python control loop in the engine, and the outermost one — the thing that
+# `carry_out` was the last Python control loop in the engine, and the outermost one — the thing that
 # decides whether to try again. Its state (which attempt, the plan in hand, the execution under way, the
 # history) lived in locals, so the system could be *inside* a plan-act-check cycle and unable to say so.
-# the design notes' principle applied without exception: the pursuit is a node, one tick is ONE PRIMITIVE
+# an earlier note's principle applied without exception: the pursuit is a node, one tick is one primitive
 # STEP, and `carry_out` is a driver over it exactly as `Machine.run` is over `tick` and `execute` over
 # `execution.step`.
 #
-# ⚠ **A tick of a pursuit is not "one attempt".** An attempt contains a whole search and a whole replay,
+# A tick of a pursuit is not "one attempt". An attempt contains a whole search and a whole replay,
 # and an opcode-sized step is the only size that makes "stop between any two" mean anything. So a pursuit
-# holds a **current sub-task** — a `search` while planning, a `replay` while acting — and advancing the
+# holds a current sub-task — a `search` while planning, a `replay` while acting — and advancing the
 # pursuit advances that sub-task by one primitive step, changing phase only when it finishes. That is what
 # makes the whole loop uniform: every level down from here is already steppable.
 #
-# ⚠ The phases are DATA on the node rather than a Python state variable, so `describe_pursuit` can say
+# The phases are data on the node rather than a Python state variable, so `describe_pursuit` can say
 # what the system is in the middle of without having been watching.
 
 PLANNING, ACTING, RECOVERING, CHECKING, SETTLED = "planning", "acting", "recovering", "checking", "done"
-#: ⭐⭐ A pursuit that cannot PLAN because it does not KNOW — see `_phase_sensing`.
+#: A pursuit that cannot PLAN because it does not know — see `_phase_sensing`.
 SENSING = "sensing"
 
 _PURSUIT_DATA = ("max_steps", "max_depth", "guided")
 
 
 def _split_pursuit_kw(kw: dict) -> tuple:
-    """Bounds are DATA and live on the node; `rank`/`allow`/`trace`/`decide` are Python callables and are
+    """Bounds are data and live on the node; `rank`/`allow`/`trace`/`decide` are Python callables and are
     passed per call. Same split as `search.context`, for the same reason: a callable cannot live in a
     graph, and everything that can, must."""
     return ({k: v for k, v in kw.items() if k in _PURSUIT_DATA},
@@ -1639,10 +1640,10 @@ def describe_pursuit(g: Graph, p: str) -> str:
 
 
 def pursuit_step(g: Graph, p: str, **hooks) -> bool:
-    """**One primitive step of the whole plan-act-check-replan loop.** `True` while there is more to do.
+    """One primitive step of the whole plan-act-check-replan loop. `True` while there is more to do.
 
     Exactly one of these happens per call: one imagined state, one real action, or one phase transition.
-    ⚠ A transition costs a tick of its own rather than being folded into the step that caused it, because
+    A transition costs a tick of its own rather than being folded into the step that caused it, because
     *"the plan is in hand and nothing has been done yet"* is a state the system may legitimately be stopped
     in — it is the last moment before anything becomes irreversible."""
     phase = g.attr(p, "phase")
@@ -1665,11 +1666,11 @@ def _phase_planning(g: Graph, p: str, **hooks) -> bool:
     if out is None:
         return True                              # one imagined state; still planning
     if not out["found"]:
-        # ⭐⭐⭐ **ACTING ON AN UNFINISHED PLAN.** A search can fail for two very different reasons, and
+        # ACTING on an unfinished PLAN. A search can fail for two very different reasons, and
         # collapsing them was the gap: *"there is no route"* is defeat, but *"I cannot plan this until I
-        # go and look"* is a **third outcome**, and the whole reason an outer loop was wanted — the plan
+        # go and look"* is a third outcome, and the whole reason an outer loop was wanted — the plan
         # is not the only thing a goal may need next. `goal.blocked_on_ignorance` is the test, and it is
-        # deliberately strict: a plan must **bottom out** in ignorance, not merely touch it, or the agent
+        # deliberately strict: a plan must bottom out in ignorance, not merely touch it, or the agent
         # looks in every box.
         if _looker_for(g, goal, subject) is not None:
             g.put(p, phase=SENSING)
@@ -1700,7 +1701,7 @@ def _phase_acting(g: Graph, p: str, **_hooks) -> bool:
     if report["completed"]:
         g.put(p, phase=CHECKING)
         return True
-    # ⚠ A contingency is tried before replanning, on evidence rather than taste: an explored sibling is
+    # A contingency is tried before replanning, on evidence rather than taste: an explored sibling is
     # already verified against this world and a fresh plan is not (`execution.recover`).
     resumed = X.resume_replay(g, report)
     if resumed is None:
@@ -1720,7 +1721,7 @@ def _phase_recovering(g: Graph, p: str, **_hooks) -> bool:
     if report["completed"]:
         g.put(a, recovered="contingency", completed=True, ran=report["ran"])
     else:
-        # ⚠ The DIVERGENCE REPORTED IS THE ORIGINAL ONE. A contingency that also failed does not replace
+        # The divergence reported is the original one. A contingency that also failed does not replace
         # the account of what went wrong first — that is what the next attempt has to reason from.
         g.put(a, diverged=X.report(g, X.report_of(g, g.targets(p, "replay")[0])))
     g.put(p, phase=CHECKING)
@@ -1730,17 +1731,17 @@ def _phase_recovering(g: Graph, p: str, **_hooks) -> bool:
 def _looker_for(g: Graph, goal: str, subject: str):
     """An observing function that could reduce this goal's ignorance, or `None`.
 
-    ⚠ **Only when the goal BOTTOMS OUT in ignorance** (`goal.blocked_on_ignorance`), which is the test
+    Only when the goal bottoms out in ignorance (`goal.blocked_on_ignorance`), which is the test
     that document already specifies: one unknown slot beside three genuinely false constraints is world
     work, not a reason to go looking.
 
-    ⚠⚠ **The planner is BLIND here by construction, which is why this does not plan.** A search reaches
+    The planner is blind here by construction, which is why this does not plan. A search reaches
     this state precisely when nothing it can select establishes what is unknown — an operator whose whole
     effect is on the far side of a `DISPATCH` reads as establishing nothing (`establishes`), so it can
-    never be chosen by means-ends. Sensing therefore selects **directly**: an applicable single-parameter
-    function whose body dispatches a tool registered as only LOOKING.
+    never be chosen by means-ends. Sensing therefore selects directly: an applicable single-parameter
+    function whose body dispatches a tool registered as only looking.
 
-    ⚠ `selection.candidates(skip_applied=True)` is the termination guard, and it is structural rather than
+    `selection.candidates(skip_applied=True)` is the termination guard, and it is structural rather than
     a counter: a function already applied to this subject is not offered again, so a pursuit cannot look
     the same way twice and loop for ever."""
     from . import dispatch as DP, selection as SEL
@@ -1759,15 +1760,15 @@ def _looker_for(g: Graph, goal: str, subject: str):
 
 
 def _phase_sensing(g: Graph, p: str, **_hooks) -> bool:
-    """**Look, for real, and then replan from scratch.**
+    """Look, for real, and then replan from scratch.
 
-    ⚠⚠ **The old search is DISCARDED, not resumed, and that is the user's specification rather than an
-    implementation convenience:** what we just learned may invalidate the plan altogether, so resuming a
+    The old search is discarded, not resumed, and that is the user's specification rather than an
+    implementation convenience: what we just learned may invalidate the plan altogether, so resuming a
     frontier built in ignorance would extend reasoning done before the facts arrived. Replanning is the
     honest move, and it is the same argument `execution.recover` already makes for preferring a verified
     sibling over a fresh plan — evidence over taste, in the other direction.
 
-    ⚠ One look per tick, like every other phase: this is a real dispatch and reaches the world."""
+    One look per tick, like every other phase: this is a real dispatch and reaches the world."""
     goal, thread, subject = (g.target(p, "goal"), g.target(p, "thread"), g.target(p, "subject"))
     name = _looker_for(g, goal, subject)
     if name is None:
@@ -1778,7 +1779,7 @@ def _phase_sensing(g: Graph, p: str, **_hooks) -> bool:
     T.attend(g, thread, goal, why="cannot plan without looking", note=name)
     fn.invoke(g, name, {fn.subject_param(g, name): subject})
     g.put(p, sensed=(g.attr(p, "sensed", ()) or ()) + (name,))
-    # ⭐ The search is dropped so the next planning tick opens a FRESH one against what is now known.
+    # The search is dropped so the next planning tick opens a fresh one against what is now known.
     old = g.target(p, "search")
     if old is not None:
         g.unlink(p, "search", index=0)
@@ -1802,7 +1803,7 @@ def _phase_checking(g: Graph, p: str, **_hooks) -> bool:
         T.attend(g, thread, goal, why="gave up", note=f"after {at} attempt(s)")
         g.put(p, phase=SETTLED)
         return False
-    # ⭐ Round again, and it needs no new state: `open_planning` opens a fresh workbench on the current
+    # Round again, and it needs no new state: `open_planning` opens a fresh workbench on the current
     # real subject, so replanning IS going round the loop. The sub-tasks are released rather than kept,
     # because "which search am I in" must have one answer.
     for label in ("search", "replay", "plan_frame", "record"):
@@ -1818,7 +1819,7 @@ _PHASES = {PLANNING: _phase_planning, ACTING: _phase_acting,
 
 def _plan_of(g: Graph, p: str) -> dict:
     """The bits of a `pursue` report that `_record_execution` and `plan_steps` read, rebuilt from the
-    pursuit. ⚠ Not a stored copy of the report — a rendering, so it cannot fall out of step with it."""
+    pursuit. Not a stored copy of the report — a rendering, so it cannot fall out of step with it."""
     s = g.target(p, "search")
     wb, frame = g.target(s, "workbench"), g.target(p, "plan_frame")
     return {"found": True, "frame": frame, "workbench": wb, "plan": X.path_to(g, wb, frame),
@@ -1826,34 +1827,33 @@ def _plan_of(g: Graph, p: str) -> dict:
 
 
 def follow(g: Graph, goal: str, thread: str, subject: str, **kw) -> dict:
-    """Carry out a **decomposed** goal by working its subgoals in `then` order.
+    """Carry out a decomposed goal by working its subgoals in `then` order.
 
-    ⭐ This is the one thing probing `goal_machinery.md` §8 found genuinely missing. Its claim — *"a
-    procedure is this shape plus one sequencing edge"* — held structurally: two ordered subgoals ran through
-    `carry_out` unchanged and reality came out right. What was absent was not structure but **drive**;
+    An earlier claim, that *"a procedure is this shape plus one sequencing edge"*, held structurally: two ordered subgoals ran through
+    `carry_out` unchanged and reality came out right. What was absent was not structure but drive;
     nothing walked the order. This is that walk, and it is deliberately thin because the probe showed
     everything underneath already worked.
 
-    **⭐⭐ FORCE decides what happens when a step fails, and it is the whole distinction between a method
-    and a procedure** (`docs/deliberation.md`:
+    Force decides what happens when a step fails, and it is the whole distinction between a method
+    and a procedure (`docs/deliberation.md`:
 
-    * **`ADVISORY`** (a method) — the decomposition was a *suggestion about how*. If it does not work out,
+    * `ADVISORY` (a method) — the decomposition was a *suggestion about how*. If it does not work out,
       fall back to searching for the parent goal directly. Incompleteness is fine; the author was helping.
-    * **`MANDATORY`** (a procedure) — the decomposition was *the sanctioned way*. Falling back would be
-      improvising, so this **refuses** instead. ⚠ For a procedure, *"could not do it"* is a better answer
+    * `MANDATORY` (a procedure) — the decomposition was *the sanctioned way*. Falling back would be
+      improvising, so this refuses instead. For a procedure, *"could not do it"* is a better answer
       than *"did it another way"*, and that inverts every other reflex in this module — `carry_out`
       replans, `recover` reaches for contingencies. The reflex is suppressed here on purpose.
 
-    ⚠ **A refusal is not a failure to find a plan**, and they must not be reported alike: one says the
+    A refusal is not a failure to find a plan, and they must not be reported alike: one says the
     world would not permit it, the other says we were not permitted to try. `REFUSE` carries the step that
     stopped it and the reason, which is what an audit of a regulated run actually needs.
 
-    ⚠ **Advisory fallback cannot resurrect a MANDATORY parent.** Force is read from the parent whose
+    Advisory fallback cannot resurrect a MANDATORY parent. Force is read from the parent whose
     decomposition this is, never from the step that failed — a mandatory procedure containing an advisory
     sub-method must not become improvisable because the failure happened one level down."""
     steps = G.sequence(g, goal)
     if not steps:
-        # Not decomposed at all — the vacuity trap `goal_machinery.md` §8 records. Refusing to treat this
+        # Not decomposed at all — the vacuity trap an earlier note records. Refusing to treat this
         # as a trivially-completed procedure is the whole reason `decomposed` exists.
         return {"done": False, "goal": goal, "followed": (), "why": "nothing was raised under this goal",
                 "undecomposed": True}
@@ -1886,19 +1886,19 @@ def follow(g: Graph, goal: str, thread: str, subject: str, **kw) -> dict:
 
 
 def attempt(g: Graph, goal: str, thread: str, subject: str, **kw) -> dict:
-    """**The goal-level decision point: decompose, or search?** The top of the loop for anything with
+    """The goal-level decision point: decompose, or search? The top of the loop for anything with
     authored methods.
 
-    ⚠ **This is deliberately NOT inside `pursue`'s search loop**, and the frequency is the reason
-    (`docs/deliberation.md` A method is consulted **once per goal** — few, so it may be expensive — while
+    This is deliberately NOT inside `pursue`'s search loop, and the frequency is the reason
+    (see `docs/deliberation.md`) A method is consulted once per goal — few, so it may be expensive — while
     the per-step `decide` hook runs hundreds of times and must stay structural. Putting method matching in
-    the inner loop would invert the cost of the thing it exists to save, which is the mistake the design notes
-    §5m records paying for once already.
+    the inner loop would invert the cost of the thing it exists to save, which is a mistake this project
+    has paid for once already.
 
-    **⭐ Precedence is declaration order**, and the first applicable method wins. No weights, nothing to
+    Precedence is declaration order, and the first applicable method wins. No weights, nothing to
     tune — the same free ordering `mock` and `guideline` already use.
 
-    **⚠ Falling back is what keeps AUTHORITY safe.** A method prunes by replacing enumeration, so a
+    Falling back is what keeps authority safe. A method prunes by replacing enumeration, so a
     non-covering one could make a reachable goal unreachable. When no method matches, this searches exactly
     as before; when an `ADVISORY` one matches and fails, `follow` searches the parent goal directly. Only
     `MANDATORY` may end in a refusal, which is the point of declaring it."""
@@ -1927,8 +1927,8 @@ def plan_steps(g: Graph, result: dict) -> tuple:
 
 
 def _name(g: Graph, node) -> str:
-    """A readable handle for a node in a plan. ⚠ A `label` is a convenience for *display only* — nodes are
-    nameless and identity is never a name (the earlier design notes records that lesson at length)."""
+    """A readable handle for a node in a plan. A `label` is a convenience for *display only* — nodes are
+    nameless and identity is never a name (an earlier note records that lesson at length)."""
     return f"{g.attr(node, 'label')}" if g.attr(node, "label") else str(node)
 
 
@@ -1946,16 +1946,16 @@ def describe(g: Graph, result: dict) -> str:
     return "\n".join(lines)
 
 
-# ⭐⭐ THE PLANNER REGISTERS ITSELF AS A PRIMITIVE, and this is the whole of the kernel-boundary fix.
-# `isa.py` used to import THIS module so that two opcodes could call these two functions — so the
+# The planner registers itself as a primitive, and this is the whole of the kernel-boundary fix.
+# `isa.py` used to import this module so that two opcodes could call these two functions — so the
 # instruction set knew what a plan was, and a Rust port would have had to port the planner in order to
 # implement two instructions (`docs/execution-model.md`). The dependency now points the
 # other way: the kernel looks a name up in a table it does not populate, and this is where it is put.
 #
-# ⚠ The registration lives HERE, beside what it registers, and never in `native.py` — a table of names in
+# The registration lives here, beside what it registers, and never in `native.py` — a table of names in
 # the kernel would be the same leak with an extra hop.
 #
-# ⚠ `plan`'s operand order is the old `PLAN R(dst) F(goal) F(subject) F(thread)`, so a body translates
+# `plan`'s operand order is the old `PLAN R(dst) F(goal) F(subject) F(thread)`, so a body translates
 # mnemonic-for-name with the operands untouched.
 N.register("plan", lambda g, _act, goal, subject, thread: open_planning(g, goal, thread, subject))
 N.register("plan_step", lambda g, _act, search: step(g, search) is None)

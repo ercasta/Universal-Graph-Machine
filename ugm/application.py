@@ -1,26 +1,25 @@
-"""APPLICATIONS AND EPISODES — the record of what the system did, as ordinary nodes.
+"""Applications and episodes — the record of what the system did, as ordinary nodes.
 
-This closes the gap `docs/concepts.md` named as the single most load-bearing
-one: *the system keeps no record of its own reasoning steps.* Four capabilities failed on that absence —
-choosing among candidates (nothing to point at), lookahead (nothing to hypothesise about), recording what
-worked, and learning from it. All four needed one node kind, and this is it.
+An application is a node: which function, bound to which arguments, in which episode. It is
+minted by whoever applies the function, and thereafter it is ordinary data — navigable,
+comparable, and capable of being pointed at by a hypothesis. A binding is itself a node, so "what
+if this had been applied to that" is expressible.
 
-**An application is a node**: which function, bound to which arguments, in which episode. It is minted by
-whoever applies the function, and thereafter it is ordinary data — matchable, navigable, comparable, and
-capable of being pointed at by a hypothesis.
+Four capabilities depend on this record existing: choosing among candidates has something to
+point at, lookahead has something to hypothesise about, what worked is recorded, and learning has
+something to read.
 
-**⭐ Ordering is native now, and this is the substrate change paying its way.** The earlier version of this
-experiment (an earlier experiment) found that applications minted in one settle
-had *no inherent order*, and had to have a turn counter stamped on them by the outer driver purely to
-recover a sequence. Here an episode holds its applications on an ordered `step` edge, so the order is the
-order they were appended. The turn counter is gone, and with it the caveat that episodes were only as
-ordered as the driver made them.
+An episode holds its applications on an ordered `step` edge, so the order is the order they were
+appended. Nothing stamps a turn counter, and episodes are not merely as ordered as their driver
+made them.
 
-**Why this makes learning cheap.** An episode is a sequence of applications. Compiling one into a reusable
-procedure is reading that sequence and writing a function whose body invokes the same operations — which is
-`function.define` plus a loop, using nothing this package did not already have. `compile_episode` below is
-that, and it is short on purpose: if it needed machinery, the claim that learning falls out of the data
-model would have been wrong.
+Learning is cheap because of that shape. Compiling an episode into a reusable function is reading
+the sequence and writing a function whose body invokes the same operations — `function.define`
+plus a loop, using nothing this package did not already have. `compile_episode` is short on
+purpose: if it needed machinery, the claim that learning falls out of the data model would be
+wrong.
+
+See `docs/concepts.md`.
 """
 from __future__ import annotations
 
@@ -67,7 +66,7 @@ def bindings_of(g: Graph, app: str) -> dict:
 def steps(g: Graph, episode: str) -> tuple:
     """The applications, in the order they happened. Native, not reconstructed.
 
-    **Filtered to applications on purpose.** A *thread* (`thread.py`) is an episode that also carries
+    Filtered to applications on purpose. A *thread* (`thread.py`) is an episode that also carries
     attention shifts, so that memory is one record rather than two. Everything here — and `compile_episode`
     above all — asks only about what was *applied*, and would otherwise try to compile a shift of attention
     into a function call. Existing episodes contain nothing else, so this changes no behaviour they had;
@@ -93,16 +92,16 @@ def has_been_applied(g: Graph, name: str, node: str) -> bool:
 
 
 def generalise(g: Graph, episode: str, keep_constant=()) -> tuple:
-    """Decide which of an episode's bound nodes become PARAMETERS of the learned function.
+    """Decide which of an episode's bound nodes become parameters of the learned function.
 
     This is the step that turns *what the system did to this particular car* into *what it can do to any
     car*. Without it a learned function would only ever work on the thing it was learned from — a log
     entry, not a procedure.
 
-    **The default is mechanical: every distinct node the episode bound becomes a parameter**, named after
+    The default is mechanical: every distinct node the episode bound becomes a parameter, named after
     the kind it had, in first-appearance order. No analogy, no guessing, no search.
 
-    **The hard part is not this mechanism, it is the judgement it encodes**, and it deserves to be named
+    The hard part is not this mechanism, it is the judgement it encodes, and it deserves to be named
     rather than buried: *which* bindings should generalise. An episode that did `transfer(from: alice,
     to: acme)` could sensibly become `f(from, to)` or `f(from)` with `acme` fixed, because the company
     account is not the sort of thing that varies. Nothing in the episode itself distinguishes these — the
@@ -116,7 +115,7 @@ def generalise(g: Graph, episode: str, keep_constant=()) -> tuple:
         for node in bindings_of(g, a).values():
             if node is None or node in keep or node in mapping:
                 continue
-            # ⚠ Read the type hint through `tagged_as`, which RE-VALIDATES it. Reading the raw `is_a`
+            # Read the type hint through `tagged_as`, which re-validates it. Reading the raw `is_a`
             # attribute was a live defect: it is a claim about the past, so a node that has since changed
             # would name the learned function's parameter — and declare its type — after a class it no
             # longer belongs to, producing a function that refuses its own training example.
@@ -133,7 +132,7 @@ def generalise(g: Graph, episode: str, keep_constant=()) -> tuple:
 
 def compile_episode(g: Graph, episode: str, new_name: str, *, keep_constant=(),
                     doc: str | None = None) -> str:
-    """⭐ Turn an episode into a reusable function — the payoff claim, deliberately short.
+    """Turn an episode into a reusable function — the payoff claim, deliberately short.
 
     The generated function invokes, in order, each operation the episode recorded, with every generalised
     binding replaced by a parameter (see `generalise`) and everything else left as the concrete node it

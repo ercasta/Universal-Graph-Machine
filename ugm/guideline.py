@@ -1,33 +1,34 @@
-"""GUIDELINE — authored preference that may be wrong without being unsound.
+"""Guideline — authored preference that may be wrong without being unsound.
 
-`docs/deliberation.md` The weakest of the four forces, and the only one that can never change *what* is
-reachable — a guideline **reorders and nothing else**. That is not timidity, it is the standing rule:
+The weakest of the four forces, and the only one that can never change what is reachable: a
+guideline reorders and nothing else. That is not timidity, it is the standing rule.
 
-> **Rank a guess; prune a proof.**
+> Rank a guess; prune a proof.
 
-`goal.forbid_action` prunes because a safety breach is a proof that every extension is dead. A guideline is
-an author's opinion about what will help, so excluding on it could lose a solution — `driver`'s Sussman
-check exists precisely because the winning move scored *low*. Everything here therefore adjusts order
-within what `relevance` already decided, and can never make a reachable goal unreachable.
+`goal.forbid_action` prunes because a safety breach proves every extension is dead. A guideline
+is an author's opinion about what will help, so excluding on it could lose a solution — the
+Sussman check exists precisely because the winning move scored low. Everything here adjusts order
+within what relevance already decided, and can never make a reachable goal unreachable.
 
-**⭐ A guideline is DATA, not a microfunction**, per the standing principle that microfunctions ship with
-the engine and everything a domain contributes is data. The *ranker* that reads them ships here; the
-guidelines themselves are nodes an author writes, a reader can inspect, and `conflict.py` can one day say
-disagree.
+A guideline is data rather than a function, per the standing principle that functions ship with
+the engine and everything a domain contributes is data. The ranker that reads them ships here;
+the guidelines themselves are nodes an author writes, a reader can inspect, and a conflict
+detector can dispute.
 
-**⚠ It orders WITHIN a `relevance` band and never across bands.** Band 4 means "this call, with these
-bindings, writes exactly an open constraint" — derived from the function's own body, which is stronger
-evidence than an author's heuristic. Letting the weaker evidence beat the stronger is how authored advice
-makes a system dumber than it was. The composed score is `band + offset` with `offset` in `[0, 1)`, so
-`rank >= 4` keeps meaning exactly what `driver` requires of it.
+It orders within a relevance band and never across bands. Band 4 means "this call, with these
+bindings, writes exactly an open constraint", derived from the function's own body, which is
+stronger evidence than an author's heuristic. Letting the weaker evidence beat the stronger is
+how authored advice makes a system worse than it was. The composed score is a band plus an offset
+in `[0, 1)`, so `rank >= 4` keeps meaning exactly what the driver requires of it.
 
-**⚠ The fraction is an ENCODING OF AN ORDER, not a weight.** There is no number here to tune, and that is
-deliberate — `docs/deliberation.md` rejects weights because weights are the thing that needs tuning.
-Precedence among guidelines is **declaration order**, the same free ordering `mock` already uses.
+The fraction encodes an order rather than a weight. There is no number here to tune, and
+precedence among guidelines is declaration order — the same free ordering mocks already use.
 
-**Not recorded on the thread.** A guideline is consulted once per proposal — thousands of times in a
-search — so logging it would swamp the record it would be trying to inform. What *is* auditable is the
-guideline itself, standing in the graph, plus the plan that resulted.
+Not recorded on the thread. A guideline is consulted once per proposal, thousands of times in a
+search, so logging it would swamp the record it would be trying to inform. What is auditable is
+the guideline itself, standing in the graph, plus the plan that resulted.
+
+See `docs/deliberation.md`.
 """
 from __future__ import annotations
 
@@ -47,7 +48,7 @@ def _advise(g: Graph, stance: str, *, function: str | None = None, on: str | Non
     gl = g.mint("guideline", stance=stance, **{k: v for k, v in
                 (("function", function), ("when", when), ("because", because)) if v is not None})
     if on is not None:
-        g.link(gl, "on", on)                 # points OUT at the world — never pointed at, per the invariant
+        g.link(gl, "on", on)                 # points out at the world — never pointed at, per the invariant
     return gl
 
 
@@ -57,17 +58,17 @@ def prefer(g: Graph, *, function=None, on=None, when=None, because=None) -> str:
 
 
 def avoid(g: Graph, *, function=None, on=None, when=None, because=None) -> str:
-    """Try this later — ⚠ **later, not never.** `goal.forbid_action` is the one that means never, and it
+    """Try this later — later, not never. `goal.forbid_action` is the one that means never, and it
     prunes because it is a proof. Conflating the two is how advice quietly becomes a correctness rule."""
     return _advise(g, AVOID, function=function, on=on, when=when, because=because)
 
 
 def advice(g: Graph) -> tuple:
-    """Every guideline, in **declaration order** — which is precedence order, free, because `of_kind`
+    """Every guideline, in declaration order — which is precedence order, free, because `of_kind`
     returns mint order. Library-region data: guidelines describe the library, so like functions and types
     they do not hang off `root` and are never copied into a workbench.
 
-    ⚠ Withdrawn guidelines are skipped — see `discourse.py`."""
+    Withdrawn guidelines are skipped — see `discourse.py`."""
     from .discourse import live
     return live(g, g.of_kind("guideline"))
 
@@ -75,7 +76,7 @@ def advice(g: Graph) -> tuple:
 def applies(g: Graph, gl: str, name: str, bound: dict) -> bool:
     """Does this guideline speak to applying `name` with these already-resolved bindings?
 
-    ⚠ `when` is checked against the **subject** — `function.subject_param`'s guarantee that the first
+    `when` is checked against the subject — `function.subject_param`'s guarantee that the first
     parameter is the subject, used rather than re-derived. A condition richer than a type (the three
     constraint sorts, goal ancestry) arrives with decision rules; a type is what `types.py` already
     provides and it is the honest floor to start from."""
@@ -101,8 +102,8 @@ def ranker(g: Graph, base=None):
 
         avoided  <  no guideline  <  preferred (earlier declared first)
 
-    ⚠ `avoid` maps to the *bottom of its band*, never below it. Pushing it into a lower band would let a
-    guideline overturn `relevance`, which §3 forbids — and would be indistinguishable from a prune the
+    `avoid` maps to the *bottom of its band*, never below it. Pushing it into a lower band would let a
+    guideline overturn `relevance`, which forbids — and would be indistinguishable from a prune the
     first time it hid the only move that worked."""
     from .driver import relevance
     base = base or relevance

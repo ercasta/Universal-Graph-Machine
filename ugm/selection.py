@@ -1,32 +1,32 @@
-"""SELECTION — choosing which function to apply to which head, one step at a time.
+"""Selection — choosing which function to apply to which head, one step at a time.
 
-This is the module the whole repoint was pointing at, and it is worth being precise about why it exists.
-Under rule matching, dispatch was automatic: everything applicable fired, which is fast to write and
-produces exactly the defects this project spent a long time cataloguing. Under microfunctions nothing
-happens unless something chooses — so **selection is not an optimisation, it is the control flow**
-(`docs/overview.md` The system's effectiveness is now, quite literally, the quality of this module.
+Under rule matching, dispatch was automatic: everything applicable fired, which is fast to write
+and produces exactly the defects this project spent a long time cataloguing. Here nothing happens
+unless something chooses, so selection is not an optimisation, it is the control flow.
 
-**Three stages, deliberately separated**, because conflating them is what made matching hard to reason
-about:
+Three stages, deliberately separated, because conflating them is what made matching hard to
+reason about.
 
-1. **Candidates** — which functions *could* apply to a head. Answered by the declared parameter types
-   (`types.py`), which is matching in its demoted role: bounded, one node at a time, no fixpoint.
-2. **Ranking** — which of them *should* go first. Ordinary data (a declared `priority`), plus one
-   structural rule (do not repeat yourself), plus an optional external scorer — which is where a language
-   model plugs in, reading `function.catalogue`'s natural-language docs.
-3. **Applying** — invoke it, and **record the application** (`application.py`), so the next round can see
-   what already happened.
+1. Candidates — which functions could apply to a head, answered by the declared parameter types.
+   This is matching in its demoted role: bounded, one node at a time, no fixpoint.
+2. Ranking — which of them should go first. Ordinary data in a declared priority, plus one
+   structural rule, plus an optional external scorer, which is where a language model plugs in
+   reading the function catalogue's natural-language docs.
+3. Applying — invoke it, and record the application, so the next round can see what happened.
 
-**The idempotence rule is structural, and it is the one that earned its place.** A candidate already
-applied to this node is dropped. Under rules, "did this already fire for this reason" was a recurring
-correctness problem needing a consumption marker per rule, authored by hand, and forgetting one produced an
-unbounded stream of repeated effects. Here it is one check in one place, because applications are recorded.
+The idempotence rule is structural and it is the one that earned its place: a candidate already
+applied to this node is dropped. Under rules, "did this already fire for this reason" needed a
+consumption marker per rule, authored by hand, and forgetting one produced an unbounded stream of
+repeated effects. Here it is one check in one place, possible only because applications are
+recorded.
 
-**What is deliberately NOT here.** No search, no lookahead, no learned preference for sequences. `step`
-chooses greedily among ranked candidates. Greedy is honest for now and the hooks for better are explicit:
-`score` takes an external scorer, and episodes are recorded so a future selector can learn from them. The
-session that motivated this module wanted non-greedy selection informed by which subsequences work well;
-that needs the episode corpus this module produces, so it comes after, not with.
+What is deliberately not here: no search, no lookahead, no learned preference for sequences.
+`step` chooses greedily among ranked candidates. Greedy is honest for now and the hooks for
+better are explicit — an external scorer, and recorded episodes for a future selector to learn
+from. Non-greedy selection informed by which subsequences work well needs the episode corpus this
+module produces, so it comes after rather than with.
+
+See `docs/execution-model.md`.
 """
 from __future__ import annotations
 
@@ -78,7 +78,7 @@ def rank(g: Graph, node: str, scorer=None, **kw) -> tuple:
 
 
 def step(g: Graph, node: str, *, episode=None, scorer=None, focus: Focus | None = None):
-    """Choose ONE function and apply it. Returns `(name, application_node)`, or `(None, None)` if nothing
+    """Choose one function and apply it. Returns `(name, application_node)`, or `(None, None)` if nothing
     applies — which is an ordinary answer, not a failure.
 
     This is the metaprocedure in miniature: not an algorithm run end to end, but one deliberate choice,
@@ -92,7 +92,7 @@ def step(g: Graph, node: str, *, episode=None, scorer=None, focus: Focus | None 
     try:
         fn.invoke(g, chosen, bindings)
         outcome = "ok"
-    except Exception as e:                       # a refused application is DATA, not a crash
+    except Exception as e:                       # a refused application is data, not a crash
         outcome = f"{type(e).__name__}"
     record = app.record(g, chosen, bindings, episode=episode, outcome=outcome)
     return chosen, record

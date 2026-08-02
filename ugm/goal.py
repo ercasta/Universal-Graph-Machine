@@ -1,37 +1,42 @@
-"""GOAL — a desired state, specified as CONSTRAINTS that must hold.
+"""Goal — a desired state, specified as constraints that must hold.
 
-`ugm/README.md` listed this under "not here yet": *a goal as a node driving planning, rather than
-a caller passing a wanted type*. Everything before took `want` as a Python string, so the one thing the
-system was *trying to do* was the one thing it could not point at, hypothesise about, or record having
-pursued — the same defect attention had before `thread.py`, in a different place.
+A goal is a node and each thing it requires is a node under it, so the one thing the system is
+trying to do is something it can point at, hypothesise about, and record having pursued.
 
-**A goal is a set of constraints, and each constraint is a node.** Three sorts, because three questions
-genuinely differ:
+Three sorts of constraint, because three questions genuinely differ:
 
-* **link** — *`a` must be `on` `b`*. A specific edge between specific individuals.
-* **attr** — *`b` must be `clear`*. A specific value on a specific node.
-* **type** — *something must be a `three_high`*. A reusable schema (`types.py`), optionally about a named
-  subject; without one it asks whether *anything* in the region qualifies.
+* link — `a` must be `on` `b`. A specific edge between specific individuals.
+* attr — `b` must be clear. A specific value on a specific node.
+* type — something must be a `three_high`. A reusable schema, optionally about a named subject;
+  without one it asks whether anything in the region qualifies.
 
-**⚠ Why link-constraints cannot just be types.** A `types.py` schema says `{label: (target_kind, count)}` —
-a kind and a count, never a *particular* target. That is not an oversight: a type mentioning specific nodes
-would not be a schema, because a schema is reusable and individuals are not. So "a on b" has no home in the
-type system and needs its own form. The two stay separate on purpose, and a goal can hold both.
+A link constraint cannot simply be a type. A schema says a label, a kind and a count, never a
+particular target, and that is not an oversight: a type mentioning specific nodes would not be a
+schema, because a schema is reusable and individuals are not. So "a on b" has no home in the type
+system and needs its own form, and a goal can hold both.
 
-**Satisfaction is checked, never asserted**, for the same reason a cast records nothing: the structure
-either holds now or it does not. `is_closed` (we recorded meeting it) and `satisfied` (it holds) are
-deliberately different questions, so a stale record can never be mistaken for a current fact.
+A knowledge claim is a fourth, different requirement: go and look, rather than make it so. It is
+restricted to attribute slots, because an absent attribute means "lacks it" and a claim about an
+absent edge would have nowhere to hang a marker.
 
-**⭐ `unmet` is the point.** A goal that can only answer yes/no forces blind search. A goal that can say
-*which constraints are still false* lets the driver work on what is actually missing — means–ends rather
-than generate-and-test. That single method is the difference between the two.
+Satisfaction is checked, never asserted, for the same reason a cast records nothing: the
+structure either holds now or it does not. `is_closed` — we recorded meeting it — and `satisfied`
+— it holds — are deliberately different questions, so a stale record can never be mistaken for a
+current fact.
 
-**⚠ `view` is how one goal is asked of many worlds.** The same constraint is checked against reality and
-against imagined states. Rather than teaching this module about workbenches — which would invert the
-layering — the caller passes a `view`: a function mapping a node to the node that stands for it *here*.
-Identity for reality, "this frame's image" for an imagined state. `goal.py` imports no workbench.
+`unmet` is the point. A goal that can only answer yes or no forces blind search; a goal that can
+say which constraints are still false lets the driver work on what is actually missing. That
+single method is the difference between means-ends and generate-and-test.
+
+`view` is how one goal is asked of many worlds. The same constraint is checked against reality
+and against imagined states, and rather than teaching this module about workbenches — which would
+invert the layering — the caller passes a view: a function mapping a node to the node that stands
+for it here. Identity for reality, this frame's image for an imagined state. This module imports
+no workbench.
 
 A goal is metadata: it points at the world and is never pointed at by it.
+
+See `docs/planning.md`.
 """
 from __future__ import annotations
 
@@ -49,17 +54,17 @@ def open_goal(g: Graph, want: str | None = None, *, about: str | None = None,
               label: str | None = None, under: str | None = None, because: str | None = None) -> str:
     """A goal. `want` is sugar for a single type constraint, which is the commonest shape.
 
-    `under` makes this a **subgoal** of another goal, and `because` records why it was raised.
+    `under` makes this a subgoal of another goal, and `because` records why it was raised.
 
-    **⭐ The child points at the PARENT, never the reverse**, and the direction is load-bearing twice over.
+    The child points at the parent, never the reverse, and the direction is load-bearing twice over.
     Ancestry — *"am I inside a `y`?"*, the question a decision rule asks — is then a walk up a path rather
     than a search down a tree, while children stay O(1) through the maintained reverse index. That is
     exactly `thread.py`'s `prev` decision and it is made here for the same reasons. It also keeps the
     metadata direction invariant: a subgoal is *about* the work its parent named.
 
-    ⚠ **Parentage is set at mint and never changed, which makes a CYCLE STRUCTURALLY IMPOSSIBLE** — a
-    fresh node cannot already be its own ancestor. So `ancestry` needs no visited set and cannot hang. ⚠ It
-    does *not* bound **depth**: recursive decomposition mints a fresh goal each time, so the chain grows
+    Parentage is set at mint and never changed, which makes a cycle structurally impossible — a
+    fresh node cannot already be its own ancestor. So `ancestry` needs no visited set and cannot hang. It
+    does *not* bound depth: recursive decomposition mints a fresh goal each time, so the chain grows
     without ever looping. Depth is the real termination hazard and `depth_of` is what a bound reads."""
     goal = g.mint("goal", label=label or (f"make a {want}" if want else "goal"))
     if about is not None:
@@ -71,13 +76,13 @@ def open_goal(g: Graph, want: str | None = None, *, about: str | None = None,
     return goal
 
 
-#: How a goal counts as met. ⚠ **Declared, not inferred.** It could *almost* be read off the structure —
+#: How a goal counts as met. Declared, not inferred. It could *almost* be read off the structure —
 #: no constraints plus ordered children looks like a procedure — but a goal may legitimately have both, and
 #: this is a statement of the author's intent rather than a fact about the graph. Same category as a
 #: decomposition's force, which `docs/deliberation.md` also requires to be declared because two decompositions
 #: can look identical and behave oppositely.
 BY_CONSTRAINTS = "constraints"   # the default: the world must look like this
-BY_STEPS = "steps"               # a PROCEDURE: being met *is* having followed the steps
+BY_STEPS = "steps"               # a procedure: being met *is* having followed the steps
 MET_BY = (BY_CONSTRAINTS, BY_STEPS)
 
 ADVISORY = "advisory"            # a method: if it does not work out, fall back to searching
@@ -98,17 +103,17 @@ def subgoals(g: Graph, goal: str) -> tuple:
 
 def raised_because(g: Graph, goal: str):
     """Why this subgoal was raised — an edge property of the *transition*, like `thread.why`, because it
-    describes the raising rather than either goal. ⚠ When methods land, the thing that must be pointed at
-    is the **method** that produced the decomposition (a conflict detector will want to dispute one), and
+    describes the raising rather than either goal. When methods land, the thing that must be pointed at
+    is the method that produced the decomposition (a conflict detector will want to dispute one), and
     per `thread.py`'s rule — *ride on the edge what merely describes it; mint a node for what something
     else must point at* — that will be a node rather than this property."""
     return g.edge_prop(goal, "of", 0, "because")
 
 
 def ancestry(g: Graph, goal: str) -> tuple:
-    """This goal, then its parent, up to the outermost — the **context** a decision rule keys on.
+    """This goal, then its parent, up to the outermost — the context a decision rule keys on.
 
-    ⭐ Why this exists rather than letting authors unroll context into position-specific rules: the
+    Why this exists rather than letting authors unroll context into position-specific rules: the
     ancestry *already entails* the context, so encoding it a second time in which rule you wrote is a
     labelling error, and it forces one rule per position a rule could occupy."""
     chain, at = [], goal
@@ -124,16 +129,16 @@ def within(g: Graph, goal: str, ancestor: str) -> bool:
 
 
 def depth_of(g: Graph, goal: str) -> int:
-    """How deep this goal sits. 0 for a goal raised under nothing. **What a recursion bound reads.**"""
+    """How deep this goal sits. 0 for a goal raised under nothing. What a recursion bound reads."""
     return len(ancestry(g, goal)) - 1
 
 
 def decomposed(g: Graph, goal: str) -> bool:
     """Has anything been raised under this goal at all?
 
-    ⚠ **This exists because of a recorded trap, not for symmetry.** `goal_machinery.md` §8 found that a
+    This exists because of a recorded trap, not for symmetry. An earlier note found that a
     parent's "all my children are done" guard was written as an *absence* (`no subgoal that is unmet`) and
-    so was **vacuously true before any subgoal had been minted** — an undecomposed goal read as trivially
+    so was vacuously true before any subgoal had been minted — an undecomposed goal read as trivially
     achieved. Generalised there as: *don't trust an open-ended absence without an explicit closure fact.*
     `satisfied` already applies the same rule one level down, guarding `bool(cs)` so a goal with no
     constraints is not vacuously met."""
@@ -141,19 +146,19 @@ def decomposed(g: Graph, goal: str) -> bool:
 
 
 def then(g: Graph, first: str, next_: str) -> None:
-    """`first` must be done before `next_` — **the one sequencing edge**.
+    """`first` must be done before `next_` — the one sequencing edge.
 
-    ⭐ the earlier design notes claimed *"a procedure is this shape plus one sequencing edge"*, and
+    An earlier note claimed *"a procedure is this shape plus one sequencing edge"*, and
     probing it against this engine found the claim substantially holds: two ordered subgoals ran through the
     existing `carry_out` unchanged, in order, and reality came out right. What the probe found missing was
-    not structure but **drive** — nothing walked the order — which is `driver.follow`."""
+    not structure but drive — nothing walked the order — which is `driver.follow`."""
     g.link(first, "then", next_)
 
 
 def sequence(g: Graph, goal: str) -> tuple:
     """This goal's subgoals in `then` order. Unordered subgoals come after, in mint order.
 
-    ⚠ Two orderings could disagree here — `then` and the reverse-index order of `subgoals` — which is the
+    Two orderings could disagree here — `then` and the reverse-index order of `subgoals` — which is the
     redundancy `thread.py` had to guard between its ordered `step` edge and its `prev` chain. It cannot
     disagree here for a different reason: `then` is *partial* and this treats it as the only authority,
     appending whatever it does not mention rather than interleaving two opinions."""
@@ -179,9 +184,9 @@ def force_of(g: Graph, goal: str) -> str:
 
 
 def subgoals_met(g: Graph, goal: str, *, view=None, under: str | None = None) -> bool:
-    """Are all the subgoals satisfied? **False for an undecomposed goal**, per `decomposed`'s trap.
+    """Are all the subgoals satisfied? False for an undecomposed goal, per `decomposed`'s trap.
 
-    ⚠ **This is a reader, NOT the definition of the parent's satisfaction.** `satisfied` remains a question
+    This is a reader, NOT the definition of the parent's satisfaction. `satisfied` remains a question
     about the parent's own constraints. Whether a parent counts as met when its children are is a *policy*
     that belongs to whatever raised them — a method may decompose into steps that jointly achieve it, or
     into checks that merely support it — and baking one reading in here would decide that for every future
@@ -200,12 +205,12 @@ def require_link(g: Graph, goal: str, subject: str, label: str, obj: str, *,
                  transitive: bool = False) -> str:
     """*`subject` must be `label` `obj`* — e.g. `a` on `b`.
 
-    ⭐⭐ `transitive=True` asks for **reach at any depth** rather than adjacency: *the parcel is in the
+    `transitive=True` asks for reach at any depth rather than adjacency: *the parcel is in the
     warehouse* is true when it sits in a box in the warehouse, which a direct-target test calls false.
-    the design notes measured this as the one genuine closed-class gap behind the word *where*, and
+    An earlier note measured this as the one genuine closed-class gap behind the word *where*, and
     `closed_class_rechallenged.md` reached the same single item from the other direction.
 
-    ⚠ It stays the **link** sort rather than becoming a new one, because that is what it is — the same
+    It stays the link sort rather than becoming a new one, because that is what it is — the same
     subject, label and object, asked as reach instead of adjacency. A separate sort would have to be taught
     to every reader of a constraint (`query.refutes`, `conflict`, `driver.relevance`, `describe`) for no
     difference any of them care about except the one line in `holds`."""
@@ -218,12 +223,12 @@ def require_link(g: Graph, goal: str, subject: str, label: str, obj: str, *,
 def require_attr(g: Graph, goal: str, subject: str, key: str, value, op: str = "==") -> str:
     """*This slot must compare this way to this value.*
 
-    ⭐ `op` defaults to `==`, which is every existing caller and every existing meaning. The wider set
-    (`!= < <= > >=`) used to exist **only inside a `type` block** — an accident of where the comparison
+    `op` defaults to `==`, which is every existing caller and every existing meaning. The wider set
+    (`!= < <= > >=`) used to exist only inside a `type` block — an accident of where the comparison
     code happened to live, not a decision, and `intake._shape` refused the others with a message pointing
     at `type`. *"the file is bigger than 1k"* is an ordinary thing to want of a goal.
 
-    ⚠ Widening the surface meant teaching the **readers**, which is why this was not a parser edit:
+    Widening the surface meant teaching the readers, which is why this was not a parser edit:
     `holds`, `conflict.unsatisfiable` and `query.refutes` all assumed equality. All three now go through
     `types.compare`, the one comparator, so `>=` cannot mean different things in a schema and in a goal."""
     from .types import VALUE_OPS
@@ -243,15 +248,15 @@ def require_type(g: Graph, goal: str, type_name: str, *, about: str | None = Non
 
 # --- constraints on the PLAN, not the world -----------------------------------------------------
 #
-# ⭐ This is what having the plan *in the graph* buys. A plan is not a value a planner returned — it is
+# This is what having the plan *in the graph* buys. A plan is not a value a planner returned — it is
 # frames and transformations, so "which actions may I use, and how many" is an ordinary question about
 # ordinary data, asked with the same machinery as "what must be true at the end".
 #
-# ⚠ **The distinction that decides everything here is safety versus liveness.**
+# The distinction that decides everything here is safety versus liveness.
 #
-# * **Safety** — "never unstack", "at most five steps". Violated by a prefix ⇒ violated by *every*
-#   extension of it. So a breach is a **proof** that this branch is dead, and pruning is sound.
-# * **Liveness** — "the plan must include a verification step". A prefix lacking it is not in violation,
+# * Safety — "never unstack", "at most five steps". Violated by a prefix ⇒ violated by *every*
+#   extension of it. So a breach is a proof that this branch is dead, and pruning is sound.
+# * Liveness — "the plan must include a verification step". A prefix lacking it is not in violation,
 #   it is merely unfinished. Checking it eagerly would prune every branch at step one.
 #
 # Getting this backwards fails in both directions: defer a safety constraint and the search burns itself
@@ -299,46 +304,46 @@ def _matches(g: Graph, c: str, step: tuple) -> bool:
 
 
 def prohibitions(g: Graph, goal: str) -> tuple:
-    """Every `never` binding this goal — **its own, and every ancestor's.**
+    """Every `never` binding this goal — its own, and every ancestor's.
 
-    ⭐⭐ **A ban a child could sidestep is not a ban.** `breached` used to read `constraints(g, goal)`, so a
+    A ban a child could sidestep is not a ban. `breached` used to read `constraints(g, goal)`, so a
     prohibition on "arrange the trip" said nothing to the search planning "book the hotel" underneath it —
     the parent constrains the plan and the child does the planning, and the constraint did not cross the
     boundary. Since a subgoal points at its parent, the fix is a walk that `ancestry` already provides.
 
-    ⚠ **The three plan sorts do NOT cross a boundary alike, and treating them alike is the mistake this
-    function exists to avoid** (`docs/planning.md`:
+    The three plan sorts do NOT cross a boundary alike, and treating them alike is the mistake this
+    function exists to avoid (`docs/planning.md`:
 
     | sort | across the boundary | why |
     |---|---|---|
-    | `never` | **inherits unchanged**, at any depth | a breach is a proof wherever it happens |
-    | `eventually` | **must not inherit** | discharged by *some* step *somewhere* below, never by each child separately — inherited, every child would be separately required to paint |
-    | `at_most` | **not inherited, and deliberately not** — see `budget_of` | |"""
+    | `never` | inherits unchanged, at any depth | a breach is a proof wherever it happens |
+    | `eventually` | must not inherit | discharged by *some* step *somewhere* below, never by each child separately — inherited, every child would be separately required to paint |
+    | `at_most` | not inherited, and deliberately not — see `budget_of` | |"""
     return tuple(c for anc in ancestry(g, goal)
                  for c in constraints(g, anc) if g.attr(c, "sort") == "never")
 
 
 def budget_of(g: Graph, goal: str) -> tuple:
-    """This goal's OWN `at_most` constraints. ⚠ Ancestors' budgets are **not** included, and that is a
+    """This goal's own `at_most` constraints. Ancestors' budgets are not included, and that is a
     refusal rather than an omission.
 
-    **A budget counts at the grain of the level that declared it** — "at most 4 steps" on the vacation
+    A budget counts at the grain of the level that declared it — "at most 4 steps" on the vacation
     means four of *the vacation's* steps, where a subgoal counts as one. Inheriting it downward would apply
     a parent's count to a child's *actions*, so authoring a method that expands one step into five would
     silently break a limit that nothing about the goal had changed. And copying it to each child unchanged
     is worse than useless: three children would each be allowed to spend the whole budget.
 
-    ⚠ So a budget is **consumed, not copied**, and consuming it needs a level that knows how many of *its
+    So a budget is consumed, not copied, and consuming it needs a level that knows how many of *its
     own* steps have been taken — which is the decomposition rung that has no state node yet
-    (`docs/planning.md`, §7). Enforcing it at the wrong grain would be a wrong answer; not enforcing it
-    across levels is a gap. **A gap that is written down beats a wrong answer**, so this is the gap."""
+    (`docs/planning.md`,). Enforcing it at the wrong grain would be a wrong answer; not enforcing it
+    across levels is a gap. A gap that is written down beats a wrong answer, so this is the gap."""
     return tuple(c for c in constraints(g, goal) if g.attr(c, "sort") == "at_most")
 
 
 def breached(g: Graph, goal: str, trace: tuple) -> tuple:
-    """Safety constraints this plan prefix has already violated — **prunable, because it is a proof.**
+    """Safety constraints this plan prefix has already violated — prunable, because it is a proof.
 
-    ⚠ Contrast with `driver.relevance`, which only ever *ranks*: relevance is a guess about what will help,
+    Contrast with `driver.relevance`, which only ever *ranks*: relevance is a guess about what will help,
     so filtering on it could lose a solution (Sussman's anomaly needs a move that scores low). A safety
     breach is not a guess — no continuation of a plan that used a forbidden action makes it unused. Ranking
     a guess and pruning a proof are both correct, and confusing the two is how search goes wrong.
@@ -383,20 +388,20 @@ def holds(g: Graph, c: str, *, view=None, under: str | None = None) -> bool:
         if there is None:
             return False
         if g.attr(c, "transitive"):
-            # ⭐ Reach, not adjacency — and it is the same question one hop further out, so it lives here
+            # Reach, not adjacency — and it is the same question one hop further out, so it lives here
             # rather than in a sort of its own. `path.reaches` carries the cycle protection.
             from .path import reaches
             return reaches(g, here, g.attr(c, "label"), there)
         return there in g.targets(here, g.attr(c, "label"))
     if sort == "known":
-        # ⭐ A KNOWLEDGE claim rather than a world-state claim — `goal_machinery.md` §8's third variant of
+        # A knowledge claim rather than a world-state claim — an earlier note's third variant of
         # this same shape. It asks that the slot have been *looked at*, not that it hold any value.
         return g.attr(here, g.attr(c, "key")) is not UNKNOWN
     if sort == "attr":
         got = g.attr(here, g.attr(c, "key"))
-        # ⚠ An unknown slot does NOT satisfy a value constraint, and it does not *falsify* it either — see
+        # An unknown slot does NOT satisfy a value constraint, and it does not *falsify* it either — see
         # `undetermined`. Here it is simply not satisfied, which keeps `holds` a predicate.
-        # ⚠ `types.compare` is total: comparing a string to a number is a failed constraint, never a
+        # `types.compare` is total: comparing a string to a number is a failed constraint, never a
         # crash, which matters more here than in a schema because a goal is checked against a world that
         # is under no obligation to hold the type the author had in mind.
         from .types import compare
@@ -412,26 +417,26 @@ def holds(g: Graph, c: str, *, view=None, under: str | None = None) -> bool:
 
 
 def witnesses(g: Graph, c: str, *, view=None, under: str | None = None) -> tuple:
-    """⭐⭐ **WHICH nodes have to change for this constraint to become true** — in the same world `holds`
+    """which nodes have to change for this constraint to become true — in the same world `holds`
     looked at, so the two can never disagree about which world they mean.
 
     `unmet` says *which constraints* are still false, and that is what turned planning from
-    generate-and-test into means–ends (§5d). A **universal** constraint reintroduces exactly the defect
+    generate-and-test into means–ends. A universal constraint reintroduces exactly the defect
     that removed: `d is a tidied_dir` can only answer yes/no, so `docs/limits.md` measured even a
     *singular* action that would close it at band 1 against band 4 for the equivalent singular constraint.
     This is the missing half, one level up: name the members that make it false.
 
-    ⚠ **Returns nodes in the VIEW's space** (frame images when a view is given), because that is where the
+    Returns nodes in the view's space (frame images when a view is given), because that is where the
     failure was determined. A caller comparing them against real individuals must come back through
     `workbench.original_of` — the round trip is explicit rather than assumed.
 
-    ⚠ **A constraint that HOLDS has no witnesses**, and that is the vacuity guard rather than an
+    A constraint that holds has no witnesses, and that is the vacuity guard rather than an
     optimisation: a reader that named nodes for a satisfied constraint would be describing the world, not
     the unfinished business.
 
-    ⚠ **Some failures have no witness at all, and saying so is the honest answer.** A missing wheel does
+    Some failures have no witness at all, and saying so is the honest answer. A missing wheel does
     not exist, so there is nothing to point at — see `types.offenders`. Those are the *existential* case
-    and `driver.relevance` already serves them from the other side, by scoring an operator that MINTS."""
+    and `driver.relevance` already serves them from the other side, by scoring an operator that mints."""
     if holds(g, c, view=view, under=under):
         return ()
     view = view or _same
@@ -443,13 +448,13 @@ def witnesses(g: Graph, c: str, *, view=None, under: str | None = None) -> tuple
             return ()                      # existential: nothing exists yet to blame
         found = _offenders(g, here, g.attr(c, "type"))
         return tuple(dict.fromkeys(n for hits in found.values() for n in hits))
-    # ⭐ For every other sort the subject IS the thing that must change, so one uniform question serves
+    # For every other sort the subject IS the thing that must change, so one uniform question serves
     # them all and no consumer has to branch on sort to ask it.
     return () if here is None else (here,)
 
 
 def unmet(g: Graph, goal: str, *, view=None, under: str | None = None) -> tuple:
-    """⭐ The constraints that are still false — what the driver should be working on.
+    """The constraints that are still false — what the driver should be working on.
 
     This is what turns planning from generate-and-test into means–ends: a goal that can only say "no"
     leaves a searcher with nothing to aim at, while a goal that names its unfinished business lets one ask
@@ -459,28 +464,28 @@ def unmet(g: Graph, goal: str, *, view=None, under: str | None = None) -> tuple:
 
 
 def require_known(g: Graph, goal: str, subject: str, key: str) -> str:
-    """*This slot must have been looked at* — a **knowledge** claim, not a world-state one.
+    """*This slot must have been looked at* — a knowledge claim, not a world-state one.
 
-    ⭐ `goal_machinery.md` §8 found that goal/subgoal is the shape everything reduces to, and that *"a
+    An earlier note found that goal/subgoal is the shape everything reduces to, and that *"a
     question is this shape wanting a knowledge-claim instead of a world-state claim"*. This is that, and it
     is what an information-gathering subgoal closes: without it, sensing had nothing to aim at and no way
     to report having succeeded.
 
-    ⚠ The subject is an **edge**, not an attribute. Passing it as a keyword to `_constrain` made it a
+    The subject is an edge, not an attribute. Passing it as a keyword to `_constrain` made it a
     stored string, so `g.target(c, "subject")` was `None`, `holds` looked at nothing, and the constraint
-    read as **satisfied before anyone had looked** — a knowledge goal that closes itself. Caught by
+    read as satisfied before anyone had looked — a knowledge goal that closes itself. Caught by
     `describe` rendering it as "something.colour", which is the round trip earning its keep.
 
-    ⚠⚠ **AND IT CLOSED ITSELF TWICE MORE, by two further routes.** `repo.files known` was accepted,
+    And it closed itself twice more, by two further routes. `repo.files known` was accepted,
     planned, and reported done with an empty plan, having never looked — because `holds` asks
     `g.attr(here, key) is not UNKNOWN`, and an absent slot is `None` rather than `UNKNOWN`. Neither route
     is a bug in `UNKNOWN`: absence-means-*lacks-it* is deliberate (`graph.UNKNOWN`), so the slot really was
-    known. The mistake was admitting a **relation**, or a **typo**, into an attribute-shaped claim at all.
+    known. The mistake was admitting a relation, or a typo, into an attribute-shaped claim at all.
     Same shape as the `has 1 ^contains` bug `docs/authoring.md` records — a label read in a position where labels
     do not apply, silently. Found by an earlier probe on *"list all the files in the repo"*.
 
-    ⚠ So both refuse rather than being fixed. *"Which files are in the repo"* is a real thing to want and
-    `known` is genuinely not it: an absent edge has nowhere to hang a marker (the design notes), so
+    So both refuse rather than being fixed. *"Which files are in the repo"* is a real thing to want and
+    `known` is genuinely not it: an absent edge has nowhere to hang a marker, so
     there is nothing for a sensing action to close. A loud refusal names the gap; a vacuous truth hides it."""
     if _names_an_edge(g, subject, key):
         raise ValueError(
@@ -501,9 +506,9 @@ def require_known(g: Graph, goal: str, subject: str, key: str) -> str:
 def _names_an_edge(g: Graph, subject: str, key: str) -> bool:
     """Does `key` denote a relation rather than an attribute slot?
 
-    Two witnesses, and the second is the one that matters. An edge **already there** is decisive. But the
+    Two witnesses, and the second is the one that matters. An edge already there is decisive. But the
     interesting case is the one an author actually writes — *"go and find out what files are in there"* —
-    where no such edge exists yet and only a **declared type** knows the label is structural. Checking the
+    where no such edge exists yet and only a declared type knows the label is structural. Checking the
     world alone would accept exactly the utterance this refusal exists for."""
     if g.targets(subject, key):
         return True
@@ -514,13 +519,13 @@ def _names_an_edge(g: Graph, subject: str, key: str) -> bool:
 def _addressable(g: Graph, subject: str, key: str) -> bool:
     """Is there an attribute slot by this name at all?
 
-    ⚠⚠ **Without this, a MISTYPED key is a knowledge goal that closes itself** — and this is the half that
+    Without this, a mistyped key is a knowledge goal that closes itself — and this is the half that
     actually bit. `repo.files known` was accepted where the edge is labelled `file`, so `files` named
     nothing whatever; `holds` read the absent slot as *not UNKNOWN*, i.e. known, and the goal was met with
     an empty plan. Every typo behaves this way.
 
-    The slot counts as addressable if the subject **carries** it (any value, `UNKNOWN` included — which is
-    the case an operator marking ignorance creates) or if any declared **type** requires it. Both are the
+    The slot counts as addressable if the subject carries it (any value, `UNKNOWN` included — which is
+    the case an operator marking ignorance creates) or if any declared type requires it. Both are the
     situations in which the claim could ever be false, so refusing everything else costs nothing real."""
     if key in g.attrs.get(subject, {}):
         return True
@@ -529,15 +534,15 @@ def _addressable(g: Graph, subject: str, key: str) -> bool:
 
 
 def undetermined(g: Graph, goal: str, *, view=None, under: str | None = None) -> tuple:
-    """⭐⭐ The unmet constraints that are unmet **because we have not looked**, not because they are false.
+    """The unmet constraints that are unmet because we have not looked, not because they are false.
 
     This is the distinction the driver needs and could not make: `pursue` reported failure identically
     whether *no plan exists* or *no plan exists given what I know*, and only the second warrants going and
-    finding out. §5d's insight one notch further on — a goal that names *which* constraints are false lets
+    finding out.'s insight one notch further on — a goal that names *which* constraints are false lets
     the driver ask what could close them; one that separates *false* from *unknown* lets it reach for a
     sensing action instead of a world-changing one.
 
-    ⚠ Attribute-shaped only, per `graph.UNKNOWN`: an absent edge has no slot to mark."""
+    Attribute-shaped only, per `graph.UNKNOWN`: an absent edge has no slot to mark."""
     view = view or _same
     out = []
     for c in unmet(g, goal, view=view, under=under):
@@ -553,7 +558,7 @@ def undetermined(g: Graph, goal: str, *, view=None, under: str | None = None) ->
 def blocked_on_ignorance(g: Graph, goal: str, *, view=None, under: str | None = None) -> bool:
     """Is every remaining unmet constraint waiting on something we have not looked at?
 
-    ⚠ **The criterion for `SENSE` is that a plan BOTTOMS OUT in ignorance, not that it touches it.** A goal
+    The criterion for `SENSE` is that a plan bottoms out in ignorance, not that it touches it. A goal
     with one unknown slot and three genuinely false constraints still has world work to do; sensing on the
     strength of merely *touching* an unknown would make the system look in every box. And the vacuity guard
     is the same one `decomposed` needed: with nothing unmet at all this is not "blocked", it is done."""
@@ -562,19 +567,19 @@ def blocked_on_ignorance(g: Graph, goal: str, *, view=None, under: str | None = 
 
 
 def satisfied(g: Graph, goal: str, *, view=None, under: str | None = None) -> bool:
-    """Whether this goal is met. ⚠ Says nothing about constraints on the plan — those are asked of a trace
+    """Whether this goal is met. Says nothing about constraints on the plan — those are asked of a trace
     (`breached`, `outstanding`), because they are properties of the route, not the destination.
 
-    **⭐ Two groundings, because a PROCEDURE is met differently from a plain goal.** Probing
-    `goal_machinery.md` §8's claim surfaced this: an ordered procedure's parent has no world constraints of
+    Two groundings, because a procedure is met differently from a plain goal. Probing
+    An earlier note's claim surfaced this: an ordered procedure's parent has no world constraints of
     its own — *"do these steps, in this order"* is the whole of it — so a satisfaction test that only ever
     read constraints called a perfectly completed procedure unsatisfied. Under `BY_STEPS`, having followed
-    the steps **is** being met. §8's third variant, a goal wanting a *knowledge* claim, is the same move a
+    the steps is being met.'s third variant, a goal wanting a *knowledge* claim, is the same move a
     third time and is not built.
 
-    ⚠ **Both groundings keep the same vacuity guard**, which is the point of writing them together:
+    Both groundings keep the same vacuity guard, which is the point of writing them together:
     `bool(cs)` for constraints and `decomposed` for steps. An empty goal is not trivially met either way —
-    that is `goal_machinery.md` §8's *don't trust an open-ended absence without an explicit closure fact*,
+    that is an earlier note's *don't trust an open-ended absence without an explicit closure fact*,
     and it was already available to get wrong in two places here."""
     if met_by(g, goal) == BY_STEPS:
         return subgoals_met(g, goal, view=view, under=under)
@@ -604,9 +609,9 @@ def witness(g: Graph, goal: str, *, view=None, under: str | None = None):
 
 # --- recording ----------------------------------------------------------------------------------
 def record_plan(g: Graph, goal: str, *, seen_in: str, witness=None) -> str:
-    """⭐ A plan was found — the goal is met **in imagination**, which is not the world having changed.
+    """A plan was found — the goal is met in imagination, which is not the world having changed.
 
-    ⚠ These were one method, and conflating them was a real defect: the driver closed a world goal the
+    These were one method, and conflating them was a real defect: the driver closed a world goal the
     moment an imagined frame satisfied it, so a goal read as *met* while execution had diverged and nothing
     had happened. "I know how to do this" and "this is now true" are different claims and the record has to
     keep them apart, or every downstream reader inherits the confusion."""
@@ -623,7 +628,7 @@ def is_planned(g: Graph, goal: str) -> bool:
 
 
 def close_goal(g: Graph, goal: str, by, *, seen_in: str | None = None) -> str:
-    """Record that this goal was met **in reality**. `seen_in` is for the imagined case only."""
+    """Record that this goal was met in reality. `seen_in` is for the imagined case only."""
     if by is not None:
         g.link(goal, "met_by", by)
     if seen_in is not None:

@@ -1,70 +1,65 @@
-"""MEMORY — what the agent has seen, and whether it was the one that changed it.
+"""Memory — what the agent has seen, and whether it was the one that changed it.
 
-**The gap this closes.** The graph held *the world as currently believed* and nothing else. An application
-on the thread recorded that `stack` ran; nothing recorded what it changed, so "what was true before?" had
-no answer. Meanwhile `graph.py`'s undo journal held the inverse of **every** mutation — 650 of them after
-one two-step plan — as a Python list of closures the system could not read, LIFO-only, and cleared outright
-by `dispatch.service`'s `commit()`. So the past was computed, unreadable, and then destroyed.
+The graph holds the world as currently believed. An application records that `stack` ran, and
+without this module nothing records what it changed, so "what was true before?" has no answer.
 
-⚠ **`commit()` is right and stays.** It answers *"can I reverse this?"* — and once an email has left, you
-cannot. What it should never have answered is *"can I remember what preceded it?"*, which is a different
-question with a different answer. The journal keeps its semantics untouched; memory is recorded separately,
-as graph data, before anything leaves.
+The undo journal is not that answer. It holds the inverse of every mutation as Python closures
+the system cannot read, last-in-first-out only, and cleared outright when an effect is committed.
+Committing is right and stays: it answers "can I reverse this?", and once an email has left you
+cannot. What it should never answer is "can I remember what preceded it?", which is a different
+question. The journal keeps its semantics; memory is recorded separately, as graph data, before
+anything leaves.
 
-## ⭐⭐ The external world moves on its own, and that breaks a delta log
+More decisively, a journal delta records only the agent's own writes. When a file changes on disk
+nothing happens in the graph at all, and the belief is simply wrong until someone looks again.
+Worse, the second look is itself a write, so a naive delta log would record "the agent changed
+`dir.count` from 3 to 5" when the truth is "the agent looked, and found 5 where it had recorded
+3". Conflating those is a silent epistemic error.
 
-A journal delta records only **the agent's own writes**. When a file changes on disk *nothing happens in
-the graph at all* — no mutation, no entry — and the belief is simply wrong until someone looks again. Worse,
-the second look is itself a write, so a naive delta log would record *"the agent changed `dir.count` from 3
-to 5"* when the truth is *"the agent looked, and found 5 where it had recorded 3."* Conflating those is a
-silent epistemic error.
+So two records with two jobs, and the interesting thing is derived from their combination: an
+observation of what was seen, of what, when and from which source, recorded at the dispatch
+boundary; and the thread, which is what the agent did, already ordered. Attribution — did I do
+this? — falls out of the pair: two observations of one slot differ, and either some completed
+application between them could have written it, or the world moved on its own.
 
-So two records with two jobs, and the interesting thing is **derived** from their combination:
+That needs no new primitive. `driver.establishes` already reads a stored function body to say
+what it writes and with which roles, so "could this application have touched that slot?" is a
+question the engine could already answer and had never been asked.
 
-* an **observation** — what was seen, of what, when, from which source (recorded at the dispatch boundary,
-  which `dispatch.py` already makes the one place anything crosses in or out);
-* the **thread** — what the agent did, already ordered, already flagging `done` versus merely imagined;
-* **attribution** — *did I do this?* Two observations of one slot differ, and either some `done`
-  application between them could have written it, or **the world moved on its own.**
+Attribution is evidence rather than proof, and says so. Reading effects is an over-approximation
+by contract, so "mine" means could have been mine, and an action of mine and an external change
+can both have happened; `attribute` reports what is possible, never a verdict.
 
-⭐ That needs no new primitive. `driver.establishes` already reads a stored function body to say what it
-writes and **with which roles**, and `driver.role_node` resolves a role against bindings. So "could this
-application have touched that slot?" is a question the engine could already answer and had never been
-asked.
+What sampling can and cannot see:
 
-⚠ **Attribution is EVIDENCE, not proof, and says so.** `establishes` is an over-approximation by contract,
-so "mine" means *could have been mine*. And an action of mine and an external change can both have happened
-— `attribute` reports what is possible, never a verdict. The same stance `establishes` takes about itself.
+* Change-and-back is visible whenever an observation falls inside the excursion — three sightings
+  showing A, B, A is exactly that. It is invisible only when nothing looks during the window,
+  which makes it a sampling-rate question rather than an impossibility, and sampling rate is
+  something the agent controls.
+* Observations bound change from below and never count it. A, B, A proves at least two changes
+  and can never distinguish two from six, so a consumer counting transitions is counting observed
+  transitions.
+* One case stays genuinely undecidable, and it is the everyday one: observe A, act expecting B,
+  observe A. Either the action did not take effect, or it did and the world reverted it. Same
+  evidence, and no further looking recovers which. Both possibilities are reported standing,
+  never resolved by guessing.
 
-## ⚠ What sampling can and cannot see
-
-* **Change-and-back is visible** whenever an observation falls inside the excursion — three sightings
-  showing A, B, A is exactly that. It is invisible only when nothing looks during the window, which makes
-  it a **sampling-rate** question rather than an impossibility, and sampling rate is something the agent
-  controls.
-* **Observations bound change from below, never count it.** A, B, A proves *at least* two changes; it can
-  never distinguish two from six. A consumer counting transitions is counting *observed* transitions.
-* **⚠ One case stays genuinely undecidable**, and it is the everyday one: observe A, act expecting B,
-  observe A. Either the action did not take effect, or it did and the world reverted it. Same evidence, and
-  no further looking recovers which — the window has closed. Reported as both possibilities standing, never
-  resolved by guessing.
-
-## ⭐⭐ Encoding and retention are different moments with OPPOSITE defaults
-
-*You do not remember how many steps it took to get to school.* That is not forgetting — it was never
-encoded. Treating the two as one thing is what makes "record everything" look safe when it is not: at scale
-it makes the interesting things unfindable, which is a kind of forgetting in itself.
+Encoding and retention are different moments with opposite defaults. You do not remember how many
+steps it took to get to school; that is not forgetting, it was never encoded, and treating the
+two as one thing is what makes "record everything" look safe when it is not.
 
 | moment | default | why |
 |---|---|---|
-| **encoding** — an observation arrives | **do not** | never-encoded yields honest ignorance, which is *recoverable by looking* |
-| **retention** — deciding what to keep | **do** | dropping what was already reasoned from can contradict conclusions already drawn |
+| encoding — an observation arrives | do not | never-encoded yields honest ignorance, which is recoverable by looking |
+| retention — deciding what to keep | do | dropping what was already reasoned from can contradict conclusions already drawn |
 
-⭐ **The encoding gate already exists, and it is attention.** You do not remember the steps because you were
-not attending to them — and `dispatch.service` is called *on a target*, which is precisely what is being
-attended to. So the structural default is neither everything nor nothing: **the slots of the thing being
-looked at**. `keep` is the seam for overriding that in either direction, and it is **inert by default**,
-exactly as `pursue`'s decision seam shipped inert.
+The encoding gate already exists, and it is attention. You do not remember the steps because you
+were not attending to them, and dispatch is called on a target, which is precisely what is being
+attended to. So the structural default is neither everything nor nothing: the slots of the thing
+being looked at. `keep` is the seam for overriding that in either direction, and it is inert by
+default.
+
+See `docs/memory.md`.
 """
 from __future__ import annotations
 
@@ -83,7 +78,7 @@ def observe(g: Graph, thread: str, node: str, key: str, value, *,
             source: str | None = None, why: str | None = None, when: str | None = None) -> str:
     """Record one sighting of one slot. Returns the entry.
 
-    ⚠ Recorded **whether or not the value differs** from what was believed. Collapsing to "only when it
+    Recorded whether or not the value differs from what was believed. Collapsing to "only when it
     changed" would be cheaper and would destroy exactly the case that matters: A, B, A would store as *no
     change*, so the agent would have watched a round trip happen and recorded that nothing did. It also
     reintroduces the `UNKNOWN` conflation one level up — *unchanged* would become indistinguishable from
@@ -91,10 +86,10 @@ def observe(g: Graph, thread: str, node: str, key: str, value, *,
     entry = g.mint(OBSERVATION, key=key, value=value, **({"source": source} if source else {}))
     g.link(entry, "of", node)
     T._append(g, thread, entry, why)
-    # ⭐⭐ **EVERYTHING OBSERVED CARRIES AN ABSOLUTE TIMESTAMP** (the user's specification, 2026-08-02).
-    # Before this, *when* an observation happened was its **position in the thread** — an order with no
+    # Everything observed carries an absolute timestamp (the user's specification.
+    # Before this, *when* an observation happened was its position in the thread — an order with no
     # magnitude, so "how stale is this?" and "has this always been true?" had nothing to compute from.
-    # ⚠ The moment POINTS AT the observation rather than being an attribute on it: one look dates many
+    # The moment points AT the observation rather than being an attribute on it: one look dates many
     # slots, and `record_sighting` passes one `when` for the whole look precisely so they share it.
     from . import clock as C
     C.stamp(g, when if when is not None else C.now(g), entry)
@@ -111,7 +106,7 @@ def sightings(g: Graph, thread: str, node: str, key: str | None = None) -> tuple
 def believed(g: Graph, thread: str, node: str, key: str):
     """The most recent sighting of a slot, or `None` if it was never looked at.
 
-    ⚠ Distinct from `g.attr(node, key)`, deliberately. That is the current belief and is what everything
+    Distinct from `g.attr(node, key)`, deliberately. That is the current belief and is what everything
     reasons over; this is *what was actually seen, and when*. Keeping them apart is what lets a belief be
     recognised as stale rather than silently trusted."""
     seen = sightings(g, thread, node, key)
@@ -121,7 +116,7 @@ def believed(g: Graph, thread: str, node: str, key: str):
 def transitions(g: Graph, thread: str, node: str, key: str) -> tuple:
     """Consecutive sightings whose values differ, as `(before, after)` pairs.
 
-    ⚠ A **lower bound** on how often the slot changed — see the module docstring. Anything reading this as
+    A lower bound on how often the slot changed — see the module docstring. Anything reading this as
     a count is counting observed transitions, which is a different quantity."""
     seen = sightings(g, thread, node, key)
     return tuple((a, b) for a, b in zip(seen, seen[1:])
@@ -135,11 +130,11 @@ def _positions(g: Graph, thread: str) -> dict:
 def _could_have_written(g: Graph, app: str, node: str, key: str) -> bool:
     """Could this application have written `node.key`? Read off the stored body, never declared.
 
-    ⭐ `driver.establishes` says which slots a function writes and **with which roles**; `role_node`
+    `driver.establishes` says which slots a function writes and with which roles; `role_node`
     resolves a role against the bindings this application actually used. Both already existed for ranking;
     this is the same question asked for a different purpose.
 
-    ⚠ Over-approximates on purpose. An unreadable instruction yields `unknown`, and an unknown that could
+    Over-approximates on purpose. An unreadable instruction yields `unknown`, and an unknown that could
     concern this subject counts as *could have* — because the safe direction here is to admit the agent
     might be responsible, not to blame the world."""
     from . import driver as D
@@ -159,17 +154,17 @@ def _could_have_written(g: Graph, app: str, node: str, key: str) -> bool:
 
 
 def attribute(g: Graph, thread: str, before: str, after: str) -> dict:
-    """**Did I do this, or did the world move?** For one observed transition.
+    """Did I do this, or did the world move? For one observed transition.
 
     Returns `{"verdict": MINE | EXTERNAL | BOTH, "by": (application, …), "unknown_gap": bool}`.
 
-    ⚠ **Evidence, not proof.** `MINE` means an action of mine *could* have written that slot between the
+    Evidence, not proof. `MINE` means an action of mine *could* have written that slot between the
     two sightings — `establishes` over-approximates, so this can never be a verdict about causation.
     `BOTH` is returned when an action could have written it *and* the observed value is not what that
     action would produce, which is the undecidable case from the module docstring standing open rather than
     being resolved by preference.
 
-    ⭐ `EXTERNAL` is the interesting one and it is **derived**: nothing the agent did between the two looks
+    `EXTERNAL` is the interesting one and it is derived: nothing the agent did between the two looks
     could have touched the slot, so something else did. That is the answer to *"was it me?"*, and it needed
     no new record — only the thread, which was already ordered and already flagged `done`."""
     node, key = g.target(before, "of"), g.attr(before, "key")
@@ -180,17 +175,17 @@ def attribute(g: Graph, thread: str, before: str, after: str) -> dict:
     culprits = tuple(a for a in between if _could_have_written(g, a, node, key))
     if not culprits:
         return {"verdict": EXTERNAL, "by": (), "unknown_gap": False}
-    # ⚠ An action that COULD have written it does not mean the value seen is the one it wrote. When both
+    # An action that could have written it does not mean the value seen is the one it wrote. When both
     # remain possible, say so — the module docstring's undecidable case.
     return {"verdict": MINE if len(culprits) == 1 else BOTH, "by": culprits, "unknown_gap": False}
 
 
 def volatility(g: Graph, thread: str, node: str, key: str) -> dict:
-    """How much this slot moves **under** the agent — the statistic a sampling decision needs.
+    """How much this slot moves under the agent — the statistic a sampling decision needs.
 
-    ⭐ This is what gives `driver.SENSE` something to aim at. `driver.py` records that `SENSE` "needs
+    This is what gives `driver.SENSE` something to aim at. `driver.py` records that `SENSE` "needs
     ignorance", and ignorance was the only trigger available: *I do not know, so go and look*. Volatility
-    supplies a better one — **I knew, and it is probably stale** — which is the case that actually arises
+    supplies a better one — I knew, and it is probably stale — which is the case that actually arises
     for an agent whose world has other people in it."""
     seen = sightings(g, thread, node, key)
     moved = transitions(g, thread, node, key)
@@ -203,27 +198,27 @@ def record_sighting(g: Graph, thread: str, target: str, before: dict, *,
                     source: str | None = None, keep=None, when: str | None = None) -> tuple:
     """Turn "we looked at `target`" into observations, by comparing its attributes to `before`.
 
-    ⚠ **The encoding default is the slots of the thing being LOOKED AT**, which is the attention gate made
+    The encoding default is the slots of the thing being looked AT, which is the attention gate made
     structural: `dispatch.service` is called *on a target*, and that target is by definition what is being
     attended to. Everything else the tool happened to touch is the walk to school — not encoded, and that
     is the correct outcome rather than a loss.
 
-    ⚠ **EVERY slot of the target, not only the ones the tool rewrote**, because that is what "I checked
+    Every slot of the target, not only the ones the tool rewrote, because that is what "I checked
     this" means — the state it was in at that moment. A difference-only record would be cheaper and could
     not tell *unchanged* from *unobserved*, which is the `UNKNOWN` conflation one level up, and it would
     leave "when did I last check?" unanswerable for anything stable. The provenance is therefore per-look,
     not per-slot: `source` says which look produced the sighting, never that the tool reported that field.
 
-    `keep(slot) -> bool` is the seam that overrides in either direction. ⚠ **Inert by default**, exactly as
+    `keep(slot) -> bool` is the seam that overrides in either direction. Inert by default, exactly as
     `pursue`'s decision seam shipped inert: passing nothing keeps the disposition unchanged, and a decision
     has to speak up to alter it."""
     now = g.attrs.get(target, {})
     out = []
-    # ⭐ ONE LOOK IS ONE MOMENT, and every slot it saw shares it. That is the cardinality the time-node
+    # One LOOK is one MOMENT, and every slot it saw shares it. That is the cardinality the time-node
     # direction exists for: a timestamp *attribute* would write the same reading onto each observation and
     # invite them to drift, while one moment pointing at all of them cannot disagree with itself. It also
     # makes *"what did we learn in that one look?"* an O(1) reverse walk from the moment.
-    # ⚠ `when` is passed in by `dispatch.service` so the sightings and the nodes the action PRODUCED
+    # `when` is passed in by `dispatch.service` so the sightings and the nodes the action produced
     # share one moment — the same action cannot have happened at two times. Minting our own when none is
     # given keeps every other caller working.
     from . import clock as C

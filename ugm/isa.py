@@ -1,34 +1,30 @@
-"""THE ISA — imperative operations over named/indexed edges, focus heads, and references.
+"""The instruction set — imperative operations over named and indexed edges, focus heads, and references.
 
-Revised twice on 2026-07-30: first for named edges (replacing `ugm/machine.py`'s nameless-edge, lowered-rule
-premises), then again when the substrate became mutable and focus became the control mechanism.
+A program that is data can be inspected, generated, stored in the graph and learned; a Python
+function is fast and readable but opaque, and an episode cannot be compiled into one. Both forms
+coexist by one test: Python for mechanism nothing reasons about, stored instructions for anything
+that must be inspectable, generated, or learned.
 
-**Why an ISA at all, when microfunctions are ordinary Python.** Because a program that is *data* can be
-inspected, generated, stored in the graph, and learned; a Python function is fast and readable but opaque,
-and an episode cannot be compiled into one. Both forms coexist by the test `docs/execution-model.md`
-already uses: **Python for mechanism nothing reasons about; ISA for anything that must be inspectable,
-generated, or learned.**
+Three operand conventions. A bare Python value is a literal, `R("x")` reads a register, and
+`F("h")` reads the node a focus head points at. The third is what makes a program pointed: an
+instruction names the head it acts on, never whatever matches.
 
-**Three operand conventions.** A bare Python value is a literal; `R("x")` reads a register; `F("h")` reads
-the node a focus head points at. That third one is what makes a program *pointed*: an instruction names the
-head it acts on, never "whatever matches."
+A machine carries a graph, mutated in place, registers holding values and node ids, and a focus
+of named heads. It runs inside a savepoint, so a failed or hypothetical run rewinds at a cost
+proportional to the changes made.
 
-**State.** The machine carries a graph (mutated in place), registers (values and node ids), and a focus
-(named heads). It runs inside a savepoint, so a failed or hypothetical run rewinds in O(changes) —
-`docs/overview.md`'s hypothesis-by-running, with the economics the copy-on-write version had backwards.
+That state is graph data, so the executor has a yield point. `run` is a loop over `tick`, one
+primitive operation over an activation record that lives in the graph, and there is exactly one
+implementation of a step. Two executors that are supposed to agree is a drift class this codebase
+keeps re-finding, and it would drift silently.
 
-**⭐⭐ And that state is GRAPH DATA, so the executor has a yield point.** `_loop` was an ordinary Python
-`while` holding `pc`, `stack` and `regs` as locals; it is now `tick`, one primitive operation over an
-**activation record** that lives in the graph (`activation.py`). `run` is a loop over `tick` and nothing
-else — there is one implementation of a step, deliberately, because two executors that are supposed to
-agree is the drift class this codebase keeps re-finding (the design notes).
+What that buys is the property the whole execution model is organised around: the executor can be
+stopped between any two primitive operations, and the system can say what it was doing.
 
-What that buys is the test the whole arc is organised around: *can the executor be stopped between any two
-primitive operations, and can the system say what it was doing?* Before this, `driver.step` made **planning**
-steppable while the microfunction driving it ran inside an atomic invocation — steppability at the wrong
-level, one seam removed and an identical one left below it.
+Control flow is by label — a bare string in the program is a jump target rather than an
+instruction. A runaway program raises at a step limit rather than truncating silently.
 
-**Control flow** is by label: a bare string in the program is a jump target, not an instruction.
+See `docs/reference/isa.md`.
 """
 from __future__ import annotations
 
@@ -78,15 +74,15 @@ CONST, COPY, ADD, LT, EQ, NOT = (_ins(o) for o in ("CONST", "COPY", "ADD", "LT",
 # control
 JMP, JMPIF, JMPNOT, CALL, RET, HALT = (
     _ins(o) for o in ("JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT"))
-# ⭐ a primitive the kernel does not KNOW — see the NATIVE handler. Replaced `PLAN`/`STEP`, which made
+# a primitive the kernel does not know — see the NATIVE handler. Replaced `PLAN`/`STEP`, which made
 # this module import `driver` and so put the planner below the kernel boundary.
 NATIVE = _ins("NATIVE")
-# calling a STORED function (graph-resident), as opposed to CALL's jump to a local label
+# calling a stored function (graph-resident), as opposed to CALL's jump to a local label
 INVOKE = _ins("INVOKE")
-# the ONE way an effect leaves the graph — routed through `dispatch.service`'s checkpoint
+# the one way an effect leaves the graph — routed through `dispatch.service`'s checkpoint
 DISPATCH = _ins("DISPATCH")
 
-# Opcodes whose FIRST operand is a register they OVERWRITE. Stated here, beside the interpreter that does
+# Opcodes whose first operand is a register they overwrite. Stated here, beside the interpreter that does
 # the overwriting, because a static reader of a stored body (`driver.establishes`) has to know exactly when
 # a register stops denoting what it used to — and a list of those maintained anywhere else would drift.
 WRITES_REGISTER = frozenset({
@@ -94,12 +90,12 @@ WRITES_REGISTER = frozenset({
     "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
     "INVOKE", "DISPATCH", "NATIVE"})
 
-# Opcodes that READ THE GRAPH, mapped to the kind of slot they read — the counterpart of the write side
+# Opcodes that read the graph, mapped to the kind of slot they read — the counterpart of the write side
 # `driver._effects` already reads off a body, and stated here for the same reason `WRITES_REGISTER` is:
 # a second list maintained beside a consumer would drift from the interpreter that does the reading.
 #
-# ⚠ Every one of these has the same operand shape — `OP R(dest) <subject> "slot"` — which is what makes the
-# static reader uniform. `SOURCES`'s slot is OPTIONAL (no label means *every* label, which is honestly
+# Every one of these has the same operand shape — `OP R(dest) <subject> "slot"` — which is what makes the
+# static reader uniform. `SOURCES`'s slot is optional (no label means *every* label, which is honestly
 # unreadable), and `EPROP` reads a property *of an edge*, so its slot is the edge's label: an edge property
 # is a property of a link, and reporting it as `("link", label)` keeps it in the vocabulary
 # `driver.establishes` already speaks rather than inventing a third kind for one opcode.
@@ -108,7 +104,7 @@ READS_GRAPH = {"GET": "link", "GET_AT": "link", "COUNT": "link", "SOURCES": "lin
 
 
 class Machine:
-    MAX_STEPS = 100_000        # a runaway program halts LOUDLY; termination is still unsolved in general
+    MAX_STEPS = 100_000        # a runaway program halts loudly; termination is still unsolved in general
 
     def __init__(self, program) -> None:
         self.program = tuple(program)
@@ -116,19 +112,19 @@ class Machine:
 
     def start(self, g: Graph, focus: Focus | None = None, *, of: str | None = None,
               caller: str | None = None, label: str | None = None, **regs) -> str:
-        """Open an activation on this program and return the **node**. Nothing has run yet.
+        """Open an activation on this program and return the node. Nothing has run yet.
 
-        ⭐ This is the seam. A caller that wants to be able to stop between two instructions drives `tick`
+        This is the seam. A caller that wants to be able to stop between two instructions drives `tick`
         itself and owns the activation; `run` is the convenience that ticks to completion."""
         focus = focus if focus is not None else Focus(g).open("root")
         return A.open_activation(g, focus.node, size=len(self.program), of=of, caller=caller,
                                  label=label, regs=regs)
 
     def tick(self, g: Graph, act: str) -> bool:
-        """**ONE primitive operation.** Returns `True` while there is more to do, `False` once the program
+        """one primitive operation. Returns `True` while there is more to do, `False` once the program
         has run off its end or halted — so `while m.tick(g, a): ...` is the whole of running it.
 
-        ⚠ Every piece of what happens between two ticks is on the activation, which is what makes stopping
+        Every piece of what happens between two ticks is on the activation, which is what makes stopping
         here a *pause* rather than a loss. Nothing is carried in a Python local across the boundary."""
         if A.finished(g, act):
             return False
@@ -152,13 +148,13 @@ class Machine:
         program leaves no half-written graph behind — the transactional discipline mutability makes
         possible and copy-on-write was faking.
 
-        ⚠ **This is a loop over `tick` and contains no interpreter of its own.** Keeping a fast Python loop
-        beside the ticked one "just for the hot path" is the trap the design notes names: it would drift, and it
+        This is a loop over `tick` and contains no interpreter of its own. Keeping a fast Python loop
+        beside the ticked one "just for the hot path" is the trap an earlier note names: it would drift, and it
         would drift silently. Slow and singular beats fast and forked.
 
         `retire=False` keeps the finished activation in the graph — for a caller that wants to read back
         how far it got, or what it was doing when it stopped."""
-        # ⚠ The savepoint is taken FIRST, before the default focus is minted, or a failed run would leave
+        # The savepoint is taken first, before the default focus is minted, or a failed run would leave
         # its own focus and head nodes behind — "a failed program leaves no half-written graph" has to
         # include the interpreter's own state now that the state is in the graph.
         sp = g.savepoint()
@@ -189,22 +185,22 @@ class Machine:
         w = lambda dst, val: A.set_reg(g, act, dst.name, val)       # noqa: E731
 
         def node(x):
-            """⭐⭐ **An operand that must be a NODE, refused when it is nothing.**
+            """An operand that must be a node, refused when it is nothing.
 
-            ⚠ `activation.get_reg` answers `None` for a register that was never assigned — including one by
+            `activation.get_reg` answers `None` for a register that was never assigned — including one by
             a `GET` that found no edge, which is an ordinary occurrence the moment a part of the input can
-            be missing. `g.link` then appended that `None`, and the graph gained **an edge whose target is
-            `None`**: `targets` came back non-empty, so every "is this part present?" test answered *yes*,
+            be missing. `g.link` then appended that `None`, and the graph gained an edge whose target is
+            `None`: `targets` came back non-empty, so every "is this part present?" test answered *yes*,
             and whatever dereferenced the binding was handed `None` as though it were a node. Reported by
-            `../pystrider` with a repro, and confirmed here.
+            the first consumer with a repro, and confirmed here.
 
-            **It converts a MISSING part into a PRESENT-BUT-NULL one**, so the failure surfaces arbitrarily
+            It converts a missing part into a present-but-null one, so the failure surfaces arbitrarily
             far from the instruction that caused it. That is precisely the distinction `graph.UNKNOWN` was
             built to protect one slot over — *not there* versus *not looked at* — and a null edge destroys
             a third one underneath both: *no part* versus *a part that is nothing*.
 
             Refused here rather than in `Graph.link`, for the reason their suggestion gives: this layer
-            knows the **opcode and the operand**, so the message can name them, while the substrate would
+            knows the opcode and the operand, so the message can name them, while the substrate would
             only know that something passed it a `None`. `run` rolls back on any exception, so a refusal
             leaves no half-written graph."""
             got = v(x)
@@ -219,13 +215,13 @@ class Machine:
 
         # --- graph writes ---
         if op == "NEW":
-            # ⭐ The ONE instruction that mints, so the activation can record exactly what this call
+            # The one instruction that mints, so the activation can record exactly what this call
             # created — see `activation.minted` for why that replaced a whole-graph diff.
             made = g.mint(v(a[1]))
             A.record_mint(g, act, made)
             w(a[0], made)
         elif op == "SET":
-            # ⚠ The SUBJECT must exist; the VALUE may legitimately be `None`, which is an ordinary
+            # The SUBJECT must exist; the value may legitimately be `None`, which is an ordinary
             # attribute value and distinct from `UNKNOWN`. Guarding the value would ban saying so.
             g.put(node(a[0]), **{v(a[1]): v(a[2])})
         elif op == "SETREF":
@@ -307,16 +303,16 @@ class Machine:
             return pc, True
 
         elif op == "INVOKE":
-            # Call a STORED function: `INVOKE R(dst), "name", {"param": operand, …}`. The callee gets a
+            # Call a stored function: `INVOKE R(dst), "name", {"param": operand, …}`. The callee gets a
             # fresh focus holding only its bound parameters — never the caller's heads — so a function is
             # never silently sensitive to where its caller happened to be looking.
             from .function import invoke as _invoke
-            # A `Ref` operand resolves to the node it points at. This is how a LEARNED function carries a
+            # A `Ref` operand resolves to the node it points at. This is how a learned function carries a
             # binding that was deliberately kept constant (`application.generalise`): the generalised
             # arguments arrive as `F(param)`, the fixed ones as a stored pointer to that exact node.
             bindings = {k: (x.node if isinstance(x, Ref) else v(x))
                         for k, x in (v(a[2]) or {}).items()} if len(a) > 2 else {}
-            # ⚠ `caller=act` is what keeps the call chain readable. A nested invocation used to be a nested
+            # `caller=act` is what keeps the call chain readable. A nested invocation used to be a nested
             # Python frame — invisible to the system running it — so "what was it doing?" could only ever
             # answer about the outermost program. `activation.chain` walks it.
             _f, out = _invoke(g, v(a[1]), bindings, caller=act)
@@ -325,11 +321,11 @@ class Machine:
 
         elif op == "DISPATCH":
             # `DISPATCH R(dst), "tool", F(head)` — the only escape hatch to the outside world, and it
-            # goes through the one checkpoint (`dispatch.service`): veto checked at APPLY time, graph
+            # goes through the one checkpoint (`dispatch.service`): veto checked at apply time, graph
             # committed before the handler runs. A `Vetoed` propagates, so a forbidden effect fails
             # loudly rather than being skipped in silence.
             #
-            # ⚠ A handler mints straight into the graph — it is the world arriving, not an instruction —
+            # A handler mints straight into the graph — it is the world arriving, not an instruction —
             # so this is the one place a diff is still the honest way to learn what appeared. It is scoped
             # to the single call that crosses the boundary rather than to a whole invocation, and dispatch
             # is rare by construction.
@@ -343,20 +339,20 @@ class Machine:
         elif op == "NATIVE":
             # `NATIVE R(dst), "name", <operand>…` — call a primitive the kernel does NOT know.
             #
-            # ⭐⭐ **THIS IS WHERE THE KERNEL STOPS AND THE REPRESENTATION BEGINS.** It used to be two
+            # This is where the kernel stops and the representation begins. It used to be two
             # opcodes, `PLAN` and `STEP`, whose handlers imported `driver` — so the instruction set, the
             # most kernel thing there is, knew what a plan was, and a Rust port would have had to port the
             # whole planner to implement two instructions (`docs/execution-model.md`).
             #
-            # ⭐ The old docstring's argument was RIGHT and is preserved: search is a **primitive**, not
+            # The old docstring's argument was right and is preserved: search is a primitive, not
             # sugar — no sequence of GET/SET/LINK imagines a state, and a frontier ordering is not data
             # manipulation. What was wrong was concluding that a primitive must therefore be an *opcode*.
-            # It must be reachable and uncomposable; it need not be NAMED here. `native.py` is the table,
+            # It must be reachable and uncomposable; it need not be named here. `native.py` is the table,
             # `driver` puts the planner in it, and this instruction knows only a string.
             #
-            # ⚠ Operands resolve with `node()`, so both `F(x)` and `R(x)` work in any position — which is
+            # Operands resolve with `node()`, so both `F(x)` and `R(x)` work in any position — which is
             # what the two mnemonics needed between them (`PLAN` took focus heads, `STEP` a register).
-            # ⚠ The destination is OPTIONAL and told apart by TYPE, not by counting: a register operand
+            # The destination is optional and told apart by type, not by counting: a register operand
             # is an `R`, a name is a string literal, so `NATIVE R(s) "plan" …` and `NATIVE "check" …`
             # cannot be confused. `CHECK` needed that — it answers by raising, not by returning.
             from .native import call as _native

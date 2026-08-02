@@ -1,48 +1,40 @@
-"""NORM — a prohibition that can be DEFEATED, arbitrated as data.
+"""Norm — a prohibition that can be defeated, arbitrated as data.
 
-a consumer's feedback asked for this and offered "out of scope" as an acceptable answer.
-The user's ruling, 2026-08-02: *"Why would it not be? Anything expressable should be in scope; we can
-decide the HOW, but not the whether. And these things must be in data, not Python, otherwise we start
-creating islands."*
-
-**The gap it fills, in their words.** Their card-trader domain has standing house norms of differing
-strength (*don't sell* — a default stance; *never counterfeit* — inviolable), transient daily instructions
-(*today it is good to sell*), and an authority ranking (*today outranks standing*, and nothing outranks
-the law). Every existing force was wrong for it:
+A domain may hold standing house norms of differing strength — "don't sell" as a default stance,
+"never counterfeit" as inviolable — transient instructions such as "today it is good to sell",
+and an authority ranking among them where today outranks standing and nothing outranks the law.
+Every other force is wrong for that:
 
 | | why not |
 |---|---|
 | `never f` | prunes absolutely — right for the law, wrong for a defeasible default |
-| `prefer` / `avoid` | reorders only, deliberately: *"advice quietly becoming a correctness rule"* is what it exists to prevent |
-| `criterion` / `directive` | names an action to **take**; there is no *do not* |
+| `prefer` / `avoid` | reorders only, deliberately, to stop advice quietly becoming a correctness rule |
+| `criterion` / `directive` | names an action to take; there is no "do not" |
 
-So they composed the `never` lines in **~17 lines of Python** before building the goal. It worked, and the
-loss was specific and is the whole reason this module exists: *"it used to be auditable"* — their old
-engine could answer *"why is selling not excluded?"* by tracing to the outranking encouragement, and
-Python that runs before the engine sees anything can answer nothing.
+Composing the surviving prohibitions in Python before building the goal works and loses the thing
+that matters: auditability. Python that runs before the engine sees anything cannot answer "why
+is selling not excluded?"
 
-## ⭐⭐⭐ A NORM'S SOURCE IS ITS SPEAKER
+A norm's source is its speaker. The arbitration this needs — a transitive ranking over sources,
+with a default — already exists as discourse authority: "today outranks standing" is the same
+shape as "the supervisor outranks the agent", and a norm is an utterance by a source. So there is
+no second ranking mechanism and no norm-specific notion of strength, and "who says so" is
+answered by the ordinary discourse record. The audit trail is free: the winning norm is a node,
+its source is a node, and the losing norms are still there with the reason they lost.
 
-The arbitration this needs — a transitive ranking over sources, with a default — already exists, built for
-something else entirely: `discourse.authority`. *"Today outranks standing"* is the same shape as
-*"the supervisor outranks the agent"*, and a norm is **an utterance by a source**. So there is no second
-ranking mechanism, no norm-specific notion of strength, and *"who says so"* is answered by the ordinary
-discourse record. ⭐ That also makes the audit trail free: the winning norm is a node, its source is a
-node, and the losing norms are still there with the reason they lost.
+Arbitration happens before the goal, never inside the planner. A soft prohibition that pruned
+unless outranked would put arbitration inside the frontier. What makes this version work is that
+arbitration happens when all the norms are in hand and none of them is about a search state.
+`settle` is a composition step that runs against the world, and `apply` writes ordinary `never`
+constraints, so everything downstream is untouched and cannot tell the difference. There is no
+fourth force in the planner.
 
-## ⚠⚠ ARBITRATION HAPPENS BEFORE THE GOAL, NOT INSIDE THE PLANNER
+A tie is refused, never broken silently. Two conflicting norms whose sources are unranked
+relative to each other is a question the author has not answered, and picking one by declaration
+order would be an undeclared tie-break inside a deterministic computation. The refusal names both
+sources and the action.
 
-HarneSkills flagged the shape they did **not** want and were right: a *"soft never"* that prunes unless
-outranked would put arbitration inside the frontier. What makes their version work is that arbitration
-happens when all the norms are in hand and **none of them is about a search state**. `settle` is therefore
-a composition step that runs against the world, and `apply` writes ordinary `never` constraints — so
-everything downstream (`goal.breached`, `driver.relevance`, `why`) is untouched and cannot tell the
-difference. There is no fourth force in the planner.
-
-⚠ **A tie is REFUSED, never broken silently.** Two conflicting norms whose sources are unranked relative
-to each other is a question the author has not answered; picking one by declaration order would be an
-undeclared tie-break inside a deterministic computation, which is exactly `search-was-irreproducible-set-
-tiebreak`'s defect. The refusal names both sources and the action.
+See `docs/deliberation.md`.
 """
 from __future__ import annotations
 
@@ -53,7 +45,7 @@ FORBID, PERMIT = "forbid", "permit"
 STANCES = (FORBID, PERMIT)
 
 #: Force, and it is the project's fourth force pair rather than a new idea — `method`/`procedure`,
-#: `criterion`/`directive`, `prefer`/`avoid` all say the same thing about failure. ⚠ Declared, never
+#: `criterion`/`directive`, `prefer`/`avoid` all say the same thing about failure. Declared, never
 #: inferred: two norms can read identically and behave oppositely, so the author says which they mean.
 DEFEASIBLE, INVIOLABLE = "defeasible", "inviolable"
 FORCES = (DEFEASIBLE, INVIOLABLE)
@@ -86,7 +78,7 @@ def norms(g: Graph, action: str | None = None) -> tuple:
 
 
 def outranks(g: Graph, a: str, b: str) -> bool:
-    """Does source `a` outrank source `b`? **The discourse ranking, unchanged** — see the module docstring."""
+    """Does source `a` outrank source `b`? The discourse ranking, unchanged — see the module docstring."""
     from .path import reaches
     return a != b and reaches(g, a, "authority_over", b)
 
@@ -94,10 +86,10 @@ def outranks(g: Graph, a: str, b: str) -> bool:
 def settle(g: Graph, action: str) -> dict:
     """Arbitrate every norm about `action`. Returns `{stance, by, beat, because}`, or `stance=None`.
 
-    ⭐ **Inviolable first, and it is not merely a high rank.** A source ranking says *whose word goes*; an
+    Inviolable first, and it is not merely a high rank. A source ranking says *whose word goes*; an
     inviolable norm says *this one is not up for discussion*. Ranking the law at the top would express the
     first and only approximate the second — someone could later declare a source above it, and nothing
-    would object. ⚠ Two conflicting inviolable norms are a contradiction in the domain, not a tie: refused.
+    would object. Two conflicting inviolable norms are a contradiction in the domain, not a tie: refused.
     """
     here = norms(g, action)
     if not here:
@@ -112,7 +104,7 @@ def settle(g: Graph, action: str) -> dict:
                 f"contradiction in the domain, not something to arbitrate")
         return _won(g, absolute[0], [n for n in here if n is not absolute[0]])
 
-    # Defeasible: the one whose source outranks every other source with a DIFFERENT stance.
+    # Defeasible: the one whose source outranks every other source with a different stance.
     winners = []
     for n in here:
         mine = g.target(n, "source")
@@ -122,7 +114,7 @@ def settle(g: Graph, action: str) -> dict:
             winners.append(n)
     stances = {g.attr(n, "stance") for n in winners}
     if not winners or len(stances) > 1:
-        # ⚠ Nobody dominates, or two undominated norms disagree. Refuse and name them.
+        # Nobody dominates, or two undominated norms disagree. Refuse and name them.
         disputing = sorted({g.attr(g.target(n, "source"), "label") or g.target(n, "source")
                             for n in here})
         raise Undecidable(
@@ -149,7 +141,7 @@ def actions(g: Graph) -> tuple:
 def apply(g: Graph, goal: str) -> tuple:
     """Settle every norm and write the surviving prohibitions onto `goal` as ordinary `never` constraints.
 
-    ⭐ **Nothing downstream learns a new concept.** `goal.breached`, `driver.relevance` and `why` see the
+    Nothing downstream learns a new concept. `goal.breached`, `driver.relevance` and `why` see the
     same `never` they always saw, so a defeasible norm costs the planner nothing and the arbitration is
     over before the search begins. Returns the constraints written."""
     out = []
@@ -166,7 +158,7 @@ def apply(g: Graph, goal: str) -> tuple:
 def explain(g: Graph, action: str) -> str:
     """*"Why is selling not excluded?"* — the audit the Python version could not give.
 
-    This is the whole point of the module rather than a nicety: HarneSkills' loss was **auditability**,
+    This is the whole point of the module rather than a nicety: HarneSkills' loss was auditability,
     not capability, since their Python got the right answer every time."""
     try:
         v = settle(g, action)

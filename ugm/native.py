@@ -1,43 +1,41 @@
-"""NATIVE — primitives the kernel EXECUTES but does not KNOW.
+"""Native — primitives the kernel executes but does not know.
 
-**⭐⭐ This exists to settle a conflict between two principles that were both right.**
+This settles a conflict between two principles that are both right.
 
-* `isa.py`'s `PLAN` docstring argued, correctly, that search is a **primitive**: the closed-class test is
-  *can it be composed from what already exists*, and there is no sequence of `GET`/`SET`/`LINK` that
-  imagines a state. So it earns a place beside `DISPATCH`.
-* The kernel rule says Python may do the **substrate** and must never do *business* — where business is
-  **anything we decided about how to represent** plans, time, goals, criteria — because the system has to
-  port to another substrate (Rust, Excel macros, a redstone machine) by re-implementing the kernel while
-  the data carries over unchanged. **The kernel never sees the representation above it.**
+Search is a primitive: the closed-class test is whether it can be composed from what already
+exists, and there is no sequence of `GET`, `SET` and `LINK` that imagines a state. So it earns a
+place beside dispatch.
 
-Those collided in `isa.py`, which imported `driver` so that two opcodes could call the planner. Measured
-in `docs/execution-model.md`: **a Rust port would have had to port the entire planner in
-order to implement two opcodes.** The instruction set — the most kernel thing there is — knew what a plan
-was.
+The kernel rule says Python may do the substrate and must never do business, where business is
+anything decided about how to represent plans, time, goals or criteria. The system has to port to
+another substrate by re-implementing the kernel while the data carries over unchanged, so the
+kernel must never see the representation above it.
 
-**⭐ Both principles hold once a primitive stops having to be an OPCODE.** A native is still primitive
-(nothing composes it) and still uninterruptible-by-design where it must be; what changes is that the
-kernel reaches it **by name through a table it does not populate**. The dependency inverts:
+Those collided when the instruction set imported the planner so that two opcodes could call it: a
+port would have had to port the entire planner in order to implement two instructions.
 
-```
-    before:   isa  ──imports──>  driver          (the kernel names the planner)
-    after:    isa  ──looks up──>  native  <──registers──  driver
-```
+Both principles hold once a primitive stops having to be an opcode. A native is still primitive,
+nothing composes it, and still uninterruptible where it must be; what changes is that the kernel
+reaches it by name through a table it does not populate. The dependency inverts:
 
-⚠ **The table is substrate; its CONTENTS are not.** This module names nothing from the layer above — no
-goal, no plan, no criterion — and that is the property to preserve. A `register` call belongs in the
-module that owns the thing being registered, never here; a dict of names in this file would be the same
-leak with an extra hop.
+    before:   isa  --imports-->  driver          (the kernel names the planner)
+    after:    isa  --looks up--> native  <--registers--  driver
 
-⚠ **Registration is an import side effect, so a native is only callable once its owner has been
-imported.** That is why `call` refuses by naming what *is* registered: the failure mode worth designing
-for is a program reaching for a primitive whose module nobody loaded, and *"unknown native 'plan'"* with
-no list is indistinguishable from a typo.
+The table is substrate; its contents are not. This module names nothing from the layer above — no
+goal, no plan, no criterion — and that is the property to preserve. A `register` call belongs in
+the module that owns the thing being registered; a dictionary of names in this file would be the
+same leak with an extra hop.
 
-⚠ **Deliberately not policed.** Anything registered here can do anything Python can do, exactly as the
-opcodes it replaces could. The design notes' position stands: policing is triggered by loading untrusted
-`.mf`, and nothing does that yet. Moving the planner out of the opcode set does not change what a body is
-allowed to do — only who has to know about it.
+Registration is an import side effect, so a native is callable only once its owner has been
+imported. That is why `call` refuses by naming what is registered: the failure worth designing
+for is a program reaching for a primitive whose module nobody loaded, and a bare "unknown native"
+is indistinguishable from a typo.
+
+Deliberately not policed. Anything registered here can do anything Python can, exactly as the
+opcodes it replaces could. Policing becomes necessary when untrusted rule files are loaded, and
+nothing does that yet.
+
+See `docs/execution-model.md`.
 """
 from __future__ import annotations
 
@@ -49,13 +47,13 @@ _REGISTRY: dict[str, Callable] = {}
 
 
 class UnknownNative(KeyError):
-    """Asked for a primitive nobody registered. ⚠ Usually means the owning module was never imported."""
+    """Asked for a primitive nobody registered. Usually means the owning module was never imported."""
 
 
 def register(name: str, fn: Callable) -> None:
     """Make `fn` reachable as `NATIVE R(dst) "<name>" …`.
 
-    ⚠ Re-registering the same name is **refused** rather than silently overwriting. Two modules claiming
+    Re-registering the same name is refused rather than silently overwriting. Two modules claiming
     one primitive is a conflict somebody has to resolve, and last-import-wins would resolve it by accident
     — the same silent tie-break `search-was-irreproducible-set-tiebreak` records at length."""
     if name in _REGISTRY and _REGISTRY[name] is not fn:
@@ -66,10 +64,10 @@ def register(name: str, fn: Callable) -> None:
 
 
 def call(g: Graph, name: str, args: tuple, act: str | None = None):
-    """Run a registered primitive. The kernel gets here knowing only a name, some nodes, and **which
-    activation is asking**.
+    """Run a registered primitive. The kernel gets here knowing only a name, some nodes, and which
+    activation is asking.
 
-    ⚠ `act` is passed to every native, whether it wants it or not, because the alternative — a registry
+    `act` is passed to every native, whether it wants it or not, because the alternative — a registry
     that records which primitives take context — is a second thing to keep in step with the primitives
     themselves. A primitive that ignores it costs one parameter; one that needs it and cannot get it
     cannot be written at all. `isa.INVOKE` already threads `caller=act` for exactly this reason: a call

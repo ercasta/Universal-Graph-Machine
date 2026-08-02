@@ -1,7 +1,7 @@
-"""SELF-TEST — substrate, focus, types, hypotheses, ISA.
+"""Self-test — substrate, focus, types, hypotheses, ISA.
 
 Probe discipline, not a unit-test suite: each check states what would make it fail, and per the rule earned
-three times over in one day — **for every green, ask what would make it vacuous** — checks that could pass
+three times over in one day — for every green, ask what would make it vacuous — checks that could pass
 for an uninteresting reason are written to distinguish.
 
 Re-runnable: `python -m ugm.selftest`.
@@ -87,7 +87,7 @@ def check_journal_is_transactional_not_hypothetical():
 
 
 def check_the_kind_index_cannot_disagree_with_a_scan():
-    """⚠ A HAND-MAINTAINED INDEX, so it earns a test — the kind that guards a discipline a human must
+    """A hand-maintained index, so it earns a test — the kind that guards a discipline a human must
     follow (only `mint` adds and only `drop` removes), which is the kind this project keeps.
 
     `of_kind` exists because `types.find_type` and `function.find` scanned every node in the graph on
@@ -97,8 +97,8 @@ def check_the_kind_index_cannot_disagree_with_a_scan():
     for zero extra proposals.
 
     It is legitimate where `types.tag`'s `is_a` stamp is not, and the difference is worth stating: this is
-    maintained by the **substrate** on the only operation that can create a kind, so it cannot drift;
-    a stamp is a **claim** a rule made, so it must be re-validated on read (`tagged_as`).
+    maintained by the substrate on the only operation that can create a kind, so it cannot drift;
+    a stamp is a claim a rule made, so it must be re-validated on read (`tagged_as`).
 
     Vacuity guard: `drop` and `rollback` must both be exercised, since a write-only index would pass any
     test that never removed anything."""
@@ -139,19 +139,19 @@ def check_the_kind_index_cannot_disagree_with_a_scan():
 
 
 def check_a_goal_can_have_a_hierarchy_and_an_undecomposed_one_is_not_vacuously_done():
-    """⭐ SLICE 3 of `docs/deliberation.md`: goals gain a hierarchy, so `DECOMPOSE` has somewhere to post and a
+    """Slice 3 of `docs/deliberation.md`: goals gain a hierarchy, so `DECOMPOSE` has somewhere to post and a
     decision rule has a context to key on.
 
-    **⚠ The key this check exists for is the LAST one, and it is a trap taken from prior work rather than
-    rediscovered.** the earlier design notes records that a parent's "all my children are done"
-    guard was written as an *absence* — no subgoal that is unmet — and so was **vacuously true before any
-    subgoal had been minted**: an undecomposed goal read as trivially achieved. Generalised there as *don't
+    The key this check exists for is the last one, and it is a trap taken from prior work rather than
+    rediscovered. An earlier note records that a parent's "all my children are done"
+    guard was written as an *absence* — no subgoal that is unmet — and so was vacuously true before any
+    subgoal had been minted: an undecomposed goal read as trivially achieved. Generalised there as *don't
     trust an open-ended absence without an explicit closure fact*. `satisfied` already applies the same rule
     one level down (`bool(cs)`), which is why the two guards look alike.
 
     Also: ancestry is the context (so a rule need not be rewritten per position), children are O(1) the
-    other way, and **a cycle is structurally impossible** because parentage is set at mint and never
-    changed — the same reasoning that lets `Graph.of_kind` be an index rather than a cache. ⚠ That bounds
+    other way, and a cycle is structurally impossible because parentage is set at mint and never
+    changed — the same reasoning that lets `Graph.of_kind` be an index rather than a cache. That bounds
     cycles, *not* depth: recursive decomposition mints a fresh goal each time, so `depth_of` is what a
     termination bound has to read."""
     from . import goal as G
@@ -164,7 +164,7 @@ def check_a_goal_can_have_a_hierarchy_and_an_undecomposed_one_is_not_vacuously_d
     G.require_link(g, base, b, "on", c)
     deep = G.open_goal(g, label="clear c", under=base)
 
-    # THE TRAP: `top` has a child that is not satisfied, so "all children done" must be False; and `deep`
+    # The trap: `top` has a child that is not satisfied, so "all children done" must be False; and `deep`
     # has NO children, so the same question must also be False rather than vacuously True.
     undecomposed_reads_done = G.subgoals_met(g, deep)
     g.unlink(b, "on", index=0)
@@ -187,24 +187,24 @@ def check_a_goal_can_have_a_hierarchy_and_an_undecomposed_one_is_not_vacuously_d
 
 
 def check_ignorance_is_representable_and_sensing_closes_it():
-    """⭐⭐ THE LAST CAPABILITY GAP: *not looked* as distinct from *not there*.
+    """The last capability gap: *not looked* as distinct from *not there*.
 
     The engine already performed information-gathering actions but could only model them as world-*changing*
-    ones — `scan_dir`'s mock mints file nodes, as though scanning **created** files rather than revealing
+    ones — `scan_dir`'s mock mints file nodes, as though scanning created files rather than revealing
     them. Underneath was a substrate limit: an attribute was present or absent, and absence meant *lacks
     it*. So the system could not tell "make p true" from "find out whether p", an information-gathering
-    subgoal had nothing to close, and `pursue` reported failure identically whether **no plan exists** or
-    **no plan exists given what I know** — though only the second warrants going and finding out.
+    subgoal had nothing to close, and `pursue` reported failure identically whether no plan exists or
+    no plan exists given what I know — though only the second warrants going and finding out.
 
-    **⭐ The fix rides on §5d's existing insight rather than adding a planner.** A goal naming *which*
-    constraints are false lets the driver ask what could close them; one separating **false** from
-    **unknown** lets it reach for a sensing action. `undetermined` is that separation.
+    The fix rides on's existing insight rather than adding a planner. A goal naming *which*
+    constraints are false lets the driver ask what could close them; one separating false from
+    unknown lets it reach for a sensing action. `undetermined` is that separation.
 
-    **⚠ Explicit ignorance only.** Absence still means *lacks it*; a slot is unknown only when something
+    Explicit ignorance only. Absence still means *lacks it*; a slot is unknown only when something
     says so. Treating every absence as ignorance would make the whole graph unknown and every constraint
     undecidable — and would be untrue, since most absences really are knowledge.
 
-    ⚠ `blocked_on_ignorance` requires the goal to **bottom out** in ignorance, not merely touch it —
+    `blocked_on_ignorance` requires the goal to bottom out in ignorance, not merely touch it —
     otherwise a goal with one unknown slot and three false constraints would send the system looking in
     boxes instead of doing the work. Its vacuity guard is `decomposed`'s: with nothing unmet it is not
     blocked, it is done."""
@@ -233,14 +233,14 @@ def check_ignorance_is_representable_and_sensing_closes_it():
     mixed = G.open_goal(g, label="both")
     G.require_link(g, mixed, a, "on", b)
     G.require_known(g, mixed, box, "contents")
-    # ⚠ Read the CONTRASTS BEFORE acting. The first version evaluated them in the return dict, after
+    # Read the contrasts BEFORE acting. The first version evaluated them in the return dict, after
     # `carry_out` had already made the slot known — so `mixed` had nothing undetermined left and the key
     # passed no matter what `blocked_on_ignorance` did. A planted bug proved it tested nothing.
     plain_blocked = G.blocked_on_ignorance(g, plain, under=world)
     mixed_blocked = G.blocked_on_ignorance(g, mixed, under=world)
     empty_blocked = G.blocked_on_ignorance(g, G.open_goal(g, label="empty"), under=world)
 
-    # END TO END: the goal is closed only by an action that reveals, and only after it really ran.
+    # END to END: the goal is closed only by an action that reveals, and only after it really ran.
     report = D.carry_out(g, goal, T.open_thread(g), world)
 
     unknown_is_falsy = bool(UNKNOWN) is False
@@ -260,24 +260,24 @@ def check_ignorance_is_representable_and_sensing_closes_it():
 
 
 def check_a_knowledge_goal_cannot_close_itself():
-    """⭐⭐ A `known` claim about a slot that DOES NOT EXIST is satisfied by default, and that is a goal
+    """A `known` claim about a slot that does NOT exist is satisfied by default, and that is a goal
     that closes itself — reported done, with an empty plan, having never looked.
 
     `require_known`'s docstring already records this failure once, caught when the subject was stored as a
     string. It came back by two further routes, both found by an earlier probe on the utterance
     *"list all the files in the repo"*:
 
-    * **the key names an EDGE** — `repo.file known`, where `holds` asks `g.attr(here, key) is not UNKNOWN`
+    * the key names an edge — `repo.file known`, where `holds` asks `g.attr(here, key) is not UNKNOWN`
       and an edge label has no attribute slot at all;
-    * **the key names NOTHING** — `repo.files known`, a plain mistyped plural, which behaves identically.
+    * the key names nothing — `repo.files known`, a plain mistyped plural, which behaves identically.
 
     Neither is a bug in `UNKNOWN`. Absence-means-*lacks-it* is deliberate and correct; the mistake was
-    admitting a **relation** — or a typo — into an attribute-shaped claim. So both refuse.
+    admitting a relation — or a typo — into an attribute-shaped claim. So both refuse.
 
-    ⚠⚠ **Vacuity guard, and it is the whole check.** A refusal that fired on everything would pass every
-    key below while destroying the feature, so the legitimate case must still be authorable **and still be
-    genuinely unmet and undetermined** — i.e. the thing that makes `known` worth having has to survive.
-    ⚠ The two refusals must also be told apart, or one route could be dead and nothing would say so."""
+    Vacuity guard, and it is the whole check. A refusal that fired on everything would pass every
+    key below while destroying the feature, so the legitimate case must still be authorable and still be
+    genuinely unmet and undetermined — i.e. the thing that makes `known` worth having has to survive.
+    The two refusals must also be told apart, or one route could be dead and nothing would say so."""
     from . import goal as G, intake as I
     from .graph import UNKNOWN
 
@@ -296,7 +296,7 @@ def check_a_knowledge_goal_cannot_close_itself():
 
     edge, typo, real = refusal("repo.file known"), refusal("repo.files known"), refusal("repo.scanned known")
 
-    # ⚠ The legitimate claim must still DO something: unmet, undetermined, and closable by looking.
+    # The legitimate claim must still DO something: unmet, undetermined, and closable by looking.
     live = I.read_goal(g, _lines("goal look:", "    repo.scanned known"))
     unmet_now = len(G.unmet(g, live, under="root")), len(G.undetermined(g, live, under="root"))
     g.put(repo, scanned=True)
@@ -312,19 +312,19 @@ def check_a_knowledge_goal_cannot_close_itself():
 
 
 def check_a_method_step_can_name_a_third_individual():
-    """⭐⭐ A method could speak only of `subject` and `object` — the matched constraint's — so a
-    decomposition whose steps concern a **third** individual had no form. `some <name> in <ref> by <link>`
+    """A method could speak only of `subject` and `object` — the matched constraint's — so a
+    decomposition whose steps concern a third individual had no form. `some <name> in <ref> by <link>`
     is lifted from `criterion`, where `docs/deliberation.md` closed this exact gap and never carried it
-    across. Found again by an earlier probe on *"after you edit a file, lint THAT file"*.
+    across. Found again by an earlier probe on *"after you edit a file, lint that file"*.
 
-    **⚠⚠ SINGULAR on purpose.** A draw reaches a set; raising one subgoal per candidate is the first thing
+    Singular on purpose. A draw reaches a set; raising one subgoal per candidate is the first thing
     `docs/limits.md` forbids — an expanded plan is valid only for the collection as it was when planned.
     So it binds the nearest, and *"do it to each"* stays with slice A's witnesses, which already handle it.
 
-    ⚠ Vacuity guards. The drawn subgoal must be about a node that is **neither** the constraint's subject
+    Vacuity guards. The drawn subgoal must be about a node that is neither the constraint's subject
     nor its object, or the draw could be resolving to `subject` and every key would still pass. A method
-    with **no** draw must behave exactly as before, or this bought reach by breaking the common case. And
-    a draw reaching **nothing** must refuse, rather than raise a subgoal with no subject — a decomposition
+    with no draw must behave exactly as before, or this bought reach by breaking the common case. And
+    a draw reaching nothing must refuse, rather than raise a subgoal with no subject — a decomposition
     that poses a step about `None` reads downstream as a step that is simply done."""
     from . import goal as G, intake as I, method as M
 
@@ -355,7 +355,7 @@ def check_a_method_step_can_name_a_third_individual():
     drawn = G.constraints(g, subs[0])[0]
     about = g.target(drawn, "subject")
 
-    # ⚠ Guard: the subgoal must be about the FILE, which the goal's constraint never names.
+    # Guard: the subgoal must be about the file, which the goal's constraint never names.
     c0 = M.applicable(g, goal, under="root")
     third = about == parser and about != repo
 
@@ -396,28 +396,28 @@ def check_a_method_step_can_name_a_third_individual():
 
 
 def check_what_was_said_is_on_the_record_and_can_be_taken_back():
-    """⭐⭐⭐ *"Ignore that."* — and before that, the hole underneath it: `intake.read` built a goal, a
-    criterion, a method, and recorded **nothing about the fact that somebody said it**. Measured: two
+    """*"Ignore that."* — and before that, the hole underneath it: `intake.read` built a goal, a
+    criterion, a method, and recorded nothing about the fact that somebody said it. Measured: two
     blocks authored against a fresh thread left it holding only its opening entry.
 
     That is this project's founding defect in a third place. `goal.py` exists because the thing the system
     was trying to do was the thing it could not point at; `thread.py` exists because attention was the one
     thing not homoiconic. The *telling* was next.
 
-    **⭐ Retract the utterance, NOT the world.** A withdrawn block stops being consulted from now on. It is
+    Retract the utterance, NOT the world. A withdrawn block stops being consulted from now on. It is
     not deleted, nothing it let us conclude is unwound (`REVISION 01` deleted retraction/TMS on purpose),
     and nothing dispatched is reversed (the undo journal must never span a dispatch). `forget.py` already
-    settled why: retention defaults to KEEP because `why` and `conflict.interference` read history, so a
+    settled why: retention defaults to keep because `why` and `conflict.interference` read history, so a
     record saying *"this happened because of something you later took back"* beats a hole where the reason
     was.
 
-    **⚠⚠ THE VACUITY GUARD IS THE WHOLE CHECK, and the first version of it failed.** Withdrawing something
+    The vacuity guard is the whole CHECK, and the first version of it failed. Withdrawing something
     that was making no difference proves nothing — the first attempt used a criterion whose plan was
     identical with and without it, so every key passed while testing nothing. `docs/limits.md` records
     the same trap (*a measurement whose control does not light up is not a measurement*). So the directive
-    here must **really change the outcome**, and that swing is asserted before the retraction is asked for.
+    here must really change the outcome, and that swing is asserted before the retraction is asked for.
 
-    ⚠ And history must survive: the utterance stays on the thread, still points at what it authored, and
+    And history must survive: the utterance stays on the thread, still points at what it authored, and
     the authored node is still there to be cited."""
     from . import criterion as CR, discourse as DC, driver as D, intake as I, thread as T
 
@@ -438,7 +438,7 @@ def check_what_was_said_is_on_the_record_and_can_be_taken_back():
                                 "    wants link contains",
                                 "    do put_in t = object, box = subject"))
     during = plan(g, goal, world)
-    # ⚠ Assert the swing BEFORE retracting. If this is not a real change, nothing below means anything.
+    # Assert the swing BEFORE retracting. If this is not a real change, nothing below means anything.
     it_mattered = bool(before) and not during
 
     out = DC.retract(g, th)
@@ -448,7 +448,7 @@ def check_what_was_said_is_on_the_record_and_can_be_taken_back():
     entries = DC.utterances(g, th, by=None)
     node = said["node"]
 
-    # A SECOND "ignore that" must reach further back, not re-withdraw the same thing.
+    # A second "ignore that" must reach further back, not re-withdraw the same thing.
     g2, world2, _wh2, _b2, _p2 = _warehouse(nested=False)
     th2 = T.open_thread(g2)
     a = DC.say(g2, th2, _lines("prefer one:", "    action put_in"))
@@ -487,21 +487,21 @@ def check_what_was_said_is_on_the_record_and_can_be_taken_back():
 
 
 def check_the_system_can_ASK_and_the_answer_lands_on_the_same_record():
-    """⭐⭐ *"Confirm"* is not a discourse primitive — **asking is**. A system that can only *receive*
+    """*"Confirm"* is not a discourse primitive — asking is. A system that can only *receive*
     utterances cannot be confirmed with, because there is nothing on the record for an answer to be an
     answer *to*. So a question is an utterance with `by=SYSTEM`, and the discourse is two-directional.
 
-    **⭐ It needed no new machinery: asking is a DISPATCH.** A world crossing that leaves the graph and
+    It needed no new machinery: asking is a DISPATCH. A world crossing that leaves the graph and
     comes back with information, registered `observes=True` because it costs time and changes nothing.
     So the veto and the commit-before-handler discipline apply for free.
 
-    ⚠ **Answering LATER is the realistic case and is the same recording**, since a person is not a
+    Answering later is the realistic case and is the same recording, since a person is not a
     function: a host that returns nothing synchronously still leaves a `pending` question on the thread,
     and `answered` closes it whenever the reply arrives.
 
-    ⚠ Vacuity guards: `pending` must be non-empty **while** unanswered — a check that only looks after the
+    Vacuity guards: `pending` must be non-empty while unanswered — a check that only looks after the
     answer would pass against an implementation that never marked anything pending; the question and the
-    answer must land in **one** order with the retraction machinery, not a parallel log; and an answer to
+    answer must land in one order with the retraction machinery, not a parallel log; and an answer to
     something that was never asked must be refused."""
     from . import discourse as DC, dispatch as DP, thread as T
 
@@ -521,10 +521,10 @@ def check_the_system_can_ASK_and_the_answer_lands_on_the_same_record():
     th2 = T.open_thread(g2)
     DP.register(DC.ASK_USER, lambda gr, q: None, observes=True)
     later = DC.ask(g2, th2, "shall I commit?")
-    DC.answered(g2, th2, later["question"], "no")           # ⚠ re-answering closes it
+    DC.answered(g2, th2, later["question"], "no")           # re-answering closes it
     still_pending = DC.pending(g2, th2)
 
-    # ⚠ Pending must be TRUE while outstanding, or the key below tests nothing.
+    # Pending must be true while outstanding, or the key below tests nothing.
     g3 = new_graph()
     th3 = T.open_thread(g3)
     q3 = DC._utter(g3, th3, by=DC.SYSTEM, verb=DC.ASK_USER, about=None, text="waiting?")
@@ -566,39 +566,39 @@ def check_the_system_can_ASK_and_the_answer_lands_on_the_same_record():
 
 
 def check_ONE_proposition_grammar_serves_every_position():
-    """⭐⭐⭐ A goal constraint, a method step and a criterion condition are three renderings of the same
+    """A goal constraint, a method step and a criterion condition are three renderings of the same
     handful of claims, and they were three hand-written parsers. `path.py` already solved this one level
     down — *"It is one grammar because it used to be three"* — and this is the same move one level up.
 
-    **The four asymmetries were measured before the refactor, and none was chosen:**
+    The four asymmetries were measured before the refactor, and none was chosen:
 
     | form | was available in | now |
     |---|---|---|
-    | `x l+ y` transitive | a goal only | goal **and condition** — a condition *is* the query `+` is for |
-    | `!= < <= > >=` | a `type` block only | refused elsewhere **with the reason**, not silently absent |
-    | `x is there` | a criterion only | recognised everywhere, refused where meaningless **by name** |
+    | `x l+ y` transitive | a goal only | goal and condition — a condition *is* the query `+` is for |
+    | `!= < <= > >=` | a `type` block only | refused elsewhere with the reason, not silently absent |
+    | `x is there` | a criterion only | recognised everywhere, refused where meaningless by name |
     | `x.k known` | a goal only | likewise |
 
-    **⚠⚠ The transitive case is the one that could have gone silently wrong, and nearly did.** The parser
+    The transitive case is the one that could have gone silently wrong, and nearly did. The parser
     change alone would have made `when x contains+ y` parse while `criterion._holds` still compared one
     direct edge — a form that is accepted and then means something narrower, which is exactly the failure
     this codebase keeps recording. So the evaluator moved with the surface, using the same `path.reaches`
     `goal.holds` uses, and the round trip renders the `+` back.
 
-    ⚠ **What must NOT be unified is the depth rule**, and it is asserted here so a later tidy-up cannot
+    What must NOT be unified is the depth rule, and it is asserted here so a later tidy-up cannot
     quietly widen it: a goal and a step take one hop because `conflict.unsatisfiable` keys a slot as
     `(subject, key)`; a condition takes any depth because it only ever checks (`docs/authoring.md`
 
-    ⚠ Vacuity guard: each refusal must name the form it is refusing, or "closed vocabulary" degrades into
+    Vacuity guard: each refusal must name the form it is refusing, or "closed vocabulary" degrades into
     one unhelpful message and the author cannot tell a typo from an unsupported claim."""
     from . import criterion as CR, intake as I
 
     def refusal(text):
         g = _garage_cnl()
         from . import asm
-        # ⚠ `do f x = …` needs `f` to BE a function now: a criterion naming one that does not exist is
+        # `do f x = …` needs `f` to BE a function now: a criterion naming one that does not exist is
         # refused where it is written, because it could never speak in any world (`intake._action`).
-        # These cases are about the CONDITION grammar, so the action has to be well-formed to reach it.
+        # These cases are about the condition grammar, so the action has to be well-formed to reach it.
         asm.load_text(g, _lines("fn f(x: thing) -> thing:", '    SET F(x) "touched" true'))
         b = g.mint("chunk", kind_of="box", label="b")
         g.link("root", "has", b)
@@ -612,7 +612,7 @@ def check_ONE_proposition_grammar_serves_every_position():
             return str(e)
 
     HEAD = ("criterion c:", "    wants link on")
-    # ⭐ transitive, in a CONDITION — the form that did not exist before.
+    # transitive, in a condition — the form that did not exist before.
     cond_plus = refusal(_lines(*HEAD, "    when subject contains+ object", "    do f x = subject"))
     # ...and it must really be evaluated transitively, not just parsed.
     g = new_graph()
@@ -627,7 +627,7 @@ def check_ONE_proposition_grammar_serves_every_position():
                    transitive=True, left="the box", right="the parcel")
     rendered = CR.describe_test(g, deep)
 
-    # ⚠⚠ AND IT MUST EVALUATE, not merely parse and render. The control is the SAME condition without the
+    # And it must evaluate, not merely parse and render. The control is the same condition without the
     # `+`: if that also came back true, `transitive` would be decorative and every key here would still
     # pass. Third case: a target that is not reachable at all.
     from . import workbench as W
@@ -645,17 +645,17 @@ def check_ONE_proposition_grammar_serves_every_position():
     goal_plus = refusal(_lines("goal g:", "    b contains+ p"))          # still fine in a goal
     step_plus = refusal(_lines("method m:", "    handles type car",
                                "    step subject contains+ object"))     # refused, with a reason
-    # ⭐ WIDENED: the five comparisons used to live only in a `type` block, and `_shape` refused them
+    # Widened: the five comparisons used to live only in a `type` block, and `_shape` refused them
     # elsewhere with a message pointing there. They are goal constraints and conditions now — the readers
     # (`goal.holds`, `query.refutes`, `conflict.unsatisfiable`) went through `types.compare` to get it.
     wide_goal = refusal(_lines("goal g:", "    b.size >= 3"))
     wide_cond = refusal(_lines(*HEAD, "    when subject.size > 10", "    do f x = subject"))
-    # ⚠ ...and a reference on the RIGHT stays refused, which widening made reachable: `a.size > b.size`
+    # ...and a reference on the right stays refused, which widening made reachable: `a.size > b.size`
     # would silently compare against the string "b.size".
     ref_right = refusal(_lines("goal g:", "    b.size > b.width"))
     goal_there = refusal(_lines("goal g:", "    b is there"))            # refused, pointed at `some T`
     cond_known = refusal(_lines(*HEAD, "    when subject.x known", "    do f x = subject"))
-    deep_goal = refusal(_lines("goal g:", "    b.wheel[0].pressure = 3"))  # the PRINCIPLED limit
+    deep_goal = refusal(_lines("goal g:", "    b.wheel[0].pressure = 3"))  # the principled limit
 
     return {"TRANSITIVE_NOW_WORKS_IN_A_CONDITION": cond_plus is None,
             "AND_IT_REALLY_REACHES_AT_DEPTH": reaches_deep,
@@ -677,29 +677,29 @@ def check_ONE_proposition_grammar_serves_every_position():
 
 
 def check_a_discourse_has_MANY_SPEAKERS_and_authority_is_world_data():
-    """⭐⭐⭐ Three actors, not one — and an external agent or another system is the same case.
+    """Three actors, not one — and an external agent or another system is the same case.
 
-    **What this corrects.** The first discourse stored its speaker as a *string attribute* (`by="user"`),
+    What this corrects. The first discourse stored its speaker as a *string attribute* (`by="user"`),
     which is this project's standing rule broken in one line — *never identify by name alone*. Harmless
     with one actor; with three it cannot say who spoke, and it can never represent an agent the system
-    might quote, doubt, or grant standing to. An utterance is a **world event**: it hangs off the
+    might quote, doubt, or grant standing to. An utterance is a world event: it hangs off the
     conversation, its speaker is a node, and the *thread* merely attends it — so `thread.py`'s metadata
     direction survives untouched, and the third entry kind it had grown was given back.
 
-    ⭐ This is also the caller `docs/limits.md` G7 was missing. That entry — *beliefs held by someone
-    other than the system*, *"who said so"* — is recommended **against** on the explicit grounds that
+    This is also the caller `docs/limits.md` G7 was missing. That entry — *beliefs held by someone
+    other than the system*, *"who said so"* — is recommended against on the explicit grounds that
     *"neither has a caller"*. Multi-party discourse is one, so the deferral was conditional and the
     condition has now been met.
 
-    **⭐⭐ Authority is WORLD DATA, and the default keeps the engine free of a social model.** *"Ignore
+    Authority is world data, and the default keeps the engine free of a social model. *"Ignore
     that"* is not a global fact once there are three speakers — it is an act by somebody, and whether it
     lands is a question of standing. So: a speaker may always withdraw their own utterance, and anything
-    else must be **said**, in the world, where it can be inspected and disputed like any other claim.
-    ⚠ Before this, anybody could withdraw anything — a policy nobody chose, which is the same silent drift
+    else must be said, in the world, where it can be inspected and disputed like any other claim.
+    Before this, anybody could withdraw anything — a policy nobody chose, which is the same silent drift
     this session deleted from three hand-written parsers.
 
-    ⚠ Vacuity guards: the unauthorised attempt must **refuse and leave the block live**, or "refused" could
-    mean the withdrawal happened anyway; authority must be **transitive**, since a supervisor over a lead
+    Vacuity guards: the unauthorised attempt must refuse and leave the block live, or "refused" could
+    mean the withdrawal happened anyway; authority must be transitive, since a supervisor over a lead
     over an agent is the case that motivates having a relation at all; and granting authority must be what
     changes the answer — the same attempt is run before and after."""
     from . import criterion as CR, discourse as DC, thread as T
@@ -722,11 +722,11 @@ def check_a_discourse_has_MANY_SPEAKERS_and_authority_is_world_data():
     refused = attempt(alice)
     still_live = node in CR.advice(g) if hasattr(CR, "advice") else not DC.is_withdrawn(g, node)
 
-    # 2. Authority is DECLARED, in the world, and then it works. ⚠ Transitively.
+    # 2. Authority is declared, in the world, and then it works. Transitively.
     DC.authority(g, boss, alice)
     DC.authority(g, alice, bob)
     boss_may = DC.may_withdraw(g, boss, said["utterance"])       # boss -> alice -> bob
-    # ⚠ Directionality needs an utterance by someone UP the chain: bob may withdraw his own, so asking
+    # Directionality needs an utterance by someone UP the chain: bob may withdraw his own, so asking
     # about `said` would answer True for the wrong reason. The first version did exactly that.
     from_boss = DC.say(g, th, _lines("prefer the boss's way:", "    action put_in"), by=boss)
     bob_may_not = DC.may_withdraw(g, bob, from_boss["utterance"])
@@ -751,29 +751,29 @@ def check_a_discourse_has_MANY_SPEAKERS_and_authority_is_world_data():
 
 
 def check_the_border_answers_HARNESKILLS_feedback():
-    """⭐⭐ Four items from a consumer's feedback, whose job is making this surface
-    **writable** — completion, live validation, a model drafting CNL, name pickers.
+    """Four items from a consumer's feedback, whose job is making this surface
+    writable — completion, live validation, a model drafting CNL, name pickers.
 
-    **§1 — advice that nothing will consult is a SILENT WRONG ANSWER.** A `prefer` block parses, mints a
+     — advice that nothing will consult is a silent wrong answer. A `prefer` block parses, mints a
     guideline, and does nothing unless the caller passed `rank=`. From outside, *ignored* is
     indistinguishable from *consulted and lost*. The one place the refusal discipline stopped at the
-    parser. ⚠ A **warning**, not a refusal: a caller may legitimately bring its own ranker, so what was
+    parser. A warning, not a refusal: a caller may legitimately bring its own ranker, so what was
     missing is only that nobody was told.
 
-    **§2 — a second block header is not a bad body line.** It was reported identically to garbage, though
+     — a second block header is not a bad body line. It was reported identically to garbage, though
     the corrective action is completely different.
 
-    **§6 — the body-line vocabularies are DATA now** (`FORMS` / `forms_for`), and every refusal renders
+     — the body-line vocabularies are data now (`FORMS` / `forms_for`), and every refusal renders
     *from* it. They existed only as display strings inside raise sites, so a consumer building completion
     had to re-type all six grammars into another repo with nothing checking the copy — which is `docs/authoring.md`'s
     own *"documentation checked only by a human rots like a comment"*, with a network boundary in it.
 
-    **§7 — `resolve` carries its candidates.** The harshest refusal on the surface, and the one where the
+     — `resolve` carries its candidates. The harshest refusal on the surface, and the one where the
     answer set is already in hand and was dropped to report a count.
 
-    ⚠⚠ Vacuity guards. §1's warning must **not** fire when a ranker is passed, or it is noise. §6's table
-    must be the **same object** the message renders from — asserted by checking a form's text appears in
-    a real refusal, since two copies that happen to agree today is the failure being fixed. §7 must stay
+    Vacuity guards.'s warning must not fire when a ranker is passed, or it is noise.'s table
+    must be the same object the message renders from — asserted by checking a form's text appears in
+    a real refusal, since two copies that happen to agree today is the failure being fixed. must stay
     an `Unreadable` subclass, or every existing `except` clause silently stops catching it."""
     import warnings
     from . import driver as D, guideline as GL, intake as I, thread as T
@@ -785,7 +785,7 @@ def check_the_border_answers_HARNESKILLS_feedback():
         except Exception as e:
             return e
 
-    # --- §1
+    # ---
     def run(wired):
         g, car = _garage()
         g.put(car, label="car")
@@ -805,11 +805,11 @@ def check_the_border_answers_HARNESKILLS_feedback():
                  T.open_thread(g_none), car_none, max_steps=40, max_depth=3)
         no_advice = [str(x.message) for x in w if issubclass(x.category, RuntimeWarning)]
 
-    # --- §2
+    # ---
     multi = refusal(_lines("type a:", "    kind_of = \"a\"", "", "type b:", "    kind_of = \"b\""))
     garbage = refusal(_lines("type a:", "    frobnicate the widget"))
 
-    # --- §6: the message must render FROM the table, not from a twin literal beside the raise.
+    # ---: the message must render from the table, not from a twin literal beside the raise.
     a_form = I.forms_for("type")[0]
     renders_from_table = a_form in str(garbage)
     try:
@@ -818,7 +818,7 @@ def check_the_border_answers_HARNESKILLS_feedback():
     except KeyError:
         named = True
 
-    # --- §7
+    # ---
     g2 = new_graph()
     for _ in range(2):
         n = g2.mint("chunk", kind_of="thing", label="salt")
@@ -842,28 +842,28 @@ def check_the_border_answers_HARNESKILLS_feedback():
 
 
 def check_a_prohibition_can_be_DEFEATED_and_the_arbitration_is_data():
-    """⭐⭐⭐ a consumer's feedback — a **defeasible** prohibition, which no existing force could
+    """A consumer's feedback — a defeasible prohibition, which no existing force could
     express: `never` prunes absolutely, `avoid` only reorders (deliberately), and a criterion names an
     action to *take*. They composed it in ~17 lines of Python and the loss was specific and total:
     *"it used to be auditable"*.
 
-    **The user's ruling on scope, 2026-08-02:** *"Anything expressable should be in scope; we can decide
-    the HOW, but not the whether. And these things must be in data, not Python, otherwise we start
+    The user's ruling on scope: *"Anything expressable should be in scope; we can decide
+    the how, but not the whether. And these things must be in data, not Python, otherwise we start
     creating islands."*
 
-    **⭐⭐ The HOW needed no new ranking: a norm's source is its SPEAKER.** *"Today outranks standing"* is
+    The how needed no new ranking: a norm's source is its speaker. *"Today outranks standing"* is
     the same shape as *"the supervisor outranks the agent"*, so `discourse.authority` — built for
     multi-party retraction — arbitrates norms unchanged.
 
-    **⚠⚠ Arbitration happens BEFORE the goal, never inside the planner.** They flagged the shape they did
+    Arbitration happens BEFORE the goal, never inside the planner. They flagged the shape they did
     not want (a "soft never" that prunes unless outranked) and were right: what makes it work is that all
     the norms are in hand and none is about a search state. `apply` writes ordinary `never` constraints, so
     `goal.breached`, `relevance` and `why` cannot tell the difference and there is no fourth force.
 
-    ⚠ Vacuity guards, and they are the check. The override must be caused by the **authority edge** — the
+    Vacuity guards, and they are the check. The override must be caused by the authority edge — the
     same graph without it must give the opposite answer, or "defeasible" is just "last declaration wins".
-    The inviolable norm must survive a source **claiming authority over the law**, or it is merely a high
-    rank. And an unranked conflict must **refuse**, since breaking it by declaration order is the
+    The inviolable norm must survive a source claiming authority over the law, or it is merely a high
+    rank. And an unranked conflict must refuse, since breaking it by declaration order is the
     undeclared tie-break `search-was-irreproducible-set-tiebreak` was written about."""
     from . import discourse as DC, goal as G, norm as N
 
@@ -878,7 +878,7 @@ def check_a_prohibition_can_be_DEFEATED_and_the_arbitration_is_data():
             DC.authority(g, today, house)
         return g, house, today, law
 
-    # ⚠ The control: identical graph, no authority edge — must REFUSE rather than pick.
+    # The control: identical graph, no authority edge — must REFUSE rather than pick.
     g_no, *_ = house_rules(False)
     try:
         N.settle(g_no, "sell")
@@ -890,7 +890,7 @@ def check_a_prohibition_can_be_DEFEATED_and_the_arbitration_is_data():
     sell = N.settle(g, "sell")
     counterfeit = N.settle(g, "counterfeit")
 
-    # ⚠ An inviolable norm is not merely top-ranked: claiming authority OVER the law changes nothing.
+    # An inviolable norm is not merely top-ranked: claiming authority over the law changes nothing.
     DC.authority(g, today, law)
     still_absolute = N.settle(g, "counterfeit")["stance"] == N.FORBID
 
@@ -921,23 +921,23 @@ def check_a_prohibition_can_be_DEFEATED_and_the_arbitration_is_data():
 
 
 def check_the_engine_HEARS_what_another_process_wrote():
-    """⭐⭐⭐ The premise (the user's, 2026-08-02): *another piece of software may write into the graph,
+    """The premise (the user's: *another piece of software may write into the graph,
     using its own locks, respecting the conventions for representing the discourse.* Under that premise the
-    **conversation is the integration surface** — and the engine was structurally unable to see anything
+    conversation is the integration surface — and the engine was structurally unable to see anything
     put there by anyone else.
 
-    **Measured before the fix:** two utterances on the conversation, **one** visible, because `utterances`
-    reads off the *thread* — the record of what **this** system attended. An external writer's utterance is
+    Measured before the fix: two utterances on the conversation, one visible, because `utterances`
+    reads off the *thread* — the record of what this system attended. An external writer's utterance is
     in the world and heard by nobody.
 
-    ⚠ **Attending is not a formality: it is what puts an external utterance into the ONE order retraction
-    depends on.** *"Was this already acted on?"* is answerable only because utterances and applications
+    Attending is not a formality: it is what puts an external utterance into the one order retraction
+    depends on. *"Was this already acted on?"* is answerable only because utterances and applications
     share the thread's `step` edge, so an utterance that never reaches the thread can never be reasoned
     about in time.
 
-    ⚠ Vacuity guards. The external utterance must be **invisible first** — otherwise `attend_new` could be
-    a no-op and every key would still pass. It must arrive **in conversation order**, not appended
-    arbitrarily. It must be **idempotent**: attending twice must not double it, since a loop will call this
+    Vacuity guards. The external utterance must be invisible first — otherwise `attend_new` could be
+    a no-op and every key would still pass. It must arrive in conversation order, not appended
+    arbitrarily. It must be idempotent: attending twice must not double it, since a loop will call this
     every tick. And the engine's own utterances must not be re-attended, or every tick would duplicate the
     whole history."""
     from . import discourse as DC, thread as T
@@ -979,30 +979,30 @@ def check_the_engine_HEARS_what_another_process_wrote():
 
 
 def check_TIME_is_a_node_that_points_at_what_it_dates():
-    """⭐⭐⭐ Time was four unconnected notions and **no clock at all** — no `time.time()`, no `datetime`,
-    anywhere in the engine. `locate.py` ran the full Allen algebra over `at`/`start`/`end` **attribute
-    values**; `memory` ordered by thread position; frames held imagined before/after; `application` had
+    """Time was four unconnected notions and no clock at all — no `time.time()`, no `datetime`,
+    anywhere in the engine. `locate.py` ran the full Allen algebra over `at`/`start`/`end` attribute
+    values; `memory` ordered by thread position; frames held imagined before/after; `application` had
     thread order. None of them was a node, so nothing could relate them.
 
-    **The specification (the user's, 2026-08-02):** *everything observed or acted must have an absolute
+    The specification (the user's: *everything observed or acted must have an absolute
     timestamp, and the timestamp is not a label on a node or edge — it is a separate node that points to
     them.* The direction is the design:
 
-    * **one look dates many facts**, which is the natural cardinality of a moment pointing at things, and
+    * one look dates many facts, which is the natural cardinality of a moment pointing at things, and
       would need the same reading copied onto each observation if time were an attribute;
-    * **dating is non-invasive** — nothing already in the graph is touched to acquire a time;
+    * dating is non-invasive — nothing already in the graph is touched to acquire a time;
     * it matches the metadata direction invariant `goal.py`, `thread.py` and `workbench.py` already keep.
 
-    ⭐⭐ **A moment may be ABSOLUTE or RELATIVE-and-undefined**, and both are first class. `locate.relate`
+    A moment may be absolute or relative-and-undefined, and both are first class. `locate.relate`
     compares scalars and answers `None` for incomparable ones, which is exactly where *"a minute after the
-    pan is hot"* would land — nowhere. So order is a **partial order over moment nodes** read by
+    pan is hot"* would land — nowhere. So order is a partial order over moment nodes read by
     `path.reaches`: the third ranking in this engine served by that one function, after `authority_over`
     and `contains+`.
 
-    ⚠⚠ Vacuity guards. The four observations of one look must share **one** moment — a per-observation
+    Vacuity guards. The four observations of one look must share one moment — a per-observation
     stamp would pass any "is it dated?" key while being the design that was rejected. An undefined moment
-    must really carry **no** scalar, or "relative" is decoration. And `precedes` must return `False`
-    **both ways** for an unordered pair: *unordered* is not *after*, and collapsing them would invent an
+    must really carry no scalar, or "relative" is decoration. And `precedes` must return `False`
+    both ways for an unordered pair: *unordered* is not *after*, and collapsing them would invent an
     order, which is what `relate` returns `None` to avoid."""
     from . import clock as C, memory as M, thread as T
 
@@ -1015,7 +1015,7 @@ def check_TIME_is_a_node_that_points_at_what_it_dates():
     shared = {C.dated(g, o)[0] for o in obs}
     one_moment = list(shared)[0]
 
-    # ⚠ The moment points at them; they do not point at it.
+    # The moment points at them; they do not point at it.
     points_outward = all(o in g.targets(one_moment, C.DATES) for o in obs)
     nothing_on_the_observation = all(g.attr(o, "at") is None for o in obs)
 
@@ -1052,25 +1052,25 @@ def check_TIME_is_a_node_that_points_at_what_it_dates():
 
 
 def check_an_EDGE_HAS_AN_IDENTITY_and_can_be_pointed_at():
-    """⭐⭐⭐ Substrate slice one. Edges had **no identity**: `eprops` was keyed by `(src, label, index)`
+    """Substrate slice one. Edges had no identity: `eprops` was keyed by `(src, label, index)`
     and reindexed on every insertion, so nothing could refer to an edge and `thread.py` recorded the
     consequence — *"a `prev` edge property cannot be pointed at"*. That blocked *"when did this file
     appear under this directory"*, and it forced three functions of index maintenance
-    (`_reindex` / `_label_props` / `_restore_props`) which this slice **deletes**.
+    (`_reindex` / `_label_props` / `_restore_props`) which this slice deletes.
 
-    **Edges follow the same pattern as nodes** (the user's ruling): a journalled mint, fresh ids in a
-    workbench copy, an id that is an ordinary string. ⭐ That last point is what makes *"what refers to
+    Edges follow the same pattern as nodes (the user's ruling): a journalled mint, fresh ids in a
+    workbench copy, an id that is an ordinary string. That last point is what makes *"what refers to
     this edge?"* free — `inc` is keyed by whatever is pointed at, so an edge is a link target with no
     change to the reverse index at all.
 
-    ⚠ **`eids` runs parallel to `out` rather than packing `(dst, eid)` into it**, because `targets` is the
+    `eids` runs parallel to `out` rather than packing `(dst, eid)` into it, because `targets` is the
     hottest read in the engine (161 call sites) and stays allocation-free. Parallel structures drift, so
-    there is exactly **one writer** — the discipline `thread._append` keeps for the same reason — and this
+    there is exactly one writer — the discipline `thread._append` keeps for the same reason — and this
     check asserts they cannot disagree.
 
-    ⚠⚠ **Two silent bugs this slice introduced and this check exists to have caught.** `drop` popped
+    Two silent bugs this slice introduced and this check exists to have caught. `drop` popped
     `out` without `eids`/`edges`, so `edge_ends` answered confidently about a dropped edge; and
-    `workbench` read `eprops` by the **old** key, silently returning `{}` — a copied edge lost its
+    `workbench` read `eprops` by the old key, silently returning `{}` — a copied edge lost its
     properties and nothing failed, because no check had ever copied one. Both are keys below."""
     from . import workbench as W
 
@@ -1080,12 +1080,12 @@ def check_an_EDGE_HAS_AN_IDENTITY_and_can_be_pointed_at():
     c = g.link(lst, "item", g.mint("item", label="z"), note="last")
     b = g.link_at(lst, "item", 1, g.mint("item", label="y"), note="inserted")
 
-    # ⚠ THE POSITION SHIFTS AND THE ID DOES NOT — the whole point.
+    # The position shifts and the id does NOT — the whole point.
     ids_in_order = g.edge_ids(lst, "item") == (a, b, c)
     props_follow = [g.edge_props(e).get("note") for e in (a, b, c)] == ["first", "inserted", "last"]
     parallel = len(g.out[(lst, "item")]) == len(g.eids[(lst, "item")])
 
-    # An edge is a THING: a moment can date it, and the back-reference is free.
+    # An edge is a thing: a moment can date it, and the back-reference is free.
     from . import clock as C
     when = C.now(g)
     C.stamp(g, when, b)
@@ -1096,21 +1096,21 @@ def check_an_EDGE_HAS_AN_IDENTITY_and_can_be_pointed_at():
     y = g.at(lst, "item", 1)
     named = g.edge_between(lst, "item", y) == b
 
-    # ⚠ Rollback must bring the SAME id back, or anything pointing at the edge dangles.
+    # Rollback must bring the same id back, or anything pointing at the edge dangles.
     sp = g.savepoint()
     g.unlink(lst, "item", index=1)
     gone = g.edge_ends(b) is None and g.edge_props(b) == {}
     g.rollback(sp)
     same_id_back = g.edge_ends(b) == (lst, "item", y) and g.edge_props(b).get("note") == "inserted"
 
-    # ⚠ `drop` must take the id indexes with it.
+    # `drop` must take the id indexes with it.
     g2 = new_graph()
     holder = g2.mint("list")
     e2 = g2.link(holder, "item", g2.mint("item"), note="doomed")
     g2.drop(holder)
     dropped_cleanly = g2.edge_ends(e2) is None and g2.edge_props(e2) == {}
 
-    # ⚠ A workbench copy gets FRESH ids and keeps the properties.
+    # A workbench copy gets fresh ids and keeps the properties.
     g3 = new_graph()
     src = g3.mint("chunk", kind_of="thing", label="src")
     g3.link("root", "has", src)
@@ -1137,30 +1137,30 @@ def check_an_EDGE_HAS_AN_IDENTITY_and_can_be_pointed_at():
 
 
 def check_the_COMPARISONS_reach_the_goal_and_its_three_readers():
-    """⭐⭐ *"the file is bigger than 1k"* — an ordinary thing to want of a goal, and the five comparisons
-    lived **only inside a `type` block**. That was an accident of where the comparison code happened to
+    """*"the file is bigger than 1k"* — an ordinary thing to want of a goal, and the five comparisons
+    lived only inside a `type` block. That was an accident of where the comparison code happened to
     sit, not a decision.
 
-    **⚠ This is why it was not a parser edit.** Three readers assumed equality, and each is wrong in a
+    This is why it was not a parser edit. Three readers assumed equality, and each is wrong in a
     different way once `>=` is legal:
 
     * `goal.holds` compared with `==` — the constraint would never hold;
     * `query.refutes` read *refuted* as `got != want` — but a value may differ and still satisfy `>=`,
-      so it would report a positive **no** about a goal that was fine;
+      so it would report a positive no about a goal that was fine;
     * `conflict.unsatisfiable` called two constraints on one slot contradictory whenever their values
       differed — `size > 10` and `size > 20` are jointly satisfiable, and reporting them impossible
-      **refuses a goal that was achievable**, which is the unsound direction.
+      refuses a goal that was achievable, which is the unsound direction.
 
-    ⭐ All three now go through `types.compare` — the one comparator, made public for exactly this, so
+    All three now go through `types.compare` — the one comparator, made public for exactly this, so
     `>=` cannot come to mean different things in a schema and in a goal.
 
-    ⚠⚠ **And widening the parser reintroduced a defect it had to be given back.** `a.size > b.size` was
+    And widening the parser reintroduced a defect it had to be given back. `a.size > b.size` was
     three words with an unknown middle, so it was read as a link and refused loudly by `parse_link('>')`.
-    With `>` legal it *parses* — and the right-hand side is a **literal**, so it silently became
+    With `>` legal it *parses* — and the right-hand side is a literal, so it silently became
     `a.size > "b.size"`, a string/number comparison that can never hold. Refused explicitly now, pointing
     at the `type` block where relating two places is what the form is for.
 
-    ⚠ Vacuity guard: `conflict` must still catch the contradictions it caught before. Two equalities and
+    Vacuity guard: `conflict` must still catch the contradictions it caught before. Two equalities and
     an equality outside a range are both asserted, or "fewer false positives" is just "detects less"."""
     from . import conflict as CF, goal as G, intake as I
 
@@ -1205,24 +1205,24 @@ def check_the_COMPARISONS_reach_the_goal_and_its_three_readers():
 
 
 def check_an_EDGE_PROPERTY_can_now_be_pointed_at_and_connect_was_kept_anyway():
-    """⭐⭐ A claim in `thread.py` went false, and the thing it justified turned out not to need it.
+    """A claim in `thread.py` went false, and the thing it justified turned out not to need it.
 
     That module said *"a `prev` edge property cannot be pointed at"* — true when `eprops` was keyed by
     `(src, label, index)` and reindexed. Edge identity made it false, so `connect` (which mints a
-    `connection` **node** for anything something else must point at) was re-examined for deletion.
+    `connection` node for anything something else must point at) was re-examined for deletion.
 
-    **⚠ It was KEPT, and the proposal to delete it was wrong.** Two reasons, neither of them the substrate:
+    It was kept, and the proposal to delete it was wrong. Two reasons, neither of them the substrate:
     `connections` filters on `kind == "connection"`, and as an edge a connection would be indistinguishable
     from the structural `at` / `prev` / `step` without a label convention somebody has to remember; and a
     connection has two ends and is itself a subject.
 
-    ⭐ **The finding worth keeping: closing a substrate gap can invalidate the JUSTIFICATION for a design
-    without invalidating the design.** A stale reason is dangerous in its own right — it is what somebody
+    The finding worth keeping: closing a substrate gap can invalidate the justification for a design
+    without invalidating the design. A stale reason is dangerous in its own right — it is what somebody
     copies into a new module because they trusted it — so it was corrected in place rather than deleted,
     and the restated rule is: *ride on the edge what merely describes that edge; mint a node for what has
     its own ends, its own attributes, or must be enumerable as a kind.*
 
-    ⚠ Vacuity guard: the edge property must survive a later **insertion** on the same label, or "pointable"
+    Vacuity guard: the edge property must survive a later insertion on the same label, or "pointable"
     would be true only until the next `link_at` — which is exactly the old defect wearing a new face."""
     from . import clock as C, thread as T
 
@@ -1235,7 +1235,7 @@ def check_an_EDGE_PROPERTY_can_now_be_pointed_at_and_connect_was_kept_anyway():
     when = C.now(g)
     C.stamp(g, when, eid)
 
-    # ⚠ Insert more history, which is what used to shift every property one place along.
+    # Insert more history, which is what used to shift every property one place along.
     T.attend(g, th, "root", why="third move")
     T.attend(g, th, "root", why="fourth move")
 
@@ -1252,7 +1252,7 @@ def check_an_EDGE_PROPERTY_can_now_be_pointed_at_and_connect_was_kept_anyway():
             "BUT_CONNECT_IS_STILL_A_NODE": g.kind(c) == "connection",
             "and_that_is_what_makes_it_enumerable_by_KIND": T.connections(g, a) == (c,),
             "which_an_edge_could_not_be_told_apart_from": structural == {"at", "prev"},
-            # ⚠ Guarding the docstring, deliberately: the stale claim this check exists for lived in one
+            # Guarding the docstring, deliberately: the stale claim this check exists for lived in one
             # for months. The same argument `check_the_CNL_GUIDE_parses` makes — prose nobody is obliged
             # to update rots exactly like a comment.
             "the_superseded_reason_is_recorded_as_superseded":
@@ -1260,22 +1260,22 @@ def check_an_EDGE_PROPERTY_can_now_be_pointed_at_and_connect_was_kept_anyway():
 
 
 def check_authored_knowledge_arrives_as_text_that_can_be_refused():
-    """⭐⭐ THE BORDER, EXTENDED TO EVERYTHING A DOMAIN CONTRIBUTES.
+    """The border, extended to everything a domain contributes.
 
     The standing principle is that microfunctions ship with the engine and *everything a domain contributes
-    is data*. But the border existed for **goals alone**: a guideline or a method could only be authored by
+    is data*. But the border existed for goals alone: a guideline or a method could only be authored by
     calling Python — which is precisely the "reach past the surface and write graph structure" `intake.py`'s
-    docstring says must never happen, because then nothing can refuse it. **The principle was stated and
-    unenforced.** One block grammar now covers all three families.
+    docstring says must never happen, because then nothing can refuse it. The principle was stated and
+    unenforced. One block grammar now covers all three families.
 
-    **⚠ The key that matters is the END-TO-END one.** A parser that produces nodes nobody uses would pass
+    The key that matters is the END-to-END one. A parser that produces nodes nobody uses would pass
     every structural assertion here; what makes the border real is that a method *authored as text* goes on
     to decompose a goal and change the world.
 
-    **⚠ `method` and `procedure` differ ONLY in force** — identical bodies, opposite failure behaviour —
+    `method` and `procedure` differ only in force — identical bodies, opposite failure behaviour —
     which is why the surface makes the author say which word they mean rather than inferring it.
 
-    **⚠ Refusal must leave nothing behind, and now does so via the JOURNAL.** The old goal path dropped its
+    Refusal must leave nothing behind, and now does so via the journal. The old goal path dropped its
     constraints by hand, which had to be kept in step with everything a body could mint. `savepoint`/
     `rollback` is what the journal was built for and this is its first consumer outside this file — which
     also answers the standing note that it should be deleted if nothing used it."""
@@ -1300,7 +1300,7 @@ def check_authored_knowledge_arrives_as_text_that_can_be_refused():
                          "    handles attr clear\n"
                          "    step subject.clear = true")
 
-    # END TO END: a goal authored as text, decomposed by a method authored as text.
+    # END to END: a goal authored as text, decomposed by a method authored as text.
     goal = I.read_goal(g, "goal put a onto b:\n    a on b")
     done = D.attempt(g, goal, T.open_thread(g), world)
 
@@ -1348,18 +1348,18 @@ def _raises(fn, exc) -> bool:
 
 
 def check_a_method_selects_itself_and_a_bad_one_cannot_lose_a_solution():
-    """⭐⭐ The half of slice 4 that was missing: methods as **data that select themselves**, so nobody
+    """The half of slice 4 that was missing: methods as data that select themselves, so nobody
     assembles subgoals by hand.
 
-    **⚠ The key that matters most is the COMPLETENESS guard.** A method prunes by *replacing* enumeration —
+    The key that matters most is the completeness guard. A method prunes by *replacing* enumeration —
     that is where the exponential win lives, and it is why a method cannot be a ranker. The price is that a
-    wrong or non-covering method could make a reachable goal **unreachable**, which is a failure mode
+    wrong or non-covering method could make a reachable goal unreachable, which is a failure mode
     nothing else in this engine has: `guideline.py` can only reorder, `forbid_action` prunes on a proof.
     The only thing between authority and disaster is the `ADVISORY` fallback, so it is checked directly —
-    a goal solvable by search must **stay solvable** when a method that mishandles it is declared.
+    a goal solvable by search must stay solvable when a method that mishandles it is declared.
 
-    **⭐ And context is structural.** A method is generic and cannot name an individual ancestor goal, so a
-    subgoal points at the **method that raised it** and *"within a goal raised by M"* becomes an ordinary
+    And context is structural. A method is generic and cannot name an individual ancestor goal, so a
+    subgoal points at the method that raised it and *"within a goal raised by M"* becomes an ordinary
     walk up `goal.ancestry`. That is what lets a context-conditioned method exist without authors unrolling
     context into position-specific copies — the labelling error `goal.ancestry` exists to prevent."""
     from . import driver as D, goal as G, method as M, thread as T
@@ -1385,7 +1385,7 @@ def check_a_method_selects_itself_and_a_bad_one_cannot_lose_a_solution():
     done1 = D.attempt(g1, goal1, T.open_thread(g1), w1)
     raised1 = G.sequence(g1, goal1)
 
-    # THE COMPLETENESS GUARD: a method that mishandles the goal must not lose the solution.
+    # The completeness guard: a method that mishandles the goal must not lose the solution.
     g2, w2 = _blocks()
     a2, b2, c2 = g2.targets(w2, "block")
     goal2 = G.open_goal(g2, label="A on B on C")
@@ -1412,7 +1412,7 @@ def check_a_method_selects_itself_and_a_bad_one_cannot_lose_a_solution():
     top4 = G.open_goal(g4, label="top")
     c4 = G.require_link(g4, top4, a4, "on", b4)
     raised4 = M.decompose(g4, outer, top4, c4)
-    # ⚠ The negative case must differ ONLY in context. A goal with an `attr`/`clear` constraint that is
+    # The negative case must differ only in context. A goal with an `attr`/`clear` constraint that is
     # NOT beneath `outer` — the first version used the link-constraint goal, so the mismatch was decided
     # by constraint *sort* and the context condition was never exercised at all.
     elsewhere = G.open_goal(g4, label="unrelated")
@@ -1425,7 +1425,7 @@ def check_a_method_selects_itself_and_a_bad_one_cannot_lose_a_solution():
                 G.world_constraints(g1, raised1[0])[0] and
                 g1.target(G.world_constraints(g1, raised1[0])[0], "subject") == b1,
             "and_it_carried_the_goal_out": done1["done"] and g1.target(a1, "on") == b1,
-            # ⚠ A METHOD IS A ROUTE, NOT A REDEFINITION. A goal with its own world constraints keeps
+            # A method is a route, NOT a redefinition. A goal with its own world constraints keeps
             # being judged by them; only a goal with none becomes BY_STEPS. Stamping BY_STEPS on
             # everything destroyed the advisory fallback — see `method.decompose`.
             "a_goal_with_constraints_KEEPS_them": G.met_by(g1, goal1) == G.BY_CONSTRAINTS,
@@ -1454,22 +1454,22 @@ def _raises_valueerror(fn) -> bool:
 
 
 def check_a_procedure_refuses_where_a_method_falls_back():
-    """⭐⭐ SLICE 4: the distinction the whole design turns on — **force is about FAILURE, not strength.**
+    """Slice 4: the distinction the whole design turns on — force is about failure, not strength.
 
     Two decompositions can be written identically and must behave oppositely when a step does not work out.
-    A **method** was a suggestion about how, so falling back to search is right and incompleteness is fine.
-    A **procedure** was the sanctioned way, so falling back would be *improvising*: for it, "could not do
+    A method was a suggestion about how, so falling back to search is right and incompleteness is fine.
+    A procedure was the sanctioned way, so falling back would be *improvising*: for it, "could not do
     it" is a better answer than "did it another way". That inverts every other reflex in `driver` —
     `carry_out` replans, `recover` reaches for contingencies — and the inversion is the feature.
 
-    ⭐ Built on `goal_machinery.md` §8's claim that *"a procedure is this shape plus one sequencing edge"*,
+    Built on an earlier note's claim that *"a procedure is this shape plus one sequencing edge"*,
     which a probe found substantially true: ordered subgoals already ran through `carry_out` unchanged. What
-    was missing was **drive** — nothing walked the order — plus one thing the probe surfaced that the claim
+    was missing was drive — nothing walked the order — plus one thing the probe surfaced that the claim
     did not mention: a procedure's parent has no world constraints of its own, so a satisfaction test that
     only reads constraints calls a perfectly completed procedure unsatisfied. Hence `BY_STEPS`.
 
     Vacuity guards: the impossible step must be genuinely impossible (so the contrast is real), and the
-    method and the procedure must be **structurally identical apart from the declared force**."""
+    method and the procedure must be structurally identical apart from the declared force."""
     from . import driver as D, goal as G, thread as T
 
     def decomposed(force):
@@ -1529,25 +1529,25 @@ def check_a_procedure_refuses_where_a_method_falls_back():
 
 
 def check_a_guideline_reorders_and_can_never_exclude():
-    """⭐⭐ SLICE 2 of `docs/deliberation.md`: authored preference that may be WRONG without being UNSOUND.
+    """Slice 2 of `docs/deliberation.md`: authored preference that may be wrong without being unsound.
 
-    **The property under test is the one that makes advice safe to accept: `avoid` means LATER, never
-    NEVER.** `goal.forbid_action` is the one that means never, and it prunes because a safety breach is a
+    The property under test is the one that makes advice safe to accept: `avoid` means later, never
+    Never. `goal.forbid_action` is the one that means never, and it prunes because a safety breach is a
     *proof*. A guideline is a guess, and the standing rule is rank a guess, prune a proof.
 
-    ⚠ **The decisive case is Sussman's anomaly, reused deliberately.** There, the only route begins with
+    The decisive case is Sussman's anomaly, reused deliberately. There, the only route begins with
     `unstack` — a move that closes no constraint and scores low. `check_a_forbidden_action_prunes...`
-    already shows that *forbidding* `unstack` turns it honestly unsolvable. So **avoiding `unstack` must
-    leave it solved**, or `avoid` has silently become `forbid` and authored advice can lose solutions.
+    already shows that *forbidding* `unstack` turns it honestly unsolvable. So avoiding `unstack` must
+    leave it solved, or `avoid` has silently become `forbid` and authored advice can lose solutions.
     That single contrast is what this check exists for.
 
-    ⚠ **What the planted-bug probes revealed, and it is the more useful half.** A ranker rigged to return
-    -999 for every avoided call — advice behaving as an outright filter — **still solved the anomaly.**
+    What the planted-bug probes revealed, and it is the more useful half. A ranker rigged to return
+    -999 for every avoided call — advice behaving as an outright filter — still solved the anomaly.
     So *"advice cannot exclude" is guaranteed by `pursue`'s architecture, not by anything in
-    `guideline.py`*: the frontier only ever **orders**, so no score however low can put a move out of
+    `guideline.py`*: the frontier only ever orders, so no score however low can put a move out of
     reach. That is exactly why authored advice is safe to accept, and it means this check *demonstrates*
     the property end to end rather than enforcing it. What `guideline.py` must get right on its own is the
-    **band**, and that is what the probes do bite on.
+    band, and that is what the probes do bite on.
 
     Also checked: a guideline never crosses a `relevance` band (the composed score keeps `>= 4` meaning
     exactly what `driver` requires); declaration order is precedence; and `governing` can say afterwards
@@ -1567,7 +1567,7 @@ def check_a_guideline_reorders_and_can_never_exclude():
         G.require_link(g, goal, b, "on", c)
         return g, world, goal
 
-    # THE CONTRAST. Same anomaly, same engine; only the force differs.
+    # The contrast. Same anomaly, same engine; only the force differs.
     g1, w1, goal1 = sussman()
     GL.avoid(g1, function="unstack", because="the crane is slow")
     avoided = D.pursue(g1, goal1, T.open_thread(g1), w1, max_steps=400, max_depth=5,
@@ -1577,7 +1577,7 @@ def check_a_guideline_reorders_and_can_never_exclude():
     G.forbid_action(g2, goal2, function="unstack", reason="the crane is out of service")
     forbidden = D.pursue(g2, goal2, T.open_thread(g2), w2, max_steps=400, max_depth=5)
 
-    # ⚠ Bands must survive, AND the reordering must be real. Advice keyed on a NODE rather than a
+    # Bands must survive, and the reordering must be real. Advice keyed on a node rather than a
     # function is what puts two differently-advised proposals in one band — advising per function put each
     # band's proposals all on the same side, so the first version of this could not have seen a reordering
     # at all. "Settle the base first" is also the kind of thing an author would actually write.
@@ -1621,17 +1621,17 @@ def check_a_guideline_reorders_and_can_never_exclude():
 
 
 def check_the_deliberation_seam_is_inert_by_default_and_live_when_used():
-    """⭐ SLICE 1 of `docs/deliberation.md`: `pursue` gains a decision point and changes nothing.
+    """Slice 1 of `docs/deliberation.md`: `pursue` gains a decision point and changes nothing.
 
     The loop was closed — nothing could intervene between two imagined steps — so "what should I do next?"
     was not an expressible question, only a `while` condition. That made deliberation the thing this system
     computes *with* and cannot compute *about*: the same defect attention had before `thread.py` and the
     goal had before `goal.py`, in its third place.
 
-    **⚠ The vacuity guard is the whole test.** A seam nothing can steer is indistinguishable from no seam,
+    The vacuity guard is the whole test. A seam nothing can steer is indistinguishable from no seam,
     and it would pass any check that only asserted "default behaviour is unchanged" — which is exactly the
     green this project keeps catching as false. So both halves are required: the default path must be
-    **identical**, and a decision must **actually divert** the search.
+    identical, and a decision must actually divert the search.
 
     Also checked: an unbuilt verb raises and names what is missing, rather than being silently ignored;
     and a fired decision reaches the thread, since a decision nobody can audit afterwards is no use to the
@@ -1653,7 +1653,7 @@ def check_the_deliberation_seam_is_inert_by_default_and_live_when_used():
     g1, t1, silent = tower(decide=lambda s: None)             # a decider with nothing to say
     g2, t2, always = tower(decide=lambda s: D.EXPAND)          # ...and one that says the default aloud
 
-    # THE VACUITY GUARD: a decision must be able to change the outcome, or none of the above means anything.
+    # The vacuity guard: a decision must be able to change the outcome, or none of the above means anything.
     g3, t3, stopped = tower(decide=lambda s: (D.COMMIT, "that's enough planning"))
 
     def unbuilt(verb):
@@ -1672,16 +1672,16 @@ def check_the_deliberation_seam_is_inert_by_default_and_live_when_used():
             "it_stopped_before_imagining_anything": stopped["steps"] == 0,
             "and_hands_back_the_prefix_it_had": "plan" in stopped and "frame" in stopped,
             "it_says_who_stopped_it": stopped["why"] == "that's enough planning",
-            # ⚠ `why` is an edge property of the TRANSITION, not an attribute of the entry — read it
+            # `why` is an edge property of the transition, not an attribute of the entry — read it
             # through `thread.why`. Reading `g.attr(entry, "why")` returns None and this key was silently
-            # False until the tally caught it, which is §5g's lesson landing on its own author.
+            # False until the tally caught it, which is's lesson landing on its own author.
             "AND_IT_REACHES_THE_THREAD": any(
                 "decided to commit" in (T.why(g3, e) or "") for e in T.entries(g3, t3)),
             "nothing_reached_the_thread_by_default": not any(
                 "decided to" in (T.why(g0, e) or "") for e in T.entries(g0, t0)),
-            # ⚠ Updated as the machinery landed. `SENSE` is now a real stop (ignorance exists), and
+            # Updated as the machinery landed. `SENSE` is now a real stop (ignorance exists), and
             # `DECOMPOSE` no longer raises for want of a goal hierarchy — it raises because a method
-            # applies once per GOAL (`driver.attempt`), never once per search step. Frequency, not absence.
+            # applies once per goal (`driver.attempt`), never once per search step. Frequency, not absence.
             "DECOMPOSE_raises_and_says_it_is_the_wrong_FREQUENCY":
                 "per GOAL" in (unbuilt(D.DECOMPOSE) or ""),
             "SENSE_is_no_longer_unbuilt": unbuilt(D.SENSE) is None,
@@ -1728,9 +1728,9 @@ def check_fork_explores_two_candidates_without_copying_the_world():
     f.fork("alt", "h")
     f.move(g, "h", "option", 0)
     f.move(g, "alt", "option", 1)
-    # ⚠ This used to assert `len(g.nodes) == 3`, which stopped meaning "the world was not copied" the
+    # This used to assert `len(g.nodes) == 3`, which stopped meaning "the world was not copied" the
     # moment the heads themselves became graph data. What it always meant is asserted directly instead:
-    # the two candidates are still the SAME two nodes, not images of them, and forking cost two heads.
+    # the two candidates are still the same two nodes, not images of them, and forking cost two heads.
     return {"two_heads": (f.at("h"), f.at("alt")) == (a, b),
             "the_world_was_not_copied": g.of_kind("car") == (a, b),
             "forking_cost_one_head": f.names == ("alt", "h")}
@@ -1767,7 +1767,7 @@ def _car_world():
 
 
 def check_type_is_graph_data_and_validation_discriminates():
-    """⚠ `schema_of` answers with `Req`s now, not bare `(kind, count)` pairs — a count is a RANGE and a
+    """`schema_of` answers with `Req`s now, not bare `(kind, count)` pairs — a count is a range and a
     target may be constrained by type as well as kind. The two-tuple stays legal to *write*, and this
     pins that it still means what it always meant: exactly four, of that kind, nothing said about more."""
     from .types import Req
@@ -1894,8 +1894,8 @@ def check_isa_focus_opcodes_navigate():
 
 
 def check_isa_is_pointed_not_matched():
-    """THE structural claim: an instruction names the head it acts on. Two identical cars exist; the
-    program touches the one it was pointed at. Vacuity guard: assert the OTHER is untouched."""
+    """The structural claim: an instruction names the head it acts on. Two identical cars exist; the
+    program touches the one it was pointed at. Vacuity guard: assert the other is untouched."""
     g = new_graph()
     a, b = g.mint("car"), g.mint("car")
     g.link("root", "option", a)
@@ -1951,16 +1951,16 @@ def _counting_function(g):
 
 
 def check_the_executor_can_be_STOPPED_BETWEEN_ANY_TWO_INSTRUCTIONS():
-    """⭐⭐⭐ **The test the whole arc is organised around** (the design notes): *can the executor be stopped
+    """The test the whole arc is organised around: *can the executor be stopped
     between any two primitive operations, and can the system say what it was doing?*
 
-    Before this, no. §5z made **planning** steppable — but `isa.Machine._loop` was an ordinary Python
+    Before this, no. made planning steppable — but `isa.Machine._loop` was an ordinary Python
     `while` holding `pc`, `stack` and `regs` as locals, so the `think` microfunction that drives the
-    steppable search ran inside an **atomic** invocation. Steppability at the wrong level: one seam removed
+    steppable search ran inside an atomic invocation. Steppability at the wrong level: one seam removed
     and an identical one left below it, inverted.
 
-    ⚠ **Two vacuity guards, and between them they are the check.** First, driving it by hand must reach the
-    **same answer** as `run` — a yield point that changed the computation would be a fork, not a seam.
+    Two vacuity guards, and between them they are the check. First, driving it by hand must reach the
+    same answer as `run` — a yield point that changed the computation would be a fork, not a seam.
     Second, it must genuinely be *mid-flight* at a pause: unfinished, with the loop counter partway to its
     final value. A `tick` that quietly ran the whole program and returned once would pass every structural
     assertion here."""
@@ -1982,7 +1982,7 @@ def check_the_executor_can_be_STOPPED_BETWEEN_ANY_TWO_INSTRUCTIONS():
     while Machine(program).tick(g, act):
         turns += 1
         if A.get_reg(g, act, "i") == 2:
-            # ⭐ STOPPED. Everything about what it is doing is graph data, read here as data.
+            # Stopped. Everything about what it is doing is graph data, read here as data.
             paused.append({"pc": A.pc(g, act), "doing": g.attr(A.doing(g, act), "op"),
                            "says": A.describe(g, act), "regs": A.registers(g, act),
                            "head": focus.at("c"), "finished": A.finished(g, act)})
@@ -2001,14 +2001,14 @@ def check_the_executor_can_be_STOPPED_BETWEEN_ANY_TWO_INSTRUCTIONS():
 
 
 def check_a_paused_program_is_readable_by_an_ORDINARY_MICROFUNCTION():
-    """⭐⭐ The homoiconicity claim, applied to the interpreter itself: a **stored** microfunction reads the
-    state of a **paused** one. Nothing new was needed for it — an activation is a node, a register is a
+    """The homoiconicity claim, applied to the interpreter itself: a stored microfunction reads the
+    state of a paused one. Nothing new was needed for it — an activation is a node, a register is a
     node, so `GET`/`ATTR` reach them the way they reach anything else.
 
-    Same move as `thread.py`'s walker check (§5b): if walking the new structure needed a new opcode, the
+    Same move as `thread.py`'s walker check: if walking the new structure needed a new opcode, the
     structure would not really be ordinary data. It does not.
 
-    ⚠ Vacuity guard: the reader must be looking at a program that is genuinely **suspended**, not one that
+    Vacuity guard: the reader must be looking at a program that is genuinely suspended, not one that
     has finished — so it is asserted unfinished *before* the reader runs, and the value it reads back must
     be the intermediate one, not the final one."""
     from . import activation as A, asm, function as fn
@@ -2045,11 +2045,11 @@ def check_a_paused_program_is_readable_by_an_ORDINARY_MICROFUNCTION():
 
 
 def check_an_invocation_knows_what_called_it():
-    """⭐ A nested `INVOKE` used to be a nested Python frame — invisible to the system running it — so
+    """A nested `INVOKE` used to be a nested Python frame — invisible to the system running it — so
     *"what was it doing?"* could only ever answer about the outermost program. The callee now points at its
     caller, and `activation.chain` is the ISA's own stack trace.
 
-    ⚠ Vacuity guard: the chain must be **two deep and in the right order**, and the outer activation must
+    Vacuity guard: the chain must be two deep and in the right order, and the outer activation must
     be the one that is *not* pointed at, or a chain of length two proves nothing about direction."""
     from . import activation as A, asm, function as fn
     g = new_graph()
@@ -2074,8 +2074,8 @@ def check_an_invocation_knows_what_called_it():
 
 
 def check_a_finished_activation_is_retired_but_a_LIVE_one_cannot_be():
-    """⚠ Retirement is not the same as being uninterruptible. A finished activation is not state anybody
-    can be *inside* of, so `run` drops it — but `retire` **refuses** a live one, because the whole point of
+    """Retirement is not the same as being uninterruptible. A finished activation is not state anybody
+    can be *inside* of, so `run` drops it — but `retire` refuses a live one, because the whole point of
     materialising the state was that something may be stopped in the middle of it.
 
     Same shape as `dispatch.commit()`: the honest admission that a boundary has been crossed, not a licence
@@ -2103,11 +2103,11 @@ def check_a_finished_activation_is_retired_but_a_LIVE_one_cannot_be():
 
 
 def check_carrying_a_plan_OUT_is_steppable_and_the_steps_are_the_IRREVERSIBLE_ones():
-    """⭐⭐ `execution._replay` was a Python `for` — so the one loop that *touches the world* was the one
+    """`execution._replay` was a Python `for` — so the one loop that *touches the world* was the one
     the system could say least about mid-flight. It is now a `replay` node and `execution.step`, and
     `execute` is a loop over it.
 
-    ⚠ **Vacuity guards.** Driving it by hand must reach the same report as `execute` — a yield point that
+    Vacuity guards. Driving it by hand must reach the same report as `execute` — a yield point that
     changed the outcome would be a fork. And the pause must be observably *between two real actions*: the
     first block really moved and the second really did not, which is the whole reason a yield point here is
     worth more than one anywhere else."""
@@ -2123,16 +2123,16 @@ def check_carrying_a_plan_OUT_is_steppable_and_the_steps_are_the_IRREVERSIBLE_on
     a, b, c = g2.targets(w2, "block")
     on_before = (g2.target(a, "on"), g2.target(b, "on"))
     r = X.open_execution(g2, plan2["workbench"], plan2["frame"])
-    X.step(g2, r)                                     # exactly ONE real action
+    X.step(g2, r)                                     # exactly one real action
     mid = {"finished": X.finished(g2, r), "ran": g2.attr(r, "ran", ()), "at": g2.attr(r, "at"),
            "on": (g2.target(a, "on"), g2.target(b, "on"))}
     turns = 1
-    while not X.finished(g2, r):                      # ⚠ `step` answers "is there more", not "did I act"
+    while not X.finished(g2, r):                      # `step` answers "is there more", not "did I act"
         X.step(g2, r)
         turns += 1
     by_hand = X.report_of(g2, r)
 
-    # ⚠ "One move happened and the other did not" is asserted against what CHANGED, not against what is
+    # "One move happened and the other did not" is asserted against what changed, not against what is
     # non-empty: every block starts `on` the ground, so a null check would have passed before anything ran.
     moved = sum(1 for was, now in zip(on_before, mid["on"]) if was != now)
     return {"driven_by_hand_ran_the_same_steps": by_hand["ran"] == whole["ran"] != (),
@@ -2145,14 +2145,14 @@ def check_carrying_a_plan_OUT_is_steppable_and_the_steps_are_the_IRREVERSIBLE_on
 
 
 def check_the_WHOLE_plan_act_check_loop_is_steppable():
-    """⭐⭐⭐ `driver.carry_out` was the last Python control loop, and the outermost one: the system could
+    """`driver.carry_out` was the last Python control loop, and the outermost one: the system could
     be inside a plan-act-check-replan cycle and unable to say so. It is now a `pursuit` node whose phases
-    are data, and one tick is one **primitive** step — one imagined state, one real action, or one phase
+    are data, and one tick is one primitive step — one imagined state, one real action, or one phase
     transition.
 
-    ⚠ **Vacuity guards.** The by-hand drive must reach the same verdict as `carry_out`; the pursuit must
-    be caught in **more than one phase**, or a single-phase run would prove nothing about the state machine;
-    and it must take **many more ticks than there are attempts**, which is what distinguishes *a tick is a
+    Vacuity guards. The by-hand drive must reach the same verdict as `carry_out`; the pursuit must
+    be caught in more than one phase, or a single-phase run would prove nothing about the state machine;
+    and it must take many more ticks than there are attempts, which is what distinguishes *a tick is a
     primitive step* from *a tick is an attempt*."""
     from . import driver as D, intake as I, thread as T
     text = _lines("goal build a tower:", "    a on b", "    b on c")
@@ -2180,16 +2180,16 @@ def check_the_WHOLE_plan_act_check_loop_is_steppable():
 
 
 def check_ONE_OUTER_LOOP_interleaves_everything_and_names_the_irreversible_step():
-    """⭐⭐⭐ **The arc's destination** (the design notes): a single outer loop, everything on one agenda, one
+    """The arc's destination: a single outer loop, everything on one agenda, one
     primitive step per tick, nothing that cannot be interrupted.
 
     Two unrelated tasks — a stored microfunction and a whole goal-pursuit — are scheduled together and
-    genuinely **interleave**, because the agenda is an ordered edge and `tick` rotates it. And the loop can
+    genuinely interleave, because the agenda is an ordered edge and `tick` rotates it. And the loop can
     say, *before* taking a step, whether that step is reversible: `imagine` costs time, `act` cannot be
-    taken back. That asymmetry is the one thing §6b says must not become uniform.
+    taken back. That asymmetry is the one thing says must not become uniform.
 
-    ⚠ **Vacuity guards.** The interleaving must be observable — both tasks must have advanced before
-    either finished, or "round-robin" would be a claim about nothing. The verbs must include **both**
+    Vacuity guards. The interleaving must be observable — both tasks must have advanced before
+    either finished, or "round-robin" would be a claim about nothing. The verbs must include both
     `imagine` and `act`, or `verb_of` could be returning a constant. And an `act` must really have been
     available to decline, or the stopping rule would be untested."""
     from . import driver as D, intake as I, loop as L, thread as T, function as fn
@@ -2211,7 +2211,7 @@ def check_ONE_OUTER_LOOP_interleaves_everything_and_names_the_irreversible_step(
     a, b, _c = g.targets(w, "block")
     untouched = (g.target(a, "on"), g.target(b, "on"))
 
-    # ⭐ Stop BEFORE the first irreversible step — read the verb off the head of the agenda and decline.
+    # Stop BEFORE the first irreversible step — read the verb off the head of the agenda and decline.
     verbs, advanced, kinds_in_order = [], set(), []
     first_act = None
     while L.agenda(g, lp):
@@ -2226,8 +2226,8 @@ def check_ONE_OUTER_LOOP_interleaves_everything_and_names_the_irreversible_step(
         advanced.add(rec["kind"])
         kinds_in_order.append(rec["kind"])
 
-    # ⚠ THE WORLD, READ AT THE MOMENT WE DECLINED. An earlier version of this key was the literal `True`,
-    # which is the false-green §7 keeps catching — it asserted nothing at exactly the point the check
+    # The world, read AT the MOMENT we declined. An earlier version of this key was the literal `True`,
+    # which is the false-green keeps catching — it asserted nothing at exactly the point the check
     # exists to make a claim about.
     still_untouched = (g.target(a, "on"), g.target(b, "on")) == untouched
     then = L.run(g, lp, max_ticks=400)                # and it carries on when we let it
@@ -2244,11 +2244,11 @@ def check_ONE_OUTER_LOOP_interleaves_everything_and_names_the_irreversible_step(
 
 
 def check_the_loop_refuses_a_program_it_cannot_reconstruct():
-    """⚠ DELIBERATE NEGATIVE, and it is the honest boundary of the whole arc. An activation whose program
+    """Deliberate negative, and it is the honest boundary of the whole arc. An activation whose program
     exists only as a Python tuple cannot be resumed by anything but the caller holding it — which is the
     unreachable island `composability-principle` warns about. The loop says so instead of skipping it.
 
-    Vacuity guard: the same program **stored** as a function is driven by the loop without complaint, so
+    Vacuity guard: the same program stored as a function is driven by the loop without complaint, so
     the refusal is about reconstructability and not about activations."""
     from . import asm, function as fn, loop as L
     from .isa import Machine, CONST
@@ -2273,11 +2273,11 @@ def check_the_loop_refuses_a_program_it_cannot_reconstruct():
 
 
 def check_a_tool_says_whether_it_LOOKS_or_ACTS():
-    """⭐ the design notes named this as a concrete gap: `dispatch.register` took any callable and nothing said
+    """An earlier note named this as a concrete gap: `dispatch.register` took any callable and nothing said
     whether a tool observes or changes, so the veto and commit machinery treated a directory scan and a
-    sent email identically. `loop.verb_of` needs it to tell **look** from **act**.
+    sent email identically. `loop.verb_of` needs it to tell look from act.
 
-    ⚠ The default is the SAFE one — unmarked means *acts* — because being wrong that way costs a pause and
+    The default is the safe one — unmarked means *acts* — because being wrong that way costs a pause and
     being wrong the other way spends an irreversible act somebody meant to withhold. Vacuity guard: the two
     tools are registered identically apart from that one flag, and must be classified oppositely."""
     from . import asm, dispatch as D, function as fn, loop as L
@@ -2306,20 +2306,20 @@ def check_a_tool_says_whether_it_LOOKS_or_ACTS():
 
 
 def check_a_BLOCKING_microfunction_still_interleaves_because_every_level_ticks():
-    """⭐⭐⭐ **Three levels of stepping compose, and that is what retires the case for CPS.**
+    """Three levels of stepping compose, and that is what retires the case for cps.
 
     `think` is a microfunction that spins on `STEP` until its search finishes — a *blocking* program by any
-    ordinary reading, and the design notes called it "an interruptible search driven from inside an **atomic**
-    invocation". It is not atomic any more. The outer loop advances the **activation** one instruction at a
-    time, that instruction advances the **search** one imagined state at a time, and unrelated work on the
-    agenda runs in between. So a program does **not** have to be rewritten in continuation-passing style to
+    ordinary reading, and an earlier note called it "an interruptible search driven from inside an atomic
+    invocation". It is not atomic any more. The outer loop advances the activation one instruction at a
+    time, that instruction advances the search one imagined state at a time, and unrelated work on the
+    agenda runs in between. So a program does not have to be rewritten in continuation-passing style to
     stop holding the loop.
 
-    That matters because it removes the last practical motive for §6b's strong version (b): the reason to
+    That matters because it removes the last practical motive for's strong version (b): the reason to
     forbid backward jumps was that `think`'s loop was uninterruptible, and it no longer is.
 
-    ⚠ **Vacuity guards, and they carry the whole claim.** The other task must advance **while the search
-    inside `think` is genuinely unfinished** — not merely before or after it — or "interleaving" would be a
+    Vacuity guards, and they carry the whole claim. The other task must advance while the search
+    inside `think` is genuinely unfinished — not merely before or after it — or "interleaving" would be a
     statement about scheduling two things that never overlapped. And `think` must still reach the same plan
     as `pursue`, at the same cost, or the interleaving was bought by changing the computation."""
     from . import asm, driver as D, function as fn, intake as I, loop as L, thread as T
@@ -2352,7 +2352,7 @@ def check_a_BLOCKING_microfunction_still_interleaves_because_every_level_ticks()
     L.schedule(g, lp, thinking)
     L.schedule(g, lp, counting)
 
-    # ⚠ Watch for the discriminating moment: the OTHER task advancing while `think`'s search is open and
+    # Watch for the discriminating moment: the other task advancing while `think`'s search is open and
     # unfinished. Anything less would not distinguish interleaving from running them back to back.
     overlapped = False
     while L.agenda(g, lp):
@@ -2386,33 +2386,33 @@ def _reg_of(g, activation, name):
 
 
 def check_the_system_can_JUDGE_ITS_OWN_COMPUTATION_and_act_on_the_judgement():
-    """⭐⭐⭐ **"I have been planning for too long" — as an ordinary microfunction, watching an ordinary
-    task, on the ordinary agenda.**
+    """"I have been planning for too long" — as an ordinary microfunction, watching an ordinary
+    task, on the ordinary agenda.
 
     This is what materialising every control loop was *for*, and it is worth stating plainly because no
     single slice delivered it: once the state of a running computation is graph data, a rule can read it;
-    once the reader is a task on the same agenda, it runs **while** the thing it is watching is still
+    once the reader is a task on the same agenda, it runs while the thing it is watching is still
     running; and once `stop` is data, the judgement has an effect. Monitoring and control of the system's
-    own process, with **no mechanism that was built for it** — the watcher below is text, and the engine
+    own process, with no mechanism that was built for it — the watcher below is text, and the engine
     change it needed was one attribute lookup.
 
-    ⚠ It is worth being exact about the claim: this is *metacognitive monitoring* in the plain functional
+    It is worth being exact about the claim: this is *metacognitive monitoring* in the plain functional
     sense — the system's own computational process is an object it can inspect and steer, the way it can
     inspect a goal or a plan. It says nothing about anything else the word "self" is used for.
 
-    ⭐ **And it is a third, independent argument against §6b's (b).** A watcher must poll, so it *needs*
-    repetition; under (b) it could not be written as one microfunction at all. §6e reached the same
+    And it is a third, independent argument against's (b). A watcher must poll, so it *needs*
+    repetition; under (b) it could not be written as one microfunction at all. reached the same
     conclusion from exactness and from termination.
 
-    ⚠ **Vacuity guards, and the check is mostly guards.** The verdict must be written while the search is
-    genuinely **still open** — a judgement delivered after the fact is not monitoring. The identical search
-    with a generous budget must **succeed**, or the stop would be indistinguishable from exhaustion. And
+    Vacuity guards, and the check is mostly guards. The verdict must be written while the search is
+    genuinely still open — a judgement delivered after the fact is not monitoring. The identical search
+    with a generous budget must succeed, or the stop would be indistinguishable from exhaustion. And
     the world must be untouched, since planning was stopped before anything was carried out."""
     from . import asm, driver as D, function as fn, intake as I, loop as L, thread as T
     from .isa import Machine
     text = _lines("goal build a tower:", "    a on b", "    b on c")
 
-    # The watcher, authored as TEXT. It reads a search node and judges it.
+    # The watcher, authored as text. It reads a search node and judges it.
     def world():
         g, w = _blocks()
         asm.load_text(g, _lines(
@@ -2455,10 +2455,10 @@ def check_the_system_can_JUDGE_ITS_OWN_COMPUTATION_and_act_on_the_judgement():
     a, b, _c = g.targets(w, "block")
     generous, _w2, p2, s2, _j2 = run_with(400)        # the control: same everything, budget it will not
 
-    # ⚠ THE FULL COST IS MEASURED FROM THE CONTROL, NEVER PINNED TO A LITERAL. This check used to compare
+    # The full cost is measured from the control, never pinned to a literal. This check used to compare
     # against a hardcoded 67, three times. That number was the blind search's cost *under the alphabetical
     # ordering of `function.names`* — an undeclared tie-break, and a blind control has no band, so the
-    # tie-break was its entire ordering. Declaring the order (declaration order, 2026-08-01) moved it to 28
+    # tie-break was its entire ordering. Declaring the order (declaration order moved it to 28
     # and turned this check red, which is the right outcome for a pin on an arbitrary number and the wrong
     # one for what the check is actually about. What it means to assert is *"the watcher stopped it earlier
     # than the same search unwatched"* — a relation between two runs in this process, which is stable under
@@ -2473,7 +2473,7 @@ def check_the_system_can_JUDGE_ITS_OWN_COMPUTATION_and_act_on_the_judgement():
             "it_stopped_EARLY_not_at_the_budget": g.attr(s, "steps") < full,
             "THE_WORLD_IS_UNTOUCHED": g.target(a, "on") != b,
             "the_pursuit_gave_up_honestly": not g.attr(p, "done"),
-            # ⚠ the control: without the watcher's verdict the identical search SUCCEEDS, so the stop is
+            # the control: without the watcher's verdict the identical search succeeds, so the stop is
             # what ended it and not exhaustion or a bad goal
             "AND_THE_SAME_SEARCH_UNWATCHED_SUCCEEDS": generous.attr(p2, "done") is True,
             "and_it_really_did_search_rather_than_stumble_on_it": full > g.attr(s, "steps") > 0,
@@ -2493,7 +2493,7 @@ def _worked_session():
 
 
 def _still_answerable(g, world, th):
-    """The questions the engine can answer from its past. **This is the specification of forgetting**:
+    """The questions the engine can answer from its past. This is the specification of forgetting:
     whatever it drops, every one of these must come back the same."""
     from . import conflict as C, driver as D, goal as G, query as Q, thread as T
     a, b, c = g.targets(world, "block")
@@ -2525,23 +2525,23 @@ def _a_constraint(g, subject, obj):
 
 
 def check_FORGETTING_IS_THE_DEFAULT_and_no_answer_changes():
-    """⭐⭐⭐ **Forgetting is the default; remembering is the exception** — the user's rule, 2026-08-01.
+    """Forgetting is the default; remembering is the exception — the user's rule.
 
-    Measured: three ordinary goals on a three-block world take it from 80 nodes to 892, of which **76% is
-    scaffolding** — searches, candidates, trace steps, frames, mappings, replays, activations, registers.
+    Measured: three ordinary goals on a three-block world take it from 80 nodes to 892, of which 76% is
+    scaffolding — searches, candidates, trace steps, frames, mappings, replays, activations, registers.
     None of it is a leak; it is what made the system able to say what it was doing. But it is all
-    **re-derivable from the goal and the library, by thinking again**, and that is the line:
+    re-derivable from the goal and the library, by thinking again, and that is the line:
 
-    > Keep what you cannot re-derive. The two irreducible kinds are **a crossing of the world** and **a
-    > surprise**. Everything else is ordinary.
+    > Keep what you cannot re-derive. The two irreducible kinds are a crossing of the world and a
+    > surprise. Everything else is ordinary.
 
-    ⚠ **This is not a reversal of §6a**, which looks like it says the opposite. §6a's *retention defaults
-    to KEEP* was argued about **sightings** — results of tool calls — and every one of those is kept here.
-    Scaffolding is the category §6a never had, because the outer-loop arc had not created it yet.
+    This is not a reversal, which looks like it says the opposite.'s *retention defaults
+    to keep* was argued about sightings — results of tool calls — and every one of those is kept here.
+    Scaffolding is the category never had, because the outer-loop arc had not created it yet.
 
-    ⚠⚠ **THE CHECK IS NOT THE NODE COUNT — IT IS THAT NOTHING BECAME UNANSWERABLE.** A forgetting pass
+    The CHECK is NOT the node COUNT — it is that nothing became unanswerable. A forgetting pass
     that dropped everything would score beautifully on size. So every question the engine can ask of its
-    past is asked *before* and *after*, and they must come back **identical**: what is true, why, what I
+    past is asked *before* and *after*, and they must come back identical: what is true, why, what I
     did, whether two intentions collided, which goals are met, and whether the library still thinks."""
     from . import forget as FG, loop as L
     g, world, th = _worked_session()
@@ -2563,44 +2563,44 @@ def check_FORGETTING_IS_THE_DEFAULT_and_no_answer_changes():
             "AND_SO_DID_WHAT_I_DID": "application" in kinds_left,
             "but_the_search_scaffolding_is_gone":
                 not ({"candidate", "trace_step", "signature"} & kinds_left),
-            # ⚠ THE KEY THAT CATCHES A PARTIAL SWEEP. Everything still here must be here *for a
+            # The key that catches a partial sweep. Everything still here must be here *for a
             # reason* — the worklist bug (indexing an edge list that `drop` shrinks) left unreachable
             # records behind while every other key above stayed green.
             "EVERY_SURVIVOR_IS_KEPT_FOR_A_REASON": all(
                 FG.kept_because(g, n) != "nothing keeps it"
                 for n in g.nodes if g.kind(n) != "forgetting"),
-            # ⭐ and the sweep itself is ordinary: a finished pass is re-derivable scaffolding like any
-            # other, so the NEXT one forgets it. Nothing here is exempt from its own rule.
+            # and the sweep itself is ordinary: a finished pass is re-derivable scaffolding like any
+            # other, so the next one forgets it. Nothing here is exempt from its own rule.
             "AND_THE_SWEEP_IS_ITSELF_FORGETTABLE": f in FG.doomed(g),
             "it_forgot_one_record_per_tick": out["ticks"] == g.attr(f, "at"),
             "before": before_nodes, "after": len(g.nodes)}
 
 
 def check_IMAGINED_evidence_is_superseded_by_REAL_evidence():
-    """⭐⭐ §6a's `COMPACT`, and it turned out to be a **rule rather than a mechanism** — the whole of it is
+    """'s `COMPACT`, and it turned out to be a rule rather than a mechanism — the whole of it is
     knowing when a record is superseded.
 
     `goal.py` already keeps two kinds of evidence rigorously apart, because conflating them was a real
-    defect (§5g: the driver closed a world goal on imagined evidence, so a goal read as *met* while nothing
+    defect (: the driver closed a world goal on imagined evidence, so a goal read as *met* while nothing
     had happened). `planned` + `seen_in` is *I know how to do this*, pointing at an imagined frame;
-    `closed` + `met_by` is *this is now true*, pointing at a real node. **Once the second exists, the first
-    is a snapshot of a world that no longer does** — and one edge into one frame keeps every frame, mapping
+    `closed` + `met_by` is *this is now true*, pointing at a real node. Once the second exists, the first
+    is a snapshot of a world that no longer does — and one edge into one frame keeps every frame, mapping
     and transformation reachable from it alive.
 
-    Measured: **51 further nodes**, 22% of what survives an ordinary sweep.
+    Measured: 51 further nodes, 22% of what survives an ordinary sweep.
 
-    ⚠⚠ **The vacuity guard is the whole correctness condition.** A goal that was *planned and not carried
+    The vacuity guard is the whole correctness condition. A goal that was *planned and not carried
     out* has no other evidence — its imagined frame is the only account of how it would be met, and
     `execution.recover` needs the frame tree it belongs to. So the check requires the two goals to be
-    treated **oppositely**, and a compaction that ignored `closed` would be forgetting the plan rather than
-    tidying up. ⚠ `planned` itself survives on both: what goes is only the pointer into the imagination."""
+    treated oppositely, and a compaction that ignored `closed` would be forgetting the plan rather than
+    tidying up. `planned` itself survives on both: what goes is only the pointer into the imagination."""
     from . import driver as D, forget as FG, goal as G, intake as I, loop as L, thread as T
     g, world = _blocks()
     th = T.open_thread(g, "t")
     done = I.read_goal(g, _lines("goal build a tower:", "    a on b", "    b on c"))
     D.carry_out(g, done, th, world, max_steps=200)
 
-    # a second goal that is PLANNED and never carried out — the contrast
+    # a second goal that is planned and never carried out — the contrast
     merely = I.read_goal(g, _lines("goal put a on c:", "    a on c"))
     plan = D.pursue(g, merely, th, world, max_steps=200)
 
@@ -2624,20 +2624,20 @@ def check_IMAGINED_evidence_is_superseded_by_REAL_evidence():
 
 
 def check_A_TOOL_CALL_AND_A_SURPRISE_are_what_survives():
-    """⭐⭐⭐ **The two exceptions the rule is actually about** — *the result of a tool call*, and
-    *something that surprised us* — and until this existed **nothing tested either of them.** The blocks
+    """The two exceptions the rule is actually about — *the result of a tool call*, and
+    *something that surprised us* — and until this existed nothing tested either of them. The blocks
     world never dispatches, so it produces zero observations; a sweep over it could have dropped every
     observation there is and every key would have stayed green. Caught by a planted-bug probe that removed
     `observation` from the roots and changed nothing.
 
     Here the agent really looks at a directory whose contents move under it. What must survive:
 
-    * **what it saw**, because a tool call cannot be re-done — the world has moved on, and re-doing it may
+    * what it saw, because a tool call cannot be re-done — the world has moved on, and re-doing it may
       not even be safe;
-    * **what surprised it** — a change nothing it did could account for (`memory.attribute` → `EXTERNAL`),
+    * what surprised it — a change nothing it did could account for (`memory.attribute` → `EXTERNAL`),
       which is information precisely because the system's own model did not predict it.
 
-    ⚠ Vacuity guards: the sweep must actually drop something, the belief must be **re-readable** after it
+    Vacuity guards: the sweep must actually drop something, the belief must be re-readable after it
     (not merely present as a node), and the *unsurprising* half of the past must be gone — otherwise
     "remembering is the exception" would be indistinguishable from remembering everything."""
     from . import forget as FG, loop as L, memory as M
@@ -2648,7 +2648,7 @@ def check_A_TOOL_CALL_AND_A_SURPRISE_are_what_survives():
     from . import function as fn, thread as T
     fn.invoke(g, "empty_it", {"d": d})                # and this change IS mine
     T.applied(g, th, "empty_it", {"d": d}, why="tidying up", done=True)
-    disk["count"] = 0                                 # ⚠ the world must agree, or the next scan
+    disk["count"] = 0                                 # the world must agree, or the next scan
     look()                                            #    overwrites it and the sighting reads 5 again
 
     seen_before = tuple(g.attr(o, "value") for o in M.sightings(g, th, d, "count"))
@@ -2674,13 +2674,13 @@ def check_A_TOOL_CALL_AND_A_SURPRISE_are_what_survives():
 
 
 def check_a_LIVE_computation_is_never_forgotten():
-    """⚠ The one way forgetting can be catastrophic rather than merely lossy: sweeping work that is still
+    """The one way forgetting can be catastrophic rather than merely lossy: sweeping work that is still
     in progress. A task on an agenda is not scaffolding, it is *what the system is doing*.
 
-    ⭐ It needs no special case — a live task is passed as an extra **root**, and the transitive closure
+    It needs no special case — a live task is passed as an extra root, and the transitive closure
     does the rest, because a pursuit points at its search which points at its workbench.
 
-    ⚠ Vacuity guard: the pursuit must be genuinely **mid-flight** when the sweep is computed (a search open
+    Vacuity guard: the pursuit must be genuinely mid-flight when the sweep is computed (a search open
     and unfinished), and it must still complete and change the world afterwards. A sweep run against an
     already-finished pursuit would prove nothing."""
     from . import driver as D, forget as FG, intake as I, loop as L, thread as T
@@ -2707,10 +2707,10 @@ def check_a_LIVE_computation_is_never_forgotten():
 
 
 def check_forgetting_says_what_it_still_remembers_and_why():
-    """⭐ *What do you still remember, and why?* has to be answerable, or "remembering is the exception"
+    """*What do you still remember, and why?* has to be answerable, or "remembering is the exception"
     is a slogan rather than a rule anybody could audit.
 
-    Vacuity guard: the two exceptions the user named — **the result of a tool call** and **a surprise** —
+    Vacuity guard: the two exceptions the user named — the result of a tool call and a surprise —
     must be distinguishable from each other and from the world, so the reasons must not collapse to one."""
     from . import dispatch as DI, forget as FG
     g, _car, _t = _car_world()
@@ -2732,7 +2732,7 @@ def check_forgetting_says_what_it_still_remembers_and_why():
 
 
 def _warehouse(nested: bool = True):
-    """A box inside a warehouse — §5x's measurement case for the word *where*. With `nested`, the parcel
+    """A box inside a warehouse's measurement case for the word *where*. With `nested`, the parcel
     is already in the box (so reach can be *asked*); without it, the parcel is loose (so reach can be
     *planned for*)."""
     from . import asm
@@ -2760,20 +2760,20 @@ def _warehouse(nested: bool = True):
 
 
 def check_TRANSITIVE_REACH_is_the_one_thing_a_fixed_PATH_cannot_say():
-    """⭐⭐⭐ **The one genuine closed-class gap this project measured**, arrived at twice independently:
+    """The one genuine closed-class gap this project measured, arrived at twice independently:
     `closed_class_rechallenged.md` probed five relational forms and found four pure sugar with
-    **transitivity** the one needing a real extension, and §5x reached the same single item by asking what
+    transitivity the one needing a real extension, and reached the same single item by asking what
     the word *where* requires. A parcel in a box in a warehouse *is* in the warehouse, and nothing here
     could say so: a fixed-depth type cannot reach it, a link constraint reads false because it is not a
     direct target, and the path grammar has no repetition operator.
 
-    ⚠⚠ **Predicate position only, and that restriction is the design.** *Is X reachable from Y?* stays
-    boolean and single-valued, so it breaks no contract. A **reference** — `a.contains+.label` — would
+    Predicate position only, and that restriction is the design. *Is X reachable from Y?* stays
+    boolean and single-valued, so it breaks no contract. A reference — `a.contains+.label` — would
     denote a *set*, breaking `node_at`'s promise of one node or `None`; `parse` still refuses it and now
     says where to go instead.
 
-    ⚠ Vacuity guards: the direct case and the nested case must **differ** for a plain link constraint (or
-    reach would be indistinguishable from adjacency); reach must not be reflexive; and a **cycle** must
+    Vacuity guards: the direct case and the nested case must differ for a plain link constraint (or
+    reach would be indistinguishable from adjacency); reach must not be reflexive; and a cycle must
     terminate, because containment is only supposed to be acyclic and a graph does not enforce it."""
     from . import goal as G, path as P
     g, world, wh, box, parcel = _warehouse(nested=True)
@@ -2791,7 +2791,7 @@ def check_TRANSITIVE_REACH_is_the_one_thing_a_fixed_PATH_cannot_say():
     except P.BadPath as e:
         refused = str(e)
 
-    # ⚠ READ EVERY CONTRAST BEFORE MUTATING. §5u records this exact trap: the cycle below makes `wh`
+    # Read every contrast BEFORE mutating. records this exact trap: the cycle below makes `wh`
     # genuinely reachable from itself, so a reflexivity key evaluated in the return dict would have been
     # measuring the cycle rather than reflexivity — and it read False for the right reason and the wrong
     # question. Caught here for the second time in this file.
@@ -2801,11 +2801,11 @@ def check_TRANSITIVE_REACH_is_the_one_thing_a_fixed_PATH_cannot_say():
               "adjacent": G.satisfied(g, adjacent, under=world),
               "reflexive": P.reaches(g, wh, "contains", wh)}
 
-    g.link(parcel, "contains", wh)                     # ⚠ a cycle: a mis-authored world must not hang
+    g.link(parcel, "contains", wh)                     # a cycle: a mis-authored world must not hang
     cyclic = G.satisfied(g, deep, under=world)
-    # ⚠⚠ AND THE CYCLE GUARD NEEDS A QUESTION WITH NO ANSWER. Asking for something that IS there returns
+    # And the cycle guard needs a question with NO answer. Asking for something that IS there returns
     # before the loop is ever re-entered, so a version with no cycle protection at all passes — measured,
-    # by planting exactly that. Only a MISS has to walk the whole cycle.
+    # by planting exactly that. Only a miss has to walk the whole cycle.
     stray = g.mint("thing", kind_of="thing", label="stray")
     g.link(world, "thing", stray)
     missing = P.reaches(g, wh, "contains", stray)
@@ -2823,21 +2823,21 @@ def check_TRANSITIVE_REACH_is_the_one_thing_a_fixed_PATH_cannot_say():
 
 
 def check_a_goal_of_REACH_can_be_authored_and_PLANNED_FOR():
-    """⭐⭐ End to end: *put the parcel in the warehouse* — where "in" means at any depth — **authored as
-    text**, planned, carried out, and true in reality afterwards.
+    """End to end: *put the parcel in the warehouse* — where "in" means at any depth — authored as
+    text, planned, carried out, and true in reality afterwards.
 
-    ⚠ This is the half that a predicate alone does not give you. `driver.relevance` scores a proposal by
+    This is the half that a predicate alone does not give you. `driver.relevance` scores a proposal by
     what the function's body *establishes*, and `put_in` links `box contains parcel` — which is not the
-    constraint being asked (`wh contains+ parcel`). So the closing move does **not** match exactly and
+    constraint being asked (`wh contains+ parcel`). So the closing move does not match exactly and
     cannot reach the top band: the plan is found by ranking, which is precisely the *rank a guess, prune a
     proof* discipline. Had relevance been a filter, this goal would be unreachable.
 
-    ⚠ Vacuity guard: the plan must close the goal by putting the parcel in the **box**, not in the
+    Vacuity guard: the plan must close the goal by putting the parcel in the box, not in the
     warehouse directly — otherwise the transitive step was never exercised and a direct link would have
     done."""
     from . import driver as D, goal as G, intake as I, path as P, thread as T
     g, world, wh, box, parcel = _warehouse(nested=False)
-    # WARN `never touch wh` is what makes this exercise REACH rather than adjacency: without it the
+    # Warn `never touch wh` is what makes this exercise reach rather than adjacency: without it the
     # planner would simply put the parcel straight into the warehouse, and a plain link constraint would
     # have done. Two authored forms composing - a plan constraint and a transitive world constraint.
     goal = I.read_goal(g, _lines("goal stow it:", "    wh contains+ parcel", "    never touch wh"))
@@ -2852,20 +2852,20 @@ def check_a_goal_of_REACH_can_be_authored_and_PLANNED_FOR():
 
 
 def check_what_and_where_LOCATE_a_thing_in_an_order_the_world_ALREADY_HAS():
-    """⭐⭐ *What is it?* and *where is it?* needed a **verb** and no machinery, which is what §5x measured
-    and this asserts: `types.recognize` is the subsumption order read bottom-up, and `where` is §6h's reach
+    """*What is it?* and *where is it?* needed a verb and no machinery, which is what measured
+    and this asserts: `types.recognize` is the subsumption order read bottom-up, and `where` is's reach
     walked backwards. Neither searches, neither imagines, neither records.
 
-    ⚠ **Vacuity guard 1: `where` must reach PAST the immediate container**, or it is `g.sources` with a
+    Vacuity guard 1: `where` must reach past the immediate container, or it is `g.sources` with a
     longer name and the whole transitive-reach arc bought nothing at the surface. The parcel is in the box
     *and* in the warehouse, and the order must be nearest first — a set would have thrown that away
     (`search-was-irreproducible-set-tiebreak`).
 
-    ⚠ **Vacuity guard 2: `what` must DISCRIMINATE.** The nested parcel is held and the loose one is not, so
+    Vacuity guard 2: `what` must discriminate. The nested parcel is held and the loose one is not, so
     they must come back with different types; a `what` answering "thing" for everything would pass any
     check that only asked whether it answered.
 
-    ⚠ **Vacuity guard 3: the word is not the machinery.** The same function answers a world that writes the
+    Vacuity guard 3: the word is not the machinery. The same function answers a world that writes the
     relation the other way round (`part_of`, forwards) — otherwise `where` is about containment rather than
     about reach, and the domain vocabulary has leaked into the engine."""
     from . import locate as L
@@ -2908,19 +2908,19 @@ def _dated():
 
 
 def check_WHEN_is_SUGAR_and_an_authored_TYPE_BLOCK_agrees():
-    """⭐⭐ §5x measured `when` as **sugar**: ordering and interval containment over a comparable value,
+    """ measured `when` as sugar: ordering and interval containment over a comparable value,
     with Allen's relations reducing to comparisons on two endpoints. That was an argument, and this is the
-    probe — **the same judgement is authored as an ordinary `type` block**, with `Rel` comparing two places
+    probe — the same judgement is authored as an ordinary `type` block, with `Rel` comparing two places
     inside one subgraph, and the two must agree. If `relate` could say something a `type` block cannot,
-    `when` was a capability and not a verb, and §5x was wrong.
+    `when` was a capability and not a verb, and was wrong.
 
-    ⚠ **Vacuity guard: the type must REFUSE the other pair.** A schema that accepted both orders would
+    Vacuity guard: the type must REFUSE the other pair. A schema that accepted both orders would
     agree with `relate` on the positive case while testing nothing at all.
 
-    ⚠ A point is an interval whose endpoints coincide, which keeps *when did it happen* and *how long did
+    A point is an interval whose endpoints coincide, which keeps *when did it happen* and *how long did
     it last* one question. `inspect` sits inside `build`, and that is `during` on both routes.
 
-    ⚠ And **incomparable is a third answer**: an event dated `"tuesday"` against one dated `3` is not
+    And incomparable is a third answer: an event dated `"tuesday"` against one dated `3` is not
     before it, not after it, and saying so beats inventing an order between two vocabularies."""
     from . import locate as L, types as TY
     g, ev, undated = _dated()
@@ -2937,7 +2937,7 @@ def check_WHEN_is_SUGAR_and_an_authored_TYPE_BLOCK_agrees():
         g.link(n, "second", ev[b])
         return n
 
-    # ⚠ **THE BOUNDARY IS WHERE THE AGREEMENT MEANS SOMETHING.** `first.end < second.start` is *strict*, so
+    # The boundary is where the agreement means something. `first.end < second.start` is *strict*, so
     # it says `before` and NOT `meets` — and the first version of this check asserted the type would accept
     # `build`/`paint` (which meet at 5) because it lumped the two relations together. The type was right and
     # the assertion was wrong. Three pairs now, straddling the boundary in both directions.
@@ -2946,7 +2946,7 @@ def check_WHEN_is_SUGAR_and_an_authored_TYPE_BLOCK_agrees():
                   for a, b in (("build", "ship"), ("build", "paint"), ("paint", "build")))
     by_comparison = L.relate(L.interval(g, ev["build"]), L.interval(g, ev["paint"]))
 
-    # ⚠ READ THE COUNT BEFORE MUTATING — §5u and §6h both record this exact trap, and it caught me again:
+    # Read the COUNT BEFORE mutating and both record this exact trap, and it caught me again:
     # `tuesday` below is incomparable, so a count taken in the return dict measures the omission rather
     # than the placement, and reads wrong for the right reason.
     placed = len(L.when(g, ev["build"]))
@@ -2962,7 +2962,7 @@ def check_WHEN_is_SUGAR_and_an_authored_TYPE_BLOCK_agrees():
         "and_a_point_inside_one_is_DURING_it_too": L.relate((4, 4), (1, 5)) == L.DURING,
         "equal_before_meets_so_two_points_at_one_time_are_EQUAL": L.relate((3, 3), (3, 3)) == L.EQUAL,
         "overlaps_is_distinguishable_from_both": L.relate((1, 6), (5, 9)) == L.OVERLAPS,
-        # ⭐⭐ the sugar claim, checked rather than argued: an AUTHORED type block and the comparison agree
+        # the sugar claim, checked rather than argued: an authored type block and the comparison agree
         "AND_AN_AUTHORED_TYPE_BLOCK_AGREES_EVERY_TIME": all(a == b for a, b in agree),
         "including_at_the_boundary_where_MEETS_is_not_BEFORE": agree[1] == (False, False),
         "THE_TYPE_REFUSES_THE_OTHER_ORDER": agree[2] == (False, False),
@@ -2972,27 +2972,27 @@ def check_WHEN_is_SUGAR_and_an_authored_TYPE_BLOCK_agrees():
                                                       and L.when(g, undated) == ()),
         "and_it_says_so_rather_than_dating_it": "nothing here says when" in L.describe(g, "when", undated),
         "an_event_is_placed_against_every_other_dated_one": placed == 3,
-        # ⚠ ...and an INCOMPARABLE one is left out rather than guessed at, which is why the count above
+        # ...and an incomparable one is left out rather than guessed at, which is why the count above
         # had to be read before `tuesday` existed.
         "AND_AN_INCOMPARABLE_ONE_IS_LEFT_OUT": len(L.when(g, ev["build"])) == placed}
 
 
 def check_a_READER_answers_and_records_NOTHING():
-    """⭐⭐ `what` / `where` / `when` as CNL verbs — §9 item 1, and the smallest capability left. They are a
-    different **form**, not a fifth force: `goal` / `ask` / `why` / `plan` state a whole proposition and
-    differ in what is done with it, while these have a **gap** and are answered by locating a thing.
+    """`what` / `where` / `when` as CNL verbs item 1, and the smallest capability left. They are a
+    different form, not a fifth force: `goal` / `ask` / `why` / `plan` state a whole proposition and
+    differ in what is done with it, while these have a gap and are answered by locating a thing.
 
-    ⚠⚠ **THE PROPERTY THAT MATTERS IS THAT NOTHING IS KEPT**, and it is §6g's rule applied to answers:
+    The property that matters is that nothing is kept, and it is's rule applied to answers:
     *keep what you cannot re-derive.* A reader's answer is a traversal away at any moment, so storing one
     could only ever let it drift from the world it describes — `types.tag`'s stamp still said `car` after
-    the wheel came off (§5i). So the world must be **unchanged** by asking, and — the discriminating half —
-    the answer must **follow the world when it moves**. A cached answer passes the first and fails the
+    the wheel came off. So the world must be unchanged by asking, and — the discriminating half —
+    the answer must follow the world when it moves. A cached answer passes the first and fails the
     second, which is the planted bug's exact signature.
 
-    ⚠ `ask` settling by default is not inconsistent with this and the contrast is the reason both are
+    `ask` settling by default is not inconsistent with this and the contrast is the reason both are
     right: a derivation *ran*, and repeating it costs a search.
 
-    ⚠ Refusal is the feature here as everywhere on this border: an unknown name, an empty body, and a line
+    Refusal is the feature here as everywhere on this border: an unknown name, an empty body, and a line
     that *says* something rather than naming something."""
     from . import intake as I, locate as L, thread as T
     from .workbench import reachable
@@ -3017,7 +3017,7 @@ def check_a_READER_answers_and_records_NOTHING():
     dg, ev, _u = _dated()
     when_said = I.respond(dg, _lines("when it was:", "    inspect"), T.open_thread(dg, "t"))
 
-    g.unlink(box, "contains", dst=parcel)              # ⚠ the world moves under the question
+    g.unlink(box, "contains", dst=parcel)              # the world moves under the question
     moved = I.respond(g, _lines("where it is:", "    parcel"), th, under="root")
     return {
         "a_WHERE_block_answers": "parcel is in: box, wh" in first,
@@ -3027,7 +3027,7 @@ def check_a_READER_answers_and_records_NOTHING():
         "asking_twice_says_the_same_thing": first == again,
         "AND_THE_ANSWER_FOLLOWS_THE_WORLD_WHEN_IT_MOVES": "nothing here holds parcel" in moved,
         "the_question_itself_IS_data": g.kind(q) == "question" and g.attr(q, "verb") == "where",
-        # ⚠ The QUESTION reaches the thread — that it was asked is history — and the answer does not.
+        # The question reaches the thread — that it was asked is history — and the answer does not.
         "the_asking_is_history_even_though_the_answer_is_not": any(
             g.kind(T.attended(g, e) or "") == "question" for e in T.entries(g, th)),
         "three_readers_and_no_more": L.VERBS == ("what", "where", "when"),
@@ -3049,15 +3049,15 @@ def refused_as_goal(g) -> bool:
 
 
 def check_a_REFUSAL_leaves_nothing_behind_even_when_the_REFERENCE_LANGUAGE_raises():
-    """⚠⚠ **A real defect, found by probing a file KB.** `intake.read` rolls back on `Unreadable`, and a
+    """A real defect, found by probing a file KB. `intake.read` rolls back on `Unreadable`, and a
     reference that cannot be read raises `BadPath` — a *different* exception, from a *different* module.
     So `a.size > b.size` (three words, therefore read as a link, therefore `parse_link('>')`) escaped the
-    handler, the savepoint was never rolled back, and **an empty goal was left in the graph**. The module
+    handler, the savepoint was never rolled back, and an empty goal was left in the graph. The module
     docstring says a refusal leaves nothing behind *because a half-built goal would be pursued and would
     look like it was working*; that held for every refusal this border authored and not for one it merely
     passed through.
 
-    ⚠ Vacuity guard: the graph must be **byte-identical** afterwards, not merely goal-free — a rollback
+    Vacuity guard: the graph must be byte-identical afterwards, not merely goal-free — a rollback
     that dropped the goal and kept its constraints would pass a weaker check. And the border must raise
     exactly one exception type, or a caller caring about refusals has to know which module failed."""
     from . import intake as I
@@ -3116,25 +3116,23 @@ def _bin_world():
 
 
 def check_a_UNIVERSAL_constraint_names_the_members_that_make_it_FALSE():
-    """⭐⭐⭐ **`unmet` says WHICH CONSTRAINTS are false; this says WHICH MEMBERS make one false.**
-
-    §5d's founding argument was that a goal answering only yes/no forces blind search, while one naming its
-    unfinished business enables means-ends. A **universal** constraint reintroduced exactly that defect one
+    """`unmet` says which constraints are false; this says which members make one false.'s founding argument was that a goal answering only yes/no forces blind search, while one naming its
+    unfinished business enables means-ends. A universal constraint reintroduced exactly that defect one
     level up: `b is a tidy_bin` is expressible (`has no item each a dirty_item`, and
     `docs/limits.md` measured it as sugar) but could only answer yes/no — so `docs/limits.md` measured
-    even a *singular* action that would certainly close it at **band 1**, against band 4 for the equivalent
-    singular constraint. Same *predicate-expressible, planning-half-missing* split §6h found for reach.
+    even a *singular* action that would certainly close it at band 1, against band 4 for the equivalent
+    singular constraint. Same *predicate-expressible, planning-half-missing* split found for reach.
 
-    ⚠ **Vacuity guard 1: a SATISFIED constraint must have no witnesses.** A reader that named nodes for a
+    Vacuity guard 1: a satisfied constraint must have no witnesses. A reader that named nodes for a
     constraint that holds would be describing the world rather than the unfinished business, and every
     other key here would still pass.
 
-    ⚠⚠ **Vacuity guard 2: it must DISCRIMINATE.** For a type constraint there is no label to filter
+    Vacuity guard 2: it must discriminate. For a type constraint there is no label to filter
     effects on, so a witness branch that scored any write to a witness would rank `weigh` — which changes
     nothing relevant — as highly as `clean_one`. The two must land in different bands or the guidance is
     noise with a high number on it.
 
-    ⚠ **Vacuity guard 3: the TOO-FEW case has no witness, and that is the open world.** A bin needing two
+    Vacuity guard 3: the too-few case has no witness, and that is the open world. A bin needing two
     more items has nothing to point at, because the missing item does not exist. That direction is served
     by `relevance`'s existential `mint` branch, and conflating them would mean inventing a node to blame."""
     from . import driver as D, goal as G, intake as I, types as TY, workbench as W
@@ -3152,13 +3150,13 @@ def check_a_UNIVERSAL_constraint_names_the_members_that_make_it_FALSE():
     idles = D.relevance(g, "weigh", {"i": m_one}, open_u)
     was_singular = D.relevance(g, "clean_one", {"i": m_one}, open_s)
 
-    # ⚠ Guard 1: clean both, and the constraint that now HOLDS must name nobody.
+    # Guard 1: clean both, and the constraint that now holds must name nobody.
     for it in items:
         g.put(it, clean=True)
     satisfied_now = G.holds(g, open_u[0])
     after = G.witnesses(g, open_u[0])
 
-    # ⚠ Guard 3: a too-FEW failure has no witness to point at.
+    # Guard 3: a too-few failure has no witness to point at.
     TY.declare_type(g, "full_bin", requires={"item": TY.Req(kind="item", lo=5, hi=None)}, base="bin")
     too_few = I.read_goal(g, _lines("goal fill it:", "    b is a full_bin"))
     short = G.unmet(g, too_few, under="root")
@@ -3178,7 +3176,7 @@ def check_a_UNIVERSAL_constraint_names_the_members_that_make_it_FALSE():
 
 
 def check_runaway_program_halts_loudly():
-    """DELIBERATE NEGATIVE. Termination is unsolved in general; failing loudly is the honest stand-in."""
+    """Deliberate negative. Termination is unsolved in general; failing loudly is the honest stand-in."""
     try:
         run(("loop", isa.JMP("loop")), new_graph())
         return {"halted_loudly": False}
@@ -3187,7 +3185,7 @@ def check_runaway_program_halts_loudly():
 
 
 def _checks():
-    """Collected lazily, at call time. ⚠ This was a module-level list once and silently omitted every
+    """Collected lazily, at call time. This was a module-level list once and silently omitted every
     check defined below it — a self-test that quietly tests less than it appears to is exactly the
     false-green class this project keeps catching."""
     return [v for k, v in sorted(globals().items()) if k.startswith("check_")]
@@ -3202,16 +3200,16 @@ def report() -> str:
             r = fn()
         except Exception as e:                       # a probe that explodes is a red, not a crash
             r, failures = {"ERROR": f"{type(e).__name__}: {e}"}, failures + 1
-        # ⚠ A KEY REPORTING `False` IS A FAILURE, and it did not used to count. The harness only tallied
+        # A key reporting `False` Is a failure, and it did not used to count. The harness only tallied
         # exceptions, so a probe that ran fine and answered "no" printed among a hundred lines and a skim
-        # missed it — which is exactly the mistake the design notes already records having made once. It
+        # missed it — which is exactly the mistake an earlier note already records having made once. It
         # then happened again, to `goal_recorded_as_met`, which is what prompted this. Non-boolean values
         # are data a check chose to report (counts, reasons) and are left alone; only an explicit `False`
         # is a red.
         bad = sorted(k for k, v in r.items() if v is False)
         if bad:
             failures += 1
-        # ASCII marker on purpose: the report is piped, and a Windows console is cp1252.
+        # Ascii marker on purpose: the report is piped, and a Windows console is cp1252.
         lines.append(f"{fn.__name__[6:]:<52} {r}" + (f"\n{'':<52} !! FALSE: {bad}" if bad else ""))
     lines.append(f"\n{len(checks)} checks, {failures} FAILED")
     return "\n".join(lines)
@@ -3222,7 +3220,7 @@ def report() -> str:
 # --- functions / assembly (appended: the rules-as-executable-data layer) ---------------------------
 def check_a_function_is_stored_as_ordered_graph_data():
     """A rule IS a function, and it lives in the graph. Vacuity guard: read the instructions back by
-    INDEX off the ordered `instr` edge, confirming order is native rather than reconstructed."""
+    Index off the ordered `instr` edge, confirming order is native rather than reconstructed."""
     from . import function as fn
     g, car, _ = _car_world()
     node = fn.define(g, "service", ("car",),
@@ -3274,7 +3272,7 @@ def check_assembly_round_trips_through_the_graph():
 
 
 def check_assembly_refuses_an_unknown_opcode_loudly():
-    """DELIBERATE NEGATIVE, and the reason this layer is worth having: a model WILL emit wrong
+    """Deliberate negative, and the reason this layer is worth having: a model will emit wrong
     instructions, and a plausible-looking wrong opcode accepted silently is the dangerous failure."""
     from . import asm
     g = new_graph()
@@ -3287,13 +3285,13 @@ def check_assembly_refuses_an_unknown_opcode_loudly():
 
 
 def check_assembly_refuses_a_malformed_invoke():
-    """⭐ REPORTED BY `../pystrider`. Every opcode NAME was checked; `INVOKE`'s operand SHAPE was not — and
+    """Reported by the first consumer. Every opcode name was checked; `INVOKE`'s operand shape was not — and
     it is the one opcode taking a structured operand, a mapping of parameter names. So the natural
     positional form parsed, defined, and failed only when run, with `AttributeError: 'str' object has no
     attribute 'items'` — no line, no opcode, nothing naming the operand that was wrong. Squarely the
     silent-acceptance failure this module exists to prevent.
 
-    Vacuity guards: the well-formed named-binding version must actually parse AND run (a check that only
+    Vacuity guards: the well-formed named-binding version must actually parse and run (a check that only
     refuses things would pass with `INVOKE` rejected outright), and the refusal must name the line."""
     from . import asm, function as fn
     g, car, _ = _car_world()
@@ -3325,10 +3323,10 @@ def check_assembly_refuses_a_malformed_invoke():
 
 
 def check_an_invoke_round_trips_through_the_surface():
-    """The other half of §6: a mapping operand had no textual form, so `unparse` rendered the raw Python
+    """The other half: a mapping operand had no textual form, so `unparse` rendered the raw Python
     dict and the round trip was broken — silently, because the only check was that the word `INVOKE`
     appeared in the dump. That matters most for a function nothing authored: `compile_episode` builds
-    `INVOKE` operands in Python, so a LEARNED function could not be read back in.
+    `INVOKE` operands in Python, so a learned function could not be read back in.
 
     Vacuity guard: the learned function must genuinely contain an `INVOKE` with bindings, or a round trip
     over an empty program would prove nothing."""
@@ -3351,7 +3349,7 @@ def check_an_invoke_round_trips_through_the_surface():
 
 
 def check_a_function_can_invoke_another():
-    """Composition is by CALLING, not by a fixed control-flow graph — the no-seam claim in miniature."""
+    """Composition is by calling, not by a fixed control-flow graph — the no-seam claim in miniature."""
     from . import asm, function as fn
     g, car, _ = _car_world()
     asm.load_text(g, 'fn inner(c):\n    SET F(c) "inner_ran" true\n'
@@ -3363,7 +3361,7 @@ def check_a_function_can_invoke_another():
 
 
 def check_a_program_can_write_a_function():
-    """⭐ THE REFLEXIVE EDGE, finally with somewhere to land. A microfunction generates a function,
+    """The reflexive edge, finally with somewhere to land. A microfunction generates a function,
     stores it as graph data, and it runs. This is the capability an earlier probe found
     proven only in a test and never used by any shipped library."""
     from . import asm, function as fn
@@ -3478,7 +3476,7 @@ def check_an_application_is_a_node_with_its_bindings():
 
 def check_episode_order_is_native_no_turn_counter():
     """The substrate change paying its way: the old version needed a driver-stamped turn counter purely
-    to recover an order. Vacuity guard: read the order back by INDEX off the ordered edge."""
+    to recover an order. Vacuity guard: read the order back by index off the ordered edge."""
     from . import application as ap
     g, car, _ = _library()
     ep = ap.open_episode(g, "servicing", about=car)
@@ -3515,7 +3513,7 @@ def check_an_external_scorer_can_override():
 
 
 def check_a_function_is_not_applied_twice_to_the_same_node():
-    """THE structural rule. Under rules this needed a hand-authored consumption marker per rule, and
+    """The structural rule. Under rules this needed a hand-authored consumption marker per rule, and
     forgetting one produced an unbounded stream of repeated effects. Here it is one check in one place."""
     from . import selection as sel
     g, car, _ = _library()
@@ -3549,7 +3547,7 @@ def check_a_refused_application_is_data_not_a_crash():
 
 
 def check_an_episode_compiles_into_a_reusable_function():
-    """⭐ THE PAYOFF, on the new substrate. An episode becomes a function that replays it on a fresh
+    """The payoff, on the new substrate. An episode becomes a function that replays it on a fresh
     subject — using `function.define` and a loop, no new machinery."""
     from . import application as ap, asm, function as fn, selection as sel
     g, car, _ = _library()
@@ -3586,7 +3584,7 @@ def check_a_learned_function_is_an_ordinary_library_member():
 
 # --- planning: casts chained backwards, lazily ------------------------------------------------------
 def _garage():
-    """A library of CASTS. `service` casts a car into a serviced_car; `wash` casts that into a washed_car.
+    """A library of casts. `service` casts a car into a serviced_car; `wash` casts that into a washed_car.
     Nothing declares a mutation — a stronger schema is all a change is."""
     from . import asm
     g = new_graph()
@@ -3634,7 +3632,7 @@ def check_planning_chains_casts_backwards():
 
 
 def check_a_plan_is_lazy_and_nothing_ran():
-    """⭐ THE Spark property: planning composes, only the action materialises. Vacuity guard: assert the
+    """The Spark property: planning composes, only the action materialises. Vacuity guard: assert the
     car is untouched AFTER planning, then that running it changes things."""
     from . import plan as P
     g, car = _garage()
@@ -3665,7 +3663,7 @@ def check_an_already_satisfied_goal_plans_no_steps():
 
 
 def check_an_unreachable_goal_returns_no_plan():
-    """DELIBERATE NEGATIVE: no chain of declared functions reaches it, and that is an ordinary answer."""
+    """Deliberate negative: no chain of declared functions reaches it, and that is an ordinary answer."""
     from . import plan as P
     g, car = _garage()
     declare_type(g, "flying_car", base="car", attrs={"flies": True})
@@ -3697,7 +3695,7 @@ def check_dispatch_runs_a_tool_and_a_veto_blocks_it():
         blocked = False
     except D.Vetoed:
         blocked = True
-    # ⚠ The unregistered-tool check must use an UNforbidden target: the veto is consulted BEFORE the tool
+    # The unregistered-tool check must use an UNforbidden target: the veto is consulted BEFORE the tool
     # is looked up, which is the correct order (a prohibition should not depend on the tool existing) —
     # the first version of this check asserted KeyError on the forbidden car and got Vetoed, correctly.
     other = g.mint("chunk")
@@ -3726,7 +3724,7 @@ def _raises(thunk, exc):
 # --- sub/supertypes: structural, falling out of constraint strictness -------------------------------
 def check_subtyping_is_structural_not_nominal():
     """A supertype relaxes constraints, a subtype tightens them. `base=` is a convenience for writing
-    that, never what makes it true — so two INDEPENDENTLY declared types stand in the relation if their
+    that, never what makes it true — so two independently declared types stand in the relation if their
     constraints do. Vacuity guard: the independently-declared pair uses no `base` at all."""
     from .types import subsumes, subtypes
     g, _car = _garage()
@@ -3748,7 +3746,7 @@ def check_an_argument_accepts_a_subtype():
 
 
 def check_a_producer_of_a_subtype_satisfies_the_goal():
-    """⭐ The gap sub/supertypes exposed: `producers` compared type NAMES, so a function returning a
+    """The gap sub/supertypes exposed: `producers` compared type names, so a function returning a
     `washed_car` was invisible to a goal wanting a `serviced_car` — even though every washed car is one.
     Vacuity guard: assert the more specific producer is offered but sorts AFTER the exact match."""
     from . import function as fn
@@ -3760,7 +3758,7 @@ def check_a_producer_of_a_subtype_satisfies_the_goal():
 
 
 # --- the direction invariant ------------------------------------------------------------------------
-# Kinds that are ABOUT something rather than part of the domain. Anything here must be pointed AT the
+# Kinds that are about something rather than part of the domain. Anything here must be pointed AT the
 # thing it describes, and never pointed at BY it — see `docs/planning.md`
 _METADATA_KINDS = frozenset({
     "type", "requires", "requires_attr", "requires_rel",
@@ -3781,7 +3779,7 @@ _METADATA_KINDS = frozenset({
 
 
 def check_metadata_is_never_pointed_at_by_structure():
-    """⭐ STRUCTURE POINTS OUTWARD; METADATA POINTS INWARD.
+    """Structure points outward; metadata points inward.
 
     Copying a subgraph traverses outgoing edges. If a domain node pointed at (say) its mapping, the copy
     would reach that mapping, then its original, its image, its next — and thence every other frame,
@@ -3818,11 +3816,11 @@ def check_metadata_is_never_pointed_at_by_structure():
 
 # --- workbench: imagining effects on a copy ---------------------------------------------------------
 def check_workbench_copies_are_structurally_unreachable():
-    """⭐ The isolation is STRUCTURAL — no marker, no filter, and no exclusion logic to get wrong.
+    """The isolation is structural — no marker, no filter, and no exclusion logic to get wrong.
 
     An earlier version stamped every copy with an `in_workbench` attribute and made `instances` filter on
     it. That was a labelling error: it asserted what the structure already entails. The real reason a copy
-    is never offered as a candidate is that **nothing in the real graph points at it** — only a mapping
+    is never offered as a candidate is that nothing in the real graph points at it — only a mapping
     does, via `image` — so enumerating by traversal from `root` cannot reach it.
 
     Vacuity guard: assert the copy IS a well-typed car (so a scan would have found it), and that
@@ -3855,23 +3853,23 @@ def check_the_copy_is_complete_and_the_original_untouched():
 
 
 def check_the_copy_order_is_a_fact_about_the_graph_not_about_node_ids():
-    """⭐⭐ THE SAME WORLD, BUILT TWICE, MUST BE COPIED IN THE SAME ORDER — and this was false, silently,
+    """The same world, built twice, must be copied in the same order — and this was false, silently,
     for as long as the workbench has existed.
 
     `reachable` traverses deterministically (`g.labels` is sorted, `g.targets` is an insertion-ordered
-    tuple) and then returned a **`set`**, throwing that order away and substituting the iteration order of
+    tuple) and then returned a `set`, throwing that order away and substituting the iteration order of
     the node-id *strings*. Ids come from a process-global counter, so the second identical world in a
     process gets different ids, hashes differently, and is copied in a different order. `mappings` order
     is `proposals` order, and `driver.pursue` breaks frontier ties by insertion order — so the search was
-    **irreproducible**: the identical five-block goal measured 12 imagined states, then 306, then
+    irreproducible: the identical five-block goal measured 12 imagined states, then 306, then
     budget-exhausted failure, on consecutive runs of one process.
 
-    ⚠ **Nothing was ever lost** — the *set* of proposals is identical every time — so this never yielded a
+    Nothing was ever lost — the *set* of proposals is identical every time — so this never yielded a
     wrong plan, only an arbitrary one at an arbitrary cost. That is exactly why 132 checks passed over it:
     a single run of anything is self-consistent, and only a measurement *repeated in one process* can see
     it. Every performance number in the docs was taken under it.
 
-    Vacuity guard: the two worlds must genuinely get **different node ids**, or identical order would be
+    Vacuity guard: the two worlds must genuinely get different node ids, or identical order would be
     proving nothing at all."""
     from . import driver as D
     from . import goal as G
@@ -3909,7 +3907,7 @@ def check_a_mapping_resolves_to_the_real_node():
 
 
 def check_nested_workbenches_resolve_up_the_stack():
-    """⚠ In a nested workbench `original` points ONE LEVEL UP, so resolving is a walk, not a hop."""
+    """In a nested workbench `original` points one level up, so resolving is a walk, not a hop."""
     from . import workbench as W
     g, car = _garage()
     outer = W.open_workbench(g, car)
@@ -3922,7 +3920,7 @@ def check_nested_workbenches_resolve_up_the_stack():
 
 
 def check_stepping_makes_a_new_frame_and_leaves_the_old_one_intact():
-    """⭐ The movie is real: every earlier state stays inspectable rather than needing replay."""
+    """The movie is real: every earlier state stays inspectable rather than needing replay."""
     from . import workbench as W
     g, car = _garage()
     wb = W.open_workbench(g, car)
@@ -3939,8 +3937,8 @@ def check_stepping_makes_a_new_frame_and_leaves_the_old_one_intact():
 
 
 def check_a_transformation_binds_a_mapping_not_a_raw_node():
-    """THE rule that makes a plan replayable: following `original` yields the node the operation must
-    really be applied to. Vacuity guard: assert the bound thing is a mapping AND that it resolves."""
+    """The rule that makes a plan replayable: following `original` yields the node the operation must
+    really be applied to. Vacuity guard: assert the bound thing is a mapping and that it resolves."""
     from . import workbench as W
     g, car = _garage()
     wb = W.open_workbench(g, car)
@@ -3954,7 +3952,7 @@ def check_a_transformation_binds_a_mapping_not_a_raw_node():
 
 
 def check_frames_fork_and_a_mapping_history_forks_with_them():
-    """⚠ `next` is 1:N on both. Code assuming a single successor would silently follow one branch."""
+    """`next` is 1:N on both. Code assuming a single successor would silently follow one branch."""
     from . import workbench as W
     g, car = _garage()
     wb = W.open_workbench(g, car)
@@ -3986,7 +3984,7 @@ def check_discarding_scraps_everything_and_belief_survives():
 
 # --- mocks, assumptions, and the refusal ------------------------------------------------------------
 def _filesystem():
-    """A dispatching function with three declared outcomes. Each mock is an ORDINARY microfunction whose
+    """A dispatching function with three declared outcomes. Each mock is an ordinary microfunction whose
     return type IS the outcome it assumes, so the existing type-chaining planner handles each case."""
     from . import asm, dispatch as D
     g = new_graph()
@@ -4030,7 +4028,7 @@ def check_a_function_has_many_mocks_in_preference_order():
 
 
 def check_dispatch_refuses_an_imagined_target():
-    """⭐ THE SAFETY PROPERTY. Vacuity guard: the SAME call on the SAME real node must succeed, so we know
+    """The safety property. Vacuity guard: the same call on the same real node must succeed, so we know
     the refusal is about being imagined and not about anything else."""
     from . import dispatch as D, workbench as W
     g, d = _filesystem()
@@ -4079,7 +4077,7 @@ def check_choosing_an_outcome_records_a_hypothesis():
 
 
 def check_forking_on_a_different_outcome_gives_a_different_world():
-    """⭐ Two assumptions, two branches, side by side — and contingency plans come free from having
+    """Two assumptions, two branches, side by side — and contingency plans come free from having
     explored both. Vacuity guard: the two frames must genuinely disagree about the world."""
     from . import workbench as W
     g, d = _filesystem()
@@ -4104,7 +4102,7 @@ def check_deviation_is_a_failed_cast():
     g, d = _filesystem()
     wb = W.open_workbench(g, d)
     f0 = W.root_frame(g, wb)
-    _f1, tr = W.step(g, wb, f0, "list_dir", {"d": W.mapping_for(g, f0, d)})   # assumed EMPTY
+    _f1, tr = W.step(g, wb, f0, "list_dir", {"d": W.mapping_for(g, f0, d)})   # assumed empty
 
     matching = g.mint("dir", kind_of="dir", listed=True, count=0)
     diverging = g.mint("dir", kind_of="dir", listed=True, many=True)
@@ -4116,7 +4114,7 @@ def check_deviation_is_a_failed_cast():
 
 # --- following a plan for real ----------------------------------------------------------------------
 def check_a_plan_replays_against_the_real_graph():
-    """⭐ Everything needed was recorded: the REAL function (not the mock), the MAPPINGS (which resolve to
+    """Everything needed was recorded: the real function (not the mock), the mappings (which resolve to
     real nodes), and the expected type. Vacuity guard: the real world must be untouched before execution
     and changed after."""
     from . import execution as X, workbench as W
@@ -4134,7 +4132,7 @@ def check_a_plan_replays_against_the_real_graph():
 
 
 def check_execution_follows_one_path_through_a_forked_tree():
-    """A plan is a PATH, not the whole tree. Committing to a branch is exactly the choice forks kept open."""
+    """A plan is a path, not the whole tree. Committing to a branch is exactly the choice forks kept open."""
     from . import execution as X, workbench as W
     g, d = _filesystem()
     wb = W.open_workbench(g, d)
@@ -4148,9 +4146,9 @@ def check_execution_follows_one_path_through_a_forked_tree():
 
 
 def check_reality_disagreeing_with_the_assumption_is_caught():
-    """⭐ THE POINT of mocks + deviation. The plan assumed the directory would be EMPTY; the real tool says
+    """The point of mocks + deviation. The plan assumed the directory would be empty; the real tool says
     otherwise, so the step diverges and execution stops rather than acting on a world that no longer
-    matches. Vacuity guard: the same plan against a reality that MATCHES must complete."""
+    matches. Vacuity guard: the same plan against a reality that matches must complete."""
     from . import dispatch as D, execution as X, workbench as W
 
     def plan_assuming_empty(g, d):
@@ -4265,12 +4263,12 @@ def check_leaves_under_finds_the_end_of_every_branch():
 
 
 def check_recovery_resumes_onto_the_branch_reality_took():
-    """⭐ THE PAYOFF OF FORKING. The plan assumed EMPTY and reality is FULL — but that outcome was explored,
+    """The payoff of forking. The plan assumed empty and reality is full — but that outcome was explored,
     so the rest of that branch is already a verified plan for the world we are now in, and execution
     continues down it instead of replanning.
 
     Three vacuity guards, because this check could pass for uninteresting reasons: the diverged call must
-    have reached the world **exactly once** (re-running it is the likeliest bug here); the abandoned
+    have reached the world exactly once (re-running it is the likeliest bug here); the abandoned
     branch's own next step must NOT have run; and the resumed branch's next step must have really landed."""
     from . import dispatch as D, execution as X
     g, d = _filesystem_with_followups()
@@ -4292,7 +4290,7 @@ def check_recovery_resumes_onto_the_branch_reality_took():
 
 
 def check_a_sibling_applying_a_different_function_is_not_resumable():
-    """⚠ Siblings are alternative SUCCESSORS, not necessarily alternative OUTCOMES. Resuming into a branch
+    """Siblings are alternative successors, not necessarily alternative outcomes. Resuming into a branch
     whose step never ran would skip a call and report success. Vacuity guard: the sibling's promise is one
     reality *does* satisfy, so only the same-function restriction can be what rejects it."""
     from . import dispatch as D, execution as X, workbench as W
@@ -4302,7 +4300,7 @@ def check_a_sibling_applying_a_different_function_is_not_resumable():
     f0 = W.root_frame(g, wb)
     m0 = W.mapping_for(g, f0, d)
     a, _ = W.step(g, wb, f0, "list_dir", {"d": m0}, assume="list_empty")
-    b, trb = W.fork(g, wb, f0, "list_full", {"d": m0})     # a DIFFERENT function, same promise
+    b, trb = W.fork(g, wb, f0, "list_full", {"d": m0})     # a different function, same promise
     result = X.execute(g, wb, a)
     dev = result["deviation"]
     return {"the_sibling_promises_what_reality_delivered":
@@ -4313,7 +4311,7 @@ def check_a_sibling_applying_a_different_function_is_not_resumable():
 
 
 def check_replanning_proposes_from_the_world_as_it_actually_is():
-    """When nothing explored fits, the only sound move is a fresh proposal taking the REAL result as the
+    """When nothing explored fits, the only sound move is a fresh proposal taking the real result as the
     subject. Vacuity guards: no fork exists, so the contingency path cannot be what answered; the chain is
     lazy, so the world must be unchanged until it is run; and running it must actually reach the goal."""
     from . import dispatch as D, execution as X, plan as P, workbench as W
@@ -4339,7 +4337,7 @@ def check_replanning_proposes_from_the_world_as_it_actually_is():
 
 
 def _scanner():
-    """A dispatching call that MINTS, with two outcomes — so resuming has to carry a node that did not
+    """A dispatching call that mints, with two outcomes — so resuming has to carry a node that did not
     exist at planning time across onto a different branch's mappings."""
     from . import asm, dispatch as D
     g = new_graph()
@@ -4368,7 +4366,7 @@ def _scanner():
 
 
 def check_resuming_carries_a_node_that_was_only_imagined():
-    """⭐ The hard half of resuming. `scan` MINTS a report, so the branch being resumed onto refers to a
+    """The hard half of resuming. `scan` Mints a report, so the branch being resumed onto refers to a
     node that did not exist when planning started — and the follow-up step operates on *that*, not on the
     directory. Binding it wrongly would either crash or escalate the wrong node.
 
@@ -4425,8 +4423,8 @@ def check_a_thread_starts_at_root_and_grows():
 
 
 def check_the_two_orderings_cannot_disagree():
-    """⚠ The container's ordered `step` edge and the `prev` chain are two views of one order. They agree
-    because ONE function appends — a discipline a *human* must follow, which is what earns this a test
+    """The container's ordered `step` edge and the `prev` chain are two views of one order. They agree
+    because one function appends — a discipline a *human* must follow, which is what earns this a test
     rather than the structure guaranteeing it.
 
     Vacuity guard: walking back from the tip must reproduce the container order exactly, reversed, so a
@@ -4443,7 +4441,7 @@ def check_the_two_orderings_cannot_disagree():
 
 
 def check_an_application_entry_is_the_application_node():
-    """⭐ ONE RECORD, NOT TWO. A thread IS an episode, so the existing machinery reads it unchanged and
+    """One RECORD, NOT two. A thread IS an episode, so the existing machinery reads it unchanged and
     nothing has to consult two logs. Vacuity guard: `steps` must see the applications and must NOT see the
     attention shifts, or `compile_episode` would try to compile a shift into a call."""
     from . import application as ap, thread as T
@@ -4474,7 +4472,7 @@ def check_the_reason_rides_on_the_transition():
 
 
 def check_the_thread_is_not_part_of_the_world():
-    """⚠ LOAD-BEARING for System 1's region rule and for `types.instances`. Memory is metadata: it points
+    """Load-bearing for System 1's region rule and for `types.instances`. Memory is metadata: it points
     at the world and is never pointed at by it, and it does NOT hang off `root`.
 
     Vacuity guard: the car IS root-reachable, so the check distinguishes 'unreachable' from 'nothing is
@@ -4493,7 +4491,7 @@ def check_the_thread_is_not_part_of_the_world():
 
 
 def check_walking_back_answers_when_did_i_last_touch_this():
-    """The shape almost every reflective question takes. Vacuity guard: the answer must be the LATEST
+    """The shape almost every reflective question takes. Vacuity guard: the answer must be the latest
     entry concerning the car, not merely the first one found."""
     from . import thread as T
     g, car, t = _threaded()
@@ -4510,7 +4508,7 @@ def check_walking_back_answers_when_did_i_last_touch_this():
 
 
 def check_connecting_distant_moments():
-    """⭐ THE CAPABILITY A FLAT EPISODE NEVER HAD — and the real blocker behind conflict detection, which
+    """The capability a flat episode never had — and the real blocker behind conflict detection, which
     needed the record to be *addressable*, not just ordered.
 
     Vacuity guard: the two entries are far apart and adjacent-only navigation could not relate them."""
@@ -4528,12 +4526,12 @@ def check_connecting_distant_moments():
 
 
 def check_a_stored_microfunction_walks_the_thread_with_no_new_primitive():
-    """⭐ THE CLAIM THAT MATTERS: the thread is ORDINARY DATA. `prev` and `at` are ordinary edges, so the
+    """The claim that matters: the thread is ordinary data. `prev` and `at` are ordinary edges, so the
     existing `MOVE` navigates them and a thread-walker is an ordinary microfunction *pointed at* the
     thread — no privileged access, no new ISA op, no Python helper.
 
     Vacuity guard: the function is loaded from stored graph data and run by the ordinary machine, and it
-    must land on the node attended TWO steps back — a wrong walk lands somewhere identifiable. (It did:
+    must land on the node attended two steps back — a wrong walk lands somewhere identifiable. (It did:
     the first version of this check passed `F(e)` where `MOVE` wants a head *name*, which silently opened
     a head named after a node id and returned `None`.)"""
     from . import asm, function as fn, thread as T
@@ -4555,11 +4553,11 @@ def check_a_stored_microfunction_walks_the_thread_with_no_new_primitive():
             "no_new_ops_needed": True}
 
 
-# --- END TO END: a goal to produce a plan -------------------------------------------------------------
+# --- END to END: a goal to produce a plan -------------------------------------------------------------
 def _blocks():
-    """⭐ THE END-TO-END SCENARIO. Three blocks on the ground; the goal is to find a plan that stacks them.
+    """The END-to-END scenario. Three blocks on the ground; the goal is to find a plan that stacks them.
 
-    ⚠ Height is an ATTRIBUTE because `types.py` schemas are one level deep: `schema_of` checks a label's
+    Height is an attribute because `types.py` schemas are one level deep: `schema_of` checks a label's
     target kind and count, and never recurses into the target's own type. So "on a block which is on a
     block" has no declared form, and the world model carries the derived fact instead. That is a real limit
     of the type system, recorded here rather than worked around silently."""
@@ -4625,7 +4623,7 @@ def check_a_goal_is_a_node_and_satisfaction_is_rechecked():
 
 
 def check_a_goal_without_a_subject_asks_whether_anything_satisfies_it():
-    """"Make SOMETHING a three_high" cannot name its subject in advance — demanding one would be asking
+    """"Make something a three_high" cannot name its subject in advance — demanding one would be asking
     the caller to guess the answer. Vacuity guard: the region must decide, so the same goal must give
     different answers under different `under`."""
     from . import goal as G
@@ -4642,7 +4640,7 @@ def check_a_goal_without_a_subject_asks_whether_anything_satisfies_it():
 
 
 def check_proposals_invent_bindings_that_selection_deliberately_will_not():
-    """⚠ `selection.candidates` handles single-parameter functions only, and says why: inventing bindings
+    """`selection.candidates` handles single-parameter functions only, and says why: inventing bindings
     is search, and should not hide inside candidate generation. This is that search, in the module where
     it belongs. Vacuity guard: `selection` must still refuse `stack`, or this proves nothing."""
     from . import driver as D, selection as sel, workbench as W
@@ -4661,7 +4659,7 @@ def check_proposals_invent_bindings_that_selection_deliberately_will_not():
 
 
 def _tower_goal(g, world):
-    """The goal as CONSTRAINTS on individuals: a on b, b on c. ⭐ Note what this removed — the earlier
+    """The goal as constraints on individuals: a on b, b on c. Note what this removed — the earlier
     version wanted a `three_high` *type*, which the type system could only express as a `height` attribute
     because schemas are one level deep. "a on b" is stated directly and the workaround is gone."""
     from . import goal as G
@@ -4673,7 +4671,7 @@ def _tower_goal(g, world):
 
 
 def check_a_goal_is_constraints_and_they_are_graph_data():
-    """⭐ A goal is a set of constraint NODES — materialised, so a rule can read a goal and a goal can be
+    """A goal is a set of constraint nodes — materialised, so a rule can read a goal and a goal can be
     reasoned about. Vacuity guard: `unmet` must shrink as constraints become true, one at a time, or it is
     not tracking anything."""
     from . import goal as G
@@ -4682,7 +4680,7 @@ def check_a_goal_is_constraints_and_they_are_graph_data():
     cs = G.constraints(g, goal)
     both_open = G.unmet(g, goal)
     g.unlink(a, "on", index=0)
-    g.link(a, "on", b)                                  # make ONE of them true
+    g.link(a, "on", b)                                  # make one of them true
     one_open = G.unmet(g, goal)
     g.unlink(b, "on", index=0)
     g.link(b, "on", c)
@@ -4695,7 +4693,7 @@ def check_a_goal_is_constraints_and_they_are_graph_data():
 
 
 def check_a_functions_effects_are_read_off_its_stored_body():
-    """⭐ HOMOICONICITY EARNING ITS KEEP. Nothing declares effects — the repoint moved away from operators
+    """Homoiconicity earning its keep. Nothing declares effects — the repoint moved away from operators
     carrying declarative effect descriptions — but a function IS graph data, so what it could establish is
     read from its instructions. It cannot fall out of date with the body because it *is* the body.
 
@@ -4719,10 +4717,10 @@ def check_a_functions_effects_are_read_off_its_stored_body():
 
 
 def check_planning_is_driven_by_the_open_constraints():
-    """⭐⭐ MEANS–ENDS, MEASURED. Ranking proposals by relevance to what is still false must cut the number
+    """Means–ends, measured. Ranking proposals by relevance to what is still false must cut the number
     of imagined states against the identical blind search — otherwise the ranking is decoration.
 
-    ⚠ And it must RANK, not filter: a proposal scoring 0 has to remain reachable, or Hanoi and the Sussman
+    And it must rank, not filter: a proposal scoring 0 has to remain reachable, or Hanoi and the Sussman
     anomaly become unsolvable. Vacuity guard: the zero-scoring proposals must actually exist here."""
     from . import driver as D, goal as G, thread as T, workbench as W
     g, world = _blocks()
@@ -4751,7 +4749,7 @@ def check_planning_is_driven_by_the_open_constraints():
 
 
 def check_the_sussman_anomaly_is_solvable_because_ranking_never_filters():
-    """⭐⭐ THE CASE THAT JUSTIFIES 'RANK, NEVER FILTER'. Sussman's anomaly: C sits on A, and the goal is
+    """The case that justifies 'rank, never filter'. Sussman's anomaly: C sits on A, and the goal is
     A on B and B on C. No move that *directly* closes a constraint is available first — C must come off A
     even though unstacking closes nothing and looks irrelevant. A greedy means-ends planner that only tried
     constraint-closing moves would be stuck here; because relevance only *orders*, the move stays reachable.
@@ -4783,24 +4781,24 @@ def check_the_sussman_anomaly_is_solvable_because_ranking_never_filters():
 
 
 def check_a_decision_can_NAME_THE_ACTION_and_the_displaced_one_stays_reachable():
-    """⭐⭐ `docs/deliberation.md`: a decision that says **what to do**, not only whether to keep going.
+    """`docs/deliberation.md`: a decision that says what to do, not only whether to keep going.
 
     `decide` used to be consulted *after* `take_best` had chosen, so it could veto but never substitute —
     which meant expert judgement could stop a search and never steer it. `driver.Call` names a function
-    **with its bindings**, which is also the job `selection.candidates` refuses to do (*"inventing bindings
+    with its bindings, which is also the job `selection.candidates` refuses to do (*"inventing bindings
     is search"*): here authored knowledge does it instead of enumeration.
 
-    **⚠ The vacuity guard is that the substitution must actually change the plan.** A seam that returns the
+    The vacuity guard is that the substitution must actually change the plan. A seam that returns the
     same action ranking would have chosen anyway is indistinguishable from no seam. So this drives Sussman
-    to a plan whose FIRST step is `stack`, which the guided search never chooses first.
+    to a plan whose first step is `stack`, which the guided search never chooses first.
 
-    **⚠⚠ ONCE PER FRAME PER CALL, and that is not a detail — without it this livelocks.** The displaced
-    candidate goes back on the frontier (§2: the fallback must stay reachable), the search re-takes it, a
+    Once per frame per CALL, and that is not a detail — without it this livelocks. The displaced
+    candidate goes back on the frontier (: the fallback must stay reachable), the search re-takes it, a
     deterministic decider names the same action, which reaches an already-imagined state, and the candidate
     goes back again. Measured before the fix: 12 steps, 9 of them the same substitution from one frame,
     goal never reached. Same answer `DECOMPOSE` already gives — frequency, not absence.
 
-    ⚠ **A guess may not overrule a proof.** An ill-typed binding, one node in two roles, and an action the
+    A guess may not overrule a proof. An ill-typed binding, one node in two roles, and an action the
     goal forbids are each refused loudly, because `relevance` ranks and `forbid_action` prunes, and a
     decision arriving from outside must not be able to launder the second into the first."""
     from . import driver as D, goal as G, thread as T
@@ -4838,9 +4836,9 @@ def check_a_decision_can_NAME_THE_ACTION_and_the_displaced_one_stays_reachable()
     not_a_fn = refused(lambda g, a, b, c, ground: lambda s: D.Call("levitate", {"b": c}))
     wrong_arity = refused(lambda g, a, b, c, ground: lambda s: D.Call("stack", {"b": c}))
 
-    # ⚠ A decider that NEVER stops naming the same call — the livelock case. It must terminate.
+    # A decider that never stops naming the same call — the livelock case. It must terminate.
     # Guarded only on type validity (c must still be clear), which is what keeps it a *repetition* test
-    # rather than an ill-typed-call test; the pressure is that it names the SAME action from every frame.
+    # rather than an ill-typed-call test; the pressure is that it names the same action from every frame.
     def always(g, a, b, c, ground):
         def decide(s):
             img = D.view_in(g, s["frame"])(c)
@@ -4851,13 +4849,13 @@ def check_a_decision_can_NAME_THE_ACTION_and_the_displaced_one_stays_reachable()
     g2, insistent, _th2 = run(always)
 
     def first_imagined(g, th):
-        """The first action the search actually IMAGINED, as a whole CALL.
+        """The first action the search actually imagined, as a whole CALL.
 
-        ⚠ Not the first step of the plan: substituting one step steers what gets explored, and the search
+        Not the first step of the plan: substituting one step steers what gets explored, and the search
         may still find a better route down another branch. Asserting the plan would over-claim what one
         decision does, and the check would then be testing the search rather than the seam.
 
-        ⚠ And not the function NAME either — ranking's first move here is `stack(b, c)` and the decision
+        And not the function name either — ranking's first move here is `stack(b, c)` and the decision
         names `stack(c, b)`, so a name comparison passes while proving nothing. The bindings are the whole
         difference between the right move and its mirror, which is `relevance`'s own band-4-versus-3
         lesson arriving in the test."""
@@ -4885,18 +4883,18 @@ def check_a_decision_can_NAME_THE_ACTION_and_the_displaced_one_stays_reachable()
 
 
 def check_deciding_BEFORE_enumerating_suppresses_the_product_but_never_LOSES_it():
-    """⭐⭐⭐ `docs/deliberation.md` With criteria the search visited four frames whatever the world's
+    """See `docs/deliberation.md`. With criteria the search visited four frames whatever the world's
     size — yet still built the whole O(N²) product in each, which was *all* of the residual cost and all of
     it thrown away. `decide` could not remove it: it is consulted after `_offer` has already run. `propose`
     is the same knowledge asked one step earlier, where the saving is.
 
-    **⚠⚠ THE WHOLE RISK IS COMPLETENESS, and it is a stronger claim than ranking ever makes.** `relevance`
+    The whole risk is completeness, and it is a stronger claim than ranking ever makes. `relevance`
     ranks rather than filters so a low-scoring move stays reachable; offering only what a criterion names
-    would make the FRONTIER itself incomplete, and authored knowledge is a guess. So the suppressed
-    enumeration is **deferred, not skipped**: when the frontier empties, `_backfill` builds one deferred
+    would make the frontier itself incomplete, and authored knowledge is a guess. So the suppressed
+    enumeration is deferred, not skipped: when the frontier empties, `_backfill` builds one deferred
     frame and the search carries on. Only a search with nothing left deferred is exhausted.
 
-    The guard is therefore not "it is faster" but **"a WRONG proposer still finds the plan"** — checked
+    The guard is therefore not "it is faster" but "a wrong proposer still finds the plan" — checked
     here with a proposer that names `paint`, which can never close anything, on every frame."""
     from . import driver as D, thread as T, workbench as W
 
@@ -4920,7 +4918,7 @@ def check_deciding_BEFORE_enumerating_suppresses_the_product_but_never_LOSES_it(
 
     _g0, plain, plain_built = run(lambda *a: None)
 
-    # ⭐ A GOOD proposer: unstack whatever sits on a block the goal wants clear, else stack bottom-up.
+    # A good proposer: unstack whatever sits on a block the goal wants clear, else stack bottom-up.
     def good(g, a, b, c, ground):
         def propose(s):
             frame = s["frame"]
@@ -4938,7 +4936,7 @@ def check_deciding_BEFORE_enumerating_suppresses_the_product_but_never_LOSES_it(
         return propose
     g1, guided, guided_built = run(good)
 
-    # ⚠ A WRONG proposer: always `paint`, which closes nothing and leads nowhere.
+    # A wrong proposer: always `paint`, which closes nothing and leads nowhere.
     def useless(g, a, b, c, ground):
         return lambda s: D.Call("paint", {"b": a})
     g2, despite, _ = run(useless)
@@ -4948,13 +4946,13 @@ def check_deciding_BEFORE_enumerating_suppresses_the_product_but_never_LOSES_it(
                 guided["found"] and D.plan_steps(g1, guided) == ("unstack", "stack", "stack"),
             "AND_BUILDS_FAR_FEWER_PROPOSALS": guided_built * 2 < plain_built,
             "built_guided_vs_default": (guided_built, plain_built),
-            # ⭐ COMPLETENESS: the goal is still reached. This is the guard the whole slice rests on.
+            # Completeness: the goal is still reached. This is the guard the whole slice rests on.
             "A_WRONG_PROPOSER_STILL_FINDS_IT": despite["found"],
             "and_the_real_plan_is_still_in_there":
                 D.plan_steps(g2, despite)[-3:] == ("unstack", "stack", "stack"),
-            # ⚠⚠ BUT NOT FOR FREE, and this is recorded rather than asserted away: backtracking to the
+            # But NOT for free, and this is recorded rather than asserted away: backtracking to the
             # newest deferral extends the bad prefix before the root's alternatives are built, so a wrong
-            # proposer costs PLAN QUALITY. `relevance`'s rank-never-filter does not pay this at all.
+            # proposer costs PLAN quality. `relevance`'s rank-never-filter does not pay this at all.
             "IT_COSTS_PLAN_QUALITY_THOUGH":
                 len(D.plan_steps(g2, despite)) > len(D.plan_steps(_g0, plain)),
             "degraded_plan": D.plan_steps(g2, despite),
@@ -4980,26 +4978,26 @@ CRITERIA_TEXT = ["""criterion clear the block that must move:
 
 
 def check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT_and_it_drives_the_search():
-    """⭐⭐⭐ `docs/deliberation.md`, the whole arc, arriving at a surface. Three criteria in the CNL, and
-    the search stops depending on the size of the world: measured at 5, 20 and **60** blocks, the same
-    four imagined states and — because `propose` is consulted before the cartesian product — **zero
-    proposals built**, against `relevance`, which stops finding a plan at all between six and seven.
+    """`docs/deliberation.md`, the whole arc, arriving at a surface. Three criteria in the CNL, and
+    the search stops depending on the size of the world: measured at 5, 20 and 60 blocks, the same
+    four imagined states and — because `propose` is consulted before the cartesian product — zero
+    proposals built, against `relevance`, which stops finding a plan at all between six and seven.
 
-    **⭐⭐ A criterion may not name individuals; its variables come from an UNMET GOAL CONSTRAINT.**
+    A criterion may not name individuals; its variables come from an unmet goal constraint.
     `wants link on` binds `subject` and `object` — `method.py`'s trick in a second place, and also exactly
-    the index key §7 identified, so the vocabulary stays indexable without anyone arranging it.
+    the index key identified, so the vocabulary stays indexable without anyone arranging it.
 
-    **⭐⭐ `furthest subject by ^on` is a SET POSITION WITH A SELECTOR, and it is what replaces a loop.**
+    `furthest subject by ^on` is a SET position with a selector, and it is what replaces a loop.
     `path.via` walks nearest-first, so the topmost of a pile is the last one. The two-deep blocker is the
     scenario that needs it and the vacuity guard for it: with `nearest` instead of `furthest` the criterion
     names a buried block and the call is refused.
 
-    ⚠ **The refusals are the feature.** A closed body vocabulary, a name that is not a role, an individual
-    that resolves to nothing — each is refused where it is WRITTEN, because a criterion that is silent
+    The refusals are the feature. A closed body vocabulary, a name that is not a role, an individual
+    that resolves to nothing — each is refused where it is written, because a criterion that is silent
     because of a typo is indistinguishable from one that is silent because the situation does not call
     for it.
 
-    ⚠⚠ **`speaks` and `governing` must agree, and they did not.** `governing` checked only the `when`
+    `speaks` and `governing` must agree, and they did not. `governing` checked only the `when`
     lines while `speaks` also required the action's references to resolve, so it reported all three
     criteria as having spoken when only one could. Two paths computing the same thing differently, in the
     one feature whose whole job is to explain truthfully."""
@@ -5040,8 +5038,8 @@ def check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT_and_it_drives_the_search():
     deep = D.pursue(g2, goal2, T.open_thread(g2), w2, max_steps=400, max_depth=7,
                     propose=CR.decide(g2, goal2, w2))
 
-    # ⚠ THE SELECTOR'S OWN VACUITY GUARD: `nearest` names a BURIED block, which is not a `clear_block`.
-    # ⭐ The criterion therefore falls SILENT and the search finishes by enumerating what was deferred —
+    # The selector's own vacuity guard: `nearest` names a buried block, which is not a `clear_block`.
+    # The criterion therefore falls silent and the search finishes by enumerating what was deferred —
     # which is the two halves of the design meeting: an inapplicable action is a situation rather than an
     # authoring error, and deferral means being wrong costs states rather than the goal.
     g3, w3, goal3 = world_with_criteria(two_deep)
@@ -5074,8 +5072,8 @@ def check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT_and_it_drives_the_search():
             "imagined_guided_vs_plain": (guided["steps"], plain["steps"]),
             "THE_SELECTOR_HANDLES_A_TWO_DEEP_PILE":
                 deep["found"] and D.plan_steps(g2, deep) == ("unstack", "unstack", "stack"),
-            # `nearest` names a buried block: the criterion goes SILENT, says why, and the deferred
-            # enumeration still finds a plan. Silence that cannot be interrogated is what §6 forbids.
+            # `nearest` names a buried block: the criterion goes silent, says why, and the deferred
+            # enumeration still finds a plan. Silence that cannot be interrogated is what forbids.
             "NEAREST_makes_the_criterion_SILENT":
                 near_told["clear the block that must move"][0] is False,
             "and_says_it_is_not_a_clear_block":
@@ -5089,7 +5087,7 @@ def check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT_and_it_drives_the_search():
             "an_unknown_individual_is_refused_WHERE_IT_IS_WRITTEN":
                 "nothing here is called" in (refused("criterion x:\n    wants link on\n"
                                                      "    do unstack b = subject, floor = the moon") or ""),
-            # ⚠ The action here is deliberately WELL-FORMED (both parameters bound), so the refusal can
+            # The action here is deliberately well-formed (both parameters bound), so the refusal can
             # only be about the missing `wants`. It used to bind `b` alone, and once `intake._action`
             # started checking parameter sets that case was refused for the *other* reason — a check
             # asserting a message it was no longer the cause of.
@@ -5106,19 +5104,19 @@ def check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT_and_it_drives_the_search():
 
 
 def check_the_CNL_GUIDE_parses():
-    """⭐⭐ **The authoring guide is EXECUTABLE.** Every ` ```cnl ` block in `docs/authoring.md` is
+    """The authoring guide is executable. Every ` ```cnl ` block in `docs/authoring.md` is
     extracted from the file and fed to the parser.
 
-    ⚠ **This exists because the previous reference rotted, and rotted silently.** The CNL's only
+    This exists because the previous reference rotted, and rotted silently. The CNL's only
     description was `intake.py`'s module docstring — which nothing obliged anyone to update, and which had
     already gone stale on an entire verb family (`criterion`) before anyone noticed. A document that is
     merely *checked by a human* decays exactly like a comment does.
 
-    ⚠ **It also caught the guide's first draft.** The examples explained each line with trailing prose
+    It also caught the guide's first draft. The examples explained each line with trailing prose
     rather than a `#` comment, so not one of them would have parsed — a guide whose examples cannot be
     copied is worse than no guide. They are comments now, which the check enforces.
 
-    ⚠ The world here supplies whatever the examples name. That is part of the point: an example naming
+    The world here supplies whatever the examples name. That is part of the point: an example naming
     something the reader has no way to create is not an example."""
     import pathlib
     import re
@@ -5139,8 +5137,8 @@ def check_the_CNL_GUIDE_parses():
             declare_type(g, t, attrs={"kind_of": t})
         declare_type(g, "serviced_car", attrs={"serviced": True})
         declare_type(g, "washed_car", attrs={"washed": True})
-        # ⭐ The guide's criterion examples say `do unstack b = …, floor = …`, and `intake._action` now
-        # checks a `do` against the library — so the guide is only honest if `unstack` EXISTS with those
+        # The guide's criterion examples say `do unstack b = …, floor = …`, and `intake._action` now
+        # checks a `do` against the library — so the guide is only honest if `unstack` Exists with those
         # parameters. That is this check's own stated principle applied one level further: *an example
         # naming something the reader has no way to create is not an example*. It also means the guide's
         # actions can no longer drift from their signatures without this going red.
@@ -5162,7 +5160,7 @@ def check_the_CNL_GUIDE_parses():
             "EVERY_cnl_BLOCK_PARSES": not failed,
             "failures": tuple(failed),
             "blocks_checked": len(blocks),
-            # ⚠ Vacuity: an empty guide, or one whose fences stopped being marked, would pass trivially.
+            # Vacuity: an empty guide, or one whose fences stopped being marked, would pass trivially.
             "and_there_are_enough_of_them_to_mean_something": len(blocks) >= 9,
             "COVERING_EVERY_FAMILY":
                 {"goal", "type", "prefer", "method", "criterion", "directive",
@@ -5170,29 +5168,28 @@ def check_the_CNL_GUIDE_parses():
 
 
 def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
-    """⭐⭐ FORCE, in its third place. `docs/deliberation.md`'s finding is that force is about **failure**,
-    not strength — a method falls back to searching, a procedure must refuse — and `docs/deliberation.md`
-    §2 asked what entitles a criterion to prune. The answer the surface now makes the author say:
+    """Force, in its third place. `docs/deliberation.md`'s finding is that force is about failure,
+    not strength — a method falls back to searching, a procedure must refuse — and `docs/deliberation.md` asked what entitles a criterion to prune. The answer the surface now makes the author say:
 
     | | suppresses enumeration | when it cannot act |
     |---|---|---|
-    | `criterion` | **defers** it — being wrong costs imagined states | falls silent; the search carries on |
-    | `directive` | does **not** defer — the alternatives are not built | **refuses** |
+    | `criterion` | defers it — being wrong costs imagined states | falls silent; the search carries on |
+    | `directive` | does not defer — the alternatives are not built | refuses |
 
-    That is §2's distinction made operational: only a claim about the **situation** (*"in this situation,
+    That is's distinction made operational: only a claim about the situation (*"in this situation,
     this is the move"*) is entitled to remove the alternatives, because only that claim is wrong in a way
     its author meant to be fatal.
 
-    **⚠ Recognising is not the same as having something to say, and the whole thing turns on it.** A
+    Recognising is not the same as having something to say, and the whole thing turns on it. A
     directive refuses when every `when`/`unless` line held and the *action* still could not be applied. It
     stays silent when it never recognised the situation at all — otherwise a directive would refuse
     everywhere it simply had nothing to do, which would make it useless rather than strict.
 
-    ⚠ Vacuity guards: the SAME body under the other verb must behave differently, or the word means
+    Vacuity guards: the same body under the other verb must behave differently, or the word means
     nothing; and the refusal must name the directive that caused it."""
     from . import criterion as CR, driver as D, intake as I, thread as T
 
-    # The pile is two deep, so `unstack` can only apply to the top. Asking for the block DIRECTLY on the
+    # The pile is two deep, so `unstack` can only apply to the top. Asking for the block directly on the
     # subject therefore names a buried one — recognised, and unactionable.
     def two_deep(verb, complete=False):
         g, world = _blocks()
@@ -5206,8 +5203,8 @@ def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
             g.put(under, clear=None)
         goal = G.open_goal(g, label="a on b")
         G.require_link(g, goal, a, "on", b)
-        # ⭐⭐ THE GUARD IS THE POINT, and only the `complete` version has it. "Recognises the situation"
-        # is *exactly what the `when` lines say*, so an unguarded directive recognises EVERY unmet `on`
+        # The guard is the point, and only the `complete` version has it. "Recognises the situation"
+        # is *exactly what the `when` lines say*, so an unguarded directive recognises every unmet `on`
         # constraint — including ones where nothing is on the subject at all — and refuses there. A
         # directive must therefore say when it applies; without that, mandatory force is a blanket veto
         # over everything declared after it.
@@ -5218,9 +5215,9 @@ def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
                          + ("furthest subject by ^on" if complete else "subject.^on")
                          + ", floor = the ground"))
         if complete:
-            # ⚠⚠ A DIRECTIVE MUST COVER ITS SITUATION COMPLETELY, and finding that out is half of what
+            # A directive must cover its situation completely, and finding that out is half of what
             # this check is for. The clearing directive above recognises every unmet `on` constraint, so
-            # once the pile is gone it recognises the situation, cannot act, and REFUSES — there being no
+            # once the pile is gone it recognises the situation, cannot act, and refuses — there being no
             # fallback, by definition. Mandatory force is therefore not free: it obliges the author to say
             # what to do in every case they claimed to govern. `criterion` gets deferral instead.
             I.read(g, _lines("criterion build from the bottom up:", "    wants link on",
@@ -5237,7 +5234,7 @@ def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
     mandatory = D.pursue(g2, goal2, T.open_thread(g2), w2, max_steps=400, max_depth=7,
                          propose=CR.decide(g2, goal2, w2))
 
-    # ⚠ And a directive that CAN be followed must still work, or "refuses" would just mean "broken".
+    # And a directive that can be followed must still work, or "refuses" would just mean "broken".
     g3, goal3, w3 = two_deep("directive", complete=True)
     followed = D.pursue(g3, goal3, T.open_thread(g3), w3, max_steps=400, max_depth=7,
                         propose=CR.decide(g3, goal3, w3))
@@ -5249,12 +5246,12 @@ def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
             "and_says_which_directive_governed":
                 "take the block directly on it off" in (mandatory.get("why") or ""),
             "it_stopped_by_REFUSING": mandatory.get("stopped") == D.REFUSE,
-            # ⚠ THE VACUITY GUARD: same body, same world, different word, different outcome.
+            # The vacuity guard: same body, same world, different word, different outcome.
             "SAME_BODY_DIFFERENT_WORD_DIFFERENT_OUTCOME":
                 advisory["found"] is not mandatory["found"],
-            # ⚠ ...and a directive that can be followed is not merely a way of failing.
-            # ⚠ ...and a directive that can be followed is not merely a way of failing. Note it took a
-            # SECOND criterion to make that true: mandatory force obliges the author to cover every case
+            # ...and a directive that can be followed is not merely a way of failing.
+            # ...and a directive that can be followed is not merely a way of failing. Note it took a
+            # Second criterion to make that true: mandatory force obliges the author to cover every case
             # they claimed to govern, which is the price of removing the fallback.
             "A_DIRECTIVE_THAT_CAN_BE_FOLLOWED_STILL_WORKS": followed["found"],
             "and_it_really_clears_the_pile_top_down":
@@ -5263,28 +5260,28 @@ def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
 
 
 def check_two_criteria_that_DISAGREE_can_be_told_apart_from_two_that_AGREE():
-    """⭐⭐ `docs/deliberation.md`'s last untested claim, made good.
+    """`docs/deliberation.md`'s last untested claim, made good.
 
     `docs/deliberation.md` rejected program-conditions partly because *"`conflict.py` cannot say two rules
-    disagree by comparing two programs"*. §5 answered that the cost **degrades rather than dies**: a
-    criterion's **return** is a named function with denoted arguments — trivially comparable — even when
+    disagree by comparing two programs"*. answered that the cost degrades rather than dies: a
+    criterion's return is a named function with denoted arguments — trivially comparable — even when
     its condition is not. That was an argument. This is the thing itself, and it turned out cheap, because
     `speaks` already answers per criterion, so the comparison is a pass over *answers* rather than over
-    conditions. ⭐ The two criteria compared here have structurally different conditions — one draws a role
+    conditions. The two criteria compared here have structurally different conditions — one draws a role
     and tests it, one tests nothing at all — and it makes no difference, which is the whole claim.
 
-    **⚠ Naming the SAME call is redundancy, not disagreement**, and the check requires that distinction to
+    Naming the same call is redundancy, not disagreement, and the check requires that distinction to
     be made. `conflict.py`'s standing correction applies unchanged: *a later action overriding an earlier
     one is not a disagreement, it is what doing things looks like.* Reporting two criteria that agree would
     bury the real cases, which is the failure mode that makes a conflict report worth nothing.
 
-    **⚠ What this reports is SHADOWING, not error.** `build from the bottom up` is a perfectly good
+    What this reports is shadowing, not error. `build from the bottom up` is a perfectly good
     criterion that simply loses on precedence. First-match-wins is the control rule, so everything after
-    the first is invisible at run time; this makes it visible. That is §6's contrastive purpose, and it
-    matters more here than for `guideline`, because criteria **suppress enumeration** — what they discard
+    the first is invisible at run time; this makes it visible. That is's contrastive purpose, and it
+    matters more here than for `guideline`, because criteria suppress enumeration — what they discard
     was never built.
 
-    ⚠ Exact and situational: it needs a frame and reports no false positives. A static comparison of two
+    Exact and situational: it needs a frame and reports no false positives. A static comparison of two
     conditions could only over-report, and `conflict.py`'s stance is that an honest miss beats a false
     alarm."""
     from . import criterion as CR, intake as I, workbench as W
@@ -5314,14 +5311,14 @@ def check_two_criteria_that_DISAGREE_can_be_told_apart_from_two_that_AGREE():
                 == ("take the top of the pile off", "would rather paint it"),
             "and_what_each_would_have_DONE":
                 (found[0][1].function, found[0][3].function) == ("unstack", "paint"),
-            # ⚠ THE DISTINCTION THAT MATTERS: agreeing is not disagreeing.
+            # The distinction that matters: agreeing is not disagreeing.
             "THE_REDUNDANT_ONE_IS_NOT_REPORTED":
                 "says exactly the same thing" not in [label(x) for _w, _wc, x, _lc in found],
             "though_it_really_did_speak": "says exactly the same thing" in [label(x) for x, _ in spoke],
-            # ⚠ No false positives: one that has nothing to say here is not a conflict.
+            # No false positives: one that has nothing to say here is not a conflict.
             "a_SILENT_criterion_is_not_a_conflict":
                 "never speaks here" not in [label(x) for x, _ in spoke],
-            # ⭐ The §5 claim itself: conditions differ structurally, returns compare anyway.
+            # The claim itself: conditions differ structurally, returns compare anyway.
             "conditions_differ_structurally_and_it_does_not_matter":
                 len(CR.draws_of(g, found[0][0])) == 1 and len(CR.tests_of(g, found[0][2])) == 0,
             "it_reads_back_in_words": "would have done paint" in
@@ -5329,31 +5326,31 @@ def check_two_criteria_that_DISAGREE_can_be_told_apart_from_two_that_AGREE():
 
 
 def check_SOME_draws_a_further_role_so_a_criterion_can_CHOOSE_among_several():
-    """⭐⭐ `some <name> in <ref> by <link>` — the one thing §8f measured as unsayable.
+    """`some <name> in <ref> by <link>` — the one thing measured as unsayable.
 
-    A criterion could **reach** a third individual by a path (`box = subject.contains`) but could not
-    **choose** among several: `nearest`/`furthest … by <link>` selects over a **traversal**, and nothing
-    selected by a **condition**. So *"put it in a container that is allowed"* had no form, and the author's
+    A criterion could reach a third individual by a path (`box = subject.contains`) but could not
+    choose among several: `nearest`/`furthest … by <link>` selects over a traversal, and nothing
+    selected by a condition. So *"put it in a container that is allowed"* had no form, and the author's
     only recourse was to let the search work it out — the thing criteria exist to avoid.
 
-    **⭐ The form binds a role rather than filtering inline, and that is the whole point.** An inline
-    `such that …` would have made the condition opaque, which is exactly what §5 says not to do. As a role,
-    the filter is written with the ordinary `when` / `unless` lines, stays **decomposable**, and
+    The form binds a role rather than filtering inline, and that is the whole point. An inline
+    `such that …` would have made the condition opaque, which is exactly what says not to do. As a role,
+    the filter is written with the ordinary `when` / `unless` lines, stays decomposable, and
     `governing` can still name the line that ruled a candidate out.
 
-    **⭐ It subsumes the selector and says more.** `furthest subject by ^on` picks the top of a pile
+    It subsumes the selector and says more. `furthest subject by ^on` picks the top of a pile
     because of *where it sits*; `some top in subject by ^on` + `when top is a clear_block` picks the same
     block because of *what is true of it*.
 
-    ⚠ **Two guards, because there are two ways to reach the right answer and only one is the feature.**
+    Two guards, because there are two ways to reach the right answer and only one is the feature.
     Candidates are tried in traversal order, so a criterion with NO filter still gets there by
     backtracking once the wrong candidate is refused — which is real, and would make a filter test pass
     while proving nothing. So the check requires the filtered version to pick the right container
-    **first**, and separately that an unfiltered one needs more attempts."""
+    first, and separately that an unfiltered one needs more attempts."""
     from . import criterion as CR, driver as D, execution as X, intake as I, path as P, thread as T
 
     def stow(*body, sealed=True):
-        """Two containers inside the warehouse. The crate comes first and is **sealed**."""
+        """Two containers inside the warehouse. The crate comes first and is sealed."""
         g, world, wh, box, parcel = _warehouse(nested=False)
         crate = g.mint("thing", kind_of="thing", label="crate", held=True, sealed=True)
         g.link(world, "thing", crate)
@@ -5372,7 +5369,7 @@ def check_SOME_draws_a_further_role_so_a_criterion_can_CHOOSE_among_several():
         "    unless spot.sealed = true",
         "    do put_in t = object, box = spot")
 
-    # ⚠ THE VACUITY GUARD: without the filter the FIRST candidate is the sealed crate.
+    # The vacuity guard: without the filter the first candidate is the sealed crate.
     g2, unfiltered, wh2, box2, crate2, parcel2 = stow(
         "    wants link contains",
         "    some spot in subject by contains",
@@ -5403,7 +5400,7 @@ def check_SOME_draws_a_further_role_so_a_criterion_can_CHOOSE_among_several():
                 and parcel1 in g1.targets(box1, "contains"),
             "and_not_the_sealed_one": parcel1 not in g1.targets(crate1, "contains"),
             "it_really_reaches_the_warehouse": P.reaches(g1, wh1, "contains", parcel1),
-            # ⚠ Vacuity: unfiltered lands in the sealed crate — the filter is doing the work, not the order.
+            # Vacuity: unfiltered lands in the sealed crate — the filter is doing the work, not the order.
             "WITHOUT_THE_FILTER_IT_TAKES_THE_SEALED_ONE":
                 unfiltered["found"] and parcel2 in g2.targets(crate2, "contains"),
             "SOME_ALSO_DOES_THE_SELECTORS_JOB":
@@ -5421,38 +5418,38 @@ def check_SOME_draws_a_further_role_so_a_criterion_can_CHOOSE_among_several():
 
 
 def check_criteria_survive_a_SECOND_DOMAIN_and_where_they_STOP():
-    """⭐⭐ Everything in `docs/deliberation.md` was measured on blocks world, whose goals are `a on b` — a
-    **link** constraint naming exactly the two individuals that must move. The load-bearing assumption is
+    """Everything in `docs/deliberation.md` was measured on blocks world, whose goals are `a on b` — a
+    link constraint naming exactly the two individuals that must move. The load-bearing assumption is
     *a criterion's variables come from an unmet goal constraint*, and two other worlds attack it:
 
-    * **the GARAGE**, whose goal `car is a washed_car` is a **type** constraint — one subject, no object.
-    * **the WAREHOUSE**, whose goal `wh contains+ parcel` names neither the box the parcel must go into
-      nor anything about it. The right action mentions a **third individual**.
+    * the garage, whose goal `car is a washed_car` is a type constraint — one subject, no object.
+    * the warehouse, whose goal `wh contains+ parcel` names neither the box the parcel must go into
+      nor anything about it. The right action mentions a third individual.
 
-    **⭐ Both survive, and the second is the interesting one:** a third individual is reachable by an
+    Both survive, and the second is the interesting one: a third individual is reachable by an
     ordinary path from a bound role (`subject.contains`), so `wants` binding only two roles is not the
     ceiling it looked like — `path.py` extends the reach.
 
-    ⚠⚠ **But it found a real bug first, which is the point of a second domain.** `wants type washed_car`
-    matched **nothing**, silently: `goal.require_type` stores its label under `type`, a link under `label`,
+    But it found a real bug first, which is the point of a second domain. `wants type washed_car`
+    matched nothing, silently: `goal.require_type` stores its label under `type`, a link under `label`,
     an attribute under `key`. Three names for one idea, and a criterion keying on the wrong one is
     indistinguishable from a criterion with nothing to say.
 
-    ⚠⚠ **And it settled a design question by force.** A criterion whose action the goal FORBIDS is now
-    **silent, not loud**. `driver.check_call` raising is right for a Python decider — one naming a
+    And it settled a design question by force. A criterion whose action the goal forbids is now
+    silent, not loud. `driver.check_call` raising is right for a Python decider — one naming a
     forbidden call is a caller bug — but a criterion is general knowledge meeting a particular world, so
     *"the first container happens to be the one this goal forbids"* is a situation. Raising abandoned a
     search that plain enumeration could finish; here `never touch crate` makes the criterion stand down
     and the deferred enumeration finds the box.
 
-    ⭐ **The residue, and it is precise:** `subject.contains` denotes the **first** container. A criterion
-    can REACH a third individual and cannot **CHOOSE** among several — `nearest`/`furthest … by <link>`
+    The residue, and it is precise: `subject.contains` denotes the first container. A criterion
+    can reach a third individual and cannot choose among several — `nearest`/`furthest … by <link>`
     selects over a *traversal*, never by a *condition*. What is missing is `some x such that …`: a set
-    position with a **filter**, where §8.4 only needed a **selector**."""
+    position with a filter, where only needed a selector."""
     from . import criterion as CR, driver as D, execution as X, goal as G, intake as I
     from . import path as P, thread as T
 
-    # --- the garage: a TYPE goal, subject and no object ---
+    # --- the garage: a type goal, subject and no object ---
     g, car = _garage()
     g.put(car, label="car")
     goal = I.read_goal(g, _lines("goal clean it:", "    car is a washed_car"))
@@ -5465,7 +5462,7 @@ def check_criteria_survive_a_SECOND_DOMAIN_and_where_they_STOP():
     garage = D.pursue(g, goal, T.open_thread(g), car, max_steps=200, max_depth=6,
                       propose=CR.decide(g, goal, car))
 
-    # --- the warehouse: the action names a THIRD individual ---
+    # --- the warehouse: the action names a third individual ---
     def stow(extra_crate: bool):
         gg, world, wh, box, parcel = _warehouse(nested=False)
         forbid = ["    never touch wh"]
@@ -5494,7 +5491,7 @@ def check_criteria_survive_a_SECOND_DOMAIN_and_where_they_STOP():
             "A_THIRD_INDIVIDUAL_IS_REACHABLE_BY_A_PATH": one_box["found"],
             "it_really_ends_up_in_the_warehouse": P.reaches(g1, wh1, "contains", parcel1),
             "BUT_NOT_DIRECTLY": parcel1 not in g1.targets(wh1, "contains"),
-            # ⚠ THE RESIDUE: the first container is forbidden, so the criterion stands down rather than
+            # The residue: the first container is forbidden, so the criterion stands down rather than
             # overruling the constraint — and the deferred enumeration still finds the right box.
             "A_FORBIDDEN_ACTION_MAKES_THE_CRITERION_STAND_DOWN": two_boxes["found"],
             "and_the_parcel_still_reaches_the_warehouse": P.reaches(g2, wh2, "contains", parcel2),
@@ -5525,7 +5522,7 @@ def _sussman(g, world):
 
 
 def check_a_forbidden_action_prunes_and_can_make_a_goal_unreachable():
-    """⭐⭐ CONSTRAINTS ON THE PLAN ITSELF — what having the plan in the graph is for. Sussman's anomaly is
+    """Constraints on the PLAN itself — what having the plan in the graph is for. Sussman's anomaly is
     solvable only by `unstack`ing C first, so forbidding `unstack` must turn a solved problem into an
     honestly-unsolvable one.
 
@@ -5579,7 +5576,7 @@ def check_forbidding_a_node_bans_touching_it_by_any_means():
 
 
 def check_a_required_action_is_liveness_and_must_not_prune():
-    """⭐ THE OTHER HALF. "The plan must include a `paint` step" is not violated by a prefix without one —
+    """The other half. "The plan must include a `paint` step" is not violated by a prefix without one —
     it is merely unfinished. Checking it eagerly would prune every branch at step one.
 
     Vacuity guards: `paint` does nothing towards the world constraints, so it can only appear because it
@@ -5624,8 +5621,8 @@ def check_a_step_limit_prunes_by_length():
 
 
 def check_end_to_end_a_goal_to_produce_a_plan():
-    """⭐⭐ THE WHOLE LOOP, END TO END. Materialise a world and a goal, bootstrap a thread, and let the
-    driver imagine its way to a state satisfying the goal. The plan is then FOUND, not built: it is the
+    """The whole loop, END to END. Materialise a world and a goal, bootstrap a thread, and let the
+    driver imagine its way to a state satisfying the goal. The plan is then found, not built: it is the
     frame path, which `execution.execute` already replays.
 
     Vacuity guards, because a green here could mean almost anything: the real world must be untouched (the
@@ -5655,7 +5652,7 @@ def check_end_to_end_a_goal_to_produce_a_plan():
 
 
 def check_the_found_plan_is_replayable_for_real():
-    """⭐ The payoff of the plan being a frame path rather than a new kind of object: `execute` — written
+    """The payoff of the plan being a frame path rather than a new kind of object: `execute` — written
     for `workbench.step` plans, before any of this existed — replays it against the real world unchanged.
 
     Vacuity guard: the world must be untouched before and genuinely stacked after."""
@@ -5699,9 +5696,9 @@ def check_an_unreachable_goal_is_an_ordinary_answer():
 
 # --- expectations: divergence the declared type cannot catch -------------------------------------------
 def _scanner_fs():
-    """A tool call whose mocks predict **concrete state**, not just a type.
+    """A tool call whose mocks predict concrete state, not just a type.
 
-    ⚠ Both mocks return `listing`, which is exactly the point: reality *will* satisfy the declared return
+    Both mocks return `listing`, which is exactly the point: reality *will* satisfy the declared return
     type, so the cast check passes and only the concrete prediction can catch the disagreement."""
     from . import asm, dispatch as D
     g = new_graph()
@@ -5730,8 +5727,8 @@ def _scanner_fs():
 
 
 def check_an_expectation_is_derived_from_the_two_frames():
-    """⭐ Nothing is authored and nothing is stored — frame N−1 and frame N *are* the before and after, so
-    the expectation is their difference. Vacuity guard: it must name the minted files AND the attribute that
+    """Nothing is authored and nothing is stored — frame N−1 and frame N *are* the before and after, so
+    the expectation is their difference. Vacuity guard: it must name the minted files and the attribute that
     changed, and must NOT mention attributes the step left alone."""
     from . import workbench as W
     g, d = _scanner_fs()
@@ -5749,12 +5746,12 @@ def check_an_expectation_is_derived_from_the_two_frames():
 
 
 def check_a_prediction_that_does_not_materialise_is_a_divergence():
-    """⭐⭐ THE CASE THE DECLARED TYPE CANNOT CATCH. The plan assumed listing the directory would produce
+    """The case the declared type cannot catch. The plan assumed listing the directory would produce
     two file nodes. Reality lists it and produces none — but the result still satisfies `listing`, so the
     cast passes and only the concrete expectation notices.
 
     Vacuity guards: the cast must genuinely pass (otherwise the type check is what caught it, not the
-    expectation); and the identical plan against a reality that DOES produce the files must complete."""
+    expectation); and the identical plan against a reality that does produce the files must complete."""
     from . import dispatch as D, execution as X, workbench as W
 
     def plan_assuming_two(g, d):
@@ -5787,10 +5784,10 @@ def check_a_prediction_that_does_not_materialise_is_a_divergence():
 
 
 def check_planning_looks_for_an_expectation_not_a_type_signature():
-    """⭐⭐ THE OTHER DIRECTION. A goal of "some file must exist" cannot be served by looking at signatures:
+    """The other direction. A goal of "some file must exist" cannot be served by looking at signatures:
     `scan_dir(d: dir) -> listing` mentions no file, and its *body* is a `DISPATCH` — everything interesting
     happens on the far side of a tool call. The knowledge that listing a directory *produces files* lives in
-    the **mock**, which is the declared assumption about how the call turns out.
+    the mock, which is the declared assumption about how the call turns out.
 
     Vacuity guards: the real function's own body must establish nothing about files (so the mock is doing
     the work); a function with no such mock must not be offered for it; and the search must actually plan
@@ -5802,7 +5799,7 @@ def check_planning_looks_for_an_expectation_not_a_type_signature():
     withmocks, _u2 = D.establishes(g, "scan_dir")
 
     goal = G.open_goal(g, label="find a file")
-    G.require_type(g, goal, "file")                     # SOMETHING of this type — no subject named
+    G.require_type(g, goal, "file")                     # Something of this type — no subject named
     result = D.pursue(g, goal, T.open_thread(g), d, max_steps=50)
     return {"the_signature_mentions_no_file": fn_returns(g, "scan_dir") == "listing",
             "and_its_own_body_establishes_none": not any(e[0] == "mint" for e in own),
@@ -5816,10 +5813,10 @@ def check_planning_looks_for_an_expectation_not_a_type_signature():
 
 # --- anticipation, and the relation between an ACT and a LOOK ------------------------------------------
 def _repo():
-    """The user's example, 2026-08-02: *"I change some files, I expect `git status` to not return empty."*
+    """The user's example: *"I change some files, I expect `git status` to not return empty."*
 
     `edit` is the ACT. `git_status` is the LOOK — its body is a `DISPATCH` and says nothing, so
-    `anticipate` is its MODEL. `disk_free` is an unrelated look and is the control."""
+    `anticipate` is its model. `disk_free` is an unrelated look and is the control."""
     from . import asm
     g = new_graph()
     declare_type(g, "tree", attrs={"kind_of": "tree"})
@@ -5870,27 +5867,27 @@ def _repo():
 
 
 def check_a_mock_can_anticipate_instead_of_assume():
-    """⭐⭐⭐ **A MOCK MAY BE A MODEL, NOT MERELY AN ASSUMPTION** — the user's example, 2026-08-02:
+    """a mock may be a model, NOT merely an assumption — the user's example:
     *"I can anticipate the behaviour of git status when I know some files have changed."*
 
-    Every mock in this suite's other fixtures asserts a CONSTANT — `found_two` always predicts two files,
+    Every mock in this suite's other fixtures asserts a constant — `found_two` always predicts two files,
     `list_empty` always predicts none — which made mocks look like assumptions (*suppose it turns out this
-    way*) when a mock is an ordinary microfunction and can therefore READ THE GRAPH and work the answer out.
-    That is the difference between an assumption and an **anticipation**, and it needed no new mechanism;
+    way*) when a mock is an ordinary microfunction and can therefore read the graph and work the answer out.
+    That is the difference between an assumption and an anticipation, and it needed no new mechanism;
     it had simply never been written down.
 
-    ⚠⚠ **THE VACUITY GUARD IS THE WHOLE CHECK: it must be the SAME mock, unedited, in both worlds**, and
+    The vacuity guard is the whole CHECK: it must be the same mock, unedited, in both worlds, and
     the two predictions must differ *because the world differs*. Two different mocks would be measuring the
     ordinary constant-assumption machinery and would pass while proving nothing.
 
-    ⚠ And the divergence it catches is one the declared type cannot: the cast passes either way, because
+    And the divergence it catches is one the declared type cannot: the cast passes either way, because
     `report` says nothing about `dirty`."""
     from . import dispatch as D, execution as X, function as fn, workbench as W
 
     def anticipated(edited):
         g, t = _repo()
         if edited:
-            fn.invoke(g, "edit", {"t": t})              # I changed some files, and I KNOW I did
+            fn.invoke(g, "edit", {"t": t})              # I changed some files, and i know i did
         wb = W.open_workbench(g, t)
         f0 = W.root_frame(g, wb)
         f1, tr = W.step(g, wb, f0, "git_status", {"t": W.mapping_for(g, f0, t)}, assume="anticipate")
@@ -5919,25 +5916,25 @@ def check_a_mock_can_anticipate_instead_of_assume():
 
 
 def check_a_mock_maps_a_CONDITION_to_an_expectation():
-    """⭐⭐⭐ **"EXPECTATIONS MUST BE CONDITIONED"** — the user, 2026-08-02: *"a mock must map conditions to
+    """"expectations must be conditioned" — the user: *"a mock must map conditions to
     expectations, so even during planning we know what to expect if we perform an action on a given
     state."* The default outcome was `outcomes[0]` — declaration order, chosen without looking at the
-    world — so *"what will happen if I do this HERE"* was answered by something that could not see "here".
+    world — so *"what will happen if I do this here"* was answered by something that could not see "here".
 
-    ⭐ **A mock's condition is its PARAMETER TYPES**, so this needed no new representation: a parameter type
+    A mock's condition is its parameter types, so this needed no new representation: a parameter type
     is already a schema over a subgraph and `fn.invoke` already enforces it. `fn.applicable` asks that
     question *before* choosing rather than discovering it afterwards as a refusal.
 
-    ⚠⚠ **What this replaced was not a wrong prediction but a CRASH.** Planning in the clean world took
+    What this replaced was not a wrong prediction but a crash. Planning in the clean world took
     `found_dirty` and `fn.invoke` refused it — so the condition that should have *selected* the other
     outcome instead *rejected* the only one offered, and a perfectly plannable state was unplannable.
 
-    ⭐ **And it is what lets a conditioned mock stay BRANCH-FREE**, which is the deeper payoff:
+    And it is what lets a conditioned mock stay BRANCH-free, which is the deeper payoff:
     `driver.establishes` does not follow jumps (its own comment: *"a conditional write is reported as
-    unconditional"*), so a mock that branches internally claims **both** its outcomes. Asserted below,
+    unconditional"*), so a mock that branches internally claims both its outcomes. Asserted below,
     because it is the reason to prefer two conditioned mocks over one branching one.
 
-    ⚠ Vacuity guards: the two worlds must select **different** outcomes (otherwise the condition is doing
+    Vacuity guards: the two worlds must select different outcomes (otherwise the condition is doing
     nothing), and the branching encoding must really claim both values (otherwise there is nothing to
     prefer the conditioned encoding *over*)."""
     from . import asm, driver as D, function as fn, types as TY, workbench as W
@@ -5960,7 +5957,7 @@ def check_a_mock_maps_a_CONDITION_to_an_expectation():
                       '    SET F(t) "reported" true', '    SET F(t) "dirty" true', "",
                       "fn found_clean(t: clean_tree) -> report mocks git_status:",
                       '    SET F(t) "reported" true', '    SET F(t) "dirty" false', "",
-                      # ⚠ A LOOSE outcome, declared LAST: its condition holds in every world, so it fits
+                      # A loose outcome, declared last: its condition holds in every world, so it fits
                       # alongside a specific one and is what makes "declaration order decides among
                       # several that fit" a testable claim rather than a docstring.
                       "fn found_something(t: tree) -> report mocks git_status:",
@@ -5997,7 +5994,7 @@ def check_a_mock_maps_a_CONDITION_to_an_expectation():
                 fn.applicable(gd, "git_status", {"t": td})[0] == "found_dirty",
             "the_CLEAN_world_selects_the_other":
                 fn.applicable(gc, "git_status", {"t": tc})[0] == "found_clean",
-            # ⚠ The loose outcome fits in BOTH worlds, so several really are applicable and the order
+            # The loose outcome fits in BOTH worlds, so several really are applicable and the order
             # among them is doing work — without this, reversing the preference order passes.
             "SEVERAL_CAN_FIT_AND_DECLARATION_ORDER_DECIDES":
                 (fn.applicable(gd, "git_status", {"t": td}) == ("found_dirty", "found_something")
@@ -6013,19 +6010,19 @@ def check_a_mock_maps_a_CONDITION_to_an_expectation():
 
 
 def check_an_act_and_a_look_are_related_by_what_one_writes_and_the_other_watches():
-    """⭐⭐⭐ **"IN SOME WAY, I RELATED THE TWO."** The relation between changing files and expecting
-    `git status` to be dirty is **derivable**, and both halves were already graph data: what the act writes
+    """"in some way, i related the two." The relation between changing files and expecting
+    `git status` to be dirty is derivable, and both halves were already graph data: what the act writes
     (`establishes`) and what the look's model reads (`reports_on`, the dual built for this).
 
     Declaring it instead — a `git_status reflects edit` edge — was the obvious alternative and would have
     been the labelling error this codebase keeps recording: an authored edge can drift from the bodies, and
     a derivation cannot, because it *is* the bodies.
 
-    **⚠⚠ THE ASYMMETRY IS THE FINDING: the ACT's BODY, and the LOOK's MOCK.** A look's body is a `DISPATCH`
+    The asymmetry is the finding: the ACT's body, and the LOOK's mock. A look's body is a `DISPATCH`
     and establishes nothing, so reading it would return the empty set for every look and make the whole
     measure vacuous. Asserted below rather than assumed.
 
-    ⚠⚠ **THE CONTROL IS THE WHOLE CHECK.** If every look related to every act the measure would say nothing,
+    The control is the whole CHECK. If every look related to every act the measure would say nothing,
     and this repo has twice built a probe whose control went dark. So three pairs: the related one, an
     unrelated look, and the drift defect the relation exists to catch — an act refactored to write a
     different slot, against an unchanged model, which still parses and still runs and now silently watches
@@ -6043,18 +6040,18 @@ def check_an_act_and_a_look_are_related_by_what_one_writes_and_the_other_watches
 
 
 def check_the_two_static_readers_of_a_body_agree_about_roles():
-    """⚠⚠ `establishes` and `reads` are two static readers of one body, and they must agree exactly about
+    """`establishes` and `reads` are two static readers of one body, and they must agree exactly about
     what `R(x)` denotes at each instruction. Two copies of that bookkeeping is the drift shape this codebase
     keeps recording, and one that disagreed would report an act and a look as unrelated when they are —
     silently, and in the direction that loses the finding.
 
-    So both consume one `_walk`. This check is what earns that factoring its place: a body that NAVIGATES
-    before reading and writing must report the **same navigated role** on both sides.
+    So both consume one `_walk`. This check is what earns that factoring its place: a body that navigates
+    before reading and writing must report the same navigated role on both sides.
 
-    ⚠ Vacuity guard: a NAVIGATED role (`t.sub`) must really appear on both sides. Two readers that both
+    Vacuity guard: a navigated role (`t.sub`) must really appear on both sides. Two readers that both
     reported only the bare `t` would agree while proving nothing about the register bookkeeping at all.
 
-    ⚠ The first version of this guard asserted that **no** read names a bare parameter, and was wrong:
+    The first version of this guard asserted that no read names a bare parameter, and was wrong:
     `GET R(s) F(t) "sub"` is itself a read *of `t`*, so `("link", "sub", "t")` belongs in the answer. The
     navigation being checked is the read that comes *after* it."""
     from . import asm, driver as D
@@ -6063,8 +6060,8 @@ def check_the_two_static_readers_of_a_body_agree_about_roles():
     asm.load_text(g, "\n".join([
         "fn touch_the_sub(t: tree) -> tree:",
         '    GET R(s) F(t) "sub"',                     # navigate first: the subject is now in a register
-        '    COUNT R(n) R(s) "changed_file"',          # READ through it
-        '    SET R(s) "seen" true',                    # and WRITE through it
+        '    COUNT R(n) R(s) "changed_file"',          # Read through it
+        '    SET R(s) "seen" true',                    # and write through it
     ]))
     written = {(k, lbl, sp) for k, lbl, sp, _o in D.establishes(g, "touch_the_sub")[0]}
     got_read = D.reads(g, "touch_the_sub")[0]
@@ -6076,9 +6073,9 @@ def check_the_two_static_readers_of_a_body_agree_about_roles():
 
 
 def check_a_minted_node_keeps_the_join_through_a_register():
-    """⭐⭐ REPORTED BY `../pystrider`, the engine's first real user, which uses `establishes` for
+    """Reported by the first consumer, the engine's first real user, which uses `establishes` for
     *recognition* rather than for ranking. A pattern authored as `NEW R(it)` then `LINK R(it) …` came back
-    as three effects with **no subject at all** — "orphan facts that no longer claim to describe one node" —
+    as three effects with no subject at all — "orphan facts that no longer claim to describe one node" —
     because only `F(param)` counted as a role. That forced every pattern to be authored as a cast, which is
     a real expressive loss, and it was invisible here because ranking does not care.
 
@@ -6119,8 +6116,8 @@ def check_a_minted_node_keeps_the_join_through_a_register():
 
 
 def _threshold_library():
-    """Two comparisons, each with a literal right-hand side, and operators that repair one by NAVIGATING
-    to it. The shape `../pystrider` reported: *read a part, write to that part*."""
+    """Two comparisons, each with a literal right-hand side, and operators that repair one by navigating
+    to it. The shape the first consumer reported: *read a part, write to that part*."""
     from . import asm
     g = new_graph()
     declare_type(g, "comparison", {"right": ("literal", 1)})
@@ -6151,11 +6148,11 @@ def _threshold_library():
 
 
 def check_a_navigated_register_keeps_the_join():
-    """⭐⭐ REPORTED BY `../pystrider`. A function whose operands are parameters read beautifully; one that
+    """Reported by the first consumer. A function whose operands are parameters read beautifully; one that
     had to *navigate* went dark — and a bridge between two vocabularies is nothing but navigation, so the
     functions they most wanted to read were exactly the ones that could not be read.
 
-    `GET R(s) F(a) "over"` makes `R(s)` denote a derivable thing: *the `over` of `a`*. So a role is a PATH,
+    `GET R(s) F(a) "over"` makes `R(s)` denote a derivable thing: *the `over` of `a`*. So a role is a path,
     and the write keeps its join to the parameter it came from.
 
     Vacuity guards: the plain-parameter roles must be unchanged (a path must not swallow the simple case);
@@ -6197,7 +6194,7 @@ def check_a_role_path_is_resolved_against_the_world():
     `right`* without knowing which node that is, and only a caller holding bindings can turn that into an
     individual. Static provenance, dynamic resolution.
 
-    Vacuity guards: the same role must resolve to DIFFERENT nodes under different bindings (or it is not
+    Vacuity guards: the same role must resolve to different nodes under different bindings (or it is not
     resolution at all), a locally-minted `$` role must resolve to nothing, and a path through an absent edge
     must answer `None` rather than raising."""
     from . import driver as D
@@ -6212,22 +6209,22 @@ def check_a_role_path_is_resolved_against_the_world():
 
 
 def check_ranking_sees_through_a_navigating_operator():
-    """⭐⭐ WHY THE PATH IS WORTH ITS COST TO THE DRIVER ITSELF, not only to a consumer reading descriptions.
+    """Why the path is worth its cost to the driver itself, not only to a consumer reading descriptions.
 
     Two comparisons; the goal wants one literal lowered. `lower_threshold` writes to a register, so before
     paths it established nothing anyone could name — and band 4 ("this call writes exactly this constraint")
     could never be reached by *any* candidate. Every proposal tied, and the guidance had nothing to rank
-    with. `../pystrider` measured 5 imagined states against 6 blind on their own repair and said so.
+    with. the first consumer measured 5 imagined states against 6 blind on their own repair and said so.
 
-    ⚠ The control is the whole check: blind search alone would not show that PATHS did it, so the middle
+    The control is the whole check: blind search alone would not show that paths did it, so the middle
     figure re-runs the identical search with path roles pretended not to exist — the behaviour before this
     change. Guided must beat that, not merely beat blind.
 
-    ⚠ **The step counts are compared one way only, deliberately.** With paths the search is decisive and
+    The step counts are compared one way only, deliberately. With paths the search is decisive and
     lands on 3 every time; the other two are tie-broken by frontier insertion order and measure 5 or 10 run
     to run, because *without a reachable band 4 the guided search and the blind one are the same search* —
-    which is `../pystrider`'s "found essentially unguided" in this engine's own numbers. So the load-bearing
-    assertion is the structural one below: before paths, **no proposal could reach band 4 at all**."""
+    which is the first consumer's "found essentially unguided" in this engine's own numbers. So the load-bearing
+    assertion is the structural one below: before paths, no proposal could reach band 4 at all."""
     from . import driver as D, goal as G, thread as T, workbench as W
 
     def search(guided, paths=True):
@@ -6277,7 +6274,7 @@ def check_ranking_sees_through_a_navigating_operator():
 
 
 def check_unknown_says_what_it_could_not_read():
-    """⭐ REPORTED BY `../pystrider`, which abstains from recognising a node whenever anything in a body was
+    """Reported by the first consumer, which abstains from recognising a node whenever anything in a body was
     unreadable. A whole-function flag darkened descriptions that were provably complete: the unreadable
     write here targets `y`, and the readable effect describes `x`.
 
@@ -6311,7 +6308,7 @@ def check_unknown_says_what_it_could_not_read():
 
 
 def check_a_contradictory_goal_is_refused_before_searching():
-    """⭐ Decidable contradictions only, so this can never reject a reachable goal. Vacuity guard: the same
+    """Decidable contradictions only, so this can never reject a reachable goal. Vacuity guard: the same
     goal minus the contradiction must plan normally, and the refusal must cost zero imagined steps."""
     from . import conflict as C, driver as D, goal as G, thread as T
     g, world = _blocks()
@@ -6338,13 +6335,13 @@ def check_a_contradictory_goal_is_refused_before_searching():
 
 
 def check_interference_between_two_goals_is_surfaced():
-    """⭐⭐ THE REGRESSION, ADDRESSED — but not by copying the old notion. That engine *derived facts*, so
+    """The regression, addressed — but not by copying the old notion. That engine *derived facts*, so
     two contradictory conclusions were a contradiction. This one *performs actions in sequence*, where a
-    later write legitimately overrides an earlier one. What survives is **interference**: two independently
+    later write legitimately overrides an earlier one. What survives is interference: two independently
     authored functions, composed by a library that grew, writing one slot for unrelated reasons — the
     telecom feature-interaction problem `function.py` cites as prior art.
 
-    ⚠ The different-goal requirement is the whole distinction. Vacuity guards: steps within ONE plan
+    The different-goal requirement is the whole distinction. Vacuity guards: steps within one plan
     overwrite each other constantly and must NOT be reported; and the conflict must be recorded as ordinary
     data (a `conflicts` connection) rather than only returned."""
     from . import asm, conflict as C, driver as D, goal as G, thread as T
@@ -6369,7 +6366,7 @@ def check_interference_between_two_goals_is_surfaced():
 
     found = C.interference(g, th)
 
-    # ⚠ THE VACUITY GUARD THAT MATTERS: one goal whose plan MUST write the slot twice (paint sets red,
+    # The vacuity guard that matters: one goal whose plan must write the slot twice (paint sets red,
     # varnish sets clear) — a deliberate sequel, and it must NOT be reported.
     g2, world2 = _blocks()
     a2 = g2.targets(world2, "block")[0]
@@ -6401,12 +6398,12 @@ def check_interference_between_two_goals_is_surfaced():
 
 
 def check_two_plans_collide_before_either_runs():
-    """⭐ REQUESTED AS A USE CASE BY `../pystrider`: their previous engine caught a collider between two
+    """Requested as a use case by the first consumer: their previous engine caught a collider between two
     independently authored fragments *before anything ran*, and the value was that the author learns at
     compose time rather than after a run that has already clobbered something.
 
     Their hypothesis — "`interference` over a frame chain, the same function with a different source of
-    claims" — is right, with one correction: it takes **two** chains. One chain is a single committed plan,
+    claims" — is right, with one correction: it takes two chains. One chain is a single committed plan,
     and steps within one plan are a deliberate sequence, so reading one would report ordinary sequels.
 
     Vacuity guards: nothing must have run (the block's colour is still untouched afterwards, or this is
@@ -6447,7 +6444,7 @@ def check_two_plans_collide_before_either_runs():
 
 
 def check_types_are_recognised_bottom_up():
-    """⭐ **What IS this?** — the direction this module was missing. Every entry point was top-down
+    """What IS this? — the direction this module was missing. Every entry point was top-down
     (`is_a` and `instances` both take a *named* type); nothing asked what a node turns out to be.
 
     Vacuity guards, because two of these look like features and are not: multi-type and de-recognition must
@@ -6472,7 +6469,7 @@ def check_types_are_recognised_bottom_up():
 
 
 def check_a_stale_type_tag_is_never_trusted():
-    """⚠ **THE DEFECT, FIXED.** `tag` stamps `is_a` and that stamp is a claim about the *past*, while `is_a`
+    """the defect, fixed. `tag` stamps `is_a` and that stamp is a claim about the *past*, while `is_a`
     is computed from current structure. `application.generalise` read the raw attribute as authoritative, so
     a node that had since changed would name a learned function's parameter — and declare its type — after
     a class it no longer belonged to, producing a function that refuses its own training example.
@@ -6501,10 +6498,10 @@ def check_a_stale_type_tag_is_never_trusted():
 
 
 def check_intake_turns_a_said_thing_into_a_goal_and_the_loop_runs_it():
-    """⭐⭐ INTAKE. The loop is driven entirely by a goal, and until now the only way to get one was to call
+    """Intake. The loop is driven entirely by a goal, and until now the only way to get one was to call
     `goal.py` from Python — so the one thing that *starts* the system was the one thing it could not receive.
 
-    ⚠ Tractable now only because a goal is no longer arbitrary structure: it is a handful of constraint
+    Tractable now only because a goal is no longer arbitrary structure: it is a handful of constraint
     nodes from a closed vocabulary. The `ugm/`-era attempts translated prose into anything and got 0/50.
 
     Vacuity guard: the parsed goal must drive a real plan, not merely parse."""
@@ -6531,12 +6528,12 @@ def check_intake_turns_a_said_thing_into_a_goal_and_the_loop_runs_it():
 
 
 def check_intake_refuses_rather_than_guessing():
-    """⚠ REFUSAL IS THE FEATURE. Three ways in, all loud: a sentence outside the closed vocabulary, a name
-    that matches nothing, and — the one the project learned the hard way — a name that matches **more than
-    one thing**. Nodes are nameless and a `label` is a convenience, so *never identify by name alone*.
+    """Refusal is the feature. Three ways in, all loud: a sentence outside the closed vocabulary, a name
+    that matches nothing, and — the one the project learned the hard way — a name that matches more than
+    one thing. Nodes are nameless and a `label` is a convenience, so *never identify by name alone*.
 
-    Vacuity guards: a well-formed goal in the same graph must parse; and a refusal must leave **nothing
-    behind**, or the caller could pursue a half-built goal and appear to be working."""
+    Vacuity guards: a well-formed goal in the same graph must parse; and a refusal must leave nothing
+    behind, or the caller could pursue a half-built goal and appear to be working."""
     from . import goal as G, intake as I
     g, world = _blocks()
     before = len(g.nodes)
@@ -6563,7 +6560,7 @@ def check_intake_refuses_rather_than_guessing():
 
 
 def check_END_TO_END_plan_act_diverge_replan_succeed():
-    """⭐⭐⭐ THE WHOLE LOOP, IN ONE RUN. Materialise a world and a goal, bootstrap a thread, then:
+    """The whole loop, in one RUN. Materialise a world and a goal, bootstrap a thread, then:
     plan by imagining → act for real → reality disagrees → replan from where we actually are → succeed.
 
     The first listing finds nothing (the plan's prediction breaks); a file appears; the retry finds it.
@@ -6603,7 +6600,7 @@ def check_END_TO_END_plan_act_diverge_replan_succeed():
 
 
 def check_a_mock_is_never_proposed_as_an_action():
-    """⚠ A mock is an assumption about how a real call turns out, not something to do. Proposing one would
+    """A mock is an assumption about how a real call turns out, not something to do. Proposing one would
     plan to *assume* rather than to act, and the plan would name a function that must never be executed for
     real. `workbench.step` substitutes it when the real operator is stepped — that is where it belongs.
 
@@ -6629,8 +6626,8 @@ def fn_returns(g, name):
 
 
 def check_a_different_number_of_files_is_not_a_divergence():
-    """⭐⭐ THE CORRECTION THAT MATTERS. A listing produces a *variable* number of files, so the `2` in the
-    mock is a **witness, not a promise**. Expecting exactly two would diverge on noise and make the whole
+    """The correction that matters. A listing produces a *variable* number of files, so the `2` in the
+    mock is a witness, not a promise. Expecting exactly two would diverge on noise and make the whole
     mechanism useless in practice. The expectation is existential: *some* file exists.
 
     Vacuity guards: one file and five files must both complete (either side of the mock's two), and zero
@@ -6655,11 +6652,11 @@ def check_a_different_number_of_files_is_not_a_divergence():
 
 
 def check_recovering_from_a_broken_prediction():
-    """⭐ The whole loop closing: an expectation-based divergence recovers through the ordinary contingency
+    """The whole loop closing: an expectation-based divergence recovers through the ordinary contingency
     machinery. The plan assumed two files; reality found none; the branch that assumed *none* was explored,
     so execution continues down it.
 
-    ⚠ Vacuity guard that matters most: the sibling must be chosen because ITS predictions hold, not merely
+    Vacuity guard that matters most: the sibling must be chosen because its predictions hold, not merely
     because its declared type matches — both mocks return `listing`, so the type cannot be what selected it."""
     from . import dispatch as D, execution as X, function as fnm, workbench as W
     g, d = _scanner_fs()
@@ -6687,20 +6684,20 @@ def check_recovering_from_a_broken_prediction():
 
 # --- query: a question is a goal -------------------------------------------------------------------
 def _mortality_library():
-    """Paul is a person. One PURE way to conclude mortality, and one that reaches the world.
+    """Paul is a person. One pure way to conclude mortality, and one that reaches the world.
 
-    ⚠ Both write the *same* attribute, deliberately. If the impure one were merely ranked lower rather
+    Both write the *same* attribute, deliberately. If the impure one were merely ranked lower rather
     than barred, the verdict would still come back `yes` — so a check asserting only the answer would be
-    vacuous about the thing that matters. It has to assert WHICH function was used.
+    vacuous about the thing that matters. It has to assert which function was used.
 
-    ⚠⚠ **And the impure one must SORT first, which is load-bearing rather than cosmetic.** Both establish
+    And the impure one must sort first, which is load-bearing rather than cosmetic. Both establish
     the same effect, so `relevance` ties them; the frontier sort is stable, so the tie breaks on the order
-    `function.names` returns — which is **alphabetical**, not declaration order. With the pure name winning
+    `function.names` returns — which is alphabetical, not declaration order. With the pure name winning
     that race, a planted removal of the purity bar still produced a proof naming `conclude_mortal`, so
     `AND_NEVER_APPEARS_IN_A_PROOF` passed *while testing nothing*. Hence `ask_the_registrar`: it sorts
     before `conclude_mortal`, making the trap the path the search takes by default, which is the only
-    arrangement under which that key means anything. ⚠ Reordering the source text does NOT achieve this
-    (the first attempt did exactly that and changed nothing) - the NAME is what decides."""
+    arrangement under which that key means anything. Reordering the source text does NOT achieve this
+    (the first attempt did exactly that and changed nothing) - the name is what decides."""
     from . import asm
     g = new_graph()
     declare_type(g, "person")
@@ -6723,11 +6720,11 @@ def _mortality_library():
 
 
 def check_a_question_is_a_goal_and_the_plan_is_the_proof():
-    """⭐ Asking is pursuing. The question is an ordinary goal node, the answer comes from `driver.pursue`,
-    and the plan it FINDS is the derivation - so the justification arrives with the verdict rather than
+    """Asking is pursuing. The question is an ordinary goal node, the answer comes from `driver.pursue`,
+    and the plan it finds is the derivation - so the justification arrives with the verdict rather than
     being reconstructed afterwards.
 
-    ⚠ Vacuity guard: asking must leave the world UNTOUCHED. The derivation ran on a workbench, so `paul`
+    Vacuity guard: asking must leave the world untouched. The derivation ran on a workbench, so `paul`
     is not mortal until `settle` replays it. A version that concluded straight into the graph would pass
     every other key here while making a question a destructive act."""
     from . import goal as G, query as Q, thread as T
@@ -6747,15 +6744,15 @@ def check_a_question_is_a_goal_and_the_plan_is_the_proof():
 
 
 def check_a_derivation_may_never_act():
-    """⭐⭐ The one genuinely new rule: concluding and doing are both "running a microfunction", so the
+    """The one genuinely new rule: concluding and doing are both "running a microfunction", so the
     difference cannot be left to intent. A function that could reach the world is barred from answering a
-    question - PROVED off the stored body, and pruned rather than ranked.
+    question - proved off the stored body, and pruned rather than ranked.
 
-    ⚠ THE LOAD-BEARING ASSERTIONS ARE THE LAST THREE KEYS, not the verdict. Both functions establish
+    The load-bearing assertions are the last three keys, not the verdict. Both functions establish
     `mortal`, so the answer is `yes` either way; what distinguishes a working bar from an absent one is
     that the impure function is never even proposed.
 
-    ⭐ **What removing the bar actually does, measured rather than assumed.** It does not quietly send mail:
+    What removing the bar actually does, measured rather than assumed. It does not quietly send mail:
     the search is on a workbench, so `dispatch.service` refuses the imagined target and the whole question
     dies with `Imagined`. The last key plants exactly that and asserts the raise - which is *also* the proof
     that `ask_the_registrar` is the path the search really takes, since a search that ignored it could not
@@ -6781,12 +6778,12 @@ def check_a_derivation_may_never_act():
             "BUT_IT_IS_NEVER_PROPOSED": "ask_the_registrar" not in offered,
             "AND_NEVER_APPEARS_IN_A_PROOF":
                 "ask_the_registrar" not in [n for n, _b in Q.steps_of(g, ans)],
-            # ⚠⚠ **THIS KEY CHANGED ITS EVIDENCE, 2026-08-02, and the bar is UNCHANGED.** It used to
+            # This key changed its evidence, and the bar is unchanged. It used to
             # assert that removing the bar made the question die with `Imagined`, using the crash as proof
             # that `ask_the_registrar` is really on the path. An operator that cannot be imagined is now
-            # SKIPPED rather than fatal — it was escaping `loop.tick` and killing every other task on the
+            # Skipped rather than fatal — it was escaping `loop.tick` and killing every other task on the
             # shared agenda, the same defect `execution.step` records for `TypeViolation` — so nothing
-            # dies any more. The proof is now the **record it leaves**: without the bar the search reaches
+            # dies any more. The proof is now the record it leaves: without the bar the search reaches
             # the impure function and marks it unimaginable, which says the path is taken *and* that the
             # workbench guard was never what did the real work. This docstring's own point stands: the
             # genuine exposure is at `settle`, where the proof is replayed for real.
@@ -6795,10 +6792,10 @@ def check_a_derivation_may_never_act():
 
 
 def _without_the_purity_bar_it_is_unimaginable() -> bool:
-    """Plant the removal of the purity bar and confirm the search REACHES the impure function.
+    """Plant the removal of the purity bar and confirm the search reaches the impure function.
 
-    ⚠ This is an in-harness version of the probe §7 asks for, kept because the key it guards was a **false
-    green** first: with the bar removed the search still returned a proof naming the pure function, so
+    This is an in-harness version of the probe asks for, kept because the key it guards was a false
+    green first: with the bar removed the search still returned a proof naming the pure function, so
     `AND_NEVER_APPEARS_IN_A_PROOF` passed while testing nothing. It only bites once the impure name sorts
     first (`function.names` sorts alphabetically), and this probe is what demonstrates that it now does."""
     from . import dispatch as DP, goal as G, query as Q, thread as T, function as F
@@ -6813,7 +6810,7 @@ def _without_the_purity_bar_it_is_unimaginable() -> bool:
         return False                                        # it must no longer die on it
     finally:
         Q.derivations = real
-    # ⚠ The evidence: some search in this graph met `ask_the_registrar` and could not imagine it. If the
+    # The evidence: some search in this graph met `ask_the_registrar` and could not imagine it. If the
     # search never went near it, nothing would be marked and this proves as little as the old false green.
     _ = DP
     return any("ask_the_registrar" in (g.attr(s2, "unimaginable") or ())
@@ -6821,11 +6818,11 @@ def _without_the_purity_bar_it_is_unimaginable() -> bool:
 
 
 def check_unknown_is_not_no_unless_you_say_so():
-    """⭐ Three answers, and `unknown` is the honest default. A search that found no derivation has learned
-    about its own library, not about the world - so only an explicit closed-world STANCE turns that into
-    `no`. Refutation is the separate, stronger claim: something incompatible holds NOW.
+    """Three answers, and `unknown` is the honest default. A search that found no derivation has learned
+    about its own library, not about the world - so only an explicit closed-world stance turns that into
+    `no`. Refutation is the separate, stronger claim: something incompatible holds now.
 
-    ⚠ The stance is a parameter rather than a constant because it is an opinion, which is the same reason
+    The stance is a parameter rather than a constant because it is an opinion, which is the same reason
     the old engine kept CWA/OWA in a policy object instead of in the engine."""
     from . import goal as G, query as Q, thread as T
     g = new_graph()
@@ -6860,7 +6857,7 @@ def check_unknown_is_not_no_unless_you_say_so():
 
 
 def _lines(*parts):
-    """Join CNL lines. ⚠ Written this way on purpose: an earlier version of these checks embedded `\n`
+    """Join CNL lines. Written this way on purpose: an earlier version of these checks embedded `\n`
     escapes inside generated source and they collapsed into real newlines, producing an unterminated
     string literal. Building the text from parts has no escapes to get wrong."""
     return "\n".join(parts)
@@ -6870,11 +6867,11 @@ _BODY = "    paul.mortal = true"
 
 
 def check_one_grammar_three_verbs():
-    """⭐⭐ A question is a goal, so `goal`, `ask` and `why` share ONE grammar and one node shape. The
+    """A question is a goal, so `goal`, `ask` and `why` share one grammar and one node shape. The
     constraints parse identically; only the recorded verb differs, because which speech act something was
     is genuinely not recoverable from what it says.
 
-    ⚠ Vacuity guard: the two blocks must produce the SAME constraints, or "one grammar" is a claim about
+    Vacuity guard: the two blocks must produce the same constraints, or "one grammar" is a claim about
     the parser rather than about the data model. And a plan constraint has to work inside a question -
     `never conclude_mortal` asks "is this derivable without that rule?", which is a real question that
     needed nothing added to support."""
@@ -6911,16 +6908,16 @@ def _read_goal_refuses_an_ask() -> bool:
 
 
 def check_why_answers_from_history_and_never_invents_it():
-    """⭐ "Why" means *find a causal explanation*, and the only honest source is what really ran. Three
+    """"Why" means *find a causal explanation*, and the only honest source is what really ran. Three
     situations, kept apart on purpose: derived here (a cause), true but given (no cause to give), and not
     true at all (nothing to explain).
 
-    ⚠⚠ THE ABSENT FOURTH BEHAVIOUR IS THE POINT. For a fact that already holds, a fresh search would
+    The absent fourth behaviour is the point. For a fact that already holds, a fresh search would
     happily produce "here is a way this could follow" - a fine answer to a different question and a lie as
     an account of history. `AND_INVENTS_NO_DERIVATION` asserts the engine says it does not know rather than
     manufacturing one, which is the failure that would make every explanation untrustworthy.
 
-    ⚠ Vacuity guard: `settle` must record on the thread, or the first case degrades into the second
+    Vacuity guard: `settle` must record on the thread, or the first case degrades into the second
     silently - the fact would be committed and then unexplainable."""
     from . import intake as I, thread as T
     why_block = _lines("why is paul mortal?:", _BODY)
@@ -6952,21 +6949,21 @@ def check_why_answers_from_history_and_never_invents_it():
 
 
 def check_the_trace_is_an_observer_not_a_participant():
-    """⭐ The hook the live pages are built on. It reports what the search does; it must not change it.
+    """The hook the live pages are built on. It reports what the search does; it must not change it.
 
-    ⚠ THE LOAD-BEARING KEY IS `identical_plan`. A watcher that perturbed the search would make every
+    The load-bearing key is `identical_plan`. A watcher that perturbed the search would make every
     animated explanation a description of a *different* run than the one a user gets untraced - the exact
     failure this project keeps catching in other forms.
 
-    ⚠⚠ **The first version of this check compared IMAGINED-STEP COUNTS, and it was wrong — the search is
-    tie-break nondeterministic.** Two identical searches on fresh graphs, in one process, at a fixed hash
+    The first version of this check compared imagined-STEP counts, and it was wrong — the search is
+    tie-break nondeterministic. Two identical searches on fresh graphs, in one process, at a fixed hash
     seed, imagine 2 or 3 states (measured: 17 and 23 out of 40). Node ids shift between runs, mapping
     enumeration order follows, and the stable frontier sort then breaks ties differently. The PLAN is
     invariant; the number of states considered on the way to it is not. So a step-count comparison was
     reporting engine nondeterminism as a tracing defect - a check that fails for a true reason it does not
     name is barely better than one that passes for a false one.
 
-    ⚠ `refuse` events matter most and are the easiest to omit: a pruned action leaves NO trace anywhere
+    `refuse` events matter most and are the easiest to omit: a pruned action leaves NO trace anywhere
     afterwards, precisely because nothing happened. Without emitting it, "it never even considered painting"
     is invisible - which is the single most interesting thing the search does."""
     from . import driver as D, intake as I, thread as T
@@ -7032,10 +7029,10 @@ def _a_car(g, *, pressures=(2.2,) * 4, weight=1200, rims=True, one_rim=False, tr
 
 
 def check_a_type_is_authored_as_text_and_round_trips():
-    """⭐ A type was the last thing on the surface that could only be authored by calling Python, which is
+    """A type was the last thing on the surface that could only be authored by calling Python, which is
     exactly the "reach past the surface and write graph structure" `intake.py` says must never happen.
 
-    Vacuity guard: the round trip is compared to the AUTHORED text, not to a re-render of itself, so a
+    Vacuity guard: the round trip is compared to the authored text, not to a re-render of itself, so a
     renderer that agreed with a broken parser could not pass."""
     from . import intake as I, types as TY
     g = _garage_cnl()
@@ -7058,8 +7055,8 @@ def check_a_type_is_authored_as_text_and_round_trips():
 
 
 def check_a_schema_reaches_deeper_than_one_level():
-    """⭐⭐ **The one-level limit is gone.** `README.md` recorded it as an honest limit: a schema checked a
-    label's targets by graph KIND and could say nothing about what those targets were, so "on a block which
+    """The one-level limit is gone. `README.md` recorded it as an honest limit: a schema checked a
+    label's targets by graph kind and could say nothing about what those targets were, so "on a block which
     is on a block" had no schema and a magnitude had to be smuggled in as an attribute.
 
     Vacuity guard: the flat-tyred car has four targets of the right *kind*, so anything that only counted
@@ -7077,7 +7074,7 @@ def check_a_schema_reaches_deeper_than_one_level():
 
 
 def check_a_recursive_type_terminates_on_cyclic_data():
-    """⚠ Recursion into a target's schema makes a cycle in the DATA reachable — two people who are each
+    """Recursion into a target's schema makes a cycle in the data reachable — two people who are each
     other's friend. The coinductive stance (assume it holds while proving it holds) is what terminates
     without banning recursive declarations, and it is the same stance `subsumes` takes."""
     from . import intake as I, types as TY
@@ -7093,10 +7090,10 @@ def check_a_recursive_type_terminates_on_cyclic_data():
 
 
 def check_a_type_relates_two_of_its_children():
-    """⭐⭐ The demand a per-label requirement structurally cannot express: not *what a label holds* but
+    """The demand a per-label requirement structurally cannot express: not *what a label holds* but
     *two places reached from the same subject agreeing*. Both sides are `path.py` references.
 
-    ⚠ `==` compares VALUES and `is` compares IDENTITIES — the position deciding how the last segment of
+    `==` compares values and `is` compares identities — the position deciding how the last segment of
     each path is read. Both are checked here, because a single one would not discriminate the two."""
     from . import types as TY
     g = _garage_cnl()
@@ -7126,11 +7123,11 @@ def check_a_count_is_a_range_and_a_value_may_be_bounded():
 
 
 def check_subsumption_compares_tightness_not_equality():
-    """⚠ Once a demand is a RANGE, "the subtype demands everything the supertype does" stops being dict
+    """Once a demand is a range, "the subtype demands everything the supertype does" stops being dict
     equality. A type narrowing its base's range must still be a subtype, or every widened type would stop
     subsuming its own base and `function.producers` would quietly lose candidates.
 
-    ⚠ Undecidable cases answer **False** on purpose — a lost candidate is recoverable, an unsound one is
+    Undecidable cases answer False on purpose — a lost candidate is recoverable, an unsound one is
     not. `!=` is the witness: it implies nothing this is willing to claim."""
     from .types import declare_type, subsumes, AttrReq, Req
     g = new_graph()
@@ -7150,10 +7147,10 @@ def check_subsumption_compares_tightness_not_equality():
 
 
 def check_a_reference_is_one_language_and_the_surface_refuses_what_it_cannot_honour():
-    """⭐ The path grammar existed three times, undeclared — `driver.role_node`'s private regex,
+    """The path grammar existed three times, undeclared — `driver.role_node`'s private regex,
     `intake`'s hand-split on the first dot, and the dotted roles `establishes` emitted. One module now.
 
-    ⚠ **The composition finding, and it was a live silent defect.** `a.wheel[1].pressure = 3` in a goal
+    The composition finding, and it was a live silent defect. `a.wheel[1].pressure = 3` in a goal
     split on the first dot and produced a constraint about an attribute literally named
     `wheel[1].pressure` — unmeetable, and `describe_constraint` rendered it back looking correct. It is
     refused now, because `conflict.py` keys a slot by `(subject, key)` and `query.settle` writes with
@@ -7188,14 +7185,14 @@ def check_a_reference_is_one_language_and_the_surface_refuses_what_it_cannot_hon
 
 # --- consumer-reported defects (reported by the first consumer) ------------------------
 def check_a_write_through_an_unset_register_is_refused_not_null_linked():
-    """⭐⭐ §10, reported 2026-08-01 with a repro. `regs.get` answers `None` for a register a `GET` never
+    """, reported with a repro. `regs.get` answers `None` for a register a `GET` never
     filled — an ordinary case the moment a part of the input can be missing — and `g.link` appended it, so
-    the graph gained **an edge whose target is `None`**. `targets` then came back non-empty, every "is
+    the graph gained an edge whose target is `None`. `targets` then came back non-empty, every "is
     this part present?" test answered *yes*, and the `None` surfaced arbitrarily far away in whatever
     dereferenced it.
 
-    ⚠ Vacuity guard: the control asserts the `GET` genuinely found nothing, so this cannot pass merely
-    because the program failed for some earlier reason. And the graph must be UNCHANGED afterwards — a
+    Vacuity guard: the control asserts the `GET` genuinely found nothing, so this cannot pass merely
+    because the program failed for some earlier reason. And the graph must be unchanged afterwards — a
     refusal that still left the edge behind would be worse than the bug."""
     from .isa import GET, Machine
     g = new_graph()
@@ -7215,12 +7212,12 @@ def check_a_write_through_an_unset_register_is_refused_not_null_linked():
 
 
 def check_a_declared_parameter_type_is_enforced_at_the_call_site():
-    """⭐ §9, reported with the case that makes it bite: a safety property carried entirely in a parameter
+    """, reported with the case that makes it bite: a safety property carried entirely in a parameter
     type. It was checked only by `driver.proposals`, so the guarantee was *"no plan builds it"* while the
     documentation said *"it is unbuildable"* — and a consumer had to hand-write a `CHECK` as the first
     instruction, making the declared type and the enforced type two things kept in step by hand.
 
-    ⚠ Vacuity guard: the valid call must still run, and the opt-out must still bypass — otherwise this
+    Vacuity guard: the valid call must still run, and the opt-out must still bypass — otherwise this
     would pass by refusing everything."""
     from . import function as fn
     from .types import declare_type as dt
@@ -7251,17 +7248,17 @@ def check_a_declared_parameter_type_is_enforced_at_the_call_site():
 
 
 def check_the_reference_language_refuses_what_it_cannot_express():
-    """⭐ Found by probing whether WHERE/WHEN/WHAT are sugar (see the design notes). Two silent
-    acceptances, both the same class as the mis-parse §5v records:
+    """Found by probing whether where/when/what are sugar. Two silent
+    acceptances, both the same class as the mis-parse records:
 
-    * `path.parse("contains*")` **succeeded**, yielding a label literally named `contains*` — matching
+    * `path.parse("contains*")` succeeded, yielding a label literally named `contains*` — matching
       nothing, forever, silently. Anyone writing that is reaching for transitive closure, which this
       grammar genuinely does not have; a label that will never match is the worst possible answer.
     * `has 1 ^contains` accepted `^contains` as a plain edge label. `require_edge` counts
       `g.targets(node, label)` and does not navigate, so the requirement counted an edge nobody has —
       silently zero, unmeetable, and it rendered back looking correct.
 
-    ⚠ Vacuity guard: the legal forms must still parse, or this would pass by refusing everything."""
+    Vacuity guard: the legal forms must still parse, or this would pass by refusing everything."""
     from . import intake as I, path as P
 
     def bad_path(t):
@@ -7296,34 +7293,34 @@ def check_the_reference_language_refuses_what_it_cannot_express():
 
 # --- the search's own state, as graph data ------------------------------------------------------------
 def check_the_search_is_reproducible_in_COST_not_just_in_ANSWER():
-    """⚠⚠ **The check the worst defect this project has found would have needed, and did not have.**
+    """The check the worst defect this project has found would have needed, and did not have.
 
-    `search-was-irreproducible-set-tiebreak`: `workbench.reachable` returned a **`set`**, so copy order
+    `search-was-irreproducible-set-tiebreak`: `workbench.reachable` returned a `set`, so copy order
     fell to node-id hash order, `pursue`'s frontier tie-break became arbitrary, and one 5-block goal gave
-    `400/fail`, `400/fail`, `12/found` **in a single process**. The plan was never *wrong*, only arbitrary
-    at arbitrary cost — which is exactly why **132 checks passed over it**. Every one of them asserted the
+    `400/fail`, `400/fail`, `12/found` in a single process. The plan was never *wrong*, only arbitrary
+    at arbitrary cost — which is exactly why 132 checks passed over it. Every one of them asserted the
     answer; none asserted the price.
 
     So this asserts the price. Same goal, several runs, one process: the number of imagined states must be
-    **identical**, not merely the plan. A tie broken by hash order shows up here and nowhere else.
+    identical, not merely the plan. A tie broken by hash order shows up here and nowhere else.
 
-    ⚠ **Run BLIND, and with headroom, because that is the discriminating case.** Guided search on this
+    Run blind, and with headroom, because that is the discriminating case. Guided search on this
     goal imagines 2 states — too few for a tie-break to matter, so a guided-only check would pass over the
-    very bug it exists to catch. Unguided, every frontier key is `(0, 0, depth)`, so **essentially
-    everything ties** and the order is decided purely by insertion — which is exactly the condition that
+    very bug it exists to catch. Unguided, every frontier key is `(0, 0, depth)`, so essentially
+    everything ties and the order is decided purely by insertion — which is exactly the condition that
     made the original defect visible. 67 states, six runs, one process.
 
-    ⚠ Vacuity guard: the search must succeed and do real work (dozens of imagined states), or identical
+    Vacuity guard: the search must succeed and do real work (dozens of imagined states), or identical
     counts would be trivially true — and note it must NOT be left at the default `max_steps`, where blind
     search merely exhausts at 60 every time and would look "deterministic" by hitting the ceiling.
 
-    **⭐ Verified by re-injecting the original defect**, rather than by assuming it would catch it: patching
-    `search.take_best` to sort `set(frontier)` — the exact shape of the 2026-07-31 bug — gives
+    Verified by re-injecting the original defect, rather than by assuming it would catch it: patching
+    `search.take_best` to sort `set(frontier)` — the exact shape of the bug — gives
 
-        THE_COST_IS_IDENTICAL_ACROSS_RUNS: False      81 imagined states, varying
+        The_cost_is_identical_across_runs: False      81 imagined states, varying
         and_so_is_the_plan:                True       the plan is still correct
 
-    which is the defect's signature exactly: **the answer stays right and only the price wanders**, which
+    which is the defect's signature exactly: the answer stays right and only the price wanders, which
     is why a hundred assertions about answers never saw it."""
     from . import driver as D, intake as I, thread as T
     runs = []
@@ -7342,12 +7339,12 @@ def check_the_search_is_reproducible_in_COST_not_just_in_ANSWER():
 
 
 def check_the_search_can_be_read_by_the_system_that_ran_it():
-    """⭐⭐ The point of moving the frontier, the visited set, the step count and the refusals out of
-    Python locals: `composability-principle` — a hardcoded mechanism is an **unreachable island**, and the
+    """The point of moving the frontier, the visited set, the step count and the refusals out of
+    Python locals: `composability-principle` — a hardcoded mechanism is an unreachable island, and the
     homoiconicity claim fails exactly where the mechanism is Python. The search was the last part of the
     planner the planner could not read.
 
-    ⚠ Vacuity guard: the visited set must name FRAMES that really were imagined, not merely be non-empty —
+    Vacuity guard: the visited set must name frames that really were imagined, not merely be non-empty —
     a signature recording only a digest would terminate the search and answer nothing about it."""
     from . import driver as D, intake as I, thread as T, search as S, workbench as W
     g, world = _blocks()
@@ -7369,16 +7366,16 @@ def check_the_search_can_be_read_by_the_system_that_ran_it():
 
 
 def check_the_search_can_be_DRIVEN_FROM_OUTSIDE_one_step_at_a_time():
-    """⭐⭐ **The yield point.** `pursue` was a closed loop: nothing could happen between two imagined
+    """The yield point. `pursue` was a closed loop: nothing could happen between two imagined
     states, so *"what should I do next?"* was not an expressible question, only a `while` condition. That
-    is what `docs/deliberation.md` means by deliberation being the third thing the system computes **with** and
-    cannot compute **about** — after attention (fixed by `thread.py`) and the goal (by `goal.py`).
+    is what `docs/deliberation.md` means by deliberation being the third thing the system computes with and
+    cannot compute about — after attention (fixed by `thread.py`) and the goal (by `goal.py`).
 
     `driver.step` performs one iteration and returns: `None` to continue, the report when finished. So a
     caller that is not `pursue` can drive it, look at the search between steps, and resume.
 
-    ⚠ Vacuity guard, and it is the whole check: driving it by hand must reach the **same plan at the same
-    cost** as `pursue`. A yield point that changed the search would not be a seam, it would be a fork. And
+    Vacuity guard, and it is the whole check: driving it by hand must reach the same plan at the same
+    cost as `pursue`. A yield point that changed the search would not be a seam, it would be a fork. And
     the search must be observably *mid-flight* partway through — a frontier that is empty at every pause
     would mean `step` had quietly run the whole thing."""
     from . import driver as D, intake as I, thread as T, search as S, workbench as W
@@ -7419,37 +7416,37 @@ def check_the_search_can_be_DRIVEN_FROM_OUTSIDE_one_step_at_a_time():
 
 
 def check_a_microfunction_can_DRIVE_THE_PLANNER_and_read_its_answer():
-    """⭐⭐⭐ **Deliberation, reachable as data.** `composability-principle` is the standing foundation:
-    reflexive mechanisms must combine on ONE substrate, and *a hardcoded mechanism is an unreachable
+    """Deliberation, reachable as data. `composability-principle` is the standing foundation:
+    reflexive mechanisms must combine on one substrate, and *a hardcoded mechanism is an unreachable
     island*. `pursue` was Python and unreachable from the ISA, so the system could plan but could not be
     told to plan, and could not reason about its own planning. `docs/deliberation.md` named it — deliberation
-    was the third thing computed **with** and not **about**, after attention (fixed by `thread.py`) and
+    was the third thing computed with and not about, after attention (fixed by `thread.py`) and
     the goal (by `goal.py`).
 
-    This is the function that closes it, and it is **authored as text**, not Python:
+    This is the function that closes it, and it is authored as text, not Python:
 
         fn think(goal, subject, thread) -> plan:
-            NATIVE R(s) "plan" F(goal) F(subject) F(thread)
+            NATIVE r(s) "plan" F(goal) F(subject) F(thread)
             .again:
-            NATIVE R(more) "plan_step" R(s)
-            JMPIF R(more) ".again"
-            ATTR R(result) R(s) "found"
+            NATIVE r(more) "plan_step" R(s)
+            JMPIF r(more) ".again"
+            ATTR r(result) R(s) "found"
 
-    ⚠ `plan` and `plan_step` are **primitives**, and they earn that by the project's own closed-class
+    `plan` and `plan_step` are primitives, and they earn that by the project's own closed-class
     test: searching cannot be composed from GET/SET/LINK, so this is not sugar. `plan_step` is
     deliberately one iteration rather than a whole search — a primitive that ran to completion would be
     one opaque instruction and would buy nothing, since the point is being able to stop between two
     imagined states.
 
-    ⚠⚠ **They were the OPCODES `PLAN` and `STEP` until 2026-08-02, and that was a kernel-boundary
-    violation:** their handlers imported `driver`, so the instruction set knew what a plan was and a Rust
+    They were the opcodes `PLAN` and `STEP` until, and that was a kernel-boundary
+    violation: their handlers imported `driver`, so the instruction set knew what a plan was and a Rust
     port would have had to port the planner to implement two instructions. The closed-class argument above
     was right and is preserved — what was wrong was concluding that a primitive must be an *opcode*. They
     are natives now (`native.py`), reached by name through a table the kernel does not populate. See
     `check_the_KERNEL_cannot_see_the_representation_above_it` and
     `docs/execution-model.md`.
 
-    ⚠ Vacuity guard: the plan reached this way must be the SAME plan `pursue` finds at the same cost, and
+    Vacuity guard: the plan reached this way must be the same plan `pursue` finds at the same cost, and
     the answer must be readable as ordinary graph data (`ATTR`), not only via a Python return value."""
     from . import asm, driver as D, execution as X, function as fn, intake as I, thread as T
     text = _lines("goal build a tower:", "    a on b", "    b on c")
@@ -7481,10 +7478,10 @@ def check_a_microfunction_can_DRIVE_THE_PLANNER_and_read_its_answer():
 
 
 def check_asm_refuses_an_export_that_is_not_an_opcode():
-    """⚠ `isa.__all__` also exports `WRITES_REGISTER` — a frozenset — and `_OPCODES` filtered only on
-    `isupper()`, so `asm` **accepted it as an instruction** at load time and would have failed opaquely
+    """`isa.__all__` also exports `WRITES_REGISTER` — a frozenset — and `_OPCODES` filtered only on
+    `isupper()`, so `asm` accepted it as an instruction at load time and would have failed opaquely
     inside the interpreter. Exactly the silent acceptance `asm.py`'s own docstring says it exists to
-    prevent, and the same shape `../pystrider` reported for `INVOKE`'s operand (§6).
+    prevent, and the same shape the first consumer reported for `INVOKE`'s operand.
 
     Vacuity guard: a real opcode added at the same time must still load, or this would pass by refusing
     everything."""
@@ -7499,7 +7496,7 @@ def check_asm_refuses_an_export_that_is_not_an_opcode():
     return {"a_non_opcode_export_is_REFUSED": refused,
             "and_it_is_gone_from_the_known_set": "WRITES_REGISTER" not in asm._OPCODES,
             "real_opcodes_still_load": len(fn.load(g, "fine")[1]) == 1,
-            # ⚠ Was `{"PLAN", "STEP"} <= _OPCODES`. Those two are GONE — they made `isa.py` import
+            # Was `{"PLAN", "STEP"} <= _OPCODES`. Those two are gone — they made `isa.py` import
             # `driver`, putting the planner below the kernel boundary. `NATIVE` replaces both, and the
             # planner registers itself (`native.py`, `docs/execution-model.md`).
             "NATIVE_is_a_known_opcode": "NATIVE" in asm._OPCODES,
@@ -7508,20 +7505,20 @@ def check_asm_refuses_an_export_that_is_not_an_opcode():
 
 
 def check_the_surface_can_DRIVE_the_system_and_still_cannot_touch_the_world():
-    """⭐⭐ **`plan` — where the CNL stops only describing and starts driving.** Every other verb records
+    """`plan` — where the CNL stops only describing and starts driving. Every other verb records
     something (`goal`, `type`, `method`, `prefer`) or asks something (`ask`, `why`); none of them could
     make the system *work*. It reaches `driver.pursue`, which is reachable at all only because
-    deliberation stopped being a closed Python loop (§5z).
+    deliberation stopped being a closed Python loop.
 
-    ⭐ It is a **fourth force on the same body**, not a new family — `goal` / `ask` / `why` / `plan` take
+    It is a fourth force on the same body, not a new family — `goal` / `ask` / `why` / `plan` take
     identical bodies and differ in what is done with them, which is this module's own thesis paying rent.
 
-    ⚠⚠ **The safety property, and it is structural rather than intended:** planning happens entirely on a
+    The safety property, and it is structural rather than intended: planning happens entirely on a
     workbench, so a `plan` block cannot change the world however wrong the text is. That is what makes it
-    safe to put a *driving* verb on a surface a language model may write. A verb that CARRIED OUT the plan
+    safe to put a *driving* verb on a surface a language model may write. A verb that carried out the plan
     would cross into real effects and is deliberately absent.
 
-    ⚠ Vacuity guard: the same body as a `goal` block must still merely record, or "plan drove it" would be
+    Vacuity guard: the same body as a `goal` block must still merely record, or "plan drove it" would be
     indistinguishable from "every block drives it"; and a plan constraint must still be able to refuse, or
     this would only show the happy path."""
     from . import intake as I, thread as T
@@ -7530,7 +7527,7 @@ def check_the_surface_can_DRIVE_the_system_and_still_cannot_touch_the_world():
     th = T.open_thread(g, "t")
     a = I.resolve(g, "a", under=world)
     b = I.resolve(g, "b", under=world)
-    # ⚠ NOT `== ()`: `a` starts out `on` the ground, so an emptiness test would be false before anything
+    # NOT `== ()`: `a` starts out `on` the ground, so an emptiness test would be false before anything
     # ran and would report a safety breach that had not happened. Snapshot, then compare.
     before = g.targets(a, "on")
 
@@ -7574,20 +7571,20 @@ def _watched_world():
 
 
 def check_the_agent_can_tell_ITS_OWN_changes_from_the_WORLDS():
-    """⭐⭐⭐ *"Was it me?"* — and the answer is **derived**, not recorded.
+    """*"Was it me?"* — and the answer is derived, not recorded.
 
-    A journal delta records only the agent's own writes; when a file changes on disk **nothing happens in
-    the graph at all**, and the belief is simply wrong until someone looks. Worse, the second look is
+    A journal delta records only the agent's own writes; when a file changes on disk nothing happens in
+    the graph at all, and the belief is simply wrong until someone looks. Worse, the second look is
     itself a write, so a naive delta log would say *"the agent changed `count` from 3 to 5"* when the truth
     is *"the agent looked, and found 5 where it had recorded 3."*
 
     Attribution needs no new record: two sightings differ, and either some `done` application between them
-    could have written that slot, or the world moved. ⭐ **"Could have written" is read off the stored
-    function body** — `empty_it` is never told it writes `count`; `driver.establishes` works it out, and
+    could have written that slot, or the world moved. "Could have written" is read off the stored
+    function body — `empty_it` is never told it writes `count`; `driver.establishes` works it out, and
     `role_node` resolves the role against the bindings actually used.
 
-    ⚠ Vacuity guards, and they are the whole check: the two verdicts must **differ** (labelling everything
-    one way would otherwise pass), and the attributed one must **name the function**, or "mine" could be a
+    Vacuity guards, and they are the whole check: the two verdicts must differ (labelling everything
+    one way would otherwise pass), and the attributed one must name the function, or "mine" could be a
     default rather than a finding."""
     from . import memory as M, thread as T, function as fn
     g, th, d, disk, look = _watched_world()
@@ -7621,16 +7618,16 @@ def _writes_of(g, name):
 
 
 def check_change_and_back_is_visible_to_a_third_look():
-    """⚠ **I claimed this was invisible and was wrong** — corrected by the user, and the correction is
-    worth pinning. A round trip is visible whenever an observation falls **inside** the excursion, and
+    """I claimed this was invisible and was wrong — corrected by the user, and the correction is
+    worth pinning. A round trip is visible whenever an observation falls inside the excursion, and
     three sightings showing A, B, A are exactly that. It is invisible only when nothing looks during the
-    window, which makes it a **sampling-rate** question rather than an impossibility.
+    window, which makes it a sampling-rate question rather than an impossibility.
 
-    ⚠ It also settles why an observation is recorded even when the value is unchanged: collapsing to "only
+    It also settles why an observation is recorded even when the value is unchanged: collapsing to "only
     on difference" would store A, B, A as *no change*, so the agent would have watched a round trip happen
     and recorded that nothing did.
 
-    ⚠ What remains true: sightings bound change **from below** and never count it. A, B, A proves at least
+    What remains true: sightings bound change from below and never count it. A, B, A proves at least
     two changes and cannot distinguish two from six."""
     from . import memory as M
     g, th, d, disk, look = _watched_world()
@@ -7650,11 +7647,11 @@ def check_change_and_back_is_visible_to_a_third_look():
 
 
 def check_volatility_gives_SENSE_something_to_aim_at():
-    """⭐ `driver.py` records that the `SENSE` verb "needs ignorance", and ignorance was the only trigger
+    """`driver.py` records that the `SENSE` verb "needs ignorance", and ignorance was the only trigger
     available — *I do not know, so go and look*. Volatility supplies the one that actually arises for an
-    agent whose world has other people in it: **I knew, and it is probably stale.**
+    agent whose world has other people in it: I knew, and it is probably stale.
 
-    ⚠ Vacuity guard: a slot nobody else touches must score zero, or "volatile" would just mean "observed"."""
+    Vacuity guard: a slot nobody else touches must score zero, or "volatile" would just mean "observed"."""
     from . import memory as M, thread as T, function as fn
     g, th, d, disk, look = _watched_world()
     for v in (3, 5, 9, 2):
@@ -7676,10 +7673,10 @@ def check_volatility_gives_SENSE_something_to_aim_at():
 
 
 def _school_library(n_idle=0):
-    """A three-step plan whose FIRST move closes nothing. To be at school you must be home; to fly home you
-    need a ticket; buying one writes `ticket`, which is **a different slot from the goal's `where`**.
+    """A three-step plan whose first move closes nothing. To be at school you must be home; to fly home you
+    need a ticket; buying one writes `ticket`, which is a different slot from the goal's `where`.
 
-    ⚠ The prerequisite is declared LAST, after every irrelevant operator. That is the guard: the ordering
+    The prerequisite is declared last, after every irrelevant operator. That is the guard: the ordering
     of `function.names` is a real tie-break, so a check that let the prerequisite sort or declare itself
     first would be measuring the tie-break and calling it guidance."""
     from . import asm
@@ -7691,12 +7688,12 @@ def _school_library(n_idle=0):
     declare_type(g, "ready_to_fly", base="at_abroad", attrs={"ticket": True})
     body = [f'fn idle{i}(p: person) -> person:\n    SET F(p) "i{i}" true' for i in range(n_idle)]
     body += ['fn nap(p: person) -> person:\n    SET F(p) "rested" true',
-             # ⚠ Present so the DOMINANCE of the band over the unlock count is testable. From home this is
+             # Present so the dominance of the band over the unlock count is testable. From home this is
              # offered, it writes the goal's own slot (so it is not irrelevant), and it unlocks `fly_home`
              # — yet going to school directly is obviously right. If `-unlocks` came before `-band` in the
              # frontier key the search would fly abroad first, and without an operator of this shape that
              # inversion passes every other check here.
-             # ⚠ It unlocks BOTH blocked requirements, so it out-unlocks the move that actually closes the
+             # It unlocks BOTH blocked requirements, so it out-unlocks the move that actually closes the
              # goal (which unlocks one, incidentally). A detour that merely ties on the unlock count cannot
              # test dominance at all — the first version of this operator wrote only `where`, scored the
              # same unlock count as `go_to_school`, and every inversion of the key passed.
@@ -7713,16 +7710,16 @@ def _school_library(n_idle=0):
 
 
 def check_an_attribute_effect_carries_the_VALUE_it_writes():
-    """⚠ `_effects` recorded a `SET` as `("attr", key, subject_role, None)` — the value was hardcoded, even
+    """`_effects` recorded a `SET` as `("attr", key, subject_role, None)` — the value was hardcoded, even
     when the instruction states it outright. So an attribute effect carried its slot and its subject and
-    never what it WRITES, while a link effect carried both roles all along.
+    never what it writes, while a link effect carried both roles all along.
 
     The consequence was not cosmetic: `relevance` scores band 4 for *"this call writes exactly the
     constraint"*, and with no value to check, `SET where "home"` scored band 4 against a goal wanting
     `where = school`. Right slot, right individual, wrong world — the guidance in the school scenario was
-    **entirely this accident**, and it looked like the mechanism working.
+    entirely this accident, and it looked like the mechanism working.
 
-    ⚠ `UNREADABLE`, not `None`: `None` is an ordinary attribute value, so a sentinel is what keeps *"writes
+    `UNREADABLE`, not `None`: `None` is an ordinary attribute value, so a sentinel is what keeps *"writes
     something we cannot name"* apart from *"writes the value None"*. And an unreadable value must keep
     band 4 — `establishes` is an over-approximation by contract, so what cannot be read must never cost a
     candidate a rank."""
@@ -7736,7 +7733,7 @@ def check_an_attribute_effect_carries_the_VALUE_it_writes():
                        under=W.image_of(g, W.mapping_for(g, f0, me)))
     bands = {n: D.relevance(g, n, b, open_now) for n, b in D.proposals(g, f0)}
 
-    # ⚠ A SECOND WORLD, because `fly_home` is not proposable from the first at all — it needs a ticket, so
+    # A second world, because `fly_home` is not proposable from the first at all — it needs a ticket, so
     # `bands` has no entry for it and the first version of the comparison below was reading a default of 0
     # against a default of 0. Ranking two proposals requires a frame in which both are actually offered.
     g2, me2 = _school_library()
@@ -7770,29 +7767,29 @@ def check_an_attribute_effect_carries_the_VALUE_it_writes():
 
 
 def check_the_search_can_see_a_PREREQUISITE_which_no_band_can_express():
-    """⭐⭐ A band classifies *this move against the goal* — it answers "does this close a constraint?".
-    A prerequisite closes nothing, so it is band 0, **correctly**, and tied with every irrelevant operator
+    """A band classifies *this move against the goal* — it answers "does this close a constraint?".
+    A prerequisite closes nothing, so it is band 0, correctly, and tied with every irrelevant operator
     in the library. No refinement of a match-quality scale fixes that: a prerequisite is not a worse match,
-    it is a **different distance**, which a match scale does not measure.
+    it is a different distance, which a match scale does not measure.
 
     So the frontier key gains a component derived from what enumeration was already computing and throwing
     away — `types.fails` returns *which* requirement failed — and `unlocks` counts the blocking
     requirements a proposal would write. Key: `(expected, -band, -unlocks, depth)`.
 
-    ⚠ **A closing move must still beat an unlocking detour** — §5p's dominance invariant, which is what
-    makes derived and authored orderings safe to combine at all. ⚠⚠ Probing showed that property is
-    **over-determined**: `expected` folds in `rank >= 4` *and* `-band` precedes `-unlocks`, and removing
+    A closing move must still beat an unlocking detour's dominance invariant, which is what
+    makes derived and authored orderings safe to combine at all. Probing showed that property is
+    over-determined: `expected` folds in `rank >= 4` *and* `-band` precedes `-unlocks`, and removing
     either alone changes nothing. Only removing both degrades the plan. So this key is a guard on the
-    behaviour and **not** on any one line of the frontier key — worth knowing before someone "simplifies"
+    behaviour and not on any one line of the frontier key — worth knowing before someone "simplifies"
     one of the two and finds every check still green.
 
-    ⚠⚠ **The guard that matters is the LIBRARY SIZE, not the step count.** Before this, the guided cost
+    The guard that matters is the library size, not the step count. Before this, the guided cost
     grew with the number of *irrelevant* operators — 4 / 6 / 10 / 16 for 0 / 2 / 6 / 12 of them — because
     the search had to try each one before reaching the prerequisite. A check pinning a single number would
     have passed on a library of one size and said nothing. Flatness is the claim.
 
-    ⚠ Second guard: the prerequisite is **declared last** (`_school_library`), so it cannot win on the
-    tie-break. ⚠ Third: `unlocks` must still only ORDER — the Sussman check next door is the standing
+    Second guard: the prerequisite is declared last (`_school_library`), so it cannot win on the
+    tie-break. Third: `unlocks` must still only order — the Sussman check next door is the standing
     proof that a move scoring nothing stays reachable."""
     from . import driver as D, goal as G, thread as T, workbench as W
 
@@ -7825,7 +7822,7 @@ def check_the_search_can_see_a_PREREQUISITE_which_no_band_can_express():
     finally:
         D.unlocks = real
 
-    # ⭐ THE DOMINANCE CONTROL. From home the goal is one move away, and a *detour that unlocks something*
+    # The dominance control. From home the goal is one move away, and a *detour that unlocks something*
     # must not be preferred to it. This is the only assertion that distinguishes `(-band, -unlocks)` from
     # `(-unlocks, -band)` — the inversion passed every other key in this check.
     gh, meh = _school_library(2)
@@ -7842,7 +7839,7 @@ def check_the_search_can_see_a_PREREQUISITE_which_no_band_can_express():
             "at_the_OPTIMAL_cost": steps == [3, 3, 3, 3],
             "AND_THE_COST_DOES_NOT_GROW_WITH_IRRELEVANT_OPERATORS": len(set(steps)) == 1,
             "steps_by_library_size": {k: v[0] for k, v in costs.items()},
-            # ⚠ the vacuity guard: without the component the SAME search degrades with library size,
+            # the vacuity guard: without the component the same search degrades with library size,
             # or "flat" is a property of the scenario rather than of the guidance.
             "WITHOUT_IT_THE_COST_GROWS": without[12] > without[0],
             "control_steps": without,
@@ -7857,26 +7854,26 @@ def check_the_search_can_see_a_PREREQUISITE_which_no_band_can_express():
 
 
 def check_a_PROHIBITION_crosses_a_goal_boundary_and_the_other_two_sorts_do_not():
-    """⭐⭐ The parent constrains the plan and the child does the planning. `goal.breached` read
-    `constraints(g, goal)` — the goal's **own** — so a ban on "arrange the trip" said nothing whatever to
+    """The parent constrains the plan and the child does the planning. `goal.breached` read
+    `constraints(g, goal)` — the goal's own — so a ban on "arrange the trip" said nothing whatever to
     the search planning "get to school" underneath it. A ban a child can sidestep is not a ban.
 
-    ⚠⚠ **The three plan sorts must NOT cross alike, and the whole value of this check is that it tests all
-    three against each other** (`docs/planning.md`:
+    The three plan sorts must NOT cross alike, and the whole value of this check is that it tests all
+    three against each other (`docs/planning.md`:
 
-    * **`never`** inherits unchanged, at any depth — a breach is a proof wherever it happens;
-    * **`eventually`** must *not* inherit — it is discharged by some step somewhere below, so inheriting it
-      would separately require **every** child to do the thing;
-    * **`at_most`** is not inherited either, and that is a **refusal with a reason** rather than an
+    * `never` inherits unchanged, at any depth — a breach is a proof wherever it happens;
+    * `eventually` must *not* inherit — it is discharged by some step somewhere below, so inheriting it
+      would separately require every child to do the thing;
+    * `at_most` is not inherited either, and that is a refusal with a reason rather than an
       omission: a budget counts at the grain of the level that declared it, so applying a parent's count to
       a child's actions would break a limit the moment somebody authored a method — and copying it to each
       child would let three children each spend the whole thing. Consuming it needs the decomposition rung
       that has no state node yet. A gap that is written down beats a wrong answer.
 
-    ⚠ **The discriminating control is a ban declared on an UNRELATED goal**, not the absence of a ban. Two
+    The discriminating control is a ban declared on an unrelated goal, not the absence of a ban. Two
     worlds that differ only in whether the goal holding the prohibition is an *ancestor* is the only pair
     that tests ancestry; comparing "banned" against "not banned" would pass for an implementation that
-    ignored ancestry and read every goal in the graph. That is the vacuous-negative §5s records."""
+    ignored ancestry and read every goal in the graph. That is the vacuous-negative records."""
     from . import driver as D, goal as G, thread as T
 
     def solve(place_ban=None, place_must=None, place_budget=None):
@@ -7904,22 +7901,22 @@ def check_a_PROHIBITION_crosses_a_goal_boundary_and_the_other_two_sorts_do_not()
 
     return {"the_plan_exists_when_nothing_bans_it":
                 free and plan_free == ("buy_ticket", "fly_home", "go_to_school"),
-            # NEVER: inherits.
+            # Never: inherits.
             "A_BAN_ON_THE_PARENT_BINDS_THE_CHILD": not from_parent,
             "and_the_child_can_SEE_it": len(seen_from_parent) == 1,
             "the_same_ban_on_the_child_itself_also_binds": not from_child,
-            # ⚠ THE CONTROL: identical in every way except that the goal holding the ban is not an ancestor.
+            # The control: identical in every way except that the goal holding the ban is not an ancestor.
             "A_BAN_ON_AN_UNRELATED_GOAL_DOES_NOT": from_other,
             "and_the_child_cannot_see_that_one": len(seen_from_other) == 0,
-            # ⚠ Indexed defensively. An over-broad `prohibitions` that reads every goal in the graph makes
+            # Indexed defensively. An over-broad `prohibitions` that reads every goal in the graph makes
             # this plan empty, and `plan_other[0]` then raised IndexError — which the harness does count,
-            # but as an ERROR, so the report says the check blew up rather than *which property broke*.
-            # §5g's lesson has a mirror image: a red key beats an exception just as it beats a quiet False.
+            # but as an error, so the report says the check blew up rather than *which property broke*.
+            #'s lesson has a mirror image: a red key beats an exception just as it beats a quiet False.
             "so_the_plan_still_uses_the_action": plan_other[:1] == ("buy_ticket",),
-            # EVENTUALLY: must not inherit.
+            # Eventually: must not inherit.
             "AN_OBLIGATION_ON_THE_PARENT_DOES_NOT_BIND_THE_CHILD": must_above,
             "and_the_child_is_not_made_to_discharge_it": "nap" not in plan_must,
-            # AT_MOST: not inherited, deliberately.
+            # At_most: not inherited, deliberately.
             "A_BUDGET_ON_THE_PARENT_IS_NOT_INHERITED": budget_above,
             "the_child_plan_is_longer_than_the_parents_limit": len(plan_budget) > 1,
             "and_budget_of_says_so_by_returning_NOTHING": budget_seen == (),
@@ -7930,7 +7927,7 @@ def check_a_PROHIBITION_crosses_a_goal_boundary_and_the_other_two_sorts_do_not()
 
 def _two_plans_world():
     """A person who must get to school, and an unrelated box that must be packed. Two goals, two
-    pursuits, one agenda, and **nothing shared between them** - which is what makes the second one a
+    pursuits, one agenda, and nothing shared between them - which is what makes the second one a
     control on the first rather than more of the same."""
     from . import asm
     g = new_graph()
@@ -7940,10 +7937,10 @@ def _two_plans_world():
     declare_type(g, "at_school", attrs={"where": "school"})
     declare_type(g, "ready_to_fly", base="at_abroad", attrs={"ticket": True})
     declare_type(g, "box")
-    # ⚠ THREE casts, not one, and that is the whole point of the control. With a one-step box plan the
+    # Three casts, not one, and that is the whole point of the control. With a one-step box plan the
     # box finished BEFORE the school plan reached its second act, so "the other task survived" was true
     # even when the exception wrecked the agenda - the guard passed the planted-bug probe and was
-    # therefore guarding nothing. A control has to still be RUNNING at the moment of the failure.
+    # therefore guarding nothing. A control has to still be running at the moment of the failure.
     declare_type(g, "filled_box", base="box", attrs={"filled": True})
     declare_type(g, "taped_box", base="filled_box", attrs={"taped": True})
     declare_type(g, "packed_box", base="taped_box", attrs={"packed": True})
@@ -7979,26 +7976,26 @@ def _two_plans_world():
 
 
 def check_a_precondition_that_went_false_is_a_DEVIATION_not_an_ESCAPING_EXCEPTION():
-    """⭐⭐ A plan is verified against a world, and then the world moves while it is suspended - because a
+    """A plan is verified against a world, and then the world moves while it is suspended - because a
     child is running, because another pursuit got the tick, because something simply happened. `fn.invoke`
-    re-validates each parameter type **at the call**, which is the property that stops a plan acting on a
+    re-validates each parameter type at the call, which is the property that stops a plan acting on a
     world it was never verified against, and it is the right check in the right place.
 
-    ⚠⚠ **But it reported by RAISING, and nothing caught it.** The `TypeViolation` went straight through
+    But it reported by raising, and nothing caught it. The `TypeViolation` went straight through
     `execution.step`, `driver.pursuit_step` and `loop.tick`: the pursuit was stranded mid-`acting`, and
-    **every other task on the agenda died with it**. Detection existed; recovery did not.
+    every other task on the agenda died with it. Detection existed; recovery did not.
 
-    ⚠ **The vacuity guard is the SECOND PLAN, and without it this check is worth very little.** A version
+    The vacuity guard is the second PLAN, and without it this check is worth very little. A version
     asserting only that the school pursuit recovers would pass over an implementation that swallowed the
     exception locally and left the agenda wrecked - and a wrecked agenda is invisible to any test that
     schedules one thing. The box shares no node, no type and no operator with the school plan, so its
     completing *for real* is evidence about the loop rather than about the fix.
 
-    ⚠ Second guard: the divergence must be **reported as one**, not merely survived. A `step` that
+    Second guard: the divergence must be reported as one, not merely survived. A `step` that
     returned `False` on the exception without minting a `deviation` would leave the loop alive and the
     pursuit silently claiming it had finished its plan.
 
-    ⚠ Third guard: recovery must be **replanning, not a contingency**. The call never ran, so there is no
+    Third guard: recovery must be replanning, not a contingency. The call never ran, so there is no
     real outcome to settle onto a sibling's mappings, and `matching_alternative` must decline - which it
     does because `result` is `None`. Offering a contingency here would be resuming a branch on the
     strength of an outcome that does not exist."""
@@ -8016,7 +8013,7 @@ def check_a_precondition_that_went_false_is_a_DEVIATION_not_an_ESCAPING_EXCEPTIO
     L.schedule(g, lp, p_school, why="school")
     L.schedule(g, lp, p_box, why="box")
 
-    # The moment the school plan takes its FIRST REAL ACT, something puts the subject back abroad. Its
+    # The moment the school plan takes its first real ACT, something puts the subject back abroad. Its
     # next step requires being at home, and that requirement is now false.
     moved, escaped, box_live_at_failure = False, None, None
     try:
@@ -8027,7 +8024,7 @@ def check_a_precondition_that_went_false_is_a_DEVIATION_not_an_ESCAPING_EXCEPTIO
             if not moved and rec["task"] == p_school and rec["verb"] == L.ACT:
                 g.put(me, where="abroad")
                 moved = True
-            # ⚠ Recorded AT the failure, not afterwards. "The box finished eventually" is compatible with
+            # Recorded AT the failure, not afterwards. "The box finished eventually" is compatible with
             # the box having finished long before anything went wrong, which is exactly how the first
             # version of this guard passed its own planted-bug probe.
             if box_live_at_failure is None and any(
@@ -8053,7 +8050,7 @@ def check_a_precondition_that_went_false_is_a_DEVIATION_not_an_ESCAPING_EXCEPTIO
             "IT_REPLANNED_AND_SUCCEEDED": school_report["done"],
             "and_needed_a_second_attempt": school_report["tries"] == 2,
             "the_world_agrees": g.attr(me, "where") == "school",
-            # THE VACUITY GUARD: an unrelated plan sharing nothing must be untouched by all of it.
+            # The vacuity guard: an unrelated plan sharing nothing must be untouched by all of it.
             "the_other_plan_was_STILL_RUNNING_when_it_failed": box_live_at_failure is True,
             "THE_OTHER_TASK_ON_THE_AGENDA_SURVIVED": box_report["done"],
             "and_it_really_acted": g.attr(box, "packed") is True,
@@ -8061,18 +8058,18 @@ def check_a_precondition_that_went_false_is_a_DEVIATION_not_an_ESCAPING_EXCEPTIO
 
 
 def check_a_sighting_is_distinct_from_a_belief():
-    """⚠ `g.attr(node, key)` is the **current belief** and is what everything reasons over; a sighting is
+    """`g.attr(node, key)` is the current belief and is what everything reasons over; a sighting is
     *what was actually seen, and when*. Keeping them apart is what lets a belief be recognised as stale
-    rather than silently trusted — and it is why memory is metadata pointing INWARD rather than a change
+    rather than silently trusted — and it is why memory is metadata pointing inward rather than a change
     to how the world is stored.
 
-    ⚠ **A sighting covers every slot of the thing looked at**, because that is what "I checked this" means
+    A sighting covers every slot of the thing looked at, because that is what "I checked this" means
     — the state it was in at that moment, not only the fields the tool happened to rewrite. That is what
-    makes *"when did I last check?"* answerable for **stable** slots too, which a difference-only record
+    makes *"when did I last check?"* answerable for stable slots too, which a difference-only record
     could never do: it cannot tell *unchanged* from *unobserved*, which is the `UNKNOWN` conflation one
     level up.
 
-    ⚠ Vacuity guard: something **never looked at** must answer `None` rather than fabricating a sighting
+    Vacuity guard: something never looked at must answer `None` rather than fabricating a sighting
     from the current value — that is the whole distinction, and it needs a node the agent never visited,
     not merely a quiet field on one it did."""
     from . import memory as M
@@ -8093,28 +8090,28 @@ def check_a_sighting_is_distinct_from_a_belief():
 
 
 def check_a_method_and_a_criterion_answer_ONE_question_about_what_they_do():
-    """⭐⭐ **THE TYPED CONSEQUENT, slice one.** `docs/limits.md` claimed every rule here is
+    """the typed consequent, slice one. `docs/limits.md` claimed every rule here is
     `conditions → consequent` and only the consequent and the executor differ. It was an aspiration: a
     method's rung was an `mstep` node reached by `steps_of`, a criterion's action a `does` node reached by
-    `action_of`, and **no reader could ask both what they do** without knowing which it was holding.
+    `action_of`, and no reader could ask both what they do without knowing which it was holding.
 
     Now both mint `consequent` nodes on one edge label, tagged `achieve` or `call`, and `consequent.of`
     answers for either.
 
-    **⭐ The tag was the open question** (the design notes: *a fourth tagged shape or its own small
+    The tag was the open question (an earlier note: *a fourth tagged shape or its own small
     grammar?*), and an earlier probe settled it by pushing to execution rather than to the parser:
-    the two consequents differ in **shape** irreducibly — a proposition with roles versus a function with
+    the two consequents differ in shape irreducibly — a proposition with roles versus a function with
     named bindings — so one grammar over both would be their union with the tag left off.
 
-    ⚠⚠ **And what the probe measured is that they do NOT differ in REACH.** Two attempts to build a world
+    And what the probe measured is that they do NOT differ in reach. Two attempts to build a world
     where a criterion's `do` gets somewhere means-ends search cannot, and the control went dark both
     times: `driver.establishes` unions in each mock's effects, so every operator a criterion can name is
-    one search could already select. So this slice buys **nothing in capability**, and that is the honest
+    one search could already select. So this slice buys nothing in capability, and that is the honest
     reason for it — it is what makes the *next* consequent (`effect`, `remember`, `learn`, which have no
     verb at all today) cheap instead of two more islands created by a second caller.
 
-    ⚠ **Vacuity guards, because "behaviour unchanged" passes for a seam that does nothing** (§5o):
-    the uniform enumerator must return **both** families' consequents and they must carry **different**
+    Vacuity guards, because "behaviour unchanged" passes for a seam that does nothing:
+    the uniform enumerator must return both families' consequents and they must carry different
     tags — one call answering with one kind twice would be a merge, not a collapse. And `describe` must
     refuse a node that is not a consequent, or a reader would be guessing what a rule does."""
     from . import consequent as CQ, criterion as CR, intake as I, method as M
@@ -8132,7 +8129,7 @@ def check_a_method_and_a_criterion_answer_ONE_question_about_what_they_do():
                      "    when subject.size > 50", "    do lint f = subject"))
     m, c = M.methods(g)[0], CR.criteria(g)[0]
 
-    # ⭐ ONE call, two families. This is the whole of what the collapse adds.
+    # One call, two families. This is the whole of what the collapse adds.
     from_method, from_criterion = CQ.of(g, m), CQ.of(g, c)
     tags = (CQ.kind(g, from_method[0]), CQ.kind(g, from_criterion[0]))
 
@@ -8161,21 +8158,21 @@ def check_a_method_and_a_criterion_answer_ONE_question_about_what_they_do():
 
 
 def check_a_criterion_naming_a_function_that_cannot_exist_is_refused_WHERE_IT_IS_WRITTEN():
-    """⭐⭐ **A criterion that is broken in EVERY world used to fail as SILENCE.** `do frobnicate f = x`
+    """A criterion that is broken in every world used to fail as silence. `do frobnicate f = x`
     authored clean, minted a node, and never spoke — indistinguishable from advice whose conditions simply
     did not hold. Measured, then closed in `intake._action`.
 
-    **⚠⚠ The subtlety is why `driver.check_call` could not close it.** It already refuses an unknown
+    The subtlety is why `driver.check_call` could not close it. It already refuses an unknown
     function — but `criterion._try` deliberately turns every refusal from there into silence, and that is
     *correct* for what it was built for: *"the first container happens to be the one this goal forbids"* is
-    a **situation**, not a mistake, and raising there abandoned a search plain enumeration could finish.
+    a situation, not a mistake, and raising there abandoned a search plain enumeration could finish.
     So the two were folded together at the wrong layer. An unknown function and a wrong parameter set are
-    not situations — **no arrangement of the world could make them speak** — so they belong at authoring
+    not situations — no arrangement of the world could make them speak — so they belong at authoring
     time, which is the argument `intake._ref` already makes for the *other* half of the same line.
 
-    ⚠ Vacuity guards. A **correct** `do` must still author, or this is just a broken parser. The refusal
-    must **name the signature**, since *"that is wrong"* without saying how is what sent authors into a
-    search to find out. And a refusal must **leave nothing behind** — a half-built criterion sitting in the
+    Vacuity guards. A correct `do` must still author, or this is just a broken parser. The refusal
+    must name the signature, since *"that is wrong"* without saying how is what sent authors into a
+    search to find out. And a refusal must leave nothing behind — a half-built criterion sitting in the
     graph looking as though it worked is the failure mode this whole surface exists to prevent."""
     from . import asm, criterion as CR, intake as I
 
@@ -8202,7 +8199,7 @@ def check_a_criterion_naming_a_function_that_cannot_exist_is_refused_WHERE_IT_IS
     wrong, w_clean, w_left = refused("    do lint f = subject")
     good, _, g_left = refused("    do lint f = subject, style = subject")
 
-    # ⚠ And the case that motivated the whole pass: with NO library loaded at all, the refusal must say
+    # And the case that motivated the whole pass: with NO library loaded at all, the refusal must say
     # so rather than listing an empty set of known functions.
     g2 = new_graph()
     declare_type(g2, "file", attrs={"kind_of": "file"})
@@ -8223,33 +8220,33 @@ def check_a_criterion_naming_a_function_that_cannot_exist_is_refused_WHERE_IT_IS
 
 
 def check_the_KERNEL_cannot_see_the_representation_above_it():
-    """⭐⭐⭐ **THE KERNEL BOUNDARY, ENFORCED RATHER THAN ACHIEVED ONCE.**
+    """the kernel boundary, enforced rather than achieved once.
 
-    The rule: Python is a **kernel** that may do the **substrate** — nodes, edges, refs, indices, the
+    The rule: Python is a kernel that may do the substrate — nodes, edges, refs, indices, the
     journal, focus, the instruction set, scheduling — and must never do *business*, where business is
-    **anything we decided about how to represent** plans, time, goals, criteria. *The kernel never sees
+    anything we decided about how to represent plans, time, goals, criteria. *The kernel never sees
     the representation above it.* The point is portability: another substrate (Rust, Excel macros, a
     redstone machine) re-implements the kernel, and the data carries over unchanged. Anything
     decided-but-written-in-Python has to be re-decided by every port, which means it was never really a
     representation.
 
-    **⚠⚠ `isa.py` violated it, and it was the only leak BELOW the line.** `PLAN` and `STEP` called
-    `driver.open_planning` / `driver.step`, and `CHECK` called `types.check` — so **a Rust port would have
-    had to port the planner and the type system in order to implement three instructions.**
+    `isa.py` violated it, and it was the only leak below the line. `PLAN` and `STEP` called
+    `driver.open_planning` / `driver.step`, and `CHECK` called `types.check` — so a Rust port would have
+    had to port the planner and the type system in order to implement three instructions.
 
-    ⭐ The fix keeps both principles, which had genuinely collided. `isa.py`'s own argument — search is a
-    **primitive**, because no sequence of GET/SET/LINK imagines a state — was right. What was wrong was
-    concluding that a primitive must be an **opcode**. `native.py` is a name→callable table: the kernel
+    The fix keeps both principles, which had genuinely collided. `isa.py`'s own argument — search is a
+    primitive, because no sequence of GET/SET/LINK imagines a state — was right. What was wrong was
+    concluding that a primitive must be an opcode. `native.py` is a name→callable table: the kernel
     reaches a primitive by name, and the module that owns the primitive puts it there. The dependency
     inverts from `isa → driver` to `isa → native ← driver`.
 
-    ⚠⚠ **This check is structural on purpose, because the property is one that drifts back silently.**
+    This check is structural on purpose, because the property is one that drifts back silently.
     A single `from . import driver` inside a handler restores the leak, passes every behavioural test, and
     would never be noticed — which is exactly how it got there. So the import graph is parsed from source.
 
-    ⚠ Vacuity guards: the natives must actually WORK (a body that plans through `NATIVE` still plans, or
-    this traded a boundary for a broken engine); an unregistered name must refuse **naming what is
-    registered**, since the real failure mode is a primitive whose owning module nobody imported; and
+    Vacuity guards: the natives must actually work (a body that plans through `NATIVE` still plans, or
+    this traded a boundary for a broken engine); an unregistered name must refuse naming what is
+    registered, since the real failure mode is a primitive whose owning module nobody imported; and
     `native.py` itself must name nothing from above, or the leak just moved."""
     import ast
     import pathlib
@@ -8273,7 +8270,7 @@ def check_the_KERNEL_cannot_see_the_representation_above_it():
 
     isa_up = imports_of("isa") & ABOVE
     native_up = imports_of("native") & ABOVE
-    # ⭐ The control: modules ABOVE the line genuinely do import upward, so an empty set below means the
+    # The control: modules ABOVE the line genuinely do import upward, so an empty set below means the
     # boundary, not that this test cannot see imports at all.
     driver_up = imports_of("driver") & ABOVE
 
@@ -8302,29 +8299,29 @@ def check_the_KERNEL_cannot_see_the_representation_above_it():
 
 
 def check_a_guided_search_is_RESUMABLE_by_anything_because_the_decider_is_a_NODE():
-    """⭐⭐⭐ **GUIDANCE WAS A PROPERTY OF THE PYTHON CALLER, NOT OF THE SEARCH.**
+    """guidance was a property of the python caller, NOT of the search.
 
     `criterion.decide` returns a closure handed to `pursue(propose=…)`, and `search.open_search`'s own
-    docstring concedes the split in as many words — *"everything a step needs THAT IS NOT A PYTHON
-    CALLABLE lives here"*. `loop.advance` forwards `**hooks` from whoever called `tick`, so the outer
-    loop — the thing whose whole claim is that it can advance anything — **silently lost the guidance**.
+    docstring concedes the split in as many words — *"everything a step needs that is NOT a python
+    Callable lives here"*. `loop.advance` forwards `**hooks` from whoever called `tick`, so the outer
+    loop — the thing whose whole claim is that it can advance anything — silently lost the guidance.
 
     Measured: the identical search node, with the
-    identical criteria in the graph, took **3** imagined states via `pursue` and **52** ticked by the
+    identical criteria in the graph, took 3 imagined states via `pursue` and 52 ticked by the
     loop. Nothing recorded which had happened, so *"what is deciding this search?"* had no answer in the
     graph — the project's signature defect, one more time.
 
-    ⭐ The fix is the move `search.stop` already makes one screen up in `driver.step`, for the reason
+    The fix is the move `search.stop` already makes one screen up in `driver.step`, for the reason
     recorded there: *the same decision expressed as data, which the standing principle requires.* The
     search points at a `decider` node; `driver.step` and `open_planning` resolve it when no hook is given.
 
-    ⚠⚠ **Vacuity guards, and the first version needed the second one.** Asserting `looped == guided`
-    passes for an engine that always answers 3, so the control is the same search with **no** decider,
-    which must fall back to enumeration and cost far more. And the SEED must be guided too: fixing only
-    `driver.step` took the loop-ticked search from 52 to **6**, not to 3, because the first frontier was
+    Vacuity guards, and the first version needed the second one. Asserting `looped == guided`
+    passes for an engine that always answers 3, so the control is the same search with no decider,
+    which must fall back to enumeration and cost far more. And the seed must be guided too: fixing only
+    `driver.step` took the loop-ticked search from 52 to 6, not to 3, because the first frontier was
     still built by enumeration — a partial fix that a `found=True` assertion would have called done.
 
-    ⚠ Complaint (a) of `docs/limits.md` G is NOT closed by this: `criterion.decide` is still a Python loop.
+    Complaint (a) of `docs/limits.md` G is NOT closed by this: `criterion.decide` is still a Python loop.
     It is reachable from the graph rather than handed in, which is what makes a search resumable; it is
     not yet data."""
     from . import criterion as CR, driver as D, intake, loop as L, thread as T
@@ -8371,7 +8368,7 @@ def check_a_guided_search_is_RESUMABLE_by_anything_because_the_decider_is_a_NODE
 
 
 def _refuses(fn) -> bool:
-    """⚠ Named `_refuses`, not `_raises`: this file already has a two-argument `_raises` and defining a
+    """Named `_refuses`, not `_raises`: this file already has a two-argument `_raises` and defining a
     second one silently clobbered it, breaking four unrelated checks."""
     try:
         fn()
@@ -8381,27 +8378,26 @@ def _refuses(fn) -> bool:
 
 
 def check_ONE_ACTION_IS_ONE_MOMENT_including_what_the_action_PRODUCED():
-    """⭐⭐⭐ **TIME IS WOVEN, AND THE UNIT OF WEAVING IS THE ACTION.** The user's specification,
-    2026-08-02: *"I don't expect each business rule to handle timestamping manually; and it is not that
+    """time is woven, and the unit of weaving is the action. The user's specification: *"I don't expect each business rule to handle timestamping manually; and it is not that
     each node gets a different timestamp — when listing files in a folder, the entire list of files should
     get the same timestamp, because it corresponds to a single action."*
 
-    ⭐ Both halves were **already true of what was covered**, which is why this is a small change:
+    Both halves were already true of what was covered, which is why this is a small change:
     `dispatch.service` records the sighting itself (no rule calls the clock) and `record_sighting` passes
-    one `when` for a whole look on purpose. The gap was **scope**, measured in
+    one `when` for a whole look on purpose. The gap was scope, measured in
     an earlier probe: a look at a folder produced three sightings sharing one
-    moment, and the three file nodes it minted had **no moment at all**. Listing a folder left the file
+    moment, and the three file nodes it minted had no moment at all. Listing a folder left the file
     list — the entire point of listing a folder — with no time on it.
 
-    ⚠⚠ **DATING IS NOT ENCODING, and this check exists partly to hold that line.**
+    Dating is NOT encoding, and this check exists partly to hold that line.
     `record_sighting` deliberately records only the slots of *the thing being looked at*: *"everything
     else the tool happened to touch is the walk to school — not encoded, and that is the correct outcome
-    rather than a loss."* That is about **attention** and it is untouched. This is **provenance**:
+    rather than a loss."* That is about attention and it is untouched. This is provenance:
     `clock.py` opens with *"everything observed or acted must have an absolute timestamp"*, and a node the
     world just handed us with no time on it cannot be aged, compared, or told from one that was always
-    there. So the products are **dated and NOT observed**, and the check asserts both.
+    there. So the products are dated and NOT observed, and the check asserts both.
 
-    ⚠ Vacuity guards. Dating the products proves little if they get their **own** moment — that would be
+    Vacuity guards. Dating the products proves little if they get their own moment — that would be
     three actions, not one — so the assertion is set equality with the look's moment, not mere presence.
     A tool that produces nothing must not mint a stray moment. And the sighting count must stay put, or
     "dating is not encoding" has quietly stopped being true."""
@@ -8436,7 +8432,7 @@ def check_ONE_ACTION_IS_ONE_MOMENT_including_what_the_action_PRODUCED():
     of_look = {m for o in seen for m in C.dated(g, o)}
     of_products = {m for f in produced for m in C.dated(g, f)}
 
-    # ⚠ A second action must get its OWN moment, or "one action one moment" is really "one moment ever".
+    # A second action must get its own moment, or "one action one moment" is really "one moment ever".
     g2 = new_graph()
     f2 = g2.mint("chunk", kind_of="folder", label="src")
     g2.link("root", "has", f2)
@@ -8446,7 +8442,7 @@ def check_ONE_ACTION_IS_ONE_MOMENT_including_what_the_action_PRODUCED():
     DP.service(g2, "probe_list_dir", f2, record_on=T.attend(g2, th2, f2, why="two"))
     second = {m for n in tuple(made) for m in C.dated(g2, n)}
 
-    # ⚠ A tool that produces nothing must not leave a moment dating nothing.
+    # A tool that produces nothing must not leave a moment dating nothing.
     g3 = new_graph()
     t3 = g3.mint("chunk", kind_of="folder", label="src")
     g3.link("root", "has", t3)
@@ -8466,33 +8462,33 @@ def check_ONE_ACTION_IS_ONE_MOMENT_including_what_the_action_PRODUCED():
 
 
 def check_a_pursuit_ACTS_on_an_unfinished_plan_and_then_REPLANS():
-    """⭐⭐⭐ **ACTING ON AN UNFINISHED PLAN — the thing an outer loop was wanted for.**
+    """ACTING on an unfinished PLAN — the thing an outer loop was wanted for.
 
-    The user's specification, 2026-08-02: *"sometimes, to solve a goal, you genuinely need to perform an
+    The user's specification: *"sometimes, to solve a goal, you genuinely need to perform an
     action. That only means the planning procedure can propose, as the next candidate step for the outer
     loop, not more planning but executing an action — and this is possible now that we have an outer
-    loop."* And the constraint that shapes it: **⚠ do not resume the search.** What we just learned may
+    loop."* And the constraint that shapes it: do not resume the search. What we just learned may
     invalidate the plan altogether, so a frontier built in ignorance must be thrown away.
 
     A search reported `found=False` for two very different reasons and `_phase_planning` read both as
-    defeat. *"There is no route"* is defeat; *"I cannot plan this until I go and look"* is a **third
-    outcome**. `goal.blocked_on_ignorance` is the test, and it is deliberately strict — a plan must
-    **bottom out** in ignorance, not merely touch it, or the agent looks in every box.
+    defeat. *"There is no route"* is defeat; *"I cannot plan this until I go and look"* is a third
+    outcome. `goal.blocked_on_ignorance` is the test, and it is deliberately strict — a plan must
+    bottom out in ignorance, not merely touch it, or the agent looks in every box.
 
-    ⚠⚠ **The world here makes the planner structurally blind, which is what makes this a capability
-    rather than a shortcut.** `scan_dir`'s whole effect is behind a `DISPATCH` and it declares no `mocks`,
-    so `establishes` reads **nothing** and means-ends can never select it. Sensing therefore picks
+    The world here makes the planner structurally blind, which is what makes this a capability
+    rather than a shortcut. `scan_dir`'s whole effect is behind a `DISPATCH` and it declares no `mocks`,
+    so `establishes` reads nothing and means-ends can never select it. Sensing therefore picks
     directly: an applicable function whose body dispatches a tool registered `observes=True`.
 
-    ⭐ **Building it surfaced a pre-existing defect that had to be fixed first:** such an operator made
-    `dispatch.service` raise `Imagined` *inside planning*, and the exception **escaped `loop.tick`** —
+    Building it surfaced a pre-existing defect that had to be fixed first: such an operator made
+    `dispatch.service` raise `Imagined` *inside planning*, and the exception escaped `loop.tick` —
     stranding the pursuit and killing every other task on the shared agenda. Exactly what `execution.step`
     already records for `TypeViolation`, one phase earlier. It is skipped and recorded now, not fatal.
 
-    ⚠ Vacuity guards, and each caught something. Planning **alone** must fail, or the scenario proves
-    nothing. A **second** search must exist afterwards — resuming the first is what the specification
+    Vacuity guards, and each caught something. Planning alone must fail, or the scenario proves
+    nothing. A second search must exist afterwards — resuming the first is what the specification
     forbids. A goal *not* blocked on ignorance must not sense at all. And the sensing tick must report the
-    verb **`look`**, not `imagine`: it performs a real dispatch, and `loop.verb_of` is what lets a driver
+    verb `look`, not `imagine`: it performs a real dispatch, and `loop.verb_of` is what lets a driver
     decline a tick before the world is touched — it reported `imagine` in the first version."""
     from . import asm, dispatch as DP, driver as D, goal as G, loop as L, thread as T
     from .graph import UNKNOWN
@@ -8519,7 +8515,7 @@ def check_a_pursuit_ACTS_on_an_unfinished_plan_and_then_REPLANS():
 
     g, folder, goal = world()
     blind = D.establishes(g, "scan_dir")
-    # ⚠ Read BEFORE the pursuit runs — after sensing the goal is no longer blocked, so asserting this
+    # Read BEFORE the pursuit runs — after sensing the goal is no longer blocked, so asserting this
     # afterwards would be asserting nothing. The first version of this key was a hardcoded `True`.
     bottoms_out = G.blocked_on_ignorance(g, goal)
     p = D.open_pursuit(g, goal, T.open_thread(g), folder)
@@ -8528,14 +8524,14 @@ def check_a_pursuit_ACTS_on_an_unfinished_plan_and_then_REPLANS():
     out = L.run(g, lp, max_ticks=200)
     verbs = [r["verb"] for r in out["did"]]
 
-    # CONTROL: planning alone must fail.
+    # Control: planning alone must fail.
     g2, folder2, goal2 = world()
     s2 = D.open_planning(g2, goal2, T.open_thread(g2), folder2, max_steps=200, max_depth=6)
     lp2 = L.open_loop(g2)
     L.schedule(g2, lp2, s2, why="plan only")
     L.run(g2, lp2, max_ticks=200)
 
-    # CONTROL: a goal that is NOT blocked on ignorance must not sense.
+    # Control: a goal that is NOT blocked on ignorance must not sense.
     g3 = new_graph()
     declare_type(g3, "folder", attrs={"kind_of": "folder"})
     f3 = g3.mint("chunk", kind_of="folder", label="src", count=1)
@@ -8562,34 +8558,34 @@ def check_a_pursuit_ACTS_on_an_unfinished_plan_and_then_REPLANS():
 
 
 def check_a_TIMER_gates_a_task_and_the_agenda_waits_rather_than_spinning():
-    """⭐⭐⭐ **SCHEDULED ACTIONS — *"stop cooking the pasta after ten minutes"*.**
+    """Scheduled actions — *"stop cooking the pasta after ten minutes"*.
 
-    The user's case, 2026-08-02: timers and scheduled actions, *"installed by procedures themselves"*. So
-    the payload is an **ordinary task** and the gate is an **ordinary moment node** — nothing new is
+    The user's case: timers and scheduled actions, *"installed by procedures themselves"*. So
+    the payload is an ordinary task and the gate is an ordinary moment node — nothing new is
     represented, because `clock.moment(at=…)` already existed. `loop.schedule(not_before=…)` is the edge
-    that lets the loop honour one, and it lives on the **task**, so *"when may this run?"* is a property
+    that lets the loop honour one, and it lives on the task, so *"when may this run?"* is a property
     of the work rather than of the queue it is sitting in.
 
-    ⭐⭐ **This is the first selection the agenda has ever made.** `tick` took `here[0]` unconditionally —
+    This is the first selection the agenda has ever made. `tick` took `here[0]` unconditionally —
     round-robin with no content. That makes this the same seam where outer-loop triage would go, which is
     worth knowing before a second reason to open it arrives.
 
-    ⚠⚠ **Waiting is REPORTED, never spun on.** Rotating a gated head to the back and trying again would
+    Waiting is reported, never spun on. Rotating a gated head to the back and trying again would
     busy-loop until the clock caught up — burning the tick budget while looking like progress, which is
     the shape of every silent failure in this file. The tick returns a record naming what it waits for and
     `run` stops, because *"sleep, or do something else"* is a decision only a driver can make.
 
-    ⚠ Vacuity guards, and they are the whole check: the gated task must **not** run early (or the gate is
-    decorative), it must run **once the clock moves** (or the gate is a block), an **ungated** task beside
-    it must still run (or one timer freezes everything), and a **relative** moment — *"a minute after the
-    pan is hot"*, which carries no scalar — must **refuse** rather than silently never firing."""
+    Vacuity guards, and they are the whole check: the gated task must not run early (or the gate is
+    decorative), it must run once the clock moves (or the gate is a block), an ungated task beside
+    it must still run (or one timer freezes everything), and a relative moment — *"a minute after the
+    pan is hot"*, which carries no scalar — must refuse rather than silently never firing."""
     from . import asm, clock as C, function as fn, loop as L
     from .focus import Focus
     from .isa import Machine
 
     g = new_graph()
     declare_type(g, "pot", attrs={"kind_of": "pot"})
-    # ⚠ Stored functions, not anonymous programs: the outer loop refuses an activation with no `of`,
+    # Stored functions, not anonymous programs: the outer loop refuses an activation with no `of`,
     # because a program that exists only in Python is exactly the island this arc removed.
     asm.load_text(g, _lines('fn take_the_pasta_off(p: pot) -> pot:', '    SET F(p) "cooking" false',
                             '', 'fn lay_the_table(p: pot) -> pot:', '    SET F(p) "table" true'))
@@ -8633,24 +8629,24 @@ def check_a_TIMER_gates_a_task_and_the_agenda_waits_rather_than_spinning():
 
 
 def check_a_PROCEDURE_INSTALLS_ITS_OWN_TIMER():
-    """⭐⭐⭐ *"Stop cooking the pasta after ten minutes"* — **installed by the cooking procedure itself.**
+    """*"Stop cooking the pasta after ten minutes"* — installed by the cooking procedure itself.
 
-    The user's framing, 2026-08-02: timers *"could be rules, or installed by procedures themselves"*. The
+    The user's framing: timers *"could be rules, or installed by procedures themselves"*. The
     thing that knows about the ten minutes is `cook_pasta`, not whoever called it, so a running body must
     be able to reach the agenda it is on. `NATIVE R(t) "after" 600 "take_the_pasta_off" F(pot)`.
 
-    ⭐ Nothing new is represented: `clock.moment(at=…)` is the gate, an activation is the payload, and
-    `loop.schedule(not_before=…)` already honours both. What was missing was **reach**.
+    Nothing new is represented: `clock.moment(at=…)` is the gate, an activation is the payload, and
+    `loop.schedule(not_before=…)` already honours both. What was missing was reach.
 
-    ⚠⚠ **Building it exposed two facts riding on one edge.** `loop -task-> t` is TURN ORDER: `tick`
-    unlinks the head *before* advancing it and re-appends it at the tail, so **a running task is not on
-    the agenda at all** — and a body asks *"which loop am I on?"* precisely while running. Membership is a
+    Building it exposed two facts riding on one edge. `loop -task-> t` is turn order: `tick`
+    unlinks the head *before* advancing it and re-appends it at the tail, so a running task is not on
+    the agenda at all — and a body asks *"which loop am I on?"* precisely while running. Membership is a
     different, stable fact and now has its own edge (`task -on-> loop`). The first version refused every
     call with *"not on an agenda"*, which is the honest failure the guard was written for.
 
-    ⚠ Vacuity guards: the timer must **not** already have fired when `cook_pasta` returns (or it is not a
+    Vacuity guards: the timer must not already have fired when `cook_pasta` returns (or it is not a
     timer), the gate must be roughly the requested distance away rather than any moment at all, it must
-    fire once the clock passes it, and a body **not** on an agenda must be refused rather than scheduling
+    fire once the clock passes it, and a body not on an agenda must be refused rather than scheduling
     into nowhere — a timer installed nowhere can never fire, and would look exactly like one that is
     early."""
     import time as _t
@@ -8701,8 +8697,8 @@ def check_a_PROCEDURE_INSTALLS_ITS_OWN_TIMER():
             "and_a_RUNNING_task_can_still_find_its_loop": L.loop_of(g, a) == lp}
 
 
-# ⚠ THE ENTRY POINT MUST BE THE LAST THING IN THIS FILE. `_checks()` reads `globals()` at call time,
-# so any check defined BELOW this block is simply not executed - the count stays put and the report looks
+# The entry point must be the last thing in this file. `_checks()` reads `globals()` at call time,
+# so any check defined below this block is simply not executed - the count stays put and the report looks
 # healthy. That is the same false-green `_checks()` own docstring records, one level up, and it bit again
 # when the query checks were appended after it.
 if __name__ == "__main__":

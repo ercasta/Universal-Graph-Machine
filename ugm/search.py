@@ -1,61 +1,49 @@
-"""SEARCH STATE — the planner's own working memory, as ordinary graph data.
+"""Search state — the planner's own working memory, as ordinary graph data.
 
-**Why this module exists.** `driver.pursue` held its entire working state in Python locals: a `frontier`
-list, a `seen` set, a step counter and a list of refusals. Everything *else* the planner touches was
-already graph data — frames, mappings, bindings, the thread — so the search was the one part of the system
-that could not be read by the system. `composability-principle` names that shape exactly: **a hardcoded
-mechanism is an unreachable island**, and the homoiconicity claim (a rule can write a rule) fails precisely
-where the mechanism is Python. `docs/deliberation.md` put it as *deliberation is the third thing the system
-computes with and cannot compute about*. This is the first half of removing that.
+Everything else the planner touches is graph data — frames, mappings, bindings, the thread — so a
+frontier, a visited set, a step counter and a list of refusals held in Python locals would be the
+one part of the system the system could not read. A hardcoded mechanism is an unreachable island,
+and the claim that a rule can reason about a rule fails precisely where the mechanism is Python.
 
-**⚠ Moving the state changed NO semantics, deliberately** — it swapped four containers for graph-backed
-ones and nothing else, so the existing checks were a real oracle for it. A refactor that changed behaviour
-at the same time would have left nothing to check it against.
+Moving the state changed no semantics, deliberately: four containers became graph-backed ones and
+nothing else, so the existing checks were a real oracle for it.
 
-**⭐⭐ That is what made the yield point possible, and `driver.step` is now it.** Because every piece of a
-step's state is reachable from one `search` node, one iteration can be a module-level function instead of
-a closure inside a `while` — so a caller other than `pursue` can drive the search, pause between two
-imagined states, read what has been considered, and resume. `pursue` still exists and is unchanged in
-behaviour; it is now a loop *over* `step` rather than being the search itself. Verified by driving the
-67-state blind search by hand and reaching the same plan at the same cost.
+That is what makes the yield point possible. Because every piece of a step's state is reachable
+from one `search` node, one iteration is a module-level function rather than a closure inside a
+`while`, so a caller can drive the search, pause between two imagined states, read what has been
+considered, and resume. `pursue` is now a loop over `step` rather than being the search itself.
 
-⚠ The other half of a step's context — `rank`, `allow`, `trace`, `decide` — is Python callables, which
-cannot live in a graph and are passed per call. `context` returns the graph-resident half. That split is
-the honest boundary: hooks are substitutable *behaviour*, everything here is *state*.
+The other half of a step's context — ranking, allowing, tracing, deciding — is Python callables,
+which cannot live in a graph and are passed per call. `context` returns the graph-resident half.
+That split is the honest boundary: hooks are substitutable behaviour, everything here is state.
 
-## ⚠⚠ The two structures here are the ones that caused this project's worst defect
+The two structures here caused this project's worst defect: a set-valued reachability answer made
+copy order fall to hash order, the frontier's tie-break became arbitrary, and the same goal
+answered differently run to run while 132 checks passed over it, because a single run of anything
+is self-consistent. So two rules are not negotiable here.
 
-`search-was-irreproducible-set-tiebreak`: `workbench.reachable` returned a **`set`**, so copy order fell to
-hash order, the frontier's tie-break became arbitrary, and the same goal answered `400/fail` or `12/found`
-run to run. **132 checks passed over it**, because a single run of anything is self-consistent. The two
-structures implicated were the frontier and the visited set — which are exactly what this module now owns.
+* The frontier is ordered, and ties keep insertion order. Targets come back in insertion order
+  and the sort is stable, so a tie breaks the same way it broke when the frontier was a Python
+  list. That is the reason candidates are edges rather than anything set-shaped.
+* A signature is canonical before it is compared. `state_of` genuinely returns a frozenset, so it
+  is sorted into a string here rather than iterated. Nothing in this module iterates a set and
+  lets the order matter.
 
-So, two rules that are not negotiable here:
+The shape:
 
-* **The frontier is ORDERED, and ties keep insertion order.** `Graph.out` holds an ordered list per label,
-  `targets` returns it in that order, and the sort below is stable — so a tie breaks the same way it broke
-  when the frontier was a Python list. That is not an accident to be preserved by luck; it is the reason
-  candidates are edges rather than anything set-shaped.
-* **A signature is CANONICAL before it is compared.** `state_of` genuinely returns a `frozenset`, so it is
-  sorted into a string here rather than iterated. Nothing in this module iterates a set and lets the order
-  matter.
+    search --goal--> goal          --candidate--> candidate (ORDERED: the frontier)
+           --workbench--> wb       --signature--> signature (the visited set)
+           --thread--> thread      --refusal----> refusal
 
-## The shape
+A candidate carries what the frontier tuple used to: the frame to expand, the depth, the
+function, its bindings, the ranking key, and the plan so far. The plan so far is a linked list,
+which shares prefixes for free — appending to a tuple copied the whole prefix per candidate, and
+a linked list is what that expression already was, written down.
 
-```
-search ──goal──▶ goal          ──candidate──▶ candidate (ORDERED: the frontier)
-       ──workbench──▶ wb       ──signature──▶ signature (the visited set)
-       ──thread──▶ thread      ──refusal────▶ refusal
-```
+Every kind here is metadata, so it points at what it describes and is never pointed at by it. A
+frame does not know it is on a frontier.
 
-A `candidate` carries what the frontier tuple used to: the frame to expand, the depth, the function, its
-bindings (one `candidate_arg` per parameter), the ranking key, and the plan-so-far. **The plan-so-far is a
-linked list** (`trace_step ──after──▶ trace_step`), which shares prefixes for free — the old tuple
-`trace + (step,)` copied the whole prefix per candidate, and a linked list is what that expression already
-was, written down.
-
-⚠ **Direction invariant** (`docs/planning.md`: every kind here is metadata, so it points **at**
-what it describes and is never pointed at by it. A frame does not know it is on a frontier.
+See `docs/planning.md`.
 """
 from __future__ import annotations
 
@@ -67,7 +55,7 @@ KINDS = ("search", "candidate", "candidate_arg", "trace_step", "signature", "ref
 # --- opening ----------------------------------------------------------------------------------------
 def open_search(g: Graph, goal: str, workbench: str, thread: str, subject: str, *,
                 max_steps: int, max_depth: int, guided: bool, opened: str | None = None) -> str:
-    """⭐ Everything a step needs that is not a Python callable lives HERE, which is what lets one
+    """Everything a step needs that is not a Python callable lives here, which is what lets one
     iteration be a module-level function rather than a closure inside the loop. `opened` is the thread
     entry the goal was taken on at — carried so a step can tie its outcome back to it without the caller
     having to hold it."""
@@ -106,10 +94,10 @@ def took_a_step(g: Graph, s: str) -> int:
 def extend_trace(g: Graph, after: str | None, function: str, touched) -> str:
     """One more step on the plan-so-far. `after` is the previous step, or `None` at the root.
 
-    ⭐ The old code wrote `trace + ((name, frozenset(...)),)`, copying the prefix for every candidate. A
+    The old code wrote `trace + ((name, frozenset(...)),)`, copying the prefix for every candidate. A
     linked list *is* that expression, and sharing the prefix is what it was always describing."""
     step = g.mint("trace_step", function=function)
-    for n in sorted(touched):                 # ⚠ sorted: `touched` is a set, and order must not leak
+    for n in sorted(touched):                 # sorted: `touched` is a set, and order must not leak
         g.link(step, "touched", n)
     if after is not None:
         g.link(step, "after", after)
@@ -134,7 +122,7 @@ def offer(g: Graph, s: str, *, key: tuple, frame: str, depth: int, function: str
     c = g.mint("candidate", function=function, depth=depth, open_count=open_count,
                k0=key[0], k1=key[1], k2=key[2])
     g.link(c, "frame", frame)
-    for param in sorted(bindings):            # ⚠ sorted: a dict's order must not reach the graph
+    for param in sorted(bindings):            # sorted: a dict's order must not reach the graph
         a = g.mint("candidate_arg", param=param)
         g.link(a, "mapping", bindings[param])
         g.link(c, "arg", a)
@@ -145,14 +133,14 @@ def offer(g: Graph, s: str, *, key: tuple, frame: str, depth: int, function: str
 
 
 def frontier(g: Graph, s: str) -> tuple:
-    """Every candidate still waiting, **in insertion order** — the ordering the tie-break depends on."""
+    """Every candidate still waiting, in insertion order — the ordering the tie-break depends on."""
     return g.targets(s, "candidate")
 
 
 def take_best(g: Graph, s: str):
     """The best candidate, removed from the frontier. `None` when it is empty.
 
-    ⚠ **Stable sort over an insertion-ordered tuple**, which is what makes this byte-identical to the
+    Stable sort over an insertion-ordered tuple, which is what makes this byte-identical to the
     `frontier.sort(key=…)` + `pop(0)` it replaces. Python's sort is stable, `Graph.targets` returns the
     edge list in the order it was built, and equal keys therefore keep the order they were offered in."""
     here = frontier(g, s)
@@ -177,7 +165,7 @@ def read(g: Graph, c: str) -> dict:
 def digest(state: frozenset, outstanding: tuple) -> str:
     """A canonical, order-free key for "this world, with this much still required of the plan".
 
-    ⚠ **`state` is a `frozenset` and is SORTED here rather than iterated.** That is the whole lesson of
+    `state` is a `frozenset` and is sorted here rather than iterated. That is the whole lesson of
     `search-was-irreproducible-set-tiebreak` applied at the one place it could recur: a deterministic
     computation that ends in a set has an undeclared tie-break in it. Sorting the repr is enough — the
     elements are tuples of strings and sorted comparison over them is total and stable."""
@@ -185,7 +173,7 @@ def digest(state: frozenset, outstanding: tuple) -> str:
 
 
 def already_seen(g: Graph, s: str, key: str) -> bool:
-    """⚠ A linear scan of this search's signatures, bounded by `max_steps` (60 by default), so the whole
+    """A linear scan of this search's signatures, bounded by `max_steps` (60 by default), so the whole
     search costs O(steps²) attribute reads — a few thousand. Deliberately not indexed: an index would be a
     second structure that can disagree with the first, which is the drift class this codebase keeps
     re-finding. Revisit only with a measurement, per `measure-before-optimizing-ugm`."""
@@ -193,7 +181,7 @@ def already_seen(g: Graph, s: str, key: str) -> bool:
 
 
 def mark_seen(g: Graph, s: str, key: str, frame: str) -> str:
-    """Record that this world has been imagined, and **by which frame** — which is what makes the visited
+    """Record that this world has been imagined, and by which frame — which is what makes the visited
     set answer *what has the search already ruled out?* rather than merely making it terminate."""
     n = g.mint("signature", digest=key)
     g.link(n, "first_reached", frame)

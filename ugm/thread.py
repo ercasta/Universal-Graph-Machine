@@ -1,79 +1,56 @@
-"""THREAD — materialised, navigable short-term memory: what the system just did.
+"""Thread — materialised, navigable short-term memory: what the system just did.
 
-Design: `docs/memory.md` This is the first piece of the outer loop, which
-this engine has been missing since it started: `plan.py` chains, `workbench.py` imagines, `execution.py`
-replays and `selection.py` ranks, and nothing invokes any of them.
+Attention held in a Python object created fresh per call and discarded is the one thing in this
+system that would not be data. A system that cannot reason about where it has been looking cannot
+explain itself, cannot notice it is going in circles, and cannot learn from how it moved. The
+thread is that record, as ordinary graph data.
 
-**Why this exists at all.** `Focus` is a Python object whose own docstring says it "holds no graph state
-itself" — created fresh per call and discarded. So attention is the one thing in this system that is *not*
-homoiconic, which is a strange hole in a project whose claim is that a rule can reason about a rule. A
-system that cannot reason about where it has been looking cannot explain itself, cannot notice it is going
-in circles, and cannot learn from how it moved. The thread is that record, as ordinary graph data.
+A thread is an episode extended, not a second record. Applications are already minted as nodes on
+an ordered `step` edge, and a parallel log would mean two records of one event with every
+reflective rule consulting both. So a thread is an episode that also accepts attention shifts,
+and `application.steps` filters back to applications so episode compilation is unaffected.
 
-**A thread IS an episode, extended — not a second record.** `application.py` already mints a node per
-application and holds them on an ordered `step` edge. If the thread kept its own parallel log there would be
-two records of one event and every reflective microfunction would have to consult both, which is exactly the
-split the composability principle warns about. So a thread is an episode that also accepts *attention
-shifts*, and `application.steps` filters back to applications so `compile_episode` is unaffected.
+Two entry kinds, and deliberately only two: an attention shift, where attention was deliberately
+placed somewhere, and an application, where the entry is the application node itself.
 
-**Two entry kinds, and deliberately only two.**
+Not every instruction. Head movement runs inside every function body, and logging it would record
+pointer arithmetic rather than reasoning, and would swamp every walker. The grain is deliberate
+placement, and nothing here instruments the focus.
 
-* an **attention shift** — attention was deliberately placed somewhere;
-* an **application** — a microfunction was applied. The entry *is* the `application` node.
+Order is the ordered `step` edge; `prev` is for navigation and for carrying the reason. These are
+not two orderings — appending is one function and nothing else appends, which is a discipline a
+human must follow and therefore earns a test. `prev` exists for two reasons the container edge
+cannot serve: stepping back from an entry is a single hop rather than an index lookup, and the
+reason a step followed another is a property of the transition, so it rides on the `prev` edge as
+an edge property.
 
-⚠ **Not every instruction.** `Focus.move` runs inside every microfunction body; logging those would record
-ISA-level pointer arithmetic rather than reasoning, and would swamp every walker. The grain is *deliberate
-placement*. Nothing here instruments `Focus`, on purpose.
+The rule for choosing between an edge property and a node: ride on the edge what merely describes
+that edge; mint a node for what has its own ends, its own attributes, or must be enumerable as a
+kind. `connect` mints a node because a connection has two ends, is itself a subject a hypothesis
+may dispute, and is enumerated by kind — as an edge it would be indistinguishable from the
+structural ones without inventing a label convention.
 
-**Order is the ordered `step` edge; `prev` is for navigation and for carrying the reason.** These are not
-two orderings — appending is one function (`_append`) and nothing else appends, which is a discipline a
-human must follow and therefore earns a test. `prev` exists for two reasons the container edge cannot
-serve: stepping back from an entry is O(1) rather than an index lookup, and **the reason a step followed
-another is a property of the transition**, so it rides on the `prev` edge as an edge property.
+The thread does not hang off `root`, and that is load-bearing. Real things hanging off root is
+what makes enumeration by traversal safe and what separates the world from the scaffolding; a
+thread hanging off root would put every remembered moment into the candidate set for ordinary
+reasoning. It points at the world and is never pointed at by it.
 
-⚠⚠ **THE RULE BELOW SURVIVED, ITS REASON DID NOT — read both.** What follows was written when `eprops` was
-keyed by `(src, label, index)` and reindexed on insertion, so an edge property genuinely had no stable
-address. **That is no longer true**: edges have identity, and a `prev` edge property can be dated, disputed
-and pointed at like anything else (measured; there is a check).
+Walking needs no new primitive. `prev`, `step` and `at` are ordinary edges, so the ordinary
+navigation instructions already traverse them: a thread-walker is an ordinary rule pointed at the
+thread, and the self-test walks a thread from stored instruction text to demonstrate it.
 
-⭐ So `connect` was re-examined for deletion and **kept**, on its own second justification rather than this
-one. Two things: enumeration here filters on `kind == "connection"`, and as an edge a connection would be
-indistinguishable from the structural `at` / `prev` / `step` without inventing a label convention; and a
-connection has **two ends and is itself a subject**, which is what a node is for. ⚠ The restated rule, now
-that the substrate no longer forces it: *ride on the edge what merely describes that edge; mint a node for
-what has its own ends, its own attributes, or must be enumerable as a kind.*
-
-⚠ **The original wording is kept below because the reasoning is still instructive**, and because a claim
-about the substrate that has since been fixed is exactly the kind of thing that otherwise gets copied into
-a new module by someone who trusted it.
-
-⚠ ~~**A `prev` edge property cannot be pointed at.**~~ (no longer so — see above) `eprops` was keyed by
-`(src, label, index)` and reindexed
-on insertion, so there is no stable address for one. Anything something else must point *at* — a disputed
-connection, a conflict between two moments — is a node (`connect`). The rule: *ride on the edge what merely
-describes it; mint a node for what must be pointed at.*
-
-**⚠ The thread does not hang off `root`, and that is load-bearing.** "Real things hang off root" is what
-makes `types.instances` safe by traversal, and it is what will separate the world region from the
-scaffolding region when System 1 explores. A thread hanging off root would put every remembered moment into
-the candidate set for ordinary reasoning. It points *at* the world and is never pointed at by it — the
-metadata direction invariant, the same one that keeps workbench copies bounded.
-
-**Walking needs no new primitive.** `prev`, `step` and `at` are ordinary edges, so `MOVE`, `BACK` and
-`FOLLOW` already navigate them: a thread-walking microfunction is an ordinary microfunction pointed at the
-thread. That is the claim this module would rather demonstrate than assert, and `selftest.py` walks a thread
-from stored ISA to prove it.
+See `docs/memory.md`.
 """
 from __future__ import annotations
 
 from . import application as ap
 from .graph import Graph
 
-#: ⚠ **Still two, and an attempt to add a third was withdrawn.** `discourse.py` first made an *utterance*
-#: an entry kind of its own. The correction was that an utterance is a **world event** — it has a speaker,
+#: Still two, and an attempt to add a third was withdrawn. `discourse.py` first made an *utterance*
+#: an entry kind of its own. The correction was that an utterance is a world event — it has a speaker,
 #: other agents may quote it, and a rule may reason about it — so it hangs off `root` like anything real,
 #: and what belongs on the thread is the ordinary *attention* the system paid it. Retraction still needs
-#: utterances and applications in **one order**, and it has that, because an attention entry sits in the
+#: utterances and applications in one order, and it has that, because an attention entry sits in the
 #: same `step` edge as everything else. The two-kind restriction turned out to be right.
 ENTRY_KINDS = frozenset({"attention", "application"})
 
@@ -91,7 +68,7 @@ def open_thread(g: Graph, label: str = "thread", *, at: str = "root") -> str:
 
 # --- appending --------------------------------------------------------------------------------------
 def _append(g: Graph, thread: str, entry: str, why: str | None) -> str:
-    """⚠ THE ONLY PLACE ANYTHING IS APPENDED. The ordered `step` edge and the `prev` chain must agree, and
+    """The only place anything is appended. The ordered `step` edge and the `prev` chain must agree, and
     they agree because one function writes both. That is a discipline a human must follow, so it earns
     `check_the_two_orderings_cannot_disagree` rather than being left to good intentions."""
     last = tip(g, thread)
@@ -115,13 +92,13 @@ def attend(g: Graph, thread: str, node: str, *, why: str | None = None, note: st
 def applied(g: Graph, thread: str, name: str, bindings: dict, *,
             why: str | None = None, outcome=None, for_goal: str | None = None,
             done: bool = False) -> str:
-    """Record that a microfunction was applied. The entry **is** the `application` node.
+    """Record that a microfunction was applied. The entry is the `application` node.
 
     `application.record` is called without `episode=` precisely so the `step` edge is written once, here —
     letting it link too would produce the duplicate ordering this module exists to avoid."""
     app = ap.record(g, name, bindings, outcome=outcome)
     if done:
-        # ⚠ IMAGINED versus DONE. The driver records every proposal it considers, most of them from
+        # Imagined versus done. The driver records every proposal it considers, most of them from
         # branches it abandons — so "what was done for this goal" is not "what appears on the thread for
         # this goal". Anything reasoning about consequences (`conflict.py`) must look only at what really
         # ran, or it is analysing the search rather than the actions.
@@ -208,25 +185,25 @@ def last_touching(g: Graph, entry: str, node: str, *, limit: int | None = None):
 
 # --- connecting distant points ----------------------------------------------------------------------
 def connect(g: Graph, a: str, b: str, relation: str, *, note: str | None = None) -> str:
-    """⭐ Tie two moments together — the capability the flat episode never had.
+    """Tie two moments together — the capability the flat episode never had.
 
     Episodes are ordered but flat: nothing could say "this step is here *because of* that goal forty steps
     back". That missing structure is what makes reflective microfunctions writable, and it is the real
     blocker behind the recorded conflict-detection regression — which was said to need "no new mechanism,
     only writing them", slightly optimistically: it needed the record to be *addressable*.
 
-    **A connection is a node, not an edge property** — and since edges gained identity this is a **choice
-    rather than a constraint**, so it is worth stating what now justifies it. It was re-examined for
+    A connection is a node, not an edge property — and since edges gained identity this is a choice
+    rather than a constraint, so it is worth stating what now justifies it. It was re-examined for
     deletion once an edge could be pointed at, and kept for two reasons neither of which is the substrate:
 
-    * **it is enumerable as a kind.** `connections` filters on `kind == "connection"`; as an edge it would
+    * it is enumerable as a kind. `connections` filters on `kind == "connection"`; as an edge it would
       be indistinguishable from the structural `at` / `prev` / `step` without inventing a label convention,
       and a convention that must be remembered is the defect shape this codebase keeps recording;
-    * **it has two ends and is itself a subject** — a hypothesis may dispute it, a later connection may
+    * it has two ends and is itself a subject — a hypothesis may dispute it, a later connection may
       contradict it. That is the same reasoning `application.record` gives for making a binding its own
       node.
 
-    ⚠ What is *no longer* a reason: that an edge property has no stable address. It has one now."""
+    What is *no longer* a reason: that an edge property has no stable address. It has one now."""
     c = g.mint("connection", relation=relation, **({"note": note} if note else {}))
     g.link(c, "from", a)
     g.link(c, "to", b)

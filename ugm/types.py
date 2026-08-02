@@ -1,15 +1,25 @@
-"""TYPES — a type is a subgraph schema, and a schema is ordinary graph data.
+"""Types — a type is a subgraph schema, and a schema is ordinary graph data.
 
-`docs/overview.md`: *a `car` is a chunk with a body and four wheels.* Named edges make this read directly
-off the graph — a requirement is "this label, this many targets, of this kind."
+A `car` is a chunk with a body and four wheels. Named edges make that read directly off the
+graph: a requirement is this label, this many targets, of this kind.
 
-**Matching lives here now, and only here.** Checking a chunk against a schema IS a graph pattern match.
-What changed is its job: it validates ONE argument at ONE call site, bounded and terminating, instead of
-deciding what fires across the whole graph. Say it that way — "matching was eliminated" is wrong and easy
-to disprove. Prior art sits exactly here: SHACL shapes, and Minsky's frames.
+Matching lives here, and only here. Checking a node against a schema is a graph pattern match;
+what changed is its job. It validates one argument at one call site, bounded and terminating,
+instead of deciding what fires across the whole graph. Prior art sits exactly here: SHACL shapes,
+and Minsky's frames.
 
-**Types are data, not Python classes** — a `type` node with `requires` edges. A KB can author one, a
-microfunction can read one, and a microfunction can write one.
+Types are data rather than Python classes — a `type` node with requirement edges — so a knowledge
+base can author one, a rule can read one, and a rule can write one.
+
+Sub- and supertyping is structural. A supertype relaxes constraints and a subtype tightens them;
+declaring a base is a convenience for writing that, never what makes it true, and two
+independently declared types stand in the relation if their constraints do.
+
+Recognition is bottom-up and nothing is stored. `recognize` reports which declared types a node
+satisfies now, so multi-type membership falls out, and so does de-recognition: when a node stops
+satisfying a shape there is nothing to invalidate.
+
+See `docs/concepts.md`.
 """
 from __future__ import annotations
 
@@ -28,9 +38,9 @@ UNBOUNDED = None            # a count with no upper limit; `hi=None` reads as "a
 
 
 class Req(NamedTuple):
-    """What a type demands of ONE edge label: what the targets must be, and how many there must be.
+    """What a type demands of one edge label: what the targets must be, and how many there must be.
 
-    ⭐ **`kind` and `type` are independent, and only `type` recurses.** A `kind` is what a node was minted
+    `kind` and `type` are independent, and only `type` recurses. A `kind` is what a node was minted
     as — a substrate fact, one level deep by construction, and cheap. A `type` is a whole schema, checked
     the same way this node is being checked, to whatever depth the declarations go. Keeping both means the
     cheap check stays cheap and the deep one is asked for on purpose; collapsing them into "the name means
@@ -43,14 +53,14 @@ class Req(NamedTuple):
 
 
 class AttrReq(NamedTuple):
-    """What a type demands of one attribute — the STATE half. `op` is one of `== != < <= > >= between`."""
+    """What a type demands of one attribute — the state half. `op` is one of `== != < <= > >= between`."""
     op: str = "=="
     value: object = None
     hi: object = None                    # only `between` uses it
 
 
 class Rel(NamedTuple):
-    """⭐⭐ A demand relating **two places inside the subgraph** — the thing a flat schema could not say.
+    """A demand relating two places inside the subgraph — the thing a flat schema could not say.
 
     `Rel("wheel[0].pressure", "==", "wheel[1].pressure")` is a constraint no per-label requirement can
     express, because it is not about a label at all: it is about two nodes reached from the same subject
@@ -60,7 +70,7 @@ class Rel(NamedTuple):
     `right_is_path` is what distinguishes `pressure > spare.pressure` from `pressure > 30`, and it is
     recorded rather than inferred so that the meaning of a stored declaration can never drift.
 
-    ⚠ **`is` / `is not` compare node IDENTITY; every other operator compares VALUES.** That is the
+    `is` / `is not` compare node identity; every other operator compares values. That is the
     position-demands-it rule from `path.py`, and it is the only thing that decides whether the last segment
     of each side is walked as an edge or read as an attribute."""
     left: str = ""
@@ -100,7 +110,7 @@ def _as_rel(spec) -> Rel:
 
 
 # --- authoring: one requirement at a time -----------------------------------------------------------
-# ⭐ `declare_type` is now built out of these rather than the other way round, because the CNL surface
+# `declare_type` is now built out of these rather than the other way round, because the CNL surface
 # authors a type line by line and had no way in short of assembling the whole dict first. A block that
 # refuses halfway must leave nothing behind, and `intake.read` already gets that from the journal.
 
@@ -134,18 +144,18 @@ def declare_type(g: Graph, name: str, requires: dict | None = None,
         declare_type(g, "car", {"body": ("body", 1), "wheel": ("wheel", 4)})
         declare_type(g, "serviced_car", base="car", attrs={"serviced": True})
 
-        declare_type(g, "car", {"wheel": Req(type="wheel", lo=4, hi=4)},   # ← RECURSIVE: each target
+        declare_type(g, "car", {"wheel": Req(type="wheel", lo=4, hi=4)},   # ← recursive: each target
                      attrs={"weight": AttrReq("between", 800, 2000)},      #   is itself checked
                      relates=[Rel("wheel[0].pressure", "==", "wheel[1].pressure")])
 
-    **A type is a schema over a subgraph — structure AND attributes** — the way a Pydantic schema
+    A type is a schema over a subgraph — structure and attributes — the way a Pydantic schema
     constrains a frame. That is what removes any need to represent mutation explicitly: `service(c: car)
-    -> serviced_car` is a **cast**, and whatever it changes in the graph is merely how the cast is
+    -> serviced_car` is a cast, and whatever it changes in the graph is merely how the cast is
     achieved. Nothing records that a mutation happened, because nothing needs to — a node either satisfies
     the stronger schema or it does not, checkable at any moment rather than being a historical claim.
     Precondition and effect reduce to parameter type and return type, so `plan.py` chains casts.
 
-    **⚠ Schemas used to be ONE LEVEL DEEP, and that limit is gone.** `("wheel", 4)` demanded four targets
+    Schemas used to be one level deep, and that limit is gone. `("wheel", 4)` demanded four targets
     of graph *kind* `wheel` and said nothing about what a wheel is, so "on a block which is on a block" had
     no schema and a magnitude like height had to be smuggled in as an attribute. `Req(type=…)` recurses
     into the target's own schema, `Rel` relates two places within one subgraph, and both are ordinary graph
@@ -163,7 +173,7 @@ def declare_type(g: Graph, name: str, requires: dict | None = None,
 
 
 def find_type(g: Graph, name: str):
-    """⚠ Reached about four times per `violations` call (here, `schema_of`, `attrs_of`, plus a hop per
+    """Reached about four times per `violations` call (here, `schema_of`, `attrs_of`, plus a hop per
     `base`), so this being a scan of every node in the graph was the dominant cost of planning — see
     `Graph.of_kind`, which is what makes it a lookup over declared types instead."""
     for n in g.of_kind("type"):
@@ -173,7 +183,7 @@ def find_type(g: Graph, name: str):
 
 
 def _schema_at(g: Graph, t) -> dict:
-    """`schema_of` given the type NODE — so a caller that already resolved the name does not resolve it
+    """`schema_of` given the type node — so a caller that already resolved the name does not resolve it
     again. See `violations`, which used to resolve the same name four times over."""
     if t is None:
         return {}
@@ -196,7 +206,7 @@ def _attrs_at(g: Graph, t) -> dict:
 
 
 def _rels_at(g: Graph, t) -> tuple:
-    """⚠ Relations ACCUMULATE where the other two OVERRIDE, and the asymmetry is not an oversight. A
+    """Relations accumulate where the other two override, and the asymmetry is not an oversight. A
     subtype restating `weight` replaces the inherited demand about weight, because they are two claims
     about one slot and the nearer one wins. Two relations are two independent claims about the subgraph
     with no slot to collide over, so a subtype adds to what its base already demanded."""
@@ -217,7 +227,7 @@ def schema_of(g: Graph, name: str) -> dict:
 
 
 def attrs_of(g: Graph, name: str) -> dict:
-    """Attribute requirements as `{key: AttrReq}`, inherited ones included — the STATE half of a type."""
+    """Attribute requirements as `{key: AttrReq}`, inherited ones included — the state half of a type."""
     return _attrs_at(g, find_type(g, name))
 
 
@@ -229,12 +239,12 @@ def rels_of(g: Graph, name: str) -> tuple:
 def requirements(g: Graph, type_name: str):
     """A type's demands, gathered once: `(schema, attrs)`, or `None` if it is undeclared.
 
-    **⭐ For a caller testing MANY nodes against ONE type — which is what candidate enumeration is — this
-    is the loop-invariant half of `violations`.** Resolving the name, walking the `base` chain and building
+    For a caller testing many nodes against one type — which is what candidate enumeration is — this
+    is the loop-invariant half of `violations`. Resolving the name, walking the `base` chain and building
     the two requirement dicts depends only on the type, yet it was being redone per candidate:
     `driver.proposals` over a world with 200 nodes that bind to nothing did it 1,025 times per enumeration.
 
-    ⚠ **Not a cache, and deliberately not one.** Nothing is stored, so nothing can drift — this is the same
+    Not a cache, and deliberately not one. Nothing is stored, so nothing can drift — this is the same
     answer `schema_of`/`attrs_of` give, computed at the point where it is still valid to hoist. A caller
     that mutates a type mid-loop must re-ask, which is the honest contract; a cache would have to guess."""
     t = find_type(g, type_name)
@@ -242,12 +252,12 @@ def requirements(g: Graph, type_name: str):
 
 
 def compare(op, got, want, hi=None) -> bool:
-    """One comparison, total. **THE comparator** — `goal.holds`, `criterion._holds` and every schema check
+    """One comparison, total. the comparator — `goal.holds`, `criterion._holds` and every schema check
     share it, so `>=` cannot come to mean different things in a `type` block and in a goal.
 
-    ⚠ It was private (`_holds`) while only schemas compared values. The moment the comparison operators
+    It was private (`_holds`) while only schemas compared values. The moment the comparison operators
     were widened past `type`, a second implementation was the obvious thing to write and would have been
-    the drift this codebase keeps finding — three parsers for one proposition grammar, most recently. ⚠ Returns `False` where Python would raise — comparing a string to a number
+    the drift this codebase keeps finding — three parsers for one proposition grammar, most recently. Returns `False` where Python would raise — comparing a string to a number
     is a failed constraint, never a crash, because a schema is checked against whatever the world happens
     to hold and the world is not obliged to cooperate."""
     try:
@@ -287,8 +297,8 @@ def _attr_phrase(a: AttrReq) -> str:
 
 
 def _rel_sides(g: Graph, node, rel: Rel):
-    """Both operands of a relation, resolved from `node`. `is`/`is not` want NODES, everything else wants
-    VALUES — the position deciding how the last segment of each path is read (`path.py`)."""
+    """Both operands of a relation, resolved from `node`. `is`/`is not` want nodes, everything else wants
+    Values — the position deciding how the last segment of each path is read (`path.py`)."""
     want = "node" if rel.op in IDENTITY_OPS else "value"
     try:
         left = P.resolve(g, node, rel.left, want=want)
@@ -316,7 +326,7 @@ def _target_ok(g: Graph, x, req: Req, sub, seen: frozenset) -> bool:
         return True
     key = (x, req.type)
     if key in seen:
-        # ⚠ **A cycle in the DATA is satisfied, not failed.** A `person` whose `friend` must be a `person`
+        # A cycle in the data is satisfied, not failed. A `person` whose `friend` must be a `person`
         # is a perfectly ordinary declaration, and two people who are friends make the check re-enter. The
         # coinductive answer — assume it holds while proving it holds — is the only one that terminates
         # without banning recursive types outright, and it is what every structural type system does.
@@ -325,34 +335,34 @@ def _target_ok(g: Graph, x, req: Req, sub, seen: frozenset) -> bool:
 
 
 def _matching(g: Graph, node, label: str, req: Req, sub, seen: frozenset) -> tuple:
-    """The targets of `label` that SATISFY this requirement — the thing a count is a count *of*.
+    """The targets of `label` that satisfy this requirement — the thing a count is a count *of*.
 
-    ⭐ Extracted so `fails` and `offenders` cannot disagree: one counts these, the other names them
-    (§5m's *one implementation and nothing that can disagree*, which is the structural answer rather than
+    Extracted so `fails` and `offenders` cannot disagree: one counts these, the other names them
+    ('s *one implementation and nothing that can disagree*, which is the structural answer rather than
     a guarded one). Order is `g.targets`, which is insertion order — never a `set`."""
     return tuple(x for x in g.targets(node, label) if _target_ok(g, x, req, sub, seen))
 
 
 def offenders(g: Graph, node, type_name: str) -> dict:
-    """⭐⭐ **WHICH targets make this node fail — the names behind the count.**
+    """which targets make this node fail — the names behind the count.
 
     `{label: (node, …)}`, empty when the node satisfies the type. This is the *planning* half of a
     universal, and without it a universal constraint is a yes/no: `docs/limits.md` measured that even a
-    **singular** action that would close `d is a tidied_dir` scored band 1, because `goal.unmet` could say
-    *that* the constraint was false and never *which members* made it so — §5d's founding defect
+    singular action that would close `d is a tidied_dir` scored band 1, because `goal.unmet` could say
+    *that* the constraint was false and never *which members* made it so's founding defect
     (*"a goal that can only answer yes/no forces blind search"*) reappearing one level up.
 
-    ⚠⚠ **ONLY the too-many case has witnesses, and the asymmetry is the open world, not an omission.**
+    Only the too-many case has witnesses, and the asymmetry is the open world, not an omission.
     `has no file each a ungone_file` fails because *these* files are un-gone, and each of them is a thing
-    an action could change. `has 4 wheel` failing with three wheels has **no witness at all** — the missing
+    an action could change. `has 4 wheel` failing with three wheels has no witness at all — the missing
     wheel does not exist, so there is nothing to point at. That case is already served, from the other
     side, by `relevance`'s existential branch: *something of this type must exist* is answered by an
-    operator that MINTS one. Between them the two directions are covered; conflating them would mean
+    operator that mints one. Between them the two directions are covered; conflating them would mean
     inventing a node to blame.
 
-    ⚠ **Derived, never stored.** §5f faced this exact choice for expectations and refused to materialise
+    Derived, never stored. faced this exact choice for expectations and refused to materialise
     them, because the driver imagines hundreds of frames and a node per step is a node per step. The same
-    reasoning applies with more force here, and §5i is the other half of it: a stored witness list is a
+    reasoning applies with more force here, and is the other half of it: a stored witness list is a
     claim about the past, and this is a question about now."""
     reqs = requirements(g, type_name)
     if reqs is None or node is None:
@@ -372,9 +382,9 @@ def offenders(g: Graph, node, type_name: str) -> dict:
 
 
 def offending_type(g: Graph, type_name: str, label: str) -> str | None:
-    """The type a target must STOP satisfying for `label`'s count to come down, or `None`.
+    """The type a target must stop satisfying for `label`'s count to come down, or `None`.
 
-    ⭐ This is what keeps the witness branch a *discriminating* ranker rather than an optimistic one: it
+    This is what keeps the witness branch a *discriminating* ranker rather than an optimistic one: it
     lets a caller ask whether an effect could plausibly change the offending membership at all, instead of
     scoring every write to a witness as though it helped."""
     reqs = requirements(g, type_name)
@@ -421,7 +431,7 @@ def violations(g: Graph, node, type_name: str) -> dict:
     Returned as data rather than raised, so a caller that wants to *ask* (a selection layer ranking
     candidates) uses the same code as one that wants to *insist* (`check`).
 
-    ⚠ The name is resolved **once**. It used to be resolved four times — here, inside `schema_of`, inside
+    The name is resolved once. It used to be resolved four times — here, inside `schema_of`, inside
     `attrs_of`, and again per `base` hop — which was invisible while `find_type` looked cheap and dominated
     planning once it was measured. A caller testing many nodes against one type should hoist that out
     entirely with `requirements` + `fails`, which is what this is made of."""
@@ -438,7 +448,7 @@ def is_a(g: Graph, node, type_name: str) -> bool:
 def subsumes(g: Graph, general: str, specific: str) -> bool:
     """Is every `specific` also a `general`? True when `specific`'s constraints are a superset.
 
-    **Subtyping here is structural, not nominal**, and falls out of what a type already is. A type is a
+    Subtyping here is structural, not nominal, and falls out of what a type already is. A type is a
     set of constraints on a subgraph; a *supertype* relaxes them and a *subtype* tightens them. So
     `washed_car` (body, 4 wheels, serviced, washed) is a subtype of `serviced_car` (body, 4 wheels,
     serviced) because it demands everything that one demands and more — and `declare_type(..., base=...)`
@@ -448,10 +458,10 @@ def subsumes(g: Graph, general: str, specific: str) -> bool:
     This matters most for planning: a function returning a `washed_car` genuinely satisfies a goal wanting
     a `serviced_car`, and a planner that compared type *names* would miss it.
 
-    ⚠ **Now that a constraint can be a RANGE, "tighter" is a real comparison and no longer plain equality**
+    Now that a constraint can be a range, "tighter" is a real comparison and no longer plain equality
     — `weight between 900 and 1000` must count as tighter than `weight between 800 and 2000`, or every
     widened type would stop subsuming its own base. Where the comparison cannot be decided (`!=`, values
-    that do not order), this answers **False**, and the direction of that default is deliberate: `subsumes`
+    that do not order), this answers False, and the direction of that default is deliberate: `subsumes`
     feeds `function.producers`, so a false negative loses a candidate the planner could have used, while a
     false positive would offer one that does not actually satisfy the goal. Losing an option is recoverable;
     an unsound one is not."""
@@ -540,10 +550,10 @@ def check(g: Graph, node, type_name: str) -> None:
 
 
 def instances(g: Graph, type_name: str, under: str = "root") -> tuple:
-    """Every node under `under` satisfying the schema — **enumerated by traversal, never by scanning.**
+    """Every node under `under` satisfying the schema — enumerated by traversal, never by scanning.
 
-    ⚠ **This used to scan every node in the graph and filter out workbench copies, and that filter was a
-    mistake worth recording.** Copies are ordinary nodes, so an unfiltered scan would find the system's own
+    This used to scan every node in the graph and filter out workbench copies, and that filter was a
+    mistake worth recording. Copies are ordinary nodes, so an unfiltered scan would find the system's own
     imaginings and offer them as candidate arguments — planning about the products of planning. The first
     fix was an exclusion parameter plus a test guarding it. The real fix is not to scan: enumerate what is
     reachable from a root, and workbench copies are *structurally* unreachable, because nothing in the real
@@ -553,7 +563,7 @@ def instances(g: Graph, type_name: str, under: str = "root") -> tuple:
     Passing a workbench copy as `under` enumerates inside that workbench, by the same mechanism and with no
     special case.
 
-    **The discipline this relies on: real things hang off `root`.** That is what makes "the real world" a
+    The discipline this relies on: real things hang off `root`. That is what makes "the real world" a
     well-defined region rather than "whatever happens to be in the dict", and it is what the substrate's
     single starting node was always for."""
     from .workbench import reachable
@@ -569,15 +579,15 @@ def type_names(g: Graph) -> tuple:
 
 
 def recognize(g: Graph, node) -> tuple:
-    """⭐ **What IS this?** — the bottom-up direction, which was the one missing from this module.
+    """What IS this? — the bottom-up direction, which was the one missing from this module.
 
     Every entry point here was top-down: `is_a` asks about a *named* type, `instances` enumerates for a
     *named* type. Nothing asked what a node turns out to be. That question is five lines, because typing was
     already structural and dynamic; only the direction was absent.
 
     Two properties fall out rather than needing mechanism, which is the evidence the shape is right:
-    **multi-type** (a washed car is also a serviced car and a car — independent structural predicates, so
-    of course), and **de-recognition** (remove a wheel and it stops being a car, with nothing to invalidate
+    multi-type (a washed car is also a serviced car and a car — independent structural predicates, so
+    of course), and de-recognition (remove a wheel and it stops being a car, with nothing to invalidate
     because nothing was stored)."""
     if node is None or g.kind(node) == "type":
         return ()
@@ -585,15 +595,15 @@ def recognize(g: Graph, node) -> tuple:
 
 
 def tag(g: Graph, node, type_name: str):
-    """Validate loudly, and leave a **hint** for later readers.
+    """Validate loudly, and leave a hint for later readers.
 
-    ⚠ The hint is not the answer, and treating it as one was a live defect. `is_a` is computed from current
+    The hint is not the answer, and treating it as one was a live defect. `is_a` is computed from current
     structure; a stamped attribute is a claim about the past. Remove a wheel from a tagged car and the
     stamp still says `car` while the structure says otherwise — measured, and `application.generalise` was
     reading it as authoritative, so a learned function took its parameter name and declared type from a
     class the node no longer belonged to.
 
-    **The rule: cache the candidate, re-validate on read.** The cost is the *search over all types*
+    The rule: cache the candidate, re-validate on read. The cost is the *search over all types*
     (linear in how many are declared); one check against a *named* type is ~25µs, so re-validating is
     nearly free and drift becomes structurally impossible rather than merely unlikely. Read it through
     `tagged_as`, never as a raw attribute."""
@@ -603,7 +613,7 @@ def tag(g: Graph, node, type_name: str):
 
 
 def tagged_as(g: Graph, node):
-    """The node's hinted type — **only if it still holds**. `None` when it never had one or has drifted.
+    """The node's hinted type — only if it still holds. `None` when it never had one or has drifted.
 
     This is the sanctioned reader. `g.attr(node, "is_a")` is a hint about what to check, not a fact."""
     hint = g.attr(node, "is_a")
@@ -632,7 +642,7 @@ def describe(g: Graph, name: str) -> str:
     """Render a declared type back to the surface it can be authored in — the round trip a model reads to
     check itself, and the same discipline `intake.describe` already applies to goals.
 
-    ⚠ Renders what THIS type declares, not what it inherits. A block that repeated its base's requirements
+    Renders what this type declares, not what it inherits. A block that repeated its base's requirements
     would round-trip into a different (flattened) declaration, and a round trip a model checks itself
     against must not be able to lie about where a demand came from."""
     t = find_type(g, name)
@@ -658,7 +668,7 @@ def describe(g: Graph, name: str) -> str:
     return "\n".join(lines)
 
 
-# ⚠ `check` was the `CHECK` opcode, which made `isa.py` import this module — a type is a representation
+# `check` was the `CHECK` opcode, which made `isa.py` import this module — a type is a representation
 # we decided, so the instruction set was carrying type semantics. Same fix as the planner's: registered
 # here, reached by name. See `native.py`.
 N.register("check", lambda g, _act, node, name: check(g, node, name))

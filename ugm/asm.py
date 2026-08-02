@@ -1,26 +1,25 @@
-"""ASM — the small assembly surface, and the boundary an LLM writes to.
+"""Asm — the small assembly surface, and the boundary a language model writes to.
 
-`docs/overview.md` puts a language model at the border translating natural language into microfunction
-calls. This module is that border's concrete form: a tiny, line-oriented assembly text that parses to ISA
-programs and unparses back, so a model can emit it, a human can read it, and the round trip can be checked.
+A line-oriented text that parses to stored programs and unparses back, so a model can emit it, a
+human can read it, and the round trip can be checked.
 
     fn service_car(car):
         NATIVE "check" F(car) "car"
         SET F(car) "serviced" true
 
-**Why assembly rather than a CNL, for now.** A controlled natural language is the eventual surface and is
-explicitly future work; starting there would mean designing a grammar before knowing what the operations
-actually are. Assembly has the property that matters today — it is unambiguous, so a translation is either
-right or loudly wrong, and there is no interpretation layer to hide a mistake in. A higher-level surface can
-compile to exactly this later without any of it being wasted.
+Assembly rather than a controlled language, for now. A controlled language is the eventual
+surface for functions; starting there would mean designing a grammar before knowing what the
+operations are. Assembly is unambiguous, so a translation is either right or loudly wrong, with
+no interpretation layer to hide a mistake in, and a higher-level surface compiles to exactly this
+later without wasting any of it.
 
-**Validation is the point, not a nicety.** A language model emitting instructions will emit wrong ones.
-Every opcode is checked against the ISA's actual vocabulary and an unknown one is refused with the line
-number and the available set — the same loud-refusal discipline the rest of this project applies to a
-malformed fragment. Silent acceptance of a plausible-looking wrong opcode is the failure mode worth
-engineering against, because it produces a function that runs and does the wrong thing.
+Validation is the point rather than a nicety. A model emitting instructions will emit wrong ones,
+so every opcode is checked against the actual vocabulary and an unknown one is refused with the
+line number and the available set. Silent acceptance of a plausible-looking wrong opcode is the
+failure worth engineering against, because it produces a function that runs and does something
+else.
 
-**Operand syntax**
+Operand syntax:
 
 | written | means |
 |---|---|
@@ -31,22 +30,18 @@ engineering against, because it produces a function that runs and does the wrong
 | `42`, `true`, `false`, `null` | literals |
 | `.loop` | a label reference (a string) |
 | `.loop:` on its own line | a label definition |
-| `bare_word` | a string literal — deliberately forgiving, since a model writing `SET F(c) colour red` means the obvious thing |
-| `param=F(x)` | a named binding — **only** in `INVOKE`, where the operand is a mapping rather than a list |
+| `bare_word` | a string literal, deliberately forgiving: `SET F(c) colour red` means the obvious thing |
+| `param=F(x)` | a named binding, only in `INVOKE`, where the operand is a mapping rather than a list |
 
-**⭐ `INVOKE` is the one opcode whose OPERAND SHAPE is checked, because it is the one with a shape.**
-Everywhere else an operand list is positional and any arity mistake shows up as a wrong argument; `INVOKE`
-takes a *mapping* of parameter names to operands, and there was no way to write one, so the natural thing to
-write was positional:
+`INVOKE` is the one opcode whose operand shape is checked, because it is the one with a shape.
+Everywhere else an operand list is positional and an arity mistake shows up as a wrong argument;
+`INVOKE` takes a mapping of parameter names to operands, so a positional call would parse, define
+and fail only when run. The bindings have a surface (`INVOKE R(out) as_iteration it=F(f)
+seq=R(s)`) and anything else is refused at the boundary. That also makes one function composable
+from another in the authored surface: a bridge can delegate to a pattern instead of restating its
+labels.
 
-    INVOKE R(out) as_iteration F(f) R(s)          # parses, defines, and fails only when run
-
-Reported by `../pystrider`, which hit exactly that and got `AttributeError: 'str' object has no attribute
-'items'` at run time with no line, no opcode and nothing naming the bad operand — silent acceptance of a
-plausible-looking wrong instruction, which is the failure mode this module exists to prevent. The bindings
-now have a surface (`INVOKE R(out) as_iteration it=F(f) seq=R(s)`) and anything else is refused at the
-boundary. That also makes one microfunction **composable from another in the authored surface**, which it
-was not: a bridge can delegate to a pattern instead of restating its labels.
+See `docs/reference/isa.md`.
 """
 from __future__ import annotations
 
@@ -58,17 +53,17 @@ from . import isa
 from .graph import Graph, Ref
 from .isa import F, I, R
 
-# ⚠ `callable`, not just `isupper()`. `isa.__all__` also exports `WRITES_REGISTER` — a frozenset, not an
-# opcode — so the old filter let it through, and `asm` would ACCEPT `WRITES_REGISTER` as an instruction at
+# `callable`, not just `isupper()`. `isa.__all__` also exports `WRITES_REGISTER` — a frozenset, not an
+# opcode — so the old filter let it through, and `asm` would accept `WRITES_REGISTER` as an instruction at
 # load time and fail opaquely inside the interpreter at run time. That is precisely the silent-acceptance
-# failure this module's docstring says it exists to prevent, and the same shape `../pystrider` reported for
+# failure this module's docstring says it exists to prevent, and the same shape the first consumer reported for
 # `INVOKE`'s operands. An opcode is a thing you can call to build an `I`.
 _OPCODES = {name for name in isa.__all__
             if name.isupper() and name not in {"R", "F", "I"} and callable(getattr(isa, name, None))}
 
 _TOKEN = re.compile(r'"[^"]*"|[^\s]+')
 _HEADER = re.compile(r"^fn\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:->\s*(\w+)\s*)?(?:mocks\s+(\w+)\s*)?:\s*$")
-# `x` or `x: car` — an optional TYPE annotation, which is what makes candidate generation possible:
+# `x` or `x: car` — an optional type annotation, which is what makes candidate generation possible:
 # without it nothing can ask "which functions could apply to this node?"
 _PARAM = re.compile(r"^(\w+)\s*(?::\s*(\w+))?$")
 _CALLABLE = re.compile(r"^([FR])\((\w+)\)$")
@@ -104,8 +99,8 @@ _INVOKE_FORM = 'INVOKE R(dst) function_name param=operand ...'
 def _invoke_args(toks: list, lineno: int) -> tuple:
     """Validate and build `INVOKE`'s operands: `(R(dst), name, {param: operand})`.
 
-    ⚠ **The only operand-shape check in this module, and it is here because this is the only opcode with a
-    shape.** Every other instruction is a positional list the ISA reads element by element; `INVOKE`'s third
+    The only operand-shape check in this module, and it is here because this is the only opcode with a
+    shape. Every other instruction is a positional list the ISA reads element by element; `INVOKE`'s third
     operand is a *mapping*, so a positional call parses cleanly and then explodes at run time inside the
     interpreter — far from the line that was wrong. See the module docstring for the report."""
     if len(toks) < 2:
@@ -146,7 +141,7 @@ class Parsed:
     notes: dict = field(default_factory=dict)
     ptypes: dict = field(default_factory=dict)     # param name -> declared type name
     returns: str | None = None                     # declared result type — what a planner chains on
-    mocks: str | None = None                       # this function is one possible OUTCOME of that one
+    mocks: str | None = None                       # this function is one possible outcome of that one
 
     def __iter__(self):
         """Unpacks as `(name, params, program)`, so callers that predate `doc`/`notes` still work."""
@@ -223,7 +218,7 @@ def _fmt(operand) -> str:
     if isinstance(operand, dict):
         # `INVOKE`'s bindings. Rendering the raw dict was a broken round trip that nothing noticed, because
         # `application.compile_episode` builds this operand in Python and the only check was that the word
-        # INVOKE appeared in the dump — so a LEARNED function could not be read back in.
+        # INVOKE appeared in the dump — so a learned function could not be read back in.
         return " ".join(f"{k}={_fmt(v)}" for k, v in operand.items())
     if isinstance(operand, F):
         return f"F({operand.name})"
@@ -239,7 +234,7 @@ def _fmt(operand) -> str:
         return str(operand)
     # Labels render bare; every other string is quoted. Input is deliberately forgiving (a bare word
     # parses as a string, because a model writing `SET F(c) colour red` means the obvious thing) but
-    # OUTPUT is canonical, so `dump` is textually stable and is safe to show a model as "here is what you
+    # Output is canonical, so `dump` is textually stable and is safe to show a model as "here is what you
     # actually wrote." Asymmetry on purpose: lenient in, strict out.
     if isinstance(operand, str) and operand.startswith("."):
         return operand

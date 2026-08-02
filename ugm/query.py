@@ -1,60 +1,56 @@
-"""QUERY — asking, which is a goal like any other.
+"""Query — asking, which is a goal like any other.
 
-**⭐ A question IS a goal, and that is the whole design.** "Is Paul mortal?" is the goal *find out whether
-Paul is mortal*; answering it is pursuing it. There is no second control loop, no query evaluator, no
-separate ask/tell duality — `driver.pursue` already searches, and a question hands it the same constraint
-nodes `goal.py` mints for anything else. The old engine had `cnl/query.py`, `ask_goal`, and a demand-driven
-`CHAIN` alongside its forward chainer; all of that is one verb applied to data that already existed.
+"Is Paul mortal?" is the goal find out whether Paul is mortal, and answering it is pursuing it.
+There is no second control loop, no query evaluator and no separate ask/tell duality: the driver
+already searches, and a question hands it the same constraint nodes any other goal is made of.
 
-**⭐⭐ The plan IS the proof.** `driver` finds a plan rather than building one, and for a question that plan
-is the derivation: the frame path from what is known to the claim being true. So an answer arrives with its
-justification already in hand, as ordinary graph data, and nothing has to reconstruct *why* afterwards. This
-is the property the old engine needed `provenance.py` and per-derivation `RECORD` to approximate.
+The plan is the proof. The driver finds a plan rather than building one, and for a question that
+plan is the derivation — the frame path from what is known to the claim being true. An answer
+therefore arrives with its justification already in hand, as ordinary graph data, and nothing has
+to reconstruct why afterwards.
 
-**⚠ THE ONE THING THAT IS GENUINELY NEW: a derivation must never act.** Concluding something and doing
-something are both "running a microfunction" here, and the difference cannot be left to intent. A function
-is usable as a derivation only if it **provably never dispatches** — read off the stored body, transitively.
-That is a *proof*, so it PRUNES (`driver.proposals(allow=…)`); it is not a guess, so it does not merely rank.
-`README.md`'s standing rule is "rank a guess; prune a proof", and this is the second place a proof shows up.
+A derivation must never act. Concluding something and doing something are both running a rule
+here, and the difference cannot be left to intent. A function is usable as a derivation only if
+it provably never dispatches, read off the stored body and transitively through its calls. That
+is a proof, so it prunes rather than merely ranking.
 
-**⚠ What the bar actually buys, stated precisely — the first version of this docstring overclaimed.** It is
-tempting to say that without it, asking "is the file there?" could delete something. During `ask` that is
-already false: the search runs on a workbench, and `dispatch.service` refuses any imagined target, so an
-impure function cannot reach the world *while planning*. What it does instead is **raise**, which makes the
-question unanswerable rather than unsafe. Measured by planting exactly that: removing the bar turns a clean
-`yes` into `Imagined: refusing to dispatch 'registrar'`.
+What the bar actually buys, stated precisely. During `ask` an impure function could not reach the
+world anyway: the search runs on a workbench and the dispatcher refuses any imagined target, so
+what such a function does instead is raise, which makes the question unanswerable rather than
+unsafe. The real exposure is one step later, at `settle`, which replays the proof against the
+real graph where dispatch fires for real — a proof containing an impure step would send the mail
+at the moment you decide to keep the answer. So the bar does two jobs: it keeps the search from
+crashing on a candidate it was never entitled to try, and it makes `settle` safe by construction
+rather than by the caller inspecting the proof first.
 
-The real exposure is one step later, at **`settle`** — which replays the proof against the *real* graph,
-where dispatch fires for real. A proof containing an impure step sends the mail at the moment you decide to
-keep the answer. So the bar does two distinct jobs, and both are worth having: it keeps the search from
-crashing on a candidate it was never entitled to try, and it is what makes `settle` **safe by construction**
-rather than by the caller inspecting the proof first. The two guards are layered, not redundant — the
-workbench one is the last line of defence, this one is the one that lets questions work at all.
-
-**Three answers, and the third is not a failure.**
+Three answers, and the third is not a failure.
 
 | verdict | means |
 |---|---|
-| `yes` | a derivation was found — `proof` is the path that establishes it |
-| `no` | the claim is *refuted*: something incompatible with it holds now |
+| `yes` | a derivation was found — the proof is the path that establishes it |
+| `no` | the claim is refuted: something incompatible with it holds now |
 | `unknown` | neither; the search was exhausted without settling it |
 
-⚠ `unknown` is the honest default and `no` is the strong claim, which is the open-world reading. A searcher
-that failed to find a derivation has learned about its own library, not about the world. `assume_complete=True`
-buys the closed-world reading — *if it were true I would have found it* — and it is a **stance**, exactly the
-`FirmwarePolicy` CWA/OWA dial the old engine put in data rather than in code. It is a parameter here for the
-same reason: it is an opinion, and opinions do not belong wired into a mechanism.
+`unknown` is the honest default and `no` is the strong claim, which is the open-world reading. A
+searcher that failed to find a derivation has learned about its own library, not about the world.
+Assuming completeness buys the closed-world reading — if it were true I would have found it — and
+it is a stance passed per question, because it is an opinion and opinions do not belong wired
+into a mechanism.
 
-**Refutation is checked, never searched for.** `refutes` asks whether the graph *now* holds something
-incompatible — an attribute constraint wanting a value the node already has differently. ⚠ Deliberately
-narrow: absence of an edge refutes nothing in an open world, so a link or type constraint can only ever come
-back `unknown` from a failed search. Widening this without the stance would quietly convert "I did not find
-it" into "it is false", which is the single most common way a reasoner starts lying.
+Refutation is checked, never searched for. `refutes` asks whether the graph now holds something
+incompatible, such as an attribute constraint wanting a value the node already has differently.
+It is deliberately narrow: absence of an edge refutes nothing in an open world, so a link or type
+constraint can only come back unknown from a failed search. Widening this without the stance
+would quietly convert "I did not find it" into "it is false", which is the most common way a
+reasoner starts lying.
 
-**Why-questions are goals too.** `why` asks for a *causal* explanation of something that holds, and the
-answer is the same object read differently: the derivation path, with each step naming the function that
-made the next thing true. `explain` renders it. A step is a cause here in the only sense this engine can
-honour — *this ran, and afterwards that held* — which is why `explain` says "because" and never "therefore".
+Why-questions are goals too. `why` asks for a causal explanation of something that holds, and the
+answer is the same object read differently: the derivation path, with each step naming the
+function that made the next thing true. A step is a cause in the only sense this engine can
+honour — this ran, and afterwards that held — which is why an explanation says "because" and
+never "therefore".
+
+See `docs/planning.md`.
 """
 from __future__ import annotations
 
@@ -72,10 +68,10 @@ YES, NO, UNKNOWN = "yes", "no", "unknown"
 
 # --- the bar: what may be used to conclude -------------------------------------------------------
 def is_pure(g: Graph, name: str, *, _seen: frozenset | None = None) -> bool:
-    """Whether this function provably never reaches the world. **Read off the stored body, transitively.**
+    """Whether this function provably never reaches the world. Read off the stored body, transitively.
 
-    ⚠ **Conservative in the direction that refuses, which is the opposite of `driver.establishes`.** That is
-    an over-approximation built to ORDER candidates, so it is safe to overstate what a function might do.
+    Conservative in the direction that refuses, which is the opposite of `driver.establishes`. That is
+    an over-approximation built to order candidates, so it is safe to overstate what a function might do.
     This one licences *running* something to answer a question, so an unreadable body must come back
     `False`: a maybe-dispatching function is barred, and the cost of being wrong is a question that goes
     unanswered rather than a question that sends an email.
@@ -113,9 +109,9 @@ def derivations(g: Graph) -> tuple:
 
 # --- refutation ----------------------------------------------------------------------------------
 def refutes(g: Graph, c: str, *, view=None) -> bool:
-    """Whether the world holds something INCOMPATIBLE with this constraint — a positive `no`.
+    """Whether the world holds something incompatible with this constraint — a positive `no`.
 
-    ⚠ Only an attribute constraint can be refuted this way, and that is a real limit rather than an
+    Only an attribute constraint can be refuted this way, and that is a real limit rather than an
     oversight: a node carrying `colour='red'` genuinely contradicts *`colour` must be `blue`*, because an
     attribute is single-valued. A missing edge contradicts nothing in an open world — the graph not saying
     Paul is mortal is not the graph saying he is not. Treating absence as refutation is what `assume_complete`
@@ -127,9 +123,9 @@ def refutes(g: Graph, c: str, *, view=None) -> bool:
     if subject is None:
         return False
     key = g.attr(c, "key")
-    # ⚠ Refuting a `>=` constraint is *not* `got != want` — the value may differ and still satisfy it.
+    # Refuting a `>=` constraint is *not* `got != want` — the value may differ and still satisfy it.
     # Equality was assumed here while comparisons lived only in `type` blocks; with the operators widened
-    # to goals, this had to become "the slot is present and the comparison FAILS".
+    # to goals, this had to become "the slot is present and the comparison fails".
     from .types import compare
     return key in g.attrs.get(subject, {}) and \
         not compare(g.attr(c, "op") or "==", g.attr(subject, key), g.attr(c, "value"))
@@ -141,10 +137,10 @@ def ask(g: Graph, question: str, thread: str, subject: str, *, assume_complete: 
     """Answer a question by pursuing it. `question` is an ordinary goal node.
 
     Returns `{verdict, proof, why, steps, workbench, goal}`. `proof` is the derivation path on success —
-    `execution.path_to`'s output, which is to say **a plan**, replayable by `execute` because a derivation
+    `execution.path_to`'s output, which is to say a plan, replayable by `execute` because a derivation
     is a sequence of applications like any other.
 
-    ⚠ **Nothing is concluded in reality here.** `pursue` searches on a workbench, so answering leaves the
+    Nothing is concluded in reality here. `pursue` searches on a workbench, so answering leaves the
     world untouched even though every step of the derivation "ran". To keep what was worked out, replay the
     proof with `settle`. Keeping those apart matters: a question that silently saturated the graph with
     everything it happened to derive on the way would make asking a destructive act."""
@@ -157,7 +153,7 @@ def ask(g: Graph, question: str, thread: str, subject: str, *, assume_complete: 
     for c in already:
         if refutes(g, c):
             T.attend(g, thread, question, why="asked", note="refuted by what is already known")
-            # ⚠ Say what actually HOLDS, not what was wanted. Rendering the constraint here read
+            # Say what actually holds, not what was wanted. Rendering the constraint here read
             # "refuted: zed.mortal = True" — the wanted value, printed as though it were the finding.
             subject, key = g.target(c, "subject"), g.attr(c, "key")
             return {"verdict": NO, "proof": (), "steps": 0, "workbench": None, "goal": question,
@@ -173,8 +169,8 @@ def ask(g: Graph, question: str, thread: str, subject: str, *, assume_complete: 
                 "workbench": report.get("workbench"), "frame": report.get("frame"), "goal": question,
                 "why": "derived in %d step(s)" % report.get("length", 0)}
 
-    # ⚠ The search is exhausted, and what that licences depends entirely on the stance.
-    # ⚠ ASCII only in anything that gets printed. §5j: a non-ASCII marker made the selftest report
+    # The search is exhausted, and what that licences depends entirely on the stance.
+    # Ascii only in anything that gets printed.: a non-ascii marker made the selftest report
     # unpipeable on a cp1252 console, and the same glyph reappeared here the first time.
     verdict = NO if assume_complete else UNKNOWN
     why = ("nothing known makes it true, and the library is assumed complete"
@@ -184,12 +180,12 @@ def ask(g: Graph, question: str, thread: str, subject: str, *, assume_complete: 
 
 
 def settle(g: Graph, answer: dict, thread: str | None = None) -> dict:
-    """Replay a `yes` answer's proof against the real graph, so what was worked out is KEPT.
+    """Replay a `yes` answer's proof against the real graph, so what was worked out is kept.
 
     Safe by construction rather than by care: every step came from `derivations`, so none of them can reach
     the world — this commits conclusions, never effects. Returns `execution.execute`'s report.
 
-    **⚠ Recording on the thread is what makes `why` answerable later, and it was missing at first.** Without
+    Recording on the thread is what makes `why` answerable later, and it was missing at first. Without
     it a fact could be derived, committed, and then be unexplainable ten minutes afterwards — the engine
     would know Paul is mortal and have no account of how it came to think so. The entries are marked `done`,
     the same marker `conflict.py` uses to separate what really ran from what was merely imagined during the
@@ -208,9 +204,9 @@ def settle(g: Graph, answer: dict, thread: str | None = None) -> dict:
 
 
 def history_for(g: Graph, thread: str, c: str) -> tuple:
-    """The applications that REALLY ran and could have established this constraint. The honest "why".
+    """The applications that really ran and could have established this constraint. The honest "why".
 
-    ⚠ **History, never reconstruction.** This looks only at entries marked `done`, and it matches on the
+    History, never reconstruction. This looks only at entries marked `done`, and it matches on the
     *roles* an application's function establishes resolved against that application's own bindings — so
     `conclude_mortal(p=paul)` explains *paul* being mortal and says nothing about anyone else. Anything less
     specific would offer a plausible-looking cause for a fact it did not produce."""
@@ -253,14 +249,14 @@ def steps_of(g: Graph, answer: dict) -> tuple:
 def why(g: Graph, answer: dict) -> tuple:
     """The causal chain behind a `yes`, as `(function, bindings, effects, unknown)` per step.
 
-    ⭐ This is not a second record. It is the proof read as *cause*: each step names the function that ran
+    This is not a second record. It is the proof read as *cause*: each step names the function that ran
     and what its body establishes. "Why" being a goal means its answer was already produced by answering the
     original question — there is nothing extra to search for."""
     return tuple((name, bound) + D.establishes(g, name) for name, bound in steps_of(g, answer))
 
 
 def explain(g: Graph, answer: dict) -> str:
-    """A readable causal explanation. ⚠ Says "because", never "therefore" — a step is a cause here only in
+    """A readable causal explanation. Says "because", never "therefore" — a step is a cause here only in
     the sense the engine can honour, that it ran and afterwards something held."""
     if answer["verdict"] != YES:
         return f"{answer['verdict']}: {answer['why']}"
@@ -274,19 +270,19 @@ def explain(g: Graph, answer: dict) -> str:
 
 
 def account(g: Graph, question: str, thread: str, subject: str = "root") -> str:
-    """**Why does this hold?** — the causal explanation, answered from history where there is one.
+    """Why does this hold? — the causal explanation, answered from history where there is one.
 
-    ⭐ Three genuinely different situations, and the whole value here is refusing to blur them:
+    Three genuinely different situations, and the whole value here is refusing to blur them:
 
-    * **it does not hold** — then there is no "why". The honest response redirects to asking whether it
+    * it does not hold — then there is no "why". The honest response redirects to asking whether it
       *could*, which is a different question with a different answer.
-    * **it holds and something here made it hold** — `history_for` names the application. This is the only
+    * it holds and something here made it hold — `history_for` names the application. This is the only
       case that is really a cause.
-    * **it holds and nothing here made it hold** — it was given, not derived. Saying so is the answer.
+    * it holds and nothing here made it hold — it was given, not derived. Saying so is the answer.
 
-    ⚠ **The tempting fourth behaviour is deliberately absent: re-deriving it hypothetically.** For a fact
+    The tempting fourth behaviour is deliberately absent: re-deriving it hypothetically. For a fact
     that is already true, a fresh search would answer *"here is a way this could follow"* — which is a
-    perfectly good question (`ask` it of a world where the fact is absent) and a **lie** when presented as
+    perfectly good question (`ask` it of a world where the fact is absent) and a lie when presented as
     the reason something actually happened. An engine that manufactures plausible history is worse than one
     that admits it kept none, because nothing downstream can tell the two apart."""
     lines = []

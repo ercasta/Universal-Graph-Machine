@@ -1,42 +1,35 @@
-"""INTAKE — turning something said into a goal, as data.
+"""Intake — turning something said into authored data, as a goal, a type, advice, a method or a question.
 
-The loop is driven entirely by a goal, and until now the only way to get one was to call `goal.py` from
-Python. So the one thing that starts the system was the one thing the system had no way to receive.
+The loop is driven by a goal, and this is how one arrives from text rather than from a Python
+call.
 
-**⭐ Why intake is tractable now, when it was not before.** The `ugm/`-era attempts translated prose into
-*arbitrary graph structure* and got 0/50 on raw prose, with the gap recorded as "100% constructional" —
-unsurprising, because the target was unbounded. A goal is no longer arbitrary structure: it is a handful of
-**constraint nodes** from a closed vocabulary (link, attribute, type; never, must, at most). Translating
-into eight forms is a different problem from translating into anything, and that is the whole reason this
-is a small module rather than a research programme.
+This is tractable because the target is closed. Translating prose into arbitrary graph structure
+is a research programme; a goal is a handful of constraint nodes from a closed vocabulary — link,
+attribute, type; never, must, at most — and translating into eight forms is a different problem
+from translating into anything.
 
-**The border, and where the language model sits.** `asm.py` is already "the text surface and LLM border"
-for *functions*; this is its sibling for *goals*. The division is the project's standing one — **the model
-is a boundary tool, never the computation model**: a model may write this text, and the parser then accepts
-or refuses it deterministically. What a model must never do is reach past the surface and write graph
-structure directly, because then nothing could refuse it.
+The border is where a language model sits. `asm.py` is that border for functions; this is its
+sibling for everything a domain authors. A model may write this text, and the parser then accepts
+or refuses it deterministically. What a model must never do is reach past the surface and write
+graph structure directly, because then nothing could refuse it.
 
-**⚠ The translator must be able to refuse, and refusal is the feature.** Three ways in, all loud:
+The translator must be able to refuse, and refusal is the feature. Three ways, all loud: a line
+that matches no form, since the vocabulary is closed and an unrecognised sentence is not best
+effort; a name that matches nothing; and a name that matches more than one thing. Nodes here are
+nameless and a label is a convenience for humans, so resolving one can genuinely be ambiguous,
+and guessing between two candidates would invent a referent. A refusal leaves nothing behind,
+because blocks are read inside a savepoint.
 
-* a line that matches no form — the vocabulary is closed, so an unrecognised sentence is not "best effort";
-* a name that matches nothing;
-* a name that matches **more than one thing**. Nodes here are nameless and a `label` is a convenience for
-  humans, so resolving one is a lookup that can genuinely be ambiguous. the earlier design notes records the lesson at
-  length: *never identify by name alone*. Guessing between two candidates would be inventing a referent,
-  which is exactly the failure a controlled language exists to prevent.
-
-**The grammar**, deliberately boring — each form is recognisable by its shape or leading keyword:
+The grammar is deliberately boring — each form is recognisable by its shape or leading keyword:
 
 ```
-goal stack them:            # or `ask`, `why`, `plan` — same body, different force
-    # what must be true of the world
+goal stack them:            # or `ask`, `why`, `plan` - same body, different force
     a on b                      a link between individuals
     b.clear = true              an attribute value
-    d.contents known            a KNOWLEDGE claim — go and look, rather than make it so
-    some file                   SOMETHING of this type must exist
+    d.contents known            a knowledge claim - go and look, rather than make it so
+    some file                   something of this type must exist
     a is a serviced_car         this individual must satisfy this type
 
-    # what the plan itself may do
     never unstack               a forbidden operator
     never touch c               an individual that must not be bound
     must paint                  the plan has to include this
@@ -46,9 +39,9 @@ goal stack them:            # or `ask`, `why`, `plan` — same body, different f
 ```
 type car:
     is a vehicle                    inherit another type's demands
-    has 4 wheel each a wheel        a count, a label, and what each target must BE (recursive)
-    has 1 body each of kind body    ...or merely what it was minted as (one level, cheap)
-    has at most 1 trailer           a count is a RANGE
+    has 4 wheel each a wheel        a count, a label, and what each target must be (recursive)
+    has 1 body each of kind body    ...or merely what it was minted as
+    has at most 1 trailer           a count is a range
     weight between 800 and 2000     an attribute, bounded
     colour = "red"                  an attribute, exact
     wheel[0].pressure == wheel[1].pressure     two places inside the subgraph agreeing
@@ -56,95 +49,72 @@ type car:
 ```
 
 ```
-what it is:          where it is:         when it was:
-    parcel               parcel               by start        # or `by at`, a point
-                         by contains          delivery
+criterion clear the block that must move:   # expert judgement - see `criterion.py`
+    wants link on               key on an unmet goal constraint; binds `subject` and `object`
+    some top in subject by ^on  bind a further role by walking a relation, transitively
+    when top is a clear_block   a condition; also `unless ...`, `x.k = v`, `x l y`, `x is there`
+    unless wants link on from object        a condition about the goal, not the world
+    do unstack b = top, floor = the ground  the action, with its arguments
+    because ...
+
+directive ...:                  # the same body, mandatory force
 ```
 
-```
-criterion clear the block that must move:   # expert judgement — see `criterion.py`
-    wants link on               key on an UNMET goal constraint; binds `subject` and `object`
-    some top in subject by ^on  bind a FURTHER role by walking a relation, transitively
-    when top is a clear_block   a condition; also `unless …`, and `x.k = v`, `x l y`, `x is there`
-    unless wants link on from object        a condition about the GOAL, not the world
-    do unstack b = top, floor = the ground  the action, WITH its arguments
-    because …
+The wh-questions are a different form rather than a fifth force. `goal`, `ask`, `why` and `plan`
+state a whole proposition and differ in what is done with it; `what`, `where` and `when` have a
+gap in them and are answered by locating a thing in an order the world already has. Hence a
+different body, one bare name per line, and an answer that is returned and never recorded.
 
-directive …:                    # the same body, MANDATORY force
-```
-
-⭐⭐ **The wh-questions are a different FORM, not a fifth force.** `goal` / `ask` / `why` / `plan` state a
-whole proposition and differ in what is done with it; `what` / `where` / `when` have a **gap** in them and
-are answered by locating a thing in an order the world already has (`locate.py`). Hence a different body —
-one bare name per line — and an answer that is **returned and never recorded**.
-
-## ⭐⭐ ONE reference language, and where each block may use it
-
-Everything that refers to something not directly at hand goes through `path.py`: `car.wheel[1].pressure`,
-unbounded depth, `^label` for the backward direction. It is one grammar because it used to be three — a
-private regex in `driver.role_node`, a hand-split on the first dot here, and the dotted roles
-`establishes` emits, none of which knew about the others.
-
-**What differs per block is only what the FIRST segment names**, which is why one language can serve
-surfaces with nothing else in common:
+One reference language, and what differs per block is only what the first segment names:
 
 | block | the base is | depth available |
 |---|---|---|
-| `type` | the node being checked | **any** — a type only ever *checks*, so nothing downstream can be misled |
-| `goal` / `ask` / `why` / `plan` | a **named individual**, resolved by `resolve` | one hop, to an attribute |
-| `method` / `procedure` | a **role** (`subject`, `object`), never a name | one hop, to an attribute |
-| `prefer` / `avoid` | a named individual (whole, no hops) | none |
-| `criterion` / `directive` | a **role** — `subject`, `object`, or one drawn by `some` — or `the <name>` | **any** |
-| `establishes` (not authored) | a **parameter** of the function | any |
+| `type` | the node being checked | any — a type only ever checks, so nothing downstream can be misled |
+| `goal` / `ask` / `why` / `plan` | a named individual | one hop, to an attribute |
+| `method` / `procedure` | a role, or a name drawn by `some` | one hop, to an attribute |
+| `prefer` / `avoid` | a named individual, whole, no hops | none |
+| `criterion` / `directive` | a role, a drawn name, or `the <name>` | any |
 
-⚠ **The goal and method rows are a REFUSAL, not an omission, and they were a silent bug first.**
-`a.wheel[1].pressure = 3` used to split on the first dot and build a constraint about an attribute
-literally called `wheel[1].pressure` — a slot nothing has, and `describe_constraint` rendered it back
-looking right. What blocks the honest version is downstream of intake: `conflict.unsatisfiable` keys a slot as
-`(subject, key)` and would read two different wheels' pressures as one contended slot, while `goal.holds`,
-`goal.undetermined` and `query.refutes` all read the attribute off the **base** node rather than the one
-the reference reaches. Until they understand a navigated subject, `_one_hop` refuses and says so.
+The goal and method rows are a refusal rather than an omission. What blocks the deeper version is
+downstream: conflict detection keys a slot as (subject, key) and would read two different wheels'
+pressures as one contended slot, while goal satisfaction and refutation read the attribute off
+the base node rather than the one the reference reaches. Until those understand a navigated
+subject, this refuses and says so.
 
-## ⭐⭐ FOUR verbs, ONE grammar — because a question IS a goal, and so is an instruction
-
-`goal`, `ask`, `why` and `plan` take **exactly the same body**. That is not an economy in the parser; it
-is the data model showing through. A goal is a set of constraints, a question is a set of constraints, and
-what differs is only what you then *do* with them — record, answer, explain, or pursue.
+Four verbs share one grammar because a question is a goal, and so is an instruction. What differs
+is only what is then done with the constraints — record, answer, explain, or pursue.
 
 ```
 goal make it so:   ask is it so?:   why is it so?:   plan make it so:
     a on b             a on b           a on b           a on b
 ```
 
-**⭐⭐ `plan` is where this surface stops only DESCRIBING and starts DRIVING.** Every other verb records
-something or asks something; none could make the system *work*. It reaches `driver.pursue`, which is
-reachable at all only because deliberation stopped being a closed Python loop (the design notes).
+`plan` is where this surface stops describing and starts driving, and it stops at a plan. The
+safety is structural rather than intended: the whole search happens on a workbench and the
+dispatcher refuses an imagined target, so a `plan` block cannot change the world however wrong
+the text is. That is what makes it safe to put a driving verb on a surface a language model may
+write. A verb that carried out the plan would cross into real effects and is deliberately absent.
 
-**⚠⚠ And it stops at a plan. The safety property is structural, not intended:** the whole search happens
-on a workbench and `dispatch.service` refuses an imagined target, so a `plan` block **cannot change the
-world however wrong the text is**. That is what makes it safe to put a driving verb on a surface a
-language model may write. A verb that *carried out* the plan would cross into real effects, and it is
-deliberately absent until that is discussed on its own terms.
+Re-planning has no verb, and that is a real gap rather than an omission: re-pursuing means naming
+a goal that already exists, and names resolve to individuals under `root`, where goals do not
+hang. Inventing a naming scheme here would be the guess this module exists to refuse.
 
-⚠ **`replan` is NOT here, and the reason is a real gap rather than an omission.** Re-pursuing means naming
-a goal that already exists, and `resolve` finds individuals by `label` **under `root`** — goals do not hang
-off root, so the CNL has no form for referring to one. Inventing one here would be the same guess this
-module exists to refuse.
+What distinguishes the four verbs in the graph is only a record of how the constraints arrived.
+The `verb` attribute is genuinely extra information, unrecoverable from the constraints: force is
+a property of the intake route rather than of the form, and two people can want and doubt the
+same proposition.
 
-**⚠ So what distinguishes them in the graph? Only a record of how it arrived.** The constraints are
-identical, and the `verb` attribute is *not* a labelling error of the kind the design notes warns about —
-structure does not entail it. Which speech act something was is genuinely extra information, unrecoverable
-from the constraints, and it is exactly the project's standing **force-is-the-missing-axis** finding: force
-is a property of the intake **route**, not of the form. Two people can want and doubt the same proposition.
+Plan constraints work in a question and mean something useful. `never phone_the_registrar` in an
+`ask` block asks whether this is derivable without asking anyone; `at most 2 steps` asks whether
+it is derivable in two steps. Constraining the route is constraining the route, whether the route
+is a plan of action or a derivation.
 
-**⭐ Plan constraints work in a question, and mean something useful.** `never phone_the_registrar` in an
-`ask` block is *"is this derivable without asking anyone?"*; `at most 2 steps` is *"is it derivable in two
-steps?"*. Nothing had to be added for this — constraining the route is constraining the route, whether the
-route is a plan of action or a derivation.
+`why` differs from `ask` in what it reports rather than in what it searches: it wants the history
+behind something that already holds, where `ask` wants a verdict on something that may not be
+true. A `why` about a fact that is not true is answered by saying so, never by inventing a
+derivation for it.
 
-⚠ `why` differs from `ask` in **what it reports, not in what it searches**: it wants the history behind
-something that already holds (`query.account`), where `ask` wants a verdict on something that may not. A
-`why` about a fact that is not true is answered by saying so, never by inventing a derivation for it.
+See `docs/authoring.md`.
 """
 from __future__ import annotations
 
@@ -168,11 +138,11 @@ class Unreadable(Exception):
 
 
 class Ambiguous(Unreadable):
-    """A name matching **more than one** thing, carrying the candidates it refused to choose between.
+    """A name matching more than one thing, carrying the candidates it refused to choose between.
 
-    ⭐ A subclass, so every existing `except Unreadable` still catches it — the refusal is unchanged and
+    A subclass, so every existing `except Unreadable` still catches it — the refusal is unchanged and
     only gains an attribute. A consumer's feedback, and the same shape already granted to
-    `../pystrider` for unresolved roles: when the engine refuses *and already knows the answer set*,
+    the first consumer for unresolved roles: when the engine refuses *and already knows the answer set*,
     handing it over lets a UI ask a human to pick rather than making them guess."""
 
     def __init__(self, message: str, *, candidates: tuple = (), name: str | None = None):
@@ -198,18 +168,18 @@ def _literal(tok: str):
 def resolve(g: Graph, name: str, *, under: str = "root") -> str:
     """The one node labelled `name` in the world. Refuses on none, and refuses on more than one.
 
-    ⚠ Searched by **traversal from `under`**, never by scanning — the same discipline as
+    Searched by traversal from `under`, never by scanning — the same discipline as
     `types.instances`, and for the same reason: a scan would find the system's own imaginings and offer a
     workbench copy as the referent of a word someone said."""
     hits = [n for n in reachable(g, under) if g.attr(n, "label") == name]
     if not hits:
         raise Unreadable(f"nothing here is called {name!r}")
     if len(hits) > 1:
-        # ⭐ The candidates ride on the exception. A consumer's feedback: this is the harshest
-        # refusal on the surface AND the one where the answer set is already in hand — `hits` is right
+        # The candidates ride on the exception. A consumer's feedback: this is the harshest
+        # refusal on the surface and the one where the answer set is already in hand — `hits` is right
         # here — and it was dropped to report a count. For a UI that is the difference between telling a
         # person "2 things are called that" and showing them the two so they can pick one.
-        # ⚠ It does not weaken *never identify by name alone*: the engine still refuses, and the
+        # It does not weaken *never identify by name alone*: the engine still refuses, and the
         # disambiguation is a human choosing ABOVE the border, who then writes an unambiguous reference.
         # Same division as for a language model — they may draft, this parser decides.
         raise Ambiguous(f"{name!r} is ambiguous — {len(hits)} things are called that; "
@@ -218,15 +188,15 @@ def resolve(g: Graph, name: str, *, under: str = "root") -> str:
 
 
 def _one_hop(text: str, lineno: int, what: str) -> tuple:
-    """`"b.clear"` → `("b", "clear")`. **Refuses a deeper reference rather than mis-reading one.**
+    """`"b.clear"` → `("b", "clear")`. Refuses a deeper reference rather than mis-reading one.
 
-    ⚠ **This was a silent mis-parse, and it is the reason a shared reference language had to come with a
-    composition review rather than after one.** `a.wheel[1].pressure = 3` split on the first dot and left a
+    This was a silent mis-parse, and it is the reason a shared reference language had to come with a
+    composition review rather than after one. `a.wheel[1].pressure = 3` split on the first dot and left a
     constraint whose *attribute* was literally named `wheel[1].pressure` — a slot nothing has, so the goal
     could never be met, and `describe_constraint` rendered it back looking exactly right. A round trip that
     a model checks itself against must not be able to lie.
 
-    ⚠ **Why refused rather than supported here, when a `type` block takes any depth.** Three readers take
+    Why refused rather than supported here, when a `type` block takes any depth. Three readers take
     a constraint's subject to BE the node the constraint is about, which a navigated subject makes false:
 
     * `conflict.unsatisfiable` identifies a slot as `(subject, key)`, so `a.wheel[0].pressure` and
@@ -235,7 +205,7 @@ def _one_hop(text: str, lineno: int, what: str) -> tuple:
     * `goal.holds` and `goal.undetermined` read `g.attr(view(subject), key)` — the wrong node;
     * `query.refutes` does the same, and would answer a positive *no* about a slot nobody asked about.
 
-    A type schema has none of these problems **because it only ever checks**. So the depth is available
+    A type schema has none of these problems because it only ever checks. So the depth is available
     where it is correct, and refused — loudly, with this reason — where the machinery behind it has not
     caught up. That boundary is recorded rather than papered over."""
     base, rest = P.split_base(text)
@@ -247,7 +217,7 @@ def _one_hop(text: str, lineno: int, what: str) -> tuple:
     return base, rest.hops[0].label
 
 
-#: ⭐⭐⭐ ONE PROPOSITION GRAMMAR, RECOGNISED IN ONE PLACE.
+#: One proposition grammar, recognised in one place.
 #:
 #: A goal constraint, a method step and a criterion condition are three renderings of the same handful of
 #: claims, and they were parsed by three hand-written dispatchers. Measured, they had drifted in four ways
@@ -259,25 +229,25 @@ def _one_hop(text: str, lineno: int, what: str) -> tuple:
 #:   * negation existed only in a criterion, via `unless`.
 #:
 #: That is the island problem `path.py` already solved one level down: *"It is one grammar because it used
-#: to be three."* Same move, one level up. ⚠ **This recognises SHAPE ONLY and resolves nothing** — which
+#: to be three."* Same move, one level up. This recognises shape only and resolves nothing — which
 #: is what lets one grammar serve positions with genuinely different rules about what a name may mean and
-#: how deep a reference may go (§8's table). Those differences are principled and stay; the four above
+#: how deep a reference may go ('s table). Those differences are principled and stay; the four above
 #: were accidents and go.
 _SHAPE_FORMS = ("x l y", "x l+ y", "x.k = v", "x.k known", "x is a T", "x is there")
 
-#: ⭐⭐ **THE BODY-LINE VOCABULARY, PER FAMILY, AS DATA** — and every refusal below renders *from* this,
+#: the body-line vocabulary, per family, as data — and every refusal below renders *from* this,
 #: so the error message and this table cannot disagree.
 #:
-#: Asked for by a consumer's feedback, whose job is making this surface **writable**:
+#: Asked for by a consumer's feedback, whose job is making this surface writable:
 #: completion, live validation, a language model drafting CNL. The verbs were already reachable
-#: (`VERBS`, `GOAL_VERBS`, …) and the body lines existed **only as display strings inside raise sites**,
+#: (`VERBS`, `GOAL_VERBS`, …) and the body lines existed only as display strings inside raise sites,
 #: so a consumer building completion had to re-type all six grammars into another repo with nothing
 #: checking the copy. `docs/authoring.md`'s own opening argues against exactly that: *"documentation that is merely
 #: checked by a human rots exactly like a comment does"* — said of a docstring that had already gone stale
 #: on a whole verb family. A second copy in a consumer's UI is that failure with a network boundary in it.
 #:
-#: ⚠ Prose shapes, not a machine-readable grammar, and deliberately: they asked for the closed sets by
-#: name, explicitly **not** a parser API, an AST, or partial-input parsing. Promising structure here would
+#: Prose shapes, not a machine-readable grammar, and deliberately: they asked for the closed sets by
+#: name, explicitly not a parser API, an ast, or partial-input parsing. Promising structure here would
 #: be promising a stability nothing tests.
 FORMS: dict = {
     "goal": _SHAPE_FORMS + ("some T", "never f", "never touch x", "must f", "at most n steps"),
@@ -296,7 +266,7 @@ FORMS: dict = {
 def forms_for(family: str) -> tuple:
     """The legal body-line forms of a family — what a completer offers inside a block.
 
-    ⚠ Keys are the names used in refusals (`FORMS`), not verbs: `method` and `procedure` share a body,
+    Keys are the names used in refusals (`FORMS`), not verbs: `method` and `procedure` share a body,
     as do `criterion`/`directive` and all four goal verbs, which is the whole point of a *force* pair."""
     if family not in FORMS:
         raise KeyError(f"no family {family!r}; known: {', '.join(sorted(FORMS))}")
@@ -304,12 +274,12 @@ def forms_for(family: str) -> tuple:
 
 
 def _shape(words: list, line: str, lineno: int, *, what: str, ops=("=",)):
-    """Recognise one proposition. Returns a tagged tuple of **raw text**, or `None` if nothing matches.
+    """Recognise one proposition. Returns a tagged tuple of raw text, or `None` if nothing matches.
 
     Ordered most-specific first, so a keyword form is never shadowed by the bare three-word link form —
     the discipline `_constrain` already followed and which now only has to be right once.
 
-    `ops` is which comparison operators this position honours. ⚠ It is a parameter rather than a constant
+    `ops` is which comparison operators this position honours. It is a parameter rather than a constant
     because a *constraint* is checked by readers that only understand equality (`goal.holds` compares with
     `==`), while a *condition* and a `type` relation are evaluated by machinery that already handles the
     full set. Widening it is a real change to those readers, not a parser edit — so the parameter records
@@ -321,13 +291,13 @@ def _shape(words: list, line: str, lineno: int, *, what: str, ops=("=",)):
     if len(words) >= 4 and words[-3] == "is" and words[-2] == "a":
         return ("type", " ".join(words[:-3]), words[-1])
     if len(words) == 3 and words[1] in ops and "." in words[0]:
-        # ⚠⚠ **A REFERENCE ON THE RIGHT IS REFUSED, and widening the operators is what made this
-        # reachable.** `a.size > b.size` used to be three words with an unknown middle, so it was read as
+        # A reference on the right is refused, and widening the operators is what made this
+        # reachable. `a.size > b.size` used to be three words with an unknown middle, so it was read as
         # a link and `parse_link('>')` refused it loudly. With `>` a legal comparison it parses — and the
-        # right-hand side is a LITERAL here, so it silently became `a.size > "b.size"`, a string/number
+        # right-hand side is a literal here, so it silently became `a.size > "b.size"`, a string/number
         # comparison that can never hold. That is the *parses, runs, means the wrong thing* failure this
         # session catalogued, introduced by the fix for something else.
-        # ⚠ Refused rather than supported: `docs/limits.md` records comparing two individuals as
+        # Refused rather than supported: `docs/limits.md` records comparing two individuals as
         # needing a minted node to hang the pair on, and a `type` block is where a comparison may name two
         # places (`wheel[0].pressure == wheel[1].pressure`).
         if "." in words[2]:
@@ -346,8 +316,7 @@ def _shape(words: list, line: str, lineno: int, *, what: str, ops=("=",)):
 
 
 def _shape_refused(words: list, line: str, lineno: int, what: str, extra: str = "") -> Unreadable:
-    """⚠ Rendered FROM `FORMS`, never from a literal beside the raise. That is a consumer's feedback
-    §6's actual ask: the error message and the completion list have to be the same object, or the copy in
+    """Rendered from `FORMS`, never from a literal beside the raise. That is the consumer's actual ask: the error message and the completion list have to be the same object, or the copy in
     a consumer's UI drifts and nothing notices."""
     return Unreadable(f"line {lineno}: cannot read {line!r} — the {what} vocabulary is closed "
                       f"({' | '.join(FORMS.get(what, _SHAPE_FORMS))}){extra}")
@@ -368,8 +337,8 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
     elif words[0] == "some" and len(words) == 2:
         G.require_type(g, goal, words[1])
     else:
-        # ⭐ Everything below is the SHARED proposition grammar — see `_shape`. What stays here is only
-        # what a goal does with each shape, plus the plan constraints above, which are about the ROUTE
+        # Everything below is the shared proposition grammar — see `_shape`. What stays here is only
+        # what a goal does with each shape, plus the plan constraints above, which are about the route
         # rather than about the world and so are genuinely a goal's own vocabulary.
         shape = _shape(words, line, lineno, what="goal constraint", ops=TY.VALUE_OPS + ("=",))
         if shape is None:
@@ -378,34 +347,34 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
         if kind == "type":
             G.require_type(g, goal, shape[2], about=node(shape[1]))
         elif kind == "known":
-            # ⭐ A KNOWLEDGE claim: *go and look*, as opposed to *make it so*. The surface distinguishes
+            # A knowledge claim: *go and look*, as opposed to *make it so*. The surface distinguishes
             # them because the system now can — see `graph.UNKNOWN`.
             subject, key = _one_hop(shape[1], lineno, "goal constraint")
             G.require_known(g, goal, node(subject), key)
         elif kind == "attr":
             subject, key = _one_hop(shape[1], lineno, "goal constraint")
-            # ⚠ `=` is spelled that way on this surface and means `==` to the comparator.
+            # `=` is spelled that way on this surface and means `==` to the comparator.
             G.require_attr(g, goal, node(subject), key, _literal(shape[3]),
                            op="==" if shape[2] == "=" else shape[2])
         elif kind == "exists":
-            # ⚠ `x is there` has no home in a goal: a goal says what must BE true, and *"it resolves"* is
+            # `x is there` has no home in a goal: a goal says what must BE true, and *"it resolves"* is
             # a claim about the reference rather than about the world. Refused with the form that means it.
             raise Unreadable(f"line {lineno}: `is there` asks whether a reference resolves, which is a "
                              f"condition, not something to make true. A goal that wants something to "
                              f"exist says `some <type>`")
         else:
-            # ⭐ `wh contains+ parcel` — reach at any depth, the one closed-class item §5x measured as
-            # real. The `+` qualifies the RELATION, not a name, which is why it is read here.
+            # `wh contains+ parcel` — reach at any depth, the one closed-class item measured as
+            # real. The `+` qualifies the relation, not a name, which is why it is read here.
             label, transitive = P.parse_link(shape[2])
             G.require_link(g, goal, node(shape[1]), label, node(shape[3]), transitive=transitive)
 
 
-# ⭐⭐ FOUR forces on ONE body. `plan` is the fourth, and it joins here rather than getting its own family
+# Four forces on one body. `plan` is the fourth, and it joins here rather than getting its own family
 # because it changes nothing about what is *said* — only what is then done with it. That is the module's
 # own thesis paying rent: a goal is a set of constraints, and `goal` / `ask` / `why` / `plan` differ in
 # force, not in form.
 #
-# ⚠ **`plan` is safe to put on the surface, and `do` is not — the difference is not a matter of degree.**
+# `plan` is safe to put on the surface, and `do` is not — the difference is not a matter of degree.
 # Planning happens entirely on a workbench, so `plan` cannot touch the world however wrong the text is;
 # `dispatch.service` refusing an imagined target makes that structural rather than intended. A verb that
 # *carried out* the plan would cross into real effects, and it is deliberately absent until that is
@@ -416,14 +385,14 @@ METHOD_VERBS = ("method", "procedure")
 TYPE_VERBS = ("type",)
 CRITERION_VERBS = ("criterion", "directive")
 
-# ⭐⭐ **THE WH-QUESTIONS, AND THEY ARE A DIFFERENT FORM — not a fifth force on the same body.** Every verb
+# The wh-questions, and they are a different form — not a fifth force on the same body. Every verb
 # above states a whole proposition and differs only in what is then done with it (`goal.py`'s constraints,
-# four ways). These three have a **gap** in them: they name a thing and ask which way it stands in an order
+# four ways). These three have a gap in them: they name a thing and ask which way it stands in an order
 # the world already has — `locate.py`. So they take a different body, one bare name per line, and they
-# **answer** rather than record. the earlier design notes' standing finding is that a category is a PRODUCT of content,
+# answer rather than record. An earlier note's standing finding is that a category is a product of content,
 # force and level; this is the content axis moving, where `ask` versus `goal` was the force axis.
 #
-# ⚠ `when` is also a *body* keyword in an advice and a method block (`when T`, a guard). No parse can
+# `when` is also a *body* keyword in an advice and a method block (`when T`, a guard). No parse can
 # confuse them — only the first line of a block is read as a verb — but the two are unrelated words and
 # nobody should try to unify them.
 READER_VERBS = L.VERBS
@@ -436,9 +405,9 @@ _SORTS = ("link", "attr", "type")
 
 
 def _ref(g: Graph, text: str, lineno: int, line: str, under: str, names=None) -> str:
-    """Validate a reference at AUTHORING time, so a bad one is refused where it is written.
+    """Validate a reference at authoring time, so a bad one is refused where it is written.
 
-    ⚠ The alternative — checking when the criterion is consulted — would report a typo from inside a
+    The alternative — checking when the criterion is consulted — would report a typo from inside a
     search, thousands of steps later, as *silence*. A criterion that says nothing because it is
     mis-written is indistinguishable from one that says nothing because the situation does not call for
     it, and that is the single worst failure this surface could have."""
@@ -447,9 +416,9 @@ def _ref(g: Graph, text: str, lineno: int, line: str, under: str, names=None) ->
         P.parse_link(words[3].lstrip("^") or words[3])
         return _ref(g, words[1], lineno, line, under, names) and text
     if len(words) == 2 and words[0] == "the":
-        # ⚠ Resolved HERE, not when the criterion is consulted — `prefer`/`avoid` already resolves
+        # Resolved here, not when the criterion is consulted — `prefer`/`avoid` already resolves
         # `touching x` at parse time, and the reason is sharper for a criterion: a name that resolves to
-        # nothing would surface thousands of search steps later AS SILENCE, indistinguishable from a
+        # nothing would surface thousands of search steps later as silence, indistinguishable from a
         # criterion that simply had nothing to say. A typo must never look like a judgement.
         resolve(g, words[1], under=under)
         return text
@@ -469,17 +438,17 @@ def _ref(g: Graph, text: str, lineno: int, line: str, under: str, names=None) ->
 
 def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lineno: int,
                     under: str) -> None:
-    """One `when` / `unless` line. ⭐ Each becomes its OWN node, which is what lets `governing` say
-    *which* line stopped a criterion — the property §6 needs and an opaque predicate could never give."""
+    """One `when` / `unless` line. Each becomes its own node, which is what lets `governing` say
+    *which* line stopped a criterion — the property needs and an opaque predicate could never give."""
     if words[0] == "wants" and len(words) in (4, 5) and words[-2] == "from":
         if words[1] not in _SORTS:
             raise Unreadable(f"line {lineno}: a goal wants {', '.join(_SORTS)} — not {words[1]!r}")
         CR.test(g, c, sort="wants", negated=negated, want_sort=words[1],
                 label=words[2] if len(words) == 5 else None, left=_ref(g, words[-1], lineno, line, under, CR.names_of(g, c)))
     else:
-        # ⭐ The SHARED proposition grammar (`_shape`). A condition is the same handful of claims a goal
+        # The shared proposition grammar (`_shape`). A condition is the same handful of claims a goal
         # and a step make; what differs is that a referring position may be a role, a drawn name or
-        # `the <name>`, and may reach any depth — because a condition only ever CHECKS.
+        # `the <name>`, and may reach any depth — because a condition only ever checks.
         ref = lambda t: _ref(g, t, lineno, line, under, CR.names_of(g, c))     # noqa: E731
         shape = _shape(words, line, lineno, what="condition", ops=TY.VALUE_OPS + ("=",))
         if shape is None:
@@ -494,14 +463,14 @@ def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lin
             CR.test(g, c, sort="attr", negated=negated, key=key, value=_literal(shape[3]),
                     op="==" if shape[2] == "=" else shape[2], left=ref(who))
         elif kind == "known":
-            # ⚠ Deliberately still refused here, and now the refusal is stated once. `known` reads an
+            # Deliberately still refused here, and now the refusal is stated once. `known` reads an
             # attribute slot for ignorance; `criterion.test` has no `known` sort, so accepting it would
             # build a condition nothing evaluates.
             raise Unreadable(f"line {lineno}: `known` asks whether a slot has been looked at, which a "
                              f"condition cannot yet evaluate — it is a goal constraint")
         else:
             label, transitive = P.parse_link(shape[2])
-            # ⭐ TRANSITIVE REACH IN A CONDITION — previously available only in a goal, which was an
+            # Transitive reach in a condition — previously available only in a goal, which was an
             # accident of three hand-written parsers rather than a decision. `docs/authoring.md` says `+` belongs
             # "in a link position — a goal line or a query", and a condition IS the query.
             CR.test(g, c, sort="link", negated=negated, label=label, transitive=transitive,
@@ -509,26 +478,26 @@ def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lin
 
 
 def _action(g: Graph, name: str, args: dict, lineno: int, line: str) -> None:
-    """Validate `do <fn> <param> = <ref>, …` against the function library, AT AUTHORING TIME.
+    """Validate `do <fn> <param> = <ref>, …` against the function library, AT authoring time.
 
-    **⚠⚠ Because the alternative is a criterion that is broken in every possible world and fails as
-    SILENCE.** `driver.check_call` refuses an unknown function and a wrong parameter set — but a criterion
+    Because the alternative is a criterion that is broken in every possible world and fails as
+    Silence. `driver.check_call` refuses an unknown function and a wrong parameter set — but a criterion
     treats every refusal from there as *"nothing to say about this situation"*, deliberately and for a good
     reason (`criterion._try`: *"the first container happens to be the one this goal forbids"* is a
     situation, not a mistake, and raising there abandoned a search plain enumeration could finish).
 
-    ⭐ **These two are not situations.** A criterion naming a function that does not exist, or binding
+    These two are not situations. A criterion naming a function that does not exist, or binding
     parameters the function does not take, is wrong in *every* world and for *every* subject — no
     arrangement of things could make it speak. Folding them into the same silence made a typo
     indistinguishable from advice that lost, which is `docs/limits.md` exactly: *a form that parses and
     does nothing is worse than a missing form; silent acceptance is the bug.* Measured — `do frobnicate
     f = subject` authored clean and was silent forever.
 
-    ⚠ This is the same argument, in the same file, that `_ref` already makes for **references**: refuse it
+    This is the same argument, in the same file, that `_ref` already makes for references: refuse it
     where it is written, rather than reporting a typo from inside a search thousands of steps later as
     silence. The two halves of a `do` line now get the same treatment.
 
-    ⚠ Declaration before use, as everywhere else on this surface (`within` requires the method to exist,
+    Declaration before use, as everywhere else on this surface (`within` requires the method to exist,
     `_ref` requires the individual to). A library loaded after its criteria is refused, and says so."""
     from . import function as FN
     if FN.find(g, name) is None:
@@ -596,18 +565,17 @@ def _advise(g: Graph, gl: str, words: list, line: str, lineno: int, under: str) 
 def _reader(g: Graph, q: str, words: list, line: str, lineno: int, under: str) -> None:
     """One line of a `what` / `where` / `when` block: a bare name, or the word the question walks.
 
-    ⭐ **The body is the smallest one on this surface, and that is the finding rather than an economy.**
-    §5x measured all three as needing no machinery — `types.recognize` exists, and ordering over a
+    The body is the smallest one on this surface, and that is the finding rather than an economy. measured all three as needing no machinery — `types.recognize` exists, and ordering over a
     comparable value became sugar the same morning — so what was missing was a *verb*, and a verb needs
     nowhere near the vocabulary a goal does. Anything richer here would be a question the reader could
     not answer.
 
-    ⚠ **`by` keeps the vocabulary out of the machinery.** `where` walks `contains` and `when` reads `at`
+    `by` keeps the vocabulary out of the machinery. `where` walks `contains` and `when` reads `at`
     because those are conventions worth shipping as content, not because anything here knows what a
     container or a clock is. An author who keeps parts in `part_of` writes `by part_of` and the same
     traversal answers."""
     if words[0] == "by" and len(words) == 2:
-        # ⚠ Validated HERE rather than when the answer is computed. `by ^` would otherwise author cleanly
+        # Validated here rather than when the answer is computed. `by ^` would otherwise author cleanly
         # and raise from inside `locate.where` at reading time, which is the wrong place to find out and
         # the wrong exception to get.
         P.parse_link(words[1].lstrip("^") or words[1])
@@ -621,7 +589,7 @@ def _reader(g: Graph, q: str, words: list, line: str, lineno: int, under: str) -
 
 
 def _step(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
-    """One `step …` line. ⭐ **The step grammar is the GOAL grammar with roles instead of names** — the
+    """One `step …` line. The step grammar is the goal grammar with roles instead of names — the
     only legal subjects are `subject` and `object`, meaning the matched constraint's. A method that named
     an individual would be about that individual and could not be reused, which is the same reason
     `types.py` refuses to let a schema name a target."""
@@ -634,8 +602,8 @@ def _step(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
                              f"with `some <name> in <ref> by <link>` before using it")
         return w
 
-    # ⭐ The SHARED proposition grammar (`_shape`) — a step is a subgoal, so it says the same things a
-    # goal constraint says. What differs is only that a referring position holds a ROLE.
+    # The shared proposition grammar (`_shape`) — a step is a subgoal, so it says the same things a
+    # goal constraint says. What differs is only that a referring position holds a role.
     shape = _shape(words, line, lineno, what="method step")
     if shape is None:
         raise _shape_refused(words, line, lineno, "method step", " — with roles, not names")
@@ -646,7 +614,7 @@ def _step(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
     elif kind == "type":
         M.step(g, m, sort="type", label=shape[2], subject=role(shape[1]), note=line)
     elif kind == "link":
-        # ⚠ A step is something to ACHIEVE, and `l+` says *reachable at any depth* — which is a query, not
+        # A step is something to ACHIEVE, and `l+` says *reachable at any depth* — which is a query, not
         # a thing to bring about: nothing names which edge to add. Refused with the reason.
         label, transitive = P.parse_link(shape[2])
         if transitive:
@@ -676,9 +644,9 @@ def _method_line(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
     elif words[0] == "because" and len(words) > 1:
         g.put(m, because=" ".join(words[1:]))
     elif words[0] == "some" and len(words) == 6 and words[2] == "in" and words[4] == "by":
-        # `some t in subject by test` — bind a FURTHER role, exactly as a criterion does. A method could
+        # `some t in subject by test` — bind a further role, exactly as a criterion does. A method could
         # previously speak only of the matched constraint's `subject` and `object`, so a decomposition
-        # whose steps concern a THIRD individual ("run its tests, then commit the repo") had no form —
+        # whose steps concern a third individual ("run its tests, then commit the repo") had no form —
         # the same gap `docs/deliberation.md` closed for criteria and left open here.
         name = words[1]
         if name in M.roles_of(g, m):
@@ -699,7 +667,7 @@ _COUNTS = {"some": (1, None), "no": (0, 0), "a": (1, 1), "an": (1, 1), "one": (1
 def _count(words: list, lineno: int, line: str) -> tuple:
     """A count spec and the label it counts, from the words between `has` and the end of the phrase.
 
-    ⚠ **A bare `has wheel` is REFUSED**, and the temptation to read it as "at least one" is exactly what a
+    A bare `has wheel` is refused, and the temptation to read it as "at least one" is exactly what a
     controlled language exists to resist: the author who wrote it may have meant one, or four, or any. The
     surface has a word for each of those, so it costs nothing to say which."""
     if len(words) >= 2:
@@ -722,7 +690,7 @@ def _count(words: list, lineno: int, line: str) -> tuple:
 def _type_line(g: Graph, t: str, words: list, line: str, lineno: int) -> None:
     """One line of a `type` block. Ordered most-specific first, so a keyword form is never shadowed.
 
-    ⭐ **Both sides of a comparison are `path.py` references, so a demand may reach as deep as it likes.**
+    Both sides of a comparison are `path.py` references, so a demand may reach as deep as it likes.
     That is the whole of what lifted the one-level limit at the surface: nothing here counts hops, and
     nothing here has its own idea of what a reference is."""
     if words and words[0] == "-":
@@ -749,7 +717,7 @@ def _type_line(g: Graph, t: str, words: list, line: str, lineno: int) -> None:
                                  f"be is (each a TYPE | each of kind KIND)")
             rest = head
         lo, hi, label = _count(rest, lineno, line)
-        # ⚠ **A `has` label is ONE named edge, not a reference**, and saying so out loud matters because
+        # A `has` label is one named edge, not a reference, and saying so out loud matters because
         # the two look alike. `has 1 ^contains` read `^contains` as a plain label and counted the targets
         # of an edge nobody has — silently zero, so the requirement was unmeetable and looked fine.
         # `require_edge` counts `g.targets(node, label)`; it does not navigate. Refuse rather than pretend.
@@ -771,12 +739,12 @@ def _type_line(g: Graph, t: str, words: list, line: str, lineno: int) -> None:
 
 
 def _demand(g: Graph, t: str, left: str, op: str, right: str, lineno: int, line: str, hi=None) -> None:
-    """⭐⭐ **The one place the surface decides ATTRIBUTE-OF-THIS-NODE versus RELATION-BETWEEN-TWO-PLACES**,
+    """The one place the surface decides attribute-of-this-node versus relation-between-two-places,
     and it decides it by reading the operands rather than by asking the graph.
 
     `weight between 800 and 2000` constrains *this* node's weight; `wheel[0].pressure == wheel[1].pressure`
     relates two places within the subgraph. A bare word on the left is a one-hop path — this node's own
-    attribute — and a bare word on the right is a **literal**, so `colour = red` compares against the
+    attribute — and a bare word on the right is a literal, so `colour = red` compares against the
     string. An author who means a reference on the right writes a hop (`colour = body.colour`). That rule
     lives in `path.is_reference`, once, so every block reads it identically."""
     try:
@@ -797,7 +765,7 @@ def _demand(g: Graph, t: str, left: str, op: str, right: str, lineno: int, line:
 def read(g: Graph, text: str, *, under: str = "root") -> tuple:
     """Parse one `<verb> <label>:` block. Returns `(verb, node)`. Raises `Unreadable`.
 
-    **⭐ One block grammar, three families**, because the standing principle is that microfunctions ship
+    One block grammar, three families, because the standing principle is that microfunctions ship
     with the engine and *everything a domain contributes is data*. Until this existed the border held for
     goals alone: a guideline or a method could only be authored by calling Python, which is exactly the
     "reach past the surface and write graph structure" the module docstring says must never happen. The
@@ -805,27 +773,27 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
 
     | verb | produces |
     |---|---|
-    | `goal` / `ask` / `why` / `plan` | a **goal** — same body, different thing done with it |
-    | `prefer` / `avoid` | a **guideline** — reorders, can never exclude |
-    | `method` / `procedure` | a **method** — a decomposition, advisory or mandatory |
-    | `type` | a **type** — a schema over a subgraph, of any depth |
-    | `criterion` / `directive` | a **criterion** — expert judgement, naming an action with its arguments |
-    | `what` / `where` / `when` | a **question** — a gap, answered by locating a thing in an order |
+    | `goal` / `ask` / `why` / `plan` | a goal — same body, different thing done with it |
+    | `prefer` / `avoid` | a guideline — reorders, can never exclude |
+    | `method` / `procedure` | a method — a decomposition, advisory or mandatory |
+    | `type` | a type — a schema over a subgraph, of any depth |
+    | `criterion` / `directive` | a criterion — expert judgement, naming an action with its arguments |
+    | `what` / `where` / `when` | a question — a gap, answered by locating a thing in an order |
 
-    ⚠ **`criterion` and `directive` differ ONLY in force, exactly as `method` and `procedure` do.** An
-    advisory criterion suppresses enumeration but **defers** it, so being wrong costs imagined states; a
-    directive says the alternatives are not worth building, and **refuses** when it recognises a situation
+    `criterion` and `directive` differ only in force, exactly as `method` and `procedure` do. An
+    advisory criterion suppresses enumeration but defers it, so being wrong costs imagined states; a
+    directive says the alternatives are not worth building, and refuses when it recognises a situation
     it cannot act in. `docs/deliberation.md` in a third place: force is about *failure*.
 
-    ⚠ **`method` and `procedure` differ ONLY in force, and that is the point.** The bodies are identical;
+    `method` and `procedure` differ only in force, and that is the point. The bodies are identical;
     what changes is what happens when a step does not work out — fall back to searching, or refuse to
     improvise. `docs/deliberation.md`: force is about *failure*, not strength, and it cannot be inferred
     from content, so the surface makes the author say which word they mean.
 
-    ⚠ **Refusal leaves nothing behind, now via the JOURNAL rather than by hand.** The old goal path dropped
+    Refusal leaves nothing behind, now via the journal rather than by hand. The old goal path dropped
     its constraints one by one on failure, which had to be kept in step with everything a body could mint —
     exactly the maintenance a transactional substrate exists to remove. `savepoint`/`rollback` is what the
-    journal was built for, and this is its first real consumer outside `selftest.py`. ⚠ It is transactional
+    journal was built for, and this is its first real consumer outside `selftest.py`. It is transactional
     only: nothing between the savepoint and the rollback may `commit`, and nothing here does."""
     lines = [(i + 1, ln.split("#")[0].rstrip())
              for i, ln in enumerate(text.splitlines())]
@@ -844,7 +812,7 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
     try:
         node = _open(g, verb, label)
         for lineno, raw in lines[1:]:
-            # ⚠ A SECOND BLOCK HEADER IS NOT A BAD BODY LINE, and reporting it as one blamed the wrong
+            # A second block header is NOT a bad body line, and reporting it as one blamed the wrong
             # thing: a consumer's feedback measured `type b:` refused identically to
             # `frobnicate the widget`, though the corrective action is completely different — *"you
             # passed me two blocks and I take one"* versus *"that line has no form"*. The parser already
@@ -856,17 +824,17 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
             _body(g, verb, node, raw.split(), raw.strip(), lineno, under)
         _seal(g, verb, node, label)
     except (Unreadable, P.BadPath) as e:
-        # ⚠⚠ **A `BadPath` USED TO ESCAPE, and with it the whole no-half-built-goal guarantee.** A goal
+        # A `BadPath` Used to escape, and with it the whole no-half-built-goal guarantee. A goal
         # line of three words is read as a link, so `a.size > b.size` reached `parse_link(">")`, which
         # raises `BadPath` — a different exception, uncaught, so the savepoint was never rolled back and
-        # an EMPTY GOAL was left in the graph. Measured. The module docstring says a refusal leaves
+        # an empty goal was left in the graph. Measured. The module docstring says a refusal leaves
         # nothing behind *because a half-built goal would be pursued and would look like it was working*;
         # that held for every refusal this border authored and not for one it merely passed through.
         # A reference that cannot be read IS unreadable here, so it is re-raised in this border's own
         # vocabulary and callers keep having exactly one exception type to catch.
         g.rollback(sp)
         msg = str(e) if "line " in str(e) else f"line {lineno}: {e}"
-        # ⚠ **The subclass has to survive the re-wrap**, or §7's candidates are collected and then thrown
+        # The subclass has to survive the re-wrap, or's candidates are collected and then thrown
         # away one frame later. Caught by running the consumer's own repro rather than the unit — every
         # `except Unreadable` still catches this, since `Ambiguous` is one.
         if isinstance(e, Ambiguous):
@@ -883,16 +851,16 @@ def _open(g: Graph, verb: str, label: str) -> str:
     if verb in ADVICE_VERBS:
         return g.mint("guideline", stance=GL.PREFER if verb == "prefer" else GL.AVOID, label=label)
     if verb in READER_VERBS:
-        # ⚠ A question node is minted for the same reason a goal is, and it is NOT the labelling error this
+        # A question node is minted for the same reason a goal is, and it is NOT the labelling error this
         # codebase keeps catching: *that this was asked* is not entailed by any structure, exactly as force
-        # is not (`force-is-the-missing-axis`). What it must never hold is the ANSWER — see `locate.py`.
+        # is not (`force-is-the-missing-axis`). What it must never hold is the answer — see `locate.py`.
         return g.mint("question", verb=verb, label=label)
     if verb in CRITERION_VERBS:
-        # ⚠ Two verbs, ONE body — the `method`/`procedure` pattern exactly, and for the same reason:
-        # force is about FAILURE and cannot be inferred from content, so the author has to say the word.
+        # Two verbs, one body — the `method`/`procedure` pattern exactly, and for the same reason:
+        # force is about failure and cannot be inferred from content, so the author has to say the word.
         return CR.declare(g, label, force=(G.MANDATORY if verb == "directive" else G.ADVISORY))
     if verb in TYPE_VERBS:
-        # ⚠ Refuses a REDECLARATION rather than minting a second type of the same name. Two would both
+        # Refuses a redeclaration rather than minting a second type of the same name. Two would both
         # be found by `type_names` and `find_type` would answer with whichever came first — the same
         # "a name is not an identity" failure `resolve` refuses for individuals, one level up.
         if TY.find_type(g, label) is not None:
@@ -919,8 +887,8 @@ def _body(g: Graph, verb: str, node: str, words: list, line: str, lineno: int, u
 
 
 def _seal(g: Graph, verb: str, node: str, label: str) -> None:
-    """⚠ **Every family refuses a body that says nothing**, and each needs its own closure fact — the
-    generalisation `goal_machinery.md` §8 reached as *don't trust an open-ended absence without an explicit
+    """Every family refuses a body that says nothing, and each needs its own closure fact — the
+    generalisation an earlier note reached as *don't trust an open-ended absence without an explicit
     closure fact*. A guideline matching everything is not advice; a method with no steps decomposes into
     nothing, which `goal.decomposed` would then read as an undecomposed goal."""
     if verb in GOAL_VERBS:
@@ -935,7 +903,7 @@ def _seal(g: Graph, verb: str, node: str, label: str) -> None:
             raise Unreadable(f"`{verb} {label}` names neither an action nor a thing — advice that "
                              f"matches everything is not advice")
     elif verb in TYPE_VERBS:
-        # ⚠ A type that demands nothing is satisfied by everything, so it is not recognition — the same
+        # A type that demands nothing is satisfied by everything, so it is not recognition — the same
         # stance `types.type_names` and `subsumes` already take, enforced at the surface that authors one.
         # A bare `is a <base>` is enough: it demands whatever the base demands.
         if not (g.attr(node, "base") or TY.schema_of(g, label) or TY.attrs_of(g, label)
@@ -943,7 +911,7 @@ def _seal(g: Graph, verb: str, node: str, label: str) -> None:
             raise Unreadable(f"`type {label}` demands nothing, so everything is one; "
                              f"that is not a type, it is a word")
     elif verb in CRITERION_VERBS:
-        # ⚠ Both halves, and each is a different way of saying nothing. Without `wants` a criterion has
+        # Both halves, and each is a different way of saying nothing. Without `wants` a criterion has
         # no variables and no index key; without `do` it recognises a situation and then declines to say
         # what to do about it, which is the one thing it exists for.
         if g.attr(node, "wants_sort") is None:
@@ -970,25 +938,25 @@ def respond(g: Graph, text: str, thread: str, subject: str = "root", *,
             under: str = "root", keep: bool = True, **kw) -> str:
     """Read something said and do the right thing with it. The whole conversational surface, in one call.
 
-    ⚠ **`ask` settles by default (`keep=True`), and that is a choice worth seeing.** The derivation ran on
+    `ask` settles by default (`keep=True`), and that is a choice worth seeing. The derivation ran on
     a workbench, so nothing is committed unless it is replayed; keeping it means the next question does not
     re-derive what this one worked out, and — the part that matters more — it is what gives `why` anything
     to answer from later. Pass `keep=False` for a question that should leave no trace.
 
-    ⭐⭐ **`plan` is where the surface stops only describing and starts driving**, which is what this module
+    `plan` is where the surface stops only describing and starts driving, which is what this module
     was missing: every other verb either records something or asks something, and none of them could make
     the system *work*. It reaches `driver.pursue`, which is reachable at all because deliberation stopped
-    being a closed Python loop (the design notes).
+    being a closed Python loop.
 
-    ⚠ **And it stops at a plan.** Nothing is carried out — the whole search is on a workbench, so a `plan`
+    And it stops at a plan. Nothing is carried out — the whole search is on a workbench, so a `plan`
     block cannot change the world no matter what it says. Acting is a separate verb that does not exist
     yet, on purpose."""
     from . import driver as D, query as Q, thread as T
     verb, goal = read(g, text, under=under)
     if verb in READER_VERBS:
-        # ⚠ **Answered, never settled.** `ask` keeps what it derived because a derivation ran and costs a
+        # Answered, never settled. `ask` keeps what it derived because a derivation ran and costs a
         # search to repeat; a reader computed nothing that is not a traversal away, so keeping the answer
-        # would be storing something that can drift from the world it describes (§6g, and `types.tag`).
+        # would be storing something that can drift from the world it describes (, and `types.tag`).
         # The *question* reaches the thread — that it was asked is history — and the answer does not.
         T.attend(g, thread, goal, why="asked", note=verb)
         return "\n".join(L.describe(g, verb, n, by=g.attr(goal, "by"), under=under)
@@ -1010,11 +978,11 @@ def respond(g: Graph, text: str, thread: str, subject: str = "root", *,
 def describe(g: Graph, goal: str) -> str:
     """Render a goal back to the surface it came from — the round trip a model reads to check itself.
 
-    ⚠ **Refuses anything that is not a goal rather than rendering it badly.** Handed a guideline it would
+    Refuses anything that is not a goal rather than rendering it badly. Handed a guideline it would
     otherwise emit `goal <label>:` with an empty body — well-formed, wrong, and exactly the "best effort"
     this module exists to refuse. A round trip a model checks itself against must not be able to lie."""
     if g.kind(goal) == "question":
-        # ⚠ A question round-trips to what was ASKED, never to what was answered. A rendering that included
+        # A question round-trips to what was asked, never to what was answered. A rendering that included
         # the answer would read back as a block nobody wrote and could not be re-parsed to the same thing.
         lines = [f"{g.attr(goal, 'verb')} {g.attr(goal, 'label')}:"]
         if g.attr(goal, "by"):

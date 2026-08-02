@@ -1,33 +1,41 @@
-"""WORKBENCH — imagining what functions would do, on a copy, frame by frame.
+"""Workbench — imagining what functions would do, on a copy, frame by frame.
 
-Design: `docs/planning.md`. This is stage 1 — copy, mappings, frames,
-transformations, forking and discard. Mocks and the dispatch refusal come next.
+Backward chaining over declared types concludes that applying `service` to a car yields a
+serviced car. That is a promise rather than a proof, and it says nothing about what else changed,
+which the next step may depend on. So type chaining is a good way to propose a chain and a bad
+way to believe one; the workbench runs the proposal somewhere that does not count and reports
+what really happened.
 
-**Why this exists.** `plan.py` chains declared *types*: if `service` is declared `car -> serviced_car`, it
-concludes that applying it yields a serviced car. That is a promise, not a proof, and it says nothing about
-what *else* changed — which the next step may depend on. So backward chaining is a good way to **propose** a
-chain and a bad way to **believe** one. The workbench actually runs the proposal somewhere that does not
-count, and reports what really happened.
+The copy boundary is everything reachable from the subject. Every cleverer boundary is a guess
+about which structure will matter, and a wrong guess yields a plan that looks fine and fails on
+contact with reality. The cost is accepted; copy-on-write, if it is ever needed, implements
+exactly these semantics more cheaply rather than being a smaller boundary.
 
-**The copy boundary is everything reachable from the subject.** Every cleverer boundary is a guess about
-which structure will matter, and a wrong guess yields a plan that looks fine and fails on contact with
-reality. We genuinely cannot know in advance what a plan will need. The cost is accepted; copy-on-write, if
-it is ever needed, implements exactly these semantics more cheaply rather than being a smaller boundary.
+Mappings are the crux. A mapping points at the original and at this frame's image, and chains to
+the next frame. Transformations bind their arguments to mappings, never to raw workbench nodes,
+which is what makes a plan replayable: following the original yields the node the operation must
+really be applied to. A log saying "`service` was applied" is unreplayable, because it does not
+identify the subject in a form that survives out of the workbench.
 
-**Mappings are the crux.** A mapping node points at the original and at this frame's image, and chains to
-the next frame via `next`. Transformations bind their arguments to **mappings, never raw workbench nodes** —
-which is what makes a plan replayable, since following `original` yields the node the operation must really
-be applied to. A log saying "`service` was applied" is unreplayable: it does not identify the subject in a
-form that survives out of the workbench.
+The direction invariant. A mapping points to the original and the image, and nothing ever points
+from a node to its mappings. Copying traverses outgoing edges, so a single edge the other way
+would drag in that mapping's original, image and successor, and thence every frame, every
+workbench and every plan that ever touched the node. That is not a wrong answer but an unbounded
+copy. The constraint is free, because the reverse index already answers the backward question.
 
-**⚠ The direction invariant.** A mapping points *to* the original and the image; nothing ever points from a
-node to its mappings. Copying traverses outgoing edges, so a single edge the other way would drag in that
-mapping's original, image and `next` — and thence every frame, every workbench, every plan that ever touched
-the node. Not a wrong answer: an unbounded copy. The constraint is free, because the reverse index already
-answers the backward question (`sources(node, "original")`).
+Frames form a tree rather than a list. Successive steps extend a path and assumptions fork it,
+and successor edges are one-to-many on both frames and mappings, so a node's history branches
+with the frames it lives in.
 
-**Frames form a tree, not a list.** Successive steps extend a path; assumptions fork it. `next` is 1:N on
-both frames and mappings, so a node's history branches with the frames it lives in.
+Expectations are derived from the frames rather than authored: frame N-1 and frame N are the
+before and after. They are qualitative rather than quantitative, because a mock that mints two
+nodes is giving a witness rather than a promise.
+
+Scans exclude workbench copies by default. Copies are ordinary nodes, so an unfiltered scan would
+find the system's own imaginings and offer them as candidate arguments — planning about the
+products of planning, with no error and no symptom beyond gradually stranger plans.
+
+See `docs/planning.md`.
 """
 from __future__ import annotations
 
@@ -44,13 +52,13 @@ def reachable(g: Graph, start: str) -> dict:
     Metadata is not reached, by the direction invariant — mappings, applications, hypotheses and plans all
     point *at* domain nodes and are never pointed at by them.
 
-    **⚠ Returns an ORDERED set (a dict used as one), and the order is load-bearing.** The traversal itself
+    Returns an ordered set (a dict used as one), and the order is load-bearing. The traversal itself
     is already deterministic — `g.labels` is sorted and `g.targets` is an insertion-ordered tuple — so the
     visit order is a fact about the graph. Returning a `set` threw it away and substituted the iteration
     order of the node-id *strings*, which is a fact about nothing: ids come from a process-global counter,
     so the same world built twice in one process gets different ids, hashes in a different order, and is
     copied in a different order. That reached all the way up to `driver.pursue`, whose frontier breaks
-    ties by insertion order — making the search **irreproducible**: the identical five-block goal was
+    ties by insertion order — making the search irreproducible: the identical five-block goal was
     measured at 12 imagined states, 306, and budget-exhausted-failure on consecutive runs of one process.
 
     Nothing was ever *lost* — the set of proposals is identical every time — so this never produced a wrong
@@ -75,7 +83,7 @@ def _copy_set(g: Graph, originals) -> dict:
     Edge properties are carried across positionally, which is safe because targets are appended in the
     same order they appear in the source.
 
-    ⚠ `originals` must be an **ordered** collection, because minting walks it and the ids it mints decide
+    `originals` must be an ordered collection, because minting walks it and the ids it mints decide
     the order of the resulting mappings — see `reachable`. Passing a `set` here is the defect that made
     the search irreproducible."""
     image = {}
@@ -86,7 +94,7 @@ def _copy_set(g: Graph, originals) -> dict:
         for label in g.labels(o):
             for i, t in enumerate(g.targets(o, label)):
                 if t in image:
-                    # ⚠ Edge properties are keyed by edge **id** now, not by `(src, label, index)`.
+                    # Edge properties are keyed by edge id now, not by `(src, label, index)`.
                     # Reading the old key here returned `{}` silently, so a copied edge quietly lost its
                     # properties — and nothing failed, because no check copied one. See the check that
                     # now does.
@@ -105,7 +113,7 @@ def open_workbench(g: Graph, subject: str, *, label: str = "workbench",
     whose assumptions this workbench is investigating; hypotheses are *run* via workbenches rather than
     being a separate mechanism.
 
-    ⚠ In a nested workbench a mapping's `original` points one level up, not at the real graph, so resolving
+    In a nested workbench a mapping's `original` points one level up, not at the real graph, so resolving
     to a real node is a walk (`resolve`), not a hop."""
     wb = g.mint("workbench", label=label, depth=(g.attr(parent, "depth", 0) + 1) if parent else 0)
     if parent is not None:
@@ -121,7 +129,7 @@ def open_workbench(g: Graph, subject: str, *, label: str = "workbench",
     g.link(wb, "frame", frame)          # membership, distinct from the `next` tree that gives shape
     for o, img in image.items():
         m = g.mint("mapping")
-        g.link(m, "original", o)          # points OUT — never pointed at, see the invariant
+        g.link(m, "original", o)          # points out — never pointed at, see the invariant
         g.link(m, "image", img)
         g.link(frame, "mapping", m)
     return wb
@@ -150,14 +158,14 @@ def image_of(g: Graph, mapping: str):
 
 
 def original_of(g: Graph, node):
-    """The REAL node an imagined one stands for — `view_in`'s inverse, and identity for a real node.
+    """The real node an imagined one stands for — `view_in`'s inverse, and identity for a real node.
 
-    ⭐ `driver.view_in` translates a real individual into this frame's image of it; every reader that
+    `driver.view_in` translates a real individual into this frame's image of it; every reader that
     computes something *inside* a frame and then has to compare it against a constraint (which names real
     individuals) needs the way back. That way existed only as an inline idiom, which is the shape a missing
     reader makes — see `path.py`, which was three undeclared copies of one grammar.
 
-    ⚠ Derived from structure, never marked: a node is an image exactly when a mapping points at it as
+    Derived from structure, never marked: a node is an image exactly when a mapping points at it as
     `image`, and O(1) through the reverse index. A node minted purely in imagination resolves to `None`
     (it has no original), which callers must keep distinct from *a real node that is its own answer*."""
     if node is None:
@@ -169,10 +177,10 @@ def original_of(g: Graph, node):
 
 
 def resolve(g: Graph, mapping: str):
-    """Walk `original` upward until leaving every workbench, and return the REAL node.
+    """Walk `original` upward until leaving every workbench, and return the real node.
 
     Returns `None` for a node that exists only in imagination — one minted during planning, which has no
-    `original` at all. ⚠ Those two cases must not be conflated: "no original" means *this does not exist
+    `original` at all. Those two cases must not be conflated: "no original" means *this does not exist
     yet and must be created when the plan runs*, and what ties it to reality later is the transformation
     that produced it, not a pointer."""
     node = g.target(mapping, "original")
@@ -197,7 +205,7 @@ def frames(g: Graph, wb: str) -> tuple:
 def history(g: Graph, mapping: str) -> tuple:
     """A node's own timeline: this mapping and everything downstream of it.
 
-    ⚠ `next` is 1:N, because frames fork — so a node's history is a tree mirroring the frame tree, and
+    `next` is 1:N, because frames fork — so a node's history is a tree mirroring the frame tree, and
     this returns all of it. Code that assumed a single successor would silently follow one branch."""
     out, queue = [], [mapping]
     while queue:
@@ -212,7 +220,7 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
          assumes: str | None = None, assume: str | None = None):
     """Run `function` on a NEW frame derived from `frame`, and record the transformation.
 
-    `bindings` maps parameter name to a **mapping** in `frame` — never a raw node, so the record stays
+    `bindings` maps parameter name to a mapping in `frame` — never a raw node, so the record stays
     replayable. Returns `(new_frame, transformation)`.
 
     The previous frame is left intact because the new frame is a full copy taken *before* the function
@@ -222,7 +230,7 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     `assumes` records the hypothesis this step took on faith — which is how a plan carries its own
     dependence on guesses, inspectably."""
     prev_images = {m: image_of(g, m) for m in mappings(g, frame)}
-    # ⚠ ORDERED dedupe, not `set`. `mappings` is an ordered tuple, so this frame's order is a fact; a set
+    # Ordered dedupe, not `set`. `mappings` is an ordered tuple, so this frame's order is a fact; a set
     # would replace it with node-id hash order and make every subsequent frame's mapping order — and hence
     # `driver.proposals` order, and hence the search — arbitrary. Same defect as `reachable`'s.
     originals = dict.fromkeys(prev_images.values())
@@ -241,34 +249,34 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
         g.link(new_frame, "mapping", nm)
         carried[m] = nm
 
-    # ⭐ MOCK SUBSTITUTION. On a workbench, a function that has declared outcomes is replaced by one of
+    # Mock substitution. On a workbench, a function that has declared outcomes is replaced by one of
     # them — always, not by convention. `assume` names which; the default is the most preferred, i.e. the
     # first declared, since `mock` is an ordered edge.
     #
-    # ⚠ This is a *convenience*, not the safety mechanism. Safety is `dispatch.service` refusing an
+    # This is a *convenience*, not the safety mechanism. Safety is `dispatch.service` refusing an
     # imagined target: if this substitution were forgotten or bypassed, a dispatching function would still
     # be unable to reach the world. Substitution makes planning *useful*; the refusal makes it *safe*, and
     # conflating the two would put the guarantee in the wrong place.
     #
-    # ⭐⭐⭐ **THE DEFAULT NOW CONSULTS THE STATE — the user's point, 2026-08-02:** *"expectations must be
+    # The default now consults the state — the user's point: *"expectations must be
     # conditioned; a mock must map conditions to expectations, so even during planning we know what to
     # expect if we perform an action on a given state."* The default was `outcomes[0]` — declaration order,
-    # asked without looking at the world — so *"what will happen if I do this HERE"* was answered by
+    # asked without looking at the world — so *"what will happen if I do this here"* was answered by
     # something that could not see "here".
     #
-    # ⭐ **A mock's condition is its PARAMETER TYPES, so this needs no new representation.** A mock is an
+    # A mock's condition is its parameter types, so this needs no new representation. A mock is an
     # ordinary microfunction, a parameter type is already a schema over a subgraph, and `fn.invoke` already
     # enforces it on every call. `fn.applicable` only asks that question *before* choosing instead of
     # after. Declaration order still decides among several that fit, which is what `mocks_of`'s preference
     # ordering was always for.
     #
-    # ⚠⚠ **What this replaces was not a wrong prediction but a CRASH.** With two conditioned outcomes
+    # What this replaces was not a wrong prediction but a crash. With two conditioned outcomes
     # (`found_dirty(t: dirty_tree)` / `found_clean(t: clean_tree)`), planning in a clean world took
     # `outcomes[0]` and `fn.invoke` refused it — `TypeViolation: t is not a dirty_tree` — so the condition
     # that should have *selected* the other outcome instead *rejected* the only one offered, and a plannable
     # state was unplannable. Measured in an earlier probe.
     #
-    # ⚠ Behaviour is unchanged for every mock whose parameters are typed as the real function's are — all
+    # Behaviour is unchanged for every mock whose parameters are typed as the real function's are — all
     # of them, before this — because then every outcome is applicable and the first is still `outcomes[0]`.
     args = {p: image_of(g, carried[m]) for p, m in bindings.items()}
     outcomes = fn.mocks_of(g, function)
@@ -276,7 +284,7 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
         chosen = assume
     elif outcomes:
         fits = fn.applicable(g, function, args)
-        # ⚠ Falling back to `outcomes[0]` when NOTHING fits is deliberate: the honest report is the
+        # Falling back to `outcomes[0]` when nothing fits is deliberate: the honest report is the
         # `TypeViolation` naming the condition that failed, which says *no declared outcome covers this
         # state*. Silently substituting the real function instead would reach the world from inside a
         # workbench — refused by `dispatch.service`, but for the wrong reason and one layer too late.
@@ -289,12 +297,12 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
 
     called, _out = fn.invoke(g, executed, args)
 
-    # A function may MINT something while imagining. Those nodes get mappings too, with **no `original`** —
+    # A function may mint something while imagining. Those nodes get mappings too, with no `original` —
     # which is meaningful rather than broken: it says *this does not exist yet and must be created when the
     # plan runs for real*. What ties such a node to reality later is not a pointer but the transformation
     # that produced it, which is recorded anyway. Without this, `is_imagined` could never fire and
     # execution would have nothing to bind a newly minted real node to.
-    # ⚠ What the call minted is READ OFF THE CALL, not off a whole-graph diff — see `activation.minted`.
+    # What the call minted is read off the CALL, not off a whole-graph diff — see `activation.minted`.
     # The diff also caught anything else that happened to be minted while the call ran, which stopped being
     # theoretical once the interpreter's own state (focus, heads, activation, registers) became graph data.
     ran = ACT.for_focus(g, called.node)
@@ -313,14 +321,14 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     tr = g.mint("transformation", function=function, executed=executed,
                 expects=fn.returns_of(g, executed))
     g.link(tr, "applies", fn.find(g, function))
-    # ⭐ The activation that imagined this step, kept where the rest of the step's record is. It answers
+    # The activation that imagined this step, kept where the rest of the step's record is. It answers
     # "which instruction did this get to, and what did it mint" without a second log — and it is what
     # `discard` scraps, so an abandoned workbench leaves no interpreter residue behind either.
     if ran is not None:
         g.link(tr, "ran", ran)
     for param, m in bindings.items():
         b = g.mint("binding", param=param)
-        g.link(b, "mapping", carried[m])      # binds the MAPPING, not the raw node
+        g.link(b, "mapping", carried[m])      # binds the mapping, not the raw node
         g.link(tr, "arg", b)
     if assumes is not None:
         g.link(tr, "assumes", assumes)
@@ -362,7 +370,7 @@ def discard(g: Graph, wb: str) -> None:
 def deviates(g: Graph, transformation: str, real_result) -> dict:
     """Did reality match what this transformation predicted? Empty dict means it did.
 
-    **Deviation is a failed cast**, which is why it is cheap: the transformation already records what type
+    Deviation is a failed cast, which is why it is cheap: the transformation already records what type
     it expected, and checking it is `types.is_a` — bounded, and already written. Comparing whole subgraphs
     would be expensive and noisy, and irrelevant differences would swamp the real ones. The expected type
     is the honest signal because it is exactly the promise the function made.
@@ -389,7 +397,7 @@ def _predecessor(g: Graph, mapping: str, prev_frame: str):
 
 
 def predicted_changes(g: Graph, prev_frame: str, frame: str) -> dict:
-    """⭐ What the imagined step said would happen — **derived from the two frames, never recorded.**
+    """What the imagined step said would happen — derived from the two frames, never recorded.
 
     The declared return type (`deviates`) is a good check and a narrow one: it asks whether *one* node
     satisfies *one* schema. It cannot express "the file listing will materialise three file nodes", which
@@ -401,23 +409,23 @@ def predicted_changes(g: Graph, prev_frame: str, frame: str) -> dict:
     been a labelling error — asserting what the structure already entails — as well as costing a node per
     imagined step, of which the driver makes hundreds.
 
-    **⚠ Only what CHANGED, which is what keeps this from being a whole-subgraph diff.** That comparison was
+    Only what changed, which is what keeps this from being a whole-subgraph diff. That comparison was
     rejected early for good reason: irrelevant differences swamp the real ones. A changed attribute is by
     definition something the step did, so the difference is already the tight set.
 
-    **⭐⭐ QUALITATIVE, NEVER QUANTITATIVE — the correction that matters most here.** The first version of
+    Qualitative, never quantitative — the correction that matters most here. The first version of
     this compared magnitudes: the mock minted two file nodes, so it expected exactly two. That is wrong, and
     wrong in a way that would have made the mechanism useless in practice: listing a directory produces a
     *variable* number of files, and a plan that diverges because three arrived instead of two is diverging
-    on noise. **The number in a mock is a witness, not a promise.**
+    on noise. The number in a mock is a witness, not a promise.
 
     So the division of labour, which was already implicit and is now explicit:
 
-    * **The declared return type carries the discriminating claim** — empty versus non-empty, serviced
+    * The declared return type carries the discriminating claim — empty versus non-empty, serviced
       versus not. That is what a mock *is*: an outcome named by its return type. Checked by the cast
-      (`deviates`), and deliberately **not re-checked here**, so a failure is reported once, in the place
+      (`deviates`), and deliberately not re-checked here, so a failure is reported once, in the place
       that owns it.
-    * **The derived expectation carries the qualitative shape of the change** — files appeared, the
+    * The derived expectation carries the qualitative shape of the change — files appeared, the
       directory got marked, an edge was added. Direction, presence, absence. Never how many.
 
     A magnitude that genuinely matters belongs in a type (`{"count": 0}`) or in a goal constraint, both of
@@ -428,7 +436,7 @@ def predicted_changes(g: Graph, prev_frame: str, frame: str) -> dict:
 
     attrs, links, minted = [], [], set()
     for m in _newly_minted(g, frame):
-        minted.add(g.kind(image_of(g, m)))          # WHICH KINDS appeared, not how many
+        minted.add(g.kind(image_of(g, m)))          # Which KINDS appeared, not how many
 
     for m in mappings(g, frame):
         prev_m = _predecessor(g, m, prev_frame)

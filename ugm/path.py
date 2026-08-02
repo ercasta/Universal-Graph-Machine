@@ -1,54 +1,48 @@
-"""PATHS — the one way to refer to something that is not directly at hand.
+"""Paths — the one way to refer to something that is not directly at hand.
 
-**This language already existed, three times, undeclared.** `driver.role_node` resolved `c.right` and
-`c.child[2]` against the world; `intake._constrain` split `b.clear` by hand; `establishes` emitted dotted
-roles and nothing said what a dotted role *was*. Three copies of a grammar that was never written down is
-the shape a missing module makes, and the cost was that no *other* part of the surface could refer to
-anything more than one hop away — which is exactly why type schemas were one level deep.
+The grammar, and it is the whole grammar:
 
-**The grammar, and it is the whole grammar:**
+    path := seg ('.' seg)*
+    seg  := ['^'] label ('[' int ']')?
 
-```
-path := seg ('.' seg)*
-seg  := ['^'] label ('[' int ']')?
-```
+* `car.wheel` — every hop is a named edge, walked in traversal order, left to right.
+* `car.wheel[1]` — an index into that label's ordered targets. Negative indices count from the
+  end, so `car.wheel[-1]` is the last one. The substrate has ordered targets natively, so this is
+  addressing rather than searching.
+* `wheel.^has` — a backward hop, along an incoming edge. It resolves only when exactly one node
+  points that way; two candidates yield nothing rather than a guess, which is the same stance
+  names take: never identify by ambiguity.
 
-* `car.wheel` — every hop is a **named edge**, walked in traversal order, left to right.
-* `car.wheel[1]` — an **index** into that label's ordered targets. Negative indices count from the end,
-  so `car.wheel[-1]` is the last one. The substrate has ordered targets natively (`Graph.at`), so this is
-  addressing, not searching.
-* `wheel.^has` — a **backward** hop, along an incoming edge (`Graph.sources`). ⚠ It resolves only when
-  **exactly one** node points that way; two candidates yield nothing rather than a guess. That is
-  `intake.resolve`'s stance about names, applied to references: *never identify by ambiguity*.
+There is no depth limit. A hop is a hop, and nothing here counts them.
 
-**⭐ There is no depth limit and never was one.** A hop is a hop; nothing here counts them.
+The last segment is an attribute or a node according to what the position demands.
+`car.wheel[1].pressure` denotes a value; `car.wheel[1]` denotes a node. Both are written the same
+way, and the reader knows which because the position demands one or the other — `==` compares
+values, `is` compares identities. So `value_at` walks every hop but the last and reads the last
+as an attribute, while `node_at` walks them all as edges.
 
-## ⭐⭐ The last segment is an attribute or a node according to WHAT THE POSITION DEMANDS
+This is type-directed resolution rather than a guess about the graph, and the difference matters.
+The tempting version — follow the edge if there is one, else read the attribute — would make the
+meaning of a written path depend on what the world happens to contain when it is read, so adding
+an edge could silently change what an old declaration said. Nothing in this module looks at the
+graph to decide what a path means; it looks at the graph only to find what the path denotes.
 
-`car.wheel[1].pressure` denotes a *value*; `car.wheel[1]` denotes a *node*. Both are written the same way,
-and the reader knows which because the position it sits in demands one or the other — `==` compares values,
-`is` compares identities. So `value_at` walks every hop but the last and reads the last as an **attribute**,
-while `node_at` walks them all as **edges**.
+Attributes and edges stay distinct for the same reason a reference is distinct from an edge: an
+edge is a relation the graph asserts, an attribute is a value a node holds, and a reference
+language that blurred them would be a labelling error rather than a convenience.
 
-⚠ **This is type-directed resolution, not a guess about the graph, and the difference matters here.** The
-tempting version — "follow the edge if there is one, else read the attribute" — would make the meaning of a
-written path depend on what the world happens to contain at the moment it is read, so adding an edge could
-silently change what an old declaration said. That is the drift class this codebase keeps re-finding
-(`types.tag`, the kind index). Nothing in this module ever looks at the graph to decide what a path *means*;
-it looks at the graph only to find what the path *denotes*.
+Writing a reference versus writing a value. Any bare word is a legal one-hop path, so on the left
+of a comparison `weight` means this node's weight. On the right a bare word is a literal —
+`colour == red` compares against the string "red", not against something reached by an edge
+called `red`. To mean a reference on the right, write a path with a hop in it. Ambiguity is
+resolved by making the author say which, never by the parser preferring one, and `is_reference`
+is where that rule lives, in one place, so every block of the surface applies it identically.
 
-**Attributes and edges stay distinct** for the same reason `graph.py` keeps `Ref` distinct from an edge: an
-edge is a relation the graph asserts, an attribute is a value a node holds. A reference language that blurred
-them would be a labelling error, not a convenience.
+Transitive reach lives here too, and it is deliberately a predicate rather than a reference: a
+reference must denote one node, and reach denotes a set. `via` returns the set-shaped answer for
+the positions that have somewhere to put one.
 
-## Writing a reference versus writing a value
-
-Any bare word is a legal one-hop path, so on the **left** of a comparison `weight` means *this node's
-weight*. On the **right**, a bare word is a **literal** — `colour == red` compares against the string
-`"red"`, not against something reached by an edge called `red`. To mean a reference on the right, write a
-path with a hop in it (`colour == body.colour`). Ambiguity is resolved by making the author say which,
-never by the parser preferring one; `is_reference` is where that rule lives, in one place, so every block
-of the surface applies it identically.
+See `docs/concepts.md`.
 """
 from __future__ import annotations
 
@@ -57,7 +51,7 @@ from typing import NamedTuple
 
 from .graph import Graph
 
-# ⚠ The label charset is CLOSED, and it was not at first. `[^.\[\]^]+` accepted anything, so `contains*`
+# The label charset is closed, and it was not at first. `[^.\[\]^]+` accepted anything, so `contains*`
 # and `contains+` parsed happily — as a label *literally named* `contains*`, which matches nothing, silently.
 # Someone writing that is reaching for transitive closure (see `REPETITION` below), and the grammar owes
 # them an answer rather than a label that will never match.
@@ -110,26 +104,26 @@ def parse(text: str) -> Path:
 
 # --- transitive reach: the one genuine closed-class gap this project measured -------------------------
 #
-# ⭐⭐ **`closed_class_rechallenged.md` probed five relational forms and found four pure sugar — causation,
-# quantification's open case, force/level, identity/merge — with TRANSITIVITY the one that needed a real
-# engine extension.** the design notes arrived at the same single item from a completely different direction, by
+# Five relational forms were probed and four were found to be pure sugar — causation,
+# quantification's open case, force/level, identity/merge — with transitivity the one that needed a
+# real engine extension. The same single item was reached from a completely different direction, by
 # asking what the word *where* needs: a parcel inside a box inside a warehouse is not reachable by a
 # fixed-depth type, a goal's link constraint reads false because it is not a *direct* target, and this
 # grammar has no repetition operator. Two independent routes to one item is the strongest evidence
 # available here that it is a genuine closed-class member rather than a convenience.
 #
-# ⚠⚠ **PREDICATE POSITION ONLY, and that restriction is the whole design.** *Is X reachable from Y?* stays
+# Predicate position only, and that restriction is the whole design. *Is X reachable from Y?* stays
 # boolean and single-valued, so it breaks no contract here. A *reference* — `a.contains+.label` — would
-# denote a **set**, which breaks `node_at`'s promise to return one node or `None` and every caller that
+# denote a set, which breaks `node_at`'s promise to return one node or `None` and every caller that
 # assumes it. `parse` therefore still refuses `+` in a path, and points at this instead.
 
 CLOSURE = "+"
 
 
 def parse_link(text: str) -> tuple:
-    """A relation in a **link position**: `"contains"` → `("contains", False)`, `"contains+"` → transitive.
+    """A relation in a link position: `"contains"` → `("contains", False)`, `"contains+"` → transitive.
 
-    ⚠ Deliberately not part of `parse`. A path is a reference and this is a predicate; letting one grammar
+    Deliberately not part of `parse`. A path is a reference and this is a predicate; letting one grammar
     produce both is how `node_at` would end up sometimes returning a set."""
     if text.endswith(CLOSURE):
         label = text[:-1]
@@ -146,12 +140,12 @@ def parse_link(text: str) -> tuple:
 
 
 def reaches(g: Graph, start, label: str, dst, *, back: bool = False) -> bool:
-    """Is `dst` reachable from `start` by **one or more** `label` hops?
+    """Is `dst` reachable from `start` by one or more `label` hops?
 
-    ⚠ **One or more, never zero** — a node does not contain itself. Reflexivity would make every containment
+    One or more, never zero — a node does not contain itself. Reflexivity would make every containment
     goal trivially true of its own subject, which is the kind of vacuity this codebase keeps catching.
 
-    ⚠ Cycle-safe, and it has to be: containment is *supposed* to be acyclic and a graph does not enforce
+    Cycle-safe, and it has to be: containment is *supposed* to be acyclic and a graph does not enforce
     that, so a mis-authored world would hang the planner. The discipline is `types._target_ok`'s — carry
     what has already been visited — and it is why this returns rather than recurses."""
     if start is None or dst is None:
@@ -169,10 +163,10 @@ def reaches(g: Graph, start, label: str, dst, *, back: bool = False) -> bool:
 
 
 def via(g: Graph, start, label: str, *, back: bool = False) -> tuple:
-    """Everything reachable from `start` by one or more `label` hops, **nearest first**.
+    """Everything reachable from `start` by one or more `label` hops, nearest first.
 
-    ⚠ Offered for a caller that has somewhere to put a set — `where is it kept?` answered as a list. It is
-    **not** wired into any path, and must not be: a reference that denoted a set would break `node_at`.
+    Offered for a caller that has somewhere to put a set — `where is it kept?` answered as a list. It is
+    not wired into any path, and must not be: a reference that denoted a set would break `node_at`.
     Ordered breadth-first rather than returned as a `set`, per `search-was-irreproducible-set-tiebreak`."""
     seen, out, frontier = {start: None}, [], [start]
     while frontier:
@@ -192,9 +186,9 @@ def render(p: Path) -> str:
 
 
 def is_reference(token: str) -> bool:
-    """Does this token, in a position where either is allowed, mean a **reference** rather than a literal?
+    """Does this token, in a position where either is allowed, mean a reference rather than a literal?
 
-    ⚠ Only a token with a hop in it does. See the module docstring: a bare word on the right of a
+    Only a token with a hop in it does. See the module docstring: a bare word on the right of a
     comparison is a value, and an author who means a reference says so with a dot."""
     if not token or token.startswith('"') or token in _WORDS or _NUMBER.fullmatch(token):
         return False
@@ -206,12 +200,12 @@ def _step(g: Graph, node, hop: Hop):
         return None
     if hop.back:
         srcs = g.sources(node, hop.label)
-        return srcs[0] if len(srcs) == 1 else None      # ⚠ never guess between two
+        return srcs[0] if len(srcs) == 1 else None      # never guess between two
     return g.target(node, hop.label) if hop.index is None else g.at(node, hop.label, hop.index)
 
 
 def node_at(g: Graph, start, path: Path, upto: int | None = None):
-    """The **node** a path reaches from `start`, or `None` if any hop misses. Every segment is an edge."""
+    """The node a path reaches from `start`, or `None` if any hop misses. Every segment is an edge."""
     node = start
     for hop in path.hops[:upto]:
         node = _step(g, node, hop)
@@ -221,7 +215,7 @@ def node_at(g: Graph, start, path: Path, upto: int | None = None):
 
 
 def value_at(g: Graph, start, path: Path):
-    """The **value** a path reaches: every hop but the last is an edge, the last is an attribute.
+    """The value a path reaches: every hop but the last is an edge, the last is an attribute.
 
     `None` when the holder cannot be reached — indistinguishable from an attribute that is genuinely
     `None`, deliberately, because a constraint about a value that is not there and one about a value that
@@ -233,8 +227,8 @@ def value_at(g: Graph, start, path: Path):
 def split_base(text: str) -> tuple:
     """`"c.right.value"` → `("c", Path)`; `"c"` → `("c", None)`.
 
-    For a surface whose first segment names something OTHER than a node in the graph — a **parameter** in
-    `driver.establishes`, a **role** in a method step, a **label** in a goal — the base is resolved by that
+    For a surface whose first segment names something other than a node in the graph — a parameter in
+    `driver.establishes`, a role in a method step, a label in a goal — the base is resolved by that
     caller and the rest is an ordinary path from whatever it resolved to. That split is what lets one
     reference language serve blocks whose starting points have nothing in common."""
     base, _, rest = text.partition(".")

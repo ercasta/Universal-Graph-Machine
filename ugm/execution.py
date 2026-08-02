@@ -1,49 +1,47 @@
-"""EXECUTION — following a plan for real, and noticing when reality disagrees.
+"""Execution — following a plan for real, and noticing when reality disagrees.
 
-The workbench imagined a plan; this runs it. Everything needed was already recorded, which is the point of
-having built mappings and transformations rather than a log:
+The workbench imagined a plan; this runs it. Everything needed was already recorded, which is
+what mappings and transformations are for rather than a log:
 
-* **which function** — the transformation records the *real* function, separately from the mock it
-  actually executed while imagining. That is why `step` stores both;
-* **on which node** — the transformation's arguments bind *mappings*, and a mapping resolves to the real
-  node. A log saying "`list_dir` was applied" could not do this;
-* **what was expected** — the recorded return type, which makes deviation a cheap `types.is_a` rather than
-  a whole-subgraph comparison.
+* which function — the transformation records the real function, separately from the mock it
+  executed while imagining, which is why `step` stores both;
+* on which node — the transformation's arguments bind mappings, and a mapping resolves to the
+  real node. A log saying "`list_dir` was applied" could not do this;
+* what was expected — the recorded return type, which makes deviation a cheap cast check rather
+  than a whole-subgraph comparison.
 
-**Fail fast on deviation, and do not roll back.** Execution stops at the first step whose real result
-fails the cast it promised, because everything after it was planned *on the assumption that it held*.
-Continuing would be acting on a world that no longer matches the plan. And nothing is undone: real effects
-have already left the graph, and pretending a journal could reach them would be worse than not having one.
-The honest output is "these steps happened, this one diverged, here is how."
+Fail fast on deviation, and do not roll back. Execution stops at the first step whose real result
+fails the cast it promised, because everything after it was planned on the assumption that it
+held. Nothing is undone: real effects have already left the graph, and pretending a journal could
+reach them would be worse than not having one. The honest output is "these steps happened, this
+one diverged, here is how".
 
-**Imagined nodes are bound by provenance.** A step may mint something that did not exist at planning time —
-its mapping has no `original`. When the real function runs and mints its counterpart, the two are matched
-by *which transformation produced them*, since that is the only correspondence available for something that
-did not exist when planning started. ⚠ Matching within a transformation is by kind and order; if one
-transformation mints two nodes of the same kind, the pairing is a guess, and this module says so rather
-than picking silently.
+Imagined nodes are bound by provenance. A step may mint something that did not exist at planning
+time, so its mapping has no original and the real counterpart is matched by which transformation
+produced it. Matching within a transformation is by kind and order, so if one transformation
+mints two nodes of the same kind the pairing is a guess, and this module says so rather than
+picking silently.
 
-**Recovery is two mechanisms, and they answer different questions.** Once a step has diverged there are
-exactly two honest moves, and which one applies is decided by the structure rather than by a policy:
+Recovery is two mechanisms answering different questions.
 
-* **`resume` — was this outcome already explored?** A fork exists precisely because someone thought this
-  call could turn out more than one way. If a sibling branch assumed *what reality actually did*, the rest
-  of that branch is a plan for the world we are now in, already imagined and already checked. Continuing
-  down it is not replanning at all; it is following the contingency the fork was for. **The deviating call
-  is not run again** — it already happened, and its real effects are what we are recovering from.
-* **`replan` — nothing explored fits.** Then the branch tree has nothing to say, and the only sound move is
-  to propose afresh **from the world as it actually is**, taking the real result of the diverged step as the
-  subject. What comes back is a lazy chain (`plan.py`), so re-proposing still commits to nothing.
+* `resume` — was this outcome already explored? A fork exists precisely because someone thought
+  the call could turn out more than one way, so a sibling that assumed what reality actually did
+  is a plan for the world we are now in, already imagined and already checked. The diverged call
+  is not run again: it already happened, and its effects are what we are recovering from.
+* `replan` — nothing explored fits, so propose afresh from the world as it actually is, taking
+  the real result of the diverged step as the subject. What comes back is a lazy chain, so
+  re-proposing still commits to nothing.
 
-⚠ `resume` requires the sibling to be *the same function*. Siblings of a frame are alternative successors,
-which need not be alternative outcomes of one call — a fork may try a different action entirely. Continuing
-down such a branch would silently skip a call that never ran.
+`resume` requires the sibling to be the same function. Siblings of a frame are alternative
+successors, which need not be alternative outcomes of one call — a fork may try a different
+action entirely, and continuing down such a branch would silently skip a call that never ran.
 
-**What `replan` deliberately does not do is rehearse.** The re-proposal is a chain, not a workbench run.
-Turning a chain into workbench steps needs a rule for binding each pending call's *output* to a mapping, and
-for a call that mints something that is a real question, not a missing line of code — the same question
-`compile_episode` runs into. Proposing without rehearsing is the honest partial answer; guessing the binding
-would make a plan that looks verified and is not.
+`replan` deliberately does not rehearse. Turning a chain into workbench steps needs a rule for
+binding each pending call's output to a mapping, and for a call that mints something that is a
+real question rather than a missing line of code. Proposing without rehearsing is the honest
+partial answer; guessing the binding would make a plan that looks verified and is not.
+
+See `docs/planning.md`.
 """
 from __future__ import annotations
 
@@ -98,13 +96,12 @@ def leaves_under(g: Graph, wb: str, frame: str) -> tuple:
 
 # --- the replay's state, as graph data ----------------------------------------------------------------
 #
-# ⭐⭐ `_replay` was a Python `for` holding `bound`, `notes`, `ran` and its position in local variables, so
+# `_replay` was a Python `for` holding `bound`, `notes`, `ran` and its position in local variables, so
 # a plan being carried out for real — the one loop that touches the world — was the thing the system could
-# least say anything about mid-flight. The design notes' inventory names it; §6c made the ISA tick; this is the
-# same move one level up, and `execute` is now a loop over `step` exactly as `Machine.run` is a loop over
+# least say anything about mid-flight. Making the instruction set tick was the same move one level down; this is it one level up, and `execute` is now a loop over `step` exactly as `Machine.run` is a loop over
 # `tick`.
 #
-# ⚠ **A binding is a node, not a dict entry, and it is looked up through the REVERSE INDEX.** The obvious
+# A binding is a node, not a dict entry, and it is looked up through the reverse index. The obvious
 # encoding — an attribute per mapping on the replay node — would make every lookup a scan, and `_carry`
 # does one per mapping per frame. `bound ──mapping──▶ mapping` with `sources` answering backwards is O(few)
 # and needs no index of our own to maintain.
@@ -121,7 +118,7 @@ def open_replay(g: Graph, wb: str, frames: tuple, *, bound: dict | None = None,
     r = g.mint("replay", at=0, notes=tuple(notes), ran=tuple(ran))
     g.link(r, "workbench", wb)
     for f in frames:
-        g.link(r, "frame", f)                   # ORDERED — the path, and the position indexes into it
+        g.link(r, "frame", f)                   # Ordered — the path, and the position indexes into it
     for m, real in (bound or {}).items():
         bind(g, r, m, real)
     return r
@@ -179,7 +176,7 @@ def finished(g: Graph, r: str) -> bool:
 
 
 def _diverge(g: Graph, r: str, **fields) -> str:
-    """Record the deviation on the replay. ⚠ It is a NODE, so a stopped replay says why it stopped without
+    """Record the deviation on the replay. It is a node, so a stopped replay says why it stopped without
     the caller having to have been holding the return value at the moment it happened."""
     d = g.mint("deviation", **{k: v for k, v in fields.items()
                                if k not in ("frame", "transformation", "minted")})
@@ -228,7 +225,7 @@ def _carry(g: Graph, r: str, prev: str, frame: str) -> None:
 
 def _settle(g: Graph, r: str, tr: str, frame: str, result, minted) -> None:
     """Record what a real call produced: bind the nodes it minted, and point the subject's mapping at the
-    result — **a cast returns its subject**, so the first parameter's mapping now names the cast node."""
+    result — a cast returns its subject, so the first parameter's mapping now names the cast node."""
     _bind_minted(g, r, frame, minted)
     first_param = fn.subject_param(g, g.attr(tr, "function"))
     for b in g.targets(tr, "arg"):
@@ -255,12 +252,12 @@ def _bind_minted(g: Graph, r: str, frame: str, minted) -> None:
         bind(g, r, m, pool.pop(0))
 
 
-# --- ONE STEP ------------------------------------------------------------------------------------------
+# --- one STEP ------------------------------------------------------------------------------------------
 def step(g: Graph, r: str) -> bool:
-    """**Advance the replay by one frame: carry the bindings across, and run that frame's call for real.**
+    """Advance the replay by one frame: carry the bindings across, and run that frame's call for real.
     Returns `True` while there is more to do.
 
-    ⚠⚠ **This is the one stepper whose steps are IRREVERSIBLE.** An imagined step can be rewound and a
+    This is the one stepper whose steps are IRREVERSIBLE. An imagined step can be rewound and a
     search step costs only time; a step here reaches the world through `dispatch`, whose `commit()` is the
     honest admission that nothing after it can be undone. So the yield point matters more here than
     anywhere else — it is where *"should I do the next one?"* becomes an expressible question — and the
@@ -268,8 +265,8 @@ def step(g: Graph, r: str) -> bool:
     Pausing between two real acts is a capability; making acting look like any other tick is not.
 
     A deviation is recorded and stops the replay: what to do about it is `recover`'s decision, and it needs
-    the `frame`, the `transformation`, the real `result` and what the call `minted`, because **the call is
-    not re-run**."""
+    the `frame`, the `transformation`, the real `result` and what the call `minted`, because the call is
+    not re-run."""
     if finished(g, r):
         return False
     i = g.attr(r, "at", 0)
@@ -281,7 +278,7 @@ def step(g: Graph, r: str) -> bool:
     tr = g.target(frame, "via")
     if tr is None:
         return not finished(g, r)
-    name = g.attr(tr, "function")               # the REAL function, not the mock that was imagined
+    name = g.attr(tr, "function")               # the real function, not the mock that was imagined
     args, missing = {}, []
     for b in g.targets(tr, "arg"):
         param, m = g.attr(b, "param"), g.target(b, "mapping")
@@ -295,15 +292,15 @@ def step(g: Graph, r: str) -> bool:
                      f"something that does not exist in the real graph")
         return False
 
-    # ⚠⚠ A PRECONDITION THAT WENT FALSE WHILE WE WERE NOT LOOKING IS A DIVERGENCE, NOT A CRASH.
+    # A precondition that went false while we were NOT looking is a divergence, NOT a crash.
     # `fn.invoke` re-validates each parameter type at the call, which is the property that stops a plan
     # acting on a world it was not verified against — the *right* check in the right place. But it reports
     # by raising, and nothing between here and `loop.tick` caught it: the exception escaped the outer loop
-    # entirely, stranding this pursuit mid-`acting` **and killing every other task on the agenda with it**.
+    # entirely, stranding this pursuit mid-`acting` and killing every other task on the agenda with it.
     # A single-plan test cannot see that; it is exactly what concurrency makes routine.
     #
-    # ⭐ Recorded as an ordinary deviation, so the whole existing recovery ladder applies with no new
-    # machinery. ⚠ `result=None` is load-bearing rather than a placeholder: the call **never ran**, so
+    # Recorded as an ordinary deviation, so the whole existing recovery ladder applies with no new
+    # machinery. `result=None` is load-bearing rather than a placeholder: the call never ran, so
     # `matching_alternative` correctly declines to offer a contingency — there is no real outcome to settle
     # onto a sibling's mappings — and recovery goes to replanning, which is the honest move when the world
     # has moved rather than merely surprised us.
@@ -313,13 +310,13 @@ def step(g: Graph, r: str) -> bool:
         _diverge(g, r, step=name, frame=frame, transformation=tr, result=None, minted=(),
                  stale_precondition=True, param=getattr(e, "param", None),
                  expected=getattr(e, "want", None), violations=getattr(e, "violations", None),
-                 # ASCII only: §5j records the report being made unpipeable on a cp1252 console by one
-                 # non-ASCII glyph. And no `{e}` here - `expected` and `violations` above already carry it,
+                 # Ascii only: records the report being made unpipeable on a cp1252 console by one
+                 # non-ascii glyph. And no `{e}` here - `expected` and `violations` above already carry it,
                  # and `report` prints them; repeating it says the same thing twice in one paragraph.
                  why=f"{name} could not be applied: its {getattr(e, 'param', '?')} no longer satisfies "
                      f"what it requires. The world moved after this plan was verified.")
         return False
-    # WARN Read off the call itself, never off a whole-graph diff - `activation.minted`. The diff
+    # Warn Read off the call itself, never off a whole-graph diff - `activation.minted`. The diff
     # counted every node that appeared while the call ran, the interpreter's own state included.
     minted = list(ACT.minted(g, ACT.for_focus(g, called.node)))
     result = out.get("result") or args.get(fn.subject_param(g, name))
@@ -336,7 +333,7 @@ def step(g: Graph, r: str) -> bool:
 
     _settle(g, r, tr, frame, result, minted)
 
-    # ⭐ THE SECOND, WIDER CHECK. The cast above asks whether one node satisfies one schema; this asks
+    # The second, wider CHECK. The cast above asks whether one node satisfies one schema; this asks
     # whether the concrete things the step predicted actually happened — the file nodes materialised,
     # the count came back zero, the edge appeared. Checked AFTER `_settle` because binding what the
     # real call minted is what makes an imagined node addressable at all.
@@ -355,7 +352,7 @@ def execute(g: Graph, wb: str, leaf: str) -> dict:
     any notes about imagined nodes that could not be matched cleanly. The workbench travels in the report
     so recovery takes one argument — a deviation is only interpretable against the tree it came from.
 
-    ⚠ **A loop over `step`, and nothing else** — the same relationship `Machine.run` has to `Machine.tick`.
+    A loop over `step`, and nothing else — the same relationship `Machine.run` has to `Machine.tick`.
     A caller that wants to stop between two real actions drives `step` itself and owns the replay node."""
     r = open_execution(g, wb, leaf)
     while step(g, r):
@@ -364,9 +361,9 @@ def execute(g: Graph, wb: str, leaf: str) -> dict:
 
 
 def open_execution(g: Graph, wb: str, leaf: str) -> str:
-    """The replay `execute` would run, seeded and positioned at the start but **not yet stepped**.
+    """The replay `execute` would run, seeded and positioned at the start but not yet stepped.
 
-    ⭐ Extracted so there is ONE setup. `execute` calls it and loops; a pursuit being driven a tick at a
+    Extracted so there is one setup. `execute` calls it and loops; a pursuit being driven a tick at a
     time calls it and hands the node to the outer loop. Two setups that could drift is the defect shape
     this codebase keeps recording — a second one that forgot to seed frame 0's bindings would report every
     argument as unbound and call the plan impossible."""
@@ -396,13 +393,13 @@ def alternatives(g: Graph, wb: str, transformation: str) -> tuple:
 
 # --- recovery ---------------------------------------------------------------------------------------
 def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None = None):
-    """The explored branch that assumed **what reality actually did**, or `None`.
+    """The explored branch that assumed what reality actually did, or `None`.
 
     This is the whole payoff of forking deliberately: the test is the same `deviates` used to detect the
     problem, asked of each sibling's promise instead. A sibling that survives it is a plan for the world we
     are now in — imagined, checked, and needing no new thought.
 
-    ⚠ Restricted to siblings applying the **same function**. Siblings are alternative *successors*, which
+    Restricted to siblings applying the same function. Siblings are alternative *successors*, which
     need not be alternative *outcomes*; a fork may try a different action. Resuming into one of those would
     silently skip a call that never ran, and the caller would be told the plan completed."""
     if not deviation or deviation.get("result") is None:
@@ -413,7 +410,7 @@ def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None
             continue
         if W.deviates(g, tr, deviation["result"]):
             continue
-        # ⚠ A sibling must survive the SAME questions the failed branch did. When the divergence was a
+        # A sibling must survive the same questions the failed branch did. When the divergence was a
         # broken prediction rather than a failed cast, matching the declared type is not enough — this
         # branch predicted concrete things too, and offering it without checking them would swap one wrong
         # assumption for another. Its bindings are carried from the shared parent, as `resume` does.
@@ -421,7 +418,7 @@ def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None
             parent = _parent_of(g, wb, sib)
             if parent is None:
                 continue
-            # ⚠ A SCRATCH replay, dropped afterwards. Asking "would this sibling have held up?" means
+            # A scratch replay, dropped afterwards. Asking "would this sibling have held up?" means
             # settling reality onto its mappings, and doing that on the live replay would answer the
             # question by committing to it. The dict this used to copy was doing the same job; a node has
             # to be scrapped explicitly, which is the one cost of the state being real.
@@ -449,13 +446,13 @@ def discard_replay(g: Graph, r: str) -> None:
 
 def resume_replay(g: Graph, result: dict, *, branch=None, leaf=None):
     """Set up the continuation of a diverged execution down a branch that assumed what actually happened,
-    and return the **replay node**, ready to be stepped. `None` if there is no such branch.
+    and return the replay node, ready to be stepped. `None` if there is no such branch.
 
-    ⚠ Split from `resume` so recovery is steppable too. An outer loop that could pause between two acts of
+    Split from `resume` so recovery is steppable too. An outer loop that could pause between two acts of
     the original plan but not between two acts of its contingency would have a seam exactly where things
     have already started going wrong — which is the worst place to lose the ability to stop.
 
-    **The diverged call is not re-run.** It reached the world once; running it again would double its
+    The diverged call is not re-run. It reached the world once; running it again would double its
     effects and is the single thing most likely to be got wrong here. Instead its real outcome is settled
     onto the chosen branch's *own* mappings — carried from the shared parent frame, since siblings do not
     share mapping nodes — and replay picks up at the step after it.
@@ -474,7 +471,7 @@ def resume_replay(g: Graph, result: dict, *, branch=None, leaf=None):
     if leaf is None:
         leaf = leaves_under(g, wb, branch)[0]
     path = path_to(g, wb, leaf)
-    # ⭐ A FRESH replay seeded from the diverged one's state — not a continuation of it. The old replay
+    # A fresh replay seeded from the diverged one's state — not a continuation of it. The old replay
     # stopped on a deviation and that is a fact about it; carrying on inside it would erase the record of
     # where it stopped, which is the one thing recovery is reasoning from.
     r = open_replay(g, wb, path[path.index(branch):],
@@ -497,7 +494,7 @@ def resume(g: Graph, result: dict, *, branch=None, leaf=None):
 
 
 def replan(g: Graph, result: dict, want: str, *, subject=None, depth: int = 8):
-    """Propose afresh **from the world as it actually is**. Returns a lazy chain, or `None` if nothing in
+    """Propose afresh from the world as it actually is. Returns a lazy chain, or `None` if nothing in
     the library reaches `want` from here — an ordinary answer, not an error.
 
     The subject defaults to the diverged step's real result, because that node *is* the actual state: the

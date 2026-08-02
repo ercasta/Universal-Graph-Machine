@@ -1,42 +1,41 @@
-"""PLAN — backward chaining over declared return types, producing a LAZY chain.
+"""Plan — backward chaining over declared return types, producing a lazy chain.
 
-**The shape, in one sentence:** to obtain a `T`, find the functions that return `T`, make their parameter
-types the subgoals, and recurse — collecting a chain of *pending* calls that nothing has executed yet.
+To obtain a `T`, find the functions that return `T`, make their parameter types the subgoals, and
+recurse, collecting a chain of pending calls that nothing has executed yet.
 
-**Lazy is the important word, and it is the Spark analogy taken seriously.** Planning builds a chain; it
-does not run one. Transformations compose; an action materialises. That separation buys three things this
-project has wanted for a long time and previously had to engineer separately:
+Lazy is the important word. Planning builds a chain; it does not run one. Transformations
+compose, an action materialises, and that separation buys three things:
 
-* **A plan is data.** The chain is nodes and ordered edges like everything else, so it can be inspected,
-  compared against a rival plan, pointed at by a hypothesis, or handed to a language model to critique —
-  all before anything happens. This is what "rules as data" was ultimately for.
-* **Nothing is committed by thinking.** The old design needed a supposition mechanism to explore a plan
-  without acting. Here exploring is just... not calling `run`. There is no mode to be in.
-* **Two rival plans are two chains**, comparable side by side, which is exactly what non-greedy selection
+* A plan is data. The chain is nodes and ordered edges like everything else, so it can be
+  inspected, compared against a rival, pointed at by a hypothesis, or handed to a language model
+  to critique, all before anything happens.
+* Nothing is committed by thinking. Exploring a plan is simply not calling `run`. There is no
+  mode to be in and no supposition mechanism required.
+* Two rival plans are two chains, comparable side by side, which is what non-greedy selection
   will need.
 
-**Mutation needs no representation of its own — it is a CAST.** A type is a schema constraining a
-subgraph, attributes included (`types.declare_type`), in the way a Pydantic schema constrains a frame. So
-`service(c: car) -> serviced_car` is not "a function with a side effect"; it is a function that **casts a
-`car` into a `serviced_car`**, and the change to the graph is how the cast is achieved. Precondition and
-effect are just the parameter type and the return type. Nothing anywhere records that a mutation happened,
-because nothing needs to: the node either satisfies the stronger schema or it does not, and that is
-checkable at any moment rather than being a historical claim.
+Mutation needs no representation of its own, because it is a cast. A type is a schema
+constraining a subgraph, attributes included, so `service(c: car) -> serviced_car` is not a
+function with a side effect but one that casts a `car` into a `serviced_car`, and the change to
+the graph is how the cast is achieved. Precondition and effect are the parameter type and the
+return type. Nothing records that a mutation happened, because nothing needs to: the node either
+satisfies the stronger schema or it does not, checkable at any moment rather than being a
+historical claim.
 
-Two consequences worth stating, because they simplify things that looked like special cases:
+Two consequences worth stating, because they simplify things that look like special cases.
+Planning is chaining casts, so a function that creates a genuinely new node and one that
+strengthens an existing node are planned identically. And a cast returns its subject, which is
+why `run` falls back to the first bound argument when a function sets no result — creating
+something new is the case that must say so.
 
-* **Planning is chaining casts.** A function that creates a genuinely new node and a function that
-  strengthens an existing one are planned identically — both are "given these types, obtain that type."
-* **A cast returns its subject.** That is why `run` falls back to the first bound argument when a function
-  sets no `result`: it is not a convention papering over ambiguity, it is what a cast *is*. Creating
-  something new is the case that must say so, by setting `result`.
+Honest scope: depth-limited depth-first search taking the first solution it finds. There is no
+cost model, no preference between rival producers beyond declaration order, and no backtracking
+across an already-committed subgoal. It is adequate for chains of a handful of steps, which is
+the size this system needs, and should not be mistaken for a general-purpose planner. A recursion
+guard on the set of types currently being satisfied keeps a cyclic library from spinning, and the
+depth limit is the backstop.
 
-**Honest scope, stated rather than discovered later.** This is depth-limited depth-first search taking the
-first solution it finds. There is no cost model, no preference between rival producers beyond declaration
-order, and no backtracking across an already-committed subgoal. It is a planner adequate for chains of a
-handful of steps, which is the size this system actually needs — not a general-purpose one, and it should
-not be mistaken for it. A recursion guard on the set of types currently being satisfied keeps a cyclic
-library from spinning; the depth limit is the backstop.
+See `docs/planning.md`.
 """
 from __future__ import annotations
 
@@ -125,10 +124,10 @@ def describe(g: Graph, chain: str) -> str:
 
 
 def run(g: Graph, chain: str):
-    """THE ACTION. Execute a chain's pending calls in order and return the final node.
+    """The action. Execute a chain's pending calls in order and return the final node.
 
     A call's output is whatever its function left in `result`, and otherwise the node bound to its first
-    parameter — because **a cast returns its subject**. Setting `result` is how a function says "I made
+    parameter — because a cast returns its subject. Setting `result` is how a function says "I made
     something new" rather than "I strengthened what you gave me"; the fallback is the ordinary case, not a
     guess."""
     produced = {}

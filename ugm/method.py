@@ -1,31 +1,34 @@
-"""METHOD — an authored decomposition, as data, that selects itself.
+"""Method — an authored decomposition, as data, that selects itself.
 
-`docs/deliberation.md` `driver.follow` already runs a decomposition; this is what *builds* one, so an author
-never assembles subgoals by hand. A method says: **for a goal of this shape, in this context, raise these
-subgoals in this order** — and whether falling back to search is permitted if it does not work out.
+A method says: for a goal of this shape, in this context, raise these subgoals in this order —
+and whether falling back to search is permitted if it does not work out. `driver.follow` runs a
+decomposition; this is what builds one, so an author never assembles subgoals by hand.
 
-**⭐ A method is DATA, per the standing principle that microfunctions ship with the engine.** The matcher
-and the applier ship here; the methods themselves are nodes an author writes, a reader can inspect, and
-`conflict.py` can be taught to dispute. That is why the condition is a **pattern** rather than a program:
-two programs cannot be compared for disagreement, a CNL cannot refuse a bad one, and neither can a reader.
+A method is data, per the standing principle that functions ship with the engine and everything a
+domain contributes is data. The matcher and the applier ship here; the methods themselves are
+nodes an author writes, a reader can inspect, and a conflict detector can dispute. That is why
+the condition is a pattern rather than a program: two programs cannot be compared for
+disagreement, a controlled language cannot refuse a bad one, and neither can a reader.
 
-**⭐⭐ It prunes on AUTHORITY — a third justification, and it must be named rather than smuggled in.**
-`goal.forbid_action` prunes on a *proof*; `guideline.py` merely ranks a *guess*. A method replaces
-enumeration outright, which is where the exponential win lives (a decomposition instead of thousands of
-proposals) and also why it cannot be expressed as a ranker. The price is **completeness**: a wrong or
-non-covering method could make a reachable goal unreachable, and the only thing standing between that and
-disaster is the `ADVISORY` fallback. Hence the check that a goal solvable by search **stays solvable** when
-a non-covering method is added.
+It prunes on authority, which is a third justification and must be named rather than smuggled in.
+A prohibition prunes on a proof; a guideline ranks a guess. A method replaces enumeration
+outright, which is where the exponential win lives — a decomposition instead of thousands of
+proposals — and also why it cannot be expressed as a ranker. The price is completeness: a wrong
+or non-covering method could make a reachable goal unreachable, and the only thing standing
+between that and disaster is the advisory fallback. Hence the check that a goal solvable by
+search stays solvable when a non-covering method is added.
 
-**⭐ How CONTEXT is expressed, which was the open question.** A method is generic, so it cannot name an
-individual ancestor goal — and letting authors unroll context into position-specific methods would be the
-labelling error `goal.ancestry` exists to avoid. The structural answer: a subgoal raised by a method
-**points at that method**, so *"within a goal raised by `M`"* is an ordinary walk up `goal.ancestry` asking
-a structural question. No strings, no goal taxonomy, and it works for recursion.
+How context is expressed. A method is generic, so it cannot name an individual ancestor goal, and
+letting authors unroll context into position-specific methods would be a labelling error. The
+structural answer is that a subgoal raised by a method points at that method, so "within a goal
+raised by M" is an ordinary walk up the goal ancestry asking a structural question. No strings,
+no goal taxonomy, and it works for recursion.
 
-⚠ **Roles, not nodes.** A step says *the subject of the matched constraint*, never a particular block —
-otherwise a method would be about individuals and could not be reused, which is exactly why
-`types.py` refuses to let a schema name a target.
+Roles, not nodes. A step says the subject of the matched constraint, never a particular block;
+otherwise a method would be about individuals and could not be reused, which is exactly why a
+type schema may not name a target either.
+
+See `docs/deliberation.md`.
 """
 from __future__ import annotations
 
@@ -42,7 +45,7 @@ def method(g: Graph, *, handles: str, label: str | None = None, when: str | None
            because: str | None = None) -> str:
     """Declare a method. `handles` is a constraint sort (`link`/`attr`/`type`); `label` narrows it to a
     particular edge label or attribute key; `when` is a type the constraint's subject must satisfy;
-    `within` is another **method**, meaning this one only applies beneath a goal that one raised."""
+    `within` is another method, meaning this one only applies beneath a goal that one raised."""
     if handles not in ("link", "attr", "type"):
         raise ValueError(f"a method handles a constraint sort, not {handles!r}")
     if force not in G.FORCES:
@@ -57,32 +60,32 @@ def method(g: Graph, *, handles: str, label: str | None = None, when: str | None
 
 def step(g: Graph, m: str, *, sort: str, label: str | None = None, key: str | None = None,
          value=None, subject: str = SUBJECT, object: str = OBJECT, note: str | None = None) -> str:
-    """Append a step. Steps are an **ordered** edge, so declaration order is the `then` order, free —
+    """Append a step. Steps are an ordered edge, so declaration order is the `then` order, free —
     the same free ordering `mock` and `guideline` already rely on.
 
-    ⭐ A step **is a consequent** — the `achieve` kind, per `consequent.py`. It was its own `mstep` node
+    A step is a consequent — the `achieve` kind, per `consequent.py`. It was its own `mstep` node
     until the two right-hand sides were measured and found to differ in shape but not in reach."""
     return CQ.achieve(g, m, sort=sort, label=label, key=key, value=value,
                       subject=subject, object=object, note=note)
 
 
 def draw(g: Graph, m: str, *, name: str, ref: str, label: str, back: bool = False) -> str:
-    """`some <name> in <ref> by <link>` — bind a **further** role for this method's steps.
+    """`some <name> in <ref> by <link>` — bind a further role for this method's steps.
 
-    **⭐ The same form `criterion.draw` already provides, and it was missing here for no good reason.** A
+    The same form `criterion.draw` already provides, and it was missing here for no good reason. A
     method could speak only of `subject` and `object` — the matched constraint's — so a decomposition whose
-    steps concern a **third** individual had no form at all. That is the gap `docs/deliberation.md`
+    steps concern a third individual had no form at all. That is the gap `docs/deliberation.md`
     recorded for criteria, fixed there and never carried across; an earlier probe found it again
-    from the other side, on *"after you edit a file, lint THAT file"*.
+    from the other side, on *"after you edit a file, lint that file"*.
 
-    **⚠⚠ SINGULAR, and that restraint is the design, not a shortcut.** A draw reaches a *set*, and raising
+    Singular, and that restraint is the design, not a shortcut. A draw reaches a *set*, and raising
     one subgoal per candidate is exactly what `docs/limits.md` forbids first: *do not expand the plural
     step at plan time into N singular steps*, because a plan expanded over today's members is valid only
-    for the collection as it was when planned. So this binds the **nearest** candidate, like the reference
+    for the collection as it was when planned. So this binds the nearest candidate, like the reference
     language everywhere else, and the plural case stays where that document put it — slice B/C.
 
-    ⚠ And *"do it to each of them"* does **not** need this: slice A's `goal.witnesses` already makes a
-    universal constraint plannable one member at a time, measured. This is for naming ONE related thing."""
+    And *"do it to each of them"* does not need this: slice A's `goal.witnesses` already makes a
+    universal constraint plannable one member at a time, measured. This is for naming one related thing."""
     d = g.mint("draw", name=name, ref=ref, label=label, back=back)
     g.link(m, "draw", d)
     return d
@@ -104,7 +107,7 @@ def steps_of(g: Graph, m: str) -> tuple:
 def methods(g: Graph) -> tuple:
     """Every method, in declaration order — precedence order, free via `of_kind`'s mint order.
 
-    ⚠ Withdrawn methods are skipped — see `discourse.py`."""
+    Withdrawn methods are skipped — see `discourse.py`."""
     from .discourse import live
     return live(g, g.of_kind("method"))
 
@@ -115,7 +118,7 @@ def raised_by(g: Graph, goal: str):
 
 
 def under_method(g: Graph, goal: str, m: str) -> bool:
-    """Is `goal` at or beneath a goal raised by method `m`? **This is how context is asked**, and it is a
+    """Is `goal` at or beneath a goal raised by method `m`? This is how context is asked, and it is a
     structural walk rather than a name match — see the module docstring."""
     return any(raised_by(g, anc) == m for anc in G.ancestry(g, goal))
 
@@ -135,9 +138,9 @@ def matches(g: Graph, m: str, goal: str, c: str) -> bool:
 
 
 def applicable(g: Graph, goal: str, *, view=None, under: str | None = None) -> tuple:
-    """`(method, constraint)` pairs that could decompose this goal, in **declaration order**.
+    """`(method, constraint)` pairs that could decompose this goal, in declaration order.
 
-    ⚠ Asked of the goal's **unmet** constraints only. A method for something already true would raise
+    Asked of the goal's unmet constraints only. A method for something already true would raise
     subgoals for work nobody needs — the same reason `unmet` rather than `constraints` drives planning."""
     open_now = G.unmet(g, goal, view=view, under=under)
     return tuple((m, c) for m in methods(g) for c in open_now if matches(g, m, goal, c))
@@ -152,7 +155,7 @@ def _role_node(g: Graph, c: str, role: str, bound: dict | None = None):
 def _bind_draws(g: Graph, m: str, c: str) -> dict:
     """Resolve this method's drawn roles against the world, nearest-first.
 
-    ⚠ A draw that reaches **nothing** leaves its name unbound, and `decompose` then refuses rather than
+    A draw that reaches nothing leaves its name unbound, and `decompose` then refuses rather than
     raising a subgoal about `None`. `criterion._expand` makes the same call for the same reason: *"some
     container inside the warehouse"* when there is none is a situation the method has nothing to say
     about, not a method with a hole in it. Silently raising a subgoal with no subject is how a
@@ -178,7 +181,7 @@ def decompose(g: Graph, m: str, goal: str, c: str) -> tuple:
     if not steps:
         raise ValueError(f"method {g.attr(m, 'name') or m} has no steps; it would decompose into nothing, "
                          "which `goal.decomposed` would then read as an undecomposed goal")
-    # ⚠⚠ A METHOD IS A ROUTE, NOT A REDEFINITION — and getting this wrong poisoned the fallback that makes
+    # A method is a route, NOT a redefinition — and getting this wrong poisoned the fallback that makes
     # authority safe. The first version stamped `BY_STEPS` on every decomposed goal, so a goal with real
     # world constraints stopped being judged by them: when the advisory method then failed and `follow`
     # fell back to searching for that same goal, the goal could no longer be satisfied *by any route*,

@@ -1,52 +1,44 @@
-"""FOCUS — the set of current pointers into the graph, and the control mechanism that replaces matching.
+"""Focus — the set of current pointers into the graph, and the control mechanism that replaces matching.
 
-`docs/overview.md` left a load-bearing residue: with matching demoted to type validation, nothing decides
-what happens next. Under matching, dispatch was automatic and wrong; under microfunctions, nothing happens
-unless something chooses a function *and* an argument. **Focus is that choice, made explicit and made
-addressable.**
+With matching demoted to type validation, nothing decides what happens next unless something
+chooses a function and an argument. Focus is that choice, made explicit and made addressable.
 
-**The model.** A focus is a set of named **heads**, each a pointer at one node. Every graph starts with
-`root`, and every head starts there or is derived from another head. A microfunction is invoked on heads,
-not on "whatever matches" — which is precisely why wrong firing is structurally impossible rather than
-merely unlikely.
+A focus is a set of named heads, each a pointer at one node. Every graph starts with `root`, and
+every head starts there or is derived from another head. A function is invoked on heads rather
+than on whatever matches, which is why wrong firing is structurally impossible rather than merely
+unlikely.
 
-**Navigation is the whole vocabulary.** A head moves *forward* along a named edge (optionally by index,
-since targets are ordered), *backward* through an incoming edge (O(1), on the maintained reverse index),
-or *through a reference* stored as an attribute. Heads fork, so exploring two candidates is two heads
-rather than a copied world, and heads close when a line of inquiry is done.
+Navigation is the whole vocabulary. A head moves forward along a named edge, optionally by index
+since targets are ordered; backward through an incoming edge, which is O(1) on the maintained
+reverse index; or through a reference stored as an attribute. Heads fork, so exploring two
+candidates is two heads rather than a copied world, and heads close when a line of inquiry is
+done.
 
-**Why heads are named rather than positional.** A named head can be handed to a microfunction as an
-argument, stored in the graph as a `Ref` and picked up later, and — the reason that matters — *recorded*:
-"this operation was applied to this head" is the application node from `docs/concepts.md`, and the
-episode machinery built on it works unchanged.
+Heads are named rather than positional so that one can be handed to a function as an argument,
+stored in the graph as a `Ref` and picked up later, and recorded: "this operation was applied to
+this head" is what an application node says.
 
-**A move that fails does not raise.** It empties the head, and `has(name)` reports it. A failed navigation
-is an ordinary answer to an ordinary question ("is there a body?"), not an exception — the same reasoning
-that makes an out-of-range index `None` rather than an error.
+A move that fails does not raise. It empties the head, and `has(name)` reports it. A failed
+navigation is an ordinary answer to an ordinary question, the same reasoning that makes an
+out-of-range index `None` rather than an error.
 
-## ⭐⭐ The heads are GRAPH DATA, and that is the correction made on 2026-08-01
+The heads are graph data. Attention that lives in a Python object created fresh per call is the
+one part of this system that could not be reasoned about, and focus is as much interpreter state
+as the program counter and the registers. So a focus is a node, a head is a node, and where a
+head points is an edge:
 
-This class used to hold a Python `dict[str, str]` and its docstring said, approvingly, that it "holds no
-graph state itself". That was the defect, not the feature. `thread.py` exists because *attention was not
-data* — a deliberate shift of attention had to be recordable — and it materialised the shifts while leaving
-**the pointers themselves** in a Python object that was fresh per call and discarded. The design notes'
-inventory names it: focus is as much interpreter state as `pc` and the registers, and it is easy to miss
-because `Focus` looks like a helper rather than a loop variable.
+    focus --head--> head(name="c") --at--> car#7
 
-So a focus is a node, a head is a node, and where a head points is an edge:
+An emptied head is not a closed one, and the two must stay distinguishable: moving off the end of
+the world leaves the head node with no `at` edge, while `close` removes the head node altogether.
+That is what `has` versus `names` reports, and storing heads as edges preserves it exactly,
+because "a node with no outgoing edge" and "no node" are different states of the graph.
 
-```
-focus ──head──▶ head(name="c") ──at──▶ car#7
-```
+A focus is metadata about a computation, like an application or a mapping. It points at the node
+it is on, nothing in the world points back at it, and it does not hang off `root`, so
+`workbench.reachable` never copies one.
 
-⚠ **An emptied head is not a closed one**, and the two must stay distinguishable — `move` off the end of
-the world leaves the head node with no `at` edge, while `close` removes the head node altogether. That
-distinction predates this change and is what `has` versus `names` reports; storing heads as edges preserves
-it exactly, because "a node with no outgoing edge" and "no node" are different states of the graph.
-
-⚠ **Direction invariant** (`docs/planning.md`: a head points **at** the node it is on, and nothing
-in the world points back at a head. A focus is metadata about a computation, like an application or a
-mapping, and it does not hang off `root` — so `workbench.reachable` never copies one.
+See `docs/concepts.md`.
 """
 from __future__ import annotations
 
@@ -56,7 +48,7 @@ KINDS = ("focus", "head")
 
 
 class Focus:
-    """Named pointers into one graph, **stored in that graph**. Cheap to fork; readable by the system."""
+    """Named pointers into one graph, stored in that graph. Cheap to fork; readable by the system."""
 
     __slots__ = ("g", "node")
 
@@ -79,7 +71,7 @@ class Focus:
         return h
 
     def _point(self, name: str, at: str | None) -> None:
-        """Where a head points is ONE edge, replaced rather than appended — a head is a pointer, not a
+        """Where a head points is one edge, replaced rather than appended — a head is a pointer, not a
         collection, and letting `at` grow would make `Focus.at` silently answer with a stale first target."""
         h = self.head(name, make=True)
         while self.g.count(h, "at"):
@@ -110,7 +102,7 @@ class Focus:
         return None if h is None else self.g.target(h, "at")
 
     def has(self, name: str) -> bool:
-        """A head exists AND points somewhere. An emptied head is not the same as a closed one."""
+        """A head exists and points somewhere. An emptied head is not the same as a closed one."""
         return self.at(name) is not None
 
     @property

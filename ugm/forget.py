@@ -1,49 +1,42 @@
-"""FORGETTING — the slower clock, and the default.
+"""Forgetting — the slower clock, and the default.
 
-**The user's rule, 2026-08-01:** *forgetting is the default; remembering is the exception. The result of a
-tool call. Something that surprises us. Not ordinary things.*
+Forgetting is the default; remembering is the exception. The result of a tool call. Something
+that surprises us. Not ordinary things.
 
-## ⚠ Why this is not a reversal of §6a, which is what it looks like
+That is not a reversal of the rule for observations, which is untouched: an observation is the
+result of a tool call, and every one is kept, because dropping what you reasoned from can
+contradict conclusions already drawn. What it adds is the engine's own computational
+scaffolding. Measured on the three-block world, three ordinary goals grow the graph from 80 nodes
+to 892, of which about three quarters is scaffolding — searches, candidates, trace steps, frames,
+mappings, replays, bindings, activations, registers. So the rule generalises rather than
+reverses:
 
-the design notes recorded a table with **retention defaulting to KEEP**, because *dropping what you
-reasoned from can contradict conclusions already drawn*. That argument was made about **sightings** —
-observations taken at the dispatch boundary — and it is untouched here: an observation is the result of a
-tool call, and this module keeps every one of them.
+> Keep what you cannot re-derive. The two irreducible kinds are a crossing of the world and a
+> surprise. Everything else is re-derivable from the goal and the library, by thinking again.
 
-What §6a never considered is the thing the outer-loop arc then created: **the engine's own computational
-scaffolding**. Measured on the three-block world, three ordinary goals grow the graph from 80 nodes to 892,
-of which **76% is scaffolding** — searches, candidates, trace steps, frames, mappings, replays, bindings,
-activations, registers. So the rule generalises rather than reverses:
+Surprise needed no invention, because the engine already computes it three ways: `memory.attribute`
+answering that nothing the agent did could have caused a change, a `deviation` node recording
+that reality contradicted the plan, and `workbench.unmet_expectations` recording a prediction
+that failed. Retention had simply never been asked to consult them.
 
-> **Keep what you cannot re-derive.** The two irreducible kinds are **a crossing of the world** and **a
-> surprise**. Everything else is re-derivable from the goal and the library, by thinking again.
+The shape names the roots, not the rubbish. This is a mark-and-sweep whose root set is a claim
+about what matters. A list of droppable kinds would drift the moment a module adds one; a list of
+roots states the belief directly — these are the things nothing can reconstruct. The direction
+invariant does the rest for free: metadata points at what it describes and is never pointed at by
+it, so the world is a root that drags nothing in, while a surprise drags in exactly what it was a
+surprise about.
 
-⭐ And *surprise* needed no invention — the engine already computes it three ways: `memory.attribute`
-answering `EXTERNAL` (nothing I did could have caused this), a `deviation` node (reality contradicted the
-plan), and `workbench.unmet_expectations` (the prediction that failed). Retention had simply never been
-asked to consult them.
+It is a task rather than a pass. Forgetting goes on the same agenda as everything else and drops
+one record per tick. A sweep that ran to completion inside one call would be exactly the
+uninterruptible fixpoint this design exists to remove, and it would be the worst candidate for
+one, since it is the operation most likely to be worth stopping halfway. It is stoppable too, so
+a watcher can decide the system is forgetting too much.
 
-## The shape: name the ROOTS, not the rubbish
+The doomed set is computed once, when the pass opens. Scheduling new work during a sweep is
+undefined, because the graph is mutable and this holds references into it. Open a fresh pass
+instead.
 
-⚠ **This is a mark-and-sweep whose root set is a claim about what matters**, and that is deliberate. A list
-of droppable *kinds* would drift the moment a module adds one — the defect shape this codebase keeps
-recording. A list of roots states the belief directly: *these are the things nothing can reconstruct.*
-
-The direction invariant does the rest for free. Metadata points **at** what it describes and is never
-pointed at by it (`docs/planning.md`, so the world is a root that drags nothing in, while a
-surprise drags in exactly what it was a surprise *about*.
-
-## ⚠ It is a TASK, not a pass
-
-Forgetting goes on the same agenda as everything else and drops **one record per tick**. That is not
-tidiness: a sweep that ran to completion inside one call would be precisely the uninterruptible fixpoint
-this whole arc exists to remove, and it would be the *worst* candidate for one, since it is the operation
-most likely to be worth stopping halfway. It is also stoppable (`loop.finished` honours `stop`), which
-means a watcher can decide the system is forgetting too much.
-
-⚠ **The doomed set is computed once, when the pass opens.** Scheduling new work *during* a sweep is
-undefined for the same reason `driver.step` says stepping is a yield point and not isolation: the graph is
-mutable and this holds references into it. Open a fresh pass instead.
+See `docs/memory.md`.
 """
 from __future__ import annotations
 
@@ -51,41 +44,41 @@ from .graph import Graph
 
 KINDS = ("forgetting",)
 
-#: Kinds that are roots because **nothing can reconstruct them**. Everything else survives only by being
+#: Kinds that are roots because nothing can reconstruct them. Everything else survives only by being
 #: reachable from one of these.
 #:
-#: ⚠ `observation` is the *result of a tool call* and `deviation` is a *surprise* — the user's two
+#: `observation` is the *result of a tool call* and `deviation` is a *surprise* — the user's two
 #: exceptions, and the only two entries here that are about content rather than about scaffolding being
 #: absent. `thread` reaches every entry on it; `goal` reaches its constraints; `function` and `type` are
 #: the library, which is authored rather than derived.
 #:
-#: ⭐⭐ `loop` is the one that is not about the past at all, and it is what makes **live work safe without a
-#: special case**: an agenda points at its tasks, a pursuit points at its search, a search at its workbench
+#: `loop` is the one that is not about the past at all, and it is what makes live work safe without a
+#: special case: an agenda points at its tasks, a pursuit points at its search, a search at its workbench
 #: — so *being scheduled* is already the statement "this is what I am doing", and the closure protects it.
 #: The first version of this module took a hand-passed pin instead, and promptly swept the loop node itself
 #: out from under the sweep that was running on it.
 #:
-#: ⚠ There is deliberately **no `"thread"` here, and its absence is a finding**: a thread node's kind is
-#: `episode`, because §5b made a thread *an episode extended* — one record, not two. The first version
+#: There is deliberately no `"thread"` here, and its absence is a finding: a thread node's kind is
+#: `episode`, because made a thread *an episode extended* — one record, not two. The first version
 #: listed `"thread"`, which named nothing at all and read as protection that was in fact coming from
 #: `episode`. A planted-bug probe removing `"thread"` changed nothing, which is how it was caught.
 #:
-#: **⚠ Which of these actually protect anything — MEASURED, because assuming would have been wrong twice.**
+#: Which of these actually protect anything — measured, because assuming would have been wrong twice.
 #: Removing each in turn and counting what becomes doomed, over a watched world and a worked session:
 #:
 #: | root | status |
 #: |---|---|
-#: | `function`, `type` | **load-bearing** — the library is reachable from nothing else |
-#: | `episode` | **load-bearing**, and it carries the most (−83 nodes without it) |
-#: | `deviation` | **load-bearing when it stands alone**, i.e. once its replay has been swept |
-#: | `loop` | **load-bearing only while work is LIVE** — invisible to this table, proved by probe |
-#: | `root`, `goal`, `observation` | **currently redundant**: all three are reached via the thread |
+#: | `function`, `type` | load-bearing — the library is reachable from nothing else |
+#: | `episode` | load-bearing, and it carries the most (−83 nodes without it) |
+#: | `deviation` | load-bearing when it stands alone, i.e. once its replay has been swept |
+#: | `loop` | load-bearing only while work is live — invisible to this table, proved by probe |
+#: | `root`, `goal`, `observation` | currently redundant: all three are reached via the thread |
 #:
-#: ⚠ The redundant three are kept **deliberately, as statements of the rule** rather than as mechanism. An
+#: The redundant three are kept deliberately, as statements of the rule rather than as mechanism. An
 #: observation is one of the two things the rule exists to keep; that it *happens* to be reachable because
 #: it sits on the thread is a fact about today's shape, and the first compaction of old thread entries
 #: would silently turn "we keep what we saw" into "we keep what we saw, until the thread is tidied".
-#: ⭐ Saying so is the difference between a redundant root and a **dead** one — and there was a dead one
+#: Saying so is the difference between a redundant root and a dead one — and there was a dead one
 #: here: `"thread"` names no kind at all.
 ROOT_KINDS = ("root", "goal", "function", "type", "observation", "deviation", "episode", "loop")
 
@@ -93,7 +86,7 @@ ROOT_KINDS = ("root", "goal", "function", "type", "observation", "deviation", "e
 def roots(g: Graph, *, also=()) -> tuple:
     """Everything that cannot be re-derived, plus whatever a caller pins.
 
-    ⚠ `also` is how a **live** computation is protected: a task still on an agenda is not scaffolding, it
+    `also` is how a live computation is protected: a task still on an agenda is not scaffolding, it
     is work in progress, and forgetting it would be the difference between forgetting and crashing."""
     out = ["root"] if "root" in g.attrs else []
     for kind in ROOT_KINDS:
@@ -105,7 +98,7 @@ def roots(g: Graph, *, also=()) -> tuple:
 def keepers(g: Graph, *, also=()) -> dict:
     """The transitive closure of `roots` over outgoing edges, as an ordered set.
 
-    ⭐ Nothing here decides what a record *is*; it decides what a root can still **reach**. A settled
+    Nothing here decides what a record *is*; it decides what a root can still reach. A settled
     search is dropped not because searches are rubbish but because, once its pursuit has finished, no root
     points at it any more. A surprise keeps the frames it was a surprise about, because the `deviation`
     node points at them — which is the direction invariant paying for itself a second time."""
@@ -145,13 +138,13 @@ def kept_because(g: Graph, node: str, *, also=()) -> str:
     return "nothing keeps it"
 
 
-# --- COMPACT: imagined evidence is superseded by real evidence -----------------------------------------
+# --- compact: imagined evidence is superseded by real evidence -----------------------------------------
 def compact(g: Graph) -> tuple:
-    """Drop the **imagined** evidence for a claim that has since acquired **real** evidence.
+    """Drop the imagined evidence for a claim that has since acquired real evidence.
 
-    ⭐⭐ This is §6a's `COMPACT`, and it turned out to be a *rule* rather than a mechanism — the whole of it
-    is knowing **when a record is superseded**. `goal.py` already keeps the two kinds of evidence rigorously
-    apart, because conflating them was a real defect (§5g: the driver closed a world goal on imagined
+    This is's `COMPACT`, and it turned out to be a *rule* rather than a mechanism — the whole of it
+    is knowing when a record is superseded. `goal.py` already keeps the two kinds of evidence rigorously
+    apart, because conflating them was a real defect (: the driver closed a world goal on imagined
     evidence, so a goal read as met while nothing had happened):
 
     | record | means |
@@ -159,17 +152,17 @@ def compact(g: Graph) -> tuple:
     | `planned` + `seen_in` + `planned_witness` | *I know how to do this* — an imagined frame |
     | `closed` + `met_by` | *this is now true* — a real node |
 
-    So once a goal is **closed**, `seen_in` points into an imagination of a world that no longer exists,
+    So once a goal is closed, `seen_in` points into an imagination of a world that no longer exists,
     while `met_by` is the same claim with better evidence. Dropping the first loses nothing and releases the
-    workbench behind it — measured at **51 further nodes** on a three-goal session, 22% of what survives a
+    workbench behind it — measured at 51 further nodes on a three-goal session, 22% of what survives a
     sweep, because one edge into one frame keeps every frame, mapping and transformation it can reach.
 
-    ⚠ **Only when closed, and that is the entire correctness condition.** A goal that is planned and *not*
+    Only when closed, and that is the entire correctness condition. A goal that is planned and *not*
     carried out has no other evidence — its imagined frame is the only account of how it would be met, and
     `execution.recover` needs the frame tree it belongs to. Compacting that would not be tidying, it would
     be forgetting the plan.
 
-    ⚠ `planned` itself stays. The distinction §5g exists to protect is between *knowing how* and *it being
+    `planned` itself stays. The distinction exists to protect is between *knowing how* and *it being
     true*, and both flags survive; what goes is only the pointer into the imagination."""
     freed = []
     for x in g.of_kind("goal"):
@@ -186,7 +179,7 @@ def compact(g: Graph) -> tuple:
 def open_forgetting(g: Graph, *, also=(), label: str = "forgetting", compacting: bool = True) -> str:
     """Work out what is re-derivable, and queue it to be dropped one record per tick.
 
-    ⚠ `compact` runs **first and eagerly**, before the doomed set is worked out, because it changes what is
+    `compact` runs first and eagerly, before the doomed set is worked out, because it changes what is
     reachable — that is the point of it. It is not queued a-record-per-tick like the sweep: an unlink is not
     a loss, it is the removal of a claim that a *better* record already makes, so there is nothing to be
     stopped in the middle of."""
@@ -204,24 +197,24 @@ def finished(g: Graph, f: str) -> bool:
 
 
 def step(g: Graph, f: str) -> bool:
-    """Forget **one** record. `True` while there is more to forget.
+    """Forget one record. `True` while there is more to forget.
 
-    ⚠⚠ **The worklist is CONSUMED FROM THE FRONT, never indexed into, and that is not a style choice.**
+    The worklist is consumed from the front, never indexed into, and that is not a style choice.
     The queue is an edge list, and `Graph.drop` removes every edge pointing at the node it drops —
     including this task's own `doomed` edge to it. So a cursor (`at`, incremented per step) walked a list
-    that shrank underneath it and **silently forgot every other record**: measured at 892 → 564 nodes when
+    that shrank underneath it and silently forgot every other record: measured at 892 → 564 nodes when
     the sweep had marked 798 of them. It looked like a working sweep, because the answers it must preserve
     were all still preserved and the node count really did go down.
 
     Same family as `search-was-irreproducible-set-tiebreak`: not a wrong answer, a *quietly partial* one,
     produced by a container whose behaviour the walk did not account for.
 
-    ⚠ A node may also have gone already — dropping one record can be the last thing pointing at another.
+    A node may also have gone already — dropping one record can be the last thing pointing at another.
     Absent is the outcome either way, so `dropped` counts what actually went rather than what was planned."""
     if finished(g, f):
         return False
     n = g.targets(f, "doomed")[0]
-    g.unlink(f, "doomed", index=0)               # off the queue FIRST, so `drop` cannot shift it
+    g.unlink(f, "doomed", index=0)               # off the queue first, so `drop` cannot shift it
     g.put(f, at=g.attr(f, "at", 0) + 1)
     if n in g.attrs:
         g.drop(n)

@@ -1,38 +1,37 @@
-"""THE SUBSTRATE — mutable nodes, named edges, ordered targets, references, and an undo journal.
+"""The substrate — mutable nodes, named edges, ordered targets, references, and an undo journal.
 
-**Mutable, deliberately.** The first version of this module was persistent (copy-on-write), which cost
-O(size) per write to buy one thing: hypothesis-by-running (`docs/overview.md` — run a microfunction against
-a scratch graph, read the answer, discard). Copying the world to ask a question is the wrong trade, and it
-is not how anything that handles volume does it.
+Mutable, deliberately. A persistent copy-on-write substrate costs O(size) per write to buy
+hypothesis-by-running, and copying the world to ask a question is the wrong trade.
 
-**What replaces it: an undo journal.** Every mutation records how to reverse itself. `savepoint()` returns
-a marker; `rollback(sp)` reverses back to it. This is what a database does, and it is strictly better than
-copy-on-write for the purpose — cost is O(changes made), not O(size of graph), so a cheap hypothesis is
-cheap even in a large graph. §4's capability is preserved with its economics inverted:
+What replaces it is an undo journal. Every mutation records how to reverse itself, `savepoint()`
+returns a marker and `rollback(sp)` reverses back to it, at a cost proportional to the changes
+made rather than to the size of the graph:
 
     sp = g.savepoint()
-    run_the_microfunction(g)          # freely mutate
+    run_the_function(g)               # freely mutate
     answer = read_something(g)
     g.rollback(sp)                    # pencil erased, exactly
 
-**Three representational commitments.**
+Three representational commitments.
 
-*Named edges with ordered targets.* A label maps to an ordered LIST of targets: a single-valued relation is
-length 1, a 1:N relation (`list --item--> a, b, c`) is longer, and index addressing is a list index.
+Named edges with ordered targets. A label maps to an ordered list of targets: a single-valued
+relation is length 1, a one-to-many relation is longer, and index addressing is a list index.
 
-*Edge properties.* What role nodes used to buy — saying something ABOUT a connection — without charging a
-node per connection. Keyed by `(src, label, index)`, and shifted whenever an insert or removal moves the
-edges they describe.
+Edge properties. What role nodes used to buy — saying something about a connection — without
+charging a node per connection. Keyed by position, and shifted whenever an insert or removal
+moves the edges they describe.
 
-*References.* A node attribute may hold a `Ref` to another node. This is distinct from an edge, and the
-distinction is worth keeping sharp: an **edge** is a relation, part of what the graph asserts; a
-**reference** is a stored pointer, the graph's equivalent of a variable holding an address. A focus head
-saved for later, or one node naming another as data, is a reference — not a claim that the two are related.
+References. A node attribute may hold a `Ref` to another node, and this is distinct from an edge.
+An edge is a relation, part of what the graph asserts; a reference is a stored pointer, the
+graph's equivalent of a variable holding an address. A focus head saved for later, or one node
+naming another as data, is a reference rather than a claim that the two are related.
 
-**The reverse index** (`inc`) is maintained incrementally, which mutability makes practical. It is keyed by
-`(src, label)` WITHOUT the index, deliberately: keeping indices in a reverse index means every insert
-rewrites unrelated entries, which is the kind of bookkeeping that is quietly wrong for a long time. The
-index within a label is recovered by looking in that label's short list.
+The reverse index is maintained incrementally, which mutability makes practical. It is keyed
+without the position, deliberately: keeping indices in a reverse index means every insert
+rewrites unrelated entries, which is the kind of bookkeeping that is quietly wrong for a long
+time. The index within a label is recovered by looking in that label's short list.
+
+See `docs/concepts.md`.
 """
 from __future__ import annotations
 
@@ -57,18 +56,18 @@ class Graph:
     def __init__(self) -> None:
         self.attrs: dict[str, dict] = {}
         self.out: dict[tuple, list] = {}       # (src, label) -> [dst, …] ordered
-        # ⭐⭐ EDGES HAVE IDENTITY. `eids` runs parallel to `out`, same order, written only by `_insert`
-        # and `unlink`. ⚠ Parallel rather than packing `(dst, eid)` into `out` on purpose: `targets` is
+        # Edges have identity. `eids` runs parallel to `out`, same order, written only by `_insert`
+        # and `unlink`. Parallel rather than packing `(dst, eid)` into `out` on purpose: `targets` is
         # the hottest read in the engine (161 call sites) and stays an allocation-free dict lookup.
         # The sync risk is handled the way `thread._append` handles its two orderings — one writer, and
         # a check that they cannot disagree.
         self.eids: dict[tuple, list] = {}      # (src, label) -> [eid, …] parallel to `out`
         self.edges: dict[str, tuple] = {}      # eid -> (src, label, dst)
-        # ⚠ `inc` is keyed by whatever is pointed AT, and an eid is an ordinary string, so an edge can be
+        # `inc` is keyed by whatever is pointed AT, and an eid is an ordinary string, so an edge can be
         # a link target with no change here. That is what makes "what refers to this edge?" O(1).
         self.inc: dict[str, set] = {}          # dst -> {(src, label), …}   dst may be a node OR an edge
         self.bykind: dict[str, dict] = {}      # kind -> {node: None} in mint order — see `of_kind`
-        self.eprops: dict[str, dict] = {}      # eid -> {k: v}   ← keyed by IDENTITY, never by position
+        self.eprops: dict[str, dict] = {}      # eid -> {k: v}   ← keyed by identity, never by position
         self._journal: list = []
         self._recording = True
 
@@ -120,8 +119,8 @@ class Graph:
         return tuple(sorted(lbl for (s, lbl) in self.out if s == src))
 
     def edge_prop(self, src: str, label: str, index: int, key: str, default=None):
-        """⚠ Kept, signature unchanged, because five callers address an edge positionally and that is
-        still a reasonable thing to do. It now resolves the position to an **id** and reads the property
+        """Kept, signature unchanged, because five callers address an edge positionally and that is
+        still a reasonable thing to do. It now resolves the position to an id and reads the property
         off that, so what used to be maintained by shifting is a lookup."""
         eid = self.edge_at(src, label, index)
         return default if eid is None else self.eprops.get(eid, {}).get(key, default)
@@ -146,13 +145,13 @@ class Graph:
     def of_kind(self, kind: str) -> tuple:
         """Every node of `kind`, in mint order — O(#that kind), maintained by `mint` and `drop`.
 
-        **⭐ This is the same shape as `inc`, and legitimate for the same reason: the SUBSTRATE maintains
-        it, so it cannot drift.** It is not a rule asserting a claim about a node — the only way to acquire
+        This is the same shape as `inc`, and legitimate for the same reason: the substrate maintains
+        it, so it cannot drift. It is not a rule asserting a claim about a node — the only way to acquire
         a kind is to be minted with one, and `put` refuses to change it. Contrast `types.tag`, which stamps
         `is_a` and *is* a claim, and so has to be re-validated on every read.
 
         Why it exists: `types.find_type` and `function.find` scanned `g.nodes` — materialising a tuple of
-        every node in the graph — on **every** lookup, and `violations` reaches `find_type` about four
+        every node in the graph — on every lookup, and `violations` reaches `find_type` about four
         times per call (itself, plus `schema_of` and `attrs_of`, plus one per `base` hop). Measured on one
         `driver.proposals` enumeration over a world holding 200 nodes that can bind to nothing: 21,525
         `find_type` calls and 21,575 `g.nodes` tuple builds. That is why inert world content cost 57× the
@@ -173,7 +172,7 @@ class Graph:
         return node
 
     def put(self, node: str, **attrs) -> str:
-        # ⚠ `kind` is set once, at mint, and `of_kind` indexes on it. Letting `put` change it would make
+        # `kind` is set once, at mint, and `of_kind` indexes on it. Letting `put` change it would make
         # the index drift silently — the defect class this codebase keeps re-finding. Nothing does it
         # (`_copy_set` already excludes `kind` explicitly, calling it "positional"), so this refuses rather
         # than maintaining machinery for a case that should not exist.
@@ -199,16 +198,16 @@ class Graph:
         self.put(node, **{key: Ref(target)})
 
     def link(self, src: str, label: str, dst: str, **props) -> str:
-        """Append an edge. **Returns its id**, which is stable for as long as the edge exists."""
+        """Append an edge. Returns its id, which is stable for as long as the edge exists."""
         return self._insert(src, label, len(self.out.get((src, label), ())), dst, props)
 
     def link_at(self, src: str, label: str, index: int, dst: str, **props) -> str:
-        """Insert at a position, shifting later edges right. **Their properties come with them**, and now
+        """Insert at a position, shifting later edges right. Their properties come with them, and now
         for free: a property belongs to an edge id, so nothing has to be reindexed to keep it attached."""
         return self._insert(src, label, index, dst, props)
 
     def _insert(self, src: str, label: str, index: int, dst: str, props: dict) -> str:
-        """⚠ **THE ONLY PLACE AN EDGE IS CREATED**, so `out` and `eids` cannot disagree about order. That
+        """the only place an edge is created, so `out` and `eids` cannot disagree about order. That
         is the same discipline `thread._append` keeps for its two orderings, and it earns a check for the
         same reason: two parallel lists maintained in more than one place would drift silently."""
         tgts = self.out.setdefault((src, label), [])
@@ -258,7 +257,7 @@ class Graph:
             self.eids.pop((src, label), None)
 
         def undo():
-            # ⚠ The SAME id comes back. A rollback that minted a fresh one would leave anything pointing
+            # The same id comes back. A rollback that minted a fresh one would leave anything pointing
             # at this edge — a moment that dated it, say — dangling at something that no longer exists,
             # which is exactly the guarantee edge identity was added to provide.
             self.out.setdefault((src, label), tgts).insert(index, removed)
@@ -279,7 +278,7 @@ class Graph:
             for d in self.targets(node, lbl):
                 self.inc.get(d, set()).discard((node, lbl))
             saved = self.out.pop((node, lbl))
-            # ⚠ The id indexes must go with the targets. Popping `out` alone left `eids` and `edges`
+            # The id indexes must go with the targets. Popping `out` alone left `eids` and `edges`
             # holding ids for edges that no longer exist — `edge_ends` would answer confidently about a
             # dropped edge, which is worse than answering `None`.
             saved_ids = self.eids.pop((node, lbl), [])
@@ -305,13 +304,13 @@ class Graph:
             self._undo(undo)
 
     # --- edges as things you can point at -----------------------------------------------------------
-    # ⭐⭐⭐ `_reindex` / `_label_props` / `_restore_props` used to live here — three functions and a
+    # `_reindex` / `_label_props` / `_restore_props` used to live here — three functions and a
     # rollback dance that existed for one reason: `eprops` was keyed by `(src, label, index)`, so every
     # insertion had to walk the label's properties and shift them. Edge identity deletes all of it. A
-    # property belongs to an **edge**, and an edge does not move when its neighbours do.
+    # property belongs to an edge, and an edge does not move when its neighbours do.
 
     def edge_at(self, src: str, label: str, index: int):
-        """The id of the edge at this position, or `None`. ⚠ The POSITION is what shifts; the id does not."""
+        """The id of the edge at this position, or `None`. The position is what shifts; the id does not."""
         ids = self.eids.get((src, label), ())
         return ids[index] if -len(ids) <= index < len(ids) else None
 
@@ -344,7 +343,7 @@ _MISSING = _Missing()
 
 
 class _Unknown:
-    """⭐⭐ **NOT LOOKED, as distinct from NOT THERE** — the one thing this substrate could not say.
+    """NOT looked, as distinct from NOT there — the one thing this substrate could not say.
 
     An attribute was present or absent, and absence meant *lacks it*. So the engine could perform
     information-gathering actions but could only model them as world-*changing* ones: `scan_dir`'s mock
@@ -352,12 +351,12 @@ class _Unknown:
     "we have not looked", an information-gathering subgoal had nothing to close and "did that help?" had
     no answer.
 
-    ⚠ **Explicit only, and that restraint is the design.** Absence still means *lacks it*; a slot is
+    Explicit only, and that restraint is the design. Absence still means *lacks it*; a slot is
     unknown only when something says so. Treating every absence as ignorance would make the whole graph
     unknown and every constraint undecidable — and it would be untrue, because most absences really are
     knowledge. What the system knows it does not know is a fact an author (or a mock) states.
 
-    ⚠ **Attribute slots only.** An absent *edge* has nowhere to hang a marker — there is no slot to write
+    Attribute slots only. An absent *edge* has nowhere to hang a marker — there is no slot to write
     on — which is the same substrate limit that makes an edge property unaddressable. Recorded rather than
     worked around."""
 
@@ -365,7 +364,7 @@ class _Unknown:
         return "UNKNOWN"
 
     def __bool__(self) -> bool:
-        # ⚠ Falsy on purpose: `if g.attr(n, k):` must not read ignorance as a value.
+        # Falsy on purpose: `if g.attr(n, k):` must not read ignorance as a value.
         return False
 
 
