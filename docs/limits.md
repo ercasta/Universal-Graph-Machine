@@ -167,9 +167,38 @@ live, and there is nothing to compute it from.
 
 ### Aggregation over a population
 
-*Total size*, *the average*, *how many are there*. Counting one edge label exists, arithmetic exists,
-and a stored program can iterate, so a rule can compute these. What is missing is any way for a goal
-or a question to **speak** of them — which is the denotation gap again.
+*Total size*, *the average*, *how many are there*. Counting one edge label exists, accumulation
+exists (see below), and a stored program can iterate, so a rule can compute these. What is missing is
+any way for a goal or a question to **speak** of them — which is the denotation gap again.
+
+### Arithmetic beyond accumulation — decided, not missing
+
+`ADD` is the only arithmetic opcode. There is no `SUB` and no `MUL`, and this is a decision rather
+than where the work stopped: **computing a quantity is a tool's job.** A price, a fee, a spread, a
+margin, a position value — the tool computes it and writes the result as a slot, and the instruction
+set only accumulates what the world has already handed it. The alternative is an opcode table that
+grows once per domain that needs a different sum, which is how a closed set stops being one.
+
+This is a live constraint on how a numeric domain is modelled, so the two consequences are worth
+stating plainly.
+
+**Subtraction is expressible only as the addition of a negative the graph already holds.** A negative
+*literal* works — `CONST R(x) -140` then `ADD` — but nothing negates a value read out of the world,
+so `cash -= ask`, where the ask is a slot, cannot be written. The modelling answer is that the
+observing tool writes the signed delta it caused (`cash_delta = -140`) rather than the magnitude, and
+the body adds it. That is not a workaround: a tool that knows what a trade costs is the thing that
+knows its sign.
+
+**A mock can only predict a numeric effect in terms of a delta already on the graph.** Planning is
+structurally incapable of dispatch — `dispatch.service` refuses an imagined target, deliberately and
+for the most important safety reason in the design — so a quantity that only a tool can compute has
+no value during planning. Where the delta was observed before the plan was made, the mock predicts it
+and divergence on the quantity is checkable as usual. Where it was not, the mock cannot state the
+number, and the effect is checkable only after the fact. `position_value = count × price` is the
+plain case: it is computable by a tool, and not predictable by a mock.
+
+A `NATIVE` is *not* the escape hatch here. `native.py` is explicit that natives are substrate and
+their contents must not be business, and domain arithmetic is business.
 
 ## Modelling gaps
 
