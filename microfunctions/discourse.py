@@ -51,6 +51,34 @@ useful than one with a hole where the reason was.
 
 ⚠ **Withdrawal is a mark, never a deletion**, for the same reason. `is_withdrawn` is asked at enumeration
 time by the three functions that enumerate authored data, so nothing has to remember to filter.
+
+## ⭐⭐⭐ THE CONVENTIONS ARE A PROTOCOL, because the graph is shared
+
+The premise (the user's, 2026-08-02): *another piece of software may write into the graph, using its own
+locks, respecting the conventions for representing the discourse.* That makes the **conversation the
+integration surface**, and these conventions stop being this module's private business. To participate,
+write exactly this and nothing else is required:
+
+| | |
+|---|---|
+| the utterance | a node of kind `utterance`, on the conversation's ordered `utterance` edge |
+| who said it | a `by` edge to an **agent** node (kind `agent`, hanging off `root`) |
+| what it says | `text` and/or `verb` attributes; an `about` edge if it authored something |
+| standing | an `authority_over` edge between agents — transitive, and the only thing that lets one speaker withdraw another's |
+
+⚠ **An utterance nobody has attended is heard by nobody, and that is the honest reading.** `utterances`
+reads off the **thread**, so an external write is invisible until `attend_new` brings it in — measured, and
+it was a real hole. Attending is what puts it into the one order retraction depends on.
+
+⚠⚠ **Two constraints the locking discipline must respect, and they are not ours to enforce:**
+
+* **A rollback boundary must not span an external write.** `intake.read` is savepoint-scoped and rolls back
+  on refusal — a property `feedback_from_harneskills` §6 depends on for parse-as-you-type — so a concurrent
+  writer inside that window would be undone by a rollback that has nothing to do with it. Exactly parallel
+  to `dispatch.py`'s *"a rollback boundary must never span a dispatch"*, and for the same reason: past that
+  point the journal is a lie about what can be undone.
+* **Mint-then-link must be atomic to other readers.** An utterance linked to the conversation before its
+  `by` edge exists is, for one instant, an utterance nobody said — and `attend_new` would take it.
 """
 from __future__ import annotations
 
@@ -135,6 +163,37 @@ def utterances(g: Graph, thread: str, *, by=None) -> tuple:
         if u is not None and g.kind(u) == UTTERANCE and (who is None or g.target(u, "by") == who):
             out.append(u)
     return tuple(out)
+
+
+def unattended(g: Graph, thread: str) -> tuple:
+    """Utterances in the conversation this thread has **not** attended — what somebody ELSE wrote.
+
+    ⭐⭐ **This is the interop hole, and it falls straight out of the graph being shared.** The premise
+    (the user's, 2026-08-02) is that *another piece of software may write into the graph, using its own
+    locks, respecting the conventions for representing the discourse*. Under that premise the conversation
+    is the **integration surface** — an external agent mints an utterance with a speaker and links it,
+    exactly as `_utter` does — and the engine was structurally unable to see it: `utterances` reads off the
+    **thread**, which is the record of what *this* system attended. Measured: two utterances in the
+    conversation, one visible.
+
+    ⚠ So the conventions stop being an implementation detail of this module and become a **protocol**.
+    An utterance is: kind `utterance`, on the conversation's `utterance` edge, with a `by` edge to an
+    agent, optional `text` / `verb`, optional `about`. Anything writing that shape is a participant."""
+    seen = set(utterances(g, thread, by=None))
+    return tuple(u for u in g.targets(conversation(g), "utterance") if u not in seen)
+
+
+def attend_new(g: Graph, thread: str, *, why: str = "heard") -> tuple:
+    """Bring everything somebody else said onto this thread, in conversation order. Returns what arrived.
+
+    ⚠ **Attending is what puts an external utterance into the ONE order retraction depends on** — *was
+    this already acted on?* is answerable only because utterances and applications share the thread's
+    `step` edge. An utterance sitting in the conversation unattended is heard by nobody, which is the
+    honest reading: the system has not looked at it yet."""
+    fresh = unattended(g, thread)
+    for u in fresh:
+        T.attend(g, thread, u, why=why, note=g.attr(u, "verb"))
+    return fresh
 
 
 def last_said(g: Graph, thread: str, *, by: str | None = USER):
@@ -322,5 +381,5 @@ def said_by(g: Graph, utterance: str):
 
 
 __all__ = ["USER", "SYSTEM", "UTTERANCE", "ASK_USER", "speaker", "conversation", "say", "utterances",
-           "last_said", "authority", "may_withdraw", "retract", "is_withdrawn", "live", "withdrawn_at",
+           "unattended", "attend_new", "last_said", "authority", "may_withdraw", "retract", "is_withdrawn", "live", "withdrawn_at",
            "ask", "answered", "pending", "said_by", "describe"]

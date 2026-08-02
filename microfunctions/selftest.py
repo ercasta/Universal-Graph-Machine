@@ -906,6 +906,137 @@ def check_a_prohibition_can_be_DEFEATED_and_the_arbitration_is_data():
             "AND_IT_IS_AUDITABLE": "overriding" in audit and "house" in audit and "today" in audit}
 
 
+def check_the_engine_HEARS_what_another_process_wrote():
+    """⭐⭐⭐ The premise (the user's, 2026-08-02): *another piece of software may write into the graph,
+    using its own locks, respecting the conventions for representing the discourse.* Under that premise the
+    **conversation is the integration surface** — and the engine was structurally unable to see anything
+    put there by anyone else.
+
+    **Measured before the fix:** two utterances on the conversation, **one** visible, because `utterances`
+    reads off the *thread* — the record of what **this** system attended. An external writer's utterance is
+    in the world and heard by nobody.
+
+    ⚠ **Attending is not a formality: it is what puts an external utterance into the ONE order retraction
+    depends on.** *"Was this already acted on?"* is answerable only because utterances and applications
+    share the thread's `step` edge, so an utterance that never reaches the thread can never be reasoned
+    about in time.
+
+    ⚠ Vacuity guards. The external utterance must be **invisible first** — otherwise `attend_new` could be
+    a no-op and every key would still pass. It must arrive **in conversation order**, not appended
+    arbitrarily. It must be **idempotent**: attending twice must not double it, since a loop will call this
+    every tick. And the engine's own utterances must not be re-attended, or every tick would duplicate the
+    whole history."""
+    from . import discourse as DC, thread as T
+
+    g = new_graph()
+    th = T.open_thread(g)
+    DC.say(g, th, _lines("prefer mine:", "    action put_in"), by="me")
+
+    def externally_write(text, who):
+        """Exactly the convention another process must follow — no engine call involved."""
+        u = g.mint(DC.UTTERANCE, kind_of=DC.UTTERANCE, verb="prefer", text=text)
+        g.link(DC.conversation(g), "utterance", u)
+        g.link(u, "by", DC.speaker(g, who))
+        return u
+
+    first = externally_write("prefer theirs", "other_agent")
+    second = externally_write("prefer a third thing", "third_party")
+
+    invisible_before = DC.utterances(g, th) == (DC.utterances(g, th)[0],) and \
+        first not in DC.utterances(g, th)
+    waiting = DC.unattended(g, th)
+
+    arrived = DC.attend_new(g, th)
+    heard = DC.utterances(g, th, by=None)
+
+    again = DC.attend_new(g, th)                       # idempotent: a loop calls this every tick
+    after = DC.utterances(g, th, by=None)
+
+    return {"THE_EXTERNAL_UTTERANCE_IS_INVISIBLE_AT_FIRST": invisible_before,
+            "and_it_is_listed_as_UNATTENDED": waiting == (first, second),
+            "ATTENDING_BRINGS_IT_ONTO_THE_THREAD": arrived == (first, second),
+            "IN_CONVERSATION_ORDER": heard[-2:] == (first, second),
+            "so_it_joins_the_ONE_ORDER_retraction_needs":
+                all(u in DC.utterances(g, th, by=None) for u in (first, second)),
+            "the_speaker_survived_as_a_NODE":
+                DC.said_by(g, first) == DC.speaker(g, "other_agent"),
+            "attending_again_is_IDEMPOTENT": again == () and after == heard,
+            "and_our_own_utterances_are_not_re_attended": len(heard) == 3}
+
+
+def check_TIME_is_a_node_that_points_at_what_it_dates():
+    """⭐⭐⭐ Time was four unconnected notions and **no clock at all** — no `time.time()`, no `datetime`,
+    anywhere in the engine. `locate.py` ran the full Allen algebra over `at`/`start`/`end` **attribute
+    values**; `memory` ordered by thread position; frames held imagined before/after; `application` had
+    thread order. None of them was a node, so nothing could relate them.
+
+    **The specification (the user's, 2026-08-02):** *everything observed or acted must have an absolute
+    timestamp, and the timestamp is not a label on a node or edge — it is a separate node that points to
+    them.* The direction is the design:
+
+    * **one look dates many facts**, which is the natural cardinality of a moment pointing at things, and
+      would need the same reading copied onto each observation if time were an attribute;
+    * **dating is non-invasive** — nothing already in the graph is touched to acquire a time;
+    * it matches the metadata direction invariant `goal.py`, `thread.py` and `workbench.py` already keep.
+
+    ⭐⭐ **A moment may be ABSOLUTE or RELATIVE-and-undefined**, and both are first class. `locate.relate`
+    compares scalars and answers `None` for incomparable ones, which is exactly where *"a minute after the
+    pan is hot"* would land — nowhere. So order is a **partial order over moment nodes** read by
+    `path.reaches`: the third ranking in this engine served by that one function, after `authority_over`
+    and `contains+`.
+
+    ⚠⚠ Vacuity guards. The four observations of one look must share **one** moment — a per-observation
+    stamp would pass any "is it dated?" key while being the design that was rejected. An undefined moment
+    must really carry **no** scalar, or "relative" is decoration. And `precedes` must return `False`
+    **both ways** for an unordered pair: *unordered* is not *after*, and collapsing them would invent an
+    order, which is what `relate` returns `None` to avoid."""
+    from . import clock as C, memory as M, thread as T
+
+    g = new_graph()
+    th = T.open_thread(g)
+    pan = g.mint("chunk", kind_of="pan", label="pan", hot=False, clean=True)
+    g.link("root", "has", pan)
+
+    obs = M.record_sighting(g, th, pan, {})
+    shared = {C.dated(g, o)[0] for o in obs}
+    one_moment = list(shared)[0]
+
+    # ⚠ The moment points at them; they do not point at it.
+    points_outward = all(o in g.targets(one_moment, C.DATES) for o in obs)
+    nothing_on_the_observation = all(g.attr(o, "at") is None for o in obs)
+
+    # Relative, undefined moments — "a minute after the pan is hot".
+    hot = C.moment(g, label="pan is hot")
+    done = C.moment(g, label="a minute later")
+    C.follows(g, done, hot)
+
+    # Absolute stamps are decisive even against the graph.
+    early, late = C.moment(g, at=100.0), C.moment(g, at=200.0)
+    C.follows(g, early, late)                       # the graph says late-before-early; the clock disagrees
+
+    def refused(fn):
+        try:
+            fn()
+            return False
+        except Exception:
+            return True
+
+    return {"ONE_LOOK_IS_ONE_MOMENT": len(obs) == 4 and len(shared) == 1,
+            "THE_MOMENT_POINTS_AT_THEM": points_outward,
+            "and_they_carry_no_timestamp_of_their_own": nothing_on_the_observation,
+            "and_it_is_an_ABSOLUTE_stamp": C.at_of(g, one_moment) is not None,
+            "dated_is_a_reverse_lookup": C.dated(g, obs[0]) == (one_moment,),
+            "A_RELATIVE_MOMENT_HAS_NO_STAMP": C.at_of(g, done) is None,
+            "BUT_IS_STILL_ORDERED": C.precedes(g, hot, done),
+            "and_the_order_is_directional": not C.precedes(g, done, hot),
+            "AN_UNORDERED_PAIR_IS_FALSE_BOTH_WAYS":
+                not C.precedes(g, hot, one_moment) and not C.precedes(g, one_moment, hot),
+            "the_CLOCK_beats_the_graph_when_both_are_stamped": C.precedes(g, early, late),
+            "undated_moments_are_DROPPED_from_a_timeline_not_appended":
+                C.ordered(g, (hot, done, early, late)) == (early, late),
+            "a_moment_cannot_follow_itself": refused(lambda: C.follows(g, hot, hot))}
+
+
 def check_authored_knowledge_arrives_as_text_that_can_be_refused():
     """⭐⭐ THE BORDER, EXTENDED TO EVERYTHING A DOMAIN CONTRIBUTES.
 

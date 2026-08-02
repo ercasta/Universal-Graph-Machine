@@ -80,7 +80,7 @@ MINE, EXTERNAL, BOTH = "mine", "external", "both"
 
 
 def observe(g: Graph, thread: str, node: str, key: str, value, *,
-            source: str | None = None, why: str | None = None) -> str:
+            source: str | None = None, why: str | None = None, when: str | None = None) -> str:
     """Record one sighting of one slot. Returns the entry.
 
     ⚠ Recorded **whether or not the value differs** from what was believed. Collapsing to "only when it
@@ -91,6 +91,13 @@ def observe(g: Graph, thread: str, node: str, key: str, value, *,
     entry = g.mint(OBSERVATION, key=key, value=value, **({"source": source} if source else {}))
     g.link(entry, "of", node)
     T._append(g, thread, entry, why)
+    # ⭐⭐ **EVERYTHING OBSERVED CARRIES AN ABSOLUTE TIMESTAMP** (the user's specification, 2026-08-02).
+    # Before this, *when* an observation happened was its **position in the thread** — an order with no
+    # magnitude, so "how stale is this?" and "has this always been true?" had nothing to compute from.
+    # ⚠ The moment POINTS AT the observation rather than being an attribute on it: one look dates many
+    # slots, and `record_sighting` passes one `when` for the whole look precisely so they share it.
+    from . import clock as C
+    C.stamp(g, when if when is not None else C.now(g), entry)
     return entry
 
 
@@ -212,13 +219,20 @@ def record_sighting(g: Graph, thread: str, target: str, before: dict, *,
     has to speak up to alter it."""
     now = g.attrs.get(target, {})
     out = []
+    # ⭐ ONE LOOK IS ONE MOMENT, and every slot it saw shares it. That is the cardinality the time-node
+    # direction exists for: a timestamp *attribute* would write the same reading onto each observation and
+    # invite them to drift, while one moment pointing at all of them cannot disagree with itself. It also
+    # makes *"what did we learn in that one look?"* an O(1) reverse walk from the moment.
+    from . import clock as C
+    seen_at = C.now(g)
     for key in sorted(set(now) | set(before)):
         if key == "kind":
             continue
         if keep is not None and not keep({"node": target, "key": key,
                                           "was": before.get(key), "now": now.get(key)}):
             continue
-        out.append(observe(g, thread, target, key, now.get(key), source=source, why="looked"))
+        out.append(observe(g, thread, target, key, now.get(key), source=source, why="looked",
+                           when=seen_at))
     return tuple(out)
 
 
