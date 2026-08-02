@@ -1,7 +1,7 @@
 /*
  * The live playground — watch the machine plan, in your browser.
  *
- * Loads Pyodide on demand, installs the pure-Python `microfunctions` wheel with
+ * Loads Pyodide on demand, installs the pure-Python `ugm` wheel with
  * micropip, and runs the real engine. No server.
  *
  * ⚠ The engine streams REAL search events through `driver.pursue(trace=...)`:
@@ -36,8 +36,8 @@
   // boundary are fiddly, and this is a one-way report.
   var BOOTSTRAP = [
     "import json as _json",
-    "from microfunctions import intake as _I, thread as _T, driver as _D",
-    "from microfunctions import selftest as _S, execution as _X",
+    "from ugm import intake as _I, thread as _T, driver as _D",
+    "from ugm import selftest as _S, execution as _X",
     "",
     "def _play_plan(goal_text):",
     "    '''Read a goal in the closed CNL, pursue it, and stream what the search did.'''",

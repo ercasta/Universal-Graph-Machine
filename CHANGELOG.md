@@ -1,4 +1,4 @@
-# Changelog — `microfunctions/`
+# Changelog — `ugm/`
 
 **What this file is for, and it was asked for by a consumer.** `../pystrider` had a pin go red mid-session
 because `types.attrs_of` changed the *shape* of what it returns (a bare value became an `AttrReq`), and
