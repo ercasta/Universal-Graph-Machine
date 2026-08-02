@@ -283,5 +283,24 @@ and it is also the measure of the work: that arc needed an opcode pair, a report
    cheapest possible down payment on G0: a set-shaped **answer**, with no set-shaped *reference* anywhere.
 3. **G3 (maintenance)** — small to state, machine-closable, and it changes what the outer loop is *for*.
 
-⚠ Deliberately not recommended: G6 and G7. Both are big, both were touched by the old engine, and neither
-has a caller. `causation-core-was-sugar` is the warning — probe before believing either is fundamental.
+⚠ **Not next: G6 and G7** — both big, both touched by the old engine, and (at the time of writing) neither
+had a caller. `causation-core-was-sugar` is the warning: probe before believing either is fundamental.
+
+## ⚠⚠ 4. THIS PAGE RANKS; IT DOES NOT SCOPE
+
+**Stated by the user, 2026-08-02, when `feedback_from_harneskills` §3 asked whether a defeasible
+prohibition was in scope and offered "no" as an acceptable answer:**
+
+> *"Why would it not be? Anything expressable should be in scope; we can decide the HOW, but not the
+> whether. And these things must be in data, not Python, otherwise we start creating islands."*
+
+So every judgement above is about **priority and evidence** — *is it measured, does it have a caller, what
+would it cost* — and none of it is about whether the engine may ever express the thing. ⚠ An earlier
+version of §3 read as *"deliberately not recommended"*, which is a sentence about scope, and it should not
+have been. Corrected above.
+
+⭐ **And the second half is the sharper half:** a capability delivered as Python on the authoring path is
+an island — invisible to `why`, undisputable by `conflict.py`, uninspectable, and written differently by
+every consumer. HarneSkills measured exactly that: their norm arbitration became ~17 lines of Python and
+*"used to be auditable"*. So *the how is a design choice, but "in a consumer's Python" is not one of the
+available choices.* See `norm.py`, which is that item answered.

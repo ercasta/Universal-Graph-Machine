@@ -167,6 +167,20 @@ class Unreadable(Exception):
     Loud on purpose — see the module docstring. Carries the line number and the text."""
 
 
+class Ambiguous(Unreadable):
+    """A name matching **more than one** thing, carrying the candidates it refused to choose between.
+
+    ⭐ A subclass, so every existing `except Unreadable` still catches it — the refusal is unchanged and
+    only gains an attribute. `feedback_from_harneskills` §7, and the same shape already granted to
+    `../pystrider` for unresolved roles: when the engine refuses *and already knows the answer set*,
+    handing it over lets a UI ask a human to pick rather than making them guess."""
+
+    def __init__(self, message: str, *, candidates: tuple = (), name: str | None = None):
+        super().__init__(message)
+        self.candidates = candidates
+        self.name = name
+
+
 def _literal(tok: str):
     if tok.startswith('"') and tok.endswith('"'):
         return tok[1:-1]
@@ -191,8 +205,15 @@ def resolve(g: Graph, name: str, *, under: str = "root") -> str:
     if not hits:
         raise Unreadable(f"nothing here is called {name!r}")
     if len(hits) > 1:
-        raise Unreadable(f"{name!r} is ambiguous — {len(hits)} things are called that; "
-                         f"a name is not an identity")
+        # ⭐ The candidates ride on the exception. `feedback_from_harneskills` §7: this is the harshest
+        # refusal on the surface AND the one where the answer set is already in hand — `hits` is right
+        # here — and it was dropped to report a count. For a UI that is the difference between telling a
+        # person "2 things are called that" and showing them the two so they can pick one.
+        # ⚠ It does not weaken *never identify by name alone*: the engine still refuses, and the
+        # disambiguation is a human choosing ABOVE the border, who then writes an unambiguous reference.
+        # Same division as for a language model — they may draft, this parser decides.
+        raise Ambiguous(f"{name!r} is ambiguous — {len(hits)} things are called that; "
+                        f"a name is not an identity", candidates=tuple(hits), name=name)
     return hits[0]
 
 
@@ -226,6 +247,98 @@ def _one_hop(text: str, lineno: int, what: str) -> tuple:
     return base, rest.hops[0].label
 
 
+#: ⭐⭐⭐ ONE PROPOSITION GRAMMAR, RECOGNISED IN ONE PLACE.
+#:
+#: A goal constraint, a method step and a criterion condition are three renderings of the same handful of
+#: claims, and they were parsed by three hand-written dispatchers. Measured, they had drifted in four ways
+#: that nobody chose:
+#:
+#:   * transitive `l+` existed only in a goal, though a condition is exactly the query it was built for;
+#:   * the five comparison operators existed only in a `type` block — everywhere else `=` and nothing else;
+#:   * `x is there` existed only in a criterion;
+#:   * negation existed only in a criterion, via `unless`.
+#:
+#: That is the island problem `path.py` already solved one level down: *"It is one grammar because it used
+#: to be three."* Same move, one level up. ⚠ **This recognises SHAPE ONLY and resolves nothing** — which
+#: is what lets one grammar serve positions with genuinely different rules about what a name may mean and
+#: how deep a reference may go (§8's table). Those differences are principled and stay; the four above
+#: were accidents and go.
+_SHAPE_FORMS = ("x l y", "x l+ y", "x.k = v", "x.k known", "x is a T", "x is there")
+
+#: ⭐⭐ **THE BODY-LINE VOCABULARY, PER FAMILY, AS DATA** — and every refusal below renders *from* this,
+#: so the error message and this table cannot disagree.
+#:
+#: Asked for by `docs/feedback_from_harneskills.md` §6, whose job is making this surface **writable**:
+#: completion, live validation, a language model drafting CNL. The verbs were already reachable
+#: (`VERBS`, `GOAL_VERBS`, …) and the body lines existed **only as display strings inside raise sites**,
+#: so a consumer building completion had to re-type all six grammars into another repo with nothing
+#: checking the copy. `cnl.md`'s own opening argues against exactly that: *"documentation that is merely
+#: checked by a human rots exactly like a comment does"* — said of a docstring that had already gone stale
+#: on a whole verb family. A second copy in a consumer's UI is that failure with a network boundary in it.
+#:
+#: ⚠ Prose shapes, not a machine-readable grammar, and deliberately: they asked for the closed sets by
+#: name, explicitly **not** a parser API, an AST, or partial-input parsing. Promising structure here would
+#: be promising a stability nothing tests.
+FORMS: dict = {
+    "goal": _SHAPE_FORMS + ("some T", "never f", "never touch x", "must f", "at most n steps"),
+    "type": ("is a T", "has <count> label [each a T | each of kind K]", "key = v", "key <op> v",
+             "key between lo and hi", "path <op> path", "path is [not] path", "because …"),
+    "advice": ("action f", "touching x", "when T", "because …"),
+    "method": ("handles S l", "when T", "within m", "some n in r by l", "step …", "because …"),
+    "method step": _SHAPE_FORMS,
+    "criterion": ("wants <sort> [label]", "some x in r by l", "when …", "unless …", "do f a = r, …",
+                  "because …"),
+    "condition": _SHAPE_FORMS + ("wants <sort> <label> from x",),
+    "question": ("<one bare name>", "by <link>"),
+}
+
+
+def forms_for(family: str) -> tuple:
+    """The legal body-line forms of a family — what a completer offers inside a block.
+
+    ⚠ Keys are the names used in refusals (`FORMS`), not verbs: `method` and `procedure` share a body,
+    as do `criterion`/`directive` and all four goal verbs, which is the whole point of a *force* pair."""
+    if family not in FORMS:
+        raise KeyError(f"no family {family!r}; known: {', '.join(sorted(FORMS))}")
+    return FORMS[family]
+
+
+def _shape(words: list, line: str, lineno: int, *, what: str, ops=("=",)):
+    """Recognise one proposition. Returns a tagged tuple of **raw text**, or `None` if nothing matches.
+
+    Ordered most-specific first, so a keyword form is never shadowed by the bare three-word link form —
+    the discipline `_constrain` already followed and which now only has to be right once.
+
+    `ops` is which comparison operators this position honours. ⚠ It is a parameter rather than a constant
+    because a *constraint* is checked by readers that only understand equality (`goal.holds` compares with
+    `==`), while a *condition* and a `type` relation are evaluated by machinery that already handles the
+    full set. Widening it is a real change to those readers, not a parser edit — so the parameter records
+    the limit at the boundary instead of letting each family invent its own answer."""
+    if len(words) == 2 and words[1] == "known" and "." in words[0]:
+        return ("known", words[0])
+    if len(words) >= 3 and words[-2] == "is" and words[-1] == "there":
+        return ("exists", " ".join(words[:-2]))
+    if len(words) >= 4 and words[-3] == "is" and words[-2] == "a":
+        return ("type", " ".join(words[:-3]), words[-1])
+    if len(words) == 3 and words[1] in ops and "." in words[0]:
+        return ("attr", words[0], words[1], words[2])
+    if len(words) == 3 and words[1] in TY.VALUE_OPS and "." in words[0]:
+        raise Unreadable(f"line {lineno}: {words[1]!r} is not available in a {what}; here a comparison is "
+                         f"{' or '.join(ops)}. The full set ({', '.join(TY.VALUE_OPS)}) works in a "
+                         f"`type` block, whose machinery evaluates them")
+    if len(words) == 3:
+        return ("link", words[0], words[1], words[2])
+    return None
+
+
+def _shape_refused(words: list, line: str, lineno: int, what: str, extra: str = "") -> Unreadable:
+    """⚠ Rendered FROM `FORMS`, never from a literal beside the raise. That is `feedback_from_harneskills`
+    §6's actual ask: the error message and the completion list have to be the same object, or the copy in
+    a consumer's UI drifts and nothing notices."""
+    return Unreadable(f"line {lineno}: cannot read {line!r} — the {what} vocabulary is closed "
+                      f"({' | '.join(FORMS.get(what, _SHAPE_FORMS))}){extra}")
+
+
 def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: str) -> None:
     """One line to one constraint. Ordered most-specific first, so a keyword form is never shadowed."""
     node = lambda w: resolve(g, w, under=under)          # noqa: E731
@@ -240,25 +353,35 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
         G.require_action(g, goal, function=words[1])
     elif words[0] == "some" and len(words) == 2:
         G.require_type(g, goal, words[1])
-    elif len(words) == 4 and words[1:3] == ["is", "a"]:
-        G.require_type(g, goal, words[3], about=node(words[0]))
-    elif len(words) == 2 and words[1] == "known" and "." in words[0]:
-        # ⭐ A KNOWLEDGE claim: *go and look*, as opposed to *make it so*. The surface distinguishes them
-        # because the system now can — see `graph.UNKNOWN`.
-        subject, key = _one_hop(words[0], lineno, "goal constraint")
-        G.require_known(g, goal, node(subject), key)
-    elif len(words) == 3 and words[1] == "=" and "." in words[0]:
-        subject, key = _one_hop(words[0], lineno, "goal constraint")
-        G.require_attr(g, goal, node(subject), key, _literal(words[2]))
-    elif len(words) == 3:
-        # ⭐ `wh contains+ parcel` — reach at any depth, the one closed-class item §5x measured as real.
-        # The `+` is read here rather than in `resolve`, because it qualifies the RELATION, not a name.
-        label, transitive = P.parse_link(words[1])
-        G.require_link(g, goal, node(words[0]), label, node(words[2]), transitive=transitive)
     else:
-        raise Unreadable(f"line {lineno}: cannot read {line!r} — the goal vocabulary is closed "
-                         f"(a b c | a b+ c | a.k = v | a.k known | some T | a is a T | never f | "
-                         f"never touch x | must f | at most n steps)")
+        # ⭐ Everything below is the SHARED proposition grammar — see `_shape`. What stays here is only
+        # what a goal does with each shape, plus the plan constraints above, which are about the ROUTE
+        # rather than about the world and so are genuinely a goal's own vocabulary.
+        shape = _shape(words, line, lineno, what="goal constraint")
+        if shape is None:
+            raise _shape_refused(words, line, lineno, "goal")
+        kind = shape[0]
+        if kind == "type":
+            G.require_type(g, goal, shape[2], about=node(shape[1]))
+        elif kind == "known":
+            # ⭐ A KNOWLEDGE claim: *go and look*, as opposed to *make it so*. The surface distinguishes
+            # them because the system now can — see `graph.UNKNOWN`.
+            subject, key = _one_hop(shape[1], lineno, "goal constraint")
+            G.require_known(g, goal, node(subject), key)
+        elif kind == "attr":
+            subject, key = _one_hop(shape[1], lineno, "goal constraint")
+            G.require_attr(g, goal, node(subject), key, _literal(shape[3]))
+        elif kind == "exists":
+            # ⚠ `x is there` has no home in a goal: a goal says what must BE true, and *"it resolves"* is
+            # a claim about the reference rather than about the world. Refused with the form that means it.
+            raise Unreadable(f"line {lineno}: `is there` asks whether a reference resolves, which is a "
+                             f"condition, not something to make true. A goal that wants something to "
+                             f"exist says `some <type>`")
+        else:
+            # ⭐ `wh contains+ parcel` — reach at any depth, the one closed-class item §5x measured as
+            # real. The `+` qualifies the RELATION, not a name, which is why it is read here.
+            label, transitive = P.parse_link(shape[2])
+            G.require_link(g, goal, node(shape[1]), label, node(shape[3]), transitive=transitive)
 
 
 # ⭐⭐ FOUR forces on ONE body. `plan` is the fourth, and it joins here rather than getting its own family
@@ -337,21 +460,36 @@ def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lin
             raise Unreadable(f"line {lineno}: a goal wants {', '.join(_SORTS)} — not {words[1]!r}")
         CR.test(g, c, sort="wants", negated=negated, want_sort=words[1],
                 label=words[2] if len(words) == 5 else None, left=_ref(g, words[-1], lineno, line, under, CR.names_of(g, c)))
-    elif len(words) >= 3 and words[-2] == "is" and words[-1] == "there":
-        CR.test(g, c, sort="exists", negated=negated, left=_ref(g, " ".join(words[:-2]), lineno, line, under, CR.names_of(g, c)))
-    elif len(words) >= 4 and words[-3] == "is" and words[-2] == "a":
-        CR.test(g, c, sort="type", negated=negated, label=words[-1],
-                left=_ref(g, " ".join(words[:-3]), lineno, line, under, CR.names_of(g, c)))
-    elif len(words) == 3 and words[1] == "=" and "." in words[0]:
-        who, key = _one_hop(words[0], lineno, "criterion")
-        CR.test(g, c, sort="attr", negated=negated, key=key, value=_literal(words[2]),
-                left=_ref(g, who, lineno, line, under, CR.names_of(g, c)))
-    elif len(words) == 3:
-        CR.test(g, c, sort="link", negated=negated, label=words[1],
-                left=_ref(g, words[0], lineno, line, under, CR.names_of(g, c)), right=_ref(g, words[2], lineno, line, under, CR.names_of(g, c)))
     else:
-        raise Unreadable(f"line {lineno}: cannot read {line!r} — a condition is (x l y | x.k = v | "
-                         f"x is a T | x is there | wants <sort> <label> from x)")
+        # ⭐ The SHARED proposition grammar (`_shape`). A condition is the same handful of claims a goal
+        # and a step make; what differs is that a referring position may be a role, a drawn name or
+        # `the <name>`, and may reach any depth — because a condition only ever CHECKS.
+        ref = lambda t: _ref(g, t, lineno, line, under, CR.names_of(g, c))     # noqa: E731
+        shape = _shape(words, line, lineno, what="condition")
+        if shape is None:
+            raise _shape_refused(words, line, lineno, "condition")
+        kind = shape[0]
+        if kind == "exists":
+            CR.test(g, c, sort="exists", negated=negated, left=ref(shape[1]))
+        elif kind == "type":
+            CR.test(g, c, sort="type", negated=negated, label=shape[2], left=ref(shape[1]))
+        elif kind == "attr":
+            who, key = _one_hop(shape[1], lineno, "criterion")
+            CR.test(g, c, sort="attr", negated=negated, key=key, value=_literal(shape[3]),
+                    left=ref(who))
+        elif kind == "known":
+            # ⚠ Deliberately still refused here, and now the refusal is stated once. `known` reads an
+            # attribute slot for ignorance; `criterion.test` has no `known` sort, so accepting it would
+            # build a condition nothing evaluates.
+            raise Unreadable(f"line {lineno}: `known` asks whether a slot has been looked at, which a "
+                             f"condition cannot yet evaluate — it is a goal constraint")
+        else:
+            label, transitive = P.parse_link(shape[2])
+            # ⭐ TRANSITIVE REACH IN A CONDITION — previously available only in a goal, which was an
+            # accident of three hand-written parsers rather than a decision. `cnl.md` §8 says `+` belongs
+            # "in a link position — a goal line or a query", and a condition IS the query.
+            CR.test(g, c, sort="link", negated=negated, label=label, transitive=transitive,
+                    left=ref(shape[1]), right=ref(shape[3]))
 
 
 def _criterion_line(g: Graph, c: str, words: list, line: str, lineno: int, under: str) -> None:
@@ -387,8 +525,7 @@ def _criterion_line(g: Graph, c: str, words: list, line: str, lineno: int, under
     elif words[0] == "because" and len(words) > 1:
         g.put(c, because=" ".join(words[1:]))
     else:
-        raise Unreadable(f"line {lineno}: cannot read {line!r} — the criterion vocabulary is closed "
-                         f"(wants <sort> [label] | some x in r by l | when … | unless … | do f a = r, … | because …)")
+        raise _shape_refused(words, line, lineno, "criterion")
 
 
 def _advise(g: Graph, gl: str, words: list, line: str, lineno: int, under: str) -> None:
@@ -402,8 +539,7 @@ def _advise(g: Graph, gl: str, words: list, line: str, lineno: int, under: str) 
     elif words[0] == "because" and len(words) > 1:
         g.put(gl, because=" ".join(words[1:]))
     else:
-        raise Unreadable(f"line {lineno}: cannot read {line!r} — the advice vocabulary is closed "
-                         f"(action f | touching x | when T | because …)")
+        raise _shape_refused(words, line, lineno, "advice")
 
 
 def _reader(g: Graph, q: str, words: list, line: str, lineno: int, under: str) -> None:
@@ -438,23 +574,39 @@ def _step(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
     only legal subjects are `subject` and `object`, meaning the matched constraint's. A method that named
     an individual would be about that individual and could not be reused, which is the same reason
     `types.py` refuses to let a schema name a target."""
+    known_roles = ROLES + tuple(g.attr(d, "name") for d in M.draws_of(g, m))
+
     def role(w: str) -> str:
-        if w not in ROLES:
+        if w not in known_roles:
             raise Unreadable(f"line {lineno}: {w!r} is not a role — a step may only speak of "
-                             f"{' or '.join(ROLES)}, never a named individual")
+                             f"{' or '.join(known_roles)}, never a named individual. Draw a further role "
+                             f"with `some <name> in <ref> by <link>` before using it")
         return w
 
-    if len(words) == 3 and words[1] == "=" and "." in words[0]:
-        who, key = _one_hop(words[0], lineno, "method step")
-        M.step(g, m, sort="attr", key=key, value=_literal(words[2]), subject=role(who), note=line)
-    elif len(words) == 4 and words[1:3] == ["is", "a"]:
-        M.step(g, m, sort="type", label=words[3], subject=role(words[0]), note=line)
-    elif len(words) == 3:
-        M.step(g, m, sort="link", label=words[1], subject=role(words[0]),
-               object=role(words[2]), note=line)
+    # ⭐ The SHARED proposition grammar (`_shape`) — a step is a subgoal, so it says the same things a
+    # goal constraint says. What differs is only that a referring position holds a ROLE.
+    shape = _shape(words, line, lineno, what="method step")
+    if shape is None:
+        raise _shape_refused(words, line, lineno, "method step", " — with roles, not names")
+    kind = shape[0]
+    if kind == "attr":
+        who, key = _one_hop(shape[1], lineno, "method step")
+        M.step(g, m, sort="attr", key=key, value=_literal(shape[3]), subject=role(who), note=line)
+    elif kind == "type":
+        M.step(g, m, sort="type", label=shape[2], subject=role(shape[1]), note=line)
+    elif kind == "link":
+        # ⚠ A step is something to ACHIEVE, and `l+` says *reachable at any depth* — which is a query, not
+        # a thing to bring about: nothing names which edge to add. Refused with the reason.
+        label, transitive = P.parse_link(shape[2])
+        if transitive:
+            raise Unreadable(f"line {lineno}: `{shape[2]}` asks about reach at any depth, which is a "
+                             f"question rather than something a step can achieve — no single edge would "
+                             f"make it true. Say the link a step actually establishes")
+        M.step(g, m, sort="link", label=label, subject=role(shape[1]),
+               object=role(shape[3]), note=line)
     else:
-        raise Unreadable(f"line {lineno}: cannot read step {line!r} — a step is "
-                         f"(subject l object | subject.k = v | subject is a T), with roles not names")
+        raise Unreadable(f"line {lineno}: `{kind}` has no meaning as a step — a step is something to "
+                         f"achieve, and `{'is there' if kind == 'exists' else 'known'}` is a condition")
 
 
 def _method_line(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
@@ -472,11 +624,21 @@ def _method_line(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
         g.link(m, "within", hits[0])
     elif words[0] == "because" and len(words) > 1:
         g.put(m, because=" ".join(words[1:]))
+    elif words[0] == "some" and len(words) == 6 and words[2] == "in" and words[4] == "by":
+        # `some t in subject by test` — bind a FURTHER role, exactly as a criterion does. A method could
+        # previously speak only of the matched constraint's `subject` and `object`, so a decomposition
+        # whose steps concern a THIRD individual ("run its tests, then commit the repo") had no form —
+        # the same gap `expert_judgement.md` §8f closed for criteria and left open here.
+        name = words[1]
+        if name in M.roles_of(g, m):
+            raise Unreadable(f"line {lineno}: {name!r} is already a role of this method; a name cannot be "
+                             f"drawn twice")
+        label, back = words[5], words[5].startswith("^")
+        M.draw(g, m, name=name, ref=words[3], label=label[1:] if back else label, back=back)
     elif words[0] == "step" and len(words) > 1:
         _step(g, m, words[1:], line, lineno)
     else:
-        raise Unreadable(f"line {lineno}: cannot read {line!r} — the method vocabulary is closed "
-                         f"(handles S l | when T | within m | because … | step …)")
+        raise _shape_refused(words, line, lineno, "method")
 
 
 _COUNTS = {"some": (1, None), "no": (0, 0), "a": (1, 1), "an": (1, 1), "one": (1, 1),
@@ -554,10 +716,7 @@ def _type_line(g: Graph, t: str, words: list, line: str, lineno: int) -> None:
     elif len(words) == 3 and words[1] in ("=",) + TY.VALUE_OPS:
         _demand(g, t, words[0], "==" if words[1] == "=" else words[1], words[2], lineno, line)
     else:
-        raise Unreadable(
-            f"line {lineno}: cannot read {line!r} — the type vocabulary is closed "
-            f"(is a T | has <count> label [each a T | each of kind K] | key = v | key <op> v | "
-            f"key between lo and hi | path <op> path | path is [not] path | because …)")
+        raise _shape_refused(words, line, lineno, "type")
 
 
 def _demand(g: Graph, t: str, left: str, op: str, right: str, lineno: int, line: str, hi=None) -> None:
@@ -634,6 +793,15 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
     try:
         node = _open(g, verb, label)
         for lineno, raw in lines[1:]:
+            # ⚠ A SECOND BLOCK HEADER IS NOT A BAD BODY LINE, and reporting it as one blamed the wrong
+            # thing: `feedback_from_harneskills` §2 measured `type b:` refused identically to
+            # `frobnicate the widget`, though the corrective action is completely different — *"you
+            # passed me two blocks and I take one"* versus *"that line has no form"*. The parser already
+            # knows: a `<verb> <label>:` at zero indent is a header and never a body line.
+            if not raw[:1].isspace() and re.fullmatch(r"(%s)\s+(.+?)\s*:" % "|".join(VERBS), raw.strip()):
+                raise Unreadable(
+                    f"line {lineno}: {raw.strip()!r} looks like a second block; `read` takes ONE block "
+                    f"per call. Split the text on blank lines and call `read` for each.")
             _body(g, verb, node, raw.split(), raw.strip(), lineno, under)
         _seal(g, verb, node, label)
     except (Unreadable, P.BadPath) as e:
@@ -646,7 +814,13 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
         # A reference that cannot be read IS unreadable here, so it is re-raised in this border's own
         # vocabulary and callers keep having exactly one exception type to catch.
         g.rollback(sp)
-        raise Unreadable(str(e) if "line " in str(e) else f"line {lineno}: {e}") from None
+        msg = str(e) if "line " in str(e) else f"line {lineno}: {e}"
+        # ⚠ **The subclass has to survive the re-wrap**, or §7's candidates are collected and then thrown
+        # away one frame later. Caught by running the consumer's own repro rather than the unit — every
+        # `except Unreadable` still catches this, since `Ambiguous` is one.
+        if isinstance(e, Ambiguous):
+            raise Ambiguous(msg, candidates=e.candidates, name=e.name) from None
+        raise Unreadable(msg) from None
     return verb, node
 
 

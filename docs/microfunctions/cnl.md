@@ -91,6 +91,17 @@ on a workbench and `dispatch.service` refuses an imagined target, so a `plan` bl
 world however wrong the text is**. That is what makes it safe to put a driving verb on a surface a
 language model may write. There is deliberately no verb that carries a plan out.
 
+**⚠⚠ `known` is a claim about an ATTRIBUTE SLOT, and it refuses anything else — because the alternative was
+a goal that closes itself.** `repo.files known` used to be accepted, planned, and reported **done with an
+empty plan, having never looked**: an absent slot reads as `None` rather than `UNKNOWN`, and absence means
+*lacks it* by design, so the slot really was known. Two shapes now refuse — a key naming an **edge**
+(`repo.file known`) and a key naming **nothing at all** (a plain mistyped plural). Neither is a bug in
+ignorance-tracking; the mistake was letting a relation, or a typo, into an attribute-shaped claim.
+
+⚠ So *"list all the files"* has no form here, and the refusal is the honest report of that: an absent edge
+has nowhere to hang a marker, so there is nothing for a sensing action to close. Ask it with `what` /
+`where` instead, or demand the structure with `has …` in a `type` block.
+
 **⭐ The plan constraints work in a question too.** `never phone_the_registrar` inside an `ask` means *"is
 this derivable without asking anyone?"*; `at most 2 steps` means *"is it derivable in two steps?"*.
 Constraining the route is constraining the route, whether the route is a plan or a derivation.
@@ -157,8 +168,10 @@ method service then wash:
     handles type washed_car             # which constraint sort and label this decomposes
     when car                            # a type the subject must satisfy
     because a car is washed after service
+    some w in subject by wheel          # bind a FURTHER role, then speak of it below
     step subject is a serviced_car      # a subgoal
     step subject.clean = true
+    step w.clean = true
     step subject on object
 ```
 
@@ -166,6 +179,18 @@ Also `within <method>` — only inside that method's context. It must name **exa
 
 **⚠ Steps speak of ROLES, never names** — `subject` and `object`, meaning the matched constraint's. A
 method naming an individual would be *about* that individual and could not be reused.
+
+**`some <name> in <ref> by <link>`** — the same binder a `criterion` has, and how a step reaches a **third**
+individual the matched constraint never names. Use `^link` to walk backwards. Declare before use; a name
+cannot be drawn twice; an undrawn name in a step is refused.
+
+**⚠ It binds ONE thing — the nearest — and that is deliberate.** A traversal reaches a set, and raising one
+subgoal per member is the first thing `plural_step.md` §4 forbids: a plan expanded over today's members is
+valid only for the collection as it was when planned. For *"do it to each of them"*, write the universal as
+a `type` (§3) and let the goal's witnesses drive it one member at a time — that already works.
+
+⚠ A draw whose traversal reaches **nothing** makes the method refuse rather than decompose. A step posed
+about no individual reads downstream as a step that is simply done.
 
 ⚠ A method with no steps is refused: it would decompose into nothing, which reads downstream as an
 undecomposed goal.
@@ -268,6 +293,36 @@ can confuse them — only a first line is read as a verb — but do not try to u
 
 ---
 
+## 7b. ⭐⭐⭐ One PROPOSITION grammar, in every position
+
+A goal constraint, a method step and a `when`/`unless` condition are three renderings of the same handful
+of claims. They used to be three hand-written parsers, and they had drifted in four ways nobody chose.
+There is now **one recogniser**, and each family only decides what to *do* with what it recognises — the
+same move `path.py` made one level down (*"It is one grammar because it used to be three"*).
+
+```
+x l y          x l+ y          x.k = v          x.k known          x is a T          x is there
+```
+
+| | `goal` | `method step` | `when` / `unless` |
+|---|---|---|---|
+| `x l y` | ✓ | ✓ | ✓ |
+| `x l+ y` — reach at any depth | ✓ | ⚠ refused: no single edge achieves it | ✓ **new** |
+| `x.k = v` | ✓ | ✓ | ✓ |
+| `x is a T` | ✓ | ✓ | ✓ |
+| `x is there` | ⚠ refused: say `some T` | ⚠ refused | ✓ |
+| `x.k known` | ✓ | ⚠ refused | ⚠ refused |
+| negation | via `never` (the route) | — | ✓ via `unless` |
+
+**⭐ A refusal now names the form and the reason**, rather than a position simply not matching. `b.size >= 3`
+in a goal says the operator exists in a `type` block and why it does not work here, instead of falling
+through to "vocabulary is closed".
+
+**⚠⚠ What is deliberately NOT unified: depth.** A goal and a step take **one hop**; a condition takes
+**any**. That is §8's rule and it is principled — `conflict.unsatisfiable` keys a slot as `(subject, key)`,
+so two navigated subjects would read as one contended slot, while a condition only ever *checks*. It is
+asserted by a check so a later tidy-up cannot quietly widen it.
+
 ## 8. References — one language, four shapes
 
 Everything that refers to something not at hand goes through `path.py`.
@@ -300,7 +355,7 @@ else in common:
 |---|---|---|
 | `type` | the node being checked | **any** |
 | `goal` / `ask` / `why` / `plan` | a named individual | one hop, to an attribute |
-| `method` / `procedure` | a role | one hop, to an attribute |
+| `method` / `procedure` | a role, or a name drawn by `some` | one hop, to an attribute |
 | `criterion` / `directive` | a role, a drawn name, or `the <name>` | **any** |
 | `prefer` / `avoid` | a named individual | none |
 

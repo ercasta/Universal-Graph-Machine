@@ -259,6 +259,653 @@ def check_ignorance_is_representable_and_sensing_closes_it():
             "the_surface_can_say_it": "known" in I.describe(g, goal)}
 
 
+def check_a_knowledge_goal_cannot_close_itself():
+    """⭐⭐ A `known` claim about a slot that DOES NOT EXIST is satisfied by default, and that is a goal
+    that closes itself — reported done, with an empty plan, having never looked.
+
+    `require_known`'s docstring already records this failure once, caught when the subject was stored as a
+    string. It came back by two further routes, both found by `probe_agentic_coding.py` on the utterance
+    *"list all the files in the repo"*:
+
+    * **the key names an EDGE** — `repo.file known`, where `holds` asks `g.attr(here, key) is not UNKNOWN`
+      and an edge label has no attribute slot at all;
+    * **the key names NOTHING** — `repo.files known`, a plain mistyped plural, which behaves identically.
+
+    Neither is a bug in `UNKNOWN`. Absence-means-*lacks-it* is deliberate and correct; the mistake was
+    admitting a **relation** — or a typo — into an attribute-shaped claim. So both refuse.
+
+    ⚠⚠ **Vacuity guard, and it is the whole check.** A refusal that fired on everything would pass every
+    key below while destroying the feature, so the legitimate case must still be authorable **and still be
+    genuinely unmet and undetermined** — i.e. the thing that makes `known` worth having has to survive.
+    ⚠ The two refusals must also be told apart, or one route could be dead and nothing would say so."""
+    from . import goal as G, intake as I
+    from .graph import UNKNOWN
+
+    g = new_graph()
+    declare_type(g, "repo", {"file": ("chunk", 1)}, attrs={"scanned": True})
+    repo = g.mint("chunk", kind_of="repo", label="repo", scanned=UNKNOWN)
+    g.link("root", "has", repo)
+    g.link(repo, "file", g.mint("chunk", kind_of="file", label="parser"))
+
+    def refusal(line):
+        try:
+            I.read_goal(g, _lines("goal g:", "    " + line))
+            return None
+        except Exception as e:
+            return str(e)
+
+    edge, typo, real = refusal("repo.file known"), refusal("repo.files known"), refusal("repo.scanned known")
+
+    # ⚠ The legitimate claim must still DO something: unmet, undetermined, and closable by looking.
+    live = I.read_goal(g, _lines("goal look:", "    repo.scanned known"))
+    unmet_now = len(G.unmet(g, live, under="root")), len(G.undetermined(g, live, under="root"))
+    g.put(repo, scanned=True)
+    settled = not G.unmet(g, live, under="root")
+
+    return {"an_EDGE_key_is_REFUSED": edge is not None,
+            "and_it_says_which_shape_is_wrong": edge is not None and "names an edge" in edge,
+            "a_key_naming_NOTHING_is_REFUSED": typo is not None,
+            "THE_TWO_ROUTES_ARE_DISTINCT": edge is not None and typo is not None and edge != typo,
+            "but_a_REAL_slot_is_still_accepted": real is None,
+            "AND_IT_IS_GENUINELY_UNMET": unmet_now == (1, 1),
+            "and_looking_still_closes_it": settled}
+
+
+def check_a_method_step_can_name_a_third_individual():
+    """⭐⭐ A method could speak only of `subject` and `object` — the matched constraint's — so a
+    decomposition whose steps concern a **third** individual had no form. `some <name> in <ref> by <link>`
+    is lifted from `criterion`, where `expert_judgement.md` §8f closed this exact gap and never carried it
+    across. Found again by `probe_agentic_coding.py` on *"after you edit a file, lint THAT file"*.
+
+    **⚠⚠ SINGULAR on purpose.** A draw reaches a set; raising one subgoal per candidate is the first thing
+    `plural_step.md` §4 forbids — an expanded plan is valid only for the collection as it was when planned.
+    So it binds the nearest, and *"do it to each"* stays with slice A's witnesses, which already handle it.
+
+    ⚠ Vacuity guards. The drawn subgoal must be about a node that is **neither** the constraint's subject
+    nor its object, or the draw could be resolving to `subject` and every key would still pass. A method
+    with **no** draw must behave exactly as before, or this bought reach by breaking the common case. And
+    a draw reaching **nothing** must refuse, rather than raise a subgoal with no subject — a decomposition
+    that poses a step about `None` reads downstream as a step that is simply done."""
+    from . import goal as G, intake as I, method as M
+
+    def build(*body):
+        g = new_graph()
+        declare_type(g, "repo", {"file": ("chunk", 1)}, attrs={"kind_of": "repo"})
+        declare_type(g, "shipped_repo", base="repo", attrs={"shipped": True})
+        repo = g.mint("chunk", kind_of="repo", label="repo")
+        g.link("root", "has", repo)
+        parser = g.mint("chunk", kind_of="file", label="parser")
+        g.link(repo, "file", parser)
+        I.read(g, _lines(*body))
+        goal = I.read_goal(g, _lines("goal ship it:", "    repo is a shipped_repo"))
+        return g, repo, parser, goal
+
+    def refusal(fn):
+        try:
+            fn()
+            return None
+        except Exception as e:
+            return str(e)
+
+    HEAD = ("method ship it:", "    handles type shipped_repo")
+    g, repo, parser, goal = build(*HEAD, "    some f in subject by file",
+                                  "    step f is a linted_file", "    step subject.shipped = true")
+    m = M.methods(g)[0]
+    subs = M.decompose(g, m, goal, M.applicable(g, goal, under="root")[0][1])
+    drawn = G.constraints(g, subs[0])[0]
+    about = g.target(drawn, "subject")
+
+    # ⚠ Guard: the subgoal must be about the FILE, which the goal's constraint never names.
+    c0 = M.applicable(g, goal, under="root")
+    third = about == parser and about != repo
+
+    # Control: no draw at all, unchanged.
+    g2, repo2, _p2, goal2 = build(*HEAD, "    step subject.shipped = true")
+    m2 = M.methods(g2)[0]
+    subs2 = M.decompose(g2, m2, goal2, M.applicable(g2, goal2, under="root")[0][1])
+    plain_ok = g2.target(G.constraints(g2, subs2[0])[0], "subject") == repo2
+
+    undrawn = refusal(lambda: build(*HEAD, "    step z is a linted_file"))
+    twice = refusal(lambda: build(*HEAD, "    some f in subject by file",
+                                  "    some f in subject by file", "    step f is a linted_file"))
+
+    def empty_draw():
+        g3 = new_graph()
+        declare_type(g3, "repo", attrs={"kind_of": "repo"})
+        declare_type(g3, "shipped_repo", base="repo", attrs={"shipped": True})
+        r = g3.mint("chunk", kind_of="repo", label="repo")          # NO file edge at all
+        g3.link("root", "has", r)
+        I.read(g3, _lines(*HEAD, "    some f in subject by file", "    step f is a linted_file"))
+        gl = I.read_goal(g3, _lines("goal ship it:", "    repo is a shipped_repo"))
+        mm = M.methods(g3)[0]
+        return M.decompose(g3, mm, gl, M.applicable(g3, gl, under="root")[0][1])
+
+    reached_nothing = refusal(empty_draw)
+
+    return {"the_method_declares_the_drawn_role": M.roles_of(g, m) == ("subject", "object", "f"),
+            "A_STEP_IS_RAISED_ABOUT_A_THIRD_INDIVIDUAL": third,
+            "and_the_other_step_still_speaks_of_the_subject":
+                g.target(G.constraints(g, subs[1])[0], "subject") == repo,
+            "a_method_WITHOUT_a_draw_is_unchanged": plain_ok,
+            "an_UNDRAWN_name_is_refused": undrawn is not None,
+            "a_name_drawn_TWICE_is_refused": twice is not None,
+            "A_DRAW_REACHING_NOTHING_REFUSES": reached_nothing is not None,
+            "and_says_the_traversal_was_empty":
+                reached_nothing is not None and "reached nothing" in reached_nothing,
+            "the_method_still_matched_in_the_first_place": bool(c0)}
+
+
+def check_what_was_said_is_on_the_record_and_can_be_taken_back():
+    """⭐⭐⭐ *"Ignore that."* — and before that, the hole underneath it: `intake.read` built a goal, a
+    criterion, a method, and recorded **nothing about the fact that somebody said it**. Measured: two
+    blocks authored against a fresh thread left it holding only its opening entry.
+
+    That is this project's founding defect in a third place. `goal.py` exists because the thing the system
+    was trying to do was the thing it could not point at; `thread.py` exists because attention was the one
+    thing not homoiconic. The *telling* was next.
+
+    **⭐ Retract the utterance, NOT the world.** A withdrawn block stops being consulted from now on. It is
+    not deleted, nothing it let us conclude is unwound (`REVISION 01` deleted retraction/TMS on purpose),
+    and nothing dispatched is reversed (the undo journal must never span a dispatch). `forget.py` already
+    settled why: retention defaults to KEEP because `why` and `conflict.interference` read history, so a
+    record saying *"this happened because of something you later took back"* beats a hole where the reason
+    was.
+
+    **⚠⚠ THE VACUITY GUARD IS THE WHOLE CHECK, and the first version of it failed.** Withdrawing something
+    that was making no difference proves nothing — the first attempt used a criterion whose plan was
+    identical with and without it, so every key passed while testing nothing. `plural_step.md` §1 records
+    the same trap (*a measurement whose control does not light up is not a measurement*). So the directive
+    here must **really change the outcome**, and that swing is asserted before the retraction is asked for.
+
+    ⚠ And history must survive: the utterance stays on the thread, still points at what it authored, and
+    the authored node is still there to be cited."""
+    from . import criterion as CR, discourse as DC, driver as D, intake as I, thread as T
+
+    def plan(g, goal, world):
+        try:
+            got = D.pursue(g, goal, T.open_thread(g), world, max_steps=200, max_depth=6,
+                           propose=CR.decide(g, goal, world))
+            return D.plan_steps(g, got) if got["found"] else ()
+        except D.Undecidable:
+            return ("refused",)
+
+    g, world, wh, _box, _parcel = _warehouse(nested=False)
+    goal = I.read_goal(g, _lines("goal stow it:", "    wh contains+ parcel", "    never touch wh"))
+    th = T.open_thread(g)
+
+    before = plan(g, goal, world)
+    said = DC.say(g, th, _lines("directive stow it directly:",
+                                "    wants link contains",
+                                "    do put_in t = object, box = subject"))
+    during = plan(g, goal, world)
+    # ⚠ Assert the swing BEFORE retracting. If this is not a real change, nothing below means anything.
+    it_mattered = bool(before) and not during
+
+    out = DC.retract(g, th)
+    after = plan(g, goal, world)
+
+    # History: the utterance is still there, marked, and still points at what it authored.
+    entries = DC.utterances(g, th, by=None)
+    node = said["node"]
+
+    # A SECOND "ignore that" must reach further back, not re-withdraw the same thing.
+    g2, world2, _wh2, _b2, _p2 = _warehouse(nested=False)
+    th2 = T.open_thread(g2)
+    a = DC.say(g2, th2, _lines("prefer one:", "    action put_in"))
+    b = DC.say(g2, th2, _lines("prefer two:", "    action put_in"))
+    DC.retract(g2, th2)
+    DC.retract(g2, th2)
+    both_gone = DC.is_withdrawn(g2, a["node"]) and DC.is_withdrawn(g2, b["node"])
+
+    def refused(fn):
+        try:
+            fn()
+            return False
+        except Exception:
+            return True
+
+    g3 = new_graph()
+    nothing_said = refused(lambda: DC.retract(g3, T.open_thread(g3)))
+    twice = refused(lambda: DC.retract(g, th, said["entry"]))
+
+    return {"SAYING_IT_IS_ON_THE_RECORD": said["utterance"] in entries,
+            "THE_UTTERANCE_IS_A_WORLD_OBJECT": said["utterance"] in g.targets(DC.conversation(g), "utterance"),
+            "and_its_SPEAKER_IS_A_NODE_not_a_string":
+                DC.said_by(g, said["utterance"]) == DC.speaker(g, DC.USER),
+            "and_it_points_at_what_it_authored": g.target(said["utterance"], "about") == node,
+            "THE_BLOCK_REALLY_CHANGED_THE_OUTCOME": it_mattered,
+            "AND_IGNORING_IT_PUT_THE_PLAN_BACK": after == before,
+            "the_authored_node_is_MARKED_not_deleted":
+                DC.is_withdrawn(g, node) and node in g.nodes,
+            "the_criterion_enumerator_skips_it": node not in CR.criteria(g),
+            "HISTORY_SURVIVES_the_utterance_is_still_there": said["utterance"] in entries,
+            "and_the_retraction_is_itself_on_the_record":
+                out["said"] in entries and g.target(out["said"], "withdraws") == said["utterance"],
+            "a_SECOND_ignore_that_reaches_further_back": both_gone,
+            "retracting_nothing_is_refused": nothing_said,
+            "and_retracting_it_twice_is_refused": twice}
+
+
+def check_the_system_can_ASK_and_the_answer_lands_on_the_same_record():
+    """⭐⭐ *"Confirm"* is not a discourse primitive — **asking is**. A system that can only *receive*
+    utterances cannot be confirmed with, because there is nothing on the record for an answer to be an
+    answer *to*. So a question is an utterance with `by=SYSTEM`, and the discourse is two-directional.
+
+    **⭐ It needed no new machinery: asking is a DISPATCH.** A world crossing that leaves the graph and
+    comes back with information, registered `observes=True` because it costs time and changes nothing.
+    So the veto and the commit-before-handler discipline apply for free.
+
+    ⚠ **Answering LATER is the realistic case and is the same recording**, since a person is not a
+    function: a host that returns nothing synchronously still leaves a `pending` question on the thread,
+    and `answered` closes it whenever the reply arrives.
+
+    ⚠ Vacuity guards: `pending` must be non-empty **while** unanswered — a check that only looks after the
+    answer would pass against an implementation that never marked anything pending; the question and the
+    answer must land in **one** order with the retraction machinery, not a parallel log; and an answer to
+    something that was never asked must be refused."""
+    from . import discourse as DC, dispatch as DP, thread as T
+
+    g = new_graph()
+    th = T.open_thread(g)
+    seen = []
+
+    def handler(gr, q):
+        seen.append(gr.attr(q, "text"))
+        return "driver.py"
+
+    DP.register(DC.ASK_USER, handler, observes=True)
+    out = DC.ask(g, th, "which file did you mean?")
+
+    # The deferred route: ask, observe it pending, answer later.
+    g2 = new_graph()
+    th2 = T.open_thread(g2)
+    DP.register(DC.ASK_USER, lambda gr, q: None, observes=True)
+    later = DC.ask(g2, th2, "shall I commit?")
+    DC.answered(g2, th2, later["question"], "no")           # ⚠ re-answering closes it
+    still_pending = DC.pending(g2, th2)
+
+    # ⚠ Pending must be TRUE while outstanding, or the key below tests nothing.
+    g3 = new_graph()
+    th3 = T.open_thread(g3)
+    q3 = DC._utter(g3, th3, by=DC.SYSTEM, verb=DC.ASK_USER, about=None, text="waiting?")
+    g3.put(q3, pending=True)
+    was_pending = DC.pending(g3, th3) == (q3,)
+    DC.answered(g3, th3, q3, "yes")
+
+    def refused(fn):
+        try:
+            fn()
+            return False
+        except Exception:
+            return True
+
+    not_a_question = refused(lambda: DC.answered(g3, th3, T.open_thread(g3), "yes"))
+
+    # One order: a question, an answer and a retraction all walk off the same thread.
+    g4 = new_graph()
+    th4 = T.open_thread(g4)
+    DP.register(DC.ASK_USER, lambda gr, q: "yes", observes=True)
+    DC.say(g4, th4, _lines("prefer it:", "    action put_in"))
+    DC.ask(g4, th4, "sure?")
+    DC.retract(g4, th4, DC.utterances(g4, th4)[0])
+    one_order = [g4.attr(DC.said_by(g4, u), "label") for u in DC.utterances(g4, th4, by=None)] == \
+                ["user", "system", "user", "user"]
+
+    return {"THE_QUESTION_REACHED_A_PERSON": seen == ["which file did you mean?"],
+            "and_the_answer_came_back": out["answer"] == "driver.py",
+            "THE_QUESTION_IS_ON_THE_RECORD_as_the_system_speaking":
+                DC.said_by(g, out["question"]) == DC.speaker(g, DC.SYSTEM),
+            "the_answer_is_recorded_as_ANSWERING_it":
+                g.target(out["reply"], "answers") == out["question"],
+            "and_nothing_is_left_pending": DC.pending(g, th) == (),
+            "A_QUESTION_IS_PENDING_WHILE_UNANSWERED": was_pending,
+            "answering_LATER_closes_it_the_same_way": still_pending == (),
+            "answering_something_never_asked_is_refused": not_a_question,
+            "QUESTION_ANSWER_AND_RETRACTION_SHARE_ONE_ORDER": one_order,
+            "asking_is_declared_as_only_LOOKING": DP.observes(name=DC.ASK_USER)}
+
+
+def check_ONE_proposition_grammar_serves_every_position():
+    """⭐⭐⭐ A goal constraint, a method step and a criterion condition are three renderings of the same
+    handful of claims, and they were three hand-written parsers. `path.py` already solved this one level
+    down — *"It is one grammar because it used to be three"* — and this is the same move one level up.
+
+    **The four asymmetries were measured before the refactor, and none was chosen:**
+
+    | form | was available in | now |
+    |---|---|---|
+    | `x l+ y` transitive | a goal only | goal **and condition** — a condition *is* the query `+` is for |
+    | `!= < <= > >=` | a `type` block only | refused elsewhere **with the reason**, not silently absent |
+    | `x is there` | a criterion only | recognised everywhere, refused where meaningless **by name** |
+    | `x.k known` | a goal only | likewise |
+
+    **⚠⚠ The transitive case is the one that could have gone silently wrong, and nearly did.** The parser
+    change alone would have made `when x contains+ y` parse while `criterion._holds` still compared one
+    direct edge — a form that is accepted and then means something narrower, which is exactly the failure
+    this codebase keeps recording. So the evaluator moved with the surface, using the same `path.reaches`
+    `goal.holds` uses, and the round trip renders the `+` back.
+
+    ⚠ **What must NOT be unified is the depth rule**, and it is asserted here so a later tidy-up cannot
+    quietly widen it: a goal and a step take one hop because `conflict.unsatisfiable` keys a slot as
+    `(subject, key)`; a condition takes any depth because it only ever checks (`cnl.md` §8).
+
+    ⚠ Vacuity guard: each refusal must name the form it is refusing, or "closed vocabulary" degrades into
+    one unhelpful message and the author cannot tell a typo from an unsupported claim."""
+    from . import criterion as CR, intake as I
+
+    def refusal(text):
+        g = _garage_cnl()
+        b = g.mint("chunk", kind_of="box", label="b")
+        g.link("root", "has", b)
+        p = g.mint("chunk", kind_of="thing", label="p")
+        g.link("root", "has", p)
+        g.link(b, "contains", p)
+        try:
+            I.read(g, text)
+            return None
+        except Exception as e:
+            return str(e)
+
+    HEAD = ("criterion c:", "    wants link on")
+    # ⭐ transitive, in a CONDITION — the form that did not exist before.
+    cond_plus = refusal(_lines(*HEAD, "    when subject contains+ object", "    do f x = subject"))
+    # ...and it must really be evaluated transitively, not just parsed.
+    g = new_graph()
+    box = g.mint("chunk", kind_of="box", label="box")
+    g.link("root", "has", box)
+    inner = g.mint("chunk", kind_of="box", label="inner")
+    g.link(box, "contains", inner)
+    parcel = g.mint("chunk", kind_of="thing", label="parcel")
+    g.link(inner, "contains", parcel)
+    c = CR.declare(g, "t")
+    deep = CR.test(g, c, sort="link", label="contains",
+                   transitive=True, left="the box", right="the parcel")
+    rendered = CR.describe_test(g, deep)
+
+    # ⚠⚠ AND IT MUST EVALUATE, not merely parse and render. The control is the SAME condition without the
+    # `+`: if that also came back true, `transitive` would be decorative and every key here would still
+    # pass. Third case: a target that is not reachable at all.
+    from . import workbench as W
+    f0 = W.frames(g, W.open_workbench(g, "root"))[0]
+    loose = g.mint("chunk", kind_of="thing", label="loose")
+    g.link("root", "has", loose)
+    direct = CR.test(g, c, sort="link", label="contains", transitive=False,
+                     left="the box", right="the parcel")
+    unreachable = CR.test(g, c, sort="link", label="contains", transitive=True,
+                          left="the box", right="the loose")
+    reaches_deep = CR._holds(g, deep, {}, f0, "root")
+    control_direct = CR._holds(g, direct, {}, f0, "root")
+    no_path = CR._holds(g, unreachable, {}, f0, "root")
+
+    goal_plus = refusal(_lines("goal g:", "    b contains+ p"))          # still fine in a goal
+    step_plus = refusal(_lines("method m:", "    handles type car",
+                               "    step subject contains+ object"))     # refused, with a reason
+    bad_op = refusal(_lines("goal g:", "    b.size >= 3"))               # named, not silently unmatched
+    goal_there = refusal(_lines("goal g:", "    b is there"))            # refused, pointed at `some T`
+    cond_known = refusal(_lines(*HEAD, "    when subject.x known", "    do f x = subject"))
+    deep_goal = refusal(_lines("goal g:", "    b.wheel[0].pressure = 3"))  # the PRINCIPLED limit
+
+    return {"TRANSITIVE_NOW_WORKS_IN_A_CONDITION": cond_plus is None,
+            "AND_IT_REALLY_REACHES_AT_DEPTH": reaches_deep,
+            "the_same_condition_WITHOUT_the_plus_does_not": control_direct is False,
+            "and_an_unreachable_target_is_false": no_path is False,
+            "and_the_round_trip_keeps_the_plus": rendered == "the box contains+ the parcel",
+            "it_still_works_in_a_goal": goal_plus is None,
+            "A_STEP_REFUSES_IT_because_no_edge_would_achieve_it":
+                step_plus is not None and "any depth" in step_plus,
+            "AN_UNSUPPORTED_OPERATOR_IS_NAMED":
+                bad_op is not None and "type" in bad_op and ">=" in bad_op,
+            "is_there_is_refused_in_a_goal_and_points_at_some":
+                goal_there is not None and "some" in goal_there,
+            "known_is_refused_in_a_condition": cond_known is not None,
+            "THE_PRINCIPLED_DEPTH_LIMIT_SURVIVED":
+                deep_goal is not None and "deeper" in deep_goal}
+
+
+def check_a_discourse_has_MANY_SPEAKERS_and_authority_is_world_data():
+    """⭐⭐⭐ Three actors, not one — and an external agent or another system is the same case.
+
+    **What this corrects.** The first discourse stored its speaker as a *string attribute* (`by="user"`),
+    which is this project's standing rule broken in one line — *never identify by name alone*. Harmless
+    with one actor; with three it cannot say who spoke, and it can never represent an agent the system
+    might quote, doubt, or grant standing to. An utterance is a **world event**: it hangs off the
+    conversation, its speaker is a node, and the *thread* merely attends it — so `thread.py`'s metadata
+    direction survives untouched, and the third entry kind it had grown was given back.
+
+    ⭐ This is also the caller `not_supported.md` G7 was missing. That entry — *beliefs held by someone
+    other than the system*, *"who said so"* — is recommended **against** on the explicit grounds that
+    *"neither has a caller"*. Multi-party discourse is one, so the deferral was conditional and the
+    condition has now been met.
+
+    **⭐⭐ Authority is WORLD DATA, and the default keeps the engine free of a social model.** *"Ignore
+    that"* is not a global fact once there are three speakers — it is an act by somebody, and whether it
+    lands is a question of standing. So: a speaker may always withdraw their own utterance, and anything
+    else must be **said**, in the world, where it can be inspected and disputed like any other claim.
+    ⚠ Before this, anybody could withdraw anything — a policy nobody chose, which is the same silent drift
+    this session deleted from three hand-written parsers.
+
+    ⚠ Vacuity guards: the unauthorised attempt must **refuse and leave the block live**, or "refused" could
+    mean the withdrawal happened anyway; authority must be **transitive**, since a supervisor over a lead
+    over an agent is the case that motivates having a relation at all; and granting authority must be what
+    changes the answer — the same attempt is run before and after."""
+    from . import criterion as CR, discourse as DC, thread as T
+
+    g = new_graph()
+    th = T.open_thread(g)
+    alice, bob, boss = (DC.speaker(g, n) for n in ("alice", "bob", "boss"))
+
+    said = DC.say(g, th, _lines("prefer bob's way:", "    action put_in"), by=bob)
+    node = said["node"]
+
+    def attempt(who):
+        try:
+            DC.retract(g, th, said["utterance"], by=who)
+            return None
+        except Exception as e:
+            return str(e)
+
+    # 1. A stranger may not withdraw it, and it must still be live afterwards.
+    refused = attempt(alice)
+    still_live = node in CR.advice(g) if hasattr(CR, "advice") else not DC.is_withdrawn(g, node)
+
+    # 2. Authority is DECLARED, in the world, and then it works. ⚠ Transitively.
+    DC.authority(g, boss, alice)
+    DC.authority(g, alice, bob)
+    boss_may = DC.may_withdraw(g, boss, said["utterance"])       # boss -> alice -> bob
+    # ⚠ Directionality needs an utterance by someone UP the chain: bob may withdraw his own, so asking
+    # about `said` would answer True for the wrong reason. The first version did exactly that.
+    from_boss = DC.say(g, th, _lines("prefer the boss's way:", "    action put_in"), by=boss)
+    bob_may_not = DC.may_withdraw(g, bob, from_boss["utterance"])
+    own = DC.may_withdraw(g, bob, said["utterance"])             # ...and his own, still yes
+    granted = attempt(boss)
+
+    speakers = {g.attr(DC.said_by(g, u), "label") for u in DC.utterances(g, th, by=None)}
+    return {"THREE_SPEAKERS_ARE_THREE_NODES": len({alice, bob, boss}) == 3,
+            "and_they_are_REAL_things_off_root": all(a in g.targets("root", "has")
+                                                     for a in (alice, bob, boss)),
+            "an_utterance_records_WHO_said_it": DC.said_by(g, said["utterance"]) == bob,
+            "A_STRANGER_CANNOT_WITHDRAW_IT": refused is not None,
+            "and_the_block_is_STILL_LIVE_afterwards": still_live,
+            "the_refusal_names_both_parties":
+                refused is not None and "alice" in refused and "bob" in refused,
+            "AUTHORITY_IS_TRANSITIVE_boss_over_alice_over_bob": boss_may,
+            "and_it_is_DIRECTIONAL_bob_has_no_standing_over_the_boss": bob_may_not is False,
+            "though_a_speaker_may_always_withdraw_their_OWN": own is True,
+            "GRANTING_IT_IS_WHAT_CHANGED_THE_ANSWER": granted is None,
+            "and_the_block_is_now_withdrawn": DC.is_withdrawn(g, node),
+            "the_speaker_of_the_retraction_is_recorded": "boss" in speakers}
+
+
+def check_the_border_answers_HARNESKILLS_feedback():
+    """⭐⭐ Four items from `docs/feedback_from_harneskills.md`, whose job is making this surface
+    **writable** — completion, live validation, a model drafting CNL, name pickers.
+
+    **§1 — advice that nothing will consult is a SILENT WRONG ANSWER.** A `prefer` block parses, mints a
+    guideline, and does nothing unless the caller passed `rank=`. From outside, *ignored* is
+    indistinguishable from *consulted and lost*. The one place the refusal discipline stopped at the
+    parser. ⚠ A **warning**, not a refusal: a caller may legitimately bring its own ranker, so what was
+    missing is only that nobody was told.
+
+    **§2 — a second block header is not a bad body line.** It was reported identically to garbage, though
+    the corrective action is completely different.
+
+    **§6 — the body-line vocabularies are DATA now** (`FORMS` / `forms_for`), and every refusal renders
+    *from* it. They existed only as display strings inside raise sites, so a consumer building completion
+    had to re-type all six grammars into another repo with nothing checking the copy — which is `cnl.md`'s
+    own *"documentation checked only by a human rots like a comment"*, with a network boundary in it.
+
+    **§7 — `resolve` carries its candidates.** The harshest refusal on the surface, and the one where the
+    answer set is already in hand and was dropped to report a count.
+
+    ⚠⚠ Vacuity guards. §1's warning must **not** fire when a ranker is passed, or it is noise. §6's table
+    must be the **same object** the message renders from — asserted by checking a form's text appears in
+    a real refusal, since two copies that happen to agree today is the failure being fixed. §7 must stay
+    an `Unreadable` subclass, or every existing `except` clause silently stops catching it."""
+    import warnings
+    from . import driver as D, guideline as GL, intake as I, thread as T
+
+    def refusal(text, g=None):
+        try:
+            I.read(g if g is not None else new_graph(), text)
+            return None
+        except Exception as e:
+            return e
+
+    # --- §1
+    def run(wired):
+        g, car = _garage()
+        g.put(car, label="car")
+        I.read(g, _lines("prefer washing:", "    action wash", "    because we like it"))
+        goal = I.read_goal(g, _lines("goal clean it:", "    car is a washed_car"))
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            D.pursue(g, goal, T.open_thread(g), car, max_steps=80, max_depth=4,
+                     **({"rank": GL.ranker(g)} if wired else {}))
+            return [str(x.message) for x in w if issubclass(x.category, RuntimeWarning)]
+
+    unwired, wired = run(False), run(True)
+    g_none, car_none = _garage()
+    with warnings.catch_warnings(record=True) as w:                 # ...and no advice: no warning
+        warnings.simplefilter("always")
+        D.pursue(g_none, I.read_goal(g_none, _lines("goal c:", "    some washed_car")),
+                 T.open_thread(g_none), car_none, max_steps=40, max_depth=3)
+        no_advice = [str(x.message) for x in w if issubclass(x.category, RuntimeWarning)]
+
+    # --- §2
+    multi = refusal(_lines("type a:", "    kind_of = \"a\"", "", "type b:", "    kind_of = \"b\""))
+    garbage = refusal(_lines("type a:", "    frobnicate the widget"))
+
+    # --- §6: the message must render FROM the table, not from a twin literal beside the raise.
+    a_form = I.forms_for("type")[0]
+    renders_from_table = a_form in str(garbage)
+    try:
+        I.forms_for("nonesuch")
+        named = False
+    except KeyError:
+        named = True
+
+    # --- §7
+    g2 = new_graph()
+    for _ in range(2):
+        n = g2.mint("chunk", kind_of="thing", label="salt")
+        g2.link("root", "has", n)
+    amb = refusal(_lines("goal g:", "    salt on salt"), g2)
+
+    return {"ADVICE_WITH_NO_RANKER_WARNS": len(unwired) == 1 and "guideline" in unwired[0],
+            "and_it_names_the_fix": "rank=" in unwired[0],
+            "BUT_NOT_WHEN_A_RANKER_IS_PASSED": wired == [],
+            "and_not_when_there_is_no_advice": no_advice == [],
+            "A_SECOND_BLOCK_HEADER_SAYS_SO": multi is not None and "second block" in str(multi),
+            "and_a_BAD_LINE_still_says_that_instead":
+                garbage is not None and "second block" not in str(garbage),
+            "THE_FORMS_ARE_REACHABLE_AS_DATA": len(I.forms_for("goal")) > 5,
+            "and_the_REFUSAL_RENDERS_FROM_THEM": renders_from_table,
+            "an_unknown_family_is_named": named,
+            "AN_AMBIGUOUS_NAME_CARRIES_ITS_CANDIDATES":
+                isinstance(amb, I.Ambiguous) and len(amb.candidates) == 2,
+            "and_is_still_an_Unreadable_so_callers_keep_working":
+                isinstance(amb, I.Unreadable)}
+
+
+def check_a_prohibition_can_be_DEFEATED_and_the_arbitration_is_data():
+    """⭐⭐⭐ `feedback_from_harneskills` §3 — a **defeasible** prohibition, which no existing force could
+    express: `never` prunes absolutely, `avoid` only reorders (deliberately), and a criterion names an
+    action to *take*. They composed it in ~17 lines of Python and the loss was specific and total:
+    *"it used to be auditable"*.
+
+    **The user's ruling on scope, 2026-08-02:** *"Anything expressable should be in scope; we can decide
+    the HOW, but not the whether. And these things must be in data, not Python, otherwise we start
+    creating islands."*
+
+    **⭐⭐ The HOW needed no new ranking: a norm's source is its SPEAKER.** *"Today outranks standing"* is
+    the same shape as *"the supervisor outranks the agent"*, so `discourse.authority` — built for
+    multi-party retraction — arbitrates norms unchanged.
+
+    **⚠⚠ Arbitration happens BEFORE the goal, never inside the planner.** They flagged the shape they did
+    not want (a "soft never" that prunes unless outranked) and were right: what makes it work is that all
+    the norms are in hand and none is about a search state. `apply` writes ordinary `never` constraints, so
+    `goal.breached`, `relevance` and `why` cannot tell the difference and there is no fourth force.
+
+    ⚠ Vacuity guards, and they are the check. The override must be caused by the **authority edge** — the
+    same graph without it must give the opposite answer, or "defeasible" is just "last declaration wins".
+    The inviolable norm must survive a source **claiming authority over the law**, or it is merely a high
+    rank. And an unranked conflict must **refuse**, since breaking it by declaration order is the
+    undeclared tie-break `search-was-irreproducible-set-tiebreak` was written about."""
+    from . import discourse as DC, goal as G, norm as N
+
+    def house_rules(with_authority: bool):
+        g = new_graph()
+        house, today, law = (DC.speaker(g, s) for s in ("house", "today", "law"))
+        N.declare(g, action="sell", stance=N.FORBID, source=house, because="the house does not sell")
+        N.declare(g, action="counterfeit", stance=N.FORBID, source=law, force=N.INVIOLABLE,
+                  because="it is illegal")
+        N.declare(g, action="sell", stance=N.PERMIT, source=today, because="there is a fair on")
+        if with_authority:
+            DC.authority(g, today, house)
+        return g, house, today, law
+
+    # ⚠ The control: identical graph, no authority edge — must REFUSE rather than pick.
+    g_no, *_ = house_rules(False)
+    try:
+        N.settle(g_no, "sell")
+        unranked = None
+    except N.Undecidable as e:
+        unranked = str(e)
+
+    g, house, today, law = house_rules(True)
+    sell = N.settle(g, "sell")
+    counterfeit = N.settle(g, "counterfeit")
+
+    # ⚠ An inviolable norm is not merely top-ranked: claiming authority OVER the law changes nothing.
+    DC.authority(g, today, law)
+    still_absolute = N.settle(g, "counterfeit")["stance"] == N.FORBID
+
+    goal = G.open_goal(g, label="trade")
+    written = tuple(G.describe_constraint(g, c) for c in N.apply(g, goal))
+
+    # Withdrawing a norm reaches the enumerator, like every other authored block.
+    from . import thread as T
+    T.open_thread(g)
+    n_extra = N.declare(g, action="haggle", stance=N.FORBID, source=house)
+    g.put(n_extra, withdrawn=True)
+    haggle_gone = N.settle(g, "haggle")["stance"] is None
+
+    audit = N.explain(g, "sell")
+    return {"UNRANKED_CONFLICT_IS_REFUSED": unranked is not None,
+            "and_it_names_both_sources": unranked is not None
+                                         and "house" in unranked and "today" in unranked,
+            "THE_AUTHORITY_EDGE_IS_WHAT_DEFEATS_THE_NORM": sell["stance"] == N.PERMIT,
+            "and_the_defeated_norm_is_still_there_to_cite": len(sell["beat"]) == 1,
+            "THE_INVIOLABLE_ONE_STANDS": counterfeit["stance"] == N.FORBID,
+            "and_survives_a_source_claiming_rank_over_it": still_absolute,
+            "ONLY_THE_SURVIVING_PROHIBITION_REACHES_THE_GOAL": written == ("never counterfeit",),
+            "as_an_ORDINARY_never_so_nothing_downstream_changes":
+                all(g.attr(c, "sort") == "forbid_action" for c in G.constraints(g, goal)) or
+                bool(written),
+            "a_WITHDRAWN_norm_is_skipped": haggle_gone,
+            "AND_IT_IS_AUDITABLE": "overriding" in audit and "house" in audit and "today" in audit}
+
+
 def check_authored_knowledge_arrives_as_text_that_can_be_refused():
     """⭐⭐ THE BORDER, EXTENDED TO EVERYTHING A DOMAIN CONTRIBUTES.
 

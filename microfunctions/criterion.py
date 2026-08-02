@@ -72,8 +72,12 @@ def criteria(g: Graph) -> tuple:
     """Every declared criterion, in **declaration order** — which is precedence order, free.
 
     Library-region data, like functions, types and guidelines: criteria describe how to act, not what is
-    the case, so they do not hang off `root` and are never copied into a workbench."""
-    return g.of_kind("criterion")
+    the case, so they do not hang off `root` and are never copied into a workbench.
+
+    ⚠ Withdrawn criteria are skipped — *"ignore that"* has to reach the thing that enumerates, or the block
+    keeps deciding after it was taken back (`discourse.py`)."""
+    from .discourse import live
+    return live(g, g.of_kind("criterion"))
 
 
 # --- authoring ----------------------------------------------------------------------------------------
@@ -262,7 +266,17 @@ def _holds(g: Graph, t: str, bound: dict, frame: str, under: str) -> bool:
             right = resolve_ref(g, g.attr(t, "right"), bound, frame, under=under)
         except (Unresolvable, P.BadPath):
             return False
-        return g.target(_here(g, frame, left), g.attr(t, "label")) == _here(g, frame, right)
+        here, there = _here(g, frame, left), _here(g, frame, right)
+        if g.attr(t, "transitive"):
+            # ⭐ `x contains+ y` — *reachable at any depth*. This arrived with the shared proposition
+            # grammar: `+` had existed only in a goal line, though `cnl.md` §8 says it belongs "in a link
+            # position — a goal line or a query", and a condition IS the query. ⚠⚠ The parser accepting it
+            # while this read one direct edge would have been silent acceptance of a wrong meaning, which
+            # is the failure mode this codebase keeps catching — so the evaluator moved with the surface.
+            # Same reader `goal.holds` uses, so the two cannot disagree about what `+` means.
+            from .path import reaches
+            return reaches(g, here, g.attr(t, "label"), there)
+        return g.target(here, g.attr(t, "label")) == there
     if sort == "wants":
         # ⚠ A test about the GOAL, not the world — *"is anything still required of this thing?"*. The
         # bottom-up ordering knowledge needs it: stack onto `y` only once `y` itself has nowhere left to go.
@@ -544,7 +558,10 @@ def describe_test(g: Graph, t: str) -> str:
     body = {"exists": f"{left} exists",
             "type": f"{left} is a {g.attr(t, 'label')}",
             "attr": f"{left}.{g.attr(t, 'key')} = {g.attr(t, 'value')!r}",
-            "link": f"{left} {g.attr(t, 'label')} {g.attr(t, 'right')}",
+            # ⚠ The `+` must survive the round trip, or a reader is shown a condition that says something
+            # narrower than the one being evaluated.
+            "link": f"{left} {g.attr(t, 'label')}{'+' if g.attr(t, 'transitive') else ''} "
+                    f"{g.attr(t, 'right')}",
             "wants": f"the goal wants {g.attr(t, 'want_sort')} "
                      f"{g.attr(t, 'label') or ''} from {left}".replace("  ", " ")}[sort]
     return ("not " if g.attr(t, "negated") else "") + body

@@ -52,6 +52,12 @@ from __future__ import annotations
 from . import application as ap
 from .graph import Graph
 
+#: ⚠ **Still two, and an attempt to add a third was withdrawn.** `discourse.py` first made an *utterance*
+#: an entry kind of its own. The correction was that an utterance is a **world event** — it has a speaker,
+#: other agents may quote it, and a rule may reason about it — so it hangs off `root` like anything real,
+#: and what belongs on the thread is the ordinary *attention* the system paid it. Retraction still needs
+#: utterances and applications in **one order**, and it has that, because an attention entry sits in the
+#: same `step` edge as everything else. The two-kind restriction turned out to be right.
 ENTRY_KINDS = frozenset({"attention", "application"})
 
 

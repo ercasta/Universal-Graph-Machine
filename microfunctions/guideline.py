@@ -65,8 +65,11 @@ def avoid(g: Graph, *, function=None, on=None, when=None, because=None) -> str:
 def advice(g: Graph) -> tuple:
     """Every guideline, in **declaration order** — which is precedence order, free, because `of_kind`
     returns mint order. Library-region data: guidelines describe the library, so like functions and types
-    they do not hang off `root` and are never copied into a workbench."""
-    return g.of_kind("guideline")
+    they do not hang off `root` and are never copied into a workbench.
+
+    ⚠ Withdrawn guidelines are skipped — see `discourse.py`."""
+    from .discourse import live
+    return live(g, g.of_kind("guideline"))
 
 
 def applies(g: Graph, gl: str, name: str, bound: dict) -> bool:

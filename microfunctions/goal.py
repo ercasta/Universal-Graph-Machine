@@ -452,10 +452,63 @@ def require_known(g: Graph, goal: str, subject: str, key: str) -> str:
     ⚠ The subject is an **edge**, not an attribute. Passing it as a keyword to `_constrain` made it a
     stored string, so `g.target(c, "subject")` was `None`, `holds` looked at nothing, and the constraint
     read as **satisfied before anyone had looked** — a knowledge goal that closes itself. Caught by
-    `describe` rendering it as "something.colour", which is the round trip earning its keep."""
+    `describe` rendering it as "something.colour", which is the round trip earning its keep.
+
+    ⚠⚠ **AND IT CLOSED ITSELF TWICE MORE, by two further routes.** `repo.files known` was accepted,
+    planned, and reported done with an empty plan, having never looked — because `holds` asks
+    `g.attr(here, key) is not UNKNOWN`, and an absent slot is `None` rather than `UNKNOWN`. Neither route
+    is a bug in `UNKNOWN`: absence-means-*lacks-it* is deliberate (`graph.UNKNOWN`), so the slot really was
+    known. The mistake was admitting a **relation**, or a **typo**, into an attribute-shaped claim at all.
+    Same shape as the `has 1 ^contains` bug `cnl.md` §3 records — a label read in a position where labels
+    do not apply, silently. Found by `probe_agentic_coding.py` on *"list all the files in the repo"*.
+
+    ⚠ So both refuse rather than being fixed. *"Which files are in the repo"* is a real thing to want and
+    `known` is genuinely not it: an absent edge has nowhere to hang a marker (`HANDOFF.md` §9 item 3), so
+    there is nothing for a sensing action to close. A loud refusal names the gap; a vacuous truth hides it."""
+    if _names_an_edge(g, subject, key):
+        raise ValueError(
+            f"`known` is a claim about an ATTRIBUTE SLOT, and {key!r} names an edge. An absent edge has no "
+            f"slot to mark as unlooked-at, so this constraint would be satisfied before anyone had looked. "
+            f"To demand that something be there, say `has …` in a `type` block; to ask what is there, use "
+            f"a `what` / `where` question.")
+    if not _addressable(g, subject, key):
+        raise ValueError(
+            f"nothing has an attribute slot called {key!r}, so `known` about it is satisfied by default and "
+            f"nothing would ever be looked at. A slot is unknown only when something SAYS so "
+            f"(`graph.UNKNOWN`), so declare it in a `type` block or have an operator mark it unknown.")
     c = _constrain(g, goal, "known", key=key)
     g.link(c, "subject", subject)
     return c
+
+
+def _names_an_edge(g: Graph, subject: str, key: str) -> bool:
+    """Does `key` denote a relation rather than an attribute slot?
+
+    Two witnesses, and the second is the one that matters. An edge **already there** is decisive. But the
+    interesting case is the one an author actually writes — *"go and find out what files are in there"* —
+    where no such edge exists yet and only a **declared type** knows the label is structural. Checking the
+    world alone would accept exactly the utterance this refusal exists for."""
+    if g.targets(subject, key):
+        return True
+    from .types import schema_of
+    return any(key in schema_of(g, g.attr(t, "name")) for t in g.of_kind("type"))
+
+
+def _addressable(g: Graph, subject: str, key: str) -> bool:
+    """Is there an attribute slot by this name at all?
+
+    ⚠⚠ **Without this, a MISTYPED key is a knowledge goal that closes itself** — and this is the half that
+    actually bit. `repo.files known` was accepted where the edge is labelled `file`, so `files` named
+    nothing whatever; `holds` read the absent slot as *not UNKNOWN*, i.e. known, and the goal was met with
+    an empty plan. Every typo behaves this way.
+
+    The slot counts as addressable if the subject **carries** it (any value, `UNKNOWN` included — which is
+    the case an operator marking ignorance creates) or if any declared **type** requires it. Both are the
+    situations in which the claim could ever be false, so refusing everything else costs nothing real."""
+    if key in g.attrs.get(subject, {}):
+        return True
+    from .types import attrs_of
+    return any(key in attrs_of(g, g.attr(t, "name")) for t in g.of_kind("type"))
 
 
 def undetermined(g: Graph, goal: str, *, view=None, under: str | None = None) -> tuple:

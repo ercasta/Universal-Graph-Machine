@@ -67,13 +67,47 @@ def step(g: Graph, m: str, *, sort: str, label: str | None = None, key: str | No
     return s
 
 
+def draw(g: Graph, m: str, *, name: str, ref: str, label: str, back: bool = False) -> str:
+    """`some <name> in <ref> by <link>` — bind a **further** role for this method's steps.
+
+    **⭐ The same form `criterion.draw` already provides, and it was missing here for no good reason.** A
+    method could speak only of `subject` and `object` — the matched constraint's — so a decomposition whose
+    steps concern a **third** individual had no form at all. That is the gap `expert_judgement.md` §8f
+    recorded for criteria, fixed there and never carried across; `probe_agentic_coding.py` found it again
+    from the other side, on *"after you edit a file, lint THAT file"*.
+
+    **⚠⚠ SINGULAR, and that restraint is the design, not a shortcut.** A draw reaches a *set*, and raising
+    one subgoal per candidate is exactly what `plural_step.md` §4 forbids first: *do not expand the plural
+    step at plan time into N singular steps*, because a plan expanded over today's members is valid only
+    for the collection as it was when planned. So this binds the **nearest** candidate, like the reference
+    language everywhere else, and the plural case stays where that document put it — slice B/C.
+
+    ⚠ And *"do it to each of them"* does **not** need this: slice A's `goal.witnesses` already makes a
+    universal constraint plannable one member at a time, measured. This is for naming ONE related thing."""
+    d = g.mint("draw", name=name, ref=ref, label=label, back=back)
+    g.link(m, "draw", d)
+    return d
+
+
+def draws_of(g: Graph, m: str) -> tuple:
+    return g.targets(m, "draw")
+
+
+def roles_of(g: Graph, m: str) -> tuple:
+    """Every role this method's steps may speak of: the two the constraint binds, plus what it has drawn."""
+    return (SUBJECT, OBJECT) + tuple(g.attr(d, "name") for d in draws_of(g, m))
+
+
 def steps_of(g: Graph, m: str) -> tuple:
     return g.targets(m, "step")
 
 
 def methods(g: Graph) -> tuple:
-    """Every method, in declaration order — precedence order, free via `of_kind`'s mint order."""
-    return g.of_kind("method")
+    """Every method, in declaration order — precedence order, free via `of_kind`'s mint order.
+
+    ⚠ Withdrawn methods are skipped — see `discourse.py`."""
+    from .discourse import live
+    return live(g, g.of_kind("method"))
 
 
 def raised_by(g: Graph, goal: str):
@@ -110,8 +144,30 @@ def applicable(g: Graph, goal: str, *, view=None, under: str | None = None) -> t
     return tuple((m, c) for m in methods(g) for c in open_now if matches(g, m, goal, c))
 
 
-def _role_node(g: Graph, c: str, role: str):
+def _role_node(g: Graph, c: str, role: str, bound: dict | None = None):
+    if bound and role in bound:
+        return bound[role]
     return g.target(c, SUBJECT) if role == SUBJECT else g.target(c, OBJECT)
+
+
+def _bind_draws(g: Graph, m: str, c: str) -> dict:
+    """Resolve this method's drawn roles against the world, nearest-first.
+
+    ⚠ A draw that reaches **nothing** leaves its name unbound, and `decompose` then refuses rather than
+    raising a subgoal about `None`. `criterion._expand` makes the same call for the same reason: *"some
+    container inside the warehouse"* when there is none is a situation the method has nothing to say
+    about, not a method with a hole in it. Silently raising a subgoal with no subject is how a
+    decomposition ends up looking done because it was never really posed."""
+    from .path import via
+    bound: dict = {}
+    for d in draws_of(g, m):
+        start = _role_node(g, c, g.attr(d, "ref"), bound)
+        if start is None:
+            continue
+        reached = via(g, start, g.attr(d, "label"), back=bool(g.attr(d, "back")))
+        if reached:
+            bound[g.attr(d, "name")] = reached[0]
+    return bound
 
 
 def decompose(g: Graph, m: str, goal: str, c: str) -> tuple:
@@ -133,6 +189,14 @@ def decompose(g: Graph, m: str, goal: str, c: str) -> tuple:
     # So the grounding is only rewritten when there is nothing to rewrite: a goal with its own constraints
     # keeps them, and the steps are merely how we propose to get there. A goal with none — *"do these
     # steps, in this order"* — is a procedure, and having followed them IS being met.
+    bound = _bind_draws(g, m, c)
+    for s in steps:
+        for role in (g.attr(s, "subject_role"), g.attr(s, "object_role")):
+            if role is not None and role not in (SUBJECT, OBJECT) and role not in bound:
+                raise ValueError(
+                    f"method {g.attr(m, 'name') or m} draws {role!r} and the traversal reached nothing, so "
+                    f"there is no individual to raise a subgoal about. Refused rather than decomposed into "
+                    f"a step with no subject.")
     g.put(goal, force=g.attr(m, "force"))
     if not G.world_constraints(g, goal):
         g.put(goal, met_by=G.BY_STEPS)
@@ -141,11 +205,11 @@ def decompose(g: Graph, m: str, goal: str, c: str) -> tuple:
         sub = G.open_goal(g, label=g.attr(s, "note") or f"step of {g.attr(m, 'name') or m}",
                           under=goal, because=g.attr(m, "because"))
         g.link(sub, "by", m)
-        subject = _role_node(g, c, g.attr(s, "subject_role"))
+        subject = _role_node(g, c, g.attr(s, "subject_role"), bound)
         sort = g.attr(s, "sort")
         if sort == "link":
             G.require_link(g, sub, subject, g.attr(s, "label"),
-                           _role_node(g, c, g.attr(s, "object_role") or OBJECT))
+                           _role_node(g, c, g.attr(s, "object_role") or OBJECT, bound))
         elif sort == "attr":
             G.require_attr(g, sub, subject, g.attr(s, "key"), g.attr(s, "value"))
         else:
@@ -157,5 +221,5 @@ def decompose(g: Graph, m: str, goal: str, c: str) -> tuple:
     return tuple(raised)
 
 
-__all__ = ["SUBJECT", "OBJECT", "method", "step", "steps_of", "methods", "raised_by", "under_method",
-           "matches", "applicable", "decompose"]
+__all__ = ["SUBJECT", "OBJECT", "method", "step", "draw", "draws_of", "roles_of", "steps_of", "methods",
+           "raised_by", "under_method", "matches", "applicable", "decompose"]

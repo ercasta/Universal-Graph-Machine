@@ -13,6 +13,57 @@ could not detect do not need one. When in doubt, write the line — it costs one
 
 ---
 
+## 2026-08-02
+
+### Added — `norm.py`: a prohibition that can be defeated (`feedback_from_harneskills` §3)
+
+- **`norm.declare` / `settle` / `apply` / `explain`.** A norm forbids or permits an operator, carries a
+  **source**, and is `defeasible` or `inviolable` (the project's fourth force pair). ⭐ Arbitration reuses
+  `discourse.authority` — **a norm's source is its speaker** — so there is no norm-specific notion of
+  strength. `apply(goal)` writes ordinary `never` constraints, so nothing downstream learns a new concept
+  and arbitration never enters the planner. **No migration:** entirely additive.
+- ⚠ **Conflicting norms whose sources are unranked are REFUSED** (`norm.Undecidable`), naming both
+  sources. Breaking the tie by declaration order would be an undeclared tie-break.
+- **The answer to "is it in scope":** yes. *Anything expressable is in scope; the how is a design choice,
+  and "in a consumer's Python" is not one of the available choices* — see `not_supported.md` §4.
+
+### Added — the body-line vocabularies are data (`feedback_from_harneskills` §6)
+
+- **`intake.FORMS` and `intake.forms_for(family)`** give the legal body-line forms per family, and every
+  "vocabulary is closed" refusal now renders **from** that table. Previously they existed only as display
+  strings inside raise sites, so a consumer building completion had to re-type all six grammars. **No
+  migration:** purely additive. Keys are family names as they appear in refusals (`goal`, `type`,
+  `advice`, `method`, `method step`, `criterion`, `condition`, `question`) — not verbs, since a force pair
+  shares one body.
+
+### Added — an ambiguous name carries its candidates (`feedback_from_harneskills` §7)
+
+- **`intake.Ambiguous(Unreadable)`** carries `.candidates` and `.name`. **No migration:** it is a
+  subclass, so every `except Unreadable` still catches it; the refusal is unchanged and only gains
+  attributes, so a UI can offer the two nodes rather than making a human guess.
+
+### Changed — `pursue` warns when authored advice cannot be consulted (`feedback_from_harneskills` §1)
+
+- **⚠ `driver.pursue` now emits a `RuntimeWarning` when guidelines exist in the graph and `rank=` was
+  not passed.** A `prefer` block parsed, minted a node, and was inert because of a keyword argument at an
+  unrelated call site — indistinguishable from advice that was consulted and lost. **Migration:** none
+  required, and the warning is silent when `rank=` is supplied or no guideline is declared. If you pass a
+  custom ranker that deliberately ignores guidelines, you will not be warned — anything passed as `rank`
+  is taken at its word.
+
+### Changed — better refusals at the border
+
+- **A second block header is now named as one** rather than reported as an unrecognised body line
+  (`feedback_from_harneskills` §2). Same exception type; only the message differs.
+- **`x l+ y` now works in a `when`/`unless` condition**, and `criterion._holds` evaluates it with
+  `path.reaches` (it previously compared one direct edge). `describe_test` renders the `+`. **Migration:**
+  a condition that was written with a `+` and silently read as a direct edge would have been refused
+  before, so nothing existing changes meaning.
+- **⚠ `goal.require_known` now REFUSES two shapes it used to accept**: a key naming an *edge*, and a key
+  naming *nothing at all*. Both produced a goal that reported itself done with an empty plan, having never
+  looked. **Migration:** if you relied on `x.k known` for a `k` that is an edge label or absent, it now
+  raises `ValueError`; the constraint was never doing anything.
+
 ## 2026-08-01
 
 ### Changed — a prohibition now binds a goal's descendants

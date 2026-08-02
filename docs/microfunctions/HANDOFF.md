@@ -13,7 +13,7 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 184 checks, 0 FAILED
+python -m microfunctions.selftest      # 196 checks, 0 FAILED
 ```
 
 > **⭐⭐⭐ Update, 2026-08-01 — READ §6c–§6i BEFORE §5.** The whole of §6b's arc landed in one day and
@@ -22,6 +22,19 @@ python -m microfunctions.selftest      # 184 checks, 0 FAILED
 > own computation, §6g made **forgetting the default**, §6h built **transitive reach**, §6i added the
 > **wh-questions** (`locate.py`), and §6j made a universal constraint **rankable**. §5's items 3–5 still stand and are listed there; **§9 is the current
 > list.**
+
+> **⭐⭐⭐ Update, 2026-08-02 — GRANULARITY. Read `docs/microfunctions/granularity.md` and then §6k–§6n.**
+> A design pass on *plans at more than one grain* (nested plans, detours, several plans at once,
+> preconditions) turned into **three probes and four slices**, and the probes are the important part:
+> **two of the design's own claims were measured wrong**, and two defects nobody was looking for turned up.
+> §6k is the probe results, §6l–§6n the slices. ⚠ **§6l changes an ordering that every recorded cost figure
+> in this document was taken under** — see it before trusting a number here.
+>
+> ⚠ **Two arcs landed concurrently on 2026-08-02 and the check counts interleave.** §6k–§6n took the
+> suite 184 → 188; a separate arc (`criterion.py`, `docs/microfunctions/cnl.md`,
+> `docs/microfunctions/expert_judgement.md`) took it to **196**, and is documented in its own files
+> rather than here. So the per-section counts below are the state *at that section*, not a running
+> total — only the verify line at the top is current.
 
 ---
 
@@ -46,6 +59,7 @@ happens to match.
 | 3 | `microfunctions/README.md` | the code's own entry point — every module, and the reasoning per layer |
 | 4 | `planning_workbench.md` | the workbench design: mappings, frames, mocks, the direction invariant |
 | 5 | `graph_data_model.md` | the analytical companion to #2 — tables, closure check, probe results |
+| 4b | `granularity.md` | ⭐ plans at more than one grain — nested plans, detours, several at once, preconditions. Parts I–III are design, IV the build order, **V the probe results that weakened two of its own claims** |
 | — | `docs/microfunctions/README.md` | index, plus a **staleness review** of #2 and #5 |
 
 ⚠ #2 and #5 were written before the substrate changed twice. Three passages were **corrected in place**
@@ -81,6 +95,7 @@ the data model was genuinely independent of the execution model.
 | `conflict.py` | contradictory goals, and **interference** between goals over one slot |
 | `guideline.py` | **authored preference as data** — reorders within a band, can never exclude |
 | `method.py` | **authored decompositions as data** that select themselves; prune on *authority* |
+| `criterion.py` | a concurrent arc, not covered here — see `expert_judgement.md` and `cnl.md` |
 
 ## 4. The decisions that took the longest to reach
 
@@ -2107,9 +2122,336 @@ witness list would be. What *did* come into the open is the **question**, previo
 **Every measured search cost is unchanged** — guided vs blind still 2 vs 67, role paths still 3/10/10 —
 which is what makes this additive rather than a re-tuning of §5d's hard-won bands.
 
-## 9. ⭐ WHAT TO DO NEXT (current as of 2026-08-01)
+## 6k. ⭐⭐⭐ GRANULARITY — the design was probed first, and two of its claims were wrong (2026-08-02)
+
+`docs/microfunctions/granularity.md` is the design; this is what measuring it changed. The prompting
+questions were ordinary product ones — *my plan is "book hotel, book flight" but booking a hotel is itself
+several steps; plans get interrupted and detours are legitimate; to get to school from abroad I must fly
+home first* — and the notable thing is that **every gap came out additive.** Nothing in three parts
+contradicted the substrate: no change to `graph.py`, `types.py`, `workbench.py`, `execution.py` or the
+pursuit phases, and two mechanisms *deleted*.
+
+**⭐⭐ The principle the whole design reduces to, and it makes the demand a property rather than a feature:**
+
+> **A level is judged by its own promise, at its own grain.** A level's promise is exactly its goal's
+> constraints, and it is monitored by asking *that* promise — never by comparing what happened against what
+> a different level planned.
+
+**Refinement therefore cannot register as divergence**, because the parent never sees the child's actions
+at all: "book hotel" is not a function call and has no trace to compare. ⚠ The way to get this wrong is to
+monitor the **action trace**, which would make `search_hotels, pay, confirm` a divergence from an expected
+`book_hotel` at step one. **Do not build a plan differ; there is no "right level" to find**, because you
+never compare two levels.
+
+### The three probes, and what they cost the design
+
+**1. ✅ Better than hoped.** `types.fails` returns `{label: (expected, actual)}` — *which* requirement
+failed — and `driver.proposals` already called it on every candidate and **discarded the dict**.
+
+**2. ⚠ WRONG AS STATED, and the real defect is worse.** The design predicted a prerequisite would score
+band 0. In the school scenario `fly_home` scored **band 4** — because `relevance` matched the **slot** and
+never the **value**: the goal wants `where = school`, `fly_home` writes `where = home`, band 4. *The right
+answer for a reason that does not generalise*, and the design had taken the right answer as evidence the
+mechanism worked. The discriminating case is a prerequisite writing a **different slot** (`buy_ticket` sets
+`ticket`), which scores 0 and ties with every idle operator.
+
+> **⭐⭐ Band 4 is reachable only for the LAST step of a chain.** The guidance is one-step slot-matching
+> lookahead; it had never once guided *toward a prerequisite*.
+
+**⚠⚠ And what rescued it was an undeclared alphabetical tie-break** — `function.names` was `sorted()`, and
+`buy_ticket` happens to sort before `idle*`/`nap`. Renamed `zz_buy_ticket`, cost went 3/3/3 → 7/11/17.
+**The planner's cost depended on the name of a function.**
+
+**3. The concurrency premise held, and two assumptions were wrong in opposite directions.** Two unrelated
+pursuits interleave on one loop today, unchanged: 12 ticks, 8 switches, both goals satisfied in reality.
+⭐ A stale precondition **is** re-checked at execution time (`fn.invoke` re-validates parameter types), so a
+plan cannot act on a world it was not verified against — stronger than the design assumed. ⚠⚠ **But it
+reported by raising, and the exception escaped `execution.step`, `pursuit_step` AND `loop.tick`**, stranding
+the pursuit mid-`acting` and killing every other task on the agenda. Detection existed; recovery did not.
+
+### The tie-break audit — it distorted the CONTROLS, not the treatments
+
+Every recorded scenario re-measured under three orderings:
+
+| | recorded | alphabetical | reverse | declaration |
+|---|---|---|---|---|
+| tower, **guided** | 2 | 2 | **2** | **2** |
+| tower, **blind control** | 67 | 67 | **30** | **28** |
+| Sussman, guided | 50 | 52 | **52** | **52** |
+| threshold, paths/without/blind | 3/10/10 | 3/10/10 | **6/20/20** | 3/10/10 |
+
+**⭐ Where band 4 is reachable the number does not move at all** — the band dominates the key and the
+tie-break only breaks genuine ties. Where there is no guidance, the tie-break is the *entire* ordering.
+**⚠ So §5d's headline is the one affected figure: 2-vs-67 is honestly 2-vs-28**, ~14x rather than 33x. The
+finding survives; the magnitude was inflated ~2.4x by an arbitrary sort **inside the control**.
+
+> ⭐ This is the same phenomenon as probe 2, not a second one: **the tie-break decides exactly where the
+> guidance is absent.**
+
+## 6l. ⭐⭐⭐ BUILT — a stale precondition is a deviation; ordering, values, and `unlocks` (2026-08-02)
+
+**184 → 187 checks, 0 FAILED.** Four changes, all probed.
+
+**1. `TypeViolation` → `deviation`** (`execution.step`, and `function.invoke` now attaches `param` / `want`
+/ `violations` so the reactor does not re-derive the check). Nothing else changed — `recover`,
+`_phase_acting` and `loop.tick` already knew what to do with a deviation. ⭐ **`result=None` turned out to
+be load-bearing rather than a placeholder:** the call never ran, so there is no outcome to settle onto a
+sibling's mappings, and `matching_alternative` *already* declines when `result` is `None`. A contingency is
+correctly not offered and recovery goes to replanning — the honest move when the world has **moved** rather
+than merely surprised us. That fell out; it was not arranged.
+
+**2. `function.names` returns DECLARATION order.** ⚠ `driver.py` had documented this the whole time and the
+code sorted. `guideline`, `mock` and `method` precedence are all declaration order and say so; functions
+were the odd one out. ⚠ One check broke and **was right to**: §6f pinned the blind control at a literal
+`67`, three times. *A pin on an arbitrary tie-break is the bug* — it now measures the full cost from its own
+control run and asserts a **relation between two runs**, which is stable under any ordering.
+
+**3. An `attr` effect carries the VALUE it writes.** `_effects` hardcoded `None`. The fourth slot is now
+tagged by the first — object role for a `link`, value for an `attr`, `driver.UNREADABLE` when computed.
+⚠ A sentinel and not `None`, because `None` is an ordinary attribute value.
+
+**4. `unlocks` — the frontier key is `(expected, -band, -unlocks, depth)`.** A band classifies *this move
+against the goal*; a prerequisite closes nothing, so it is band 0 **correctly**, and no refinement of a
+match-quality scale can fix that — a prerequisite is not a worse match, it is a **different distance**.
+Measured, school scenario, guided:
+
+| library | before | after |
+|---|---|---|
+| prerequisite + 0 irrelevant operators | 4 | **3** |
+| + 2 / + 6 / + 12 | 6 / 10 / 16 | **3 / 3 / 3** |
+
+Flat, optimal, name-independent. Enumeration cost back within noise of §5m's figures.
+
+### ⚠⚠ Three things the building found that the design did not
+
+**(a) The cheap-looking version was 3.4x SLOWER.** Collecting misses during enumeration *reuses a value
+already computed* — and puts a set insertion on the path taken by **most** candidate tests, which is what
+enumeration mostly does. §5m's benchmark went 2.08 → 6.98 ms, and gating it by relevance only reached 6.30.
+The fix inverts it: record only **which functions were blocked**, and recompute their requirements
+afterwards. A blocked function contributed no proposal, so **blocked functions are few by definition** — on
+the blocks world with 200 irrelevant nodes that is *zero* recomputation, because nothing relevant is
+blocked there. The expensive case is exactly the case that needs the answer.
+
+> ⭐ **Doing the work eagerly for everything cost more than doing it lazily for the few that need it, even
+> though the eager version was reusing a value already in hand.** Reuse is not automatically the cheap side.
+
+**(b) It scored zero on every proposal, silently, because two paths disagreed about which node they meant.**
+Wants were keyed by the workbench **image**; `unlocks` resolved to the **original**. A no-op that looks
+exactly like *"the idea does not help"*. The expression was written out **seven times** in `driver.py`; it
+is `driver.stands_for` once now — the difference between a convention and a guarantee.
+
+**(c) ⚠⚠ THE DOMINANCE INVARIANT IS OVER-DETERMINED, and the docstring claiming otherwise was wrong.**
+`unlocks` said it cannot outrank a closing move *because `-unlocks` sits after `-band`*. It does — and that
+is a **redundant second guard**, because `expected` is the key's first component and already folds in
+`rank >= 4`. Probed three ways against a detour unlocking two requirements where the closing move unlocks
+one: neutering `expected` alone changes nothing, swapping the components alone changes nothing, **only both
+together** degrade the plan.
+
+> ⚠ **A property enforced twice cannot be guarded by a check, and every single-line probe of it comes back
+> green.** Worth knowing before someone simplifies one of the two and finds everything still passing.
+
+⚠ And it left a question **named rather than settled**: below band 4, *"mentions the goal's label"* beats
+*"would unblock something relevant"* — weak evidence beating derived evidence. Never argued, so left as
+found and written down. Relatedly, **§32 of `granularity.md` argues bands 1–3 do far less than the name
+suggests**: only `rank >= 4` reaches the key's first component, so the honest description is *one predicate
+plus a five-value tie-break*, not a graded estimate.
+
+## 6m. ⭐⭐ BUILT — a prohibition crosses a goal boundary; the other two sorts do not (2026-08-02)
+
+**188 checks, 0 FAILED.** `goal.prohibitions` walks the ancestry; `goal.budget_of` does not, and says why.
+`breached` read the goal's **own** constraints, so a ban on "arrange the trip" said nothing to the search
+planning "get to school" underneath it. **A ban a child can sidestep is not a ban.**
+
+| sort | crosses? | |
+|---|---|---|
+| `never` | **yes**, at any depth | a breach is a proof wherever it happens |
+| `eventually` | **no** | discharged by *some* step *somewhere* below — inherited, every child would separately have to paint |
+| `at_most` | **no, and REFUSED rather than omitted** | a budget counts at the grain of the level that declared it |
+
+**⚠ The budget refusal is the interesting one.** Applying a parent's count to a child's *actions* would
+break a limit the moment somebody authored a method — the limit's meaning would depend on how finely the
+plan happened to be decomposed, which is the same error as monitoring the action trace. Copying it to each
+child is worse: three children each spend the whole budget. Consuming it needs a level that knows how many
+of **its own** steps have been taken — the decomposition rung that still has no state node (§6n).
+**So it stays a gap, written down. A gap that is written down beats a wrong answer.**
+
+⚠ **The control is a ban on an UNRELATED goal, not the absence of a ban.** Two worlds differing only in
+whether the goal holding the prohibition is an *ancestor* is the only pair that tests ancestry; "banned"
+versus "not banned" passes for an implementation that reads every goal in the graph. Probed: it does.
+
+## 6n. ⭐⭐⭐ THE NEXT SLICE — the decomposition rung has no node (design done, not built)
+
+`granularity.md` §2 and §7. **`driver.follow` is a Python `for` loop**, and it is now the outermost one.
+
+| rung | state node | steppable |
+|---|---|---|
+| pursue a goal | `pursuit` | ✅ |
+| **follow a decomposition** | **— none —** | ❌ a Python `for` |
+| search for a plan | `search` | ✅ |
+| replay a plan for real | `replay` | ✅ |
+| run one function | `activation` | ✅ |
+
+`loop.py` knows `pursuit` as a task kind and `_subtask` resolves its `search` or `replay`; nothing there
+knows a goal can be **followed**. So a nested plan blocks the outer loop, and the system cannot answer
+*"which step of the vacation are we on"* — **the same defect in its fourth incarnation**, after attention
+(`thread.py`), the goal (`goal.py`) and deliberation (`search.py`). By now the shape of the fix should be
+assumed rather than argued: a **`FOLLOWING` phase whose sub-task is the child pursuit**.
+
+**⭐ Two properties fall out, and they are why a pursuit is the right carrier rather than a new `plan` node:**
+depth costs **nothing in ticks** (one primitive step is still taken at the leaf, so a nested plan is exactly
+as interruptible as a flat one), and `describe_pursuit` **recurses**, which is the whole of "track at the
+right level" for free. A method yields *subgoals* and a search yields *frames*, so there is no single object
+that is "the plan" at both grains — but a pursuit is *goal in, plan out, actions at the leaves* at every
+grain, so it is the one thing that composes with itself.
+
+⚠ It is also what **§6m's budget gap** and **`granularity.md` §4(b)** are both blocked on.
+
+## 6o. ⭐⭐⭐ THE SURFACE ARC — a probe, two self-closing goals, one grammar, and the discourse (2026-08-02)
+
+**How this started, and it is the reason the findings are worth trusting.** Not from a design doc: from
+*"what would a user actually say to an agentic coding assistant?"*. Fourteen utterances, each pushed all
+the way to execution rather than to the parser — `docs/microfunctions/probe_agentic_coding.py`, which
+records four verdicts (`RUNS` / `PARSES` / `REFUSED` / `NO FORM`) and keeps the ones that were wrong.
+
+⚠⚠ **`PARSES` was the dangerous verdict, and that is the headline.** Two utterances were accepted, planned,
+and reported **done with an empty plan, having never looked**.
+
+### (a) A knowledge goal that closes itself — FIXED
+
+`repo.files known` — and the shape recurred **twice**, by two routes, in a function whose docstring already
+records being caught once:
+
+* the key names an **edge** (`repo.file known`): `holds` asks `g.attr(here, key) is not UNKNOWN`, and an
+  edge label has no attribute slot at all;
+* the key names **nothing** (`repo.files known`, a plain mistyped plural) — the half that actually bit,
+  because *every typo behaves this way*.
+
+⚠ Neither is a bug in `UNKNOWN`. Absence-means-*lacks-it* is deliberate, so the slot really was known; the
+mistake was admitting a **relation, or a typo, into an attribute-shaped claim**. Both now refuse in
+`goal.require_known`. ⚠ The refusal does **not** grant the capability: *"which files are in the repo"* still
+has no form (G0/G1), and now says so instead of answering it wrongly.
+
+### (b) A method step could not name a third individual — FIXED
+
+`some <name> in <ref> by <link>` existed in `criterion` and not in `method`, so a decomposition whose steps
+concern a third individual had no form — the gap `expert_judgement.md` §8f closed for criteria and never
+carried across. Lifted. ⚠⚠ **Singular on purpose**: raising one subgoal per member is the first thing
+`plural_step.md` §4 forbids, and slice A's witnesses already make *"do it to each"* plannable one member at
+a time — measured again here.
+
+⭐ **And the probe corrected itself twice, which is the part to imitate.** *"For each file, lint it"* was
+first reported as a capability gap; it was the probe's own `max_depth` of 8 against a nine-cast plan, and
+it plans fine at 12 — at **1124 imagined states**, so plurality is a **cost** problem, not a capability
+one. The plural constraint was then measured at band 1 and is band **4**: raw nodes had been passed where
+`relevance` wants mappings, the exact trap `plural_step.md` §1 records.
+
+### (c) ⭐⭐⭐ ONE PROPOSITION GRAMMAR — `intake._shape`
+
+A goal constraint, a method step and a `when`/`unless` condition were **three hand-written parsers** for
+the same handful of claims, and they had drifted in four ways nobody chose: transitive `l+` in a goal only,
+the five comparison operators in a `type` block only, `x is there` in a criterion only, negation in a
+criterion only. One recogniser now; each family only decides what to *do* with what it recognised. Same
+move `path.py` made one level down — *"It is one grammar because it used to be three."*
+
+⚠⚠ **The transitive case nearly went silently wrong.** The parser change alone would have made
+`when x contains+ y` parse while `criterion._holds` still compared **one direct edge** — accepted, meaning
+something narrower. So the evaluator moved with the surface, using the same `path.reaches` `goal.holds`
+uses, and `describe_test` renders the `+` back. Its check asserts it **evaluates**, with the same condition
+minus the `+` as the control.
+
+⚠ **Depth is deliberately NOT unified** — one hop in a goal and a step (`conflict.unsatisfiable` keys a
+slot as `(subject, key)`), any depth in a condition (it only ever checks). Asserted by a check so a later
+tidy-up cannot quietly widen it.
+
+### (d) ⭐⭐⭐ DISCOURSE — `discourse.py`, and the correction that shaped it
+
+`intake.read` built a goal, a criterion, a method, and recorded **nothing about the fact that somebody said
+it** — measured: two blocks against a fresh thread left it holding only its opening entry. That is this
+project's founding defect in a **fourth** place, after attention, the goal and deliberation.
+
+**⭐⭐ An utterance is a WORLD event; the thread merely attends it.** The first version made it a thread
+entry with the speaker as a **string attribute** (`by="user"`) — the standing rule broken in one line,
+*never identify by name alone*. Harmless with one actor, wrong with three, and unable to represent an
+external system or another agent at all. Now: utterances hang off a `conversation` under `root`, speakers
+are **nodes**, and the thread holds ordinary `attend` entries pointing at them. ⭐ **The third `ENTRY_KINDS`
+member the first version added was given back** — `thread.py`'s *"deliberately only two"* was right, and
+the one-order property retraction needs survives, because an attention entry is in the same `step` edge.
+
+**⭐⭐ Retract the utterance, NOT the world.** A withdrawn block stops being consulted, through one `live()`
+filter in the three enumerators. It is **marked, never deleted**; nothing it concluded is unwound
+(`REVISION 01` deleted TMS on purpose); nothing dispatched is reversed. `forget.py` already settled why —
+retention defaults to KEEP because `why` and `conflict.interference` read history.
+
+**⭐⭐ Authority is WORLD DATA.** *"Ignore that"* is not a global fact with three speakers; it is an act by
+somebody, and whether it lands is a question of standing. Default: a speaker withdraws their own, and
+anything else must be **said** — `authority(holder, over)`, transitive via `path.reaches`. ⚠ Before this,
+anybody could withdraw anything: a policy nobody chose. ⭐ This is the **caller `not_supported.md` G7 was
+missing**, whose deferral is on the stated grounds that *"neither has a caller"* — conditional, and the
+condition is now met.
+
+**⭐ Asking needed no new machinery: it is a DISPATCH**, `observes=True`. `answered` is separate from `ask`
+because a person is not a function. ⚠ A docstring here claimed *"the planner structurally cannot ask"* and
+that is **false** — the target is a question node minted fresh in the real graph, so `_in_workbench` never
+fires. Latent rather than live (no ISA opcode reaches `ask`), and recorded as such.
+
+### What this arc says about the surface
+
+⭐⭐⭐ **The CNL is a programming language missing bind, branch and loop** — the three things the probe's
+utterances failed on were exactly variable binding, conditional, and iteration. Bind is now done. ⚠ The
+argument that the CNL should therefore *not* be a programming language was wrong and was withdrawn: recipes
+and legal procedure are programs written in language. The real question is *which* — `.mf`/ISA is a program
+the planner cannot see inside (`establishes` returns `unknown`), a method is one it can.
+
+⚠ **SQL is the cautionary case, and it is precise**: its *expression* grammar composes across every clause,
+its *clause* grammar is forty years of islands, and its answer to a limited execution model was a **second
+language** (PL/SQL). One shape with several executors is the thing to aim at; one grammar per executor is
+the failure.
+
+**Verify:** `python -m microfunctions.selftest` → **202 checks, 0 FAILED**.
+
+## 9. ⭐ WHAT TO DO NEXT (current as of 2026-08-02)
 
 Ranked. Everything above §5 is history; this is the list.
+
+**⭐⭐⭐ 0a. THE SURFACE ARC (§6o) IS A THIRD DONE.** In order, because each makes the next cheap:
+
+1. **`type` and `prefer`/`avoid` onto `_shape`.** `type` is the interesting one — it holds the full
+   operator set and the `relates` forms, so it is the position that could *supply* the widened comparisons
+   to the others rather than merely being where they are legal.
+2. **The typed consequent** — collapse `step` / `do` / a memory write into **conditions → consequent**.
+   ⭐ This is the user's framing and it is what makes `remember` and `learn` cheap rather than two more
+   islands: `learn` writes a **criterion**, so it needs no new family at all. ⚠ Open: whether a consequent
+   is a fourth tagged shape or its own small grammar.
+3. **The sidecar executor.** ⚠⚠ `loop.py` claims *"the Python-control-loop inventory is empty"* and **it is
+   not true**: `criterion.decide` returns a closure that loops `for c in criteria(g)` to completion, once
+   per imagined step, invisible to the agenda because it is a `propose=` **hook parameter** — the same
+   hidden Python channel `plural_step.md` invoked to reject a `view=` argument. Deleting it is the vacuity
+   test for the whole architecture: the claim becomes true for the first time.
+   ⭐ The design (the user's): decision rules have the **same shape** as everything else and differ only in
+   **execution** — a sidecar that runs to completion beside the loop that ticks. That resolves a standing
+   contradiction between `loop.py` (*nothing uninterruptible*) and `expert_judgement.md` (*scheduler, not
+   work, uninterruptible on purpose*): an unnamed exception is a leak, a named one is an architecture. ⚠ It
+   is sound only because the sidecar **cannot dispatch** — atomicity is then structural rather than
+   trusted, which is the same reason `while` is forbidden there.
+   ⚠ Open: one agenda with a task whose `step` runs to completion, or a genuinely separate executor.
+
+⚠ **Also open from §6o:** the discourse moves have **no CNL surface** — `retract` is a Python call, and
+*"ignore that"* does not fit `<verb> <label>:` + body. That is a **shape** question, not a vocabulary one,
+and `remember` may want the same bare-line shape. Decide it once, for all three.
+
+**0. ⭐⭐⭐ THE NESTED PURSUIT — §6n, and it is the top of the list.** `driver.follow` is a Python `for`
+loop and the last one; the decomposition rung is the only rung with no state node. Design is done in
+`granularity.md` §7, and the shape should be assumed rather than re-argued — it is the same move §6c and
+§6d already made twice. ⚠ **Two other items are blocked on it**: §6m's budget-across-levels gap, and
+`granularity.md` §4(b) (a parent noticing its remaining plan is no longer viable). ⚠ Its check's vacuity
+guard is that the outer loop must be able to **stop mid-child and describe the position at both levels** —
+"behaviour unchanged" passes for a seam that does nothing (§5o).
+
+**0b. Then the FOOTPRINT** (`granularity.md` §14–§15), which §6l **demoted from mechanism to
+optimisation**: correctness already comes from the per-call re-check, so the footprint's only job is to let
+a plan know it is stale *before* it gets there. ⚠ The re-check tests **parameter types**, so a plan
+invalidated in a way no parameter type can express is still undetected — the same gap as
+`granularity.md` §19 (a precondition cannot name an individual or relate two parameters), seen twice.
 
 **1. ✅ DONE — see §6i.** `what` / `where` / `when` are CNL verbs (`locate.py`), and the *no machinery
 needed* claim survived probing: `when`'s sugar status is now checked against an authored `type` block
@@ -2133,6 +2475,12 @@ this and answered **qualitatively** ("files appeared", never how many); the same
 `resume` can essentially never apply to one (§5g). The loop leans on replanning instead. Closing it is §5
 item 4's question from the other side — *branch only where being wrong is expensive*.
 
+**4b. ⚠ THE SUB-BAND-4 ORDERING WAS NEVER ARGUED (§6l).** Below band 4, *"mentions the goal's label"*
+currently beats *"would unblock something relevant"* — weak evidence beating derived evidence. And
+§32 of `granularity.md` argues bands 1–3 do much less than the name suggests, since only `rank >= 4`
+reaches the key's first component. Decide it on a measurement or collapse them; do not leave it looking
+settled.
+
 **5. Copy-on-write, but MEASURE FIRST.** §6's known limit. The multiplier is workbench **stack depth**, not
 the size of one copy, and copy-on-write implements exactly the same semantics rather than a smaller
 boundary. `measure-before-optimizing-ugm`, and §5m's stronger version: *profile before choosing a lever,
@@ -2142,7 +2490,13 @@ even one you wrote down yourself after measuring.*
 payoffs and they came out at zero, relocated, and moot respectively. Revisit only if untrusted `.mf` is
 ever loaded, which is the same trigger §5y names for policing builtins.
 
-✅ **The debt to `../pystrider` is CLOSED.** It is **157 passed / 0 failed** against this engine as of
+⚠⚠ **`../pystrider` HAS NOT BEEN RE-RUN SINCE §6l, AND §6l CHANGED TWO THINGS THEY CONSUME.**
+`driver.establishes` changed the shape of an `attr` effect (fourth element is now the value, not `None`)
+and `function.names` changed enumeration order. Both are in the CHANGELOG; per the lesson below, that is
+**not the same as telling them**, and the pins should be run. This is the first thing to do before any new
+slice.
+
+✅ The debt to `../pystrider` was CLOSED as of §6i. It was **157 passed / 0 failed** against this engine as of
 §6i — the pin that was red (§5w's unset-register refusal, §6c) has been fixed on their side, and `Focus(g)`
 evidently reached them. ⚠ The lesson it was recorded for stands: *predicting a consumer impact in a
 CHANGELOG is not the same as telling the consumer*, and the pins should be run after every engine change,
@@ -2210,6 +2564,21 @@ planning became the control flow. Learned preference over subsequences needs the
   why that is a refusal rather than an omission, and what has to change to lift it.
 - **A type constrains ONE subgraph**, so `stack(b, onto)` still cannot declare `b ≠ onto`: two parameters
   are two subgraphs with no node above them to hang the demand on. `driver.proposals` enforces it.
+  ⚠ **This is the same gap as the one §6l's precondition re-check cannot cover**, seen from the other
+  side: a plan invalidated in a way no *parameter type* can express is invisible to the call-site check.
+  `granularity.md` §19 proposes the fix and names where it lives — **the call**, which is the node above
+  two parameters that §6 kept saying did not exist.
+- **⚠ Enumeration order is now DECLARATION order, and it is load-bearing** (§6l). It decides which world is
+  imagined first wherever two proposals tie. That is a *declared* default rather than a good one — an
+  author who has not thought about order gets whatever order they wrote. ⚠ **Cost figures recorded before
+  2026-08-02 were taken under the alphabet**; guided ones did not move, blind/unguided controls moved by up
+  to 2.4x, and §5d's headline is honestly 2-vs-28 rather than 2-vs-67.
+- **⚠ `driver.relevance` is one predicate plus a tie-break, not a graded estimate.** Only `rank >= 4`
+  reaches the frontier key's first component; bands 1–3 differ from 0 only as an ordering. §32 of
+  `granularity.md` argues they earn much less than the name suggests, and §9 item 4b carries it.
+- **⚠ A budget (`at_most`) does not cross a goal boundary** (§6m). Prohibitions inherit; budgets and
+  obligations do not. The budget case is a **refusal with a reason**, not an omission — consuming one needs
+  the decomposition rung that has no state node yet (§6n).
 - **A quoted literal cannot contain a space** anywhere in the CNL — every block splits its lines on
   whitespace. Pre-existing, now shared by one more surface.
 

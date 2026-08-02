@@ -670,6 +670,38 @@ def state_of(g: Graph, frame: str) -> frozenset:
     return frozenset(out)
 
 
+def _warn_if_advice_is_inert(g: Graph, rank) -> None:
+    """⚠⚠ **AUTHORED ADVICE THAT NOTHING WILL CONSULT IS A SILENT WRONG ANSWER.**
+
+    `feedback_from_harneskills` §1, and it cost them one. A `prefer` block parses, mints a `guideline`,
+    sits in the graph — and changes nothing unless the caller passed `rank=guideline.ranker(g)`. From
+    outside, "the advice was ignored" is **indistinguishable** from "the advice was consulted and lost",
+    which is a legitimate outcome, so there is nothing to notice.
+
+    That is the one place this engine's refusal discipline stopped at the parser. Everywhere else,
+    authored text that cannot do anything is refused loudly — a guideline naming neither an action nor a
+    thing, a type demanding nothing, a method with no steps. Here the text was *accepted* and made inert
+    by a keyword argument at a call site the author never sees. ⚠ They hit it **through the CNL**, which
+    is the path a language model writes: a model emitting a good `prefer` block sees no effect and has no
+    way to tell it was ignored.
+
+    ⚠ **A warning, not a refusal, and `rank=` stays explicit.** The composition is deliberate — a caller
+    may legitimately supply its own ranker, and that ranker may or may not read guidelines — so refusing
+    would break a supported arrangement. What was missing is only that nobody was *told*. Anything passed
+    as `rank` is taken at its word for the same reason: this cannot know whether a custom ranker consults
+    them, and guessing would produce a false warning, which teaches people to ignore warnings."""
+    if rank is not None:
+        return
+    from . import guideline as GL
+    advice = GL.advice(g)
+    if advice:
+        import warnings
+        warnings.warn(
+            f"{len(advice)} guideline(s) declared and none will be consulted: `pursue` was called "
+            f"without `rank=`, so authored `prefer`/`avoid` blocks have no effect here. "
+            f"Pass `rank=guideline.ranker(g)`.", RuntimeWarning, stacklevel=3)
+
+
 def pursue(g: Graph, goal: str, thread: str, subject: str, *,
            max_steps: int = 60, max_depth: int = 6, rank=None, guided: bool = True, allow=None,
            trace=None, decide=None, propose=None) -> dict:
@@ -712,6 +744,7 @@ def pursue(g: Graph, goal: str, thread: str, subject: str, *,
     imagined state. One that writes something (`unsupported_confirmation_step`) is diagnosable, because the
     frame that tried it still holds the mark. Silence costs nothing at planning time and everything
     afterwards."""
+    _warn_if_advice_is_inert(g, rank)
     search = open_planning(g, goal, thread, subject, max_steps=max_steps, max_depth=max_depth,
                            guided=guided, rank=rank, allow=allow, trace=trace, propose=propose)
     watch = trace
