@@ -13,7 +13,7 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 217 checks, 0 FAILED
+python -m microfunctions.selftest      # 221 checks, 0 FAILED
 ```
 
 > **⭐⭐⭐ Update, 2026-08-01 — READ §6c–§6i BEFORE §5.** The whole of §6b's arc landed in one day and
@@ -2410,9 +2410,158 @@ the failure.
 
 **Verify:** `python -m microfunctions.selftest` → **202 checks, 0 FAILED**.
 
+## 6p. ⭐⭐⭐ ANTICIPATION, and THE ACT/LOOK RELATION — BUILT (2026-08-02)
+
+`driver.reads` / `reports_on` / `confirms`, plus `isa.READS_GRAPH`. **217 → 220 checks, 0 FAILED.** Four
+probes on disk; read them in order (`probe_expectation_at_the_boundary`, `probe_where_expectations_come_from`,
+`probe_anticipation`, `probe_act_look_relation`).
+
+**The user's proposal:** shrink divergence monitoring around external actions, because *"tool calls are the
+only points where divergence can literally occur"*, and have the plan specify an **expectation** checked
+after the call.
+
+**⚠ Probed first, and the claim came back HALF WRONG — but the correction went the other way afterwards.**
+A two-step plan of *purely internal* functions diverges at a pure step when the world moves between them
+(`stale_precondition`, `execution.py:298`). So divergence **originates** at world interactions but is
+**detected** wherever the plan next touches the changed slot. ⭐⭐ **Then the probe's own counterexample
+turned out to be partly an artifact**: it moved the world by writing the graph directly, which models
+*another task on the agenda* but **not the external world** — in a system whose graph is its beliefs, an
+external change enters **only through a look**. Three-way, and worth keeping straight:
+
+| how the world moves | where it becomes knowable |
+|---|---|
+| my own act | right after the dispatch — its mock said what it would do |
+| another task writing my graph | my next precondition check — genuinely *not* a world interaction |
+| **the external world moving under me** | **only at a look — nothing else can tell me** |
+
+**⭐⭐⭐ WHERE AN EXPECTATION COMES FROM — a ladder, measured.** Parameter types (checked on *every* call,
+`fn.invoke`) → declared return type (⚠ **checked only inside `execution.step`** — an unplanned call whose
+result violates its own return type raises nothing and records nothing) → the mock → a plan (which *binds*
+the mock's prediction to nodes) → the goal (⚠ `unmet` moved 2→1 across an unplanned action, so it can
+answer with no plan at all, and **nothing consults it**).
+
+**⭐⭐ AN EXTERNAL CALL CANNOT BE PLANNED WITHOUT A MOCK** — measured, and it is the imagined-target refusal
+doing double duty: `workbench.step` runs the real body on the copy, the `DISPATCH` hits `dispatch.service`,
+and planning is impossible. So *"the plan should specify an expectation"* is already structurally
+guaranteed; the plan does not specify one, **the mock does**.
+
+**⭐⭐⭐ A MOCK MAY BE A MODEL, NOT AN ASSUMPTION — and nothing had said so.** Every mock in this repo's
+fixtures asserts a **constant** (`found_two` always predicts two files), which made mocks look like
+assumptions when a mock is an ordinary microfunction and can therefore **read the graph**. The user's
+`git status` example runs on the unmodified engine: one mock, unedited, `COUNT R(n) F(t) "changed_file"`
+then a branch — clean world predicts `dirty=False`, edited world predicts `dirty=True`. The gap was
+**practice and documentation, not mechanism**.
+
+**⭐⭐⭐ THE RELATION IS DERIVABLE, and the asymmetry is the finding: read the ACT's BODY and the LOOK's
+MOCK.** A look's body is a `DISPATCH` and establishes nothing (`establishes` already found this from the
+other side), so the mock is the only account of what the tool reports on — reading the body instead returns
+the empty set for every look and makes the measure vacuous. `confirms(act, look)` is the intersection of
+what the act writes with what the look's model reads. Declaring it (`git_status reflects edit`) was the
+obvious alternative and would have been the labelling error: an authored edge drifts from the bodies, a
+derivation cannot, because it *is* the bodies.
+
+⚠⚠ **The control is the whole check** — three pairs, and all three behaved: `edit`+`git_status` related on
+`('link','changed_file')`; `edit`+`disk_free` **unrelated**; and `edit_renamed`+`git_status` **unrelated**,
+which is the drift defect it exists to catch — a refactor that still parses, still runs, and silently
+watches the wrong slot (`islands.md`'s verdict-with-no-name). Planted-bug probes per §7: reading the body
+instead of the mock, unioning instead of intersecting (⚠ this reddens the **control**, the "related to
+everything" failure), losing navigation in `_walk`, and dropping `COUNT` from `READS_GRAPH` — four distinct
+signatures.
+
+**⚠ `_walk` was factored out because there are now TWO static readers of a body**, and they must agree
+exactly about what `R(x)` denotes. Two copies of that bookkeeping is this codebase's recurring drift shape,
+and one that disagreed would report a related pair as unrelated — silently, in the direction that loses the
+finding. `isa.READS_GRAPH` sits beside `WRITES_REGISTER` for the reason that comment already gives.
+
+⚠ **`confirms` is STATIC**, so it matches `(kind, label)` and not the individual — whether two calls touch
+the same tree is a question only a caller holding bindings can ask, the same split `establishes`/`role_node`
+already draw. It inherits `establishes`'s over-approximation, so **non-empty means *could* confirm; the
+sharp answer is the empty one.**
+
+### 6p-bis. ⭐⭐⭐ AN EXPECTATION *IS* A CONSTRAINT — measured, not built
+
+The user's follow-up: *"I think expectations should be constraints, not models; or maybe they are the same
+thing?"* Probed (`probe_expectation_is_a_constraint.py`), and the answer is **both halves are right, at
+different levels**: an expectation **is** a constraint (the representation), and a mock is **not** an
+expectation but a **way of producing one** (run it, diff the frames). They are not competitors.
+
+⭐⭐ **The two evaluators already AGREE** — `workbench.unmet_expectations` and `goal.unmet`, same world,
+same verdict on every form that translates. Two implementations of *"does this world satisfy these
+claims"*, which is the two-vocabularies-one-meaning defect this codebase keeps finding, caught before it
+had drifted.
+
+| `predicted_changes` form | goal constraint | |
+|---|---|---|
+| attr, exact value | `require_attr(op="==")` | ✅ |
+| attr, `"<set>"` | `require_known` | ✅ *the slot has been looked at* |
+| link with a named target | `require_link` | ✅ |
+| minted kind | `require_type` (existential) | ✅ when a type of that name is declared |
+| **link, presence `some`, no object** | — | ❌ **a goal cannot say *`d` has some file*** |
+| **link, presence `none`** | — | ❌ **a goal cannot say *no such edge*** |
+
+⭐⭐⭐ **So the expectation vocabulary has quietly grown two forms the GOAL vocabulary cannot say**, and
+unifying them would **strengthen goals**, not merely tidy the code. Same gap `not_supported.md` reaches
+from another direction (*the universal is sugar; the real gap is DENOTATION of a set*) — a third
+independent arrival at it, which is the evidence it is real.
+
+⭐ **And neither is a new SORT.** Existential = the **link** sort with the object omitted; negative = the
+link sort with a negation flag. That is exactly the argument `require_link`'s own docstring already makes
+for `transitive`: *"it stays the link sort because that is what it is… a separate sort would have to be
+taught to every reader."* ⚠ Seven modules branch on `sort` (`goal`, `driver`, `query`, `conflict`,
+`criterion`, `method`, `consequent`), so the cost is not the sort — it is auditing the link readers that
+today assume `g.target(c, "object")` is never `None`.
+
+⚠⚠ **The one thing a constraint set LOSES, and the reason "constraints NOT models" would be the wrong
+collapse:** a mock is **conditional** — `anticipate` branches on world state and yields a *different*
+prediction per world. A constraint set is flat, so deriving one fixes the world you anticipated in. That
+is fine (you derive at plan time, against the state you are in) but it means the model must stay: the
+right statement is **"a model produces constraints"**, never "constraints replace models".
+
+### 6p-ter. ⭐⭐⭐ EXPECTATIONS ARE CONDITIONED — `fn.applicable`, BUILT (2026-08-02)
+
+The user, closing the arc: *"a mock must map conditions to expectations, so even during planning we know
+what to expect if we perform an action on a given state."* **220 → 221 checks, 0 FAILED.**
+
+**⭐ A mock's condition is its PARAMETER TYPES**, so this needed no new representation — a parameter type
+is already a schema over a subgraph, and `fn.invoke` already enforces it on every call. `fn.applicable`
+asks that question *before* choosing; `workbench.step`'s default is now the first outcome that **fits this
+state**, not `outcomes[0]`. Declaration order still decides among several that fit.
+
+**⚠⚠ What this replaced was not a wrong prediction but a CRASH.** With two conditioned outcomes
+(`found_dirty(t: dirty_tree)` / `found_clean(t: clean_tree)`), planning in a clean world took `outcomes[0]`
+and `fn.invoke` refused it — `TypeViolation: t is not a dirty_tree`. **The condition that should have
+*selected* the other outcome instead *rejected* the only one offered**, and a plannable state was
+unplannable. The machinery already knew; nothing asked before choosing. ⚠ Behaviour is unchanged for every
+pre-existing mock, because their parameters are typed as the real function's are, so all outcomes fit and
+the first is still `outcomes[0]` — 220 checks passed untouched.
+
+**⭐⭐ AND IT IS WHY A CONDITIONED MOCK SHOULD STAY BRANCH-FREE.** `driver.establishes` does not follow
+jumps — its own comment: *"a conditional write is reported as unconditional"* — so the branching
+`anticipate` claims **both** `dirty=True` and `dirty=False`, silently, with `unknown` empty. Written as two
+conditioned outcomes, each is exact. The condition moves from **only-runnable to inspectable**, which is
+the axis `expert_judgement.md` names.
+
+**⚠⚠ AND THIS REOPENS A SETTLED MEASUREMENT.** HANDOFF recorded on 2026-08-01 that control flow darkens
+nothing in `establishes` (*"8 of 10 already exact… not one is darkened by control flow"*), and used it to
+argue the exactness payoff of retiring the loop opcodes was **zero**. **That was measured over a library in
+which no mock was conditional** — §6p established that every mock in this repo was written as a constant.
+The premise is gone. The conclusion may still hold (the encoding above sidesteps branches rather than
+needing them read), but it is **no longer supported by that measurement** and must not be cited as if it
+were.
+
+**Deliberately not done: making `establishes` path-sensitive.** The probe's answer is *don't branch —
+declare the condition*, which costs nothing and yields exactness. Following jumps means joins and loops,
+for a payoff the encoding already provides.
+
+**Not done, and named rather than hidden:** nothing yet *uses* `confirms` — the obvious consumer is a plan
+containing an act and then a look, where the plan itself is the assertion that the two are related (the
+shape `conflict.interference_between` already has, taking two chains). Also still open from the probes: the
+S2 hole (return type unchecked off-plan), and the goal rung (S4) — a different claim (*did this get me
+closer*) from divergence (*did this do what was said*).
+
 ## 9b. ⭐⭐⭐ WHAT TO DO NEXT — refreshed end of 2026-08-02 session two
 
-**Verify first: `python -m microfunctions.selftest` → 217 checks, 0 FAILED.** ⚠ Do **not** gate on
+**Verify first: `python -m microfunctions.selftest` → 221 checks, 0 FAILED.** ⚠ Do **not** gate on
 `../pystrider` (*"they will adapt"*); report what changed and move on.
 
 **The one rule that reframes this whole list** — `docs/microfunctions/kernel_boundary.md`: Python is a

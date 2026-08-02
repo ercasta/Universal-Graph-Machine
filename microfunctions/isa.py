@@ -94,6 +94,18 @@ WRITES_REGISTER = frozenset({
     "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
     "INVOKE", "DISPATCH", "NATIVE"})
 
+# Opcodes that READ THE GRAPH, mapped to the kind of slot they read — the counterpart of the write side
+# `driver._effects` already reads off a body, and stated here for the same reason `WRITES_REGISTER` is:
+# a second list maintained beside a consumer would drift from the interpreter that does the reading.
+#
+# ⚠ Every one of these has the same operand shape — `OP R(dest) <subject> "slot"` — which is what makes the
+# static reader uniform. `SOURCES`'s slot is OPTIONAL (no label means *every* label, which is honestly
+# unreadable), and `EPROP` reads a property *of an edge*, so its slot is the edge's label: an edge property
+# is a property of a link, and reporting it as `("link", label)` keeps it in the vocabulary
+# `driver.establishes` already speaks rather than inventing a third kind for one opcode.
+READS_GRAPH = {"GET": "link", "GET_AT": "link", "COUNT": "link", "SOURCES": "link", "DEREF": "link",
+               "ATTR": "attr", "EPROP": "link"}
+
 
 class Machine:
     MAX_STEPS = 100_000        # a runaway program halts LOUDLY; termination is still unsolved in general
@@ -363,7 +375,7 @@ def run(program, g: Graph, focus: Focus | None = None, **regs):
     return Machine(program).run(g, focus, **regs)
 
 
-__all__ = ["R", "F", "I", "Ref", "Machine", "run", "WRITES_REGISTER",
+__all__ = ["R", "F", "I", "Ref", "Machine", "run", "WRITES_REGISTER", "READS_GRAPH",
            "NEW", "SET", "LINK", "LINK_AT", "UNLINK", "DROP", "SETREF",
            "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
            "FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS",

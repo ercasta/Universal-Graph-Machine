@@ -91,6 +91,40 @@ def define(g: Graph, name: str, params: tuple, program: tuple,
     return fn
 
 
+def applicable(g: Graph, name: str, args: dict) -> tuple:
+    """**The declared outcomes whose CONDITIONS hold of these arguments**, most preferred first.
+
+    ⭐⭐ *"A mock must map conditions to expectations, so even during planning we know what to expect if we
+    perform an action on a given state"* (the user, 2026-08-02). **A mock's condition is its parameter
+    types**, so this needs no new representation: a mock is an ordinary microfunction, a parameter type is
+    already a schema over a subgraph, and `invoke` already enforces it on every call. This asks the same
+    question *before* choosing rather than discovering it afterwards as a refusal.
+
+        fn found_dirty(t: dirty_tree) -> report mocks git_status      # SET dirty true
+        fn found_clean(t: clean_tree) -> report mocks git_status      # SET dirty false
+
+    ⭐ **And it is what lets a conditioned mock stay branch-free**, which matters beyond tidiness: a mock
+    that branches internally is read by `driver.establishes` as establishing **both** its outcomes
+    unconditionally — the linear walk does not follow jumps, and says so. Written as two conditioned
+    outcomes instead, each body is exact. The condition moves from *only-runnable* to *inspectable*, which
+    is the axis `expert_judgement.md` names.
+
+    ⚠ Declaration order still decides among several that fit — that is what `mocks_of`'s preference
+    ordering has always been for. An empty result means **no declared outcome covers this state**, which is
+    a real answer and not an error: the caller decides whether that is a refusal or a reason to sense.
+
+    ⚠ A parameter absent from `args` is not tested. Partial bindings are the planner's business, and
+    treating an unbound parameter as a failed condition would silently rule out every outcome."""
+    from . import types as TY
+    out = []
+    for outcome in mocks_of(g, name):
+        ptypes = param_types(g, outcome)
+        if all(want is None or not TY.violations(g, args[p], want)
+               for p, want in ptypes.items() if p in args):
+            out.append(outcome)
+    return tuple(out)
+
+
 def mocks_target(g: Graph, name: str) -> str | None:
     """If this function is a mock, the function it is an outcome of."""
     f = find(g, name)
@@ -310,4 +344,4 @@ def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool =
     return focus, out
 
 
-__all__ = ["define", "find", "load", "names", "invoke", "doc_of", "notes_of", "catalogue", "param_names", "subject_param", "param_types", "returns_of", "producers", "mocks_of", "mocks_target"]
+__all__ = ["define", "find", "load", "names", "invoke", "doc_of", "notes_of", "catalogue", "param_names", "subject_param", "param_types", "returns_of", "producers", "mocks_of", "mocks_target", "applicable"]

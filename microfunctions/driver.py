@@ -305,14 +305,40 @@ def establishes(g: Graph, name: str) -> tuple:
     return _effects(g, name, include_mocks=True)
 
 
-def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
-    params, program = fn.load(g, name)
+def _denotes(ins, role):
+    """What this instruction's destination register will DENOTE afterwards, or `None` for "nothing we can
+    name". Derived from the operands *before* the write lands — `GET R(x) R(x) "l"` reads then overwrites."""
+    a = ins.args
+    if ins.op == "NEW":
+        return "$" + a[0].name if len(a) > 1 and isinstance(a[1], str) else None
+    if ins.op == "GET" and len(a) > 2 and isinstance(a[2], str):
+        base = role(a[1])
+        return None if base is None else f"{base}.{a[2]}"
+    if ins.op == "GET_AT" and len(a) > 3 and isinstance(a[2], str) and isinstance(a[3], int):
+        base = role(a[1])
+        return None if base is None else f"{base}.{a[2]}[{a[3]}]"
+    return None
 
-    # ⭐ What each register currently DENOTES, as a role — see `establishes` for the three forms. Reported
-    # by `../pystrider`, which uses `establishes` for *recognition* rather than for ranking: first a pattern
-    # authored as `NEW R(it)` then `LINK R(it) …` came back as effects with no subject at all — "orphan
-    # facts that no longer claim to describe one node" — and then, once minting was fixed, a function that
-    # navigated with `GET` before writing came back the same way.
+
+def _walk(g: Graph, name: str):
+    """One pass over a stored body, yielding `(instruction, role)` — **the single place that knows what a
+    register denotes.**
+
+    ⭐ What each register currently DENOTES, as a role — see `establishes` for the three forms. Reported
+    by `../pystrider`, which uses `establishes` for *recognition* rather than for ranking: first a pattern
+    authored as `NEW R(it)` then `LINK R(it) …` came back as effects with no subject at all — "orphan
+    facts that no longer claim to describe one node" — and then, once minting was fixed, a function that
+    navigated with `GET` before writing came back the same way.
+
+    ⚠⚠ **Factored out because there are now TWO static readers of a body** — `_effects` (what it writes)
+    and `_reads` (what it reads) — and they must agree exactly about which node `R(x)` stands for at each
+    instruction. Two copies of this bookkeeping is the drift shape this codebase keeps recording, and one
+    that silently disagreed would make an act and a look look unrelated when they are related, which is
+    precisely the defect `confirms` exists to catch.
+
+    `role` is valid **at the instruction it is yielded with**, before that instruction's own register
+    write — which is what both readers need, since operands are read before the destination is clobbered."""
+    params, program = fn.load(g, name)
     roles: dict = {}
 
     def role(operand):
@@ -323,10 +349,21 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
             return roles.get(operand.name)
         return None
 
-    effects, unknown = set(), set()
     for ins in program:
         if isinstance(ins, str):
             continue                                        # a label, not an instruction
+        yield ins, role
+        a = ins.args
+        if ins.op in isa.WRITES_REGISTER and a and isinstance(a[0], R):
+            fresh = _denotes(ins, role)
+            roles.pop(a[0].name, None)
+            if fresh is not None:
+                roles[a[0].name] = fresh
+
+
+def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
+    effects, unknown = set(), set()
+    for ins, role in _walk(g, name):
         a = ins.args
         arg = a[1] if len(a) > 1 else None
 
@@ -334,27 +371,15 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
             if not (a and isinstance(a[0], R)):
                 unknown.add(None)                           # malformed for this opcode: say nothing
                 continue
-            # Derive the NEW role before clearing the old one — `GET R(x) R(x) "l"` reads then overwrites.
-            fresh = None
             if ins.op == "NEW":
                 # ⭐ Bringing something into existence is an effect too — the one a goal like "some file
                 # exists" is looking for, and the one a type signature cannot express.
                 if len(a) > 1 and isinstance(a[1], str):
-                    fresh = "$" + a[0].name
-                    effects.add(("mint", a[1], fresh, None))
+                    effects.add(("mint", a[1], "$" + a[0].name, None))
                 else:
                     unknown.add(None)
-            elif ins.op == "GET" and len(a) > 2 and isinstance(a[2], str):
-                base = role(a[1])
-                fresh = None if base is None else f"{base}.{a[2]}"
-            elif ins.op == "GET_AT" and len(a) > 3 and isinstance(a[2], str) and isinstance(a[3], int):
-                base = role(a[1])
-                fresh = None if base is None else f"{base}.{a[2]}[{a[3]}]"
             elif ins.op in ("INVOKE", "DISPATCH"):
                 unknown.add(None)                           # the effect happens somewhere else
-            roles.pop(a[0].name, None)
-            if fresh is not None:
-                roles[a[0].name] = fresh
             continue
 
         if ins.op in ("LINK", "LINK_AT", "UNLINK"):
@@ -402,6 +427,99 @@ def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
             effects |= more
             unknown |= more_unknown
     return frozenset(effects), frozenset(unknown)
+
+
+# --- the read side, and the relation between an ACT and a LOOK ------------------------------------------
+#
+# ⭐⭐⭐ **THE USER'S EXAMPLE, 2026-08-02:** *"I change some files, I expect `git status` to not return
+# empty. In some way, I RELATED THE TWO. I think it's because I can anticipate the behaviour of git status
+# when I know some files have changed."*
+#
+# Two things had to be separated to answer that, and only the second was missing:
+#
+#   * **the anticipation** — already possible and never written down. A mock is an ordinary microfunction,
+#     so it can READ THE GRAPH and compute its prediction from world state instead of asserting a constant.
+#     Every mock in this repo's fixtures asserts a constant (`found_two` always predicts two files), which
+#     made mocks *look* like assumptions when they are really models. Measured in
+#     `docs/microfunctions/probe_anticipation.py`: one unedited mock, two worlds, two different predictions.
+#   * **the relation** — nothing related the act to the look. `anticipate` reads `changed_file` because it
+#     was authored that way, and nothing checked that `edit` writes `changed_file`. Rename one and the
+#     anticipation still parses, still runs, and silently models the wrong thing.
+#
+# ⚠⚠ **THE ASYMMETRY IS THE FINDING: read the ACT's BODY, and the LOOK's MOCK.** An act's body is what it
+# does. A look's body is a `DISPATCH` and therefore says nothing at all — `establishes` already found this
+# out from the other side ("`scan_dir`'s own body establishes almost nothing"), so the mock is the only
+# account of what the tool reports on. Reading the look's body instead yields the empty set every time,
+# which would make every pair unrelated and the whole measure vacuous.
+
+
+def _reads(g: Graph, name: str, *, include_mocks: bool) -> tuple:
+    """What this body READS, as `(kind, label, subject_role)` — the dual of `_effects`.
+
+    Same three role forms, same over-approximation contract, and deliberately the same shape minus the
+    fourth slot: a read has no value to carry."""
+    out, unknown = set(), set()
+    for ins, role in _walk(g, name):
+        if ins.op not in isa.READS_GRAPH:
+            continue
+        a = ins.args
+        subject = role(a[1]) if len(a) > 1 else None
+        slot = a[2] if len(a) > 2 else None
+        if isinstance(slot, str):
+            out.add((isa.READS_GRAPH[ins.op], slot, subject))
+        else:
+            # ⚠ `SOURCES R(x) R(n)` with no label reads EVERY label, which is honestly unreadable rather
+            # than a read of nothing. Same discipline as `_effects`: name the subject we could not finish
+            # reading, so a consumer knows how much of the answer is missing and about what.
+            unknown.add(subject)
+    if include_mocks:
+        for outcome in fn.mocks_of(g, name):                # depth 1: a mock has no mocks of its own
+            more, more_unknown = _reads(g, outcome, include_mocks=False)
+            out |= more
+            unknown |= more_unknown
+    return frozenset(out), frozenset(unknown)
+
+
+def reads(g: Graph, name: str) -> tuple:
+    """What this function's own body reads. Returns `(reads, unknown)`, mirroring `establishes`.
+
+    ⚠ For a function that reaches the world this is almost always **empty**, and that is correct rather
+    than a failure: everything a tool call learns happens on the far side of the `DISPATCH`. Use
+    `reports_on` for a look."""
+    return _reads(g, name, include_mocks=False)
+
+
+def reports_on(g: Graph, look: str) -> tuple:
+    """**What a LOOK reports on** — read off its MOCKS, never its body. Returns `(slots, unknown)`.
+
+    A mock of a look is a *model of the tool*: it says which parts of the world the tool's answer depends
+    on. `anticipate`'s `COUNT R(n) F(t) "changed_file"` is the sentence *"git status reports on the
+    changed files"*, written as something that runs."""
+    return _reads(g, look, include_mocks=True)
+
+
+def confirms(g: Graph, act: str, look: str) -> frozenset:
+    """**The slots by which `look` could confirm `act`** — what the act writes and the look's model reads.
+    Empty means this look cannot tell you anything about whether that act landed.
+
+    ⭐ Derived, never declared. Both halves are already graph data, and nothing had thought to join them.
+    Declaring the relation instead was the obvious alternative and would have been the labelling error this
+    codebase keeps recording: an authored `git_status reflects edit` edge can drift from the bodies, and a
+    derivation cannot, because it *is* the bodies.
+
+    ⚠ **STATIC, so it matches on `(kind, label)` and not on the individual.** "This act writes a
+    `changed_file` link and this look watches `changed_file` links" is a fact about the two functions.
+    Whether they touch *the same tree* is a question about one pair of calls, which only a caller holding
+    bindings can ask — the same static-provenance/dynamic-resolution split `establishes` and `role_node`
+    already draw, and for the same reason.
+
+    ⚠ Inherits `establishes`'s over-approximation on the write side, so a non-empty answer means *could*
+    confirm, never *does*. The **empty** answer is the sharp one: nothing the act writes is watched, so no
+    outcome of the look is evidence about it."""
+    effects, _unknown = establishes(g, act)
+    watched, _ = reports_on(g, look)
+    return frozenset({(k, lbl) for k, lbl, _s, _o in effects}
+                     & {(k, lbl) for k, lbl, _s in watched})
 
 
 def role_node(g: Graph, bound: dict, role: str | None):
@@ -1843,7 +1961,8 @@ N.register("plan", lambda g, _act, goal, subject, thread: open_planning(g, goal,
 N.register("plan_step", lambda g, _act, search: step(g, search) is None)
 
 
-__all__ = ["proposals", "state_of", "establishes", "role_node", "relevance", "view_in",
+__all__ = ["proposals", "state_of", "establishes", "reads", "reports_on", "confirms",
+           "role_node", "relevance", "view_in",
            "open_planning", "step", "Call", "Undecidable",
            "EXPAND", "DECOMPOSE", "COMMIT", "SENSE", "REFUSE", "VERBS", "SENSING",
            "pursue", "carry_out", "plan_steps", "plan_bindings", "describe"]

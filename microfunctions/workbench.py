@@ -249,13 +249,44 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     # imagined target: if this substitution were forgotten or bypassed, a dispatching function would still
     # be unable to reach the world. Substitution makes planning *useful*; the refusal makes it *safe*, and
     # conflating the two would put the guarantee in the wrong place.
+    #
+    # ⭐⭐⭐ **THE DEFAULT NOW CONSULTS THE STATE — the user's point, 2026-08-02:** *"expectations must be
+    # conditioned; a mock must map conditions to expectations, so even during planning we know what to
+    # expect if we perform an action on a given state."* The default was `outcomes[0]` — declaration order,
+    # asked without looking at the world — so *"what will happen if I do this HERE"* was answered by
+    # something that could not see "here".
+    #
+    # ⭐ **A mock's condition is its PARAMETER TYPES, so this needs no new representation.** A mock is an
+    # ordinary microfunction, a parameter type is already a schema over a subgraph, and `fn.invoke` already
+    # enforces it on every call. `fn.applicable` only asks that question *before* choosing instead of
+    # after. Declaration order still decides among several that fit, which is what `mocks_of`'s preference
+    # ordering was always for.
+    #
+    # ⚠⚠ **What this replaces was not a wrong prediction but a CRASH.** With two conditioned outcomes
+    # (`found_dirty(t: dirty_tree)` / `found_clean(t: clean_tree)`), planning in a clean world took
+    # `outcomes[0]` and `fn.invoke` refused it — `TypeViolation: t is not a dirty_tree` — so the condition
+    # that should have *selected* the other outcome instead *rejected* the only one offered, and a plannable
+    # state was unplannable. Measured in `docs/microfunctions/probe_conditioned_expectations.py`.
+    #
+    # ⚠ Behaviour is unchanged for every mock whose parameters are typed as the real function's are — all
+    # of them, before this — because then every outcome is applicable and the first is still `outcomes[0]`.
+    args = {p: image_of(g, carried[m]) for p, m in bindings.items()}
     outcomes = fn.mocks_of(g, function)
-    chosen = assume if assume is not None else (outcomes[0] if outcomes else None)
+    if assume is not None:
+        chosen = assume
+    elif outcomes:
+        fits = fn.applicable(g, function, args)
+        # ⚠ Falling back to `outcomes[0]` when NOTHING fits is deliberate: the honest report is the
+        # `TypeViolation` naming the condition that failed, which says *no declared outcome covers this
+        # state*. Silently substituting the real function instead would reach the world from inside a
+        # workbench — refused by `dispatch.service`, but for the wrong reason and one layer too late.
+        chosen = fits[0] if fits else outcomes[0]
+    else:
+        chosen = None
     if chosen is not None and chosen not in outcomes:
         raise KeyError(f"{chosen!r} is not a declared outcome of {function!r}; known: {outcomes}")
     executed = chosen or function
 
-    args = {p: image_of(g, carried[m]) for p, m in bindings.items()}
     called, _out = fn.invoke(g, executed, args)
 
     # A function may MINT something while imagining. Those nodes get mappings too, with **no `original`** —

@@ -5814,6 +5814,267 @@ def check_planning_looks_for_an_expectation_not_a_type_signature():
             "in_one_step": result["steps"] == 1}
 
 
+# --- anticipation, and the relation between an ACT and a LOOK ------------------------------------------
+def _repo():
+    """The user's example, 2026-08-02: *"I change some files, I expect `git status` to not return empty."*
+
+    `edit` is the ACT. `git_status` is the LOOK — its body is a `DISPATCH` and says nothing, so
+    `anticipate` is its MODEL. `disk_free` is an unrelated look and is the control."""
+    from . import asm
+    g = new_graph()
+    declare_type(g, "tree", attrs={"kind_of": "tree"})
+    declare_type(g, "report", base="tree", attrs={"reported": True})
+    asm.load_text(g, "\n".join([
+        "# THE ACT: change some files.",
+        "fn edit(t: tree) -> tree:",
+        '    NEW R(f) "file"',
+        '    SET R(f) "changed" true',
+        '    LINK F(t) "changed_file" R(f)',
+        "",
+        "# The same act, REFACTORED to write a different slot. Nothing else changed.",
+        "fn edit_renamed(t: tree) -> tree:",
+        '    NEW R(f) "file"',
+        '    SET R(f) "changed" true',
+        '    LINK F(t) "modified_file" R(f)',
+        "",
+        "# THE LOOK. Everything it learns is on the far side of the DISPATCH.",
+        "fn git_status(t: tree) -> report:",
+        '    DISPATCH R(out) "git_status" F(t)',
+        '    SET F(t) "reported" true',
+        "",
+        "# ITS MODEL - not 'suppose it comes back dirty' but 'work out what it will say'.",
+        "fn anticipate(t: tree) -> report mocks git_status:",
+        '    SET F(t) "reported" true',
+        '    COUNT R(n) F(t) "changed_file"',
+        '    JMPNOT R(n) .clean',
+        '    SET F(t) "dirty" true',
+        "    JMP .done",
+        "    .clean:",
+        '    SET F(t) "dirty" false',
+        "    .done:",
+        "    HALT",
+        "",
+        "# AN UNRELATED LOOK - THE CONTROL. Also a DISPATCH, also modelled, watches something else.",
+        "fn disk_free(t: tree) -> report:",
+        '    DISPATCH R(out) "df" F(t)',
+        '    SET F(t) "reported" true',
+        "",
+        "fn guess_disk(t: tree) -> report mocks disk_free:",
+        '    SET F(t) "reported" true',
+        '    ATTR R(b) F(t) "free_bytes"',
+        '    SET F(t) "roomy" true',
+    ]))
+    t = g.mint("tree", kind_of="tree")
+    g.link("root", "has", t)
+    return g, t
+
+
+def check_a_mock_can_anticipate_instead_of_assume():
+    """⭐⭐⭐ **A MOCK MAY BE A MODEL, NOT MERELY AN ASSUMPTION** — the user's example, 2026-08-02:
+    *"I can anticipate the behaviour of git status when I know some files have changed."*
+
+    Every mock in this suite's other fixtures asserts a CONSTANT — `found_two` always predicts two files,
+    `list_empty` always predicts none — which made mocks look like assumptions (*suppose it turns out this
+    way*) when a mock is an ordinary microfunction and can therefore READ THE GRAPH and work the answer out.
+    That is the difference between an assumption and an **anticipation**, and it needed no new mechanism;
+    it had simply never been written down.
+
+    ⚠⚠ **THE VACUITY GUARD IS THE WHOLE CHECK: it must be the SAME mock, unedited, in both worlds**, and
+    the two predictions must differ *because the world differs*. Two different mocks would be measuring the
+    ordinary constant-assumption machinery and would pass while proving nothing.
+
+    ⚠ And the divergence it catches is one the declared type cannot: the cast passes either way, because
+    `report` says nothing about `dirty`."""
+    from . import dispatch as D, execution as X, function as fn, workbench as W
+
+    def anticipated(edited):
+        g, t = _repo()
+        if edited:
+            fn.invoke(g, "edit", {"t": t})              # I changed some files, and I KNOW I did
+        wb = W.open_workbench(g, t)
+        f0 = W.root_frame(g, wb)
+        f1, tr = W.step(g, wb, f0, "git_status", {"t": W.mapping_for(g, f0, t)}, assume="anticipate")
+        pred = {k: v for _m, k, v in W.predicted_changes(g, f0, f1)["attrs"]}
+        return g, t, wb, f1, tr, pred
+
+    _gc, _tc, _wc, _fc, _trc, clean = anticipated(False)
+    gd, td, wbd, f1d, trd, dirty = anticipated(True)
+
+    D.register("git_status", lambda gr, target: gr.put(target, dirty=False), observes=True)
+    diverged = X.execute(gd, wbd, f1d)                  # I edited; git says clean. A surprise.
+
+    go, to, wbo, f1o, _tro, _p = anticipated(True)
+    D.register("git_status", lambda gr, target: gr.put(target, dirty=True), observes=True)
+    matched = X.execute(go, wbo, f1o)
+
+    return {"ONE_MOCK_ONLY": fn.mocks_of(gd, "git_status") == ("anticipate",),
+            "clean_world_anticipates_clean": clean.get("dirty") is False,
+            "EDITED_WORLD_ANTICIPATES_DIRTY": dirty.get("dirty") is True,
+            "SO_THE_PREDICTION_FOLLOWED_THE_WORLD": clean != dirty,
+            "a_contradicting_world_diverges": not diverged["completed"],
+            "THE_CAST_ITSELF_PASSED": W.deviates(gd, trd, td) == {},
+            "and_it_says_how": any("dirty" in m for m in
+                                   (diverged["deviation"] or {}).get("unmet_expectations", ())),
+            "control_an_agreeing_world_completes": matched["completed"]}
+
+
+def check_a_mock_maps_a_CONDITION_to_an_expectation():
+    """⭐⭐⭐ **"EXPECTATIONS MUST BE CONDITIONED"** — the user, 2026-08-02: *"a mock must map conditions to
+    expectations, so even during planning we know what to expect if we perform an action on a given
+    state."* The default outcome was `outcomes[0]` — declaration order, chosen without looking at the
+    world — so *"what will happen if I do this HERE"* was answered by something that could not see "here".
+
+    ⭐ **A mock's condition is its PARAMETER TYPES**, so this needed no new representation: a parameter type
+    is already a schema over a subgraph and `fn.invoke` already enforces it. `fn.applicable` asks that
+    question *before* choosing rather than discovering it afterwards as a refusal.
+
+    ⚠⚠ **What this replaced was not a wrong prediction but a CRASH.** Planning in the clean world took
+    `found_dirty` and `fn.invoke` refused it — so the condition that should have *selected* the other
+    outcome instead *rejected* the only one offered, and a perfectly plannable state was unplannable.
+
+    ⭐ **And it is what lets a conditioned mock stay BRANCH-FREE**, which is the deeper payoff:
+    `driver.establishes` does not follow jumps (its own comment: *"a conditional write is reported as
+    unconditional"*), so a mock that branches internally claims **both** its outcomes. Asserted below,
+    because it is the reason to prefer two conditioned mocks over one branching one.
+
+    ⚠ Vacuity guards: the two worlds must select **different** outcomes (otherwise the condition is doing
+    nothing), and the branching encoding must really claim both values (otherwise there is nothing to
+    prefer the conditioned encoding *over*)."""
+    from . import asm, driver as D, function as fn, types as TY, workbench as W
+    from .types import Req
+
+    def world(*, conditioned, edited):
+        g = new_graph()
+        declare_type(g, "tree", attrs={"kind_of": "tree"})
+        declare_type(g, "report", base="tree", attrs={"reported": True})
+        lines = ["fn edit(t: tree) -> tree:", '    NEW R(f) "file"',
+                 '    LINK F(t) "changed_file" R(f)', "",
+                 "fn git_status(t: tree) -> report:",
+                 '    DISPATCH R(out) "git_status" F(t)', '    SET F(t) "reported" true', ""]
+        if conditioned:
+            declare_type(g, "dirty_tree", {"changed_file": Req(kind="file", lo=1)},
+                         attrs={"kind_of": "tree"})
+            declare_type(g, "clean_tree", {"changed_file": Req(kind="file", lo=0, hi=0)},
+                         attrs={"kind_of": "tree"})
+            lines += ["fn found_dirty(t: dirty_tree) -> report mocks git_status:",
+                      '    SET F(t) "reported" true', '    SET F(t) "dirty" true', "",
+                      "fn found_clean(t: clean_tree) -> report mocks git_status:",
+                      '    SET F(t) "reported" true', '    SET F(t) "dirty" false', "",
+                      # ⚠ A LOOSE outcome, declared LAST: its condition holds in every world, so it fits
+                      # alongside a specific one and is what makes "declaration order decides among
+                      # several that fit" a testable claim rather than a docstring.
+                      "fn found_something(t: tree) -> report mocks git_status:",
+                      '    SET F(t) "reported" true', '    SET F(t) "dirty" true']
+        else:
+            lines += ["fn anticipate(t: tree) -> report mocks git_status:",
+                      '    SET F(t) "reported" true', '    COUNT R(n) F(t) "changed_file"',
+                      '    JMPNOT R(n) .clean', '    SET F(t) "dirty" true', "    JMP .done",
+                      "    .clean:", '    SET F(t) "dirty" false', "    .done:", "    HALT"]
+        asm.load_text(g, "\n".join(lines))
+        t = g.mint("tree", kind_of="tree")
+        g.link("root", "has", t)
+        if edited:
+            fn.invoke(g, "edit", {"t": t})
+        return g, t
+
+    def anticipated(g, t):
+        wb = W.open_workbench(g, t)
+        f0 = W.root_frame(g, wb)
+        f1, _tr = W.step(g, wb, f0, "git_status", {"t": W.mapping_for(g, f0, t)})
+        return {k: v for _m, k, v in W.predicted_changes(g, f0, f1)["attrs"]}
+
+    gd, td = world(conditioned=True, edited=True)
+    gc, tc = world(conditioned=True, edited=False)
+    gb, tb = world(conditioned=False, edited=True)
+    branching = {v for k, lbl, _s, v in D.establishes(gb, "git_status")[0]
+                 if k == "attr" and lbl == "dirty"}
+    per_mock = {o: {v for k, lbl, _s, v in D.establishes(gd, o)[0] if k == "attr" and lbl == "dirty"}
+                for o in fn.mocks_of(gd, "git_status")}
+
+    return {"the_conditions_are_READABLE_as_parameter_types":
+                fn.param_types(gd, "found_dirty") == {"t": "dirty_tree"},
+            "the_EDITED_world_selects_the_dirty_outcome":
+                fn.applicable(gd, "git_status", {"t": td})[0] == "found_dirty",
+            "the_CLEAN_world_selects_the_other":
+                fn.applicable(gc, "git_status", {"t": tc})[0] == "found_clean",
+            # ⚠ The loose outcome fits in BOTH worlds, so several really are applicable and the order
+            # among them is doing work — without this, reversing the preference order passes.
+            "SEVERAL_CAN_FIT_AND_DECLARATION_ORDER_DECIDES":
+                (fn.applicable(gd, "git_status", {"t": td}) == ("found_dirty", "found_something")
+                 and fn.applicable(gc, "git_status", {"t": tc}) == ("found_clean", "found_something")),
+            "SO_THE_DEFAULT_PREDICTION_FOLLOWS_THE_STATE": anticipated(gd, td) != anticipated(gc, tc),
+            "and_it_predicts_the_RIGHT_one_in_each":
+                (anticipated(gd, td).get("dirty"), anticipated(gc, tc).get("dirty")) == (True, False),
+            "A_BRANCHING_MOCK_CLAIMS_BOTH_OUTCOMES": branching == {True, False},
+            "BUT_EACH_CONDITIONED_ONE_IS_EXACT":
+                all(len(v) == 1 for v in per_mock.values()),
+            "an_unsatisfiable_condition_yields_NOTHING_rather_than_a_guess":
+                fn.applicable(gd, "git_status", {"t": TY.find_type(gd, "tree")}) == ()}
+
+
+def check_an_act_and_a_look_are_related_by_what_one_writes_and_the_other_watches():
+    """⭐⭐⭐ **"IN SOME WAY, I RELATED THE TWO."** The relation between changing files and expecting
+    `git status` to be dirty is **derivable**, and both halves were already graph data: what the act writes
+    (`establishes`) and what the look's model reads (`reports_on`, the dual built for this).
+
+    Declaring it instead — a `git_status reflects edit` edge — was the obvious alternative and would have
+    been the labelling error this codebase keeps recording: an authored edge can drift from the bodies, and
+    a derivation cannot, because it *is* the bodies.
+
+    **⚠⚠ THE ASYMMETRY IS THE FINDING: the ACT's BODY, and the LOOK's MOCK.** A look's body is a `DISPATCH`
+    and establishes nothing, so reading it would return the empty set for every look and make the whole
+    measure vacuous. Asserted below rather than assumed.
+
+    ⚠⚠ **THE CONTROL IS THE WHOLE CHECK.** If every look related to every act the measure would say nothing,
+    and this repo has twice built a probe whose control went dark. So three pairs: the related one, an
+    unrelated look, and the drift defect the relation exists to catch — an act refactored to write a
+    different slot, against an unchanged model, which still parses and still runs and now silently watches
+    the wrong thing."""
+    from . import driver as D
+    g, _t = _repo()
+    watched, _u = D.reports_on(g, "git_status")
+    return {"the_LOOKS_OWN_BODY_watches_nothing": D.reads(g, "git_status")[0] == frozenset(),
+            "so_the_MODEL_is_what_speaks": ("link", "changed_file") in {(k, l) for k, l, _s in watched},
+            "RELATED": D.confirms(g, "edit", "git_status") == frozenset({("link", "changed_file")}),
+            "CONTROL_an_unrelated_look_is_not": D.confirms(g, "edit", "disk_free") == frozenset(),
+            "AND_DRIFT_IS_CAUGHT": D.confirms(g, "edit_renamed", "git_status") == frozenset(),
+            "the_drifted_act_still_writes_something":
+                bool(D.establishes(g, "edit_renamed")[0])}
+
+
+def check_the_two_static_readers_of_a_body_agree_about_roles():
+    """⚠⚠ `establishes` and `reads` are two static readers of one body, and they must agree exactly about
+    what `R(x)` denotes at each instruction. Two copies of that bookkeeping is the drift shape this codebase
+    keeps recording, and one that disagreed would report an act and a look as unrelated when they are —
+    silently, and in the direction that loses the finding.
+
+    So both consume one `_walk`. This check is what earns that factoring its place: a body that NAVIGATES
+    before reading and writing must report the **same navigated role** on both sides.
+
+    ⚠ Vacuity guard: a NAVIGATED role (`t.sub`) must really appear on both sides. Two readers that both
+    reported only the bare `t` would agree while proving nothing about the register bookkeeping at all.
+
+    ⚠ The first version of this guard asserted that **no** read names a bare parameter, and was wrong:
+    `GET R(s) F(t) "sub"` is itself a read *of `t`*, so `("link", "sub", "t")` belongs in the answer. The
+    navigation being checked is the read that comes *after* it."""
+    from . import asm, driver as D
+    g = new_graph()
+    declare_type(g, "tree", attrs={"kind_of": "tree"})
+    asm.load_text(g, "\n".join([
+        "fn touch_the_sub(t: tree) -> tree:",
+        '    GET R(s) F(t) "sub"',                     # navigate first: the subject is now in a register
+        '    COUNT R(n) R(s) "changed_file"',          # READ through it
+        '    SET R(s) "seen" true',                    # and WRITE through it
+    ]))
+    written = {(k, lbl, sp) for k, lbl, sp, _o in D.establishes(g, "touch_the_sub")[0]}
+    got_read = D.reads(g, "touch_the_sub")[0]
+    return {"the_WRITE_names_the_navigated_role": ("attr", "seen", "t.sub") in written,
+            "the_READ_NAMES_THE_SAME_ONE": ("link", "changed_file", "t.sub") in got_read,
+            "A_NAVIGATED_ROLE_REALLY_APPEARS": any("." in (sp or "") for _k, _l, sp in got_read),
+            "the_navigating_GET_is_itself_a_read_of_t": ("link", "sub", "t") in got_read,
+            "and_none_is_unnameable": all(sp is not None for _k, _l, sp in got_read)}
+
+
 def check_a_minted_node_keeps_the_join_through_a_register():
     """⭐⭐ REPORTED BY `../pystrider`, the engine's first real user, which uses `establishes` for
     *recognition* rather than for ranking. A pattern authored as `NEW R(it)` then `LINK R(it) …` came back
