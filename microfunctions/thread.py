@@ -31,7 +31,24 @@ human must follow and therefore earns a test. `prev` exists for two reasons the 
 serve: stepping back from an entry is O(1) rather than an index lookup, and **the reason a step followed
 another is a property of the transition**, so it rides on the `prev` edge as an edge property.
 
-⚠ **A `prev` edge property cannot be pointed at.** `eprops` is keyed by `(src, label, index)` and reindexes
+⚠⚠ **THE RULE BELOW SURVIVED, ITS REASON DID NOT — read both.** What follows was written when `eprops` was
+keyed by `(src, label, index)` and reindexed on insertion, so an edge property genuinely had no stable
+address. **That is no longer true**: edges have identity, and a `prev` edge property can be dated, disputed
+and pointed at like anything else (measured; there is a check).
+
+⭐ So `connect` was re-examined for deletion and **kept**, on its own second justification rather than this
+one. Two things: enumeration here filters on `kind == "connection"`, and as an edge a connection would be
+indistinguishable from the structural `at` / `prev` / `step` without inventing a label convention; and a
+connection has **two ends and is itself a subject**, which is what a node is for. ⚠ The restated rule, now
+that the substrate no longer forces it: *ride on the edge what merely describes that edge; mint a node for
+what has its own ends, its own attributes, or must be enumerable as a kind.*
+
+⚠ **The original wording is kept below because the reasoning is still instructive**, and because a claim
+about the substrate that has since been fixed is exactly the kind of thing that otherwise gets copied into
+a new module by someone who trusted it.
+
+⚠ ~~**A `prev` edge property cannot be pointed at.**~~ (no longer so — see above) `eprops` was keyed by
+`(src, label, index)` and reindexed
 on insertion, so there is no stable address for one. Anything something else must point *at* — a disputed
 connection, a conflict between two moments — is a node (`connect`). The rule: *ride on the edge what merely
 describes it; mint a node for what must be pointed at.*
@@ -198,9 +215,18 @@ def connect(g: Graph, a: str, b: str, relation: str, *, note: str | None = None)
     blocker behind the recorded conflict-detection regression — which was said to need "no new mechanism,
     only writing them", slightly optimistically: it needed the record to be *addressable*.
 
-    **A connection is a node, not an edge property**, because something else must be able to point at it: a
-    hypothesis disputing it, a later connection contradicting it. That is the same reasoning
-    `application.record` gives for making a binding its own node."""
+    **A connection is a node, not an edge property** — and since edges gained identity this is a **choice
+    rather than a constraint**, so it is worth stating what now justifies it. It was re-examined for
+    deletion once an edge could be pointed at, and kept for two reasons neither of which is the substrate:
+
+    * **it is enumerable as a kind.** `connections` filters on `kind == "connection"`; as an edge it would
+      be indistinguishable from the structural `at` / `prev` / `step` without inventing a label convention,
+      and a convention that must be remembered is the defect shape this codebase keeps recording;
+    * **it has two ends and is itself a subject** — a hypothesis may dispute it, a later connection may
+      contradict it. That is the same reasoning `application.record` gives for making a binding its own
+      node.
+
+    ⚠ What is *no longer* a reason: that an edge property has no stable address. It has one now."""
     c = g.mint("connection", relation=relation, **({"note": note} if note else {}))
     g.link(c, "from", a)
     g.link(c, "to", b)

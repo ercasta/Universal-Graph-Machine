@@ -1199,6 +1199,61 @@ def check_the_COMPARISONS_reach_the_goal_and_its_three_readers():
                 ref_right is not None and "literal" in ref_right}
 
 
+def check_an_EDGE_PROPERTY_can_now_be_pointed_at_and_connect_was_kept_anyway():
+    """⭐⭐ A claim in `thread.py` went false, and the thing it justified turned out not to need it.
+
+    That module said *"a `prev` edge property cannot be pointed at"* — true when `eprops` was keyed by
+    `(src, label, index)` and reindexed. Edge identity made it false, so `connect` (which mints a
+    `connection` **node** for anything something else must point at) was re-examined for deletion.
+
+    **⚠ It was KEPT, and the proposal to delete it was wrong.** Two reasons, neither of them the substrate:
+    `connections` filters on `kind == "connection"`, and as an edge a connection would be indistinguishable
+    from the structural `at` / `prev` / `step` without a label convention somebody has to remember; and a
+    connection has two ends and is itself a subject.
+
+    ⭐ **The finding worth keeping: closing a substrate gap can invalidate the JUSTIFICATION for a design
+    without invalidating the design.** A stale reason is dangerous in its own right — it is what somebody
+    copies into a new module because they trusted it — so it was corrected in place rather than deleted,
+    and the restated rule is: *ride on the edge what merely describes that edge; mint a node for what has
+    its own ends, its own attributes, or must be enumerable as a kind.*
+
+    ⚠ Vacuity guard: the edge property must survive a later **insertion** on the same label, or "pointable"
+    would be true only until the next `link_at` — which is exactly the old defect wearing a new face."""
+    from . import clock as C, thread as T
+
+    g = new_graph()
+    th = T.open_thread(g)
+    a = T.attend(g, th, "root", why="first move")
+    b = T.attend(g, th, "root", why="second move")
+
+    eid = g.edge_at(b, "prev", 0)
+    when = C.now(g)
+    C.stamp(g, when, eid)
+
+    # ⚠ Insert more history, which is what used to shift every property one place along.
+    T.attend(g, th, "root", why="third move")
+    T.attend(g, th, "root", why="fourth move")
+
+    still_mine = g.edge_props(eid).get("why") == "second move"
+    still_dated = C.dated(g, eid) == (when,) and g.sources(eid) == (when,)
+
+    # `connect` is still a node, and still enumerable as one.
+    c = T.connect(g, a, b, "conflicts", note="kept on purpose")
+    structural = set(g.labels(a)) & {"at", "prev"}
+
+    return {"A_PREV_EDGE_PROPERTY_IS_POINTABLE": still_dated,
+            "and_it_keeps_its_property_across_insertions": still_mine,
+            "so_the_old_claim_in_thread_py_is_FALSE": True,
+            "BUT_CONNECT_IS_STILL_A_NODE": g.kind(c) == "connection",
+            "and_that_is_what_makes_it_enumerable_by_KIND": T.connections(g, a) == (c,),
+            "which_an_edge_could_not_be_told_apart_from": structural == {"at", "prev"},
+            # ⚠ Guarding the docstring, deliberately: the stale claim this check exists for lived in one
+            # for months. The same argument `check_the_CNL_GUIDE_parses` makes — prose nobody is obliged
+            # to update rots exactly like a comment.
+            "the_superseded_reason_is_recorded_as_superseded":
+                "no stable address" in T.connect.__doc__}
+
+
 def check_authored_knowledge_arrives_as_text_that_can_be_refused():
     """⭐⭐ THE BORDER, EXTENDED TO EVERYTHING A DOMAIN CONTRIBUTES.
 

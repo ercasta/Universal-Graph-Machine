@@ -170,8 +170,18 @@ where nesting does not.
    ⚠⚠ **Two silent bugs it introduced, both of which passed the full suite:** `drop` popped `out` without
    `eids`/`edges`, and `workbench` read `eprops` by the **old** key, silently returning `{}` — a copied
    edge lost its properties and *nothing failed, because no check had ever copied one.*
-   **Slice two, not started:** edge refs on the surface (`path.py`), and `thread.py`'s `connect`-node
-   workaround can now go, since a `prev` edge property is finally pointable.
+   ⭐⭐ **And a proposal that came out of it was WRONG, which is worth more than the slice.** `thread.py`
+   said *"a `prev` edge property cannot be pointed at"*, so `connect` — which mints a node for anything
+   something else must point at — looked like a workaround that could now be deleted. It cannot: it is
+   **enumerable by `kind`**, and as an edge it would be indistinguishable from the structural `at` /
+   `prev` / `step` without a label convention somebody has to remember. It was kept, and the *reason* was
+   corrected in place.
+   > **Closing a substrate gap can invalidate the JUSTIFICATION for a design without invalidating the
+   > design.** A stale reason is dangerous in its own right — it is what somebody copies into a new module
+   > because they trusted it. Restated rule: *ride on the edge what merely describes that edge; mint a
+   > node for what has its own ends, its own attributes, or must be enumerable as a kind.*
+
+   **Slice two, not started:** edge refs on the surface (`path.py`).
 4. **`becoming`** (D, E) — minted where a plan meets reality, from frames that already exist, dated with
    moments. ⚠ Imagined becomings stay derived: §5f's cost refusal still holds for the hundreds a search
    makes.
