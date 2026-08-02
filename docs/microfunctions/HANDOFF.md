@@ -13,7 +13,7 @@ loop.
 Verify the state in one command:
 
 ```
-python -m microfunctions.selftest      # 213 checks, 0 FAILED
+python -m microfunctions.selftest      # 217 checks, 0 FAILED
 ```
 
 > **⭐⭐⭐ Update, 2026-08-01 — READ §6c–§6i BEFORE §5.** The whole of §6b's arc landed in one day and
@@ -2410,6 +2410,88 @@ the failure.
 
 **Verify:** `python -m microfunctions.selftest` → **202 checks, 0 FAILED**.
 
+## 9b. ⭐⭐⭐ WHAT TO DO NEXT — refreshed end of 2026-08-02 session two
+
+**Verify first: `python -m microfunctions.selftest` → 217 checks, 0 FAILED.** ⚠ Do **not** gate on
+`../pystrider` (*"they will adapt"*); report what changed and move on.
+
+**The one rule that reframes this whole list** — `docs/microfunctions/kernel_boundary.md`: Python is a
+**kernel** (substrate + scheduling) and must never do *business*, where business is **anything we decided
+about how to represent** plans, time, goals, criteria. *The kernel never sees the layer above.* The test is
+**"would a Rust port have to re-make a decision here?"**, never *"is this a loop?"*
+
+### 1. ⭐⭐⭐ `INVOKE` SHOULD PUSH A SUBGOAL ON THE STACK — the user's decision, 2026-08-02
+
+**Measured**: `INVOKE` runs the entire callee **to completion inside one tick** — a 3-instruction caller
+needed 3 ticks and its 4-instruction callee cost **zero**. So `loop.py`'s *"one primitive step per tick,
+nothing uninterruptible"* is **false for any program that calls another program**. `activation.chain`
+already makes the call chain *visible*; the execution just never yielded.
+
+> **The decision: `INVOKE` should not run the callee. It should push it — a subgoal on the stack — and
+> return.** The loop then descends to the deepest live callee, which is exactly the `_subtask` pattern
+> `pursuit` already uses in `loop.advance`.
+
+⭐ The pieces exist: `activation.stack` is already a tuple attribute on the activation (safe to journal),
+activations already carry a `caller` link, and `loop.advance` already knows how to descend for a pursuit.
+⚠⚠ **Blast radius, and it is the real design question**: `fn.invoke` is the *single* entry point used by
+planning (`workbench.step`), execution (`execution.step`) and sensing. Two paths will be needed — a
+synchronous one for kernel/Python callers, a yielding one for the ISA — or "one real action" in a replay
+silently becomes multi-tick, which changes irreversibility handling at the point `dispatch.py` calls the
+most important safety property in the design.
+
+### 2. The same defect, one level up: `criterion.decide`'s Python loop
+
+⚠ **The sidecar framing was wrong and should not be revived.** `expert_judgement.md` §3 justifies the
+criteria layer's atomicity with *"it is scheduler, not work"* — but criteria **are** work. That argument
+belongs to outer-loop triage (item 4). So this is simply an un-decomposed loop: a `deciding` task, one
+criterion per step, the fifth instance of the node+`step` move the file already tabulates.
+⚠ The honest cost of ticking it: a decision spread over ticks can **straddle a world change**. The engine
+already has the answer pattern — re-check at apply time, deviation not crash.
+✅ Half of it landed: the *hidden channel* is closed (`criterion.decider` / `search.decided_by`), so a
+guided search is resumable by anything — 3 imagined states via `pursue`, 3 via `loop`, 52 with no decider.
+
+### 3. Natives that hide a procedure — the same defect, one level down
+
+`NATIVE "plan_step"` mints **22–48 nodes per "one imagined state"**, because `_offer` enumerates a whole
+frame's product — `criterion.py`'s own docstring: *"builds the whole O(N²) product and then throws it
+away."* ⚠ Splitting it is **not mechanical**: interrupt `_offer` halfway and `take_best` runs against a
+**partially built frontier**, which changes what the search finds, not merely when. A semantics question.
+
+### 4. TWO kinds of System 1, and they are not the same thing (the user's distinction)
+
+| | what | interruptible? | state |
+|---|---|---|---|
+| **triage** | *"is there an emergency; should I stop?"* — few, cheap, bounded rules | **no** — it *is* the scheduler | **does not exist** |
+| **action choice** | which action here — domain criteria, many rules | **yes** | exists, = item 2 |
+
+⭐⭐ **Timers already opened the seam**: `tick` was `here[0]` unconditionally and now selects the first
+*due* task, so agenda selection is a real thing for the first time. Triage goes in the same place.
+⚠ Today `run(until=…)` is a **Python hook** consulted *after* a tick and can only stop, never re-prioritise
+— the same hidden-channel shape that `propose=` had.
+⭐ And **a user utterance is itself an action-choice problem** whose answer may be *"start planning"*.
+
+### 5. Triggers — the model is settled, two of three cases are not built
+
+`north_star.md`: **write-triggered, not state-triggered.** ✅ *Guarding an action* is built
+(`dispatch.forbid`/`veto_reason` at the one choke point) — ⚠ but it can only say **no**, never *also do
+this*. Open: *guarding a state transition* (triggers at the fixed points where mechanism writes), and
+*noticing a state no write announced* — which that document says needs a **scheduled sweep**, and timers
+now make that expressible.
+
+### 6. Item J, and `recognise` — no longer one fix (corrected)
+
+⚠ An earlier note in this file claimed item J and recognition-against-reality were the same defect. **They
+are not**: J is *a frame exists and this node is not in it*; recognition is *there is no frame at all*.
+⭐ Measured: making `_here`/`original_of` identity when `frame is None` lets criteria match **reality** —
+two of three Sussman criteria spoke, the third silent for a legitimate reason. So *"act without planning"*
+is small. ⚠⚠ But it deliberately opens a guarantee currently free: **"you cannot act without having
+imagined it first" is enforced by exactly that frame requirement.** That is a decision, not a side effect.
+
+### Also open, unchanged
+`find` (islands B, three callers now) · island A's remainder (the `.mf` **body** surface; the *declared
+effects* half turned out to be closed by mocks) · the nested pursuit (`granularity.md` §7) · §9's older
+items below.
+
 ## 9. ⭐ WHAT TO DO NEXT (current as of 2026-08-02)
 
 Ranked. Everything above §5 is history; this is the list.
@@ -2423,7 +2505,7 @@ conditions (they lived only in `type`), and **edges have identity** (substrate s
 by id, `inc` generalised so an edge is an ordinary link target, three index-maintenance functions
 deleted). Also new: `clock.py`, time as a node that points at what it dates.
 
-⚠ **Verify before believing any of this: `python -m microfunctions.selftest` → 213 checks, 0 FAILED.**
+⚠ **Verify before believing any of this: `python -m microfunctions.selftest` → 217 checks, 0 FAILED.**
 
 What remains, in order:
 1. ✅ **DONE — the typed consequent, SLICE ONE.** `consequent.py`: one node kind, one edge label, two
@@ -2473,6 +2555,15 @@ What remains, in order:
    ⚠ **J itself is NOT cheap** — binding the real node would run the function against the real graph
    inside a workbench, breaking the guarantee `workbench_copies_are_structurally_unreachable` holds. The
    answer is copy-on-demand into the frame: a slice, not a patch.
+   ⭐⭐⭐ **BUT IT IS ALSO THE BLOCKER FOR "SYSTEM 1", WHICH CHANGES ITS RANK** (`probe_recognise.py`,
+   2026-08-02). The proposal is a `NATIVE "recognise"` primitive so a rule can act **without opening a
+   search** — nothing in the engine consults a criterion outside the planner today. Measured: a criterion
+   matched against REALITY (`frame="root"`) comes back **silent**, with `check_call`'s *"not in the world
+   being imagined here"* — even a rule with no navigation at all. **Reality is a node outside the imagined
+   world, so recognition-against-reality and J are one defect.** Two further findings from the same probe:
+   the bound call is a Python `NamedTuple` (the consequent node is a *generic* one, with unresolved text
+   bindings), and **no agenda kind carries out a call** — `replay` executes a path of frames, not an
+   action. So "System 1" needs three things, and only the first is J.
 2. **The sidecar executor.** ✅ **Half of this landed 2026-08-02 — the HIDDEN CHANNEL.** Guidance reached
    a search as a `propose=` keyword, so it was a property of the Python caller and **the outer loop lost
    it**: the identical search node with the identical criteria took **3** imagined states via `pursue` and
@@ -2554,8 +2645,64 @@ step atomic, and measure `proposals` cost before and after.
 `forget.also=` exists and no check drives it. ⚠ Compacting the thread is also what would turn `observation`
 from a *redundant* root into a load-bearing one (§6g) — so build the two together or neither.
 
+**⭐⭐⭐ 1c. TIMERS / SCHEDULED ACTIONS — DONE, 2026-08-02.** *"Stop cooking the pasta after ten
+minutes"*, and *"installed by procedures themselves"*. `loop.schedule(not_before=<moment>)` gates a task;
+`clock.arrived` answers whether a moment has come and **refuses a relative moment** (*"a minute after the
+pan is hot"* has no scalar, so `False` would be a timer that silently never fires). A procedure installs
+its own with `NATIVE R(t) "after" 600 "take_the_pasta_off" F(pot)`.
+⭐⭐ **This is the first selection the agenda has ever made** — `tick` took `here[0]` unconditionally, so
+timers and outer-loop **triage are the same seam**. Worth knowing before the second reason to open it.
+⚠ Waiting is **reported, never spun on**: rotating a gated head would busy-loop through the tick budget
+while looking like progress.
+⚠⚠ **Two structural finds.** (i) Natives now receive their **calling activation** — a primitive that does
+not know who invoked it cannot find the agenda it is on, and `INVOKE` already threads `caller=act` for the
+same reason. (ii) **Two facts were riding on one edge**: `loop -task-> t` is *turn order*, and `tick`
+unlinks the head *before* advancing it — so **a running task is not on the agenda**, and a body asks
+"which loop am I on?" precisely while running. Membership now has its own edge (`task -on-> loop`).
+⚠ **Triggers are NOT done.** `north_star.md` §on-triggers already settles the model — *write-triggered,
+not state-triggered* — and the **guard-an-action** case is built (`dispatch.forbid`/`veto_reason` at the
+one choke point), but it can only ever say *no*, never *also do this*. The remaining cases are its §
+"guarding a state transition" (write points) and "noticing a state no write announced" (a scheduled
+sweep — which the timer above now makes expressible). **217 checks.**
+
+**⭐⭐⭐ 2a. ACTING ON AN UNFINISHED PLAN — DONE, 2026-08-02.** *"Sometimes, to solve a goal, you genuinely
+need to perform an action. That only means the planning procedure can propose, as the next candidate step
+for the outer loop, not more planning but executing an action — possible now that we have an outer loop."*
+A search reported `found=False` for two very different reasons and `_phase_planning` read both as defeat.
+Now `goal.blocked_on_ignorance` (strict: a plan must **bottom out** in ignorance) routes to a new
+`SENSING` phase which **looks for real and then replans from scratch** — ⚠ the old search is *discarded*,
+per the specification: what we just learned may invalidate the plan altogether.
+⭐ Sensing selects **directly**, because the planner is blind by construction here: an operator whose
+effect is behind a `DISPATCH` with no `mocks` reads as establishing nothing, so means-ends can never pick
+it. Sensing takes an applicable function whose body dispatches an `observes=True` tool;
+`selection.candidates(skip_applied=True)` is the termination guard, structurally rather than by counter.
+⚠⚠ **Two defects had to be fixed to get there.** (i) Such an operator made `dispatch.service` raise
+`Imagined` *during planning* and **the exception escaped `loop.tick`**, stranding the pursuit and killing
+every other task on the shared agenda — the same shape `execution.step` records for `TypeViolation`, one
+phase earlier. It is skipped and **recorded on the search** (`unimaginable`) now, never silently. (ii) The
+sensing tick reported the verb `imagine` while performing a **real dispatch** — `loop.verb_of` is what
+lets a driver decline before touching the world, so it reports `look`.
+⚠ One existing check changed its EVIDENCE, not its subject: the purity bar was proved load-bearing *by*
+the `Imagined` crash; nothing crashes now, so it is proved by the record the skip leaves. The bar itself is
+untouched, and its real justification was always `settle`, not the workbench guard.
+**215 checks.**
+
+**⭐⭐ 2b. ASPECTS — `docs/microfunctions/aspects.md` (new, 2026-08-02).** *Some concerns should be woven
+into the procedures, not written into each rule — like transaction management.* Measured on the user's own
+example: time **is** woven and **is** at action granularity (both were already the design), but it covered
+only the target's attributes — so listing a folder left the **file list** with no time on it. Fixed:
+`dispatch.service` mints one moment and gives it to the sightings *and* the products.
+⭐⭐ **The obvious generalisation is wrong and the measurement says so:** an ISA-minted node carries no
+moment and should not — world arrivals get **temporal** provenance, internal mints get **causal**
+(`activation.minted`). Stamping every mint would produce exactly the per-node timestamping the concern
+rejects. ⚠ Two aspects (time, transactions) across **five hand-placed sites**; no general mechanism yet,
+because they weave at *different join points*. §4 of that note says what would settle it — and that the
+weaving is kernel while the aspect is business, so the shape is `native.py`'s.
+
 **3. Sightings cover attributes only.** §6a's own gap: an absent *edge* has nowhere to hang a marker, so a
-folder's **contents** cannot be observed the way its `count` can. `workbench.expectations` already faced
+folder's **contents** cannot be observed the way its `count` can. ⚠ **Half of this was the missing
+notion "the PRODUCTS of an action", and that half is closed** — see 2b: the contents are now *dated*, they
+are still not *observed*. `workbench.expectations` already faced
 this and answered **qualitatively** ("files appeared", never how many); the same granularity should apply.
 
 **4. `pursue` does not fork on mock outcomes**, so a plan the driver produced has no sibling branches and

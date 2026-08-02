@@ -130,14 +130,40 @@ def service(g: Graph, tool: str, target, *, record_on=None, remember=None):
     # which is a different question. The snapshot is the two being separated.
     before = dict(g.attrs.get(target, {})) if target is not None else {}
     thread = _thread_of(g, record_on)
+    existing = set(g.nodes)
     # ⚠ Commit BEFORE the effect leaves. Nothing after this line is undoable.
     g.commit()
     value = _TOOLS[tool](g, target)
+    # ⭐⭐ WHAT THIS ACTION PRODUCED, computed here and not a moment later, so nothing minted by the
+    # bookkeeping below can be mistaken for something the world handed us.
+    produced = tuple(n for n in g.nodes if n not in existing)
     if record_on is not None:
         g.put(record_on, dispatched=True)
+
+    # ⭐⭐⭐ **ONE ACTION, ONE MOMENT — INCLUDING WHAT THE ACTION BROUGHT INTO BEING.** The user's
+    # specification, 2026-08-02: *"I don't expect each business rule to handle timestamping manually; and
+    # it is not that each node gets a different timestamp — when listing files in a folder, the entire
+    # list of files should get the same timestamp, because it corresponds to a single action."*
+    #
+    # Both halves of that were already true of what was covered, and the gap was **scope** rather than
+    # mechanism (`docs/microfunctions/probe_woven_time.py`): a look at a folder recorded three sightings
+    # sharing one moment, and the three file nodes it minted had **no moment at all**. So the moment is
+    # minted once, here, and given to both the sightings and the products.
+    #
+    # ⚠⚠ **DATING IS NOT ENCODING, and conflating them would overturn a decision that was made on
+    # purpose.** `record_sighting` deliberately encodes only the slots of *the thing being looked at* —
+    # *"everything else the tool happened to touch is the walk to school, not encoded, and that is the
+    # correct outcome rather than a loss."* That is about **attention**, and it stands. This is
+    # **provenance**: `clock.py` opens with *"everything observed or acted must have an absolute
+    # timestamp"*, and a node the world just handed us with no time on it cannot be aged, compared, or
+    # told from one that has always been there. Nothing is encoded as observed here; things are dated.
+    from . import clock as C
+    when = C.now(g) if (produced or (thread is not None and target is not None)) else None
     if thread is not None and target is not None:
         from . import memory as M
-        M.record_sighting(g, thread, target, before, source=tool, keep=remember)
+        M.record_sighting(g, thread, target, before, source=tool, keep=remember, when=when)
+    if produced:
+        C.stamp(g, when, *produced)
     return value
 
 

@@ -39,6 +39,7 @@ from __future__ import annotations
 from itertools import product
 from typing import NamedTuple
 
+from . import dispatch as DP
 from . import execution as X
 from . import function as fn
 from . import goal as G
@@ -1241,7 +1242,28 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
 
     steps = S.took_a_step(g, search)
 
-    nxt, _tr = W.step(g, wb, frame, name, bindings)
+    # ⚠⚠ **AN OPERATOR THAT CANNOT BE IMAGINED IS UNUSABLE HERE, NOT A CRASH.** A body whose effect is
+    # behind a `DISPATCH` and which declares no `mocks` cannot be run on a workbench: `dispatch.service`
+    # refuses an imagined target, which is the single most important safety property in the design and
+    # must stay. But the refusal was **escaping the outer loop** — stranding this pursuit and, because the
+    # agenda is shared, killing every other task with it. Exactly the failure `execution.step` already
+    # records for `TypeViolation`: *"it reports by raising, and nothing between here and `loop.tick` caught
+    # it"*. Same shape, one phase earlier.
+    #
+    # ⭐ And skipping is the RIGHT answer rather than a patch: an operator nobody can imagine is one
+    # means-ends cannot use, so the search should carry on and — if what remains is ignorance — say so.
+    # That is precisely what lets `_phase_sensing` see `blocked_on_ignorance` and go and look.
+    try:
+        nxt, _tr = W.step(g, wb, frame, name, bindings)
+    except DP.Imagined as e:
+        # ⚠ SKIPPED, BUT NEVER SILENTLY — recorded on the search so a report can say *"there was a route
+        # here and nothing could imagine it"*. A capability gap that reads as an ordinary "no plan found"
+        # is the silent-acceptance failure this project keeps catching; `_exhausted` can now name it.
+        g.put(search, unimaginable=tuple(dict.fromkeys(
+            (g.attr(search, "unimaginable") or ()) + (name,))))
+        if watch:
+            emit("unimaginable", action=name, on=_shown(g, bindings), depth=depth, because=str(e))
+        return None
     # WARN Record the REAL node the imagined one stands for, falling back to the copy only for something
     # that does not exist yet. Recording the copy was more literal and less truthful: an application says
     # *which function was applied to which subject*, and the subject is the block - the copy is only how we
@@ -1434,6 +1456,8 @@ def carry_out(g: Graph, goal: str, thread: str, subject: str, *,
 # what the system is in the middle of without having been watching.
 
 PLANNING, ACTING, RECOVERING, CHECKING, SETTLED = "planning", "acting", "recovering", "checking", "done"
+#: ⭐⭐ A pursuit that cannot PLAN because it does not KNOW — see `_phase_sensing`.
+SENSING = "sensing"
 
 _PURSUIT_DATA = ("max_steps", "max_depth", "guided")
 
@@ -1523,6 +1547,15 @@ def _phase_planning(g: Graph, p: str, **hooks) -> bool:
     if out is None:
         return True                              # one imagined state; still planning
     if not out["found"]:
+        # ⭐⭐⭐ **ACTING ON AN UNFINISHED PLAN.** A search can fail for two very different reasons, and
+        # collapsing them was the gap: *"there is no route"* is defeat, but *"I cannot plan this until I
+        # go and look"* is a **third outcome**, and the whole reason an outer loop was wanted — the plan
+        # is not the only thing a goal may need next. `goal.blocked_on_ignorance` is the test, and it is
+        # deliberately strict: a plan must **bottom out** in ignorance, not merely touch it, or the agent
+        # looks in every box.
+        if _looker_for(g, goal, subject) is not None:
+            g.put(p, phase=SENSING)
+            return True
         _attempt(g, p, attempt=g.attr(p, "at", 0), planned=False, why=out["why"])
         g.put(p, phase=SETTLED)
         return False
@@ -1576,6 +1609,65 @@ def _phase_recovering(g: Graph, p: str, **_hooks) -> bool:
     return True
 
 
+def _looker_for(g: Graph, goal: str, subject: str):
+    """An observing function that could reduce this goal's ignorance, or `None`.
+
+    ⚠ **Only when the goal BOTTOMS OUT in ignorance** (`goal.blocked_on_ignorance`), which is the test
+    that document already specifies: one unknown slot beside three genuinely false constraints is world
+    work, not a reason to go looking.
+
+    ⚠⚠ **The planner is BLIND here by construction, which is why this does not plan.** A search reaches
+    this state precisely when nothing it can select establishes what is unknown — an operator whose whole
+    effect is on the far side of a `DISPATCH` reads as establishing nothing (`establishes`), so it can
+    never be chosen by means-ends. Sensing therefore selects **directly**: an applicable single-parameter
+    function whose body dispatches a tool registered as only LOOKING.
+
+    ⚠ `selection.candidates(skip_applied=True)` is the termination guard, and it is structural rather than
+    a counter: a function already applied to this subject is not offered again, so a pursuit cannot look
+    the same way twice and loop for ever."""
+    from . import dispatch as DP, selection as SEL
+    if not G.blocked_on_ignorance(g, goal):
+        return None
+    for c in SEL.candidates(g, subject):
+        name = c["function"] if isinstance(c, dict) else c
+        _params, program = fn.load(g, name)
+        for i in program:
+            if getattr(i, "op", None) != "DISPATCH":
+                continue
+            tool = next((a for a in i.args if isinstance(a, str)), None)
+            if tool is not None and DP.observes(g, tool):
+                return name
+    return None
+
+
+def _phase_sensing(g: Graph, p: str, **_hooks) -> bool:
+    """**Look, for real, and then replan from scratch.**
+
+    ⚠⚠ **The old search is DISCARDED, not resumed, and that is the user's specification rather than an
+    implementation convenience:** what we just learned may invalidate the plan altogether, so resuming a
+    frontier built in ignorance would extend reasoning done before the facts arrived. Replanning is the
+    honest move, and it is the same argument `execution.recover` already makes for preferring a verified
+    sibling over a fresh plan — evidence over taste, in the other direction.
+
+    ⚠ One look per tick, like every other phase: this is a real dispatch and reaches the world."""
+    goal, thread, subject = (g.target(p, "goal"), g.target(p, "thread"), g.target(p, "subject"))
+    name = _looker_for(g, goal, subject)
+    if name is None:
+        _attempt(g, p, attempt=g.attr(p, "at", 0), planned=False,
+                 why="blocked on what is not known, and nothing here can look")
+        g.put(p, phase=SETTLED)
+        return False
+    T.attend(g, thread, goal, why="cannot plan without looking", note=name)
+    fn.invoke(g, name, {fn.subject_param(g, name): subject})
+    g.put(p, sensed=(g.attr(p, "sensed", ()) or ()) + (name,))
+    # ⭐ The search is dropped so the next planning tick opens a FRESH one against what is now known.
+    old = g.target(p, "search")
+    if old is not None:
+        g.unlink(p, "search", index=0)
+    g.put(p, phase=PLANNING)
+    return True
+
+
 def _phase_checking(g: Graph, p: str, **_hooks) -> bool:
     goal, thread, subject = (g.target(p, "goal"), g.target(p, "thread"), g.target(p, "subject"))
     a = g.target(p, "record")
@@ -1603,7 +1695,7 @@ def _phase_checking(g: Graph, p: str, **_hooks) -> bool:
 
 
 _PHASES = {PLANNING: _phase_planning, ACTING: _phase_acting,
-           RECOVERING: _phase_recovering, CHECKING: _phase_checking}
+           RECOVERING: _phase_recovering, CHECKING: _phase_checking, SENSING: _phase_sensing}
 
 
 def _plan_of(g: Graph, p: str) -> dict:
@@ -1747,11 +1839,11 @@ def describe(g: Graph, result: dict) -> str:
 #
 # ⚠ `plan`'s operand order is the old `PLAN R(dst) F(goal) F(subject) F(thread)`, so a body translates
 # mnemonic-for-name with the operands untouched.
-N.register("plan", lambda g, goal, subject, thread: open_planning(g, goal, thread, subject))
-N.register("plan_step", lambda g, search: step(g, search) is None)
+N.register("plan", lambda g, _act, goal, subject, thread: open_planning(g, goal, thread, subject))
+N.register("plan_step", lambda g, _act, search: step(g, search) is None)
 
 
 __all__ = ["proposals", "state_of", "establishes", "role_node", "relevance", "view_in",
            "open_planning", "step", "Call", "Undecidable",
-           "EXPAND", "DECOMPOSE", "COMMIT", "SENSE", "REFUSE", "VERBS",
+           "EXPAND", "DECOMPOSE", "COMMIT", "SENSE", "REFUSE", "VERBS", "SENSING",
            "pursue", "carry_out", "plan_steps", "plan_bindings", "describe"]

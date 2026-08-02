@@ -97,6 +97,22 @@ def at_of(g: Graph, when: str):
     return g.attr(when, "at")
 
 
+def arrived(g: Graph, when: str, *, at=None) -> bool:
+    """Has this moment come? `at` overrides the wall clock, so a check need not sleep.
+
+    ⚠⚠ **A RELATIVE moment can never `arrive`, and this REFUSES rather than guessing.** *"A minute after
+    the pan is hot"* is a real thing to say and carries no scalar, so there is nothing to compare a clock
+    reading against. Answering `False` would make a timer that silently never fires — indistinguishable
+    from one that is merely early — and answering `True` would fire it immediately. Both are the
+    silent-acceptance failure this project keeps catching, so the caller is told instead."""
+    stamp_at = at_of(g, when)
+    if stamp_at is None:
+        raise ValueError(
+            f"{when} is a relative moment with no absolute stamp, so nothing can say whether it has "
+            f"arrived. Place it with `before`, or give it an `at=` when it is minted.")
+    return (at if at is not None else _wallclock.time()) >= stamp_at
+
+
 def follows(g: Graph, later: str, earlier: str) -> str:
     """Place `later` after `earlier` in the partial order. Returns the edge's source, for chaining."""
     if later == earlier:
@@ -138,5 +154,5 @@ def describe(g: Graph, when: str) -> str:
     return f"{head} ({what} thing{'' if what == 1 else 's'} dated)"
 
 
-__all__ = ["MOMENT", "DATES", "BEFORE", "moment", "now", "stamp", "dated", "at_of",
+__all__ = ["arrived", "MOMENT", "DATES", "BEFORE", "moment", "now", "stamp", "dated", "at_of",
            "follows", "precedes", "ordered", "moments", "describe"]

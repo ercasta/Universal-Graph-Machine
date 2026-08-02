@@ -350,7 +350,7 @@ class Machine:
             from .native import call as _native
             dst = a[0] if isinstance(a[0], R) else None
             rest = a[1:] if dst is not None else a
-            got = _native(g, v(rest[0]), tuple(node(x) for x in rest[1:]))
+            got = _native(g, v(rest[0]), tuple(node(x) for x in rest[1:]), act)
             if dst is not None:
                 w(dst, got)
 

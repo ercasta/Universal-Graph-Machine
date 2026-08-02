@@ -6520,11 +6520,21 @@ def check_a_derivation_may_never_act():
             "BUT_IT_IS_NEVER_PROPOSED": "ask_the_registrar" not in offered,
             "AND_NEVER_APPEARS_IN_A_PROOF":
                 "ask_the_registrar" not in [n for n, _b in Q.steps_of(g, ans)],
-            "AND_WITHOUT_THE_BAR_THE_QUESTION_DIES_ON_IT": _without_the_purity_bar_it_raises()}
+            # ⚠⚠ **THIS KEY CHANGED ITS EVIDENCE, 2026-08-02, and the bar is UNCHANGED.** It used to
+            # assert that removing the bar made the question die with `Imagined`, using the crash as proof
+            # that `ask_the_registrar` is really on the path. An operator that cannot be imagined is now
+            # SKIPPED rather than fatal — it was escaping `loop.tick` and killing every other task on the
+            # shared agenda, the same defect `execution.step` records for `TypeViolation` — so nothing
+            # dies any more. The proof is now the **record it leaves**: without the bar the search reaches
+            # the impure function and marks it unimaginable, which says the path is taken *and* that the
+            # workbench guard was never what did the real work. This docstring's own point stands: the
+            # genuine exposure is at `settle`, where the proof is replayed for real.
+            "AND_WITHOUT_THE_BAR_THE_SEARCH_REACHES_IT_AND_SAYS_SO":
+                _without_the_purity_bar_it_is_unimaginable()}
 
 
-def _without_the_purity_bar_it_raises() -> bool:
-    """Plant the removal of the purity bar and confirm the question becomes unanswerable.
+def _without_the_purity_bar_it_is_unimaginable() -> bool:
+    """Plant the removal of the purity bar and confirm the search REACHES the impure function.
 
     ⚠ This is an in-harness version of the probe §7 asks for, kept because the key it guards was a **false
     green** first: with the bar removed the search still returned a proof naming the pure function, so
@@ -6538,13 +6548,15 @@ def _without_the_purity_bar_it_raises() -> bool:
     Q.derivations = lambda gr: F.names(gr)                  # the bar, removed
     try:
         Q.ask(g, q, T.open_thread(g, "probe"), "root")
-        return False                                        # it answered anyway: the probe proves nothing
-    except DP.Imagined:
-        return True
     except Exception:
-        return False
+        return False                                        # it must no longer die on it
     finally:
         Q.derivations = real
+    # ⚠ The evidence: some search in this graph met `ask_the_registrar` and could not imagine it. If the
+    # search never went near it, nothing would be marked and this proves as little as the old false green.
+    _ = DP
+    return any("ask_the_registrar" in (g.attr(s2, "unimaginable") or ())
+               for s2 in g.of_kind("search"))
 
 
 def check_unknown_is_not_no_unless_you_say_so():
@@ -8105,6 +8117,327 @@ def _refuses(fn) -> bool:
         return False
     except Exception:
         return True
+
+
+def check_ONE_ACTION_IS_ONE_MOMENT_including_what_the_action_PRODUCED():
+    """⭐⭐⭐ **TIME IS WOVEN, AND THE UNIT OF WEAVING IS THE ACTION.** The user's specification,
+    2026-08-02: *"I don't expect each business rule to handle timestamping manually; and it is not that
+    each node gets a different timestamp — when listing files in a folder, the entire list of files should
+    get the same timestamp, because it corresponds to a single action."*
+
+    ⭐ Both halves were **already true of what was covered**, which is why this is a small change:
+    `dispatch.service` records the sighting itself (no rule calls the clock) and `record_sighting` passes
+    one `when` for a whole look on purpose. The gap was **scope**, measured in
+    `docs/microfunctions/probe_woven_time.py`: a look at a folder produced three sightings sharing one
+    moment, and the three file nodes it minted had **no moment at all**. Listing a folder left the file
+    list — the entire point of listing a folder — with no time on it.
+
+    ⚠⚠ **DATING IS NOT ENCODING, and this check exists partly to hold that line.**
+    `record_sighting` deliberately records only the slots of *the thing being looked at*: *"everything
+    else the tool happened to touch is the walk to school — not encoded, and that is the correct outcome
+    rather than a loss."* That is about **attention** and it is untouched. This is **provenance**:
+    `clock.py` opens with *"everything observed or acted must have an absolute timestamp"*, and a node the
+    world just handed us with no time on it cannot be aged, compared, or told from one that was always
+    there. So the products are **dated and NOT observed**, and the check asserts both.
+
+    ⚠ Vacuity guards. Dating the products proves little if they get their **own** moment — that would be
+    three actions, not one — so the assertion is set equality with the look's moment, not mere presence.
+    A tool that produces nothing must not mint a stray moment. And the sighting count must stay put, or
+    "dating is not encoding" has quietly stopped being true."""
+    from . import clock as C, dispatch as DP, memory as M, thread as T
+
+    made = []
+
+    def lister(g, target):
+        made.clear()
+        for name in ("a.txt", "b.txt", "c.txt"):
+            f = g.mint("chunk", kind_of="file", label=name)
+            g.link(target, "file", f)
+            made.append(f)
+        g.put(target, count=len(made))
+        return tuple(made)
+
+    def toucher(g, target):
+        g.put(target, poked=True)
+        return True
+
+    DP.register("probe_list_dir", lister, observes=True)
+    DP.register("probe_touch", toucher, observes=True)
+
+    g = new_graph()
+    folder = g.mint("chunk", kind_of="folder", label="src")
+    g.link("root", "has", folder)
+    th = T.open_thread(g)
+    DP.service(g, "probe_list_dir", folder, record_on=T.attend(g, th, folder, why="looking"))
+    produced = tuple(made)
+
+    seen = M.sightings(g, th, folder)
+    of_look = {m for o in seen for m in C.dated(g, o)}
+    of_products = {m for f in produced for m in C.dated(g, f)}
+
+    # ⚠ A second action must get its OWN moment, or "one action one moment" is really "one moment ever".
+    g2 = new_graph()
+    f2 = g2.mint("chunk", kind_of="folder", label="src")
+    g2.link("root", "has", f2)
+    th2 = T.open_thread(g2)
+    DP.service(g2, "probe_list_dir", f2, record_on=T.attend(g2, th2, f2, why="one"))
+    first = {m for n in tuple(made) for m in C.dated(g2, n)}
+    DP.service(g2, "probe_list_dir", f2, record_on=T.attend(g2, th2, f2, why="two"))
+    second = {m for n in tuple(made) for m in C.dated(g2, n)}
+
+    # ⚠ A tool that produces nothing must not leave a moment dating nothing.
+    g3 = new_graph()
+    t3 = g3.mint("chunk", kind_of="folder", label="src")
+    g3.link("root", "has", t3)
+    th3 = T.open_thread(g3)
+    DP.service(g3, "probe_touch", t3, record_on=T.attend(g3, th3, t3, why="poke"))
+    empty_moments = [m for m in C.moments(g3) if not g3.targets(m, C.DATES)]
+
+    return {"THE_PRODUCTS_OF_THE_ACTION_ARE_DATED": all(C.dated(g, f) for f in produced),
+            "and_there_were_three_of_them": len(produced) == 3,
+            "ONE_ACTION_ONE_MOMENT_the_look_and_its_products_share_it": of_look == of_products,
+            "and_it_really_is_ONE": len(of_look) == 1,
+            "A_SECOND_ACTION_GETS_ITS_OWN_MOMENT": bool(first) and bool(second) and first != second,
+            "DATING_IS_NOT_ENCODING_the_products_carry_no_sighting":
+                all(M.sightings(g, th, f) == () for f in produced),
+            "while_the_TARGET_still_does": len(seen) >= 2,
+            "and_a_tool_that_PRODUCES_NOTHING_leaves_no_empty_moment": empty_moments == []}
+
+
+def check_a_pursuit_ACTS_on_an_unfinished_plan_and_then_REPLANS():
+    """⭐⭐⭐ **ACTING ON AN UNFINISHED PLAN — the thing an outer loop was wanted for.**
+
+    The user's specification, 2026-08-02: *"sometimes, to solve a goal, you genuinely need to perform an
+    action. That only means the planning procedure can propose, as the next candidate step for the outer
+    loop, not more planning but executing an action — and this is possible now that we have an outer
+    loop."* And the constraint that shapes it: **⚠ do not resume the search.** What we just learned may
+    invalidate the plan altogether, so a frontier built in ignorance must be thrown away.
+
+    A search reported `found=False` for two very different reasons and `_phase_planning` read both as
+    defeat. *"There is no route"* is defeat; *"I cannot plan this until I go and look"* is a **third
+    outcome**. `goal.blocked_on_ignorance` is the test, and it is deliberately strict — a plan must
+    **bottom out** in ignorance, not merely touch it, or the agent looks in every box.
+
+    ⚠⚠ **The world here makes the planner structurally blind, which is what makes this a capability
+    rather than a shortcut.** `scan_dir`'s whole effect is behind a `DISPATCH` and it declares no `mocks`,
+    so `establishes` reads **nothing** and means-ends can never select it. Sensing therefore picks
+    directly: an applicable function whose body dispatches a tool registered `observes=True`.
+
+    ⭐ **Building it surfaced a pre-existing defect that had to be fixed first:** such an operator made
+    `dispatch.service` raise `Imagined` *inside planning*, and the exception **escaped `loop.tick`** —
+    stranding the pursuit and killing every other task on the shared agenda. Exactly what `execution.step`
+    already records for `TypeViolation`, one phase earlier. It is skipped and recorded now, not fatal.
+
+    ⚠ Vacuity guards, and each caught something. Planning **alone** must fail, or the scenario proves
+    nothing. A **second** search must exist afterwards — resuming the first is what the specification
+    forbids. A goal *not* blocked on ignorance must not sense at all. And the sensing tick must report the
+    verb **`look`**, not `imagine`: it performs a real dispatch, and `loop.verb_of` is what lets a driver
+    decline a tick before the world is touched — it reported `imagine` in the first version."""
+    from . import asm, dispatch as DP, driver as D, goal as G, loop as L, thread as T
+    from .graph import UNKNOWN
+
+    def looker(g, target):
+        for i in range(3):
+            g.link(target, "file", g.mint("chunk", kind_of="file", label=f"f{i}"))
+        g.put(target, count=3)
+        return 3
+
+    DP.register("selftest_look", looker, observes=True)
+
+    def world():
+        g = new_graph()
+        declare_type(g, "folder", attrs={"kind_of": "folder"})
+        declare_type(g, "file", attrs={"kind_of": "file"})
+        asm.load_text(g, _lines("fn scan_dir(d: folder) -> folder:",
+                                '    DISPATCH R(out) "selftest_look" F(d)'))
+        folder = g.mint("chunk", kind_of="folder", label="src", count=UNKNOWN)
+        g.link("root", "has", folder)
+        goal = G.open_goal(g, label="know how many files")
+        G.require_attr(g, goal, folder, "count", 3)
+        return g, folder, goal
+
+    g, folder, goal = world()
+    blind = D.establishes(g, "scan_dir")
+    # ⚠ Read BEFORE the pursuit runs — after sensing the goal is no longer blocked, so asserting this
+    # afterwards would be asserting nothing. The first version of this key was a hardcoded `True`.
+    bottoms_out = G.blocked_on_ignorance(g, goal)
+    p = D.open_pursuit(g, goal, T.open_thread(g), folder)
+    lp = L.open_loop(g)
+    L.schedule(g, lp, p, why="pursue it")
+    out = L.run(g, lp, max_ticks=200)
+    verbs = [r["verb"] for r in out["did"]]
+
+    # CONTROL: planning alone must fail.
+    g2, folder2, goal2 = world()
+    s2 = D.open_planning(g2, goal2, T.open_thread(g2), folder2, max_steps=200, max_depth=6)
+    lp2 = L.open_loop(g2)
+    L.schedule(g2, lp2, s2, why="plan only")
+    L.run(g2, lp2, max_ticks=200)
+
+    # CONTROL: a goal that is NOT blocked on ignorance must not sense.
+    g3 = new_graph()
+    declare_type(g3, "folder", attrs={"kind_of": "folder"})
+    f3 = g3.mint("chunk", kind_of="folder", label="src", count=1)
+    g3.link("root", "has", f3)
+    goal3 = G.open_goal(g3, label="already true")
+    G.require_attr(g3, goal3, f3, "count", 1)
+    p3 = D.open_pursuit(g3, goal3, T.open_thread(g3), f3)
+    lp3 = L.open_loop(g3)
+    L.schedule(g3, lp3, p3, why="pursue")
+    L.run(g3, lp3, max_ticks=100)
+
+    return {"THE_PLANNER_IS_BLIND_TO_IT": blind == (frozenset(), frozenset({None})),
+            "and_the_goal_BOTTOMS_OUT_in_ignorance": bottoms_out,
+            "and_AFTERWARDS_it_no_longer_does": not G.blocked_on_ignorance(g, goal),
+            "IT_SENSED_FOR_REAL": g.attr(p, "sensed") == ("scan_dir",),
+            "and_the_world_really_moved": g.attr(folder, "count") == 3,
+            "THE_GOAL_IS_SATISFIED": G.satisfied(g, goal, under=folder),
+            "THE_SENSING_TICK_REPORTS_look_NOT_imagine": L.LOOK in verbs,
+            "IT_REPLANNED_rather_than_resuming":
+                len([n for n in g.nodes if g.kind(n) == "search"]) == 2,
+            "CONTROL_planning_alone_FAILS": not g2.attr(s2, "found"),
+            "CONTROL_a_goal_not_blocked_on_ignorance_never_senses": g3.attr(p3, "sensed") is None,
+            "and_that_one_still_settled": g3.attr(p3, "phase") == D.SETTLED}
+
+
+def check_a_TIMER_gates_a_task_and_the_agenda_waits_rather_than_spinning():
+    """⭐⭐⭐ **SCHEDULED ACTIONS — *"stop cooking the pasta after ten minutes"*.**
+
+    The user's case, 2026-08-02: timers and scheduled actions, *"installed by procedures themselves"*. So
+    the payload is an **ordinary task** and the gate is an **ordinary moment node** — nothing new is
+    represented, because `clock.moment(at=…)` already existed. `loop.schedule(not_before=…)` is the edge
+    that lets the loop honour one, and it lives on the **task**, so *"when may this run?"* is a property
+    of the work rather than of the queue it is sitting in.
+
+    ⭐⭐ **This is the first selection the agenda has ever made.** `tick` took `here[0]` unconditionally —
+    round-robin with no content. That makes this the same seam where outer-loop triage would go, which is
+    worth knowing before a second reason to open it arrives.
+
+    ⚠⚠ **Waiting is REPORTED, never spun on.** Rotating a gated head to the back and trying again would
+    busy-loop until the clock caught up — burning the tick budget while looking like progress, which is
+    the shape of every silent failure in this file. The tick returns a record naming what it waits for and
+    `run` stops, because *"sleep, or do something else"* is a decision only a driver can make.
+
+    ⚠ Vacuity guards, and they are the whole check: the gated task must **not** run early (or the gate is
+    decorative), it must run **once the clock moves** (or the gate is a block), an **ungated** task beside
+    it must still run (or one timer freezes everything), and a **relative** moment — *"a minute after the
+    pan is hot"*, which carries no scalar — must **refuse** rather than silently never firing."""
+    from . import asm, clock as C, function as fn, loop as L
+    from .focus import Focus
+    from .isa import Machine
+
+    g = new_graph()
+    declare_type(g, "pot", attrs={"kind_of": "pot"})
+    # ⚠ Stored functions, not anonymous programs: the outer loop refuses an activation with no `of`,
+    # because a program that exists only in Python is exactly the island this arc removed.
+    asm.load_text(g, _lines('fn take_the_pasta_off(p: pot) -> pot:', '    SET F(p) "cooking" false',
+                            '', 'fn lay_the_table(p: pot) -> pot:', '    SET F(p) "table" true'))
+    pot = g.mint("chunk", kind_of="pot", label="pot")
+    g.link("root", "has", pot)
+
+    def a_task(g, name):
+        _params, prog = fn.load(g, name)
+        return Machine(prog).start(g, Focus(g).open("p", pot), of=fn.find(g, name), label=name)
+
+    lp = L.open_loop(g)
+    ten_minutes = C.moment(g, at=1000.0, label="pasta is done")
+    timer = a_task(g, "take_the_pasta_off")
+    other = a_task(g, "lay_the_table")
+    L.schedule(g, lp, timer, why="ten minutes", not_before=ten_minutes)
+    L.schedule(g, lp, other, why="meanwhile")
+
+    early = L.run(g, lp, max_ticks=20, at=999.0)          # the clock has not reached it
+    ran_early = [r["doing"] for r in early["did"] if r.get("task")]
+    late = L.run(g, lp, max_ticks=20, at=1001.0)          # now it has
+    ran_late = [r["doing"] for r in late["did"] if r.get("task")]
+
+    def refuses(fn):
+        try:
+            fn()
+            return False
+        except Exception:
+            return True
+
+    relative = C.moment(g, label="a minute after the pan is hot")
+    return {"THE_UNGATED_TASK_RAN": any("lay_the_table" in d for d in ran_early),
+            "AND_THE_TIMER_DID_NOT": not any("pasta" in d for d in ran_early),
+            "the_run_reported_WAITING_rather_than_spinning": early["why"] == "waiting on a timer",
+            "and_it_NAMED_what_it_waits_on": any(r.get("waiting") for r in early["did"]),
+            "IT_RAN_ONCE_THE_CLOCK_MOVED": any("pasta" in d for d in ran_late),
+            "and_the_gate_is_on_the_TASK_not_the_queue": g.target(timer, "not_before") == ten_minutes,
+            "A_RELATIVE_MOMENT_REFUSES_rather_than_never_firing":
+                refuses(lambda: C.arrived(g, relative)),
+            "and_an_ABSOLUTE_one_answers": C.arrived(g, ten_minutes, at=1001.0) is True,
+            "ungated_work_is_always_due": L.due(g, other)}
+
+
+def check_a_PROCEDURE_INSTALLS_ITS_OWN_TIMER():
+    """⭐⭐⭐ *"Stop cooking the pasta after ten minutes"* — **installed by the cooking procedure itself.**
+
+    The user's framing, 2026-08-02: timers *"could be rules, or installed by procedures themselves"*. The
+    thing that knows about the ten minutes is `cook_pasta`, not whoever called it, so a running body must
+    be able to reach the agenda it is on. `NATIVE R(t) "after" 600 "take_the_pasta_off" F(pot)`.
+
+    ⭐ Nothing new is represented: `clock.moment(at=…)` is the gate, an activation is the payload, and
+    `loop.schedule(not_before=…)` already honours both. What was missing was **reach**.
+
+    ⚠⚠ **Building it exposed two facts riding on one edge.** `loop -task-> t` is TURN ORDER: `tick`
+    unlinks the head *before* advancing it and re-appends it at the tail, so **a running task is not on
+    the agenda at all** — and a body asks *"which loop am I on?"* precisely while running. Membership is a
+    different, stable fact and now has its own edge (`task -on-> loop`). The first version refused every
+    call with *"not on an agenda"*, which is the honest failure the guard was written for.
+
+    ⚠ Vacuity guards: the timer must **not** already have fired when `cook_pasta` returns (or it is not a
+    timer), the gate must be roughly the requested distance away rather than any moment at all, it must
+    fire once the clock passes it, and a body **not** on an agenda must be refused rather than scheduling
+    into nowhere — a timer installed nowhere can never fire, and would look exactly like one that is
+    early."""
+    import time as _t
+    from . import asm, clock as C, function as fn, loop as L
+    from .focus import Focus
+    from .isa import Machine
+
+    g = new_graph()
+    declare_type(g, "pot", attrs={"kind_of": "pot"})
+    asm.load_text(g, _lines('fn take_the_pasta_off(p: pot) -> pot:', '    SET F(p) "cooking" false',
+                            '',
+                            'fn cook_pasta(p: pot) -> pot:', '    SET F(p) "cooking" true',
+                            '    NATIVE R(t) "after" 600 "take_the_pasta_off" F(p)'))
+    pot = g.mint("chunk", kind_of="pot", label="pot")
+    g.link("root", "has", pot)
+    _p, prog = fn.load(g, "cook_pasta")
+    a = Machine(prog).start(g, Focus(g).open("p", pot), of=fn.find(g, "cook_pasta"), label="cook_pasta")
+    lp = L.open_loop(g)
+    L.schedule(g, lp, a, why="dinner")
+
+    first = L.run(g, lp, max_ticks=20)
+    cooking_after = g.attr(pot, "cooking")
+    pending = L.agenda(g, lp)
+    gap = (C.at_of(g, g.target(pending[0], "not_before")) - _t.time()) if pending else None
+    L.run(g, lp, max_ticks=20, at=_t.time() + 601)
+
+    # A body that is NOT on an agenda must be refused.
+    g2 = new_graph()
+    declare_type(g2, "pot", attrs={"kind_of": "pot"})
+    asm.load_text(g2, _lines('fn noop(p: pot) -> pot:', '    SET F(p) "x" 1',
+                             '', 'fn orphan(p: pot) -> pot:',
+                             '    NATIVE R(t) "after" 5 "noop" F(p)'))
+    pot2 = g2.mint("chunk", kind_of="pot", label="pot")
+    g2.link("root", "has", pot2)
+    try:
+        fn.invoke(g2, "orphan", {"p": pot2})
+        orphan_refused = False
+    except Exception as e:
+        orphan_refused = "not on an agenda" in str(e)
+
+    return {"THE_PROCEDURE_SCHEDULED_ITS_OWN_FOLLOW_UP": len(pending) == 1,
+            "and_it_is_the_right_one": g.attr(pending[0], "label") == "take_the_pasta_off",
+            "IT_HAD_NOT_FIRED_YET": cooking_after is True,
+            "the_loop_said_it_was_WAITING": first["why"] == "waiting on a timer",
+            "and_the_gate_is_TEN_MINUTES_out": gap is not None and 590 < gap <= 600,
+            "IT_FIRED_ONCE_THE_CLOCK_PASSED_IT": g.attr(pot, "cooking") is False,
+            "a_body_NOT_on_an_agenda_is_REFUSED": orphan_refused,
+            "and_a_RUNNING_task_can_still_find_its_loop": L.loop_of(g, a) == lp}
 
 
 # ⚠ THE ENTRY POINT MUST BE THE LAST THING IN THIS FILE. `_checks()` reads `globals()` at call time,

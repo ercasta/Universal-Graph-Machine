@@ -65,15 +65,22 @@ def register(name: str, fn: Callable) -> None:
     _REGISTRY[name] = fn
 
 
-def call(g: Graph, name: str, args: tuple):
-    """Run a registered primitive. The kernel gets here knowing only a name and some nodes."""
+def call(g: Graph, name: str, args: tuple, act: str | None = None):
+    """Run a registered primitive. The kernel gets here knowing only a name, some nodes, and **which
+    activation is asking**.
+
+    ⚠ `act` is passed to every native, whether it wants it or not, because the alternative — a registry
+    that records which primitives take context — is a second thing to keep in step with the primitives
+    themselves. A primitive that ignores it costs one parameter; one that needs it and cannot get it
+    cannot be written at all. `isa.INVOKE` already threads `caller=act` for exactly this reason: a call
+    that does not know who made it is invisible to `activation.chain`."""
     fn = _REGISTRY.get(name)
     if fn is None:
         raise UnknownNative(
             f"no native {name!r}. Registered: {', '.join(sorted(_REGISTRY)) or '(none)'} — "
             f"a native is registered when its module is imported, so this usually means nothing has "
             f"imported the module that owns it")
-    return fn(g, *args)
+    return fn(g, act, *args)
 
 
 def names() -> tuple:

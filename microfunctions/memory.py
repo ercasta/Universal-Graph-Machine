@@ -200,7 +200,7 @@ def volatility(g: Graph, thread: str, node: str, key: str) -> dict:
 
 
 def record_sighting(g: Graph, thread: str, target: str, before: dict, *,
-                    source: str | None = None, keep=None) -> tuple:
+                    source: str | None = None, keep=None, when: str | None = None) -> tuple:
     """Turn "we looked at `target`" into observations, by comparing its attributes to `before`.
 
     ⚠ **The encoding default is the slots of the thing being LOOKED AT**, which is the attention gate made
@@ -223,8 +223,11 @@ def record_sighting(g: Graph, thread: str, target: str, before: dict, *,
     # direction exists for: a timestamp *attribute* would write the same reading onto each observation and
     # invite them to drift, while one moment pointing at all of them cannot disagree with itself. It also
     # makes *"what did we learn in that one look?"* an O(1) reverse walk from the moment.
+    # ⚠ `when` is passed in by `dispatch.service` so the sightings and the nodes the action PRODUCED
+    # share one moment — the same action cannot have happened at two times. Minting our own when none is
+    # given keeps every other caller working.
     from . import clock as C
-    seen_at = C.now(g)
+    seen_at = when if when is not None else C.now(g)
     for key in sorted(set(now) | set(before)):
         if key == "kind":
             continue

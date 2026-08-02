@@ -661,7 +661,7 @@ def describe(g: Graph, name: str) -> str:
 # ⚠ `check` was the `CHECK` opcode, which made `isa.py` import this module — a type is a representation
 # we decided, so the instruction set was carrying type semantics. Same fix as the planner's: registered
 # here, reached by name. See `native.py`.
-N.register("check", check)
+N.register("check", lambda g, _act, node, name: check(g, node, name))
 
 
 __all__ = ["TypeViolation", "UNBOUNDED", "Req", "AttrReq", "Rel", "VALUE_OPS", "IDENTITY_OPS", "compare",
