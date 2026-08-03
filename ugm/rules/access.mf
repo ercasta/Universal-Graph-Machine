@@ -68,23 +68,27 @@ fn relation_at(node, label, index) -> thing:
 .read:
     GET_AT R(result) R(n) F(label) F(index)
 
-# Relate two nodes. BOTH ends are resolved, and DIFFERENTLY, which is the one place the two questions
-# show up side by side. The subject is being *changed*, so it resolves through the writer and gets a
-# version belonging to this frame. The target is only being *read* — pointing at something does not
-# change it — so it resolves through the reader, and minting a version of it would be inventing a change
-# nobody made. An edge from this frame's version of `node` to the real world's `other` would be a link
-# between two worlds; an edge to a version that is merely older is fine, because reading a target
-# resolves it.
+# Relate two nodes. The subject is being *changed*, so it resolves through the writer and gets a version
+# belonging to this frame. The target is only being *pointed at*, which changes nothing about it.
+#
+# It used to resolve both ends, on the reasoning that an edge from this frame's version of `node` to the
+# real world's `other` would be a link between two worlds. That reasoning was wrong, and expensively so.
+#
+# **The subject resolves; the target does not.** An edge names an identity and resolution happens on the
+# target when it is read — so writing this frame's version of `other` would be storing a version, which
+# is the one thing the model rules out: every later frame that changed `other` would be invisible through
+# this edge, and `b on c` would read as false one step after it became true. It also costs a call fewer.
+#
+# Nothing is lost by not resolving, and that is what makes it safe rather than merely cheap: `in_frame`
+# normalises an image back to what it is a version *of* before it walks, so even a caller that hands over
+# a version writes an edge that reads correctly.
 fn relate(node, label, other) -> thing:
     COPY R(n) F(node)
-    COPY R(o) F(other)
     NATIVE R(w) "writer"
     JMPNOT R(w) .write
     INVOKE R(n) R(w) node=F(node)
-    NATIVE R(r) "resolver"
-    INVOKE R(o) R(r) node=F(other)
 .write:
-    LINK R(n) F(label) R(o)
+    LINK R(n) F(label) F(other)
     COPY R(result) R(n)
 
 # Remove one relation, by index — `UNLINK`'s addressing, not a second one.
@@ -106,7 +110,8 @@ fn unrelate(node, label, index) -> thing:
 # in the same way as one that reads bare, and the audit is only worth anything if it is total.
 #
 # What ties an imagined node to a real one later is not a pointer but the transformation that produced
-# it. `workbench.step` reads the mints off the activation and gives each one a mapping with no
-# `original`, which says *this does not exist yet and must be created when the plan runs for real*.
+# it. `workbench.step` reads the mints off the activation and gives each one a mapping pointing
+# `original` at itself, which says *this does not exist yet and must be created when the plan runs for
+# real* — an absence turned into a positive fact, so that a later version of it has an identity to share.
 fn make(kind) -> thing:
     NEW R(result) F(kind)

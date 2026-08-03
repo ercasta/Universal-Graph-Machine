@@ -178,6 +178,7 @@ def enumerate_frame(g: Graph, frame: str, *, allow=None) -> tuple:
     `query.py` uses it to bar any function that could dispatch from being used as a derivation, which is a
     proof about the stored body, not an opinion about what will help."""
     here = W.visible(g, frame)
+    view = view_in(g, frame)
     out, blocked = [], []
     for name in fn.names(g):
         # A mock is NOT an action. It is an assumption about how a real call turns out, so proposing one
@@ -207,7 +208,7 @@ def enumerate_frame(g: Graph, frame: str, *, allow=None) -> tuple:
                 # Tested against the image (the world as imagined here), keyed by what it stands for
                 # (the individual a constraint talks about). Those are different nodes and conflating
                 # them is what made this component silently score zero.
-                if not TY.fails(g, W.image_of(g, m), reqs):
+                if not TY.fails(g, W.image_of(g, m), reqs, view=view):
                     fits.append(m)
             if not fits:
                 per_param = None
@@ -227,14 +228,14 @@ def view_in(g: Graph, frame: str):
     """How a goal's constraints are asked of an *imagined* world.
 
     A constraint names real individuals ("a on b"). Inside a frame those individuals are represented by
-    copies, so checking means translating each named node into this frame's image of it. `goal.py` takes
-    this as a `view` rather than learning about workbenches — the layering runs one way."""
-    def view(node):
-        if node is None:
-            return None
-        m = W.mapping_for(g, frame, node)
-        return W.image_of(g, m) if m is not None else None
-    return view
+    versions, so checking means translating each named node into the version in force here. `goal.py`
+    takes this as a `view` rather than learning about workbenches — the layering runs one way.
+
+    A `W.View` rather than a closure, because a traversal inside a frame needs the way back as well:
+    an edge names an identity, so following one and then reading it means going down to the version and
+    up again to the identity. A closure could only answer half of that, and the half it could not answer
+    was being written out by hand at each of its callers."""
+    return W.View(g, frame)
 
 
 class _Unreadable:
@@ -736,6 +737,7 @@ def wants_that_unblock(g: Graph, frame: str, blocked: tuple, unmet: tuple) -> fr
     The general shape, worth keeping: *doing the work eagerly for everything cost more than doing it
     lazily for the few that need it* — even though the eager version was reusing a value already computed."""
     here = W.visible(g, frame)
+    view = view_in(g, frame)
     wants = set()
     for name in blocked:
         if not _could_close(g, establishes(g, name)[0], unmet):
@@ -750,7 +752,7 @@ def wants_that_unblock(g: Graph, frame: str, blocked: tuple, unmet: tuple) -> fr
                 # Tested against the image (the world as imagined in this frame), keyed by what it
                 # stands for (the individual a constraint talks about). Those are different nodes, and
                 # conflating them made this component silently score zero on every proposal.
-                for label in TY.fails(g, W.image_of(g, m), reqs):
+                for label in TY.fails(g, W.image_of(g, m), reqs, view=view):
                     wants.add((label, stands_for(g, m)))
     return frozenset(wants)
 
@@ -1182,7 +1184,7 @@ def check_call(g: Graph, goal: str, frame: str, call: Call, prefix: str | None) 
         reqs = TY.requirements(g, ptypes.get(p))
         if reqs is None:
             raise Undecidable(f"{call.function}.{p} has no declared type, so nothing can satisfy it")
-        missing = TY.fails(g, W.image_of(g, m), reqs)
+        missing = TY.fails(g, W.image_of(g, m), reqs, view=view_in(g, frame))
         if missing:
             raise Undecidable(f"a decision named {call.function} with {p}={_label(g, stands_for(g, m))!r}, "
                               f"which is not a {ptypes[p]}: {missing}")

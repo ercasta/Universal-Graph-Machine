@@ -296,20 +296,21 @@ def _attr_phrase(a: AttrReq) -> str:
     return f"between {a.value!r} and {a.hi!r}" if a.op == "between" else f"{a.op} {a.value!r}"
 
 
-def _rel_sides(g: Graph, node, rel: Rel):
+def _rel_sides(g: Graph, node, rel: Rel, view=None):
     """Both operands of a relation, resolved from `node`. `is`/`is not` want nodes, everything else wants
     Values — the position deciding how the last segment of each path is read (`path.py`)."""
     want = "node" if rel.op in IDENTITY_OPS else "value"
     try:
-        left = P.resolve(g, node, rel.left, want=want)
-        right = (P.resolve(g, node, str(rel.right), want=want) if rel.right_is_path else rel.right)
+        left = P.resolve(g, node, rel.left, want=want, view=view)
+        right = (P.resolve(g, node, str(rel.right), want=want, view=view)
+                 if rel.right_is_path else rel.right)
     except P.BadPath:
         return None, None, False
     return left, right, True
 
 
-def _rel_holds(g: Graph, node, rel: Rel) -> bool:
-    left, right, readable = _rel_sides(g, node, rel)
+def _rel_holds(g: Graph, node, rel: Rel, view=None) -> bool:
+    left, right, readable = _rel_sides(g, node, rel, view)
     if not readable:
         return False
     if rel.op == "is":
@@ -319,7 +320,7 @@ def _rel_holds(g: Graph, node, rel: Rel) -> bool:
     return compare(rel.op, left, right)
 
 
-def _target_ok(g: Graph, x, req: Req, sub, seen: frozenset) -> bool:
+def _target_ok(g: Graph, x, req: Req, sub, seen: frozenset, view=None) -> bool:
     if req.kind is not None and g.kind(x) != req.kind:
         return False
     if req.type is None:
@@ -331,19 +332,20 @@ def _target_ok(g: Graph, x, req: Req, sub, seen: frozenset) -> bool:
         # coinductive answer — assume it holds while proving it holds — is the only one that terminates
         # without banning recursive types outright, and it is what every structural type system does.
         return True
-    return not fails(g, x, sub, seen | {key})
+    return not fails(g, x, sub, seen | {key}, view=view)
 
 
-def _matching(g: Graph, node, label: str, req: Req, sub, seen: frozenset) -> tuple:
+def _matching(g: Graph, node, label: str, req: Req, sub, seen: frozenset, view=None) -> tuple:
     """The targets of `label` that satisfy this requirement — the thing a count is a count *of*.
 
     Extracted so `fails` and `offenders` cannot disagree: one counts these, the other names them
     ('s *one implementation and nothing that can disagree*, which is the structural answer rather than
     a guarded one). Order is `g.targets`, which is insertion order — never a `set`."""
-    return tuple(x for x in g.targets(node, label) if _target_ok(g, x, req, sub, seen))
+    return tuple(x for x in P.adjacent(g, node, label, view=view)
+                 if _target_ok(g, x, req, sub, seen, view))
 
 
-def offenders(g: Graph, node, type_name: str) -> dict:
+def offenders(g: Graph, node, type_name: str, *, view=None) -> dict:
     """which targets make this node fail — the names behind the count.
 
     `{label: (node, …)}`, empty when the node satisfies the type. This is the *planning* half of a
@@ -375,7 +377,7 @@ def offenders(g: Graph, node, type_name: str) -> dict:
         sub = requirements(g, req.type) if req.type is not None else None
         if req.type is not None and sub is None:
             continue                                 # undeclared target type: `fails` reports it, we cannot
-        hits = _matching(g, node, label, req, sub, frozenset())
+        hits = _matching(g, node, label, req, sub, frozenset(), view)
         if len(hits) > req.hi:
             out[label] = hits
     return out
@@ -395,7 +397,7 @@ def offending_type(g: Graph, type_name: str, label: str) -> str | None:
     return None if req is None else req.type
 
 
-def fails(g: Graph, node, reqs, _seen: frozenset = frozenset()) -> dict:
+def fails(g: Graph, node, reqs, _seen: frozenset = frozenset(), *, view=None) -> dict:
     """`violations` against already-gathered `requirements`. The shared implementation of both.
 
     `_seen` carries the `(node, type)` pairs already being proved, so recursion terminates — see
@@ -411,7 +413,7 @@ def fails(g: Graph, node, reqs, _seen: frozenset = frozenset()) -> dict:
             if sub is None:
                 bad[label] = (f"targets that are a {req.type}", f"no type {req.type} is declared")
                 continue
-        n = len(_matching(g, node, label, req, sub, _seen))
+        n = len(_matching(g, node, label, req, sub, _seen, view))
         if n < req.lo or (req.hi is not None and n > req.hi):
             bad[label] = (_phrase(req), str(n))
     for key, a in attrs.items():
@@ -419,13 +421,13 @@ def fails(g: Graph, node, reqs, _seen: frozenset = frozenset()) -> dict:
         if not compare(a.op, got, a.value, a.hi):
             bad[f"@{key}"] = (_attr_phrase(a), repr(got))
     for rel in rels:
-        if not _rel_holds(g, node, rel):
-            left, right, _ = _rel_sides(g, node, rel)
+        if not _rel_holds(g, node, rel, view):
+            left, right, _ = _rel_sides(g, node, rel, view)
             bad[f"{rel.left} {rel.op} {rel.right}"] = (str(rel.right), f"{left!r} vs {right!r}")
     return bad
 
 
-def violations(g: Graph, node, type_name: str) -> dict:
+def violations(g: Graph, node, type_name: str, *, view=None) -> dict:
     """Every way `node` fails to be a `type_name`, as `{label: (expected, actual)}`; empty means valid.
 
     Returned as data rather than raised, so a caller that wants to *ask* (a selection layer ranking
@@ -438,11 +440,11 @@ def violations(g: Graph, node, type_name: str) -> dict:
     reqs = requirements(g, type_name)
     if reqs is None:
         return {"<type>": (type_name, "undeclared")}
-    return fails(g, node, reqs)
+    return fails(g, node, reqs, view=view)
 
 
-def is_a(g: Graph, node, type_name: str) -> bool:
-    return not violations(g, node, type_name)
+def is_a(g: Graph, node, type_name: str, *, view=None) -> bool:
+    return not violations(g, node, type_name, view=view)
 
 
 def subsumes(g: Graph, general: str, specific: str) -> bool:
@@ -543,13 +545,13 @@ def subtypes(g: Graph, general: str) -> tuple:
                         if subsumes(g, general, n)))
 
 
-def check(g: Graph, node, type_name: str) -> None:
-    bad = violations(g, node, type_name)
+def check(g: Graph, node, type_name: str, *, view=None) -> None:
+    bad = violations(g, node, type_name, view=view)
     if bad:
         raise TypeViolation(f"{node} is not a {type_name}: {bad}")
 
 
-def instances(g: Graph, type_name: str, under: str = "root") -> tuple:
+def instances(g: Graph, type_name: str, under: str = "root", *, view=None) -> tuple:
     """Every node under `under` satisfying the schema — enumerated by traversal, never by scanning.
 
     This used to scan every node in the graph and filter out workbench copies, and that filter was a
@@ -565,9 +567,13 @@ def instances(g: Graph, type_name: str, under: str = "root") -> tuple:
 
     The discipline this relies on: real things hang off `root`. That is what makes "the real world" a
     well-defined region rather than "whatever happens to be in the dict", and it is what the substrate's
-    single starting node was always for."""
+    single starting node was always for.
+
+    `view` is which world to enumerate in, and inside a frame it is not optional. A frame's copy of the
+    world names identities, so a traversal without one leaves the workbench at the first hop and answers
+    *is anything here a three_high* by looking at reality — where nothing the plan did has happened."""
     from .workbench import reachable
-    return tuple(n for n in reachable(g, under) if is_a(g, n, type_name))
+    return tuple(n for n in reachable(g, under, view=view) if is_a(g, n, type_name, view=view))
 
 
 def type_names(g: Graph) -> tuple:
@@ -671,13 +677,28 @@ def describe(g: Graph, name: str) -> str:
 # `check` was the `CHECK` opcode, which made `isa.py` import this module — a type is a representation
 # we decided, so the instruction set was carrying type semantics. Same fix as the planner's: registered
 # here, reached by name. See `native.py`.
-N.register("check", lambda g, _act, node, name: check(g, node, name))
+def _reading(g, act):
+    """The world this call is running in, as a view — or `None` for the real one.
+
+    **Two of the four natives that must resolve, and this is how they do it.** A schema is checked by
+    walking the node's edges *and its neighbours'*, and inside a frame those edges name identities, so a
+    check that ignored the context would answer about reality while the rule it guards reads the frame.
+    That is the silent hole a native has and a mediated rule does not, and the design note names it: *a
+    native that quietly ignores context is indistinguishable from one that correctly does not need it*.
+
+    The context is found the way everything else finds it — dynamic scope over the activation chain — so
+    nothing has to be told which world it is in."""
+    from .workbench import view_of
+    return view_of(g, act)
+
+
+N.register("check", lambda g, act, node, name: check(g, node, name, view=_reading(g, act)))
 
 # The same question as `check`, answered rather than enforced. `check` raises, which is right at a call
 # boundary and useless inside a guard — a program asking *"is this a clear block?"* wants a value to jump
 # on, not an exception. Registered here beside it because a type is this module's business and the kernel
 # must not learn what one is.
-N.register("is_a", lambda g, _act, node, name: is_a(g, node, name))
+N.register("is_a", lambda g, act, node, name: is_a(g, node, name, view=_reading(g, act)))
 
 
 __all__ = ["TypeViolation", "UNBOUNDED", "Req", "AttrReq", "Rel", "VALUE_OPS", "IDENTITY_OPS", "compare",

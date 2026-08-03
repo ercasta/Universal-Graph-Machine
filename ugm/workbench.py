@@ -8,14 +8,29 @@ what really happened.
 
 The copy boundary is everything reachable from the subject. Every cleverer boundary is a guess
 about which structure will matter, and a wrong guess yields a plan that looks fine and fails on
-contact with reality. The cost is accepted; copy-on-write, if it is ever needed, implements
-exactly these semantics more cheaply rather than being a smaller boundary.
+contact with reality. That boundary is paid for **once**, at frame 0: a frame maps only what
+changed in it, so a step mints a version of what it wrote and inherits everything else. Copy-on-
+write, which is what the writer in `rules/version.mf` does, implements exactly these semantics
+rather than being a smaller boundary.
 
-Mappings are the crux. A mapping points at the original and at this frame's image, and chains to
+**An edge names an identity, never a version, and resolution happens on the target.** That one
+sentence is what makes a sparse frame correct, and nothing rewrites an edge anywhere: a copy of
+`b` keeps saying `on c`, where `c` is the thing itself, and which version of `c` that means is
+decided when the edge is read. Rewriting was what made a frame a container; it is also what made
+sharing impossible, because a version minted in frame N would have had to point at frame N's copy
+of everything it touched, and a sparse frame has no such copy. `b on c` then read as false one
+step after it became true, which is how the model was arrived at.
+
+Mappings are the crux. A mapping points at the identity and at this frame's image, and chains to
 the next frame. Transformations bind their arguments to mappings, never to raw workbench nodes,
 which is what makes a plan replayable: following the original yields the node the operation must
 really be applied to. A log saying "`service` was applied" is unreplayable, because it does not
 identify the subject in a form that survives out of the workbench.
+
+A rule, however, is bound to the **identity** — the real node in both worlds — so one rule has one
+behaviour and only what a read means differs. The corollary is sharp: a rule that touches the graph
+*bare* no longer lands in the frame by luck, it writes to reality. `access.offenders` is the pass
+that says so.
 
 The direction invariant. A mapping points to the original and the image, and nothing ever points
 from a node to its mappings. Copying traverses outgoing edges, so a single edge the other way
@@ -47,8 +62,13 @@ from .graph import Graph
 
 
 # --- copying ----------------------------------------------------------------------------------------
-def reachable(g: Graph, start: str) -> dict:
+def reachable(g: Graph, start: str, *, view=None) -> dict:
     """Everything reachable from `start` by outgoing edges. The copy boundary, per the design decision.
+
+    `view` is *the world as seen in one frame* (see `View`). An edge names an identity, so inside a frame
+    a traversal that followed raw targets would walk out of the imagined world and into the real one at
+    the first hop — which is how `types.instances(under=<a frame's image>)` would enumerate real blocks
+    and answer a type goal against a world the plan is not in. With a view, every hop resolves.
 
     Metadata is not reached, by the direction invariant — mappings, applications, hypotheses and plans all
     point *at* domain nodes and are never pointed at by them.
@@ -74,12 +94,27 @@ def reachable(g: Graph, start: str) -> dict:
             continue
         seen[n] = None
         for label in g.labels(n):
-            stack.extend(t for t in g.targets(n, label) if t not in seen)
+            for t in g.targets(n, label):
+                if view is not None:
+                    t = view(t) or t          # unmapped means outside the imagined world: itself
+                if t not in seen:
+                    stack.append(t)
     return seen
 
 
 def _copy_set(g: Graph, originals) -> dict:
-    """Copy nodes and the edges among them. Returns `{original: image}`.
+    """Copy nodes, with their edges pointing where the originals' did. Returns `{original: image}`.
+
+    **The edges are not rewritten**, and that is the model rather than an economy. An edge names an
+    identity and resolution happens on the *target*, so there is no parallel world to rewrite into: a
+    copy of `b` keeps saying `on c`, where `c` is the thing itself, and which version of `c` that means
+    is decided when the edge is read, in whatever frame is reading it.
+
+    Rewriting was what made a frame a container. It is also what made sharing impossible: a version
+    minted in frame N would have had to point at frame N's copy of everything it touched, and there is
+    no such copy, because a sparse frame only has copies of what changed. Reading `b on c` one step after
+    it became true then answered with the version `c` had *before*, which is the failure this whole
+    change exists to remove.
 
     Edge properties are carried across positionally, which is safe because targets are appended in the
     same order they appear in the source.
@@ -94,13 +129,12 @@ def _copy_set(g: Graph, originals) -> dict:
     for o in originals:
         for label in g.labels(o):
             for i, t in enumerate(g.targets(o, label)):
-                if t in image:
-                    # Edge properties are keyed by edge id now, not by `(src, label, index)`.
-                    # Reading the old key here returned `{}` silently, so a copied edge quietly lost its
-                    # properties — and nothing failed, because no check copied one. See the check that
-                    # now does.
-                    props = g.edge_props(g.edge_at(o, label, i))
-                    g.link(image[o], label, image[t], **props)
+                # Edge properties are keyed by edge id now, not by `(src, label, index)`.
+                # Reading the old key here returned `{}` silently, so a copied edge quietly lost its
+                # properties — and nothing failed, because no check copied one. See the check that
+                # now does.
+                props = g.edge_props(g.edge_at(o, label, i))
+                g.link(image[o], label, t, **props)
     return image
 
 
@@ -116,6 +150,12 @@ def open_workbench(g: Graph, subject: str, *, label: str = "workbench",
 
     In a nested workbench a mapping's `original` points one level up, not at the real graph, so resolving
     to a real node is a walk (`resolve`), not a hop."""
+    # A workbench is where framed resolution begins, so this is where the resolver has to exist. It used
+    # to arrive only through `asm.load_text` linking a rule that called the vocabulary, which was enough
+    # while nothing but a rule ever resolved; `function.invoke` now resolves a parameter type before the
+    # body runs, and a graph that had never loaded a mediated rule would have established a context
+    # naming a function that was not there. Idempotent, and once per workbench rather than once per step.
+    access.bootstrap(g)
     wb = g.mint("workbench", label=label, depth=(g.attr(parent, "depth", 0) + 1) if parent else 0)
     if parent is not None:
         g.link(wb, "parent", parent)
@@ -125,7 +165,7 @@ def open_workbench(g: Graph, subject: str, *, label: str = "workbench",
 
     originals = reachable(g, subject)
     image = _copy_set(g, originals)
-    frame = g.mint("frame", index=0, dense=True)      # frame 0 maps everything, always
+    frame = g.mint("frame", index=0)                  # frame 0 maps everything, always
     g.link(wb, "root_frame", frame)
     g.link(wb, "frame", frame)          # membership, distinct from the `next` tree that gives shape
     for o, img in image.items():
@@ -222,29 +262,92 @@ def visible(g: Graph, frame: str) -> tuple:
     This is *the world as imagined here*, and it is what enumeration, goal checking and execution mean
     when they ask a frame what is in it. `mappings` answers the other question — what this frame changed.
 
-    Nearest first, and the order within a frame is the order that frame linked them, which keeps the
-    determinism `reachable` and `_copy_set` are careful about: the search's tie-break ends in insertion
-    order, so an arbitrary order here would make the search arbitrary."""
-    seen, out = set(), []
-    for f in chain(g, frame):
+    **In the order the world was first laid out, not in the order it changed**, and that distinction
+    only appeared once frames went sparse. Walking nearest-first and keeping the first answer puts
+    whatever this step touched at the front, so the order of the world differed in every frame — and this
+    order is `proposals` order, which is the search's last tie-break. The search stayed deterministic and
+    became *worse*: Sussman's anomaly went from solved inside 60 imagined states to needing about 100,
+    with nothing wrong in any single answer. Walking oldest-first and letting later versions replace
+    earlier ones in place keeps frame 0's order — a fact about the world — while still answering with the
+    version in force. Same determinism argument as `reachable` and `_copy_set`, one level up."""
+    seen = {}
+    for f in reversed(chain(g, frame)):
         for m in mappings(g, f):
             key = g.target(m, "original") or m       # an imagined node stands for itself
-            if key not in seen:
-                seen.add(key)
-                out.append(m)
-        # A frame that maps the whole world ends the walk, because nothing above it can add anything.
-        # Without this the walk is O(depth x world) where reading one frame was O(world) — and while
-        # every frame is still a full copy, that is pure overhead: measured at ~50x on the search-heavy
-        # checks, which is how it was found. `dense` is bookkeeping the frame's maker owns, not a
-        # heuristic: stopping when a frame *happens* to add nothing would be unsound, since a sparse
-        # frame can add nothing while an ancestor still has versions this walk has not seen.
-        if g.attr(f, "dense"):
-            break
-    return tuple(out)
+            seen[key] = m                            # a dict keeps the position of the FIRST insertion
+    return tuple(seen.values())
 
 
 def image_of(g: Graph, mapping: str):
     return g.target(mapping, "image")
+
+
+def identity_of(g: Graph, node):
+    """What `node` is a version OF, one level up — or the node itself.
+
+    **The one hop, not the whole walk.** `original_of` resolves out of every workbench and answers with
+    the real node; this answers with the identity *this* workbench keys its frames by, which in a nested
+    workbench is the enclosing one's image. It is `in_frame`'s first move written in Python, and the two
+    have to agree or a read means one thing in a rule and another in a reader.
+
+    A node is the `image` of at most one mapping, so there is nothing to choose between — which matters,
+    because `g.sources` sorts by node id and an ordered answer here would be an accident.
+
+    An imagined node is **its own identity**, and says so positively: its first mapping points `original`
+    at the node itself, so *this exists only in imagination* is a fact in the graph rather than the absence
+    of one. Every later version of it names that first node, which is what lets `visible` recognise two
+    versions of one imagined thing as one thing."""
+    if node is None:
+        return None
+    for m in g.sources(node, "image"):
+        if g.kind(m) == "mapping":
+            return g.target(m, "original") or node
+    return node
+
+
+class View:
+    """The world as seen in one frame: a node, resolved to the version in force here.
+
+    Callable, so every existing caller that was handed a function still works — `goal.py` takes one of
+    these and learns nothing about workbenches, which is the layering it has always insisted on.
+
+    Two questions, not one, and separating them is what an identity-pointing edge needs. `view(n)` goes
+    *down* from an identity to the version; `view.identity(n)` goes *up* from a version to the identity
+    a constraint, a binding or another edge names. A traversal inside a frame needs both: follow an edge
+    to an identity, resolve it to the version, read that version's edges.
+
+    Idempotent, exactly as `in_frame` is: handed a version it normalises first, so a caller never has to
+    know which of the two it is holding. The Python and the surface resolver would otherwise disagree
+    about a node that had been round-tripped, which is the drift this codebase keeps recording."""
+    __slots__ = ("g", "frame")
+
+    def __init__(self, g: Graph, frame: str):
+        self.g, self.frame = g, frame
+
+    def identity(self, node):
+        return identity_of(self.g, node)
+
+    def __call__(self, node):
+        if node is None:
+            return None
+        m = mapping_for(self.g, self.frame, identity_of(self.g, node))
+        # `None` for a node this frame has never heard of, which stays distinct from *the node itself*:
+        # `goal.holds` reads it as *not present in this world at all*.
+        return image_of(self.g, m) if m is not None else None
+
+
+def view_of(g: Graph, act):
+    """The world an activation is running in, as a `View` — or `None` for the real one.
+
+    The bridge a **native** crosses to obey the context. A rule reaches the graph through the closed
+    vocabulary and is mediated by construction; a native reads raw structure, so it has to ask. It asks
+    the same way everything else does — dynamic scope over the activation chain — and this is the one
+    place that knows a planning context points at a frame, which keeps `access.py` free of any idea of
+    what a frame is."""
+    from . import access
+    ctx = access.context_of(g, act)
+    frame = g.target(ctx, "frame") if ctx is not None else None
+    return View(g, frame) if frame is not None else None
 
 
 def original_of(g: Graph, node):
@@ -269,22 +372,38 @@ def original_of(g: Graph, node):
 def resolve(g: Graph, mapping: str):
     """Walk `original` upward until leaving every workbench, and return the real node.
 
-    Returns `None` for a node that exists only in imagination — one minted during planning, which has no
-    `original` at all. Those two cases must not be conflated: "no original" means *this does not exist
-    yet and must be created when the plan runs*, and what ties it to reality later is the transformation
-    that produced it, not a pointer."""
+    Returns `None` for a node that exists only in imagination — one minted during planning. Those two
+    cases must not be conflated: *no real node* means *this does not exist yet and must be created when
+    the plan runs*, and what ties it to reality later is the transformation that produced it, not a
+    pointer.
+
+    An imagined node is its own identity, so the walk ends at a node whose `original` is itself. That is
+    the stopping condition rather than a missing pointer, and it is why this loop carries a guard: an
+    absence became a positive fact when imagined nodes started being versioned, and a walk written for
+    the absence would spin on the fact."""
     node = g.target(mapping, "original")
     # A node is a workbench copy exactly when some mapping points at it as an `image` — derived from the
     # structure, never asserted by a marker, and O(1) via the reverse index.
-    while node is not None and any(g.kind(m) == "mapping" for m in g.sources(node, "image")):
+    seen = set()
+    while node is not None and node not in seen:
+        seen.add(node)
         up = [m for m in g.sources(node, "image") if g.kind(m) == "mapping"]
-        node = g.target(up[0], "original") if up else None
+        if not up:
+            break                                       # a real node: nothing images it
+        nxt = g.target(up[0], "original")
+        if nxt == node:
+            return None                                 # its own original — imagined, and nowhere real
+        node = nxt
     return node
 
 
 def is_imagined(g: Graph, mapping: str) -> bool:
-    """True for a node minted during planning — it has no `original` anywhere up the stack."""
-    return g.target(mapping, "original") is None
+    """True for a node minted during planning — nothing real anywhere up the stack.
+
+    Derived from `resolve` rather than asked as *does this mapping lack an `original`*. It lacks one no
+    longer: an imagined node points at itself, so the question became *is this its own original*, and
+    asking it through `resolve` keeps one walk rather than two that must agree."""
+    return resolve(g, mapping) is None
 
 
 def frames(g: Graph, wb: str) -> tuple:
@@ -313,44 +432,28 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     `bindings` maps parameter name to a mapping in `frame` — never a raw node, so the record stays
     replayable. Returns `(new_frame, transformation)`.
 
-    The previous frame is left intact because the new frame is a full copy taken *before* the function
-    runs. That is what makes the movie real: every earlier state remains inspectable rather than being
-    reconstructible only by replay.
+    The previous frame is left intact, and that is what makes the movie real: every earlier state stays
+    inspectable rather than being reconstructible only by replay. It costs nothing, because **a frame
+    maps only what changed in it**. Nothing is copied here; a version is minted by the writer
+    (`rules/version.mf`) the first time this frame writes to a node, and everything else is inherited by
+    the walk `mapping_for` and `in_frame` both make.
 
     `assumes` records the hypothesis this step took on faith — which is how a plan carries its own
     dependence on guesses, inspectably."""
-    # The frame is still a full copy, and the machinery for it not to be is built and dormant —
-    # `rules/version.mf` mints a version on write, `visible` and `mapping_for` walk the chain, and this
-    # function has run sparse. It is **not switched on**, and the reason is recorded in
-    # `docs/mediated-access.md` rather than left as a silence: with a sparse frame an edge written in
-    # frame N points at the version its target had in frame N−1, while a goal constraint is checked
-    # against frame N's version of that target, so `b on c` reads as false one step after it became true.
-    #
-    # The fix is the model the design note actually states — **an edge names an identity, never a
-    # version, and resolution happens on the target** — which means `step` binds identities rather than
-    # images, frame 0's copies point at real nodes, and a link constraint compares identities. That is a
-    # coherent change and a wider one than it looks, so it lands deliberately rather than as a
-    # side effect of switching this line.
-    prev_images = {m: image_of(g, m) for m in mappings(g, frame)}
-    # Ordered dedupe, not `set`. `mappings` is an ordered tuple, so this frame's order is a fact; a set
-    # would replace it with node-id hash order and make every subsequent frame's mapping order — and hence
-    # `driver.proposals` order, and hence the search — arbitrary. Same defect as `reachable`'s.
-    originals = dict.fromkeys(prev_images.values())
-    image = _copy_set(g, originals)
+    # Refused before anything is minted. Naming an outcome that was never declared is a claim about the
+    # *request*, so it cannot be allowed to leave a frame behind — the same standard the failed-call path
+    # below is held to, and cheaper, because this one needs nothing from the frame to decide.
+    outcomes = fn.mocks_of(g, function)
+    if assume is not None and assume not in outcomes:
+        raise KeyError(f"{assume!r} is not a declared outcome of {function!r}; known: {outcomes}")
 
-    new_frame = g.mint("frame", index=g.attr(frame, "index", 0) + 1, dense=True)
+    new_frame = g.mint("frame", index=g.attr(frame, "index", 0) + 1)
     g.link(wb, "frame", new_frame)
-    carried = {}
-    for m, prev_img in prev_images.items():
-        nm = g.mint("mapping")
-        src = g.target(m, "original")
-        if src is not None:
-            g.link(nm, "original", src)       # keep pointing one level up, not at the previous frame
-        g.link(nm, "image", image[prev_img])
-        g.link(m, "next", nm)                 # 1:N — forks when the frame forks
-        g.link(new_frame, "mapping", nm)
-        index(g, new_frame, src if src is not None else image[prev_img], nm)
-        carried[m] = nm
+    # **Linked before the call, not after.** Resolution walks the frame chain, so a frame that is not yet
+    # attached to its predecessor is a frame in which nothing at all is visible — every read the call
+    # makes would answer with the node itself and every write would land outside the workbench. The
+    # ordering is load-bearing rather than tidy.
+    g.link(frame, "next", new_frame)
 
     # Mock substitution. On a workbench, a function that has declared outcomes is replaced by one of
     # them — always, not by convention. `assume` names which; the default is the most preferred, i.e. the
@@ -381,12 +484,26 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     #
     # Behaviour is unchanged for every mock whose parameters are typed as the real function's are — all
     # of them, before this — because then every outcome is applicable and the first is still `outcomes[0]`.
-    args = {p: image_of(g, carried[m]) for p, m in bindings.items()}
-    outcomes = fn.mocks_of(g, function)
+    # **The call is bound to identities, not to images**, and that is the change the rest of this rests
+    # on. A rule handed the real `b` in the real world and the real `b` on a workbench is one rule with
+    # one behaviour; only what a read *means* differs, which is the whole claim of the mediation layer.
+    # It is also the only binding that can be written: an edge minted by this call names its target, and
+    # a target that was this frame's copy would be a version — the thing the design rules out.
+    args = {p: g.target(m, "original") or image_of(g, m) for p, m in bindings.items()}
+    # **The boundary establishes the world its call runs in**, and it is opened here rather than at the
+    # call because the mock's condition is asked in that world too. Everything beneath resolves in the
+    # new frame: a rule written in the closed access vocabulary reads and writes that frame's versions
+    # without containing one word about frames, and a rule that reaches a node some other way than
+    # through its arguments resolves it the same way.
+    #
+    # `step` was already the mediation point; it did it by materialising at bind time, handing over a
+    # freshly copied world. The seam does not move, only the mechanism at it.
+    ctx = access.open_context(g, resolver="in_frame", writer="version_in_frame",
+                              label=f"imagining {function}", frame=new_frame)
     if assume is not None:
         chosen = assume
     elif outcomes:
-        fits = fn.applicable(g, function, args)
+        fits = fn.applicable(g, function, args, under=ctx)
         # Falling back to `outcomes[0]` when nothing fits is deliberate: the honest report is the
         # `TypeViolation` naming the condition that failed, which says *no declared outcome covers this
         # state*. Silently substituting the real function instead would reach the world from inside a
@@ -394,33 +511,31 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
         chosen = fits[0] if fits else outcomes[0]
     else:
         chosen = None
-    if chosen is not None and chosen not in outcomes:
-        raise KeyError(f"{chosen!r} is not a declared outcome of {function!r}; known: {outcomes}")
     executed = chosen or function
 
-    # **The boundary establishes the world its call runs in.** Everything beneath this call resolves in
-    # the new frame — a rule written in the closed access vocabulary reads and writes that frame's
-    # versions without containing one word about frames, and a rule that reaches a node some other way
-    # than through its arguments resolves it the same way.
-    #
-    # `step` was already the mediation point; it did it by materialising at bind time, handing over a
-    # freshly copied world. The seam does not move, only the mechanism at it.
-    #
-    # The arguments are the versions in force in the PREVIOUS frame, and that is not a compromise: a
-    # version is resolved before it is read and before it is written, so what the call is handed is an
-    # identity in all but name. Reading one answers with the previous frame's value, which is correct —
-    # nothing has changed yet — and writing one mints this frame's version. The reader normalises an
-    # image back to what it is a version of, which is what lets both an identity and a version be handed
-    # in and mean the same thing.
-    ctx = access.open_context(g, resolver="in_frame", writer="version_in_frame",
-                              label=f"imagining {function}", frame=new_frame)
-    called, _out = fn.invoke(g, executed, args, under=ctx)
+    try:
+        called, _out = fn.invoke(g, executed, args, under=ctx)
+    except BaseException:
+        # **A step that did not happen must not be in the history.** The chain has to be linked before
+        # the call — resolution walks it — but that means a call which raises leaves a frame wired into
+        # the world's order, and everything downstream then reads a half-written state as though it were
+        # a step somebody took. Detaching restores exactly what the copying version left behind: a frame
+        # that is a member of the workbench and a successor of nothing. Found by a check where an
+        # operator meets UNKNOWN and raises, which is a *routine* outcome of imagining rather than a bug.
+        while new_frame in g.targets(frame, "next"):
+            g.unlink(frame, "next", index=g.targets(frame, "next").index(new_frame))
+        raise
 
-    # A function may mint something while imagining. Those nodes get mappings too, with no `original` —
-    # which is meaningful rather than broken: it says *this does not exist yet and must be created when the
-    # plan runs for real*. What ties such a node to reality later is not a pointer but the transformation
-    # that produced it, which is recorded anyway. Without this, `is_imagined` could never fire and
-    # execution would have nothing to bind a newly minted real node to.
+    # A function may mint something while imagining. Those nodes get mappings too, pointing `original` at
+    # **themselves** — which is meaningful rather than broken: it says *this does not exist yet and must
+    # be created when the plan runs for real*. What ties such a node to reality later is not a pointer but
+    # the transformation that produced it, which is recorded anyway. Without this, `is_imagined` could
+    # never fire and execution would have nothing to bind a newly minted real node to.
+    #
+    # Self-pointing rather than absent, because an imagined node can now be *versioned* like any other:
+    # the writer mints a second version of it the next time a frame writes to it, and `visible` recognises
+    # the two as one thing by the identity they share. With the pointer absent there was no shared
+    # identity to recognise, and one imagined node would have appeared twice in the same world.
     # What the call minted is read off the CALL, not off a whole-graph diff — see `activation.minted`.
     # The diff also caught anything else that happened to be minted while the call ran, which stopped being
     # theoretical once the interpreter's own state (focus, heads, activation, registers) became graph data.
@@ -433,9 +548,10 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
         if n in versioned or g.kind(n) in ("mapping", "frame"):
             continue
         m = g.mint("mapping")
+        g.link(m, "original", n)          # an imagined node is its own identity, and says so
         g.link(m, "image", n)
         g.link(new_frame, "mapping", m)
-        index(g, new_frame, n, m)         # an imagined node is its own identity
+        index(g, new_frame, n, m)
 
     # Choosing an outcome IS making an assumption, so it becomes a hypothesis the transformation records.
     # That is what lets a plan carry its own dependence on guesses: "which parts of this are fragile"
@@ -454,11 +570,13 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
         g.link(tr, "ran", ran)
     for param, m in bindings.items():
         b = g.mint("binding", param=param)
-        g.link(b, "mapping", carried[m])      # binds the mapping, not the raw node
+        # The mapping, not the raw node — that is what makes a plan replayable. Whichever mapping was in
+        # force when the step was taken: it may live in an ancestor frame, since a frame that did not
+        # change this node has no mapping of its own for it, and that is the ordinary case now.
+        g.link(b, "mapping", m)
         g.link(tr, "arg", b)
     if assumes is not None:
         g.link(tr, "assumes", assumes)
-    g.link(frame, "next", new_frame)
     g.link(new_frame, "via", tr)
     return new_frame, tr
 
@@ -526,8 +644,13 @@ def _newly_minted(g: Graph, frame: str) -> tuple:
 
 
 def _predecessor(g: Graph, mapping: str, prev_frame: str):
+    """The version this one succeeded — wherever it lives.
+
+    It used to have to sit in `prev_frame`, which was true only while every frame held a version of
+    everything. A sparse frame's predecessor is the last frame that *changed* this node, which may be
+    several frames back, and demanding the immediate one silently reported no change at all."""
     for src in g.sources(mapping, "next"):
-        if g.kind(src) == "mapping" and src in g.targets(prev_frame, "mapping"):
+        if g.kind(src) == "mapping":
             return src
     return None
 
@@ -593,12 +716,13 @@ def predicted_changes(g: Graph, prev_frame: str, frame: str) -> dict:
                 continue
             # Name the real target when there is one; an imagined target can only be expected to *appear*,
             # because it does not exist yet and what stands for it is decided at execution time.
+            # An edge names an identity, so the real node is one `original_of` away — and an imagined
+            # target answers `None` there, which is exactly the "can only be expected to appear" case.
             target = None
             for t in g.targets(now, label):
-                tm = next((x for x in g.sources(t, "image")
-                           if g.kind(x) == "mapping" and x in g.targets(frame, "mapping")), None)
-                if tm is not None and resolve(g, tm) is not None:
-                    target = resolve(g, tm)
+                real = original_of(g, t)
+                if real is not None:
+                    target = real
             links.append((m, label, "some" if after else "none", target))
     return {"attrs": tuple(attrs), "links": tuple(links), "minted": frozenset(minted)}
 
@@ -653,4 +777,5 @@ def fragile_steps(g: Graph, wb: str) -> tuple:
 
 __all__ = ["deviates", "predicted_changes", "unmet_expectations",
            "assumption_of", "fragile_steps", "reachable", "open_workbench", "root_frame", "mappings", "mapping_for",
-           "image_of", "resolve", "is_imagined", "frames", "history", "step", "fork", "discard"]
+           "image_of", "identity_of", "original_of", "View", "visible",
+           "resolve", "is_imagined", "frames", "history", "step", "fork", "discard"]

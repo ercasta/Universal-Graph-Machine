@@ -4409,17 +4409,22 @@ def _scanner():
     declare_type(g, "scanned", base="dir", attrs={"scanned": True})
     declare_type(g, "clean_scan", base="scanned", attrs={"faults": 0})
     declare_type(g, "faulty_scan", base="scanned", attrs={"faulty": True})
-    body = ['    NEW R(r) "report"', '    SET R(r) "kind_of" "report"',
-            '    LINK F(d) "report" R(r)', '    SET F(d) "scanned" true']
+    body = ['    INVOKE R(r) make kind="report"',
+            '    INVOKE R(_) set_slot node=R(r) key="kind_of" value="report"',
+            '    INVOKE R(_) relate node=F(d) label="report" other=R(r)',
+            '    INVOKE R(_) set_slot node=F(d) key="scanned" value=true']
     asm.load_text(g, "\n".join([
         "# Really scan a directory, filing a report. Reaches the world.",
         "fn scan(d: dir) -> scanned:", '    DISPATCH R(out) "scan" F(d)', *body, "",
         "# Assume it comes back clean.",
-        "fn scan_clean(d: dir) -> clean_scan mocks scan:", *body, '    SET F(d) "faults" 0', "",
+        "fn scan_clean(d: dir) -> clean_scan mocks scan:", *body,
+        '    INVOKE R(_) set_slot node=F(d) key="faults" value=0', "",
         "# Assume it comes back with faults.",
-        "fn scan_faulty(d: dir) -> faulty_scan mocks scan:", *body, '    SET F(d) "faulty" true', "",
+        "fn scan_faulty(d: dir) -> faulty_scan mocks scan:", *body,
+        '    INVOKE R(_) set_slot node=F(d) key="faulty" value=true', "",
         "# Escalate the REPORT itself — not the directory.",
-        "fn escalate(r: report) -> escalated_report:", '    SET F(r) "escalated" true',
+        "fn escalate(r: report) -> escalated_report:",
+        '    INVOKE R(_) set_slot node=F(r) key="escalated" value=true',
     ]))
     d = g.mint("dir", kind_of="dir")
     g.link("root", "has", d)
@@ -4966,7 +4971,7 @@ def check_deciding_BEFORE_enumerating_suppresses_the_product_but_never_LOSES_it(
 
     The guard is therefore not "it is faster" but "a wrong proposer still finds the plan" — checked
     here with a proposer that names `paint`, which can never close anything, on every frame."""
-    from . import driver as D, thread as T, workbench as W
+    from . import driver as D, path as P, thread as T, workbench as W
 
     def run(propose):
         g, world = _blocks()
@@ -4994,12 +4999,16 @@ def check_deciding_BEFORE_enumerating_suppresses_the_product_but_never_LOSES_it(
             frame = s["frame"]
             view = D.view_in(g, frame)
             for x, y in ((a, b), (b, c)):
-                rider = next((n for n in g.sources(view(x), "on")
+                # `path.adjacent` rather than `g.sources`, and that is the identity model showing at an
+                # author's fingertips: an edge names the thing itself, so *nothing points at a version*
+                # and asking a frame's copy who is on it answers nothing at all. The question goes to the
+                # identity and keeps the versions in force here — which is the same walk read backwards.
+                rider = next((n for n in P.adjacent(g, view(x), "on", back=True, view=view)
                               if g.attr(n, "kind_of") == "block"), None)
                 if rider is not None and g.attr(rider, "clear"):
                     return D.Call("unstack", {"b": W.original_of(g, rider), "floor": ground})
             for x, y in ((b, c), (a, b)):
-                if g.target(view(x), "on") != view(y) \
+                if view(y) not in P.adjacent(g, view(x), "on", view=view) \
                         and g.attr(view(x), "clear") and g.attr(view(y), "clear"):
                     return D.Call("stack", {"b": x, "onto": y})
             return None
@@ -5997,13 +6006,12 @@ def check_a_SURFACE_COPY_CARRIES_EDGE_PROPERTIES():
     version that carried only the first would show; and the answer must match Python's `_copy_set`
     exactly, which is the thing being replaced.
 
-    Copied over a set that is deliberately **not** closed under outgoing edges, which is both the harder
-    case and the real one. The first version of this check passed `reachable`'s answer and then asserted
-    that a skipped edge carried nothing across — a guard that could never fire, because `reachable` is
-    closed by construction and skips nothing. `workbench.step` is the caller that makes this matter: it
-    copies the previous frame's images, which may well point at nodes outside the set, so the skip path
-    is on the live route and the position arithmetic must not attribute a skipped edge's properties to
-    the next edge along."""
+    Copied over a set that is deliberately **not** closed under outgoing edges, which used to be the
+    harder case and is now simply a case. Once an edge names an identity there is nothing to rewrite it
+    into and nothing to skip: the copy says what the original said, and a target outside the set is named
+    exactly like one inside it. The property that survives the model change is the one worth keeping —
+    each edge's properties land at *its own* position — and it is now tested without a skip to shift them,
+    since there is no longer a shift to get wrong."""
     from pathlib import Path
     from . import asm, function as fn, workbench as W
 
@@ -6058,14 +6066,18 @@ def check_a_SURFACE_COPY_CARRIES_EDGE_PROPERTIES():
                 and carried.get(("block", 1)) == {"order": 2},
             # Absence must survive as absence, not become an empty-string or a copy of the neighbour's.
             "an_edge_with_none_still_has_none": {} in mf_props.get("b", {}).values(),
-            # The skipped edge's properties must not land on the edge that took its position.
-            "A_SKIPPED_EDGE_CARRIES_NOTHING_ACROSS":
-                all("ignored" not in p for node in mf_props.values() for p in node.values()),
-            # ...and the edge that DID survive the shift kept its own.
-            "AND_THE_ONE_AFTER_IT_KEPT_ITS_OWN":
-                {"kept": "yes"} in mf_props.get("a", {}).values(),
-            "and_the_skipped_edge_itself_was_not_copied":
-                sum(1 for (l, _) in mf_props.get("a", {}) if l == "near") == 1}
+            # An edge leaving the set is NAMED, not skipped, and that is the model rather than a
+            # relaxation: an edge names an identity, so there is no parallel world for a target to be
+            # missing from. What used to be the skip path is now the ordinary one, and both `near` edges
+            # are copied — which is also why the positions cannot shift.
+            "AN_EDGE_OUT_OF_THE_SET_IS_NAMED_NOT_SKIPPED":
+                sum(1 for (l, _) in mf_props.get("a", {}) if l == "near") == 2,
+            "AND_EACH_KEPT_ITS_OWN_PROPERTIES_AT_ITS_OWN_POSITION":
+                (mf_props.get("a", {}).get(("near", 0)) == {"ignored": "yes"}
+                 and mf_props.get("a", {}).get(("near", 1)) == {"kept": "yes"}),
+            # ...and the target really is the thing itself, not a copy of it.
+            "AND_THE_TARGET_IS_THE_IDENTITY_NOT_AN_IMAGE":
+                g2.targets(g2.deref(walk, set2[1]), "near")[0] not in g2.targets(walk, "found")}
 
 
 def check_a_PROGRAM_CAN_ASK_WHAT_ITS_OWN_CALL_DID():
@@ -6262,8 +6274,15 @@ def check_A_RULE_READS_THE_FRAME_WITHOUT_KNOWING_WHAT_A_FRAME_IS():
 
     Vacuity guards: the two answers must differ, or an unresolved read would pass; the real world must be
     untouched by the imagined write, which is the property planning exists to have; and a `related` call
-    must come back with the frame's *ground*, not the real one — a resolver that only resolved its
-    subject would look right on an attribute and be wrong on every edge."""
+    must come back with the **identity**, because an edge names one and resolution happens on the target
+    when it is next read.
+
+    That last key used to assert the opposite — that `related` answered with the frame's copy of the
+    ground — and it was right while a frame carried a rewritten copy of the world. It is the wrong claim
+    under sparse frames and would be the *dangerous* one: an answer that is already a version is a
+    version somebody may store in an edge, and an edge holding a version stops seeing every later change
+    to what it points at. So the guard is inverted rather than deleted, and it still discriminates: a
+    reader that resolved its answer would now fail it."""
     from . import access as AX, asm, function as fn, workbench as W
 
     g, block, ground = _mediated()
@@ -6291,10 +6310,14 @@ def check_A_RULE_READS_THE_FRAME_WITHOUT_KNOWING_WHAT_A_FRAME_IS():
             "and_its_WRITE_LANDED_IN_THE_FRAME": g.attr(image, "colour") == "blue",
             "while_the_REAL_WORLD_IS_UNTOUCHED": g.attr(block, "colour") == "blue" and real_before == "red"
                                                  and g.attr(block, "colour") != "green",
-            # An edge read resolves its ANSWER too, not only its subject.
-            "A_RELATION_ANSWERS_WITH_THE_FRAMES_NODE":
-                support == W.image_of(g, W.mapping_for(g, frame, ground)),
-            "and_it_is_NOT_the_real_one": support != ground,
+            # An edge read resolves its SUBJECT and hands back the identity it found there.
+            "A_RELATION_ANSWERS_WITH_THE_IDENTITY": support == ground,
+            "and_NOT_with_this_frames_version_of_it":
+                support != W.image_of(g, W.mapping_for(g, frame, ground)),
+            # ...and it is still a read *through the frame*: the answer came from the frame's version of
+            # `b`, which is the half that would break if the subject stopped resolving.
+            "BUT_THE_EDGE_WAS_READ_OFF_THE_FRAMES_VERSION":
+                ground in g.targets(W.image_of(g, W.mapping_for(g, frame, block)), "on"),
             # ...and the rule that did all this is written in the vocabulary, not in opcodes.
             "THE_RULE_TOUCHES_THE_GRAPH_NOWHERE_ITSELF": AX.bare_touches(g, "repaint") == ()}
 
@@ -6459,9 +6482,9 @@ def check_A_PLANNING_OPERATOR_MAY_NOT_TOUCH_THE_GRAPH_BARE():
 def check_READING_WALKS_THE_FRAME_CHAIN_so_a_frame_can_be_SPARSE():
     """A frame maps only what changed in it, and *not here* means *unchanged*.
 
-    This is what the mediation was for. Today every frame still carries a mapping for every node, so the
-    walk never has to go anywhere — which is exactly why it needs a check built to make it: the frame
-    below is sparse on purpose, mapping one node and inheriting the rest.
+    This is what the mediation was for, and it is now what `step` does: the frames below are the ordinary
+    product of two ordinary steps, and each maps exactly the node its step wrote to. The earlier version
+    of this check had to build a sparse frame by hand, because nothing minted one.
 
     It also separates two questions one name was answering. `mappings` is what this frame maps — which
     *is* what changed, once frames are sparse — and `visible` is the world as imagined here, the nearest
@@ -6488,27 +6511,18 @@ def check_READING_WALKS_THE_FRAME_CHAIN_so_a_frame_can_be_SPARSE():
     wb = W.open_workbench(g, car)
     f0 = W.root_frame(g, wb)
     f1, _tr = W.step(g, wb, f0, "service", {"c": W.mapping_for(g, f0, car)})
-
-    # A sparse frame, built by hand because nothing mints one yet: it maps the car and nothing else.
+    f2, _tr2 = W.step(g, wb, f1, "wash", {"c": W.mapping_for(g, f1, car)})
     wheel = g.targets(car, "wheel")[0]
-    f2 = g.mint("frame", index=2)
-    g.link(wb, "frame", f2)
-    g.link(f1, "next", f2)
-    carried = W.mapping_for(g, f1, car)
-    newer = g.mint("mapping")
-    g.link(newer, "original", car)
-    g.link(newer, "image", g.mint("car", kind_of="car", washed=True))
-    g.link(carried, "next", newer)
-    g.link(f2, "mapping", newer)
-    W.index(g, f2, car, newer)                         # the frame's identity-to-version index
+    newer = W.mapping_for(g, f2, car)
 
     # The answer, worked out structurally rather than by the function under test — an assertion that
     # compares `mapping_for` against `mapping_for` degrades exactly as the code does, which is how the
-    # first version of this check passed with the trap planted.
-    in_f1 = next(m for m in W.mappings(g, f1) if g.target(m, "original") == wheel)
+    # first version of this check passed with the trap planted. The wheel was never written to, so the
+    # only version of it anywhere is frame 0's, and frame 0's mappings are a fact about `open_workbench`.
+    in_f0 = next(m for m in W.mappings(g, f0) if g.target(m, "original") == wheel)
     # ...and a replay that has bound *that* mapping, which is what makes the reverse index ambiguous
     # precisely where the answer comes from. Binding any other one leaves the trap unsprung.
-    X.open_replay(g, wb, (f0, f1, f2), bound={in_f1: wheel})
+    X.open_replay(g, wb, (f0, f1, f2), bound={in_f0: wheel})
 
     inherited = W.mapping_for(g, f2, wheel)
     ctx = AX.open_context(g, resolver="in_frame", frame=f2)
@@ -6516,8 +6530,13 @@ def check_READING_WALKS_THE_FRAME_CHAIN_so_a_frame_can_be_SPARSE():
                for n in (car, wheel)}
 
     return {"A_SPARSE_FRAME_MAPS_ONLY_WHAT_CHANGED": len(W.mappings(g, f2)) == 1,
+            # ...and the frame below it too, or one step's sparseness could be an accident of the last one.
+            "AND_SO_DOES_THE_ONE_BELOW_IT": len(W.mappings(g, f1)) == 1,
+            # Vacuity: frame 0 really does map the whole world, so there is something to be sparse against.
+            "while_FRAME_ZERO_MAPS_EVERYTHING":
+                len(W.mappings(g, f0)) == len(W.reachable(g, car)) > 1,
             # ...and reading an unchanged node walks up to the frame that last had a version of it.
-            "AN_UNCHANGED_NODE_RESOLVES_TO_THE_ANCESTORS_VERSION": inherited == in_f1,
+            "AN_UNCHANGED_NODE_RESOLVES_TO_THE_ANCESTORS_VERSION": inherited == in_f0,
             "and_a_CHANGED_one_resolves_here": W.mapping_for(g, f2, car) == newer,
             # The world as imagined here is still whole, even though the frame holds one mapping.
             "THE_WORLD_IS_STILL_WHOLE": len(W.visible(g, f2)) == len(W.visible(g, f1)),
@@ -6525,11 +6544,80 @@ def check_READING_WALKS_THE_FRAME_CHAIN_so_a_frame_can_be_SPARSE():
             "the_chain_is_three_deep": W.chain(g, f2) == (f2, f1, f0),
             # Two implementations of one walk, which must agree.
             "THE_SURFACE_WALK_AGREES_WITH_THE_PYTHON_ONE":
-                surface[wheel] == W.image_of(g, in_f1)
+                surface[wheel] == W.image_of(g, in_f0)
                 and surface[car] == W.image_of(g, newer),
             # Vacuity for the reverse-index trap: there IS a replay binding one of these mappings.
             "and_a_REPLAY_HAD_BOUND_ONE_OF_THEM":
-                any(g.kind(s) == "bound" for s in g.sources(in_f1, "mapping"))}
+                any(g.kind(s) == "bound" for s in g.sources(in_f0, "mapping"))}
+
+
+def check_AN_EDGE_NAMES_AN_IDENTITY_so_a_SPARSE_frame_reads_TRUE():
+    """The failure that decided the whole identity model, kept as the check that would catch it again.
+
+    With frames sparse and an edge naming a *version*, an edge written in frame N points at whatever its
+    target was in frame N−1, while a goal constraint is checked against frame N's version of that target.
+    Those are different nodes for one individual, so `b on c` reads as **false one step after it became
+    true**, and a one-step goal comes back *not found*. That is how it was caught, and it is the reason
+    edges are not rewritten anywhere any more — not in `_copy_set`, not in the writer, not in `relate`.
+
+    The claim under test is one sentence: **an edge names an identity, and resolution happens on the
+    target.** Everything below is that sentence asked in the three places it can fail — what the edge
+    holds, what the constraint reads, and what the constraint reads *a step later*, when the target has
+    moved on to a version the edge has never heard of.
+
+    Vacuity guards, and they carry the weight here because "true" is a cheap answer:
+
+    * the constraint must be **false in frame 0**, or the world already satisfied it and nothing was
+      proved;
+    * the frames must really be **sparse** — one mapping each against a whole world in frame 0 — or the
+      old dense copy would pass every key below unchanged;
+    * the edge must hold the **identity** and specifically *not* this frame's version of it, which is the
+      one comparison that fails the moment anything starts rewriting edges again;
+    * and the target must genuinely have **moved on**: `c` has a later version in a later frame, so
+      reading the edge without resolving would answer with a stale node rather than merely a different
+      one. Without that last one the two-step key is satisfied by an edge that was never stale.
+    """
+    from . import driver as D, goal as G, workbench as W
+    g, world = _blocks()
+    a, b, c = g.targets(world, "block")
+
+    goal = G.open_goal(g, label="b on c")
+    G.require_link(g, goal, b, "on", c)
+
+    wb = W.open_workbench(g, world)
+    f0 = W.root_frame(g, wb)
+    before = G.satisfied(g, goal, view=D.view_in(g, f0))
+
+    f1, _tr = W.step(g, wb, f0, "stack", {"b": W.mapping_for(g, f0, b),
+                                          "onto": W.mapping_for(g, f0, c)})
+    # ...and then a step that changes `c` again, so the edge written in f1 points at an identity whose
+    # current version is one it could not have named. This is *the step after*, which is where it broke.
+    f2, _tr2 = W.step(g, wb, f1, "paint", {"b": W.mapping_for(g, f1, c)})
+
+    b_in_f1 = W.image_of(g, W.mapping_for(g, f1, b))
+    c_in_f1 = W.image_of(g, W.mapping_for(g, f1, c))
+    c_in_f2 = W.image_of(g, W.mapping_for(g, f2, c))
+
+    return {"IT_WAS_FALSE_BEFORE_THE_STEP": not before,
+            "AND_TRUE_IN_THE_FRAME_THAT_MADE_IT_TRUE":
+                G.satisfied(g, goal, view=D.view_in(g, f1)),
+            # The one that was false. A step later, with `c` on a version the edge never saw.
+            "AND_STILL_TRUE_ONE_STEP_LATER":
+                G.satisfied(g, goal, view=D.view_in(g, f2)),
+            # ...and the target really did move on, or "still true" is true of an edge that never went
+            # stale and the key above proves nothing.
+            "and_C_REALLY_HAS_A_LATER_VERSION": c_in_f2 != c_in_f1,
+            # What the edge actually holds: the thing itself, never a version of it.
+            "THE_EDGE_HOLDS_THE_IDENTITY": c in g.targets(b_in_f1, "on"),
+            "and_NOT_this_frames_version_of_it": c_in_f1 not in g.targets(b_in_f1, "on"),
+            # Sparse, which is what makes all of the above a live question rather than a dense copy's
+            # accident: each step maps only what it wrote.
+            "THE_FRAMES_ARE_SPARSE": len(W.mappings(g, f1)) < len(W.mappings(g, f0)) > 4,
+            "and_the_world_is_still_whole_in_each":
+                len(W.visible(g, f2)) == len(W.visible(g, f0)) == len(W.mappings(g, f0)),
+            # The earlier frame is untouched, which is the property the copying was there to buy and
+            # which sharing must not cost.
+            "AND_FRAME_ZERO_STILL_SAYS_WHAT_IT_SAID": not G.satisfied(g, goal, view=D.view_in(g, f0))}
 
 
 def check_EVERY_BOUNDARY_ESTABLISHES_A_WORLD_TO_READ_IN():
@@ -6619,14 +6707,17 @@ def check_WORKBENCH_STEP_IS_AN_ORDINARY_PROGRAM():
         declare_type(g, "empty_listing", base="listing", attrs={"count": 0})
         declare_type(g, "full_listing", base="listing", attrs={"many": True})
         full = ["fn list_full(d: dir) -> full_listing mocks list_dir:",
-                '    INVOKE R(_) set_slot node=F(d) key="listed" value=true', '    SET F(d) "many" true']
+                '    INVOKE R(_) set_slot node=F(d) key="listed" value=true',
+                '    INVOKE R(_) set_slot node=F(d) key="many" value=true']
         if minting:                       # a mock that brings something into existence
-            full += ['    NEW R(f) "file"', '    LINK F(d) "file" R(f)']
+            full += ['    INVOKE R(f) make kind="file"',
+                     '    INVOKE R(_) relate node=F(d) label="file" other=R(f)']
         asm.load_text(g, _lines(
             "fn list_dir(d: dir) -> listing:", '    DISPATCH R(out) "ls" F(d)',
             '    INVOKE R(_) set_slot node=F(d) key="listed" value=true', "",
             "fn list_empty(d: dir) -> empty_listing mocks list_dir:",
-            '    INVOKE R(_) set_slot node=F(d) key="listed" value=true', '    SET F(d) "count" 0', "", *full))
+            '    INVOKE R(_) set_slot node=F(d) key="listed" value=true',
+            '    INVOKE R(_) set_slot node=F(d) key="count" value=0', "", *full))
         for f in ("reachable.mf", "step.mf"):
             asm.load_file(g, Path(__file__).parent / "rules" / f)
         d = g.mint("dir", kind_of="dir")
@@ -6648,7 +6739,7 @@ def check_WORKBENCH_STEP_IS_AN_ORDINARY_PROGRAM():
         return (g.attr(frame, "index"),
                 [(g.kind(W.image_of(g, m)), g.attr(W.image_of(g, m), "listed"),
                   g.attr(W.image_of(g, m), "count"), g.attr(W.image_of(g, m), "many"),
-                  g.target(m, "original") is not None) for m in W.mappings(g, frame)],
+                  g.target(m, "original") == W.image_of(g, m)) for m in W.mappings(g, frame)],
                 g.attr(tr, "function"), g.attr(tr, "executed"), g.attr(tr, "expects"),
                 tuple((g.attr(b, "param"), g.kind(g.target(b, "mapping")))
                       for b in g.targets(tr, "arg")),
@@ -6740,10 +6831,17 @@ def check_WORKBENCH_STEP_IS_AN_ORDINARY_PROGRAM():
                 seen["a plain outcome"][3] == "list_empty",
             "a_named_one_overrides_it": seen["a named outcome"][3] == "list_full",
             "and_choosing_one_RECORDED_A_HYPOTHESIS": seen["a named outcome"][7] is not None,
-            # The minting case must produce a mapping with no `original` — nothing else does.
-            "A_MINTED_NODE_GETS_A_MAPPING_WITH_NO_ORIGINAL":
-                any(not has_original for _k, _l, _c, _m, has_original
+            # The minting case must produce a mapping that is its OWN original — nothing else is. An
+            # absence became a positive fact when imagined nodes started being versioned like anything
+            # else: with no pointer at all there was no shared identity, and two versions of one imagined
+            # thing appeared as two things in the same world.
+            "A_MINTED_NODE_IS_ITS_OWN_ORIGINAL":
+                any(is_own for _k, _l, _c, _m, is_own
                     in seen["an outcome that MINTS"][1]),
+            # Vacuity: a copied node is not, so the key discriminates.
+            "and_a_REAL_ONE_IS_NOT":
+                any(not is_own for _k, _l, _c, _m, is_own
+                    in seen["a plain outcome"][1]),
             # Chaining must carry the frame forward, not accumulate the step's own bookkeeping. This
             # went red when the callee was read off the reverse index: `frame` and `mapping` appeared
             # here, having been minted by `carry_frame` and mistaken for the call's own work.
@@ -7643,8 +7741,10 @@ def _scanner_fs():
         "# Assume it turns out to hold two files.",
         "fn found_two(d: dir) -> listing mocks scan_dir:",
         '    INVOKE R(_) set_slot node=F(d) key="listed" value=true',
-        '    INVOKE R(f1) make kind="file"', '    LINK F(d) "file" R(f1)',
-        '    INVOKE R(f2) make kind="file"', '    LINK F(d) "file" R(f2)',
+        '    INVOKE R(f1) make kind="file"',
+        '    INVOKE R(_) relate node=F(d) label="file" other=R(f1)',
+        '    INVOKE R(f2) make kind="file"',
+        '    INVOKE R(_) relate node=F(d) label="file" other=R(f2)',
         "",
         "# Assume it turns out empty.",
         "fn found_none(d: dir) -> listing mocks scan_dir:",
@@ -7884,19 +7984,25 @@ def check_a_mock_maps_a_CONDITION_to_an_expectation():
             declare_type(g, "clean_tree", {"changed_file": Req(kind="file", lo=0, hi=0)},
                          attrs={"kind_of": "tree"})
             lines += ["fn found_dirty(t: dirty_tree) -> report mocks git_status:",
-                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true', '    SET F(t) "dirty" true', "",
+                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true',
+                      '    INVOKE R(_) set_slot node=F(t) key="dirty" value=true', "",
                       "fn found_clean(t: clean_tree) -> report mocks git_status:",
-                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true', '    SET F(t) "dirty" false', "",
+                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true',
+                      '    INVOKE R(_) set_slot node=F(t) key="dirty" value=false', "",
                       # A loose outcome, declared last: its condition holds in every world, so it fits
                       # alongside a specific one and is what makes "declaration order decides among
                       # several that fit" a testable claim rather than a docstring.
                       "fn found_something(t: tree) -> report mocks git_status:",
-                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true', '    SET F(t) "dirty" true']
+                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true',
+                      '    INVOKE R(_) set_slot node=F(t) key="dirty" value=true']
         else:
             lines += ["fn anticipate(t: tree) -> report mocks git_status:",
-                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true', '    COUNT R(n) F(t) "changed_file"',
-                      '    JMPNOT R(n) .clean', '    SET F(t) "dirty" true', "    JMP .done",
-                      "    .clean:", '    SET F(t) "dirty" false', "    .done:", "    HALT"]
+                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true',
+                      '    INVOKE R(n) relations node=F(t) label="changed_file"',
+                      '    JMPNOT R(n) .clean',
+                      '    INVOKE R(_) set_slot node=F(t) key="dirty" value=true', "    JMP .done",
+                      "    .clean:",
+                      '    INVOKE R(_) set_slot node=F(t) key="dirty" value=false', "    .done:", "    HALT"]
         asm.load_text(g, "\n".join(lines))
         t = g.mint("tree", kind_of="tree")
         g.link("root", "has", t)
@@ -9616,8 +9722,10 @@ def _school_library(n_idle=0):
     declare_type(g, "at_abroad", attrs={"where": "abroad"})
     declare_type(g, "at_school", attrs={"where": "school"})
     declare_type(g, "ready_to_fly", base="at_abroad", attrs={"ticket": True})
-    body = [f'fn idle{i}(p: person) -> person:\n    SET F(p) "i{i}" true' for i in range(n_idle)]
-    body += ['fn nap(p: person) -> person:\n    SET F(p) "rested" true',
+    body = [f'fn idle{i}(p: person) -> person:'
+            f'\n    INVOKE R(_) set_slot node=F(p) key="i{i}" value=true' for i in range(n_idle)]
+    body += ['fn nap(p: person) -> person:'
+             '\n    INVOKE R(_) set_slot node=F(p) key="rested" value=true',
              # Present so the dominance of the band over the unlock count is testable. From home this is
              # offered, it writes the goal's own slot (so it is not irrelevant), and it unlocks `fly_home`
              # — yet going to school directly is obviously right. If `-unlocks` came before `-band` in the
@@ -9627,11 +9735,15 @@ def _school_library(n_idle=0):
              # goal (which unlocks one, incidentally). A detour that merely ties on the unlock count cannot
              # test dominance at all — the first version of this operator wrote only `where`, scored the
              # same unlock count as `go_to_school`, and every inversion of the key passed.
-             'fn prepare_trip(p: at_home) -> at_abroad:\n    SET F(p) "where" "abroad"\n'
-             '    SET F(p) "ticket" true',
-             'fn go_to_school(p: at_home) -> at_school:\n    SET F(p) "where" "school"',
-             'fn fly_home(p: ready_to_fly) -> at_home:\n    SET F(p) "where" "home"',
-             'fn buy_ticket(p: at_abroad) -> ready_to_fly:\n    SET F(p) "ticket" true']
+             'fn prepare_trip(p: at_home) -> at_abroad:'
+             '\n    INVOKE R(_) set_slot node=F(p) key="where" value="abroad"'
+             '\n    INVOKE R(_) set_slot node=F(p) key="ticket" value=true',
+             'fn go_to_school(p: at_home) -> at_school:'
+             '\n    INVOKE R(_) set_slot node=F(p) key="where" value="school"',
+             'fn fly_home(p: ready_to_fly) -> at_home:'
+             '\n    INVOKE R(_) set_slot node=F(p) key="where" value="home"',
+             'fn buy_ticket(p: at_abroad) -> ready_to_fly:'
+             '\n    INVOKE R(_) set_slot node=F(p) key="ticket" value=true']
     asm.load_text(g, "\n\n".join(body))
     me = g.mint("person", label="me", where="abroad")
     g.link("root", "has", me)
@@ -10518,8 +10630,8 @@ def check_arithmetic_on_an_UNLOOKED_AT_slot_skips_the_branch_and_spares_the_agen
     def world(*, arithmetic: bool):
         g = new_graph()
         declare_type(g, "desk", attrs={"kind_of": "desk"})
-        body = ("fn buy(d: desk) -> desk:", '    ATTR R(n) F(d) "rares"',
-                "    ADD R(n) R(n) 1", '    SET F(d) "rares" R(n)')
+        body = ("fn buy(d: desk) -> desk:", '    INVOKE R(n) slot_of node=F(d) key="rares"',
+                "    ADD R(n) R(n) 1", '    INVOKE R(_) set_slot node=F(d) key="rares" value=R(n)')
         asm.load_text(g, _lines("fn look(d: desk) -> desk:",
                                 '    DISPATCH R(o) "selftest_count_stock" F(d)', "",
                                 *(body if arithmetic else body[:1] + body[-1:])))

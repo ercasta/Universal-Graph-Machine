@@ -102,6 +102,11 @@ fn copy_node(original) -> thing:
 # out because `workbench.step` copies a set too — the set of images carried forward from the previous
 # frame rather than everything reachable — and the two differ only in where the set comes from.
 #
+# **The edges are not rewritten.** A copy's edges point where the original's did, because an edge names
+# an identity and resolution happens on the target when it is read. There is no parallel world to rewrite
+# into, and the set therefore no longer has to be closed under outgoing edges — a target outside it is
+# not skipped, it is simply named, which is what it was all along.
+#
 # Two passes, and the second cannot run early: a copy cannot link to an image that does not exist yet.
 #
 # EDGE PROPERTIES ARE CARRIED, and that is what this could not do until `NEPROPS` / `EPROP_AT` /
@@ -145,22 +150,20 @@ fn copy_set(walk) -> thing:
     LT R(more_t) R(ti) R(nt)
     JMPNOT R(more_t) .next_label
     GET_AT R(t) R(o) R(lbl) R(ti)
-    DEREF R(dst) F(walk) R(t)
-    JMPNOT R(dst) .skip_target
-    LINK R(src) R(lbl) R(dst)
+    LINK R(src) R(lbl) R(t)
     COUNT R(made) R(src) R(lbl)
     ADD R(at) R(made) -1
     NEPROPS R(np) R(o) R(lbl) R(ti)
     CONST R(pi) 0
 .each_prop:
     LT R(more_p) R(pi) R(np)
-    JMPNOT R(more_p) .skip_target
+    JMPNOT R(more_p) .next_target
     EPROP_AT R(pk) R(o) R(lbl) R(ti) R(pi)
     EPROP R(pv) R(o) R(lbl) R(ti) R(pk)
     SETEPROP R(src) R(lbl) R(at) R(pk) R(pv)
     ADD R(pi) R(pi) 1
     JMP .each_prop
-.skip_target:
+.next_target:
     ADD R(ti) R(ti) 1
     JMP .each_target
 .next_label:

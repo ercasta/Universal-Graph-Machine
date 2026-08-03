@@ -613,7 +613,7 @@ class Machine:
             # is rare by construction.
             from .dispatch import service as _service
             before = set(g.nodes)
-            got = _service(g, v(a[1]), v(a[2]))
+            got = _service(g, v(a[1]), v(a[2]), act=act)
             for made in sorted(set(g.nodes) - before):
                 A.record_mint(g, act, made)
             w(a[0], got)

@@ -44,6 +44,19 @@ from .graph import UNKNOWN, Graph
 from .types import instances, is_a, offenders as _offenders
 
 
+def _viewer(view):
+    """The view as *a world to traverse in*, or `None` meaning reality.
+
+    A view answers "which node stands for this here". Traversing needs the other direction too — from a
+    node back to the identity an edge names — and only a real view offers it. The identity function
+    standing in for "no view" offers nothing, and needs to: in the real world an edge's target already
+    *is* the individual, so there is nothing to resolve and no cost to pay.
+
+    Asked of the object rather than of a flag, so a caller that hands in some other view of its own is
+    treated as what it is, and this module still knows nothing about workbenches."""
+    return view if hasattr(view, "identity") else None
+
+
 def _same(node):
     """The default `view`: a node stands for itself. Reality needs no translation."""
     return node
@@ -384,15 +397,23 @@ def holds(g: Graph, c: str, *, view=None, under: str | None = None) -> bool:
     if subject is not None and here is None:
         return False                       # not present in this world at all
     if sort == "link":
-        there = view(g.target(c, "object"))
+        obj = g.target(c, "object")
+        there = view(obj)
         if there is None:
             return False
         if g.attr(c, "transitive"):
             # Reach, not adjacency — and it is the same question one hop further out, so it lives here
             # rather than in a sort of its own. `path.reaches` carries the cycle protection.
             from .path import reaches
-            return reaches(g, here, g.attr(c, "label"), there)
-        return there in g.targets(here, g.attr(c, "label"))
+            return reaches(g, here, g.attr(c, "label"), obj, view=_viewer(view))
+        # **Compared through the view, on the target.** An edge names an identity, so inside a frame
+        # `here`'s targets are the things themselves and `there` is this frame's version of the object —
+        # different nodes for the same individual, and comparing them raw reads `b on c` as false one
+        # step after it became true, which is how this was found. Putting both sides through the view is
+        # the one comparison that is right in every world: in reality it is `obj in targets` unchanged,
+        # because the view is the identity there.
+        from .path import adjacent
+        return there in adjacent(g, here, g.attr(c, "label"), view=_viewer(view))
     if sort == "known":
         # A knowledge claim rather than a world-state claim — an earlier note's third variant of
         # this same shape. It asks that the slot have been *looked at*, not that it hold any value.
@@ -409,10 +430,11 @@ def holds(g: Graph, c: str, *, view=None, under: str | None = None) -> bool:
     if sort == "type":
         want = g.attr(c, "type")
         if here is not None:
-            return is_a(g, here, want)
+            return is_a(g, here, want, view=_viewer(view))
         if under is None:
             return False
-        return any(n for n in instances(g, want, under) if g.kind(n) != "type")
+        return any(n for n in instances(g, want, under, view=_viewer(view))
+                   if g.kind(n) != "type")
     return False
 
 
@@ -446,7 +468,7 @@ def witnesses(g: Graph, c: str, *, view=None, under: str | None = None) -> tuple
     if sort == "type":
         if here is None:
             return ()                      # existential: nothing exists yet to blame
-        found = _offenders(g, here, g.attr(c, "type"))
+        found = _offenders(g, here, g.attr(c, "type"), view=_viewer(view))
         return tuple(dict.fromkeys(n for hits in found.values() for n in hits))
     # For every other sort the subject IS the thing that must change, so one uniform question serves
     # them all and no consumer has to branch on sort to ask it.

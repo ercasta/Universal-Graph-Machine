@@ -208,6 +208,29 @@ def context_of(g: Graph, act: str | None):
     return None
 
 
+def resolved(g: Graph, ctx: str | None, node):
+    """`node` as `ctx` resolves it — the vocabulary's own move, made from Python.
+
+    A Python caller standing *at* a boundary sometimes has to read a node the way the call it is about to
+    make will read it. `function.invoke` is the one that matters: a declared parameter type is a
+    precondition, and once bindings are canonical the precondition would be checked against the real
+    world while the body it guards reads the frame. A rule would then refuse on a state it is being run
+    in, or accept one it is not.
+
+    Made **by name**, exactly as `access.mf` makes it, so there is one resolver and Python cannot come to
+    disagree with the surface about what a read means. `check_types=False` on the inner call is not an
+    economy: it is what stops a type check from provoking the resolution that provokes a type check.
+
+    The trivial context costs nothing, because there is no name to call."""
+    if ctx is None or node is None:
+        return node
+    name = g.attr(ctx, "resolver")
+    if name is None:
+        return node
+    from . import function as fn
+    return fn.invoke(g, name, {"node": node}, under=ctx, retain=False, check_types=False)[1]["result"]
+
+
 def establishes(g: Graph, act: str):
     """The context this activation established *itself*, ignoring anything it inherited.
 
@@ -343,5 +366,5 @@ _N.register("resolver", lambda g, act: resolver_of(g, act))
 _N.register("writer", lambda g, act: writer_of(g, act))
 _N.register("context", lambda g, act: context_of(g, act))
 
-__all__ = ["KINDS", "VOCABULARY", "open_context", "establish", "context_of", "establishes",
+__all__ = ["KINDS", "VOCABULARY", "open_context", "establish", "context_of", "establishes", "resolved",
            "resolver_of", "writer_of", "bootstrap", "bare_touches", "operators", "offenders", "resolves_before_touching"]

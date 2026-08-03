@@ -92,7 +92,7 @@ def define(g: Graph, name: str, params: tuple, program: tuple,
     return fn
 
 
-def applicable(g: Graph, name: str, args: dict) -> tuple:
+def applicable(g: Graph, name: str, args: dict, *, under: str | None = None) -> tuple:
     """The declared outcomes whose conditions hold of these arguments, most preferred first.
 
     *"A mock must map conditions to expectations, so even during planning we know what to expect if we
@@ -115,12 +115,15 @@ def applicable(g: Graph, name: str, args: dict) -> tuple:
     a real answer and not an error: the caller decides whether that is a refusal or a reason to sense.
 
     A parameter absent from `args` is not tested. Partial bindings are the planner's business, and
-    treating an unbound parameter as a failed condition would silently rule out every outcome."""
-    from . import types as TY
+    treating an unbound parameter as a failed condition would silently rule out every outcome.
+
+    `under` is the context the condition is asked in, for the same reason `invoke` takes one: *what will
+    happen if I do this here* is answered by looking at here, and on a workbench "here" is a frame."""
+    from . import access as AX, types as TY
     out = []
     for outcome in mocks_of(g, name):
         ptypes = param_types(g, outcome)
-        if all(want is None or not TY.violations(g, args[p], want)
+        if all(want is None or not TY.violations(g, AX.resolved(g, under, args[p]), want)
                for p, want in ptypes.items() if p in args):
             out.append(outcome)
     return tuple(out)
@@ -330,13 +333,20 @@ def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool =
     if missing:
         raise TypeError(f"{name}() missing bound parameter(s): {missing}")
     if check_types:
-        from . import types as TY
+        from . import access as AX, types as TY
+        # **The precondition is checked in the world the body will run in.** A parameter type reads like a
+        # precondition and is enforced like one, so it has to be asked of the same world the rule is about
+        # to read — otherwise a rule imagined on a workbench is admitted or refused on the strength of
+        # reality, one frame away from the state it is actually being run in. The context is `under` at a
+        # boundary that establishes one, and the caller's otherwise, which is the same dynamic scope
+        # every read beneath this call will find.
+        ctx = under if under is not None else AX.context_of(g, caller)
         ptypes = param_types(g, name)
         for p in params:
             want = ptypes.get(p)
             if want is None:
                 continue                       # untyped parameter: nothing was claimed, nothing to check
-            bad = TY.violations(g, args[p], want)
+            bad = TY.violations(g, AX.resolved(g, ctx, args[p]), want)
             if bad:
                 # The failure carries structure, not only a message. A caller that has to react to it —
                 # `execution.step`, where a precondition gone false mid-plan is a *divergence* rather than a

@@ -3,7 +3,8 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **252 checks, 0 failing**, in about 70 seconds.
+**Verify:** `python -m ugm.selftest` — currently **253 checks, 0 failing**, in about 60 seconds.
+**Measure:** `python -m ugm.bench` — the numbers below, re-runnable.
 
 The engine is `ugm/`. An earlier iteration lived in `microfunctions/` and the package was renamed;
 anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
@@ -30,10 +31,9 @@ decided, case by case, whether that was a decision or an accident. All eight fin
 produced `policy`, `procedure`, `tie_break`, five reflection opcodes, `ATTEMPT` and
 `INVOKE … with <node>`.
 
-Since then the work has been moving the **workbench** out of Python, and that has turned into the
-current arc. `workbench.step` is now written in the surface but is not live: it costs ~25×, essentially
-all of it the per-node frame copy. Two constraints then decide the architecture, and neither is about
-performance:
+Since then the work has been moving the **workbench** out of Python, and that arc has now landed:
+**frames are sparse**, and a frame maps only what changed in it. Two constraints decided the
+architecture, and neither is about performance:
 
 * **The workbench cannot stay in Python.** Planning that Python owns is planning the system cannot
   inspect or change.
@@ -48,13 +48,36 @@ node and calls the resolver *by name*. `workbench.step` and `execution` establis
 inherits by walking `caller`. The planning corpus is written that way and the planner reads it exactly as
 it read the opcode version.
 
-What remains is what it was all for — **sparse frames**, where a frame maps only what changed in it and
-resolution walks the chain. The reading half is built and the writing half is written but not switched
-on; step 3 below says exactly what blocks it, and it is a correctness question rather than a cost one.
+And what it was all for is now built. **A frame maps only what changed in it**; `step` copies nothing;
+a version is minted by the writer the first time a frame writes to a node; and reading walks the chain.
+The rule the whole scheme rests on is one sentence:
 
-Mediation costs **4.5×** on Sussman's anomaly (241 ms bare, 1090 ms mediated, same plan) and about **14%**
-on the whole self-test — which is the number that matters, since every stepped rule in the corpus now
-goes through the eight names.
+> **An edge names an identity, never a version, and resolution happens on the target.**
+
+That sentence is the model. Nothing rewrites edges any more — not `_copy_set`, not the writer, not
+`relate` — and a rule is bound to *the thing itself* in both worlds, so one rule really does have one
+behaviour and only what a read means differs.
+
+**Stepping now costs O(change) rather than O(world)**, which is the shape the whole design was for:
+
+| world | dense (before) | sparse (now) |
+|---|---|---|
+| 5 blocks | 47 ms | 53 ms |
+| 60 blocks | 68 ms | 56 ms |
+| 300 blocks | 198 ms | 59 ms |
+
+Ten chained steps, best of three. Dense wins the small row and that is expected rather than
+disappointing: the copying moved from Python into an interpreted `copy_with_edges`, so a five-node copy
+got dearer and a three-hundred-node one stopped happening. The curve is the result, not any row.
+
+`workbench.step` written in the surface is now **3.0×** the Python one, against 22–42× before — because
+`carry_frame` was essentially all of that, and sparse frames deleted it. The self-test runs in 60 s
+against 70 s before.
+
+The planner pays for it: Sussman's anomaly is **1020 ms against 640 ms**, at the identical 50 imagined
+states. That is not the search getting worse, it is copying moving into the interpreter on a world small
+enough for dense to have been the right answer. It is the honest number and it is where a
+faster interpreter would show up.
 
 ## What landed since the audit
 
@@ -76,8 +99,10 @@ index, kept short on purpose so the plan below stays readable.
   operand takes a focus head. The first of the two mattered enough to be listed as a prerequisite for
   everything below; both are in [reference/isa.md](reference/isa.md).
 * **`workbench.step` is written**, in `rules/step.mf`, checked against the Python on four routes plus
-  chaining and a refusal. Two natives added: `find_function` and `minted`. **Not yet live** — see the
-  measurements below.
+  chaining and a refusal. Two natives added: `find_function` and `minted`. It is sparse too, and it
+  **establishes its own context in the surface** — a context is a node and `establish` is an edge onto
+  the activation `SELF` names, so a boundary needs no Python. Still not the live one; the Python `step`
+  is, and the two are checked against each other.
 * **Mediated access is built** — `access.py`, `rules/access.mf`, `rules/resolve.mf`, two natives
   (`resolver`, `context`), and the planning corpus rewritten to the eight names. Detail in
   [mediated-access.md](mediated-access.md), which now opens with what landed and what did not.
@@ -87,8 +112,48 @@ index, kept short on purpose so the plan below stays readable.
   gets the vocabulary loaded, so no caller keeps that precondition by hand.
 * **Resolution is indexed.** A frame carries a stored reference from identity to the version it holds
   (`workbench.index`), read by Python and by the surface alike. See the traps below for why.
+* **Sparse frames landed, and with them the identity model.** `step` copies nothing and binds
+  identities; `_copy_set` and `copy_set` no longer rewrite edges; frame 0's copies point at real nodes;
+  an imagined node is **its own original**, stated positively, so later versions of it have an identity
+  to share. `dense` is gone. `path.adjacent` is the one hop everything traverses through, and it takes a
+  view; `workbench.View` answers both directions (identity → version, and back).
+* **Two of the four natives now resolve.** `types.is_a` and `types.check` find their world through
+  `workbench.view_of`, which reads the ambient context. `plan` and `plan_step` still do not.
+* **`function.invoke` checks a parameter type in the world the body will run in**, resolving the
+  argument through the context's resolver *by name* (`access.resolved`). A precondition read from reality
+  while the body it guards reads a frame is a rule refusing a state it is being run in.
+* **`dispatch` refuses on the context, not on the argument.** *Am I imagining?* is a property of the
+  dynamic extent. See the traps.
+* **There is a benchmark in the repo** — `python -m ugm.bench`.
 
 Traps worth not re-learning:
+
+* ⚠⚠⚠ **Binding a rule to an identity makes an unmediated rule loudly wrong instead of accidentally
+  right.** While `step` handed over the frame's copies, a bare `LINK F(d) …` landed in the frame by
+  luck. Bound to the thing itself, the same instruction **writes to the real world while planning**.
+  Roughly a dozen test fixtures were unmediated and every one of them turned a check red until it was
+  rewritten to the vocabulary. `access.offenders` is the pass that says so, and it is currently run over
+  one graph rather than over every corpus — the obvious next guard is `step` refusing an unmediated
+  operator outright.
+* ⚠⚠⚠ **`dispatch.service` refused an *imagined target*, and there is no longer such a thing.** The
+  safety property — planning cannot reach the world — was implemented by asking whether the target was a
+  workbench copy. Under identity binding the target of a dispatch inside a plan is the *real* node, so
+  the guard silently stopped firing and a plan **actually listed a directory**. The property was always
+  about the dynamic extent: `dispatch.imagining` asks the context instead. Both tests are kept, because
+  they catch different mistakes.
+* ⚠⚠ **`relate` resolved its target as well as its subject**, so an edge stored a *version*. Two routes
+  to the same world then looked different, `state_of` stopped deduping, and Sussman's anomaly went from
+  50 imagined states to over 100 — with every individual answer still correct. **Cost was the only
+  symptom**, and it took a version-by-version diff of two states that should have been equal to find.
+* ⚠⚠ **`visible` must answer in the order the world was first laid out, not the order it changed.**
+  Walking nearest-first and keeping the first answer puts whatever the step touched at the front, so the
+  world's order differed in every frame — and that order is `proposals` order, which is the search's last
+  tie-break. Deterministic, and worse. Walk oldest-first and let later versions replace earlier ones in
+  place.
+* ⚠ **The chain must be linked before the call, and unlinked if the call raises.** Resolution walks
+  `frame -next-> frame`, so an unattached frame is one in which nothing is visible. But an imagined step
+  that raises — arithmetic meeting `UNKNOWN` is routine — would then leave a half-written frame wired
+  into the history.
 
 * ⚠⚠ **`g.sources` returns its answer sorted by node id**, and an id is a string, so the reverse index
   cannot answer *the most recent*. An activation records its calls forwards as ordered `called` edges
@@ -119,84 +184,75 @@ Traps worth not re-learning:
 
 ## Where the cost is
 
-`workbench.step` in the surface, against the Python it replaces:
+Run `python -m ugm.bench`. The current numbers, and what each one is for:
 
-| world | Python | surface | |
-|---|---|---|---|
-| 5 blocks | 17.9 ms | 753 ms | 42× |
-| 20 blocks | 71.6 ms | 2248 ms | 31× |
-| 60 blocks | 301 ms | 6634 ms | 22× |
+| | |
+|---|---|
+| Sussman's anomaly | **1020 ms**, 50 imagined states — 640 ms before sparse frames |
+| a step, 5 / 60 / 300 blocks | **53 / 56 / 59 ms** — against 47 / 68 / 198 dense |
+| surface `step` vs Python | **3.0×** — against 22–42× before |
+| a mediated read vs a bare `GET` | **3.8×** |
 
-~2000 interpreted instructions per step at twenty blocks, and **essentially all of it is `carry_frame`**
-— the per-node frame copy. `step` is the innermost operation of `pursue`, called once per imagined
-state. **Sparse frames delete that copy**, which is why the swap waits on them rather than on a faster
-interpreter.
+The second row is the one the design was for: **cost follows change, not the size of the world.** The
+first row is the price paid for it on a five-node world, where copying four nodes in Python was cheaper
+than minting two versions through an interpreted `copy_with_edges`. Both are true, and quoting either
+alone misrepresents the change.
 
 **The workbench cannot stay in Python**: planning that Python owns is planning the system cannot inspect
-or change, which is the island the whole design exists to avoid. So the numbers say how much has to
-change *before* the swap, not whether to make it. Avoiding the copy means a frame sharing versions with
-its predecessor, which is only correct if reads are mediated — and mediation can live neither in the
-kernel (it would have to know what a frame is) nor in Python. That leaves in-graph procedures.
+or change, which is the island the whole design exists to avoid. Sharing versions between frames is only
+correct if reads are mediated — and mediation can live neither in the kernel (it would have to know what
+a frame is) nor in Python. That is why the mediation layer exists, and it is now load-bearing rather than
+anticipatory: a native that ignores the context can finally be *caught*.
 
 ## What to do next
 
-Steps 1 and 2 of the previous plan are done and are described under *What landed* above; this is what
+Sparse frames and the identity model are done and are described under *What landed* above; this is what
 remains. [mediated-access.md](mediated-access.md) is the design, it opens with a table of what is built
-and what is not, and it records two wrong turns in detail — both easy to make again.
+and what is not, and it records the wrong turns in detail — all easy to make again.
 
-### 1. Finish sparse frames: the identity model  ← start here
+### 1. Enforce mediation at `step`  ← start here
 
-The reading half is built and the writing half is written and **dormant**. `rules/version.mf` mints a
-version on write through a **`writer`** the context names beside its `resolver`; `workbench.step` has
-been run sparse and reverted.
+**This is now a correctness hole, not a tidiness one, and it is the thing most likely to bite whoever
+picks this up.** A rule bound to identities that touches the graph bare **writes to the real world while
+planning**. `access.offenders` already answers the question and `check_A_PLANNING_OPERATOR_MAY_NOT_TOUCH_THE_GRAPH_BARE`
+already asks it — over one graph. Two things to decide:
 
-⚠⚠ **What blocks it is correctness, not cost.** With a sparse frame an edge written in frame N points at
-the version its target had in frame N−1, while a goal constraint is checked against frame N's version of
-that target — so `b on c` reads as false one step after it became true, and a one-step goal comes back
-*not found*. That is how it was caught.
+* run the compliance pass over *every* corpus the self-test builds, not one; and
+* have `step` refuse an unmediated operator outright, which needs `fn.load` per step and therefore wants
+  the answer cached on the function node.
 
-The fix is the model the design note actually states: **an edge names an identity, never a version, and
-resolution happens on the target.** Five changes, and they have to land together because each one alone
-breaks the others:
+The evidence that this matters: roughly a dozen fixtures in `selftest.py` were unmediated, every one of
+them went red, and each was a rule quietly writing to reality from inside an imagination.
 
-1. **`step` binds identities**, not images — `g.target(m, "original")` in place of `image_of(m)`.
-2. **Frame 0's copies point at real nodes.** `_copy_set` currently rewrites edges into a parallel world;
-   under this model there is no parallel world to rewrite into.
-3. **A link constraint compares identities** — `original_of(target) == object`. This is the failure
-   above, and it is *resolution on the target* in the one place that was still comparing raw ids.
-4. **`function.invoke`'s type check resolves under the context.** It calls `types.violations` from Python
-   with no activation, so once bindings are canonical a rule's *precondition* reads the real world while
-   its *body* reads the frame. ⚠ Not in the design note — found on the way past.
-5. **Then flip `step`**: drop the per-step copy, and delete the `dense` marker on frames (it exists only
-   to stop `visible` walking a chain of full copies, which is O(depth × world) for nothing).
+### 2. The remaining two natives, and `predicted_changes`
 
-Then the four natives that must resolve (`is_a`, `check`, `plan`, `plan_step`) become testable, because
-only now can ignoring the context be *wrong*; and the goal machinery and phase machine become boundaries
-with something to read.
+`types.is_a` and `types.check` resolve now, through `workbench.view_of`. `driver.plan` and
+`driver.plan_step` do not, and the natives inventory in [mediated-access.md](mediated-access.md) says
+they must. Then `predicted_changes` should return a transient node rather than a Python dict, which is
+what blocks `workbench.unmet_expectations`.
 
-### 2. Swap `step.mf` live, and re-measure
-
-Really the second half of the same job. The surface `step` measured 22–42× and **essentially all of it
-was `carry_frame`** — the per-node frame copy. Sparse frames delete that copy, so `carry_frame` becomes
-a handful of instructions and the comparison is finally about the interpreter rather than about copying.
+⚠ A gap found on the way and left open deliberately: `types.fails` resolves the *neighbours* it walks
+through `path.adjacent`, but `function.invoke` type-checks its argument through the resolver and then
+walks from there with **no view**, because at that point it holds a context rather than a frame. The
+schemas in the corpus are attribute-shaped so nothing catches it. It wants a world where a parameter
+type's *schema* depends on a neighbour the frame changed.
 
 ### 3. `execution.step`, then the phase machine
 
 `driver._phase_*` is reads, guards, one call, attribute writes and unlinks; its `_PHASES[phase]` dispatch
 is what a dynamic `INVOKE` does.
 
-### 4. The three predicates — independent, do whenever
+### 4. Swap `step.mf` live
+
+`rules/step.mf` is sparse, establishes its own context, and agrees with the Python on four routes plus
+chaining and a refusal — at **3.0×**, against 22–42× when it had to copy. The remaining question is
+whether the planner can afford it, and the answer is a measurement rather than an argument.
+
+### 5. The three predicates — independent, do whenever
 
 `VKIND` and `compare.mf` land together with `goal.holds` (writing `compare.mf` earlier would duplicate
 `types.compare`, which `goal.holds`, `criterion._holds` and every schema check share); `violations` as a
-native; `predicted_changes` returning a node instead of a Python dict.
-
-### 5. A benchmark in the repo
-
-Twice in one arc the defect was found by a measurement and not by a check — the `called`-versus-`caller`
-trap, and `Graph.labels` — and each time the harness was rebuilt in a scratch file and thrown away.
-*Look at the clock, not only the report* should be something the project does, not something it
-remembers.
+native.
 
 **Expressible is not the same as rewritten**, and the difference should not be allowed to blur.
 
@@ -225,7 +281,17 @@ stated.
 **Measurement finds what checks cannot.** The `called`-versus-`caller` defect was invisible to three
 successive checks and obvious to a benchmark, because two activations made moments apart have ids that
 sort the way they were made. When a planted bug stays green, the usual cause is not a weak assertion but
-a **world that cannot express the defect** — fix the scenario, not the assertion.
+a **world that cannot express the defect** — fix the scenario, not the assertion. `python -m ugm.bench`
+exists so this stops being rebuilt in a scratch file each time.
+
+**When a safety property is implemented by looking at the argument, ask what it is really about.**
+*Planning cannot reach the world* was checked by asking whether the dispatch target was a workbench
+copy. That was the same question only while planning handed rules copies; the moment a rule was bound to
+the real thing, the guard went quiet and stayed quiet. The property was always about the **dynamic
+extent** — *am I imagining?* — and nothing about the argument could have said so. Worth generalising: a
+guard that tests a *value* for a fact about the *context* is right by coincidence until the day it is
+not, and it fails silently, because a guard that stops firing looks exactly like a guard that has
+nothing to complain about.
 
 **A recorded gap statement is a hypothesis, not an inventory.** The edge-property gap was written down
 as needing two reading opcodes. It needed a third, to write.

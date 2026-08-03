@@ -213,7 +213,7 @@ def _here(g: Graph, frame: str, real):
     always the real node once frames nest, so fall back to `W.resolve`, which walks the whole chain."""
     if real is None:
         return None
-    m = W.mapping_for(g, frame, real)
+    m = W.mapping_for(g, frame, W.identity_of(g, real))
     if m is not None:
         return W.image_of(g, m)
     for m in W.visible(g, frame):
@@ -239,7 +239,7 @@ def resolve_ref(g: Graph, ref: str, bound: dict, frame: str, *, under: str = "ro
     if len(words) == 4 and words[0] in SELECTORS and words[2] == "by":
         start = resolve_ref(g, words[1], bound, frame, under=under)
         label, back = (words[3][1:], True) if words[3].startswith("^") else (words[3], False)
-        reached = P.via(g, _here(g, frame, start), label, back=back)
+        reached = P.via(g, _here(g, frame, start), label, back=back, view=W.View(g, frame))
         if not reached:
             raise Unresolvable(f"nothing is reachable from {words[1]} by {words[3]}")
         # `via` is breadth-first, so nearest-first. The furthest is the last, and that is the whole of
@@ -264,7 +264,7 @@ def resolve_ref(g: Graph, ref: str, bound: dict, frame: str, *, under: str = "ro
     node = bound[base]
     if rest is None:
         return node
-    reached = P.node_at(g, _here(g, frame, node), rest)
+    reached = P.node_at(g, _here(g, frame, node), rest, view=W.View(g, frame))
     if reached is None:
         raise Unresolvable(f"{ref!r} reaches nothing in this world")
     return W.original_of(g, reached)
@@ -282,7 +282,7 @@ def _holds(g: Graph, t: str, bound: dict, frame: str, under: str) -> bool:
         return left is not None
     if sort == "type":
         from .types import is_a
-        return is_a(g, _here(g, frame, left), g.attr(t, "label"))
+        return is_a(g, _here(g, frame, left), g.attr(t, "label"), view=W.View(g, frame))
     if sort == "attr":
         return g.attr(_here(g, frame, left), g.attr(t, "key")) == g.attr(t, "value")
     if sort == "link":
@@ -291,6 +291,7 @@ def _holds(g: Graph, t: str, bound: dict, frame: str, under: str) -> bool:
         except (Unresolvable, P.BadPath):
             return False
         here, there = _here(g, frame, left), _here(g, frame, right)
+        view = W.View(g, frame)
         if g.attr(t, "transitive"):
             # `x contains+ y` — *reachable at any depth*. This arrived with the shared proposition
             # grammar: `+` had existed only in a goal line, though `docs/authoring.md` says it belongs "in a link
@@ -299,8 +300,11 @@ def _holds(g: Graph, t: str, bound: dict, frame: str, under: str) -> bool:
             # is the failure mode this codebase keeps catching — so the evaluator moved with the surface.
             # Same reader `goal.holds` uses, so the two cannot disagree about what `+` means.
             from .path import reaches
-            return reaches(g, here, g.attr(t, "label"), there)
-        return g.target(here, g.attr(t, "label")) == there
+            return reaches(g, here, g.attr(t, "label"), there, view=view)
+        # Resolution on the target: an edge names the identity, so the frame's version of it is what
+        # this compares against — the same correction `goal.holds` carries, for the same reason.
+        got = P.adjacent(g, here, g.attr(t, "label"), view=view)
+        return bool(got) and got[0] == there
     if sort == "wants":
         # A test about the goal, not the world — *"is anything still required of this thing?"*. The
         # bottom-up ordering knowledge needs it: stack onto `y` only once `y` itself has nowhere left to go.
@@ -370,7 +374,7 @@ def _expand(g: Graph, bounds: tuple, draws: tuple, frame: str, under: str) -> tu
                 start = resolve_ref(g, g.attr(d, "ref"), b, frame, under=under)
             except (Unresolvable, P.BadPath):
                 continue
-            for n in P.via(g, _here(g, frame, start), label, back=back):
+            for n in P.via(g, _here(g, frame, start), label, back=back, view=W.View(g, frame)):
                 real = W.original_of(g, n)
                 if real is None:
                     continue

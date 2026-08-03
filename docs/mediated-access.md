@@ -14,21 +14,23 @@ constrain it, the alternatives already ruled out, and the questions still open.
 | boundaries that establish: `workbench.step`, `execution` | ✅ and checked |
 | the compliance pass | ✅ `access.offenders`, over the planning operators |
 | the planning corpus rewritten to the vocabulary | ✅ `stack`, `unstack`, `paint` |
-| the four natives that must resolve (`is_a`, `check`, `plan`, `plan_step`) | ❌ nothing yet |
+| the four natives that must resolve | ✅ `is_a`, `check` — ❌ `plan`, `plan_step` |
 | the goal machinery and the phase machine as boundaries | ❌ no consumer yet — see *Open questions* |
 | **sparse frames** — the *reading* half: resolution walks the frame chain | ✅ both walks, checked |
-| sparse frames — the *writing* half: `step` stops copying, writes mint a version | ❌ next |
+| **sparse frames** — the *writing* half: `step` copies nothing, writes mint a version | ✅ live |
+| **the identity model**: an edge names an identity, never a version | ✅ everywhere |
 
-The two omissions are the same omission. While frames stay dense and `step` binds a frame's *images*
-directly, resolution is the identity function on everything a rule is handed, so a native that ignores
-context cannot yet be caught being wrong. Building for that now would be building for a requirement
-nobody has stated, which this project has twice nearly done at length. It becomes load-bearing the
-moment frames go sparse, and that is the next step rather than a deferred one.
+The natives became testable exactly when the frames went sparse, and not before: while `step` bound a
+frame's *images*, resolution was the identity function on everything a rule was handed, so a native that
+ignored the context could not be caught being wrong. `types.is_a` and `types.check` now find their world
+through `workbench.view_of`; `driver.plan` and `plan_step` still do not.
 
-Measured on Sussman's anomaly, same plan found either way: **275 ms bare, 1321 ms mediated — 4.8×.** Each
-rule operation is now a call, and under a frame context a second call to resolve. That is the price of
-the property, and it is the honest number to improve against rather than a reason to reconsider: the
-alternative is planning Python owns.
+Measured on Sussman's anomaly, same plan found either way: mediation is **~4×**, and sparse frames add
+another **1.6×** on a five-block world — 640 ms to 1020 ms at the identical 50 imagined states. That
+second number reverses with size, which is the whole point: a step costs **53 / 56 / 59 ms** at 5 / 60 /
+300 blocks where the dense version cost 47 / 68 / 198. Cost follows change rather than the size of the
+world. Both numbers are the price of the property and the honest thing to improve against, rather than a
+reason to reconsider: the alternative is planning Python owns.
 
 ## Two demands, one mechanism
 
@@ -118,7 +120,8 @@ many-valued relations and one to mint:
 
 Everything else in those bodies is `ADD` / `LT` / `JMP` — arithmetic and control, which touch nothing
 and need no mediation. `DISPATCH` is already mediated by construction: it is the one door out, and it
-refuses an imagined target.
+refuses when the call is imagining. ⚠ It used to refuse an *imagined target*, which was the same question
+only while planning handed rules copies — see the trap in [HANDOFF.md](HANDOFF.md).
 
 The reflection opcodes (`KIND`, `NLABELS`, `LABEL_AT`, `DEREF`, `SETREF`, `NEPROPS`, …) appear **only**
 in substrate programs — `reachable`, `copy_set`, `open_workbench`, `step`. So the layer line is not a
@@ -207,6 +210,19 @@ Resolution happens at read time, on the *target*. This is what makes the sparse 
 what the *Ruled out* entry below gets its correction from — with identity-pointing edges there is no
 cascade, because a hub's edges name identities that never change however often their members do.
 
+✅ **Built, and it reaches further than the frame.** Nothing rewrites an edge anywhere: `_copy_set` and
+the surface `copy_set` copy a node's edges to the *same* targets, the writer's `copy_with_edges` does the
+same, `relate` resolves its subject and not its target, and `step` binds the identity rather than the
+image. Two consequences the note did not anticipate, both now recorded as traps in
+[HANDOFF.md](HANDOFF.md):
+
+* **A rule is bound to the real thing**, so a rule that touches the graph *bare* no longer lands in the
+  frame by luck — it writes to the world. Mediation stopped being a property to admire and became one to
+  enforce.
+* **Nothing points at a version**, so a backward edge query is a different walk: it goes to the identity
+  and keeps the versions in force here. `path.adjacent` is the one hop everything traverses through, and
+  it takes a view; `workbench.View` answers both directions.
+
 Three consequences, one of them unfinished:
 
 * **Resolution walks the frame chain, not the graph.** Cycles in the world are irrelevant to it and
@@ -234,9 +250,13 @@ Three consequences, one of them unfinished:
   satisfied one step after it became true. Persistence is the whole requirement, and identity-as-first-
   version delivers it for nothing.
 
-  One consequence: `is_imagined` currently asks *does this mapping lack an `original`*, and would ask
-  *is this its own original* — an absence becoming a positive fact, which is the direction this codebase
-  prefers anyway.
+  ✅ **Built, and the consequence anticipated here is the one that mattered.** `is_imagined` no longer
+  asks *does this mapping lack an `original`*; an imagined node's mapping points `original` at the node
+  itself, and the question is *is this its own original* — an absence turned into a positive fact. It was
+  not a preference in the end but a requirement: an imagined node can be *versioned* like anything else,
+  and with no pointer there was no identity for its second version to share, so one imagined thing
+  appeared twice in the same world. The walk that resolves it needs a guard against the self-reference,
+  which is the price of the fact.
 
 ## What the branching measurement rules out
 
@@ -412,10 +432,10 @@ which frame you are in**.
 
 | native | owner | context? | why |
 |---|---|---|---|
-| `is_a` | `types` | **yes** | walks the node's edges *and its neighbours'* to check a schema; every hop needs resolving |
-| `check` | `types` | **yes** | `violations` then raise — the same traversal as `is_a` |
-| `plan` | `driver` | **yes** | opens a workbench on a subject, so it reads world structure to copy it |
-| `plan_step` | `driver` | **yes** | steps a search; frames are its whole subject matter |
+| `is_a` | `types` | **yes** ✅ | walks the node's edges *and its neighbours'* to check a schema; every hop needs resolving |
+| `check` | `types` | **yes** ✅ | `violations` then raise — the same traversal as `is_a` |
+| `plan` | `driver` | **yes** ❌ | opens a workbench on a subject, so it reads world structure to copy it |
+| `plan_step` | `driver` | **yes** ❌ | steps a search; frames are its whole subject matter |
 | `find_function` | `function` | no | resolves a name against the function index; functions are not world content and are not versioned |
 | `minted` | `activation` | no | reads `minted` edges off an activation — interpreter state, not world content. It *returns* world nodes, but as identities, which is what the caller wants |
 | `after` | `loop` | no | reads the agenda off its own activation and mints a moment; touches no world content |

@@ -96,7 +96,27 @@ def _in_workbench(g: Graph, node) -> bool:
     return node is not None and any(g.kind(m) == "mapping" for m in g.sources(node, "image"))
 
 
-def service(g: Graph, tool: str, target, *, record_on=None, remember=None):
+def imagining(g: Graph, act) -> bool:
+    """Is this call running inside an imagined world? The question the workbench refusal really asks.
+
+    **A property of the dynamic extent, not of the argument.** It used to be answered by looking at the
+    target — *is this node a workbench copy* — which was sound only while a rule on a workbench was
+    handed copies. A rule is now bound to the thing itself and the frame decides what a read means, so
+    the target of a dispatch inside a plan is the *real* node and looking at it says nothing. Asking the
+    context instead is both correct and closer to what the property always meant: an imagined step is one
+    running under a context that resolves, and reaching the world from inside one is the thing that must
+    not happen.
+
+    Kept alongside the structural test rather than replacing it, because they catch different mistakes:
+    this catches a rule dispatching while imagining, and the other catches an imagined node handed to a
+    Python caller that never went near a frame."""
+    if act is None:
+        return False
+    from . import access
+    return access.resolver_of(g, act) is not None
+
+
+def service(g: Graph, tool: str, target, *, record_on=None, remember=None, act=None):
     """The choke point. Refuse imagined targets, check the veto, commit, then run the handler.
 
     Returns the handler's value. Raises `Imagined` if the target is inside a workbench, `Vetoed` if a
@@ -115,6 +135,9 @@ def service(g: Graph, tool: str, target, *, record_on=None, remember=None):
     consulting them first would be answering with made-up evidence."""
     if _in_workbench(g, target):
         raise Imagined(f"refusing to dispatch {tool!r} on {target}: it exists only inside a workbench")
+    if imagining(g, act):
+        raise Imagined(f"refusing to dispatch {tool!r} on {target}: this call is imagining, and an "
+                       f"imagined step may not reach the world however real its argument is")
     blocked = veto_reason(g, target)
     if blocked is not None:
         if record_on is not None:
