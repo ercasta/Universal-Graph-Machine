@@ -128,6 +128,62 @@ graph with interpreter scaffolding — and this system has already once mistaken
 world content and type-checked it as a domain object. **Retention must become a call-site choice**
 before reads become calls.
 
+## The binder: dynamic scope over the activation chain
+
+Something has to decide which implementation a name resolves to. This is the design's main question and
+it now has a recommended answer, recorded here with the argument rather than as a verdict.
+
+**A registry is a catalogue, not a binder.** `native.py` answers *what implementations exist*, and it is
+a fixed table. It cannot answer *which one now*, because a search holds many branches alive at once and
+there is no single "now". So a registry is necessary and insufficient, and the real choice is between
+threading the context through every signature and finding it dynamically.
+
+**Recommended: dynamic scope, with the context on the activation and inherited through the `caller`
+chain.** The argument that decides it is specific to this engine. Dynamic scope is normally a bad trade
+because you cannot see what a function will do without tracing the stack, and the stack is not data.
+Here it is: every activation points at its caller, `activation.chain` walks it, and *what context was
+this running under* is an ordinary query. The usual opacity is precisely the thing this engine does not
+have.
+
+Three consequences follow, and each is a cost that would otherwise have to be paid:
+
+* **Learning is untouched.** With threading, `application.generalise` must know that one parameter is
+  special, or every learned rule is welded to whatever context was in scope when it was recorded. Under
+  dynamic scope a learned rule never names a context, so it is context-neutral automatically. The
+  problem does not get solved; it stops existing.
+* **Natives get it for free.** `native.call` already passes `act` to every primitive whether it wants it
+  or not — deliberately, because a registry recording which primitives take context would be a second
+  thing to keep in step. So `types.is_a` can resolve as it walks. Under threading, every native call
+  site would have to pass the context explicitly.
+* **The cost is per call, not per read.** An activation inherits its caller's context pointer once, at
+  `open_activation`. Nothing walks the chain per access.
+
+**The objection, and why it survives.** `INVOKE` deliberately gives a callee a fresh focus with none of
+the caller's heads, so *a function is never silently sensitive to where its caller happened to be
+looking*. Inheriting context looks like the same mistake in another dimension, and the answer is not
+that attention and linking are merely different things. It is that **the call chain and the frame nest
+identically — a callee always runs in its caller's frame — whereas attention does not nest**, because a
+callee looks at its own arguments and not at its caller's. Frame is a property of the dynamic extent;
+attention is a property of the call. Inheriting the first is the correct semantics; inheriting the
+second would be the accident `INVOKE` guards against. Whoever builds this should state that where a
+reader will meet it, because it will otherwise read as a contradiction.
+
+**The design rule that falls out: inherit by default, establish explicitly at the boundary.** `step`
+does not inherit — it *establishes* the new frame's context for the call it makes. Which is a good sign
+about the cut: `step` is already the mediation point today, doing it by materialising at bind time. The
+seam does not move; only the mechanism at it changes.
+
+**Two risks this buys, both wanting artifacts rather than assumptions.**
+
+A native receiving `act` does not mean it *uses* it. A native that ignores context is a silent hole of
+exactly the same class as a bare `GET` in a rule. So natives need their own compliance question, and
+*every native was audited for whether it needs context* has to be a recorded artifact.
+
+And establishing a context becomes a thing that can be forgotten. If `step` fails to establish,
+everything beneath it silently inherits the caller's frame and plans in the wrong world. That is the
+failure mode dynamic scope buys, and it wants a check that goes red when a boundary does not establish —
+not a convention that a boundary should remember to.
+
 ## Ruled out, with reasons
 
 **Sharing versions without mediating reads.** Not merely awkward — incorrect. A node id conflates *which
@@ -148,28 +204,40 @@ change. Not available at any price.
 
 ## Open questions
 
-**1. The binder — who decides which implementation a name resolves to.** Three candidates. *Signature
-threading*: every procedure takes the context as a parameter; works today, but every call site must pass
-it, and `application.generalise` would have to know that one parameter is special or every learned rule
-is welded to whatever context was in scope when it was recorded. *Dynamic scope over the activation
-chain*: an activation points at its caller, so a context can be found by walking up; no signatures
-change and the kernel learns nothing. *A registry*: the shape `native.py` and `dispatch.register`
-already use, with `types.py` enforcing that a reader is a reader at the invoke boundary.
+**1. Which natives need context.** The *mechanism* is settled by the binder above — `native.call`
+already hands every primitive its activation, so a native can find the context and resolve as it walks.
+What is not settled is the inventory. `types.is_a` walks a node's edges and its neighbours' to check a
+schema, so it plainly needs it; `find_function` resolves a name against the function index and plainly
+does not. Every native in between has to be decided one at a time, and the decision recorded, because a
+native that quietly ignores context is indistinguishable from one that correctly does not need it. This
+is work with a known shape rather than an open design problem, but it is the work most likely to leave a
+silent hole.
 
-There is a principled objection to check against the second, and it probably survives: `INVOKE`
-deliberately gives a callee a fresh focus with none of the caller's heads, so *a function is never
-silently sensitive to where its caller happened to be looking*. Dynamic scope looks like a violation. It
-is arguably not, because **attention** should never be accidentally inherited while **which
-implementation you link against** is deliberately contextual. If this is built, that distinction needs
-stating where a reader will meet it, because it will look like a contradiction.
+**2. Does the domain layer participate in mediation, or only consume it?** If `support_of` is an
+ordinary procedure over `related`, mediation is automatic and there is nothing to decide. If a domain
+name may be implemented natively, it opens a second hole of exactly the shape of question 1 — and unlike
+the native inventory, the domain vocabulary is *open*, so the hole cannot be closed by enumeration. The
+cheap answer is probably to forbid it: a domain name is a procedure, and anything wanting to be a native
+belongs in the closed set where it can be audited.
 
-**2. Natives traverse raw structure, and that is a hole in totality.** `types.is_a` walks a node's edges
-and its neighbours' to check a schema. A rule running over a partially modified graph that calls `is_a`
-reads unmediated structure and sees whatever versions happen to be there. The same goes for anything
-that walks rather than answering about one node. Either natives receive fully resolved nodes, or they
-become context-aware. This has to be settled *with* the vocabulary, not after it — it is exactly the
-class of hole that makes a mechanism quietly wrong.
+**3. What establishes a context besides `step`.** `step` is the obvious boundary. Whether `execution`,
+the phase machine, or a nested workbench are others has not been examined, and each one that is a
+boundary is another place the establish-or-silently-inherit failure can occur.
 
-**3. Does the domain layer participate in mediation, or only consume it?** If `support_of` is an
-ordinary procedure over `related`, mediation is automatic. If a domain name may be implemented natively,
-it becomes a second hole of the same shape as question 2.
+## Where this came from
+
+Recorded because the reasoning is worth more than the conclusion, and because two of the numbers above
+were got wrong first.
+
+The thread began as a performance question — the surface `workbench.step` measured 25× the Python one,
+with essentially all of it in the per-node frame copy. That framing produced a wrong recommendation
+twice: first that sharing versions would save ~96% of the copying (it would not; unmediated sharing is
+incorrect, and the cascade measurement is in *Ruled out* above), then that the copy was therefore
+load-bearing and the thread should be closed (it is not; that argument only defeats *unmediated*
+sharing).
+
+What actually settled the shape was two constraints that are not about performance at all: **the
+workbench cannot stay in Python**, because planning Python owns is planning the system cannot inspect;
+and **lowering must stop above the instruction set**, because a name is where meaning lives and where
+linking can still happen. Given those, mediation cannot be in the kernel and cannot be in Python, and
+in-graph procedures are not one option among several — they are the only place left.

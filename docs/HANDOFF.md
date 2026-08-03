@@ -17,6 +17,7 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 | how it runs | [execution-model.md](execution-model.md) |
 | what it cannot do | [limits.md](limits.md) — kept deliberately honest |
 | what is only sayable in Python, and why | [audit.md](audit.md) |
+| why rules will stop calling `GET` | [mediated-access.md](mediated-access.md) — a design note, nothing built |
 | the instruction set | [reference/isa.md](reference/isa.md) |
 
 ## Current state
@@ -106,7 +107,10 @@ In this order. Steps 2–4 are the last large Python island: the plan-act-check-
    have ids that sort the way they were made. Three successive versions of that guard passed with the
    defect planted.
 
-   **It is NOT the live implementation, and that is a measurement rather than a hesitation.**
+   **It is not yet the live implementation, but that is a sequencing question and not a choice.** *The
+   workbench cannot stay in Python* — planning that Python owns is planning the system cannot inspect or
+   change, which is the island the whole design exists to avoid. No measurement outweighs that. What
+   the numbers below say is how much has to change *before* the swap, not whether to make it.
 
    | world | Python | surface | |
    |---|---|---|---|
@@ -121,9 +125,14 @@ In this order. Steps 2–4 are the last large Python island: the plan-act-check-
    phase machine that runs once per tick.
 
    The useful thing the measurement says is **where** the cost is: not interpreter overhead spread thin,
-   but one O(world size) copy per step. So the question it raises is not "make the interpreter faster"
-   but **"must a step copy the whole frame?"** — a question about the workbench's design, not about the
-   surface. That is the honest next thread, and it was invisible until `step` was expressible.
+   but one O(world size) copy per step. Avoiding that copy means a frame sharing versions with its
+   predecessor, which is only correct if reads are mediated — and mediation cannot live in the kernel
+   (it would have to know what a frame is) or in Python (see above). That leaves in-graph procedures,
+   which is [mediated-access.md](mediated-access.md), now the main design thread.
+
+   ⚠ Do not re-derive the two wrong turns recorded there: sharing versions *without* mediating reads is
+   not merely awkward but incorrect, and the cascade measurement that shows it does **not** also defeat
+   the mediated version.
 3. **Rewrite `execution.step`.** Needs `ATTEMPT` and dynamic bindings; both exist.
 4. **The phase machine** (`driver._phase_*`) falls out once 1–3 land. It is reads, guards, one call,
    attribute writes and unlinks — even its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
