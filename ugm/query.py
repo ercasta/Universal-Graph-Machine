@@ -54,6 +54,7 @@ See `docs/planning.md`.
 """
 from __future__ import annotations
 
+from . import access
 from . import driver as D
 from . import execution as X
 from . import function as fn
@@ -91,6 +92,18 @@ def is_pure(g: Graph, name: str, *, _seen: frozenset | None = None) -> bool:
             continue
         if ins.op == "DISPATCH":
             return False
+        if access.as_opcode(ins) is not None:
+            # A call to the closed access vocabulary is a graph operation wearing a name, and it is pure
+            # for the same reason `GET` is. Recursing into it would refuse every properly written rule in
+            # the library: `slot_of`'s body ends in a call *through a register* — the resolver, chosen by
+            # the ambient context — and a computed callee is exactly what this refuses.
+            #
+            # Reading the closed set is legitimate because it is closed, which is the third place that
+            # argument earns its keep (`access.as_opcode`, `driver._walk`, here). What it rests on is
+            # stated so it can be checked: no member's body contains `DISPATCH`, and the one computed call
+            # in each reaches a *resolver*. A resolver that dispatched would be a layer violation rather
+            # than a surprise — and `dispatch.service` still refuses an imagined target underneath it.
+            continue
         if ins.op == "INVOKE":
             target = ins.args[1] if len(ins.args) > 1 else None
             callee = target.name if isinstance(target, isa.F) else target

@@ -9,44 +9,71 @@
 # is planning the system cannot inspect or change, which is the island the whole design exists to avoid —
 # and resolution is the most load-bearing decision planning makes.
 #
-# **A node with no version in this frame resolves to itself.** That is what makes this safe to put under
-# every read at once: an already-resolved image has no mapping naming it as an `original`, so it comes
-# straight back, and so does a node from outside the workbench entirely. Resolution is idempotent, which
-# it has to be — the vocabulary cannot know whether its caller was handed a real node or an imagined one.
-
-# The image of `node` in this context's frame, or `node` itself if the frame has no version of it.
+# **Reading walks the frame chain.** A frame maps only what changed in it, so *no version here* means
+# *unchanged*, and unchanged means whatever the previous frame said. A node nothing has touched resolves
+# all the way to frame 0; a node from outside the workbench entirely resolves to itself. That last case
+# is what makes this safe to put under every read at once: resolution is idempotent, because the
+# vocabulary cannot know whether its caller was handed a real node or an imagined one.
 #
-# The mapping is found through the reverse index, never by scanning the frame: `mapping -original-> node`
-# points outward by the direction invariant, so the mappings that name this node are exactly the sources
-# of its `original` edge — one per frame it appears in. Scanning the frame's mappings instead would be
-# O(world) per read, which is the cost this whole layer exists to stop paying.
+# Termination is trivial, and worth contrasting with `path.reaches`, which needs a seen-set because the
+# world has cycles. This walks a *history*, and a history does not loop.
+
+# The version of `node` in force in this context's frame — this frame's, the nearest ancestor's, or the
+# node itself.
+#
+# One `DEREF` per frame, because the frame carries an index from identity to the version it holds
+# (`workbench.index`). That index is an ordinary stored reference — the substrate's key-to-node map,
+# which knows nothing about frames — and this reads exactly the structure Python's `mapping_for` reads,
+# so the two walks cannot drift into disagreeing.
+#
+# What it replaces was a search: ask the reverse index which mappings name this node, then ask each one
+# which frame it belongs to. That is O(versions) per read, and ambiguous besides — `execution.bind` points
+# at a mapping under the same label a frame does, so the sources of a mapping are its frame *and* every
+# replay that has bound it, sorted by id, with `bound` sorting first. An index cannot have that problem.
 fn in_frame(node) -> thing:
     NATIVE R(ctx) "context"
-    GET R(want) R(ctx) "frame"
-    NSOURCES R(n) F(node) "original"
-    CONST R(i) 0
-.each:
-    LT R(more) R(i) R(n)
-    JMPNOT R(more) .itself
-    SOURCE_AT R(m) F(node) "original" R(i)
-    KIND R(k) R(m)
-    EQ R(is_mapping) R(k) "mapping"
-    JMPNOT R(is_mapping) .next
+    GET R(f) R(ctx) "frame"
 
-    # Which frame this mapping belongs to. A mapping is in exactly one frame, so the count is one and
-    # the index is zero — but `NSOURCES` first, because a mapping that has been minted and not yet
-    # linked into its frame would otherwise index into nothing.
-    NSOURCES R(nf) R(m) "mapping"
-    JMPNOT R(nf) .next
-    SOURCE_AT R(f) R(m) "mapping" 0
-    EQ R(here) R(f) R(want)
-    JMPNOT R(here) .next
+    # First, what is this a version OF. A caller may hand over an identity (the canonical node) or a
+    # version of it (an image), and both must resolve to the same place — the vocabulary cannot know
+    # which it was given, and an edge read inside a frame answers with a version by construction.
+    #
+    # An imagined node is its own identity: its mapping has no `original`, which is not a missing pointer
+    # but a positive fact — *this does not exist yet and must be created when the plan runs* — so it is
+    # indexed under itself and the walk finds its first version exactly as a real node's finds frame 0's.
+    COPY R(id) F(node)
+    NSOURCES R(nv) F(node) "image"
+    CONST R(vi) 0
+.each_holder:
+    LT R(more_v) R(vi) R(nv)
+    JMPNOT R(more_v) .walk
+    SOURCE_AT R(vm) F(node) "image" R(vi)
+    KIND R(vk) R(vm)
+    EQ R(v_is_mapping) R(vk) "mapping"
+    JMPNOT R(v_is_mapping) .next_holder
+    GET R(vo) R(vm) "original"
+    JMPNOT R(vo) .walk
+    COPY R(id) R(vo)
+    JMP .walk
+.next_holder:
+    ADD R(vi) R(vi) 1
+    JMP .each_holder
+
+.walk:
+    JMPNOT R(f) .itself
+    DEREF R(m) R(f) R(id)
+    JMPIF R(m) .found
+
+    # Nothing in this frame: ask the frame it was derived from. `frame -next-> frame` read backwards, and
+    # a frame has exactly one predecessor, so the one-element answer has no order to get wrong.
+    NSOURCES R(np) R(f) "next"
+    JMPNOT R(np) .itself
+    SOURCE_AT R(f) R(f) "next" 0
+    JMP .walk
+
+.found:
     GET R(result) R(m) "image"
     RET
 
-.next:
-    ADD R(i) R(i) 1
-    JMP .each
-
 .itself:
-    COPY R(result) F(node)
+    COPY R(result) R(id)

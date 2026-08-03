@@ -77,11 +77,18 @@ class Ref:
 
 
 class Graph:
-    __slots__ = ("attrs", "out", "eids", "edges", "inc", "bykind", "eprops", "_journal", "_recording")
+    __slots__ = ("attrs", "out", "lbls", "eids", "edges", "inc", "bykind", "eprops",
+                 "_journal", "_recording")
 
     def __init__(self) -> None:
         self.attrs: dict[str, dict] = {}
         self.out: dict[tuple, list] = {}       # (src, label) -> [dst, …] ordered
+        # Which labels a node has edges under. Derivable from `out` — and deriving it was a scan of
+        # EVERY edge key in the graph, once per call, which made `labels` O(graph) and `drop` (which
+        # calls it once per node) O(graph) too. Invisible while the graph was small and while little was
+        # dropped; it became 70% of a planning run the moment calls started discarding their own
+        # scaffolding. Maintained here instead, in the five places an `out` key appears or disappears.
+        self.lbls: dict[str, set] = {}         # src -> {label, …}
         # Edges have identity. `eids` runs parallel to `out`, same order, written only by `_insert`
         # and `unlink`. Parallel rather than packing `(dst, eid)` into `out` on purpose: `targets` is
         # the hottest read in the engine (161 call sites) and stays an allocation-free dict lookup.
@@ -142,7 +149,11 @@ class Graph:
         return len(self.out.get((src, label), ()))
 
     def labels(self, src: str) -> tuple:
-        return tuple(sorted(lbl for (s, lbl) in self.out if s == src))
+        """Every label this node has outgoing edges under, sorted.
+
+        Sorted because the order is a fact callers depend on: `reachable` visits in it, and `reachable`'s
+        order decides copy order, mint order and hence the search's tie-break."""
+        return tuple(sorted(self.lbls.get(src, ())))
 
     def edge_prop(self, src: str, label: str, index: int, key: str, default=None):
         """Kept, signature unchanged, because five callers address an edge positionally and that is
@@ -237,6 +248,7 @@ class Graph:
         is the same discipline `thread._append` keeps for its two orderings, and it earns a check for the
         same reason: two parallel lists maintained in more than one place would drift silently."""
         tgts = self.out.setdefault((src, label), [])
+        self.lbls.setdefault(src, set()).add(label)
         ids = self.eids.setdefault((src, label), [])
         index = max(0, min(index, len(tgts)))
         eid = f"edge#{next(_ids)}"
@@ -255,6 +267,7 @@ class Graph:
             if not tgts:
                 self.out.pop((src, label), None)
                 self.eids.pop((src, label), None)
+                self.lbls.get(src, set()).discard(label)
             if dst not in tgts:
                 self.inc.get(dst, set()).discard((src, label))
         self._undo(undo)
@@ -281,12 +294,14 @@ class Graph:
         if not tgts:
             self.out.pop((src, label), None)
             self.eids.pop((src, label), None)
+            self.lbls.get(src, set()).discard(label)
 
         def undo():
             # The same id comes back. A rollback that minted a fresh one would leave anything pointing
             # at this edge — a moment that dated it, say — dangling at something that no longer exists,
             # which is exactly the guarantee edge identity was added to provide.
             self.out.setdefault((src, label), tgts).insert(index, removed)
+            self.lbls.setdefault(src, set()).add(label)
             self.eids.setdefault((src, label), ids).insert(index, eid)
             self.edges[eid] = (src, label, removed)
             if props is not None:
@@ -304,6 +319,7 @@ class Graph:
             for d in self.targets(node, lbl):
                 self.inc.get(d, set()).discard((node, lbl))
             saved = self.out.pop((node, lbl))
+            self.lbls.get(node, set()).discard(lbl)
             # The id indexes must go with the targets. Popping `out` alone left `eids` and `edges`
             # holding ids for edges that no longer exist — `edge_ends` would answer confidently about a
             # dropped edge, which is worse than answering `None`.
@@ -314,6 +330,7 @@ class Graph:
             def undo(lbl=lbl, saved=saved, saved_ids=saved_ids,
                      saved_props=saved_props, saved_ends=saved_ends):
                 self.out[(node, lbl)] = saved
+                self.lbls.setdefault(node, set()).add(lbl)
                 self.eids[(node, lbl)] = saved_ids
                 self.edges.update(saved_ends)
                 self.eprops.update(saved_props)

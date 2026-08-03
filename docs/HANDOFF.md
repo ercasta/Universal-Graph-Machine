@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **251 checks, 0 failing**, in about a minute.
+**Verify:** `python -m ugm.selftest` — currently **252 checks, 0 failing**, in about 70 seconds.
 
 The engine is `ugm/`. An earlier iteration lived in `microfunctions/` and the package was renamed;
 anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
@@ -49,8 +49,12 @@ inherits by walking `caller`. The planning corpus is written that way and the pl
 it read the opcode version.
 
 What remains is what it was all for — **sparse frames**, where a frame maps only what changed in it and
-resolution walks the chain. Until that lands, resolution is identity on everything a rule is handed, so
-the layer is correct and not yet earning its 4.8×.
+resolution walks the chain. The reading half is built and the writing half is written but not switched
+on; step 3 below says exactly what blocks it, and it is a correctness question rather than a cost one.
+
+Mediation costs **4.5×** on Sussman's anomaly (241 ms bare, 1090 ms mediated, same plan) and about **14%**
+on the whole self-test — which is the number that matters, since every stepped rule in the corpus now
+goes through the eight names.
 
 ## What landed since the audit
 
@@ -88,6 +92,18 @@ Traps worth not re-learning:
   as needing two reading opcodes; it needed a third to *write*.
 * ⚠ Doc-comment blocks attach to the next `fn`, so inserting a function between a comment and its `fn`
   silently orphans the docs.
+* ⚠⚠⚠ **A helper that scans the whole graph hides until something calls it a lot.** `Graph.labels`
+  derived a node's labels by scanning every edge key in the graph, and `drop` calls it once per node —
+  invisible for years, then **70% of a planning run** the moment calls began discarding their own
+  scaffolding. It is a maintained index now. The lesson generalises past this instance: the profile named
+  a function nobody had touched in the change that made it hot.
+* ⚠⚠ **An index belongs above the horizon, and the mechanism below it.** Locating a version by asking the
+  reverse index which mappings name a node, then asking each which frame it was in, is O(versions) with
+  an allocation per hop — and it made the search-heavy checks 30× slower. The fix was not a cleverer
+  walk: the frame carries a **stored reference** from identity to version (`workbench.index`), which is
+  the substrate's ordinary key-to-node map knowing nothing about frames, while the decision to key it by
+  identity is the workbench's. One check went 155 s → 5.1 s. Python and the surface read the *same*
+  index, so the two walks cannot drift.
 * ⚠⚠ **A static reader that loses information gets slower before it gets wrong.** Disabling
   `access.as_opcode` — which lets `driver._effects` see through a mediated call — reddens seven checks
   and takes the suite from 59 seconds to minutes, because a planner that cannot see what a rule
@@ -155,20 +171,36 @@ first; it also records two wrong turns in some detail, and both are easy to make
    not error.**
 
 3. **Make frames sparse** — a frame maps only what changed in it, reads walk up the chain, and an edge
-   points at a canonical identity so resolution happens on the target. This is what all of it was for,
-   and it is now the next thing rather than a distant one: the seam exists, `rules/resolve.mf` is the
-   file that changes, and `in_frame` already answers *itself* for a node the frame has no version of —
-   which is the sparse case, arrived at early because resolution has to be idempotent anyway.
+   points at a canonical identity so resolution happens on the target. **The reading half is built and
+   the writing half is written but not switched on.**
 
-   Three things land with it, and none of them can be tested before it:
-   * **`workbench.step` binds canonical nodes**, not images. Today it binds images and resolution is
-     therefore identity, which is why the layer is correct and not yet earning its 4.8×.
-   * **The four natives resolve** (`is_a`, `check`, `plan`, `plan_step`). `native.call` already hands
-     every primitive its activation, so the mechanism is there; what is missing is a case where ignoring
-     it is wrong, and binding canonical nodes is that case. ⚠ `function.invoke`'s parameter check calls
-     `types.violations` from Python with no activation — so a rule's *precondition* would read the real
-     world while its *body* reads the frame. That is the first thing to fix, and it is not in the note.
-   * **The goal machinery and the phase machine as boundaries**, which have no consumer until then.
+   Built: `mapping_for` and `rules/resolve.mf` both resolve by walking the frame chain; `mappings` and
+   `visible` are now **two questions** — what this frame changed, and the world as imagined here — which
+   one name was answering because dense frames made the answers identical. Every reader that meant the
+   second was moved over. `rules/version.mf` mints a version on write, through a **`writer`** the context
+   names beside its `resolver`, and `workbench.step` has been run sparse.
+
+   ⚠⚠ **Not switched on, and the reason is a correctness one rather than cost.** With a sparse frame, an
+   edge written in frame N points at the version its target had in frame N−1, while a goal constraint is
+   checked against frame N's version of that target — so `b on c` reads as false one step after it became
+   true, and a one-step goal comes back *not found*. The fix is the model the note actually states —
+   **an edge names an identity, never a version, and resolution happens on the target** — which means
+   `step` binds identities rather than images, frame 0's copies point at real nodes, and a link
+   constraint compares identities. Coherent, and wider than the line it replaces.
+
+   **The corpus is mediated**, which was the prerequisite: with frames sharing versions, a rule writing
+   through a bare `SET` would write into the *previous* frame, corrupting a recorded state on every
+   sibling branch. 52 stepped rules were rewritten to the eight names — mechanically, since the closed
+   set covers every opcode they used (`SET` 337, `LINK` 37, `NEW` 30, `ATTR` 24, `GET` 23, `COUNT` 3).
+   `asm.load_text` now **links**: a body that calls the vocabulary gets the vocabulary loaded, so no
+   caller keeps that precondition by hand.
+
+   Two things the rewrite exposed, both fixed:
+   * `query.is_pure` recursed into `INVOKE` and refused every mediated rule, because the vocabulary's
+     one computed call is the resolver. It now reads the closed set, which is the third place *the set
+     is closed, so a static reader may know it* earns its keep.
+   * `key="two words"` did not tokenise — a gap in the **surface**, which would have looked like the
+     mediated form being unable to say what the bare one could.
 
 4. **Swap `step.mf` live**, and re-measure. Only now is the comparison meaningful.
 

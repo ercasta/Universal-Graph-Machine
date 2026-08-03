@@ -177,7 +177,7 @@ def enumerate_frame(g: Graph, frame: str, *, allow=None) -> tuple:
     legitimate for a proof, never for a guess — the same line `relevance` sits on the other side of.
     `query.py` uses it to bar any function that could dispatch from being used as a derivation, which is a
     proof about the stored body, not an opinion about what will help."""
-    here = W.mappings(g, frame)
+    here = W.visible(g, frame)
     out, blocked = [], []
     for name in fn.names(g):
         # A mock is NOT an action. It is an assumption about how a real call turns out, so proposing one
@@ -735,7 +735,7 @@ def wants_that_unblock(g: Graph, frame: str, blocked: tuple, unmet: tuple) -> fr
 
     The general shape, worth keeping: *doing the work eagerly for everything cost more than doing it
     lazily for the few that need it* — even though the eager version was reusing a value already computed."""
-    here = W.mappings(g, frame)
+    here = W.visible(g, frame)
     wants = set()
     for name in blocked:
         if not _could_close(g, establishes(g, name)[0], unmet):
@@ -804,7 +804,7 @@ def state_of(g: Graph, frame: str) -> frozenset:
     each node is identified by what it *really* is (`resolve`), and the signature is its attributes plus its
     edges rewritten in those terms."""
     ident = {}
-    for m in W.mappings(g, frame):
+    for m in W.visible(g, frame):
         ident[W.image_of(g, m)] = W.resolve(g, m) or m
     out = []
     for image, who in ident.items():
@@ -1165,7 +1165,7 @@ def check_call(g: Graph, goal: str, frame: str, call: Call, prefix: str | None) 
         raise Undecidable(f"a decision named {call.function}({', '.join(sorted(call.bindings))}), but it "
                           f"takes ({', '.join(params)}) — a call must bind every parameter and no others")
 
-    mine = W.mappings(g, frame)
+    mine = W.visible(g, frame)
     bound = {}
     for p, given in call.bindings.items():
         m = given if given in mine else W.mapping_for(g, frame, given)

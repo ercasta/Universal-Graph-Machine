@@ -125,7 +125,7 @@ def open_workbench(g: Graph, subject: str, *, label: str = "workbench",
 
     originals = reachable(g, subject)
     image = _copy_set(g, originals)
-    frame = g.mint("frame", index=0)
+    frame = g.mint("frame", index=0, dense=True)      # frame 0 maps everything, always
     g.link(wb, "root_frame", frame)
     g.link(wb, "frame", frame)          # membership, distinct from the `next` tree that gives shape
     for o, img in image.items():
@@ -133,6 +133,7 @@ def open_workbench(g: Graph, subject: str, *, label: str = "workbench",
         g.link(m, "original", o)          # points out — never pointed at, see the invariant
         g.link(m, "image", img)
         g.link(frame, "mapping", m)
+        index(g, frame, o, m)
     return wb
 
 
@@ -142,16 +143,104 @@ def root_frame(g: Graph, wb: str):
 
 
 def mappings(g: Graph, frame: str) -> tuple:
+    """What this frame maps **itself** — which is what *changed* in it, once frames are sparse.
+
+    Distinct from `visible`, and the distinction is the whole of sparseness. While every frame carried a
+    mapping for every node the two questions had the same answer, so one name served both; they are
+    different questions and separating them is what lets a frame stop being a container and become a
+    marker. Two facts on one edge, in the shape this codebase keeps recording."""
     return g.targets(frame, "mapping")
 
 
+def previous(g: Graph, frame: str):
+    """The frame this one was derived from, or `None` at the root.
+
+    Read off `frame -next-> frame` backwards. The reverse index sorts by node id, which is normally a
+    trap here — but a frame has exactly one predecessor, and a one-element answer has no order to get
+    wrong. Where that is not true (`mapping -next-> mapping` forks, and so do frames forwards) the
+    forward edge is the one to read."""
+    got = [f for f in g.sources(frame, "next") if g.kind(f) == "frame"]
+    return got[0] if got else None
+
+
+def chain(g: Graph, frame: str) -> tuple:
+    """This frame and every frame it was derived from, nearest first. Resolution's search path.
+
+    Termination is trivial and worth contrasting with `path.reaches`, which needs a seen-set because the
+    world has cycles: this walks the *frame* chain, which is a history, and a history does not loop. The
+    guard below is against a malformed graph rather than an ordinary one."""
+    out, seen = [], set()
+    while frame is not None and frame not in seen:
+        seen.add(frame)
+        out.append(frame)
+        frame = previous(g, frame)
+    return tuple(out)
+
+
+def index(g: Graph, frame: str, identity: str, mapping: str) -> None:
+    """Record that `identity`'s version in this frame is `mapping`.
+
+    A stored reference, which is the substrate's O(1) key-to-node map — `SETREF`/`DEREF`, keyed by a
+    string, and a node id is a string. Nothing about that mechanism knows what a frame is: it is
+    semantic-agnostic, and the *decision* to key it by identity belongs to this layer. That is the
+    horizon in its usual place, and it is why the surface can read the very same index with one `DEREF`
+    rather than growing a second walk that would have to agree with this one.
+
+    It replaces a search. Locating a version used to mean asking the reverse index which mappings name
+    this node and then asking each of them which frame it sat in — O(versions) with an allocation per
+    hop, and ambiguous besides, because `execution.bind` points at a mapping under the same label a frame
+    does. An index answers in one lookup, and that ambiguity cannot arise in it.
+
+    Written by whoever mints the mapping, since that is the only place that knows: `open_workbench`,
+    `step`, and the writer in `rules/version.mf`."""
+    g.set_ref(frame, identity, mapping)
+
+
 def mapping_for(g: Graph, frame: str, original: str):
-    """The mapping in `frame` whose `original` is `original` — O(#mappings pointing at it) via the reverse
-    index rather than a scan of the frame."""
-    for m in g.sources(original, "original"):
-        if g.kind(m) == "mapping" and m in g.targets(frame, "mapping"):
+    """The version of `original` in force in `frame` — this frame's, or the nearest ancestor's.
+
+    **Reading walks the frame chain**, which is what makes a sparse frame correct: a frame maps only what
+    changed in it, so *not here* means *unchanged*, and unchanged means whatever the previous frame said.
+    A node nothing has touched resolves all the way to frame 0.
+
+    Found through the reverse index and never by scanning a frame. The mappings that name this node are
+    exactly the sources of its `original` edge — one per frame it has a version in — and each of those
+    knows its own frame the same way. Scanning `frame`'s mappings instead is O(world) per read, which is
+    the cost this whole layer exists to stop paying."""
+    if original is None:
+        return None
+    for f in chain(g, frame):
+        m = g.deref(f, original)
+        if m is not None:
             return m
     return None
+
+
+def visible(g: Graph, frame: str) -> tuple:
+    """Every mapping in force in this frame — the nearest version of each thing, nothing twice.
+
+    This is *the world as imagined here*, and it is what enumeration, goal checking and execution mean
+    when they ask a frame what is in it. `mappings` answers the other question — what this frame changed.
+
+    Nearest first, and the order within a frame is the order that frame linked them, which keeps the
+    determinism `reachable` and `_copy_set` are careful about: the search's tie-break ends in insertion
+    order, so an arbitrary order here would make the search arbitrary."""
+    seen, out = set(), []
+    for f in chain(g, frame):
+        for m in mappings(g, f):
+            key = g.target(m, "original") or m       # an imagined node stands for itself
+            if key not in seen:
+                seen.add(key)
+                out.append(m)
+        # A frame that maps the whole world ends the walk, because nothing above it can add anything.
+        # Without this the walk is O(depth x world) where reading one frame was O(world) — and while
+        # every frame is still a full copy, that is pure overhead: measured at ~50x on the search-heavy
+        # checks, which is how it was found. `dense` is bookkeeping the frame's maker owns, not a
+        # heuristic: stopping when a frame *happens* to add nothing would be unsound, since a sparse
+        # frame can add nothing while an ancestor still has versions this walk has not seen.
+        if g.attr(f, "dense"):
+            break
+    return tuple(out)
 
 
 def image_of(g: Graph, mapping: str):
@@ -230,6 +319,18 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
 
     `assumes` records the hypothesis this step took on faith — which is how a plan carries its own
     dependence on guesses, inspectably."""
+    # The frame is still a full copy, and the machinery for it not to be is built and dormant —
+    # `rules/version.mf` mints a version on write, `visible` and `mapping_for` walk the chain, and this
+    # function has run sparse. It is **not switched on**, and the reason is recorded in
+    # `docs/mediated-access.md` rather than left as a silence: with a sparse frame an edge written in
+    # frame N points at the version its target had in frame N−1, while a goal constraint is checked
+    # against frame N's version of that target, so `b on c` reads as false one step after it became true.
+    #
+    # The fix is the model the design note actually states — **an edge names an identity, never a
+    # version, and resolution happens on the target** — which means `step` binds identities rather than
+    # images, frame 0's copies point at real nodes, and a link constraint compares identities. That is a
+    # coherent change and a wider one than it looks, so it lands deliberately rather than as a
+    # side effect of switching this line.
     prev_images = {m: image_of(g, m) for m in mappings(g, frame)}
     # Ordered dedupe, not `set`. `mappings` is an ordered tuple, so this frame's order is a fact; a set
     # would replace it with node-id hash order and make every subsequent frame's mapping order — and hence
@@ -237,7 +338,7 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     originals = dict.fromkeys(prev_images.values())
     image = _copy_set(g, originals)
 
-    new_frame = g.mint("frame", index=g.attr(frame, "index", 0) + 1)
+    new_frame = g.mint("frame", index=g.attr(frame, "index", 0) + 1, dense=True)
     g.link(wb, "frame", new_frame)
     carried = {}
     for m, prev_img in prev_images.items():
@@ -248,6 +349,7 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
         g.link(nm, "image", image[prev_img])
         g.link(m, "next", nm)                 # 1:N — forks when the frame forks
         g.link(new_frame, "mapping", nm)
+        index(g, new_frame, src if src is not None else image[prev_img], nm)
         carried[m] = nm
 
     # Mock substitution. On a workbench, a function that has declared outcomes is replaced by one of
@@ -301,11 +403,17 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     # versions without containing one word about frames, and a rule that reaches a node some other way
     # than through its arguments resolves it the same way.
     #
-    # `step` was already the mediation point; it did it by materialising at bind time, handing the images
-    # over directly. The seam does not move, only the mechanism at it — which is why binding images here
-    # stays correct: `in_frame` resolves an image of this frame to itself, so the two agree exactly while
-    # frames are dense, and only the sparse ones will tell them apart.
-    ctx = access.open_context(g, resolver="in_frame", label=f"imagining {function}", frame=new_frame)
+    # `step` was already the mediation point; it did it by materialising at bind time, handing over a
+    # freshly copied world. The seam does not move, only the mechanism at it.
+    #
+    # The arguments are the versions in force in the PREVIOUS frame, and that is not a compromise: a
+    # version is resolved before it is read and before it is written, so what the call is handed is an
+    # identity in all but name. Reading one answers with the previous frame's value, which is correct —
+    # nothing has changed yet — and writing one mints this frame's version. The reader normalises an
+    # image back to what it is a version of, which is what lets both an identity and a version be handed
+    # in and mean the same thing.
+    ctx = access.open_context(g, resolver="in_frame", writer="version_in_frame",
+                              label=f"imagining {function}", frame=new_frame)
     called, _out = fn.invoke(g, executed, args, under=ctx)
 
     # A function may mint something while imagining. Those nodes get mappings too, with no `original` —
@@ -316,11 +424,18 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
     # What the call minted is read off the CALL, not off a whole-graph diff — see `activation.minted`.
     # The diff also caught anything else that happened to be minted while the call ran, which stopped being
     # theoretical once the interpreter's own state (focus, heads, activation, registers) became graph data.
+    # A version minted by the writer is NOT a new node in the world — it is this frame's copy of one that
+    # already existed, and it already has its mapping. Only what the rule itself brought into existence
+    # gets an imagined mapping, which is what `original` being absent means.
     ran = ACT.for_focus(g, called.node)
+    versioned = {image_of(g, m) for m in mappings(g, new_frame)}
     for n in ACT.minted(g, ran):
+        if n in versioned or g.kind(n) in ("mapping", "frame"):
+            continue
         m = g.mint("mapping")
         g.link(m, "image", n)
         g.link(new_frame, "mapping", m)
+        index(g, new_frame, n, m)         # an imagined node is its own identity
 
     # Choosing an outcome IS making an assumption, so it becomes a hypothesis the transformation records.
     # That is what lets a plan carry its own dependence on guesses: "which parts of this are fragile"

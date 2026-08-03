@@ -121,8 +121,37 @@ def as_opcode(ins):
     return isa.I(op, ((args[0],) + operands) if writes else operands)
 
 
+def calls_the_vocabulary(program) -> bool:
+    """Does this body reach the graph through the closed set? The linker's question."""
+    return any(not isinstance(ins, str) and as_opcode(ins) is not None for ins in program)
+
+
+def bootstrap(g: Graph) -> tuple:
+    """Make sure the closed vocabulary and the frame resolver are in this graph. Idempotent.
+
+    Called by `asm.load_text` when what it just stored calls one of the eight names, which makes this
+    **linking** rather than convenience: a rule that says `slot_of` names something that has to be there
+    to run, and resolving a name to an implementation is exactly the step lowering-to-a-name preserves.
+    Requiring every caller to remember to load two files first would be a precondition kept by hand, and
+    forgetting it would fail at run time, far from the load that should have said so.
+
+    No recursion to guard against, and it is worth saying why rather than trusting it: the bodies in
+    these two files reach the graph with bare opcodes — they *are* the mediation — so loading them can
+    never trigger this."""
+    from . import asm, function as fn
+    from pathlib import Path
+    here = Path(__file__).parent / "rules"
+    out = []
+    for probe, name in (("slot_of", "access.mf"), ("in_frame", "resolve.mf"),
+                        ("version_in_frame", "version.mf"), ("copy_node", "reachable.mf")):
+        if fn.find(g, probe) is None:
+            out.extend(asm.load_file(g, here / name))
+    return tuple(out)
+
+
 # --- contexts -----------------------------------------------------------------------------------------
-def open_context(g: Graph, *, resolver: str | None = None, label: str | None = None, **links) -> str:
+def open_context(g: Graph, *, resolver: str | None = None, writer: str | None = None,
+                 label: str | None = None, **links) -> str:
     """A context: what a read means, for the dynamic extent of whatever establishes it.
 
     `resolver` is the *name* of a function taking one node and returning the node to read instead — the
@@ -136,6 +165,8 @@ def open_context(g: Graph, *, resolver: str | None = None, label: str | None = N
     ctx = g.mint("context", **({"label": label} if label else {}))
     if resolver is not None:
         g.put(ctx, resolver=resolver)
+    if writer is not None:
+        g.put(ctx, writer=writer)
     for name, target in links.items():
         if target is not None:
             g.link(ctx, name, target)
@@ -195,6 +226,23 @@ def resolver_of(g: Graph, act: str | None):
     anybody can read, and the machinery can change what a read means without touching a rule."""
     ctx = context_of(g, act)
     return None if ctx is None else g.attr(ctx, "resolver")
+
+
+def writer_of(g: Graph, act: str | None):
+    """The name of the function a *write* must resolve through, or `None` for the trivial context.
+
+    Reading asks *which version is in force*; writing asks *which version may I change* — and those are
+    different questions the moment a frame shares versions with its predecessor. Writing to the version
+    in force would change what an earlier frame said, and every sibling branch with it, invisibly. So a
+    write resolves through a writer that mints a version belonging to this frame if there is not one
+    already, which is copy-on-write with the copying decided by a name the context supplies.
+
+    Falls back to the resolver, so a context that only reads is written through the same way it is read —
+    the real world's case, where there is one version of everything and a write lands on it."""
+    ctx = context_of(g, act)
+    if ctx is None:
+        return None
+    return g.attr(ctx, "writer") or g.attr(ctx, "resolver")
 
 
 # --- the compliance question --------------------------------------------------------------------------
@@ -271,8 +319,9 @@ def resolves_before_touching(g: Graph) -> tuple:
         for i, ins in enumerate(program):
             if isinstance(ins, str):
                 continue
-            if asked is None and ins.op == "NATIVE" and "resolver" in ins.args:
-                asked = i
+            if asked is None and ins.op == "NATIVE" and (
+                    "resolver" in ins.args or "writer" in ins.args):
+                asked = i                          # reading asks one; writing asks the other
             if touched is None and ins.op in isa.TOUCHES_GRAPH:
                 touched = i
         if touched is None:
@@ -280,7 +329,7 @@ def resolves_before_touching(g: Graph) -> tuple:
         elif op == "NEW":
             continue                                   # `make` resolves nothing: there is no version yet
         elif asked is None:
-            bad.append((name, "never asks for the resolver"))
+            bad.append((name, "never asks how to resolve"))
         elif touched < asked:
             bad.append((name, f"touches the graph at {touched} before resolving at {asked}"))
     return tuple(bad)
@@ -291,7 +340,8 @@ from . import native as _N                                            # noqa: E4
 # read interpreter state — an activation and the edge it carries — and nothing about the world. The
 # module that owns a thing registers it (`native.py`'s rule), and what a context *means* is owned here.
 _N.register("resolver", lambda g, act: resolver_of(g, act))
+_N.register("writer", lambda g, act: writer_of(g, act))
 _N.register("context", lambda g, act: context_of(g, act))
 
 __all__ = ["KINDS", "VOCABULARY", "open_context", "establish", "context_of", "establishes",
-           "resolver_of", "bare_touches", "operators", "offenders", "resolves_before_touching"]
+           "resolver_of", "writer_of", "bootstrap", "bare_touches", "operators", "offenders", "resolves_before_touching"]

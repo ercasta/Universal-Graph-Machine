@@ -219,7 +219,7 @@ def check_ignorance_is_representable_and_sensing_closes_it():
     asm.load_text(g, "\n".join([
         "# Looking is an ACTION: it changes what we know, not what is there.",
         "fn look_inside(b: box) -> box:",
-        '    SET F(b) "contents" "a spanner"',
+        '    INVOKE R(_) set_slot node=F(b) key="contents" value="a spanner"',
     ]))
 
     goal = I.read_goal(g, "goal find out what is in the box:\n    box.contents known")
@@ -2550,7 +2550,14 @@ def check_FORGETTING_IS_THE_DEFAULT_and_no_answer_changes():
     did, whether two intentions collided, which goals are met, and whether the library still thinks."""
     from . import forget as FG, loop as L
     g, world, th = _worked_session()
-    before_nodes = len(g.nodes)
+    # The library is measured out of both counts, because it was never in question: a stored function
+    # and its instructions are not *the past*, they are what the past was thought with, and they are
+    # kept by definition. Counting them made the ratio a fact about how many functions happened to be
+    # loaded — which changed the day rules started reaching the graph through eight of them.
+    library = {"function", "instr", "arg", "param", "type", "constraint"}
+    def workspace(gr):
+        return sum(1 for n in gr.nodes if gr.kind(n) not in library)
+    before_nodes = workspace(g)
     before = _still_answerable(g, world, th)
 
     lp = L.open_loop(g, "a quiet moment")
@@ -2565,7 +2572,8 @@ def check_FORGETTING_IS_THE_DEFAULT_and_no_answer_changes():
     kinds_left = {g.kind(n) for n in g.nodes}
     return {"THE_ANSWERS_ARE_UNCHANGED": after == before,
             "and_they_were_not_all_empty": bool(before["what_i_did"]) and before["a_on_b"] is not None,
-            "MOST_OF_THE_PAST_WAS_ORDINARY": len(g.nodes) < before_nodes * 0.4,
+            "MOST_OF_THE_PAST_WAS_ORDINARY": workspace(g) < before_nodes * 0.4,
+            "workspace_before_and_after": (before_nodes, workspace(g)),
             "the_world_survived": {"block", "ground", "world"} <= kinds_left,
             "so_did_the_library": {"function", "instr"} <= kinds_left,
             "AND_SO_DID_WHAT_I_DID": "application" in kinds_left,
@@ -2771,8 +2779,8 @@ def _warehouse(nested: bool = True):
     asm.load_text(g, "\n".join([
         "# Put a loose thing inside a container.",
         "fn put_in(t: loose, box: thing) -> thing:",
-        '    LINK F(box) "contains" F(t)',
-        '    SET F(t) "held" true',
+        '    INVOKE R(_) relate node=F(box) label="contains" other=F(t)',
+        '    INVOKE R(_) set_slot node=F(t) key="held" value=true',
     ]))
     world = g.mint("world")
     g.link("root", "has", world)
@@ -3326,7 +3334,7 @@ def check_assembly_refuses_a_malformed_invoke():
     g, car, _ = _car_world()
     asm.load_text(g, "\n".join([
         'fn wash(c):',
-        '    SET F(c) "washed" true',
+        '    INVOKE R(_) set_slot node=F(c) key="washed" value=true',
         'fn full_wash(c):',
         '    INVOKE R(out) wash c=F(c)',
     ]))
@@ -3513,7 +3521,7 @@ def _library():
         "",
         "# Mark a car as serviced.",
         "fn service(c: car):",
-        '    SET F(c) "serviced" true',
+        '    INVOKE R(_) set_slot node=F(c) key="serviced" value=true',
     ]))
     return g, car, trike
 
@@ -3648,11 +3656,11 @@ def _garage():
     asm.load_text(g, "\n".join([
         "# Cast a car into a serviced car.",
         "fn service(c: car) -> serviced_car:",
-        '    SET F(c) "serviced" true',
+        '    INVOKE R(_) set_slot node=F(c) key="serviced" value=true',
         "",
         "# Cast a serviced car into a washed one.",
         "fn wash(c: serviced_car) -> washed_car:",
-        '    SET F(c) "washed" true',
+        '    INVOKE R(_) set_slot node=F(c) key="washed" value=true',
     ]))
     car = g.mint("chunk")
     g.link("root", "has", car)                      # real things hang off root
@@ -4050,17 +4058,17 @@ def _filesystem():
         "# Really list a directory. Reaches the world.",
         "fn list_dir(d: dir) -> listing:",
         '    DISPATCH R(out) "ls" F(d)',
-        '    SET F(d) "listed" true',
+        '    INVOKE R(_) set_slot node=F(d) key="listed" value=true',
         "",
         "# Assume the directory turns out empty.",
         "fn list_empty(d: dir) -> empty_listing mocks list_dir:",
-        '    SET F(d) "listed" true',
-        '    SET F(d) "count" 0',
+        '    INVOKE R(_) set_slot node=F(d) key="listed" value=true',
+        '    INVOKE R(_) set_slot node=F(d) key="count" value=0',
         "",
         "# Assume it turns out to have plenty in it.",
         "fn list_full(d: dir) -> full_listing mocks list_dir:",
-        '    SET F(d) "listed" true',
-        '    SET F(d) "many" true',
+        '    INVOKE R(_) set_slot node=F(d) key="listed" value=true',
+        '    INVOKE R(_) set_slot node=F(d) key="many" value=true',
     ]))
     d = g.mint("dir", kind_of="dir")
     g.link("root", "has", d)
@@ -4251,8 +4259,8 @@ def check_a_node_imagined_during_planning_is_bound_by_provenance():
     asm.load_text(g, "\n".join([
         "# Attach a fresh service record to the car.",
         "fn record(c: car) -> car:",
-        '    NEW R(r) "record"',
-        '    LINK F(c) "record" R(r)',
+        '    INVOKE R(r) make kind="record"',
+        '    INVOKE R(_) relate node=F(c) label="record" other=R(r)',
     ]))
     wb = W.open_workbench(g, car)
     f0 = W.root_frame(g, wb)
@@ -4278,11 +4286,11 @@ def _filesystem_with_followups():
     asm.load_text(g, "\n".join([
         "# What you do with a directory that turned out to have plenty in it.",
         "fn archive(d: full_listing) -> archived_dir:",
-        '    SET F(d) "archived" true',
+        '    INVOKE R(_) set_slot node=F(d) key="archived" value=true',
         "",
         "# What you do with one that turned out empty.",
         "fn remove(d: empty_listing) -> removed_dir:",
-        '    SET F(d) "removed" true',
+        '    INVOKE R(_) set_slot node=F(d) key="removed" value=true',
     ]))
     return g, d
 
@@ -6448,6 +6456,82 @@ def check_A_PLANNING_OPERATOR_MAY_NOT_TOUCH_THE_GRAPH_BARE():
             "and_there_were_effects_to_agree_about": len(D.establishes(g, "stack")[0]) >= 4}
 
 
+def check_READING_WALKS_THE_FRAME_CHAIN_so_a_frame_can_be_SPARSE():
+    """A frame maps only what changed in it, and *not here* means *unchanged*.
+
+    This is what the mediation was for. Today every frame still carries a mapping for every node, so the
+    walk never has to go anywhere — which is exactly why it needs a check built to make it: the frame
+    below is sparse on purpose, mapping one node and inheriting the rest.
+
+    It also separates two questions one name was answering. `mappings` is what this frame maps — which
+    *is* what changed, once frames are sparse — and `visible` is the world as imagined here, the nearest
+    version of everything. While frames were dense the two had the same answer, which is how they came to
+    share a name; they are different questions, and telling them apart is what lets a frame stop being a
+    container and become a marker.
+
+    ⚠ The trap this found: a version is located through the reverse index, and *what points at a mapping*
+    is its frame **and every replay that has bound it** — `execution.bind` mints a `bound` node under the
+    same `mapping` label. Taking the first source would take whichever sorted lowest. `g.sources` sorts by
+    id, so this is that trap again, and this time the wrong answer would be a replay.
+
+    Vacuity guards: the sparse frame must map exactly one node, so inheritance is really being tested; the
+    two implementations of the walk — Python's `mapping_for` and the surface's `in_frame` — must agree,
+    since two readers of one structure are the drift shape this codebase keeps recording; and a bound
+    replay must be in the graph, or the reverse-index trap could not fire."""
+    from . import access as AX, execution as X, function as fn, workbench as W
+    g, car = _garage()
+    from pathlib import Path
+    from . import asm
+    for name in ("access.mf", "resolve.mf"):
+        asm.load_file(g, Path(__file__).parent / "rules" / name)
+
+    wb = W.open_workbench(g, car)
+    f0 = W.root_frame(g, wb)
+    f1, _tr = W.step(g, wb, f0, "service", {"c": W.mapping_for(g, f0, car)})
+
+    # A sparse frame, built by hand because nothing mints one yet: it maps the car and nothing else.
+    wheel = g.targets(car, "wheel")[0]
+    f2 = g.mint("frame", index=2)
+    g.link(wb, "frame", f2)
+    g.link(f1, "next", f2)
+    carried = W.mapping_for(g, f1, car)
+    newer = g.mint("mapping")
+    g.link(newer, "original", car)
+    g.link(newer, "image", g.mint("car", kind_of="car", washed=True))
+    g.link(carried, "next", newer)
+    g.link(f2, "mapping", newer)
+    W.index(g, f2, car, newer)                         # the frame's identity-to-version index
+
+    # The answer, worked out structurally rather than by the function under test — an assertion that
+    # compares `mapping_for` against `mapping_for` degrades exactly as the code does, which is how the
+    # first version of this check passed with the trap planted.
+    in_f1 = next(m for m in W.mappings(g, f1) if g.target(m, "original") == wheel)
+    # ...and a replay that has bound *that* mapping, which is what makes the reverse index ambiguous
+    # precisely where the answer comes from. Binding any other one leaves the trap unsprung.
+    X.open_replay(g, wb, (f0, f1, f2), bound={in_f1: wheel})
+
+    inherited = W.mapping_for(g, f2, wheel)
+    ctx = AX.open_context(g, resolver="in_frame", frame=f2)
+    surface = {n: fn.invoke(g, "in_frame", {"node": n}, under=ctx)[1]["result"]
+               for n in (car, wheel)}
+
+    return {"A_SPARSE_FRAME_MAPS_ONLY_WHAT_CHANGED": len(W.mappings(g, f2)) == 1,
+            # ...and reading an unchanged node walks up to the frame that last had a version of it.
+            "AN_UNCHANGED_NODE_RESOLVES_TO_THE_ANCESTORS_VERSION": inherited == in_f1,
+            "and_a_CHANGED_one_resolves_here": W.mapping_for(g, f2, car) == newer,
+            # The world as imagined here is still whole, even though the frame holds one mapping.
+            "THE_WORLD_IS_STILL_WHOLE": len(W.visible(g, f2)) == len(W.visible(g, f1)),
+            "and_names_each_thing_ONCE": len(set(W.visible(g, f2))) == len(W.visible(g, f2)),
+            "the_chain_is_three_deep": W.chain(g, f2) == (f2, f1, f0),
+            # Two implementations of one walk, which must agree.
+            "THE_SURFACE_WALK_AGREES_WITH_THE_PYTHON_ONE":
+                surface[wheel] == W.image_of(g, in_f1)
+                and surface[car] == W.image_of(g, newer),
+            # Vacuity for the reverse-index trap: there IS a replay binding one of these mappings.
+            "and_a_REPLAY_HAD_BOUND_ONE_OF_THEM":
+                any(g.kind(s) == "bound" for s in g.sources(in_f1, "mapping"))}
+
+
 def check_EVERY_BOUNDARY_ESTABLISHES_A_WORLD_TO_READ_IN():
     """The risk dynamic scope buys, checked rather than left to a convention.
 
@@ -6535,14 +6619,14 @@ def check_WORKBENCH_STEP_IS_AN_ORDINARY_PROGRAM():
         declare_type(g, "empty_listing", base="listing", attrs={"count": 0})
         declare_type(g, "full_listing", base="listing", attrs={"many": True})
         full = ["fn list_full(d: dir) -> full_listing mocks list_dir:",
-                '    SET F(d) "listed" true', '    SET F(d) "many" true']
+                '    INVOKE R(_) set_slot node=F(d) key="listed" value=true', '    SET F(d) "many" true']
         if minting:                       # a mock that brings something into existence
             full += ['    NEW R(f) "file"', '    LINK F(d) "file" R(f)']
         asm.load_text(g, _lines(
             "fn list_dir(d: dir) -> listing:", '    DISPATCH R(out) "ls" F(d)',
-            '    SET F(d) "listed" true', "",
+            '    INVOKE R(_) set_slot node=F(d) key="listed" value=true', "",
             "fn list_empty(d: dir) -> empty_listing mocks list_dir:",
-            '    SET F(d) "listed" true', '    SET F(d) "count" 0', "", *full))
+            '    INVOKE R(_) set_slot node=F(d) key="listed" value=true', '    SET F(d) "count" 0', "", *full))
         for f in ("reachable.mf", "step.mf"):
             asm.load_file(g, Path(__file__).parent / "rules" / f)
         d = g.mint("dir", kind_of="dir")
@@ -7554,18 +7638,18 @@ def _scanner_fs():
         "# Really list a directory. Reaches the world.",
         "fn scan_dir(d: dir) -> listing:",
         '    DISPATCH R(out) "ls" F(d)',
-        '    SET F(d) "listed" true',
+        '    INVOKE R(_) set_slot node=F(d) key="listed" value=true',
         "",
         "# Assume it turns out to hold two files.",
         "fn found_two(d: dir) -> listing mocks scan_dir:",
-        '    SET F(d) "listed" true',
-        '    NEW R(f1) "file"', '    LINK F(d) "file" R(f1)',
-        '    NEW R(f2) "file"', '    LINK F(d) "file" R(f2)',
+        '    INVOKE R(_) set_slot node=F(d) key="listed" value=true',
+        '    INVOKE R(f1) make kind="file"', '    LINK F(d) "file" R(f1)',
+        '    INVOKE R(f2) make kind="file"', '    LINK F(d) "file" R(f2)',
         "",
         "# Assume it turns out empty.",
         "fn found_none(d: dir) -> listing mocks scan_dir:",
-        '    SET F(d) "listed" true',
-        '    SET F(d) "count" 0',
+        '    INVOKE R(_) set_slot node=F(d) key="listed" value=true',
+        '    INVOKE R(_) set_slot node=F(d) key="count" value=0',
     ]))
     d = g.mint("dir", kind_of="dir")
     g.link("root", "has", d)
@@ -7683,17 +7767,17 @@ def _repo():
         "# THE LOOK. Everything it learns is on the far side of the DISPATCH.",
         "fn git_status(t: tree) -> report:",
         '    DISPATCH R(out) "git_status" F(t)',
-        '    SET F(t) "reported" true',
+        '    INVOKE R(_) set_slot node=F(t) key="reported" value=true',
         "",
         "# ITS MODEL - not 'suppose it comes back dirty' but 'work out what it will say'.",
         "fn anticipate(t: tree) -> report mocks git_status:",
-        '    SET F(t) "reported" true',
-        '    COUNT R(n) F(t) "changed_file"',
+        '    INVOKE R(_) set_slot node=F(t) key="reported" value=true',
+        '    INVOKE R(n) relations node=F(t) label="changed_file"',
         '    JMPNOT R(n) .clean',
-        '    SET F(t) "dirty" true',
+        '    INVOKE R(_) set_slot node=F(t) key="dirty" value=true',
         "    JMP .done",
         "    .clean:",
-        '    SET F(t) "dirty" false',
+        '    INVOKE R(_) set_slot node=F(t) key="dirty" value=false',
         "    .done:",
         "    HALT",
         "",
@@ -7800,17 +7884,17 @@ def check_a_mock_maps_a_CONDITION_to_an_expectation():
             declare_type(g, "clean_tree", {"changed_file": Req(kind="file", lo=0, hi=0)},
                          attrs={"kind_of": "tree"})
             lines += ["fn found_dirty(t: dirty_tree) -> report mocks git_status:",
-                      '    SET F(t) "reported" true', '    SET F(t) "dirty" true', "",
+                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true', '    SET F(t) "dirty" true', "",
                       "fn found_clean(t: clean_tree) -> report mocks git_status:",
-                      '    SET F(t) "reported" true', '    SET F(t) "dirty" false', "",
+                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true', '    SET F(t) "dirty" false', "",
                       # A loose outcome, declared last: its condition holds in every world, so it fits
                       # alongside a specific one and is what makes "declaration order decides among
                       # several that fit" a testable claim rather than a docstring.
                       "fn found_something(t: tree) -> report mocks git_status:",
-                      '    SET F(t) "reported" true', '    SET F(t) "dirty" true']
+                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true', '    SET F(t) "dirty" true']
         else:
             lines += ["fn anticipate(t: tree) -> report mocks git_status:",
-                      '    SET F(t) "reported" true', '    COUNT R(n) F(t) "changed_file"',
+                      '    INVOKE R(_) set_slot node=F(t) key="reported" value=true', '    COUNT R(n) F(t) "changed_file"',
                       '    JMPNOT R(n) .clean', '    SET F(t) "dirty" true', "    JMP .done",
                       "    .clean:", '    SET F(t) "dirty" false', "    .done:", "    HALT"]
         asm.load_text(g, "\n".join(lines))
@@ -7971,16 +8055,16 @@ def _threshold_library():
     asm.load_text(g, "\n".join([
         "# Make the comparison easier to pass by lowering its threshold.",
         "fn lower_threshold(c: comparison) -> comparison:",
-        '    GET R(rhs) F(c) "right"',
-        '    ATTR R(v) R(rhs) "value"',
+        '    INVOKE R(rhs) related node=F(c) label="right"',
+        '    INVOKE R(v) slot_of node=R(rhs) key="value"',
         "    ADD R(v2) R(v) -1",
-        '    SET R(rhs) "value" R(v2)',
+        '    INVOKE R(_) set_slot node=R(rhs) key="value" value=R(v2)',
         "",
         "fn raise_threshold(c: comparison) -> comparison:",
-        '    GET R(rhs) F(c) "right"',
-        '    ATTR R(v) R(rhs) "value"',
+        '    INVOKE R(rhs) related node=F(c) label="right"',
+        '    INVOKE R(v) slot_of node=R(rhs) key="value"',
         "    ADD R(v2) R(v) 1",
-        '    SET R(rhs) "value" R(v2)',
+        '    INVOKE R(_) set_slot node=R(rhs) key="value" value=R(v2)',
     ]))
     root, lits = g.mint("rule"), []
     for v in (3, 7):
@@ -8196,7 +8280,7 @@ def check_interference_between_two_goals_is_surfaced():
     asm.load_text(g, "\n".join([
         "# A second, independently authored feature that happens to write the same slot.",
         "fn varnish(b: block) -> block:",
-        '    SET F(b) "colour" "clear"',
+        '    INVOKE R(_) set_slot node=F(b) key="colour" value="clear"',
     ]))
     declare_type(g, "red_block", base="block", attrs={"colour": "red"})
     declare_type(g, "varnished_block", base="block", attrs={"colour": "clear"})
@@ -8218,7 +8302,7 @@ def check_interference_between_two_goals_is_surfaced():
     a2 = g2.targets(world2, "block")[0]
     asm.load_text(g2, "\n".join(["# the same second feature",
                                  "fn varnish(b: block) -> block:",
-                                 '    SET F(b) "colour" "clear"']))
+                                 '    INVOKE R(_) set_slot node=F(b) key="colour" value="clear"']))
     th2 = T.open_thread(g2, "one goal")
     both_writes = G.open_goal(g2, label="varnish, having painted")
     G.require_attr(g2, both_writes, a2, "colour", "clear")
@@ -8261,9 +8345,9 @@ def check_two_plans_collide_before_either_runs():
     asm.load_text(g, "\n".join([
         "# Independently authored, and it happens to write the slot `paint` writes.",
         "fn varnish(b: block) -> block:",
-        '    SET F(b) "colour" "clear"',
+        '    INVOKE R(_) set_slot node=F(b) key="colour" value="clear"',
         "fn polish(b: block) -> block:",
-        '    SET F(b) "shine" true',
+        '    INVOKE R(_) set_slot node=F(b) key="shine" value=true',
     ]))
     th = T.open_thread(g, "composing")
 
@@ -8553,11 +8637,11 @@ def _mortality_library():
         "# Declared FIRST on purpose: see the docstring. This is the one the search would otherwise take.",
         "fn ask_the_registrar(p: person) -> mortal_thing:",
         '    DISPATCH R(out) "registrar" F(p)',
-        '    SET F(p) "mortal" true',
+        '    INVOKE R(_) set_slot node=F(p) key="mortal" value=true',
         "",
         "# Everyone who is a person is mortal. Concludes; never acts.",
         "fn conclude_mortal(p: person) -> mortal_thing:",
-        '    SET F(p) "mortal" true',
+        '    INVOKE R(_) set_slot node=F(p) key="mortal" value=true',
     ]))
     paul = g.mint("person", label="paul")
     g.link("root", "person", paul)
@@ -9793,24 +9877,24 @@ def _two_plans_world():
     asm.load_text(g, "\n".join([
         "# Go to school - only possible from home.",
         "fn go_to_school(p: at_home) -> at_school:",
-        '    SET F(p) "where" "school"',
+        '    INVOKE R(_) set_slot node=F(p) key="where" value="school"',
         "",
         "# Fly home - only possible from abroad, and only with a ticket.",
         "fn fly_home(p: ready_to_fly) -> at_home:",
-        '    SET F(p) "where" "home"',
+        '    INVOKE R(_) set_slot node=F(p) key="where" value="home"',
         "",
         "fn buy_ticket(p: at_abroad) -> ready_to_fly:",
-        '    SET F(p) "ticket" true',
+        '    INVOKE R(_) set_slot node=F(p) key="ticket" value=true',
         "",
         "# Nothing to do with any of the above - the unrelated second plan, in three steps.",
         "fn fill(b: box) -> filled_box:",
-        '    SET F(b) "filled" true',
+        '    INVOKE R(_) set_slot node=F(b) key="filled" value=true',
         "",
         "fn tape(b: filled_box) -> taped_box:",
-        '    SET F(b) "taped" true',
+        '    INVOKE R(_) set_slot node=F(b) key="taped" value=true',
         "",
         "fn pack(b: taped_box) -> packed_box:",
-        '    SET F(b) "packed" true',
+        '    INVOKE R(_) set_slot node=F(b) key="packed" value=true',
     ]))
     me = g.mint("person", label="me", where="abroad", ticket=True)
     box = g.mint("box", label="box")

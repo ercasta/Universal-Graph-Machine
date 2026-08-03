@@ -62,7 +62,11 @@ from .isa import F, I, R
 _OPCODES = {name for name in isa.__all__
             if name.isupper() and name not in {"R", "F", "I"} and callable(getattr(isa, name, None))}
 
-_TOKEN = re.compile(r'"[^"]*"|[^\s]+')
+# A quoted string is one token, and so is a named binding whose value is one — `key="two words"` used to
+# tokenise as `key="two` and `words"`, so a rule could say `SET F(c) "note" "two words"` and could not say
+# the same thing through `set_slot`. That is a gap in the *surface*, not in the vocabulary, and it would
+# have looked like a reason the mediated form could not express what the bare one did.
+_TOKEN = re.compile(r'\w+="[^"]*"|"[^"]*"|[^\s]+')
 _HEADER = re.compile(r"^fn\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:->\s*(\w+)\s*)?(?:mocks\s+(\w+)\s*)?:\s*$")
 # `x` or `x: car` — an optional type annotation, which is what makes candidate generation possible:
 # without it nothing can ask "which functions could apply to this node?"
@@ -330,12 +334,23 @@ def load_text(g: Graph, text: str) -> tuple:
     """Parse and store every function in `text`, natural language included. Returns the defined names.
 
     This is the whole boundary in one call: a model emits text, this validates it, and what lands in the
-    graph is ordinary data any microfunction can read, rewrite, or generate more of."""
+    graph is ordinary data any microfunction can read, rewrite, or generate more of.
+
+    **A rule that reaches the graph through the closed vocabulary gets that vocabulary linked in**, which
+    is the one thing this does beyond parse-and-store. A name is only meaning if something answers it, so
+    resolving the names a body calls belongs at the boundary where the body arrives — the alternative is
+    a precondition every caller keeps by hand, failing at run time far from the load that should have
+    said so. Idempotent, and it cannot recurse: the vocabulary's own bodies use bare opcodes, because
+    they are the mediation."""
+    from . import access
     from .function import define
-    defined = []
+    defined, mediated = [], False
     for p in parse(text):
         define(g, p.name, p.params, p.program, p.doc, p.notes, p.ptypes, p.returns, p.mocks)
         defined.append(p.name)
+        mediated = mediated or access.calls_the_vocabulary(p.program)
+    if mediated:
+        access.bootstrap(g)
     return tuple(defined)
 
 

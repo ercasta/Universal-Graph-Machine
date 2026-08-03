@@ -16,7 +16,8 @@ constrain it, the alternatives already ruled out, and the questions still open.
 | the planning corpus rewritten to the vocabulary | ✅ `stack`, `unstack`, `paint` |
 | the four natives that must resolve (`is_a`, `check`, `plan`, `plan_step`) | ❌ nothing yet |
 | the goal machinery and the phase machine as boundaries | ❌ no consumer yet — see *Open questions* |
-| **sparse frames**, which is what all of it was for | ❌ next |
+| **sparse frames** — the *reading* half: resolution walks the frame chain | ✅ both walks, checked |
+| sparse frames — the *writing* half: `step` stops copying, writes mint a version | ❌ next |
 
 The two omissions are the same omission. While frames stay dense and `step` binds a frame's *images*
 directly, resolution is the identity function on everything a rule is handed, so a native that ignores
@@ -210,7 +211,14 @@ Three consequences, one of them unfinished:
 
 * **Resolution walks the frame chain, not the graph.** Cycles in the world are irrelevant to it and
   termination is trivial — unlike `path.reaches`, which needs a seen-set. Measured depth on Sussman's
-  anomaly: **5**.
+  anomaly: **5**. ✅ Built, in both `workbench.mapping_for` and `rules/resolve.mf`.
+
+  ⚠⚠ Locating a version through the reverse index needs a **kind test**, and finding that out cost a
+  planted bug. What points at a mapping under the label `mapping` is its frame *and every replay that
+  has bound it*, and `g.sources` sorts by id, where `bound` sorts before `frame` — so the unguarded
+  answer is a replay, essentially always. Worse, the check that was supposed to catch it passed: it
+  compared `mapping_for` against `mapping_for`. **An assertion built out of the function under test
+  degrades exactly as the code does.**
 * **A high-degree node that changes copies all its edges.** Fine in evidence — what changes is blocks,
   not hubs — but it is the shape to watch. If it ever bites, that is when edges would need their own
   identity, and since edges gained one they could have it.

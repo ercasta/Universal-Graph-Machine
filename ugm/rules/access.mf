@@ -4,6 +4,9 @@
 #
 #     COPY   R(n) F(node)           ← the node as given
 #     NATIVE R(r) "resolver"        ← what does a read mean here? (dynamic scope, from the activation)
+#                                     ...and `"writer"` in the three that write, because writing asks a
+#                                     different question: not *which version is in force* but *which
+#                                     version may I change*. See `rules/version.mf`.
 #     JMPNOT R(r) .go               ← nothing established: the trivial context, resolution is identity
 #     INVOKE R(n) R(r) node=F(node) ← a NAMED CALL, linked at run time, never an opcode
 #     .go: <the one opcode, on R(n)>
@@ -30,7 +33,7 @@ fn slot_of(node, key) -> thing:
 # frame it is imagining in rather than on the real world's copy of the same thing.
 fn set_slot(node, key, value) -> thing:
     COPY R(n) F(node)
-    NATIVE R(r) "resolver"
+    NATIVE R(r) "writer"
     JMPNOT R(r) .write
     INVOKE R(n) R(r) node=F(node)
 .write:
@@ -65,15 +68,20 @@ fn relation_at(node, label, index) -> thing:
 .read:
     GET_AT R(result) R(n) F(label) F(index)
 
-# Relate two nodes. BOTH ends are resolved: an edge from this frame's version of `node` to the real
-# world's version of `other` would be a link between two worlds, and the frame would stop being a
-# consistent thing to read.
+# Relate two nodes. BOTH ends are resolved, and DIFFERENTLY, which is the one place the two questions
+# show up side by side. The subject is being *changed*, so it resolves through the writer and gets a
+# version belonging to this frame. The target is only being *read* — pointing at something does not
+# change it — so it resolves through the reader, and minting a version of it would be inventing a change
+# nobody made. An edge from this frame's version of `node` to the real world's `other` would be a link
+# between two worlds; an edge to a version that is merely older is fine, because reading a target
+# resolves it.
 fn relate(node, label, other) -> thing:
     COPY R(n) F(node)
     COPY R(o) F(other)
+    NATIVE R(w) "writer"
+    JMPNOT R(w) .write
+    INVOKE R(n) R(w) node=F(node)
     NATIVE R(r) "resolver"
-    JMPNOT R(r) .write
-    INVOKE R(n) R(r) node=F(node)
     INVOKE R(o) R(r) node=F(other)
 .write:
     LINK R(n) F(label) R(o)
@@ -82,7 +90,7 @@ fn relate(node, label, other) -> thing:
 # Remove one relation, by index — `UNLINK`'s addressing, not a second one.
 fn unrelate(node, label, index) -> thing:
     COPY R(n) F(node)
-    NATIVE R(r) "resolver"
+    NATIVE R(r) "writer"
     JMPNOT R(r) .write
     INVOKE R(n) R(r) node=F(node)
 .write:

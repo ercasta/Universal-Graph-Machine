@@ -218,7 +218,7 @@ def report_of(g: Graph, r: str) -> dict:
 # --- carrying and settling ----------------------------------------------------------------------------
 def _carry(g: Graph, r: str, prev: str, frame: str) -> None:
     """A node keeps its identity across frames, so its binding follows its mapping's successor."""
-    for m in W.mappings(g, prev):
+    for m in W.visible(g, prev):
         nxt = _successor_in(g, m, frame)
         if nxt is not None and is_bound(g, r, m):
             bind(g, r, nxt, bound_to(g, r, m))
@@ -237,7 +237,7 @@ def _settle(g: Graph, r: str, tr: str, frame: str, result, minted) -> None:
 
 def _bind_minted(g: Graph, r: str, frame: str, minted) -> None:
     """Match nodes the real call just created to the imagined mappings that predicted them."""
-    pending = [m for m in W.mappings(g, frame)
+    pending = [m for m in W.visible(g, frame)
                if W.is_imagined(g, m) and not is_bound(g, r, m)]
     by_kind: dict = {}
     for n in minted:

@@ -216,7 +216,7 @@ def _here(g: Graph, frame: str, real):
     m = W.mapping_for(g, frame, real)
     if m is not None:
         return W.image_of(g, m)
-    for m in W.mappings(g, frame):
+    for m in W.visible(g, frame):
         if W.resolve(g, m) == real:
             return W.image_of(g, m)
     return None
