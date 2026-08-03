@@ -345,18 +345,106 @@ the pursuit node, branches, calls one sub-stepper, writes attributes, and unlink
 reads, guards, calls, `SET`, `UNLINK`. Even the `_PHASES[phase]` dispatch is a string-to-executor lookup,
 which is what a dynamic `INVOKE` now does directly.
 
-What it is waiting on is not itself but **three predicates nobody has decomposed**:
+What it is waiting on is not itself but **three predicates nobody had decomposed**. They have now been,
+and the useful result is that **the three get three different answers.** The question was posed as a
+choice between two — a loop over constraint nodes, or a native registered by its owner — and only one
+of them is either.
 
-| predicate | used by | shape |
-|---|---|---|
-| `goal.satisfied` | `_phase_checking` | evaluate a goal's constraints against the world |
-| `workbench.deviates` | `execution.step` | did the real result match what was expected? |
-| `workbench.unmet_expectations` | `execution.step` | did the predicted changes actually happen? |
+| predicate | verdict |
+|---|---|
+| `goal.satisfied` | a loop over constraint nodes. Needs **one** substrate primitive, not a native |
+| `workbench.deviates` | three instructions. Genuinely wants a native, for the reason `is_a` did |
+| `workbench.unmet_expectations` | neither. Blocked upstream on a **representation**, not a capability |
 
-None has been examined. Each is plausibly either a small loop over constraint nodes — needing richer
-guard tests than `attr = value` / `is a T` / `is there` — or a native registered by its owning module,
-which is what `types.is_a` already does and what `native.py` sanctions. **That choice is the next real
-design decision, and it should be made by decomposing them rather than by reaching for a native.**
+### `goal.satisfied` — a loop, and the blocker was a closure
+
+It comes apart into `met_by` (one `ATTR`), `subgoals_met` (a loop and a recursive `INVOKE`),
+`world_constraints` (a loop over `requires`), `unmet` (a loop over `holds`), and `holds` — which is
+where all the difficulty is. `holds` branches on four sorts, and each branch was examined separately:
+
+* **`view` is a Python closure, and that was the real blocker.** It reads as an arbitrary callable, so
+  it looks like something the surface can never hold. It is not: *every* `view` in the codebase is
+  either the identity `_same` or `driver.view_in(g, frame)` — checked, not assumed. So the parameter is
+  a **frame node, or nothing**, wearing a closure's clothes, and `view(subject)` is `mapping_for` then
+  `image_of` — two edge reads `workbench.mf` already does. This costs no new capability at all. It is
+  the same lesson as `_PHASES[phase]`: what looked like Python-only control was Python-only
+  *representation*.
+* **`type`** needs `is_a` (already a native) and `instances`, which is `reachable` (already
+  `reachable.mf`) filtered by `is_a`. Expressible today.
+* **transitive `link`** needs `path.reaches` — a cycle-safe worklist walk, which is exactly
+  `reachable.mf`'s shape, seen-map and all. Expressible today.
+* **`known`** asks whether a slot holds `UNKNOWN`, and **the surface cannot name `UNKNOWN`.** `null`
+  parses to `None`, which means the opposite — *lacks it*, not *has not been looked at* — so writing
+  the test with `null` would silently answer the wrong question about the wrong distinction.
+* **`attr`** needs `types.compare`: seven operators, and *total*, answering `False` where Python
+  raises. Dispatching on the operator is an ordinary `EQ`/`JMPIF` chain. Totality is not: `LT` raises
+  on a string against a number, and nothing in the surface can ask whether two values are comparable
+  before trying. `ADD` raises the same way; `ATTEMPT` catches `Refusal` and deliberately not
+  `TypeError`, and stretching it to would turn program bugs into a quiet `err` nobody reads — the one
+  thing that comment exists to forbid.
+
+The last two look like two gaps and are one. Both are questions about **what category a value is**, and
+the surface has no way to ask — the same asymmetry the reflection opcodes closed for nodes, one level
+down: every comparison takes an ordering you have already assumed, exactly as every graph read used to
+take a slot you had already named. One opcode — call it `VKIND`, reporting `text` / `number` /
+`boolean` / `null` / `unknown` / `list` — closes both, and `compare` becomes an ordinary `.mf`.
+
+**`VKIND` reports the category and must not decide the ordering.** Python orders `bool` with `int` and
+`float`, so `compare('<', False, 1)` is `True` today. It would be tempting to fold `boolean` into
+`number` and make the order class fall out of one `EQ` — and that is the `CLONE` mistake again: *which
+categories order together* is a decision, and a primitive that bakes it in is a composite wearing
+substrate's clothes. The opcode says `boolean`; `compare.mf` maps categories to order classes itself.
+
+**Not built yet, deliberately.** `types.compare` is the one comparator shared by `goal.holds`,
+`criterion._holds` and every schema check, and its own docstring records that a second implementation
+was the drift this codebase keeps finding. Writing `compare.mf` before `holds` moves into the surface
+would *create* that second implementation and leave it doubled for the length of the rewrite. `VKIND`
+and `compare.mf` land together with `holds`, replacing the Python rather than shadowing it.
+
+### `workbench.deviates` — the answering form again
+
+One `ATTR` for `expects`, one null guard, one call to `types.violations`. There is nothing to
+decompose; it is already three instructions. What it cannot do is *call* `violations`, and this is the
+predictor from [limits.md](limits.md) landing on the nose: `types.check` raises and `types.is_a`
+answers, and `is_a` is a native for that reason — but `is_a` answers only yes or no, and `deviates`
+has to say *how*, which is what `violations` is. **`violations` is `is_a`'s answering form, and it
+should be a native beside it, registered by `types.py`, which already owns both.**
+
+This is the one place where reaching for a native is right rather than lazy, and it is worth being
+explicit about why, given that reaching for one was wrong three times during the audit. Decomposing
+`violations` does not reach a loop over nodes: it reaches `requirements`, which compiles a declared
+type into `Req` / `AttrReq` / `Rel` dataclasses — a Python-side representation of a type that nothing
+in the graph mirrors. Lifting *that* is a real arc and a much larger one than the phase machine. The
+native is a boundary drawn where the layer actually ends, not a shortcut around a loop.
+
+The work in it is the return value: `violations` hands back `{label: (expected, actual)}`, and a
+native must hand back a node.
+
+### `workbench.unmet_expectations` — blocked on a representation
+
+All three of its arguments are Python values — `prediction` is a dict of tuples, `bound` is a dict,
+`minted` is a list — and it returns English strings. So it cannot be lifted on its own, and its own
+shape is not what is stopping it: the loops are ordinary, and `ADD` concatenates strings, so even the
+messages are expressible (checked).
+
+The blocker is upstream, in `predicted_changes`, which produces that dict. Its docstring argues at
+length that expectations are derived from two frames and **never recorded**, because recording
+expectation nodes would assert what the structure already entails — a labelling error, and a node per
+imagined step of which the driver makes hundreds. That argument is right, and it is about *storage*.
+It does not reach the *interchange*: the dict is already a materialised expectation, minted every time
+this runs, and the only thing the choice of a Python dict buys is that nothing but Python can read it.
+
+So the fix is that `predicted_changes` yields a **transient node, dropped by its caller** — which is
+what `reachable.mf`'s scratch `walk` node already is, and is not the same thing as storing an
+expectation on the plan. Until that lands, `unmet_expectations` is not blocked on a missing capability
+and adding one for it would be building against the wrong wall.
+
+### What this changes
+
+The phase machine's three dependencies cost, in total: **one substrate opcode** (`VKIND`), **one
+native** (`types.violations`), and **one representation change** (`predicted_changes` returning a
+node). None of the three predicates needs the "richer guard tests" the open question assumed, and two
+of the three needed nothing that could be called a capability at all.
 
 The other dependency is `execution.step` itself, which the phase machine calls and which is expressible
 but not rewritten.

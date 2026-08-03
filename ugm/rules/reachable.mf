@@ -91,3 +91,83 @@ fn copy_node(original) -> thing:
     JMP .keys
 .done:
     COPY R(result) R(image)
+
+
+# Copy a SET of nodes and the edges among them, given a scratch node carrying them as ordered `found`
+# edges — i.e. what `reachable` returns, though any such node will do. The scratch node comes back
+# doubling as the original -> image map, keyed by node id, so `DEREF walk o` is "what was this copied to,
+# if it was". The caller drops it.
+#
+# This was `workbench._copy_set`, and it was the second half of what `open_workbench` inlined. Factored
+# out because `workbench.step` copies a set too — the set of images carried forward from the previous
+# frame rather than everything reachable — and the two differ only in where the set comes from.
+#
+# Two passes, and the second cannot run early: a copy cannot link to an image that does not exist yet.
+#
+# EDGE PROPERTIES ARE CARRIED, and that is what this could not do until `NEPROPS` / `EPROP_AT` /
+# `SETEPROP` existed. The gap was real rather than cosmetic, and its history is the argument for
+# closing it: the Python version dropped edge properties silently for a while, and nothing failed,
+# because no check copied an edge that had any. The docs named the gap as needing the two *reading*
+# opcodes. That was half of it — `EPROP` reads a property whose name you know, `NEPROPS`/`EPROP_AT` say
+# which names there are, and neither writes. Python never noticed the third was missing because it
+# builds the whole property dict before creating the edge, which the surface cannot do.
+#
+# The new edge is addressed as the LAST one at that label, which holds because `LINK` appends and this
+# is the only thing linking the image while the loop runs.
+fn copy_set(walk) -> thing:
+    COUNT R(n) F(walk) "found"
+    CONST R(i) 0
+.mint:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .relink
+    GET_AT R(o) F(walk) "found" R(i)
+    INVOKE R(img) copy_node original=R(o)
+    SETREF F(walk) R(o) R(img)
+    ADD R(i) R(i) 1
+    JMP .mint
+
+.relink:
+    CONST R(i) 0
+.each_source:
+    LT R(more_s) R(i) R(n)
+    JMPNOT R(more_s) .done
+    GET_AT R(o) F(walk) "found" R(i)
+    DEREF R(src) F(walk) R(o)
+    NLABELS R(nl) R(o)
+    CONST R(li) 0
+.each_label:
+    LT R(more_l) R(li) R(nl)
+    JMPNOT R(more_l) .next_source
+    LABEL_AT R(lbl) R(o) R(li)
+    COUNT R(nt) R(o) R(lbl)
+    CONST R(ti) 0
+.each_target:
+    LT R(more_t) R(ti) R(nt)
+    JMPNOT R(more_t) .next_label
+    GET_AT R(t) R(o) R(lbl) R(ti)
+    DEREF R(dst) F(walk) R(t)
+    JMPNOT R(dst) .skip_target
+    LINK R(src) R(lbl) R(dst)
+    COUNT R(made) R(src) R(lbl)
+    ADD R(at) R(made) -1
+    NEPROPS R(np) R(o) R(lbl) R(ti)
+    CONST R(pi) 0
+.each_prop:
+    LT R(more_p) R(pi) R(np)
+    JMPNOT R(more_p) .skip_target
+    EPROP_AT R(pk) R(o) R(lbl) R(ti) R(pi)
+    EPROP R(pv) R(o) R(lbl) R(ti) R(pk)
+    SETEPROP R(src) R(lbl) R(at) R(pk) R(pv)
+    ADD R(pi) R(pi) 1
+    JMP .each_prop
+.skip_target:
+    ADD R(ti) R(ti) 1
+    JMP .each_target
+.next_label:
+    ADD R(li) R(li) 1
+    JMP .each_label
+.next_source:
+    ADD R(i) R(i) 1
+    JMP .each_source
+.done:
+    COPY R(result) F(walk)

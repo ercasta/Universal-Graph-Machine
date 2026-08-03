@@ -342,6 +342,32 @@ class Graph:
     def edge_props(self, eid: str) -> dict:
         return dict(self.eprops.get(eid, {}))
 
+    def put_edge_props(self, eid: str, **props) -> str:
+        """Set properties on an edge that already exists. `put`, for an edge.
+
+        Until now properties could only be given at `link` time, and Python never needed more: it builds
+        the whole dict before creating the edge. The surface cannot — it has no way to hold a dict — so a
+        copy written in the surface has to make the edge and then carry the properties over one at a time.
+        That is `SET`'s shape, and this is what `SET` is for a node.
+
+        Refuses an edge that does not exist rather than accumulating properties for one that might appear.
+        An edge id comes from `edge_at` or `link`, so a bad one is a program error and the graph is the
+        last place that should be quiet about it."""
+        if eid not in self.edges:
+            raise KeyError(f"no edge {eid!r}; an edge id comes from `edge_at` or `link`")
+        existing = self.eprops.setdefault(eid, {})
+        before = {k: existing.get(k, _MISSING) for k in props}
+
+        def undo():
+            for k, v in before.items():
+                if v is _MISSING:
+                    existing.pop(k, None)
+                else:
+                    existing[k] = v
+        existing.update(props)
+        self._undo(undo)
+        return eid
+
     def edge_between(self, src: str, label: str, dst: str):
         """The id of the first edge `src -label-> dst`, or `None`. What names an edge you can only describe."""
         for eid in self.eids.get((src, label), ()):

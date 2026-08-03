@@ -5885,6 +5885,99 @@ def check_REFLECTION_makes_open_workbench_an_ORDINARY_PROGRAM():
                 == mf_walk}
 
 
+def check_a_SURFACE_COPY_CARRIES_EDGE_PROPERTIES():
+    """The gap `workbench.mf` declared on itself, closed — and the check that should always have existed.
+
+    `EPROP` reads a property whose name you already know, and nothing said which names an edge has, so
+    `copy_set` written in the surface silently dropped them. That is the same asymmetry the five node
+    reflection opcodes closed, one level further out, and it stayed open because it is invisible: the
+    existing comparison against the Python copy passes either way, since neither the shape it compares
+    nor the world it compares in has ever had an edge property in it. The Python `_copy_set` had this
+    exact bug once, for the same reason — *nothing failed, because no check copied an edge that carried
+    any*. So this check is the point, not the opcodes.
+
+    **The docs named half the gap.** `NEPROPS` / `EPROP_AT` say which properties an edge has and neither
+    writes one. Python never noticed the third was missing because `g.link(**props)` takes the whole dict
+    at creation, and the surface cannot hold a dict — so it must make the edge and then set the
+    properties one at a time, which is what `SETEPROP` is for. Reading the gap statement as complete
+    would have produced a `copy_set` that enumerated the properties correctly and still dropped them.
+
+    Vacuity guards, and they are the whole value here. The properties must be *non-empty* and must be
+    compared *by value*, or a copy that dropped every one would pass; two properties on one edge, so a
+    version that carried only the first would show; and the answer must match Python's `_copy_set`
+    exactly, which is the thing being replaced.
+
+    Copied over a set that is deliberately **not** closed under outgoing edges, which is both the harder
+    case and the real one. The first version of this check passed `reachable`'s answer and then asserted
+    that a skipped edge carried nothing across — a guard that could never fire, because `reachable` is
+    closed by construction and skips nothing. `workbench.step` is the caller that makes this matter: it
+    copies the previous frame's images, which may well point at nodes outside the set, so the skip path
+    is on the live route and the position arithmetic must not attribute a skipped edge's properties to
+    the next edge along."""
+    from pathlib import Path
+    from . import asm, function as fn, workbench as W
+
+    def world():
+        g = new_graph()
+        asm.load_file(g, Path(__file__).parent / "rules" / "reachable.mf")
+        w = g.mint("world", label="w")
+        g.link("root", "has", w)
+        a, b = (g.mint("block", label=n) for n in "ab")
+        outside = g.mint("block", label="outside")
+        # Two properties on one edge — a carrier that kept only the first would still pass with one.
+        g.link(w, "block", a, since="monday", weight=3)
+        # A SECOND copied edge at the same label, also carrying properties, which is what makes the
+        # position arithmetic testable: this one must land at index 1. Without it, every propertied edge
+        # in the world is the first at its label, so addressing the new edge as `0` instead of as the
+        # last one passes — measured, by planting exactly that bug.
+        g.link(w, "block", b, order=2)
+        g.link(b, "under", a)                       # an edge with none, so absence stays absence
+        g.link(a, "on", b, glued=True)
+        # Deliberately FIRST at its label, and pointing out of the set below, so it is skipped and the
+        # edge after it shifts position. An off-by-one here would carry `ignored` onto `w`'s copy.
+        g.link(a, "near", outside, ignored="yes")
+        g.link(a, "near", b, kept="yes")
+        return g, w, [w, a, b]
+
+    def props_of(g, node):
+        """Every edge out of `node`, as `(label, index) -> props`, addressed positionally."""
+        return {(l, i): g.edge_props(g.edge_at(node, l, i))
+                for l in g.labels(node) for i in range(g.count(node, l))}
+
+    g1, w1, set1 = world()
+    py_image = W._copy_set(g1, set1)
+    py_props = {g1.attr(o, "label"): props_of(g1, img) for o, img in py_image.items()}
+
+    g2, w2, set2 = world()
+    walk = g2.mint("walk")
+    for n in set2:
+        g2.link(walk, "found", n)
+    walk = fn.invoke(g2, "copy_set", {"walk": walk})[1]["result"]
+    mf_props = {g2.attr(o, "label"): props_of(g2, g2.deref(walk, o))
+                for o in g2.targets(walk, "found")}
+
+    carried = mf_props.get("w", {})
+    return {"THE_SURFACE_COPY_CARRIES_EDGE_PROPERTIES": mf_props == py_props,
+            # Vacuity: an empty-everywhere answer would equal an empty-everywhere answer.
+            "and_there_really_were_some_to_carry": any(p for p in carried.values()),
+            "BOTH_PROPERTIES_OF_ONE_EDGE_ARRIVED":
+                {"since": "monday", "weight": 3} in carried.values(),
+            # The second edge at the same label must land at its own position, not on the first one's.
+            "AND_THE_SECOND_EDGE_AT_ONE_LABEL_LANDED_AT_ITS_OWN_POSITION":
+                carried.get(("block", 0)) == {"since": "monday", "weight": 3}
+                and carried.get(("block", 1)) == {"order": 2},
+            # Absence must survive as absence, not become an empty-string or a copy of the neighbour's.
+            "an_edge_with_none_still_has_none": {} in mf_props.get("b", {}).values(),
+            # The skipped edge's properties must not land on the edge that took its position.
+            "A_SKIPPED_EDGE_CARRIES_NOTHING_ACROSS":
+                all("ignored" not in p for node in mf_props.values() for p in node.values()),
+            # ...and the edge that DID survive the shift kept its own.
+            "AND_THE_ONE_AFTER_IT_KEPT_ITS_OWN":
+                {"kept": "yes"} in mf_props.get("a", {}).values(),
+            "and_the_skipped_edge_itself_was_not_copied":
+                sum(1 for (l, _) in mf_props.get("a", {}) if l == "near") == 1}
+
+
 def check_REFLECTION_opcodes_report_their_reads_as_HONESTLY_UNREADABLE():
     """A body that walks a node's shape reads *all* of it, and says so rather than reporting nothing.
 

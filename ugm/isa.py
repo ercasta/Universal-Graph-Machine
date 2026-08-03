@@ -108,9 +108,26 @@ def _keys(g, node) -> tuple:
     return tuple(sorted(k for k in g.attrs.get(node, {}) if k != "kind"))
 
 
+def _eprop_keys(g, src, label, index) -> tuple:
+    """An edge's property keys, sorted. Sorted for the reason `_keys` is: a program that walks the same
+    edge twice must walk it alike, and edge properties are a plain dict whose insertion order is a fact
+    about how the edge was written rather than about the graph.
+
+    An edge that does not exist has no properties, which is the same answer as an edge that has none.
+    That conflation is deliberate here and safe: the caller reached this by way of `COUNT`, so a
+    position it did not get from there is its own bug and not something to encode a second signal for."""
+    eid = g.edge_at(src, label, index)
+    return () if eid is None else tuple(sorted(g.edge_props(eid)))
+
+
 # graph writes
 NEW, SET, LINK, LINK_AT, UNLINK, DROP, SETREF = (
     _ins(o) for o in ("NEW", "SET", "LINK", "LINK_AT", "UNLINK", "DROP", "SETREF"))
+# `SET`, for an edge. Python gives an edge its properties when it creates it, because Python can build the
+# whole dict first; the surface cannot hold a dict, so it makes the edge and then carries the properties
+# over one at a time. Addressed as `EPROP` addresses them — src, label, index — and never by edge id, so
+# programs keep holding exactly one kind of pointer.
+SETEPROP = _ins("SETEPROP")
 # graph reads
 GET, GET_AT, COUNT, ATTR, EPROP, DEREF, SOURCES = (
     _ins(o) for o in ("GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES"))
@@ -132,6 +149,16 @@ GET, GET_AT, COUNT, ATTR, EPROP, DEREF, SOURCES = (
 # loop the instruction set already writes and a register keeps holding one scalar.
 KIND, NLABELS, LABEL_AT, NKEYS, KEY_AT = (
     _ins(o) for o in ("KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT"))
+# The same asymmetry one level further out, and it was left open when the five above were added: `EPROP`
+# reads a property whose name you already know, and nothing asked which properties an edge has. So a copy
+# written in the surface silently dropped them — the defect `_copy_set` had once in Python, where it also
+# failed silently, because no check copied an edge that carried any.
+#
+# An edge rather than a node, so the subject is `src`/`label`/`index` — `EPROP`'s addressing, not a second
+# one. Naming the edge by its id was the alternative and is worse: `edge_at` already exists for exactly
+# this, and handing programs raw edge ids would make them hold a second kind of pointer whose lifetime
+# nothing in the surface manages.
+NEPROPS, EPROP_AT = (_ins(o) for o in ("NEPROPS", "EPROP_AT"))
 # focus
 FOCUS, FORK, CLOSE, MOVE, BACK, FOLLOW, SPREAD, HEAD, HASFOCUS = (
     _ins(o) for o in ("FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS"))
@@ -164,7 +191,7 @@ DISPATCH = _ins("DISPATCH")
 # a register stops denoting what it used to — and a list of those maintained anywhere else would drift.
 WRITES_REGISTER = frozenset({
     "NEW", "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
-    "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT",
+    "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT", "NEPROPS", "EPROP_AT",
     "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
     "INVOKE", "ATTEMPT", "DISPATCH", "NATIVE"})
 
@@ -186,7 +213,10 @@ WRITES_REGISTER = frozenset({
 READS_GRAPH = {"GET": "link", "GET_AT": "link", "COUNT": "link", "SOURCES": "link", "DEREF": "link",
                "ATTR": "attr", "EPROP": "link",
                "KIND": "attr", "NKEYS": "attr", "KEY_AT": "attr",
-               "NLABELS": "link", "LABEL_AT": "link"}
+               "NLABELS": "link", "LABEL_AT": "link",
+               # A property of an edge is a property of a link, which is the vocabulary `EPROP` already
+               # reports in rather than a third kind invented for two opcodes.
+               "NEPROPS": "link", "EPROP_AT": "link"}
 
 
 class Machine:
@@ -312,6 +342,12 @@ class Machine:
             g.put(node(a[0]), **{v(a[1]): v(a[2])})
         elif op == "SETREF":
             g.set_ref(node(a[0]), v(a[1]), node(a[2]))
+        elif op == "SETEPROP":
+            # The edge must exist; the value may be `None`, for `SET`'s reason.
+            _eid = g.edge_at(node(a[0]), v(a[1]), int(v(a[2])))
+            if _eid is None:
+                raise ValueError(f"SETEPROP: no edge at {v(a[1])!r}[{v(a[2])}] of {node(a[0])}")
+            g.put_edge_props(_eid, **{v(a[3]): v(a[4])})
         elif op == "LINK":
             g.link(node(a[0]), v(a[1]), node(a[2]))
         elif op == "LINK_AT":
@@ -361,6 +397,12 @@ class Machine:
             _ks = _keys(g, v(a[1]))
             _i = int(v(a[2]))
             w(a[0], _ks[_i] if -len(_ks) <= _i < len(_ks) else None)
+        elif op == "NEPROPS":
+            w(a[0], len(_eprop_keys(g, v(a[1]), v(a[2]), int(v(a[3])))))
+        elif op == "EPROP_AT":
+            _ps = _eprop_keys(g, v(a[1]), v(a[2]), int(v(a[3])))
+            _i = int(v(a[4]))
+            w(a[0], _ps[_i] if -len(_ps) <= _i < len(_ps) else None)
 
         # --- focus ---
         elif op == "FOCUS":
@@ -514,9 +556,9 @@ def run(program, g: Graph, focus: Focus | None = None, **regs):
 
 
 __all__ = ["R", "F", "I", "Ref", "Machine", "run", "WRITES_REGISTER", "READS_GRAPH",
-           "NEW", "SET", "LINK", "LINK_AT", "UNLINK", "DROP", "SETREF",
+           "NEW", "SET", "LINK", "LINK_AT", "UNLINK", "DROP", "SETREF", "SETEPROP",
            "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
-           "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT",
+           "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT", "NEPROPS", "EPROP_AT",
            "FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS",
            "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
            "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "INVOKE", "ATTEMPT", "DISPATCH",

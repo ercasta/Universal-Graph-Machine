@@ -39,12 +39,51 @@ eight findings are closed. What came out of it:
 
 In this order. Steps 2–4 are the last large Python island: the plan-act-check-replan loop.
 
-1. **Decompose three predicates** — `goal.satisfied`, `workbench.deviates`,
-   `workbench.unmet_expectations`. Each is plausibly either a loop over constraint nodes (wanting
-   richer guard tests than `attr = value` / `is a T` / `is there`) or a native registered by its owner,
-   as `types.is_a` already is. **Decide by decomposing, not by reaching for a native** — reaching for
-   the native was the wrong call three times during the audit.
-2. **Rewrite `workbench.step`** as a procedure. Its pieces are all expressible now.
+1. ~~Decompose three predicates.~~ **Done — see [audit.md](audit.md).** They got three *different*
+   answers, and the total cost is smaller than the open question assumed:
+   * `goal.satisfied` is a loop over constraint nodes. Its blocker was not a capability but a
+     **closure standing in for a node** — `view` is only ever identity or `view_in(g, frame)`, so it
+     becomes a frame node and two edge reads. What it does need is **one substrate opcode, `VKIND`**
+     (a value's category: `text` / `number` / `boolean` / `null` / `unknown` / `list`), which closes
+     both remaining gaps at once — naming `UNKNOWN`, and `compare`'s totality. `VKIND` must report
+     the category and **not** decide which categories order together; that is `compare.mf`'s job.
+   * `workbench.deviates` is three instructions and wants **`types.violations` as a native**, beside
+     `is_a`. The answering form again: `is_a` says yes/no, `deviates` must say *how*. Decomposing
+     `violations` reaches the `Req`/`AttrReq`/`Rel` dataclasses, not a loop — a real layer boundary,
+     not a shortcut. The work is returning a node instead of a dict.
+   * `workbench.unmet_expectations` needs **no capability at all**. It is blocked upstream: its inputs
+     are Python dicts because `predicted_changes` returns one. That should return a transient node,
+     dropped by its caller, as `reachable.mf`'s scratch node already is.
+
+   **Nothing was built.** `VKIND` and `compare.mf` land *with* step 2, not before it — writing
+   `compare.mf` early would duplicate `types.compare`, which is shared by `goal.holds`,
+   `criterion._holds` and every schema check, and its own docstring records that a second
+   implementation is the drift this codebase keeps finding.
+2. **Rewrite `workbench.step`** as a procedure. **Started — the first prerequisite has landed.**
+   Decomposed, it is: copy the carried-forward images, mint the new frame and its mappings, choose an
+   outcome (`mocks_of` / `applicable` — edge reads plus `is_a`, which is already a native), call it,
+   map what it minted, and record a transformation. `INVOKE … with <node>` covers building the argument
+   set at run time, exactly as the audit predicted.
+
+   **Done:** `copy_set` now lives in `rules/reachable.mf` and **carries edge properties**, which is what
+   `workbench.mf` declared as a real gap on itself. It cost three opcodes — `NEPROPS`, `EPROP_AT` and
+   `SETEPROP` — plus `graph.put_edge_props`. ⚠ **The recorded gap statement named only the two readers.**
+   None of the three reads *writes*, and Python never noticed because `g.link(**props)` takes the whole
+   dict at creation and the surface cannot hold a dict. `open_workbench` now shares `copy_set` instead of
+   inlining it.
+
+   **Still needed, both found by decomposing and neither yet built:**
+   * **A caller cannot reach the activation of its own `INVOKE`.** `step` needs it twice — `ACT.minted`
+     to map newly minted nodes, and `tr -ran-> act`. `activation.for_focus`'s docstring says `invoke`
+     keeps the callee's activation "precisely so a Python caller holding the returned focus can still
+     ask", which is a Python-caller-only affordance. **Do not bundle it onto `INVOKE`** as a second
+     destination register — that is the `CLONE`/`ATTEMPT` mistake. The decomposed answer is one opcode
+     giving a program *its own* activation; the callee is then the newest source of the `caller` edge,
+     which is the structure `activation.chain` already walks.
+   * **Nothing can raise a refusal from the surface.** `ATTEMPT` answers and nothing enforces — the
+     usual pair, inverted for once. `step` needs it for an outcome that is not a declared one, which is
+     today a `KeyError` and is *misclassified*: it is a claim about the request, not about the program.
+     Lifting it fixes that rather than merely moving it.
 3. **Rewrite `execution.step`.** Needs `ATTEMPT` and dynamic bindings; both exist.
 4. **The phase machine** (`driver._phase_*`) falls out once 1–3 land. It is reads, guards, one call,
    attribute writes and unlinks — even its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.

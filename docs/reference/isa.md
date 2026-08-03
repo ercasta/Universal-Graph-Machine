@@ -81,10 +81,34 @@ what the alternative cost: returning a `set` there substituted the iteration ord
 strings, and one five-block search measured 12 imagined states, then 306, then budget-exhausted
 failure, on consecutive runs of a single process.
 
-**Not yet reflectable: edge properties.** `EPROP` reads one named property and nothing enumerates
-them, so a copy written in the surface does not carry them across. That needs `NEPROPS` / `EPROP_AT`
-and is a real gap rather than a simplification — the Python copy had exactly this bug once, and
-nothing failed, because no check copied an edge with properties.
+### Reflecting on an edge's properties
+
+The same asymmetry, one level further out, and it stayed open when the five above were added.
+
+| opcode | effect |
+|---|---|
+| `NEPROPS dst src label index` | how many properties this edge carries |
+| `EPROP_AT dst src label index i` | the property key at a position, in sorted order |
+| `SETEPROP src label index key value` | set one property on an edge that already exists |
+
+Addressed as `EPROP` addresses them — `src`, `label`, `index` — never by edge id, so a program keeps
+holding exactly one kind of pointer.
+
+**The gap statement that stood here named half of it**, and that is worth recording because reading it
+as complete would have produced a `copy_set` that enumerated an edge's properties correctly and still
+dropped every one. `EPROP` reads a property whose name you know and the two new readers say which names
+there are; **none of the three writes**. Python never noticed, because `g.link(**props)` takes the whole
+dict at edge creation and Python can build a dict first. The surface cannot, so it must make the edge
+and then set the properties one at a time — which is `SET`'s shape, and is what `SETEPROP` is.
+
+`put_edge_props` is the substrate half, and it is new for the same reason: until now properties could
+only be given at `link` time, because nothing but Python ever needed to give them.
+
+With these, `copy_set` carries edge properties, and `ugm/rules/reachable.mf` owns the copying half that
+`open_workbench` used to inline and that `workbench.step` needs too. The Python `_copy_set` dropped edge
+properties silently once, and nothing failed **because no check copied an edge that carried any** — so
+the check matters more than the opcodes, and planting two deliberate bugs (drop the carry; address the
+new edge by the wrong position) is what established that it fires.
 
 ### Calling, and being refused
 
