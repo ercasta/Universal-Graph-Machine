@@ -129,8 +129,21 @@ NEW, SET, LINK, LINK_AT, UNLINK, DROP, SETREF = (
 # programs keep holding exactly one kind of pointer.
 SETEPROP = _ins("SETEPROP")
 # graph reads
-GET, GET_AT, COUNT, ATTR, EPROP, DEREF, SOURCES = (
-    _ins(o) for o in ("GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES"))
+GET, GET_AT, COUNT, ATTR, EPROP, DEREF = (
+    _ins(o) for o in ("GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF"))
+# Walking an edge BACKWARDS, and count-plus-index like every other collection here.
+#
+# This replaces `SOURCES`, which returned the whole tuple into a register — the only opcode that did, and
+# unusable because of it: nothing can index a register holding a collection, so a program could learn
+# that something pointed at a node and never which thing. It was reachable in name only, used by no
+# program, and the one place it ever appeared was a version of `reachable` that was replaced for an
+# unrelated reason. `activation.py` cited it as the reason a register's value may be any Python value;
+# `COUNT` yielding an int and `HEAD` a node id carry that argument on their own.
+#
+# So this is the ISA's own stated convention applied to the one opcode that broke it — *count-plus-index
+# rather than returning a collection, so iteration is the loop the instruction set already writes and a
+# register keeps holding one scalar*. The label stays optional, and omitting it still reads every label.
+NSOURCES, SOURCE_AT = (_ins(o) for o in ("NSOURCES", "SOURCE_AT"))
 # graph reflection — the shape of a node, rather than what is at a slot you already know the name of.
 #
 # Every read above takes a *named* slot: `GET dest subj "label"` asks what is at this label, and nothing
@@ -183,6 +196,31 @@ INVOKE = _ins("INVOKE")
 # independent capabilities that merely happened to be needed together, and bundling them would be the
 # `CLONE` mistake — a composite wearing a primitive's clothes.
 ATTEMPT = _ins("ATTEMPT")
+# ...and the enforcing form of that same pair, which was the one missing. `ATTEMPT` *answers* — it hands a
+# refusal back as a node — and nothing could *raise* one, so a program written in the surface could
+# decline only by being wrong in a way the interpreter noticed. That is the usual pair the wrong way
+# round: everywhere else here the enforcing form arrived first and the answering one was the gap.
+#
+# `REFUSE <kind> <why>` takes both, and both are required. The reason is the standing rule that an
+# exception type is a claim about whose fault it is: a refusal that could not say which claim it was
+# making would leave every surface refusal indistinguishable from every other, and the caller back to
+# reading prose out of `why`. `kind` is the member name a layer above would otherwise declare as a
+# subclass, arriving as data because a program in the surface cannot define a class — see `graph.Refusal`.
+REFUSE = _ins("REFUSE")
+# The activation running this instruction. A program's own state, which was reachable to everything
+# except the program itself.
+#
+# The concrete want is `workbench.step`: it calls a function and then has to ask what that call minted,
+# and to record the activation on the transformation. `activation.for_focus` exists for exactly this and
+# is reachable only from Python — its docstring says so, "a Python caller holding the returned focus".
+#
+# Given this, the callee needs nothing of its own: `INVOKE` already links the callee's activation to its
+# caller, so the call just made is the newest source of this activation's `caller` edge, which is the
+# structure `activation.chain` already walks from the other end. A second destination register on
+# `INVOKE` was the obvious alternative and is the `CLONE` mistake again — calling and asking-what-a-call-
+# did are independent capabilities that happen to be wanted together, and one opcode that does both
+# would be a composite wearing a primitive's clothes.
+SELF = _ins("SELF")
 # the one way an effect leaves the graph — routed through `dispatch.service`'s checkpoint
 DISPATCH = _ins("DISPATCH")
 
@@ -190,18 +228,18 @@ DISPATCH = _ins("DISPATCH")
 # the overwriting, because a static reader of a stored body (`driver.establishes`) has to know exactly when
 # a register stops denoting what it used to — and a list of those maintained anywhere else would drift.
 WRITES_REGISTER = frozenset({
-    "NEW", "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
+    "NEW", "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "NSOURCES", "SOURCE_AT",
     "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT", "NEPROPS", "EPROP_AT",
     "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
-    "INVOKE", "ATTEMPT", "DISPATCH", "NATIVE"})
+    "INVOKE", "ATTEMPT", "DISPATCH", "NATIVE", "SELF"})
 
 # Opcodes that read the graph, mapped to the kind of slot they read — the counterpart of the write side
 # `driver._effects` already reads off a body, and stated here for the same reason `WRITES_REGISTER` is:
 # a second list maintained beside a consumer would drift from the interpreter that does the reading.
 #
 # Every one of these has the same operand shape — `OP R(dest) <subject> "slot"` — which is what makes the
-# static reader uniform. `SOURCES`'s slot is optional (no label means *every* label, which is honestly
-# unreadable), and `EPROP` reads a property *of an edge*, so its slot is the edge's label: an edge property
+# static reader uniform. `NSOURCES`/`SOURCE_AT` take an optional label (omitting it means *every* label,
+# which is honestly unreadable), and `EPROP` reads a property *of an edge*, so its slot is the edge's label: an edge property
 # is a property of a link, and reporting it as `("link", label)` keeps it in the vocabulary
 # `driver.establishes` already speaks rather than inventing a third kind for one opcode.
 #
@@ -210,7 +248,8 @@ WRITES_REGISTER = frozenset({
 # are for. `_reads` already handles that case — it names the subject it could not finish reading — so a
 # body that walks a node's shape reports "reads all of this node, and I cannot say which parts",
 # and a consumer can see exactly how much of the answer is missing.
-READS_GRAPH = {"GET": "link", "GET_AT": "link", "COUNT": "link", "SOURCES": "link", "DEREF": "link",
+READS_GRAPH = {"GET": "link", "GET_AT": "link", "COUNT": "link", "DEREF": "link",
+               "NSOURCES": "link", "SOURCE_AT": "link",
                "ATTR": "attr", "EPROP": "link",
                "KIND": "attr", "NKEYS": "attr", "KEY_AT": "attr",
                "NLABELS": "link", "LABEL_AT": "link",
@@ -370,8 +409,12 @@ class Machine:
             w(a[0], g.edge_prop(v(a[1]), v(a[2]), int(v(a[3])), v(a[4])))
         elif op == "DEREF":
             w(a[0], g.deref(v(a[1]), v(a[2])))
-        elif op == "SOURCES":
-            w(a[0], g.sources(v(a[1]), v(a[2]) if len(a) > 2 else None))
+        elif op == "NSOURCES":
+            w(a[0], len(g.sources(v(a[1]), v(a[2]) if len(a) > 2 else None)))
+        elif op == "SOURCE_AT":
+            _srcs = g.sources(v(a[1]), v(a[2]) if len(a) > 3 else None)
+            _i = int(v(a[3] if len(a) > 3 else a[2]))
+            w(a[0], _srcs[_i] if -len(_srcs) <= _i < len(_srcs) else None)
 
         # --- reflection: the shape of a node, not the contents of a slot you already named ---
         # Order is load-bearing and inherited, not invented here. `g.labels` is sorted and `g.targets`
@@ -490,7 +533,12 @@ class Machine:
                 _f, out = _invoke2(g, v(a[2]), binds, caller=act)
             except Refusal as e:
                 g.rollback(sp)
-                refusal = g.mint("refusal", refused=type(e).__name__, why=str(e),
+                # The name a layer above gave it, and only then the Python class. A refusal raised in the
+                # surface has no class of its own to be named by, so reporting one would report the
+                # category (`Refusal`) for every one of them — see `graph.Refusal` on why the member name
+                # travels as data.
+                refusal = g.mint("refusal", refused=getattr(e, "kind", None) or type(e).__name__,
+                                 why=str(e),
                                  **{k: getattr(e, k) for k in ("param", "want")
                                     if getattr(e, k, None) is not None})
                 if isinstance(a[1], R):
@@ -502,6 +550,15 @@ class Machine:
                     w(a[1], None)
                 if isinstance(a[0], R):
                     w(a[0], out.get("result"))
+
+        elif op == "REFUSE":
+            # Raises, and so leaves whatever the body already did in place — unlike `ATTEMPT`, which
+            # rolls its callee back. That asymmetry is right: a savepoint here would be one this
+            # instruction never took, and a program that wants its refusal to be clean is already the
+            # callee of somebody's `ATTEMPT`, which takes one.
+            raise Refusal(v(a[1]), kind=v(a[0]))
+        elif op == "SELF":
+            w(a[0], act)
 
         elif op == "DISPATCH":
             # `DISPATCH R(dst), "tool", F(head)` — the only escape hatch to the outside world, and it
@@ -557,9 +614,9 @@ def run(program, g: Graph, focus: Focus | None = None, **regs):
 
 __all__ = ["R", "F", "I", "Ref", "Machine", "run", "WRITES_REGISTER", "READS_GRAPH",
            "NEW", "SET", "LINK", "LINK_AT", "UNLINK", "DROP", "SETREF", "SETEPROP",
-           "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
+           "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "NSOURCES", "SOURCE_AT",
            "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT", "NEPROPS", "EPROP_AT",
            "FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS",
            "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
-           "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "INVOKE", "ATTEMPT", "DISPATCH",
-           "NATIVE"]
+           "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "INVOKE", "ATTEMPT", "REFUSE", "DISPATCH",
+           "NATIVE", "SELF"]

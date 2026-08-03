@@ -43,10 +43,16 @@ matches".
 | `ATTR dst node key` | an attribute value |
 | `EPROP dst src label index key` | a property of one edge |
 | `DEREF dst node key` | follow a stored reference |
-| `SOURCES dst node [label]` | the nodes pointing at this one |
+| `NSOURCES dst node [label]` | how many nodes point at this one |
+| `SOURCE_AT dst node [label] i` | the node at a position among those pointing at this one |
 
 A `GET` that finds no edge assigns nothing rather than assigning `None`. Writing that would mint an
 edge to `None`, and the graph would stop being able to tell *no part* from *a part that is nothing*.
+
+`NSOURCES` / `SOURCE_AT` replace `SOURCES`, which returned the whole tuple into a register. It was the
+only opcode that did, and it was unusable for exactly that reason: nothing indexes a register holding a
+collection, so a program could learn *that* something pointed at a node and never *which* thing. No
+program used it. Count-plus-index is the convention everything else here already follows.
 
 ### Reflecting on a node's shape
 
@@ -117,9 +123,44 @@ new edge by the wrong position) is what established that it fires.
 | `INVOKE dst <fn> p=x q=y` | call a stored function; a refusal **raises** |
 | `INVOKE dst <fn> with node` | the same, with the bindings described by a node |
 | `ATTEMPT dst err <fn> …` | the same call, with a refusal handed back in `err` as a node |
+| `REFUSE kind why` | decline, as the callee — raises a refusal `ATTEMPT` can catch |
+| `SELF dst` | the activation running this instruction |
 
 `<fn>` may be a literal name **or a register** — calling a function chosen at run time already worked
 before either of these existed.
+
+**`REFUSE` is the enforcing form of `ATTEMPT`**, and for once it was the missing one. Everywhere else
+here the engine had the enforcing form and lacked the answering one — `types.check` raised where a guard
+needed `is_a`; `INVOKE` raised where a replay stepper needed `ATTEMPT`. This was the inverse: a program
+in the surface could decline a request only by being wrong in a way the interpreter noticed, which is a
+bug with a convenient side effect rather than a refusal.
+
+Both operands are required. An exception type is a claim about *whose fault it is*, and a surface
+refusal has no Python class of its own to be named by, so without a name every one of them would report
+as the bare category and leave callers reading prose out of `why`. The name travels as data —
+`graph.Refusal` carries it, and `ATTEMPT` reports it in preference to the Python class. That keeps the
+kernel's rule intact rather than bending it: it raises the *category* carrying a name it was handed, and
+a name it was handed is not a name it knows.
+
+`REFUSE` does not roll anything back. A savepoint here would be one this instruction never took, and a
+program that wants its refusal to be clean is already somebody's `ATTEMPT` callee, which takes one.
+
+**`SELF`** is how a program asks what its own call did — `workbench.step` calls a function and then has
+to know what that call minted, and to record the activation on the transformation. The callee needs
+nothing of its own: `INVOKE` already links a callee's activation to its caller, so the call just made is
+the newest source of this activation's `caller` edge.
+
+```
+SELF      R(me)
+INVOKE    R(out) some_function x=F(x)
+NSOURCES  R(n) R(me) "caller"
+ADD       R(last) R(n) -1
+SOURCE_AT R(callee) R(me) "caller" R(last)
+```
+
+A second destination register on `INVOKE` was the obvious alternative and was refused for the reason
+`CLONE` was: calling, and asking what a call did, are independent capabilities that merely happen to be
+wanted together.
 
 **`with node`** is how a program assembles a call it worked out. The node carries ordered `arg` edges
 to nodes with a `param` attribute and a `value` edge:

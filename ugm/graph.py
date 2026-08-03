@@ -53,7 +53,18 @@ class Refusal(Exception):
     It lives in the substrate so `ATTEMPT` can catch it without the instruction set importing the layers
     that raise it. Each layer above declares its own subclass — `types.TypeViolation`, `dispatch.Vetoed`,
     `dispatch.Imagined` — which is the `native.py` shape again: the kernel knows the *category* and never
-    the members. The kernel-boundary check caught the first version of `ATTEMPT` importing both."""
+    the members. The kernel-boundary check caught the first version of `ATTEMPT` importing both.
+
+    `kind` is how a layer that cannot declare a Python subclass names its claim anyway. A program written
+    in the surface is a layer above too, and `REFUSE` is how it declines — but it has no way to define a
+    class, so the member name arrives as *data* and the kernel raises the category carrying it. That
+    keeps the rule intact rather than bending it: the kernel still never knows the members, and a name it
+    was handed is not a name it knows. Reported by `ATTEMPT` in preference to the Python class name, so a
+    surface refusal is as discriminable to its caller as `TypeViolation` is."""
+
+    def __init__(self, *args, kind: str | None = None) -> None:
+        super().__init__(*args)
+        self.kind = kind
 
 
 @dataclass(frozen=True)

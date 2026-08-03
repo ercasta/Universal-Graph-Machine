@@ -5978,6 +5978,157 @@ def check_a_SURFACE_COPY_CARRIES_EDGE_PROPERTIES():
                 sum(1 for (l, _) in mf_props.get("a", {}) if l == "near") == 1}
 
 
+def check_a_PROGRAM_CAN_ASK_WHAT_ITS_OWN_CALL_DID():
+    """A program's own state was reachable to everything except the program itself.
+
+    `workbench.step` calls a function and then has to ask what that call minted, and to record the
+    activation on the transformation it writes. `activation.for_focus` exists for exactly that and its
+    docstring says who may use it — *"a Python caller holding the returned focus"*. So this was the
+    enforcing/answering pattern once more: `INVOKE` **runs** a call, and nothing could **ask about** one.
+
+    `SELF` closes it, and the callee needs nothing of its own. `INVOKE` already links a callee's
+    activation to its caller, so the call just made is the newest source of this activation's `caller`
+    edge — the structure `activation.chain` already walks from the other end. A second destination
+    register on `INVOKE` was the obvious alternative and is the `CLONE` mistake: calling, and asking what
+    a call did, are independent capabilities that merely happen to be wanted together.
+
+    **Reaching it needed `SOURCE_AT`, and finding that out is what the probe was for.** The reasoning
+    said "newest source of the `caller` edge" and the first program said `COUNT` — which reads edges
+    *out* of a node, and `caller` points the other way. `SOURCES` was the opcode for it and could not be
+    used: it returned the whole tuple into a register, nothing indexes a register holding a collection,
+    so a program could learn *that* something pointed at a node and never *which* thing.
+
+    Vacuity guards: the callee must be a *different* activation from the caller's, or `SELF` returning
+    anything at all would pass; it must be the callee of the *second* call rather than the first, so
+    "newest" is really tested; and what it minted must be exactly what that call minted, not what the
+    whole program did."""
+    from . import asm, function as fn, activation as ACT
+
+    g = new_graph()
+    asm.load_text(g, _lines("fn mints_one(x) -> thing:",
+                            '    NEW R(a) "first"',
+                            "    COPY R(result) R(a)"))
+    asm.load_text(g, _lines("fn mints_two(x) -> thing:",
+                            '    NEW R(a) "second"',
+                            '    NEW R(b) "second"',
+                            "    COPY R(result) R(a)"))
+    # Two calls, so "the newest" is a real claim rather than "the only one".
+    asm.load_text(g, _lines("fn asks_what_it_did(x) -> thing:",
+                            "    SELF R(me)",
+                            "    INVOKE R(one) mints_one x=F(x)",
+                            "    INVOKE R(two) mints_two x=F(x)",
+                            '    NSOURCES R(n) R(me) "caller"',
+                            "    ADD R(last) R(n) -1",
+                            '    SOURCE_AT R(callee) R(me) "caller" R(last)',
+                            "    COPY R(result) R(callee)"))
+    t = g.mint("thing")
+    focus, regs = fn.invoke(g, "asks_what_it_did", {"x": t})
+    callee = regs["result"]
+    minted = [g.kind(n) for n in ACT.minted(g, callee)]
+
+    # And `SELF` alone, so the guard below is about identity rather than about the walk.
+    asm.load_text(g, _lines("fn just_itself(x) -> thing:", "    SELF R(result)"))
+    mine = fn.invoke(g, "just_itself", {"x": t})[1]["result"]
+
+    return {"A_PROGRAM_REACHES_ITS_OWN_ACTIVATION": g.kind(mine) == "activation",
+            "and_it_is_the_one_running_THIS_function":
+                g.attr(g.target(mine, "of"), "name") == "just_itself",
+            "IT_REACHES_THE_ACTIVATION_OF_THE_CALL_IT_MADE": g.kind(callee) == "activation",
+            # Vacuity: returning its own activation would satisfy the kind check above.
+            "and_it_is_the_CALLEE_not_itself":
+                g.attr(g.target(callee, "of"), "name") == "mints_two",
+            # Vacuity: "the newest" is only a claim if an older one exists to be wrong about.
+            "AND_IT_IS_THE_LATEST_CALL_NOT_THE_FIRST":
+                g.attr(g.target(callee, "of"), "name") != "mints_one",
+            "AND_IT_CAN_READ_WHAT_THAT_CALL_MINTED": minted == ["second", "second"],
+            # ...that call's mints, not the whole program's — `first` was minted by the other one.
+            "not_what_the_whole_program_minted": "first" not in minted}
+
+
+def check_the_SURFACE_CAN_REFUSE_and_says_which_claim_it_is_making():
+    """`ATTEMPT` answers and nothing enforced — the pair the other way round, for once.
+
+    Everywhere else here the engine had the *enforcing* form and lacked the *answering* one:
+    `types.check` raised where a guard needed `is_a`, `INVOKE` raised where a replay stepper needed
+    `ATTEMPT`. This was the inverse. A program written in the surface could decline a request only by
+    being wrong in a way the interpreter happened to notice, which is not declining at all — it is a bug
+    with a convenient side effect. `workbench.step` wants it for an outcome that is not a declared one,
+    which is today a `KeyError`: **misclassified**, because that is a claim about the request and not
+    about the program.
+
+    `REFUSE` takes the claim's name as well as its reason, and both are required. The standing rule is
+    that an exception type is a claim about whose fault it is, and a surface refusal has no Python class
+    of its own to be named by — so without a name every one of them would report as the bare category and
+    a caller would be back to reading prose out of `why`. The name travels as *data*, which keeps
+    `graph.Refusal`'s rule intact rather than bending it: the kernel raises the category carrying a name
+    it was handed, and a name it was handed is not a name it knows.
+
+    Vacuity guards: the refusal must be catchable *as* a refusal by `ATTEMPT`, must report the surface's
+    name in preference to `Refusal`, must still be distinguishable from a `TypeViolation` raised by the
+    machinery, and — the one that matters — a claim about the PROGRAM must still abort rather than
+    becoming an `err` nobody reads."""
+    from . import asm, function as fn
+    from .graph import Refusal
+    from .types import declare_type
+
+    g = new_graph()
+    declare_type(g, "thing", attrs={"kind_of": "thing"})
+    asm.load_text(g, _lines("fn declines(x) -> thing:",
+                            '    REFUSE "UndeclaredOutcome" "no such outcome: found_clean"'))
+    asm.load_text(g, _lines("fn tries(x) -> thing:",
+                            "    ATTEMPT R(out) R(err) declines x=F(x)",
+                            "    COPY R(result) R(err)"))
+    # A refusal must not be a way to half-finish: what ran before it is the caller's business, but the
+    # ATTEMPT that caught it rolls the callee back, as it does for every other refusal.
+    asm.load_text(g, _lines("fn touches_then_declines(x) -> thing:",
+                            '    SET F(x) "touched" true',
+                            '    REFUSE "Nope" "changed my mind"'))
+    asm.load_text(g, _lines("fn tries_that(x) -> thing:",
+                            "    ATTEMPT R(out) R(err) touches_then_declines x=F(x)",
+                            "    COPY R(result) R(err)"))
+    # A claim about the PROGRAM, which must still abort.
+    asm.load_text(g, _lines("fn is_just_wrong(x) -> thing:",
+                            "    INVOKE R(out) no_such_function_anywhere x=F(x)"))
+    asm.load_text(g, _lines("fn tries_the_broken_one(x) -> thing:",
+                            "    ATTEMPT R(out) R(err) is_just_wrong x=F(x)",
+                            "    COPY R(result) R(err)"))
+
+    t = g.mint("thing", kind_of="thing")
+    err = fn.invoke(g, "tries", {"x": t})[1]["result"]
+
+    t2 = g.mint("thing", kind_of="thing")
+    err2 = fn.invoke(g, "tries_that", {"x": t2})[1]["result"]
+
+    # Uncaught, it really raises — and as a Refusal, not as some other exception.
+    t3 = g.mint("thing", kind_of="thing")
+    try:
+        fn.invoke(g, "declines", {"x": t3})
+        raised = None
+    except Refusal as e:
+        raised = e
+
+    try:
+        fn.invoke(g, "tries_the_broken_one", {"x": t3})
+        exploded = False
+    except Refusal:
+        exploded = False                      # caught as a refusal would be the wrong answer
+    except Exception:
+        exploded = True
+
+    return {"THE_SURFACE_CAN_REFUSE": raised is not None,
+            "and_it_is_a_REFUSAL_so_ATTEMPT_catches_it": g.kind(err) == "refusal",
+            "IT_SAYS_WHICH_CLAIM_IT_IS_MAKING": g.attr(err, "refused") == "UndeclaredOutcome",
+            # Vacuity: without the name every surface refusal reports as the bare category.
+            "not_merely_the_category": g.attr(err, "refused") != "Refusal",
+            "and_it_carries_the_reason": "found_clean" in (g.attr(err, "why") or ""),
+            # Two surface refusals must be tellable apart, which is the whole point of the name.
+            "AND_TWO_SURFACE_REFUSALS_ARE_DISTINGUISHABLE":
+                g.attr(err2, "refused") == "Nope",
+            "A_CAUGHT_REFUSAL_LEAVES_THE_WORLD_UNTOUCHED": g.attr(t2, "touched") is None,
+            # The boundary `ATTEMPT` exists to hold: a bug is still a bug.
+            "A_PROGRAM_ERROR_STILL_ABORTS_rather_than_becoming_an_err": exploded}
+
+
 def check_REFLECTION_opcodes_report_their_reads_as_HONESTLY_UNREADABLE():
     """A body that walks a node's shape reads *all* of it, and says so rather than reporting nothing.
 

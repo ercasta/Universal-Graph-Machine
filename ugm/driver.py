@@ -482,7 +482,7 @@ def _reads(g: Graph, name: str, *, include_mocks: bool) -> tuple:
         if isinstance(slot, str):
             out.add((isa.READS_GRAPH[ins.op], slot, subject))
         else:
-            # `SOURCES R(x) R(n)` with no label reads every label, which is honestly unreadable rather
+            # `NSOURCES R(x) R(n)` with no label reads every label, which is honestly unreadable rather
             # than a read of nothing. Same discipline as `_effects`: name the subject we could not finish
             # reading, so a consumer knows how much of the answer is missing and about what.
             unknown.add(subject)

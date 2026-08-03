@@ -14,8 +14,8 @@ name would collide with the activation's own slots, so a program with a register
 `kind` could corrupt the interpreter. One node per register also gives a register a stable
 address, so something can point at one.
 
-A register's value is any Python value, because the instruction set's is: `SOURCES` yields a
-tuple, `COUNT` an int, `HEAD` a node id. It is stored as an attribute rather than an edge for
+A register's value is any Python value, because the instruction set's is: `COUNT` yields an int,
+`HEAD` a node id, `KIND` a string. It is stored as an attribute rather than an edge for
 that reason: an edge would claim the register and the node are related, and a register holding a
 node holds a pointer.
 

@@ -72,18 +72,21 @@ In this order. Steps 2–4 are the last large Python island: the plan-act-check-
    dict at creation and the surface cannot hold a dict. `open_workbench` now shares `copy_set` instead of
    inlining it.
 
-   **Still needed, both found by decomposing and neither yet built:**
-   * **A caller cannot reach the activation of its own `INVOKE`.** `step` needs it twice — `ACT.minted`
-     to map newly minted nodes, and `tr -ran-> act`. `activation.for_focus`'s docstring says `invoke`
-     keeps the callee's activation "precisely so a Python caller holding the returned focus can still
-     ask", which is a Python-caller-only affordance. **Do not bundle it onto `INVOKE`** as a second
-     destination register — that is the `CLONE`/`ATTEMPT` mistake. The decomposed answer is one opcode
-     giving a program *its own* activation; the callee is then the newest source of the `caller` edge,
-     which is the structure `activation.chain` already walks.
-   * **Nothing can raise a refusal from the surface.** `ATTEMPT` answers and nothing enforces — the
-     usual pair, inverted for once. `step` needs it for an outcome that is not a declared one, which is
-     today a `KeyError` and is *misclassified*: it is a claim about the request, not about the program.
-     Lifting it fixes that rather than merely moving it.
+   **Also done — the other two gaps are closed:**
+   * **`SELF`** gives a program its own activation, so it can ask what its own `INVOKE` did (`ACT.minted`,
+     and `tr -ran-> act`). The callee needed nothing: the call just made is the newest source of the
+     caller's `caller` edge. Not bundled onto `INVOKE` as a second destination register — that would be
+     the `CLONE` mistake.
+   * **`REFUSE kind why`** lets the surface decline. Both operands required, because an exception type is
+     a claim about whose fault it is and a surface refusal has no Python class to be named by; the name
+     travels as data and `ATTEMPT` reports it over the Python class.
+   * ⚠ **`SOURCES` was replaced by `NSOURCES` / `SOURCE_AT`.** Reaching the callee needs to walk `caller`
+     *backwards*, and `SOURCES` returned the whole tuple into a register — the only opcode that did, and
+     unusable for it, since nothing indexes a register holding a collection. No program used it. This is
+     the ISA's own count-plus-index convention applied to the one opcode that broke it.
+
+   **What is left is `workbench.step` itself.** Every piece it needs now exists; nothing about it is
+   still blocked, which is a different claim from *written*.
 3. **Rewrite `execution.step`.** Needs `ATTEMPT` and dynamic bindings; both exist.
 4. **The phase machine** (`driver._phase_*`) falls out once 1–3 land. It is reads, guards, one call,
    attribute writes and unlinks — even its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
