@@ -5134,7 +5134,7 @@ def check_the_CNL_GUIDE_parses():
         for name in ("d", "wh", "parcel", "file1"):
             n = g.mint("thing", kind_of="thing", label=name, clear=True, contents=None)
             g.link(w, "thing", n)
-        for t in ("vehicle", "file", "wheel", "body", "rim", "trailer"):
+        for t in ("vehicle", "file", "wheel", "body", "rim", "trailer", "thing"):
             declare_type(g, t, attrs={"kind_of": t})
         declare_type(g, "serviced_car", attrs={"serviced": True})
         declare_type(g, "washed_car", attrs={"washed": True})
@@ -5158,6 +5158,7 @@ def check_the_CNL_GUIDE_parses():
         # principle has now reached.
         from pathlib import Path
         asm.load_file(g, Path(__file__).parent / "rules" / "reachable.mf")
+        asm.load_text(g, _lines("fn mark(x: thing) -> thing:", '    SET F(x) "marked" true'))
         return g
 
     read, failed = [], []
@@ -5350,6 +5351,128 @@ def check_a_PROCEDURE_of_DO_RUNGS_LOWERS_TO_A_FUNCTION():
             "THE_OUTER_LOOP_HAS_NO_BRANCH_FOR_A_PROCEDURE":
                 _raises(lambda: __import__("ugm.loop", fromlist=["x"]).finished(g, proc), ValueError),
             "and_the_lowering_is_readable": text.startswith("fn copy_the_subject(subject):")}
+
+
+def check_a_PROCEDURE_has_CONTROL_FLOW_and_it_CANNOT_DIVERGE():
+    """`docs/audit.md`'s F4, and F8 had already changed its shape.
+
+    *"A controlled language for functions"* sounded like a grammar for programs. Once a procedure
+    lowered to one, what was actually missing was two constructs: **repetition** and **branching**. They
+    arrive as two new `consequent` kinds, which is the sanctioned way that closed set grows — each
+    member is a decision about an executor, and the executor here is `method.lower`, which emits the
+    jumps.
+
+    **Iteration is bounded by construction.** `for each x in r by l` counts the collection ONCE, before
+    the block runs, so a body that appends to what it walks still terminates. There is no `while`, and
+    that is deliberate rather than unfinished: `docs/limits.md` says termination is unsolved, and a
+    construct that cannot diverge needs no answer to it. The same reasoning already stopped
+    `criterion.draw` from becoming a loop.
+
+    Vacuity guards: the loop must run its body once per member, not once and not never; the guard must
+    actually *exclude* something, or a filter that passed everything would look identical; and both must
+    nest, since one level of each would not be control flow."""
+    from . import asm, function as fn, intake as I, types as TY
+
+    g, w = _procedure_world()
+    asm.load_text(g, _lines("fn mark(x) -> thing:", '    SET F(x) "marked" true'))
+    TY.declare_type(g, "block", attrs={"kind_of": "block"})
+    _verb, proc = I.read(g, _lines("procedure mark_the_blocks:",
+                                   "    takes subject",
+                                   "    do reachable start = subject as walk",
+                                   "    for each o in walk by found:",
+                                   "        when o is a block:",
+                                   "            do mark x = o"))
+    for name in "acd":
+        g.link(w, "block", g.mint("block", label=name, kind_of="block"))
+    g.link(w, "box", g.mint("box", label="box", kind_of="box"))       # NOT a block
+    text = g.attr(proc, "lowered")
+    result = fn.invoke(g, "mark_the_blocks", {"subject": w})[1].get("result")
+    marked = sorted(g.attr(n, "label") for n in g.nodes if g.attr(n, "marked"))
+
+    return {"A_NESTED_LOOP_AND_GUARD_COMPILE": "JMP .loop2" in text and "JMPNOT R(_t3)" in text,
+            "THE_LOOP_RAN_ONCE_PER_MEMBER": marked == ["a", "b", "c", "d"],
+            # Vacuity: a guard that excluded nothing would mark the box and the world too.
+            "AND_THE_GUARD_REALLY_EXCLUDED_SOMETHING":
+                not g.attr(g.target(w, "box"), "marked") and not g.attr(w, "marked"),
+            # The collection is counted before the block runs, so a body that grows it still stops.
+            "THE_COLLECTION_IS_COUNTED_ONCE_BEFORE_THE_LOOP":
+                text.index("COUNT R(_n2)") < text.index(".loop2:"),
+            # A rung inside a block may never run, so it must not become the procedure's result — this
+            # compiled cleanly and died on the last instruction before the depth check existed.
+            "THE_RESULT_IS_THE_LAST_TOP_LEVEL_RUNG": "COPY R(result) R(walk)" in text,
+            "and_the_procedure_really_returned_it": g.kind(result) == "walk",
+            "a_type_test_is_ANSWERED_not_enforced": 'NATIVE R(_t3) "is_a"' in text}
+
+
+def check_a_PROCEDURE_PARAMETER_IS_CHECKED_ON_EVERY_CALL():
+    """A declared parameter type is a precondition, and it is enforced dynamically — at the call.
+
+    Nothing was added to enforce this; the enforcement was *reached*. `function.invoke` already treats a
+    declared parameter type as a precondition on every call, and the note there says why it belongs at
+    the call rather than only in the planner: a signature reads like a precondition and is written like
+    one, so a caller assumes it holds wherever the function is called. A procedure authored with `takes`
+    simply had nothing to declare into it, which made that machinery inert for everything written in the
+    surface — a safety property that quietly did not apply to the newest way of writing code.
+
+    Dynamic, like all typing here. `types.is_a` is computed from current structure, so the check is
+    re-run against the world as it is at the moment of the call. Nothing is stamped and trusted:
+    `types.tag` records what a node was found to be, and `tagged_as` re-validates before believing it,
+    because a stamp is a claim about the past.
+
+    Vacuity guards: the right type must be *accepted*, or this only tests that calls fail; an untyped
+    parameter must still pass anything, since that is what saying nothing means; and a type nobody
+    declared must be refused where it is written rather than at the first call."""
+    from . import function as fn, intake as I, types as TY
+
+    g, w = _procedure_world()
+    TY.declare_type(g, "world", attrs={"kind_of": "world"})
+    _verb, proc = I.read(g, _lines("procedure copy_a_world:",
+                                   "    takes subject is a world",
+                                   "    do reachable start = subject as walk"))
+    _v2, _untyped = I.read(g, _lines("procedure copy_anything:",
+                                     "    takes subject",
+                                     "    do reachable start = subject as walk"))
+    right = g.mint("world", kind_of="world")
+    g.link("root", "has", right)
+    wrong = g.mint("block", kind_of="block")
+    g.link("root", "has", wrong)
+
+    undeclared = None
+    try:
+        I.read(g, _lines("procedure needs_a_ghost:", "    takes subject is a ghost",
+                         "    do reachable start = subject as walk"))
+    except I.Unreadable as e:
+        undeclared = str(e)
+
+    # Ordered explicitly rather than relying on the dict literal's evaluation order, because the
+    # dynamic half MUTATES the argument and everything before it has to have run first. Burying a side
+    # effect inside a boolean chain is how the first version of this check silently skipped its own
+    # mutation and still went green on the line after.
+    refused_wrong = _raises(lambda: fn.invoke(g, "copy_a_world", {"subject": wrong}),
+                            TY.TypeViolation)
+    accepted_right = fn.invoke(g, "copy_a_world", {"subject": right})[1].get("result") is not None
+    untyped_ok = fn.invoke(g, "copy_anything", {"subject": wrong})[1].get("result") is not None
+
+    TY.tag(g, right, "world")                     # it really was one, and the stamp records that
+    stamped = g.attr(right, "is_a") == "world"
+    g.put(right, kind_of="something_else")        # ...and now the structure says otherwise
+    drifted = TY.tagged_as(g, right) is None
+    refused_after = _raises(lambda: fn.invoke(g, "copy_a_world", {"subject": right}),
+                            TY.TypeViolation)
+
+    return {"THE_TYPE_REACHES_THE_SIGNATURE":
+                g.attr(proc, "lowered").startswith("fn copy_a_world(subject: world):"),
+            "A_WRONGLY_TYPED_ARGUMENT_IS_REFUSED_AT_THE_CALL": refused_wrong,
+            # Vacuity: if nothing were accepted, the check above would pass for a broken procedure.
+            "AND_THE_RIGHT_ONE_IS_ACCEPTED": accepted_right,
+            # Saying nothing must keep meaning nothing.
+            "AN_UNTYPED_PARAMETER_STILL_ACCEPTS_ANYTHING": untyped_ok,
+            # Dynamic: the stamp survives, the structure does not, and the structure is what is believed.
+            "THE_STAMP_IS_STILL_THERE": stamped,
+            "BUT_IT_NO_LONGER_HOLDS_SO_IT_IS_NOT_TRUSTED": drifted,
+            "AND_THE_ONCE_VALID_ARGUMENT_IS_NOW_REFUSED": refused_after,
+            "an_undeclared_type_is_refused_where_it_is_written": undeclared is not None,
+            "and_it_says_nothing_could_satisfy_it": "nothing could ever" in (undeclared or "")}
 
 
 def check_a_PROCEDURE_REFUSES_WHAT_WOULD_NOT_BE_A_PROGRAM():

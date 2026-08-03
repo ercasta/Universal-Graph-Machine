@@ -128,6 +128,11 @@ def achieves_of(g: Graph, m: str) -> tuple:
     return tuple(c for c in CQ.of(g, m) if g.attr(c, "does") == CQ.ACHIEVE)
 
 
+def params_of(g: Graph, m: str) -> tuple:
+    """`(name, type | None)` per declared parameter, in order."""
+    return tuple((g.attr(p, "name"), g.attr(p, "type")) for p in g.targets(m, "takes"))
+
+
 def lower(g: Graph, m: str, *, name: str, params: tuple) -> str:
     """Compile a procedure of `do` rungs to assembly text. Returns what `asm.load_text` will read.
 
@@ -145,23 +150,100 @@ def lower(g: Graph, m: str, *, name: str, params: tuple) -> str:
 
     A reference is `F(x)` when it names a parameter and `R(x)` when an earlier rung bound it with `as`.
     Anything else is refused by the caller — a procedure that named an individual would be about that
-    individual and could not be reused, the same reason a `step` may only speak of roles."""
-    lines, bound = [f"fn {name}({', '.join(params)}):"], set()
-    last = None
-    for c in calls_of(g, m):
-        args = []
-        for a in g.targets(c, "arg"):
-            ref = g.attr(a, "ref")
-            args.append(f"{g.attr(a, 'param')}=" + (f"R({ref})" if ref in bound else f"F({ref})"))
-        out = g.attr(c, "as") or f"_r{len(lines)}"
-        lines.append(f"    INVOKE R({out}) {g.attr(c, 'function')} " + " ".join(args))
-        bound.add(out)
-        last = out
-    if last is not None:
+    individual and could not be reused, the same reason a `step` may only speak of roles.
+
+    `params` is `(name, type | None)` pairs, and a type is emitted as an annotation so that
+    `function.invoke` enforces it on every call. That is the whole of the parameter check: it is not
+    added here, it is *reached* — the precondition machinery already existed and a procedure simply had
+    nothing to declare into it."""
+    sig = ", ".join(f"{p}: {t}" if t else p for p, t in params)
+    # `bound` holds names a rung ASSIGNED — never the parameters. A parameter is a focus head and a
+    # rung result is a register, so seeding this with the parameters inverts the one distinction `_ref`
+    # exists to make, and the program then reads an unset register where the argument was.
+    lines, bound, state = [f"fn {name}({sig}):"], set(), {"n": 0, "last": None}
+    _emit(g, m, lines, bound, state)
+    if state["last"] is not None:
         # The last rung's result is the procedure's, so a caller reads it where every other function
         # puts one. Without this a procedure could only ever be called for its effect.
-        lines.append(f"    COPY R(result) R({last})")
+        lines.append(f"    COPY R(result) R({state['last']})")
     return "\n".join(lines)
+
+
+def _ref(name: str, bound) -> str:
+    """A parameter is a focus head; anything a rung bound is a register. Getting this backwards
+    compiles cleanly and reads an unset register at run time, which is why it is one function."""
+    return f"R({name})" if name in bound else f"F({name})"
+
+
+def _emit(g: Graph, owner: str, lines: list, bound: set, state: dict, depth: int = 0) -> None:
+    """Walk one body, appending assembly. Recurses into containers.
+
+    Labels are numbered from a counter carried in `state` rather than from the nesting depth, because
+    two sibling blocks at the same depth would collide — and a duplicate label in this assembler is not
+    an error, it is a jump to the wrong place."""
+    for c in CQ.of(g, owner):
+        does = g.attr(c, "does")
+        if does == CQ.CALL:
+            args = []
+            for a in g.targets(c, "arg"):
+                ref = g.attr(a, "ref")
+                args.append(f"{g.attr(a, 'param')}={_ref(ref, bound)}")
+            out = g.attr(c, "as") or f"_r{state['n']}"
+            state["n"] += 1
+            lines.append(f"    INVOKE R({out}) {g.attr(c, 'function')} " + " ".join(args))
+            bound.add(out)
+            # Only a TOP-LEVEL rung can be the procedure's result. A rung inside a loop or a guard may
+            # not have run, and copying its register would read an unset one and raise — turning "the
+            # condition was false" into a crash at the last instruction. Measured: a procedure whose
+            # final rung sat inside a `when` compiled fine and died on the copy.
+            if depth == 0:
+                state["last"] = out
+        elif does == CQ.GUARD:
+            state["n"] += 1
+            end = f".past{state['n']}"
+            _test(g, c, lines, bound, state)
+            # `JMPNOT` on the test's own register. A guard whose test is false skips the block rather
+            # than skipping the rest of the body — the block is what the author indented.
+            lines.append(f"    {'JMPIF' if g.attr(c, 'negated') else 'JMPNOT'} R(_t{state['n']}) {end}")
+            _emit(g, c, lines, bound, state, depth + 1)
+            lines.append(f"{end}:")
+        elif does == CQ.ITERATE:
+            state["n"] += 1
+            i, top, end = f"_i{state['n']}", f".loop{state['n']}", f".done{state['n']}"
+            over, by = _ref(g.attr(c, "over"), bound), g.attr(c, "by")
+            # The collection is counted ONCE, before the block runs. Re-counting each pass would make a
+            # body that appends to what it walks loop forever, and a construct chosen because it cannot
+            # diverge must not depend on the body being polite.
+            lines.append(f"    COUNT R(_n{state['n']}) {over} \"{by}\"")
+            lines.append(f"    CONST R({i}) 0")
+            lines.append(f"{top}:")
+            lines.append(f"    LT R(_m{state['n']}) R({i}) R(_n{state['n']})")
+            lines.append(f"    JMPNOT R(_m{state['n']}) {end}")
+            lines.append(f"    GET_AT R({g.attr(c, 'name')}) {over} \"{by}\" R({i})")
+            bound.add(g.attr(c, "name"))
+            _emit(g, c, lines, bound, state, depth + 1)
+            lines.append(f"    ADD R({i}) R({i}) 1")
+            lines.append(f"    JMP {top}")
+            lines.append(f"{end}:")
+
+
+def _test(g: Graph, c: str, lines: list, bound: set, state: dict) -> None:
+    """Put a guard's test in `R(_tN)`. Three shapes, each one or two instructions."""
+    kind, left, t = g.attr(c, "test"), _ref(g.attr(c, "left"), bound), f"_t{state['n']}"
+    if kind == "attr":
+        lines.append(f"    ATTR R(_v{state['n']}) {left} \"{g.attr(c, 'key')}\"")
+        lines.append(f"    EQ R({t}) R(_v{state['n']}) {_literal(g.attr(c, 'value'))}")
+    elif kind == "there":
+        # `is there` asks whether the reference denotes anything — an empty tuple, `None` and an unset
+        # register are all "nothing", which `NOT` already collapses correctly.
+        lines.append(f"    NOT R(_z{state['n']}) {left}")
+        lines.append(f"    NOT R({t}) R(_z{state['n']})")
+    else:
+        lines.append(f"    NATIVE R({t}) \"is_a\" {left} \"{g.attr(c, 'label')}\"")
+
+
+def _literal(v) -> str:
+    return {True: "true", False: "false", None: "null"}.get(v, f'"{v}"' if isinstance(v, str) else str(v))
 
 
 def steps_of(g: Graph, m: str) -> tuple:

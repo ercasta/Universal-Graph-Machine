@@ -103,6 +103,37 @@ that validates opcodes and `INVOKE`'s operand shape rather than around it — an
 procedure compile to?"* has a readable answer stored on the authored node. A lowering nobody can see
 is the island pattern with an extra step.
 
+### F4 — CLOSED: control flow, and it cannot diverge
+
+F8 had already changed this one's shape. *"A controlled language for functions"* sounded like a
+grammar for programs; once a procedure lowered to one, what remained was two constructs.
+
+```cnl
+for each o in walk by found:
+    when o is a block:
+        do mark x = o
+```
+
+They arrive as two new **consequent kinds** — `iterate` and `guard` — which is the sanctioned way that
+closed set grows: each member is a decision about an executor, and the executor is `method.lower`,
+which emits the jumps. They are consequents rather than a separate node kind because a loop sitting
+between two calls has to be *in* the rung sequence, and two edge labels would lose the ordering
+between them, which is the whole content of a program.
+
+**There is no `while`.** `for each` counts its collection once, before the block runs, so a body that
+appends to what it walks still terminates — a procedure cannot diverge. That is deliberate rather than
+unfinished: termination is unsolved (above), and a construct that cannot loop forever needs no answer
+to it. Same restraint that keeps `criterion.draw` from being a loop.
+
+Two bugs the build produced, both of the compile-cleanly-then-fail kind:
+
+* **`bound` was seeded with the parameters**, inverting the one distinction it exists to make — a
+  parameter is a focus head, a rung result is a register — so every program read an unset register
+  where its argument was.
+* **A rung inside a block became the procedure's result.** Compiled fine, then died on the final
+  `COPY` when the guard did not run, turning *"the condition was false"* into a crash. Only a
+  top-level rung can be the result.
+
 *Original findings, kept for the reasoning:*
 
 ### F1 — Authority has no surface, and ranking now depends on it
@@ -212,7 +243,7 @@ savepoint/rollback, and whether *that* is substrate is the next open question.
 | F3 standing prohibition has no surface | expand | ✅ closed — `policy` |
 | F5 the CNL cannot grow itself | opaque, **stated** | ✅ recorded beside `intake.VERBS` |
 | F8 no procedure-as-call-sequence | expand | ✅ closed — `do` rungs, **no new family, no new executor** |
-| F4 function bodies are assembly-only | expand | open — the large one |
+| F4 function bodies are assembly-only | expand | ✅ closed — `for each` / `when`, two consequent kinds |
 | F6 planner move vocabulary | opaque | open — documentation, not capability |
 | F7 `forget.ROOT_KINDS` | **relate in the web** | open |
 
@@ -226,9 +257,15 @@ F8 tested that prediction and it held: a rung inside an existing family, no new 
 that was not predicted — **no new executor either**, because the decompose-first test caught a task
 kind that was not needed.
 
-Next: **F4** (function bodies in CNL) is now the only expansion left, and F8 changed its shape. A
-procedure already *is* CNL lowering to a program; what F4 adds is control flow — a rung that branches
-or repeats. That is a smaller question than "a controlled language for functions" sounded like before
-the lowering existed.
+F4 then confirmed it twice over: predicted to be *"the large one"*, it cost two consequent kinds and
+no new family, because F8's lowering had already done the structural work. **Every expansion on this
+page turned out smaller than its first estimate, and in each case the decompose-first test is what
+shrank it.**
 
-Then **F7**, which needs no new form at all.
+Remaining: **F7** (`forget.ROOT_KINDS`, needs no new form — it is the one *relate in the web* case) and
+**F6** (documentation, not capability).
+
+What is no longer measured, and should be before the next pass: `driver.py` and `execution.py` were
+classified by module and authoring path rather than by reading every function. `execution.py`'s replay
+machinery in particular has never had the decompose test applied to it, and `workbench.step` is still
+flagged as *not assumed primitive, not yet decomposed*.

@@ -673,6 +673,12 @@ def describe(g: Graph, name: str) -> str:
 # here, reached by name. See `native.py`.
 N.register("check", lambda g, _act, node, name: check(g, node, name))
 
+# The same question as `check`, answered rather than enforced. `check` raises, which is right at a call
+# boundary and useless inside a guard — a program asking *"is this a clear block?"* wants a value to jump
+# on, not an exception. Registered here beside it because a type is this module's business and the kernel
+# must not learn what one is.
+N.register("is_a", lambda g, _act, node, name: is_a(g, node, name))
+
 
 __all__ = ["TypeViolation", "UNBOUNDED", "Req", "AttrReq", "Rel", "VALUE_OPS", "IDENTITY_OPS", "compare",
            "offenders", "offending_type",

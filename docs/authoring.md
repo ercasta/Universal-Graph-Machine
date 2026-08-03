@@ -200,11 +200,20 @@ rather than from a depth limit.
 
 ```cnl
 procedure copy_the_subject:
-    takes subject                                   # parameters, in order
+    takes subject is a thing                        # parameters, in order; the type is optional
     do reachable start = subject as walk            # `as` names the result
     do copy_node original = walk as image           # ...so a later rung can use it
     because a procedure decomposes into subprocedures
 ```
+
+**A parameter type is a precondition checked on every call**, not a hint. `takes subject is a thing`
+compiles to `fn copy_the_subject(subject: thing)`, and passing anything that is not a `thing` is
+refused at the call. Leaving the type off says nothing, and nothing is what it then constrains.
+
+The check is **dynamic**, like all typing here: a type is a shape, `is_a` is computed from current
+structure, and the schema is re-checked at the moment of the call. Nothing is stamped and believed —
+an argument that satisfied the type an hour ago and has since lost a part is refused now. A type
+nobody has declared is refused where it is written, since no argument could ever satisfy it.
 
 **A procedure's references are its own variables**, not things in the world: each must be a parameter
 (`takes x`) or a result an earlier rung named (`as x`). A rung naming an individual would make the
@@ -216,15 +225,46 @@ prose is not. Every other family takes a prose label because nothing calls those
 **It lowers to an ordinary function**, and you can read what it compiled to:
 
 ```
-fn copy_the_subject(subject):
+fn copy_the_subject(subject: thing):
     INVOKE R(walk) reachable start=F(subject)
     INVOKE R(image) copy_node original=R(walk)
     COPY R(result) R(image)
 ```
 
 That is the whole executor. A sequence of calls *is* a function body, and an activation already
-advances one instruction per tick on the agenda — so nothing new runs a procedure. The last rung's
-result is the procedure's result.
+advances one instruction per tick on the agenda — so nothing new runs a procedure. The last
+**top-level** rung's result is the procedure's result; a rung inside a block may not have run.
+
+### Repetition and branching
+
+Blocks nest by indentation. A line ending in `:` owns everything indented under it.
+
+```cnl
+procedure mark_the_blocks:
+    takes subject
+    do reachable start = subject as walk
+    for each o in walk by found:
+        when o is a block:
+            do mark x = o
+```
+
+| line | means |
+|---|---|
+| `for each <n> in <ref> by <label>:` | once per target, nearest-first; `^label` walks backwards |
+| `when <ref> is a <type>:` | only if it satisfies the type |
+| `when <ref> is there:` | only if the reference denotes anything |
+| `when <ref>.<key> = <value>:` | only if the attribute matches |
+| `unless …:` | the same tests, negated |
+
+**There is no `while`, and there will not be one.** `for each` counts the collection *once*, before the
+block runs, so a body that appends to what it walks still terminates. A procedure cannot diverge —
+which matters because [limits.md](limits.md) still says termination is unsolved, and a construct that
+cannot loop forever needs no answer to that. It is the same restraint that stops `some … by …` in a
+criterion from becoming a loop.
+
+**Names are function-wide, not block-scoped**, because registers are. A name bound inside a block is
+readable after it — but if the block did not run, reading it is refused at run time with the operand
+named. This follows the target rather than pretending to a scope it does not have.
 
 ## `criterion` / `directive`
 

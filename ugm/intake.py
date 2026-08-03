@@ -120,6 +120,7 @@ from __future__ import annotations
 
 import re
 
+from . import consequent as CQ
 from . import criterion as CR
 from . import goal as G
 from .graph import Graph
@@ -758,7 +759,78 @@ def _step(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
                          f"achieve, and `{'is there' if kind == 'exists' else 'known'}` is a condition")
 
 
-def _method_line(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
+def _names_so_far(g: Graph, owner: str) -> tuple:
+    """Every name a rung could refer to: loop variables and `as` results, anywhere already minted.
+
+    Function-wide rather than block-scoped, and that matches the lowering rather than being lax about
+    it: registers in the instruction set are function-wide, so a name bound inside a block really is
+    readable after it. What is *not* guaranteed is that it holds anything — a guard that did not run
+    leaves its register unset, and reading one is refused at run time with the operand named. Pretending
+    to a lexical scope the target does not have would be the worse of the two."""
+    out = []
+    for c in CQ.of(g, owner):
+        does = g.attr(c, "does")
+        if does == CQ.CALL and g.attr(c, "as"):
+            out.append(g.attr(c, "as"))
+        elif does == CQ.ITERATE:
+            out.append(g.attr(c, "name"))
+        if does in CQ.CONTAINERS:
+            out.extend(_names_so_far(g, c))
+    return tuple(out)
+
+
+def _open_block(g: Graph, owner: str, words: list, line: str, lineno: int, known) -> str:
+    """A body line ending in `:` — `for each …:`, `when …:`, `unless …:`. Returns the container."""
+    body = line.rstrip()[:-1].strip()
+    w = body.split()
+    if w[0] == "for" and len(w) == 7 and w[1] == "each" and w[3] == "in" and w[5] == "by":
+        if w[2] in known:
+            raise Unreadable(f"line {lineno}: {w[2]!r} is already in scope; a loop variable would "
+                             f"shadow it")
+        if w[4] not in known:
+            raise Unreadable(f"line {lineno}: {w[4]!r} is not in scope here"
+                             + (f". In scope: {', '.join(known)}" if known else ""))
+        label, back = (w[6][1:], True) if w[6].startswith("^") else (w[6], False)
+        P.parse_link(label)
+        return CQ.iterate(g, owner, name=w[2], over=w[4], by=label, back=back)
+    if w[0] in ("when", "unless"):
+        neg, rest = w[0] == "unless", w[1:]
+        left = rest[0].split(".")[0] if rest else ""
+        if left not in known:
+            raise Unreadable(f"line {lineno}: {left!r} is not in scope here"
+                             + (f". In scope: {', '.join(known)}" if known else ""))
+        if len(rest) == 3 and rest[1] == "is" and rest[2] == "there":
+            return CQ.guard(g, owner, test="there", left=left, negated=neg)
+        if len(rest) == 4 and rest[1:3] == ["is", "a"]:
+            if TY.find_type(g, rest[3]) is None:
+                raise Unreadable(f"line {lineno}: no type {rest[3]!r} is declared, so this test could "
+                                 f"never hold")
+            return CQ.guard(g, owner, test="type", left=left, label=rest[3], negated=neg)
+        if len(rest) == 3 and rest[1] == "=" and "." in rest[0]:
+            return CQ.guard(g, owner, test="attr", left=left, key=rest[0].split(".", 1)[1],
+                            value=_literal(rest[2]), negated=neg)
+    raise _shape_refused(w, line, lineno, "procedure block")
+
+
+def _method_line(g: Graph, m: str, words: list, line: str, lineno: int,
+                 indent: int = 0, state: dict | None = None) -> None:
+    # Indentation decides which block a rung belongs to, and it is the only place this surface reads it.
+    # A container line ends in `:` and owns everything indented under it; a line at or left of a
+    # container's own indent closes it. The base entry carries -1 so nothing can pop the method itself.
+    stack = state.setdefault("stack", [(-1, m)]) if state is not None else [(-1, m)]
+    while len(stack) > 1 and indent <= stack[-1][0]:
+        stack.pop()
+    owner = stack[-1][1]
+    if line.rstrip().endswith(":"):
+        stack.append((indent, _open_block(g, owner, words, line, lineno, _procedure_params(g, m)
+                                          + _names_so_far(g, m))))
+        return
+    if words[0] == "do" and len(words) > 1:
+        _do(g, m, owner, words[1:], line, lineno)
+        return
+    if owner is not m:
+        raise Unreadable(f"line {lineno}: only `do`, `for each` and `when` may appear inside a block; "
+                         f"{words[0]!r} declares something about the whole procedure")
     if words[0] == "handles" and len(words) == 3:
         if words[1] not in ("link", "attr", "type"):
             raise Unreadable(f"line {lineno}: a method handles link, attr or type — not {words[1]!r}")
@@ -786,15 +858,29 @@ def _method_line(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
         M.draw(g, m, name=name, ref=words[3], label=label[1:] if back else label, back=back)
     elif words[0] == "step" and len(words) > 1:
         _step(g, m, words[1:], line, lineno)
-    elif words[0] == "takes" and len(words) == 2:
+    elif words[0] == "takes" and (len(words) == 2 or
+                                  (len(words) == 5 and words[2:4] == ["is", "a"])):
         # A procedure's parameters, in order. A decomposition needs none — its roles come from the
         # constraint it matched — so this line is what marks a block as the other kind before any rung
         # is read, and `_seal` refuses a block that mixes the two.
+        #
+        # `is a <type>` is the same phrase the shared proposition grammar uses everywhere else, and the
+        # type is a *precondition checked on every call*: `function.invoke` enforces a declared parameter
+        # type, which is what makes this worth writing rather than decorative. Typing here is dynamic
+        # like all typing in this system — the schema is re-checked against current structure at the
+        # moment of the call, never stamped and trusted (`types.tagged_as`).
         if words[1] in _procedure_params(g, m):
             raise Unreadable(f"line {lineno}: {words[1]!r} is already a parameter of this procedure")
-        g.link(m, "takes", g.mint("param", name=words[1]))
-    elif words[0] == "do" and len(words) > 1:
-        _do(g, m, words[1:], line, lineno)
+        want = words[4] if len(words) == 5 else None
+        if want is not None and TY.find_type(g, want) is None:
+            # Refused where it is written, like a `do` naming no function. `invoke` would refuse this
+            # too, but at the first call — and a precondition nobody can satisfy is worth knowing about
+            # when it is written rather than the first time somebody trips over it.
+            raise Unreadable(f"line {lineno}: no type {want!r} is declared, so nothing could ever "
+                             f"satisfy this parameter. Declare the type first, or leave it "
+                             f"unconstrained (`takes {words[1]}`)")
+        g.link(m, "takes", g.mint("param", name=words[1],
+                                  **({"type": want} if want else {})))
     else:
         raise _shape_refused(words, line, lineno, "method")
 
@@ -803,7 +889,7 @@ def _procedure_params(g: Graph, m: str) -> tuple:
     return tuple(g.attr(p, "name") for p in g.targets(m, "takes"))
 
 
-def _do(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
+def _do(g: Graph, m: str, owner: str, words: list, line: str, lineno: int) -> None:
     """One `do <fn> <param> = <ref>, … [as <name>]` rung — an action, not a subgoal.
 
     The reference rules are the reason this is not simply the criterion's `do`. There, a reference
@@ -816,8 +902,7 @@ def _do(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
     if as_ and (" " in as_ or not as_.isidentifier()):
         raise Unreadable(f"line {lineno}: `as {as_}` must name one result, as a single word")
     name, _, argtext = rest.strip().partition(" ")
-    known = _procedure_params(g, m) + tuple(
-        g.attr(c, "as") for c in M.calls_of(g, m) if g.attr(c, "as"))
+    known = _procedure_params(g, m) + _names_so_far(g, m)
     args = {}
     for piece in argtext.split(",") if argtext.strip() else []:
         param, eq, ref = piece.strip().partition("=")
@@ -837,7 +922,7 @@ def _do(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
     if as_ and as_ in known:
         raise Unreadable(f"line {lineno}: {as_!r} is already in scope; a second binding would shadow it")
     _action_exists(g, name, lineno)
-    M.act(g, m, function=name, bindings=args, as_=as_)
+    M.act(g, owner, function=name, bindings=args, as_=as_)
 
 
 def _action_exists(g: Graph, name: str, lineno: int) -> None:
@@ -996,6 +1081,7 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
     verb, label = m.group(1), m.group(2)
 
     sp = g.savepoint()
+    state: dict = {}                 # per-read parse state; only the method family uses it, for nesting
     try:
         node = _open(g, verb, label)
         for lineno, raw in lines[1:]:
@@ -1008,7 +1094,8 @@ def read(g: Graph, text: str, *, under: str = "root") -> tuple:
                 raise Unreadable(
                     f"line {lineno}: {raw.strip()!r} looks like a second block; `read` takes ONE block "
                     f"per call. Split the text on blank lines and call `read` for each.")
-            _body(g, verb, node, raw.split(), raw.strip(), lineno, under)
+            _body(g, verb, node, raw.split(), raw.strip(), lineno, under,
+                  len(raw) - len(raw.lstrip()), state)
         _seal(g, verb, node, label)
     except (Unreadable, P.BadPath) as e:
         # A `BadPath` Used to escape, and with it the whole no-half-built-goal guarantee. A goal
@@ -1067,7 +1154,8 @@ def _open(g: Graph, verb: str, label: str) -> str:
                                                                else G.ADVISORY))
 
 
-def _body(g: Graph, verb: str, node: str, words: list, line: str, lineno: int, under: str) -> None:
+def _body(g: Graph, verb: str, node: str, words: list, line: str, lineno: int, under: str,
+          indent: int = 0, state: dict | None = None) -> None:
     if verb in GOAL_VERBS:
         _constrain(g, node, words, line, lineno, under)
     elif verb in READER_VERBS:
@@ -1083,7 +1171,7 @@ def _body(g: Graph, verb: str, node: str, words: list, line: str, lineno: int, u
     elif verb in POLICY_VERBS:
         _policy_line(g, node, words, line, lineno, under)
     else:
-        _method_line(g, node, words, line, lineno)
+        _method_line(g, node, words, line, lineno, indent, state)
 
 
 def _seal(g: Graph, verb: str, node: str, label: str) -> None:
@@ -1160,7 +1248,7 @@ def _seal(g: Graph, verb: str, node: str, label: str) -> None:
         if fn.find(g, label) is not None:
             raise Unreadable(f"{label!r} is already a function; a second definition would sit beside it "
                              f"rather than replacing it")
-        text = M.lower(g, node, name=label, params=_procedure_params(g, node))
+        text = M.lower(g, node, name=label, params=M.params_of(g, node))
         asm.load_text(g, text)                 # through the border that validates, never around it
         g.put(node, lowered=text)              # so "what did this compile to?" has an answer
         g.link(node, "function", fn.find(g, label))

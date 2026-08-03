@@ -28,8 +28,17 @@ from .graph import Graph
 
 #: The closed set of consequent kinds. Closed, and each new member is a decision about an executor —
 #: adding a tag with nothing that runs it is `docs/limits.md`'s execution verdict, which is worse than no form.
-ACHIEVE, CALL = "achieve", "call"
-KINDS = (ACHIEVE, CALL)
+#:
+#: `iterate` and `guard` are containers rather than leaves, and they are consequents rather than a
+#: second node kind for one reason: **order**. A procedure's rungs are a sequence, and a loop sitting
+#: between two calls has to be *in* that sequence. Two edge labels — one for calls, one for blocks —
+#: would lose the ordering between them, which is the whole content of a program. Their executor is
+#: `method.lower`, which emits the jumps.
+ACHIEVE, CALL, ITERATE, GUARD = "achieve", "call", "iterate", "guard"
+KINDS = (ACHIEVE, CALL, ITERATE, GUARD)
+
+#: Consequents that hold other consequents. A reader walking a body has to know when to recurse.
+CONTAINERS = (ITERATE, GUARD)
 
 #: The edge from a rule to its consequent. One label for both families: the whole point is that a reader
 #: asking *"what does this rule do?"* does not have to know which family it is holding.
@@ -62,6 +71,33 @@ def call(g: Graph, owner: str, *, function: str, bindings: dict) -> str:
     c = g.mint("consequent", does=CALL, function=function)
     for param in sorted(bindings):
         g.link(c, "arg", g.mint("binds", param=param, ref=bindings[param]))
+    g.link(owner, LINK, c)
+    return c
+
+
+def iterate(g: Graph, owner: str, *, name: str, over: str, by: str, back: bool = False) -> str:
+    """`for each <name> in <over> by <by>:` — a block run once per target, nearest-first.
+
+    Bounded by construction, and that is the point rather than a limitation. The collection is
+    materialised before the block runs, so the loop cannot fail to terminate however wrong the body is —
+    the same reason `criterion.draw` allows a selector over a traversal and forbids iteration. A `while`
+    would need a termination story this system does not have; `docs/limits.md` still says termination is
+    unsolved, and a construct that cannot diverge needs no answer to it."""
+    c = g.mint("consequent", does=ITERATE, name=name, over=over, by=by, back=back)
+    g.link(owner, LINK, c)
+    return c
+
+
+def guard(g: Graph, owner: str, *, test: str, left: str, negated: bool = False,
+          key: str | None = None, value=None, label: str | None = None) -> str:
+    """`when …:` / `unless …:` — a block run only if the test holds.
+
+    `test` names the shape: `attr` (`x.k = v`), `there` (`x is there`), or `type` (`x is a T`). A closed
+    little vocabulary, each member of which lowers to something the instruction set can already put in a
+    register and jump on — which is the reason it is closed at three rather than at whatever reads well."""
+    c = g.mint("consequent", does=GUARD, test=test, left=left, negated=negated,
+               **{k: v for k, v in (("key", key), ("value", value), ("label", label))
+                  if v is not None})
     g.link(owner, LINK, c)
     return c
 
