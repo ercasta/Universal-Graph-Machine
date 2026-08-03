@@ -234,6 +234,12 @@ predict where the next one will be:
   concern that should have been expressible.
 * **Anything expressible is in scope.** The question is never *whether* something belongs, only
   *how* — and the how must be data, never Python, because a Python answer creates the next island.
+* **The enforcing form arrives before the answering one.** `types.check` raises where a guard needed
+  `is_a` to *answer*; `INVOKE` raised where a replay stepper needed `ATTEMPT` to hand back the refusal.
+  Twice, the thing blocking a capability from being written in the surface was not a missing operation
+  but a missing *non-raising* version of one that already existed. This is the most reliable predictor
+  on this page of where the next blocker will be: wherever the engine can only enforce, something above
+  it that needs to *decide* will have to be Python.
 
 ## What is not verified
 

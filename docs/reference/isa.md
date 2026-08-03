@@ -86,6 +86,50 @@ them, so a copy written in the surface does not carry them across. That needs `N
 and is a real gap rather than a simplification — the Python copy had exactly this bug once, and
 nothing failed, because no check copied an edge with properties.
 
+### Calling, and being refused
+
+| opcode | effect |
+|---|---|
+| `INVOKE dst <fn> p=x q=y` | call a stored function; a refusal **raises** |
+| `INVOKE dst <fn> with node` | the same, with the bindings described by a node |
+| `ATTEMPT dst err <fn> …` | the same call, with a refusal handed back in `err` as a node |
+
+`<fn>` may be a literal name **or a register** — calling a function chosen at run time already worked
+before either of these existed.
+
+**`with node`** is how a program assembles a call it worked out. The node carries ordered `arg` edges
+to nodes with a `param` attribute and a `value` edge:
+
+```
+NEW  R(b) "binding"
+SET  R(b) "param" R(name)      ← the parameter name, computed
+LINK R(b) "value" R(node)
+LINK R(args) "arg" R(b)
+INVOKE R(out) R(fn) with R(args)
+```
+
+Graph data rather than "a register may hold a dict", deliberately: a dict in a register is a Python
+value the system cannot read, which is the island pattern with a shorter name. A node with `arg` edges
+is something a rule can build, inspect, store and hand on — and it is the shape `transformation`
+already uses to record a step's arguments.
+
+**`ATTEMPT` catches a closed set, and the line is whose fault it is.** A **refusal** is a claim about
+the world or the request — a precondition that no longer holds, a standing prohibition, an imagined
+target. Those subclass `graph.Refusal` and come back as a `refusal` node carrying what refused and
+why. An **error** is a claim about the program — an unset register, an unknown function, a bad opcode
+— and those still abort, because handing one back as data turns a bug into an `err` nobody reads.
+
+A refused attempt **leaves nothing behind**: the savepoint is rolled back, so a caller that carries on
+is not carrying on over a half-applied call. Nothing real can have escaped, since every refusal fires
+before `dispatch.service` commits.
+
+`Refusal` lives in the substrate so the instruction set can catch the *category* without importing the
+layers that raise it — the `native.py` shape again. The kernel-boundary check caught the first version
+of `ATTEMPT` importing `types` and `dispatch` directly.
+
+`ATTEMPT` is a separate opcode rather than a flag on `INVOKE`, because failing-as-a-value and
+calling-dynamically are independent capabilities that merely happened to be needed together.
+
 ### The focus
 
 | opcode | effect |

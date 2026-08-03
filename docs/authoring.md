@@ -369,6 +369,7 @@ policy house rules:
     permit refund
     forbid touching vault           # a standing prohibition on a THING
     finance outranks operations     # an authority ordering, transitive
+    keep observation                # a kind of record that must survive forgetting
     because the auditor said so
 ```
 
@@ -393,6 +394,15 @@ every world, for every agent — wrong the way a typo is wrong.
 **Authority is what `tie_break`'s `authority` stage reads**, so this is where a criterion's precedence
 ultimately comes from. It is transitive: if finance outranks operations and operations outranks
 receiving, finance outranks receiving.
+
+**`keep <kind>` says what survives forgetting.** Everything not reachable from a kept kind is
+scaffolding and a sweep takes it. The shipped policy is `ugm/rules/keeping.cnl` — ordinary text you can
+open and argue with — installed by `forget.install_defaults`. With no keeping policy authored at all, a
+sweep **refuses** rather than defaulting: there is no harmless reading of *keep nothing*.
+
+A kind cannot be checked, unlike an action or a thing: kinds are open, and a policy written before the
+work starts will name kinds that have no instances yet. So a misspelled `keep` line keeps nothing and
+says nothing.
 
 ## `tie_break`
 

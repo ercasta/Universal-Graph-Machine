@@ -41,6 +41,21 @@ from itertools import count
 _ids = count(1)
 
 
+class Refusal(Exception):
+    """A call declined because of the WORLD or the REQUEST — never because the program is wrong.
+
+    The distinction is whose fault it is, which is the standing rule for what an exception type means
+    here. A precondition that no longer holds, a standing prohibition naming the target, a target that
+    exists only inside a workbench: each is a fact about the situation, and a caller may reasonably want
+    it back as a value and carry on. An unset register, an unknown function or a bad opcode is a defect,
+    and handing one back as data would turn a bug into an `err` nobody reads.
+
+    It lives in the substrate so `ATTEMPT` can catch it without the instruction set importing the layers
+    that raise it. Each layer above declares its own subclass — `types.TypeViolation`, `dispatch.Vetoed`,
+    `dispatch.Imagined` — which is the `native.py` shape again: the kernel knows the *category* and never
+    the members. The kernel-boundary check caught the first version of `ATTEMPT` importing both."""
+
+
 @dataclass(frozen=True)
 class Ref:
     """A stored pointer to a node, held as an attribute value. Not an edge — see the module docstring."""

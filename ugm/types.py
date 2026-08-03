@@ -27,10 +27,10 @@ from typing import NamedTuple
 
 from . import path as P
 from . import native as N
-from .graph import Graph
+from .graph import Graph, Refusal
 
 
-class TypeViolation(Exception):
+class TypeViolation(Refusal):
     """Refused at the boundary, loudly, with expected-versus-actual — never a half-executed call."""
 
 

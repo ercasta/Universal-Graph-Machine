@@ -26,14 +26,14 @@ See `docs/execution-model.md`.
 """
 from __future__ import annotations
 
-from .graph import Graph
+from .graph import Graph, Refusal
 
 _TOOLS: dict = {}
 _OBSERVES: set = set()
 VETO = "forbidden"
 
 
-class Vetoed(Exception):
+class Vetoed(Refusal):
     """A dispatch refused by a standing prohibition. Loud, and carrying the node that blocked it."""
 
 
@@ -87,7 +87,7 @@ def veto_reason(g: Graph, target):
     return None
 
 
-class Imagined(Exception):
+class Imagined(Refusal):
     """A dispatch attempted on something that only exists inside a workbench. Planning may not act."""
 
 

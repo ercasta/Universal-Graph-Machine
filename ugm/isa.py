@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 from . import activation as A
 from .focus import Focus
-from .graph import Graph, Ref
+from .graph import Graph, Ref, Refusal
 
 
 @dataclass(frozen=True)
@@ -58,6 +58,49 @@ class I:
 
 def _ins(op):
     return lambda *args: I(op, args)
+
+
+#: The edge and attribute a binding set is described with, when it is graph data rather than a literal.
+ARG, PARAM, VALUE = "arg", "param", "value"
+
+
+def _bindings(g, v, operand) -> dict:
+    """`INVOKE`'s third operand: a literal mapping, or a NODE describing one.
+
+    The literal form fixes the parameter *names* at assembly time, which is fine for a program that
+    knows what it is calling and useless for one that does not. `execution.step` assembles its arguments
+    by walking a transformation's `arg` edges — names and values both computed — and that is why it is
+    Python: not because calling dynamically was impossible (the function name already resolves through a
+    register) but because a *binding set* could not be built at all.
+
+    So the second form is graph data, deliberately, rather than "a register may hold a dict". A dict in a
+    register would be a Python value the system cannot read, which is the island pattern with a shorter
+    name; a node with `arg` edges is something a rule can build, inspect, store and hand to something
+    else. It is also the shape `transformation` already uses to record the arguments of a step.
+
+        NEW  R(b) "binding"
+        SET  R(b) "param" R(name)      ← the parameter name, computed
+        LINK R(b) "value" R(node)      ← what to bind it to
+        LINK R(args) "arg" R(b)
+        INVOKE R(out) R(fn) R(args)
+
+    A `Ref` operand resolves to the node it points at. This is how a learned function carries a binding
+    that was deliberately kept constant (`application.generalise`): the generalised arguments arrive as
+    `F(param)`, the fixed ones as a stored pointer to that exact node."""
+    got = v(operand)
+    if isinstance(got, dict):
+        return {k: (x.node if isinstance(x, Ref) else v(x)) for k, x in got.items()}
+    if got is None:
+        return {}
+    out = {}
+    for b in g.targets(got, ARG):
+        name = g.attr(b, PARAM)
+        if name is None:
+            raise RuntimeError(
+                f"INVOKE: {b} is in {got}'s binding set but names no parameter. A binding is a node with "
+                f"a {PARAM!r} attribute and a {VALUE!r} edge; without the name there is nowhere to put it.")
+        out[name] = g.target(b, VALUE)
+    return out
 
 
 def _keys(g, node) -> tuple:
@@ -102,6 +145,17 @@ JMP, JMPIF, JMPNOT, CALL, RET, HALT = (
 NATIVE = _ins("NATIVE")
 # calling a stored function (graph-resident), as opposed to CALL's jump to a local label
 INVOKE = _ins("INVOKE")
+# the same call, with the refusal handed back as a VALUE instead of raising.
+#
+# `types.check` raises and `types.is_a` answers; the same pair was missing one level up. `INVOKE` raises,
+# and nothing answered — which is exactly why `execution.step` is Python: its whole job is to turn a
+# refused call into a `deviation`, and turning a refusal into data is the one thing the surface could not
+# do. The engine has repeatedly had the *enforcing* form and lacked the *answering* one.
+#
+# A separate opcode rather than a flag on `INVOKE`: failing-as-a-value and calling-dynamically are
+# independent capabilities that merely happened to be needed together, and bundling them would be the
+# `CLONE` mistake — a composite wearing a primitive's clothes.
+ATTEMPT = _ins("ATTEMPT")
 # the one way an effect leaves the graph — routed through `dispatch.service`'s checkpoint
 DISPATCH = _ins("DISPATCH")
 
@@ -112,7 +166,7 @@ WRITES_REGISTER = frozenset({
     "NEW", "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
     "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT",
     "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
-    "INVOKE", "DISPATCH", "NATIVE"})
+    "INVOKE", "ATTEMPT", "DISPATCH", "NATIVE"})
 
 # Opcodes that read the graph, mapped to the kind of slot they read — the counterpart of the write side
 # `driver._effects` already reads off a body, and stated here for the same reason `WRITES_REGISTER` is:
@@ -364,17 +418,48 @@ class Machine:
             # fresh focus holding only its bound parameters — never the caller's heads — so a function is
             # never silently sensitive to where its caller happened to be looking.
             from .function import invoke as _invoke
-            # A `Ref` operand resolves to the node it points at. This is how a learned function carries a
-            # binding that was deliberately kept constant (`application.generalise`): the generalised
-            # arguments arrive as `F(param)`, the fixed ones as a stored pointer to that exact node.
-            bindings = {k: (x.node if isinstance(x, Ref) else v(x))
-                        for k, x in (v(a[2]) or {}).items()} if len(a) > 2 else {}
+            bindings = _bindings(g, v, a[2]) if len(a) > 2 else {}
             # `caller=act` is what keeps the call chain readable. A nested invocation used to be a nested
             # Python frame — invisible to the system running it — so "what was it doing?" could only ever
             # answer about the outermost program. `activation.chain` walks it.
             _f, out = _invoke(g, v(a[1]), bindings, caller=act)
             if isinstance(a[0], R):
                 w(a[0], out.get("result"))
+
+        elif op == "ATTEMPT":
+            # `ATTEMPT R(out) R(err) <name> <bindings>` — call, and hand back a refusal as a node.
+            #
+            # **What is caught is a closed set, and the line is whose fault it is.** A refusal is a claim
+            # about the WORLD or the REQUEST: a precondition no longer holds, a standing prohibition
+            # names the target, the target is imagined. An error is a claim about the PROGRAM: an unset
+            # register, an unknown function, a bad opcode. Catching the second kind would turn a bug into
+            # a quiet `err` nobody reads, which is the failure this codebase keeps naming — so they are
+            # not caught, and they still abort.
+            #
+            # A refused attempt leaves NOTHING behind. The savepoint is taken here and rolled back on
+            # refusal, matching the discipline every other border keeps: a half-applied call would be
+            # worse than a raised one, because the caller carries on. Nothing real can have escaped —
+            # `TypeViolation` fires at the parameter check and the dispatch refusals fire before the
+            # handler runs, all of them before `dispatch.service` commits.
+            from .function import invoke as _invoke2
+            binds = _bindings(g, v, a[3]) if len(a) > 3 else {}
+            sp = g.savepoint()
+            try:
+                _f, out = _invoke2(g, v(a[2]), binds, caller=act)
+            except Refusal as e:
+                g.rollback(sp)
+                refusal = g.mint("refusal", refused=type(e).__name__, why=str(e),
+                                 **{k: getattr(e, k) for k in ("param", "want")
+                                    if getattr(e, k, None) is not None})
+                if isinstance(a[1], R):
+                    w(a[1], refusal)
+                if isinstance(a[0], R):
+                    w(a[0], None)
+            else:
+                if isinstance(a[1], R):
+                    w(a[1], None)
+                if isinstance(a[0], R):
+                    w(a[0], out.get("result"))
 
         elif op == "DISPATCH":
             # `DISPATCH R(dst), "tool", F(head)` — the only escape hatch to the outside world, and it
@@ -434,5 +519,5 @@ __all__ = ["R", "F", "I", "Ref", "Machine", "run", "WRITES_REGISTER", "READS_GRA
            "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT",
            "FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS",
            "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
-           "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "INVOKE", "DISPATCH",
+           "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "INVOKE", "ATTEMPT", "DISPATCH",
            "NATIVE"]

@@ -114,13 +114,25 @@ def _invoke_args(toks: list, lineno: int) -> tuple:
     if not isinstance(name, (str, R)):
         raise AsmError(f"line {lineno}: INVOKE's second operand must be a function name, "
                        f"not {toks[1]!r} — expected `{_INVOKE_FORM}`")
+    # Two operand forms, and the second is what lets a program call something it worked out. A single
+    # bare register is a NODE describing the bindings (`arg` edges carrying `param` and `value`), which is
+    # how a caller assembles parameter *names* at run time — see `isa._bindings`. Named bindings stay the
+    # ordinary form; nothing that reads well today changes.
+    rest = toks[2:]
+    # `with R(args)` — the bindings are a NODE describing them, so a program can assemble parameter
+    # *names* at run time (`isa._bindings`). The keyword is not decoration: a bare register here would be
+    # indistinguishable from the positional mistake this function exists to refuse, and that ambiguity
+    # went red on the check that guards it.
+    if len(rest) == 2 and rest[0] == "with":
+        return (dst, name, _operand(rest[1], lineno))
     bindings = {}
-    for tok in toks[2:]:
+    for tok in rest:
         m = _BINDING.match(tok)
         if not m:
             raise AsmError(
                 f"line {lineno}: INVOKE binds parameters BY NAME, so {tok!r} has nowhere to go — "
-                f"expected `{_INVOKE_FORM}`, e.g. `INVOKE R(out) {name} it={tok}`")
+                f"expected `{_INVOKE_FORM}`, e.g. `INVOKE R(out) {name} it={tok}`, or a single "
+                f"register holding a binding set")
         if m.group(1) in bindings:
             raise AsmError(f"line {lineno}: INVOKE binds {m.group(1)!r} twice")
         bindings[m.group(1)] = _operand(m.group(2), lineno)
@@ -206,6 +218,24 @@ def parse(text: str) -> list:
         if op not in _OPCODES:
             raise AsmError(f"line {lineno}: unknown opcode {op!r}. "
                            f"Known: {', '.join(sorted(_OPCODES))}")
+        # `ATTEMPT` has `INVOKE`'s shape with an error register in front of the name, so it gets the same
+        # operand check rather than falling through to the positional reader — the reason that check
+        # exists is that a positional call parses and then explodes far from the line that was wrong.
+        if op == "ATTEMPT":
+            if len(args) < 3:
+                raise AsmError(f"line {lineno}: ATTEMPT needs a result register, an error register and "
+                               f"a function name — `ATTEMPT R(out) R(err) <fn> [bindings]`")
+            err = _operand(args[1], lineno)
+            if not isinstance(err, R):
+                raise AsmError(f"line {lineno}: ATTEMPT's second operand is the register the refusal "
+                               f"lands in, not {args[1]!r}. Without one the refusal is discarded, which "
+                               f"is `INVOKE` with the failure silently dropped")
+            # Deliberately not `name` — that is the enclosing loader's variable for the function being
+            # DEFINED, and assigning it here renamed the whole function to this call's target. Caught by
+            # the function coming back defined under a register's name.
+            dst, callee, binds = _invoke_args((args[0],) + tuple(args[2:]), lineno)
+            program.append(I(op, (dst, err, callee, binds)))
+            continue
         program.append(I(op, _invoke_args(args, lineno) if op == "INVOKE"
                          else tuple(_operand(t, lineno) for t in args)))
     flush()

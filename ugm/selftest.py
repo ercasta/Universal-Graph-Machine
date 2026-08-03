@@ -2550,6 +2550,9 @@ def check_FORGETTING_IS_THE_DEFAULT_and_no_answer_changes():
     before = _still_answerable(g, world, th)
 
     lp = L.open_loop(g, "a quiet moment")
+    # The keeping policy is authored data now, not a Python tuple, so a sweep refuses until it is
+    # installed — see `docs/audit.md` F7. Loading the shipped one is what a real caller does too.
+    FG.install_defaults(g)
     f = FG.open_forgetting(g)
     L.schedule(g, lp, f, why="the past is mostly scaffolding")
     out = L.run(g, lp, max_ticks=5000)
@@ -2606,8 +2609,17 @@ def check_IMAGINED_evidence_is_superseded_by_REAL_evidence():
     plan = D.pursue(g, merely, th, world, max_steps=200)
 
     before = (g.target(done, "seen_in"), g.target(merely, "seen_in"), len(g.nodes))
+    # The keeping policy is authored data now, not a Python tuple, so a sweep refuses until it is
+    # installed — see `docs/audit.md` F7. Loading the shipped one is what a real caller does too.
+    FG.install_defaults(g)
+    # The keeping policy is authored data now, not a Python tuple, so a sweep refuses until it is
+    # installed — see `docs/audit.md` F7. Loading the shipped one is what a real caller does too.
+    FG.install_defaults(g)
     freed = FG.compact(g)
     lp = L.open_loop(g, "tidy")
+    # The keeping policy is authored data now, not a Python tuple, so a sweep refuses until it is
+    # installed — see `docs/audit.md` F7. Loading the shipped one is what a real caller does too.
+    FG.install_defaults(g)
     L.schedule(g, lp, FG.open_forgetting(g))
     L.run(g, lp, max_ticks=6000)
 
@@ -2643,6 +2655,9 @@ def check_A_TOOL_CALL_AND_A_SURPRISE_are_what_survives():
     "remembering is the exception" would be indistinguishable from remembering everything."""
     from . import forget as FG, loop as L, memory as M
     g, th, d, disk, look = _watched_world()
+    # The keeping policy is authored data now, not a Python tuple, so a sweep refuses until it is
+    # installed — see `docs/audit.md` F7. Loading the shipped one is what a real caller does too.
+    FG.install_defaults(g)
     look()                                            # 3
     disk["count"] = 5
     look()                                            # 5 — nothing I did could explain this
@@ -2695,6 +2710,12 @@ def check_a_LIVE_computation_is_never_forgotten():
 
     lp = L.open_loop(g, "sweep while working")
     L.schedule(g, lp, p)
+    # The keeping policy is authored data now, not a Python tuple, so a sweep refuses until it is
+    # installed — see `docs/audit.md` F7. Loading the shipped one is what a real caller does too.
+    FG.install_defaults(g)
+    # The keeping policy is authored data now, not a Python tuple, so a sweep refuses until it is
+    # installed — see `docs/audit.md` F7. Loading the shipped one is what a real caller does too.
+    FG.install_defaults(g)
     L.schedule(g, lp, FG.open_forgetting(g), why="forget, but not what I am doing")
     L.run(g, lp, max_ticks=6000)
 
@@ -2715,6 +2736,9 @@ def check_forgetting_says_what_it_still_remembers_and_why():
     must be distinguishable from each other and from the world, so the reasons must not collapse to one."""
     from . import dispatch as DI, forget as FG
     g, _car, _t = _car_world()
+    # The keeping policy is authored data now, not a Python tuple, so a sweep refuses until it is
+    # installed — see `docs/audit.md` F7. Loading the shipped one is what a real caller does too.
+    FG.install_defaults(g)
     reasons = {}
     for kind, node in (("goal", g.mint("goal", label="q")),
                        ("observation", g.mint("observation", key="count")),
@@ -5528,6 +5552,66 @@ def _policy_world():
     return g, w, vault
 
 
+def check_WHAT_IS_WORTH_KEEPING_is_AUTHORED_rather_than_compiled_in():
+    """`docs/audit.md`'s F7 — the one finding whose answer was *relate it in the web*, not *expand*.
+
+    `forget.ROOT_KINDS` was a Python tuple of eight node kinds that survive a sweep. That is not a
+    vocabulary, it is a **judgement about value**, and a judgement kept where nothing can argue with it
+    rots: the tuple carried a dead entry naming a kind that did not exist, beside a comment wondering
+    aloud whether another was redundant. It is now a `policy` in `rules/keeping.cnl`, with the reasons
+    that used to sit in that comment written where somebody deciding whether to keep a kind will read
+    them.
+
+    It cost no new family and no new closed-class member — a `keep` line in a family that already
+    existed, which is what F5's economics predicts and the second time that prediction has been tested.
+
+    **An empty policy refuses rather than defaulting.** This is the one place where *nothing authored*
+    and *a safe default* come apart: `precedence` can answer "declaration order" and mean it, and there
+    is no harmless reading of *keep nothing* — it would hand a sweep the whole graph.
+
+    Vacuity guards: the policy must be what the sweep actually consults, shown by *withdrawing* one line
+    and watching that kind become forgettable; and the refusal must fire before anything is deleted."""
+    from pathlib import Path
+    from . import forget as FG, intake as I
+
+    bare = new_graph()
+    refused = _raises(lambda: FG.roots(bare), ValueError)
+
+    def world(installer):
+        g = new_graph()
+        installer(g)
+        return g, g.mint("observation", key="count"), g.mint("goal", label="q")
+
+    shipped, obs, goal = world(FG.install_defaults)
+    # The same world under a DIFFERENT policy. If the sweep were still reading a Python tuple, these two
+    # would answer identically — which is the whole of what "authored" has to mean.
+    minimal, obs2, goal2 = world(
+        lambda g: I.read(g, _lines("policy only the crossings:", "    keep observation")))
+
+    return {"A_BARE_GRAPH_REFUSES_TO_SWEEP_rather_than_taking_everything": refused,
+            "and_it_says_how_to_fix_it": "install_defaults" in _message(lambda: FG.roots(bare)),
+            "THE_SHIPPED_POLICY_IS_AUTHORED_TEXT":
+                set(FG.kept_kinds(shipped)) >= {"observation", "goal", "loop", "function"},
+            "and_a_goal_survives_under_it": goal in FG.keepers(shipped),
+            "an_observation_does_too": obs in FG.keepers(shipped),
+            # The vacuity guard that matters: a policy nobody consults cannot change the answer.
+            "A_DIFFERENT_POLICY_GIVES_A_DIFFERENT_ANSWER": FG.kept_kinds(minimal) == ("observation",),
+            "SO_THE_GOAL_IS_NOW_FORGETTABLE": goal2 not in FG.keepers(minimal),
+            "while_the_observation_is_still_kept": obs2 in FG.keepers(minimal),
+            # The reasons moved with the list, which is the point of moving it at all.
+            "and_the_REASONS_travel_with_the_policy":
+                "surprise" in (Path(__file__).parent / "rules" / "keeping.cnl").read_text(
+                    encoding="utf-8")}
+
+
+def _message(thunk) -> str:
+    try:
+        thunk()
+        return ""
+    except Exception as e:                       # the message IS the assertion here
+        return str(e)
+
+
 def check_a_POLICY_says_what_is_ALLOWED_and_ON_WHOSE_WORD():
     """Three things that were Python-only, in one family, because they are one kind of claim.
 
@@ -5623,6 +5707,83 @@ def check_a_POLICY_refuses_what_would_CONSTRAIN_NOTHING():
             "AND_A_REFUSAL_LEAVES_NO_NORM_BEHIND":
                 not [n for n in g1.nodes if g1.kind(n) == "norm"],
             "nor_a_policy": not [n for n in g1.nodes if g1.kind(n) == "policy"]}
+
+
+def _attempt_world():
+    from . import asm, types as TY
+    g = new_graph()
+    TY.declare_type(g, "world", attrs={"kind_of": "world"})
+    asm.load_text(g, _lines("fn touch(x: world) -> thing:", '    SET F(x) "touched" true'))
+    # Assembles its binding set at run time — parameter NAME included — then attempts the call.
+    asm.load_text(g, _lines(
+        "fn call_it(fname, pname, target) -> thing:",
+        '    NEW R(args) "bindings"',
+        '    NEW R(b) "binding"',
+        '    ATTR R(p) F(pname) "label"',
+        '    SET R(b) "param" R(p)',
+        '    LINK R(b) "value" F(target)',
+        '    LINK R(args) "arg" R(b)',
+        '    ATTR R(n) F(fname) "label"',
+        "    ATTEMPT R(out) R(err) R(n) with R(args)",
+        "    COPY R(result) R(err)"))
+    named = lambda label: g.link("root", "has", g.mint("name", label=label)) and None or [
+        n for n in g.nodes if g.kind(n) == "name" and g.attr(n, "label") == label][-1]
+    return g, named
+
+
+def check_a_BINDING_SET_can_be_BUILT_and_a_REFUSAL_can_be_a_VALUE():
+    """The two gaps that kept `workbench.step` and `execution.step` in Python.
+
+    Decomposing them found less missing than expected. Calling a function chosen at run time already
+    worked — `INVOKE`'s name operand resolves through a register, tested below — so what remained was:
+
+    **A binding set could not be built.** `INVOKE`'s bindings were a literal mapping with parameter
+    names fixed at assembly time. `execution.step` assembles its arguments by walking a transformation's
+    `arg` edges, names and values both computed. The fix is graph data, not "a register may hold a dict":
+    a dict in a register is a Python value the system cannot read, which is the island pattern with a
+    shorter name.
+
+    **A refusal could not be a value.** `types.check` raises and `types.is_a` answers; the same pair was
+    missing one level up, and `execution.step`'s whole job is turning a refused call into a `deviation`.
+    The engine has repeatedly had the enforcing form and lacked the answering one — worth stating as a
+    pattern, because it predicts where the next blocker will be.
+
+    `ATTEMPT` is a separate opcode rather than a flag on `INVOKE`: failing-as-a-value and
+    calling-dynamically are independent capabilities that merely happened to be needed together, and
+    bundling them would be the `CLONE` mistake.
+
+    Vacuity guards: the successful call must really run (or "no refusal" is trivially true); the refused
+    one must leave the world untouched, since a half-applied call is worse than a raised one; and a
+    PROGRAM error must still abort rather than arriving as a value — otherwise `ATTEMPT` would turn every
+    bug into an `err` nobody reads."""
+    from . import function as fn, types as TY
+
+    g, named = _attempt_world()
+    fname, pname = named("touch"), named("x")
+    good = g.mint("world", kind_of="world")
+    g.link("root", "has", good)
+    bad = g.mint("block", kind_of="block")
+    g.link("root", "has", bad)
+
+    err_ok = fn.invoke(g, "call_it", {"fname": fname, "pname": pname, "target": good})[1].get("result")
+    err_bad = fn.invoke(g, "call_it", {"fname": fname, "pname": pname, "target": bad})[1].get("result")
+
+    # A program error is not a refusal: naming a function that does not exist is a defect, and must not
+    # come back as data. This is the boundary the opcode's docstring draws, checked rather than asserted.
+    missing = named("no_such_function")
+    exploded = _raises(
+        lambda: fn.invoke(g, "call_it", {"fname": missing, "pname": pname, "target": good}), KeyError)
+
+    return {"THE_CALL_RAN_WITH_A_RUNTIME_BUILT_BINDING_SET": g.attr(good, "touched") is True,
+            "and_the_PARAMETER_NAME_itself_was_computed": g.attr(pname, "label") == "x",
+            "a_successful_ATTEMPT_reports_no_refusal": err_ok is None,
+            "A_REFUSAL_COMES_BACK_AS_A_NODE": g.kind(err_bad) == "refusal",
+            "and_it_says_what_refused": g.attr(err_bad, "refused") == TY.TypeViolation.__name__,
+            "and_carries_the_reason": "is not a world" in (g.attr(err_bad, "why") or ""),
+            # A refused attempt must leave nothing behind — the caller carries on, unlike after a raise.
+            "AND_THE_REFUSED_CALL_LEFT_THE_WORLD_UNTOUCHED": g.attr(bad, "touched") is None,
+            # The boundary: a claim about the PROGRAM still aborts.
+            "A_PROGRAM_ERROR_STILL_ABORTS_rather_than_becoming_a_value": exploded}
 
 
 def _reflect_world():

@@ -1,0 +1,36 @@
+# What can never be re-derived, and therefore survives a sweep.
+#
+# This was a Python tuple, `forget.ROOT_KINDS`, and `docs/audit.md` found it as the one place on that
+# page where the answer was *relate it in the web* rather than *expand the closed class*. It is not a
+# vocabulary — it is a judgement about value, and a judgement belongs where it can be read, quoted,
+# argued with and withdrawn. The tuple's own comments had already started to rot: it carried a dead
+# entry naming a kind that did not exist, and a note wondering aloud whether one of the others was
+# redundant.
+#
+# Everything not reachable from one of these is scaffolding, and a sweep takes it.
+
+policy what we keep:
+    keep root
+
+    # The two that are about CONTENT rather than about scaffolding being absent. An observation is the
+    # result of a tool call and a deviation is a surprise: the world crossed into the graph, and nothing
+    # inside can reconstruct what it said.
+    keep observation
+    keep deviation
+
+    # The library — authored, not derived. Nothing recomputes what somebody wrote.
+    keep function
+    keep type
+
+    # A goal reaches its own constraints, so keeping the goal keeps what it wanted.
+    keep goal
+    keep episode
+
+    # The one that is not about the past at all, and it is what makes live work safe without a special
+    # case: an agenda points at its tasks, a pursuit at its search, a search at its workbench — so
+    # *being scheduled* already says "this is what I am doing", and the closure protects it. The first
+    # version of this module took a hand-passed pin instead, and promptly swept the loop node out from
+    # under the sweep that was running on it.
+    keep loop
+
+    because everything else survives only by being reachable from one of these

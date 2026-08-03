@@ -73,6 +73,18 @@ COMMIT = "commit"            # stop planning; what we have is what we will do
 SENSE = "sense"              # stop planning and act in order to learn        (needs ignorance)
 REFUSE = "refuse"            # no sanctioned way to proceed; do not improvise
 
+#: Closed in Python **on purpose**, and with no escape into the web — recorded here because
+#: `docs/audit.md` (F6) found this class failing the executor-per-member test by its own admission, and
+#: an undeclared position is what that page counts as the defect rather than the closure itself.
+#:
+#: A search move is not something a domain authors. It is what the engine does *while* deciding, one
+#: level below the criteria and methods a domain writes, and a new one is a change to how deliberation
+#: works rather than to what this domain knows. That is the opposite of `precedence.STAGES`, which has
+#: `run <fn>` precisely because ranking by seniority or recency is a domain's business.
+#:
+#: The honest half: `_UNBUILT` below names members whose machinery does not exist. Returning one raises
+#: rather than being ignored, so the gap is loud — but it does mean this set is aspirational at the
+#: edges, and a reader should not take membership here as proof that something works.
 VERBS = (EXPAND, DECOMPOSE, COMMIT, SENSE, REFUSE)
 _STOPS = (COMMIT, SENSE, REFUSE)
 

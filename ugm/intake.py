@@ -263,7 +263,7 @@ FORMS: dict = {
                   "must | should | could", "by <agent>", "because …"),
     "tie_break": ("authority | force | specificity | random", "run <fn>", "seed <n>", "because …"),
     "policy": ("by <agent>", "defeasible | inviolable", "forbid <action>", "permit <action>",
-               "forbid touching <thing>", "<agent> outranks <agent>", "because …"),
+               "forbid touching <thing>", "<agent> outranks <agent>", "keep <kind>", "because …"),
     "condition": _SHAPE_FORMS + ("wants <sort> <label> from x",),
     "question": ("<one bare name>", "by <link>"),
 }
@@ -637,6 +637,17 @@ def _policy_line(g: Graph, p: str, words: list, line: str, lineno: int, under: s
         # blocks a call planned before it was written. `touching x` is spelled as it already is in a
         # `prefer` / `avoid` block rather than invented here.
         g.link(p, "veto", DP.forbid(g, resolve(g, words[2], under=under)))
+    elif words[0] == "keep" and len(words) == 2:
+        # *What must never be forgotten* is a judgement about value, not a vocabulary — `docs/audit.md`'s
+        # one *relate it in the web* case. It lived in `forget.ROOT_KINDS` as a Python tuple whose own
+        # comments had begun to rot (a dead entry naming no kind, a note wondering if another was
+        # redundant), which is what a judgement does when it is kept somewhere nothing can argue with it.
+        #
+        # A kind cannot be validated: kinds are open, and a kind with no instances yet is the ordinary
+        # case for a policy written before the work starts. So a misspelling here keeps nothing and says
+        # nothing, which is worth knowing.
+        from . import forget as FG
+        g.link(p, "keep", FG.keep(g, words[1]))
     elif len(words) == 3 and words[1] == "outranks":
         from . import discourse as DC
         DC.authority(g, DC.speaker(g, words[0]), DC.speaker(g, words[2]))
@@ -1219,9 +1230,9 @@ def _seal(g: Graph, verb: str, node: str, label: str) -> None:
             PR.attribute(g, n, by)
             if force:
                 g.put(n, force=force)
-        if not (norms or vetoes or g.attr(node, "said_something")):
-            raise Unreadable(f"`policy {label}` allows nothing, forbids nothing and ranks nobody; "
-                             f"a policy that says none of those is a title")
+        if not (norms or vetoes or g.targets(node, "keep") or g.attr(node, "said_something")):
+            raise Unreadable(f"`policy {label}` allows nothing, forbids nothing, keeps nothing and "
+                             f"ranks nobody; a policy that says none of those is a title")
     elif verb in TIE_BREAK_VERBS:
         # The closure fact this family needs is *totality*, not non-emptiness — a rule whose last stage
         # can answer "undecided" leaves pairs in an order nobody chose, which is exactly the undeclared

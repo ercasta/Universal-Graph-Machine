@@ -40,56 +40,68 @@ See `docs/memory.md`.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from .graph import Graph
 
 KINDS = ("forgetting",)
 
-#: Kinds that are roots because nothing can reconstruct them. Everything else survives only by being
-#: reachable from one of these.
-#:
-#: `observation` is the *result of a tool call* and `deviation` is a *surprise* — the user's two
-#: exceptions, and the only two entries here that are about content rather than about scaffolding being
-#: absent. `thread` reaches every entry on it; `goal` reaches its constraints; `function` and `type` are
-#: the library, which is authored rather than derived.
-#:
-#: `loop` is the one that is not about the past at all, and it is what makes live work safe without a
-#: special case: an agenda points at its tasks, a pursuit points at its search, a search at its workbench
-#: — so *being scheduled* is already the statement "this is what I am doing", and the closure protects it.
-#: The first version of this module took a hand-passed pin instead, and promptly swept the loop node itself
-#: out from under the sweep that was running on it.
-#:
-#: There is deliberately no `"thread"` here, and its absence is a finding: a thread node's kind is
-#: `episode`, because made a thread *an episode extended* — one record, not two. The first version
-#: listed `"thread"`, which named nothing at all and read as protection that was in fact coming from
-#: `episode`. A planted-bug probe removing `"thread"` changed nothing, which is how it was caught.
-#:
-#: Which of these actually protect anything — measured, because assuming would have been wrong twice.
-#: Removing each in turn and counting what becomes doomed, over a watched world and a worked session:
-#:
-#: | root | status |
-#: |---|---|
-#: | `function`, `type` | load-bearing — the library is reachable from nothing else |
-#: | `episode` | load-bearing, and it carries the most (−83 nodes without it) |
-#: | `deviation` | load-bearing when it stands alone, i.e. once its replay has been swept |
-#: | `loop` | load-bearing only while work is live — invisible to this table, proved by probe |
-#: | `root`, `goal`, `observation` | currently redundant: all three are reached via the thread |
-#:
-#: The redundant three are kept deliberately, as statements of the rule rather than as mechanism. An
-#: observation is one of the two things the rule exists to keep; that it *happens* to be reachable because
-#: it sits on the thread is a fact about today's shape, and the first compaction of old thread entries
-#: would silently turn "we keep what we saw" into "we keep what we saw, until the thread is tidied".
-#: Saying so is the difference between a redundant root and a dead one — and there was a dead one
-#: here: `"thread"` names no kind at all.
-ROOT_KINDS = ("root", "goal", "function", "type", "observation", "deviation", "episode", "loop")
+#: The judgement about what is irreplaceable now lives in `rules/keeping.cnl`, authored as a
+#: `policy`. See `install_defaults` and `docs/audit.md`'s F7 — it was a Python tuple, and a
+#: judgement kept where nothing can argue with it rots: that one carried a dead entry naming no
+#: kind at all, beside a note wondering whether another was redundant.
+
+
+def keep(g: Graph, kind: str, *, because: str | None = None) -> str:
+    """Declare a kind irreplaceable. Authored through `policy … : keep <kind>`, never called directly
+    by a domain — this is the constructor that surface reaches."""
+    # `keeps`, not `kind`: `mint`'s own first parameter is the node's kind, and passing
+    # `kind=` as an attribute collides with it. The node's kind is "keep"; what it keeps is
+    # a different fact and needs a different word.
+    k = g.mint("keep", keeps=kind, **({"because": because} if because else {}))
+    g.link("root", "has", k)                            # a real thing: quotable, disputable, withdrawable
+    return k
+
+
+def kept_kinds(g: Graph) -> tuple:
+    """The kinds a policy says are irreplaceable, in declaration order.
+
+    Withdrawn ones are skipped, like every other enumerator here — *"ignore that"* has to reach the
+    thing that enumerates, and it reaches further than usual in this case: withdrawing a `keep` makes a
+    whole class of record forgettable at the next sweep."""
+    from .discourse import live
+    return tuple(dict.fromkeys(g.attr(k, "keeps") for k in live(g, g.of_kind("keep"))))
+
+
+def install_defaults(g: Graph) -> tuple:
+    """Author the shipped keeping policy from `rules/keeping.cnl`. Returns the kinds it declared.
+
+    Shipped as *text in the repo* rather than as a Python default, which is the whole of what changed
+    here: the list is now something a reader can open, argue with, and edit without touching code — and
+    the reasons that used to sit in a comment beside the tuple are in it, where they can be read by
+    anyone deciding whether to keep a kind."""
+    from . import intake as I
+    I.read(g, (Path(__file__).parent / "rules" / "keeping.cnl").read_text(encoding="utf-8"))
+    return kept_kinds(g)
 
 
 def roots(g: Graph, *, also=()) -> tuple:
     """Everything that cannot be re-derived, plus whatever a caller pins.
 
     `also` is how a live computation is protected: a task still on an agenda is not scaffolding, it
-    is work in progress, and forgetting it would be the difference between forgetting and crashing."""
+    is work in progress, and forgetting it would be the difference between forgetting and crashing.
+
+    **Refuses when nothing has been declared worth keeping.** An empty policy is not an empty answer
+    here: it would make every record unreachable and hand a sweep the whole graph. This is the one place
+    where "nothing authored" and "a safe default" come apart — `precedence` can answer *declaration
+    order* and mean it, and there is no harmless reading of *keep nothing*."""
+    kinds = kept_kinds(g)
+    if not kinds:
+        raise ValueError(
+            "nothing is declared worth keeping, so a sweep would take the whole graph. Author a "
+            "`policy` with `keep <kind>` lines, or call `forget.install_defaults(g)` for the shipped ones.")
     out = ["root"] if "root" in g.attrs else []
-    for kind in ROOT_KINDS:
+    for kind in kinds:
         out.extend(g.of_kind(kind))
     out.extend(also)
     return tuple(dict.fromkeys(out))                    # ordered, deduped — order must not come from a set
@@ -227,5 +239,5 @@ def describe(g: Graph, f: str) -> str:
             f"{g.count(f, 'doomed')} still queued")
 
 
-__all__ = ["KINDS", "ROOT_KINDS", "roots", "keepers", "doomed", "kept_because", "compact",
+__all__ = ["KINDS", "keep", "kept_kinds", "install_defaults", "roots", "keepers", "doomed", "kept_because", "compact",
            "open_forgetting", "step", "finished", "describe"]
