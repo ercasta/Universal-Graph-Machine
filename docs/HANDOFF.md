@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **240 checks, 0 failing**.
+**Verify:** `python -m ugm.selftest` — currently **244 checks, 0 failing**.
 
 The engine is `ugm/`. An earlier iteration lived in `microfunctions/` and the package was renamed;
 anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
@@ -25,123 +25,111 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 The system takes goals as text, plans by imagining on a workbench, acts through one guarded door,
 notices when reality disagrees, and answers questions with the derivation that produced the answer.
 
-The most recent arc was a **capability audit** ([audit.md](audit.md)): finding everything that could
-only be said in Python, and for each case deciding whether that was a decision or an accident. All
-eight findings are closed. What came out of it:
+A **capability audit** ([audit.md](audit.md)) found everything that could only be said in Python and
+decided, case by case, whether that was a decision or an accident. All eight findings are closed, and it
+produced `policy`, `procedure`, `tie_break`, five reflection opcodes, `ATTEMPT` and
+`INVOKE … with <node>`.
 
-* **`policy`** — norms, standing prohibitions, authority orderings, and what survives forgetting.
-* **`procedure`** — `do` rungs, `for each`, `when`, lowering to an ordinary stored function.
-* **`tie_break`** — how criteria are ranked, authored rather than compiled in.
-* **Five reflection opcodes** (`KIND`, `NLABELS`, `LABEL_AT`, `NKEYS`, `KEY_AT`) that moved
-  `open_workbench` out of Python and into `ugm/rules/workbench.mf`.
-* **`ATTEMPT`**, and `INVOKE … with <node>` — a refusal as a value, and a binding set built at run time.
+Since then the work has been moving the **workbench** out of Python, and that has turned into the
+current arc. `workbench.step` is now written in the surface but is not live: it costs ~25×, essentially
+all of it the per-node frame copy. Two constraints then decide the architecture, and neither is about
+performance:
+
+* **The workbench cannot stay in Python.** Planning that Python owns is planning the system cannot
+  inspect or change.
+* **Lowering stops above the instruction set** — at a *named call*, never an opcode. A name is where
+  meaning lives (the call graph is the semantic net) and it is what lets linking happen at run time, so
+  the machinery can change what a read *means* without editing a single rule.
+
+Together those say mediation can live neither in the kernel nor in Python, which leaves in-graph
+procedures. That is [mediated-access.md](mediated-access.md) — **a design note, nothing built, and now
+the main thread.**
+
+## What landed since the audit
+
+Detail and reasoning in [audit.md](audit.md) and [mediated-access.md](mediated-access.md); this is the
+index, kept short on purpose so the plan below stays readable.
+
+* **The three predicates were decomposed** and got three *different* answers. `goal.satisfied` is a loop
+  whose only blocker was a Python closure standing in for a frame node; it needs one substrate opcode,
+  **`VKIND`** (a value's category), which closes both remaining gaps at once — naming `UNKNOWN`, and
+  `compare`'s totality. `workbench.deviates` wants **`types.violations` as a native** beside `is_a`.
+  `workbench.unmet_expectations` needs no capability: it is blocked upstream because
+  `predicted_changes` returns a Python dict, and should return a transient node. **None of this is
+  built.**
+* **`copy_set` moved to the surface** carrying edge properties, and `open_workbench` shares it. Cost:
+  `NEPROPS`, `EPROP_AT`, `SETEPROP`, `graph.put_edge_props`.
+* **`SELF`** (a program's own activation) and **`REFUSE kind why`** (the surface can decline).
+  `SOURCES` was replaced by **`NSOURCES` / `SOURCE_AT`**.
+* **`workbench.step` is written**, in `rules/step.mf`, checked against the Python on four routes plus
+  chaining and a refusal. Two natives added: `find_function` and `minted`. **Not yet live** — see the
+  measurements below.
+
+Traps worth not re-learning:
+
+* ⚠⚠ **`g.sources` returns its answer sorted by node id**, and an id is a string, so the reverse index
+  cannot answer *the most recent*. An activation records its calls forwards as ordered `called` edges
+  because of this. **A benchmark caught it, not a check**, and three successive guards passed with the
+  defect planted — the surviving one drives the id counter across a power of ten on purpose.
+* ⚠ **A recorded gap statement is a hypothesis, not an inventory.** The edge-property gap was documented
+  as needing two reading opcodes; it needed a third to *write*.
+* ⚠ Doc-comment blocks attach to the next `fn`, so inserting a function between a comment and its `fn`
+  silently orphans the docs.
+
+## Where the cost is
+
+`workbench.step` in the surface, against the Python it replaces:
+
+| world | Python | surface | |
+|---|---|---|---|
+| 5 blocks | 17.9 ms | 753 ms | 42× |
+| 20 blocks | 71.6 ms | 2248 ms | 31× |
+| 60 blocks | 301 ms | 6634 ms | 22× |
+
+~2000 interpreted instructions per step at twenty blocks, and **essentially all of it is `carry_frame`**
+— the per-node frame copy. `step` is the innermost operation of `pursue`, called once per imagined
+state.
+
+**The workbench cannot stay in Python**: planning that Python owns is planning the system cannot inspect
+or change, which is the island the whole design exists to avoid. So the numbers say how much has to
+change *before* the swap, not whether to make it. Avoiding the copy means a frame sharing versions with
+its predecessor, which is only correct if reads are mediated — and mediation can live neither in the
+kernel (it would have to know what a frame is) nor in Python. That leaves in-graph procedures.
 
 ## What to do next
 
-In this order. Steps 2–4 are the last large Python island: the plan-act-check-replan loop.
+[mediated-access.md](mediated-access.md) is the design, and it is decided enough to build from. Read it
+first; it also records two wrong turns in some detail, and both are easy to make again.
 
-1. ~~Decompose three predicates.~~ **Done — see [audit.md](audit.md).** They got three *different*
-   answers, and the total cost is smaller than the open question assumed:
-   * `goal.satisfied` is a loop over constraint nodes. Its blocker was not a capability but a
-     **closure standing in for a node** — `view` is only ever identity or `view_in(g, frame)`, so it
-     becomes a frame node and two edge reads. What it does need is **one substrate opcode, `VKIND`**
-     (a value's category: `text` / `number` / `boolean` / `null` / `unknown` / `list`), which closes
-     both remaining gaps at once — naming `UNKNOWN`, and `compare`'s totality. `VKIND` must report
-     the category and **not** decide which categories order together; that is `compare.mf`'s job.
-   * `workbench.deviates` is three instructions and wants **`types.violations` as a native**, beside
-     `is_a`. The answering form again: `is_a` says yes/no, `deviates` must say *how*. Decomposing
-     `violations` reaches the `Req`/`AttrReq`/`Rel` dataclasses, not a loop — a real layer boundary,
-     not a shortcut. The work is returning a node instead of a dict.
-   * `workbench.unmet_expectations` needs **no capability at all**. It is blocked upstream: its inputs
-     are Python dicts because `predicted_changes` returns one. That should return a transient node,
-     dropped by its caller, as `reachable.mf`'s scratch node already is.
+1. **Two small fixes, right regardless of everything else.**
+   * **Retention must become a call-site choice.** `function.invoke` runs with `retire=False` so a caller
+     can ask what its call did, so every call leaves an activation, a focus, its heads and registers —
+     ~5 nodes. Measured. Once reads are calls that is untenable, and it is a hygiene problem before it is
+     a speed one: this system has already once mistaken interpreter scaffolding for world content.
+   * **`INVOKE` should accept `F(x)` as its function operand.** It takes a literal or a register but not
+     a focus head, so a procedure passed as a *parameter* needs a `COPY` first — friction sitting exactly
+     on the pattern the design depends on.
 
-   **Nothing was built.** `VKIND` and `compare.mf` land *with* step 2, not before it — writing
-   `compare.mf` early would duplicate `types.compare`, which is shared by `goal.holds`,
-   `criterion._holds` and every schema check, and its own docstring records that a second
-   implementation is the drift this codebase keeps finding.
-2. **Rewrite `workbench.step`** as a procedure. **Started — the first prerequisite has landed.**
-   Decomposed, it is: copy the carried-forward images, mint the new frame and its mappings, choose an
-   outcome (`mocks_of` / `applicable` — edge reads plus `is_a`, which is already a native), call it,
-   map what it minted, and record a transformation. `INVOKE … with <node>` covers building the argument
-   set at run time, exactly as the audit predicted.
+2. **Build mediated access**, in the order the note argues for: the closed vocabulary as ordinary
+   procedures; context on the activation, inherited through `caller`, established at the goal machinery,
+   `step`, nested workbenches and `execution`; the four natives that need it (`is_a`, `check`, `plan`,
+   `plan_step`); and the compliance check that a business rule contains no bare graph-touching opcode.
+   `loop._after` is the precedent to read first — it already finds its agenda by walking from `act`.
 
-   **Done:** `copy_set` now lives in `rules/reachable.mf` and **carries edge properties**, which is what
-   `workbench.mf` declared as a real gap on itself. It cost three opcodes — `NEPROPS`, `EPROP_AT` and
-   `SETEPROP` — plus `graph.put_edge_props`. ⚠ **The recorded gap statement named only the two readers.**
-   None of the three reads *writes*, and Python never noticed because `g.link(**props)` takes the whole
-   dict at creation and the surface cannot hold a dict. `open_workbench` now shares `copy_set` instead of
-   inlining it.
+3. **Make frames sparse** — a frame maps only what changed in it, reads walk up the chain, and an edge
+   points at a canonical identity so resolution happens on the target. This is what all of it was for.
 
-   **Also done — the other two gaps are closed:**
-   * **`SELF`** gives a program its own activation, so it can ask what its own `INVOKE` did (`ACT.minted`,
-     and `tr -ran-> act`). The callee needed nothing: the call just made is the newest source of the
-     caller's `caller` edge. Not bundled onto `INVOKE` as a second destination register — that would be
-     the `CLONE` mistake.
-   * **`REFUSE kind why`** lets the surface decline. Both operands required, because an exception type is
-     a claim about whose fault it is and a surface refusal has no Python class to be named by; the name
-     travels as data and `ATTEMPT` reports it over the Python class.
-   * ⚠ **`SOURCES` was replaced by `NSOURCES` / `SOURCE_AT`.** Reaching the callee needs to walk `caller`
-     *backwards*, and `SOURCES` returned the whole tuple into a register — the only opcode that did, and
-     unusable for it, since nothing indexes a register holding a collection. No program used it. This is
-     the ISA's own count-plus-index convention applied to the one opcode that broke it.
+4. **Swap `step.mf` live**, and re-measure. Only now is the comparison meaningful.
 
-   **`workbench.step` is now written**, in `rules/step.mf`, as five functions: `binding_value`,
-   `outcome_fits`, `choose_outcome`, `outcome_named`, `carry_frame`, and `step`. It is checked against
-   the Python it replaces on four routes — a plain cast, a chosen outcome, a named outcome, and a mock
-   that mints — plus chaining, and an undeclared outcome.
+5. **`execution.step`**, then **the phase machine** (`driver._phase_*`), which is reads, guards, one
+   call, attribute writes and unlinks — its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
 
-   Two natives were added, both boundaries rather than shortcuts. `find_function` (owned by
-   `function.py`) resolves a name to its node: decomposing it reaches `g.of_kind`, and giving the surface
-   a way to enumerate every node of a kind is the whole-graph scan `types.instances` refuses at length.
-   `minted` (owned by `activation.py`) gathers what a call created: decomposing it reaches a set union
-   and a sort, and that sort decides which imagined node `execution._bind_minted` pairs with which real
-   one.
+6. **The three predicates**, which are independent of the above and can be done whenever: `VKIND` and
+   `compare.mf` land together with `goal.holds` (writing `compare.mf` earlier would duplicate
+   `types.compare`, which `goal.holds`, `criterion._holds` and every schema check share); `violations`
+   as a native; `predicted_changes` returning a node.
 
-   ⚠⚠ **An activation now records its calls forwards, as ordered `called` edges.** The first version read
-   them backwards off `caller`, and that is wrong in a way nothing small shows: `g.sources` returns its
-   answer **sorted by node id**, and an id is a string, so past four digits `activation#993` sorts after
-   `activation#9905`. `step` was reading `carry_frame`'s activation as though the called function had
-   minted the frame. **A benchmark caught it, not a check** — and the check that guards it now has to
-   drive the id counter across a power of ten on purpose, because two activations made moments apart
-   have ids that sort the way they were made. Three successive versions of that guard passed with the
-   defect planted.
-
-   **It is not yet the live implementation, but that is a sequencing question and not a choice.** *The
-   workbench cannot stay in Python* — planning that Python owns is planning the system cannot inspect or
-   change, which is the island the whole design exists to avoid. No measurement outweighs that. What
-   the numbers below say is how much has to change *before* the swap, not whether to make it.
-
-   | world | Python | surface | |
-   |---|---|---|---|
-   | 5 blocks | 17.9 ms | 753 ms | 42× |
-   | 20 blocks | 71.6 ms | 2248 ms | 31× |
-   | 60 blocks | 301 ms | 6634 ms | 22× |
-
-   ~2000 interpreted instructions per step at twenty blocks, and **essentially all of it is
-   `carry_frame`** — the per-node frame copy. `step` is the innermost operation of `pursue`, called once
-   per imagined state, so 25× lands directly on the measured hot path. The standing stance is *slow and
-   singular beats fast and forked*, but 25× on the innermost loop is a different proposition from a
-   phase machine that runs once per tick.
-
-   The useful thing the measurement says is **where** the cost is: not interpreter overhead spread thin,
-   but one O(world size) copy per step. Avoiding that copy means a frame sharing versions with its
-   predecessor, which is only correct if reads are mediated — and mediation cannot live in the kernel
-   (it would have to know what a frame is) or in Python (see above). That leaves in-graph procedures,
-   which is [mediated-access.md](mediated-access.md), now the main design thread.
-
-   ⚠ Do not re-derive the two wrong turns recorded there: sharing versions *without* mediating reads is
-   not merely awkward but incorrect, and the cascade measurement that shows it does **not** also defeat
-   the mediated version.
-3. **Rewrite `execution.step`.** Needs `ATTEMPT` and dynamic bindings; both exist.
-4. **The phase machine** (`driver._phase_*`) falls out once 1–3 land. It is reads, guards, one call,
-   attribute writes and unlinks — even its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
-5. **Measure.** `pursue` is the measured hot path — asking criteria before enumeration was 6.6× at
-   sixty blocks. Interpreted phases will be slower. The standing stance is *slow and singular beats
-   fast and forked*, but that should be a measurement rather than an assumption.
-
-`workbench.step` and `execution.step` are **expressible but not rewritten**. Those are different
-claims and the difference should not be allowed to blur.
+**Expressible is not the same as rewritten**, and the difference should not be allowed to blur.
 
 ## How to work on this
 
@@ -155,7 +143,23 @@ that was not needed; it shrank every expansion in the audit below its first esti
 **The enforcing form arrives before the answering one.** Wherever the engine can only *enforce*,
 something above it that needs to *decide* will have to be Python. `types.check` raised where a guard
 needed `is_a` to answer; `INVOKE` raised where a replay stepper needed `ATTEMPT`. This is the most
-reliable predictor of where the next island is.
+reliable predictor of where the next island is — and it runs both ways: `ATTEMPT` answered where
+nothing could *raise*, which is what `REFUSE` is. Finding one half of a pair is a reason to look for the
+other.
+
+**Ask what it is for before building it.** An identity for imagined nodes was nearly built as a minted
+placeholder before anyone asked what needed one. The answer turned out not to be the reason assumed
+(chaining) but that a goal constraint can be existential — and once that was clear, the thing needed no
+mechanism at all. Two of the largest near-misses in this arc were designs for a requirement nobody had
+stated.
+
+**Measurement finds what checks cannot.** The `called`-versus-`caller` defect was invisible to three
+successive checks and obvious to a benchmark, because two activations made moments apart have ids that
+sort the way they were made. When a planted bug stays green, the usual cause is not a weak assertion but
+a **world that cannot express the defect** — fix the scenario, not the assertion.
+
+**A recorded gap statement is a hypothesis, not an inventory.** The edge-property gap was written down
+as needing two reading opcodes. It needed a third, to write.
 
 **A closed class earns its place by being declared** — named, reachable as data, with a stated
 position on whether it has an escape into the web. See [concepts.md](concepts.md) on the horizon.
