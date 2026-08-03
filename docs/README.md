@@ -24,6 +24,7 @@ If you are going to change the engine, read **[Execution model](execution-model.
 
 | page | what it covers |
 |---|---|
+| [Handoff](HANDOFF.md) | **read first when picking the project up cold** — current state, what to do next, and the mistakes already made |
 | [Overview](overview.md) | what the system is, the two ideas it is built on, and a first worked example |
 | [Concepts](concepts.md) | the data model — graph, focus, types, functions, hypotheses, and why everything is one representation |
 | [Planning and acting](planning.md) | goals as constraints, imagining on a workbench, finding a plan, carrying it out, divergence and recovery |
@@ -32,6 +33,7 @@ If you are going to change the engine, read **[Execution model](execution-model.
 | [Execution model](execution-model.md) | the outer loop, the instruction set, activations, dispatch, and the kernel boundary |
 | [Authoring](authoring.md) | the controlled language a domain writes |
 | [Limits](limits.md) | what the system does not do, what cannot be said, and what is known to be weak |
+| [Audit](audit.md) | what can only be said in Python, and for each case whether that is a decision or an accident |
 | [Reference: modules](reference/modules.md) | module-by-module map with entry points |
 | [Reference: instruction set](reference/isa.md) | opcodes, operands, and the assembly surface |
 | [Reference: glossary](reference/glossary.md) | one sentence per term |
