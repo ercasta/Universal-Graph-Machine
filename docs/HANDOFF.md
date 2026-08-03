@@ -81,6 +81,12 @@ index, kept short on purpose so the plan below stays readable.
 * **Mediated access is built** — `access.py`, `rules/access.mf`, `rules/resolve.mf`, two natives
   (`resolver`, `context`), and the planning corpus rewritten to the eight names. Detail in
   [mediated-access.md](mediated-access.md), which now opens with what landed and what did not.
+* **The corpus is mediated.** All 52 rules that are stepped on a workbench reach the graph through the
+  eight names — measured by instrumenting `workbench.step` over the whole suite, not by reading, and the
+  closed set covered every opcode they used. `asm.load_text` **links**: a body calling the vocabulary
+  gets the vocabulary loaded, so no caller keeps that precondition by hand.
+* **Resolution is indexed.** A frame carries a stored reference from identity to the version it holds
+  (`workbench.index`), read by Python and by the surface alike. See the traps below for why.
 
 Traps worth not re-learning:
 
@@ -123,7 +129,8 @@ Traps worth not re-learning:
 
 ~2000 interpreted instructions per step at twenty blocks, and **essentially all of it is `carry_frame`**
 — the per-node frame copy. `step` is the innermost operation of `pursue`, called once per imagined
-state.
+state. **Sparse frames delete that copy**, which is why the swap waits on them rather than on a faster
+interpreter.
 
 **The workbench cannot stay in Python**: planning that Python owns is planning the system cannot inspect
 or change, which is the island the whole design exists to avoid. So the numbers say how much has to
@@ -133,84 +140,63 @@ kernel (it would have to know what a frame is) nor in Python. That leaves in-gra
 
 ## What to do next
 
-[mediated-access.md](mediated-access.md) is the design, and it is decided enough to build from. Read it
-first; it also records two wrong turns in some detail, and both are easy to make again.
+Steps 1 and 2 of the previous plan are done and are described under *What landed* above; this is what
+remains. [mediated-access.md](mediated-access.md) is the design, it opens with a table of what is built
+and what is not, and it records two wrong turns in detail — both easy to make again.
 
-1. ~~**Two small fixes, right regardless of everything else.**~~ **Both done.**
-   * **Retention is now a call-site choice.** `INVOKE`/`ATTEMPT` take a trailing `keep`; without it the
-     call's activation, registers, focus and heads go when it finishes. `function.invoke` takes
-     `retain=`, still true for Python callers, who are handed the focus and normally read it. Measured on
-     200 mediated reads: **1008 nodes left behind against 8**, for ~5% more time — discarding is work.
-     A callee's `minted` record moves to its caller before it goes, so `activation.minted` is unchanged.
-   * **`INVOKE`'s function operand takes `F(x)`.** The assembler was refusing what `isa._v` had always
-     resolved.
-   * ⚠ Found while probing: **`unparse` dropped the `with` keyword**, so any function using the
-     graph-data binding form — `step.mf`'s own dispatching call — dumped to text that would not parse
-     back, and the refusal blamed the bindings operand rather than the missing word. Fixed, and the
-     round-trip check now walks every operand form of both call opcodes. It had covered only the form
-     that worked.
+### 1. Finish sparse frames: the identity model  ← start here
 
-2. ~~**Build mediated access.**~~ **The mechanism is built** — `ugm/access.py`, `rules/access.mf`,
-   `rules/resolve.mf` — and [mediated-access.md](mediated-access.md) opens with a table of what landed
-   and what did not. In short: the eight-name closed vocabulary, the binder (context on the activation,
-   inherited through `caller`), resolution as a **named call** chosen at run time, `workbench.step` and
-   `execution` establishing, the compliance pass, and the planning corpus (`stack`, `unstack`, `paint`)
-   rewritten to the vocabulary. **Not** built: the four natives that must resolve, and the goal machinery
-   and phase machine as boundaries — both wait on sparse frames, because until then resolution is
-   identity on everything a rule is handed and a native that ignores context cannot be caught being
-   wrong.
+The reading half is built and the writing half is written and **dormant**. `rules/version.mf` mints a
+version on write through a **`writer`** the context names beside its `resolver`; `workbench.step` has
+been run sparse and reverted.
 
-   Cost, on Sussman's anomaly and the same plan: **275 ms bare, 1321 ms mediated (4.8×)**.
+⚠⚠ **What blocks it is correctness, not cost.** With a sparse frame an edge written in frame N points at
+the version its target had in frame N−1, while a goal constraint is checked against frame N's version of
+that target — so `b on c` reads as false one step after it became true, and a one-step goal comes back
+*not found*. That is how it was caught.
 
-   ⚠ The thing that would have sunk it, and was not in the design note: **`driver._effects` reads a
-   stored body to learn what a rule writes, and an `INVOKE` is opaque to it.** Lowering rules to calls
-   would have blinded the planner to every rule at once. `access.as_opcode` translates a vocabulary call
-   back to the opcode it stands for — legitimate precisely because the set is *closed* — and one
-   translation serves all three readers of a body. With it disabled, seven checks go red and the suite
-   goes from 59 seconds to minutes — **when a static reader loses information, the first symptom is cost,
-   not error.**
+The fix is the model the design note actually states: **an edge names an identity, never a version, and
+resolution happens on the target.** Five changes, and they have to land together because each one alone
+breaks the others:
 
-3. **Make frames sparse** — a frame maps only what changed in it, reads walk up the chain, and an edge
-   points at a canonical identity so resolution happens on the target. **The reading half is built and
-   the writing half is written but not switched on.**
+1. **`step` binds identities**, not images — `g.target(m, "original")` in place of `image_of(m)`.
+2. **Frame 0's copies point at real nodes.** `_copy_set` currently rewrites edges into a parallel world;
+   under this model there is no parallel world to rewrite into.
+3. **A link constraint compares identities** — `original_of(target) == object`. This is the failure
+   above, and it is *resolution on the target* in the one place that was still comparing raw ids.
+4. **`function.invoke`'s type check resolves under the context.** It calls `types.violations` from Python
+   with no activation, so once bindings are canonical a rule's *precondition* reads the real world while
+   its *body* reads the frame. ⚠ Not in the design note — found on the way past.
+5. **Then flip `step`**: drop the per-step copy, and delete the `dense` marker on frames (it exists only
+   to stop `visible` walking a chain of full copies, which is O(depth × world) for nothing).
 
-   Built: `mapping_for` and `rules/resolve.mf` both resolve by walking the frame chain; `mappings` and
-   `visible` are now **two questions** — what this frame changed, and the world as imagined here — which
-   one name was answering because dense frames made the answers identical. Every reader that meant the
-   second was moved over. `rules/version.mf` mints a version on write, through a **`writer`** the context
-   names beside its `resolver`, and `workbench.step` has been run sparse.
+Then the four natives that must resolve (`is_a`, `check`, `plan`, `plan_step`) become testable, because
+only now can ignoring the context be *wrong*; and the goal machinery and phase machine become boundaries
+with something to read.
 
-   ⚠⚠ **Not switched on, and the reason is a correctness one rather than cost.** With a sparse frame, an
-   edge written in frame N points at the version its target had in frame N−1, while a goal constraint is
-   checked against frame N's version of that target — so `b on c` reads as false one step after it became
-   true, and a one-step goal comes back *not found*. The fix is the model the note actually states —
-   **an edge names an identity, never a version, and resolution happens on the target** — which means
-   `step` binds identities rather than images, frame 0's copies point at real nodes, and a link
-   constraint compares identities. Coherent, and wider than the line it replaces.
+### 2. Swap `step.mf` live, and re-measure
 
-   **The corpus is mediated**, which was the prerequisite: with frames sharing versions, a rule writing
-   through a bare `SET` would write into the *previous* frame, corrupting a recorded state on every
-   sibling branch. 52 stepped rules were rewritten to the eight names — mechanically, since the closed
-   set covers every opcode they used (`SET` 337, `LINK` 37, `NEW` 30, `ATTR` 24, `GET` 23, `COUNT` 3).
-   `asm.load_text` now **links**: a body that calls the vocabulary gets the vocabulary loaded, so no
-   caller keeps that precondition by hand.
+Really the second half of the same job. The surface `step` measured 22–42× and **essentially all of it
+was `carry_frame`** — the per-node frame copy. Sparse frames delete that copy, so `carry_frame` becomes
+a handful of instructions and the comparison is finally about the interpreter rather than about copying.
 
-   Two things the rewrite exposed, both fixed:
-   * `query.is_pure` recursed into `INVOKE` and refused every mediated rule, because the vocabulary's
-     one computed call is the resolver. It now reads the closed set, which is the third place *the set
-     is closed, so a static reader may know it* earns its keep.
-   * `key="two words"` did not tokenise — a gap in the **surface**, which would have looked like the
-     mediated form being unable to say what the bare one could.
+### 3. `execution.step`, then the phase machine
 
-4. **Swap `step.mf` live**, and re-measure. Only now is the comparison meaningful.
+`driver._phase_*` is reads, guards, one call, attribute writes and unlinks; its `_PHASES[phase]` dispatch
+is what a dynamic `INVOKE` does.
 
-5. **`execution.step`**, then **the phase machine** (`driver._phase_*`), which is reads, guards, one
-   call, attribute writes and unlinks — its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
+### 4. The three predicates — independent, do whenever
 
-6. **The three predicates**, which are independent of the above and can be done whenever: `VKIND` and
-   `compare.mf` land together with `goal.holds` (writing `compare.mf` earlier would duplicate
-   `types.compare`, which `goal.holds`, `criterion._holds` and every schema check share); `violations`
-   as a native; `predicted_changes` returning a node.
+`VKIND` and `compare.mf` land together with `goal.holds` (writing `compare.mf` earlier would duplicate
+`types.compare`, which `goal.holds`, `criterion._holds` and every schema check share); `violations` as a
+native; `predicted_changes` returning a node instead of a Python dict.
+
+### 5. A benchmark in the repo
+
+Twice in one arc the defect was found by a measurement and not by a check — the `called`-versus-`caller`
+trap, and `Graph.labels` — and each time the harness was rebuilt in a scratch file and thrown away.
+*Look at the clock, not only the report* should be something the project does, not something it
+remembers.
 
 **Expressible is not the same as rewritten**, and the difference should not be allowed to blur.
 
@@ -250,6 +236,16 @@ position on whether it has an escape into the web. See [concepts.md](concepts.md
 **The CNL cannot grow itself, on purpose.** Adding a block verb is an edit to `intake.py` forever, so
 the family count is a budget — which is why *relate it in the web* is usually the cheaper answer as
 well as the principled one.
+
+⚠⚠⚠ **An assertion built out of the function under test degrades exactly as the code does.** The check
+guarding chain-walked resolution asserted `mapping_for(f2, x) == mapping_for(f1, x)` — two calls to the
+thing being tested — and **passed with the defect planted**. Compute the expected answer structurally, by
+a different route from the code under test. A second lesson from the same plant: the bug must be planted
+where the answer actually comes *from*, or the trap stays unsprung and the green means nothing.
+
+**Plant against one check, not the suite.** `python -c "from ugm import selftest as S; print(S.check_...())"`
+takes a second. A plant that blinds the planner takes the whole suite from 70 seconds to over ten
+minutes, which is a slow way to learn one boolean.
 
 **Every check must earn its green.** Several checks in this suite were once vacuous — passing whatever
 the code did — and were fixed by planting a deliberate bug and confirming they went red. Any new check
