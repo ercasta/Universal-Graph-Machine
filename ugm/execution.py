@@ -45,6 +45,7 @@ See `docs/planning.md`.
 """
 from __future__ import annotations
 
+from . import access
 from . import activation as ACT
 from . import function as fn
 from . import types as TY
@@ -305,7 +306,15 @@ def step(g: Graph, r: str) -> bool:
     # onto a sibling's mappings — and recovery goes to replanning, which is the honest move when the world
     # has moved rather than merely surprised us.
     try:
-        called, out = fn.invoke(g, name, args)
+        # The other boundary, and the one that removes the last mode from the design. The real world is
+        # not the *absence* of a context; it is the **trivial** one, whose resolution is the identity
+        # function. So the same rule runs here unchanged — there is never mediated-versus-unmediated
+        # execution to branch on, no rule with two behaviours, and forgetting to establish is the same
+        # bug in the same place whether the system is planning or acting.
+        #
+        # It costs nothing: a context with no resolver makes the vocabulary skip the call entirely.
+        called, out = fn.invoke(g, name, args,
+                                under=access.open_context(g, label="the world"))
     except TY.TypeViolation as e:
         _diverge(g, r, step=name, frame=frame, transformation=tr, result=None, minted=(),
                  stale_precondition=True, param=getattr(e, "param", None),

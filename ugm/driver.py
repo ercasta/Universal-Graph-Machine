@@ -41,6 +41,7 @@ from __future__ import annotations
 from itertools import product
 from typing import NamedTuple
 
+from . import access
 from . import dispatch as DP
 from . import execution as X
 from . import function as fn
@@ -363,9 +364,15 @@ def _walk(g: Graph, name: str):
             return roles.get(operand.name)
         return None
 
-    for ins in program:
-        if isinstance(ins, str):
+    for stored in program:
+        if isinstance(stored, str):
             continue                                        # a label, not an instruction
+        # A call to the closed access vocabulary IS the opcode it stands for, and is read as one. Without
+        # this, a rule lowered to mediated calls would report no effects at all — every `INVOKE` is
+        # opaque here — and the planner would go blind to exactly the rules that are written properly.
+        # The translation lives in `access.as_opcode` because the set is closed and one reader per
+        # consumer is the drift this function exists to prevent.
+        ins = access.as_opcode(stored) or stored
         yield ins, role
         a = ins.args
         if ins.op in isa.WRITES_REGISTER and a and isinstance(a[0], R):
@@ -373,6 +380,11 @@ def _walk(g: Graph, name: str):
             roles.pop(a[0].name, None)
             if fresh is not None:
                 roles[a[0].name] = fresh
+        elif ins is not stored and stored.args and isinstance(stored.args[0], R):
+            # A mediated *write* translates to an opcode with no destination, but the call still had one
+            # and it now denotes something this walk cannot name. Leaving the old role in place would
+            # make a later instruction report an effect on whatever that register used to mean.
+            roles.pop(stored.args[0].name, None)
 
 
 def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:

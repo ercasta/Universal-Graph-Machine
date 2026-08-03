@@ -44,12 +44,19 @@ KINDS = ("activation", "register")
 # --- opening ------------------------------------------------------------------------------------------
 def open_activation(g: Graph, focus_node: str, *, size: int, of: str | None = None,
                     caller: str | None = None, label: str | None = None,
-                    regs: dict | None = None) -> str:
+                    context: str | None = None, regs: dict | None = None) -> str:
     """A fresh activation, at `pc=0`, ready to be ticked. `size` is the program length — the halt
     condition, and the one fact about the program the state itself has to carry.
 
     `of` is the stored `function` node when the program came from one, which is what lets `doing` name the
     instruction rather than only its index.
+
+    `context` is what this call and everything beneath it reads *in* — the boundary establishing a
+    world, which is `access.py`'s business. The kernel stores the edge and never reads it: what a context
+    means, and what resolves in one, is decided a layer up by a native walking this chain. Without that
+    it would be a Python parameter threaded through every frame, which is the arrangement dynamic scope
+    exists to avoid; with it a callee inherits its caller's world by asking, and a learned rule never
+    names one.
 
     The seed registers arrive as a dict, not as `**regs`: a register may legitimately be called
     `size` or `of`, and a keyword-splat here would let one silently become an activation slot."""
@@ -59,6 +66,8 @@ def open_activation(g: Graph, focus_node: str, *, size: int, of: str | None = No
     g.link(a, "focus", focus_node)
     if of is not None:
         g.link(a, "of", of)
+    if context is not None:
+        g.link(a, "context", context)
     if caller is not None:
         g.link(a, "caller", caller)
         # ...and the same fact forwards, because the reverse index CANNOT carry the order and the order

@@ -1,0 +1,52 @@
+# Resolving a node inside a frame — what a read means while imagining.
+#
+# This is the non-trivial half of the binder. A context established by `workbench.step` names this
+# function and points at the frame; the vocabulary in `access.mf` invokes it before every read and every
+# write, so a rule bound to a real node reads the frame's version of it without containing one word about
+# frames.
+#
+# Written in the surface rather than as a native, and that is not a preference. Planning that Python owns
+# is planning the system cannot inspect or change, which is the island the whole design exists to avoid —
+# and resolution is the most load-bearing decision planning makes.
+#
+# **A node with no version in this frame resolves to itself.** That is what makes this safe to put under
+# every read at once: an already-resolved image has no mapping naming it as an `original`, so it comes
+# straight back, and so does a node from outside the workbench entirely. Resolution is idempotent, which
+# it has to be — the vocabulary cannot know whether its caller was handed a real node or an imagined one.
+
+# The image of `node` in this context's frame, or `node` itself if the frame has no version of it.
+#
+# The mapping is found through the reverse index, never by scanning the frame: `mapping -original-> node`
+# points outward by the direction invariant, so the mappings that name this node are exactly the sources
+# of its `original` edge — one per frame it appears in. Scanning the frame's mappings instead would be
+# O(world) per read, which is the cost this whole layer exists to stop paying.
+fn in_frame(node) -> thing:
+    NATIVE R(ctx) "context"
+    GET R(want) R(ctx) "frame"
+    NSOURCES R(n) F(node) "original"
+    CONST R(i) 0
+.each:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .itself
+    SOURCE_AT R(m) F(node) "original" R(i)
+    KIND R(k) R(m)
+    EQ R(is_mapping) R(k) "mapping"
+    JMPNOT R(is_mapping) .next
+
+    # Which frame this mapping belongs to. A mapping is in exactly one frame, so the count is one and
+    # the index is zero — but `NSOURCES` first, because a mapping that has been minted and not yet
+    # linked into its frame would otherwise index into nothing.
+    NSOURCES R(nf) R(m) "mapping"
+    JMPNOT R(nf) .next
+    SOURCE_AT R(f) R(m) "mapping" 0
+    EQ R(here) R(f) R(want)
+    JMPNOT R(here) .next
+    GET R(result) R(m) "image"
+    RET
+
+.next:
+    ADD R(i) R(i) 1
+    JMP .each
+
+.itself:
+    COPY R(result) F(node)

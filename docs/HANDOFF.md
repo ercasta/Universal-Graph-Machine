@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **244 checks, 0 failing**.
+**Verify:** `python -m ugm.selftest` — currently **251 checks, 0 failing**, in about a minute.
 
 The engine is `ugm/`. An earlier iteration lived in `microfunctions/` and the package was renamed;
 anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
@@ -17,7 +17,7 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 | how it runs | [execution-model.md](execution-model.md) |
 | what it cannot do | [limits.md](limits.md) — kept deliberately honest |
 | what is only sayable in Python, and why | [audit.md](audit.md) |
-| why rules will stop calling `GET` | [mediated-access.md](mediated-access.md) — a design note, nothing built |
+| why a rule never calls `GET` | [mediated-access.md](mediated-access.md) — built; the note is the argument behind it |
 | the instruction set | [reference/isa.md](reference/isa.md) |
 
 ## Current state
@@ -42,8 +42,15 @@ performance:
   the machinery can change what a read *means* without editing a single rule.
 
 Together those say mediation can live neither in the kernel nor in Python, which leaves in-graph
-procedures. That is [mediated-access.md](mediated-access.md) — **a design note, nothing built, and now
-the main thread.**
+procedures. That is [mediated-access.md](mediated-access.md), and **the mechanism is now built**: a rule
+reaches the graph through eight closed names, each of which asks the ambient context how to resolve a
+node and calls the resolver *by name*. `workbench.step` and `execution` establish; everything beneath
+inherits by walking `caller`. The planning corpus is written that way and the planner reads it exactly as
+it read the opcode version.
+
+What remains is what it was all for — **sparse frames**, where a frame maps only what changed in it and
+resolution walks the chain. Until that lands, resolution is identity on everything a rule is handed, so
+the layer is correct and not yet earning its 4.8×.
 
 ## What landed since the audit
 
@@ -61,9 +68,15 @@ index, kept short on purpose so the plan below stays readable.
   `NEPROPS`, `EPROP_AT`, `SETEPROP`, `graph.put_edge_props`.
 * **`SELF`** (a program's own activation) and **`REFUSE kind why`** (the surface can decline).
   `SOURCES` was replaced by **`NSOURCES` / `SOURCE_AT`**.
+* **A call now discards its own scaffolding** unless the call site says `keep`, and `INVOKE`'s function
+  operand takes a focus head. The first of the two mattered enough to be listed as a prerequisite for
+  everything below; both are in [reference/isa.md](reference/isa.md).
 * **`workbench.step` is written**, in `rules/step.mf`, checked against the Python on four routes plus
   chaining and a refusal. Two natives added: `find_function` and `minted`. **Not yet live** — see the
   measurements below.
+* **Mediated access is built** — `access.py`, `rules/access.mf`, `rules/resolve.mf`, two natives
+  (`resolver`, `context`), and the planning corpus rewritten to the eight names. Detail in
+  [mediated-access.md](mediated-access.md), which now opens with what landed and what did not.
 
 Traps worth not re-learning:
 
@@ -75,6 +88,12 @@ Traps worth not re-learning:
   as needing two reading opcodes; it needed a third to *write*.
 * ⚠ Doc-comment blocks attach to the next `fn`, so inserting a function between a comment and its `fn`
   silently orphans the docs.
+* ⚠⚠ **A static reader that loses information gets slower before it gets wrong.** Disabling
+  `access.as_opcode` — which lets `driver._effects` see through a mediated call — reddens seven checks
+  and takes the suite from 59 seconds to minutes, because a planner that cannot see what a rule
+  establishes ranks everything alike and the search explodes. Look at the clock, not only the report.
+* ⚠ **`unparse` dropped the `with` keyword**, so a function using the graph-data binding form dumped to
+  text that would not parse back. The round-trip check covered only the form that worked. Fixed.
 
 ## Where the cost is
 
@@ -101,23 +120,55 @@ kernel (it would have to know what a frame is) nor in Python. That leaves in-gra
 [mediated-access.md](mediated-access.md) is the design, and it is decided enough to build from. Read it
 first; it also records two wrong turns in some detail, and both are easy to make again.
 
-1. **Two small fixes, right regardless of everything else.**
-   * **Retention must become a call-site choice.** `function.invoke` runs with `retire=False` so a caller
-     can ask what its call did, so every call leaves an activation, a focus, its heads and registers —
-     ~5 nodes. Measured. Once reads are calls that is untenable, and it is a hygiene problem before it is
-     a speed one: this system has already once mistaken interpreter scaffolding for world content.
-   * **`INVOKE` should accept `F(x)` as its function operand.** It takes a literal or a register but not
-     a focus head, so a procedure passed as a *parameter* needs a `COPY` first — friction sitting exactly
-     on the pattern the design depends on.
+1. ~~**Two small fixes, right regardless of everything else.**~~ **Both done.**
+   * **Retention is now a call-site choice.** `INVOKE`/`ATTEMPT` take a trailing `keep`; without it the
+     call's activation, registers, focus and heads go when it finishes. `function.invoke` takes
+     `retain=`, still true for Python callers, who are handed the focus and normally read it. Measured on
+     200 mediated reads: **1008 nodes left behind against 8**, for ~5% more time — discarding is work.
+     A callee's `minted` record moves to its caller before it goes, so `activation.minted` is unchanged.
+   * **`INVOKE`'s function operand takes `F(x)`.** The assembler was refusing what `isa._v` had always
+     resolved.
+   * ⚠ Found while probing: **`unparse` dropped the `with` keyword**, so any function using the
+     graph-data binding form — `step.mf`'s own dispatching call — dumped to text that would not parse
+     back, and the refusal blamed the bindings operand rather than the missing word. Fixed, and the
+     round-trip check now walks every operand form of both call opcodes. It had covered only the form
+     that worked.
 
-2. **Build mediated access**, in the order the note argues for: the closed vocabulary as ordinary
-   procedures; context on the activation, inherited through `caller`, established at the goal machinery,
-   `step`, nested workbenches and `execution`; the four natives that need it (`is_a`, `check`, `plan`,
-   `plan_step`); and the compliance check that a business rule contains no bare graph-touching opcode.
-   `loop._after` is the precedent to read first — it already finds its agenda by walking from `act`.
+2. ~~**Build mediated access.**~~ **The mechanism is built** — `ugm/access.py`, `rules/access.mf`,
+   `rules/resolve.mf` — and [mediated-access.md](mediated-access.md) opens with a table of what landed
+   and what did not. In short: the eight-name closed vocabulary, the binder (context on the activation,
+   inherited through `caller`), resolution as a **named call** chosen at run time, `workbench.step` and
+   `execution` establishing, the compliance pass, and the planning corpus (`stack`, `unstack`, `paint`)
+   rewritten to the vocabulary. **Not** built: the four natives that must resolve, and the goal machinery
+   and phase machine as boundaries — both wait on sparse frames, because until then resolution is
+   identity on everything a rule is handed and a native that ignores context cannot be caught being
+   wrong.
+
+   Cost, on Sussman's anomaly and the same plan: **275 ms bare, 1321 ms mediated (4.8×)**.
+
+   ⚠ The thing that would have sunk it, and was not in the design note: **`driver._effects` reads a
+   stored body to learn what a rule writes, and an `INVOKE` is opaque to it.** Lowering rules to calls
+   would have blinded the planner to every rule at once. `access.as_opcode` translates a vocabulary call
+   back to the opcode it stands for — legitimate precisely because the set is *closed* — and one
+   translation serves all three readers of a body. With it disabled, seven checks go red and the suite
+   goes from 59 seconds to minutes — **when a static reader loses information, the first symptom is cost,
+   not error.**
 
 3. **Make frames sparse** — a frame maps only what changed in it, reads walk up the chain, and an edge
-   points at a canonical identity so resolution happens on the target. This is what all of it was for.
+   points at a canonical identity so resolution happens on the target. This is what all of it was for,
+   and it is now the next thing rather than a distant one: the seam exists, `rules/resolve.mf` is the
+   file that changes, and `in_frame` already answers *itself* for a node the frame has no version of —
+   which is the sparse case, arrived at early because resolution has to be idempotent anyway.
+
+   Three things land with it, and none of them can be tested before it:
+   * **`workbench.step` binds canonical nodes**, not images. Today it binds images and resolution is
+     therefore identity, which is why the layer is correct and not yet earning its 4.8×.
+   * **The four natives resolve** (`is_a`, `check`, `plan`, `plan_step`). `native.call` already hands
+     every primitive its activation, so the mechanism is there; what is missing is a case where ignoring
+     it is wrong, and binding canonical nodes is that case. ⚠ `function.invoke`'s parameter check calls
+     `types.violations` from Python with no activation — so a rule's *precondition* would read the real
+     world while its *body* reads the frame. That is the first thing to fix, and it is not in the note.
+   * **The goal machinery and the phase machine as boundaries**, which have no consumer until then.
 
 4. **Swap `step.mf` live**, and re-measure. Only now is the comparison meaningful.
 

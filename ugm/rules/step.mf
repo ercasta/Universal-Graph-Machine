@@ -256,7 +256,7 @@ fn step(wb, frame, function, bindings, assume, assumes) -> thing:
     COPY R(executed) R(chosen)
 .run:
     ATTR R(executed_name) R(executed) "name"
-    INVOKE R(out) R(executed_name) with R(args)
+    INVOKE R(out) R(executed_name) with R(args) keep
 
     # What that call did — the last of the calls this activation has made.
     #

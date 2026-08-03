@@ -286,11 +286,27 @@ def names(g: Graph) -> tuple:
 
 # --- calling -------------------------------------------------------------------------------------
 def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool = True,
-           caller: str | None = None, **regs):
+           caller: str | None = None, retain: bool = True, under: str | None = None, **regs):
     """Call a stored function. `args` binds parameter names to nodes; each becomes a focus head.
 
     Returns `(focus, regs)` of the callee, so a caller reads results out of `regs["result"]` (or any
     register the callee set) and can inspect where the callee's heads ended up.
+
+    `retain=False` throws the call's own scaffolding away when it finishes — the activation, its
+    registers, the focus minted for it and that focus's heads, ~5 nodes a call. It is a **call-site**
+    choice rather than a policy because only the caller knows whether it is going to ask what the call
+    did, and the two answers are both right: `execution._replay` and `workbench.step` read the callee's
+    activation afterwards, while a rule reading a slot through a procedure wants nothing left behind.
+    Retention is the Python default because a Python caller is handed the focus and normally reads it;
+    the surface's `INVOKE` chooses the other way and says `keep` when it means to inspect. That
+    asymmetry is the point: once a graph *read* is a call, the reads are the many, and this system has
+    already once mistaken its own interpreter scaffolding for world content and type-checked it as a
+    domain object.
+
+    What a discarded call did is not discarded with it: its `minted` record moves to the caller before
+    the activation goes, so `activation.minted` answers exactly what it did before — that walk unions a
+    callee's mints into its caller's anyway. Only the *per-call* breakdown is given up, which is
+    precisely what the call site said it did not want.
 
     A declared parameter type is a precondition, and it is enforced here. It used to be checked
     only by `driver.proposals`, which is the right place for *planning* — but a signature reads like a
@@ -340,8 +356,22 @@ def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool =
     # minted, where its heads ended up, which instruction it finished on — and a Python caller holding the
     # returned focus reaches it through `activation.for_focus`. `workbench.step` and `execution._replay`
     # both need exactly that, and used to get a whole-graph diff instead.
+    # `under` is a Python *boundary* establishing the world this call reads in — `workbench.step` and
+    # `execution` are the two that do. It is not a context being threaded: nothing below sees it as an
+    # argument, the callee's callees inherit it by walking `caller`, and a rule never names one.
     _, focus, out = Machine(program).run(g, callee, of=find(g, name), caller=caller,
-                                         retire=False, **regs)
+                                         retire=False, under=under, **regs)
+    if not retain:
+        # `scrap`, not `retire`: this focus was minted here and handed to nobody, so leaving it would
+        # leave the larger half of the residue behind. The returned focus is a dead pointer afterwards,
+        # which is what asking not to retain the call means.
+        from . import activation as A
+        act = A.for_focus(g, focus.node)
+        if act is not None:
+            if caller is not None:
+                for made in A.minted(g, act):
+                    A.record_mint(g, caller, made)
+            A.scrap(g, act)
     return focus, out
 
 

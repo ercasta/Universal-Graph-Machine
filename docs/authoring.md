@@ -266,6 +266,35 @@ criterion from becoming a loop.
 readable after it — but if the block did not run, reading it is refused at run time with the operand
 named. This follows the target rather than pretending to a scope it does not have.
 
+### Reaching the graph: the eight names
+
+A rule does not read or write the graph itself. It calls one of eight:
+
+| call | what it does |
+|---|---|
+| `slot_of(node, key)` | the value at a slot |
+| `set_slot(node, key, value)` | write one |
+| `related(node, label)` | what it is related to — single-valued |
+| `relations(node, label)` / `relation_at(node, label, index)` | count-plus-index, as everywhere |
+| `relate(node, label, other)` / `unrelate(node, label, index)` | add and remove one |
+| `make(kind)` | bring something into existence |
+
+They are ordinary functions in `rules/access.mf`, so a `procedure` reaches them the same way it reaches
+anything: `do set_slot node = b, key = "colour", value = "red"`.
+
+**Why not just write `SET`.** A rule that reads a slot directly has said which *bytes* to fetch; a rule
+that calls `slot_of` has said what it wants, and something else decides where to get it. That is what
+lets the same rule run over the real world and over a plan's imagined one — planning establishes a
+context, and the call resolves in it — without a single word about frames in the rule. It is also what
+keeps the relation *a relation*: `related(b, "on")` is still a thing the system can ask about, where a
+traversal is only a thing that happened.
+
+A domain vocabulary is built on top of these and grows freely — `support_of(b)` is a body containing
+`related(b, "on")`. The eight are closed, and **a planning operator that touches the graph any other way
+is a defect**, reported by `access.offenders`. The asymmetry is deliberate: a missing domain name costs
+expressiveness, while a bare read costs a wrong answer with no symptom. See
+[mediated-access.md](mediated-access.md).
+
 ## `criterion` / `directive`
 
 The list that decides what to do next. See [Deliberation](deliberation.md) for why it exists and what

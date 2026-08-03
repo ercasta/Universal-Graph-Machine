@@ -2051,14 +2051,18 @@ def check_an_invocation_knows_what_called_it():
     caller, and `activation.chain` is the ISA's own stack trace.
 
     Vacuity guard: the chain must be two deep and in the right order, and the outer activation must
-    be the one that is *not* pointed at, or a chain of length two proves nothing about direction."""
+    be the one that is *not* pointed at, or a chain of length two proves nothing about direction.
+
+    `keep` is what leaves the inner activation there to be found. Without it the call is discarded when
+    it finishes — see `isa._keeps` — and there is nothing wrong with that: a caller that never asks what
+    its call did should not be paying five nodes to be able to."""
     from . import activation as A, asm, function as fn
     g = new_graph()
     asm.load_text(g, "\n".join([
         "fn inner(x):",
         '    SET F(x) "touched" true',
         "fn outer(x):",
-        "    INVOKE R(_) inner x=F(x)",
+        "    INVOKE R(_) inner x=F(x) keep",
     ]))
     thing = g.mint("thing")
     g.link("root", "thing", thing)
@@ -3354,7 +3358,13 @@ def check_an_invoke_round_trips_through_the_surface():
     `INVOKE` operands in Python, so a learned function could not be read back in.
 
     Vacuity guard: the learned function must genuinely contain an `INVOKE` with bindings, or a round trip
-    over an empty program would prove nothing."""
+    over an empty program would prove nothing.
+
+    And the same defect was still there in the *other* two operand forms, which this check did not cover
+    because they did not exist when it was written. `with R(args)` rendered positionally — the keyword
+    dropped — so `step.mf`'s own dispatching call dumped to text that would not parse back, and the
+    refusal blamed the bindings operand rather than the missing word. Found by probing the round trip
+    while adding `keep`, not by anything failing. Hence the second half below, which walks every form."""
     from . import application as ap, asm, function as fn
     g, car, _ = _car_world()
     asm.load_text(g, 'fn wash(c):\n    SET F(c) "washed" true')
@@ -3366,11 +3376,30 @@ def check_an_invoke_round_trips_through_the_surface():
     text = asm.dump(g, "wash_it")
     reparsed = asm.parse(text)[0]
     stored = fn.load(g, "wash_it")[1]
+
+    # Every operand form of both call opcodes, in one function, so a form cannot be covered by accident.
+    every_form = _lines("fn all_the_forms(x, how, args):",
+                        "    INVOKE R(o) wash c=F(x)",
+                        "    INVOKE R(o) F(how) c=F(x) keep",
+                        "    INVOKE R(o) R(chosen) with F(args)",
+                        "    ATTEMPT R(o) R(e) wash c=F(x) keep",
+                        "    ATTEMPT R(o) R(e) F(how) with F(args)")
+    forms = asm.parse(every_form)[0]
+    rendered = asm.unparse(forms.name, forms.params, forms.program)
+
     return {"the_learned_function_invokes": stored[0].op == "INVOKE",
             "with_a_real_binding": isinstance(stored[0].args[2], dict) and stored[0].args[2] != {},
             "IT_RENDERS_AS_NAMED_BINDINGS": "=" in text.splitlines()[-1],
             "no_python_dict_leaks_into_the_text": "{" not in text,
-            "AND_PARSES_BACK_IDENTICALLY": reparsed.program == stored}
+            "AND_PARSES_BACK_IDENTICALLY": reparsed.program == stored,
+            # Vacuity: five instructions, and the round trip below is only a claim if they differ.
+            "and_EVERY_OPERAND_FORM_IS_PRESENT":
+                len({repr((i.op,) + tuple(i.args[1:])) for i in forms.program}) == 5,
+            "EVERY_ONE_OF_THEM_PARSES_BACK_IDENTICALLY":
+                asm.parse(rendered)[0].program == forms.program,
+            # The word that went missing, named rather than implied by the equality above.
+            "and_the_KEYWORDS_SURVIVE_the_render":
+                rendered.count(" with ") == 2 and rendered.count("keep") == 2}
 
 
 def check_a_function_can_invoke_another():
@@ -4585,9 +4614,17 @@ def _blocks():
     Height is an attribute because `types.py` schemas are one level deep: `schema_of` checks a label's
     target kind and count, and never recurses into the target's own type. So "on a block which is on a
     block" has no declared form, and the world model carries the derived fact instead. That is a real limit
-    of the type system, recorded here rather than worked around silently."""
+    of the type system, recorded here rather than worked around silently.
+
+    **The operators are written in the closed access vocabulary**, not in opcodes — this is the corpus
+    that proves mediation is usable rather than merely expressible. Nothing about them says *frame*, and
+    the planner reads their effects exactly as it did when they were `GET`/`SET`/`LINK`, because
+    `access.as_opcode` translates a vocabulary call back to the instruction it stands for."""
+    from pathlib import Path
     from . import asm
     g = new_graph()
+    for name in ("access.mf", "resolve.mf"):
+        asm.load_file(g, Path(__file__).parent / "rules" / name)
     declare_type(g, "block", attrs={"kind_of": "block"})
     declare_type(g, "clear_block", base="block", attrs={"clear": True})
     declare_type(g, "three_high", base="block", attrs={"height": 3})
@@ -4595,26 +4632,26 @@ def _blocks():
     asm.load_text(g, "\n".join([
         "# Put a clear block on top of another clear block.",
         "fn stack(b: clear_block, onto: clear_block) -> block:",
-        '    GET R(was) F(b) "on"',
-        '    UNLINK F(b) "on" 0',
-        '    LINK F(b) "on" F(onto)',
-        '    SET R(was) "clear" true',
-        '    SET F(onto) "clear" false',
-        '    ATTR R(h) F(onto) "height"',
+        '    INVOKE R(was) related node=F(b) label="on"',
+        '    INVOKE R(_) unrelate node=F(b) label="on" index=0',
+        '    INVOKE R(_) relate node=F(b) label="on" other=F(onto)',
+        '    INVOKE R(_) set_slot node=R(was) key="clear" value=true',
+        '    INVOKE R(_) set_slot node=F(onto) key="clear" value=false',
+        '    INVOKE R(h) slot_of node=F(onto) key="height"',
         "    ADD R(h2) R(h) 1",
-        '    SET F(b) "height" R(h2)',
+        '    INVOKE R(_) set_slot node=F(b) key="height" value=R(h2)',
         "",
         "# Take a clear block off whatever it is on and put it on the ground.",
         "fn unstack(b: clear_block, floor: floor) -> block:",
-        '    GET R(was) F(b) "on"',
-        '    UNLINK F(b) "on" 0',
-        '    LINK F(b) "on" F(floor)',
-        '    SET R(was) "clear" true',
-        '    SET F(b) "height" 1',
+        '    INVOKE R(was) related node=F(b) label="on"',
+        '    INVOKE R(_) unrelate node=F(b) label="on" index=0',
+        '    INVOKE R(_) relate node=F(b) label="on" other=F(floor)',
+        '    INVOKE R(_) set_slot node=R(was) key="clear" value=true',
+        '    INVOKE R(_) set_slot node=F(b) key="height" value=1',
         "",
         "# Nothing to do with stacking — here so 'ranks, never filters' has something to be true of.",
         "fn paint(b: block) -> block:",
-        '    SET F(b) "colour" "red"',
+        '    INVOKE R(_) set_slot node=F(b) key="colour" value="red"',
     ]))
     world = g.mint("world")
     g.link("root", "has", world)                       # real things hang off root
@@ -5786,6 +5823,51 @@ def check_a_BINDING_SET_can_be_BUILT_and_a_REFUSAL_can_be_a_VALUE():
             "A_PROGRAM_ERROR_STILL_ABORTS_rather_than_becoming_a_value": exploded}
 
 
+def check_a_PROCEDURE_can_be_PASSED_AS_A_PARAMETER_and_CALLED():
+    """`INVOKE`'s function operand takes a focus head, so a procedure can be an argument.
+
+    It took a literal or a register but not `F(x)`, refused in the assembler rather than by the
+    interpreter — `isa._v` has always resolved a head and a register on the same line. So a procedure
+    passed *as a parameter* had to be `COPY`d into a register before it could be called: friction, and
+    sitting exactly on the pattern late binding depends on, where a caller hands its callee the
+    implementation to use (`docs/mediated-access.md`).
+
+    Nothing about what travels changed — the name is still the operand, and a name is still where
+    linking happens at run time. Only the operand *form* grew.
+
+    Vacuity guards: two different procedures are passed to the same call site and must produce different
+    results, or a hard-coded callee would pass; and the shape check has to still refuse a second operand
+    that could not name a function at all, or this would have been "delete the validation"."""
+    from . import asm, function as fn
+
+    g = new_graph()
+    asm.load_text(g, _lines('fn shout(t):', '    SET F(t) "said" "LOUD"'))
+    asm.load_text(g, _lines('fn whisper(t):', '    SET F(t) "said" "soft"'))
+    asm.load_text(g, _lines("fn say_it(how, t):", "    INVOKE R(_) F(how) t=F(t)"))
+    # The same operand form in `ATTEMPT`, which shares the shape check and so shared the refusal.
+    asm.load_text(g, _lines("fn try_saying(how, t):",
+                            "    ATTEMPT R(_) R(err) F(how) t=F(t)",
+                            "    COPY R(result) R(err)"))
+
+    said = {}
+    for how in ("shout", "whisper"):
+        thing = g.mint("thing")
+        fn.invoke(g, "say_it", {"how": how, "t": thing})
+        said[how] = g.attr(thing, "said")
+    attempted = g.mint("thing")
+    refusal = fn.invoke(g, "try_saying", {"how": "shout", "t": attempted})[1].get("result")
+
+    bad = _raises(lambda: asm.parse(_lines("fn nope(t):", "    INVOKE R(o) 42 t=F(t)")), asm.AsmError)
+
+    return {"A_PROCEDURE_ARRIVES_AS_AN_ARGUMENT_AND_IS_CALLED": said["shout"] == "LOUD",
+            # Vacuity: the call site is one instruction; only the argument differs.
+            "and_the_OTHER_ONE_really_runs_INSTEAD": said["whisper"] == "soft",
+            "ATTEMPT_takes_the_same_form": g.attr(attempted, "said") == "LOUD",
+            "and_it_did_not_refuse": refusal is None,
+            # ...and the shape check that refused it is still a shape check.
+            "A_SECOND_OPERAND_THAT_NAMES_NOTHING_IS_STILL_REFUSED": bad}
+
+
 def _reflect_world():
     """A world with a cycle and a branch, plus the two rule files. Both are needed: a tree would let a
     walk that never revisits pass, and one branch would hide an ordering difference."""
@@ -6009,7 +6091,11 @@ def check_a_PROGRAM_CAN_ASK_WHAT_ITS_OWN_CALL_DID():
     Vacuity guards: the callee must be a *different* activation from the caller's, or `SELF` returning
     anything at all would pass; it must be the callee of the *last* call rather than the first, so
     "most recent" is really tested; and what it minted must be exactly what that call minted, not what
-    the whole program did."""
+    the whole program did.
+
+    Both calls say `keep`, which is what makes there be an activation to ask about at all. Asking is the
+    minority case — see `check_a_call_LEAVES_NOTHING_BEHIND_unless_the_call_site_says_keep` for the
+    default and for why the answer survives it anyway."""
     from . import asm, function as fn, activation as ACT
 
     g = new_graph()
@@ -6023,8 +6109,8 @@ def check_a_PROGRAM_CAN_ASK_WHAT_ITS_OWN_CALL_DID():
     # Two calls, so "the most recent" is a real claim rather than "the only one".
     asm.load_text(g, _lines("fn asks_what_it_did(x) -> thing:",
                             "    SELF R(me)",
-                            "    INVOKE R(one) mints_one x=F(x)",
-                            "    INVOKE R(two) mints_two x=F(x)",
+                            "    INVOKE R(one) mints_one x=F(x) keep",
+                            "    INVOKE R(two) mints_two x=F(x) keep",
                             '    COUNT R(n) R(me) "called"',
                             "    ADD R(last) R(n) -1",
                             '    GET_AT R(callee) R(me) "called" R(last)',
@@ -6071,6 +6157,343 @@ def check_a_PROGRAM_CAN_ASK_WHAT_ITS_OWN_CALL_DID():
                 tuple(g.sources(p, "caller")) == tuple(sorted(made)) != tuple(reversed(made)),
             "while_the_FORWARD_edge_KEEPS_link_order":
                 tuple(g.targets(p, "called")) == tuple(reversed(made))}
+
+
+def check_a_call_LEAVES_NOTHING_BEHIND_unless_the_call_site_says_keep():
+    """Retention is a **call-site** choice, and the default is now the other way round.
+
+    A call used to keep its activation, its registers, the focus minted for it and that focus's heads —
+    about five nodes — whatever the caller wanted, because `workbench.step` and `execution._replay` read
+    the callee's activation afterwards and there was no way to say so. That is fine while calls are rare
+    and untenable the moment a graph *read* is one: `docs/mediated-access.md` puts ~9 mediating
+    procedures under every `ATTR`, `GET` and `SET` a rule performs.
+
+    It is a hygiene problem before it is a speed one. The residue is interpreter state sitting in the
+    same graph as the world, and this system has already once mistaken its own scaffolding for world
+    content and type-checked a `focus` as a domain object (`activation.minted`).
+
+    What the call *did* is not thrown away with the record of its doing it. The mints move to the caller
+    before the activation goes, so `activation.minted` answers exactly as before — that walk already
+    unioned a callee's mints into its caller's. Only the per-call breakdown is given up, which is what
+    the call site said it did not want.
+
+    Vacuity guards: the discarded run and the kept run are the same program but for the one word, so the
+    difference is attributable; the world effect and the minted node must survive the discard, or
+    "leaves nothing behind" would be satisfied by a call that did nothing."""
+    from . import asm, function as fn, activation as ACT
+
+    g = new_graph()
+    asm.load_text(g, _lines("fn makes_one(x) -> thing:",
+                            '    NEW R(a) "made"',
+                            '    SET F(x) "touched" true',
+                            "    COPY R(result) R(a)"))
+    for name, call in (("discards", "INVOKE R(one) makes_one x=F(x)"),
+                       ("keeps", "INVOKE R(one) makes_one x=F(x) keep")):
+        asm.load_text(g, _lines(f"fn {name}(x) -> thing:",
+                                "    SELF R(me)", f"    {call}", "    COPY R(result) R(me)"))
+
+    def run(name):
+        subject = g.mint("thing")
+        before = len(g.nodes)
+        me = fn.invoke(g, name, {"x": subject})[1]["result"]
+        callees = [a for a in g.of_kind("activation")
+                   if g.attr(g.target(a, "of"), "name") == "makes_one"]
+        return subject, me, len(g.nodes) - before, callees
+
+    thing, discarded, grew_discarding, left_behind = run("discards")
+    made = [n for n in ACT.minted(g, discarded) if g.kind(n) == "made"]
+    _kept_subject, kept, grew_keeping, retained = run("keeps")
+
+    return {"A_DISCARDED_CALL_LEAVES_NO_ACTIVATION": left_behind == [],
+            # ...nor the rest of the five: the focus minted for it, and that focus's heads.
+            "nor_its_focus_or_its_heads":
+                not [f for f in g.of_kind("focus") if ACT.for_focus(g, f) is None],
+            # Vacuity: a call that did nothing would pass the two above.
+            "the_WORLD_EFFECT_survived_it": g.attr(thing, "touched") is True,
+            "and_so_did_THE_NODE_IT_MINTED": made != [] and made[0] in g.nodes,
+            "AND_THE_CALLER_STILL_KNOWS_IT_WAS_MINTED": len(made) == 1,
+            "but_it_is_the_CALLERS_record_now":
+                bool(made) and made[0] in g.targets(discarded, "minted"),
+            "KEEP_RETAINS_IT": len(retained) == 1,
+            "and_it_is_the_call_this_activation_made":
+                retained[:1] == list(g.targets(kept, "called")),
+            "THE_DIFFERENCE_IS_THE_SCAFFOLDING": grew_keeping - grew_discarding == 5,
+            "cost_of_keeping": grew_keeping - grew_discarding}
+
+
+def _mediated():
+    """A graph with the closed access vocabulary and the frame resolver loaded, and a small world.
+
+    Returns `(g, block, ground)`. The block is `red` and sits on the ground — enough for a read, a
+    write, and a relation, which is every shape the vocabulary has."""
+    from pathlib import Path
+    from . import asm
+    g = new_graph()
+    for name in ("access.mf", "resolve.mf"):
+        asm.load_file(g, Path(__file__).parent / "rules" / name)
+    ground = g.mint("ground", label="ground")
+    block = g.mint("block", kind_of="block", colour="red", label="b")
+    g.link(block, "on", ground)
+    g.link("root", "has", block)
+    g.link("root", "has", ground)
+    return g, block, ground
+
+
+def check_A_RULE_READS_THE_FRAME_WITHOUT_KNOWING_WHAT_A_FRAME_IS():
+    """The point of the whole layer: one rule, one binding, two worlds, two answers.
+
+    A rule that says `GET F(b) "on"` has flattened *the support of b* into an edge traversal — the
+    relation is gone as a relation, and nothing can interpose on it. Lowered to a **named call** instead,
+    the read is still there to be resolved: `slot_of` asks the ambient context for the name of its
+    resolver and invokes it, so what a read *means* is decided at run time and no rule is ever edited to
+    say which world it is reading.
+
+    The rule below is bound to the **real** block in both runs. Under the trivial context it reads the
+    real world; under a frame context it reads that frame's version, and its write lands there too. It
+    contains no `GET`, no `SET`, and no mention of a frame.
+
+    Vacuity guards: the two answers must differ, or an unresolved read would pass; the real world must be
+    untouched by the imagined write, which is the property planning exists to have; and a `related` call
+    must come back with the frame's *ground*, not the real one — a resolver that only resolved its
+    subject would look right on an attribute and be wrong on every edge."""
+    from . import access as AX, asm, function as fn, workbench as W
+
+    g, block, ground = _mediated()
+    asm.load_text(g, _lines("fn repaint(b) -> thing:",
+                            '    INVOKE R(was) slot_of node=F(b) key="colour"',
+                            '    INVOKE R(_) set_slot node=F(b) key="colour" value="blue"',
+                            "    COPY R(result) R(was)"))
+    asm.load_text(g, _lines("fn support_of(b) -> thing:",
+                            '    INVOKE R(result) related node=F(b) label="on"'))
+
+    real_before = fn.invoke(g, "repaint", {"b": block})[1]["result"]
+
+    wb = W.open_workbench(g, block)
+    frame = W.root_frame(g, wb)
+    image = W.image_of(g, W.mapping_for(g, frame, block))
+    g.put(image, colour="green")                       # the frame's world moves independently
+    ctx = AX.open_context(g, resolver="in_frame", label="imagining", frame=frame)
+
+    imagined = fn.invoke(g, "repaint", {"b": block}, under=ctx)[1]["result"]
+    support = fn.invoke(g, "support_of", {"b": block}, under=ctx)[1]["result"]
+
+    return {"THE_SAME_RULE_READS_THE_REAL_WORLD": real_before == "red",
+            # Vacuity: bound to the same real node, and answers differently.
+            "AND_THE_FRAMES_VERSION_UNDER_A_FRAME_CONTEXT": imagined == "green",
+            "and_its_WRITE_LANDED_IN_THE_FRAME": g.attr(image, "colour") == "blue",
+            "while_the_REAL_WORLD_IS_UNTOUCHED": g.attr(block, "colour") == "blue" and real_before == "red"
+                                                 and g.attr(block, "colour") != "green",
+            # An edge read resolves its ANSWER too, not only its subject.
+            "A_RELATION_ANSWERS_WITH_THE_FRAMES_NODE":
+                support == W.image_of(g, W.mapping_for(g, frame, ground)),
+            "and_it_is_NOT_the_real_one": support != ground,
+            # ...and the rule that did all this is written in the vocabulary, not in opcodes.
+            "THE_RULE_TOUCHES_THE_GRAPH_NOWHERE_ITSELF": AX.bare_touches(g, "repaint") == ()}
+
+
+def check_the_CLOSED_SET_RESOLVES_BEFORE_IT_TOUCHES():
+    """Totality is the whole reason this layer exists, so the closed set is checked as a set.
+
+    An open vocabulary can never be total — that is the islands finding — and transparency needs the
+    opposite: one unmediated read and planning over a partially modified graph is silently wrong. So
+    mediation bottoms out in a closed set, with domain names implemented *in terms of* it, and the closed
+    set is small enough to audit as a whole. This is that audit, run every time.
+
+    The bodies repeat their four-line preamble instead of sharing one, to buy the trivial context back
+    its cost — a shared `resolved` procedure would make every read in the real world two calls deep
+    instead of none. Repetition is only acceptable if it cannot drift, so what would otherwise be a
+    convention is a check.
+
+    Vacuity guards: the set must cover every operation the authored corpus actually performs, measured
+    rather than assumed; and `make` must be in it while resolving nothing, since a mint has no earlier
+    version — an exemption that is stated, not silent."""
+    from . import access as AX, isa
+
+    g, _block, _ground = _mediated()
+    covered = set(AX.VOCABULARY.values())
+    # What the corpus reaches the graph with. `stack`/`unstack`/`paint` are the planning operators, and
+    # these are the opcodes their bodies use — the measurement the closed set was drawn from.
+    measured = {"ATTR", "SET", "GET", "COUNT", "GET_AT", "LINK", "UNLINK", "NEW"}
+
+    return {"EVERY_MEMBER_RESOLVES_BEFORE_IT_TOUCHES": AX.resolves_before_touching(g) == (),
+            "and_the_set_is_COMPLETE_for_what_rules_do": measured <= covered,
+            # Vacuity: a set covering everything would satisfy the line above trivially.
+            "and_no_wider_than_that": covered <= measured,
+            "MAKE_IS_IN_THE_SET_AND_RESOLVES_NOTHING":
+                AX.VOCABULARY["make"] == "NEW" and AX.bare_touches(g, "make") == ((0, "NEW"),),
+            # The vocabulary is the one place bare opcodes are right above the substrate.
+            "the_members_ARE_the_bare_layer":
+                all(AX.bare_touches(g, n) for n in AX.VOCABULARY),
+            "and_every_opcode_they_use_is_a_graph_opcode":
+                all(op in isa.TOUCHES_GRAPH for op in AX.VOCABULARY.values())}
+
+
+def check_a_context_is_INHERITED_by_a_callee_and_ESTABLISHED_at_a_boundary():
+    """The binder is dynamic scope over the activation chain, and this is the shape of it.
+
+    Dynamic scope is normally a bad trade: you cannot see what a function will do without tracing a stack
+    that is not data. Here the stack **is** data — every activation points at its caller, and *what
+    context was this running under* is an ordinary query. The usual objection does not apply to this
+    engine, which is the argument that decided the design.
+
+    It looks like the mistake `INVOKE` guards against, and is not. A callee gets a fresh focus with none
+    of the caller's heads, so a function is never silently sensitive to where its caller was looking —
+    but **the call chain and the frame nest identically, and attention does not**: a callee always runs
+    in its caller's frame, while it looks at its own arguments. Frame is a property of the dynamic
+    extent; attention is a property of the call.
+
+    Vacuity guards: the reading rule must be two calls deep, so inheritance is really being tested rather
+    than a context found on the reader's own activation; and an activation that establishes its own must
+    override what it would have inherited, or "establish at the boundary" would be unenforceable."""
+    from . import access as AX, activation as ACT, asm, function as fn, workbench as W
+
+    g, block, _ground = _mediated()
+    # Two levels above the vocabulary call: outer -> middle -> slot_of -> in_frame.
+    asm.load_text(g, _lines("fn middle(b) -> thing:",
+                            '    INVOKE R(result) slot_of node=F(b) key="colour"'))
+    asm.load_text(g, _lines("fn outer(b) -> thing:",
+                            "    INVOKE R(result) middle b=F(b) keep",
+                            "    SELF R(me)"))
+
+    wb = W.open_workbench(g, block)
+    frame = W.root_frame(g, wb)
+    g.put(W.image_of(g, W.mapping_for(g, frame, block)), colour="green")
+    ctx = AX.open_context(g, resolver="in_frame", label="imagining", frame=frame)
+
+    focus, regs = fn.invoke(g, "outer", {"b": block}, under=ctx)
+    top = ACT.for_focus(g, focus.node)
+    inner = g.targets(top, "called")[0]
+
+    # ...and what an activation established ITSELF is a different question from what it runs under.
+    plain = g.mint("activation", pc=0, steps=0, size=0, halted=True)
+    g.link(plain, "caller", top)
+    own = AX.open_context(g, label="the world")
+    inherited_first = AX.context_of(g, plain)
+    AX.establish(g, plain, own)
+
+    return {"THE_READ_TWO_CALLS_DOWN_SAW_THE_FRAME": regs["result"] == "green",
+            "the_context_is_on_the_OUTERMOST_activation": AX.establishes(g, top) == ctx,
+            # Vacuity: the middle call has none of its own, and still resolves.
+            "and_the_CALLEE_ESTABLISHED_NOTHING": AX.establishes(g, inner) is None,
+            "but_INHERITS_it_by_walking_caller": AX.context_of(g, inner) == ctx,
+            "A_CALLER_WITHOUT_ONE_INHERITS_TOO": inherited_first == ctx,
+            "AND_ESTABLISHING_OVERRIDES_WHAT_WAS_INHERITED": AX.context_of(g, plain) == own,
+            # A pointer, not a collection — a second `establish` replaces rather than appends.
+            "and_a_context_is_a_POINTER_not_a_collection": g.count(plain, "context") == 1,
+            "the_TRIVIAL_context_is_a_context": g.kind(own) == "context"
+                                                and g.attr(own, "resolver") is None,
+            "and_resolves_to_IDENTITY_costing_no_call": AX.resolver_of(g, plain) is None}
+
+
+def check_A_PLANNING_OPERATOR_MAY_NOT_TOUCH_THE_GRAPH_BARE():
+    """The closed set is *enforced*; the open vocabulary merely grows. Two regimes, and this is the first.
+
+    The asymmetry is the practical half of the whole design. A missing domain name costs expressiveness
+    and nothing else, so that vocabulary is governed by adding to it. A bare `GET` in a rule that runs
+    inside a frame produces a **wrong answer with no symptom**, so the closed set is governed by a pass
+    that can say so — and it can, because bodies are data.
+
+    Who it applies to is derived, never listed. A function is proposable exactly when it declares a
+    parameter type, which is what the planner binds against; and a proposable function is precisely one
+    that will be run inside a frame. So the population that must be mediated falls out of the structure,
+    rather than out of a list somebody keeps in step — the shape this codebase keeps recording as the
+    thing that drifts.
+
+    Vacuity guards: a deliberately bare rule must be caught, and caught at the right instruction, or an
+    empty report would mean nothing; the vocabulary itself must be exempt, since it *is* the bare layer;
+    and the effects the planner reads off a mediated rule must be **identical** to those of the same rule
+    written in opcodes — otherwise mediation would have bought transparency by blinding the planner."""
+    from . import access as AX, asm, driver as D
+    g, _world = _blocks()
+
+    clean = AX.offenders(g)
+
+    # The same three operators, written bare, to compare the static reading against.
+    h = new_graph()
+    declare_type(h, "block", attrs={"kind_of": "block"})
+    declare_type(h, "clear_block", base="block", attrs={"clear": True})
+    asm.load_text(h, _lines("fn stack(b: clear_block, onto: clear_block) -> block:",
+                            '    GET R(was) F(b) "on"',
+                            '    UNLINK F(b) "on" 0',
+                            '    LINK F(b) "on" F(onto)',
+                            '    SET R(was) "clear" true',
+                            '    SET F(onto) "clear" false',
+                            '    ATTR R(h) F(onto) "height"',
+                            "    ADD R(h2) R(h) 1",
+                            '    SET F(b) "height" R(h2)'))
+    same_effects = D.establishes(g, "stack") == D.establishes(h, "stack")
+    same_reads = D.reads(g, "stack") == D.reads(h, "stack")
+
+    # ...and one that skips the layer, which must be reported.
+    asm.load_text(g, _lines("fn sneaks(b: block) -> block:",
+                            '    INVOKE R(_) set_slot node=F(b) key="a" value=1',
+                            '    SET F(b) "colour" "red"'))
+    caught = AX.offenders(g)
+
+    # An untyped helper is unproposable, so it is not a planning operator. A real hole, stated.
+    asm.load_text(g, _lines("fn helper(b) -> block:", '    SET F(b) "x" 1'))
+
+    return {"EVERY_PLANNING_OPERATOR_IS_MEDIATED": clean == {},
+            # Vacuity: the pass can fail, and says where.
+            "AND_A_BARE_ONE_IS_CAUGHT": set(caught) == {"sneaks"},
+            "at_the_instruction_that_did_it": caught.get("sneaks") == ((1, "SET"),),
+            # ...but not the mediated instruction beside it.
+            "and_not_at_the_mediated_one_beside_it": len(caught["sneaks"]) == 1,
+            "THE_VOCABULARY_ITSELF_IS_EXEMPT": not (set(AX.VOCABULARY) & set(caught)),
+            "an_untyped_helper_is_not_a_planning_operator": "helper" not in AX.offenders(g),
+            # The load-bearing one: lowering to calls cost the planner nothing.
+            "THE_PLANNER_READS_A_MEDIATED_RULE_IDENTICALLY": same_effects,
+            "reads_included": same_reads,
+            # Vacuity for the two above: there must be effects to agree about.
+            "and_there_were_effects_to_agree_about": len(D.establishes(g, "stack")[0]) >= 4}
+
+
+def check_EVERY_BOUNDARY_ESTABLISHES_A_WORLD_TO_READ_IN():
+    """The risk dynamic scope buys, checked rather than left to a convention.
+
+    Inheriting is the default, so a boundary that *forgets* to establish does not fail — everything
+    beneath it silently inherits its caller's world and plans in the wrong one. That is the failure mode
+    this design accepts, and the note that argued for it asked for exactly this: a check that goes red
+    when a boundary does not establish, not a convention that a boundary should remember to.
+
+    Two boundaries have a consumer today and both are here. `workbench.step` establishes the frame it is
+    imagining in; `execution` establishes the **trivial** context, which is the move that removes the
+    last mode from the design — the real world is not the absence of a context but the one whose
+    resolution is identity, so the same rule runs in both places unchanged.
+
+    It asks what each activation established *itself*, never what it runs under: every activation beneath
+    `step` answers `context_of` correctly whether or not `step` established anything, because it would
+    just inherit. `establishes` is the only question that can fail.
+
+    Vacuity guards: the two contexts must be different in kind, or "establishes a world" would be
+    satisfied by establishing any world; and the imagined one must point at the frame that was actually
+    stepped into, not merely at some frame."""
+    from . import access as AX, execution as X, workbench as W
+    g, car = _garage()
+
+    wb = W.open_workbench(g, car)
+    f0 = W.root_frame(g, wb)
+    f1, tr = W.step(g, wb, f0, "service", {"c": W.mapping_for(g, f0, car)})
+    imagining = g.target(tr, "ran")
+    planning_ctx = AX.establishes(g, imagining)
+
+    X.execute(g, wb, f1)
+    acting = [a for a in g.of_kind("activation")
+              if g.attr(g.target(a, "of"), "name") == "service" and a != imagining]
+    acting_ctx = AX.establishes(g, acting[0]) if acting else None
+
+    return {"THE_IMAGINING_CALL_ESTABLISHED_A_CONTEXT": g.kind(planning_ctx) == "context",
+            # ...pointing at the frame that was stepped into, not just at a frame.
+            "and_it_names_THE_FRAME_IT_STEPPED_INTO": g.target(planning_ctx, "frame") == f1,
+            "and_says_how_to_read_in_it": g.attr(planning_ctx, "resolver") == "in_frame",
+            "THE_ACTING_CALL_ESTABLISHED_ONE_TOO": g.kind(acting_ctx) == "context",
+            # Vacuity: the real world is the TRIVIAL context, which is a context and not that one.
+            "and_it_is_THE_TRIVIAL_ONE": acting_ctx is not None and g.attr(acting_ctx, "resolver") is None,
+            "which_is_not_the_planning_one": planning_ctx != acting_ctx,
+            "and_costs_no_resolving_call": AX.resolver_of(g, acting[0]) is None,
+            # And a discarded workbench leaves no context behind, like everything else it minted.
+            "A_DISCARDED_WORKBENCH_TAKES_ITS_CONTEXTS_WITH_IT":
+                (W.discard(g, wb), [n for n in g.of_kind("context") if g.target(n, "frame") is not None])[1] == []}
 
 
 def check_WORKBENCH_STEP_IS_AN_ORDINARY_PROGRAM():

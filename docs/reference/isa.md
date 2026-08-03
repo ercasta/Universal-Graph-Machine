@@ -122,12 +122,31 @@ new edge by the wrong position) is what established that it fires.
 |---|---|
 | `INVOKE dst <fn> p=x q=y` | call a stored function; a refusal **raises** |
 | `INVOKE dst <fn> with node` | the same, with the bindings described by a node |
+| `INVOKE dst <fn> … keep` | the same, leaving the callee's activation to be read |
 | `ATTEMPT dst err <fn> …` | the same call, with a refusal handed back in `err` as a node |
 | `REFUSE kind why` | decline, as the callee — raises a refusal `ATTEMPT` can catch |
 | `SELF dst` | the activation running this instruction |
 
-`<fn>` may be a literal name **or a register** — calling a function chosen at run time already worked
-before either of these existed.
+`<fn>` may be a literal name, **a register, or a focus head** — calling a function chosen at run time
+already worked before either of these existed, and a procedure passed as a *parameter* arrives as
+`F(how)`, which is the form late binding depends on. The name is what travels in every case; only the
+operand form differs.
+
+**`keep` decides what happens to the call's own record, and it is the call site's decision.** A call
+leaves an activation, its registers, the focus minted for it and that focus's heads — about five nodes.
+By default they go when the call finishes. `keep` retains them, for a caller that means to ask what the
+call did (`SELF`, then the last `called`).
+
+The default used to be the other way, on the grounds that somebody might ask. That is fine while calls
+are rare and untenable once a graph *read* is one — see `docs/mediated-access.md`, where ~9 mediating
+procedures sit under every `ATTR`, `GET` and `SET` a rule performs. It is a hygiene question before it
+is a speed one: the residue is interpreter state sitting in the same graph as the world, and this system
+has already once mistaken its own scaffolding for world content and type-checked a `focus` as a domain
+object. Measured on 200 mediated reads: **1008 nodes left behind, against 8**, for about 5% more time.
+
+What the call *did* survives being discarded. Its `minted` record moves to the caller first, so
+`activation.minted` answers exactly as before — that walk already unioned a callee's mints into its
+caller's. Only the per-call breakdown is given up, which is what the call site said it did not want.
 
 **`REFUSE` is the enforcing form of `ATTEMPT`**, and for once it was the missing one. Everywhere else
 here the engine had the enforcing form and lacked the answering one — `types.check` raised where a guard
@@ -151,7 +170,7 @@ the calls it makes as ordered `called` edges, so the most recent one is the last
 
 ```
 SELF   R(me)
-INVOKE R(out) some_function x=F(x)
+INVOKE R(out) some_function x=F(x) keep
 COUNT  R(n) R(me) "called"
 ADD    R(last) R(n) -1
 GET_AT R(callee) R(me) "called" R(last)

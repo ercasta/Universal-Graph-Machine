@@ -1,8 +1,33 @@
 # Mediated access
 
-**A design note, not a spec. None of this is built.** It records an argument, the measurements that
-constrain it, the alternatives already ruled out, and the questions still open — so the next pass argues
-with a document rather than reconstructing a conversation.
+**A design note. The mechanism it argues for is now built** — `ugm/access.py`, `rules/access.mf` and
+`rules/resolve.mf` — and the note is kept as the argument behind it, together with the measurements that
+constrain it, the alternatives already ruled out, and the questions still open.
+
+## What is built, and what is not
+
+| | |
+|---|---|
+| the closed vocabulary, as ordinary procedures | ✅ `rules/access.mf`, eight names |
+| the binder: context on the activation, inherited through `caller` | ✅ `access.context_of` |
+| resolution as a **named call**, chosen at run time | ✅ `access.resolver_of` → `rules/resolve.mf` |
+| boundaries that establish: `workbench.step`, `execution` | ✅ and checked |
+| the compliance pass | ✅ `access.offenders`, over the planning operators |
+| the planning corpus rewritten to the vocabulary | ✅ `stack`, `unstack`, `paint` |
+| the four natives that must resolve (`is_a`, `check`, `plan`, `plan_step`) | ❌ nothing yet |
+| the goal machinery and the phase machine as boundaries | ❌ no consumer yet — see *Open questions* |
+| **sparse frames**, which is what all of it was for | ❌ next |
+
+The two omissions are the same omission. While frames stay dense and `step` binds a frame's *images*
+directly, resolution is the identity function on everything a rule is handed, so a native that ignores
+context cannot yet be caught being wrong. Building for that now would be building for a requirement
+nobody has stated, which this project has twice nearly done at length. It becomes load-bearing the
+moment frames go sparse, and that is the next step rather than a deferred one.
+
+Measured on Sussman's anomaly, same plan found either way: **275 ms bare, 1321 ms mediated — 4.8×.** Each
+rule operation is now a call, and under a frame context a second call to resolve. That is the price of
+the property, and it is the honest number to improve against rather than a reason to reconsider: the
+alternative is planning Python owns.
 
 ## Two demands, one mechanism
 
@@ -54,6 +79,25 @@ bottom out in a closed set, with domain names implemented *in terms of* it rathe
 
 This is [the horizon's three layers](concepts.md) arriving from a new direction, which is some evidence
 it is the right cut.
+
+## What lowering to a call cost the planner: nothing, and why that needed work
+
+Not in the original argument, and it is the thing that would have sunk it. `driver._effects` walks a
+stored body to learn what a rule *writes* — which is what relevance ranks on and what means-ends chains
+backwards through — and an `INVOKE` is opaque to it: the effect happens somewhere else. Lowering every
+read and write to calls would therefore have blinded the planner to every rule at once.
+
+The calls are not anonymous, and the set is *closed*, so a static reader may know it exactly as it knows
+the opcodes. `access.as_opcode` translates a vocabulary call back to the instruction it stands for, in
+one place, for all three readers of a stored body (`_effects`, `_reads`, `conflict.claims_of`). A check
+compares the effects the planner reads off the mediated `stack` against the same rule written in
+opcodes: **identical**.
+
+How load-bearing this is showed up by accident, while planting a bug to check the check. With the
+translation disabled, seven checks go red and **the suite goes from 59 seconds to minutes** — a planner
+that cannot see what a rule establishes ranks everything alike, so the search explodes rather than
+failing. Swapping two operands in the translation table is nearly as bad: four red, and slower again.
+Worth generalising: **when a static reader loses information, the first symptom is cost, not error.**
 
 ## What rules actually touch
 
@@ -122,11 +166,22 @@ activation, exactly as it is for a mock.
 | nodes minted per injected read | **~5** — an activation, a focus, its heads and registers |
 | interpreter cost per instruction | **~50–90 µs** — activation state is graph-resident and journaled |
 
-The middle row is the one that bites, and it is not about speed. `function.invoke` runs with
-`retire=False` so a caller can ask what its call did. If reads become calls, that default litters the
+The middle row is the one that bites, and it is not about speed. `function.invoke` ran with
+`retire=False` so a caller could ask what its call did. If reads become calls, that default litters the
 graph with interpreter scaffolding — and this system has already once mistaken its own scaffolding for
-world content and type-checked it as a domain object. **Retention must become a call-site choice**
+world content and type-checked it as a domain object. **Retention had to become a call-site choice**
 before reads become calls.
+
+✅ **Built.** `INVOKE`/`ATTEMPT` take a trailing `keep`, and without it the call's activation,
+registers, focus and heads go when it finishes; `function.invoke` takes `retain=`, which stays true for
+Python callers because a Python caller is handed the focus and normally reads it. Measured on 200
+mediated reads: **1008 nodes left behind, against 8** — 5.04 a call, as the row above says — for about
+5% more time, since discarding is itself work. Nothing is lost by discarding: a callee's `minted` record
+moves to its caller first, and `activation.minted` unioned it upwards anyway.
+
+✅ **And `INVOKE`'s function operand takes `F(x)`**, so a procedure passed as a *parameter* can be
+called without a `COPY` into a register first. The assembler was refusing what `isa._v` had always
+resolved. Trivial, and it sits exactly on the pattern the rest of this note depends on.
 
 ## What the mediation is for: frames as markers
 

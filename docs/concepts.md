@@ -242,6 +242,19 @@ something we decided. So:
 The horizon sits between the closed class and the web. The kernel boundary sits below the closed
 class. Both are real and they are not the same.
 
+### The same cut, arrived at from the other side
+
+Mediated access reached this table from a completely different direction, which is some evidence it is
+the right cut. A rule may not touch the graph with an opcode; it goes through **eight closed names** —
+`slot_of`, `set_slot`, `related`, `relations`, `relation_at`, `relate`, `unrelate`, `make` — and the
+open domain vocabulary above them (`support_of`, `wheels_of`) is written *in terms of* those.
+
+What forced the middle layer there was **totality**. Transparency needs every access interposable, since
+one unmediated read makes planning over a partially modified graph silently wrong; and totality is
+unobtainable from an open class, which is the islands finding again. So mediation must bottom out in a
+closed set — the same three-layer shape, discovered by asking what may not be Python rather than what
+may not be defined away. See [mediated-access.md](mediated-access.md).
+
 ### The decomposition error
 
 The reason this matters in practice is that *"can the surface say this?"* has **three** answers,

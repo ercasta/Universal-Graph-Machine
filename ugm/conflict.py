@@ -50,10 +50,16 @@ def claims_of(g: Graph, name: str) -> tuple:
     """`(param, key, value)` for every literal attribute this function writes to a parameter.
 
     Narrow on purpose — see the module docstring. A computed key or value claims nothing."""
+    from . import access
     params, program = fn.load(g, name)
     out = []
-    for ins in program:
-        if isinstance(ins, str) or ins.op != "SET" or len(ins.args) < 3:
+    for stored in program:
+        if isinstance(stored, str):
+            continue
+        # A mediated write claims exactly what the bare one did — `access.as_opcode` is the one place
+        # that knows the closed vocabulary, and this is the third reader of a stored body to use it.
+        ins = access.as_opcode(stored) or stored
+        if ins.op != "SET" or len(ins.args) < 3:
             continue
         subject, key, value = ins.args[0], ins.args[1], ins.args[2]
         if not (isinstance(subject, F) and subject.name in params):

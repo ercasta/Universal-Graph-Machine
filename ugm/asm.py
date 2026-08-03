@@ -32,6 +32,7 @@ Operand syntax:
 | `.loop:` on its own line | a label definition |
 | `bare_word` | a string literal, deliberately forgiving: `SET F(c) colour red` means the obvious thing |
 | `param=F(x)` | a named binding, only in `INVOKE`, where the operand is a mapping rather than a list |
+| `keep` | trailing, only in `INVOKE`/`ATTEMPT`: leave the callee's activation behind to be read |
 
 `INVOKE` is the one opcode whose operand shape is checked, because it is the one with a shape.
 Everywhere else an operand list is positional and an arity mistake shows up as a wrong argument;
@@ -111,7 +112,11 @@ def _invoke_args(toks: list, lineno: int) -> tuple:
         raise AsmError(f"line {lineno}: INVOKE's first operand must be a register to put the result in, "
                        f"not {toks[0]!r} — expected `{_INVOKE_FORM}`")
     name = _operand(toks[1], lineno)
-    if not isinstance(name, (str, R)):
+    # A focus head is a function operand like any other, and refusing one here was friction sitting
+    # exactly on the pattern late binding depends on: a procedure passed as a *parameter* arrives as
+    # `F(fn)`, so calling it needed a `COPY` into a register first for no reason the ISA has — `_v`
+    # resolves `F` and `R` by the same line. The name is still what travels; only the operand form grew.
+    if not isinstance(name, (str, R, F)):
         raise AsmError(f"line {lineno}: INVOKE's second operand must be a function name, "
                        f"not {toks[1]!r} — expected `{_INVOKE_FORM}`")
     # Two operand forms, and the second is what lets a program call something it worked out. A single
@@ -119,12 +124,18 @@ def _invoke_args(toks: list, lineno: int) -> tuple:
     # how a caller assembles parameter *names* at run time — see `isa._bindings`. Named bindings stay the
     # ordinary form; nothing that reads well today changes.
     rest = toks[2:]
+    # `keep` — a trailing word asking the call to leave its activation behind, so the caller can ask what
+    # it did (`SELF`, then the last `called`). Stripped before the bindings are read, so it composes with
+    # both operand forms below. Without it the call is discarded when it finishes: see `isa._keeps`.
+    keep = ()
+    if rest and _operand(rest[-1], lineno) == isa.KEEP:
+        rest, keep = rest[:-1], (isa.KEEP,)
     # `with R(args)` — the bindings are a NODE describing them, so a program can assemble parameter
     # *names* at run time (`isa._bindings`). The keyword is not decoration: a bare register here would be
     # indistinguishable from the positional mistake this function exists to refuse, and that ambiguity
     # went red on the check that guards it.
     if len(rest) == 2 and rest[0] == "with":
-        return (dst, name, _operand(rest[1], lineno))
+        return (dst, name, _operand(rest[1], lineno)) + keep
     bindings = {}
     for tok in rest:
         m = _BINDING.match(tok)
@@ -136,7 +147,7 @@ def _invoke_args(toks: list, lineno: int) -> tuple:
         if m.group(1) in bindings:
             raise AsmError(f"line {lineno}: INVOKE binds {m.group(1)!r} twice")
         bindings[m.group(1)] = _operand(m.group(2), lineno)
-    return (dst, name, bindings)
+    return (dst, name, bindings) + keep
 
 
 @dataclass
@@ -233,8 +244,8 @@ def parse(text: str) -> list:
             # Deliberately not `name` — that is the enclosing loader's variable for the function being
             # DEFINED, and assigning it here renamed the whole function to this call's target. Caught by
             # the function coming back defined under a register's name.
-            dst, callee, binds = _invoke_args((args[0],) + tuple(args[2:]), lineno)
-            program.append(I(op, (dst, err, callee, binds)))
+            dst, callee, binds, *keep = _invoke_args((args[0],) + tuple(args[2:]), lineno)
+            program.append(I(op, (dst, err, callee, binds, *keep)))
             continue
         program.append(I(op, _invoke_args(args, lineno) if op == "INVOKE"
                          else tuple(_operand(t, lineno) for t in args)))
@@ -271,6 +282,25 @@ def _fmt(operand) -> str:
     return f'"{operand}"'
 
 
+def _fmt_call(step) -> str:
+    """`INVOKE` and `ATTEMPT`, which are the only instructions whose operands are not a flat list.
+
+    Rendering them positionally loses the two keywords that carry the shape. `with` went missing, so a
+    function using the graph-data binding form — `step.mf`'s own dispatching call — dumped to text that
+    would not parse back, and the error arrived at the *bindings* check, blaming the operand rather than
+    the missing word. `keep` survives on its own as a quoted string, but it is rendered here too, so the
+    whole shape is in one place rather than half of it relying on a literal happening to round-trip.
+
+    This is `_fmt`'s recorded defect a second time — *a broken round trip that nothing noticed* — and
+    for the same reason: the only check covered the named-bindings form, which is the one that worked."""
+    at = 2 if step.op == "INVOKE" else 3               # where the bindings operand sits
+    args = list(step.args)
+    binds = args[at] if len(args) > at else {}
+    body = [_fmt(binds)] if isinstance(binds, dict) else ["with", _fmt(binds)]
+    parts = [step.op] + [_fmt(a) for a in args[:at]] + body + [_fmt(a) for a in args[at + 1:]]
+    return " ".join(parts).rstrip()
+
+
 def unparse(name: str, params: tuple, program: tuple,
             doc: str | None = None, notes: dict | None = None, ptypes: dict | None = None,
             returns: str | None = None, mocks: str | None = None) -> str:
@@ -289,6 +319,8 @@ def unparse(name: str, params: tuple, program: tuple,
             lines.append(f"    # {notes[pos]}")
         if isinstance(step, str):
             lines.append(f"    {step}:")
+        elif step.op in ("INVOKE", "ATTEMPT"):
+            lines.append("    " + _fmt_call(step))
         else:
             lines.append("    " + " ".join([step.op] + [_fmt(a) for a in step.args]).rstrip())
     return "\n".join(lines)

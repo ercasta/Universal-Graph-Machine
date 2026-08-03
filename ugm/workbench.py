@@ -39,6 +39,7 @@ See `docs/planning.md`.
 """
 from __future__ import annotations
 
+from . import access
 from . import activation as ACT
 from . import function as fn
 from . import hypothesis
@@ -295,7 +296,17 @@ def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
         raise KeyError(f"{chosen!r} is not a declared outcome of {function!r}; known: {outcomes}")
     executed = chosen or function
 
-    called, _out = fn.invoke(g, executed, args)
+    # **The boundary establishes the world its call runs in.** Everything beneath this call resolves in
+    # the new frame — a rule written in the closed access vocabulary reads and writes that frame's
+    # versions without containing one word about frames, and a rule that reaches a node some other way
+    # than through its arguments resolves it the same way.
+    #
+    # `step` was already the mediation point; it did it by materialising at bind time, handing the images
+    # over directly. The seam does not move, only the mechanism at it — which is why binding images here
+    # stays correct: `in_frame` resolves an image of this frame to itself, so the two agree exactly while
+    # frames are dense, and only the sparse ones will tell them apart.
+    ctx = access.open_context(g, resolver="in_frame", label=f"imagining {function}", frame=new_frame)
+    called, _out = fn.invoke(g, executed, args, under=ctx)
 
     # A function may mint something while imagining. Those nodes get mappings too, with no `original` —
     # which is meaningful rather than broken: it says *this does not exist yet and must be created when the
@@ -363,6 +374,16 @@ def discard(g: Graph, wb: str) -> None:
             if ran is not None:
                 ACT.scrap(g, ran)
             g.drop(via)
+        # The context this frame was imagined in. Found through the reverse index rather than recorded
+        # on the frame, by the direction invariant: a context points *at* the frame it resolves in, and
+        # an edge back would drag the context — and the activation that established it — into every copy.
+        #
+        # A check caught this the moment the boundary started establishing one: *back to the original
+        # size* went false, because a workbench that leaves residue behind is not discarded but mostly
+        # discarded, which is the same standard `ACT.scrap` is held to one line above.
+        for ctx in tuple(g.sources(f, "frame")):
+            if g.kind(ctx) == "context":
+                g.drop(ctx)
         g.drop(f)
     g.drop(wb)
 

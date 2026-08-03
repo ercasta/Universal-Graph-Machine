@@ -103,6 +103,23 @@ def _bindings(g, v, operand) -> dict:
     return out
 
 
+#: The trailing operand that asks a call to leave its activation behind. A word rather than a flag,
+#: because it is read far more often than it is written and `INVOKE R(o) f x=R(y) true` says nothing.
+KEEP = "keep"
+
+
+def _keeps(args, at: int) -> bool:
+    """Did this call site ask to keep the callee's activation? `INVOKE`/`ATTEMPT`'s last operand.
+
+    Absent means no, and that is the *changed* default: a call used to keep its activation, its
+    registers, its focus and that focus's heads whatever the caller wanted, on the grounds that
+    somebody might ask. It is fine while calls are rare and untenable once a graph read is one — and it
+    is a hygiene problem before it is a speed one, since the residue is interpreter state sitting in the
+    same graph as the world. `function.invoke` carries the argument; `activation.minted` is why nothing
+    is actually lost."""
+    return len(args) > at and args[at] == KEEP
+
+
 def _keys(g, node) -> tuple:
     """A node's attribute keys, sorted, without `kind`. The one place that exclusion is decided."""
     return tuple(sorted(k for k in g.attrs.get(node, {}) if k != "kind"))
@@ -257,6 +274,22 @@ READS_GRAPH = {"GET": "link", "GET_AT": "link", "COUNT": "link", "DEREF": "link"
                # reports in rather than a third kind invented for two opcodes.
                "NEPROPS": "link", "EPROP_AT": "link"}
 
+# ...and the write side, in the same form and for the same reason. `driver._effects` already knows which
+# opcodes write, but it knows it as a sequence of `if ins.op ==` branches serving one consumer; the
+# compliance pass in `access.py` needs the *set*, and deriving it by reading that function would be the
+# second list the comment above refuses.
+#
+# `NEW` is here, and it is the one worth arguing about. Minting is not a read of world content and needs
+# no version resolved — but it does need a version *identity*, so a rule that mints bare has skipped the
+# same layer as one that reads bare. `access.make` is where that is decided; the kind stays "mint"
+# because bringing something into existence is not writing a slot.
+WRITES_GRAPH = {"SET": "attr", "SETREF": "link", "SETEPROP": "link",
+                "LINK": "link", "LINK_AT": "link", "UNLINK": "link",
+                "DROP": "node", "NEW": "mint"}
+
+#: Every opcode that touches the graph at all. The thing a business rule may not contain.
+TOUCHES_GRAPH = frozenset(READS_GRAPH) | frozenset(WRITES_GRAPH)
+
 
 class Machine:
     MAX_STEPS = 100_000        # a runaway program halts loudly; termination is still unsolved in general
@@ -266,14 +299,18 @@ class Machine:
         self.labels = {ins: i for i, ins in enumerate(self.program) if isinstance(ins, str)}
 
     def start(self, g: Graph, focus: Focus | None = None, *, of: str | None = None,
-              caller: str | None = None, label: str | None = None, **regs) -> str:
+              caller: str | None = None, label: str | None = None, under: str | None = None,
+              **regs) -> str:
         """Open an activation on this program and return the node. Nothing has run yet.
 
         This is the seam. A caller that wants to be able to stop between two instructions drives `tick`
-        itself and owns the activation; `run` is the convenience that ticks to completion."""
+        itself and owns the activation; `run` is the convenience that ticks to completion.
+
+        `under` establishes the context this call and everything beneath it reads in — see
+        `activation.open_activation`. The kernel carries it and never interprets it."""
         focus = focus if focus is not None else Focus(g).open("root")
         return A.open_activation(g, focus.node, size=len(self.program), of=of, caller=caller,
-                                 label=label, regs=regs)
+                                 label=label, context=under, regs=regs)
 
     def tick(self, g: Graph, act: str) -> bool:
         """one primitive operation. Returns `True` while there is more to do, `False` once the program
@@ -298,7 +335,7 @@ class Machine:
 
     def run(self, g: Graph, focus: Focus | None = None, *, rollback_on_error: bool = True,
             retire: bool = True, of: str | None = None, caller: str | None = None,
-            label: str | None = None, **regs):
+            label: str | None = None, under: str | None = None, **regs):
         """Execute against `g`, mutating it in place. On error, rewind to the entry savepoint so a failed
         program leaves no half-written graph behind — the transactional discipline mutability makes
         possible and copy-on-write was faking.
@@ -315,7 +352,7 @@ class Machine:
         sp = g.savepoint()
         focus = focus if focus is not None else Focus(g).open("root")
         try:
-            act = self.start(g, focus, of=of, caller=caller, label=label, **regs)
+            act = self.start(g, focus, of=of, caller=caller, label=label, under=under, **regs)
             while self.tick(g, act):
                 pass
             out = A.registers(g, act)
@@ -507,7 +544,11 @@ class Machine:
             # `caller=act` is what keeps the call chain readable. A nested invocation used to be a nested
             # Python frame — invisible to the system running it — so "what was it doing?" could only ever
             # answer about the outermost program. `activation.chain` walks it.
-            _f, out = _invoke(g, v(a[1]), bindings, caller=act)
+            #
+            # A call from the surface discards its own scaffolding unless the call site says `keep`. See
+            # `function.invoke`: the caller is the only one who knows whether it will ask what the call
+            # did, and reads-as-calls make the not-asking case the overwhelming majority.
+            _f, out = _invoke(g, v(a[1]), bindings, caller=act, retain=_keeps(a, 3))
             if isinstance(a[0], R):
                 w(a[0], out.get("result"))
 
@@ -530,7 +571,7 @@ class Machine:
             binds = _bindings(g, v, a[3]) if len(a) > 3 else {}
             sp = g.savepoint()
             try:
-                _f, out = _invoke2(g, v(a[2]), binds, caller=act)
+                _f, out = _invoke2(g, v(a[2]), binds, caller=act, retain=_keeps(a, 4))
             except Refusal as e:
                 g.rollback(sp)
                 # The name a layer above gave it, and only then the Python class. A refusal raised in the
