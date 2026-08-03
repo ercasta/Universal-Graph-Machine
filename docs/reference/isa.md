@@ -146,17 +146,26 @@ a name it was handed is not a name it knows.
 program that wants its refusal to be clean is already somebody's `ATTEMPT` callee, which takes one.
 
 **`SELF`** is how a program asks what its own call did — `workbench.step` calls a function and then has
-to know what that call minted, and to record the activation on the transformation. The callee needs
-nothing of its own: `INVOKE` already links a callee's activation to its caller, so the call just made is
-the newest source of this activation's `caller` edge.
+to know what that call minted, and to record the activation on the transformation. An activation records
+the calls it makes as ordered `called` edges, so the most recent one is the last of them.
 
 ```
-SELF      R(me)
-INVOKE    R(out) some_function x=F(x)
-NSOURCES  R(n) R(me) "caller"
-ADD       R(last) R(n) -1
-SOURCE_AT R(callee) R(me) "caller" R(last)
+SELF   R(me)
+INVOKE R(out) some_function x=F(x)
+COUNT  R(n) R(me) "called"
+ADD    R(last) R(n) -1
+GET_AT R(callee) R(me) "called" R(last)
 ```
+
+**Read `called` forwards; never read `caller` backwards.** A callee also points at its caller, and the
+reverse index looks like it would answer the same question one edge cheaper. It does not: `g.sources`
+returns its answer **sorted by node id**, and a node id is a string, so once ids reach four digits
+`activation#993` sorts after `activation#9905` and "the most recent" quietly means "the
+lexicographically largest". The reverse index cannot carry insertion order, and here the order *is* the
+information. This is `search-was-irreproducible-set-tiebreak` in a new place — a deterministic
+computation ending in a sort over ids has an undeclared tie-break in it — and it was a benchmark rather
+than any check that caught it, because two activations made moments apart have ids that sort the way
+they were created.
 
 A second destination register on `INVOKE` was the obvious alternative and was refused for the reason
 `CLONE` was: calling, and asking what a call did, are independent capabilities that merely happen to be

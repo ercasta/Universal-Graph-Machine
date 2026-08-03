@@ -61,6 +61,18 @@ def open_activation(g: Graph, focus_node: str, *, size: int, of: str | None = No
         g.link(a, "of", of)
     if caller is not None:
         g.link(a, "caller", caller)
+        # ...and the same fact forwards, because the reverse index CANNOT carry the order and the order
+        # is the information. `g.sources` returns its answer *sorted by node id*, which is a string: with
+        # four-digit ids `activation#993` sorts after `activation#9905`, so "the most recent caller-source"
+        # silently means "the lexicographically largest". A program asking what its last call did got an
+        # arbitrary earlier one instead — found by benchmarking `workbench.step`, where it mapped the
+        # step's own bookkeeping nodes as though the called function had minted them.
+        #
+        # This is `search-was-irreproducible-set-tiebreak` in a new place: a deterministic computation
+        # ending in a sort over ids has an undeclared tie-break in it. `link` appends, so `called` is
+        # ordered by construction, and *which calls did I make, in what order* becomes a fact anyone can
+        # read rather than one only Python could reconstruct, and only unreliably.
+        g.link(caller, "called", a)
     for name, value in (regs or {}).items():
         set_reg(g, a, name, value)
     return a
@@ -262,6 +274,32 @@ def scrap(g: Graph, a: str) -> None:
             g.drop(h)
         g.drop(f)
 
+
+def gather_minted(g: Graph, a: str) -> str:
+    """`minted`, for a program written in the surface: the same answer, on a scratch node the caller drops.
+
+    A native has to hand back something the surface can *read*, and `minted` returns a tuple — which is
+    the `SOURCES` defect exactly, a register holding a collection nothing can index. So the answer arrives
+    the way `reachable`'s does, as ordered `found` edges on a node, and iteration is the `COUNT`/`GET_AT`
+    loop the instruction set already writes.
+
+    A native at all because decomposing this reaches a set union and a sort, and the sort is
+    load-bearing: `minted`'s order decides which imagined node `execution._bind_minted` pairs with which
+    real one, so it is not something a surface reimplementation may approximate. Adding ordering
+    primitives to the instruction set to serve one caller would be machinery built for a single consumer,
+    which is the trade this codebase keeps declining.
+
+    The scratch node is minted here rather than by the caller, which is deliberate: a native's mints are
+    not recorded on any activation (`record_mint` is `NEW`'s business alone), so this cannot pollute the
+    very answer it is reporting."""
+    out = g.mint("mints")
+    for n in minted(g, a):
+        g.link(out, "found", n)
+    return out
+
+
+from . import native as _N                                            # noqa: E402
+_N.register("minted", lambda g, _act, a: gather_minted(g, a))
 
 __all__ = ["KINDS", "open_activation", "scrap", "pc", "set_pc", "size", "halted", "halt", "finished",
            "steps_taken", "took_a_step", "stack", "push", "pop", "register", "get_reg", "set_reg",

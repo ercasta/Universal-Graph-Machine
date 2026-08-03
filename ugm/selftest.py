@@ -5992,16 +5992,24 @@ def check_a_PROGRAM_CAN_ASK_WHAT_ITS_OWN_CALL_DID():
     register on `INVOKE` was the obvious alternative and is the `CLONE` mistake: calling, and asking what
     a call did, are independent capabilities that merely happen to be wanted together.
 
-    **Reaching it needed `SOURCE_AT`, and finding that out is what the probe was for.** The reasoning
-    said "newest source of the `caller` edge" and the first program said `COUNT` — which reads edges
-    *out* of a node, and `caller` points the other way. `SOURCES` was the opcode for it and could not be
-    used: it returned the whole tuple into a register, nothing indexes a register holding a collection,
-    so a program could learn *that* something pointed at a node and never *which* thing.
+    **The calls are read forwards, off `called`, and NEVER as the reverse of `caller`.** That was the
+    first design and it is wrong in a way no small test shows: `g.sources` returns its answer *sorted by
+    node id*, and a node id is a string, so once ids reach four digits `activation#993` sorts after
+    `activation#9905` and "the most recent caller-source" quietly means "the lexicographically largest".
+    A program asking what its last call did got an arbitrary earlier one. It is
+    `search-was-irreproducible-set-tiebreak` in a new place — *a deterministic computation ending in a
+    sort over ids has an undeclared tie-break in it* — and the guard below is built to fire on it, by
+    pushing the id counter across a power of ten so that id order and call order genuinely disagree.
+
+    Nothing caught it for a while, which is the part worth recording. The first version of this check
+    passed, because two activations minted moments apart have ids that sort the way they were made. It
+    was **the benchmark** that exposed it: `workbench.step` mapped the frame and mappings its own
+    `carry_frame` had minted as though the called function had minted them.
 
     Vacuity guards: the callee must be a *different* activation from the caller's, or `SELF` returning
-    anything at all would pass; it must be the callee of the *second* call rather than the first, so
-    "newest" is really tested; and what it minted must be exactly what that call minted, not what the
-    whole program did."""
+    anything at all would pass; it must be the callee of the *last* call rather than the first, so
+    "most recent" is really tested; and what it minted must be exactly what that call minted, not what
+    the whole program did."""
     from . import asm, function as fn, activation as ACT
 
     g = new_graph()
@@ -6012,19 +6020,32 @@ def check_a_PROGRAM_CAN_ASK_WHAT_ITS_OWN_CALL_DID():
                             '    NEW R(a) "second"',
                             '    NEW R(b) "second"',
                             "    COPY R(result) R(a)"))
-    # Two calls, so "the newest" is a real claim rather than "the only one".
+    # Two calls, so "the most recent" is a real claim rather than "the only one".
     asm.load_text(g, _lines("fn asks_what_it_did(x) -> thing:",
                             "    SELF R(me)",
                             "    INVOKE R(one) mints_one x=F(x)",
                             "    INVOKE R(two) mints_two x=F(x)",
-                            '    NSOURCES R(n) R(me) "caller"',
+                            '    COUNT R(n) R(me) "called"',
                             "    ADD R(last) R(n) -1",
-                            '    SOURCE_AT R(callee) R(me) "caller" R(last)',
+                            '    GET_AT R(callee) R(me) "called" R(last)',
                             "    COPY R(result) R(callee)"))
     t = g.mint("thing")
     focus, regs = fn.invoke(g, "asks_what_it_did", {"x": t})
     callee = regs["result"]
     minted = [g.kind(n) for n in ACT.minted(g, callee)]
+    caller_of = g.target(callee, "caller")
+    by_call = g.targets(caller_of, "called")
+
+    # The mechanism behind the trap, shown directly rather than by contriving ids that collide. Linked in
+    # REVERSE mint order, so insertion order and id order are genuinely different lists: `targets` keeps
+    # the order things were linked in and `sources` hands back a sorted one. In a real run the two
+    # coincide right up until ids cross a power of ten, which is why this needs stating on purpose —
+    # a check that just made two calls would see them agree and prove nothing.
+    p = g.mint("probe")
+    made = [g.mint("probe_callee") for _ in range(3)]
+    for n in reversed(made):
+        g.link(n, "caller", p)
+        g.link(p, "called", n)
 
     # And `SELF` alone, so the guard below is about identity rather than about the walk.
     asm.load_text(g, _lines("fn just_itself(x) -> thing:", "    SELF R(result)"))
@@ -6042,7 +6063,194 @@ def check_a_PROGRAM_CAN_ASK_WHAT_ITS_OWN_CALL_DID():
                 g.attr(g.target(callee, "of"), "name") != "mints_one",
             "AND_IT_CAN_READ_WHAT_THAT_CALL_MINTED": minted == ["second", "second"],
             # ...that call's mints, not the whole program's — `first` was minted by the other one.
-            "not_what_the_whole_program_minted": "first" not in minted}
+            "not_what_the_whole_program_minted": "first" not in minted,
+            "and_the_FORWARD_edge_is_the_one_in_calling_order": by_call[-1] == callee,
+            # The trap itself: the reverse index does not preserve the order things were linked in, so
+            # reading `caller` backwards cannot answer "the most recent" and `called` is not a convenience.
+            "THE_REVERSE_INDEX_IS_SORTED_NOT_IN_LINK_ORDER":
+                tuple(g.sources(p, "caller")) == tuple(sorted(made)) != tuple(reversed(made)),
+            "while_the_FORWARD_edge_KEEPS_link_order":
+                tuple(g.targets(p, "called")) == tuple(reversed(made))}
+
+
+def check_WORKBENCH_STEP_IS_AN_ORDINARY_PROGRAM():
+    """The largest single piece of Python below the plan-act-check loop, written in the surface.
+
+    `workbench.step` is a frame copy, a choice among declared outcomes, one call, and a record of what
+    was done — not a primitive, and never was. What blocked it was four things the surface could not
+    say, each closed separately and none of them control flow: copying a set of nodes *with* their edge
+    properties (`copy_set`, and `NEPROPS`/`EPROP_AT`/`SETEPROP`), building a binding set at run time
+    (`INVOKE … with`), asking what a call just did (`SELF`), and declining a request (`REFUSE`).
+
+    Two natives remain and both are boundaries rather than shortcuts. `find_function` resolves a name to
+    its node: decomposing it reaches `g.of_kind`, and handing the surface a way to enumerate every node
+    of a kind is the whole-graph scan `types.instances` refuses at length. `minted` gathers what a call
+    created: decomposing it reaches a set union and a sort, and that sort decides which imagined node
+    `execution._bind_minted` pairs with which real one.
+
+    Checked against the Python it replaces rather than against a description of it, on the cases that
+    exercise different routes through it: a plain cast; a function with declared outcomes, where the
+    preferred one is chosen by asking the world; a named outcome; and a mock that MINTS, which is the
+    case that produces mappings with no `original` and so needs `SELF` and `minted` to be right.
+
+    **`assume` naming something undeclared refuses differently, and that is the point rather than a
+    difference to paper over.** The Python raises `KeyError`; the surface raises a `Refusal` named
+    `UndeclaredOutcome`. `KeyError` was a misclassification — an exception type is a claim about whose
+    fault it is, and naming an outcome that was never declared is a claim about the REQUEST, not about
+    the program. Lifting it fixed the classification rather than moving it.
+
+    Not the live implementation. It is **25× slower**, measured, and the cost is almost entirely the
+    frame copy — see `docs/HANDOFF.md`."""
+    from pathlib import Path
+    from . import asm, function as fn, workbench as W, dispatch as D
+    from .graph import Refusal
+
+    def world(minting):
+        g = new_graph()
+        declare_type(g, "dir", attrs={"kind_of": "dir"})
+        declare_type(g, "listing", base="dir", attrs={"listed": True})
+        declare_type(g, "empty_listing", base="listing", attrs={"count": 0})
+        declare_type(g, "full_listing", base="listing", attrs={"many": True})
+        full = ["fn list_full(d: dir) -> full_listing mocks list_dir:",
+                '    SET F(d) "listed" true', '    SET F(d) "many" true']
+        if minting:                       # a mock that brings something into existence
+            full += ['    NEW R(f) "file"', '    LINK F(d) "file" R(f)']
+        asm.load_text(g, _lines(
+            "fn list_dir(d: dir) -> listing:", '    DISPATCH R(out) "ls" F(d)',
+            '    SET F(d) "listed" true', "",
+            "fn list_empty(d: dir) -> empty_listing mocks list_dir:",
+            '    SET F(d) "listed" true', '    SET F(d) "count" 0', "", *full))
+        for f in ("reachable.mf", "step.mf"):
+            asm.load_file(g, Path(__file__).parent / "rules" / f)
+        d = g.mint("dir", kind_of="dir")
+        g.link("root", "has", d)
+        D.register("ls", lambda gr, target: ["a.txt"])
+        return g, d
+
+    def surface_step(g, wb, frame, function, mapping, assume=None):
+        """The same call, with the bindings described by a node instead of by a Python dict."""
+        b, one = g.mint("bindings"), g.mint("binding", param="d")
+        g.link(one, "value", mapping)
+        g.link(b, "arg", one)
+        return fn.invoke(g, "step", {"wb": wb, "frame": frame, "function": function,
+                                     "bindings": b, "assume": assume, "assumes": None})[1]["result"]
+
+    def report(g, frame, tr):
+        """Everything a caller of `step` can observe, compared by shape and never by node id."""
+        assumed = g.target(tr, "assumes")
+        return (g.attr(frame, "index"),
+                [(g.kind(W.image_of(g, m)), g.attr(W.image_of(g, m), "listed"),
+                  g.attr(W.image_of(g, m), "count"), g.attr(W.image_of(g, m), "many"),
+                  g.target(m, "original") is not None) for m in W.mappings(g, frame)],
+                g.attr(tr, "function"), g.attr(tr, "executed"), g.attr(tr, "expects"),
+                tuple((g.attr(b, "param"), g.kind(g.target(b, "mapping")))
+                      for b in g.targets(tr, "arg")),
+                # WHICH activation, named, and never merely "there is one". Reading the callee off the
+                # sorted reverse index records `carry_frame`'s activation here instead of the executed
+                # function's, and every other observable stays right — so a check that only asked
+                # whether `ran` was set passed with the defect in place. Measured: planting it again
+                # left the suite green until this named the function.
+                g.attr(g.target(g.target(tr, "ran"), "of"), "name") if g.target(tr, "ran") else None,
+                (g.attr(assumed, "label"), g.attr(assumed, "status")) if assumed else None)
+
+    agreed, seen = {}, {}
+    for name, minting, assume in (("a plain outcome", False, None),
+                                  ("a named outcome", False, "list_full"),
+                                  ("an outcome that MINTS", True, "list_full")):
+        g1, d1 = world(minting)
+        wb1 = W.open_workbench(g1, d1)
+        f0 = W.root_frame(g1, wb1)
+        f1, tr1 = W.step(g1, wb1, f0, "list_dir", {"d": W.mapping_for(g1, f0, d1)}, assume=assume)
+
+        g2, d2 = world(minting)
+        wb2 = W.open_workbench(g2, d2)
+        f0b = W.root_frame(g2, wb2)
+        f2 = surface_step(g2, wb2, f0b, "list_dir", W.mapping_for(g2, f0b, d2), assume=assume)
+
+        agreed[name] = report(g1, f1, tr1) == report(g2, f2, g2.target(f2, "via"))
+        seen[name] = report(g2, f2, g2.target(f2, "via"))
+
+    # Chained, because one step in a fresh workbench exercises none of the carrying: the second step's
+    # input frame is the first one's output, which is where an off-by-one in the mapping carry shows.
+    g3, d3 = world(False)
+    wb3 = W.open_workbench(g3, d3)
+    f = W.root_frame(g3, wb3)
+    m = W.mapping_for(g3, f, d3)
+    for _ in range(3):
+        f = surface_step(g3, wb3, f, "list_dir", m)
+        m = g3.at(m, "next", g3.count(m, "next") - 1)
+    chained_kinds = sorted({g3.kind(W.image_of(g3, x)) for x in W.mappings(g3, f)})
+
+    # The reverse-index defect, forced. It only appears once node ids cross a power of ten — before
+    # that, sorting activations by id and ordering them by when they were called give the same list —
+    # so a check run at whatever position a process-global counter happens to be in cannot see it.
+    # Measured: with the defect planted, everything above stayed green, including naming the recorded
+    # activation. Driving the counter across the boundary on purpose is what makes this a guard rather
+    # than a coincidence, and restoring it afterwards keeps every later check where it was.
+    #
+    # Self-calibrating rather than hard-coded: building the world consumes a couple of thousand ids and
+    # that number moves whenever the rule files do, so the counter is placed by *measuring* a throwaway
+    # world and then leaving room for the step's own activations to land either side of 10000. A magic
+    # constant here would rot into a check that still passes and no longer guards anything.
+    from itertools import count
+    from . import graph as _graph
+    saved_counter = _graph._ids
+    try:
+        at = lambda: int(str(_graph.new_graph().mint("probe")).rsplit("#", 1)[1])
+        before = at()
+        world(False)
+        consumed = at() - before
+        _graph._ids = count(10_000 - consumed - 110)
+
+        g5, d5 = world(False)
+        wb5 = W.open_workbench(g5, d5)
+        f05 = W.root_frame(g5, wb5)
+        f5 = surface_step(g5, wb5, f05, "list_dir", W.mapping_for(g5, f05, d5))
+        ran5 = g5.target(g5.target(f5, "via"), "ran")
+        across = g5.attr(g5.target(ran5, "of"), "name")
+        # The precondition, asserted rather than assumed: the ACTIVATIONS must straddle the boundary,
+        # not merely the graph. An earlier version checked the graph and was satisfied by the world's
+        # own four-digit nodes while every activation was five digits — so it forced nothing.
+        act_widths = {len(str(n).rsplit("#", 1)[1])
+                      for n in g5.nodes if g5.kind(n) == "activation"}
+        straddled = len(act_widths) > 1
+    finally:
+        _graph._ids = saved_counter
+
+    # An outcome nobody declared.
+    g4, d4 = world(False)
+    wb4 = W.open_workbench(g4, d4)
+    f04 = W.root_frame(g4, wb4)
+    refusal = _raises(lambda: surface_step(g4, wb4, f04, "list_dir",
+                                           W.mapping_for(g4, f04, d4), assume="nope"), Refusal)
+
+    return {"A_PLAIN_OUTCOME_AGREES_WITH_THE_PYTHON": agreed["a plain outcome"],
+            "A_NAMED_OUTCOME_AGREES": agreed["a named outcome"],
+            "AND_SO_DOES_ONE_THAT_MINTS": agreed["an outcome that MINTS"],
+            # Vacuity: two implementations that both did nothing would agree perfectly.
+            "and_the_step_really_happened": seen["a plain outcome"][2] == "list_dir",
+            "the_preferred_outcome_was_CHOSEN_by_asking_the_world":
+                seen["a plain outcome"][3] == "list_empty",
+            "a_named_one_overrides_it": seen["a named outcome"][3] == "list_full",
+            "and_choosing_one_RECORDED_A_HYPOTHESIS": seen["a named outcome"][7] is not None,
+            # The minting case must produce a mapping with no `original` — nothing else does.
+            "A_MINTED_NODE_GETS_A_MAPPING_WITH_NO_ORIGINAL":
+                any(not has_original for _k, _l, _c, _m, has_original
+                    in seen["an outcome that MINTS"][1]),
+            # Chaining must carry the frame forward, not accumulate the step's own bookkeeping. This
+            # went red when the callee was read off the reverse index: `frame` and `mapping` appeared
+            # here, having been minted by `carry_frame` and mistaken for the call's own work.
+            "CHAINED_STEPS_CARRY_ONLY_THE_WORLD_FORWARD": chained_kinds == ["dir"],
+            # The activation recorded is the one that ran the FUNCTION, not one of `step`'s own helpers.
+            # This is the guard that fires on the reverse-index defect; the chained one above cannot,
+            # because whether ids collide depends on where a process-global counter happens to be.
+            "THE_RECORDED_ACTIVATION_IS_THE_FUNCTIONS_OWN":
+                seen["a plain outcome"][6] == "list_empty",
+            # The same claim where it can actually fail: ids either side of a power of ten.
+            "AND_STILL_ITS_OWN_WHEN_IDS_CROSS_A_POWER_OF_TEN": across == "list_empty",
+            "and_the_ACTIVATIONS_really_did_cross_one": straddled,
+            "AN_UNDECLARED_OUTCOME_IS_REFUSED": refusal,
+            "and_it_is_a_REFUSAL_now_rather_than_a_KeyError": refusal}
 
 
 def check_the_SURFACE_CAN_REFUSE_and_says_which_claim_it_is_making():

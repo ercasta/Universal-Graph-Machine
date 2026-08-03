@@ -345,4 +345,20 @@ def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool =
     return focus, out
 
 
+# Resolving a function's NAME to its node, for programs written in the surface. `workbench.step` needs it
+# four times over — to read the outcomes, the declared result type, the parameter types, and to link
+# `applies` — and every one of those is an ordinary edge read *once you have the node*.
+#
+# A native rather than an opcode, and the argument is `types.instances`'. Decomposing `find` does not
+# reach a loop over nodes; it reaches `g.of_kind`, and handing the surface a way to enumerate every node
+# of a kind is exactly the whole-graph scan that module refuses at length — *enumerated by traversal,
+# never by scanning*, because a scan finds the system's own imaginings and offers them as candidates. The
+# name index is this layer's business, so this layer registers it, which is `native.py`'s rule and
+# `types.is_a`'s precedent.
+#
+# The registration lives here, beside what it registers, never in `native.py` — a table of names in that
+# file would be the same leak with an extra hop.
+from . import native as _N                                            # noqa: E402
+_N.register("find_function", lambda g, _act, name: find(g, name))
+
 __all__ = ["define", "find", "load", "names", "invoke", "doc_of", "notes_of", "catalogue", "param_names", "subject_param", "param_types", "returns_of", "producers", "mocks_of", "mocks_target", "applicable"]

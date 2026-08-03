@@ -85,8 +85,45 @@ In this order. Steps 2–4 are the last large Python island: the plan-act-check-
      unusable for it, since nothing indexes a register holding a collection. No program used it. This is
      the ISA's own count-plus-index convention applied to the one opcode that broke it.
 
-   **What is left is `workbench.step` itself.** Every piece it needs now exists; nothing about it is
-   still blocked, which is a different claim from *written*.
+   **`workbench.step` is now written**, in `rules/step.mf`, as five functions: `binding_value`,
+   `outcome_fits`, `choose_outcome`, `outcome_named`, `carry_frame`, and `step`. It is checked against
+   the Python it replaces on four routes — a plain cast, a chosen outcome, a named outcome, and a mock
+   that mints — plus chaining, and an undeclared outcome.
+
+   Two natives were added, both boundaries rather than shortcuts. `find_function` (owned by
+   `function.py`) resolves a name to its node: decomposing it reaches `g.of_kind`, and giving the surface
+   a way to enumerate every node of a kind is the whole-graph scan `types.instances` refuses at length.
+   `minted` (owned by `activation.py`) gathers what a call created: decomposing it reaches a set union
+   and a sort, and that sort decides which imagined node `execution._bind_minted` pairs with which real
+   one.
+
+   ⚠⚠ **An activation now records its calls forwards, as ordered `called` edges.** The first version read
+   them backwards off `caller`, and that is wrong in a way nothing small shows: `g.sources` returns its
+   answer **sorted by node id**, and an id is a string, so past four digits `activation#993` sorts after
+   `activation#9905`. `step` was reading `carry_frame`'s activation as though the called function had
+   minted the frame. **A benchmark caught it, not a check** — and the check that guards it now has to
+   drive the id counter across a power of ten on purpose, because two activations made moments apart
+   have ids that sort the way they were made. Three successive versions of that guard passed with the
+   defect planted.
+
+   **It is NOT the live implementation, and that is a measurement rather than a hesitation.**
+
+   | world | Python | surface | |
+   |---|---|---|---|
+   | 5 blocks | 17.9 ms | 753 ms | 42× |
+   | 20 blocks | 71.6 ms | 2248 ms | 31× |
+   | 60 blocks | 301 ms | 6634 ms | 22× |
+
+   ~2000 interpreted instructions per step at twenty blocks, and **essentially all of it is
+   `carry_frame`** — the per-node frame copy. `step` is the innermost operation of `pursue`, called once
+   per imagined state, so 25× lands directly on the measured hot path. The standing stance is *slow and
+   singular beats fast and forked*, but 25× on the innermost loop is a different proposition from a
+   phase machine that runs once per tick.
+
+   The useful thing the measurement says is **where** the cost is: not interpreter overhead spread thin,
+   but one O(world size) copy per step. So the question it raises is not "make the interpreter faster"
+   but **"must a step copy the whole frame?"** — a question about the workbench's design, not about the
+   surface. That is the honest next thread, and it was invisible until `step` was expressible.
 3. **Rewrite `execution.step`.** Needs `ATTEMPT` and dynamic bindings; both exist.
 4. **The phase machine** (`driver._phase_*`) falls out once 1–3 land. It is reads, guards, one call,
    attribute writes and unlinks — even its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
