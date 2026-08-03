@@ -100,6 +100,70 @@ def roles_of(g: Graph, m: str) -> tuple:
     return (SUBJECT, OBJECT) + tuple(g.attr(d, "name") for d in draws_of(g, m))
 
 
+def act(g: Graph, m: str, *, function: str, bindings: dict, as_: str | None = None) -> str:
+    """Append an action. A `do` rung, as opposed to `step`'s `achieve` rung.
+
+    **The distinction the two rungs draw is subgoal versus subprocedure**, and it is the one
+    `consequent.py` already tags. A `step` says what must become true and leaves the choice of how to the
+    engine — means-ends, with search and fallback behind it. A `do` says which function to call, closing
+    the choice. A procedure decomposes into *subprocedures*: the named function may itself be one, and
+    termination comes from authoring rather than from a depth limit, which is what makes it an act of
+    faith rather than a plan.
+
+    `as_` names the result so a later rung can use it. Without it a rung's output is unreachable, which
+    is fine for a rung called only for its effect."""
+    c = CQ.call(g, m, function=function, bindings=bindings)
+    if as_:
+        g.put(c, **{"as": as_})
+    return c
+
+
+def calls_of(g: Graph, m: str) -> tuple:
+    """The `do` rungs, in order."""
+    return tuple(c for c in CQ.of(g, m) if g.attr(c, "does") == CQ.CALL)
+
+
+def achieves_of(g: Graph, m: str) -> tuple:
+    """The `step` rungs, in order — what `decompose` reads."""
+    return tuple(c for c in CQ.of(g, m) if g.attr(c, "does") == CQ.ACHIEVE)
+
+
+def lower(g: Graph, m: str, *, name: str, params: tuple) -> str:
+    """Compile a procedure of `do` rungs to assembly text. Returns what `asm.load_text` will read.
+
+    **No third executor was needed, and finding that out is the point.** A sequence of calls run in
+    order, each result nameable by the next, *is* a function body of `INVOKE` instructions — and an
+    activation is already a task on the agenda that advances one instruction per tick, already has a
+    verb reported before each step, already runs inside a savepoint. Adding a task kind would have meant
+    four new branches in `loop.py` for something the interpreter already does. The test that caught it is
+    the same one that dissolved `open_workbench`: decompose before believing it is primitive.
+
+    **Text, not instruction objects.** Emitting assembly and reading it back through `asm` costs a parse
+    and buys two things: the lowering goes through the border that validates opcodes and `INVOKE`'s
+    operand shape, rather than around it; and *what did my procedure compile to?* has an answer a person
+    can read. A lowering nobody can see is the island pattern with an extra step.
+
+    A reference is `F(x)` when it names a parameter and `R(x)` when an earlier rung bound it with `as`.
+    Anything else is refused by the caller — a procedure that named an individual would be about that
+    individual and could not be reused, the same reason a `step` may only speak of roles."""
+    lines, bound = [f"fn {name}({', '.join(params)}):"], set()
+    last = None
+    for c in calls_of(g, m):
+        args = []
+        for a in g.targets(c, "arg"):
+            ref = g.attr(a, "ref")
+            args.append(f"{g.attr(a, 'param')}=" + (f"R({ref})" if ref in bound else f"F({ref})"))
+        out = g.attr(c, "as") or f"_r{len(lines)}"
+        lines.append(f"    INVOKE R({out}) {g.attr(c, 'function')} " + " ".join(args))
+        bound.add(out)
+        last = out
+    if last is not None:
+        # The last rung's result is the procedure's, so a caller reads it where every other function
+        # puts one. Without this a procedure could only ever be called for its effect.
+        lines.append(f"    COPY R(result) R({last})")
+    return "\n".join(lines)
+
+
 def steps_of(g: Graph, m: str) -> tuple:
     return CQ.of(g, m)
 

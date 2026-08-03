@@ -62,8 +62,11 @@ than missing code: turning a chain into workbench steps needs a rule binding eac
 output to a mapping, and for a call that mints something, that is the same open question as episode
 compilation. A guessed binding would produce a plan that merely *looks* rehearsed.
 
-**A mistyped action name in a `never` or `must` line** is accepted and silently constrains nothing,
-unlike a mistyped *thing* name, which is refused. Failing loudly is the intended fix.
+**A mistyped action name in a goal's `never` or `must` line** is accepted and silently constrains
+nothing, unlike a mistyped *thing* name, which is refused. Failing loudly is the intended fix, and a
+`policy` block already does it — a norm naming an operator that is not in the library is refused where
+it is written. The goal block has not been changed to match, so the two disagree, which is worth
+knowing before reading either one's silence as meaningful.
 
 **Where several matching branches or several leaves exist**, recovery takes the first, matching the
 planner's first-solution-wins discipline rather than pretending to choose.

@@ -255,11 +255,14 @@ FORMS: dict = {
     "type": ("is a T", "has <count> label [each a T | each of kind K]", "key = v", "key <op> v",
              "key between lo and hi", "path <op> path", "path is [not] path", "because …"),
     "advice": ("action f", "touching x", "when T", "because …"),
-    "method": ("handles S l", "when T", "within m", "some n in r by l", "step …", "because …"),
+    "method": ("handles S l", "when T", "within m", "some n in r by l", "step …",
+               "takes p", "do f a = r, … [as n]", "because …"),
     "method step": _SHAPE_FORMS,
     "criterion": ("wants <sort> [label]", "some x in r by l", "when …", "unless …", "do f a = r, …",
                   "must | should | could", "by <agent>", "because …"),
     "tie_break": ("authority | force | specificity | random", "run <fn>", "seed <n>", "because …"),
+    "policy": ("by <agent>", "defeasible | inviolable", "forbid <action>", "permit <action>",
+               "forbid touching <thing>", "<agent> outranks <agent>", "because …"),
     "condition": _SHAPE_FORMS + ("wants <sort> <label> from x",),
     "question": ("<one bare name>", "by <link>"),
 }
@@ -392,6 +395,17 @@ TYPE_VERBS = ("type",)
 CRITERION_VERBS = ("criterion",)
 TIE_BREAK_VERBS = ("tie_break",)
 
+# One family for three things that were all Python-only, and one rather than three because they are one
+# kind of claim: what is allowed, and on whose word. `docs/audit.md` found them together — a norm, a
+# standing prohibition and an authority ordering — and the budget argument beside `VERBS` says to spend
+# one family, not three, on claims that share a shape.
+#
+# They also feed each other, which is the real reason they belong in one block. A norm's force is settled
+# by its source; an authority ordering is what settles whose norm wins; and `precedence` ranks criteria by
+# the same ordering. Splitting them would put one policy across three blocks with nothing saying they
+# were about the same thing.
+POLICY_VERBS = ("policy",)
+
 # The wh-questions, and they are a different form — not a fifth force on the same body. Every verb
 # above states a whole proposition and differs only in what is then done with it (`goal.py`'s constraints,
 # four ways). These three have a gap in them: they name a thing and ask which way it stands in an order
@@ -404,8 +418,24 @@ TIE_BREAK_VERBS = ("tie_break",)
 # nobody should try to unify them.
 READER_VERBS = L.VERBS
 
+#: The block verbs, closed in Python **on purpose** — the CNL does not grow itself.
+#:
+#: Decided rather than merely true, so it is recorded here where the next person meets it. A grammar
+#: that is data is a real research commitment, and the thing it would buy — a domain adding its own
+#: block family — is not something any domain has asked for. What a domain needs is to say more *in* the
+#: families that exist, and the web above the horizon grows without bound already.
+#:
+#: The cost is honest and worth stating: **adding a family is an edit to this module, forever.** So the
+#: number of families is a budget rather than a free parameter, and that is the argument for preferring
+#: to relate something in the web over giving it a verb. See `docs/audit.md`, which measures what this
+#: currently blocks — a norm, a standing prohibition and an authority ordering all have no surface, and
+#: each one is a change here.
+#:
+#: The body-line vocabulary is a different matter and *is* reachable: `FORMS` / `forms_for` expose it,
+#: so the surface is inspectable even though it is not extensible. Inspectable-but-closed is the
+#: position; neither half of that is an accident.
 VERBS = (GOAL_VERBS + ADVICE_VERBS + METHOD_VERBS + TYPE_VERBS + READER_VERBS
-         + CRITERION_VERBS + TIE_BREAK_VERBS)
+         + CRITERION_VERBS + TIE_BREAK_VERBS + POLICY_VERBS)
 
 ROLES = (M.SUBJECT, M.OBJECT)
 
@@ -567,6 +597,55 @@ def _criterion_line(g: Graph, c: str, words: list, line: str, lineno: int, under
         raise _shape_refused(words, line, lineno, "criterion")
 
 
+def _policy_line(g: Graph, p: str, words: list, line: str, lineno: int, under: str) -> None:
+    """One line of a `policy` block — a norm, a standing prohibition, or an authority ordering.
+
+    Everything substantive is minted here and *re-attributed* at seal, rather than being buffered until
+    the block closes or requiring `by` to come first. Declaration-before-use is the idiom elsewhere
+    (`some` in a criterion), and it is wrong here: writing `forbid counterfeit` above `by finance` would
+    silently attribute the norm to `experience`, and a misattributed norm is the dangerous class — it
+    parses, runs, and means something else. `_seal` rewrites the source instead, so line order does not
+    change meaning.
+
+    An action name is checked against the function library, which closes a gap `docs/limits.md` names
+    outright: *"a mistyped action name in a `never` or `must` line is accepted and silently constrains
+    nothing… failing loudly is the intended fix."* A norm about an operator that does not exist forbids
+    nothing, in every world, for every agent — wrong the way a typo is wrong, not the way judgement that
+    did not apply is."""
+    from . import dispatch as DP
+    from . import norm as NM
+
+    def _operator(name: str) -> str:
+        from . import function as fn
+        if fn.find(g, name) is None:
+            raise Unreadable(
+                f"line {lineno}: {name!r} names no function in this library, so a norm about it would "
+                f"constrain nothing. Load the function first, or check the spelling.")
+        return name
+
+    if words[0] == "by" and len(words) == 2:
+        g.put(p, by=words[1])
+    elif len(words) == 1 and words[0] in (NM.DEFEASIBLE, NM.INVIOLABLE):
+        g.put(p, force=words[0])
+    elif words[0] in ("forbid", "permit") and len(words) == 2:
+        stance = NM.FORBID if words[0] == "forbid" else NM.PERMIT
+        g.link(p, "norm", NM.declare(g, action=_operator(words[1]), stance=stance,
+                                     source=PR.EXPERIENCE))
+    elif words[0] == "forbid" and len(words) == 3 and words[1] == "touching":
+        # A prohibition on a THING, not on an operator — `dispatch.forbid`, checked at apply time, so it
+        # blocks a call planned before it was written. `touching x` is spelled as it already is in a
+        # `prefer` / `avoid` block rather than invented here.
+        g.link(p, "veto", DP.forbid(g, resolve(g, words[2], under=under)))
+    elif len(words) == 3 and words[1] == "outranks":
+        from . import discourse as DC
+        DC.authority(g, DC.speaker(g, words[0]), DC.speaker(g, words[2]))
+        g.put(p, said_something=True)
+    elif words[0] == "because" and len(words) > 1:
+        g.put(p, because=" ".join(words[1:]))
+    else:
+        raise _shape_refused(words, line, lineno, "policy")
+
+
 def _tie_break_line(g: Graph, r: str, words: list, line: str, lineno: int) -> None:
     """One line of a `tie_break` block — one comparison, in the order they are consulted.
 
@@ -707,8 +786,65 @@ def _method_line(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
         M.draw(g, m, name=name, ref=words[3], label=label[1:] if back else label, back=back)
     elif words[0] == "step" and len(words) > 1:
         _step(g, m, words[1:], line, lineno)
+    elif words[0] == "takes" and len(words) == 2:
+        # A procedure's parameters, in order. A decomposition needs none — its roles come from the
+        # constraint it matched — so this line is what marks a block as the other kind before any rung
+        # is read, and `_seal` refuses a block that mixes the two.
+        if words[1] in _procedure_params(g, m):
+            raise Unreadable(f"line {lineno}: {words[1]!r} is already a parameter of this procedure")
+        g.link(m, "takes", g.mint("param", name=words[1]))
+    elif words[0] == "do" and len(words) > 1:
+        _do(g, m, words[1:], line, lineno)
     else:
         raise _shape_refused(words, line, lineno, "method")
+
+
+def _procedure_params(g: Graph, m: str) -> tuple:
+    return tuple(g.attr(p, "name") for p in g.targets(m, "takes"))
+
+
+def _do(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
+    """One `do <fn> <param> = <ref>, … [as <name>]` rung — an action, not a subgoal.
+
+    The reference rules are the reason this is not simply the criterion's `do`. There, a reference
+    denotes something in the world. Here it names either a parameter or the result of an earlier rung,
+    because a procedure is a *program* and its references are its variables. A rung naming an individual
+    would make the procedure about that individual, which is the reason `step` refuses one too."""
+    rest = " ".join(words)
+    rest, _, tail = rest.partition(" as ")
+    as_ = tail.strip() or None
+    if as_ and (" " in as_ or not as_.isidentifier()):
+        raise Unreadable(f"line {lineno}: `as {as_}` must name one result, as a single word")
+    name, _, argtext = rest.strip().partition(" ")
+    known = _procedure_params(g, m) + tuple(
+        g.attr(c, "as") for c in M.calls_of(g, m) if g.attr(c, "as"))
+    args = {}
+    for piece in argtext.split(",") if argtext.strip() else []:
+        param, eq, ref = piece.strip().partition("=")
+        if not eq:
+            raise Unreadable(f"line {lineno}: cannot read {piece.strip()!r} — an argument is "
+                             f"`param = <reference>`")
+        ref = ref.strip()
+        if ref not in known:
+            raise Unreadable(
+                f"line {lineno}: {ref!r} is not in scope here. A procedure's references are its own —"
+                f" a parameter (`takes {ref}`) or a result an earlier rung named (`… as {ref}`)"
+                + (f". In scope: {', '.join(known)}" if known else ", and nothing is declared yet"))
+        args[param.strip()] = ref
+    if not args:
+        raise Unreadable(f"line {lineno}: `do {name}` binds no arguments; a rung names an action WITH "
+                         f"its arguments, which is the whole of what it says")
+    if as_ and as_ in known:
+        raise Unreadable(f"line {lineno}: {as_!r} is already in scope; a second binding would shadow it")
+    _action_exists(g, name, lineno)
+    M.act(g, m, function=name, bindings=args, as_=as_)
+
+
+def _action_exists(g: Graph, name: str, lineno: int) -> None:
+    from . import function as fn
+    if fn.find(g, name) is None:
+        raise Unreadable(f"line {lineno}: {name!r} names no function in this library. A procedure is "
+                         f"lowered to a program, so every rung must name something that exists")
 
 
 _COUNTS = {"some": (1, None), "no": (0, 0), "a": (1, 1), "an": (1, 1), "one": (1, 1),
@@ -913,6 +1049,12 @@ def _open(g: Graph, verb: str, label: str) -> str:
         return CR.declare(g, label)
     if verb in TIE_BREAK_VERBS:
         return PR.open_rule(g, label)
+    if verb in POLICY_VERBS:
+        # The block is a real thing, not a parsing convenience: it holds what its norms have in common,
+        # and it is what a reader points at to ask "who said this, and is it still in force?".
+        pol = g.mint("policy", label=label)
+        g.link("root", "has", pol)
+        return pol
     if verb in TYPE_VERBS:
         # Refuses a redeclaration rather than minting a second type of the same name. Two would both
         # be found by `type_names` and `find_type` would answer with whichever came first — the same
@@ -938,6 +1080,8 @@ def _body(g: Graph, verb: str, node: str, words: list, line: str, lineno: int, u
         _criterion_line(g, node, words, line, lineno, under)
     elif verb in TIE_BREAK_VERBS:
         _tie_break_line(g, node, words, line, lineno)
+    elif verb in POLICY_VERBS:
+        _policy_line(g, node, words, line, lineno, under)
     else:
         _method_line(g, node, words, line, lineno)
 
@@ -976,6 +1120,20 @@ def _seal(g: Graph, verb: str, node: str, label: str) -> None:
         if CR.action_of(g, node) is None:
             raise Unreadable(f"`criterion {label}` names no action; recognising a situation and not "
                              f"saying what to do in it is not judgement")
+    elif verb in POLICY_VERBS:
+        # Re-attribution happens here, not line by line, so `by` may appear anywhere in the block. The
+        # `source` edge label is the same one `precedence.attribute` maintains — deliberately, since a
+        # norm and a criterion answer the same question *"on whose word?"* and one reader should serve
+        # both — so this reuses its replace-don't-append discipline rather than restating it.
+        by, force = g.attr(node, "by"), g.attr(node, "force")
+        norms, vetoes = g.targets(node, "norm"), g.targets(node, "veto")
+        for n in norms:
+            PR.attribute(g, n, by)
+            if force:
+                g.put(n, force=force)
+        if not (norms or vetoes or g.attr(node, "said_something")):
+            raise Unreadable(f"`policy {label}` allows nothing, forbids nothing and ranks nobody; "
+                             f"a policy that says none of those is a title")
     elif verb in TIE_BREAK_VERBS:
         # The closure fact this family needs is *totality*, not non-emptiness — a rule whose last stage
         # can answer "undecided" leaves pairs in an order nobody chose, which is exactly the undeclared
@@ -984,6 +1142,28 @@ def _seal(g: Graph, verb: str, node: str, label: str) -> None:
             PR.seal_rule(g, node)
         except PR.Unorderable as e:
             raise Unreadable(f"`tie_break {label}`: {e}") from None
+    elif M.calls_of(g, node):
+        # A block of `do` rungs is a procedure in the user's sense: a sequence of actions, an act of
+        # faith, decomposing into subprocedures rather than into subgoals. It is refused from mixing with
+        # `step` rungs because those two are different claims — `consequent.py`'s two tags — and a block
+        # that made both would be asking the engine to search and telling it not to.
+        if M.achieves_of(g, node):
+            raise Unreadable(
+                f"`{verb} {label}` mixes `step` and `do`. A `step` says what must become true and lets "
+                f"the engine find a way; a `do` says which action to take. One block does one of those")
+        if not label.isidentifier():
+            raise Unreadable(
+                f"`{verb} {label}` is a sequence of actions, so it is invoked BY NAME and its label has "
+                f"to be one: {label!r} is not. Other families take prose labels because nothing calls "
+                f"them by name")
+        from . import asm, function as fn
+        if fn.find(g, label) is not None:
+            raise Unreadable(f"{label!r} is already a function; a second definition would sit beside it "
+                             f"rather than replacing it")
+        text = M.lower(g, node, name=label, params=_procedure_params(g, node))
+        asm.load_text(g, text)                 # through the border that validates, never around it
+        g.put(node, lowered=text)              # so "what did this compile to?" has an answer
+        g.link(node, "function", fn.find(g, label))
     elif not M.steps_of(g, node):
         raise Unreadable(f"`{verb} {label}` has no steps; it would decompose into nothing")
 

@@ -184,6 +184,48 @@ about no individual reads downstream as a step that is simply done. A method wit
 likewise refused, because it would decompose into nothing, which reads downstream as an undecomposed
 goal.
 
+### Two kinds of rung: `step` and `do`
+
+A block has one kind or the other, never both.
+
+| rung | says | who chooses the action | decomposes into |
+|---|---|---|---|
+| `step <proposition>` | what must become **true** | the engine — search, with fallback | **subgoals** |
+| `do <fn> <p> = <r>` | which action to **take** | you — the choice is closed | **subprocedures** |
+
+A block of `do` rungs is a **procedure** in the strict sense: a sequence of actions, an act of faith
+in whoever wrote it. It does not search and it does not fall back. The function a rung names may
+itself be a procedure, so procedures decompose into procedures, and termination comes from authoring
+rather than from a depth limit.
+
+```cnl
+procedure copy_the_subject:
+    takes subject                                   # parameters, in order
+    do reachable start = subject as walk            # `as` names the result
+    do copy_node original = walk as image           # ...so a later rung can use it
+    because a procedure decomposes into subprocedures
+```
+
+**A procedure's references are its own variables**, not things in the world: each must be a parameter
+(`takes x`) or a result an earlier rung named (`as x`). A rung naming an individual would make the
+procedure about that individual — the same reason a `step` may only speak of roles.
+
+**It is invoked by name, so its label must be a name.** `procedure copy_the_subject:` is accepted;
+prose is not. Every other family takes a prose label because nothing calls those by name.
+
+**It lowers to an ordinary function**, and you can read what it compiled to:
+
+```
+fn copy_the_subject(subject):
+    INVOKE R(walk) reachable start=F(subject)
+    INVOKE R(image) copy_node original=R(walk)
+    COPY R(result) R(image)
+```
+
+That is the whole executor. A sequence of calls *is* a function body, and an activation already
+advances one instruction per tick on the agenda — so nothing new runs a procedure. The last rung's
+result is the procedure's result.
+
 ## `criterion` / `directive`
 
 The list that decides what to do next. See [Deliberation](deliberation.md) for why it exists and what
@@ -273,6 +315,44 @@ a typo look exactly like judgement that did not apply.
 The refusal is about what could never work, not about what does not apply here. A well-formed `do`
 whose arguments happen to resolve to nothing, or to something the goal forbids, stays silent — that is
 still a situation, and asking why not will tell you about it.
+
+## `policy`
+
+What is allowed, and on whose word. Three things that were previously sayable only from Python — a
+norm about an operator, a standing prohibition on a thing, and an authority ordering between agents.
+
+```cnl
+policy house rules:
+    by finance                      # whose judgement; absent, it is `experience`
+    inviolable                      # or `defeasible`, the default
+    forbid counterfeit              # a norm about an operator
+    permit refund
+    forbid touching vault           # a standing prohibition on a THING
+    finance outranks operations     # an authority ordering, transitive
+    because the auditor said so
+```
+
+**Line order does not matter.** `by` and `inviolable` may appear anywhere in the block and still
+govern the norms above them. This is deliberately unlike `some` in a criterion, which must be
+declared before use: a norm silently attributed to the wrong agent is the dangerous kind of wrong —
+it parses, runs, and means something else.
+
+**`forbid <action>` and `forbid touching <thing>` are different claims.** The first is a norm about an
+operator, weighed against other norms and settled by authority. The second is a veto on a particular
+node, checked at the moment of dispatch — so it blocks a call that was *planned before the
+prohibition was written*, which is the order-independence the door exists to give.
+
+**Neither is `never` in a goal block.** `never <action>` there is a **plan constraint**: it constrains
+the route to *that* achievement and says nothing about anything else. A policy is standing. The two
+look alike and are not, which is the near-miss this family exists to remove.
+
+**A mistyped action name is refused here**, unlike in a goal's `never` line, which still accepts one
+silently (see [limits.md](limits.md)). A norm about an operator that does not exist forbids nothing in
+every world, for every agent — wrong the way a typo is wrong.
+
+**Authority is what `tie_break`'s `authority` stage reads**, so this is where a criterion's precedence
+ultimately comes from. It is transitive: if finance outranks operations and operations outranks
+receiving, finance outranks receiving.
 
 ## `tie_break`
 

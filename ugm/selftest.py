@@ -5146,6 +5146,18 @@ def check_the_CNL_GUIDE_parses():
         from . import asm
         asm.load_text(g, _lines("fn unstack(b: thing, floor: thing) -> thing:",
                                 '    SET F(b) "clear" true'))
+        # The `policy` example names operators too, and for the same reason: `_policy_line` refuses a
+        # norm about a function that does not exist, so a guide naming one would be teaching a line that
+        # cannot be written. This is the check's principle reaching a second family.
+        asm.load_text(g, _lines("fn counterfeit(x: thing) -> thing:", '    SET F(x) "fake" true'))
+        asm.load_text(g, _lines("fn refund(x: thing) -> thing:", '    SET F(x) "refunded" true'))
+        vault = g.mint("thing", kind_of="thing", label="vault", clear=True, contents=None)
+        g.link(w, "thing", vault)
+        # The `procedure` example lowers to a program, so every rung must name a real function. These
+        # are the shipped rules the guide's example is written against — the third family this check's
+        # principle has now reached.
+        from pathlib import Path
+        asm.load_file(g, Path(__file__).parent / "rules" / "reachable.mf")
         return g
 
     read, failed = [], []
@@ -5176,7 +5188,8 @@ def _undocumented_families(read: set) -> tuple:
     from . import intake as I
     groups = {"goal": I.GOAL_VERBS, "advice": I.ADVICE_VERBS, "method": I.METHOD_VERBS,
               "type": I.TYPE_VERBS, "criterion": I.CRITERION_VERBS,
-              "tie_break": I.TIE_BREAK_VERBS, "question": I.READER_VERBS}
+              "tie_break": I.TIE_BREAK_VERBS, "question": I.READER_VERBS,
+              "policy": I.POLICY_VERBS}
     return tuple(sorted(name for name, verbs in groups.items() if not (set(verbs) & read)))
 
 
@@ -5276,6 +5289,217 @@ def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
             "and_it_really_clears_the_pile_top_down":
                 D.plan_steps(g3, followed) == ("unstack", "unstack", "stack"),
             "IT_TOOK_A_SECOND_CRITERION_TO_COVER_THE_CASE": len(CR.criteria(g3)) == 2}
+
+
+def _procedure_world():
+    """The shipped rules, so a procedure has real subprocedures to call."""
+    from pathlib import Path
+    from . import asm
+    g = new_graph()
+    for name in ("reachable.mf", "workbench.mf"):
+        asm.load_file(g, Path(__file__).parent / "rules" / name)
+    w = g.mint("world")
+    g.link("root", "has", w)
+    g.link(w, "block", g.mint("block", label="b", kind_of="block"))
+    return g, w
+
+
+def check_a_PROCEDURE_of_DO_RUNGS_LOWERS_TO_A_FUNCTION():
+    """A sequence of actions, authored in the surface — and no third executor.
+
+    This is `docs/audit.md`'s F8, and the finding is what it did **not** cost. `consequent.py` records
+    that `method.decompose` and `criterion.speaks` are the two executors and that unifying them was not
+    attempted, so a procedure of calls looked like it needed a third — a task kind, four new branches in
+    `loop.py`. It does not. A sequence of calls, each result nameable by the next, *is* a function body
+    of `INVOKE` instructions, and an activation is already a task on the agenda that advances one
+    instruction per tick with its verb reported before each step. So this is a **lowering**, not an
+    executor, and it cost nothing from the family budget: a new rung inside `procedure`, not a new verb.
+
+    Lowering through assembly *text* rather than by building instructions is deliberate. It goes
+    through the border that validates opcodes and `INVOKE`'s operand shape rather than around it, and it
+    makes *"what did my procedure compile to?"* answerable — a lowering nobody can read is the island
+    pattern with an extra step.
+
+    Vacuity guards: the lowered program must actually run and produce the last rung's result, or this
+    only tests that text was generated; and `R` versus `F` must be chosen per reference, since getting
+    that backwards would compile and then read a parameter as an unset register."""
+    from . import function as fn, intake as I
+
+    g, w = _procedure_world()
+    _verb, proc = I.read(g, _lines("procedure copy_the_subject:",
+                                   "    takes subject",
+                                   "    do reachable start = subject as walk",
+                                   "    do copy_node original = walk as image",
+                                   "    because a procedure decomposes into subprocedures"))
+    text = g.attr(proc, "lowered")
+    ran = fn.invoke(g, "copy_the_subject", {"subject": w})[1].get("result")
+
+    return {"A_PROCEDURE_BECAME_A_FUNCTION": fn.find(g, "copy_the_subject") is not None,
+            "and_the_authored_form_still_points_at_it":
+                g.target(proc, "function") == fn.find(g, "copy_the_subject"),
+            # A parameter is a focus head; an earlier rung's result is a register. Getting this
+            # backwards compiles cleanly and then reads an unset register at run time.
+            "A_PARAMETER_LOWERS_TO_A_FOCUS_HEAD": "start=F(subject)" in text,
+            "AND_AN_EARLIER_RUNG_TO_A_REGISTER": "original=R(walk)" in text,
+            "the_last_rung_becomes_the_result": "COPY R(result) R(image)" in text,
+            # Vacuity: text that looks right but does not run would pass everything above.
+            "AND_THE_LOWERED_PROGRAM_ACTUALLY_RUNS": ran is not None,
+            # No new task kind was added, and this is the claim worth pinning: the outer loop has never
+            # heard of a procedure. If one had been added, `finished` would have a branch for it instead
+            # of refusing to advance it.
+            "THE_OUTER_LOOP_HAS_NO_BRANCH_FOR_A_PROCEDURE":
+                _raises(lambda: __import__("ugm.loop", fromlist=["x"]).finished(g, proc), ValueError),
+            "and_the_lowering_is_readable": text.startswith("fn copy_the_subject(subject):")}
+
+
+def check_a_PROCEDURE_REFUSES_WHAT_WOULD_NOT_BE_A_PROGRAM():
+    """The refusals are where `step` and `do` are kept from blurring into each other.
+
+    A `step` says what must become true and lets the engine find a way; a `do` says which action to
+    take. `consequent.py` tags them as different right-hand sides for exactly this reason, and a block
+    making both claims would be asking the engine to search and telling it not to.
+
+    The scope rule matters as much. A procedure's references are its own variables — a parameter, or a
+    result an earlier rung named — because a rung naming an individual would make the procedure about
+    that individual, the same reason a `step` may only speak of roles.
+
+    Vacuity guards: each well-formed counterpart must be accepted, or these only test that procedures
+    fail; and a refusal must leave no function behind, since a half-lowered procedure would be callable."""
+    from . import function as fn, intake as I
+
+    def read(*body):
+        g, _w = _procedure_world()
+        try:
+            I.read(g, _lines(*body))
+            return None, g
+        except I.Unreadable as e:
+            return str(e), g
+
+    good, _ = read("procedure fine:", "    takes s", "    do reachable start = s as w")
+    mixed, g_mix = read("procedure mixed:", "    takes s",
+                        "    do reachable start = s as w", "    step subject.clear = true")
+    prose, _ = read("procedure not a name:", "    takes s", "    do reachable start = s as w")
+    unscoped, _ = read("procedure unscoped:", "    takes s", "    do reachable start = elsewhere")
+    missing, _ = read("procedure missing:", "    takes s", "    do frobnicate start = s")
+    shadow, _ = read("procedure shadow:", "    takes s",
+                     "    do reachable start = s as s")
+
+    return {"A_WELL_FORMED_PROCEDURE_IS_ACCEPTED": good is None,
+            "MIXING_step_AND_do_IS_REFUSED": mixed is not None,
+            "and_it_says_why_they_are_different_claims": "lets the engine find a way" in (mixed or ""),
+            "A_PROSE_LABEL_IS_REFUSED_because_it_is_called_by_name": prose is not None,
+            "AN_OUT_OF_SCOPE_REFERENCE_IS_REFUSED": unscoped is not None,
+            "and_it_says_what_IS_in_scope": "In scope: s" in (unscoped or ""),
+            "a_rung_naming_no_function_is_refused": missing is not None,
+            "a_result_name_cannot_shadow_a_parameter": shadow is not None,
+            # A half-lowered procedure would be callable, which is worse than a refusal.
+            "AND_A_REFUSAL_LEAVES_NO_FUNCTION_BEHIND": fn.find(g_mix, "mixed") is None}
+
+
+def _policy_world():
+    from . import asm
+    g, w = _blocks()
+    asm.load_text(g, _lines("fn counterfeit(x: thing) -> thing:", '    SET F(x) "fake" true'))
+    vault = g.mint("thing", kind_of="thing", label="vault")
+    g.link(w, "thing", vault)
+    return g, w, vault
+
+
+def check_a_POLICY_says_what_is_ALLOWED_and_ON_WHOSE_WORD():
+    """Three things that were Python-only, in one family, because they are one kind of claim.
+
+    `docs/audit.md` found them together: a norm about an operator, a standing prohibition on a thing,
+    and an authority ordering between agents. One family rather than three because adding a block verb
+    is an edit to `intake.py` forever — the budget argument recorded beside `VERBS` — and because they
+    feed each other: authority settles whose norm wins, and `precedence` reads the same ordering to rank
+    criteria.
+
+    The load-bearing detail is that **line order does not matter**. `by` and `inviolable` may appear
+    below the norms they govern, because the alternative — declaration-before-use, as `some` requires in
+    a criterion — would silently attribute a norm to `experience` when the author wrote otherwise. A
+    misattributed norm parses, runs, and means something else, which is the class `docs/limits.md` calls
+    dangerous. So they are re-applied at seal.
+
+    Vacuity guards: the `by` line must be *below* the `forbid` it governs, or order-independence is
+    untested; the veto must block a real dispatch rather than merely existing as a node; and the
+    authority must be readable by the thing that actually consumes it."""
+    from . import discourse as DC, dispatch as DP, intake as I, norm as NM, precedence as PR
+
+    g, _w, vault = _policy_world()
+    _verb, pol = I.read(g, _lines("policy house rules:",
+                                  "    forbid counterfeit",
+                                  "    by finance",                 # BELOW the line it governs
+                                  "    inviolable",                 # ...and so is this
+                                  "    forbid touching vault",
+                                  "    finance outranks operations",
+                                  "    because the auditor said so"))
+    norm = g.targets(pol, "norm")[0]
+    blocked = None
+    try:
+        DP.service(g, "paint", vault)
+    except DP.Vetoed as e:
+        blocked = str(e)
+    except KeyError:
+        blocked = "unregistered"                                    # never reached the veto
+
+    return {"A_NORM_IS_AUTHORED_FROM_TEXT": g.attr(norm, "action") == "counterfeit",
+            "and_it_forbids": g.attr(norm, "stance") == NM.FORBID,
+            # The whole point of re-attributing at seal: `by` came after the line it governs.
+            "A_LATER_by_LINE_STILL_GOVERNS_AN_EARLIER_FORBID":
+                g.attr(g.target(norm, "source"), "label") == "finance",
+            "and_so_does_a_later_force_line": g.attr(norm, "force") == NM.INVIOLABLE,
+            # A veto is not merely a node: it must stop the door.
+            "A_STANDING_PROHIBITION_REALLY_BLOCKS_A_DISPATCH":
+                blocked is not None and "blocked by" in blocked,
+            "AN_AUTHORITY_ORDERING_IS_AUTHORED":
+                NM.outranks(g, DC.speaker(g, "finance"), DC.speaker(g, "operations")),
+            # ...and it is the SAME ordering `precedence` consults, not a parallel one. Two criteria,
+            # one from each agent: the authority stage must now separate them, and it can only be the
+            # `outranks` line above that did it — nothing else in this graph relates the two.
+            "AND_IT_IS_WHAT_PRECEDENCE_READS":
+                PR._by_authority(g, PR.attribute(g, g.mint("criterion", label="f"), "finance")
+                                 and g.of_kind("criterion")[-1],
+                                 PR.attribute(g, g.mint("criterion", label="o"), "operations")
+                                 and g.of_kind("criterion")[-1]) < 0,
+            "the_policy_is_a_real_thing_in_the_world": pol in g.targets("root", "has"),
+            "and_it_carries_its_reason": g.attr(pol, "because") == "the auditor said so"}
+
+
+def check_a_POLICY_refuses_what_would_CONSTRAIN_NOTHING():
+    """A norm about an operator that does not exist forbids nothing, in every world, for every agent.
+
+    `docs/limits.md` names this outright: *"a mistyped action name in a `never` or `must` line is
+    accepted and silently constrains nothing, unlike a mistyped thing name, which is refused. Failing
+    loudly is the intended fix."* This family fails loudly. The goal block's `never` line still does not,
+    and that limit stands — closing it here does not close it there.
+
+    Vacuity guards: a correctly spelled action must still be accepted, or this only tests that policies
+    fail; and a refusal must leave nothing behind, since a half-built policy would be *in force*."""
+    from . import intake as I
+
+    def read(*body):
+        g, _w, _v = _policy_world()
+        try:
+            I.read(g, _lines("policy house rules:", *body))
+            return None, g
+        except I.Unreadable as e:
+            return str(e), g
+
+    bad_action, g1 = read("    forbid frobnicate")
+    good, _g2 = read("    forbid counterfeit")
+    bad_thing, _g3 = read("    forbid touching nonesuch")
+    empty, _g4 = read("    because nothing in particular")
+
+    return {"A_MISTYPED_ACTION_IS_REFUSED": bad_action is not None,
+            "and_it_says_it_would_constrain_nothing": "constrain nothing" in (bad_action or ""),
+            # Vacuity: the same line spelled right must be accepted.
+            "THE_SAME_LINE_SPELLED_RIGHT_IS_ACCEPTED": good is None,
+            "a_mistyped_THING_is_refused_too": bad_thing is not None,
+            "a_policy_that_says_nothing_is_refused": empty is not None,
+            # A refusal that left the norm behind would leave it IN FORCE, which is worse than a crash.
+            "AND_A_REFUSAL_LEAVES_NO_NORM_BEHIND":
+                not [n for n in g1.nodes if g1.kind(n) == "norm"],
+            "nor_a_policy": not [n for n in g1.nodes if g1.kind(n) == "policy"]}
 
 
 def _reflect_world():
