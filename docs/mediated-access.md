@@ -44,7 +44,7 @@ invocation with neither caller nor callee knowing.
 |---|---|---|
 | kernel | the instruction set | closed |
 | **mediated access** | ~9 names, below | **closed, and must be total** |
-| domain vocabulary | `support_of`, `wheels_of`, … | open, incomplete by design |
+| domain vocabulary | `support_of`, `wheels_of`, … | open, incomplete by design, **and may contain no natives** |
 
 **Totality is unobtainable from an open class**, and that single fact forces the middle layer. The
 domain vocabulary is open and will never cover everything — that is the islands finding, and it is the
@@ -159,10 +159,21 @@ Three consequences, one of them unfinished:
 * **A high-degree node that changes copies all its edges.** Fine in evidence — what changes is blocks,
   not hubs — but it is the shape to watch. If it ever bites, that is when edges would need their own
   identity, and since edges gained one they could have it.
-* **A node minted while imagining has no identity yet.** Today a mapping with no `original` means
-  *this does not exist yet*, which is meaningful. Under versioning it still needs something for edges to
-  point at and for resolution to key on. The mapping node itself is the obvious candidate — it is
-  already the thing that persists while the image changes — but this is not settled.
+* **A node minted while imagining is its own identity**, and needs no mechanism. It is a first version
+  with no earlier one: minted in frame N, inherited by every later frame by the same walk that resolves
+  anything else. That is uniform with a real node, whose identity is the real node and whose first
+  version appears in frame 0.
+
+  This was nearly over-built into a minted placeholder — a plan variable, a skolem — before the question
+  *what is it for* was asked. What it is for is not chaining: **a goal constraint can be existential**,
+  and `goal.holds` for a subject-less type constraint enumerates `instances(type, under)` over the
+  frame's world. So invented nodes must persist across frames or *there is a file* stops reading as
+  satisfied one step after it became true. Persistence is the whole requirement, and identity-as-first-
+  version delivers it for nothing.
+
+  One consequence: `is_imagined` currently asks *does this mapping lack an `original`*, and would ask
+  *is this its own original* — an absence becoming a positive fact, which is the direction this codebase
+  prefers anyway.
 
 ## What the branching measurement rules out
 
@@ -235,12 +246,21 @@ does not inherit — it *establishes* the new frame's context for the call it ma
 about the cut: `step` is already the mediation point today, doing it by materialising at bind time. The
 seam does not move; only the mechanism at it changes.
 
-**Two boundaries, not one, and they nest.** The goal machinery establishes the coarse fact — *we are
-planning, in this workbench* — at the point where it selects a rule and hands it over to be run; `step`
-refines that to a particular frame. Dynamic scope handles the nesting natively: establish, inherit,
-re-establish deeper. This is the original argument for the whole approach arriving at its conclusion —
-the subsystems that already manipulate rules are the ones that configure them, and a rule is never
-edited to say which world it is reading.
+**Boundaries nest, and there are more than two.** The goal machinery establishes the coarse fact — *we
+are planning, in this workbench* — at the point where it selects a rule and hands it over; `step`
+refines that to a particular frame; a nested workbench nests its context exactly as it already nests its
+`original` pointers, where `resolve` is already a walk. Dynamic scope handles all of it natively:
+establish, inherit, re-establish deeper. This is the original argument for the whole approach arriving
+at its conclusion — the subsystems that already manipulate rules are the ones that configure them, and
+a rule is never edited to say which world it is reading.
+
+**And `execution` is a boundary too, which removes the last mode from the design.** The real world is
+not the *absence* of a context; it is the **trivial** context, the one whose resolution is the identity
+function. `execution` establishes it, and the same rule runs there unchanged.
+
+That is what makes *one rule set* true rather than aspirational. There is never mediated-versus-
+unmediated execution to branch on, no rule that has two behaviours, and the failure mode is uniform:
+forgetting to establish is the same bug in the same place whether the system is planning or acting.
 
 **Two risks this buys, both wanting artifacts rather than assumptions.**
 
@@ -277,20 +297,45 @@ strictly better than two artifacts that must be kept in step.
 **Keeping the workbench in Python.** Planning that Python owns is planning the system cannot inspect or
 change. Not available at any price.
 
+## Decided: no member of the open vocabulary may be native
+
+A domain name is normally an ordinary procedure — `support_of(b)` is a body containing
+`related(b, "on")` — and is mediated automatically, because everything it does goes through the closed
+set. The alternative is to register it in Python, so `INVOKE support_of` reaches a function that walks
+the graph directly. The reasons anyone would are real: speed, or a concept needing something procedures
+cannot do — a numeric routine, a lookup against data held outside.
+
+**It is forbidden anyway, and the argument is the totality one.** A native reads raw structure and
+bypasses mediation. The seven natives can be audited because there are seven; the domain vocabulary is
+*open*, so its members could never be enumerated and the audit could never be finished. One escape
+hatch and the guarantee is gone.
+
+The escape that remains costs nothing: if a domain concept genuinely needs a primitive, that primitive
+joins the **closed** set and is audited like the others. Reaching outside the system is already
+`DISPATCH`'s job, and is mediated by construction.
+
+Stated as an invariant: **natives are a closed class; the domain vocabulary is an open class; an open
+class may not contain natives.**
+
 ## Open questions
 
-**1. Does the domain layer participate in mediation, or only consume it?** If `support_of` is an
-ordinary procedure over `related`, mediation is automatic and there is nothing to decide. If a domain
-name may be implemented natively, it opens a hole of exactly the shape the inventory below closes — and
-unlike the natives, the domain vocabulary is *open*, so it could not be closed by enumeration. The cheap
-answer is probably to forbid it: a domain name is a procedure, and anything wanting to be a native
-belongs in the closed set where it can be audited.
+**1. May a plan act on something it invented?** *"List the directory, then read the first file"* is
+obviously wanted eventually, and the machinery half-exists: `enumerate_frame` draws candidates from
+`W.mappings(g, frame)`, which includes imagined ones, and `_bind_minted` exists to tie them to real
+nodes at execution. But **nothing in the corpus does it** — the one minting mock is used only for
+expectation checking. So this is latent capability, and it should be decided as a planning question on
+its own terms rather than settled as a side effect of the versioning work.
 
-**2. What establishes a context besides the goal machinery and `step`.** Whether `execution`, the phase
-machine, or a nested workbench are boundaries too has not been examined, and every one that is is
-another place the establish-or-silently-inherit failure can occur.
+⚠ It carries a known defect with it. `_bind_minted` matches planned nodes to real ones **by kind and
+order**, and says so — *"ambiguous: N real X nodes for a planned one — paired by order"* — while
+`activation.minted` notes that changing its sort *"would silently change which imagined node binds to
+which real one"*. A positional pairing over a string sort decides which real file the plan meant. That
+is recorded here as a defect to fix **when the capability is taken up**, not to fix under cover of this
+work.
 
-**3. Identity for a node minted while imagining** — see *frames as markers* above.
+**2. Whether the phase machine establishes anything.** `execution`, `step`, the goal machinery and
+nested workbenches are settled above. The phase machine appears to orchestrate and inherit, but that has
+not been looked at, and every boundary is a place the establish-or-silently-inherit failure can occur.
 
 ## The natives inventory
 
