@@ -128,6 +128,68 @@ graph with interpreter scaffolding — and this system has already once mistaken
 world content and type-checked it as a domain object. **Retention must become a call-site choice**
 before reads become calls.
 
+## What the mediation is for: frames as markers
+
+The representation this serves, because the vocabulary above is only worth its cost if this works.
+
+**A frame points only at what changed in it.** Structurally that is what exists today —
+`frame -mapping-> mapping(original, image)` — and *nothing about the shape changes*. What changes is the
+density: today every node in the world gets a mapping in every frame; here only the changed ones do.
+Reading becomes: look for a mapping in this frame, and failing that walk up the frame chain.
+
+So a frame stops being a **container** holding a copy of everything and becomes a **marker** — the point
+in a branch's history that versions are stamped against, and the thing resolution walks up. That is the
+linear thread of changes without which per-node before-and-afters have local order and no global one:
+`mapping -next-> mapping` orders one node's versions, `frame -next-> frame` orders the world's.
+
+**Edges are not separately versioned.** An edge belongs to a node-version, so changing `b -on-> c` into
+`b -on-> a` mints a new version of `b` carrying its whole edge set, and edge properties ride along on the
+copy exactly as `copy_set` already carries them.
+
+**And the rule the whole scheme rests on: an edge points at a canonical identity, never at a version.**
+Resolution happens at read time, on the *target*. This is what makes the sparse frame correct, and it is
+what the *Ruled out* entry below gets its correction from — with identity-pointing edges there is no
+cascade, because a hub's edges name identities that never change however often their members do.
+
+Three consequences, one of them unfinished:
+
+* **Resolution walks the frame chain, not the graph.** Cycles in the world are irrelevant to it and
+  termination is trivial — unlike `path.reaches`, which needs a seen-set. Measured depth on Sussman's
+  anomaly: **5**.
+* **A high-degree node that changes copies all its edges.** Fine in evidence — what changes is blocks,
+  not hubs — but it is the shape to watch. If it ever bites, that is when edges would need their own
+  identity, and since edges gained one they could have it.
+* **A node minted while imagining has no identity yet.** Today a mapping with no `original` means
+  *this does not exist yet*, which is meaningful. Under versioning it still needs something for edges to
+  point at and for resolution to key on. The mapping node itself is the obvious candidate — it is
+  already the thing that persists while the image changes — but this is not settled.
+
+## What the branching measurement rules out
+
+The alternative worth taking seriously was to mediate **writes** instead of reads: keep the node id
+always holding the latest value and push the old one into a *before* record. Reads would stay bare —
+which dissolves the totality burden, the natives question and the per-read cost at a stroke — and it
+would match the runtime, where the world is the present and history is the thread.
+
+It does not survive the measurement. An undo log assumes one live present; the search does not have one.
+On Sussman's anomaly:
+
+| | |
+|---|---|
+| imagined steps | 50 |
+| stepped frames that fork | **16 of 17**, branching factor mostly 4 |
+| max chain depth | 5 |
+| copies still needed if copying on fork | 33, against 50 today |
+
+The driver enumerates a frame's whole product of applicable actions eagerly, so alternatives are
+materialised rather than explored one at a time. Trail-and-undo pays off only if the search is
+serialised, and serialising it is a far larger change than anything here. The saving would be a third,
+and it would not scale, because every fork copy is still O(world).
+
+Versions scale with *change* instead: ~2 changed nodes per step, so 50 steps costs ~100 node copies
+against today's 50 × world — 100 versus 250 in a five-node world, 100 versus 2250 in a forty-five-node
+one. **Branching is the argument for mediating reads and against mediating only writes.**
+
 ## The binder: dynamic scope over the activation chain
 
 Something has to decide which implementation a name resolves to. This is the design's main question and
@@ -173,6 +235,13 @@ does not inherit — it *establishes* the new frame's context for the call it ma
 about the cut: `step` is already the mediation point today, doing it by materialising at bind time. The
 seam does not move; only the mechanism at it changes.
 
+**Two boundaries, not one, and they nest.** The goal machinery establishes the coarse fact — *we are
+planning, in this workbench* — at the point where it selects a rule and hands it over to be run; `step`
+refines that to a particular frame. Dynamic scope handles the nesting natively: establish, inherit,
+re-establish deeper. This is the original argument for the whole approach arriving at its conclusion —
+the subsystems that already manipulate rules are the ones that configure them, and a rule is never
+edited to say which world it is reading.
+
 **Two risks this buys, both wanting artifacts rather than assumptions.**
 
 A native receiving `act` does not mean it *uses* it. A native that ignores context is a silent hole of
@@ -186,11 +255,17 @@ not a convention that a boundary should remember to.
 
 ## Ruled out, with reasons
 
-**Sharing versions without mediating reads.** Not merely awkward — incorrect. A node id conflates *which
-node* with *which version*, so a new version of `Y` makes every `X -on-> Y` stale, and re-pointing
-cascades to every transitive predecessor. Measured on a real planning run: with 43 blocks, 2 images
-change content and **43 of 45 must be re-pointed**. Persistent data structures escape this by being
-trees with one root; a graph with a hub node and cycles has no such bound.
+**Edges that point at versions.** Not merely awkward — incorrect, and this is the trap that cost the
+most reasoning. If an edge names a version, a new version of `Y` makes every `X -on-> Y` stale, and
+re-pointing cascades to every transitive predecessor. Measured on a real planning run: with 43 blocks, 2
+images change content and **43 of 45 would have to be re-pointed**. Persistent data structures escape
+this by being trees with one root; a graph with a hub node and cycles has no such bound.
+
+⚠ **This rules out version-pointing edges, and nothing else.** It was first read as ruling out sharing
+altogether — which closed the whole thread for a while — and that was wrong. With edges naming
+canonical identities and resolution at read time, the cascade does not arise at all: a hub's edges name
+identities that never change however often their members do. The measurement is real and the inference
+drawn from it was not.
 
 **Copy-on-write inside `SET` / `LINK`.** Puts frame-awareness into the kernel; a port would have to
 re-make the decision.
@@ -204,25 +279,46 @@ change. Not available at any price.
 
 ## Open questions
 
-**1. Which natives need context.** The *mechanism* is settled by the binder above — `native.call`
-already hands every primitive its activation, so a native can find the context and resolve as it walks.
-What is not settled is the inventory. `types.is_a` walks a node's edges and its neighbours' to check a
-schema, so it plainly needs it; `find_function` resolves a name against the function index and plainly
-does not. Every native in between has to be decided one at a time, and the decision recorded, because a
-native that quietly ignores context is indistinguishable from one that correctly does not need it. This
-is work with a known shape rather than an open design problem, but it is the work most likely to leave a
-silent hole.
-
-**2. Does the domain layer participate in mediation, or only consume it?** If `support_of` is an
+**1. Does the domain layer participate in mediation, or only consume it?** If `support_of` is an
 ordinary procedure over `related`, mediation is automatic and there is nothing to decide. If a domain
-name may be implemented natively, it opens a second hole of exactly the shape of question 1 — and unlike
-the native inventory, the domain vocabulary is *open*, so the hole cannot be closed by enumeration. The
-cheap answer is probably to forbid it: a domain name is a procedure, and anything wanting to be a native
+name may be implemented natively, it opens a hole of exactly the shape the inventory below closes — and
+unlike the natives, the domain vocabulary is *open*, so it could not be closed by enumeration. The cheap
+answer is probably to forbid it: a domain name is a procedure, and anything wanting to be a native
 belongs in the closed set where it can be audited.
 
-**3. What establishes a context besides `step`.** `step` is the obvious boundary. Whether `execution`,
-the phase machine, or a nested workbench are others has not been examined, and each one that is a
-boundary is another place the establish-or-silently-inherit failure can occur.
+**2. What establishes a context besides the goal machinery and `step`.** Whether `execution`, the phase
+machine, or a nested workbench are boundaries too has not been examined, and every one that is is
+another place the establish-or-silently-inherit failure can occur.
+
+**3. Identity for a node minted while imagining** — see *frames as markers* above.
+
+## The natives inventory
+
+Every registered native, and whether it must find the context. The mechanism is settled — `native.call`
+hands every primitive its activation — so this is the list, not the design. It is recorded because **a
+native that quietly ignores context is indistinguishable from one that correctly does not need it**, and
+that is the likeliest place for this whole scheme to be silently wrong.
+
+The test is not "does it touch the graph" but **does it traverse world content whose value depends on
+which frame you are in**.
+
+| native | owner | context? | why |
+|---|---|---|---|
+| `is_a` | `types` | **yes** | walks the node's edges *and its neighbours'* to check a schema; every hop needs resolving |
+| `check` | `types` | **yes** | `violations` then raise — the same traversal as `is_a` |
+| `plan` | `driver` | **yes** | opens a workbench on a subject, so it reads world structure to copy it |
+| `plan_step` | `driver` | **yes** | steps a search; frames are its whole subject matter |
+| `find_function` | `function` | no | resolves a name against the function index; functions are not world content and are not versioned |
+| `minted` | `activation` | no | reads `minted` edges off an activation — interpreter state, not world content. It *returns* world nodes, but as identities, which is what the caller wants |
+| `after` | `loop` | no | reads the agenda off its own activation and mints a moment; touches no world content |
+
+Four of seven. The two `types` entries are the load-bearing ones, because `is_a` is on the hot path of
+every proposal and every guard.
+
+**`after` is also the precedent for the binder**, and worth reading before building it: it already finds
+the agenda it is on by walking from `act`, and its docstring gives the reason natives are handed one at
+all — *"a body that had to be told which loop it was running on would be a body that could not be
+moved."* That is the dynamic-scope argument, already made, already built, for a different context.
 
 ## Where this came from
 
