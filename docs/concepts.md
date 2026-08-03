@@ -212,6 +212,65 @@ Learning falls out. `compile_episode` turns an episode into a reusable function 
 fresh subject — a definition plus a loop, no new machinery — and the result is indistinguishable
 from an authored function: same storage, same catalogue, callable and recordable.
 
+## The horizon — three layers, not two
+
+Everything above is one representation, which raises the obvious question: if a rule is data and a
+goal is data and the program counter is data, what is *not* data, and why not? The answer is a
+line, and the mistake worth naming first is that there are **two** lines, easily conflated.
+
+**Above the horizon is a web.** Types, criteria, methods, functions, norms, memories — authored
+data, mutually supporting, none of it foundational. A concept here means what it means because of
+where it sits in the network, and nothing in it is individually verifiable against the world. This
+is where the outer loop works, and it is where almost everything should live.
+
+**Below the horizon is the closed class.** A `goal` is not defined in terms of anything: it is a
+handful of constraint nodes from a fixed vocabulary, natively supported by the surface, lowered to
+functions and the instruction set by convention. The same is true of a consequent's two kinds, a
+tie-break rule's comparisons, the eight proposition forms, and the opcodes. These are *primitive*
+— not because they are simple, but because no arrangement of what is above them reconstructs them.
+
+**The kernel boundary is a different, lower line.** Its test is *would a port re-make a decision
+here?* — and a port re-makes decisions about the closed class all the time, because a `goal` is
+something we decided. So:
+
+| layer | example | ported by | can the layer above define it away? |
+|---|---|---|---|
+| substrate | the graph, the instruction set, dispatch | re-implementation | — |
+| the closed class | `goal` sorts, consequent kinds, tie-break stages | re-implementation | **no** |
+| the web | types, criteria, methods, functions, norms | carried over unchanged | n/a |
+
+The horizon sits between the closed class and the web. The kernel boundary sits below the closed
+class. Both are real and they are not the same.
+
+### The decomposition error
+
+The reason this matters in practice is that *"can the surface say this?"* has **three** answers,
+and the tempting wrong one looks like progress.
+
+Fodor's example is the standing warning: *kill* is not defined as *cause to die*. The relation is
+real, but it is a relation **in the network** — an inference the web supports — and not a
+decomposition into primitives. Treating it as a decomposition produces a definition that is subtly
+and confidently wrong.
+
+So when something turns out to be inexpressible:
+
+1. **Expand the closed class.** Costs a new member, and each one must have something that runs it —
+   a tag with no executor is worse than no form at all.
+2. **Keep it opaque.** Named and declared, not decomposed. An honest answer.
+3. **Relate it in the web.** Author ordinary rules connecting it to what already exists, *without
+   claiming it reduces to them*.
+
+Mistaking the third for the first is the error. The pressure runs the other way too: a closed class
+grows one member at a time, each individually justified, and the way to keep it small is to make
+option 3 the default and force option 1 to argue for itself.
+
+**A closed class earns its place by being declared.** The shape to check for: a named set, reachable
+as data, with a stated position on whether it has an escape into the web. A tie-break rule's stages
+have one (`run <fn>`), so the closed set is the set that *ships*, never the set that is *possible*.
+A consequent's kinds deliberately have none — a considered answer, not an oversight. What must never
+happen is the third case: a closed class that is neither named nor reachable, existing only as a
+Python function nobody can see.
+
 ## Why it closes
 
 Every operation reads and mints structures from the same vocabulary, so nesting is the same case

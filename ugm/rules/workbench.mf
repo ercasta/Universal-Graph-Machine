@@ -1,0 +1,97 @@
+# Opening a workbench, as an ordinary program.
+#
+# This was `workbench.open_workbench`, and it was on a list of natives to add — which was the mistake.
+# A native is for a primitive the kernel cannot express; this is three loops and a copy. What actually
+# blocked it was that the instruction set could not ask a node what shape it was, and once `NLABELS` /
+# `LABEL_AT` / `NKEYS` / `KEY_AT` / `KIND` exist it needs nothing else. Four of the six "natives" first
+# proposed for the goal machinery turned out to be plain edge reads, and this was one of the two that
+# were composites.
+#
+# The original -> image map is `SETREF` / `DEREF` on the scratch node, keyed by node id. A stored
+# reference takes a string key and a node id is a string, so this is an O(1) map built out of opcodes
+# that were already there — no new mechanism, and `DEREF` answering `None` for an absent key is exactly
+# the "was this node copied?" test the second pass needs.
+
+# Copy everything reachable from `subject` into a fresh workbench, and mint frame 0 with one mapping per
+# copied node.
+#
+# Three passes, in the order the Python did them, because the order decides the node ids and a copy that
+# allocated them differently would be a different graph for no reason: mint every image, then relink the
+# edges among them, then mint the mappings. The second pass cannot run early — a copy cannot link to an
+# image that does not exist yet.
+#
+# NOT DONE HERE, and it is a real gap rather than a simplification: edge PROPERTIES are not carried
+# across. `EPROP` reads one named property and nothing enumerates them, so this needs `NEPROPS` /
+# `EPROP_AT` before it is equivalent. The Python version had exactly this bug once — a copied edge
+# silently lost its properties, and nothing failed, because no check copied one.
+fn open_workbench(subject) -> thing:
+    NEW R(wb) "workbench"
+    SET R(wb) "label" "workbench"
+    SET R(wb) "depth" 0
+    LINK R(wb) "subject" F(subject)
+    INVOKE R(walk) reachable start=F(subject)
+    COUNT R(n) R(walk) "found"
+
+    CONST R(i) 0
+.mint:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .relink
+    GET_AT R(o) R(walk) "found" R(i)
+    INVOKE R(img) copy_node original=R(o)
+    SETREF R(walk) R(o) R(img)
+    ADD R(i) R(i) 1
+    JMP .mint
+
+.relink:
+    CONST R(i) 0
+.each_source:
+    LT R(more_s) R(i) R(n)
+    JMPNOT R(more_s) .frame
+    GET_AT R(o) R(walk) "found" R(i)
+    DEREF R(src) R(walk) R(o)
+    NLABELS R(nl) R(o)
+    CONST R(li) 0
+.each_label:
+    LT R(more_l) R(li) R(nl)
+    JMPNOT R(more_l) .next_source
+    LABEL_AT R(lbl) R(o) R(li)
+    COUNT R(nt) R(o) R(lbl)
+    CONST R(ti) 0
+.each_target:
+    LT R(more_t) R(ti) R(nt)
+    JMPNOT R(more_t) .next_label
+    GET_AT R(t) R(o) R(lbl) R(ti)
+    DEREF R(dst) R(walk) R(t)
+    JMPNOT R(dst) .skip_target
+    LINK R(src) R(lbl) R(dst)
+.skip_target:
+    ADD R(ti) R(ti) 1
+    JMP .each_target
+.next_label:
+    ADD R(li) R(li) 1
+    JMP .each_label
+.next_source:
+    ADD R(i) R(i) 1
+    JMP .each_source
+
+.frame:
+    NEW R(frame) "frame"
+    SET R(frame) "index" 0
+    LINK R(wb) "root_frame" R(frame)
+    LINK R(wb) "frame" R(frame)
+    CONST R(i) 0
+.map:
+    LT R(more_m) R(i) R(n)
+    JMPNOT R(more_m) .done
+    GET_AT R(o) R(walk) "found" R(i)
+    DEREF R(img) R(walk) R(o)
+    NEW R(m) "mapping"
+    LINK R(m) "original" R(o)
+    LINK R(m) "image" R(img)
+    LINK R(frame) "mapping" R(m)
+    ADD R(i) R(i) 1
+    JMP .map
+
+.done:
+    DROP R(walk)
+    COPY R(result) R(wb)

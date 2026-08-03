@@ -60,12 +60,35 @@ def _ins(op):
     return lambda *args: I(op, args)
 
 
+def _keys(g, node) -> tuple:
+    """A node's attribute keys, sorted, without `kind`. The one place that exclusion is decided."""
+    return tuple(sorted(k for k in g.attrs.get(node, {}) if k != "kind"))
+
+
 # graph writes
 NEW, SET, LINK, LINK_AT, UNLINK, DROP, SETREF = (
     _ins(o) for o in ("NEW", "SET", "LINK", "LINK_AT", "UNLINK", "DROP", "SETREF"))
 # graph reads
 GET, GET_AT, COUNT, ATTR, EPROP, DEREF, SOURCES = (
     _ins(o) for o in ("GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES"))
+# graph reflection — the shape of a node, rather than what is at a slot you already know the name of.
+#
+# Every read above takes a *named* slot: `GET dest subj "label"` asks what is at this label, and nothing
+# asked *which labels are there*. That single asymmetry is why copying a subgraph looked like a primitive.
+# It is not: `workbench.reachable` walks outgoing edges and `_copy_set` mints a node with the same kind and
+# attributes, and both are ordinary loops over structure the instruction set could not see. With these,
+# they are ordinary programs, and the closed class shrinks by a whole family of would-be natives.
+#
+# Substrate, deliberately, and it is the classification that matters: none of these encodes a decision
+# about goals, plans, time or criteria, so they sit *below* the kernel boundary rather than above it.
+# The counter-proposal was a single `CLONE` opcode — fewer primitives, and the wrong trade, because
+# "the same kind and the same attributes" is a decision, and baking it in is a composite wearing
+# substrate's clothes.
+#
+# Count-plus-index rather than returning a collection, matching `COUNT`/`GET_AT`, so iteration is the
+# loop the instruction set already writes and a register keeps holding one scalar.
+KIND, NLABELS, LABEL_AT, NKEYS, KEY_AT = (
+    _ins(o) for o in ("KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT"))
 # focus
 FOCUS, FORK, CLOSE, MOVE, BACK, FOLLOW, SPREAD, HEAD, HASFOCUS = (
     _ins(o) for o in ("FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS"))
@@ -87,6 +110,7 @@ DISPATCH = _ins("DISPATCH")
 # a register stops denoting what it used to — and a list of those maintained anywhere else would drift.
 WRITES_REGISTER = frozenset({
     "NEW", "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
+    "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT",
     "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
     "INVOKE", "DISPATCH", "NATIVE"})
 
@@ -99,8 +123,16 @@ WRITES_REGISTER = frozenset({
 # unreadable), and `EPROP` reads a property *of an edge*, so its slot is the edge's label: an edge property
 # is a property of a link, and reporting it as `("link", label)` keeps it in the vocabulary
 # `driver.establishes` already speaks rather than inventing a third kind for one opcode.
+#
+# The reflection opcodes are in here and always land in the *unknown* bucket, which is the honest answer
+# rather than a shortcoming: none of them takes a literal slot, because not knowing the slot is what they
+# are for. `_reads` already handles that case — it names the subject it could not finish reading — so a
+# body that walks a node's shape reports "reads all of this node, and I cannot say which parts",
+# and a consumer can see exactly how much of the answer is missing.
 READS_GRAPH = {"GET": "link", "GET_AT": "link", "COUNT": "link", "SOURCES": "link", "DEREF": "link",
-               "ATTR": "attr", "EPROP": "link"}
+               "ATTR": "attr", "EPROP": "link",
+               "KIND": "attr", "NKEYS": "attr", "KEY_AT": "attr",
+               "NLABELS": "link", "LABEL_AT": "link"}
 
 
 class Machine:
@@ -251,6 +283,31 @@ class Machine:
         elif op == "SOURCES":
             w(a[0], g.sources(v(a[1]), v(a[2]) if len(a) > 2 else None))
 
+        # --- reflection: the shape of a node, not the contents of a slot you already named ---
+        # Order is load-bearing and inherited, not invented here. `g.labels` is sorted and `g.targets`
+        # is insertion-ordered, which is what makes a copy deterministic; `workbench.reachable` records
+        # what it cost to learn that — returning a `set` there substituted the iteration order of node-id
+        # strings and made the identical search cost 12, then 306, then fail, in one process. Attribute
+        # keys are sorted here for the same reason, so a program walking them twice walks them alike.
+        elif op == "KIND":
+            w(a[0], g.kind(v(a[1])))
+        elif op == "NLABELS":
+            w(a[0], len(g.labels(v(a[1]))))
+        elif op == "LABEL_AT":
+            _lbls = g.labels(v(a[1]))
+            _i = int(v(a[2]))
+            w(a[0], _lbls[_i] if -len(_lbls) <= _i < len(_lbls) else None)
+        # `kind` lives in the same dict as the attributes but is not one of them: it is positional, it
+        # cannot be changed after minting, and `KIND` is how you read it. Letting it out here would make a
+        # copy written in the surface set `kind` twice — once by minting, once by replay — and `g.put`
+        # refuses a changed kind, so the honest bug would surface as a confusing one.
+        elif op == "NKEYS":
+            w(a[0], len(_keys(g, v(a[1]))))
+        elif op == "KEY_AT":
+            _ks = _keys(g, v(a[1]))
+            _i = int(v(a[2]))
+            w(a[0], _ks[_i] if -len(_ks) <= _i < len(_ks) else None)
+
         # --- focus ---
         elif op == "FOCUS":
             focus.open(v(a[0]), v(a[1]) if len(a) > 1 else "root")
@@ -374,6 +431,7 @@ def run(program, g: Graph, focus: Focus | None = None, **regs):
 __all__ = ["R", "F", "I", "Ref", "Machine", "run", "WRITES_REGISTER", "READS_GRAPH",
            "NEW", "SET", "LINK", "LINK_AT", "UNLINK", "DROP", "SETREF",
            "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "SOURCES",
+           "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT",
            "FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS",
            "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
            "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "INVOKE", "DISPATCH",

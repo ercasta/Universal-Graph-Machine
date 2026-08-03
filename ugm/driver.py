@@ -1372,6 +1372,24 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
     # And skipping is the right answer rather than a patch: an operator nobody can imagine is one
     # means-ends cannot use, so the search should carry on and — if what remains is ignorance — say so.
     # That is precisely what lets `_phase_sensing` see `blocked_on_ignorance` and go and look.
+    # The same containment covers a second way an imagined step can fail, and it is the general case
+    # rather than an edge one: a body that does arithmetic on a slot nobody has looked at yet. `ADD`
+    # meets `graph.UNKNOWN` and Python raises `TypeError`, which escaped exactly as `Imagined` did —
+    # emptying the shared agenda. *An imagined step that cannot be computed is the same category as one
+    # that must not be taken:* the state is unreachable, so the branch is skipped and recorded.
+    #
+    # It matters most where it looks like an edge case. The arithmetic that makes a domain worth
+    # planning over is precisely what meets the unknown that sensing exists to resolve, so without this
+    # a domain could be numeric or it could sense, and not both.
+    #
+    # Recorded apart from `unimaginable`, not with it. That list answers *"there was a route here and
+    # nothing could imagine it"* — a capability gap. This one is *"we imagined it and the sums did not
+    # work"*, which is a fact about the world's ignorance, and a reader that cannot tell them apart
+    # cannot tell a missing mock from a missing observation.
+    #
+    # `TypeError` and nothing wider. A bare `except Exception` would turn every genuine engine fault
+    # inside `W.step` into a quietly skipped branch, which is the silent acceptance this catch exists
+    # to prevent — it would hide bugs in the machinery under the name of tolerating bad operators.
     try:
         nxt, _tr = W.step(g, wb, frame, name, bindings)
     except DP.Imagined as e:
@@ -1382,6 +1400,12 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
             (g.attr(search, "unimaginable") or ()) + (name,))))
         if watch:
             emit("unimaginable", action=name, on=_shown(g, bindings), depth=depth, because=str(e))
+        return None
+    except TypeError as e:
+        g.put(search, uncomputable=tuple(dict.fromkeys(
+            (g.attr(search, "uncomputable") or ()) + (name,))))
+        if watch:
+            emit("uncomputable", action=name, on=_shown(g, bindings), depth=depth, because=str(e))
         return None
     # Warn Record the real node the imagined one stands for, falling back to the copy only for something
     # that does not exist yet. Recording the copy was more literal and less truthful: an application says
@@ -1452,11 +1476,22 @@ def _exhausted(g: Graph, search: str, c: dict, watch) -> dict:
     T.attend(g, c["thread"], goal, why="exhausted the search", note="no plan found")
     if watch:
         watch(dict(kind="exhausted", step=steps, imagined=steps, unmet=unmet, blocked_by=blocked))
+    # An operator that was skipped is part of why nothing was found, and a report that omits it reads
+    # as *"no route exists"* when the truth is *"a route existed and this could not follow it"*. Both
+    # lists were being recorded and neither was ever read; naming them here is what the site that
+    # writes them already claims happens.
+    unimaginable, uncomputable = (g.attr(search, "unimaginable") or (),
+                                  g.attr(search, "uncomputable") or ())
+    why = (f"no state meeting [{unmet}] within depth {c['max_depth']} after {steps} imagined steps"
+           + (f"; {len(S.refusals(g, search))} action(s) ruled out by [{', '.join(blocked)}]"
+              if blocked else "")
+           + (f"; could not imagine [{', '.join(unimaginable)}] (no mock for a dispatching body)"
+              if unimaginable else "")
+           + (f"; could not compute [{', '.join(uncomputable)}] (arithmetic on a slot nobody has "
+              f"looked at)" if uncomputable else ""))
     return {"found": False, "workbench": wb, "steps": steps, "goal": goal, "search": search,
             "unmet": unmet, "refused": S.refusals(g, search), "blocked_by": tuple(blocked),
-            "why": f"no state meeting [{unmet}] within depth {c['max_depth']} after {steps} "
-                   f"imagined steps" + (f"; {len(S.refusals(g, search))} action(s) ruled out by "
-                                        f"[{', '.join(blocked)}]" if blocked else "")}
+            "unimaginable": tuple(unimaginable), "uncomputable": tuple(uncomputable), "why": why}
 
 
 def plan_bindings(g: Graph, plan: tuple) -> tuple:
@@ -1618,10 +1653,17 @@ def pursuit_report(g: Graph, p: str) -> dict:
     if g.attr(p, "done"):
         return {"done": True, "attempts": history, "witness": g.target(p, "witness"),
                 "tries": g.attr(p, "at", 0) + 1, "pursuit": p}
+    # The last attempt's own account, when it has one. Every attempt records *why* it gave up and none
+    # of it reached this string, so a pursuit that failed for a nameable reason — nothing could look at
+    # the subject you nominated, an operator could not be imagined, arithmetic met an unlooked-at slot —
+    # reported only that the constraints were still false, which is true of every failure and
+    # distinguishes none of them. The reason was in `attempts` all along; `why` is where a reader looks.
+    said = next((a["why"] for a in reversed(history) if a.get("why")), None)
     return {"done": False, "attempts": history, "tries": len(history), "pursuit": p,
             "why": f"{len(history)} attempt(s) did not reach ["
                    + "; ".join(G.describe_constraint(g, c)
-                               for c in G.unmet(g, goal, under=subject)) + "]"}
+                               for c in G.unmet(g, goal, under=subject)) + "]"
+                   + (f" — {said}" if said else "")}
 
 
 def describe_pursuit(g: Graph, p: str) -> str:
@@ -1675,7 +1717,9 @@ def _phase_planning(g: Graph, p: str, **hooks) -> bool:
         if _looker_for(g, goal, subject) is not None:
             g.put(p, phase=SENSING)
             return True
-        _attempt(g, p, attempt=g.attr(p, "at", 0), planned=False, why=out["why"])
+        gap = _sensing_gap(g, goal, subject)
+        _attempt(g, p, attempt=g.attr(p, "at", 0), planned=False,
+                 why=f"{out['why']}; {gap}" if gap else out["why"])
         g.put(p, phase=SETTLED)
         return False
 
@@ -1744,10 +1788,19 @@ def _looker_for(g: Graph, goal: str, subject: str):
     `selection.candidates(skip_applied=True)` is the termination guard, and it is structural rather than
     a counter: a function already applied to this subject is not offered again, so a pursuit cannot look
     the same way twice and loop for ever."""
-    from . import dispatch as DP, selection as SEL
     if not G.blocked_on_ignorance(g, goal):
         return None
-    for c in SEL.candidates(g, subject):
+    return _looker_on(g, subject)
+
+
+def _looker_on(g: Graph, node: str):
+    """An applicable single-parameter function that only looks, selected *on* `node`. No goal test.
+
+    Split out from `_looker_for` so the same selection can be asked about a node other than the
+    pursuit's subject — which is the only way to tell *"nothing can look"* from *"nothing can look at
+    the thing you nominated"*. See `_sensing_gap`."""
+    from . import dispatch as DP, selection as SEL
+    for c in SEL.candidates(g, node):
         name = c["function"] if isinstance(c, dict) else c
         _params, program = fn.load(g, name)
         for i in program:
@@ -1756,6 +1809,39 @@ def _looker_for(g: Graph, goal: str, subject: str):
             tool = next((a for a in i.args if isinstance(a, str)), None)
             if tool is not None and DP.observes(g, tool):
                 return name
+    return None
+
+
+def _sensing_gap(g: Graph, goal: str, subject: str):
+    """*You passed a container.* — or `None` if that is not what happened.
+
+    The pursuit's subject carries two different meanings and satisfies one of them silently. Planning
+    searches *under* a subject, which is why passing the shop is right and works. Sensing selects *on*
+    it — `_looker_on` walks `selection.candidates(g, subject)` — so a container has no applicable
+    single-parameter looker and can never look, no matter what sits inside it. Both rules are right on
+    their own; what is wrong is that the same argument satisfies one and quietly fails the other.
+
+    And the failure is indistinguishable from a genuinely impossible goal: the report said *"1
+    attempt(s) did not reach [desk.rares >= 3]"*, which is true of both and tells a reader nothing.
+
+    So this names it and changes nothing else. Making `_looker_for` search under the subject was the
+    alternative and is worse: sensing would then dispatch at a node the caller never nominated, quietly
+    widening what an agent may go and touch. A refusal that names the reason cannot be wrong; a fix
+    that guesses the subject can.
+
+    `workbench.reachable` is *the* copy boundary — the same "under" planning uses — so this reports the
+    relationship that actually holds rather than a second opinion about what is inside what."""
+    if not G.blocked_on_ignorance(g, goal) or _looker_on(g, subject) is not None:
+        return None
+    for node in W.reachable(g, subject):
+        if node == subject:
+            continue
+        name = _looker_on(g, node)
+        if name is not None:
+            return (f"blocked on what is not known, and nothing can look AT {_label(g, subject)} — "
+                    f"though {name!r} could look at {_label(g, node)}, which is under it. Sensing "
+                    f"selects on the subject; planning searches under it. Pursue "
+                    f"{_label(g, node)} to sense it")
     return None
 
 
@@ -1773,7 +1859,8 @@ def _phase_sensing(g: Graph, p: str, **_hooks) -> bool:
     name = _looker_for(g, goal, subject)
     if name is None:
         _attempt(g, p, attempt=g.attr(p, "at", 0), planned=False,
-                 why="blocked on what is not known, and nothing here can look")
+                 why=(_sensing_gap(g, goal, subject)
+                      or "blocked on what is not known, and nothing here can look"))
         g.put(p, phase=SETTLED)
         return False
     T.attend(g, thread, goal, why="cannot plan without looking", note=name)

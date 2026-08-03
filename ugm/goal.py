@@ -667,7 +667,15 @@ def describe_constraint(g: Graph, c: str) -> str:
     if sort == "known":
         return f"{who}.{g.attr(c, 'key')} must be known"
     if sort == "attr":
-        return f"{who}.{g.attr(c, 'key')} = {g.attr(c, 'value')!r}"
+        # The operator is stored on the constraint and was being dropped here, so every comparison
+        # rendered as `=`. It surfaces in `pursuit_report["why"]`, where "did not reach [desk.cash =
+        # 300]" reads as *we needed exactly 300* — misreporting the goal in the one string a human is
+        # most likely to read. Comparison operators in goals are newer than this renderer.
+        #
+        # Equality renders as `=`, not `==`: this is prose for a reader, and it is the surface the
+        # author wrote (`desk.cash = 300`), not the stored operator.
+        op = g.attr(c, "op") or "=="
+        return f"{who}.{g.attr(c, 'key')} {'=' if op == '==' else op} {g.attr(c, 'value')!r}"
     return f"{who} is a {g.attr(c, 'type')}"
 
 

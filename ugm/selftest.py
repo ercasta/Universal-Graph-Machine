@@ -434,7 +434,8 @@ def check_what_was_said_is_on_the_record_and_can_be_taken_back():
     th = T.open_thread(g)
 
     before = plan(g, goal, world)
-    said = DC.say(g, th, _lines("directive stow it directly:",
+    said = DC.say(g, th, _lines("criterion stow it directly:",
+                                "    must",
                                 "    wants link contains",
                                 "    do put_in t = object, box = subject"))
     during = plan(g, goal, world)
@@ -5162,9 +5163,21 @@ def check_the_CNL_GUIDE_parses():
             "blocks_checked": len(blocks),
             # Vacuity: an empty guide, or one whose fences stopped being marked, would pass trivially.
             "and_there_are_enough_of_them_to_mean_something": len(blocks) >= 9,
-            "COVERING_EVERY_FAMILY":
-                {"goal", "type", "prefer", "method", "criterion", "directive",
-                 "what", "where", "when"} <= set(read)}
+            # Derived from the verb sets, never listed here. A hand-written list is a second copy of
+            # something the parser already knows, and it goes stale in the one direction that matters:
+            # adding a family and forgetting to document it left this green. Now the guide has to grow a
+            # worked example for every family the surface grows, or this goes red naming the gap.
+            "COVERING_EVERY_FAMILY": not _undocumented_families(set(read)),
+            "undocumented": _undocumented_families(set(read))}
+
+
+def _undocumented_families(read: set) -> tuple:
+    """Families with no worked example in the guide. One per group — the force pairs share a body."""
+    from . import intake as I
+    groups = {"goal": I.GOAL_VERBS, "advice": I.ADVICE_VERBS, "method": I.METHOD_VERBS,
+              "type": I.TYPE_VERBS, "criterion": I.CRITERION_VERBS,
+              "tie_break": I.TIE_BREAK_VERBS, "question": I.READER_VERBS}
+    return tuple(sorted(name for name, verbs in groups.items() if not (set(verbs) & read)))
 
 
 def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
@@ -5191,7 +5204,7 @@ def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
 
     # The pile is two deep, so `unstack` can only apply to the top. Asking for the block directly on the
     # subject therefore names a buried one — recognised, and unactionable.
-    def two_deep(verb, complete=False):
+    def two_deep(strength, complete=False):
         g, world = _blocks()
         a, b, c = g.targets(world, "block")
         d = g.mint("block", kind_of="block", label="d", clear=True, height=1)
@@ -5209,7 +5222,8 @@ def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
         # directive must therefore say when it applies; without that, mandatory force is a blanket veto
         # over everything declared after it.
         guard = ["    when subject.^on is there"] if complete else []
-        I.read(g, _lines(f"{verb} take the block directly on it off:",
+        I.read(g, _lines("criterion take the block directly on it off:",
+                         f"    {strength}",
                          "    wants link on", *guard,
                          "    do unstack b = "
                          + ("furthest subject by ^on" if complete else "subject.^on")
@@ -5227,20 +5241,25 @@ def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
         return g, goal, world
 
     from . import goal as G
-    g1, goal1, w1 = two_deep("criterion")
+    g1, goal1, w1 = two_deep("should")
     advisory = D.pursue(g1, goal1, T.open_thread(g1), w1, max_steps=400, max_depth=7,
                         propose=CR.decide(g1, goal1, w1))
-    g2, goal2, w2 = two_deep("directive")
+    g2, goal2, w2 = two_deep("must")
     mandatory = D.pursue(g2, goal2, T.open_thread(g2), w2, max_steps=400, max_depth=7,
                          propose=CR.decide(g2, goal2, w2))
 
     # And a directive that can be followed must still work, or "refuses" would just mean "broken".
-    g3, goal3, w3 = two_deep("directive", complete=True)
+    g3, goal3, w3 = two_deep("must", complete=True)
     followed = D.pursue(g3, goal3, T.open_thread(g3), w3, max_steps=400, max_depth=7,
                         propose=CR.decide(g3, goal3, w3))
 
-    return {"the_two_verbs_read": CR.is_mandatory(g2, CR.criteria(g2)[0])
+    return {"the_two_words_read": CR.is_mandatory(g2, CR.criteria(g2)[0])
                 and not CR.is_mandatory(g1, CR.criteria(g1)[0]),
+            # Strength is now a body line, so the vacuity guard has to be that the LINE is what moved —
+            # not the header, which is identical in both.
+            "AND_THE_STRENGTH_IS_WHAT_DIFFERS":
+                (CR.strength_of(g1, CR.criteria(g1)[0]), CR.strength_of(g2, CR.criteria(g2)[0]))
+                == ("should", "must"),
             "A_CRITERION_FALLS_BACK_AND_STILL_FINDS_A_PLAN": advisory["found"],
             "A_DIRECTIVE_REFUSES_INSTEAD": not mandatory["found"],
             "and_says_which_directive_governed":
@@ -5257,6 +5276,450 @@ def check_a_DIRECTIVE_refuses_where_a_CRITERION_falls_back():
             "and_it_really_clears_the_pile_top_down":
                 D.plan_steps(g3, followed) == ("unstack", "unstack", "stack"),
             "IT_TOOK_A_SECOND_CRITERION_TO_COVER_THE_CASE": len(CR.criteria(g3)) == 2}
+
+
+def _reflect_world():
+    """A world with a cycle and a branch, plus the two rule files. Both are needed: a tree would let a
+    walk that never revisits pass, and one branch would hide an ordering difference."""
+    from pathlib import Path
+    from . import asm
+    g = new_graph()
+    for name in ("reachable.mf", "workbench.mf"):
+        asm.load_file(g, Path(__file__).parent / "rules" / name)
+    w = g.mint("world")
+    g.link("root", "has", w)
+    a, b, c = (g.mint("block", label=n, kind_of="block") for n in "abc")
+    for n in (a, b, c):
+        g.link(w, "block", n)
+    g.link(a, "on", b)
+    g.link(b, "on", c)
+    g.link(c, "on", w)                       # the cycle
+    box = g.mint("box", label="box")
+    g.link(w, "box", box)
+    g.link(box, "contains", a)               # the branch, reaching an already-seen node
+    return g, w
+
+
+def check_REFLECTION_makes_open_workbench_an_ORDINARY_PROGRAM():
+    """The closed class shrinks by five opcodes, and a family of would-be natives stops being needed.
+
+    `open_workbench` was on a list of primitives to expose as natives. It is not a primitive — it is
+    three loops and a copy. What actually blocked writing it in the surface was that every graph read took
+    a slot you had already named: `GET dest subj "label"` asks what is at this label, and nothing asked
+    *which labels are there*. That one asymmetry is why a composite looked primitive.
+
+    `KIND` / `NLABELS` / `LABEL_AT` / `NKEYS` / `KEY_AT` are substrate — none encodes a decision about
+    goals, plans, time or criteria — so they sit below the kernel boundary, and adding them moves
+    `reachable`, `copy_node` and `open_workbench` above the horizon. The single-opcode alternative
+    (`CLONE`) was refused: *"the same kind and the same attributes"* is a decision, and baking it in is a
+    composite wearing substrate's clothes.
+
+    **The order is the claim, not the membership.** `reachable` is depth-first over a stack and marks a
+    node seen when it is popped, so the same set can come back in several orders and only one of them is
+    the one the search was tuned against. The first version of this program used a queue: identical set,
+    different order, and `workbench.reachable`'s own docstring records what that costs — the identical
+    five-block search measured at 12 imagined states, then 306, then budget-exhausted failure, on
+    consecutive runs of one process, because a `set` had substituted node-id iteration order.
+
+    Vacuity guards: the world has a cycle and a branch, so a walk that revisited or that ordered
+    siblings differently would show; the images must really be copies rather than the originals; and the
+    scratch node must be gone, since an undropped one would make the *next* walk skip nodes."""
+    from . import function as fn, workbench as W
+
+    def shape(g, wb):
+        img = lambda m: W.image_of(g, m)
+        return [(g.kind(img(m)), g.attr(img(m), "label"),
+                 tuple((l, tuple(g.attr(t, "label") for t in g.targets(img(m), l)))
+                       for l in g.labels(img(m))))
+                for m in W.mappings(g, W.root_frame(g, wb))]
+
+    # Compared by label, never by node id. Ids come from a process-global counter, so two graphs built
+    # by the same code do not share them — the first version of this check compared ids across two
+    # worlds and read "identical walk, different order" as a defect in the program.
+    named = lambda g, ns: tuple(g.attr(n, "label") or g.kind(n) for n in ns)
+
+    g1, w1 = _reflect_world()
+    g2, w2 = _reflect_world()
+    py_walk = named(g1, W.reachable(g1, w1))
+    mf_walk = named(g2, g2.targets(fn.invoke(g2, "reachable", {"start": w2})[1]["result"], "found"))
+
+    g3, w3 = _reflect_world()
+    g4, w4 = _reflect_world()
+    py_wb = W.open_workbench(g3, w3)
+    mf_wb = fn.invoke(g4, "open_workbench", {"subject": w4})[1]["result"]
+    originals = {W.original_of(g4, W.image_of(g4, m))
+                 for m in W.mappings(g4, W.root_frame(g4, mf_wb))}
+
+    return {"THE_WALK_AGREES_EXACTLY_INCLUDING_ORDER": py_walk == mf_walk,
+            "and_it_really_walked_something": len(mf_walk) == 5,
+            "THE_WORKBENCH_IS_STRUCTURALLY_IDENTICAL": shape(g3, py_wb) == shape(g4, mf_wb),
+            "same_number_of_mappings":
+                len(W.mappings(g3, W.root_frame(g3, py_wb)))
+                == len(W.mappings(g4, W.root_frame(g4, mf_wb))),
+            # Vacuity: a "copy" that mapped each node to itself would pass every check above.
+            "THE_IMAGES_ARE_REALLY_COPIES":
+                not ({W.image_of(g4, m) for m in W.mappings(g4, W.root_frame(g4, mf_wb))}
+                     & set(originals)),
+            # The cycle has to come back as a cycle, not as a dangling edge to the original world.
+            "AND_THE_CYCLE_SURVIVED_INSIDE_THE_COPY":
+                sum(len(g4.targets(W.image_of(g4, m), l))
+                    for m in W.mappings(g4, W.root_frame(g4, mf_wb))
+                    for l in g4.labels(W.image_of(g4, m)))
+                == sum(len(g3.targets(W.image_of(g3, m), l))
+                       for m in W.mappings(g3, W.root_frame(g3, py_wb))
+                       for l in g3.labels(W.image_of(g3, m))),
+            "THE_SCRATCH_NODE_IS_GONE": not [n for n in g4.nodes if g4.kind(n) == "walk"],
+            # Membership is a ref on the scratch node, never a mark on the world, so a second walk in the
+            # same graph is unaffected by the first. This went red when it was marks-on-the-world: the
+            # second walk saw the first one's leftovers and skipped everything.
+            "A_SECOND_WALK_IN_THE_SAME_GRAPH_AGREES":
+                named(g2, g2.targets(fn.invoke(g2, "reachable", {"start": w2})[1]["result"], "found"))
+                == mf_walk}
+
+
+def check_REFLECTION_opcodes_report_their_reads_as_HONESTLY_UNREADABLE():
+    """A body that walks a node's shape reads *all* of it, and says so rather than reporting nothing.
+
+    `driver._reads` reports `(kind, slot, subject)` for every graph read whose slot is a literal, and
+    puts the subject in an `unknown` bucket when it is not. The reflection opcodes never take a literal
+    slot — not knowing the slot is what they are for — so they always land in that bucket. That is the
+    correct answer and it was worth checking rather than assuming: leaving them out of `READS_GRAPH`
+    would have made a body that reads an entire node report reading *nothing*, which is the confidently
+    wrong direction, and the one this codebase keeps naming as the dangerous class.
+
+    Vacuity guard: a body reading a *named* slot must still report that slot precisely, or this check
+    would pass for a reader that had simply given up on everything."""
+    from . import asm, driver as D
+
+    g = new_graph()
+    asm.load_text(g, _lines("fn walks_the_shape(x: thing) -> thing:",
+                            "    NLABELS R(n) F(x)",
+                            '    LABEL_AT R(l) F(x) 0',
+                            "    KIND R(k) F(x)"))
+    asm.load_text(g, _lines("fn reads_one_slot(x: thing) -> thing:",
+                            '    ATTR R(v) F(x) "colour"'))
+    from .types import declare_type
+    declare_type(g, "thing", attrs={"kind_of": "thing"})
+
+    walked, walked_unknown = D.reads(g, "walks_the_shape")
+    named, named_unknown = D.reads(g, "reads_one_slot")
+
+    return {"A_SHAPE_WALK_NAMES_NO_SLOT": walked == frozenset(),
+            "BUT_IT_IS_REPORTED_AS_UNREADABLE_NOT_AS_NOTHING": bool(walked_unknown),
+            "and_it_names_the_subject_it_could_not_finish": "x" in walked_unknown,
+            # Vacuity: a reader that had given up on everything would also produce the above.
+            "A_NAMED_SLOT_IS_STILL_REPORTED_PRECISELY": named == frozenset({("attr", "colour", "x")}),
+            "and_that_one_is_not_unknown": not named_unknown}
+
+
+def _ranked_world():
+    """Two criteria that both speak on the Sussman goal, declared weakest-first.
+
+    Declared in the order that makes declaration order the *wrong* answer, which is what gives every
+    check below something to move. `paint` closes nothing and is declared `could`; taking the top off is
+    the real move and is declared `must`."""
+    from . import intake as I
+    g, w = _blocks()
+    goal, _blks = _sussman(g, w)
+    I.read(g, _lines("criterion would rather paint it:", "    could",
+                     "    wants link on", "    do paint b = subject"))
+    I.read(g, _lines("criterion take the top of the pile off:", "    must",
+                     "    wants link on", "    some top in subject by ^on",
+                     "    when top is a clear_block",
+                     "    do unstack b = top, floor = the ground"))
+    return g, w, goal
+
+
+def check_PRECEDENCE_is_AUTHORED_and_its_ABSENCE_means_declaration_order():
+    """The order rules are ranked in is domain knowledge, so it is written rather than compiled in.
+
+    Declaration order was the whole answer and was defended as *"there is nothing to tune in an
+    order"* — right about weights, wrong about orders, because declaration order is an order too and
+    nothing had said so. What this check requires is not that ranking exists but that it is **data**: the
+    stage list reads back out of the graph, and the same two criteria in the same world rank differently
+    depending only on a block of text.
+
+    Vacuity guards, and they matter more than usual here because a ranking that changed nothing would
+    pass a naive check trivially. The order must really move; it must move *the decision* and not merely
+    the list; both criteria must really speak, or the winner is only the survivor; and with no rule
+    authored the order must be exactly what it always was, or this is a breaking change wearing a
+    feature's clothes."""
+    from . import criterion as CR, intake as I, precedence as PR, workbench as W
+
+    label = lambda g, ns: tuple(g.attr(n, "label") for n in ns)
+
+    g0, w0, goal0 = _ranked_world()
+    g1, w1, goal1 = _ranked_world()
+    I.read(g1, _lines("tie_break house rules:", "    force", "    random", "    seed 7"))
+
+    before, after = label(g0, CR.criteria(g0)), label(g1, CR.criteria(g1))
+    spoke0 = CR.proposals_here(g0, goal0, W.root_frame(g0, W.open_workbench(g0, w0)), w0)
+    spoke1 = CR.proposals_here(g1, goal1, W.root_frame(g1, W.open_workbench(g1, w1)), w1)
+
+    return {"WITH_NO_RULE_IT_IS_DECLARATION_ORDER": before[0] == "would rather paint it",
+            "AND_A_TIE_BREAK_BLOCK_MOVES_IT": after[0] == "take the top of the pile off",
+            "the_order_really_moved": before != after,
+            # The list moving is not the claim; the decision moving is.
+            "AND_THE_DECISION_MOVES_WITH_IT":
+                spoke0[0][1].function == "paint" and spoke1[0][1].function == "unstack",
+            # Vacuity: if only one spoke, the winner is just the survivor and ranking proved nothing.
+            "BOTH_REALLY_SPEAK_IN_BOTH_WORLDS": len(spoke0) == 2 and len(spoke1) == 2,
+            "and_the_same_two_are_ranked": sorted(before) == sorted(after),
+            # The stage list is readable data, not a Python constant reached by a name.
+            "THE_STAGES_ARE_DATA": PR.stages_of(g1) == ("force", "random"),
+            "and_it_reads_back_in_words": "force then random" in PR.describe(g1),
+            # And which stage decided is answerable — the `governing` question, one level up.
+            "IT_SAYS_WHICH_STAGE_DECIDED":
+                PR.deciding_stage(g1, CR.criteria(g1)[0], CR.criteria(g1)[1])[0] == "force"}
+
+
+def check_the_LAST_stage_must_DECIDE_EVERY_PAIR():
+    """A ranking that can answer *undecided* at the end is not a ranking.
+
+    Two of the four comparisons are partial orders — most pairs come back undecided — so a rule ending
+    in one leaves rules in an order nobody chose. That is the exact defect the irreproducible search
+    taught this codebase to refuse: *an undeclared tie-break*. Deliberate arbitrariness is fine and is
+    what `random` is for; arbitrariness nobody wrote down is not.
+
+    Refused where it is written, not where it bites, because an incomplete order is invisible until the
+    one pair it cannot separate turns up.
+
+    Vacuity guard: the same block ending in a total stage must be accepted, or this is only testing
+    that `tie_break` blocks fail."""
+    from . import intake as I, precedence as PR
+
+    def read(*body):
+        g, _w = _blocks()
+        try:
+            I.read(g, _lines("tie_break house rules:", *body))
+            return None
+        except I.Unreadable as e:
+            return str(e)
+
+    partial = read("    force", "    specificity")
+    total = read("    force", "    specificity", "    random")
+    empty = read("    because nothing")
+    twice = read("    force", "    force", "    random")
+
+    g, _w = _blocks()
+    from . import asm
+    asm.load_text(g, _lines("fn second_wins(a, b) -> thing:", '    HEAD R(result) "b"'))
+    fn_last = None
+    try:
+        I.read(g, _lines("tie_break house rules:", "    run second_wins"))
+    except I.Unreadable as e:
+        fn_last = str(e)
+
+    return {"A_PARTIAL_STAGE_MAY_NOT_SIT_LAST": partial is not None,
+            "and_it_says_why": "undecided" in (partial or ""),
+            "THE_SAME_BLOCK_ENDING_TOTAL_IS_ACCEPTED": total is None,
+            "an_empty_rule_ranks_nothing": empty is not None,
+            "a_stage_consulted_twice_is_refused": twice is not None,
+            # A function cannot be shown total, so it may never close the list.
+            "A_FUNCTION_STAGE_MAY_NOT_SIT_LAST_EITHER": fn_last is not None,
+            "the_vocabulary_is_closed_and_says_so":
+                "not a comparison" in (read("    seniority", "    random") or "")}
+
+
+def check_an_UNATTRIBUTED_rule_is_EXPERIENCE_rather_than_NOBODY():
+    """*"Rules without an authority are 'experience says'"* — the user, and it is a real node.
+
+    A missing source would make the authority comparison undefined for exactly the rules most likely
+    to be wrong: the learned ones nobody vouched for. Naming the absent case instead means a reader
+    asking *"on whose word?"* always gets an answer, and means a domain can rank learned advice against
+    authored advice by writing one ordinary fact.
+
+    Vacuity guards: `experience` must be a *real* agent that a norm can outrank, not a sentinel string;
+    and an explicitly attributed criterion must not be swallowed by the default."""
+    from . import criterion as CR, discourse as DC, intake as I, norm as NM, precedence as PR
+
+    g, _w = _blocks()
+    I.read(g, _lines("criterion nobody vouches for this:", "    wants link on",
+                     "    do paint b = subject"))
+    I.read(g, _lines("criterion finance says so:", "    by finance",
+                     "    wants attr colour", "    do paint b = subject"))
+    anon, named = CR.criteria(g)
+
+    src = CR.source_of(g, anon)
+    DC.authority(g, "finance", PR.EXPERIENCE)
+
+    return {"AN_UNATTRIBUTED_RULE_HAS_A_SOURCE_ANYWAY": src is not None,
+            "AND_IT_IS_NAMED_experience": g.attr(src, "label") == PR.EXPERIENCE,
+            # Not a sentinel: it is an agent in the world, so it can be outranked, quoted, doubted.
+            "it_is_a_REAL_agent_node": g.kind(src) == "agent" and src in g.nodes,
+            "AND_A_NAMED_AUTHORITY_CAN_OUTRANK_IT":
+                NM.outranks(g, DC.speaker(g, "finance"), src),
+            "which_is_ordinary_world_data": src in g.targets(DC.speaker(g, "finance"),
+                                                             "authority_over"),
+            # Vacuity: the explicit attribution must survive rather than being defaulted over.
+            "AN_EXPLICIT_by_LINE_IS_KEPT": g.attr(CR.source_of(g, named), "label") == "finance",
+            "and_the_two_differ": CR.source_of(g, anon) != CR.source_of(g, named)}
+
+
+def check_AUTHORITY_is_WORLD_DATA_so_a_RULE_can_establish_it():
+    """*"Businesses have rules that specify the order of authorities"* — so authority must be derivable,
+    not only asserted.
+
+    Nothing had to be added for this, which is the finding. `authority_over` is an ordinary edge read
+    transitively by `path.reaches`, so a stored function writes one with a plain `LINK` — *"a manager
+    outranks their reports"* is a rule like any other, and the ranking picks it up on the next read
+    because `criterion.criteria` re-reads rather than caching a computed order.
+
+    What this does **not** show, and is recorded rather than glossed: authority here is global between
+    two agents. *"The compliance officer outranks everyone on compliance"* — authority scoped to a
+    subject matter — has no representation, and is listed in `docs/limits.md`.
+
+    Vacuity guards: the rank must be absent before the rule runs (or the edge was already there), the
+    function must be the thing that created it, and the derived authority must actually move a decision
+    rather than merely appearing in the graph."""
+    from . import asm, criterion as CR, discourse as DC, function as fn, intake as I, norm as NM
+
+    g, w = _blocks()
+    _goal, _blks = _sussman(g, w)
+    asm.load_text(g, _lines("fn delegate(boss, report) -> thing:",
+                            '    LINK F(boss) "authority_over" F(report)'))
+    I.read(g, _lines("criterion the junior would paint it:", "    by junior",
+                     "    wants link on", "    do paint b = subject"))
+    I.read(g, _lines("criterion the senior takes the top off:", "    by senior",
+                     "    wants link on", "    some top in subject by ^on",
+                     "    when top is a clear_block",
+                     "    do unstack b = top, floor = the ground"))
+    I.read(g, _lines("tie_break house rules:", "    authority", "    random", "    seed 3"))
+
+    from . import precedence as PR
+    boss, report = DC.speaker(g, "senior"), DC.speaker(g, "junior")
+    junior_rule, senior_rule = CR.criteria(g)[0], CR.criteria(g)[1]
+    junior_rule, senior_rule = sorted(
+        (junior_rule, senior_rule), key=lambda c: g.attr(c, "label") != "the junior would paint it")
+
+    before_rank = NM.outranks(g, boss, report)
+    before_says = PR._by_authority(g, senior_rule, junior_rule)
+    before_stage = PR.deciding_stage(g, senior_rule, junior_rule)[0]
+
+    fn.invoke(g, "delegate", {"boss": boss, "report": report})
+
+    after_rank = NM.outranks(g, boss, report)
+    after = tuple(g.attr(c, "label") for c in CR.criteria(g))
+
+    return {"NO_AUTHORITY_BEFORE_THE_RULE_RAN": not before_rank,
+            "A_STORED_FUNCTION_ESTABLISHED_IT": after_rank,
+            "with_a_plain_LINK_and_no_new_mechanism":
+                report in g.targets(boss, "authority_over"),
+            # The claim is not that an edge appeared; it is that the ranking now turns on it. Asserting
+            # the *deciding stage* rather than the resulting order is what makes that non-vacuous: with
+            # authority silent the seed decides, and a seed that happened to agree would have proved
+            # nothing at all.
+            "AUTHORITY_WAS_SILENT_BEFORE": before_says == 0,
+            "and_the_SEED_was_deciding_instead": before_stage == "random",
+            "AND_AFTERWARDS_AUTHORITY_DECIDES":
+                PR.deciding_stage(g, senior_rule, junior_rule) == ("authority", senior_rule),
+            "so_the_senior_leads": after[0] == "the senior takes the top off",
+            # Vacuity: the same two criteria, unchanged — only the world moved.
+            "the_criteria_themselves_are_untouched":
+                sorted(after) == sorted(g.attr(c, "label") for c in (junior_rule, senior_rule))}
+
+
+def check_a_tie_break_STAGE_can_be_a_STORED_FUNCTION():
+    """The vocabulary is the set that *ships*, never the set that is *possible*.
+
+    Four comparisons are primitives for the same reason `path.reaches` is one. But ranking by
+    seniority, by recency, or by how often a rule has been right before must not require editing
+    `precedence.py`, or the closed set is a Python decision about what a domain may care about — the
+    island pattern, one level up from the one this module was written to remove.
+
+    A function stage answers with the *rule that comes first* rather than with a sign. A comparator
+    returning -1/0/1 makes the author hold a convention in their head, and getting it backwards produces
+    a ranking wrong in a way nothing can detect; answering *"this one"* cannot be inverted by mistake.
+
+    The comparator here ranks by a seniority number, and it is written to be **consistent** — it names
+    the same winner whichever way round it is asked. That is not decoration: the first version of this
+    check used *"the second argument always wins"*, which sorts to nothing at all, because a comparator
+    whose answer depends on argument order is not a comparator. A function stage can be authored badly,
+    and this module cannot check that it was not.
+
+    Vacuity guards: the function must be what moved the order (the same world without the stage must
+    rank the other way), it must answer identically in both argument orders, and a stage naming a
+    function that does not exist must be refused where it is written."""
+    from . import criterion as CR, intake as I, precedence as PR, asm, function as fn
+
+    body = ("fn by_seniority(a, b) -> thing:",
+            '    ATTR R(ra) F(a) "seniority"', '    ATTR R(rb) F(b) "seniority"',
+            "    LT R(d) R(ra) R(rb)", "    JMPIF R(d) .a_wins",
+            "    LT R(e) R(rb) R(ra)", "    JMPIF R(e) .b_wins", "    HALT",
+            ".a_wins:", '    HEAD R(result) "a"', "    HALT",
+            ".b_wins:", '    HEAD R(result) "b"')
+
+    def world(*stages):
+        g, w, goal = _ranked_world()
+        asm.load_text(g, _lines(*body))
+        # Seniority is a fact about the rule, so the comparator reads it off the rule. Lower leads.
+        for c in CR.criteria(g):
+            g.put(c, seniority=1 if g.attr(c, "label") == "take the top of the pile off" else 2)
+        if stages:
+            I.read(g, _lines("tie_break house rules:", *stages))
+        return g
+
+    plain = world()
+    staged = world("    run by_seniority", "    random", "    seed 1")
+
+    missing = None
+    try:
+        g, _w = _blocks()
+        I.read(g, _lines("tie_break house rules:", "    run no_such_function", "    random"))
+    except I.Unreadable as e:
+        missing = str(e)
+
+    one, two = CR.criteria(staged)
+    both_ways = (fn.invoke(staged, "by_seniority", {"a": one, "b": two})[1].get("result"),
+                 fn.invoke(staged, "by_seniority", {"a": two, "b": one})[1].get("result"))
+
+    label = lambda g: tuple(g.attr(c, "label") for c in CR.criteria(g))
+    return {"A_FUNCTION_RAN_AS_A_COMPARISON": label(staged)[0] == "take the top of the pile off",
+            # Vacuity: without the stage the order is the other way, so the function is what moved it.
+            "AND_IT_IS_WHAT_MOVED_THE_ORDER": label(plain)[0] == "would rather paint it",
+            "so_the_two_really_differ": label(plain) != label(staged),
+            # A comparator whose answer depends on argument order sorts to nothing. This one does not.
+            "THE_COMPARATOR_IS_CONSISTENT_BOTH_WAYS_ROUND": both_ways[0] == both_ways[1],
+            "the_stage_reads_back_by_name": PR.stages_of(staged) == ("by_seniority", "random"),
+            # A stage naming nothing is refused at authoring time, like every other bad fragment.
+            "AN_UNKNOWN_FUNCTION_IS_REFUSED_WHERE_WRITTEN": missing is not None,
+            "and_says_it_is_not_in_the_library": "not in this library" in (missing or "")}
+
+
+def check_SPECIFICITY_prefers_the_TIGHTER_rule_and_declines_when_it_cannot_tell():
+    """More constrained wins — and *"more constrained"* is a structural comparison, never a line count.
+
+    `when x.weight > 100` versus `when x.weight > 10`: neither is a superset of the other, yet one is
+    strictly tighter. Counting conditions would get that backwards silently, which is why this reuses the
+    comparison `types.subsumes` already makes — a rule demanding a *subtype* where another accepts the
+    supertype is tighter, and a rule demanding a *direct* link where another accepts a transitive one is
+    tighter.
+
+    Undecidable pairs answer *no*, taking `types.subsumes`' direction and its reason: a false negative
+    loses an ordering the author could have had, a false positive claims a precedence they never wrote.
+
+    Vacuity guard: two rules keyed on different constraints must NOT be ordered by this, or
+    'specificity' would be ranking rules that never compete."""
+    from . import criterion as CR, intake as I, precedence as PR, types as TY
+
+    g, w = _blocks()
+    TY.declare_type(g, "clear_block", base="block", attrs={"clear": True})
+    TY.declare_type(g, "block", attrs={"kind_of": "block"})
+
+    I.read(g, _lines("criterion broad:", "    wants link on", "    do paint b = subject"))
+    I.read(g, _lines("criterion narrow:", "    wants link on",
+                     "    when subject is a clear_block", "    do paint b = subject"))
+    I.read(g, _lines("criterion elsewhere:", "    wants attr colour", "    do paint b = subject"))
+    broad, narrow, elsewhere = CR.criteria(g)
+
+    return {"THE_TIGHTER_RULE_COMES_FIRST": PR._by_specificity(g, narrow, broad) < 0,
+            "and_the_comparison_is_symmetric": PR._by_specificity(g, broad, narrow) > 0,
+            # Vacuity: rules keyed on different constraints never compete, so this must stay silent.
+            "RULES_THAT_NEVER_COMPETE_ARE_NOT_ORDERED":
+                PR._by_specificity(g, narrow, elsewhere) == 0,
+            "a_rule_is_not_tighter_than_itself": PR._by_specificity(g, broad, broad) == 0,
+            # A subtype demanded where a supertype would do is tighter — the `types.subsumes` reuse.
+            "SUBTYPE_REFINEMENT_IS_A_REAL_REFINEMENT": TY.subsumes(g, "block", "clear_block")}
 
 
 def check_two_criteria_that_DISAGREE_can_be_told_apart_from_two_that_AGREE():
@@ -8555,6 +9018,191 @@ def check_a_pursuit_ACTS_on_an_unfinished_plan_and_then_REPLANS():
             "CONTROL_planning_alone_FAILS": not g2.attr(s2, "found"),
             "CONTROL_a_goal_not_blocked_on_ignorance_never_senses": g3.attr(p3, "sensed") is None,
             "and_that_one_still_settled": g3.attr(p3, "phase") == D.SETTLED}
+
+
+def check_arithmetic_on_an_UNLOOKED_AT_slot_skips_the_branch_and_spares_the_agenda():
+    """A domain could be numeric or it could sense, and not both. Reported by HarneSkills.
+
+    The same containment the check above records for `Imagined`, for the second way an imagined step
+    can fail — and this one is the general case rather than an edge one. Means-ends imagines an
+    operator whose body adds to a slot nobody has looked at yet, `ADD` meets `graph.UNKNOWN`, and
+    Python raises `TypeError`. It escaped `loop.tick` exactly as `Imagined` used to.
+
+    The arithmetic that makes a domain worth planning over is precisely what meets the unknown that
+    sensing exists to resolve, so this was not a corner: the crash stood between the goal and the look
+    that would have answered it.
+
+    *An imagined step that cannot be computed is the same category as one that must not be taken* —
+    the state is unreachable, so the branch is skipped and recorded, and what remains is ignorance, so
+    `_phase_sensing` goes and looks. Recorded as `uncomputable` rather than joined to `unimaginable`,
+    because *"nothing could imagine it"* is a missing mock and *"the sums did not work"* is a missing
+    observation, and a reader that cannot tell them apart cannot tell which to fix.
+
+    Vacuity guards, and the first is the one the fix is actually about: an unrelated task sharing the
+    agenda must still finish, or the containment claim is untested — that is what the escape used to
+    destroy. The bad operator must genuinely have been reached (or nothing was contained), the pursuit
+    must go on to sense and close the goal (or it was contained into uselessness), and the report must
+    name the reason. The control is the identical world with the two arithmetic lines removed."""
+    from . import asm, dispatch as DP, driver as D, goal as G, loop as L, thread as T
+    from .graph import UNKNOWN
+
+    DP.register("selftest_count_stock", lambda gr, t: gr.put(t, rares=5), observes=True)
+
+    def world(*, arithmetic: bool):
+        g = new_graph()
+        declare_type(g, "desk", attrs={"kind_of": "desk"})
+        body = ("fn buy(d: desk) -> desk:", '    ATTR R(n) F(d) "rares"',
+                "    ADD R(n) R(n) 1", '    SET F(d) "rares" R(n)')
+        asm.load_text(g, _lines("fn look(d: desk) -> desk:",
+                                '    DISPATCH R(o) "selftest_count_stock" F(d)', "",
+                                *(body if arithmetic else body[:1] + body[-1:])))
+        d = g.mint("chunk", kind_of="desk", label="desk", rares=UNKNOWN)
+        g.link("root", "has", d)
+        tag(g, d, "desk")
+        goal = G.open_goal(g, label="hold three")
+        G.require_attr(g, goal, d, "rares", 3, ">=")
+        return g, d, goal
+
+    g, d, goal = world(arithmetic=True)
+    bottoms_out = G.blocked_on_ignorance(g, goal, under=d)
+    p = D.open_pursuit(g, goal, T.open_thread(g), d)
+    lp = L.open_loop(g)
+    L.schedule(g, lp, p, why="pursue it")
+    # The bystander. It shares the agenda and has nothing to do with the desk, so if the arithmetic
+    # failure escapes `tick` again this never runs — which is the property being asserted.
+    bystander = D.open_pursuit(g, *_settled_goal(g), attempts=1)
+    L.schedule(g, lp, bystander, why="an unrelated task")
+    L.run(g, lp, max_ticks=400)
+
+    skipped = {n: g.attr(n, "uncomputable") for n in g.nodes
+               if g.kind(n) == "search" and g.attr(n, "uncomputable")}
+    report = D.pursuit_report(g, p)
+
+    g2, d2, goal2 = world(arithmetic=False)
+    p2 = D.open_pursuit(g2, goal2, T.open_thread(g2), d2)
+    lp2 = L.open_loop(g2)
+    L.schedule(g2, lp2, p2, why="the same world, without the arithmetic")
+    L.run(g2, lp2, max_ticks=400)
+
+    return {"the_goal_BOTTOMS_OUT_in_ignorance": bottoms_out,
+            "THE_BAD_OPERATOR_WAS_REALLY_REACHED": any("buy" in v for v in skipped.values()),
+            "AND_THE_UNRELATED_TASK_ON_THE_SAME_AGENDA_STILL_FINISHED":
+                g.attr(bystander, "phase") == D.SETTLED or g.attr(bystander, "done"),
+            "THE_PURSUIT_WENT_ON_TO_SENSE": g.attr(p, "sensed") == ("look",),
+            "and_the_world_really_moved": g.attr(d, "rares") == 5,
+            "THE_GOAL_IS_SATISFIED": report["done"],
+            "skipped_is_kept_APART_from_unimaginable":
+                all(not (g.attr(n, "unimaginable") or ()) or
+                    set(g.attr(n, "unimaginable")) != set(g.attr(n, "uncomputable"))
+                    for n in skipped),
+            "CONTROL_the_same_world_without_arithmetic_behaves_identically":
+                g2.attr(p2, "sensed") == ("look",) and g2.attr(d2, "rares") == 5}
+
+
+def _settled_goal(g):
+    """An already-true goal on a fresh node — a task that costs one tick and cannot fail. Used as a
+    bystander, to prove an exception in someone else's task did not take the agenda down with it."""
+    from . import goal as G, thread as T
+    n = g.mint("chunk", kind_of="bystander", label="bystander", ok=1)
+    g.link("root", "has", n)
+    goal = G.open_goal(g, label="nothing to do")
+    G.require_attr(g, goal, n, "ok", 1)
+    return goal, T.open_thread(g), n
+
+
+def check_a_pursuit_SAYS_when_it_cannot_look_at_the_subject_it_was_given():
+    """Sensing selects *on* the subject; planning searches *under* it. Reported by HarneSkills, who
+    lost an afternoon to it having already read the code.
+
+    Both rules are right. `_looker_on` walks `selection.candidates(g, subject)`, so a container has no
+    applicable single-parameter looker and can never look, whatever sits inside it — while the planner
+    happily searches under that same container, which is why passing it is the natural thing to do.
+    What was wrong is that one argument satisfied one rule and quietly failed the other, and the
+    resulting report — *"1 attempt(s) did not reach [desk.rares >= 3]"* — is exactly what a genuinely
+    impossible goal says.
+
+    Named rather than fixed, deliberately. Making `_looker_for` search under the subject was the
+    alternative: sensing would then dispatch at a node the caller never nominated, quietly widening
+    what an agent may go and touch. A refusal that names the reason cannot be wrong; a fix that
+    guesses the subject can.
+
+    Vacuity guards: the identical world pursued *at the desk* must succeed, or the scenario is just a
+    broken world; the message must name both the subject that cannot be looked at and the one that
+    can, or it is no more use than the silence it replaces; and a goal that is not blocked on ignorance
+    at all must produce no such message, or it is being pasted onto every failure."""
+    from . import asm, dispatch as DP, driver as D, goal as G, thread as T
+    from .graph import UNKNOWN
+
+    DP.register("selftest_count_case", lambda gr, t: gr.put(t, rares=5), observes=True)
+
+    def world():
+        g = new_graph()
+        declare_type(g, "desk", attrs={"kind_of": "desk"})
+        asm.load_text(g, _lines("fn look(d: desk) -> desk:",
+                                '    DISPATCH R(o) "selftest_count_case" F(d)'))
+        shop = g.mint("chunk", kind_of="shop", label="shop")
+        g.link("root", "has", shop)
+        d = g.mint("chunk", kind_of="desk", label="desk", rares=UNKNOWN)
+        g.link(shop, "desk", d)
+        tag(g, d, "desk")
+        goal = G.open_goal(g, label="hold three")
+        G.require_attr(g, goal, d, "rares", 3, ">=")
+        return g, shop, d, goal
+
+    g, shop, d, goal = world()
+    said = D.carry_out(g, goal, T.open_thread(g), shop, attempts=1).get("why", "")
+
+    g2, _shop2, d2, goal2 = world()
+    at_the_desk = D.carry_out(g2, goal2, T.open_thread(g2), d2, attempts=1)
+
+    # Control: nothing unknown, so nothing to say about looking.
+    g3 = new_graph()
+    declare_type(g3, "desk", attrs={"kind_of": "desk"})
+    d3 = g3.mint("chunk", kind_of="desk", label="desk", rares=1)
+    g3.link("root", "has", d3)
+    tag(g3, d3, "desk")
+    goal3 = G.open_goal(g3, label="hold three")
+    G.require_attr(g3, goal3, d3, "rares", 3, ">=")
+
+    return {"IT_SAYS_NOTHING_CAN_LOOK_AT_THE_SUBJECT": "nothing can look AT shop" in said,
+            "AND_NAMES_THE_ONE_THAT_COULD_LOOK": "'look'" in said and "at desk" in said,
+            "and_it_says_which_way_round_the_two_rules_go":
+                "selects on the subject" in said and "searches under it" in said,
+            "CONTROL_the_same_world_pursued_AT_THE_DESK_succeeds":
+                at_the_desk["done"] and g2.attr(d2, "rares") == 5,
+            "CONTROL_a_goal_not_blocked_on_ignorance_gets_no_such_message":
+                D._sensing_gap(g3, goal3, d3) is None}
+
+
+def check_a_constraint_is_DESCRIBED_with_the_comparison_it_was_written_with():
+    """`describe_constraint` rendered every comparison as `=`. Reported by HarneSkills, who noticed
+    that every `why` line they quoted at us misreported the goal.
+
+    The operator is stored on the constraint and was dropped by the renderer, so `desk.cash >= 300`
+    read back as *we needed cash to be exactly 300*. Comparison operators in goals are newer than this
+    renderer, which is the whole of the story.
+
+    Equality renders as `=` rather than `==`, because this is prose for a reader and `=` is the surface
+    the author wrote. That is the guard worth having: the fix is one line and the obvious version of it
+    regresses the commonest case."""
+    from . import goal as G
+
+    g = new_graph()
+    declare_type(g, "desk", attrs={"kind_of": "desk"})
+    d = g.mint("chunk", kind_of="desk", label="desk", cash=120)
+    g.link("root", "has", d)
+
+    shown = {}
+    for op in ("==", ">=", "<=", ">", "<", "!="):
+        goal = G.open_goal(g, label=f"cash {op}")
+        shown[op] = G.describe_constraint(g, G.require_attr(g, goal, d, "cash", 300, op))
+
+    return {"EVERY_COMPARISON_SURVIVES_THE_ROUND_TRIP":
+                all(op in text for op, text in shown.items() if op != "=="),
+            "and_EQUALITY_still_reads_as_prose": shown["=="] == "desk.cash = 300",
+            "and_none_of_them_read_as_equality":
+                sum(t == "desk.cash = 300" for t in shown.values()) == 1,
+            "shown": shown}
 
 
 def check_a_TIMER_gates_a_task_and_the_agenda_waits_rather_than_spinning():

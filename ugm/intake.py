@@ -127,6 +127,7 @@ from . import guideline as GL
 from . import locate as L
 from . import method as M
 from . import path as P
+from . import precedence as PR
 from . import types as TY
 from .workbench import reachable
 
@@ -257,7 +258,8 @@ FORMS: dict = {
     "method": ("handles S l", "when T", "within m", "some n in r by l", "step …", "because …"),
     "method step": _SHAPE_FORMS,
     "criterion": ("wants <sort> [label]", "some x in r by l", "when …", "unless …", "do f a = r, …",
-                  "because …"),
+                  "must | should | could", "by <agent>", "because …"),
+    "tie_break": ("authority | force | specificity | random", "run <fn>", "seed <n>", "because …"),
     "condition": _SHAPE_FORMS + ("wants <sort> <label> from x",),
     "question": ("<one bare name>", "by <link>"),
 }
@@ -383,7 +385,12 @@ GOAL_VERBS = ("goal", "ask", "why", "plan")
 ADVICE_VERBS = ("prefer", "avoid")
 METHOD_VERBS = ("method", "procedure")
 TYPE_VERBS = ("type",)
-CRITERION_VERBS = ("criterion", "directive")
+# One verb, not two. `criterion`/`directive` encoded force in the verb the way `method`/`procedure`
+# still does, and that shape only works while there are exactly two of them. There are now three
+# strengths, and `must` is additionally a goal-block keyword, so the pair became a body line: see
+# `_criterion_line`. `directive` is gone rather than kept as a second spelling of `must`.
+CRITERION_VERBS = ("criterion",)
+TIE_BREAK_VERBS = ("tie_break",)
 
 # The wh-questions, and they are a different form — not a fifth force on the same body. Every verb
 # above states a whole proposition and differs only in what is then done with it (`goal.py`'s constraints,
@@ -397,7 +404,8 @@ CRITERION_VERBS = ("criterion", "directive")
 # nobody should try to unify them.
 READER_VERBS = L.VERBS
 
-VERBS = GOAL_VERBS + ADVICE_VERBS + METHOD_VERBS + TYPE_VERBS + READER_VERBS + CRITERION_VERBS
+VERBS = (GOAL_VERBS + ADVICE_VERBS + METHOD_VERBS + TYPE_VERBS + READER_VERBS
+         + CRITERION_VERBS + TIE_BREAK_VERBS)
 
 ROLES = (M.SUBJECT, M.OBJECT)
 
@@ -542,10 +550,53 @@ def _criterion_line(g: Graph, c: str, words: list, line: str, lineno: int, under
                              f"action WITH its arguments, which is the whole of what it adds")
         _action(g, name, args, lineno, line)
         CR.does(g, c, name, args)
+    elif len(words) == 1 and words[0] in PR.STRENGTHS:
+        # Strength is a body line rather than a verb, and `must` is why. It is already a goal-block
+        # keyword (`must paint` — the plan has to include this), so a `must …:` header would put one word
+        # in two grammars for no gain. A line also leaves room for the third strength without a third
+        # verb, which is what made `criterion`/`directive` the wrong shape once there were more than two.
+        g.put(c, strength=words[0],
+              force=G.MANDATORY if words[0] == PR.MUST else G.ADVISORY)
+    elif words[0] == "by" and len(words) == 2:
+        # Attribution, not authorship of the text. `by finance` says whose judgement this is, which is
+        # what the authority comparison reads — see `precedence.py`. Absent, it is `experience`.
+        PR.attribute(g, c, words[1])
     elif words[0] == "because" and len(words) > 1:
         g.put(c, because=" ".join(words[1:]))
     else:
         raise _shape_refused(words, line, lineno, "criterion")
+
+
+def _tie_break_line(g: Graph, r: str, words: list, line: str, lineno: int) -> None:
+    """One line of a `tie_break` block — one comparison, in the order they are consulted.
+
+    The whole reason this family exists: the order rules are ranked in is a decision about how a domain
+    arbitrates, and a decision that lives in Python is one nothing can read, quote or withdraw. Authoring
+    it here makes it the same kind of thing as everything else it ranks."""
+    # `Unorderable` is `precedence.py`'s vocabulary, and a caller of this border has exactly one
+    # exception type to catch. Letting it escape would also skip the rollback, leaving the half-built rule
+    # this module's docstring promises never survives a refusal — the same leak `BadPath` once caused.
+    try:
+        # A bare word is *meant* to be a comparison, so an unknown one is answered by naming the
+        # vocabulary rather than by the family's generic "no form" refusal. A misspelled stage and a
+        # line of the wrong shape are different mistakes with different corrections.
+        if len(words) == 1 and words[0] not in ("seed", "because"):
+            PR.add_stage(g, r, words[0])
+            return
+        if words[0] == "run" and len(words) == 2:
+            PR.add_stage(g, r, words[1], run=words[1])
+            return
+    except PR.Unorderable as e:
+        raise Unreadable(f"line {lineno}: {e}") from None
+    if words[0] == "seed" and len(words) == 2:
+        got = _literal(words[1])
+        if not isinstance(got, int):
+            raise Unreadable(f"line {lineno}: a seed is a whole number, not {words[1]!r}")
+        g.put(r, seed=got)
+    elif words[0] == "because" and len(words) > 1:
+        g.put(r, because=" ".join(words[1:]))
+    else:
+        raise _shape_refused(words, line, lineno, "tie_break")
 
 
 def _advise(g: Graph, gl: str, words: list, line: str, lineno: int, under: str) -> None:
@@ -856,9 +907,12 @@ def _open(g: Graph, verb: str, label: str) -> str:
         # is not (`force-is-the-missing-axis`). What it must never hold is the answer — see `locate.py`.
         return g.mint("question", verb=verb, label=label)
     if verb in CRITERION_VERBS:
-        # Two verbs, one body — the `method`/`procedure` pattern exactly, and for the same reason:
-        # force is about failure and cannot be inferred from content, so the author has to say the word.
-        return CR.declare(g, label, force=(G.MANDATORY if verb == "directive" else G.ADVISORY))
+        # Opened at the default strength; a `must` / `should` / `could` line overrides it. The default is
+        # `should` because that is what an unqualified piece of advice is — it competes, and it does not
+        # refuse. Silence must never mean the strongest reading.
+        return CR.declare(g, label)
+    if verb in TIE_BREAK_VERBS:
+        return PR.open_rule(g, label)
     if verb in TYPE_VERBS:
         # Refuses a redeclaration rather than minting a second type of the same name. Two would both
         # be found by `type_names` and `find_type` would answer with whichever came first — the same
@@ -882,6 +936,8 @@ def _body(g: Graph, verb: str, node: str, words: list, line: str, lineno: int, u
         _type_line(g, node, words, line, lineno)
     elif verb in CRITERION_VERBS:
         _criterion_line(g, node, words, line, lineno, under)
+    elif verb in TIE_BREAK_VERBS:
+        _tie_break_line(g, node, words, line, lineno)
     else:
         _method_line(g, node, words, line, lineno)
 
@@ -920,6 +976,14 @@ def _seal(g: Graph, verb: str, node: str, label: str) -> None:
         if CR.action_of(g, node) is None:
             raise Unreadable(f"`criterion {label}` names no action; recognising a situation and not "
                              f"saying what to do in it is not judgement")
+    elif verb in TIE_BREAK_VERBS:
+        # The closure fact this family needs is *totality*, not non-emptiness — a rule whose last stage
+        # can answer "undecided" leaves pairs in an order nobody chose, which is exactly the undeclared
+        # tie-break the irreproducible search taught this codebase to refuse.
+        try:
+            PR.seal_rule(g, node)
+        except PR.Unorderable as e:
+            raise Unreadable(f"`tie_break {label}`: {e}") from None
     elif not M.steps_of(g, node):
         raise Unreadable(f"`{verb} {label}` has no steps; it would decompose into nothing")
 

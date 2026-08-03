@@ -112,6 +112,21 @@ chosen from it, or done to each of it. It is the most connected gap on this page
 *the newest*, *the three biggest*, *most of them*, *total size*, *the second one* are all downstream
 of it.
 
+### Authority scoped to a subject matter
+
+*The compliance officer outranks everyone on compliance, and nobody on budget.* Authority is an
+`authority_over` edge between two agents, read transitively, so it is global: holding it means holding
+it over everything that agent says.
+
+Deriving authority is not the gap — it is ordinary world data, so a stored function writes one with a
+plain `LINK`, and *"a manager outranks their reports"* is a rule like any other. What cannot be said is
+the *restriction*. The nearest available form is a different and much stronger claim, which is exactly
+the near-miss that must not pass as a paraphrase.
+
+This is the same shape as the denotation gap below: the edge would need to name what it is about, and
+then everything reading it — `norm.outranks`, `precedence`, `discourse.may_withdraw` — would need to
+carry the subject matter it is asking about. It is a change to three readers, not to one edge.
+
 ### Disjunction
 
 *Either A or B is gone*; *it is a file or a directory*. There is no disjunctive constraint in a goal

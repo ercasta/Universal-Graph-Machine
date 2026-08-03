@@ -50,6 +50,7 @@ from __future__ import annotations
 from . import consequent as CQ
 from . import goal as G
 from . import path as P
+from . import precedence as PR
 from . import workbench as W
 from .graph import Graph
 
@@ -63,38 +64,69 @@ SELECTORS = (NEAREST, FURTHEST)
 
 
 def criteria(g: Graph) -> tuple:
-    """Every declared criterion, in declaration order — which is precedence order, free.
+    """Every declared criterion, in precedence order.
 
     Library-region data, like functions, types and guidelines: criteria describe how to act, not what is
     the case, so they do not hang off `root` and are never copied into a workbench.
 
     Withdrawn criteria are skipped — *"ignore that"* has to reach the thing that enumerates, or the block
-    keeps deciding after it was taken back (`discourse.py`)."""
+    keeps deciding after it was taken back (`discourse.py`).
+
+    The one place precedence enters. `decide`, `governing`, `proposals_here` and `disagreements` all
+    read this list and all take the order on trust, so ranking anywhere else would be four places
+    agreeing by hand — the drift class this codebase keeps re-finding. Order is declaration order until a
+    tie-break rule is authored (`precedence.py`), so installing the module changes nothing until somebody
+    says how to rank."""
     from .discourse import live
-    return live(g, g.of_kind("criterion"))
+    from . import precedence as PR
+    return PR.rank(g, live(g, g.of_kind("criterion")))
 
 
 # --- authoring ----------------------------------------------------------------------------------------
-def declare(g: Graph, label: str, *, because: str | None = None, force: str = G.ADVISORY) -> str:
-    """A criterion. `force` is `ADVISORY` (a `criterion`) or `MANDATORY` (a `directive`).
+def declare(g: Graph, label: str, *, because: str | None = None,
+            strength: str = PR.SHOULD, by=None) -> str:
+    """A criterion. `strength` is `must`, `should` or `could`; `by` is who says so.
 
-    Force is about failure, not strength — `docs/deliberation.md`, in a third place. An advisory
-    criterion that turns out wrong costs imagined states, because the enumeration it suppressed was only
-    deferred. A directive that turns out wrong makes the goal unreachable, because it says the
-    alternatives are not worth building — and when it recognises a situation it cannot act in, it
-    refuses rather than quietly letting the search improvise.
+    **Strength carries two axes that used to be one, and only `must` touches the older one.** Force is
+    about failure — `docs/deliberation.md`, in a third place. An advisory criterion that turns out wrong
+    costs imagined states, because the enumeration it suppressed was only deferred. A `must` that turns
+    out wrong makes the goal unreachable, because it says the alternatives are not worth building, and
+    when it recognises a situation it cannot act in it refuses rather than letting the search improvise.
 
-    That is exactly what said only a claim about the situation is entitled to: *"in this situation,
-    this is the move"*, not *"this move looks good here"*. The surface makes the author say which word,
-    the way `method`/`procedure` already does, because force cannot be inferred from content."""
-    c = g.mint("criterion", label=label, force=force)
+    `should` and `could` are both advisory and differ only in precedence. That is the honest reading of
+    the three words: two of them are claims about *how strongly this competes*, and one is additionally a
+    claim about *what happens when it cannot be followed*. Collapsing them would have made `could` refuse,
+    which no author saying "could" means.
+
+    The surface makes the author say which word, the way `method`/`procedure` already does, because
+    neither force nor strength can be inferred from content.
+
+    `by` defaults to `experience` rather than to nothing — see `precedence.source_of`. A criterion
+    nobody vouches for is still attributable, and *"experience says"* is the true attribution for one
+    that was learned."""
+    if strength not in PR.STRENGTHS:
+        raise ValueError(f"strength must be one of {PR.STRENGTHS}, not {strength!r}")
+    c = g.mint("criterion", label=label, strength=strength,
+               force=G.MANDATORY if strength == PR.MUST else G.ADVISORY)
     if because:
         g.put(c, because=because)
+    PR.attribute(g, c, by)
     return c
 
 
 def force_of(g: Graph, c: str) -> str:
+    """The failure axis: `MANDATORY` for a `must`, `ADVISORY` otherwise. Derived, never authored twice."""
     return g.attr(c, "force", G.ADVISORY)
+
+
+def strength_of(g: Graph, c: str) -> str:
+    """The precedence axis: `must`, `should` or `could`."""
+    return PR.strength_of(g, c)
+
+
+def source_of(g: Graph, c: str) -> str:
+    """Who says so. Never `None` — an unattributed criterion is `experience`."""
+    return PR.source_of(g, c)
 
 
 def is_mandatory(g: Graph, c: str) -> bool:
@@ -597,7 +629,8 @@ def describe(g: Graph, c: str) -> str:
     if act is not None:
         args = ", ".join(f"{g.attr(a, 'param')}={g.attr(a, 'ref')}" for a in g.targets(act, "arg"))
         doing = f"{g.attr(act, 'function')}({args})"
-    lines = [f"criterion {g.attr(c, 'label')!r}: when the goal wants "
+    who = g.attr(source_of(g, c), "label")
+    lines = [f"{strength_of(g, c)} {g.attr(c, 'label')!r} (says {who}): when the goal wants "
              f"{g.attr(c, 'wants_sort')} {g.attr(c, 'wants_label') or ''}".rstrip() + f", do {doing}"]
     lines += [f"    {describe_test(g, t)}" for t in tests_of(g, c)]
     return "\n".join(lines)
@@ -607,5 +640,6 @@ __all__ = ["SUBJECT", "OBJECT", "ROLES", "NEAREST", "FURTHEST", "SELECTORS", "Un
            "criteria", "declare", "wants", "test", "does", "action_of", "tests_of",
            "decider", "proposer_for",
            "draw", "draws_of", "names_of", "constraint_label",
-           "resolve_ref", "speaks", "decide", "governing", "force_of", "is_mandatory", "proposals_here", "disagreements",
+           "resolve_ref", "speaks", "decide", "governing", "force_of", "strength_of", "source_of",
+           "is_mandatory", "proposals_here", "disagreements",
            "describe_disagreements", "describe_test", "describe"]

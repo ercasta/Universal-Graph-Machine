@@ -1,0 +1,93 @@
+# Reachability and subgraph copying, as ordinary programs.
+#
+# These were Python — `workbench.reachable` and `workbench._copy_set` — and they looked like primitives.
+# They were not. Both are loops over structure the instruction set could not see, because every graph
+# read took a slot you had already named: `GET dest subj "label"` asks what is at this label, and nothing
+# asked WHICH labels are there. With `NLABELS` / `LABEL_AT` / `NKEYS` / `KEY_AT` / `KIND` they are
+# ordinary programs, and a whole family of would-be natives stops being needed.
+#
+# The scratch node carries the answer as ordered `found` edges, and the caller drops it when done.
+#
+# Membership is a REF ON THE SCRATCH NODE keyed by node id, never a mark on the world. The first version
+# linked `walk -seen-> n` and tested with `SOURCES n "seen"`, which worked and was a trap: an undropped
+# walk from an earlier call left its marks on the world, so the NEXT walk skipped everything the first
+# had seen. Measured — two walks in one graph disagreed. A ref keyed by node id is the same O(1) test,
+# touches nothing outside the scratch node, and makes dropping a matter of tidiness rather than of
+# correctness. A contract that has to be honoured to avoid silent wrong answers is a defect, not a
+# contract.
+
+# Everything reachable from `start` by outgoing edges, in a deterministic order.
+#
+# The order is the whole reason this is careful rather than obvious. `g.labels` is sorted and `g.targets`
+# is insertion-ordered, so the walk is a fact about the graph — and the Python version records what it
+# cost to learn that: returning a `set` substituted the iteration order of node-id strings, and the
+# identical five-block search cost 12 imagined states, then 306, then failed, on consecutive runs of one
+# process. Nothing was ever lost, only made arbitrary, which is why every check still passed.
+#
+# Metadata is not reached, and that falls out rather than being filtered: mappings, applications,
+# hypotheses and plans all point AT domain nodes and are never pointed at by them, so an outgoing-edge
+# walk cannot arrive at one.
+# A STACK, not a queue, and the difference is visible in the answer. The Python this replaces pops the
+# end of a list, so the walk is depth-first, and it marks a node seen when it is POPPED rather than when
+# it is pushed — which means a node can sit on the stack twice and is skipped the second time. Both
+# details change the order, and the order is the thing this function is careful about, so they are
+# reproduced rather than improved on. A better traversal is a different function, not a quieter one.
+fn reachable(start) -> thing:
+    NEW R(walk) "walk"
+    LINK R(walk) "pending" F(start)
+.take:
+    COUNT R(np) R(walk) "pending"
+    JMPNOT R(np) .done
+    ADD R(last) R(np) -1
+    GET_AT R(n) R(walk) "pending" R(last)
+    UNLINK R(walk) "pending" R(last)
+    DEREF R(already) R(walk) R(n)
+    JMPIF R(already) .take
+    SETREF R(walk) R(n) R(n)
+    LINK R(walk) "found" R(n)
+    NLABELS R(nl) R(n)
+    CONST R(i) 0
+.labels:
+    LT R(more) R(i) R(nl)
+    JMPNOT R(more) .take
+    LABEL_AT R(lbl) R(n) R(i)
+    COUNT R(nt) R(n) R(lbl)
+    CONST R(j) 0
+.targets:
+    LT R(more_t) R(j) R(nt)
+    JMPNOT R(more_t) .next_label
+    GET_AT R(t) R(n) R(lbl) R(j)
+    DEREF R(marked) R(walk) R(t)
+    JMPIF R(marked) .skip
+    LINK R(walk) "pending" R(t)
+.skip:
+    ADD R(j) R(j) 1
+    JMP .targets
+.next_label:
+    ADD R(i) R(i) 1
+    JMP .labels
+.done:
+    COPY R(result) R(walk)
+
+# Copy one node: same kind, same attributes, no edges. Edges are a second pass, because a copy cannot
+# link to an image that does not exist yet.
+#
+# `kind` is read with `KIND` and set by minting, never replayed as an attribute. It lives in the same
+# storage as the attributes and is not one of them — it is positional and cannot change after minting, so
+# `NKEYS`/`KEY_AT` exclude it. Replaying it here would make `g.put` refuse a changed kind, and an honest
+# bug would surface as a confusing one.
+fn copy_node(original) -> thing:
+    KIND R(k) F(original)
+    NEW R(image) R(k)
+    NKEYS R(nk) F(original)
+    CONST R(i) 0
+.keys:
+    LT R(more) R(i) R(nk)
+    JMPNOT R(more) .done
+    KEY_AT R(key) F(original) R(i)
+    ATTR R(val) F(original) R(key)
+    SET R(image) R(key) R(val)
+    ADD R(i) R(i) 1
+    JMP .keys
+.done:
+    COPY R(result) R(image)

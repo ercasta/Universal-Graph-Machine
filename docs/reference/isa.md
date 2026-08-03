@@ -48,6 +48,44 @@ matches".
 A `GET` that finds no edge assigns nothing rather than assigning `None`. Writing that would mint an
 edge to `None`, and the graph would stop being able to tell *no part* from *a part that is nothing*.
 
+### Reflecting on a node's shape
+
+Every read above takes a slot you have already named. These ask what the slots *are*.
+
+| opcode | effect |
+|---|---|
+| `KIND dst node` | what it was minted as |
+| `NLABELS dst node` | how many distinct edge labels |
+| `LABEL_AT dst node index` | the label at a position, in sorted order |
+| `NKEYS dst node` | how many attributes, excluding `kind` |
+| `KEY_AT dst node index` | the attribute key at a position, in sorted order |
+
+That single asymmetry — *what is at this label* versus *which labels are there* — is why copying a
+subgraph used to look like a primitive. It is not: `reachable` is a walk over outgoing edges and
+copying a node is minting one with the same kind and attributes, and both are ordinary loops over
+structure the instruction set could not see. They are now written in the surface, in
+`ugm/rules/reachable.mf` and `ugm/rules/workbench.mf`, and `open_workbench` with them.
+
+**These are substrate.** None encodes a decision about goals, plans, time or criteria, so they sit
+below the kernel boundary, and adding them *shrinks* what has to live above it. A single `CLONE`
+opcode was the obvious alternative and was refused: *"the same kind and the same attributes"* is a
+decision, and an opcode that bakes one in is a composite wearing substrate's clothing.
+
+`kind` is read by `KIND` and is not one of the attribute keys. It is positional, it cannot change
+after minting, and letting it out of `KEY_AT` would make a copy written in the surface try to set it
+twice.
+
+**Order is inherited, not invented.** `LABEL_AT` follows `g.labels`' sorted order and `KEY_AT` sorts
+too, because a program that walks a node twice must walk it alike. `workbench.reachable` records
+what the alternative cost: returning a `set` there substituted the iteration order of node-id
+strings, and one five-block search measured 12 imagined states, then 306, then budget-exhausted
+failure, on consecutive runs of a single process.
+
+**Not yet reflectable: edge properties.** `EPROP` reads one named property and nothing enumerates
+them, so a copy written in the surface does not carry them across. That needs `NEPROPS` / `EPROP_AT`
+and is a real gap rather than a simplification — the Python copy had exactly this bug once, and
+nothing failed, because no check copied an edge with properties.
+
 ### The focus
 
 | opcode | effect |

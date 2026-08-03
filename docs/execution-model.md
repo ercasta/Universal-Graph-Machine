@@ -100,6 +100,13 @@ registers, because a finished activation is not state anybody can be inside of.
 
 ## The kernel boundary
 
+This is the **lower** of two lines, and conflating it with the other is easy enough to be worth
+saying once. The kernel boundary separates the substrate from everything we decided; the *horizon*
+([concepts.md](concepts.md)) separates the closed class of primitive forms from the web of authored
+data above it. A port re-implements both layers below the horizon — a `goal` is something we
+decided, so it is business, and it is still primitive. "Business" and "expressible in terms of
+something else" are different questions.
+
 Two principles were both right and collided. Search is a genuine primitive — there is no sequence of
 `GET`/`SET`/`LINK` that imagines a state — so it earns a place beside dispatch. But the kernel may do
 the **substrate** and must never do **business**, where business is anything we decided about how to

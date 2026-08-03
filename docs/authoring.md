@@ -223,29 +223,35 @@ drawn twice.
 **`do <function> <param> = <ref>, <param> = <ref>`** is required. The action *with its arguments*,
 which is the whole of what a criterion adds over a guideline.
 
-### Force
+### Strength
 
-| | suppresses enumeration | when it cannot act |
-|---|---|---|
-| `criterion` | **defers** it — being wrong costs imagined states | falls silent; the search carries on |
-| `directive` | does **not** defer — the alternatives are never built | **refuses** |
+One line, and it carries two axes. `must` is the only one that touches failure; `should` and `could`
+are both advisory and differ only in which is consulted first.
+
+| line | suppresses enumeration | when it cannot act | competes |
+|---|---|---|---|
+| `must` | does **not** defer — the alternatives are never built | **refuses** | first |
+| `should` (the default) | **defers** it — being wrong costs imagined states | falls silent | second |
+| `could` | defers it | falls silent | last |
 
 ```cnl
-directive always clear the pile before stacking:
+criterion always clear the pile before stacking:
+    must
+    by operations                           # whose judgement this is; absent, it is `experience`
     wants link on
     when subject.^on is there               # THE GUARD - see below. Not optional.
     do unstack b = furthest subject by ^on, floor = the ground
     because a mandatory rule must say when it applies
 ```
 
-**Guard your directives.** *Recognising the situation* is exactly what the `when` and `unless` lines
-say, so a directive with none recognises every matching unmet constraint — and refuses in all of
+**Guard your `must` rules.** *Recognising the situation* is exactly what the `when` and `unless` lines
+say, so one with none recognises every matching unmet constraint — and refuses in all of
 them, becoming a blanket veto over everything declared after it. Mandatory force obliges you to say
 what to do in every case you claimed to govern; that is the price of removing the fallback.
 
-Drop the `when` line above and the directive clears the pile, then meets a goal with nothing left on
+Drop the `when` line above and it clears the pile, then meets a goal with nothing left on
 the subject, recognises it, cannot act, and refuses, before anything declared after it is consulted.
-That is not a bug; it is what you asked for by writing `directive`.
+That is not a bug; it is what you asked for by writing `must`.
 
 A criterion with no `wants` has no variables; one with no `do` recognises a situation and then
 declines to say what to do in it. Both are refused.
@@ -267,6 +273,44 @@ a typo look exactly like judgement that did not apply.
 The refusal is about what could never work, not about what does not apply here. A well-formed `do`
 whose arguments happen to resolve to nothing, or to something the goal forbids, stays silent — that is
 still a situation, and asking why not will tell you about it.
+
+## `tie_break`
+
+When two criteria both speak, something has to decide which one is heard. That decision is authored
+here rather than built in, because *how this domain arbitrates* is domain knowledge — and a rule
+living in Python is one nothing can read, quote or withdraw.
+
+```cnl
+tie_break house rules:
+    authority
+    force
+    specificity
+    random
+    seed 7
+    because a senior judgement outranks a narrow one here
+```
+
+One comparison per line, consulted top to bottom; the first that decides, decides.
+
+| line | decides by | order |
+|---|---|---|
+| `authority` | who said it — transitively, over `authority_over` | partial |
+| `force` | `must` > `should` > `could` | total |
+| `specificity` | whose conditions are tighter, structurally | partial |
+| `random` | a stable hash of the seed and the rule | total |
+| `run <fn>` | a stored function, answering with the rule that comes first | unknown |
+
+**The last line must decide every pair.** Two of the comparisons are partial orders — they answer
+*undecided* for most pairs — so a rule ending in one leaves rules in an order nobody chose. That is
+refused where it is written. `run <fn>` may never sit last, because nothing can show a function is
+total.
+
+**Nothing is ranked until you write one.** With no `tie_break` block, criteria are consulted in the
+order they were declared, exactly as before.
+
+**`run <fn>` is the escape from this table.** Ranking by seniority, by recency, by how often a rule
+has been right before — none of those need a change to the engine. The function is called with the
+two rules and answers with the one that comes first, or with nothing to pass.
 
 ## `what` / `where` / `when`
 
