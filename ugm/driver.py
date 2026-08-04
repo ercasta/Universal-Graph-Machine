@@ -1631,14 +1631,14 @@ def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused, sea
             "refused": refused, "blocked_by": tuple(sorted({r for _n, rs in refused for r in rs}))}
 
 
-def _record_execution(g: Graph, thread: str, goal: str, plan: dict, report: dict) -> None:
+def _record_execution(g: Graph, thread: str, goal: str, plan: dict, ran: tuple) -> None:
     """Put what really ran on the thread, marked `done`.
 
     Until this existed the thread held only *planning* — every proposal considered, including abandoned
     branches — and nothing about what actually happened. Anything reasoning over consequences was therefore
     reading the search rather than the actions, which is how `conflict.interference` first came to report
     two goals disagreeing over an idea neither of them acted on."""
-    for frame, name in zip(plan["plan"][1:], report["ran"]):
+    for frame, name in zip(plan["plan"][1:], ran):
         tr = g.target(frame, "via")
         if tr is None:
             continue
@@ -1720,14 +1720,42 @@ def open_pursuit(g: Graph, goal: str, thread: str, subject: str, *, attempts: in
     return p
 
 
-def _attempt(g: Graph, p: str, **fields) -> str:
+def _attempt(g: Graph, p: str, *, diverged=None, ran_of=None, of_plan=None, **fields) -> str:
+    """Record an attempt. What it *says* is written here as edges to the things it is about; what it
+    *reads like* is made in `_history`.
+
+    Three fields used to be Python values an attempt could not have been given by a rule: `diverged` held
+    the string `execution.report` produces, and `ran` and `steps` held tuples. **A rule can build none of
+    the three**, so a phase machine in the surface could not have written these lines — which is the
+    same defect as `execution.step`'s prose, one level out and wearing no sentences at all.
+
+    So: `diverged` and `ran_of` are **replays**, `of_plan` is the **frame** the plan ends at, and the
+    tuples and sentences are rendered from them on the way out."""
     a = g.mint("attempt", **fields)
+    for label, node in (("diverged", diverged), ("ran_of", ran_of), ("plan_frame", of_plan)):
+        if node is not None:
+            g.link(a, label, node)
     g.link(p, "attempt", a)
     return a
 
 
 def _history(g: Graph, p: str) -> tuple:
-    return tuple({k: v for k, v in g.attrs[a].items() if k != "kind"} for a in g.targets(p, "attempt"))
+    """The attempts as the dicts every caller here already speaks — with `diverged`, `ran` and `steps`
+    **rendered** from the nodes the attempt points at rather than stored on it."""
+    out = []
+    for a in g.targets(p, "attempt"):
+        d = {k: v for k, v in g.attrs[a].items() if k != "kind"}
+        diverged, ran_of, frame = (g.target(a, "diverged"), g.target(a, "ran_of"),
+                                   g.target(a, "plan_frame"))
+        if diverged is not None:
+            d["diverged"] = X.report(g, X.report_of(g, diverged))
+        if ran_of is not None:
+            d["ran"] = X.ran_of(g, ran_of)
+        if frame is not None:
+            wb = g.target(g.target(a, "diverged") or ran_of, "workbench")
+            d["steps"] = plan_steps(g, {"found": True, "plan": X.path_to(g, wb, frame)})
+        out.append(d)
+    return tuple(out)
 
 
 def pursuit_report(g: Graph, p: str) -> dict:
@@ -1816,25 +1844,29 @@ def _phase_planning(g: Graph, p: str, **hooks) -> bool:
     return True
 
 
+# The two phases below read the **replay node** and never a report of it. `report_of` is a rendering for
+# a Python caller — a dict of tuples and sentences — and a phase machine written in the surface could
+# neither build one nor read one. Everything they need is on the node: `completed` is *no deviation*,
+# and what ran is an ordered edge. See `execution.report_of`, which is now only for readers.
 def _phase_acting(g: Graph, p: str, **_hooks) -> bool:
     r = g.target(p, "replay")
     if X.step(g, r):
         return True                              # one real action; still acting
-    report = X.report_of(g, r)
+    completed = X.deviation_of(g, r) is None
     plan = _plan_of(g, p)
-    _record_execution(g, g.target(p, "thread"), g.target(p, "goal"), plan, report)
-    a = _attempt(g, p, attempt=g.attr(p, "at", 0), planned=True, steps=plan_steps(g, plan),
-                 ran=report["ran"], completed=report["completed"])
+    _record_execution(g, g.target(p, "thread"), g.target(p, "goal"), plan, X.ran_of(g, r))
+    a = _attempt(g, p, attempt=g.attr(p, "at", 0), planned=True, completed=completed,
+                 ran_of=r, of_plan=g.target(p, "plan_frame"))
     g.link(p, "record", a)
 
-    if report["completed"]:
+    if completed:
         g.put(p, phase=CHECKING)
         return True
     # A contingency is tried before replanning, on evidence rather than taste: an explored sibling is
     # already verified against this world and a fresh plan is not (`execution.recover`).
     resumed = X.resume_replay(g, r)
     if resumed is None:
-        g.put(a, diverged=X.report(g, report))
+        g.link(a, "diverged", r)                 # the replay itself; `_history` renders it
         g.put(p, phase=CHECKING)
         return True
     g.link(p, "replay", resumed)                 # the pursuit's current replay is now the contingency
@@ -1846,13 +1878,16 @@ def _phase_recovering(g: Graph, p: str, **_hooks) -> bool:
     r = g.targets(p, "replay")[-1]
     if X.step(g, r):
         return True
-    report, a = X.report_of(g, r), g.target(p, "record")
-    if report["completed"]:
-        g.put(a, recovered="contingency", completed=True, ran=report["ran"])
+    a = g.target(p, "record")
+    if X.deviation_of(g, r) is None:
+        g.put(a, recovered="contingency", completed=True)
+        while g.count(a, "ran_of"):              # what ran is now the contingency's account
+            g.unlink(a, "ran_of", index=0)
+        g.link(a, "ran_of", r)
     else:
-        # The divergence reported is the original one. A contingency that also failed does not replace
+        # The divergence recorded is the ORIGINAL one. A contingency that also failed does not replace
         # the account of what went wrong first — that is what the next attempt has to reason from.
-        g.put(a, diverged=X.report(g, X.report_of(g, g.targets(p, "replay")[0])))
+        g.link(a, "diverged", g.targets(p, "replay")[0])
     g.put(p, phase=CHECKING)
     return True
 

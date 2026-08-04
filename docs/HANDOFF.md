@@ -428,9 +428,34 @@ surface function at three world sizes before believing its ratio.
 [comparison.md](comparison.md) — moving `execution.step` down bought **nothing** in execution terms and
 bought a readable record of the one loop that touches the world. The residue is the product.
 
-**What is left is `driver._phase_*`.** Reads, guards, one call, attribute writes and unlinks; its
-`_PHASES[phase]` dispatch is what a dynamic `INVOKE` does. Every prerequisite is now in, and it reports
-in prose in several places — apply the test above rather than looking only for f-strings.
+**What is left is `driver._phase_*`** — and it is **not one item**. Audited by enumerating what the five
+phase bodies actually call, rather than from a list, because the list was wrong last time:
+
+| | what | state |
+|---|---|---|
+| **A. seams — dicts, tuples and prose** | | |
+| A1 | `driver.step`'s **result dict**. `found`/`how`/`length` are already on the search node; `why` is prose built at the end by `_exhausted` / `_stopped` | the `_diverge` / `_DEVIATION_PHRASE` fix again |
+| A2 | `X.report_of` inside the phases | ✅ **done** — `_phase_acting` and `_phase_recovering` read the replay node |
+| A3 | an attempt's `diverged` (a sentence), `ran` and `steps` (tuples) | ✅ **done** — edges to the replay and the plan frame; `_history` renders |
+| A4 | `T.attend(why=…, note=…)` at ~6 sites; `_record_execution` | facts + renderer, not yet done |
+| **B. constructors** | | |
+| B1 | `open_planning` — the `plan` native takes only `(goal, subject, thread)` and drops `max_steps` / `max_depth` / `guided`, which are **attributes of the pursuit** | widen the native to read them |
+| B2 | `X.open_execution` — `path_to` plus seeding frame 0 | portable |
+| B3 | `_looker_for` / `_looker_on` scan a rule **body** for a `DISPATCH` whose tool only observes | ⚠ **a capability gap**: nothing in the surface reads a body's instructions |
+| **C. one genuine blocker, and it is a design decision** | | |
+| C1 | **the hooks.** `rank`, `allow` and `trace` are *Python callables* threaded from `carry_out` / `follow` through `open_planning` and `step` | **cannot cross at all** |
+
+⚠⚠⚠ **C1 is the purest instance of the defect this whole arc keeps meeting** — a value a rule can
+neither build nor read — and unlike the others it has no mechanical translation. Two honest answers, and
+they should be chosen between rather than drifted into: make hooks **named functions in the graph** (which
+is what [advice-over-sequences.md](advice-over-sequences.md) wants anyway, and `_warn_if_advice_is_inert(g, rank)`
+already hints that `rank` has an authored counterpart), or let the surface phase machine serve the
+no-hook path with Python keeping a wrapper for callers that pass one. **Do not start B or C before
+deciding C1**, because it decides whether `_phase_planning` can move at all.
+
+`_phase_acting` and `_phase_recovering` are the two that are nearly free now: what remains in them is
+`_record_execution` and `_plan_of`. `_phase_checking` is next-easiest — `goal.holds` is already live
+beneath `G.satisfied`.
 
 The three swaps are the template: **write the wrapper first**, keep the Python beside it as `_python_*`,
 and take the comparison check through *every* route the wrapper offers — that is what `workbench.mf`'s
