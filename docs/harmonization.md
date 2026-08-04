@@ -382,10 +382,48 @@ that is what a forest is *for*. An effort-bounded interpreter that proposes and 
 readings it does not try. So the combinatorial fear is inherited from the architecture being replaced,
 and it is one more argument for replacing it.
 
+### Seed it by hand — this is theory REVISION, not induction
+
+Nothing requires learning from nothing. **Author an initial configuration that is good enough, then kick
+harmonization off to find a better one.** That is a different and much better-behaved problem than
+induction from scratch, and it also has a name: **theory revision** (Wrobel; Ourston & Mooney's EITHER;
+Richards & Mooney's FORTE) — start from an approximately-correct theory and repair it. Smaller search,
+better conditioned, and the seed carries domain knowledge a learner would otherwise have to rediscover.
+
+Four things follow, and the first is the reason to prefer it.
+
+* ⭐⭐⭐ **It supplies the objective for free**, which is the hardest item in the next section. A working
+  configuration *is* a reference behaviour — and this document already specifies exactly that acceptance
+  test: the target is fixed, validation is by **invariance**, and *"the criterion is behavioral and
+  `application.py` already holds the record"*. Seeded harmonization is therefore **behaviour-preserving
+  improvement**, not induction, and needs no labelled corpus at all.
+* ⭐⭐ **It cannot go below the seed.** Gate acceptance on not regressing and the process is
+  monotone by construction — which the annealing accept/reject already is. Pure induction has no such
+  floor and can fail silently.
+* ⭐ **It is the pattern this codebase already uses, one level up.** `_python_step`,
+  `_python_open_workbench`, `_python_holds` are kept as *references* that a swap is checked against. The
+  hand-built configuration is the same thing for rules: the reference the learned one must not do worse
+  than.
+* **It stages the deliverable.** There is a working system before any learning exists, so the learning
+  becomes an optimisation that can be deferred rather than a prerequisite — which matters given
+  everything else on the plan.
+
+⚠ The honest cost: **a seed biases the search.** Improvements will be found near it, and a structurally
+different and better configuration may never be reached. Annealing is precisely the method that answers
+that — temperature is what lets the search leave the seed's basin — so the already-chosen method is the
+right one again, but the parameter is now doing real work rather than being decoration. And note that the
+*forms* bound everything by assumption; nothing here searches over those.
+
+⭐ A middle path worth remembering: the seed need not be authored either. `compile_episode` and
+`application.generalise` turn traces into reusable functions, so a few interpretations done by hand can
+be **harvested** into the initial rules rather than written as rules.
+
 ### What is genuinely hard
 
-* **The objective.** Targets have to come from somewhere: hand-authored pairs (expensive, and the corpus
-  is small), an LLM at the boundary, or **task success** — the most attractive signal and the sparsest.
+* **The objective** — *if learning from scratch*. Targets have to come from somewhere: hand-authored
+  pairs (expensive, and the corpus is small), an LLM at the boundary, or **task success**, the most
+  attractive signal and the sparsest. ⭐ Seeding removes this item entirely, which is the strongest
+  argument for starting there.
 * **Overfitting**, in its classic inductive form: too specific and a rule fires only on the sentence it
   was learned from; too general and it overgenerates. ILP's answer is a compression / MDL criterion, and
   this would want one. It is the same failure this document already names as **over-conditioning**.

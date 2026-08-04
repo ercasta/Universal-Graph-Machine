@@ -2151,6 +2151,79 @@ def check_carrying_a_plan_OUT_is_steppable_and_the_steps_are_the_IRREVERSIBLE_on
             "turns": turns}
 
 
+def check_A_RULE_CAN_BUILD_A_RUNNABLE_GOAL():
+    """**What must interpretation produce for the engine to run?** — answered by construction.
+
+    Before designing how an utterance becomes a goal, it is worth knowing what the *output* has to be,
+    because everything downstream is specified by it. The answer is two node kinds and four edges:
+
+        goal        { label, verb }    -requires->  constraint
+        constraint  { sort, label }    -subject->   <a real node>
+                                       -object->    <a real node>
+
+    and that is the whole of it. `sort` comes from the **closed class** — `link`, `attr`, `type`,
+    `known` and the three plan sorts — so the output space of interpretation is bounded by the closed
+    class rather than being open-ended, which is what the closed class is for.
+
+    The load-bearing claim, and the reason this is a check rather than a note: **a rule can build it with
+    nothing but the eight closed vocabulary names.** No `goal.py`, no `intake.py`, no native. So the
+    *representation* half of reachability is already closed — a language rule that could ground its
+    references could produce a runnable goal today.
+
+    ⚠ Two things this deliberately does **not** show. **Starting the pursuit is still Python**
+    (`driver.carry_out` / `open_pursuit`, `loop.schedule`), which is the reachability gap the plan calls
+    P2 and which is asserted below so that closing it is a deliberate act. And **grounding is untouched**:
+    the rule is *handed* the two real nodes. Deciding that the token "a" denotes `block#1766` is
+    reference resolution, it is the genuinely hard part of interpretation, and it is not a question about
+    graph shape at all.
+
+    Vacuity guards: the goal must be unsatisfied before the run and true in the real world after, or
+    "the engine ran it" would be satisfied by a goal that was already met."""
+    from . import asm, driver as D, function as fn, goal as G, native as N, thread as T
+    g, w = _blocks()
+    a, b, _c = g.targets(w, "block")
+
+    # Authored entirely through the closed vocabulary — `make`, `set_slot`, `relate`. Nothing else.
+    asm.load_text(g, _lines(
+        "fn want_on(subj, obj, label) -> thing:",
+        '    INVOKE R(gl) make kind="goal"',
+        '    INVOKE R(_) set_slot node=R(gl) key="label" value="built by a rule"',
+        '    INVOKE R(_) set_slot node=R(gl) key="verb" value="goal"',
+        '    INVOKE R(c) make kind="constraint"',
+        '    INVOKE R(_) set_slot node=R(c) key="sort" value="link"',
+        '    INVOKE R(_) set_slot node=R(c) key="label" value=F(label)',
+        '    INVOKE R(_) relate node=R(c) label="subject" other=F(subj)',
+        '    INVOKE R(_) relate node=R(c) label="object" other=F(obj)',
+        '    INVOKE R(_) relate node=R(gl) label="requires" other=R(c)',
+        "    COPY R(result) R(gl)"))
+    goal = fn.invoke(g, "want_on", {"subj": a, "obj": b, "label": "on"}, retain=False)[1]["result"]
+
+    # Read BEFORE the run: pursuing it closes the goal, and a closed goal renders differently. The first
+    # version of this check asserted the description afterwards and went red on its own success.
+    reads_as = G.describe(g, goal)
+    before = G.satisfied(g, goal, under=w)
+    report = D.carry_out(g, goal, T.open_thread(g), w, attempts=2)
+
+    # The reachability gap, asserted so that closing it is deliberate rather than accidental. When P2
+    # lands and a pursuit can be started by name, this line goes red and should be *deleted*, not fixed.
+    starting_is_still_python = (fn.find(g, "open_pursuit") is None
+                                and "open_pursuit" not in N.names()
+                                and "carry_out" not in N.names())
+
+    return {"A_RULE_BUILT_A_GOAL_WITH_ONLY_THE_VOCABULARY": g.kind(goal) == "goal",
+            "and_it_reads_back_as_one": reads_as == "goal: built by a rule [a on b]",
+            "THE_ENGINE_PLANNED_AND_RAN_IT": report["done"] is True,
+            "and_the_REAL_WORLD_agrees": g.target(a, "on") == b,
+            # Vacuity: it was not already true, so the run did the work.
+            "it_was_NOT_already_satisfied": before is False,
+            "and_it_is_now": G.satisfied(g, goal, under=w) is True,
+            # The constraint sort is from the closed class, which is what bounds interpretation's output.
+            "the_sort_is_from_the_CLOSED_CLASS":
+                g.attr(g.target(goal, "requires"), "sort") in ("link", "attr", "type", "known"),
+            # ...and the gap that remains, recorded rather than implied.
+            "BUT_STARTING_A_PURSUIT_IS_STILL_PYTHON": starting_is_still_python}
+
+
 def check_EXECUTION_STEP_IS_AN_ORDINARY_PROGRAM():
     """The last big Python island in the plan-act-check loop, written in the surface.
 

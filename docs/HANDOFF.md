@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **260 checks, 0 failing**, in 90–120 seconds depending
+**Verify:** `python -m ugm.selftest` — currently **261 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
 same minutes** — `git stash -u`, measure, pop — never against a number written down earlier.
@@ -329,6 +329,135 @@ anticipatory: a native that ignores the context can finally be *caught*.
 
 ## What to do next
 
+## ONE PLAN — de-Pythonization and de-parserization are the same arc
+
+There are two open arcs and they were being planned separately. They should not be.
+
+* **De-Pythonization** — the system's own machinery written in the surface, so it can be inspected and
+  changed. Remaining: `driver._phase_*`.
+* **De-parserization** — intake stops being a *parser*. Interpretation becomes **proposal + selection**
+  over the web, because a parser decomposes an utterance before any knowledge is consulted, which is
+  Fodor's error at the front door. See [comparison.md](comparison.md) §Language.
+
+⭐⭐⭐ **They meet at REACHABILITY**, and that is the criterion that orders both. De-Pythonization has
+been asking *"can the system inspect and change its planning?"*; de-parserization needs *"can a **rule**
+reach it?"* — and every remaining item on the first arc is a prerequisite of the second. The plan below
+is therefore in **dependency order**, not arc order, and the numbered sections after it are the detail.
+
+⭐⭐⭐ **The unification settles the one open design question.** Item 3's blocker C1 — *are the hooks
+(`rank`, `allow`, `trace`) named functions in the graph, or does Python keep a wrapper?* — was recorded as
+a choice. **De-parserization decides it**: harmonization's whole proposal is to *learn the rule ordering*,
+and **you cannot learn a Python callable**. Hooks must become data. That is no longer a judgement call.
+
+| phase | what | why it is here, and what it unblocks |
+|---|---|---|
+| **P0** | `_covers` **precompute** at `define` time; the **reachability pass** (an `access.offenders` analogue: *is there a name a rule can call?*) plus one check that goes red | cheap, decisive, and measures rather than argues. Dispatch is quadratic in *applicable* bodies (63 ms at 100) and the order is **static**, so this is recomputation. Everything downstream is dispatch-heavy |
+| **P1** | the **addressing half of a guard** — `wants <sort> <label>` on function bodies, which `criterion.py` has and function guards lack | one change buys the **index** (cheap dispatch) *and* the *"which tokens do I look at"* semantics a construction needs. Also the groundwork for predicate dispatch slice 3 |
+| **P2** | **starting a pursuit** must be reachable — `open_pursuit` / `carry_out` / `loop.schedule`, `open_planning` (reading `max_steps` / `max_depth` / `guided` off the pursuit), `open_execution`. ⭐ **Not** the goal constructors: see below | de-Pythonization's cluster B **and** the language arc's precondition. Smaller than it looked |
+| **P3** | **hooks become data** — `rank` / `allow` / `trace` as named functions and precedence stages; add the missing **`by experience`** comparator (`EXPERIENCE` is only an attributor today; `application.py` holds the record) | decided by P2's needs rather than open. Unblocks `_phase_planning`, and *is* the learned-order artifact harmonization needs |
+| **P4** | **`driver._phase_*` in the surface** — the seams (`driver.step`'s result dict, `T.attend`'s prose), then the machine | the last of arc one. After it a rule can drive plan-act-check end to end |
+| **P5** | **interpretation as proposal + selection** — hand-seeded, forms fixed, improved by harmonization as **theory revision** | needs P1–P3. The hypothesis machine it runs on is **already reachable** (see §0) |
+
+**What this plan deliberately does not contain**: a chart parser, more `intake.py` verb families (the
+budget stands — a new way of saying something is an interpretation rule in the web), and predicate
+dispatch **slice 4**, which advice-over-sequences still wants but which is not on the language critical
+path.
+
+⚠ Two things are worth doing *before* P0 rather than after, because both are cheap and either could
+change the plan: the **guard-address probe** (blank the addressing half on utterances whose target
+structure is known; does search recover it, and how does the space grow?) and confirming that `_covers`
+really is static in practice, not just by signature.
+
+### ⭐⭐⭐ What interpretation must PRODUCE — settled, and smaller than expected
+
+Before designing how an utterance becomes something the engine runs, it is worth knowing what the
+*output* must be, since everything downstream is specified by it. Answered by construction rather than by
+design, in `check_A_RULE_CAN_BUILD_A_RUNNABLE_GOAL`:
+
+```
+goal        { label, verb }    -requires->  constraint
+constraint  { sort, label }    -subject->   <a real node>
+                               -object->    <a real node>
+```
+
+**Two nodes and four edges.** `sort` comes from the **closed class** (`link`, `attr`, `type`, `known`,
+plus the three plan sorts), so the *shape* of the target is bounded — which is what makes
+[harmonization.md](harmonization.md)'s training formulation plausible at all.
+
+⚠⚠⚠ **But the target is not "lower it to the closed class", and reading it that way is Fodor's error one
+level up.** The *shape* is closed; the **content is a web reference**, and interpretation should leave
+meaning at the level the utterance expressed it. Three of the four sorts already point *into the web*
+rather than into primitives:
+
+* `sort: type` names an **authored type** — a schema defined elsewhere, with its own `base` chain. *"the
+  room is tidy"* becomes a reference to `tidy_room`, and what tidy *means* stays where it was authored.
+* a goal an authored **method** decomposes — `method.applicable` / `decompose` raise subgoals **at plan
+  time**, not at interpretation time.
+* `require_action(function=…)` names an authored **function**.
+
+So **lowering is demand-driven and partial**: a method expands when planning needs it, a type is checked
+when `holds` asks, and neither happens while interpreting. That is the horizon doc's third answer —
+*relate it in the web*, never decompose — and mistaking it for a decomposition is exactly the error this
+project names after Fodor. It is also the only way non-compositional constructions can work at all:
+*kick the bucket* has no decomposition, only a reference.
+
+Two consequences worth having in view before the language work:
+
+* ⭐ **The learner's job shrinks and is better posed.** Learning *"tidy" → the type `tidy_room`* is a
+  **reference**, not a decomposition — so it never has to rediscover what tidy means, because that is
+  authored. This is the line between learning *language* and learning *the domain*, and only the first is
+  in scope.
+* ⚠ **The failure mode this invites has a name here already** — an interpretation naming a concept that
+  nothing answers *parses, runs, and means nothing*, the island catalog's dangerous verdict, and the same
+  rule `consequent.py` states as *a tag with nothing that runs it is worse than no form*.
+
+  ⚠⚠ **But do not turn that into "every utterance must trigger something".** It must not: stating a fact
+  triggers nothing and has *succeeded* — it added facts. Asking triggers an answer. Only a directive
+  makes the engine run. A pass that warns whenever an utterance activates no machinery would fire on most
+  of the language.
+
+  The test that survives is narrower and uses an axis this project already has: **did the interpretation's
+  claimed FORCE have a counterpart?** An assertion that records facts is fine. A *goal* that claims to be
+  pursuable while naming a type nobody declared has failed on its own terms. Nothing else is checkable,
+  and nothing else should be.
+
+### Silent failure is acceptable; UNRECORDED failure is not
+
+The system is heuristic and nobody should claim it is always correct — so an interpretation that quietly
+gets it wrong is not a defect in the design, and refusing everything unrecognised is what makes a
+controlled language brittle (`0/50` on raw prose is that failure, not a coverage failure).
+
+⭐⭐ **The line to hold is therefore not correctness but accountability.** Do not warn, do not refuse, do
+not block; **record what the reading could and could not account for**, and let whoever cares ask
+afterwards. Warning at interpretation time would be the parser's error one more time — committing before
+the consumer knows whether the gap matters — while recording is demand-driven like everything else here.
+That is the residue thesis ([comparison.md](comparison.md)) doing exactly what it exists for: the honest
+deliverable of a heuristic system is not *"always right"* but *"always able to say what it did and on
+what basis"*.
+
+⚠ **One boundary, and the machinery for it already exists.** A silent misreading is benign right up until
+it becomes an **irreversible act**. `loop.IRREVERSIBLE = {ACT}` already distinguishes those steps, and
+`loop.py` already states the property: *"the loop can decline to take the step; it cannot make the step
+reversible."* So the rule is not *never fail silently* but **never act on an unaccounted-for reading
+without the chance to decline** — a policy written against existing machinery rather than a guarantee
+about interpretation.
+
+⭐ And the *fallback* is an ordinary construction rather than an error path: an utterance matching nothing
+specific falls to the **elsewhere case**, which records it as what `discourse.py` already makes it — a
+world event with a speaker — losing nothing and claiming nothing.
+
+⭐⭐ **A rule can already build it, with nothing but the eight closed vocabulary names** — no `goal.py`,
+no `intake.py`, no native. The check authors a goal through `make` / `set_slot` / `relate`, and the
+engine plans it, runs `stack` for real, and the world agrees. So **the representation half of
+reachability is already closed**, and P2 shrinks accordingly: the goal constructors are *not* needed,
+only the means of **starting a pursuit**.
+
+⚠ And it isolates the genuinely hard part, which is not a graph-shape question at all. The rule above is
+*handed* its two real nodes. Deciding that the token "a" denotes `block#1766` is **grounding** —
+reference resolution — and it is orthogonal to both arcs. Everything in this plan makes the *machinery*
+reachable; none of it grounds a reference. That is worth stating plainly before the language work starts,
+so the remaining difficulty is not mistaken for an engineering gap.
+
 ### ⚠⚠⚠ 0. REACHABILITY — the criterion the arc has not been using, and it changes the order
 
 **Everything moved so far is a *stepper*.** `workbench.step`, `goal.holds`, `deviates`,
@@ -361,13 +490,17 @@ What is and is not reachable today, which is less bad than it sounds:
   which is the second-implementation-that-drifts defect this codebase keeps recording.
 * ✅ reading a goal — `rules/holds.mf` is live.
 * ✅ planning — `NATIVE "plan"` / `"plan_step"`.
-* ❌ the constructors, the pursuit loop, and `_ensure_*` loading, which is driven by the Python wrappers.
+* ❌ **starting a pursuit** (`open_pursuit` / `carry_out` / `loop.schedule`), and `_ensure_*` loading,
+  which is driven by the Python wrappers.
 
-**Do this before the rest of item 3**: cluster B of the audit below (the constructors) is what
-reachability needs, and B1/B2 are small. The honest first move is a **pass** rather than a port — the
-analogue of `access.offenders`, asking of each piece of machinery *is there a name a rule can call?* —
-plus one check that goes red today and says so: *a rule, with no Python between it and the goal, opens a
-goal, constrains it, and drives a pursuit to completion.*
+✅ **Half of this is already measured rather than argued.** `check_A_RULE_CAN_BUILD_A_RUNNABLE_GOAL` is
+green: a rule authors a goal through the vocabulary alone, the engine plans it, and the world changes.
+It also asserts the remaining gap explicitly — *starting a pursuit is still Python* — so that closing it
+is a deliberate act, and the check tells you to **delete that line** rather than fix it when P2 lands.
+
+**Do this before the rest of item 3**: only the *pursuit* half of cluster B is needed, and it is small.
+The other honest first move is a **pass** rather than a port — the analogue of `access.offenders`, asking
+of each piece of machinery *is there a name a rule can call?*
 
 **The arc is de-Pythonization, and one item of it is left.** Everything in this section before item 5 is
 that arc; items 5 onward are correctness or capability. Nothing in the workbench exists twice any more,
@@ -486,12 +619,15 @@ phase bodies actually call, rather than from a list, because the list was wrong 
 | C1 | **the hooks.** `rank`, `allow` and `trace` are *Python callables* threaded from `carry_out` / `follow` through `open_planning` and `step` | **cannot cross at all** |
 
 ⚠⚠⚠ **C1 is the purest instance of the defect this whole arc keeps meeting** — a value a rule can
-neither build nor read — and unlike the others it has no mechanical translation. Two honest answers, and
-they should be chosen between rather than drifted into: make hooks **named functions in the graph** (which
-is what [advice-over-sequences.md](advice-over-sequences.md) wants anyway, and `_warn_if_advice_is_inert(g, rank)`
-already hints that `rank` has an authored counterpart), or let the surface phase machine serve the
-no-hook path with Python keeping a wrapper for callers that pass one. **Do not start B or C before
-deciding C1**, because it decides whether `_phase_planning` can move at all.
+neither build nor read — and unlike the others it has no mechanical translation.
+
+✅ **And it is now decided, by the other arc.** It was recorded as a choice between making hooks **named
+functions in the graph** and letting Python keep a wrapper for the hook path. Harmonization's proposal is
+to **learn the rule ordering** ([harmonization.md](harmonization.md) §Harmonization as training), and
+**you cannot learn a Python callable** — so hooks become data, and `rank` in particular becomes the
+learned-order artifact. That is phase **P3** above, and it also wants the missing `by experience`
+comparator. `advice-over-sequences.md` wanted the same thing, and
+`_warn_if_advice_is_inert(g, rank)` was already hinting that `rank` had an authored counterpart.
 
 `_phase_acting` and `_phase_recovering` are the two that are nearly free now: what remains in them is
 `_record_execution` and `_plan_of`. `_phase_checking` is next-easiest — `goal.holds` is already live
@@ -630,7 +766,12 @@ walks from there with **no view**, because at that point it holds a context rath
 schemas in the corpus are attribute-shaped so nothing catches it. It wants a world where a parameter
 type's *schema* depends on a neighbour the frame changed.
 
-### 7. Predicate dispatch, slices 3–4 — a capability, not part of the arc, and now the one to want
+### 7. Predicate dispatch, slices 3–4 — now split by the unified plan
+
+⚠ **Read the phase table first.** **Slice 3** (conditions speaking of the ambient goal) is on the
+critical path as **P1**'s sequel; **slice 4** (`wants_that_unblock`, a failed condition becoming a
+subgoal) is *not* on the language path and stays a capability to want. The rest of this section is the
+original argument, which still holds.
 
 [predicate-dispatch.md](predicate-dispatch.md). **Slice 3** — conditions that speak of the ambient goal,
 reached by walking the chain, which is what makes *go to the bank* work when the world alone cannot
