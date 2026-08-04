@@ -270,6 +270,42 @@ Two things follow, and neither is a wall.
 
 Both are probes, and both are affordable before any language design is written.
 
+### Two things that make it concrete
+
+**The first rules would have to bootstrap a hypothesis-evaluating machine** — something that holds
+several *valid* readings at once and decides between them on evidence, rather than a rule producing an
+interpretation directly. ⭐ **That machine already exists and is already reachable from a rule.** It is
+the workbench: `open_workbench` and `step` are live surface functions, `fork` is literally
+`return step(…)`, and `deviates` / `unmet_expectations` / `predicted_changes` / `holds` are all live.
+So a reading is a **frame**, an ambiguity is a **fork**, each branch carries a `hypothesis` node
+recording what it took on faith, `fragile_steps` names where it is guessing, and the abandoned branch
+stays as data. *"Why did you read it that way?"* is then answerable from the same structure that answers
+it for a plan — and no new machinery is required. (Still Python and wanted eventually: `discard`, and
+`matching_alternative`, which is branch selection.)
+
+⚠ Note the asymmetry with the reachability gap in [HANDOFF.md](HANDOFF.md): the **workbench** is
+reachable, the **goal machinery** is not. That is not a coincidence — the workbench is the one layer
+de-Pythonization has finished.
+
+**And a decision criterion is, first, a statement of *where to look*.** *"Which tokens should I look at
+to decide?"* is not a preliminary to the criterion; it is half of it. The codebase already says so in one
+place and not the other:
+
+| half of a guard | what it is | today |
+|---|---|---|
+| **where to look** | the criterion's subject — `wants <sort> <label>` in `criterion.py` | ✅ on criteria, ❌ on function guards |
+| **what must hold there** | the tests | ✅ both |
+
+`precedence._covers` opens by comparing exactly the first half — *"keying differs first: two rules that
+watch different constraints never compete for a situation"* — but a function body carries only `test`
+edges, so for predicate dispatch both sides answer `None`, the early-out is vacuous, and **that is why
+`select` must evaluate every body.** It is the 63 ms above.
+
+⭐⭐ Which reframes the index from an optimisation into a missing piece of the representation: **the index
+*is* the addressing half of the criterion.** Give a function guard the *where* it lacks and the same one
+change buys cheap dispatch and the *"what do I look at"* semantics a construction needs — with no part of
+speech anywhere, since the address is whatever attribute the rule watches.
+
 ## Is this "self-awareness"? — scoping the claim before someone else does
 
 The residue list invites a bigger word than it has earned, so: **no, not yet**, and the gap has a precise

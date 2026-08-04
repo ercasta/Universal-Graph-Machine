@@ -346,6 +346,14 @@ premise of everything in [comparison.md](comparison.md) about language: no amoun
 can turn a sentence into something that drives the goal machinery if the machinery can only be entered
 from Python. **The arc could complete without fixing this.**
 
+⭐ **One large exception, and it is the encouraging one: the WORKBENCH is reachable.** `open_workbench`
+and `step` are live surface functions, `fork` is literally `return step(…)`, and `deviates` /
+`unmet_expectations` / `predicted_changes` / `holds` are live. So a rule can already build a
+**hypothesis-evaluating machine** — several candidate readings as forked frames, each carrying what it
+took on faith, evaluated against evidence, abandoned branches kept as data. That is exactly the bootstrap
+language processing needs, and it needs no new machinery. Not a coincidence: the workbench is the one
+layer this arc has finished. (`discard` and `matching_alternative` are still Python and wanted.)
+
 What is and is not reachable today, which is less bad than it sounds:
 
 * ✅ the goal **representation** — goals and constraints are ordinary web nodes, so the vocabulary

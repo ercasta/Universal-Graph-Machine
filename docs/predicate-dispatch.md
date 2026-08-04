@@ -5,6 +5,18 @@ several bodies may share a name, and which one a call means is decided by evalua
 most-specific-first. Slices 3 and 4 are not. The rest of the note is the argument, and it is kept because
 the argument is worth more than the conclusion.
 
+> ⭐⭐ **A guard is missing its addressing half, and that is why `select` goes quadratic.** A criterion in
+> `criterion.py` says *where to look* before it says *what must hold* — `wants <sort> <label>` — and
+> `precedence._covers` opens by comparing exactly that: *"keying differs first: two rules that watch
+> different constraints never compete for a situation."* A **function** body carries only `test` edges,
+> so both sides answer `None`, the early-out is vacuous, and every body must be evaluated. Measured, all
+> bodies applicable: 10 → 0.82 ms, 50 → 18 ms, 100 → **63 ms**. Two fixes, both cheap. The order
+> `_covers` computes is **static** — no arguments, no frame, no call data — so `select` rebuilds per call
+> what `function.define` could decide once, exactly as it already does for `mediated`. And giving a guard
+> the *where* it lacks turns the comparison into an **index**. See `docs/comparison.md` §Language: the
+> same change buys the *"which tokens do I look at"* semantics a construction grammar needs, with no part
+> of speech anywhere, since the address is whatever attribute the rule watches.
+
 ## Why dispatch, and not a bigger vocabulary
 
 The decisive argument, and it is not about elegance. Without dispatch, a domain that draws a distinction
