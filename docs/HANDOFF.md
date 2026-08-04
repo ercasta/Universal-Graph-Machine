@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **259 checks, 0 failing**, in 90–120 seconds depending
+**Verify:** `python -m ugm.selftest` — currently **260 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
 same minutes** — `git stash -u`, measure, pop — never against a number written down earlier.
@@ -111,7 +111,9 @@ Three things came out of doing it, and only the first was expected:
 | `workbench.step` | ✅ **live** — `rules/step.mf`, behind a wrapper; `_python_step` is the reference |
 | `workbench.open_workbench` | ✅ **live** — `rules/workbench.mf`, same shape; `_python_open_workbench` is the reference |
 | `copy_set` / `reachable` | ✅ **live** via `open_workbench`; the Python `reachable` stays for `view=` callers |
-| `execution.step`, `driver._phase_*` | **not written** — and **no longer blocked**; every prerequisite is in |
+| `execution.step` | ✅ **live** — `rules/execute.mf`, behind a wrapper; `_python_step` is the reference |
+| `workbench.predicted_changes` | ✅ **live** — `rules/predict.mf`; it was never on the blocker list, and it was one |
+| `driver._phase_*` | **not written** — the last of it, and unblocked; see item 3 |
 | `workbench.deviates` | ✅ **live** — `rules/deviate.mf` + the `violations` native |
 | `workbench.unmet_expectations` | ✅ **live** — `rules/unmet.mf`; `predicted_changes` returns a node and the prose moved to `explain_unmet` |
 | `goal.holds` | ✅ **live** — `rules/holds.mf`, behind a wrapper; `_python_holds` is the reference |
@@ -159,8 +161,13 @@ true only of *that* path now.
 Detail and reasoning in [audit.md](audit.md) and [mediated-access.md](mediated-access.md); this is the
 index, kept short on purpose so the plan below stays readable.
 
-**The last two sessions, in one paragraph**, because the entries below are in the order things were built
-rather than in the order they matter: `step` and `open_workbench` were **swapped live** behind thin
+**The latest session, in one paragraph:** `execution.step` — the loop that *acts* — is now
+`rules/execute.mf` behind a wrapper, and with it `predicted_changes` (`rules/predict.mf`), which was
+never on the list of what blocked it and was one. Getting there needed no new capability and four
+representation changes, of which only one looked like prose. See item 3.
+
+**The two sessions before that, in one paragraph**, because the entries below are in the order things
+were built rather than in the order they matter: `step` and `open_workbench` were **swapped live** behind thin
 wrappers, so nothing in the workbench exists twice any more; **mediation is enforced** — `step` refuses
 to imagine an unmediated operator, and the compliance pass runs over every corpus; all three decomposed
 predicates were written; and **the planner now establishes a context instead of passing a view**, which
@@ -296,6 +303,7 @@ Run `python -m ugm.bench`. The current numbers, and what each one is for:
 | Sussman's anomaly | **~3700–3760 ms**, 50 imagined states — 1600 ms with the Python `holds`, 1020 ms with the Python step too, 640 ms before sparse frames |
 | a step, 5 / 60 / 300 blocks | **~125 / ~105 / ~135 ms** — against 53 / 56 / 59 for the Python step, and 47 / 68 / 198 dense |
 | live `step` vs `_python_step` | **1.4–1.9×** — against 3.0× measured before the swap; the spread is noise, not a trend |
+| live `execution.step` vs `_python_step` | **3–5×**, ~100 ms per real action — paid per ACTION, where the planner pays per imagined state |
 | a mediated read vs a bare `GET` | **3.5–4.7×** |
 
 The first row **more than doubled when `goal.holds` went live**, at an unchanged 50 imagined states. That
@@ -320,9 +328,10 @@ anticipatory: a native that ignores the context can finally be *caught*.
 
 ## What to do next
 
-**The arc is de-Pythonization, and it is unfinished.** Everything in this section before item 5 is that
-arc; items 5 onward are correctness or capability. Nothing in the workbench exists twice any more — the
-next Python is in the *loop around* it.
+**The arc is de-Pythonization, and one item of it is left.** Everything in this section before item 5 is
+that arc; items 5 onward are correctness or capability. Nothing in the workbench exists twice any more,
+and the loop *around* it now acts in the surface too — what remains is `driver._phase_*`, the state
+machine that decides which of plan / act / recover / sense / check happens next.
 
 ### 1. ✅ `step.mf` is live · 2. ✅ `open_workbench` and `copy_set` with it
 
@@ -342,25 +351,65 @@ index landed, the mapping loop grew a line, and three parameters appeared. The c
 kept passing, because it only ever called the one-argument form. *A comparison check is only as strong
 as the routes it takes through both sides.*
 
-### 3. `execution.step`, then the phase machine — **the one to do next, and now unblocked**
+### 3. ✅ `execution.step` is live · the phase machine is what is left
 
-The last big Python island in the plan-act-check loop. `driver._phase_*` is reads, guards, one call,
-attribute writes and unlinks; its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
+`rules/execute.mf`, behind a wrapper, with `_python_step` beside it as the reference and
+`check_EXECUTION_STEP_IS_AN_ORDINARY_PROGRAM` comparing them over **five routes** — completing, a broken
+prediction, an unbound argument, a stale precondition, and a chain — plus a vacuity guard that the five
+routes reach *different* places, because two implementations that both diverge identically everywhere
+would agree perfectly and mean nothing. Two bugs were planted against it and both went red.
 
-✅ **Both blockers are gone.** `execution.step` calls `W.deviates` and `W.unmet_expectations`, and both
-are live. And the half of item 4 that pointed back at *this* item — the planner holding a view rather
-than establishing a context — is done: `driver.context_in` is that context, `goal.py` speaks `ctx=`, and
-`holds.mf` runs on it. `execution.step` wanted that seam anyway, so it now inherits it rather than
-having to build it.
+Four things came out of doing it.
 
-⚠ And it reports in **prose** in several places (`_diverge(why=…)`, `_note`). See item 4 on
-`unmet_expectations`: prose is a rendering decision, and a predicate carrying one cannot move to the
-surface. Expect to split each of them the same way — facts on the node, sentences at the edge.
+* ⭐⭐⭐ **A node a rule cannot ask for is still Python.** `predicted_changes` was **not** on the blocker
+  list above — `deviates` and `unmet_expectations` were, because they are *predicates* — and it was a
+  blocker. It already answered with a node, which is what made it look done; but `execution.step` in the
+  surface has to *ask for* that node, and nothing in the surface could. It is `rules/predict.mf` now, and
+  it needed no capability: `NKEYS`/`KEY_AT` and `NLABELS`/`LABEL_AT` already answer **sorted**, so the
+  Python's `sorted(…)` had nothing to reproduce and the unions it takes are two-pointer merges. One
+  native, `find_type`, on exactly `find_function`'s argument — a name to its node is a scan.
+  *A recorded gap statement is a hypothesis, not an inventory*, and this is the second time that has
+  cost a session.
 
-The two swaps above are the template: **write the wrapper first**, keep the Python beside it as
-`_python_*`, and point the comparison check at the reference rather than deleting it. And take the
-comparison check through *every* route the wrapper offers — that is what `workbench.mf`'s dormant years
-cost.
+* ⭐⭐⭐ **The prose split went further than expected, and `why` was the smallest part of it.** Four
+  things were Python-shaped renderings rather than facts: the deviation's `why` (now a `cause` attribute
+  plus a `_DEVIATION_PHRASE` table), the notes (now `unproduced` / `ambiguous` nodes), **what `ran`**
+  (a tuple in an attribute — *a rule cannot build a tuple*, which is the same defect with no rendering in
+  it at all), and the **violations** (`deviates` renders a dict; the deviation carries the node). The
+  test for this is not "does it contain a sentence" but **"could a rule have produced this value?"**
+
+* ⭐⭐⭐ **Ask before the fact; do not `ATTEMPT` after it.** The Python wrapped the real call in
+  `try/except TypeViolation` and turned a stale precondition into a divergence. `ATTEMPT` is the obvious
+  translation and is **wrong here**: it catches *every* refusal, so a `Vetoed` — a standing prohibition
+  stopping a real action — would be quietly filed as a deviation instead of stopping the world, and it
+  rolls its callee back, which is a promise this layer must never make (*fail fast on deviation, and do
+  not roll back*). So the surface asks the **answering form** of the same question first, with the
+  `violations` native. Same shape as `VKIND`: where Python recovers after the fact, the surface needs a
+  predicate before it. ⚠ It reads the *first* body's parameter types where `fn.invoke` selects a body and
+  then checks that one; nothing dispatches on a real operator yet, so they cannot disagree today.
+
+* ⚠⚠ **A boundary check had to be re-aimed on the day the target moved** — the same lesson `holds`
+  taught, arriving again and in the same week. `EVERY_BOUNDARY_ESTABLISHES_A_WORLD_TO_READ_IN` read
+  `establishes` off the **operator's** activation, which was right only while Python opened the trivial
+  context and passed it `under=` that one call. The surface establishes *above* the operator and the
+  operator inherits, so the old question answered `None`: the check was measuring the shape of the
+  Python. The fix is the one the imagining side already made — the context now hangs off the **replay**
+  (`execution.world_of`), one per run rather than one per step, so the durable record of which world a
+  run acted in survives the activation that established it.
+
+Cost, on the new `acting` row of `python -m ugm.bench`: **3–5×** against `_python_step`, ~100 ms per real
+action. That is the same order as everything else interpreted here (`stepping`, `mediation`), and it is
+paid **per action** where the planner pays per imagined state — a search imagines fifty to produce a plan
+of three. Sussman is unchanged (measured against a worktree at the previous commit in the same minutes:
+~4180 ms against ~4370 ms, i.e. noise, because planning does not act).
+
+**What is left is `driver._phase_*`.** Reads, guards, one call, attribute writes and unlinks; its
+`_PHASES[phase]` dispatch is what a dynamic `INVOKE` does. Every prerequisite is now in, and it reports
+in prose in several places — apply the test above rather than looking only for f-strings.
+
+The three swaps are the template: **write the wrapper first**, keep the Python beside it as `_python_*`,
+and take the comparison check through *every* route the wrapper offers — that is what `workbench.mf`'s
+dormant years cost.
 
 ### 4. ✅ The predicates that blocked the rest — all three done and live
 
@@ -526,11 +575,28 @@ back whole) and passing a context `under=` a call (the surface establishes on `S
 inherits). Ask what the Python was compensating for before translating it — the answer is sometimes *for
 being Python*.
 
-**A predicate that answers in prose cannot move to the surface.** `unmet_expectations` returned
-sentences containing `repr(got)`. That looks like a weakness of the surface and is not: rendering is a
-decision, and a rendering decision inside a predicate is a second thing the predicate is for. Split it —
-facts on the node, sentences at the edge — and the rest was a transcription. `execution.step` reports in
-prose in several places and will want the same split.
+**A predicate that answers in prose cannot move to the surface** — and *prose* was the narrow name for
+it. `unmet_expectations` returned sentences containing `repr(got)`; rendering is a decision, and a
+rendering decision inside a predicate is a second thing the predicate is for. But `execution.step` then
+found the same defect three more times with no sentence in sight: a tuple in an attribute (`ran`), a
+rendered dict (`violations`), a Python list (`unbound`). The general test is **"could a rule have
+produced this value?"** — a tuple, a dict and a sentence all fail it equally, and only one of them looks
+like prose. Facts on nodes, rendering at the edge, in a table beside the reader that prints them
+(`_UNMET_PHRASE`, `_NOTE_PHRASE`, `_DEVIATION_PHRASE`). `driver._phase_*` is next and will want it again.
+
+**A node the Python already answers with is not thereby reachable.** `predicted_changes` returned a
+graph node, which is what unblocked `unmet_expectations` — and it was still the thing that blocked
+`execution.step`, because a rule cannot *ask for* it. The blocker list named the two predicates and
+missed the producer sitting between them. When auditing what stands in the way of a swap, enumerate what
+the body **calls**, not what looks Python-shaped.
+
+**Where Python recovers after the fact, the surface asks before it — and `ATTEMPT` is not the
+translation of `try`.** `ATTEMPT` catches every refusal and rolls its callee back. In `execution.step`
+that would turn a standing prohibition (`Vetoed`) into a routine deviation and would promise a rollback
+in the one place in the system that must never promise one. The right move was the `VKIND` move: find
+the **answering form** of the question the enforcing form was raising about (`violations` against
+`fn.invoke`'s type check) and ask it first. Reach for `ATTEMPT` when the failure really is an ordinary
+outcome, not when Python happened to spell a guard as a `try`.
 
 **Carrying one fact in two shapes is what blocks a swap, and the shapes look like different things.**
 `goal.holds` was written, checked and correct for a whole session without being able to run, and the

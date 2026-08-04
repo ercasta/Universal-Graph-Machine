@@ -754,6 +754,16 @@ def gather_instances(g: Graph, type_name: str, under: str, *, view=None) -> str:
 N.register("instances", lambda g, act, name, under:
            gather_instances(g, name, under, view=_reading(g, act)))
 
+# Resolving a type NAME to its node, and a native for exactly the reason `function.find_function` is one:
+# decomposing it reaches `Graph.of_kind`, and handing the surface a way to enumerate every node of a kind
+# is the whole-graph scan `instances` above refuses at length. The name-to-node hop is the boundary; what
+# is done with the node afterwards — walking `base`, reading `requires_attr` — is ordinary structure and
+# stays in the surface, which is what `rules/predict.mf` does with it.
+#
+# It takes no view and needs none: a type declaration is not something a workbench imagines, so there is
+# no version of it to resolve to.
+N.register("find_type", lambda g, _act, name: find_type(g, name))
+
 
 __all__ = ["TypeViolation", "UNBOUNDED", "Req", "AttrReq", "Rel", "VALUE_OPS", "IDENTITY_OPS", "compare",
            "offenders", "offending_type",

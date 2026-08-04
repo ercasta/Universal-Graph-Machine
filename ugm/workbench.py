@@ -753,15 +753,38 @@ def deviates(g: Graph, transformation: str, real_result) -> dict:
 
     Returns the violations, so a caller reporting a deviation can say *how* it deviated rather than only
     *that* it did — which is what the `violations` native was added for."""
+    node = deviation_violations(g, transformation, real_result)
+    out = as_violations(g, node)
+    drop_violations(g, node)
+    return out
+
+
+def deviation_violations(g: Graph, transformation: str, real_result) -> str:
+    """`deviates` **as the node the surface answers with**, before anything renders it.
+
+    A deviation records these rather than a rendered dict, so the facts and the sentences stay apart in
+    the same place `_UNMET_PHRASE` and `execution._DEVIATION_PHRASE` keep them. `deviates` above is the
+    rendering, for callers that only want the verdict."""
     _ensure_deviates(g)
-    node = fn.invoke(g, "deviates", {"transformation": transformation, "result": real_result},
+    return fn.invoke(g, "deviates", {"transformation": transformation, "result": real_result},
                      retain=False)[1]["result"]
-    out = {g.attr(v, "about"): (g.attr(v, "expected"), g.attr(v, "actual"))
-           for v in g.targets(node, "violation")}
-    for v in g.targets(node, "violation"):
+
+
+def as_violations(g: Graph, node) -> dict:
+    """A violations node as the `{label: (expected, actual)}` dict every reader here already speaks."""
+    if node is None:
+        return {}
+    return {g.attr(v, "about"): (g.attr(v, "expected"), g.attr(v, "actual"))
+            for v in g.targets(node, "violation")}
+
+
+def drop_violations(g: Graph, node) -> None:
+    """Scrap a violations node and its members — members first, or they would be orphaned."""
+    if node is None:
+        return
+    for v in tuple(g.targets(node, "violation")):
         g.drop(v)
     g.drop(node)
-    return out
 
 
 def _ensure_deviates(g: Graph) -> None:
@@ -798,8 +821,36 @@ def _predecessor(g: Graph, mapping: str, prev_frame: str):
     return None
 
 
-def predicted_changes(g: Graph, prev_frame: str, frame: str) -> dict:
+def _ensure_predict(g: Graph) -> None:
+    """Resolve `predicted_changes` in this graph. Idempotent — see `_ensure_step` for the argument."""
+    from pathlib import Path
+    from . import asm
+    if fn.find(g, "predicted_changes") is None:
+        asm.load_file(g, Path(__file__).parent / "rules" / "predict.mf")
+
+
+def predicted_changes(g: Graph, prev_frame: str, frame: str) -> str:
+    """What the imagined step said would happen — **the implementation is `rules/predict.mf`**.
+
+    A wrapper with nothing to translate: the answer was already a node, which is what let
+    `unmet_expectations` move, and it is what lets `execution.step` read it in the surface.
+
+    It was not on the handoff's list of what stood between `execution.step` and the surface, and the
+    omission is worth recording: `deviates` and `unmet_expectations` were named because they are
+    *predicates*, while this one answers with a node and so looked done. **A node a rule cannot ask for
+    is still Python.** A recorded gap statement is a hypothesis, not an inventory.
+
+    `_python_predicted_changes` is kept below as the reference this is checked against."""
+    _ensure_predict(g)
+    return fn.invoke(g, "predicted_changes", {"prev_frame": prev_frame, "frame": frame},
+                     retain=False)[1]["result"]
+
+
+def _python_predicted_changes(g: Graph, prev_frame: str, frame: str) -> str:
     """What the imagined step said would happen — derived from the two frames, never recorded.
+
+    **No longer the live implementation** — see `predicted_changes` above. Kept as the reference the
+    surface is checked against.
 
     The declared return type (`deviates`) is a good check and a narrow one: it asks whether *one* node
     satisfies *one* schema. It cannot express "the file listing will materialise three file nodes", which
@@ -1006,9 +1057,18 @@ _UNMET_PHRASE = {
 }
 
 
+def phrase_unmet(g: Graph, miss: str) -> str:
+    """One miss, as the sentence a report prints.
+
+    Split out of `explain_unmet` because a deviation records the **miss nodes** rather than a rendered
+    tuple — a caller holding the facts renders them one at a time, at the edge, and the set node they
+    were answered in is scratch that goes with the call."""
+    return _UNMET_PHRASE[g.kind(miss)](g, miss)
+
+
 def explain_unmet(g: Graph, unmet: str) -> tuple:
     """The sentences a report prints, rendered from the facts. Empty means it went as planned."""
-    return tuple(_UNMET_PHRASE[g.kind(m)](g, m) for m in g.targets(unmet, "missed"))
+    return tuple(phrase_unmet(g, m) for m in g.targets(unmet, "missed"))
 
 
 def drop_unmet(g: Graph, unmet: str) -> None:

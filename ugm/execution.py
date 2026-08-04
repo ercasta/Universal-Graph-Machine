@@ -107,7 +107,7 @@ def leaves_under(g: Graph, wb: str, frame: str) -> tuple:
 # does one per mapping per frame. `bound ──mapping──▶ mapping` with `sources` answering backwards is O(few)
 # and needs no index of our own to maintain.
 
-KINDS = ("replay", "bound", "deviation")
+KINDS = ("replay", "bound", "deviation", "unproduced", "ambiguous")
 
 
 def open_replay(g: Graph, wb: str, frames: tuple, *, bound: dict | None = None,
@@ -115,11 +115,19 @@ def open_replay(g: Graph, wb: str, frames: tuple, *, bound: dict | None = None,
     """A replay of `frames`, positioned at the start and ready to be stepped.
 
     `bound`, `notes` and `ran` seed it — which is what `resume` needs: it continues a diverged execution
-    from state that already exists rather than starting a second, blank one."""
-    r = g.mint("replay", at=0, notes=tuple(notes), ran=tuple(ran))
+    from state that already exists rather than starting a second, blank one.
+
+    `notes` are **note nodes**, not sentences. A resumed replay inherits the facts the diverged one
+    recorded and renders them itself, which is what keeps one account of what happened rather than a
+    rendering being carried forward as though it were the record."""
+    r = g.mint("replay", at=0)
     g.link(r, "workbench", wb)
     for f in frames:
         g.link(r, "frame", f)                   # Ordered — the path, and the position indexes into it
+    for n in notes:
+        g.link(r, "note", n)
+    for d in ran:
+        g.link(r, "ran", d)
     for m, real in (bound or {}).items():
         bind(g, r, m, real)
     return r
@@ -161,12 +169,43 @@ def bindings_of(g: Graph, r: str) -> dict:
     return {g.target(b, "mapping"): g.target(b, "node") for b in g.targets(r, "bound")}
 
 
-def _note(g: Graph, r: str, text: str) -> None:
-    g.put(r, notes=g.attr(r, "notes", ()) + (text,))
+#: How each kind of note reads. The prose lives here, in one table at the reporting edge, rather than
+#: inside the step that decides — the same split `workbench._UNMET_PHRASE` records, and made for the same
+#: reason: **a step that answers in sentences cannot move to the surface**. A note used to be an f-string
+#: built where the pairing failed, which is a rendering decision taken inside the thing doing the pairing.
+_NOTE_PHRASE = {
+    "unproduced": lambda g, n: f"planned a {g.attr(n, 'wanted')} that the real call did not produce",
+    "ambiguous":  lambda g, n: (f"ambiguous: {g.attr(n, 'found')} real {g.attr(n, 'wanted')} nodes "
+                                f"for a planned one — paired by order"),
+}
 
 
-def _ran(g: Graph, r: str, name: str) -> None:
-    g.put(r, ran=g.attr(r, "ran", ()) + (name,))
+def _note(g: Graph, r: str, kind: str, **facts) -> str:
+    """Record a fact about the replay. Ordered, because the notes read as an account of what happened."""
+    n = g.mint(kind, **facts)
+    g.link(r, "note", n)
+    return n
+
+
+def notes_of(g: Graph, r: str) -> tuple:
+    """The notes as the sentences a report prints, rendered from the facts on the nodes."""
+    return tuple(_NOTE_PHRASE[g.kind(n)](g, n) for n in g.targets(r, "note"))
+
+
+def _ran(g: Graph, r: str, name: str) -> str:
+    """What ran, as an ordered node rather than a Python tuple in an attribute.
+
+    The same move as `_note`, and for a plainer reason: a rule cannot build a tuple. An attribute holding
+    one is a Python value the surface can neither extend nor read, which is the island pattern with a
+    shorter name."""
+    did = g.mint("did", name=name)
+    g.link(r, "ran", did)
+    return did
+
+
+def ran_of(g: Graph, r: str) -> tuple:
+    """The names of the steps that ran, in order — the tuple every report has always carried."""
+    return tuple(g.attr(d, "name") for d in g.targets(r, "ran"))
 
 
 def finished(g: Graph, r: str) -> bool:
@@ -176,29 +215,74 @@ def finished(g: Graph, r: str) -> bool:
             or g.attr(r, "at", 0) + 1 >= g.count(r, "frame"))
 
 
+#: How each *cause* of a deviation reads. The other half of the same split: `step` used to build its
+#: `why` as an f-string at the point of failure, which is a sentence inside a stepper — the shape that
+#: cannot cross into the surface. The cause and its facts go on the node; the sentence is made here.
+#:
+#: A deviation with no `cause` renders no `why`, which is the ordinary case: a failed cast already says
+#: everything through `expected` and `violations`, and inventing a sentence for it would say the same
+#: thing twice in one paragraph.
+_DEVIATION_PHRASE = {
+    "unbound_arguments": lambda g, d: (
+        f"unbound argument(s) {[g.attr(n, 'param') for n in g.targets(d, 'unbound')]} — the plan "
+        f"referred to something that does not exist in the real graph"),
+    # Ascii only: records the report being made unpipeable on a cp1252 console by one non-ascii glyph.
+    "stale_precondition": lambda g, d: (
+        f"{g.attr(d, 'step')} could not be applied: its {g.attr(d, 'param') or '?'} no longer satisfies "
+        f"what it requires. The world moved after this plan was verified."),
+}
+
+
 def _diverge(g: Graph, r: str, **fields) -> str:
     """Record the deviation on the replay. It is a node, so a stopped replay says why it stopped without
-    the caller having to have been holding the return value at the moment it happened."""
+    the caller having to have been holding the return value at the moment it happened.
+
+    `cause` names which complaint this is, and its facts sit beside it as ordinary attributes. Nothing
+    here renders — see `_DEVIATION_PHRASE`."""
     d = g.mint("deviation", **{k: v for k, v in fields.items()
-                               if k not in ("frame", "transformation", "minted")})
-    for label in ("frame", "transformation"):
+                               if k not in ("frame", "transformation", "minted", "missed",
+                                            "violation", "unbound")})
+    for label in ("frame", "transformation", "violation"):
         if fields.get(label) is not None:
             g.link(d, label, fields[label])
     for n in fields.get("minted", ()):
         g.link(d, "minted", n)
+    for n in fields.get("unbound", ()):
+        g.link(d, "unbound", n)
+    # The unmet expectations travel as the nodes the predicate answered with, so the deviation carries
+    # facts rather than a tuple of sentences somebody rendered on the way past.
+    for n in fields.get("missed", ()):
+        g.link(d, "missed", n)
     g.link(r, "deviation", d)
     return d
 
 
 def deviation_of(g: Graph, r: str):
-    """The deviation as the dict every caller here already speaks — `None` if the replay is clean."""
+    """The deviation as the dict every caller here already speaks — `None` if the replay is clean.
+
+    This is where the rendering happens: `why` and `unmet_expectations` are sentences made from the
+    facts on the node, at the edge that reports, not stored on it."""
     d = g.target(r, "deviation")
     if d is None:
         return None
-    out = {k: v for k, v in g.attrs[d].items() if k != "kind"}
+    from . import workbench as W
+    out = {k: v for k, v in g.attrs[d].items() if k not in ("kind", "cause", "params")}
     out["frame"] = g.target(d, "frame")
     out["transformation"] = g.target(d, "transformation")
     out["minted"] = g.targets(d, "minted")
+    # How it deviated, rendered from the violation node the predicate answered with. Both routes into a
+    # deviation — a failed cast and a stale precondition — carry the same shape, which is the point: one
+    # fact in two shapes is what blocks a swap, and a deviation is exactly where the two routes meet.
+    violation = g.target(d, "violation")
+    if violation is not None:
+        out["violations"] = W.as_violations(g, violation)
+    cause = g.attr(d, "cause")
+    if cause is not None:
+        out["why"] = _DEVIATION_PHRASE[cause](g, d)
+    missed = g.targets(d, "missed")
+    if missed:
+        from . import workbench as W
+        out["unmet_expectations"] = tuple(W.phrase_unmet(g, m) for m in missed)
     return out
 
 
@@ -206,8 +290,8 @@ def report_of(g: Graph, r: str) -> dict:
     """The execution report. Unchanged in shape — this is a rendering of the replay node, not a second
     record of what happened."""
     dev = deviation_of(g, r)
-    out = {"ran": g.attr(r, "ran", ()), "deviation": dev, "completed": dev is None,
-           "bindings": bindings_of(g, r), "notes": g.attr(r, "notes", ()),
+    out = {"ran": ran_of(g, r), "deviation": dev, "completed": dev is None,
+           "bindings": bindings_of(g, r), "notes": notes_of(g, r),
            "workbench": g.target(r, "workbench"), "replay": r}
     if g.target(r, "resumed_on") is not None:   # a resumed replay says so, as its report always did
         out["resumed_on"] = g.target(r, "resumed_on")
@@ -246,17 +330,73 @@ def _bind_minted(g: Graph, r: str, frame: str, minted) -> None:
         want = g.kind(W.image_of(g, m))
         pool = by_kind.get(want, [])
         if not pool:
-            _note(g, r, f"planned a {want} that the real call did not produce")
+            _note(g, r, "unproduced", wanted=want)
             continue
         if len(pool) > 1:
-            _note(g, r, f"ambiguous: {len(pool)} real {want} nodes for a planned one — paired by order")
+            _note(g, r, "ambiguous", wanted=want, found=len(pool))
         bind(g, r, m, pool.pop(0))
 
 
 # --- one STEP ------------------------------------------------------------------------------------------
+def _ensure_execute(g: Graph) -> None:
+    """Resolve `execute_step` and everything it calls by name in this graph. Idempotent.
+
+    Five files, because a name is only meaning if something answers it and this body names things in all
+    of them: its own helpers, the prediction it derives (`predict`), the two predicates it asks
+    (`deviate`, `unmet`), and `step`'s `binding_value`, which is the same question — *what does this
+    binding set say about this parameter* — asked from the other side of the workbench."""
+    from pathlib import Path
+    from . import asm
+    from . import workbench as W
+    W._ensure_step(g)
+    W._ensure_deviates(g)
+    W._ensure_unmet(g)
+    W._ensure_predict(g)
+    if fn.find(g, "execute_step") is None:
+        asm.load_file(g, Path(__file__).parent / "rules" / "execute.mf")
+
+
 def step(g: Graph, r: str) -> bool:
+    """Advance the replay by one frame — **the implementation is `rules/execute.mf`**.
+
+    A wrapper, and a thin one: the replay is already a node, so there is nothing to describe on the way
+    in and nothing to render on the way back. What it does own is the **boundary**: the real world is not
+    the *absence* of a context but the **trivial** one, whose resolution is the identity function, so the
+    same rule runs here unchanged and there is never mediated-versus-unmediated execution to branch on.
+    Forgetting to establish is then the same bug in the same place whether the system is planning or
+    acting. It costs nothing — a context with no resolver makes the vocabulary skip the call entirely.
+
+    `_python_step` is kept immediately below as the reference the surface is checked against.
+
+    Returns `True` while there is more to do."""
+    _ensure_execute(g)
+    return bool(fn.invoke(g, "execute_step", {"replay": r}, under=world_of(g, r),
+                          retain=False)[1]["result"])
+
+
+def world_of(g: Graph, r: str) -> str:
+    """The trivial context this replay acts in — opened once, and **carried by the replay**.
+
+    Two reasons it hangs off the replay rather than being minted per step, and neither is thrift. It is
+    the same correction `driver.context_in` made on the planning side: two nodes that must agree about a
+    world are two nodes that can come not to, so there is one. And the establishing activation is
+    scaffolding the call discards, exactly as `rules/step.mf` found — so the *durable* record of which
+    world a run acted in has to be an edge onto something that outlives the call, which on the imagining
+    side is the frame and here is the replay."""
+    from . import access as AX
+    ctx = g.target(r, "context")
+    if ctx is None:
+        ctx = AX.open_context(g, label="the world")
+        g.link(r, "context", ctx)
+    return ctx
+
+
+def _python_step(g: Graph, r: str) -> bool:
     """Advance the replay by one frame: carry the bindings across, and run that frame's call for real.
     Returns `True` while there is more to do.
+
+    **No longer the live implementation** — `step` above invokes `rules/execute.mf`. Kept as the
+    reference the surface is checked against.
 
     This is the one stepper whose steps are IRREVERSIBLE. An imagined step can be rewound and a
     search step costs only time; a step here reaches the world through `dispatch`, whose `commit()` is the
@@ -289,8 +429,8 @@ def step(g: Graph, r: str) -> bool:
             missing.append(param)
     if missing:
         _diverge(g, r, step=name, frame=frame, transformation=tr, result=None, minted=(),
-                 why=f"unbound argument(s) {missing} — the plan referred to "
-                     f"something that does not exist in the real graph")
+                 cause="unbound_arguments",
+                 unbound=tuple(g.mint("unbound_param", param=p) for p in missing))
         return False
 
     # A precondition that went false while we were NOT looking is a divergence, NOT a crash.
@@ -316,14 +456,15 @@ def step(g: Graph, r: str) -> bool:
         called, out = fn.invoke(g, name, args,
                                 under=access.open_context(g, label="the world"))
     except TY.TypeViolation as e:
+        # No message is built here. `cause` names the complaint and `param` / `expected` / `violations`
+        # are its facts; `_DEVIATION_PHRASE` turns them into a sentence at the reporting edge. There is
+        # deliberately no `{e}` anywhere in it either — `expected` and `violations` already carry that,
+        # and `report` prints them, so repeating it says the same thing twice in one paragraph.
+        want, param = getattr(e, "want", None), getattr(e, "param", None)
         _diverge(g, r, step=name, frame=frame, transformation=tr, result=None, minted=(),
-                 stale_precondition=True, param=getattr(e, "param", None),
-                 expected=getattr(e, "want", None), violations=getattr(e, "violations", None),
-                 # Ascii only: records the report being made unpipeable on a cp1252 console by one
-                 # non-ascii glyph. And no `{e}` here - `expected` and `violations` above already carry it,
-                 # and `report` prints them; repeating it says the same thing twice in one paragraph.
-                 why=f"{name} could not be applied: its {getattr(e, 'param', '?')} no longer satisfies "
-                     f"what it requires. The world moved after this plan was verified.")
+                 cause="stale_precondition", stale_precondition=True, param=param, expected=want,
+                 violation=(None if want is None
+                            else TY.gather_violations(g, args.get(param), want)))
         return False
     # Warn Read off the call itself, never off a whole-graph diff - `activation.minted`. The diff
     # counted every node that appeared while the call ran, the interpreter's own state included.
@@ -334,11 +475,14 @@ def step(g: Graph, r: str) -> bool:
     assumed = (g.attr(g.target(tr, "assumes"), "label")
                if g.target(tr, "assumes") else None)
 
-    violations = W.deviates(g, tr, result)
-    if violations:
+    # The violation NODE, not the dict `deviates` renders. `deviation_of` does the rendering, at the
+    # edge, so the deviation carries facts by whichever route it was reached.
+    violation = W.deviation_violations(g, tr, result)
+    if g.count(violation, "violation"):
         _diverge(g, r, step=name, frame=frame, transformation=tr, result=result, minted=minted,
-                 expected=g.attr(tr, "expects"), violations=violations, assumed=assumed)
+                 expected=g.attr(tr, "expects"), violation=violation, assumed=assumed)
         return False
+    W.drop_violations(g, violation)
 
     _settle(g, r, tr, frame, result, minted)
 
@@ -356,14 +500,18 @@ def step(g: Graph, r: str) -> bool:
     prediction = W.predicted_changes(g, prev, frame)
     mints = W.as_mints(g, minted)
     unmet = W.unmet_expectations(g, prediction, r, mints)
-    missed = W.explain_unmet(g, unmet)
-    W.drop_unmet(g, unmet)
+    # The MISS NODES travel onto the deviation, not the sentences. `explain_unmet` used to be called
+    # here and its tuple stored, which put a rendering inside the stepper; the deviation now carries the
+    # facts and `deviation_of` renders them. Only the set node they were answered in is scratch.
+    missed = g.targets(unmet, "missed")
     g.drop(mints)
     W.drop_prediction(g, prediction)
     if missed:
         _diverge(g, r, step=name, frame=frame, transformation=tr, result=result, minted=minted,
-                 expected=g.attr(tr, "expects"), unmet_expectations=missed, assumed=assumed)
+                 expected=g.attr(tr, "expects"), missed=missed, assumed=assumed)
+        g.drop(unmet)                           # the set only — its members are the deviation's record
         return False
+    W.drop_unmet(g, unmet)
     return not finished(g, r)
 
 
@@ -462,9 +610,14 @@ def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None
 
 
 def discard_replay(g: Graph, r: str) -> None:
-    """Scrap a replay and its bindings. Used for the scratch one `matching_alternative` reasons over."""
+    """Scrap a replay and its bindings. Used for the scratch one `matching_alternative` reasons over.
+
+    Its notes go with it. A scratch replay can record one while `_settle` pairs minted nodes, and a note
+    is a node now rather than a string in an attribute, so it is something that has to be scrapped."""
     for b in tuple(g.targets(r, "bound")):
         g.drop(b)
+    for n in tuple(g.targets(r, "note")):
+        g.drop(n)
     d = g.target(r, "deviation")
     if d is not None:
         g.drop(d)
@@ -501,8 +654,12 @@ def resume_replay(g: Graph, result: dict, *, branch=None, leaf=None):
     # A fresh replay seeded from the diverged one's state — not a continuation of it. The old replay
     # stopped on a deviation and that is a fact about it; carrying on inside it would erase the record of
     # where it stopped, which is the one thing recovery is reasoning from.
+    # The note NODES, read off the diverged replay — not `result["notes"]`, which is a rendering. A
+    # resumed replay inherits the facts and renders them itself, so there is one account of what
+    # happened rather than a sentence being carried forward as though it were the record.
     r = open_replay(g, wb, path[path.index(branch):],
-                    bound=dict(result["bindings"]), notes=result["notes"], ran=result["ran"])
+                    bound=dict(result["bindings"]), notes=g.targets(result["replay"], "note"),
+                    ran=g.targets(result["replay"], "ran"))
     g.link(r, "resumed_on", branch)
     g.put(r, resumed_assuming=g.attr(tr, "expects"))
     _carry(g, r, parent, branch)
@@ -577,7 +734,7 @@ def report(g: Graph, result: dict) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["KINDS", "path_to", "leaves_under", "execute", "alternatives",
+__all__ = ["KINDS", "notes_of", "ran_of", "path_to", "leaves_under", "execute", "alternatives",
            "matching_alternative", "resume", "replan", "recover", "report",
            "open_replay", "step", "finished", "resume_replay", "report_of", "deviation_of", "bindings_of",
            "bind", "bound_to", "is_bound", "discard_replay"]

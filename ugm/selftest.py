@@ -2129,7 +2129,9 @@ def check_carrying_a_plan_OUT_is_steppable_and_the_steps_are_the_IRREVERSIBLE_on
     on_before = (g2.target(a, "on"), g2.target(b, "on"))
     r = X.open_execution(g2, plan2["workbench"], plan2["frame"])
     X.step(g2, r)                                     # exactly one real action
-    mid = {"finished": X.finished(g2, r), "ran": g2.attr(r, "ran", ()), "at": g2.attr(r, "at"),
+    # `ran_of`, not an attribute: what ran is a list of ordered nodes now, because a rule cannot build a
+    # Python tuple and the stepper that appends to it is `rules/execute.mf`.
+    mid = {"finished": X.finished(g2, r), "ran": X.ran_of(g2, r), "at": g2.attr(r, "at"),
            "on": (g2.target(a, "on"), g2.target(b, "on"))}
     turns = 1
     while not X.finished(g2, r):                      # `step` answers "is there more", not "did I act"
@@ -2147,6 +2149,133 @@ def check_carrying_a_plan_OUT_is_steppable_and_the_steps_are_the_IRREVERSIBLE_on
             "the_replay_is_a_node_anyone_can_read": g2.kind(r) == "replay",
             "and_it_says_how_far_it_got": mid["at"] == 1,
             "turns": turns}
+
+
+def check_EXECUTION_STEP_IS_AN_ORDINARY_PROGRAM():
+    """The last big Python island in the plan-act-check loop, written in the surface.
+
+    `execution.step` carries a plan out for real: it walks the bindings across a frame, resolves the
+    arguments, makes the one call in the system that reaches the world, and checks reality against what
+    was imagined. A loop the system cannot inspect is a loop it cannot reason about while it is running,
+    and that matters more here than anywhere else, because these are the only irreversible steps.
+
+    Three things stood in the way, and only the first was a capability. A binding set built at run time
+    (`INVOKE … with`, which `step.mf` already had). The prediction as something a rule can ask for —
+    `predicted_changes` was **not** on the recorded list of blockers, because it already answered with a
+    node and so looked done: *a node a rule cannot ask for is still Python*, and a recorded gap statement
+    is a hypothesis rather than an inventory. And **prose**: `why`, the notes and what `ran` were
+    sentences and Python tuples, so they became facts on nodes with the rendering at the reporting edge.
+
+    Where it departs from the Python rather than transcribing it: the precondition is asked **before**
+    the call, not caught after. `fn.invoke` reports a stale parameter type by raising and a program
+    cannot catch — the wall `types.compare` met — so the surface asks the answering form of the same
+    question first. `ATTEMPT` was the alternative and is worse here: it catches *every* refusal, so a
+    `Vetoed` would be filed as a deviation instead of stopping the world, and it rolls its callee back,
+    which is a promise this layer must never make.
+
+    Compared against `_python_step` on **every route the wrapper offers** — completing, both kinds of
+    divergence, an unbound argument, a stale precondition, and a chain — because a comparison check is
+    only as strong as the routes it takes through both sides, which is what `workbench.mf`'s dormant
+    years cost."""
+    from . import dispatch as DP, execution as X, workbench as W
+
+    def normalise(g, rep):
+        """A report as something comparable across two graphs: ids differ, so compare what it SAYS."""
+        dev = rep["deviation"]
+        d = None
+        if dev is not None:
+            d = {k: v for k, v in dev.items() if k not in ("frame", "transformation", "minted")}
+            d["#minted"] = sorted(g.kind(n) for n in dev["minted"])
+            d["#frame"] = g.attr(dev["frame"], "index")
+            if isinstance(d.get("result"), str):
+                d["result"] = g.kind(d["result"])
+        return {"ran": rep["ran"], "completed": rep["completed"], "notes": rep["notes"],
+                "deviation": d, "#bindings": len(rep["bindings"])}
+
+    def both(scenario):
+        """Run one scenario twice — once through the live wrapper, once through the reference — on
+        worlds built fresh each time, and return the two reports side by side."""
+        out = []
+        for stepper in (X.step, X._python_step):
+            g, r = scenario()
+            while stepper(g, r):
+                pass
+            out.append(normalise(g, X.report_of(g, r)))
+        return out
+
+    def scanner(handler, assume, steps=1, seed=True):
+        def build():
+            g, d = _scanner_fs()
+            DP.register("ls", handler)
+            wb = W.open_workbench(g, d)
+            f = W.root_frame(g, wb)
+            for _ in range(steps):
+                f, _tr = W.step(g, wb, f, "scan_dir", {"d": W.mapping_for(g, f, d)}, assume=assume)
+            if seed:
+                return g, X.open_execution(g, wb, f)
+            # Deliberately UNSEEDED: frame 0's bindings are what say which real node a mapping stands
+            # for, so without them the first step's argument is unbound — a different complaint from a
+            # failed prediction, and one no fixture reaches by accident.
+            return g, X.open_replay(g, wb, X.path_to(g, wb, f))
+        return build
+
+    def two_files(gr, target):
+        for n in ("a.txt", "b.txt"):
+            gr.link(target, "file", gr.mint("file", kind_of="file", name=n))
+        gr.put(target, listed=True, count=2)
+
+    def nothing_at_all(gr, target):
+        gr.put(target, listed=True)
+
+    def stale():
+        """A precondition that went false while we were not looking. The plan is verified against a car
+        with four wheels; one comes off before the plan runs."""
+        g, car = _garage()
+        wb = W.open_workbench(g, car)
+        f0 = W.root_frame(g, wb)
+        f1, _tr = W.step(g, wb, f0, "service", {"c": W.mapping_for(g, f0, car)})
+        r = X.open_execution(g, wb, f1)
+        g.unlink(car, "wheel", index=0)                 # the world moves after the plan is verified
+        return g, r
+
+    as_planned = both(scanner(two_files, "found_two"))
+    diverging = both(scanner(nothing_at_all, "found_two"))
+    chained = both(scanner(two_files, "found_two", steps=2))
+    unbound = both(scanner(two_files, "found_two", seed=False))
+    moved = both(stale)
+
+    return {"IT_AGREES_WITH_THE_PYTHON_IT_REPLACED_when_all_goes_to_plan":
+                as_planned[0] == as_planned[1],
+            "AND_WHEN_REALITY_DISAGREES": diverging[0] == diverging[1],
+            "AND_OVER_A_CHAIN_OF_STEPS": chained[0] == chained[1],
+            "AND_ON_AN_UNBOUND_ARGUMENT": unbound[0] == unbound[1],
+            "AND_ON_A_PRECONDITION_THAT_WENT_STALE": moved[0] == moved[1],
+            # Vacuity, and it is the whole strength of the five above: the routes must reach DIFFERENT
+            # places. Two implementations that both diverge identically everywhere would agree perfectly
+            # and mean nothing.
+            "the_routes_really_differ":
+                len({str(x[0]) for x in (as_planned, diverging, unbound, moved)}) == 4,
+            "one_of_them_COMPLETED": as_planned[0]["completed"] is True,
+            "and_the_others_did_not": [x[0]["completed"] for x in (diverging, unbound, moved)]
+                                      == [False, False, False],
+            # ...and each divergence names its own cause, which is what the prose split is for: the
+            # sentence is rendered from a `cause` on the node, not stored on it.
+            "AN_UNBOUND_ARGUMENT_SAYS_SO":
+                "unbound argument(s) ['d']" in unbound[0]["deviation"]["why"],
+            "A_STALE_PRECONDITION_SAYS_WHAT_MOVED":
+                "no longer satisfies" in moved[0]["deviation"]["why"]
+                and moved[0]["deviation"]["param"] == "c",
+            # ...and a broken prediction has no `why` at all, on purpose: `expected` and the misses
+            # already carry it, and a sentence would say the same thing twice in one paragraph.
+            "A_BROKEN_PREDICTION_REPORTS_THE_MISSES_INSTEAD":
+                "why" not in diverging[0]["deviation"]
+                and diverging[0]["deviation"]["unmet_expectations"] != (),
+            # The notes are facts now too, rendered here. Two real `file` nodes for one imagined mapping
+            # is a GUESS, and the pairing says so rather than pairing silently.
+            "AND_AN_AMBIGUOUS_PAIRING_IS_NOTED":
+                any("ambiguous" in n and "paired by order" in n for n in as_planned[0]["notes"]),
+            "and_an_unproduced_one_IS_A_DIFFERENT_NOTE":
+                any("did not produce" in n for n in diverging[0]["notes"])}
 
 
 def check_the_WHOLE_plan_act_check_loop_is_steppable():
@@ -6973,10 +7102,19 @@ def check_EVERY_BOUNDARY_ESTABLISHES_A_WORLD_TO_READ_IN():
     imagining = g.target(tr, "ran")
     planning_ctx = next((c for c in g.of_kind("context") if g.target(c, "frame") == f1), None)
 
-    X.execute(g, wb, f1)
+    acting_report = X.execute(g, wb, f1)
+    # Asked of the REPLAY, for the reason the imagining side is asked of the frame: `execution.step` is
+    # `rules/execute.mf` now, so the boundary is established by the step's own call — an activation the
+    # call discards when it returns. What survives is the context itself, and the replay is what it hangs
+    # off, exactly as the planning one hangs off the frame it resolves in.
+    #
+    # ⚠ This had to be re-aimed the day the target moved. It read `establishes` off the *operator's*
+    # activation, which was right only while Python opened the context and passed it `under=` that one
+    # call; the surface establishes above the operator and the operator inherits, so the old question
+    # answered `None` — a check that was measuring the shape of the Python, not the property.
+    acting_ctx = g.target(acting_report["replay"], "context")
     acting = [a for a in g.of_kind("activation")
               if g.attr(g.target(a, "of"), "name") == "service" and a != imagining]
-    acting_ctx = AX.establishes(g, acting[0]) if acting else None
 
     return {"THE_IMAGINING_CALL_ESTABLISHED_A_CONTEXT":
                 planning_ctx is not None and g.kind(planning_ctx) == "context",

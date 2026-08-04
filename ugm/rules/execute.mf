@@ -1,0 +1,686 @@
+# Carrying a plan out for real, one step at a time — as an ordinary program.
+#
+# This was `execution.step`, the last big Python island in the plan-act-check loop, and the one this
+# whole arc was walking towards. Everything below it had already moved: `workbench.step` imagines,
+# `deviates` casts, `unmet_expectations` checks the prediction, `predicted_changes` derives it. What was
+# left was the loop that ACTS, and a loop the system cannot inspect is a loop it cannot reason about
+# while it is running — which matters more here than anywhere else, because these steps are the only
+# irreversible ones in the system.
+#
+# Three things it needed, and only the first was a capability:
+#
+#   * a binding set built at run time     -> `INVOKE ... with <node>`, which `step.mf` already uses
+#   * the prediction as something askable -> `rules/predict.mf`, written for this
+#   * facts where there were sentences    -> `notes`, `ran`, `why` and `violations` are nodes now
+#
+# **The precondition is asked BEFORE the call, not caught after it**, and that is the one place this
+# departs from the Python rather than transcribing it. `fn.invoke` re-validates each parameter type at
+# the boundary and reports by RAISING; the Python wrapped the call in `try/except TypeViolation` and
+# turned it into a divergence. A program cannot catch — the same wall `types.compare` met, where `LT` is
+# Python's `<` and a string against a number raises — so the surface asks first, with the answering form
+# of the same question (`violations`, the native `deviates` was given). `ATTEMPT` was the other candidate
+# and is worse here: it catches EVERY refusal, so a `Vetoed` — a standing prohibition stopping a real
+# action — would be quietly recorded as a deviation instead of stopping the world, and it rolls its
+# callee back, which is a promise this layer must never make. Fail fast on deviation, and do not roll
+# back: real effects have already left the graph.
+#
+# ⚠ The check reads the FIRST body's parameter types (`find_function`), where `fn.invoke` selects a body
+# and then checks that one. Nothing in the corpus dispatches on a real operator yet, so the two cannot
+# disagree today; when one does, this has to select first as well.
+
+
+# Off the end of the path, or stopped by a deviation. A deviation is terminal for THIS replay — what
+# happens next is recovery's decision, not a continuation of the same walk.
+fn replay_finished(replay) -> thing:
+    GET R(d) F(replay) "deviation"
+    JMPIF R(d) .yes
+    INVOKE R(at) replay_position replay=F(replay)
+    ADD R(at1) R(at) 1
+    COUNT R(nf) F(replay) "frame"
+    LT R(more) R(at1) R(nf)
+    JMPIF R(more) .no
+.yes:
+    CONST R(result) true
+    JMP .end
+.no:
+    CONST R(result) false
+.end:
+    CONST R(done) true
+
+
+# Where the replay has got to. Read through a call rather than inline because ZERO is the ordinary
+# starting value and jumping on it would read as absent — the trap this shape invites, and the same one
+# `unmet.mf` records about an attribute holding `false`.
+fn replay_position(replay) -> thing:
+    ATTR R(at) F(replay) "at"
+    EQ R(absent) R(at) null
+    JMPNOT R(absent) .have
+    CONST R(at) 0
+.have:
+    COPY R(result) R(at)
+
+
+# --- the frame chain, and what is in force along it -------------------------------------------------
+
+# The frame this one was derived from, or nothing at the root — `workbench.previous`.
+#
+# Read off `frame -next-> frame` BACKWARDS. Sources answer in node-id order, which is normally a trap
+# here; a frame has exactly one predecessor, and a one-element answer has no order to get wrong.
+fn previous_frame(frame) -> thing:
+    NSOURCES R(n) F(frame) "next"
+    CONST R(i) 0
+.each:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .none
+    SOURCE_AT R(s) F(frame) "next" R(i)
+    KIND R(k) R(s)
+    EQ R(is_frame) R(k) "frame"
+    JMPIF R(is_frame) .found
+    ADD R(i) R(i) 1
+    JMP .each
+.found:
+    COPY R(result) R(s)
+    JMP .end
+.none:
+    CONST R(result) null
+.end:
+    CONST R(done) true
+
+
+# This frame and every frame it was derived from, nearest first — `workbench.chain`, as a node with
+# ordered `frame` edges. Transient; `visible_in` drops it.
+#
+# The seen guard is against a malformed graph rather than an ordinary one: this walks a HISTORY, and a
+# history does not loop.
+fn frame_chain(frame) -> thing:
+    NEW R(out) "chain"
+    COPY R(f) F(frame)
+.walk:
+    JMPNOT R(f) .done
+    DEREF R(been) R(out) R(f)
+    JMPIF R(been) .done
+    SETREF R(out) R(f) R(out)
+    LINK R(out) "frame" R(f)
+    INVOKE R(f) previous_frame frame=R(f)
+    JMP .walk
+.done:
+    COPY R(result) R(out)
+
+
+# Every mapping in force in this frame — the nearest version of each thing, nothing twice. This is *the
+# world as imagined here*, where `frame -mapping-> …` answers the other question: what this frame
+# CHANGED. Separating the two is the whole of sparseness.
+#
+# **In the order the world was first laid out, not the order it changed.** Walking nearest-first and
+# keeping the first answer puts whatever this step touched at the front, so the world's order differs in
+# every frame — and that order is the search's last tie-break, which stayed deterministic and got worse.
+# So: oldest frame first, and a later version REPLACES an earlier one in the slot it already occupies.
+# A slot node is what makes "replace in place" expressible; a Python dict got it for free.
+#
+# Answered as a node with ordered `at` edges to slots, each holding one `mapping`. Transient — the
+# caller drops it with `drop_world`.
+fn visible_in(frame) -> thing:
+    INVOKE R(ch) frame_chain frame=F(frame)
+    NEW R(out) "world"
+    COUNT R(nf) R(ch) "frame"
+    ADD R(i) R(nf) -1
+.each_frame:
+    LT R(before_start) R(i) 0
+    JMPIF R(before_start) .done
+    GET_AT R(f) R(ch) "frame" R(i)
+    COUNT R(nm) R(f) "mapping"
+    CONST R(j) 0
+.each_mapping:
+    LT R(more) R(j) R(nm)
+    JMPNOT R(more) .next_frame
+    GET_AT R(m) R(f) "mapping" R(j)
+    # An imagined node stands for ITSELF, which is stated positively rather than being the absence of an
+    # original — so this is the key either way and never a missing one.
+    GET R(key) R(m) "original"
+    JMPIF R(key) .have_key
+    COPY R(key) R(m)
+.have_key:
+    DEREF R(slot) R(out) R(key)
+    JMPIF R(slot) .replace
+    NEW R(slot) "slot"
+    LINK R(out) "at" R(slot)
+    SETREF R(out) R(key) R(slot)
+    JMP .put
+.replace:
+    UNLINK R(slot) "mapping" 0
+.put:
+    LINK R(slot) "mapping" R(m)
+    ADD R(j) R(j) 1
+    JMP .each_mapping
+.next_frame:
+    ADD R(i) R(i) -1
+    JMP .each_frame
+.done:
+    DROP R(ch)
+    COPY R(result) R(out)
+
+
+# Scrap a world and its slots. Members first, or dropping the set they hang off would orphan them —
+# the shape `step.mf` records finding the hard way when it frees its own argument bindings.
+fn drop_world(world) -> thing:
+.free:
+    COUNT R(left) F(world) "at"
+    JMPNOT R(left) .freed
+    GET_AT R(slot) F(world) "at" 0
+    DROP R(slot)
+    JMP .free
+.freed:
+    DROP F(world)
+    CONST R(result) true
+
+
+# --- bindings: which real node stands for which mapping ---------------------------------------------
+
+# The `bound` record for this mapping in this replay, or nothing.
+#
+# Walked FORWARDS, off the replay's own ordered `bound` edges, rather than backwards from the mapping —
+# the same argument `unmet.mf`'s `bound_node` makes, and it matters more here, because `execution.bind`
+# and a frame both point at a mapping under labels the reverse index would hand back interleaved.
+fn binding_of(replay, mapping) -> thing:
+    COUNT R(nb) F(replay) "bound"
+    CONST R(i) 0
+.each:
+    LT R(more) R(i) R(nb)
+    JMPNOT R(more) .none
+    GET_AT R(b) F(replay) "bound" R(i)
+    GET R(bm) R(b) "mapping"
+    EQ R(same) R(bm) F(mapping)
+    JMPIF R(same) .found
+    ADD R(i) R(i) 1
+    JMP .each
+.found:
+    COPY R(result) R(b)
+    JMP .end
+.none:
+    CONST R(result) null
+.end:
+    CONST R(done) true
+
+
+# Say which real node a mapping stands for. Rebinding REPLACES, since settling points the subject's
+# mapping at the cast's result.
+fn bind_real(replay, mapping, node) -> thing:
+    INVOKE R(b) binding_of replay=F(replay) mapping=F(mapping)
+    JMPIF R(b) .clear
+    NEW R(b) "bound"
+    LINK R(b) "mapping" F(mapping)
+    LINK R(b) "in" F(replay)
+    LINK F(replay) "bound" R(b)
+.clear:
+    COUNT R(c) R(b) "node"
+    JMPNOT R(c) .set
+    UNLINK R(b) "node" 0
+    JMP .clear
+.set:
+    LINK R(b) "node" F(node)
+    COPY R(result) R(b)
+
+
+# The continuation of `mapping` that belongs to `frame` — `next` is 1:N because frames fork.
+fn successor_in(mapping, frame) -> thing:
+    COUNT R(n) F(mapping) "next"
+    CONST R(i) 0
+.each:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .none
+    GET_AT R(nxt) F(mapping) "next" R(i)
+    INVOKE R(here) has_edge_to node=F(frame) label="mapping" other=R(nxt)
+    JMPIF R(here) .found
+    ADD R(i) R(i) 1
+    JMP .each
+.found:
+    COPY R(result) R(nxt)
+    JMP .end
+.none:
+    CONST R(result) null
+.end:
+    CONST R(done) true
+
+
+# A node keeps its identity across frames, so its binding follows its mapping's successor.
+fn carry_bindings(replay, prev, frame) -> thing:
+    INVOKE R(w) visible_in frame=F(prev)
+    COUNT R(n) R(w) "at"
+    CONST R(i) 0
+.each:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .done
+    GET_AT R(slot) R(w) "at" R(i)
+    GET R(m) R(slot) "mapping"
+    INVOKE R(nxt) successor_in mapping=R(m) frame=F(frame)
+    JMPNOT R(nxt) .next
+    INVOKE R(b) binding_of replay=F(replay) mapping=R(m)
+    JMPNOT R(b) .next
+    GET R(node) R(b) "node"
+    INVOKE R(_) bind_real replay=F(replay) mapping=R(nxt) node=R(node)
+.next:
+    ADD R(i) R(i) 1
+    JMP .each
+.done:
+    INVOKE R(_) drop_world world=R(w)
+    CONST R(result) true
+
+
+# --- settling what a real call produced --------------------------------------------------------------
+
+# How many nodes of this kind the call minted that nothing has claimed yet.
+fn unclaimed_of_kind(mints, taken, wanted) -> thing:
+    COUNT R(n) F(mints) "found"
+    CONST R(i) 0
+    CONST R(count) 0
+.each:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .done
+    GET_AT R(made) F(mints) "found" R(i)
+    DEREF R(claimed) F(taken) R(made)
+    JMPIF R(claimed) .next
+    KIND R(k) R(made)
+    EQ R(same) R(k) F(wanted)
+    JMPNOT R(same) .next
+    ADD R(count) R(count) 1
+.next:
+    ADD R(i) R(i) 1
+    JMP .each
+.done:
+    COPY R(result) R(count)
+
+
+# The first unclaimed node of this kind, or nothing. FIRST, in mint order, which is what makes the
+# pairing reproducible — `activation.minted` sorts, and this walks that order without re-deciding it.
+fn claim_of_kind(mints, taken, wanted) -> thing:
+    COUNT R(n) F(mints) "found"
+    CONST R(i) 0
+.each:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .none
+    GET_AT R(made) F(mints) "found" R(i)
+    DEREF R(claimed) F(taken) R(made)
+    JMPIF R(claimed) .next
+    KIND R(k) R(made)
+    EQ R(same) R(k) F(wanted)
+    JMPIF R(same) .found
+.next:
+    ADD R(i) R(i) 1
+    JMP .each
+.found:
+    SETREF F(taken) R(made) F(taken)
+    COPY R(result) R(made)
+    JMP .end
+.none:
+    CONST R(result) null
+.end:
+    CONST R(done) true
+
+
+# Match nodes the real call just created to the imagined mappings that predicted them.
+#
+# The pairing is by KIND and by ORDER, so a call minting two nodes of one kind where the plan imagined
+# one is a guess — and this SAYS so rather than pairing silently. It says it as a note NODE: what could
+# not be paired, and how many there were. The sentence is rendered where the report is, which is the
+# split that let this move at all.
+fn bind_minted(replay, frame, mints) -> thing:
+    NEW R(taken) "claimed"
+    INVOKE R(w) visible_in frame=F(frame)
+    COUNT R(n) R(w) "at"
+    CONST R(i) 0
+.each:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .done
+    GET_AT R(slot) R(w) "at" R(i)
+    GET R(m) R(slot) "mapping"
+    INVOKE R(is_new) imagined mapping=R(m)
+    JMPNOT R(is_new) .next
+    INVOKE R(already) binding_of replay=F(replay) mapping=R(m)
+    JMPIF R(already) .next
+    GET R(img) R(m) "image"
+    KIND R(want) R(img)
+    INVOKE R(pool) unclaimed_of_kind mints=F(mints) taken=R(taken) wanted=R(want)
+    JMPIF R(pool) .some
+    NEW R(note) "unproduced"
+    SET R(note) "wanted" R(want)
+    LINK F(replay) "note" R(note)
+    JMP .next
+.some:
+    LT R(one) 1 R(pool)
+    JMPNOT R(one) .take
+    NEW R(note) "ambiguous"
+    SET R(note) "wanted" R(want)
+    SET R(note) "found" R(pool)
+    LINK F(replay) "note" R(note)
+.take:
+    INVOKE R(real) claim_of_kind mints=F(mints) taken=R(taken) wanted=R(want)
+    INVOKE R(_) bind_real replay=F(replay) mapping=R(m) node=R(real)
+.next:
+    ADD R(i) R(i) 1
+    JMP .each
+.done:
+    INVOKE R(_) drop_world world=R(w)
+    DROP R(taken)
+    CONST R(result) true
+
+
+# The parameter a call is ABOUT — the first one.
+fn subject_param_of(fnode) -> thing:
+    COUNT R(n) F(fnode) "param"
+    JMPNOT R(n) .none
+    GET_AT R(p) F(fnode) "param" 0
+    ATTR R(result) R(p) "name"
+    JMP .end
+.none:
+    CONST R(result) null
+.end:
+    CONST R(done) true
+
+
+# Record what a real call produced: bind the nodes it minted, and point the subject's mapping at the
+# result — a cast returns its subject, so the first parameter's mapping now names the cast node.
+fn settle(replay, tr, frame, fnode, out, mints) -> thing:
+    INVOKE R(_) bind_minted replay=F(replay) frame=F(frame) mints=F(mints)
+    INVOKE R(first) subject_param_of fnode=F(fnode)
+    COUNT R(nb) F(tr) "arg"
+    CONST R(i) 0
+.each:
+    LT R(more) R(i) R(nb)
+    JMPNOT R(more) .done
+    GET_AT R(b) F(tr) "arg" R(i)
+    ATTR R(p) R(b) "param"
+    EQ R(is_first) R(p) R(first)
+    JMPNOT R(is_first) .next
+    GET R(m) R(b) "mapping"
+    INVOKE R(bound) binding_of replay=F(replay) mapping=R(m)
+    JMPNOT R(bound) .next
+    INVOKE R(_) bind_real replay=F(replay) mapping=R(m) node=F(out)
+.next:
+    ADD R(i) R(i) 1
+    JMP .each
+.done:
+    CONST R(result) true
+
+
+# --- deviating -----------------------------------------------------------------------------------
+
+# Open a deviation on the replay. The parts every route shares; the caller states the rest.
+#
+# It is a NODE, so a stopped replay says why it stopped without the caller having had to be holding the
+# return value at the moment it happened.
+fn open_deviation(replay, step, frame, transformation) -> thing:
+    NEW R(d) "deviation"
+    SET R(d) "step" F(step)
+    SET R(d) "result" null
+    LINK R(d) "frame" F(frame)
+    LINK R(d) "transformation" F(transformation)
+    LINK F(replay) "deviation" R(d)
+    COPY R(result) R(d)
+
+
+# What this step took on faith, if anything — the label of the hypothesis the transformation records.
+fn assumption_label(tr) -> thing:
+    GET R(h) F(tr) "assumes"
+    JMPNOT R(h) .none
+    ATTR R(result) R(h) "label"
+    JMP .end
+.none:
+    CONST R(result) null
+.end:
+    CONST R(done) true
+
+
+# Scrap the argument set this call assembled. The bindings hang off the set, so they go first — and
+# ALWAYS the first one, never an index that walks forward: dropping a node removes the edges pointing at
+# it, so the list shrinks underneath a counting loop and every second binding would survive.
+fn drop_args(args) -> thing:
+.free:
+    COUNT R(left) F(args) "arg"
+    JMPNOT R(left) .freed
+    GET_AT R(spent) F(args) "arg" 0
+    DROP R(spent)
+    JMP .free
+.freed:
+    DROP F(args)
+    CONST R(result) true
+
+
+# ...and the prediction, which is derived from the two frames every time it is asked for, so keeping one
+# would be storing what the structure already entails.
+fn drop_prediction(prediction) -> thing:
+.free:
+    COUNT R(left) F(prediction) "expect"
+    JMPNOT R(left) .freed
+    GET_AT R(e) F(prediction) "expect" 0
+    DROP R(e)
+    JMP .free
+.freed:
+    DROP F(prediction)
+    CONST R(result) true
+
+
+# --- one step ----------------------------------------------------------------------------------------
+
+# Advance the replay by one frame: carry the bindings across, and run that frame's call FOR REAL.
+# Answers true while there is more to do.
+#
+# This is the one stepper whose steps are IRREVERSIBLE. An imagined step can be rewound and a search step
+# costs only time; a step here reaches the world through `dispatch`, whose commit is the honest admission
+# that nothing after it can be undone. So the yield point matters more here than anywhere else — it is
+# where *"should I do the next one?"* becomes an expressible question.
+#
+# A deviation is recorded and STOPS the replay: what to do about it is recovery's decision, and it needs
+# the frame, the transformation, the real result and what the call minted, because the call is not re-run.
+fn execute_step(replay) -> thing:
+    INVOKE R(over) replay_finished replay=F(replay)
+    JMPIF R(over) .stop
+
+    INVOKE R(i) replay_position replay=F(replay)
+    GET_AT R(prev) F(replay) "frame" R(i)
+    ADD R(i1) R(i) 1
+    GET_AT R(frame) F(replay) "frame" R(i1)
+    SET F(replay) "at" R(i1)
+    INVOKE R(_) carry_bindings replay=F(replay) prev=R(prev) frame=R(frame)
+
+    GET R(tr) R(frame) "via"
+    JMPIF R(tr) .have_step
+    JMP .more
+
+.have_step:
+    # The REAL function, not the mock that was imagined. The transformation records both, which is what
+    # makes a plan replayable at all — a log saying "`list_dir` was applied" could not.
+    ATTR R(name) R(tr) "function"
+    NATIVE R(f) "find_function" R(name)
+
+    # The arguments, resolved through the bindings. A transformation's `arg` binds a MAPPING, and a
+    # mapping is what a replay knows how to turn into a real node.
+    NEW R(args) "bindings"
+    NEW R(unbound) "unbound"
+    COUNT R(nb) R(tr) "arg"
+    CONST R(j) 0
+.each_arg:
+    LT R(more) R(j) R(nb)
+    JMPNOT R(more) .check_bound
+    GET_AT R(b) R(tr) "arg" R(j)
+    ATTR R(p) R(b) "param"
+    GET R(m) R(b) "mapping"
+    INVOKE R(bound) binding_of replay=F(replay) mapping=R(m)
+    JMPNOT R(bound) .missing
+    GET R(node) R(bound) "node"
+    NEW R(one) "binding"
+    SET R(one) "param" R(p)
+    LINK R(one) "value" R(node)
+    LINK R(args) "arg" R(one)
+    JMP .next_arg
+.missing:
+    NEW R(gap) "unbound_param"
+    SET R(gap) "param" R(p)
+    LINK R(unbound) "param" R(gap)
+.next_arg:
+    ADD R(j) R(j) 1
+    JMP .each_arg
+
+.check_bound:
+    COUNT R(nmiss) R(unbound) "param"
+    JMPNOT R(nmiss) .precondition
+    INVOKE R(d) open_deviation replay=F(replay) step=R(name) frame=R(frame) transformation=R(tr)
+    SET R(d) "cause" "unbound_arguments"
+    CONST R(j) 0
+.each_gap:
+    LT R(more) R(j) R(nmiss)
+    JMPNOT R(more) .gaps_recorded
+    GET_AT R(gap) R(unbound) "param" R(j)
+    LINK R(d) "unbound" R(gap)
+    ADD R(j) R(j) 1
+    JMP .each_gap
+.gaps_recorded:
+    DROP R(unbound)
+    INVOKE R(_) drop_args args=R(args)
+    JMP .stop
+
+    # **A precondition that went false while we were NOT looking is a divergence, not a crash.** Asked
+    # here rather than caught after the fact — see the head of this file for why `ATTEMPT` is the wrong
+    # instrument. This is the same question `fn.invoke` will ask at the boundary, of the same nodes in
+    # the same world, so the call below cannot then refuse for a reason this missed.
+.precondition:
+    DROP R(unbound)
+    COUNT R(np) R(f) "param"
+    CONST R(j) 0
+.each_param:
+    LT R(more) R(j) R(np)
+    JMPNOT R(more) .run
+    GET_AT R(p) R(f) "param" R(j)
+    ATTR R(want) R(p) "type"
+    JMPNOT R(want) .next_param
+    ATTR R(pname) R(p) "name"
+    INVOKE R(argnode) binding_value args=R(args) param=R(pname)
+    NATIVE R(bad) "violations" R(argnode) R(want)
+    COUNT R(nbad) R(bad) "violation"
+    JMPIF R(nbad) .stale
+    DROP R(bad)
+.next_param:
+    ADD R(j) R(j) 1
+    JMP .each_param
+
+.stale:
+    INVOKE R(d) open_deviation replay=F(replay) step=R(name) frame=R(frame) transformation=R(tr)
+    SET R(d) "cause" "stale_precondition"
+    SET R(d) "stale_precondition" true
+    SET R(d) "param" R(pname)
+    SET R(d) "expected" R(want)
+    LINK R(d) "violation" R(bad)
+    INVOKE R(_) drop_args args=R(args)
+    JMP .stop
+
+    # The one instruction in this file that reaches the world.
+.run:
+    INVOKE R(out) R(name) with R(args) keep
+
+    # What that call did — the last of the calls this activation has made. `called`, never the reverse of
+    # `caller`: sources answer in node-id order, so "the newest source" is really "the lexicographically
+    # largest", and once ids reach four digits that is not the same thing.
+    SELF R(me)
+    COUNT R(nc) R(me) "called"
+    ADD R(last) R(nc) -1
+    GET_AT R(ran) R(me) "called" R(last)
+    NATIVE R(mints) "minted" R(ran)
+
+    # A cast returns its subject, so a call that answered nothing answers with what it was given.
+    JMPIF R(out) .have_result
+    INVOKE R(first) subject_param_of fnode=R(f)
+    INVOKE R(out) binding_value args=R(args) param=R(first)
+.have_result:
+    NEW R(did) "did"
+    SET R(did) "name" R(name)
+    LINK F(replay) "ran" R(did)
+    INVOKE R(assumed) assumption_label tr=R(tr)
+
+    # The CAST. The transformation already records what type it expected, so deviation is cheap — and it
+    # is the honest signal, because that type is exactly the promise the function made.
+    INVOKE R(viol) deviates transformation=R(tr) result=R(out)
+    COUNT R(nv) R(viol) "violation"
+    JMPNOT R(nv) .settled
+    INVOKE R(d) open_deviation replay=F(replay) step=R(name) frame=R(frame) transformation=R(tr)
+    SET R(d) "result" R(out)
+    ATTR R(expects) R(tr) "expects"
+    SET R(d) "expected" R(expects)
+    SET R(d) "assumed" R(assumed)
+    LINK R(d) "violation" R(viol)
+    INVOKE R(_) record_mints deviation=R(d) mints=R(mints)
+    DROP R(mints)
+    INVOKE R(_) drop_args args=R(args)
+    JMP .stop
+
+.settled:
+    DROP R(viol)
+    INVOKE R(_) settle replay=F(replay) tr=R(tr) frame=R(frame) fnode=R(f) out=R(out) mints=R(mints)
+
+    # The second, WIDER check. The cast above asks whether one node satisfies one schema; this asks
+    # whether the concrete things the step predicted actually happened — the file nodes materialised, the
+    # count came back zero, the edge appeared. After settling, because binding what the real call minted
+    # is what makes an imagined node addressable at all.
+    INVOKE R(prediction) predicted_changes prev_frame=R(prev) frame=R(frame)
+    INVOKE R(unmet) unmet_expectations prediction=R(prediction) replay=F(replay) mints=R(mints)
+    COUNT R(nmissed) R(unmet) "missed"
+    INVOKE R(_) drop_prediction prediction=R(prediction)
+    JMPIF R(nmissed) .unmet_expectations
+
+    # Nothing missed: the answer set is scratch and goes whole.
+.free_unmet:
+    COUNT R(left) R(unmet) "missed"
+    JMPNOT R(left) .freed_unmet
+    GET_AT R(miss) R(unmet) "missed" 0
+    DROP R(miss)
+    JMP .free_unmet
+.freed_unmet:
+    DROP R(unmet)
+    DROP R(mints)
+    INVOKE R(_) drop_args args=R(args)
+    JMP .more
+
+.unmet_expectations:
+    INVOKE R(d) open_deviation replay=F(replay) step=R(name) frame=R(frame) transformation=R(tr)
+    SET R(d) "result" R(out)
+    ATTR R(expects) R(tr) "expects"
+    SET R(d) "expected" R(expects)
+    SET R(d) "assumed" R(assumed)
+    INVOKE R(_) record_mints deviation=R(d) mints=R(mints)
+    # The MISS NODES travel onto the deviation, never the sentences. Only the set they were answered in
+    # is scratch, so it is dropped and they are not.
+    CONST R(j) 0
+.each_miss:
+    LT R(more) R(j) R(nmissed)
+    JMPNOT R(more) .misses_recorded
+    GET_AT R(miss) R(unmet) "missed" R(j)
+    LINK R(d) "missed" R(miss)
+    ADD R(j) R(j) 1
+    JMP .each_miss
+.misses_recorded:
+    DROP R(unmet)
+    DROP R(mints)
+    INVOKE R(_) drop_args args=R(args)
+    JMP .stop
+
+.more:
+    INVOKE R(done_now) replay_finished replay=F(replay)
+    NOT R(result) R(done_now)
+    JMP .end
+.stop:
+    CONST R(result) false
+.end:
+    CONST R(done) true
+
+
+# What the call created, onto the deviation — recovery needs them, because the call is not re-run.
+fn record_mints(deviation, mints) -> thing:
+    COUNT R(n) F(mints) "found"
+    CONST R(i) 0
+.each:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .done
+    GET_AT R(made) F(mints) "found" R(i)
+    LINK F(deviation) "minted" R(made)
+    ADD R(i) R(i) 1
+    JMP .each
+.done:
+    CONST R(result) true

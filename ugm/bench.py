@@ -110,6 +110,60 @@ def stepping(blocks: int = 20, steps: int = 10):
             "ratio": round(mf / py, 1)}
 
 
+def acting(steps: int = 8):
+    """`execution.step`, the surface against the Python it replaced (`execution._python_step`).
+
+    The other half of `stepping`, one level up: that one measures imagining a state, this one measures
+    carrying a plan out for real. They are not the same cost and they do not scale together — an imagined
+    step mints a version and calls a mock, while a real one walks the frame chain twice (`carry_bindings`
+    and `bind_minted` each ask `visible_in`), derives the prediction from two frames, and checks it.
+
+    Cheap in aggregate whatever the ratio says, and that is the load-bearing observation: a search
+    imagines hundreds of states to produce a plan of three or four real actions. This runs per ACTION.
+
+    Chained rather than repeated, for `stepping`'s reason: the walking sparse frames introduce only
+    appears as the chain gets longer."""
+    from pathlib import Path
+    from . import asm, execution as X, workbench as W
+    from .selftest import declare_type, new_graph
+
+    def world():
+        g = new_graph()
+        declare_type(g, "block", attrs={"kind_of": "block"})
+        asm.load_text(g, "\n".join([
+            "fn touch(b: block) -> block:",
+            '    INVOKE R(n) slot_of node=F(b) key="n"',
+            "    ADD R(n2) R(n) 1",
+            '    INVOKE R(_) set_slot node=F(b) key="n" value=R(n2)',
+        ]))
+        for f in ("reachable.mf", "step.mf"):
+            asm.load_file(g, Path(__file__).parent / "rules" / f)
+        w = g.mint("world")
+        g.link("root", "has", w)
+        for i in range(6):
+            g.link(w, "block", g.mint("block", kind_of="block", label=f"b{i}", n=0))
+        b = g.targets(w, "block")[0]
+        wb = W.open_workbench(g, w)
+        f = W.root_frame(g, wb)
+        for _ in range(steps):
+            f, _tr = W.step(g, wb, f, "touch", {"b": W.mapping_for(g, f, b)})
+        return g, wb, f
+
+    def replay(stepper):
+        def once():
+            g, wb, leaf = world()                # building the plan is OUTSIDE the timed section
+            r = X.open_execution(g, wb, leaf)
+            t = time.perf_counter()
+            while stepper(g, r):
+                pass
+            return time.perf_counter() - t
+        return min(once() for _ in range(3))
+
+    py, mf = replay(X._python_step), replay(X.step)
+    return {"steps": steps, "python_ms": round(py * 1000, 1), "surface_ms": round(mf * 1000, 1),
+            "ratio": round(mf / py, 1)}
+
+
 def mediation():
     """What the closed vocabulary costs a read, against the bare opcode it stands for.
 
@@ -185,7 +239,7 @@ def scaling(sizes=(5, 60, 300), steps: int = 10):
     return {f"{n}_blocks_ms": round(min(run(n) for _ in range(3)) * 1000, 1) for n in sizes}
 
 
-BENCHMARKS = (sussman, stepping, scaling, mediation)
+BENCHMARKS = (sussman, stepping, acting, scaling, mediation)
 
 
 def main() -> int:
