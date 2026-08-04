@@ -1,9 +1,28 @@
 # Predicate dispatch
 
-**A design note. Slice 1 is built** — a function can state a condition over its parameters, `invoke`
-refuses on it and the planner filters on it, and the hardcoded rule in `driver.enumerate_frame` is gone.
-Slices 2–4 are not. The rest of the note is the argument, and it is kept because the argument is worth
-more than the conclusion.
+**A design note. Slices 1 and 2 are built** — a function states its conditions in its own `.mf` source,
+several bodies may share a name, and which one a call means is decided by evaluating those conditions
+most-specific-first. Slices 3 and 4 are not. The rest of the note is the argument, and it is kept because
+the argument is worth more than the conclusion.
+
+## Why dispatch, and not a bigger vocabulary
+
+The decisive argument, and it is not about elegance. Without dispatch, a domain that draws a distinction
+must **mangle names**: `go_to_river_bank` beside `go_to_financial_bank`. Two problems, and the second is
+the real one.
+
+The count multiplies. Senses × verbs, a name per combination, and every new distinction re-crosses the
+whole vocabulary. The CNL cannot grow itself on purpose — a family is an edit to `intake.py` forever — so
+a design that answers ambiguity by adding names is answering it with the budget that has none.
+
+**And a mangled name is an island.** The distinguishing condition ends up baked into an identifier, where
+nothing can read it: nothing can ask *what makes this the river sense*, nothing can plan towards making
+it true, and the relation between the two senses is gone — they are two unrelated names that happen to
+share a prefix. That is exactly the argument [mediated-access.md](mediated-access.md) makes one level
+down for lowering to a **name** rather than to an opcode (*"the relation is gone as a relation; nothing
+can ask what the rule was about, only what it stepped through"*), and it lands the same way here: an
+island is created by the second caller. Dispatch keeps the condition as **data** and the senses related
+by sharing a name.
 
 **What the spike found**, since two of the three things were not in the plan:
 
@@ -214,14 +233,38 @@ conditions over its *parameters* (`function.guard`), evaluated beside the parame
 answer for the planner, which filters on them in `enumerate_frame` and `check_call`. One name still means
 one body, so no static reader changed and nothing became ambiguous.
 
-⚠ **The authoring surface is Python only.** `fn.guard(g, "stack", sort="same", negated=True, left="b",
-right="onto")` is the API; there is no `.mf` header form yet, so a guard cannot be written beside the
-body it guards. `asm.py` would need `fn f(a, b) unless a is b:` — a parser change, not a CNL family, so
-it spends none of the budget. That is the obvious next half-day.
+✅ **And the surface is built**, as `when` / `unless` lines above the body:
 
-**Slice 2 — several bodies, one name.** `function.find` selects the most specific applicable body;
-`precedence` breaks ties; `driver.establishes` unions the effects of the candidates. Measure the search,
-because this is where it can quietly get worse.
+```
+fn stack(b: clear_block, onto: clear_block) -> block:
+    unless b is onto
+    INVOKE R(was) related node=F(b) label="on"
+```
+
+Lines rather than a header clause, for the reason a criterion uses lines: each condition is its own node,
+so a refusal can say *which* one failed, and several fit. Only above the instructions — a condition
+decides whether the body applies at all, so one written halfway down would read as though it applied from
+there. `intake.condition` is **called, not copied**: the condition grammar belongs to `intake`, and a
+guard's names are its parameters where a criterion's are roles, which the language cannot tell apart.
+Guards round-trip through `unparse`, rendered from the stored test rather than from the text they were
+written as.
+
+**Slice 2 — several bodies, one name. ✅ BUILT.** `function.bodies` / `function.select`: candidates are
+the bodies sharing a name, filtered by their guards, ordered most-specific-first by `precedence._covers`
+with **declaration order** breaking every tie the partial order cannot. `invoke` selects before it loads,
+so the body a call runs is the body the world chose. `driver.establishes` **unions** over the bodies —
+an over-approximation, which is the direction that reader is contractually safe in.
+
+Three constraints that fell out of building it:
+
+* **Bodies sharing a name must take the same parameters.** A caller binds arguments before a body is
+  chosen, so anything else is not dispatchable. Refused in `define`, where the author is, rather than at
+  the call, where the message would name a function nobody wrote.
+* **Selection happens on every call, not only when several bodies exist.** Which body a name means *is*
+  what the call means; making it conditional would make the single-body case a different mechanism. It
+  costs one edge read.
+* **Nothing applicable is a refusal, not a fallback.** `GuardViolation` reports every candidate's reason,
+  because *why did none of them mean this* is a question about the set.
 
 **Slice 3 — the situation in a guard.** Conditions that speak of the ambient goal, reached by walking the
 chain. This is what makes *go to the bank* work when the world cannot decide it.

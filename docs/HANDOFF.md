@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **254 checks, 0 failing**, in about 60 seconds.
+**Verify:** `python -m ugm.selftest` — currently **255 checks, 0 failing**, in about 60 seconds.
 **Measure:** `python -m ugm.bench` — the numbers below, re-runnable.
 
 The engine is `ugm/`. An earlier iteration lived in `microfunctions/` and the package was renamed;
@@ -18,7 +18,7 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 | how it runs | [execution-model.md](execution-model.md) |
 | what it cannot do | [limits.md](limits.md) — kept deliberately honest |
 | what is only sayable in Python, and why | [audit.md](audit.md) |
-| dispatching on a condition rather than a type | [predicate-dispatch.md](predicate-dispatch.md) — slice 1 built |
+| dispatching on a condition rather than a type | [predicate-dispatch.md](predicate-dispatch.md) — slices 1-2 built |
 | why a rule never calls `GET` | [mediated-access.md](mediated-access.md) — built; the note is the argument behind it |
 | the instruction set | [reference/isa.md](reference/isa.md) |
 
@@ -126,11 +126,14 @@ index, kept short on purpose so the plan below stays readable.
 * **`dispatch` refuses on the context, not on the argument.** *Am I imagining?* is a property of the
   dynamic extent. See the traps.
 * **There is a benchmark in the repo** — `python -m ugm.bench`.
-* **A function can state a relation between its own parameters** — `fn.guard`, a criterion's condition
-  keyed on parameters instead of roles, evaluated by the same reader. `driver.enumerate_frame`'s
-  hardcoded *no node in two roles* is gone and `stack` says it itself. Both forms landed together:
-  `invoke` refuses (`GuardViolation`), `fn.applies` answers. Cost: nothing measurable.
-  [predicate-dispatch.md](predicate-dispatch.md) has the argument and the three findings.
+* **Predicate dispatch — a name may mean several bodies, and the world picks.** A function states
+  `when` / `unless` conditions in its own `.mf` source; `fn.select` takes the most specific applicable
+  body, `precedence._covers` orders them, and declaration order breaks every tie the partial order
+  cannot. `invoke` selects before it loads; `driver.establishes` unions over the bodies.
+  `driver.enumerate_frame`'s hardcoded *no node in two roles* is gone and `stack` says it itself.
+  Cost: nothing measurable. [predicate-dispatch.md](predicate-dispatch.md) has the argument — the short
+  version is that the alternative is **name mangling**, and a mangled name buries the distinguishing
+  condition in an identifier where nothing can read it, which is an island per sense.
 * **`x is y` used to parse as a link labelled `is`** — silently matching nothing, in every family using
   the shared proposition grammar. Recognised now, as the `same` sort; a condition builds it, a goal and a
   method step refuse it with a reason.
@@ -246,11 +249,16 @@ walks from there with **no view**, because at that point it holds a context rath
 schemas in the corpus are attribute-shaped so nothing catches it. It wants a world where a parameter
 type's *schema* depends on a neighbour the frame changed.
 
-### 3. Predicate dispatch, slices 2–4
+### 3. Predicate dispatch, slices 3–4
 
-[predicate-dispatch.md](predicate-dispatch.md). The nearest piece is the **authoring surface**: a guard
-can only be attached from Python, so `asm.py` wants `fn f(a, b) unless a is b:`. Then slice 2 — one name,
-several bodies — which is where the search can quietly get worse, so measure it.
+[predicate-dispatch.md](predicate-dispatch.md). **Slice 3** — conditions that speak of the ambient goal,
+reached by walking the chain, which is what makes *go to the bank* work when the world alone cannot
+decide it. **Slice 4** is the prize: `wants_that_unblock` reads guards, so a failed condition becomes a
+subgoal rather than a refusal.
+
+⚠ Nothing in the corpus dispatches yet — `stack`'s guard is a *constraint*, not a choice between bodies,
+so the union in `driver.establishes` and the specificity ordering are exercised only by their checks. The
+first real multi-body operator is where ranking can quietly degrade; measure the search when it lands.
 
 ### 4. `execution.step`, then the phase machine
 

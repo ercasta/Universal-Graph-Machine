@@ -59,6 +59,16 @@ def define(g: Graph, name: str, params: tuple, program: tuple,
     what a selection layer ranks over and what a language model reads to decide whether this function is
     the one to call. A comment that only survives in a source file is invisible to the running system;
     stored on the node, it is ordinary data any microfunction can read — or write."""
+    # **Several bodies may share a name, and they must take the same parameters.** Dispatch chooses
+    # among bodies, so a caller binds arguments before one is chosen — which is only meaningful if every
+    # candidate takes the same ones. Refused here rather than discovered at the call, where the symptom
+    # would be a missing-parameter error naming a function the caller never wrote.
+    for other in bodies(g, name):
+        theirs = tuple(g.attr(x, "name") for x in g.targets(other, "param"))
+        if theirs != tuple(params):
+            raise ValueError(f"{name!r} is already defined taking {theirs}, and a second body takes "
+                             f"{tuple(params)} — bodies sharing a name are dispatched between, so they "
+                             f"must bind the same parameters")
     fn = g.mint("function", name=name)
     if doc:
         g.put(fn, doc=doc)
@@ -197,9 +207,13 @@ def subject_param(g: Graph, name: str) -> str | None:
     return params[0] if params else None
 
 
-def param_types(g: Graph, name: str) -> dict:
-    """`{param: declared type}`. What candidate generation reads to ask whether a function could apply."""
-    fn = find(g, name)
+def param_types(g: Graph, name: str, *, fnode: str | None = None) -> dict:
+    """`{param: declared type}`. What candidate generation reads to ask whether a function could apply.
+
+    Answered for one body. Where several share a name their *types* may differ even though their
+    parameters may not — that is how a sense is selected — so a reader asking about the name gets the
+    first body's, which is the whole answer wherever nothing dispatches."""
+    fn = fnode if fnode is not None else find(g, name)
     if fn is None:
         return {}
     return {g.attr(p, "name"): g.attr(p, "type")
@@ -271,17 +285,16 @@ def guard(g: Graph, name: str, *, sort: str, negated: bool = False, **fields) ->
     fnode = find(g, name)
     if fnode is None:
         raise KeyError(f"no function named {name!r}")
-    t = CR.test(g, fnode, sort=sort, negated=negated, **fields)
-    # `criterion.test` links under `test`; a guard is the function's, under its own label, so a reader
-    # asking what a function demands never has to know what a criterion is.
-    g.unlink(fnode, "test", index=g.targets(fnode, "test").index(t))
-    g.link(fnode, "guard", t)
-    return t
+    # Stored under `test`, the label a criterion uses, and that is not laziness. `precedence._covers`
+    # compares two rules by reading their tests, and specificity is the whole basis on which one body is
+    # chosen over another — so a second label would mean a second comparator, agreeing by hand. One
+    # mechanism serving both is the claim; using one label is what makes it true rather than said.
+    return CR.test(g, fnode, sort=sort, negated=negated, **fields)
 
 
-def guards_of(g: Graph, name: str) -> tuple:
-    fnode = find(g, name)
-    return () if fnode is None else g.targets(fnode, "guard")
+def guards_of(g: Graph, name: str, *, fnode: str | None = None) -> tuple:
+    node = fnode if fnode is not None else find(g, name)
+    return () if node is None else g.targets(node, "test")
 
 
 def unmet_guards(g: Graph, name: str, args: dict, *, frame=None, under: str = "root",
@@ -299,19 +312,75 @@ def unmet_guards(g: Graph, name: str, args: dict, *, frame=None, under: str = "r
     node = fnode if fnode is not None else find(g, name)
     if node is None:
         return ()
-    return tuple(CR.describe_test(g, t) for t in g.targets(node, "guard")
+    return tuple(CR.describe_test(g, t) for t in g.targets(node, "test")
                  if not CR.holds(g, t, args, frame, under))
 
 
-def applies(g: Graph, name: str, args: dict, *, frame=None, under: str = "root") -> bool:
-    """Would this call satisfy the function's declared conditions? The predicate behind selection."""
-    return not unmet_guards(g, name, args, frame=frame, under=under)
+def applies(g: Graph, name: str, args: dict, *, frame=None, under: str = "root",
+            fnode: str | None = None) -> bool:
+    """Would this call satisfy the declared conditions? The predicate behind selection."""
+    return not unmet_guards(g, name, args, frame=frame, under=under, fnode=fnode)
 
 
-def load(g: Graph, name: str) -> tuple:
+def bodies(g: Graph, name: str) -> tuple:
+    """Every body defined under this name, in declaration order.
+
+    **A name may have several.** That is the whole of dynamic dispatch here, and it is worth saying why
+    it is not merely convenient. The alternative to dispatching is to mangle: `go_to_river_bank` beside
+    `go_to_financial_bank`, a name per combination of senses, and the count multiplies with every
+    distinction a domain draws. Worse than the count is what the names *are* — a mangled name has the
+    distinguishing condition baked into an identifier, where nothing can read it, so the relation between
+    the two senses is gone and each name is an island the second caller creates. Dispatch keeps the
+    condition as data and the senses related by sharing a name, which is the same argument
+    `docs/mediated-access.md` makes for lowering to a name rather than to an opcode: a name is where
+    meaning lives.
+
+    Declaration order, because that is the last stage of the ladder and it is total — see `select`."""
+    return tuple(n for n in g.of_kind("function") if g.attr(n, "name") == name)
+
+
+def select(g: Graph, name: str, args: dict, *, frame=None, under: str = "root", found=None):
+    """Which body this call means: the most specific one whose conditions hold. `None` if none does.
+
+    **Most specific first, and declaration order among equals.** Specificity over arbitrary conditions is
+    entailment between predicates and not computable, so `precedence._covers` answers it syntactically
+    and answers *no* when it cannot tell — *"a false negative loses an ordering the author could have
+    had, a false positive claims a precedence the author never wrote"*. Two bodies whose guards are
+    incomparable therefore tie, and the tie is broken by **declaration order**, which is authored rather
+    than arbitrary and is what `mocks_of`'s preference ordering has always been.
+
+    That is the honest shape of it: the order is partial, the fallback is total, and an author who cares
+    which of two incomparable readings wins says so by writing one first.
+
+    A single body with no guard is the overwhelmingly common case and costs one list lookup."""
+    from . import precedence as PR
+    found = bodies(g, name) if found is None else found
+    if not found:
+        return None
+    fit = [n for n in found if applies(g, name, args, frame=frame, under=under, fnode=n)]
+    if not fit:
+        return None
+    # Insertion sort on a partial order — never `sorted`, which needs a total comparator and would put an
+    # incomparable pair in whatever order the algorithm happened to visit them. This keeps declaration
+    # order except where one body demonstrably covers another.
+    out = []
+    for cand in fit:
+        at = len(out)
+        for i, seen in enumerate(out):
+            if PR._covers(g, cand, seen) and not PR._covers(g, seen, cand):
+                at = i
+                break
+        out.insert(at, cand)
+    return out[0]
+
+
+def load(g: Graph, name: str, *, fnode: str | None = None) -> tuple:
     """Lift a stored function back to `(params, program)`. Raises if it is not there — loudly, per this
-    project's standing discipline for a malformed or missing fragment."""
-    fn = find(g, name)
+    project's standing discipline for a malformed or missing fragment.
+
+    `fnode` names *which* body, for a caller that has already selected one. Without it this answers with
+    the first body of that name, which is the only body wherever nothing dispatches."""
+    fn = fnode if fnode is not None else find(g, name)
     if fn is None:
         raise KeyError(f"no function named {name!r}")
     params = tuple(g.attr(p, "name") for p in g.targets(fn, "param"))
@@ -392,21 +461,46 @@ def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool =
     passes — that is saying nothing, which is different from naming a type that does not exist.
 
     `check_types=False` is the opt-out for a hot path that has already checked."""
-    params, program = load(g, name)
+    from . import access as AX
     args = args or {}
+    found = bodies(g, name)
+    if not found:
+        raise KeyError(f"no function named {name!r}")
+    # Parameters before selection, because a guard speaks OF the parameters: asking whether a body
+    # applies to a binding that is missing one would answer "it does not", and the caller would be told
+    # its call did not apply when what it did was leave an argument out.
+    params = tuple(g.attr(x, "name") for x in g.targets(found[0], "param"))
     missing = [p for p in params if p not in args]
     if missing:
         raise TypeError(f"{name}() missing bound parameter(s): {missing}")
+
+    # **Which body this name means here.** Always, not only when several are defined — selection is what
+    # the call *means*, and a single body with no conditions costs one edge read. The context is `under`
+    # at a boundary that establishes one and the caller's otherwise, which is the same dynamic scope
+    # every read beneath this call will find.
+    ctx = under if under is not None else AX.context_of(g, caller)
+    ctx_frame = g.target(ctx, "frame") if ctx is not None else None
+    fnode = select(g, name, args, frame=ctx_frame, found=found)
+    if fnode is None:
+        # Nothing applies. The enforcing half of `applies`, and it reports every candidate's reason
+        # rather than the first — with several bodies, *why did none of them mean this* is a question
+        # about the set, and naming one would send a reader to the wrong body.
+        why = "; ".join(f"{'' if len(found) == 1 else f'[{i}] '}" + ", ".join(
+            unmet_guards(g, name, args, frame=ctx_frame, fnode=n) or ("no reason recorded",))
+            for i, n in enumerate(found))
+        err = GuardViolation(f"{name}(…) does not apply here: {why}")
+        err.function, err.unmet = name, why
+        raise err
+    _params, program = load(g, name, fnode=fnode)
     if check_types:
-        from . import access as AX, types as TY
+        from . import types as TY
         # **The precondition is checked in the world the body will run in.** A parameter type reads like a
         # precondition and is enforced like one, so it has to be asked of the same world the rule is about
         # to read — otherwise a rule imagined on a workbench is admitted or refused on the strength of
         # reality, one frame away from the state it is actually being run in. The context is `under` at a
         # boundary that establishes one, and the caller's otherwise, which is the same dynamic scope
         # every read beneath this call will find.
-        ctx = under if under is not None else AX.context_of(g, caller)
-        ptypes = param_types(g, name)
+        ptypes = param_types(g, name, fnode=fnode)
         for p in params:
             want = ptypes.get(p)
             if want is None:
@@ -420,15 +514,6 @@ def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool =
                 err = TY.TypeViolation(f"{name}({p}=…): {args[p]} is not a {want}: {bad}")
                 err.function, err.param, err.want, err.violations = name, p, want, bad
                 raise err
-        # ...and then the conditions a type cannot state, in the same world, at the same boundary. The
-        # order is not arbitrary: a type constrains one argument and is cheap, a guard may walk the
-        # surroundings, so the cheap gate runs first and most calls never reach this line.
-        ctx_frame = g.target(ctx, "frame") if ctx is not None else None
-        unmet = unmet_guards(g, name, args, frame=ctx_frame)
-        if unmet:
-            err = GuardViolation(f"{name}(…) does not apply here: " + "; ".join(unmet))
-            err.function, err.unmet = name, unmet
-            raise err
     from .isa import Machine
     callee = Focus(g)
     for p in params:
@@ -443,7 +528,7 @@ def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool =
     # `under` is a Python *boundary* establishing the world this call reads in — `workbench.step` and
     # `execution` are the two that do. It is not a context being threaded: nothing below sees it as an
     # argument, the callee's callees inherit it by walking `caller`, and a rule never names one.
-    _, focus, out = Machine(program).run(g, callee, of=find(g, name), caller=caller,
+    _, focus, out = Machine(program).run(g, callee, of=fnode, caller=caller,
                                          retire=False, under=under, **regs)
     if not retain:
         # `scrap`, not `retire`: this focus was minted here and handed to nobody, so leaving it would

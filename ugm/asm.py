@@ -169,6 +169,10 @@ class Parsed:
     ptypes: dict = field(default_factory=dict)     # param name -> declared type name
     returns: str | None = None                     # declared result type — what a planner chains on
     mocks: str | None = None                       # this function is one possible outcome of that one
+    #: `when` / `unless` lines, as `(negated, words, line, lineno)` — the conditions under which THIS
+    #: body is what the name means here. Kept as text and minted by `load_text`, because the condition
+    #: grammar belongs to `intake` and parsing it twice is the drift this codebase keeps recording.
+    guards: tuple = ()
 
     def __iter__(self):
         """Unpacks as `(name, params, program)`, so callers that predate `doc`/`notes` still work."""
@@ -183,10 +187,12 @@ def parse(text: str) -> list:
     comment on the same line as an instruction is a trailing note for that instruction."""
     out, name, params, program = [], None, (), []
     doc, notes, pending, ptypes, returns, mocks = None, {}, [], {}, None, None
+    guards = []
 
     def flush():
         if name is not None:
-            out.append(Parsed(name, params, tuple(program), doc, dict(notes), dict(ptypes), returns, mocks))
+            out.append(Parsed(name, params, tuple(program), doc, dict(notes), dict(ptypes), returns,
+                              mocks, tuple(guards)))
 
     for lineno, raw in enumerate(text.splitlines(), 1):
         stripped = raw.strip()
@@ -213,12 +219,28 @@ def parse(text: str) -> list:
                 if m.group(2):
                     ptypes[m.group(1)] = m.group(2)
             params = tuple(params)
-            program, notes = [], {}
+            program, notes, guards = [], {}, []
             doc = " ".join(pending) or (comment or None)
             pending = []
             continue
         if name is None:
             raise AsmError(f"line {lineno}: instruction outside any function — expected `fn name(...):`")
+
+        first = code.split(None, 1)[0]
+        if first in ("when", "unless"):
+            # **A condition, not an instruction.** One per line, above the body, because that is what
+            # lets a refusal name *which* one failed — the property `criterion.governing` is built on and
+            # an opaque predicate could never give. It also scales: a header clause would have to hold
+            # them all on one line.
+            #
+            # Only before the first instruction. A condition decides whether this body runs at all, so
+            # one written halfway down reads as though it applied from there, and it would not.
+            if program:
+                raise AsmError(f"line {lineno}: `{first}` decides whether this body applies at all, so "
+                               f"it belongs above the instructions, not among them")
+            guards.append((first == "unless", code.split()[1:], code, lineno))
+            pending = []
+            continue
 
         note = " ".join(pending + ([comment] if comment else [])) or None
         pending = []
@@ -307,7 +329,7 @@ def _fmt_call(step) -> str:
 
 def unparse(name: str, params: tuple, program: tuple,
             doc: str | None = None, notes: dict | None = None, ptypes: dict | None = None,
-            returns: str | None = None, mocks: str | None = None) -> str:
+            returns: str | None = None, mocks: str | None = None, guards: tuple = ()) -> str:
     """Render back to text, natural-language comments included — for inspection, for round-trip checking,
     and for showing a model what it actually wrote after the graph stored it."""
     notes, ptypes = notes or {}, ptypes or {}
@@ -318,6 +340,11 @@ def unparse(name: str, params: tuple, program: tuple,
     arrow = f" -> {returns}" if returns else ""
     mk = f" mocks {mocks}" if mocks else ""
     lines.append(f"fn {name}({sig}){arrow}{mk}:")
+    # Guards first, and they must survive the round trip: `unparse` silently dropped the `with` keyword
+    # once, so a function using it dumped to text that would not parse back, and the check covered only
+    # the form that worked.
+    for negated, words, _line, _lineno in guards or ():
+        lines.append(f"    {'unless' if negated else 'when'} {' '.join(words)}")
     for pos, step in enumerate(program):
         if notes.get(pos):
             lines.append(f"    # {notes[pos]}")
@@ -346,7 +373,13 @@ def load_text(g: Graph, text: str) -> tuple:
     from .function import define
     defined, mediated = [], False
     for p in parse(text):
-        define(g, p.name, p.params, p.program, p.doc, p.notes, p.ptypes, p.returns, p.mocks)
+        fnode = define(g, p.name, p.params, p.program, p.doc, p.notes, p.ptypes, p.returns, p.mocks)
+        for negated, words, line, lineno in p.guards:
+            # The condition grammar is `intake`'s, and it is called rather than copied: a guard's names
+            # are its parameters where a criterion's are roles, and the language cannot tell them apart,
+            # which is the whole reason one reader serves both.
+            from . import intake
+            intake.condition(g, fnode, words, negated=negated, line=line, lineno=lineno, names=p.params)
         defined.append(p.name)
         mediated = mediated or access.calls_the_vocabulary(p.program)
     if mediated:
@@ -373,10 +406,17 @@ def load_dir(g: Graph, path, pattern: str = "*.mf") -> tuple:
 
 
 def dump(g: Graph, name: str) -> str:
-    from .function import load, doc_of, notes_of, param_types, returns_of, mocks_target
+    from . import criterion as CR
+    from .function import load, doc_of, notes_of, param_types, returns_of, mocks_target, guards_of
     params, program = load(g, name)
+    # A guard is rendered from the stored test, not from the text it was written as — the same standard
+    # every other part of this dump is held to, and the only one that can catch a condition that was
+    # stored as something other than what it said.
+    guards = tuple((bool(g.attr(t, "negated")),
+                    CR.describe_test(g, t).removeprefix("not ").split(), None, None)
+                   for t in guards_of(g, name))
     return unparse(name, params, program, doc_of(g, name), notes_of(g, name),
-                   param_types(g, name), returns_of(g, name), mocks_target(g, name))
+                   param_types(g, name), returns_of(g, name), mocks_target(g, name), guards)
 
 
 __all__ = ["AsmError", "Parsed", "parse", "unparse", "load_text", "load_file", "load_dir", "dump"]

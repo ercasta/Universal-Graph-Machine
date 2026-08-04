@@ -345,7 +345,7 @@ def _denotes(ins, role):
     return None
 
 
-def _walk(g: Graph, name: str):
+def _walk(g: Graph, name: str, *, fnode: str | None = None):
     """One pass over a stored body, yielding `(instruction, role)` — the single place that knows what a
     register denotes.
 
@@ -363,7 +363,7 @@ def _walk(g: Graph, name: str):
 
     `role` is valid at the instruction it is yielded with, before that instruction's own register
     write — which is what both readers need, since operands are read before the destination is clobbered."""
-    params, program = fn.load(g, name)
+    params, program = fn.load(g, name, fnode=fnode)
     roles: dict = {}
 
     def role(operand):
@@ -398,8 +398,23 @@ def _walk(g: Graph, name: str):
 
 
 def _effects(g: Graph, name: str, *, include_mocks: bool) -> tuple:
+    # **Unioned over every body of this name.** A name may mean several bodies, chosen by their guards,
+    # and which one it means here is not a static fact — so what the name *could* establish is the union
+    # of what each body does. That is safe in the direction this reader is contractually safe in: it is
+    # an over-approximation used to order candidates and it never rules one out. It does cost ranking
+    # sharpness, which is the honest price of dispatch and the thing to measure if the search degrades:
+    # a static reader that loses information gets slower before it gets wrong.
+    found = fn.bodies(g, name)
+    if len(found) > 1:
+        parts = [_effects_of_body(g, name, node, include_mocks=include_mocks) for node in found]
+        return (frozenset().union(*(p[0] for p in parts)),
+                frozenset().union(*(p[1] for p in parts)))
+    return _effects_of_body(g, name, found[0] if found else None, include_mocks=include_mocks)
+
+
+def _effects_of_body(g: Graph, name: str, fnode, *, include_mocks: bool) -> tuple:
     effects, unknown = set(), set()
-    for ins, role in _walk(g, name):
+    for ins, role in _walk(g, name, fnode=fnode):
         a = ins.args
         arg = a[1] if len(a) > 1 else None
 

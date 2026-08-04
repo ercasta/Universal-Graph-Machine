@@ -4634,7 +4634,7 @@ def _blocks():
     the planner reads their effects exactly as it did when they were `GET`/`SET`/`LINK`, because
     `access.as_opcode` translates a vocabulary call back to the instruction it stands for."""
     from pathlib import Path
-    from . import asm, function as fn
+    from . import asm
     g = new_graph()
     for name in ("access.mf", "resolve.mf"):
         asm.load_file(g, Path(__file__).parent / "rules" / name)
@@ -4645,6 +4645,10 @@ def _blocks():
     asm.load_text(g, "\n".join([
         "# Put a clear block on top of another clear block.",
         "fn stack(b: clear_block, onto: clear_block) -> block:",
+        # The one thing a parameter type cannot say: a relation BETWEEN the parameters. This used to be
+        # a hardcoded rule in `driver.enumerate_frame` whose own comment admitted the declaration
+        # language had no form for it.
+        "    unless b is onto",
         '    INVOKE R(was) related node=F(b) label="on"',
         '    INVOKE R(_) unrelate node=F(b) label="on" index=0',
         '    INVOKE R(_) relate node=F(b) label="on" other=F(onto)',
@@ -4666,10 +4670,6 @@ def _blocks():
         "fn paint(b: block) -> block:",
         '    INVOKE R(_) set_slot node=F(b) key="colour" value="red"',
     ]))
-    # The one thing a parameter type cannot say: a relation BETWEEN the parameters. `stack(b, onto)` is
-    # nonsense when the two are the same block, and `driver.enumerate_frame` used to carry that as a
-    # hardcoded rule with a comment explaining that the declaration language had no form for it.
-    fn.guard(g, "stack", sort="same", negated=True, left="b", right="onto")
     world = g.mint("world")
     g.link("root", "has", world)                       # real things hang off root
     ground = g.mint("ground", kind_of="ground", label="ground", height=0, clear=True)
@@ -6693,6 +6693,93 @@ def check_A_FUNCTION_CAN_STATE_A_RELATION_BETWEEN_ITS_OWN_PARAMETERS():
             # link whose LABEL was `is`, matching nothing, silently.
             "AND_THE_SURFACE_NO_LONGER_MISREADS_x_is_y":
                 _refusal_mentions(_lines("goal be tidy:", "    a is b"), "identity")}
+
+
+def check_ONE_NAME_MANY_BODIES_and_the_WORLD_decides_which_it_means():
+    """*Go to the bank* versus *go to the bank of the river*. One name, two bodies, and the **world**
+    picks — which is dynamic dispatch doing the job a vocabulary would otherwise do by multiplying.
+
+    The alternative is name mangling: `go_to_river_bank` beside `go_to_financial_bank`, a name per
+    combination of distinctions, and the count multiplies with every sense a domain draws. The count is
+    the smaller problem. A mangled name has the distinguishing condition **baked into an identifier**,
+    where nothing can read it — so the relation between the two senses is gone, and each name is an
+    island the second caller creates. Dispatch keeps the condition as data and the senses related by
+    sharing a name, which is `docs/mediated-access.md`'s argument for lowering to a name rather than to
+    an opcode, one level up: a name is where meaning lives.
+
+    Most specific first, declaration order among equals. Specificity over arbitrary conditions is
+    entailment between predicates and not computable, so `precedence._covers` answers it syntactically
+    and answers *no* when it cannot tell. Ties therefore happen, and they are broken by the order the
+    author wrote — total, and authored rather than arbitrary.
+
+    Vacuity guards, and they are most of this check: the two bodies must really do different things (or
+    one implementation would pass whatever was selected); the *same* call must reach both, decided only
+    by what is true of the argument; the general body must be reachable when the specific one does not
+    apply, or the specific one is simply always winning; and a world where **neither** applies must
+    refuse rather than pick one — that is the difference between dispatch and a default."""
+    from . import asm, criterion as CR, driver as D, function as fn
+
+    g = new_graph()
+    declare_type(g, "place", attrs={"kind_of": "place"})
+    asm.load_text(g, "\n".join([
+        "# The river sense: a bank that is of something wet. Declared FIRST, and it is also the",
+        "# tighter condition, so it wins on specificity rather than on order.",
+        "fn go(d: place) -> place:",
+        '    when d.of is a river',
+        '    INVOKE R(_) set_slot node=F(d) key="arrived" value="wellies"',
+        "",
+        "# The general sense, declared second and demanding nothing.",
+        "fn go(d: place) -> place:",
+        '    INVOKE R(_) set_slot node=F(d) key="arrived" value="cash"',
+    ]))
+    declare_type(g, "river", attrs={"kind_of": "river"})
+
+    river = g.mint("river", kind_of="river", label="the Cam")
+    wet = g.mint("place", kind_of="place", label="the bank of the river")
+    g.link(wet, "of", river)
+    dry = g.mint("place", kind_of="place", label="the bank")
+    for n in (river, wet, dry):
+        g.link("root", "has", n)
+
+    fn.invoke(g, "go", {"d": wet})
+    fn.invoke(g, "go", {"d": dry})
+
+    # Neither body applies: the specific one's condition fails and the general one is removed, so there
+    # is nothing left to mean. It must refuse rather than fall back.
+    g2 = new_graph()
+    declare_type(g2, "place", attrs={"kind_of": "place"})
+    asm.load_text(g2, "\n".join(["fn go(d: place) -> place:", "    when d.of is a river",
+                                 '    INVOKE R(_) set_slot node=F(d) key="arrived" value="wellies"']))
+    nowhere = g2.mint("place", kind_of="place", label="nowhere")
+    g2.link("root", "has", nowhere)
+    refused = None
+    try:
+        fn.invoke(g2, "go", {"d": nowhere})
+    except fn.GuardViolation as e:
+        refused = e
+
+    return {"ONE_NAME_TWO_BODIES": len(fn.bodies(g, "go")) == 2,
+            # The world decides, and the two answers differ — which is the vacuity guard that matters.
+            "THE_RIVER_SENSE_WON_WHERE_THERE_IS_A_RIVER": g.attr(wet, "arrived") == "wellies",
+            "AND_THE_OTHER_SENSE_WHERE_THERE_IS_NOT": g.attr(dry, "arrived") == "cash",
+            # ...from calls differing in nothing but which node was passed, and with no mangled name
+            # anywhere for a caller to have had to choose between.
+            "and_the_names_are_NOT_mangled": fn.bodies(g, "go_to_river_bank") == (),
+            # Selection is `select`'s answer, not a side effect of running something.
+            "SELECT_NAMES_THE_BODY_AND_THEY_DIFFER":
+                fn.select(g, "go", {"d": wet}) != fn.select(g, "go", {"d": dry}),
+            # The condition is data, not an identifier: a reader can ask what makes this the river sense.
+            "THE_DISTINGUISHING_CONDITION_IS_READABLE":
+                any("is a river" in CR.describe_test(g, t)
+                    for t in g.targets(fn.select(g, "go", {"d": wet}), "test")),
+            # The planner must see what the name COULD do, which is the union — an over-approximation,
+            # which is the direction `establishes` is contractually safe in. Reading one body would make
+            # the other's effect invisible to means-ends, and the symptom of that is cost, not error.
+            "AND_THE_PLANNER_SEES_WHAT_EITHER_BODY_COULD_DO":
+                {v for k, _l, _s, v in D.establishes(g, "go")[0] if k == "attr"} == {"wellies", "cash"},
+            # With nothing to fall back to, an inapplicable name REFUSES. Dispatch, not a default.
+            "AND_A_WORLD_WHERE_NONE_APPLIES_IS_REFUSED": isinstance(refused, fn.GuardViolation),
+            "and_it_says_which_condition_failed": "is a river" in str(refused)}
 
 
 def _refusal_mentions(text: str, word: str) -> bool:

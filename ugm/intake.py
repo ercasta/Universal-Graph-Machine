@@ -494,6 +494,49 @@ def _ref(g: Graph, text: str, lineno: int, line: str, under: str, names=None) ->
     return text
 
 
+def condition(g: Graph, owner: str, words: list, *, negated: bool, line: str, lineno: int,
+              names, under: str = "root") -> None:
+    """One `when` / `unless` line, minted onto `owner`. The shared reader for every family that has
+    conditions.
+
+    Two families have them now — a criterion, whose names are roles, and a **function guard**, whose
+    names are its parameters — and the condition language cannot tell the two apart, which is exactly
+    what lets one reader serve both. Written as a shared entry point rather than copied into `asm.py`,
+    because three hand-written parsers for one proposition grammar is the defect this module already
+    records finding.
+
+    Each line becomes its own node, which is what lets a refusal say *which* one failed — the property
+    `criterion.governing` is built on, and one an opaque predicate could never give."""
+    ref = lambda t: _ref(g, t, lineno, line, under, names)                     # noqa: E731
+    shape = _shape(words, line, lineno, what="condition", ops=TY.VALUE_OPS + ("=",))
+    if shape is None:
+        raise _shape_refused(words, line, lineno, "condition")
+    kind = shape[0]
+    if kind == "exists":
+        CR.test(g, owner, sort="exists", negated=negated, left=ref(shape[1]))
+    elif kind == "same":
+        CR.test(g, owner, sort="same", negated=negated, left=ref(shape[1]), right=ref(shape[2]))
+    elif kind == "type":
+        CR.test(g, owner, sort="type", negated=negated, label=shape[2], left=ref(shape[1]))
+    elif kind == "attr":
+        who, key = _one_hop(shape[1], lineno, "criterion")
+        CR.test(g, owner, sort="attr", negated=negated, key=key, value=_literal(shape[3]),
+                op="==" if shape[2] == "=" else shape[2], left=ref(who))
+    elif kind == "known":
+        # Deliberately refused, and the refusal is stated once. `known` reads an attribute slot for
+        # ignorance; there is no `known` sort to evaluate, so accepting it would build a condition
+        # nothing ever looks at.
+        raise Unreadable(f"line {lineno}: `known` asks whether a slot has been looked at, which a "
+                         f"condition cannot yet evaluate — it is a goal constraint")
+    else:
+        label, transitive = P.parse_link(shape[2])
+        # Transitive reach in a condition — previously available only in a goal, which was an accident of
+        # three hand-written parsers rather than a decision. `docs/authoring.md` says `+` belongs "in a
+        # link position — a goal line or a query", and a condition IS the query.
+        CR.test(g, owner, sort="link", negated=negated, label=label, transitive=transitive,
+                left=ref(shape[1]), right=ref(shape[3]))
+
+
 def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lineno: int,
                     under: str) -> None:
     """One `when` / `unless` line. Each becomes its own node, which is what lets `governing` say
@@ -504,37 +547,9 @@ def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lin
         CR.test(g, c, sort="wants", negated=negated, want_sort=words[1],
                 label=words[2] if len(words) == 5 else None, left=_ref(g, words[-1], lineno, line, under, CR.names_of(g, c)))
     else:
-        # The shared proposition grammar (`_shape`). A condition is the same handful of claims a goal
-        # and a step make; what differs is that a referring position may be a role, a drawn name or
-        # `the <name>`, and may reach any depth — because a condition only ever checks.
-        ref = lambda t: _ref(g, t, lineno, line, under, CR.names_of(g, c))     # noqa: E731
-        shape = _shape(words, line, lineno, what="condition", ops=TY.VALUE_OPS + ("=",))
-        if shape is None:
-            raise _shape_refused(words, line, lineno, "condition")
-        kind = shape[0]
-        if kind == "exists":
-            CR.test(g, c, sort="exists", negated=negated, left=ref(shape[1]))
-        elif kind == "same":
-            CR.test(g, c, sort="same", negated=negated, left=ref(shape[1]), right=ref(shape[2]))
-        elif kind == "type":
-            CR.test(g, c, sort="type", negated=negated, label=shape[2], left=ref(shape[1]))
-        elif kind == "attr":
-            who, key = _one_hop(shape[1], lineno, "criterion")
-            CR.test(g, c, sort="attr", negated=negated, key=key, value=_literal(shape[3]),
-                    op="==" if shape[2] == "=" else shape[2], left=ref(who))
-        elif kind == "known":
-            # Deliberately still refused here, and now the refusal is stated once. `known` reads an
-            # attribute slot for ignorance; `criterion.test` has no `known` sort, so accepting it would
-            # build a condition nothing evaluates.
-            raise Unreadable(f"line {lineno}: `known` asks whether a slot has been looked at, which a "
-                             f"condition cannot yet evaluate — it is a goal constraint")
-        else:
-            label, transitive = P.parse_link(shape[2])
-            # Transitive reach in a condition — previously available only in a goal, which was an
-            # accident of three hand-written parsers rather than a decision. `docs/authoring.md` says `+` belongs
-            # "in a link position — a goal line or a query", and a condition IS the query.
-            CR.test(g, c, sort="link", negated=negated, label=label, transitive=transitive,
-                    left=ref(shape[1]), right=ref(shape[3]))
+        # One reader for every family that has conditions — see `condition`.
+        condition(g, c, words, negated=negated, line=line, lineno=lineno,
+                  names=CR.names_of(g, c), under=under)
 
 
 def _action(g: Graph, name: str, args: dict, lineno: int, line: str) -> None:
