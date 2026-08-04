@@ -142,6 +142,12 @@ out not to be *is this a loop?* or *is this fast?* It's:
 
 If yes, it isn't machinery, however low-level it looks.
 
+!!! tip "There is a second line, and it is not this one"
+    This boundary separates **machinery from decisions**. There is another one
+    higher up, separating decisions that can be *defined away* from decisions
+    that can't — and conflating the two is the easiest mistake in the building.
+    [Chapter 33](../horizon/33-above-and-below.md) takes them apart.
+
 !!! note "How the boundary is kept, rather than merely achieved"
     This is exactly the kind of property that quietly comes undone. One import
     added inside one handler restores the old tangle, passes every behaviour

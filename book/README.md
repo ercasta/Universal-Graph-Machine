@@ -30,6 +30,7 @@ book/
     deep/               # Part 5 — the internals
     watching/           # Part 6 — reasoning about its own work
     world/              # Part 7 — time, discourse, norms, waiting
+    horizon/            # Part 8 — the closed class, the web, de-pythonization
     playground/         # live Pyodide pages
     appendix/           # plain-language concept explainers
     javascripts/        # the playground widget (Pyodide loader)

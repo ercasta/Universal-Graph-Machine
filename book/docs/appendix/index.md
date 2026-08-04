@@ -548,5 +548,49 @@ exactly like progress.
 
 ---
 
+## The horizon
+
+The line between the **closed class** — a small fixed vocabulary nothing above
+can define away — and the **web** of authored data, where a concept means what
+it means because of where it sits in the network.
+
+It is *not* the same line as machinery-versus-decisions. Constraint sorts are
+decisions somebody made, and still nothing above them can reconstruct them, so
+they sit between the two lines. Goals themselves are up in the web.
+
+→ [Chapter 33](../horizon/33-above-and-below.md)
+
+---
+
+## The three answers
+
+What to do when something turns out to be inexpressible. **Expand** the closed
+class (costs a permanent member, which must have something that runs it),
+**keep it opaque** (named, not decomposed — an honest answer), or **relate it in
+the web** (rules connecting it to what exists, without claiming it reduces to
+them).
+
+The error is mistaking the third for the first: *kill* is not *cause to die*.
+The relation is real; the definition is wrong.
+
+→ [Chapter 33](../horizon/33-above-and-below.md)
+
+---
+
+## Mediated access
+
+A rule never touches the graph directly. It goes through **eight fixed names** —
+read a slot, set a slot, ask about a relation, list them, take the nth, relate,
+unrelate, make — and every richer vocabulary is written in terms of those.
+
+The reason is **completeness**: one unmediated read while imagining, and the
+machine is planning against a half-changed world without knowing. You cannot get
+"every case" out of an open-ended set, so mediation must bottom out in a fixed
+one.
+
+→ [Chapter 34](../horizon/34-moving-the-line.md)
+
+---
+
 *This appendix grows with the book. The project lives on
 [GitHub](https://github.com/ercasta/Universal-Graph-Machine).*

@@ -35,7 +35,7 @@ technicality. It's the whole game, and by the end of Part 2 you'll see why.
 
 ## How to read this book
 
-Seven parts, each building on the last. Parts 5 and 6 are optional deep dives.
+Eight parts, each building on the last. Parts 5, 6 and 8 are optional deep dives.
 
 <div class="grid cards" markdown>
 
@@ -103,6 +103,16 @@ Seven parts, each building on the last. Parts 5 and 6 are optional deep dives.
     for a timer without spinning.
 
     [:octicons-arrow-right-24: Part 7](world/29-when-things-happened.md)
+
+- :material-numeric-8-circle:{ .lg .middle } **Where the line is — what *isn't* data**
+
+    ---
+
+    If everything is data, what isn't, and why not? The horizon between a small
+    fixed vocabulary and an open web — and the machine currently hauling its own
+    planning up across it.
+
+    [:octicons-arrow-right-24: Part 8](horizon/33-above-and-below.md)
 
 </div>
 

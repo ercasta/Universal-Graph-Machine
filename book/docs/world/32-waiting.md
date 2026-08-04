@@ -138,43 +138,7 @@ perfectly until the day something asked one of them at the wrong moment.
 
 ---
 
-## That's the book
+That's the last capability. What's left is the question underneath all of them:
+if everything is data, what **isn't** — and why not?
 
-Where you've been:
-
-- **Part 1** — a world of nodes and named arrows, both of which you can point
-  at; shapes rather than badges; and a rule that runs only when you point it at
-  something.
-- **Part 2** — wanting things, imagining them, finding routes, and explaining
-  what happened without inventing what didn't.
-- **Part 3** — reality disagreeing, models that anticipate rather than assume,
-  contingencies, hard limits, memory, learning, and noticing its own intentions
-  colliding.
-- **Part 4** — telling it how to work: advice it may ignore, recipes that replace
-  the search, procedures it may not work around, and breaking off mid-plan to go
-  and find something out.
-- **Part 5** — the instructions underneath, the line between machinery and
-  decisions, and the two readings of a rule's body that make planning and safety
-  possible.
-- **Part 6** — what it saw and who changed it, every loop as an ordinary task, a
-  rule that judges a computation while it runs, forgetting as the default, and
-  questions with a gap in them.
-- **Part 7** — moments that point at what they date, a conversation with more
-  than one person in it, prohibitions that can be overruled by someone with
-  standing, and waiting without spinning.
-
-The thread running through all of it is one property. **Everything is made of the
-same stuff.** Rules, goals, plans, memories, explanations, conflicts, half-run
-programs, moments, utterances, prohibitions — all ordinary data in one graph.
-Every capability in Parts 2 to 7 is a consequence: the machine can plan because
-it can read its rules, explain because its reasoning is an object, learn because
-it can write a rule, refuse to reason with a dangerous rule because it can
-inspect one before running it, stop itself thinking too long because a running
-computation is a thing in its world like any other — and arbitrate between two
-people's instructions because *who said so* is a node, the same as everything
-else.
-
-None of those needed a subsystem. They needed the same substrate, asked a
-different question.
-
-[Back to the start :octicons-arrow-left-24:](../index.md){ .md-button }
+**Next:** [Above and below the horizon →](../horizon/33-above-and-below.md)
