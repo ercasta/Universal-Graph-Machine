@@ -3,6 +3,12 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
+⭐⭐⭐ **The work is now ordered by COVERAGE, not by reachability.** *What categories of semantics can be
+stated, and does each reasoning operation explicitly support each of them?* — see
+[language-semantics-reasoning.md](language-semantics-reasoning.md) and **THE FRAME** at the top of *What
+to do next*, which re-labels the P0–P5 plan by the cell each phase serves and demotes the two that serve
+none. Everything between here and there is the state of the machine, which is unchanged and still true.
+
 **Verify:** `python -m ugm.selftest` — currently **265 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
@@ -25,6 +31,10 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 
 | you want | read |
 |---|---|
+| **what is being built, and what that requires of the representation** | ⭐ [agent-representation.md](agent-representation.md) — **the clean statement; read this first**. Scope, benchmark, and *one concept: executable AND readable* |
+| **what the system is for, and the criterion that orders the work** | [language-semantics-reasoning.md](language-semantics-reasoning.md) — the user's framing that reoriented the arc |
+| whether the syntax can *say* a semantics, whether two representations can relate, and why *operations as data* does not settle it | [expressiveness-and-uniformity.md](expressiveness-and-uniformity.md) — *taking turns*, worked; five unrelated successors; the discrimination-pair test |
+| what the representation and the syntax still need, each traced to the example that forces it | [defining-terms.md](defining-terms.md) — six needs, the semantics of **indexing**, and where *taking turns* lives |
 | what the machine is | [overview.md](overview.md), then [concepts.md](concepts.md) |
 | what a domain can write | [authoring.md](authoring.md) — the one text surface |
 | how it runs | [execution-model.md](execution-model.md) |
@@ -364,6 +374,295 @@ a frame is) nor in Python. That is why the mediation layer exists, and it is now
 anticipatory: a native that ignores the context can finally be *caught*.
 
 ## What to do next
+
+## ⭐⭐⭐ THE FRAME — read this before anything else in this section
+
+⭐ **The clean version of everything in this section is [agent-representation.md](agent-representation.md).**
+Read that first; what follows is the fuller argument and the trail that produced it. Its core requirement
+is one this section does not otherwise state: ⭐⭐⭐ **a concept must be EXECUTABLE and READABLE as one
+representation, never two** — recognise / check / **generate** are three readings of one object,
+distinguished only by what is bound. `compile_episode` already closes half that loop.
+
+[language-semantics-reasoning.md](language-semantics-reasoning.md), in one sentence:
+
+> **UGM is a CNL that expresses a defined set of SEMANTICS, and a finite set of REASONINGS that
+> operate on them — and each operation must EXPLICITLY support each category of semantics, and the
+> operations must compose.**
+
+⭐⭐⭐ **The scope, stated by the user and load-bearing for everything below: a NARROW domain, with
+experience and rules provided in KBs BY AUTHORS. The one nice-to-have is COMPOSING KNOWLEDGE FROM
+DIFFERENT DOMAINS.**
+
+Three consequences, and two of them shrink the plan:
+
+* ⚠⚠ **Learning is not a requirement.** P3's strongest justification was *you cannot learn a Python
+  callable*; if the ordering is authored, hooks-as-data is justified by **inspectability** (an author must
+  see and edit the ranking) — still valid, and a different and smaller claim. Harmonization's *training*
+  formulation drops well down.
+* ⭐ **An authored reference class is allowed**, which collapses §5 of
+  [defining-terms.md](defining-terms.md): *fast* need not accumulate statistics over remembered episodes
+  if an author may simply write what fast means for this route. **Probe the authored form before building
+  the remembering one.**
+* ⭐⭐⭐ **Relation properties re-rank UP, reversing what the LLM benchmark alone suggested.** A narrow
+  authored domain does not compete with pretraining: its relations are *stipulated* (`attending outranks
+  resident for this order but not that one`), and a model's prior on them is unreliable. Declaring them is
+  exactly right where "friendship is symmetric" was not.
+
+⭐⭐⭐ **And the nice-to-have is not a nice-to-have — cross-domain composition IS requirement 2.** Two KBs
+written by different authors will use different names for one relation and one name for different
+relations. Everything below about representations having to *relate* was argued as internal hygiene; the
+reason it matters is that **composition across independently authored domains is exactly what fails when
+they do not.** That makes the shared core a product feature rather than tidiness, and it puts
+[harmonization.md](harmonization.md)'s *problem* back on the critical path even as its *learning*
+mechanism leaves it.
+
+⭐⭐ **It also answers the horizon's open question from a new direction.** *When may something be a
+primitive?* had *every decision it embodies can be an argument*. Scope adds a second, sharper test:
+**something belongs in the closed class iff two independently authored domains must agree on it in order
+to compose.** Order is the worked example — two domains that both speak of sequences must share the order
+core or they cannot be composed at all — while `friend_of` is open class, because only one domain cares.
+
+⚠ **And cross-domain alignment does not reintroduce the translation problem**, because it is *authored*:
+"our `client` is their `customer`" is a **knowledge claim with a speaker**, which the discourse layer
+already ranks and records. A bridge that is an authored fact gets a residue for free — *we treated their
+`customer` as our `client` because Anna said so* — where a bridge built into the machinery got none. That
+is the §5 distinction of [expressiveness-and-uniformity.md](expressiveness-and-uniformity.md) landing on
+the side that works.
+
+⭐⭐⭐ **And the benchmark, which decides what is worth building: an LLM doing agentic work, on
+INSPECTABILITY and COMPUTATIONAL COST.** Not guarantees — those were never the goal, and nothing here is
+rejected for lacking them. An LLM's account of its reasoning runs *alongside* the computation and cannot
+be addressed or queried; this engine's residue **is** the computation. An LLM re-derives everything every
+call; here **reasoning that has been done stays done**. ⚠⚠ The re-ranking that follows is uncomfortable in
+one place: an LLM already knows friendship is symmetric, so **the machinery that beats the benchmark is
+the machinery about STRUCTURE AND REUSE, not about knowing things** — and where the need really is world
+knowledge, *an LLM is a boundary tool* stays the right answer.
+
+⭐⭐⭐ **This changes the criterion the work is ordered by, and that is why the arc has felt like
+detours.** Everything below this section was sequenced by **reachability** — *can a rule start this?* —
+which is a question about **where code lives**. The frame sequences by **coverage** — *can a semantics
+of this category be stated, and does each operation actually use it?* The two select different work,
+and nothing in the repo has been asking the second question. `python -m ugm.reach` can tell you that 98
+named things are unreachable; it cannot tell you that an entire category of meaning has no operation
+that consumes it.
+
+**Reachability is not retired — it is re-filed.** It is the criterion for the *reflection* thesis
+([reflection.md](reflection.md)): the planning machine as an algorithmic description of itself. That is
+a real goal and it is the residue thesis's strongest argument. It is **not** the same goal as covering
+the matrix, and the sessions that lost time lost it by treating them as one.
+
+### The three layers, and what each one is allowed to cost
+
+* **Language (form)** — superficial, varies, **not the interesting problem**. A CNL is enough. ⭐ This is
+  a deliberate retraction of de-parserization's *stated* motivation: coverage of English was never the
+  goal, so P5 does not earn its place by handling more sentences. What survives of the construction work
+  is that **the world decides an attachment the form cannot** — which is a *recognition* result, not a
+  language one, and it belongs in the matrix under that operation.
+* **Semantics (meaning)** — what the KB holds. ⚠ Quine: a thing's meaning is expressible only in relation
+  to other things, so **be prepared for things that only work together** (coinductive). That is this
+  project's anti-Fodor stance one level up — *relate it in the web, never decompose* — and §7 already
+  reached the right split: **the recursion in a schema is coinductive; the support from the world must be
+  grounded.**
+* **Reasoning (operations)** — planning, explaining *why*, **recognising**, checking/confirming. Finite,
+  and they **compose** (recognition happens *during* planning).
+
+### ⭐⭐⭐ Three requirements on the matrix, and they are one requirement seen three ways
+
+These decide what a ✅ in the table below is allowed to mean. Worked out in full, against the code, in
+[expressiveness-and-uniformity.md](expressiveness-and-uniformity.md).
+
+1. ⭐⭐⭐ **The syntax and the substrate must be expressive enough to carry the semantics.** A category
+   the matrix claims is covered but that nothing can *say* is not covered. The test is not *is there a
+   mechanism* — it is **write the sentence**. *How do we describe "taking turns"?*
+2. ⭐⭐⭐ **The representations must be uniform, in the sense that they can RELATE to each other.** A
+   cause–effect relation containing a before-after cannot represent before-after inconsistently with
+   the representation of **time**, or the two can never be reasoned about together. ⚠ This is **prior
+   to** the composition claim rather than part of it: the frame says the *operations* compose; this says
+   the **representations** must, and operations can only compose over representations that already do.
+3. ⭐⭐ **The set of real operations must stay finite as coverage grows** — which is what *operations as
+   data* buys, and it is the strongest justification the reflection arc has. ⚠ It **relocates** the
+   obligation rather than discharging it, and it **inherits** requirement 2: see below.
+
+⭐⭐⭐ **1 and 2 are one requirement, and the example shows it.** Writing *taking turns* needs
+`step[i].agent is not step[i+1].agent` — and `path.Hop.index` is `int | None`, **a literal**, so the
+sentence is sayable for a sequence of known length and no other. But the moment you write `[i+1]` the
+`+1` is a claim about a **successor**, and the substrate makes you say *which one*. Expressiveness
+cannot be added without answering uniformity first.
+
+⚠⚠⚠ **And the answer to *which successor* is that there are five, unrelated.** `before` (moments),
+`then` (a goal's required order), `after` (a plan's actual order), `next` (frames — derivation), `next`
+(tokens — word order), and method steps, which use positional order with **no edge at all**. Four names
+and one no-name for *comes after*, in a system where **a name is where meaning lives**. A rule that knows
+`before` cannot see a plan's `after`, and *"they took turns before lunch"* has no reading.
+
+⭐ **The engine noticed half of this and stopped.** `clock.py`: *"the third ranking read by the same
+traversal, alongside authority for discourse and norms, and containment for reach"* — that is
+**mechanism** uniformity, which this project has. The three rankings share a traversal and share **no
+nodes**, and relating is what nodes are for.
+
+⚠⚠ **The fix is not one label.** Prescriptive, descriptive, temporal, derivational and **form** order are
+genuinely different relations — and form order must *not* become temporal, or the language layer has been
+smuggled into the semantic one. *A synonym is a knowledge claim; collapsing is Fodor's error at scale.*
+The requirement is **relatability**, and its checkable form is a probe rather than a build:
+
+> **Can a rule get from a plan step's position to a moment?** Today: no.
+
+⭐⭐⭐ **And the relaxation that works is neither uniformity nor translation — it is a shared CORE.** *Keep
+n representations and translate between them* fails on a condition stronger than it looks: translation
+must **commute with the operations**, not merely round-trip. `then` and `after` round-trip losslessly and
+the translation is still false, because one is violable and the other is a record — and **check** behaves
+differently on the two. ⚠⚠ Worse here than elsewhere: **a translation is an island with a bridge, and
+the bridge appears in every explanation that crosses it**, which damages the residue rather than taxing
+it. ⭐⭐ The argument that settles it: *if `f` commutes with every operation, its image is a common
+subrepresentation — so name it.* So the five orders need not be one relation; they must **share a core
+that is literally the same nodes**, and may each add modality, a scalar or a derivation above it. ✅
+Translation at the **edge** stays fine and is already the practice (`_UNMET_PHRASE`).
+
+### ⭐⭐ Requirement 3 — operations as data, and why it does not settle the matrix
+
+*If operations are data, the number of REAL operations shrinks — that is what compiling does.* True, it
+is this project's own premise, and **partial evaluation / the Futamura projections** are the formal
+content — also the principled way to buy back the interpretation tax (`holds` at 2.35× on Sussman)
+rather than reverting a swap.
+
+⭐ **This is a better justification for the reflection arc than inspectability**, and it changes the
+verdict on P2–P4 below: it is *how the operation set stays finite while coverage grows.* Its most direct
+payoff is the matrix's weakest column, **recognition** — recognising taking-turns from a trajectory as an
+authored rule rather than a module.
+
+⚠ **But it relocates the obligation rather than discharging it.** *Does planning explicitly support
+cause–effect semantics?* does not become vacuous when planning is a rule; it becomes a question about the
+**rule**. That is the horizon result from the other side — *the closed class is closed by ANSWERERS, not
+by prohibition.* And it buys none of: **kernel expressiveness** (the `[i+1]` gap survives any amount of
+reification, because the data is built from the same primitives), **relatability of the categories**, or
+an escape from **the regress** (whose floor is already here: `precedence.seal_rule`'s *the last stage must
+be total*).
+
+⭐⭐ **Reducing to ONE operation is achievable and useless**, for the same reason Turing completeness is
+the wrong analogue: `eval` over encoded descriptions has all the power and no relations. So the target is
+not *minimise the operation count* but **minimise operations subject to each remaining one being
+relatable to what it operates on** — which means requirement 3 *inherits* requirement 2.
+
+⭐⭐⭐ **By that test, this engine's operations-as-data is WRITE-ONLY, and it is one line of the audit.**
+Operations are data — `rules/step.mf`, `execute.mf`, `holds.mf` — and **nothing in the surface can read
+one**. That is item **B3** in the phase table below, recorded as a minor seam because nothing had a
+reason to want it. A rule can *run* an operation; it cannot ask *which operations read time*, *which
+establish an order*, *is this one about the category I care about*. `access.bare_touches` reads bodies in
+Python, `reach.py` reads bytecode, the surface reads nothing. **B3 is therefore promoted out of the seams
+and into a first-class requirement** — reified-and-unreadable is the difference between this move paying
+off and being ceremony.
+
+### ⭐⭐⭐ The matrix — the honest state, and the roadmap
+
+Rows are categories of semantics; columns are the operations. The frame's claim is that an operation
+only supports a category if it **explicitly** does — so a blank is a deliverable, not an oversight.
+
+| semantics | stated in | plan | why | recognise | check |
+|---|---|---|---|---|---|
+| **constraint** — *x outranks y ⇒ x's orders take precedence* | `goal`, `type`, `norm`, discourse authority | ✅ | ✅ | ✅ | ✅ |
+| **denotation / classification** — *top means nothing is higher* | `type` (schema over a subgraph, any depth) | ✅ | ✅ | ✅ `is_a` | ✅ |
+| **force / deontic** — inviolable vs defeasible vs merely preferred | `never`, `forbid`, `prefer`/`avoid`, `criterion`/`directive` | ✅ | ✅ | ❌ | ⚠ |
+| **cause–effect** — *this operator makes that true* | ⚠⚠⚠ **`fn` bodies in the `.mf` surface — NOT the CNL** | ✅ | ✅ | ❌ | ✅ `deviates` |
+| **decomposition** — *this is done by doing these* | `method` / `procedure` | ✅ | ✅ | ❌ | ⚠ |
+| **protocol / order over a sequence** — *taking turns* | ❌ **nowhere** — the reference language has no relative position | ❌ | ❌ | ❌ | ❌ |
+| **time / aspect** | `clock.py`, `discourse.py` — partial, no CNL family | ⚠ | ⚠ | ❌ | ⚠ |
+
+⚠⚠ **Every ✅ above is a claim about one cell in isolation, and requirement 2 says that is not enough.**
+The rows must also *relate* — and **cause–effect and time, the pair the requirement was raised about,
+are exactly the pair with nothing between them.** Read the ticks as *this category is served here*, not
+as *this category is finished*.
+
+**Composition is the part that is already paid for**, and it is worth saying before the gaps: *recognition
+during planning* is live and measured — `goal.holds` runs inside the search at a deliberate 2.35× on
+Sussman. One substrate is what bought that. **The frame demands a re-ordering, not an architecture
+change.**
+
+⭐⭐⭐ **Three findings fall straight out of filling it in, and none of them is visible under the
+reachability criterion:**
+
+1. ⚠⚠⚠ **Cause–effect is the one category a domain cannot state in the authoring surface.** Goals,
+   types, guidelines, methods, criteria, norms and questions are all CNL ([authoring.md](authoring.md),
+   *the one text surface a domain writes*). An **operator** — which carries all of the cause–effect
+   semantics — is an `fn` body loaded by `asm.load_text`. So every other category is authored in the
+   *domain's* language and this one is authored in the *engine's*. That is invisible to the
+   de-Pythonization arc **by construction**, because to that arc `.mf` *is* the good place to be.
+2. ⚠⚠ **Protocol/order is a blank row**, and it is currently parked off the critical path
+   ([advice-over-sequences.md](advice-over-sequences.md), *"not built, and not started"*). Under the
+   frame it is the only row with nothing in any column: it cannot be **stated**, so no operation can use
+   it. §4 of that document is the gap; §§1–3 argue most of the rest is already there.
+3. ⭐ **RECOGNITION is the weak column, not planning.** *"x takes a short time from a to b ⇒ fast"* is the
+   frame's own example and the system does it only where a `type` schema happens to express it. Nothing
+   recognises a **cause**, a **decomposition** or a **protocol** from a trajectory the workbench already
+   records — and *"recognition and prescription are the same predicate read two ways"* is already argued
+   in `advice-over-sequences.md` §3, which means the cheap version of this column is one predicate per
+   row, not a mechanism.
+
+### ⭐⭐ What to build, in the order the matrix says it hurts
+
+1. **Enumerate both lists and derive the coverage, do not write it down.** The table above is
+   hand-made, which is precisely what this project refuses elsewhere: `reach.py` and `horizon.py` both
+   *derive* their inventories so they cannot drift. A **coverage pass** — for each category, which
+   operations name it — is the analogue, and it is the instrument that would have caught the detours.
+   ⚠ Per the standing lesson, it must have a **positive control**: a pass reporting no gaps and a pass
+   that cannot see gaps say the same thing.
+   ⭐ **It has three halves, not one**: per category, which operations name it; **per *pair* of
+   categories, what nodes do their representations share** (requirement 2); and **which operations the
+   surface can read at all** (requirement 3, and B3 is what makes that answerable). A category that
+   relates to nothing is an island, and this codebase already knows what an island costs.
+   ⭐⭐ **The instrument for the first half already exists under another name** — *a homogeneous fixture
+   cannot measure a discriminator.* The general form is the **discrimination pair**: for each category,
+   two situations in which **the agent should ACT differently — does it?** ⚠⚠⚠ Not *can the
+   representation tell them apart*, which is a **theorem prover's** question and was how this was first
+   written: a distinction nothing acts on is bought and never spent. ⭐ The guard-address probe is the
+   model — it reported *a worse plan, then no plan*, never *cannot express*. See
+   [expressiveness-and-uniformity.md](expressiveness-and-uniformity.md) §7.
+2. **Make cause–effect authorable in the CNL.** Finding 1. ⚠ This runs straight into the standing
+   budget — *a new way of saying something is an interpretation rule in the web, never a new verb in
+   `intake.py`* — and the budget should be **spent here** if anywhere, because this is not a new way of
+   saying an existing thing; it is the only category with no domain-level form at all.
+3. **Give order-over-sequence a place to be said** — now a specified design rather than a thread, in
+   [defining-terms.md](defining-terms.md), which lists **six needs each traced to the example that forces
+   it** and answers *where taking turns lives*: ⭐⭐⭐ **it is a TYPE whose subject is the PLAN**, and the
+   three hardcoded plan sorts (`never`, `must`, `at most N steps`) should collapse into *the plan is a
+   node you can constrain*. In order: **two probes** (does a plan step reach its **agent**; is
+   `has 0 <label>` expressible — if so *top* closes today), then the **order core**, then the **index**,
+   which cannot be specified without it.
+   ⭐⭐ **The unifying answer, with one exception**: nearly all of it *is* constraints over relationships
+   — an order's algebra is literally constraints on a relation — which would make requirement 2 hold **by
+   construction** rather than by discipline. The exception is **aggregation** (*fast* needs a comparison
+   **class**), and the trap is that the claim is trivially true if you may **invent** relations.
+4. **The recognition column, one predicate at a time.** Finding 3.
+
+### Re-reading P0–P5 against the matrix
+
+The phase plan below is kept, because its content is right about what is *missing mechanically*. What it
+was wrong about is **why each item matters**, so each is re-labelled here by what it serves.
+
+⚠⚠⚠ **This table was written once with P2/P3/P4 demoted for serving no cell, and that was wrong** —
+requirement 3 is the argument it was missing. Operations-as-data is *how the operation set stays finite
+while coverage grows*, which is a matrix-level justification rather than an inspectability one. The
+reflection items are **re-justified, not down-ranked**; what changes is the reason, the order among them,
+and that **B3 comes out of the seams to the front**.
+
+| phase | serves | verdict |
+|---|---|---|
+| **P0** ✅ done | reachability / reflection | done, and half of it was deleted by its own probe |
+| **P1** the addressing half of a guard | **recognition** — *which of the things in front of me is this about?* | ⭐ **keep, better motivated than before**: the probe showed selection stops finding readings at all past a couple of off-topic constraints |
+| **B3** *(promoted out of P4's seam list)* — **the surface reads a body's instructions** | **requirement 3, and the thing that makes it pay** | ⭐⭐⭐ **first**. Operations-as-data is write-only until this lands; it is the smallest reflection item and the one the others are worth less without |
+| **P2** starting a pursuit is reachable | **requirement 3** — an operation the surface cannot start is one it cannot be *made of* | keep. Smaller than it looked, per P0 |
+| **P3** hooks become data | **requirement 3**, and *recognition* by way of authored ranking | keep. ⚠ It carries the regress; the floor (`seal_rule`) is already here and the argument must be written **before** the build |
+| **P4** `driver._phase_*` in the surface | **requirement 3**, the largest instance | ⭐ **split** — only A1 / A4 / C1 are owed (the *decisions*, as data); **the phase machine itself can stay Python indefinitely.** See the split at the head of item 3 |
+| **P5** interpretation as proposal + selection | **recognition**, once its coverage motivation is dropped | keep the *world-decides-the-attachment* result; drop *handling more English* as a reason |
+
+⚠ **What has genuinely changed for these items is the order and the test, not their presence.** The old
+plan built them because Python-in-the-way was untidy. The frame builds them because a finite operation
+set is the only way *"a finite set of reasonings"* stays a property of the design — and it adds a
+condition none of them had: **an operation reified as an opaque instruction blob is an island with extra
+steps.** Each of P2–P4 should now be asked, on landing, *can a rule read this, or only run it?*
+
+⚠⚠ **Two things still sit outside the matrix and should be said plainly.** Requirement 3 does **not**
+extend kernel expressiveness — the `[i+1]` gap survives every phase below — and it does not make the five
+orders relate. Those two remain the frame's own work, and no amount of reflection substitutes for them.
 
 ## ⭐⭐⭐ THE SKELETON IS UP — read this before the phase plan
 
@@ -917,7 +1216,40 @@ surface function at three world sizes before believing its ratio.
 bought a readable record of the one loop that touches the world. The residue is the product.
 
 **What is left is `driver._phase_*`** — and it is **not one item**. Audited by enumerating what the five
-phase bodies actually call, rather than from a list, because the list was wrong last time:
+phase bodies actually call, rather than from a list, because the list was wrong last time.
+
+⭐⭐⭐ **Read the split before the table: only the representation half is owed.** Python execution is not
+what makes an island — *a wrapper is not a gap*, and the three criteria already in this repo (*would a
+Rust port re-make a decision here?*, *can every decision it embodies be an argument?*, *could a rule have
+produced this value?*) none of them ask whether something is Python. What they ask is whether the **data
+and the decisions** are reachable, readable and relatable.
+
+⭐⭐ **And the asymmetry decides the order: representation debt compounds, execution debt does not.** A
+Python function swaps later behind its wrapper — done three times this arc, each bounded, each changing
+nothing outside the wrapper. A representation is referenced by every rule that touched it: when *an edge
+names an identity, never a version* landed, a dozen fixtures went red and the corpus had to be rewritten.
+**Representation is the irreversible commitment; execution is the reversible one.**
+
+So the phase machine splits, and the largest remaining item shrinks to its representation half:
+
+| | verdict |
+|---|---|
+| **A1, A4** — the result dict; `T.attend(why=…)` prose at ~6 sites; `_record_execution` | ⭐ **owed, and they are the point.** The `why=` sites **are** the decision record, and in prose they are a residue gap — `_DEVIATION_PHRASE`'s lesson applied to *decisions* rather than results |
+| **B3** — the surface reads a body | ⭐ **owed** — requirement 3, promoted above |
+| **C1** — the hooks | **owed**: *you cannot learn a Python callable* |
+| **B1, B2** — the constructors | owed for a **finite operation set**, not for representation health |
+| **the phase machine itself** — the control flow choosing plan / act / recover / sense / check | ⚠ **not owed. It can stay Python indefinitely once A1 / A4 / C1 land** |
+
+⚠ **The one thing Python execution genuinely costs, and it is condition 5**: a function that decides
+*silently* breaks the residue — not because it is Python, but because the decision left no trace. A
+Python function that records what it chose, what else was available and on what basis leaves a perfectly
+good one. That is a cost argument, not an impossibility, and it is exactly why **A4 matters most in this
+list despite looking the most cosmetic**.
+
+⚠ **This is a reason to stop treating de-Pythonization as an obligation, not a reason to undo it.**
+Everything already moved bought a readable record of the loops that plan and act, which
+[comparison.md](comparison.md) argues was the product all along. What changed is what is **owed**, not
+what is done.
 
 | | what | state |
 |---|---|---|
@@ -929,7 +1261,7 @@ phase bodies actually call, rather than from a list, because the list was wrong 
 | **B. constructors** | | |
 | B1 | `open_planning` — the `plan` native takes only `(goal, subject, thread)` and drops `max_steps` / `max_depth` / `guided`, which are **attributes of the pursuit** | widen the native to read them |
 | B2 | `X.open_execution` — `path_to` plus seeding frame 0 | portable |
-| B3 | `_looker_for` / `_looker_on` scan a rule **body** for a `DISPATCH` whose tool only observes | ⚠ **a capability gap**: nothing in the surface reads a body's instructions |
+| B3 | `_looker_for` / `_looker_on` scan a rule **body** for a `DISPATCH` whose tool only observes | ⭐⭐⭐ **promoted — this is no longer a seam.** Nothing in the surface reads a body's instructions, which makes operations-as-data **write-only**: a rule can run an operation and cannot ask what it is about. See requirement 3 in THE FRAME |
 | **C. one genuine blocker, and it is a design decision** | | |
 | C1 | **the hooks.** `rank`, `allow` and `trace` are *Python callables* threaded from `carry_out` / `follow` through `open_planning` and `step` | **cannot cross at all** |
 
