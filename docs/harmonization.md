@@ -313,6 +313,94 @@ correct. Both `relate` storing a version and disabling `access.as_opcode` failed
 So a harmonization pass is accepted by `python -m ugm.bench` as well as `python -m ugm.selftest`, and
 ⚠ measured against the tree it changed, in the same minutes.
 
+## Harmonization as training — the learning formulation
+
+A sharper way to pose the whole thing, and it turns harmonization from a rewriting procedure into a
+*learning* one: **fix the forms of the rules, and let the system search only for (a) which tokens fill
+the slots in the criteria and (b) the ordering of rules** — until the rules produce the output needed,
+which for language means *the data that activates the goal machinery when an utterance asks for
+something*. Trained layer by layer, since each layer has a checkable target.
+
+### It has a name, in fact several
+
+| the piece | what it is called |
+|---|---|
+| fixed rule forms, learn the slot fillers | **Meta-Interpretive Learning** (Muggleton; `Metagol`) — *metarules* are second-order templates and the learner finds the predicates. Also **sketch-based synthesis** (Solar-Lezama): fix the skeleton, synthesise the holes |
+| constraining what may fill a slot | ILP **mode declarations** / declarative bias (Progol, Aleph, Popper) |
+| learning the **ordering** | **decision-list learning** (Rivest); ordered theories in ILP |
+| supervising on the *output* rather than the rule | **learning from denotations** (Clarke et al. 2010; Liang 2011) — the world's response is the signal |
+| layer by layer | staged supervision; **predicate invention** is MIL's hierarchical form |
+
+So not a new kind of machine learning — but a well-motivated instance of a known one. Evolutionary search
+would *work* and is probably the wrong tool: the space is discrete and highly structured, so constraint
+solving (Popper is ASP-based) or annealing beats blind variation. ⭐ And this document already argued for
+annealing over **sets** on holism grounds — the search method it specifies is the right one for the
+learning problem, arrived at independently.
+
+### Three things make the setting unusually favourable
+
+1. ⭐⭐ **Credit assignment is free.** The standing nightmare in learning rule systems is knowing which
+   rule to blame. Here the derivation is recorded — which rule applied, why it was preferred, what it
+   rested on — so blame is a graph read rather than an inference.
+2. ⭐ **Layer-by-layer is only possible because intermediate states carry meaning.** A target can be
+   defined at each layer instead of only at the end. In a system whose intermediate representations were
+   engine state there would be nothing to supervise but the final answer.
+3. ⭐ **The learning target is a defined slot, not open program space** — the *addressing* half of a
+   guard, which `criterion.py` already has (`wants <sort> <label>`) and function guards lack. That is a
+   far smaller hypothesis space than "synthesise a program".
+
+### Effort is a dial, and the learned order does double duty
+
+⭐⭐⭐ **How many rules are tried is a budget, not a constant.** Dispatch does not have to evaluate every
+applicable body; it can try them **in learned-preference order and stop when effort runs out** — which
+makes interpretation *anytime*: an answer at any budget, a better one with more. That converts the
+measured cost (`fn.select` at 63 ms with 100 applicable bodies, see
+[predicate-dispatch.md](predicate-dispatch.md)) from a wall into a parameter, and it is the same
+*think-harder* dial the rest of the system already exposes as `max_steps` and `max_depth`.
+
+And the two halves of the problem collapse into one artifact: **the learned order is simultaneously the
+disambiguation preference and the search order that makes it affordable.** One thing to learn, two jobs.
+
+The architecture for it is already declared. `precedence.STAGES` composes lexicographically —
+`by authority`, `by force`, `by specificity`, `by random` — with the rule that **the last stage must be
+total**. Subsumption (`_covers`) supplies a *partial* order for free, so **only incomparable pairs need
+learning**, which is a large reduction taken before any search starts. ⚠ Note what does *not* yet exist:
+`EXPERIENCE` in `precedence.py` is only the default *attributor* — an unattributed rule is credited to
+`experience` — and there is **no `by experience` comparator**. Adding one is the designed extension point
+(`STAGES` is a closed vocabulary whose entry cost is "write its comparator", with `run <fn>` as the
+escape), and `application.py` already holds the behavioural record it would read.
+
+### Ambiguity is rarer than the combinatorics suggest — and the excess is an artifact
+
+The number of sentences with genuinely competing readings *that change what to do* is low. Most ambiguity
+is either settled trivially by the world or makes no difference to the action, and an agent in a bounded
+domain meets little of the rest.
+
+⭐⭐ The sharper form: **local ambiguity is an artifact of parsing, not of interpretation.** A chart must
+materialise every locally-possible constituent precisely because it cannot know which will be used —
+that is what a forest is *for*. An effort-bounded interpreter that proposes and selects never builds the
+readings it does not try. So the combinatorial fear is inherited from the architecture being replaced,
+and it is one more argument for replacing it.
+
+### What is genuinely hard
+
+* **The objective.** Targets have to come from somewhere: hand-authored pairs (expensive, and the corpus
+  is small), an LLM at the boundary, or **task success** — the most attractive signal and the sparsest.
+* **Overfitting**, in its classic inductive form: too specific and a rule fires only on the sentence it
+  was learned from; too general and it overgenerates. ILP's answer is a compression / MDL criterion, and
+  this would want one. It is the same failure this document already names as **over-conditioning**.
+* **Evaluation cost.** Every candidate rule set must be *run*. The effort dial bounds a single
+  interpretation; it does not bound the search over rule sets, so the `_covers` precompute matters before
+  any of this rather than after.
+
+### The cheap probe that decides it
+
+Take a handful of existing CNL utterances whose target goal-structure is already known, blank out the
+**address** half of the relevant guards, and ask whether search over candidate attributes recovers them —
+and how the space grows with the number of blanked slots. That answers *is this tractable at all* for the
+price of an afternoon, and it is the same discipline as measuring the blast radius before building an
+enforcement. Do it before designing anything.
+
 ## Probes before any of it
 
 Per the standing discipline — *test the claim before building the fix for it*, and *measure the blast
