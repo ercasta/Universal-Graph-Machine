@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **253 checks, 0 failing**, in about 60 seconds.
+**Verify:** `python -m ugm.selftest` — currently **254 checks, 0 failing**, in about 60 seconds.
 **Measure:** `python -m ugm.bench` — the numbers below, re-runnable.
 
 The engine is `ugm/`. An earlier iteration lived in `microfunctions/` and the package was renamed;
@@ -18,6 +18,7 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 | how it runs | [execution-model.md](execution-model.md) |
 | what it cannot do | [limits.md](limits.md) — kept deliberately honest |
 | what is only sayable in Python, and why | [audit.md](audit.md) |
+| dispatching on a condition rather than a type | [predicate-dispatch.md](predicate-dispatch.md) — slice 1 built |
 | why a rule never calls `GET` | [mediated-access.md](mediated-access.md) — built; the note is the argument behind it |
 | the instruction set | [reference/isa.md](reference/isa.md) |
 
@@ -125,6 +126,14 @@ index, kept short on purpose so the plan below stays readable.
 * **`dispatch` refuses on the context, not on the argument.** *Am I imagining?* is a property of the
   dynamic extent. See the traps.
 * **There is a benchmark in the repo** — `python -m ugm.bench`.
+* **A function can state a relation between its own parameters** — `fn.guard`, a criterion's condition
+  keyed on parameters instead of roles, evaluated by the same reader. `driver.enumerate_frame`'s
+  hardcoded *no node in two roles* is gone and `stack` says it itself. Both forms landed together:
+  `invoke` refuses (`GuardViolation`), `fn.applies` answers. Cost: nothing measurable.
+  [predicate-dispatch.md](predicate-dispatch.md) has the argument and the three findings.
+* **`x is y` used to parse as a link labelled `is`** — silently matching nothing, in every family using
+  the shared proposition grammar. Recognised now, as the `same` sort; a condition builds it, a goal and a
+  method step refuse it with a reason.
 
 Traps worth not re-learning:
 
@@ -237,18 +246,24 @@ walks from there with **no view**, because at that point it holds a context rath
 schemas in the corpus are attribute-shaped so nothing catches it. It wants a world where a parameter
 type's *schema* depends on a neighbour the frame changed.
 
-### 3. `execution.step`, then the phase machine
+### 3. Predicate dispatch, slices 2–4
+
+[predicate-dispatch.md](predicate-dispatch.md). The nearest piece is the **authoring surface**: a guard
+can only be attached from Python, so `asm.py` wants `fn f(a, b) unless a is b:`. Then slice 2 — one name,
+several bodies — which is where the search can quietly get worse, so measure it.
+
+### 4. `execution.step`, then the phase machine
 
 `driver._phase_*` is reads, guards, one call, attribute writes and unlinks; its `_PHASES[phase]` dispatch
 is what a dynamic `INVOKE` does.
 
-### 4. Swap `step.mf` live
+### 5. Swap `step.mf` live
 
 `rules/step.mf` is sparse, establishes its own context, and agrees with the Python on four routes plus
 chaining and a refusal — at **3.0×**, against 22–42× when it had to copy. The remaining question is
 whether the planner can afford it, and the answer is a measurement rather than an argument.
 
-### 5. The three predicates — independent, do whenever
+### 6. The three predicates — independent, do whenever
 
 `VKIND` and `compare.mf` land together with `goal.holds` (writing `compare.mf` earlier would duplicate
 `types.compare`, which `goal.holds`, `criterion._holds` and every schema check share); `violations` as a

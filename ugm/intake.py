@@ -264,7 +264,7 @@ FORMS: dict = {
     "tie_break": ("authority | force | specificity | random", "run <fn>", "seed <n>", "because …"),
     "policy": ("by <agent>", "defeasible | inviolable", "forbid <action>", "permit <action>",
                "forbid touching <thing>", "<agent> outranks <agent>", "keep <kind>", "because …"),
-    "condition": _SHAPE_FORMS + ("wants <sort> <label> from x",),
+    "condition": _SHAPE_FORMS + ("x is y", "wants <sort> <label> from x"),
     "question": ("<one bare name>", "by <link>"),
 }
 
@@ -316,6 +316,18 @@ def _shape(words: list, line: str, lineno: int, *, what: str, ops=("=",)):
         raise Unreadable(f"line {lineno}: {words[1]!r} is not available in a {what}; here a comparison is "
                          f"{' or '.join(ops)}. The full set ({', '.join(TY.VALUE_OPS)}) works in a "
                          f"`type` block, whose machinery evaluates them")
+    if len(words) == 3 and words[1] == "is":
+        # `b is onto` — two references denoting ONE individual. Read here rather than falling through,
+        # because falling through is what it used to do: three words with `is` in the middle became a
+        # link whose LABEL was `is`, which matches nothing, silently. That is the *parses, runs, means
+        # the wrong thing* verdict this project catalogues, and it was reachable from the day the
+        # condition grammar was shared. `x is a T` and `x is there` are longer and are matched above, so
+        # nothing that already worked is shadowed.
+        #
+        # Recognised for every family and accepted by only one, which is the discipline the `ops`
+        # parameter already follows: the parser says what the words mean, and each reader states its own
+        # position on whether it can evaluate them.
+        return ("same", words[0], words[2])
     if len(words) == 3:
         return ("link", words[0], words[1], words[2])
     return None
@@ -368,6 +380,13 @@ def _constrain(g: Graph, goal: str, words: list, line: str, lineno: int, under: 
             raise Unreadable(f"line {lineno}: `is there` asks whether a reference resolves, which is a "
                              f"condition, not something to make true. A goal that wants something to "
                              f"exist says `some <type>`")
+        elif kind == "same":
+            # `x is y` says two references are one individual. `goal.holds` has no sort for it, and a
+            # goal wanting two things to BECOME the same is a merge — which this engine deliberately does
+            # not do (*never identify by name alone*). Refused rather than silently ignored.
+            raise Unreadable(f"line {lineno}: `is` compares two references for identity, which is a "
+                             f"condition rather than something to make true — nothing could make two "
+                             f"individuals into one. It is available in a `when` / `unless` line")
         else:
             # `wh contains+ parcel` — reach at any depth, the one closed-class item measured as
             # real. The `+` qualifies the relation, not a name, which is why it is read here.
@@ -495,6 +514,8 @@ def _criterion_test(g: Graph, c: str, words: list, negated: bool, line: str, lin
         kind = shape[0]
         if kind == "exists":
             CR.test(g, c, sort="exists", negated=negated, left=ref(shape[1]))
+        elif kind == "same":
+            CR.test(g, c, sort="same", negated=negated, left=ref(shape[1]), right=ref(shape[2]))
         elif kind == "type":
             CR.test(g, c, sort="type", negated=negated, label=shape[2], left=ref(shape[1]))
         elif kind == "attr":
@@ -766,8 +787,9 @@ def _step(g: Graph, m: str, words: list, line: str, lineno: int) -> None:
         M.step(g, m, sort="link", label=label, subject=role(shape[1]),
                object=role(shape[3]), note=line)
     else:
+        said = {"exists": "is there", "known": "known", "same": "is"}[kind]
         raise Unreadable(f"line {lineno}: `{kind}` has no meaning as a step — a step is something to "
-                         f"achieve, and `{'is there' if kind == 'exists' else 'known'}` is a condition")
+                         f"achieve, and `{said}` is a condition")
 
 
 def _names_so_far(g: Graph, owner: str) -> tuple:

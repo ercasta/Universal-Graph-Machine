@@ -4634,7 +4634,7 @@ def _blocks():
     the planner reads their effects exactly as it did when they were `GET`/`SET`/`LINK`, because
     `access.as_opcode` translates a vocabulary call back to the instruction it stands for."""
     from pathlib import Path
-    from . import asm
+    from . import asm, function as fn
     g = new_graph()
     for name in ("access.mf", "resolve.mf"):
         asm.load_file(g, Path(__file__).parent / "rules" / name)
@@ -4666,6 +4666,10 @@ def _blocks():
         "fn paint(b: block) -> block:",
         '    INVOKE R(_) set_slot node=F(b) key="colour" value="red"',
     ]))
+    # The one thing a parameter type cannot say: a relation BETWEEN the parameters. `stack(b, onto)` is
+    # nonsense when the two are the same block, and `driver.enumerate_frame` used to carry that as a
+    # hardcoded rule with a comment explaining that the declaration language had no form for it.
+    fn.guard(g, "stack", sort="same", negated=True, left="b", right="onto")
     world = g.mint("world")
     g.link("root", "has", world)                       # real things hang off root
     ground = g.mint("ground", kind_of="ground", label="ground", height=0, clear=True)
@@ -4950,7 +4954,11 @@ def check_a_decision_can_NAME_THE_ACTION_and_the_displaced_one_stays_reachable()
             "the_displaced_candidate_came_back": steered["steps"] > len(D.plan_steps(g1, steered)),
             "AN_INSISTENT_DECIDER_TERMINATES": insistent["found"],
             "ill_typed_binding_refused": ill_typed is not None and "clear_block" in ill_typed,
-            "one_node_two_roles_refused": two_roles is not None and "two roles" in two_roles,
+            # ...and it is refused by the FUNCTION'S OWN declared condition, which is why the message
+            # quotes it. This used to be a hardcoded rule in the planner whose message explained that the
+            # type system could not say `b != onto`; `stack` says it itself now, so the refusal names a
+            # thing an author wrote rather than a thing the engine assumed.
+            "one_node_two_roles_refused": two_roles is not None and "b is onto" in two_roles,
             "unknown_function_refused": not_a_fn is not None and "not a function" in not_a_fn,
             "wrong_arity_refused": wrong_arity is not None and "every parameter" in wrong_arity,
             "it_reaches_the_thread": any("decided to do stack" in (T.why(g1, e) or "")
@@ -6618,6 +6626,85 @@ def check_AN_EDGE_NAMES_AN_IDENTITY_so_a_SPARSE_frame_reads_TRUE():
             # The earlier frame is untouched, which is the property the copying was there to buy and
             # which sharing must not cost.
             "AND_FRAME_ZERO_STILL_SAYS_WHAT_IT_SAID": not G.satisfied(g, goal, view=D.view_in(g, f0))}
+
+
+def check_A_FUNCTION_CAN_STATE_A_RELATION_BETWEEN_ITS_OWN_PARAMETERS():
+    """The first thing a parameter type cannot say, said — and a hardcoded rule deleted for it.
+
+    `driver.enumerate_frame` skipped any binding that put one node in two roles, and the comment beside
+    it was an admission: *"not a heuristic but a correctness rule for operators like `stack(b, onto)`,
+    where the type system cannot say `b ≠ onto`. `types.py` validates one argument at one call site by
+    design, so a relation between parameters has no declared form and has to be enforced here or in the
+    body."* A domain assumption, living in the planner, described rather than closed.
+
+    A **guard** closes it: a criterion's condition keyed on parameters instead of on roles — the same
+    node kind, minted by `criterion.test`, evaluated by `criterion.holds`, which cannot tell a role from
+    a parameter and therefore serves both. See `docs/predicate-dispatch.md`.
+
+    Both forms arrive together, deliberately, because this codebase keeps finding that only the enforcing
+    one gets built: `fn.applies` **answers** so the planner can filter in a loop, and `invoke` **refuses**
+    so a call site cannot slip past. A boolean is useless at a boundary and an exception is useless in a
+    loop.
+
+    Vacuity guards, and the first two are the ones that matter: the guard must be what refuses (so the
+    deleted rule is really gone rather than merely moved), and a function *without* a guard must still
+    accept the same-node binding — otherwise the blanket rule is alive somewhere and this proves nothing.
+    A self-relation is a perfectly ordinary thing for a domain to want, which is why the blanket rule was
+    wrong in general and not merely misplaced."""
+    from . import asm, driver as D, function as fn, workbench as W
+
+    g, world = _blocks()
+    a, b, _c = g.targets(world, "block")
+    ground = g.target(world, "ground")
+    # An operator with two parameters and NO guard, so "one node in two roles" has a control.
+    asm.load_text(g, _lines("fn touch_both(x: block, y: block) -> block:",
+                            '    INVOKE R(_) set_slot node=F(x) key="touched" value=true',
+                            '    INVOKE R(_) set_slot node=F(y) key="touched" value=true'))
+
+    refused = None
+    try:
+        fn.invoke(g, "stack", {"b": b, "onto": b})
+    except fn.GuardViolation as e:
+        refused = e
+
+    wb = W.open_workbench(g, world)
+    f0 = W.root_frame(g, wb)
+    props = [bind for name, bind in D.proposals(g, f0) if name == "stack"]
+    self_bound = [bind for bind in props if bind["b"] == bind["onto"]]
+    both = [bind for name, bind in D.proposals(g, f0) if name == "touch_both"]
+
+    return {"THE_FUNCTION_DECLARES_THE_RELATION_ITSELF":
+                tuple(g.attr(t, "sort") for t in fn.guards_of(g, "stack")) == ("same",),
+            "AND_THE_CALL_IS_REFUSED_AT_THE_BOUNDARY": isinstance(refused, fn.GuardViolation),
+            "and_it_QUOTES_THE_CONDITION": "b is onto" in str(refused),
+            # The answering half, which is what the planner needs.
+            "AND_THE_SEARCH_FILTERS_ON_THE_SAME_CONDITION": self_bound == [],
+            # Three blocks, both orders, and none of the three self-bindings — so the filter removed
+            # exactly what it should and nothing else.
+            "while_still_offering_the_real_pairs": len(props) == 6,
+            # Vacuity, and the whole point: nothing blanket is left. An unguarded two-parameter operator
+            # is still offered the same node twice, because no rule anywhere says it may not be.
+            "AN_UNGUARDED_FUNCTION_STILL_TAKES_ONE_NODE_TWICE":
+                any(bind["x"] == bind["y"] for bind in both),
+            "and_it_really_runs": fn.invoke(g, "touch_both", {"x": a, "y": a}) is not None,
+            # ...and a guard that holds is silent, or every call would refuse.
+            "A_SATISFIED_GUARD_SAYS_NOTHING": fn.unmet_guards(g, "stack", {"b": b, "onto": ground}) == (),
+            # The surface form exists and no longer means something else. `x is y` used to parse as a
+            # link whose LABEL was `is`, matching nothing, silently.
+            "AND_THE_SURFACE_NO_LONGER_MISREADS_x_is_y":
+                _refusal_mentions(_lines("goal be tidy:", "    a is b"), "identity")}
+
+
+def _refusal_mentions(text: str, word: str) -> bool:
+    """Read `text` and report whether it was refused with `word` in the reason. A helper, because a
+    refusal that arrives with the wrong reason is the failure worth catching, not merely one that
+    arrives."""
+    from . import intake as I
+    try:
+        I.read(new_graph(), text)
+        return False
+    except I.Unreadable as e:
+        return word in str(e)
 
 
 def check_EVERY_BOUNDARY_ESTABLISHES_A_WORLD_TO_READ_IN():

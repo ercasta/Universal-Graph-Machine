@@ -210,9 +210,17 @@ class Unresolvable(Exception):
 
 def _here(g: Graph, frame: str, real):
     """This frame's image of a real node. `W.mapping_for` matches the immediate original, which is not
-    always the real node once frames nest, so fall back to `W.resolve`, which walks the whole chain."""
+    always the real node once frames nest, so fall back to `W.resolve`, which walks the whole chain.
+
+    **No frame is the real world, where a node stands for itself.** That is the trivial context arriving
+    in a second place, and it has to be said rather than left to fall out: the walk answers `None` for a
+    frame that is `None`, so a condition evaluated outside a workbench used to conclude that nothing
+    existed. It matters now because a *function guard* is evaluated wherever the function is called, and
+    most calls are not imagining anything."""
     if real is None:
         return None
+    if frame is None:
+        return real
     m = W.mapping_for(g, frame, W.identity_of(g, real))
     if m is not None:
         return W.image_of(g, m)
@@ -271,6 +279,12 @@ def resolve_ref(g: Graph, ref: str, bound: dict, frame: str, *, under: str = "ro
 
 
 # --- evaluation ---------------------------------------------------------------------------------------
+def _view(g: Graph, frame):
+    """The world to traverse in, or `None` for the real one. See `_here` — no frame is not an empty
+    world, it is the world."""
+    return W.View(g, frame) if frame is not None else None
+
+
 def _holds(g: Graph, t: str, bound: dict, frame: str, under: str) -> bool:
     """Does this one test hold? An unresolvable reference is a test that does not hold, never a crash."""
     try:
@@ -280,9 +294,24 @@ def _holds(g: Graph, t: str, bound: dict, frame: str, under: str) -> bool:
     sort = g.attr(t, "sort")
     if sort == "exists":
         return left is not None
+    if sort == "same":
+        # Two references denoting the SAME individual. The one sort the condition language did not have,
+        # and the first thing a function guard wants to say: `stack(b, onto) unless b is onto`. It is
+        # deliberately about identity rather than about a value, which is `path.py`'s rule — `is` compares
+        # identities, everything else compares values — and `types.Rel` has carried the same pair
+        # (`is` / `is not`) inside a schema all along. What was missing was the form that relates two
+        # *arguments*, which is exactly the hole `driver.enumerate_frame` was patching in Python.
+        #
+        # Compared as identities, never as this frame's versions: the two sides are already real nodes,
+        # and comparing versions would answer *no* for one individual seen through two frames.
+        try:
+            other = resolve_ref(g, g.attr(t, "right"), bound, frame, under=under)
+        except (Unresolvable, P.BadPath):
+            return False
+        return left is not None and left == other
     if sort == "type":
         from .types import is_a
-        return is_a(g, _here(g, frame, left), g.attr(t, "label"), view=W.View(g, frame))
+        return is_a(g, _here(g, frame, left), g.attr(t, "label"), view=_view(g, frame))
     if sort == "attr":
         return g.attr(_here(g, frame, left), g.attr(t, "key")) == g.attr(t, "value")
     if sort == "link":
@@ -291,7 +320,7 @@ def _holds(g: Graph, t: str, bound: dict, frame: str, under: str) -> bool:
         except (Unresolvable, P.BadPath):
             return False
         here, there = _here(g, frame, left), _here(g, frame, right)
-        view = W.View(g, frame)
+        view = _view(g, frame)
         if g.attr(t, "transitive"):
             # `x contains+ y` — *reachable at any depth*. This arrived with the shared proposition
             # grammar: `+` had existed only in a goal line, though `docs/authoring.md` says it belongs "in a link
@@ -315,6 +344,18 @@ def _holds(g: Graph, t: str, bound: dict, frame: str, under: str) -> bool:
                 return True
         return False
     raise ValueError(f"unknown test sort {sort!r}")
+
+
+def holds(g: Graph, t: str, bound: dict, frame=None, under: str = "root") -> bool:
+    """Does this one condition hold, with `bound` mapping each name to a real node?
+
+    The public form, and the one place negation is applied — `_holds` answers the *positive* question and
+    every caller used to fold `negated` in by hand, which is one hand too many now that a second family
+    evaluates conditions. `bound` is roles for a criterion and parameters for a function guard; the
+    condition language cannot tell the difference, which is exactly why it can serve both.
+
+    `frame=None` is the real world (see `_here`), so a condition is evaluable wherever it is written."""
+    return _holds(g, t, bound, frame, under) != bool(g.attr(t, "negated"))
 
 
 def _open_constraints(g: Graph, node: str, frame: str, bound: dict) -> tuple:
@@ -616,6 +657,7 @@ def _call_text(g: Graph, call) -> str:
 def describe_test(g: Graph, t: str) -> str:
     sort, left = g.attr(t, "sort"), g.attr(t, "left")
     body = {"exists": f"{left} exists",
+            "same": f"{left} is {g.attr(t, 'right')}",
             "type": f"{left} is a {g.attr(t, 'label')}",
             "attr": f"{left}.{g.attr(t, 'key')} = {g.attr(t, 'value')!r}",
             # The `+` must survive the round trip, or a reader is shown a condition that says something

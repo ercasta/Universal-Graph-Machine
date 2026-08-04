@@ -218,9 +218,18 @@ def enumerate_frame(g: Graph, frame: str, *, allow=None) -> tuple:
             blocked.append(name)
             continue
         for combo in product(*per_param):
-            if len(set(combo)) != len(combo):
-                continue                       # one node cannot fill two roles
-            out.append((name, dict(zip(params, combo))))
+            binding = dict(zip(params, combo))
+            # **The declared condition, where a hardcoded rule used to be.** This loop skipped any combo
+            # binding one node to two parameters, and the comment beside it said why: the type system
+            # cannot say `b ≠ onto`, so a relation *between* parameters had no declared form and had to
+            # be enforced here or in the body. It has one now — `fn.guard` — and `stack` says it itself.
+            #
+            # It was never universally right, either: `connect(a, b)` making a self-loop is a perfectly
+            # ordinary thing for a domain to want, so what looked like a correctness rule was a domain
+            # assumption living in the planner. Authored, it is the domain's again.
+            if not fn.applies(g, name, {p: stands_for(g, m) for p, m in binding.items()}, frame=frame):
+                continue
+            out.append((name, binding))
     return tuple(out), blocked
 
 
@@ -1175,9 +1184,15 @@ def check_call(g: Graph, goal: str, frame: str, call: Call, prefix: str | None) 
             raise Undecidable(f"a decision bound {call.function}.{p} to {given!r}, which is not in the "
                               f"world being imagined here")
         bound[p] = m
-    if len(set(bound.values())) != len(bound):
-        raise Undecidable(f"a decision gave {call.function} one node in two roles; the type system cannot "
-                          f"say a != b, so the search enforces it and so must this")
+    # The same declared conditions the enumeration filters on — one implementation, so a decision
+    # arriving from outside cannot be admitted where the search would have refused it. This replaced a
+    # hardcoded *one node in two roles*, which said in its own message that the type system could not say
+    # `a != b`; the function says it now.
+    ungranted = fn.unmet_guards(g, call.function, {p: stands_for(g, m) for p, m in bound.items()},
+                                frame=frame)
+    if ungranted:
+        raise Undecidable(f"a decision named {call.function}, which does not apply here: "
+                          + "; ".join(ungranted))
 
     ptypes = fn.param_types(g, call.function)
     for p, m in bound.items():

@@ -287,8 +287,10 @@ def _at_least_as_tight(g: Graph, ta: str, tb: str) -> bool:
         return False
     if g.attr(ta, "left") != g.attr(tb, "left"):
         return False
-    if sort == "exists":
-        return True
+    if sort in ("exists", "same"):
+        # `same` carries its whole demand in the two references, which `left` and this line compare —
+        # there is nothing an identity test can be partially satisfied by.
+        return g.attr(ta, "right") == g.attr(tb, "right")
     if sort == "type":
         want_a, want_b = g.attr(ta, "label"), g.attr(tb, "label")
         return want_a == want_b or TY.subsumes(g, want_b, want_a)

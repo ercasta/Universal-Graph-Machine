@@ -27,7 +27,7 @@ See `docs/concepts.md`.
 from __future__ import annotations
 
 from .focus import Focus
-from .graph import Graph, Ref
+from .graph import Graph, Ref, Refusal
 from .isa import F, I, R
 
 _FORMS = {"focus": F, "reg": R}
@@ -243,6 +243,71 @@ def _load_operand(g: Graph, arg: str):
     return value
 
 
+# --- guards --------------------------------------------------------------------------------------
+class GuardViolation(Refusal):
+    """A call whose arguments do not satisfy the function's declared condition.
+
+    A sibling of `types.TypeViolation` and the same claim about whose fault it is — the *caller* brought
+    the wrong arguments — which is why it refuses at the same boundary. What differs is what could be
+    said: a type constrains one argument, and a guard constrains the arguments *together*, and their
+    surroundings."""
+
+
+def guard(g: Graph, name: str, *, sort: str, negated: bool = False, **fields) -> str:
+    """Attach one condition to a function. Returns the test node.
+
+    A **guard** is a criterion's condition, keyed on parameters instead of on roles. That is not a
+    resemblance, it is the same node kind evaluated by the same reader: `criterion.test` mints it and
+    `criterion.holds` evaluates it, with `bound` mapping names to nodes — and the condition language
+    cannot tell a role from a parameter, which is what lets one mechanism serve both.
+
+    Why this exists, in one measured line: `driver.enumerate_frame` carried a hardcoded correctness rule
+    — *no node in two roles* — and said why, that `types.py` validates one argument at one call site, so
+    **a relation between parameters has no declared form**. It has one now.
+
+    Each condition is its own node, so a refusal can say *which* one failed. That is the property
+    `criterion.governing` is built on, and an opaque predicate could never give it."""
+    from . import criterion as CR
+    fnode = find(g, name)
+    if fnode is None:
+        raise KeyError(f"no function named {name!r}")
+    t = CR.test(g, fnode, sort=sort, negated=negated, **fields)
+    # `criterion.test` links under `test`; a guard is the function's, under its own label, so a reader
+    # asking what a function demands never has to know what a criterion is.
+    g.unlink(fnode, "test", index=g.targets(fnode, "test").index(t))
+    g.link(fnode, "guard", t)
+    return t
+
+
+def guards_of(g: Graph, name: str) -> tuple:
+    fnode = find(g, name)
+    return () if fnode is None else g.targets(fnode, "guard")
+
+
+def unmet_guards(g: Graph, name: str, args: dict, *, frame=None, under: str = "root",
+                 fnode: str | None = None) -> tuple:
+    """Which of this function's conditions do not hold of these arguments, rendered for a reader.
+
+    Empty means the function applies. **The answering form**, and it exists beside the refusal in
+    `invoke` on purpose: the planner has to *filter* candidates and an exception is useless in a loop,
+    while a call site has to *refuse* and a boolean is useless at a boundary. This codebase keeps finding
+    that the enforcing form arrives first and the answering one is missing; here they arrive together.
+
+    `frame` is the world to evaluate in — a guard reads the surroundings, and reading them in reality
+    while the body it guards reads a frame is the defect the parameter-type check had until recently."""
+    from . import criterion as CR
+    node = fnode if fnode is not None else find(g, name)
+    if node is None:
+        return ()
+    return tuple(CR.describe_test(g, t) for t in g.targets(node, "guard")
+                 if not CR.holds(g, t, args, frame, under))
+
+
+def applies(g: Graph, name: str, args: dict, *, frame=None, under: str = "root") -> bool:
+    """Would this call satisfy the function's declared conditions? The predicate behind selection."""
+    return not unmet_guards(g, name, args, frame=frame, under=under)
+
+
 def load(g: Graph, name: str) -> tuple:
     """Lift a stored function back to `(params, program)`. Raises if it is not there — loudly, per this
     project's standing discipline for a malformed or missing fragment."""
@@ -355,6 +420,15 @@ def invoke(g: Graph, name: str, args: dict | None = None, *, check_types: bool =
                 err = TY.TypeViolation(f"{name}({p}=…): {args[p]} is not a {want}: {bad}")
                 err.function, err.param, err.want, err.violations = name, p, want, bad
                 raise err
+        # ...and then the conditions a type cannot state, in the same world, at the same boundary. The
+        # order is not arbitrary: a type constrains one argument and is cheap, a guard may walk the
+        # surroundings, so the cheap gate runs first and most calls never reach this line.
+        ctx_frame = g.target(ctx, "frame") if ctx is not None else None
+        unmet = unmet_guards(g, name, args, frame=ctx_frame)
+        if unmet:
+            err = GuardViolation(f"{name}(…) does not apply here: " + "; ".join(unmet))
+            err.function, err.unmet = name, unmet
+            raise err
     from .isa import Machine
     callee = Focus(g)
     for p in params:
