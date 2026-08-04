@@ -87,119 +87,21 @@ fn previous_frame(frame) -> thing:
     CONST R(done) true
 
 
-# This frame and every frame it was derived from, nearest first — `workbench.chain`, as a node with
-# ordered `frame` edges. Transient; `visible_in` drops it.
-#
-# The seen guard is against a malformed graph rather than an ordinary one: this walks a HISTORY, and a
-# history does not loop.
-fn frame_chain(frame) -> thing:
-    NEW R(out) "chain"
-    COPY R(f) F(frame)
-.walk:
-    JMPNOT R(f) .done
-    DEREF R(been) R(out) R(f)
-    JMPIF R(been) .done
-    SETREF R(out) R(f) R(out)
-    LINK R(out) "frame" R(f)
-    INVOKE R(f) previous_frame frame=R(f)
-    JMP .walk
-.done:
-    COPY R(result) R(out)
-
-
-# Every mapping in force in this frame — the nearest version of each thing, nothing twice. This is *the
-# world as imagined here*, where `frame -mapping-> …` answers the other question: what this frame
-# CHANGED. Separating the two is the whole of sparseness.
-#
-# **In the order the world was first laid out, not the order it changed.** Walking nearest-first and
-# keeping the first answer puts whatever this step touched at the front, so the world's order differs in
-# every frame — and that order is the search's last tie-break, which stayed deterministic and got worse.
-# So: oldest frame first, and a later version REPLACES an earlier one in the slot it already occupies.
-# A slot node is what makes "replace in place" expressible; a Python dict got it for free.
-#
-# Answered as a node with ordered `at` edges to slots, each holding one `mapping`. Transient — the
-# caller drops it with `drop_world`.
-fn visible_in(frame) -> thing:
-    INVOKE R(ch) frame_chain frame=F(frame)
-    NEW R(out) "world"
-    COUNT R(nf) R(ch) "frame"
-    ADD R(i) R(nf) -1
-.each_frame:
-    LT R(before_start) R(i) 0
-    JMPIF R(before_start) .done
-    GET_AT R(f) R(ch) "frame" R(i)
-    COUNT R(nm) R(f) "mapping"
-    CONST R(j) 0
-.each_mapping:
-    LT R(more) R(j) R(nm)
-    JMPNOT R(more) .next_frame
-    GET_AT R(m) R(f) "mapping" R(j)
-    # An imagined node stands for ITSELF, which is stated positively rather than being the absence of an
-    # original — so this is the key either way and never a missing one.
-    GET R(key) R(m) "original"
-    JMPIF R(key) .have_key
-    COPY R(key) R(m)
-.have_key:
-    DEREF R(slot) R(out) R(key)
-    JMPIF R(slot) .replace
-    NEW R(slot) "slot"
-    LINK R(out) "at" R(slot)
-    SETREF R(out) R(key) R(slot)
-    JMP .put
-.replace:
-    UNLINK R(slot) "mapping" 0
-.put:
-    LINK R(slot) "mapping" R(m)
-    ADD R(j) R(j) 1
-    JMP .each_mapping
-.next_frame:
-    ADD R(i) R(i) -1
-    JMP .each_frame
-.done:
-    DROP R(ch)
-    COPY R(result) R(out)
-
-
-# Scrap a world and its slots. Members first, or dropping the set they hang off would orphan them —
-# the shape `step.mf` records finding the hard way when it frees its own argument bindings.
-fn drop_world(world) -> thing:
-.free:
-    COUNT R(left) F(world) "at"
-    JMPNOT R(left) .freed
-    GET_AT R(slot) F(world) "at" 0
-    DROP R(slot)
-    JMP .free
-.freed:
-    DROP F(world)
-    CONST R(result) true
-
-
 # --- bindings: which real node stands for which mapping ---------------------------------------------
 
 # The `bound` record for this mapping in this replay, or nothing.
 #
-# Walked FORWARDS, off the replay's own ordered `bound` edges, rather than backwards from the mapping —
-# the same argument `unmet.mf`'s `bound_node` makes, and it matters more here, because `execution.bind`
-# and a frame both point at a mapping under labels the reverse index would hand back interleaved.
+# ⭐ **One `DEREF` off the replay's index**, never a walk of its `bound` edges. Both would be correct and
+# only one is affordable: `open_execution` seeds a binding per node in frame 0, so the list is the size of
+# the WORLD, and a linear scan of it per argument per carried mapping is O(world) in the one place the
+# whole sparse-frame design promises O(change).
+#
+# `execution.bind` writes the index and Python reads the same structure, so the two cannot drift — the
+# argument `workbench.index` makes for frames, one layer out. And it is the substrate's own key-to-node
+# map, whose key is an ARGUMENT: keying it by mapping is this layer's decision, and nothing below knows
+# what a mapping is.
 fn binding_of(replay, mapping) -> thing:
-    COUNT R(nb) F(replay) "bound"
-    CONST R(i) 0
-.each:
-    LT R(more) R(i) R(nb)
-    JMPNOT R(more) .none
-    GET_AT R(b) F(replay) "bound" R(i)
-    GET R(bm) R(b) "mapping"
-    EQ R(same) R(bm) F(mapping)
-    JMPIF R(same) .found
-    ADD R(i) R(i) 1
-    JMP .each
-.found:
-    COPY R(result) R(b)
-    JMP .end
-.none:
-    CONST R(result) null
-.end:
-    CONST R(done) true
+    DEREF R(result) F(replay) F(mapping)
 
 
 # Say which real node a mapping stands for. Rebinding REPLACES, since settling points the subject's
@@ -211,6 +113,11 @@ fn bind_real(replay, mapping, node) -> thing:
     LINK R(b) "mapping" F(mapping)
     LINK R(b) "in" F(replay)
     LINK F(replay) "bound" R(b)
+    # The index `binding_of` reads, written HERE as well as in `execution.bind` — one index with two
+    # writers, which is what "Python and the surface read the same structure" costs. Forgetting it here
+    # made every binding the surface itself created invisible to the surface, and two routes of the
+    # comparison check said so immediately.
+    SETREF F(replay) F(mapping) R(b)
 .clear:
     COUNT R(c) R(b) "node"
     JMPNOT R(c) .set
@@ -221,39 +128,29 @@ fn bind_real(replay, mapping, node) -> thing:
     COPY R(result) R(b)
 
 
-# The continuation of `mapping` that belongs to `frame` — `next` is 1:N because frames fork.
-fn successor_in(mapping, frame) -> thing:
-    COUNT R(n) F(mapping) "next"
-    CONST R(i) 0
-.each:
-    LT R(more) R(i) R(n)
-    JMPNOT R(more) .none
-    GET_AT R(nxt) F(mapping) "next" R(i)
-    INVOKE R(here) has_edge_to node=F(frame) label="mapping" other=R(nxt)
-    JMPIF R(here) .found
-    ADD R(i) R(i) 1
-    JMP .each
-.found:
-    COPY R(result) R(nxt)
-    JMP .end
-.none:
-    CONST R(result) null
-.end:
-    CONST R(done) true
-
-
 # A node keeps its identity across frames, so its binding follows its mapping's successor.
+#
+# ⭐ **Walked BACKWARDS, from the new frame's own mappings.** The Python reference asks it forwards — for
+# every mapping in force in `prev`, is there a successor in `frame`? — and that enumerates the whole
+# world, because frame 0 maps every node there is. In Python that is a dict comprehension and costs
+# nothing; here it is five interpreted instructions per node, and it made carrying a plan out **O(world)**
+# when the entire point of sparse frames is that cost follows CHANGE. Measured: 618 / 1731 / 5206 ms at
+# 6 / 30 / 120 blocks, against a flat ~100-270 ms for the Python.
+#
+# It is the same edge, walked the other way. A successor exists only where this frame changed something,
+# and a mapping has exactly one predecessor, so `frame -mapping->` is already the answer to *which
+# bindings move* — and it is sparse. Nothing is skipped and nothing extra is visited, which is why this
+# stays a transcription rather than becoming a second opinion: the comparison check holds it against the
+# untouched Python on every route.
 fn carry_bindings(replay, prev, frame) -> thing:
-    INVOKE R(w) visible_in frame=F(prev)
-    COUNT R(n) R(w) "at"
+    COUNT R(n) F(frame) "mapping"
     CONST R(i) 0
 .each:
     LT R(more) R(i) R(n)
     JMPNOT R(more) .done
-    GET_AT R(slot) R(w) "at" R(i)
-    GET R(m) R(slot) "mapping"
-    INVOKE R(nxt) successor_in mapping=R(m) frame=F(frame)
-    JMPNOT R(nxt) .next
+    GET_AT R(nxt) F(frame) "mapping" R(i)
+    INVOKE R(m) predecessor_of mapping=R(nxt)
+    JMPNOT R(m) .next
     INVOKE R(b) binding_of replay=F(replay) mapping=R(m)
     JMPNOT R(b) .next
     GET R(node) R(b) "node"
@@ -262,7 +159,6 @@ fn carry_bindings(replay, prev, frame) -> thing:
     ADD R(i) R(i) 1
     JMP .each
 .done:
-    INVOKE R(_) drop_world world=R(w)
     CONST R(result) true
 
 
@@ -317,24 +213,56 @@ fn claim_of_kind(mints, taken, wanted) -> thing:
     CONST R(done) true
 
 
+# The version of `identity` in force in this frame — this frame's, or the nearest ancestor's, or
+# nothing if no frame on this chain has ever held one. `workbench.mapping_for`.
+#
+# One `DEREF` per frame, off the index the frame carries from identity to the version it holds. It reads
+# exactly the structure `in_frame` and Python's `mapping_for` read, so the three walks cannot drift.
+fn version_of(frame, identity) -> thing:
+    COPY R(f) F(frame)
+.walk:
+    JMPNOT R(f) .none
+    DEREF R(m) R(f) F(identity)
+    JMPIF R(m) .found
+    INVOKE R(f) previous_frame frame=R(f)
+    JMP .walk
+.found:
+    COPY R(result) R(m)
+    JMP .end
+.none:
+    CONST R(result) null
+.end:
+    CONST R(done) true
+
+
 # Match nodes the real call just created to the imagined mappings that predicted them.
 #
 # The pairing is by KIND and by ORDER, so a call minting two nodes of one kind where the plan imagined
 # one is a guess — and this SAYS so rather than pairing silently. It says it as a note NODE: what could
 # not be paired, and how many there were. The sentence is rendered where the report is, which is the
 # split that let this move at all.
+#
+# ⭐ **Asked of what the plan IMAGINED, never of what is visible.** The reference asks the second — every
+# mapping in force in this frame, tested for *is this imagined and still unbound* — and that enumerates
+# the world, because frame 0 maps every node there is. The candidates are exactly the workbench's own
+# `imagined` identities resolved to their version here, which is a handful; and it is the same set,
+# because `visible` keys an imagined mapping under itself and resolves by the same chain walk.
+#
+# Not a narrowing. An imagined mapping left unbound by an EARLIER step is still a candidate here — the
+# case where a plan imagined two files and reality produced one, which notes a guess without diverging —
+# and it is still found, because its identity is on the workbench and `version_of` answers with whatever
+# version is in force now.
 fn bind_minted(replay, frame, mints) -> thing:
     NEW R(taken) "claimed"
-    INVOKE R(w) visible_in frame=F(frame)
-    COUNT R(n) R(w) "at"
+    GET R(wb) F(replay) "workbench"
+    COUNT R(n) R(wb) "imagined"
     CONST R(i) 0
 .each:
     LT R(more) R(i) R(n)
     JMPNOT R(more) .done
-    GET_AT R(slot) R(w) "at" R(i)
-    GET R(m) R(slot) "mapping"
-    INVOKE R(is_new) imagined mapping=R(m)
-    JMPNOT R(is_new) .next
+    GET_AT R(id) R(wb) "imagined" R(i)
+    INVOKE R(m) version_of frame=F(frame) identity=R(id)
+    JMPNOT R(m) .next
     INVOKE R(already) binding_of replay=F(replay) mapping=R(m)
     JMPIF R(already) .next
     GET R(img) R(m) "image"
@@ -359,7 +287,6 @@ fn bind_minted(replay, frame, mints) -> thing:
     ADD R(i) R(i) 1
     JMP .each
 .done:
-    INVOKE R(_) drop_world world=R(w)
     DROP R(taken)
     CONST R(result) true
 

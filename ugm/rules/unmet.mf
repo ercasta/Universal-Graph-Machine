@@ -17,23 +17,13 @@
 
 # The real node standing for `mapping` in this replay, or nothing.
 #
-# Walked FORWARDS, off the replay's own ordered `bound` edges, rather than backwards from the mapping.
-# The reverse index sorts by node id, and while a replay has exactly one binding per mapping that would
-# be harmless, the forward edge is the one that says what it means — and this codebase has twice paid
-# for reading "the one I want" out of a list sorted by something else.
+# Through the replay's index (`execution.bind` writes it), never the reverse index and never a walk of
+# the `bound` edges. The reverse index sorts by node id, which is the trap this codebase has twice paid
+# for; and the forward walk is correct but O(world), because `open_execution` seeds a binding per node in
+# frame 0. A stored reference is neither.
 fn bound_node(replay, mapping) -> thing:
-    COUNT R(nb) F(replay) "bound"
-    CONST R(i) 0
-.each:
-    LT R(more) R(i) R(nb)
-    JMPNOT R(more) .missing
-    GET_AT R(b) F(replay) "bound" R(i)
-    GET R(bm) R(b) "mapping"
-    EQ R(same) R(bm) F(mapping)
-    JMPIF R(same) .found
-    ADD R(i) R(i) 1
-    JMP .each
-.found:
+    DEREF R(b) F(replay) F(mapping)
+    JMPNOT R(b) .missing
     GET R(result) R(b) "node"
     JMP .end
 .missing:

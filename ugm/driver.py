@@ -1832,7 +1832,7 @@ def _phase_acting(g: Graph, p: str, **_hooks) -> bool:
         return True
     # A contingency is tried before replanning, on evidence rather than taste: an explored sibling is
     # already verified against this world and a fresh plan is not (`execution.recover`).
-    resumed = X.resume_replay(g, report)
+    resumed = X.resume_replay(g, r)
     if resumed is None:
         g.put(a, diverged=X.report(g, report))
         g.put(p, phase=CHECKING)

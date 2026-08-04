@@ -135,13 +135,20 @@ def open_replay(g: Graph, wb: str, frames: tuple, *, bound: dict | None = None,
 
 def bind(g: Graph, r: str, mapping: str, real: str) -> str:
     """Say which real node a mapping stands for in this replay. Rebinding replaces, since `_settle` points
-    the subject's mapping at the cast's result."""
+    the subject's mapping at the cast's result.
+
+    The replay carries a **stored reference from mapping to its binding**, and Python and the surface read
+    the same one — `workbench.index`'s argument, at the other end of the same journey. Python can afford
+    to find a binding through the reverse index; a rule walking the replay's `bound` edges cannot, because
+    `open_execution` seeds one per node in frame 0, so *the world* is how many there are. That made the
+    surface stepper O(world) in the one place the design promises O(change)."""
     got = _binding(g, r, mapping)
     if got is None:
         got = g.mint("bound")
         g.link(got, "mapping", mapping)
         g.link(got, "in", r)                    # which replay this belongs to — see `_binding`
         g.link(r, "bound", got)
+        g.set_ref(r, mapping, got)              # ...and the index the surface reads with one `DEREF`
     while g.count(got, "node"):
         g.unlink(got, "node", index=0)
     g.link(got, "node", real)
@@ -562,7 +569,7 @@ def alternatives(g: Graph, wb: str, transformation: str) -> tuple:
 
 
 # --- recovery ---------------------------------------------------------------------------------------
-def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None = None):
+def matching_alternative(g: Graph, wb: str, deviation: dict, bindings: dict | None = None):
     """The explored branch that assumed what reality actually did, or `None`.
 
     This is the whole payoff of forking deliberately: the test is the same `deviates` used to detect the
@@ -584,7 +591,7 @@ def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None
         # broken prediction rather than a failed cast, matching the declared type is not enough — this
         # branch predicted concrete things too, and offering it without checking them would swap one wrong
         # assumption for another. Its bindings are carried from the shared parent, as `resume` does.
-        if "unmet_expectations" in deviation and result is not None:
+        if "unmet_expectations" in deviation and bindings is not None:
             parent = _parent_of(g, wb, sib)
             if parent is None:
                 continue
@@ -592,7 +599,7 @@ def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None
             # settling reality onto its mappings, and doing that on the live replay would answer the
             # question by committing to it. The dict this used to copy was doing the same job; a node has
             # to be scrapped explicitly, which is the one cost of the state being real.
-            scratch = open_replay(g, wb, (), bound=dict(result["bindings"]))
+            scratch = open_replay(g, wb, (), bound=dict(bindings))
             _carry(g, scratch, parent, sib)
             _settle(g, scratch, tr, sib, deviation["result"], list(deviation["minted"]))
             prediction = W.predicted_changes(g, parent, sib)
@@ -624,9 +631,15 @@ def discard_replay(g: Graph, r: str) -> None:
     g.drop(r)
 
 
-def resume_replay(g: Graph, result: dict, *, branch=None, leaf=None):
+def resume_replay(g: Graph, r: str, *, branch=None, leaf=None):
     """Set up the continuation of a diverged execution down a branch that assumed what actually happened,
     and return the replay node, ready to be stepped. `None` if there is no such branch.
+
+    **Takes the diverged REPLAY, not a report of it.** Everything it needs — the workbench, the deviation,
+    the bindings, the notes, what ran — is on that node already, and the report is a *rendering* of it.
+    Asking for the rendering was the seam: a Python dict is not something a rule can be handed, so a
+    phase machine in the surface could never call this. One fact in two shapes, again, and the shape both
+    sides can read is the node.
 
     Split from `resume` so recovery is steppable too. An outer loop that could pause between two acts of
     the original plan but not between two acts of its contingency would have a seam exactly where things
@@ -639,8 +652,8 @@ def resume_replay(g: Graph, result: dict, *, branch=None, leaf=None):
 
     `leaf` chooses among several ends below the branch; the default takes the first, matching the planner's
     first-solution-wins discipline rather than pretending to arbitrate."""
-    wb, dev = result["workbench"], result["deviation"]
-    branch = branch if branch is not None else matching_alternative(g, wb, dev, result)
+    wb, dev = g.target(r, "workbench"), deviation_of(g, r)
+    branch = branch if branch is not None else matching_alternative(g, wb, dev, bindings_of(g, r))
     if branch is None:
         return None
     parent = _parent_of(g, wb, branch)
@@ -654,22 +667,24 @@ def resume_replay(g: Graph, result: dict, *, branch=None, leaf=None):
     # A fresh replay seeded from the diverged one's state — not a continuation of it. The old replay
     # stopped on a deviation and that is a fact about it; carrying on inside it would erase the record of
     # where it stopped, which is the one thing recovery is reasoning from.
-    # The note NODES, read off the diverged replay — not `result["notes"]`, which is a rendering. A
-    # resumed replay inherits the facts and renders them itself, so there is one account of what
-    # happened rather than a sentence being carried forward as though it were the record.
-    r = open_replay(g, wb, path[path.index(branch):],
-                    bound=dict(result["bindings"]), notes=g.targets(result["replay"], "note"),
-                    ran=g.targets(result["replay"], "ran"))
-    g.link(r, "resumed_on", branch)
-    g.put(r, resumed_assuming=g.attr(tr, "expects"))
-    _carry(g, r, parent, branch)
-    _settle(g, r, tr, branch, dev["result"], list(dev["minted"]))
-    return r
+    # The note NODES, read off the diverged replay, never rendered sentences. A resumed replay inherits
+    # the facts and renders them itself, so there is one account of what happened rather than a sentence
+    # being carried forward as though it were the record.
+    nxt = open_replay(g, wb, path[path.index(branch):],
+                      bound=bindings_of(g, r), notes=g.targets(r, "note"), ran=g.targets(r, "ran"))
+    g.link(nxt, "resumed_on", branch)
+    g.put(nxt, resumed_assuming=g.attr(tr, "expects"))
+    _carry(g, nxt, parent, branch)
+    _settle(g, nxt, tr, branch, dev["result"], list(dev["minted"]))
+    return nxt
 
 
 def resume(g: Graph, result: dict, *, branch=None, leaf=None):
-    """`resume_replay` run to completion — a loop over `step`, like `execute`."""
-    r = resume_replay(g, result, branch=branch, leaf=leaf)
+    """`resume_replay` run to completion — a loop over `step`, like `execute`.
+
+    Still takes a report, because a Python caller holding one is the ordinary case; the replay it names
+    is what does the work."""
+    r = resume_replay(g, result["replay"], branch=branch, leaf=leaf)
     if r is None:
         return None
     while step(g, r):

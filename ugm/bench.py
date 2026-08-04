@@ -121,6 +121,13 @@ def acting(steps: int = 8):
     Cheap in aggregate whatever the ratio says, and that is the load-bearing observation: a search
     imagines hundreds of states to produce a plan of three or four real actions. This runs per ACTION.
 
+    ⚠ **This row's ratio once hid an O(world) defect for an entire session.** The surface stepper walked
+    every mapping in force to carry bindings and to pair minted nodes, which is the whole world, because
+    frame 0 maps every node there is — 618 / 1731 / 5206 ms at 6 / 30 / 120 blocks against a flat Python.
+    The ratio here looked like an ordinary interpreter tax throughout. A single number against a reference
+    cannot say whether the *shape* is right, which is what `scaling` is for; there is no acting equivalent
+    of it yet, and one row at one world size is why this warning is written down instead.
+
     Chained rather than repeated, for `stepping`'s reason: the walking sparse frames introduce only
     appears as the chain gets longer."""
     from pathlib import Path

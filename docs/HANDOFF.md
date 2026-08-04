@@ -20,6 +20,7 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 | what a domain can write | [authoring.md](authoring.md) — the one text surface |
 | how it runs | [execution-model.md](execution-model.md) |
 | what it cannot do | [limits.md](limits.md) — kept deliberately honest |
+| how it differs from its neighbours, and what is merely prior art | [comparison.md](comparison.md) — the claim is the **residue**, not the execution |
 | what is only sayable in Python, and why | [audit.md](audit.md) |
 | dispatching on a condition rather than a type | [predicate-dispatch.md](predicate-dispatch.md) — slices 1-2 built |
 | advice about the *order* of a plan's actions | [advice-over-sequences.md](advice-over-sequences.md) — a design thread, nothing built |
@@ -303,7 +304,7 @@ Run `python -m ugm.bench`. The current numbers, and what each one is for:
 | Sussman's anomaly | **~3700–3760 ms**, 50 imagined states — 1600 ms with the Python `holds`, 1020 ms with the Python step too, 640 ms before sparse frames |
 | a step, 5 / 60 / 300 blocks | **~125 / ~105 / ~135 ms** — against 53 / 56 / 59 for the Python step, and 47 / 68 / 198 dense |
 | live `step` vs `_python_step` | **1.4–1.9×** — against 3.0× measured before the swap; the spread is noise, not a trend |
-| live `execution.step` vs `_python_step` | **3–5×**, ~100 ms per real action — paid per ACTION, where the planner pays per imagined state |
+| live `execution.step` vs `_python_step` | **~2.5×** — paid per ACTION, where the planner pays per imagined state, and **flat in world size** |
 | a mediated read vs a bare `GET` | **3.5–4.7×** |
 
 The first row **more than doubled when `goal.holds` went live**, at an unchanged 50 imagined states. That
@@ -397,11 +398,35 @@ Four things came out of doing it.
   (`execution.world_of`), one per run rather than one per step, so the durable record of which world a
   run acted in survives the activation that established it.
 
-Cost, on the new `acting` row of `python -m ugm.bench`: **3–5×** against `_python_step`, ~100 ms per real
-action. That is the same order as everything else interpreted here (`stepping`, `mediation`), and it is
-paid **per action** where the planner pays per imagined state — a search imagines fifty to produce a plan
-of three. Sussman is unchanged (measured against a worktree at the previous commit in the same minutes:
-~4180 ms against ~4370 ms, i.e. noise, because planning does not act).
+Cost, on the new `acting` row of `python -m ugm.bench`: **~2.5×** against `_python_step` — the same order
+as everything else interpreted here, and paid **per action** where the planner pays per imagined state (a
+search imagines fifty to produce a plan of three). Sussman is unchanged, because planning does not act.
+
+⚠⚠⚠ **It was first written O(world), and the constant factor hid it.** The ratio looked like an ordinary
+interpreter tax; the *curve* did not. Measured at 6 / 30 / 120 blocks it went **618 / 1731 / 5206 ms**
+while the Python it replaces stayed flat — a straight violation of the one claim the whole sparse-frame
+arc exists to make, *cost follows change, not the size of the world*. Three fixes, and the classification
+of each is the useful part:
+
+* **`carry_bindings` asked the question forwards** — *for every mapping in force in `prev`, is there a
+  successor in `frame`?* — which enumerates the world, because frame 0 maps every node there is. The same
+  edge walked **backwards**, from the new frame's own (sparse) mappings, is O(change). *Semantic fix.*
+* **`bind_minted` asked what was VISIBLE and filtered for imagined.** The workbench now records the
+  identities it invented (`wb -imagined->`, written by `step.mf`) — `workbench.index`'s argument one level
+  out, and a handful rather than a world. *Semantic fix.*
+* **`binding_of` scanned the replay's `bound` edges**, of which `open_execution` seeds one per node in
+  frame 0. It is one `DEREF` off an index `execution.bind` writes, which Python and the surface share.
+  *Agnostic fix — the substrate map, whose key is an argument.*
+
+**5206 → ~440 ms at 120 blocks, and the curve is flat.** The comparison check is what made this safe:
+each fix is an *accelerated* walk held against the untouched Python on every route, so "faster" never had
+to be taken on trust. ⭐ **A ratio hides a curve.** `stepping` and `acting` report one number against a
+reference; `scaling` exists because that number cannot say whether the shape is right. Measure a new
+surface function at three world sizes before believing its ratio.
+
+⚠ And the swap that made it slower is the point rather than the cost: see
+[comparison.md](comparison.md) — moving `execution.step` down bought **nothing** in execution terms and
+bought a readable record of the one loop that touches the world. The residue is the product.
 
 **What is left is `driver._phase_*`.** Reads, guards, one call, attribute writes and unlinks; its
 `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does. Every prerequisite is now in, and it reports
@@ -651,6 +676,13 @@ placeholder before anyone asked what needed one. The answer turned out not to be
 (chaining) but that a goal constraint can be existential — and once that was clear, the thing needed no
 mechanism at all. Two of the largest near-misses in this arc were designs for a requirement nobody had
 stated.
+
+**A ratio hides a curve.** The surface `execution.step` was O(world) — 618 / 1731 / 5206 ms at 6 / 30 /
+120 blocks — and its *ratio* against the Python looked like an ordinary interpreter tax the whole time.
+`scaling` exists because a single number against a reference cannot say whether the shape is right.
+Measure any new surface function at three world sizes before believing its ratio, and remember that in
+Python an O(world) step is a dict comprehension costing nothing, while here it is five interpreted
+instructions per node — **the same algorithm changes complexity class in effect when it crosses down.**
 
 **Measurement finds what checks cannot.** The `called`-versus-`caller` defect was invisible to three
 successive checks and obvious to a benchmark, because two activations made moments apart have ids that

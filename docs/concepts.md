@@ -250,6 +250,58 @@ something we chose. So:
 The horizon sits between the closed class and the web. The kernel boundary sits below the closed
 class. Both are real and they are not the same.
 
+### Above the horizon is two things, and they are a different axis
+
+The table above answers *what defines what*. It says nothing about *what runs what*, and those are not
+the same question — which is why "above the horizon" turns out to be **two layers wearing one name**:
+
+* **a language** — the instruction set, calls, refusal, dispatch, the closed vocabulary that gives it a
+  memory model. A computation model. It decides nothing about goals, plans or criteria.
+* **machines written in that language** — `rules/step.mf` imagines, `rules/resolve.mf` says what a read
+  means inside a frame, `rules/holds.mf` decides whether a goal is met, `rules/execute.mf` acts. These
+  *are* the business, and they happen to be the system's own mechanisms.
+
+The two axes cross, and neither subsumes the other:
+
+| | substrate | language | machines |
+|---|---|---|---|
+| **meaning** (what defines what) | opcodes | the eight closed names | goals, types, plans — the web |
+| **computation** (what runs what) | graph, registers, focus, activations | `INVOKE`, `REFUSE`, `SETREF`/`DEREF` | `step.mf`, `holds.mf`, `execute.mf` |
+
+**Why it is worth separating.** A primitive is admissible when **every decision it embodies can be moved
+into its arguments**; if a decision has to live *inside* it, it is business wearing substrate's clothes.
+That is the argument `isa.py` already makes for refusing a `CLONE` opcode — *"the same kind and the same
+attributes" is a decision* — and it generalises into three cases:
+
+| structure | criterion | verdict |
+|---|---|---|
+| agnostic | agnostic | a substrate primitive. `SETREF`/`DEREF` is exactly this: **the key is an argument**, so keying a frame *by identity* stays the workbench's decision |
+| agnostic | **authored, in the graph** | the mechanism may be substrate, but it must take the criterion as a **named call** — and then it costs an interpreted call per comparison |
+| semantic | — | it stays in the surface; there is nothing to extract |
+
+Sorting is the case that makes this concrete. A `sort` native is admissible only in the
+`sort(list, "comparator")` shape, because the ordering criterion of anything interesting here is
+authored data — a tie-break rule, a precedence stage, a relevance score. Mechanism below the line,
+criterion above it, which is the standing rule that lowering stops at a **named call, never an opcode**.
+And note what that buys: the algorithm, its stability and its determinism — but almost none of the speed,
+because the comparisons are interpreted. An inspectable criterion is not free, and that is the honest
+answer rather than a reason to bake the comparator in.
+
+⚠ **The category error this axis catches and the other one cannot.** A scratch data structure minted as
+**world nodes** is the language borrowing the machine's material. `rules/execute.mf` first built an
+ordered map as a `slot` node per entry — and the meaning axis has nothing to say about it, because a slot
+makes no claim about the world at all. It is not a bad *concept*; it is a language value with nowhere of
+its own to live. The tell is already all over this codebase, written down each time as though it were a
+detail: *"transient — the caller drops it"*. `prediction`, `unmet`, `violations`, `mints`, `bindings`,
+`chain`, `keys` and `reachable`'s walk node are all language values in world material, freed by hand.
+
+Two consequences, and only the first is settled. The immediate one is that the map was already there:
+`SETREF`/`DEREF` is a key-to-node map whose key is an argument, and an ordered edge of *keys* carries the
+insertion order — so an ordered map with replace-in-place needs no node per entry and no new primitive.
+The open one is whether the language should have scratch space of its own. Registers, focus heads and
+activations are exactly that and are already substrate, so the shape exists; extending it is a real
+question and not one to answer from a hunch.
+
 ### The same cut, arrived at from the other side
 
 Mediated access reached this table from a completely different direction, which is some evidence it is

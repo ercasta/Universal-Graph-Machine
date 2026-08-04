@@ -290,6 +290,15 @@ fn step(wb, frame, function, bindings, assume, assumes) -> thing:
     LINK R(mm) "image" R(made)
     LINK R(nf) "mapping" R(mm)
     SETREF R(nf) R(made) R(mm)
+    # ...and the workbench keeps the identities it INVENTED, in the order it invented them.
+    #
+    # An index above the horizon, with `workbench.index`'s justification one level out: the substrate
+    # stores an ordered edge and knows nothing about what it means, while the decision that *these are
+    # the things a plan promised to create* is the workbench's. Without it, execution has to find them by
+    # asking what is visible in a frame and testing each answer — and what is visible is the whole world,
+    # because frame 0 maps every node there is. That made carrying a plan out O(world) when the entire
+    # point of sparse frames is that cost follows CHANGE. It is a handful, always.
+    LINK F(wb) "imagined" R(made)
 .next_mint:
     ADD R(i) R(i) 1
     JMP .each_mint
