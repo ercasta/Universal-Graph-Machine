@@ -6,8 +6,13 @@ what to do next, and which mistakes have already been made so they need not be m
 **Verify:** `python -m ugm.selftest` — currently **261 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
-same minutes** — `git stash -u`, measure, pop — never against a number written down earlier.
-**Measure:** `python -m ugm.bench` — the numbers below, re-runnable.
+same minutes** — never against a number written down earlier. ⚠ Take the baseline in a **worktree at
+HEAD** (`git worktree add <tmp> HEAD --detach`), *not* `git stash -u`, whenever the working tree holds
+work you have not committed: a stash/pop cycle around a long measurement is how hours get lost, and this
+project has already recorded one such loss.
+**Measure:** `python -m ugm.bench` — the numbers below, re-runnable. ⚠⚠ **A ratio hides a curve.**
+`stepping` and `acting` report one number against a reference and cannot say whether the *shape* is
+right; measure any new surface function at **three world sizes** before believing its ratio.
 
 The engine is `ugm/`. An earlier iteration lived in `microfunctions/` and the package was renamed;
 anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
@@ -162,10 +167,18 @@ true only of *that* path now.
 Detail and reasoning in [audit.md](audit.md) and [mediated-access.md](mediated-access.md); this is the
 index, kept short on purpose so the plan below stays readable.
 
-**The latest session, in one paragraph:** `execution.step` — the loop that *acts* — is now
+**The latest session, in one paragraph.** `execution.step` — the loop that *acts* — is now
 `rules/execute.mf` behind a wrapper, and with it `predicted_changes` (`rules/predict.mf`), which was
-never on the list of what blocked it and was one. Getting there needed no new capability and four
-representation changes, of which only one looked like prose. See item 3.
+never on the list of what blocked it and was one; getting there needed no new capability and four
+representation changes, of which only one looked like prose (item 3). ⚠ It was first written **O(world)**
+and the *ratio* hid it for the whole session. Then the plan changed shape: a second arc —
+**de-parserization**, dropping the parser for proposal + selection — turned out to be the *same* arc,
+because both meet at **reachability**, and the two were merged into one dependency-ordered plan (P0–P5,
+at the top of *What to do next*). That unification also settled the one open design question, the hooks.
+Alongside it, three documents were written or reframed: [comparison.md](comparison.md) (what is actually
+different here, and how much is prior art), the horizon's **second axis** and the primitive-admissibility
+rule in [concepts.md](concepts.md), and the training formulation in
+[harmonization.md](harmonization.md). **Read the P0–P5 table before anything else in that section.**
 
 **The two sessions before that, in one paragraph**, because the entries below are in the order things
 were built rather than in the order they matter: `step` and `open_workbench` were **swapped live** behind thin
