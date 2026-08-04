@@ -103,6 +103,12 @@ Slice 3 is conditions that speak of the ambient goal, reached by walking the act
 turns a failed condition into a subgoal. *"At each step I have to check I am not violating anything
 and/or respecting the advice"* is those two mechanisms and not a third one.
 
+The note's *other* question — synonyms and expansions, and whether the rule space should be explored
+through them — turned out to be a separate thread rather than part of this one, and it is
+[harmonization.md](harmonization.md). The short version of why they separate: this page is about
+constraining a plan, that one is about making the vocabulary the plan is written in converge, and it wants
+to run **offline**. They meet again at predicate dispatch slice 4, which both of them ask for.
+
 ## The note as written
 
 > considering words have synonyms and or "expansions" e.g. "taking turns" is a shorthand description for

@@ -297,5 +297,27 @@ def resolve(g: Graph, start, text: str, *, want: str = "node", view=None):
     return node_at(g, start, p, view=view) if want == "node" else value_at(g, start, p, view=view)
 
 
+# Reaching, for programs written in the surface. `goal.holds` asks it for the transitive link sort, and
+# it is the one hop-and-a-half nothing above the horizon can express: `related` says what is one hop
+# away, and *one or more hops* is a walk with a seen-set, which is the cycle protection this owns.
+#
+# A native rather than a program, and the reason is the same one that keeps `reaches` here rather than
+# in `goal`: containment is *supposed* to be acyclic and the graph does not enforce it, so a mis-authored
+# world would hang the planner. That guard is not something a surface reimplementation may approximate.
+#
+# **It resolves.** A rule asking whether the parcel is in the warehouse while imagining must be answered
+# in the frame it is imagining in, and a native that ignores the context is indistinguishable from one
+# that correctly does not need it — which is exactly the silent hole the mediation layer exists to close.
+# The context is found the way everything else finds it, by dynamic scope over the activation chain.
+def _reading(g: Graph, act):
+    from .workbench import view_of
+    return view_of(g, act)
+
+
+from . import native as _N                                            # noqa: E402
+_N.register("reaches", lambda g, act, start, label, dst:
+            reaches(g, start, label, dst, view=_reading(g, act)))
+
+
 __all__ = ["BadPath", "Hop", "Path", "CLOSURE", "parse", "parse_link", "render", "adjacent",
            "is_reference", "reaches", "via", "node_at", "value_at", "split_base", "resolve"]

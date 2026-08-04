@@ -1,0 +1,174 @@
+# Does one goal constraint hold? As an ordinary program.
+#
+# This was `goal.holds`, the last of the three predicates the capability audit decomposed and the one it
+# said was *"a loop whose only blocker was a Python closure standing in for a frame node"*. That turned
+# out to be exactly right, and better than expected: the closure is not replaced here, it is **gone**. A
+# rule written in the closed vocabulary resolves through the ambient context, so `slot_of` inside a frame
+# reads that frame's version without this program containing one word about frames. Every `view=` in the
+# Python is machinery for a problem the surface does not have.
+#
+# What it did need was two things that could not be *said*, and both landed before it:
+#
+#   * comparing two values without crashing on a mismatch  -> `VKIND` and `compare.mf`
+#   * telling *not looked at* from *not satisfied*         -> `VKIND` again, which names `UNKNOWN`
+#
+# Four sorts, and they are four different questions rather than four cases of one:
+#
+#   link   — is this edge there? (`transitive` makes it *reach* rather than *adjacent*)
+#   known  — has this slot been LOOKED at? a knowledge claim, not a world-state one
+#   attr   — does the value satisfy the comparison?
+#   type   — is the subject a `t`? or, with no subject, is there any `t` under here?
+
+# This node, as the ambient world sees it.
+#
+# ⚠ **A gap the vocabulary has, found here.** `related` resolves the node it reads *from* and hands back
+# the target **unresolved** — correctly, because an edge names an identity. That is invisible for as long
+# as the answer is fed to another vocabulary call, since `slot_of` and friends resolve their own subject;
+# it becomes visible the moment the answer goes to something that does not, and `is_a` is exactly that:
+# it resolves the neighbours it walks but takes the node it is asked about as given. Handing it an
+# identity asks about reality while the rule around it reads a frame — the silent hole the mediation
+# layer exists to close, one level out.
+#
+# Spelled as the vocabulary spells it — ask the context for its resolver, call it *by name* — which is
+# also what `access.resolved` does from Python, so there is one resolver and no second opinion. It is
+# three instructions repeated rather than a ninth member of the closed set, deliberately: **an island is
+# created by the second caller**, and today there is one. If a second rule needs *this node, here*, that
+# is the moment to make it a member rather than now.
+fn here_now(node) -> thing:
+    COPY R(result) F(node)
+    NATIVE R(r) "resolver"
+    JMPNOT R(r) .end
+    INVOKE R(result) R(r) node=F(node)
+.end:
+    CONST R(done) true
+
+
+# The subject as this world sees it, or nothing when the constraint names none.
+#
+# Reading it through `related` rather than off the constraint with `GET` is the whole mediation: in
+# reality this resolves to itself and costs nothing, and inside a frame it is that frame's version.
+fn constraint_subject(c) -> thing:
+    INVOKE R(named) related node=F(c) label="subject"
+    JMPNOT R(named) .none
+    INVOKE R(result) here_now node=R(named)
+    JMP .end
+.none:
+    CONST R(result) null
+.end:
+    CONST R(done) true
+
+
+# `under` is the region an existential type constraint looks in, and it is a parameter rather than
+# something on the constraint: it is the caller's business which world to enumerate, and the same
+# constraint is asked of several.
+#
+# ⚠ The Python has a case this does not: *the subject is not present in this world at all*, answered by
+# the view returning nothing. Under `in_frame` that cannot arise — an unmapped node resolves to itself,
+# which is the sparse-frame rule — so a named subject always resolves to something and the case is
+# unreachable rather than dropped. Stated here because a silently missing branch is how a rewrite goes
+# subtly wrong, and because if resolution ever gains a way to say *not here*, this is where it lands.
+fn holds(c, under) -> thing:
+    ATTR R(sort) F(c) "sort"
+    INVOKE R(here) constraint_subject c=F(c)
+
+.by_sort:
+    EQ R(is_link) R(sort) "link"
+    JMPIF R(is_link) .link
+    EQ R(is_known) R(sort) "known"
+    JMPIF R(is_known) .known
+    EQ R(is_attr) R(sort) "attr"
+    JMPIF R(is_attr) .attr
+    EQ R(is_type) R(sort) "type"
+    JMPIF R(is_type) .type
+    CONST R(result) false
+    JMP .end
+
+    # **Both sides through the view.** An edge names an identity, so `here`'s targets are the things
+    # themselves and the object read through the vocabulary is this frame's version of it — different
+    # nodes for the same individual. Comparing them raw reads `b on c` as false one step after it became
+    # true, which is how the identity model was arrived at. `relation_at` resolves what it hands back, so
+    # comparing against the resolved object is the one comparison that is right in both worlds.
+.link:
+    INVOKE R(there) related node=F(c) label="object"
+    JMPNOT R(there) .no
+    ATTR R(label) F(c) "label"
+    ATTR R(transitive) F(c) "transitive"
+    JMPNOT R(transitive) .adjacent
+    NATIVE R(result) "reaches" R(here) R(label) R(there)
+    JMP .end
+.adjacent:
+    INVOKE R(n) relations node=R(here) label=R(label)
+    CONST R(i) 0
+.each_target:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .no
+    INVOKE R(t) relation_at node=R(here) label=R(label) index=R(i)
+    EQ R(same) R(t) R(there)
+    JMPIF R(same) .yes
+    ADD R(i) R(i) 1
+    JMP .each_target
+
+    # A knowledge claim: the slot must have been LOOKED at, not hold any particular value. `UNKNOWN` is
+    # what an unread slot answers, and until `VKIND` nothing here could tell it from an absent one — the
+    # two were the same silence.
+.known:
+    ATTR R(key) F(c) "key"
+    INVOKE R(got) slot_of node=R(here) key=R(key)
+    VKIND R(category) R(got)
+    EQ R(unknown) R(category) "unknown"
+    JMPIF R(unknown) .no
+    JMP .yes
+
+    # An unknown slot does not satisfy a value constraint, and does not falsify it either — `undetermined`
+    # is where that distinction lives. Here it is simply not satisfied, which keeps this a predicate.
+.attr:
+    ATTR R(key) F(c) "key"
+    INVOKE R(got) slot_of node=R(here) key=R(key)
+    VKIND R(category) R(got)
+    EQ R(unknown) R(category) "unknown"
+    JMPIF R(unknown) .no
+    ATTR R(op) F(c) "op"
+    JMPIF R(op) .have_op
+    CONST R(op) "=="
+.have_op:
+    ATTR R(want) F(c) "value"
+    ATTR R(hi) F(c) "hi"
+    INVOKE R(result) compare op=R(op) got=R(got) want=R(want) hi=R(hi)
+    JMP .end
+
+    # With a subject, an ordinary cast. Without one, the constraint is EXISTENTIAL — *is there any `t`
+    # under here* — and `under` is the region to look in. A type node is not a thing of its own type, so
+    # it is excluded: otherwise `there is a car` would be satisfied by the declaration of `car`.
+.type:
+    ATTR R(want) F(c) "type"
+    JMPNOT R(here) .existential
+    NATIVE R(result) "is_a" R(here) R(want)
+    JMP .end
+.existential:
+    JMPNOT F(under) .no
+    NATIVE R(found) "instances" R(want) F(under)
+    INVOKE R(n) relations node=R(found) label="found"
+    CONST R(i) 0
+.each_instance:
+    LT R(more_i) R(i) R(n)
+    JMPNOT R(more_i) .none_found
+    INVOKE R(inst) relation_at node=R(found) label="found" index=R(i)
+    KIND R(k) R(inst)
+    EQ R(is_type_node) R(k) "type"
+    JMPIF R(is_type_node) .next_instance
+    DROP R(found)
+    JMP .yes
+.next_instance:
+    ADD R(i) R(i) 1
+    JMP .each_instance
+.none_found:
+    DROP R(found)
+    JMP .no
+
+.yes:
+    CONST R(result) true
+    JMP .end
+.no:
+    CONST R(result) false
+.end:
+    CONST R(done) true

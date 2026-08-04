@@ -727,9 +727,38 @@ N.register("violations",
            lambda g, act, node, name: gather_violations(g, node, name, view=_reading(g, act)))
 
 
+def gather_instances(g: Graph, type_name: str, under: str, *, view=None) -> str:
+    """`instances` as a **node** with ordered `found` edges, for a program in the surface.
+
+    `goal.holds` needs it for the type sort: *is there anything of this type under here* is what an
+    existential goal constraint asks when it names no subject, and it is the one question in that
+    predicate that is about a population rather than about a node.
+
+    A native rather than a program, and the argument is the one this module makes at length: enumeration
+    is **by traversal, never by scanning**, and handing the surface a way to walk every node of a kind is
+    exactly the scan `instances` refuses — it would find the system's own imaginings and offer them as
+    candidates. The traversal itself is `workbench.reachable`, which *is* written in the surface, but
+    unmediated: it walks raw labels, so inside a frame it would leave the imagined world at the first
+    hop. Closing that properly means a vocabulary member for *which labels does this node have*, and that
+    is a decision about the closed class rather than a step in this arc.
+
+    ⚠ So this is a native **for now, and for a stated reason**, not because it is primitive.
+
+    It resolves, like `is_a` and `check`, through the ambient context."""
+    out = g.mint("instances")
+    for n in instances(g, type_name, under, view=view):
+        g.link(out, "found", n)
+    return out
+
+
+N.register("instances", lambda g, act, name, under:
+           gather_instances(g, name, under, view=_reading(g, act)))
+
+
 __all__ = ["TypeViolation", "UNBOUNDED", "Req", "AttrReq", "Rel", "VALUE_OPS", "IDENTITY_OPS", "compare",
            "offenders", "offending_type",
            "declare_type", "require_edge", "require_value", "require_relation",
            "find_type", "schema_of", "attrs_of", "rels_of", "requirements", "fails",
            "violations", "gather_violations", "is_a", "subsumes", "subtypes", "check", "instances",
+           "gather_instances",
            "type_names", "recognize", "tag", "tagged_as", "describe"]

@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **258 checks, 0 failing**, in 90–120 seconds depending
+**Verify:** `python -m ugm.selftest` — currently **259 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
 same minutes** — `git stash -u`, measure, pop — never against a number written down earlier.
@@ -23,6 +23,7 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 | what is only sayable in Python, and why | [audit.md](audit.md) |
 | dispatching on a condition rather than a type | [predicate-dispatch.md](predicate-dispatch.md) — slices 1-2 built |
 | advice about the *order* of a plan's actions | [advice-over-sequences.md](advice-over-sequences.md) — a design thread, nothing built |
+| making the open class converge on one terminology | [harmonization.md](harmonization.md) — a design thread, nothing built; probes first |
 | why a rule never calls `GET` | [mediated-access.md](mediated-access.md) — built; the note is the argument behind it |
 | the instruction set | [reference/isa.md](reference/isa.md) |
 
@@ -113,7 +114,7 @@ Three things came out of doing it, and only the first was expected:
 | `execution.step`, `driver._phase_*` | **not written** — and blocked by the row below |
 | `workbench.deviates` | ✅ **live** — `rules/deviate.mf` + the `violations` native |
 | `workbench.unmet_expectations` | ✅ **live** — `rules/unmet.mf`; `predicted_changes` returns a node and the prose moved to `explain_unmet` |
-| `goal.holds` | **not written** — blocked on `VKIND` + `compare.mf`, see step 4 |
+| `goal.holds` | **written** (`rules/holds.mf`) and checked, **not live** — the planner holds a view, not a context; see step 4 |
 | the mediation layer (`access` / `resolve` / `version`) | ✅ live |
 
 **Both swaps are done, and the doubling is gone.** What is left of each Python original is a *reference*
@@ -300,8 +301,13 @@ The last big Python island in the plan-act-check loop. `driver._phase_*` is read
 attribute writes and unlinks; its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
 
 ⚠ **It is blocked by item 4, not merely adjacent to it** — `execution.step` calls `W.deviates` and
-`W.unmet_expectations`, both of which are now written, so what remains of item 4 is `goal.holds`.
-That is the one place the ordering in this list was wrong.
+`W.unmet_expectations`, both of which are now live. That is the one place the ordering in this list was
+wrong.
+
+⚠⚠ **And item 4 now points back at this one.** `goal.holds` is written and checked but not live, because
+a Python caller holds a **view** while the surface gets its world from the ambient **context**. The
+planner establishing a context is this item's work, and it is what makes `holds.mf` swappable — so the
+two are one piece of work, taken from either end.
 
 ⚠ And it reports in **prose** in several places (`_diverge(why=…)`, `_note`). See item 4 on
 `unmet_expectations`: prose is a rendering decision, and a predicate carrying one cannot move to the
@@ -373,13 +379,32 @@ cost.
   context — there is *one* comparison, and two spellings disagreeing about a single pair is exactly what
   a shared comparator exists to prevent.
 
-  **What `holds` itself still needs**, now that its values are sayable: it has four sorts, and two of
-  them reach for something that is not a native yet — `path.reaches` (the transitive link sort) and
-  `types.instances` (the type sort's *is there any such thing under here*). Both are the "must resolve"
-  kind: see the natives inventory in [mediated-access.md](mediated-access.md). The `view` is not a
-  problem any more and that is the part worth knowing: a rule written in the closed vocabulary resolves
-  through the ambient context already, so the Python closure that used to stand in for a frame is simply
-  gone rather than needing a replacement.
+* **`goal.holds` is written** — `rules/holds.mf`, all four sorts, checked against the Python **twice per
+  constraint**: once in reality and once inside a frame where the answers differ. That second reading is
+  the point; agreeing only in the real world is what a predicate that quietly ignores the context looks
+  like. Two natives were added, both the *must resolve* kind: **`reaches`** (one-or-more hops with the
+  cycle protection a surface rewrite may not approximate) and **`instances`** (enumeration by traversal —
+  handing the surface a whole-graph scan is what `types.instances` refuses at length).
+
+  **The closure was not replaced, it is gone.** A rule in the closed vocabulary resolves through the
+  ambient context, so every `view=` in the Python is machinery for a problem the surface does not have.
+
+  ⚠⚠ **A gap in the vocabulary, found by writing this.** `related` resolves the node it reads *from* and
+  returns the target **unresolved** — right, because an edge names an identity. That is invisible while
+  the answer is fed to another vocabulary call, since `slot_of` resolves its own subject; it appears the
+  moment the answer goes to something that does not, and `is_a` is exactly that — it resolves the
+  neighbours it walks but takes the node it is asked about as given. Handing it an identity asks about
+  *reality* while the rule around it reads a frame. `holds` spells the resolution out (`here_now`, three
+  instructions, the resolver called by name, as `access.resolved` does from Python) rather than adding a
+  ninth vocabulary member: **an island is created by the second caller**, and today there is one. A
+  second rule needing *this node, here* is the moment to make it a member.
+
+  ⚠⚠ **It is not swapped live, and the blocker is a seam rather than a cost.** A Python caller holds a
+  **view**; the surface gets its world from the ambient **context**. `driver` calls `unmet(…, view=…)`
+  with no context established, so a wrapper would have to mint a context per call — which is the wrong
+  fix. The right one is for the planner to establish a context, and that is item 3's work. Until then
+  `holds.mf` is checked against the Python rather than running, and the check is what stops it rotting —
+  see what `workbench.mf` cost by sitting dormant with a comparison that only took one route.
 
 ### 5. ✅ Mediation is enforced at `step`
 

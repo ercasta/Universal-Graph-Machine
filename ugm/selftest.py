@@ -8124,6 +8124,103 @@ def check_an_expectation_is_derived_from_the_two_frames():
                  [n for n in g.nodes if g.kind(n) == "prediction"])[1] == []}
 
 
+def check_GOAL_HOLDS_IS_AN_ORDINARY_PROGRAM():
+    """The last of the three predicates the audit decomposed, written in the surface.
+
+    The audit called it *"a loop whose only blocker was a Python closure standing in for a frame node"*,
+    and that was right in a better way than it sounds: **the closure is gone, not replaced.** A rule
+    written in the closed vocabulary resolves through the ambient context, so `slot_of` inside a frame
+    reads that frame's version without the program containing one word about frames. Every `view=` in
+    the Python is machinery for a problem the surface does not have — which is the whole claim of the
+    mediation layer, tested here on the predicate that most needed it.
+
+    What it did need was two things that could not be *said*, and both landed first: comparing values
+    without crashing on a mismatch (`VKIND` + `compare.mf`), and telling *not looked at* from *not
+    satisfied* (`VKIND` again, which names `UNKNOWN`).
+
+    Two natives were added, both of the *must resolve* kind: `reaches` (one-or-more hops, with the
+    cycle protection a surface reimplementation may not approximate) and `instances` (enumeration by
+    traversal — handing the surface a whole-graph scan is what that module refuses at length).
+
+    Every sort is asked **twice**: once of reality and once inside a frame where the answer differs.
+    That second reading is the point. A predicate that agrees with the Python only in the real world
+    would be a predicate that quietly ignores the context, and the design note's own warning is that
+    such a thing is indistinguishable from one that correctly does not need it."""
+    from pathlib import Path
+    from . import access as AX, asm, function as fn, goal as G, workbench as W
+    from .graph import UNKNOWN
+    from .types import Req
+
+    g, w = _blocks()
+    asm.load_file(g, Path(__file__).parent / "rules" / "compare.mf")
+    asm.load_file(g, Path(__file__).parent / "rules" / "holds.mf")
+    a, b, c = (next(n for n in g.targets(w, "block") if g.attr(n, "label") == x) for x in "abc")
+    ground = g.target(w, "ground")
+    # An arrangement to be true and false about: b onto c, replacing the `on ground` every block starts
+    # with. Replacing rather than adding — `on` is an ordered edge and appending leaves a block standing
+    # on two things, which is a world no operator can undo and reads as *still on c* after an unstack.
+    g.unlink(b, "on", index=0)
+    g.link(b, "on", c)
+    g.put(c, clear=False)
+    declare_type(g, "tower", {"on": Req(kind="block", lo=1)}, attrs={"kind_of": "block"})
+
+    goal = G.open_goal(g)
+    cs = {
+        "link_true": G.require_link(g, goal, b, "on", c),          # b really is on c
+        "link_false": G.require_link(g, goal, a, "on", c),
+        "reach_true": G.require_link(g, goal, b, "on", c, transitive=True),
+        "attr_true": G.require_attr(g, goal, a, "clear", True),
+        "attr_false": G.require_attr(g, goal, c, "clear", True),   # c has b on it
+        "attr_op": G.require_attr(g, goal, a, "height", 0, op=">="),
+        "known_true": G.require_known(g, goal, a, "clear"),
+        "type_true": G.require_type(g, goal, "tower", about=b),
+        "type_false": G.require_type(g, goal, "tower", about=a),
+        "existential": G.require_type(g, goal, "tower"),
+    }
+    # A slot that was never looked at, so `known` has something to be false about — the distinction
+    # `VKIND` exists for, and the one an absent attribute cannot express.
+    g.put(a, colour=UNKNOWN)
+    cs["known_false"] = G.require_known(g, goal, a, "colour")
+    cs["attr_unknown"] = G.require_attr(g, goal, a, "colour", "red")
+
+    def surface(c, under, ctx=None):
+        return fn.invoke(g, "holds", {"c": c, "under": under}, retain=False, under=ctx)[1]["result"]
+
+    real = {name: (G.holds(g, c, under=w), surface(c, w)) for name, c in cs.items()}
+
+    # ...and again inside a frame, where a step has moved a block, so several answers must FLIP.
+    wb = W.open_workbench(g, w)
+    f0 = W.root_frame(g, wb)
+    f1, _tr = W.step(g, wb, f0, "unstack", {"b": W.mapping_for(g, f0, b),
+                                            "floor": W.mapping_for(g, f0, ground)})
+    view = W.View(g, f1)
+    ctx = AX.open_context(g, resolver="in_frame", writer="version_in_frame", frame=f1)
+    under = W.image_of(g, W.mapping_for(g, f1, w)) if W.mapping_for(g, f1, w) else w
+    framed = {name: (G.holds(g, c, view=view, under=under), surface(c, under, ctx))
+              for name, c in cs.items()}
+
+    return {"IT_AGREES_WITH_THE_PYTHON_IN_THE_REAL_WORLD":
+                [n for n, (py, mf) in real.items() if py != mf] == [],
+            # The reading that matters: the same constraints, asked inside a frame.
+            "AND_INSIDE_A_FRAME_WHERE_THE_ANSWERS_DIFFER":
+                [n for n, (py, mf) in framed.items() if py != mf] == [],
+            "and_the_frame_really_disagrees_with_reality":
+                [n for n in cs if real[n][1] != framed[n][1]] != [],
+            # Vacuity, per sort: each must be answerable both ways, or "agrees" means nothing.
+            "A_LINK_IS_TRUE_AND_A_MISSING_ONE_IS_FALSE":
+                (real["link_true"][1], real["link_false"][1]) == (True, False),
+            "TRANSITIVE_REACH_ANSWERS_TOO": real["reach_true"][1] is True,
+            "AN_ATTRIBUTE_COMPARES": (real["attr_true"][1], real["attr_false"][1],
+                                      real["attr_op"][1]) == (True, False, True),
+            "A_TYPE_CASTS": (real["type_true"][1], real["type_false"][1]) == (True, False),
+            "AND_AN_EXISTENTIAL_ONE_ENUMERATES": real["existential"][1] is True,
+            # `known` is the knowledge claim, and `UNKNOWN` is what only `VKIND` could name.
+            "KNOWN_IS_ABOUT_HAVING_LOOKED":
+                (real["known_true"][1], real["known_false"][1]) == (True, False),
+            "and_an_UNKNOWN_slot_satisfies_no_value_constraint":
+                real["attr_unknown"][1] is False}
+
+
 def check_ONE_COMPARISON_TOTAL_AND_NOW_SAYABLE_IN_THE_SURFACE():
     """`types.compare` written in the surface, and the opcode it took to get there.
 
