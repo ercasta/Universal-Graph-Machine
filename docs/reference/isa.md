@@ -246,6 +246,7 @@ A move that fails empties the head rather than raising.
 | `CONST dst value` / `COPY dst src` | assign |
 | `ADD dst a b` | sum |
 | `LT dst a b`, `EQ dst a b`, `NOT dst a` | comparison and negation |
+| `VKIND dst value` | what **category** a value is in |
 | `JMP .label` | jump |
 | `JMPIF cond .label` / `JMPNOT cond .label` | conditional jump |
 | `CALL .label` | push a return address and jump |
@@ -253,6 +254,23 @@ A move that fails empties the head rather than raising.
 | `HALT` | stop this program |
 
 Control flow is by label: a bare string in the program is a jump target, not an instruction.
+
+**`VKIND`** answers `nothing`, `unknown`, `truth`, `number`, `text` or `other`. `KIND` asks what a
+*node* is; this asks what a *value* is, and the gap between them was the last thing keeping the shared
+comparator in Python. `LT` is Python's `<`, so a string against a number raises — and `types.compare` is
+required to be **total**, answering false where Python would raise, because a schema is checked against
+whatever the world happens to hold. A program cannot catch that; it can ask first.
+
+It also gives `UNKNOWN` a name: `goal.holds` distinguishes *not satisfied* from *not looked at*, and
+nothing in the surface could say the second — an unread slot answered exactly as an absent one.
+
+Two decisions inside it. `truth` is tested **before** `number`, because a Python `bool` is an `int` and
+the other order would report `true` as a number and then order it against zero. And a node id is
+reported as `text`: deciding whether a string names a node is a question about the graph, `KIND` already
+answers it, and building that into a value opcode would make the answer depend on which graph you asked.
+
+`rules/compare.mf` is what it was added for — `types.compare` written in the surface, agreeing with the
+Python everywhere except that a value of no named category does not order.
 
 ### Leaving the program
 

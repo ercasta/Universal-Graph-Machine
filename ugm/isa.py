@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 from . import activation as A
 from .focus import Focus
-from .graph import Graph, Ref, Refusal
+from .graph import UNKNOWN, Graph, Ref, Refusal
 
 
 @dataclass(frozen=True)
@@ -194,6 +194,22 @@ FOCUS, FORK, CLOSE, MOVE, BACK, FOLLOW, SPREAD, HEAD, HASFOCUS = (
     _ins(o) for o in ("FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS"))
 # values / arithmetic
 CONST, COPY, ADD, LT, EQ, NOT = (_ins(o) for o in ("CONST", "COPY", "ADD", "LT", "EQ", "NOT"))
+# What CATEGORY a value is in — `nothing`, `unknown`, `truth`, `number`, `text`, or `other`.
+#
+# `KIND` asks what a node is; this asks what a *value* is, and the gap between the two was the last thing
+# keeping the shared comparator in Python. `LT` is Python's `<`, so comparing a string to a number raises
+# — and `types.compare` is required to be **total**, answering `False` where Python would raise, because
+# a schema is checked against whatever the world happens to hold and the world is not obliged to
+# cooperate. A program cannot catch that; it can ask first, which is what this is for.
+#
+# It also gives `UNKNOWN` a name. `goal.holds` distinguishes *not satisfied* from *not looked at*, and
+# nothing in the surface could say the second — an unread slot answered the same as an absent one.
+#
+# A node id IS text and is reported as text, deliberately: deciding whether a string names a node is a
+# question about the graph, `KIND` already answers it, and building that decision into a value opcode
+# would make the answer depend on which graph you asked. It costs nothing here — two node ids compare
+# the way two strings do, which is exactly what the Python comparator does with them today.
+VKIND = _ins("VKIND")
 # control
 JMP, JMPIF, JMPNOT, CALL, RET, HALT = (
     _ins(o) for o in ("JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT"))
@@ -247,7 +263,7 @@ DISPATCH = _ins("DISPATCH")
 WRITES_REGISTER = frozenset({
     "NEW", "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "NSOURCES", "SOURCE_AT",
     "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT", "NEPROPS", "EPROP_AT",
-    "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
+    "SPREAD", "HEAD", "HASFOCUS", "CONST", "COPY", "ADD", "LT", "EQ", "NOT", "VKIND",
     "INVOKE", "ATTEMPT", "DISPATCH", "NATIVE", "SELF"})
 
 # Opcodes that read the graph, mapped to the kind of slot they read — the counterpart of the write side
@@ -516,6 +532,17 @@ class Machine:
             w(a[0], v(a[1]) == v(a[2]))
         elif op == "NOT":
             w(a[0], not v(a[1]))
+        elif op == "VKIND":
+            _val = v(a[1])
+            # `bool` before `number`, because in Python a bool IS an int and asking the other way round
+            # would report `true` as a number — which would then compare with `<` against 0 and answer
+            # something. The order is the whole of the correctness here.
+            w(a[0], "nothing" if _val is None
+              else "unknown" if _val is UNKNOWN
+              else "truth" if isinstance(_val, bool)
+              else "number" if isinstance(_val, (int, float))
+              else "text" if isinstance(_val, str)
+              else "other")
 
         # --- control ---
         elif op == "JMP":
@@ -658,6 +685,6 @@ __all__ = ["R", "F", "I", "Ref", "Machine", "run", "WRITES_REGISTER", "READS_GRA
            "GET", "GET_AT", "COUNT", "ATTR", "EPROP", "DEREF", "NSOURCES", "SOURCE_AT",
            "KIND", "NLABELS", "LABEL_AT", "NKEYS", "KEY_AT", "NEPROPS", "EPROP_AT",
            "FOCUS", "FORK", "CLOSE", "MOVE", "BACK", "FOLLOW", "SPREAD", "HEAD", "HASFOCUS",
-           "CONST", "COPY", "ADD", "LT", "EQ", "NOT",
+           "CONST", "COPY", "ADD", "LT", "EQ", "NOT", "VKIND",
            "JMP", "JMPIF", "JMPNOT", "CALL", "RET", "HALT", "INVOKE", "ATTEMPT", "REFUSE", "DISPATCH",
            "NATIVE", "SELF"]

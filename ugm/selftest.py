@@ -8124,6 +8124,88 @@ def check_an_expectation_is_derived_from_the_two_frames():
                  [n for n in g.nodes if g.kind(n) == "prediction"])[1] == []}
 
 
+def check_ONE_COMPARISON_TOTAL_AND_NOW_SAYABLE_IN_THE_SURFACE():
+    """`types.compare` written in the surface, and the opcode it took to get there.
+
+    One comparator is shared by `goal.holds`, `criterion._holds` and every schema check, so `>=` cannot
+    come to mean different things in a `type` block and in a goal. The moment a predicate written in the
+    surface compares two values it either calls this or grows a second comparator — and a second
+    comparator is the drift this codebase keeps finding.
+
+    **Totality was the difficulty, and it needed a new opcode.** `LT` is Python's `<`, so a string
+    against a number raises, and a schema is checked against whatever the world happens to hold. Python
+    catches the `TypeError`; a program here cannot catch anything, so it has to ask first — which is
+    what **`VKIND`** is: what category a *value* is in, where `KIND` says what a *node* is.
+
+    Compared exhaustively rather than by example: every operator against every pair drawn from numbers,
+    truths, texts, `nothing`, `UNKNOWN` and a value of no named category. About a thousand cases, and the
+    two that differ are named below rather than excluded, so the difference cannot widen unnoticed.
+
+    ⚠ Not the live comparator for Python callers, deliberately: `types.compare` sits under every schema
+    check, which is the hottest path in the system. This is what the surface calls, and the two are held
+    together by this check."""
+    from pathlib import Path
+    from . import asm, function as fn, types as T
+    from .graph import UNKNOWN
+
+    g = new_graph()
+    asm.load_file(g, Path(__file__).parent / "rules" / "compare.mf")
+
+    values = [0, 1, 2, 1.5, True, False, "a", "b", None, UNKNOWN, ()]
+    ops = ["==", "!=", "<", "<=", ">", ">=", "between", "nonsense"]
+    def surface(op, got, want, hi):
+        """Never lets an exception out. A comparator that raises is the defect under test, so a check
+        that raised with it would report nothing — the failure has to arrive as a value like any other."""
+        try:
+            return fn.invoke(g, "compare", {"op": op, "got": got, "want": want, "hi": hi},
+                             retain=False)[1]["result"]
+        except Exception as e:
+            return f"RAISED {type(e).__name__}"
+
+    disagreed, raised, cases = [], [], 0
+    for op in ops:
+        for got in values:
+            for want in values:
+                for hi in ([0, 2, "c", None] if op == "between" else [None]):
+                    cases += 1
+                    mf = surface(op, got, want, hi)
+                    if isinstance(mf, str) and mf.startswith("RAISED"):
+                        raised.append((op, got, want, hi, mf))   # totality: it must never raise, ever
+                    elif mf != T.compare(op, got, want, hi):
+                        disagreed.append((op, got, want, hi))
+
+    return {"THE_SURFACE_COMPARATOR_AGREES_WITH_THE_PYTHON_ONE":
+                disagreed == [("<=", (), (), None), (">=", (), (), None)],
+            # ...and the two it does not agree about are the deliberate one, stated: Python orders two
+            # tuples; a value of no named category does not order here. Nothing authors one.
+            "and_the_ONLY_difference_is_a_value_of_no_named_category":
+                {v for _op, v, _w, _h in disagreed} == {()},
+            "IT_NEVER_RAISES": raised == [],
+            # Vacuity: the matrix must be big enough to contain the interesting pairs at all.
+            "and_it_really_compared_a_thousand_cases": cases > 900,
+            # The two that mattered, called out because "agrees everywhere" hides them: a string against
+            # a number is where Python raises, and UNKNOWN is what `goal.holds` must tell from absence.
+            "A_TEXT_AGAINST_A_NUMBER_IS_FALSE_NOT_A_CRASH": surface("<", "a", 1, None) is False,
+            "AND_SO_IS_UNKNOWN_AGAINST_ANYTHING": surface("<", UNKNOWN, 1, None) is False,
+            "but_a_real_comparison_still_answers": (surface("<", 1, 2, None),
+                                                    surface(">=", 2, 2, None),
+                                                    surface("between", 1, 0, 2)) == (True, True, True),
+            # And `VKIND` itself: the categories, named.
+            "VKIND_NAMES_THE_CATEGORIES":
+                [_vkind(g, v) for v in (None, UNKNOWN, True, 2, 1.5, "a", ())]
+                == ["nothing", "unknown", "truth", "number", "number", "text", "other"],
+            # `bool` before `number`, or `true` would report as a number and order against 0.
+            "and_a_TRUTH_is_not_a_NUMBER": _vkind(g, True) != _vkind(g, 1)}
+
+
+def _vkind(g, value):
+    """`VKIND` on one value, through a one-instruction program — the opcode, not a Python mirror of it."""
+    from . import asm, function as fn
+    if fn.find(g, "vkind_of") is None:
+        asm.load_text(g, _lines("fn vkind_of(v) -> thing:", "    VKIND R(result) F(v)"))
+    return fn.invoke(g, "vkind_of", {"v": value}, retain=False)[1]["result"]
+
+
 def check_UNMET_EXPECTATIONS_IS_AN_ORDINARY_PROGRAM():
     """The third predicate the audit decomposed, written in the surface — and what it cost to get there.
 

@@ -3,7 +3,10 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **257 checks, 0 failing**, in about 90 seconds.
+**Verify:** `python -m ugm.selftest` — currently **258 checks, 0 failing**, in 90–120 seconds depending
+on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
+same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
+same minutes** — `git stash -u`, measure, pop — never against a number written down earlier.
 **Measure:** `python -m ugm.bench` — the numbers below, re-runnable.
 
 The engine is `ugm/`. An earlier iteration lived in `microfunctions/` and the package was renamed;
@@ -309,7 +312,7 @@ The two swaps above are the template: **write the wrapper first**, keep the Pyth
 comparison check through *every* route the wrapper offers — that is what `workbench.mf`'s dormant years
 cost.
 
-### 4. The predicates that block the rest — two of three done
+### 4. The predicates that block the rest — two of three done, and the third's prerequisites are in
 
 ⚠ **Item 3 depends on this one**, which the ordering above did not say: `execution.step` calls
 `W.deviates` and `W.unmet_expectations`, so it cannot be written above them.
@@ -349,9 +352,34 @@ cost.
   Python reference stored the named target of a `missing_edge` as an **attribute** while the surface
   `LINK`ed it; `explain_unmet` reads it with `g.target`, so only one of those spellings works. The
   comparison check caught it — the two answers differed by exactly that field.
-* **`goal.holds`** needs **`VKIND`** (a value's category) and `compare.mf`, which land together — writing
-  `compare.mf` earlier would duplicate `types.compare`, which `goal.holds`, `criterion._holds` and every
-  schema check share.
+* **`goal.holds`** — ✅ its two prerequisites landed together, as predicted. **`VKIND`** (a value's
+  category: `nothing` / `unknown` / `truth` / `number` / `text` / `other`) and **`rules/compare.mf`**,
+  which is `types.compare` written in the surface. Totality was the whole difficulty: `LT` is Python's
+  `<`, so a string against a number raises, and a program cannot catch — it has to ask first.
+
+  Checked exhaustively rather than by example — every operator against every pair drawn from numbers,
+  truths, texts, `nothing`, `UNKNOWN` and a value of no named category, about a thousand cases. Two
+  disagreements, both `()` against itself under `<=` / `>=`, and they are **named in the check** rather
+  than excluded from it so the difference cannot widen unnoticed.
+
+  ⚠ `compare.mf` is **not** the live comparator for Python callers, and that is a decision:
+  `types.compare` sits under every schema check, which is the hottest path in the system, and an
+  interpreted call there is paid on every `is_a` in every search. The surface calls `compare.mf`, Python
+  calls `types.compare`, and the check holds them together. When `types.fails` itself moves, this
+  becomes one implementation again.
+
+  ⚠ It reproduces one of Python's rules rather than improving on it: a truth orders against a number,
+  because `True < 2` is True there. Being stricter would be defensible in isolation and wrong in
+  context — there is *one* comparison, and two spellings disagreeing about a single pair is exactly what
+  a shared comparator exists to prevent.
+
+  **What `holds` itself still needs**, now that its values are sayable: it has four sorts, and two of
+  them reach for something that is not a native yet — `path.reaches` (the transitive link sort) and
+  `types.instances` (the type sort's *is there any such thing under here*). Both are the "must resolve"
+  kind: see the natives inventory in [mediated-access.md](mediated-access.md). The `view` is not a
+  problem any more and that is the part worth knowing: a rule written in the closed vocabulary resolves
+  through the ambient context already, so the Python closure that used to stand in for a frame is simply
+  gone rather than needing a replacement.
 
 ### 5. ✅ Mediation is enforced at `step`
 
