@@ -52,17 +52,19 @@ def sussman():
 
 
 def stepping(blocks: int = 20, steps: int = 10):
-    """`workbench.step`, Python against the same thing written in the surface (`rules/step.mf`).
+    """`workbench.step`, the surface against the Python it replaced (`workbench._python_step`).
 
-    The comparison the arc turned on. While a frame was a full copy this measured 22-42x, and essentially
-    all of it was `carry_frame` — the per-node copy. Sparse frames delete that copy, so what is left is
-    the interpreter, and the number is finally about the thing it appears to be about.
+    The comparison the arc turned on, and the direction it is quoted in has flipped: **the surface is
+    the live one now**, and the Python is the reference kept beside it. While a frame was a full copy
+    this measured 22-42x, and essentially all of it was `carry_frame` — the per-node copy. Sparse frames
+    delete that copy, so what is left is the interpreter, and the number is finally about the thing it
+    appears to be about.
 
     Chained rather than repeated from frame 0, because a single step in a fresh workbench exercises none
     of the walking that sparseness introduces: the point of interest is the cost of reading through a
     chain that is getting longer."""
     from pathlib import Path
-    from . import asm, function as fn, workbench as W
+    from . import asm, workbench as W
     from .selftest import declare_type, new_graph
 
     def world():
@@ -87,20 +89,18 @@ def stepping(blocks: int = 20, steps: int = 10):
         wb = W.open_workbench(g, w)
         f = W.root_frame(g, wb)
         for _ in range(steps):
-            f, _tr = W.step(g, wb, f, "touch", {"b": W.mapping_for(g, f, b)})
+            f, _tr = W._python_step(g, wb, f, "touch", {"b": W.mapping_for(g, f, b)})
         return f
 
     def surface():
+        # Through `W.step`, which is what everything calls — so this is the live path including the
+        # wrapper's own bindings node, not the interpreter in isolation. Measuring `fn.invoke` directly
+        # would report a cost nobody pays.
         g, w, b = world()
         wb = W.open_workbench(g, w)
         f = W.root_frame(g, wb)
         for _ in range(steps):
-            binds, one = g.mint("bindings"), g.mint("binding", param="b")
-            g.link(one, "value", W.mapping_for(g, f, b))
-            g.link(binds, "arg", one)
-            f = fn.invoke(g, "step", {"wb": wb, "frame": f, "function": "touch",
-                                      "bindings": binds, "assume": None,
-                                      "assumes": None})[1]["result"]
+            f, _tr = W.step(g, wb, f, "touch", {"b": W.mapping_for(g, f, b)})
         return f
 
     py, _ = _timed(python, repeat=3)
@@ -146,7 +146,11 @@ def scaling(sizes=(5, 60, 300), steps: int = 10):
 
     Measured on the same worlds with dense frames, immediately before the change: **47 / 68 / 198 ms** at
     5 / 60 / 300 blocks. That is the line this one has to be flatter than, and it is what makes a row
-    where dense wins the *expected* result rather than a disappointment."""
+    where dense wins the *expected* result rather than a disappointment.
+
+    This measures the **live** `step`, which is now the surface one, so the whole row moved up when it
+    was swapped in: **53 / 56 / 59 ms** was the Python step on sparse frames. The shape is what matters
+    and the shape is unchanged — flat, where dense was linear."""
     from pathlib import Path
     from . import asm, workbench as W
     from .selftest import declare_type, new_graph

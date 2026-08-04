@@ -425,9 +425,77 @@ def history(g: Graph, mapping: str) -> tuple:
 
 
 # --- stepping ---------------------------------------------------------------------------------------
+def _ensure_step(g: Graph) -> None:
+    """Make sure this graph has the surface `step` and what it stands on. Idempotent.
+
+    The same argument as `access.bootstrap`, and deliberately the same shape: `step` is a name, and a
+    name is only meaning if something answers it, so resolving it belongs where the call is made rather
+    than being a precondition every caller keeps by hand."""
+    from pathlib import Path
+    from . import asm
+    here = Path(__file__).parent / "rules"
+    if fn.find(g, "copy_node") is None:
+        asm.load_file(g, here / "reachable.mf")
+    if fn.find(g, "step") is None:
+        asm.load_file(g, here / "step.mf")
+
+
 def step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
          assumes: str | None = None, assume: str | None = None):
+    """Run `function` on a new frame derived from `frame` — **the implementation is `rules/step.mf`**.
+
+    This is a wrapper and nothing else: it describes the bindings as a node, because a Python dict is
+    not something a rule can be handed, and it hands the answer back as the `(frame, transformation)`
+    pair every existing caller already reads. The step itself — the frame, the choice among declared
+    outcomes, the call, the record — happens in the surface.
+
+    That is the conclusion of the de-Pythonization arc rather than a detail: planning that Python owns
+    is planning the system cannot inspect or change. It only became affordable when frames went sparse,
+    because the surface `step` was 22-42x the Python one while a frame was a full copy; measured 3.0x
+    once they were sparse, and 1.3-1.6x on this path, which discards its own scaffolding.
+    `_python_step` is kept immediately below, as the reference the surface is checked against.
+
+    `bindings` maps parameter name to a mapping in `frame` — never a raw node, so the record stays
+    replayable. `assumes` records the hypothesis this step took on faith. Raises `Refusal` when `assume`
+    names an outcome the function never declared."""
+    _ensure_step(g)
+    described = g.mint("bindings")
+    scratch = [described]
+    for param, m in bindings.items():
+        one = g.mint("binding", param=param)
+        g.link(one, "value", m)
+        g.link(described, "arg", one)
+        scratch.append(one)
+
+    # **A step that did not happen is not in the history**, and the swap is what made that free. The
+    # chain has to be linked before the call — resolution walks it — so the Python `step` had to unlink
+    # its half-written frame by hand when the call raised, which is not rare: an imagined step meeting
+    # `UNKNOWN` in arithmetic raises, and the planner steps over those routinely.
+    #
+    # A microfunction's writes are journaled, so a `step` that *is* a microfunction rolls back whole —
+    # frame, mappings and all — and the bookkeeping was deleted rather than moved. Tried before it was
+    # written: the unwinding was implemented here first and then found to be dead code, which is the
+    # project's own advice about testing a claim before building the fix for it.
+    try:
+        new_frame = fn.invoke(g, "step", {"wb": wb, "frame": frame, "function": function,
+                                          "bindings": described, "assume": assume,
+                                          "assumes": assumes}, retain=False)[1]["result"]
+    finally:
+        # The description was this call's own bookkeeping, so it goes with the call. The bindings hang
+        # off the set, so they are dropped before it.
+        for n in reversed(scratch):
+            g.drop(n)
+    return new_frame, g.target(new_frame, "via")
+
+
+def _python_step(g: Graph, wb: str, frame: str, function: str, bindings: dict, *,
+                 assumes: str | None = None, assume: str | None = None):
     """Run `function` on a NEW frame derived from `frame`, and record the transformation.
+
+    **No longer the live implementation** — `step` above invokes `rules/step.mf`. Kept as the reference
+    the surface is checked against, in `check_THE_STEP_ITSELF_IS_WRITTEN_IN_THE_SURFACE`: two
+    implementations of one thing is a drift risk, and the answer to it is a check that compares them,
+    not a deletion that leaves the surface unmeasured.
 
     `bindings` maps parameter name to a mapping in `frame` — never a raw node, so the record stays
     replayable. Returns `(new_frame, transformation)`.

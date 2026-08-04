@@ -223,21 +223,29 @@ data, mutually supporting, none of it foundational. A concept here means what it
 where it sits in the network, and nothing in it is individually verifiable against the world. This
 is where the outer loop works, and it is where almost everything should live.
 
-**Below the horizon is the closed class.** A `goal` is not defined in terms of anything: it is a
-handful of constraint nodes from a fixed vocabulary, natively supported by the surface, lowered to
-functions and the instruction set by convention. The same is true of a consequent's two kinds, a
-tie-break rule's comparisons, the eight proposition forms, and the opcodes. These are *primitive*
-— not because they are simple, but because no arrangement of what is above them reconstructs them.
+**Below the horizon is the closed class.** A goal's **constraint sorts** are not defined in terms of
+anything: `link`, `attr`, `type`, `known` and the three plan sorts are a fixed vocabulary, natively
+supported by the surface, and `goal._holds` branches on the sort with no escape into the web. No
+arrangement of types, criteria and methods yields a genuinely new kind of requirement. The same is
+true of a consequent's two kinds, a tie-break rule's comparisons, the eight proposition forms, and
+the opcodes. These are *primitive* — not because they are simple, but because no arrangement of what
+is above them reconstructs them.
+
+⚠ **A `goal` is not itself in the closed class, and saying so inflates it.** Goals are minted freely,
+decomposed, compared, pointed at, recorded as pursued — ordinary web data. Only the constraint
+vocabulary they are built from is closed. The distinction is easy to lose in exactly the direction
+that makes the closed class look larger than it is, which is the direction the whole horizon argument
+is trying to push back on.
 
 **The kernel boundary is a different, lower line.** Its test is *would a port re-make a decision
-here?* — and a port re-makes decisions about the closed class all the time, because a `goal` is
-something we decided. So:
+here?* — and a port re-makes decisions about the closed class all the time, because the sorts are
+something we chose. So:
 
 | layer | example | ported by | can the layer above define it away? |
 |---|---|---|---|
 | substrate | the graph, the instruction set, dispatch | re-implementation | — |
-| the closed class | `goal` sorts, consequent kinds, tie-break stages | re-implementation | **no** |
-| the web | types, criteria, methods, functions, norms | carried over unchanged | n/a |
+| the closed class | goal **constraint sorts**, consequent kinds, tie-break stages | re-implementation | **no** |
+| the web | **goals**, types, criteria, methods, functions, norms | carried over unchanged | n/a |
 
 The horizon sits between the closed class and the web. The kernel boundary sits below the closed
 class. Both are real and they are not the same.

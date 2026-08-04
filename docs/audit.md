@@ -42,6 +42,7 @@ class that is neither named nor reachable, existing only as a Python function no
 | `intake.FORMS` | 9 families of body lines | yes — the parsers | readable via `forms_for()` | ✅ reachable |
 | `types.VALUE_OPS`, `IDENTITY_OPS` | 6 + 2 | yes — `compare` | none stated | ⚠ silent |
 | `goal.FORCES` | advisory, mandatory | yes | none stated | ⚠ silent |
+| goal **constraint sorts** | link, attr, type, known + 3 plan sorts | yes — `goal._holds` branches | none stated | ⚠ silent, and **unnamed** — there is no `SORTS` tuple, only the branch |
 | `norm.STANCES`, `norm.FORCES` | forbid/permit, defeasible/inviolable | yes | none stated | ⚠ silent |
 | `driver.VERBS` | expand, decompose, commit, sense, refuse | **no — two are unimplemented** | **none, stated** | ✅ recorded, see F6 |
 | ~~`forget.ROOT_KINDS`~~ | — | — | — | ✅ gone — now a `policy`, see F7 |
@@ -449,7 +450,10 @@ of the three needed nothing that could be called a capability at all.
 The other dependency is `execution.step` itself, which the phase machine calls and which is expressible
 but not rewritten.
 
-**Neither `workbench.step` nor `execution.step` has been rewritten in the surface.** They are now
-*expressible*, which is a different claim from *done*, and the difference should not be allowed to
-blur: the gaps were found by decomposing on paper and closed by adding the primitives. The rewrite —
-and the measurement of what it costs in speed — is outstanding.
+**Neither `workbench.step` nor `execution.step` had been rewritten in the surface when this was
+written.** They were *expressible*, which is a different claim from *done*, and the difference should
+not be allowed to blur: the gaps were found by decomposing on paper and closed by adding the primitives.
+
+Since then `workbench.step` has been written **and swapped live** — it is `rules/step.mf` behind a thin
+Python wrapper, and the measurement it was waiting on is in [HANDOFF.md](HANDOFF.md). `execution.step` is
+still expressible and not written.

@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **255 checks, 0 failing**, in about 60 seconds.
+**Verify:** `python -m ugm.selftest` — currently **256 checks, 0 failing**, in about 90 seconds.
 **Measure:** `python -m ugm.bench` — the numbers below, re-runnable.
 
 The engine is `ugm/`. An earlier iteration lived in `microfunctions/` and the package was renamed;
@@ -71,27 +71,46 @@ Ten chained steps, best of three. Dense wins the small row and that is expected 
 disappointing: the copying moved from Python into an interpreted `copy_with_edges`, so a five-node copy
 got dearer and a three-hundred-node one stopped happening. The curve is the result, not any row.
 
-`workbench.step` written in the surface is now **3.0×** the Python one, against 22–42× before — because
-`carry_frame` was essentially all of that, and sparse frames deleted it. The self-test runs in 60 s
-against 70 s before.
+`workbench.step` written in the surface was **3.0×** the Python one, against 22–42× before — because
+`carry_frame` was essentially all of that, and sparse frames deleted it. **And it is now the live one.**
 
-The planner pays for it: Sussman's anomaly is **1020 ms against 640 ms**, at the identical 50 imagined
-states. That is not the search getting worse, it is copying moving into the interpreter on a world small
-enough for dense to have been the right answer. It is the honest number and it is where a
-faster interpreter would show up.
+### The swap landed
+
+`workbench.step` is a **thin Python wrapper around `rules/step.mf`**. It describes the bindings as a node
+— a Python dict is not something a rule can be handed — invokes `step`, and hands back the
+`(frame, transformation)` pair every caller already read. `_python_step` is kept immediately below it as
+the reference the surface is checked against, which is the answer to two implementations of one thing:
+compare them in a check rather than delete the one nothing measures.
+
+Three things came out of doing it, and only the first was expected:
+
+* **The cost is a decision, not a veto.** The suite goes 60 s → 90 s and Sussman's anomaly 1020 ms →
+  ~1450 ms at the identical 50 imagined states. `stepping` now reads **1.3–1.6×** rather than 3.0×,
+  because the live path passes `retain=False` and the reference it is measured against is
+  `_python_step`.
+* **A piece of Python was deleted rather than moved.** The Python `step` had to unlink its half-written
+  frame by hand when the call raised — the chain must be linked *before* the call, since resolution walks
+  it. A microfunction's writes are journaled, so a `step` that *is* a microfunction rolls back whole and
+  the frame was never minted. The unwinding was written into the wrapper first and *then* found to be
+  dead code. `check_a_step_that_RAISED_is_not_in_the_history` now guards that the step is inside the
+  transaction.
+* **A boundary's establishing activation is now scaffolding.** The Python established the context and
+  passed it `under=`, so the callee's activation answered `establishes`. The surface establishes on its
+  *own* activation with `SELF`, and the call discards that — so *which world was this step imagined in*
+  is answered through the frame the context points at, which is where `discard` already looked for it.
 
 ⚠ **Where the Python still is.** The arc is not finished, and the shape of what remains is easy to lose:
 
 | | state |
 |---|---|
-| `workbench.step` | written in `rules/step.mf`, checked, **dormant** — Python runs |
+| `workbench.step` | ✅ **live** — `rules/step.mf`, behind a wrapper; `_python_step` is the reference |
 | `workbench.open_workbench` | written in `rules/workbench.mf`, checked, **dormant** |
 | `_copy_set` / `reachable` | written in `rules/reachable.mf`; only `copy_node` is live |
 | `execution.step`, `driver._phase_*` | **not written** |
 | `goal.holds`, `workbench.deviates`, `unmet_expectations` | **not written** — each blocked, see step 4 |
 | the mediation layer (`access` / `resolve` / `version`) | ✅ live |
 
-The dormant three are a **debt, not an achievement**: two implementations of one thing, only one of which
+The dormant two are a **debt, not an achievement**: two implementations of one thing, only one of which
 any check exercises by default. See *What to do next*.
 
 ## What landed since the audit
@@ -116,8 +135,8 @@ index, kept short on purpose so the plan below stays readable.
 * **`workbench.step` is written**, in `rules/step.mf`, checked against the Python on four routes plus
   chaining and a refusal. Two natives added: `find_function` and `minted`. It is sparse too, and it
   **establishes its own context in the surface** — a context is a node and `establish` is an edge onto
-  the activation `SELF` names, so a boundary needs no Python. Still not the live one; the Python `step`
-  is, and the two are checked against each other.
+  the activation `SELF` names, so a boundary needs no Python. **And it is now the live one**, behind a
+  wrapper, with `_python_step` kept beside it as the reference the checks compare against.
 * **Mediated access is built** — `access.py`, `rules/access.mf`, `rules/resolve.mf`, two natives
   (`resolver`, `context`), and the planning corpus rewritten to the eight names. Detail in
   [mediated-access.md](mediated-access.md), which now opens with what landed and what did not.
@@ -154,6 +173,15 @@ index, kept short on purpose so the plan below stays readable.
 
 Traps worth not re-learning:
 
+* ⚠⚠ **Moving something into the surface can make Python bookkeeping around it obsolete, not portable.**
+  Two pieces of the Python `step` had no counterpart to write: the failed-call unwinding (the journal
+  does it) and passing the context `under=` a call (the surface establishes on `SELF` and the callee
+  inherits). Both were reproduced first and then removed. Ask what the Python was compensating for
+  before translating it — the answer is sometimes *for being Python*.
+* ⚠ **Lazy linking moves a cost across a node-count baseline.** `step` loads `rules/step.mf` into a graph
+  the first time it is called there, which is right — a name is only meaning if something answers it —
+  but a check that snapshots `len(g.nodes)` before the first step now counts ~680 nodes of library as
+  workbench residue.
 * ⚠⚠⚠ **Binding a rule to an identity makes an unmediated rule loudly wrong instead of accidentally
   right.** While `step` handed over the frame's copies, a bare `LINK F(d) …` landed in the frame by
   luck. Bound to the thing itself, the same instruction **writes to the real world while planning**.
@@ -214,15 +242,20 @@ Run `python -m ugm.bench`. The current numbers, and what each one is for:
 
 | | |
 |---|---|
-| Sussman's anomaly | **1020 ms**, 50 imagined states — 640 ms before sparse frames |
-| a step, 5 / 60 / 300 blocks | **53 / 56 / 59 ms** — against 47 / 68 / 198 dense |
-| surface `step` vs Python | **3.0×** — against 22–42× before |
-| a mediated read vs a bare `GET` | **3.8×** |
+| Sussman's anomaly | **~1450 ms**, 50 imagined states — 1020 ms with the Python step, 640 ms before sparse frames |
+| a step, 5 / 60 / 300 blocks | **~105 / ~115 / ~105 ms** — against 53 / 56 / 59 for the Python step, and 47 / 68 / 198 dense |
+| live `step` vs `_python_step` | **1.3–1.6×** — against 3.0× measured before the swap |
+| a mediated read vs a bare `GET` | **3.5–4.7×** |
 
-The second row is the one the design was for: **cost follows change, not the size of the world.** The
-first row is the price paid for it on a five-node world, where copying four nodes in Python was cheaper
-than minting two versions through an interpreted `copy_with_edges`. Both are true, and quoting either
-alone misrepresents the change.
+The second row is the one the design was for: **cost follows change, not the size of the world** — flat
+across a sixtyfold range, where dense was linear. The whole row moved up when the surface `step` went
+live, and the shape did not. The first row is what a five-node world costs for it, where copying four
+nodes in Python was cheaper than minting two versions through an interpreted `copy_with_edges`. All of
+these are true together, and quoting any one alone misrepresents the change.
+
+⚠ These are noisy — ±10% run to run on the same machine, and `scaling`'s three columns are within noise
+of each other, which is the point rather than a defect in the measurement. Compare shapes and factors,
+never single milliseconds.
 
 **The workbench cannot stay in Python**: planning that Python owns is planning the system cannot inspect
 or change, which is the island the whole design exists to avoid. Sharing versions between frames is only
@@ -233,37 +266,37 @@ anticipatory: a native that ignores the context can finally be *caught*.
 ## What to do next
 
 **The arc is de-Pythonization, and it is unfinished.** Everything in this section before item 5 is that
-arc; items 5 onward are correctness or capability. It is worth being blunt about the shape of the debt,
-because the last session's work made it easy to mistake for progress:
+arc; items 5 onward are correctness or capability. It is worth being blunt about the shape of the debt:
 
-> **Three things exist twice, and Python is the one that runs.** `rules/step.mf`, `rules/workbench.mf`
-> and `copy_set` in `rules/reachable.mf` are written, checked against their Python equivalents, and
-> **dormant**. That is not an achievement, it is a drift risk: two implementations of one thing, only one
-> of which any check exercises by default. *Expressible is not the same as rewritten.*
+> **Two things still exist twice, and Python is the one that runs.** `rules/workbench.mf` and `copy_set`
+> in `rules/reachable.mf` are written, checked against their Python equivalents, and **dormant**. That is
+> not an achievement, it is a drift risk: two implementations of one thing, only one of which any check
+> exercises by default. *Expressible is not the same as rewritten.* `rules/step.mf` was the third and is
+> now live.
 
-### 1. Swap `step.mf` live  ← start here
+### 1. ✅ `step.mf` is live
 
-The arc's actual conclusion, and it only became affordable when frames went sparse: **22–42× was a veto,
-3.0× is a decision.** `rules/step.mf` is sparse, establishes its own context in the surface, and agrees
-with the Python on four routes plus chaining and a refusal.
+Done. `workbench.step` is a wrapper; see *The swap landed* above for what it cost and what it taught. The
+wrapper was the whole trick — rewriting every caller first would have made the measurement expensive to
+take and expensive to undo, which is how a swap turns into a commitment before it is a result. It is
+still one line back either way.
 
-The handoff has always said the deciding question is a measurement rather than an argument, so make the
-measurement cheap to take:
-
-1. Turn `workbench.step` into a thin Python wrapper that builds the bindings node and invokes the surface
-   `step`. Every existing caller keeps working; only the implementation moves — and it is one line back
-   either way.
-2. `python -m ugm.bench` and the suite. Sussman is ~1050 ms and the suite ~60 s today; at 3× that is
-   ~3 s and perhaps three minutes. **If the suite goes to minutes that is a real answer**, and the swap
-   waits on a faster interpreter rather than on an argument.
-
-⚠ The wrapper is the whole trick. Rewriting every caller first would make the measurement expensive to
-take and expensive to undo, which is how a swap turns into a commitment before it is a result.
-
-### 2. `open_workbench`, and `copy_set` with it
+### 2. `open_workbench`, and `copy_set` with it  ← start here
 
 Same shape, same wrapper, and it is what stops `rules/workbench.mf` being dead code. `copy_node` is
 already live — the writer calls it — so only `copy_set` and `reachable` are still doubled.
+
+Two things the `step` swap says about this one before it starts:
+
+* **Try the removal before writing the replacement.** The failed-step unwinding was written into the
+  wrapper and was dead on arrival, because a microfunction call is journaled and Python is not. Any
+  bookkeeping in `open_workbench` that exists because Python writes are not transactional is a candidate
+  to delete rather than translate.
+* **A baseline taken before the first call now includes a library load.** `step` links `rules/step.mf`
+  into the graph the first time it is called there (`workbench._ensure_step`, the same argument as
+  `access.bootstrap`), so a check that counts nodes before and after must resolve the implementation
+  first. `check_discarding_scraps_everything_and_belief_survives` is the one that went red and shows the
+  shape of the fix.
 
 ### 3. `execution.step`, then the phase machine
 

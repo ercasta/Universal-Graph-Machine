@@ -4031,6 +4031,11 @@ def check_frames_fork_and_a_mapping_history_forks_with_them():
 def check_discarding_scraps_everything_and_belief_survives():
     from . import workbench as W
     g, car = _garage()
+    # The step's own implementation, resolved before the baseline is taken. `step` links `rules/step.mf`
+    # into the graph the first time it is called there — the same linking `asm.load_text` does for the
+    # access vocabulary — and a library is not residue of the workbench that happened to need it. What
+    # this check is about is what a *discard* leaves behind, so the code has to be in before it counts.
+    W._ensure_step(g)
     before = len(g.nodes)
     wb = W.open_workbench(g, car)
     f0 = W.root_frame(g, wb)
@@ -4042,6 +4047,48 @@ def check_discarding_scraps_everything_and_belief_survives():
             "no_copies_left": leftovers == [],
             "back_to_the_original_size": len(g.nodes) == before,
             "belief_intact": is_a(g, car, "car") and g.attr(car, "serviced") is None}
+
+
+def check_a_step_that_RAISED_is_not_in_the_history():
+    """A step whose call blew up must leave the frame chain exactly as it found it.
+
+    The chain has to be linked *before* the call — resolution walks `frame -next-> frame` backwards, so
+    a frame not yet attached to its predecessor is one in which nothing at all is visible. The cost of
+    that ordering is this: a call that raises would otherwise leave a half-written frame wired into the
+    world's order, and everything downstream would read it as a step somebody took.
+
+    It is not an exotic path. An imagined step meeting `UNKNOWN` in arithmetic raises, and the planner
+    steps over those routinely — so the frame it leaves behind would be read by the next thing to ask
+    what the world looks like.
+
+    The Python `step` unlinked that frame by hand. Since the step became `rules/step.mf` nothing does:
+    a microfunction's writes are **journaled**, so a call that raises rolls back whole and the frame is
+    not merely detached but never was. The unwinding was written into the wrapper first and then found
+    to be dead code, so what this now guards is that the step really is inside the transaction — the
+    day any part of it moves back out into Python, this is what says so.
+
+    Vacuity guard: the raising step must be reached at all — a `boom` that refused before the frame was
+    opened would satisfy this by doing nothing."""
+    from . import asm, workbench as W
+    g, car = _garage()
+    asm.load_text(g, "\n".join(["fn boom(c) -> thing:",
+                                "    INVOKE R(x) no_such_function",
+                                "    COPY R(result) R(x)"]))
+    wb = W.open_workbench(g, car)
+    f0 = W.root_frame(g, wb)
+    good, _tr = W.step(g, wb, f0, "service", {"c": W.mapping_for(g, f0, car)})
+    raised = _raises(lambda: W.step(g, wb, good, "boom", {"c": W.mapping_for(g, good, car)}),
+                     BaseException)
+    return {"THE_CALL_REALLY_RAISED": raised,
+            "AND_THE_FRAME_IT_OPENED_IS_NOT_IN_THE_HISTORY": g.targets(good, "next") == (),
+            # Rolled back rather than detached: the frame was never minted, which is the stronger claim
+            # and the one that distinguishes a transaction from a tidy-up.
+            "and_it_was_never_MINTED_at_all": len(g.of_kind("frame")) == 2,
+            # ...while the step that DID happen is still there, so this is not "nothing was linked".
+            "the_step_that_SUCCEEDED_still_is": g.targets(f0, "next") == (good,),
+            # And the description the wrapper built for the call goes with the call, either way.
+            "and_the_call_left_no_bindings_behind":
+                [n for n in g.nodes if g.kind(n) == "bindings"] == []}
 
 
 # --- mocks, assumptions, and the refusal ------------------------------------------------------------
@@ -4142,6 +4189,7 @@ def check_forking_on_a_different_outcome_gives_a_different_world():
     """Two assumptions, two branches, side by side — and contingency plans come free from having
     explored both. Vacuity guard: the two frames must genuinely disagree about the world."""
     from . import workbench as W
+    from .graph import Refusal
     g, d = _filesystem()
     wb = W.open_workbench(g, d)
     f0 = W.root_frame(g, wb)
@@ -4154,8 +4202,10 @@ def check_forking_on_a_different_outcome_gives_a_different_world():
             "worlds_disagree": (g.attr(ia, "count"), g.attr(ib, "many")) == (0, True),
             "and_each_is_a_distinct_hypothesis":
                 W.assumption_of(g, tra) != W.assumption_of(g, trb),
+            # A `Refusal` rather than a `KeyError` since the step became the surface's: naming an
+            # outcome nobody declared is a claim about the REQUEST, and that is what `REFUSE` says.
             "an_unknown_outcome_is_refused":
-                _raises(lambda: W.step(g, wb, f0, "list_dir", {"d": m0}, assume="nope"), KeyError)}
+                _raises(lambda: W.step(g, wb, f0, "list_dir", {"d": m0}, assume="nope"), Refusal)}
 
 
 def check_deviation_is_a_failed_cast():
@@ -6811,6 +6861,13 @@ def check_EVERY_BOUNDARY_ESTABLISHES_A_WORLD_TO_READ_IN():
     `step` answers `context_of` correctly whether or not `step` established anything, because it would
     just inherit. `establishes` is the only question that can fail.
 
+    The imagining side asks it of the **frame** rather than of an activation, and the reason is the swap:
+    `step` is `rules/step.mf` now, so the boundary is established by the step's own activation with
+    `SELF` — and that activation is scaffolding the call discards when it returns, exactly as the Python
+    `step` had no activation at all. What survives is the context itself, found through the frame it
+    resolves in, which is where `discard` already looks for it. The property is unchanged and slightly
+    sharper: a `step` that forgot to establish leaves no context naming the frame it stepped into.
+
     Vacuity guards: the two contexts must be different in kind, or "establishes a world" would be
     satisfied by establishing any world; and the imagined one must point at the frame that was actually
     stepped into, not merely at some frame."""
@@ -6821,17 +6878,23 @@ def check_EVERY_BOUNDARY_ESTABLISHES_A_WORLD_TO_READ_IN():
     f0 = W.root_frame(g, wb)
     f1, tr = W.step(g, wb, f0, "service", {"c": W.mapping_for(g, f0, car)})
     imagining = g.target(tr, "ran")
-    planning_ctx = AX.establishes(g, imagining)
+    planning_ctx = next((c for c in g.of_kind("context") if g.target(c, "frame") == f1), None)
 
     X.execute(g, wb, f1)
     acting = [a for a in g.of_kind("activation")
               if g.attr(g.target(a, "of"), "name") == "service" and a != imagining]
     acting_ctx = AX.establishes(g, acting[0]) if acting else None
 
-    return {"THE_IMAGINING_CALL_ESTABLISHED_A_CONTEXT": g.kind(planning_ctx) == "context",
-            # ...pointing at the frame that was stepped into, not just at a frame.
-            "and_it_names_THE_FRAME_IT_STEPPED_INTO": g.target(planning_ctx, "frame") == f1,
-            "and_says_how_to_read_in_it": g.attr(planning_ctx, "resolver") == "in_frame",
+    return {"THE_IMAGINING_CALL_ESTABLISHED_A_CONTEXT":
+                planning_ctx is not None and g.kind(planning_ctx) == "context",
+            # ...on the frame that was stepped INTO, and on no other. A context established on the frame
+            # stepped *from* would resolve every read to the state before the step, which is the
+            # off-by-one this rules out — and it is the one the selector above cannot catch, since it
+            # looks for the right answer and would simply find nothing.
+            "and_NOT_on_the_frame_it_stepped_FROM":
+                [c for c in g.of_kind("context") if g.target(c, "frame") == f0] == [],
+            "and_says_how_to_read_in_it":
+                planning_ctx is not None and g.attr(planning_ctx, "resolver") == "in_frame",
             "THE_ACTING_CALL_ESTABLISHED_ONE_TOO": g.kind(acting_ctx) == "context",
             # Vacuity: the real world is the TRIVIAL context, which is a context and not that one.
             "and_it_is_THE_TRIVIAL_ONE": acting_ctx is not None and g.attr(acting_ctx, "resolver") is None,
@@ -6932,7 +6995,8 @@ def check_WORKBENCH_STEP_IS_AN_ORDINARY_PROGRAM():
         g1, d1 = world(minting)
         wb1 = W.open_workbench(g1, d1)
         f0 = W.root_frame(g1, wb1)
-        f1, tr1 = W.step(g1, wb1, f0, "list_dir", {"d": W.mapping_for(g1, f0, d1)}, assume=assume)
+        f1, tr1 = W._python_step(g1, wb1, f0, "list_dir", {"d": W.mapping_for(g1, f0, d1)},
+                                 assume=assume)
 
         g2, d2 = world(minting)
         wb2 = W.open_workbench(g2, d2)
