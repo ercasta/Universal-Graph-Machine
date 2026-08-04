@@ -127,13 +127,22 @@ them, not a deletion that leaves the surface unmeasured.
 Detail and reasoning in [audit.md](audit.md) and [mediated-access.md](mediated-access.md); this is the
 index, kept short on purpose so the plan below stays readable.
 
-* **The three predicates were decomposed** and got three *different* answers. `goal.satisfied` is a loop
-  whose only blocker was a Python closure standing in for a frame node; it needs one substrate opcode,
-  **`VKIND`** (a value's category), which closes both remaining gaps at once — naming `UNKNOWN`, and
-  `compare`'s totality. `workbench.deviates` wants **`types.violations` as a native** beside `is_a`.
-  `workbench.unmet_expectations` needs no capability: it is blocked upstream because
-  `predicted_changes` returns a Python dict, and should return a transient node. **None of this is
-  built.**
+**The last session, in one paragraph**, because the entries below are in the order things were built
+rather than in the order they matter: `step` and `open_workbench` were **swapped live** behind thin
+wrappers, so nothing in the workbench exists twice any more; **mediation is enforced** — `step` refuses
+to imagine an unmediated operator, and the compliance pass runs over every corpus; and all three
+decomposed predicates were written, two of them live. Four lessons came out of it that generalise past
+their occasions, and they are in *How to work on this* at the bottom: **moving to the surface deletes
+Python rather than porting it**, **a predicate that answers in prose cannot move**, **a dormant twin
+rots**, and **measure the blast radius before building the enforcement**.
+
+* **The three predicates were decomposed**, got three *different* answers, and **all three are now
+  written** — which is the last session's work and the reason the plan below starts at item 3.
+  `goal.holds` needed `VKIND` and `rules/compare.mf`, and its Python view-closure turned out not to need
+  replacing at all; `workbench.deviates` needed the **answering** form of `is_a` (the `violations`
+  native, which hands the answer back as a node); `workbench.unmet_expectations` needed no capability and
+  was blocked twice by *representation* — a Python dict going in and **prose** coming out. Two are live,
+  `holds` is written and checked but waiting on the planner to establish a context. Detail in item 4.
 * **`copy_set` moved to the surface** carrying edge properties, and `open_workbench` shares it. Cost:
   `NEPROPS`, `EPROP_AT`, `SETEPROP`, `graph.put_edge_props`.
 * **`SELF`** (a program's own activation) and **`REFUSE kind why`** (the surface can decline).
@@ -469,9 +478,37 @@ interpretations is to run both. That is a probe, not a build.
 
 ## How to work on this
 
+**Moving something to the surface deletes Python rather than porting it.** Twice in one arc a piece of
+the Python had no counterpart to write, and both times it was reproduced first and then found to be dead
+code: the failed-step unwinding (a microfunction's writes are journaled, so a call that raises rolls
+back whole) and passing a context `under=` a call (the surface establishes on `SELF` and the callee
+inherits). Ask what the Python was compensating for before translating it — the answer is sometimes *for
+being Python*.
+
+**A predicate that answers in prose cannot move to the surface.** `unmet_expectations` returned
+sentences containing `repr(got)`. That looks like a weakness of the surface and is not: rendering is a
+decision, and a rendering decision inside a predicate is a second thing the predicate is for. Split it —
+facts on the node, sentences at the edge — and the rest was a transcription. `execution.step` reports in
+prose in several places and will want the same split.
+
+**A dormant twin rots against the thing it shadows.** `rules/workbench.mf` sat written-but-not-live long
+enough to miss the frame index and three parameters, while its comparison check kept passing — because
+the check only ever called the one-argument form. *A comparison check is only as strong as the routes it
+takes through both sides.* Anything left written-and-not-live (today: `holds.mf`, `compare.mf`) is under
+that risk, and the answer is routes, not vigilance.
+
+**Measure the blast radius before building an enforcement.** Before `step` was made to refuse unmediated
+operators, `workbench.step` was instrumented over the whole suite to ask how many operators are ever
+*stepped* while unmediated. The answer was one, so the guard could go in with no migration and no
+judgement call about acceptable breakage. Measuring by running, not by reading, is also how the corpus's
+mediation was established in the first place.
+
 **Decompose before believing something is primitive.** The single most useful test found here. It
 turned six proposed natives into five substrate opcodes and two edge reads; it caught a third executor
-that was not needed; it shrank every expansion in the audit below its first estimate.
+that was not needed; it shrank every expansion in the audit below its first estimate. Its converse is
+worth stating too: when something *must* be a native, say why in the docstring, or the next reader will
+assume it was primitive. `types.gather_instances` is a native because the traversal it would need
+(`reachable`) is in the surface but **unmediated** — not because enumeration is a primitive.
 
 **Test the claim before building the fix for it.** Three times during the audit something was
 "missing" and already worked — dynamic function names most sharply. The cheapest guard is to try it.

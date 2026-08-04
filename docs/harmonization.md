@@ -343,10 +343,16 @@ something is primitive* — which turned six proposed natives into five opcodes 
 
 * The rewrite is a program. `function.define` writes rules, `ATTEMPT` answers without raising, `REFUSE`
   declines with a reason, reflection reads bodies back.
+* The conditioning is **predicate dispatch**, which exists.
 * The preference is a `precedence` stage, which is authored data by design.
 * The record is `application.py`, which is already ordinary nodes.
 * The one native that is owed — `find_function` resolving through the context — was already owed for
   another reason.
+
+⭐ What it does need, and this is the one hard prerequisite rather than a nice-to-have: **predicate
+dispatch slice 3**. A substitution conditioned on the argument is not what Fodor's argument asks for; a
+substitution conditioned on the *context of use* is, and that is a guard speaking of the ambient goal.
+Without it the conditioning collapses back to the unconditional rewrite this page refuses.
 
 What *is* new is a **totality obligation**, and it is the same one `VKIND` was just added to discharge one
 level down. `compare` could not catch a `TypeError`, so it had to **ask first** what category a value was.
