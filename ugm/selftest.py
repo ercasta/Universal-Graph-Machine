@@ -11986,6 +11986,143 @@ def check_AN_UTTERANCE_BECOMES_A_RUNNABLE_GOAL_BY_PROPOSAL_AND_SELECTION():
     }
 
 
+def _teach_dir():
+    from pathlib import Path
+    from . import function as fn
+    return Path(fn.__file__).parent / "rules" / "teach.mf"
+
+
+def check_A_RULE_CAN_TEACH_THE_SYSTEM_A_NEW_WAY_OF_SAYING_SOMETHING():
+    """The growth claim, closed. **A rule authors a construction, and the system then understands a
+    sentence it has never seen** — with no Python helper called and no module edited.
+
+    `check_AN_UTTERANCE_BECOMES_A_RUNNABLE_GOAL_BY_PROPOSAL_AND_SELECTION` showed that adding a way of
+    saying something is *data*. That was true of the **representation** and not yet of the **surface**:
+    the construction was still built by calling `construction.open_construction` from Python, so the
+    thing that grows the language was not the same kind of thing the language produces. `rules/teach.mf`
+    closes that, and it needed **no new capability** — a construction is nodes and edges, so `make`,
+    `set_slot` and `relate` are the whole of it, exactly as they were for a goal.
+
+    ⭐⭐⭐ **Why this one matters more than it looks.** It is the bootstrap the learning story needs.
+    [harmonization.md](harmonization.md) proposes learning the rule ordering and
+    [comparison.md](comparison.md) proposes learning constructions — and **you cannot learn what you
+    cannot author**. Until now, authoring one meant calling Python, so every proposal about learning
+    language was a proposal about writing a Python function. It is now a proposal about writing a rule,
+    which is a thing this system already does.
+
+    ⭐⭐ **The strong assertion is `EVERY_TEACHING_RULE_IS_MEDIATED`.** Not *"a rule built it"* — a rule
+    holding bare opcodes would have built it too, and would prove nothing about the layering. Every body
+    in `teach.mf` reaches the graph **only through the eight closed names**, checked with
+    `access.bare_touches`, which is the same pass that governs the planning corpus. So teaching happens
+    at the same layer everything else does.
+
+    **And the comparison is the vacuity guard**: the same construction is authored twice, once by a rule
+    and once by `construction.py`'s Python, and the two are compared node for node. Two implementations
+    of one thing, held together by a check rather than by hope — the `_python_step` precedent. If they
+    ever diverge, the taught one is subtly not a construction and everything above would still look
+    green.
+
+    ⚠ What this does not do: it does not make the *teaching* reachable from an utterance. A rule can
+    author a construction; nothing yet says *"when someone explains a new phrasing, learn it"*. That is
+    the next step and it is a construction whose consequent calls these functions."""
+    from . import access as AX, asm, construction as CX, driver as D, function as fn, thread as T
+
+    g, w = _blocks()
+    a, b, _c = g.targets(w, "block")
+    asm.load_text(g, _lines(*_GOAL_AUTHORING))
+    asm.load_file(g, _teach_dir())
+
+    # Vacuity: before anything is taught, this sentence means nothing at all.
+    th = T.open_thread(g)
+    u_before = CX.utter(g, th, ["slide", "a", "on", "b"])
+    silent = CX.interpret(g, u_before)
+
+    # --- a RULE authors the construction, through the closed vocabulary alone -----------------------
+    def rule(name, args):
+        return fn.invoke(g, name, args, retain=False)[1]["result"]
+
+    taught = rule("new_construction", {"label": "taught: X on Y", "sort": "token", "lemma": "on"})
+    rule("add_draw_back", {"c": taught, "name": "theme", "ref": "head", "label": "next"})
+    rule("add_draw", {"c": taught, "name": "site", "ref": "head", "label": "next"})
+    rule("add_test_exists", {"c": taught, "left": "theme.denotes"})
+    rule("add_test_exists", {"c": taught, "left": "site.denotes"})
+    q = rule("add_builds", {"c": taught, "function": "want_on"})
+    rule("add_binding", {"q": q, "param": "subj", "ref": "theme.denotes"})
+    rule("add_binding", {"q": q, "param": "obj", "ref": "site.denotes"})
+
+    # --- and a sentence never seen before is understood and carried out -----------------------------
+    u = CX.utter(g, th, ["slide", "a", "on", "b"])
+    tok = CX.tokens(g, u)
+    CX.denote(g, tok[1], a)
+    CX.denote(g, tok[3], b)
+    before_on = g.target(a, "on")
+    out = CX.interpret(g, u)
+    ran = D.carry_out(g, out["built"], T.open_thread(g), w, attempts=2) if out["built"] else {}
+
+    # --- every teaching rule reaches the graph only through the eight names --------------------------
+    teachers = ("new_construction", "add_draw", "add_draw_back", "add_test_exists", "add_test_link",
+                "add_test_not_link", "add_builds", "add_binding")
+    bare = {n: AX.bare_touches(g, n) for n in teachers}
+    # ⚠ A positive control for the instrument, added because blinding `bare_touches` left this check
+    # **green** — the mediation claim was certifying itself. A body that really does reach the graph
+    # bare must be reported, in the same graph and by the same call, or "none of the teaching rules are
+    # bare" is a sentence a broken pass would also produce.
+    asm.load_text(g, _lines("fn deliberately_bare(x) -> thing:", '    SET F(x) "poked" true'))
+    control = AX.bare_touches(g, "deliberately_bare")
+
+    # --- the taught construction and the Python-authored one, compared node for node -----------------
+    h, _hw = _blocks()
+    asm.load_text(h, _lines(*_GOAL_AUTHORING))
+    py = CX.open_construction(h, "taught: X on Y")
+    CX.addresses(h, py, CX.TOKEN, "on")
+    CX.draw(h, py, "theme", "head", "next", back=True)
+    CX.draw(h, py, "site", "head", "next")
+    CX.test(h, py, sort="exists", left="theme.denotes")
+    CX.test(h, py, sort="exists", left="site.denotes")
+    CX.builds(h, py, "want_on", {"subj": "theme.denotes", "obj": "site.denotes"})
+
+    def shape(gr, c):
+        """Everything about a construction that decides what it does — read the same way from both.
+
+        ⚠ The call's bindings are compared as a **mapping**, and that is a finding rather than a
+        convenience: `consequent.call` sorts its parameters, and a rule adding them one at a time
+        cannot. Parameters are named and become a dict at the call, so order is not meaning here — but
+        the two routes really do lay them down differently, and if anything ever came to depend on
+        argument order these would silently disagree. Recorded here because a comparison that quietly
+        normalises away a difference is how the difference survives."""
+        from . import consequent as CQ, criterion as CR
+        drop = ("kind",)
+        clean = lambda n: {k: v for k, v in gr.attrs[n].items() if k not in drop}
+        act = CQ.of(gr, c)
+        return (clean(c),
+                tuple(clean(d) for d in CR.draws_of(gr, c)),
+                tuple(clean(t) for t in CR.tests_of(gr, c)),
+                tuple((gr.attr(x, "does"), gr.attr(x, "function"), dict(CQ.bindings_of(gr, x)))
+                      for x in act))
+
+    return {
+        "IT_MEANT_NOTHING_BEFORE_IT_WAS_TAUGHT": silent["read"] is False,
+        "A_RULE_AUTHORED_A_CONSTRUCTION": g.kind(taught) == CX.CONSTRUCTION,
+        "and_the_engine_counts_it_as_one": taught in CX.constructions(g),
+        # The layering claim, and the one that is not free.
+        "EVERY_TEACHING_RULE_IS_MEDIATED": all(not v for v in bare.values()),
+        "and_the_pass_saying_so_can_still_see_a_BARE_one": control == ((0, "SET"),),
+        # The whole point: a sentence it had never seen.
+        "AND_A_SENTENCE_NEVER_SEEN_BEFORE_IS_UNDERSTOOD": out["read"] is True
+            and out["construction"] == taught,
+        "AND_CARRIED_OUT": ran.get("done") is True,
+        "and_the_REAL_WORLD_agrees": g.target(a, "on") == b,
+        "it_was_NOT_already_true": before_on != b,
+        # Vacuity for the whole check: taught and hand-written must be the same thing.
+        "THE_TAUGHT_ONE_IS_INDISTINGUISHABLE_FROM_A_HAND_WRITTEN_ONE": shape(g, taught) == shape(h, py),
+        # The one place the two routes really do differ, stated rather than normalised into silence.
+        "though_the_PYTHON_route_SORTS_the_call_arguments_and_a_rule_cannot":
+            [p for p, _r in __import__("ugm.consequent", fromlist=["x"]).bindings_of(
+                h, __import__("ugm.consequent", fromlist=["x"]).of(h, py)[0])] == ["obj", "subj"],
+        "bare_touches": sum(len(v) for v in bare.values()),
+    }
+
+
 def check_THE_MACHINERY_A_RULE_CANNOT_START_IS_AN_INVENTORY_NOT_AN_ARGUMENT():
     """Which of the engine's own machinery could a rule start? Measured, not listed.
 

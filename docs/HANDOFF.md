@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **263 checks, 0 failing**, in 90–120 seconds depending
+**Verify:** `python -m ugm.selftest` — currently **264 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
 same minutes** — never against a number written down earlier. ⚠ Take the baseline in a **worktree at
@@ -169,9 +169,10 @@ true only of *that* path now.
 Detail and reasoning in [audit.md](audit.md) and [mediated-access.md](mediated-access.md); this is the
 index, kept short on purpose so the plan below stays readable.
 
-**The latest session, in one paragraph.** **The skeleton went up** — `ugm/construction.py`: an utterance
-becomes a runnable goal by proposal and selection, the world decides an attachment ambiguity no grammar
-can, and a new way of saying something is authored as data. Read *THE SKELETON IS UP* above. Before that,
+**The latest session, in one paragraph.** **The skeleton went up, and a rule can grow it** —
+`ugm/construction.py` and `rules/teach.mf`: an utterance becomes a runnable goal by proposal and
+selection, the world decides an attachment ambiguity no grammar can, and **a rule authors a construction
+after which the system understands a sentence it has never seen**. Read *THE SKELETON IS UP* above. Before that,
 in the same session, both pre-P0 probes ran and went opposite ways — *is `_covers` static?* **killed** the
 precompute it was meant to de-risk (0.6 ms across the whole suite), and the **guard-address probe** turned
 P1 from an optimisation into a requirement (no plan at all at two off-topic constraints, bindings 11 →
@@ -416,15 +417,48 @@ items they have a consumer that will notice.
 failure), it does not ground a reference, and it does not remove `intake.py` — the CNL still reads
 criteria, methods and types, and the two front doors coexist until constructions cover what it does.
 
+### ✅ And a rule can teach it — the growth claim is closed
+
+`rules/teach.mf` + `check_A_RULE_CAN_TEACH_THE_SYSTEM_A_NEW_WAY_OF_SAYING_SOMETHING`. **A rule authors a
+construction, and the system then understands a sentence it has never seen.** No Python helper called,
+no module edited. It needed **no new capability**: a construction is nodes and edges, so `make`,
+`set_slot` and `relate` are the whole of it — the same finding as `A_RULE_CAN_BUILD_A_RUNNABLE_GOAL`,
+one level up.
+
+⭐⭐⭐ **This is the bootstrap the learning story needs, and that is why it was worth doing before the
+rest.** [harmonization.md](harmonization.md) proposes learning the rule ordering and
+[comparison.md](comparison.md) proposes learning constructions — and **you cannot learn what you cannot
+author**. Until now, authoring one meant calling Python, so every proposal about learning language was
+secretly a proposal about *writing a Python function*. It is now a proposal about writing a rule, which
+is a thing this system already does.
+
+⭐⭐ **The claim that is not free is `EVERY_TEACHING_RULE_IS_MEDIATED`.** *A rule built it* would have
+been true of a rule holding bare opcodes and would prove nothing about the layering. Every body in
+`teach.mf` reaches the graph only through the eight closed names — checked with `access.bare_touches`,
+the same pass that governs the planning corpus — so **teaching happens at the same layer everything else
+does**.
+
+⚠ **A vacuity found by planting, and it is a class worth naming: blinding the *measuring instrument*
+left the check green.** With `bare_touches` stubbed to answer empty, *"none of the teaching rules are
+bare"* passed — a sentence a broken pass produces just as readily as a mediated corpus does. The fix is a
+**positive control** in the same graph and through the same call: a body that really is bare must be
+reported. Generalising: when a check asserts *no offenders*, it must also assert that the pass can still
+see one.
+
+⚠ **One real difference between the two authoring routes, stated rather than normalised away**:
+`consequent.call` **sorts** its parameters and a rule adding them one at a time cannot. Parameters are
+named and become a dict at the call, so order is not meaning today — and the comparison check compares
+them as a mapping, with the asymmetry asserted separately so it cannot quietly become meaning.
+
+⚠ Still not done, and it is the interesting half: **nothing yet says *"when someone explains a new
+phrasing, learn it"***. A rule can author a construction; no *utterance* causes one to be authored. That
+is a construction whose consequent calls these functions, and it is the point at which the system starts
+teaching itself.
+
 ### Where the skeleton is thin — the next work, in the order it hurts
 
-1. ⭐ **A construction is authored from Python.** `open_construction` / `addresses` / `builds` are
-   helpers, so *"growth is data"* is true of the **representation** and not yet of the **surface**. Two
-   ways out and they are not equivalent: a `construction` family in `intake.py` (cheap, and spends the
-   verb budget the discipline says to keep), or authoring one **from a rule** through the vocabulary,
-   which is what `check_A_RULE_CAN_BUILD_A_RUNNABLE_GOAL` already proves possible for goals. The second
-   is the one that matches the stated position, and it is also the one that makes a construction
-   something the system could *learn*.
+1. ✅ **Done — a rule can now teach one.** `rules/teach.mf`, and
+   `check_A_RULE_CAN_TEACH_THE_SYSTEM_A_NEW_WAY_OF_SAYING_SOMETHING`. See below.
 2. ⭐⭐ **Nothing forks.** [comparison.md](comparison.md) argues a reading should be a **frame** on the
    workbench, so rival readings are branches carrying what each took on faith. Today `readings` returns a
    ranked list and the loser is kept only as a `rival` edge. The list is enough to choose; it is not
@@ -1253,6 +1287,14 @@ where the answer actually comes *from*, or the trap stays unsprung and the green
 **Plant against one check, not the suite.** `python -c "from ugm import selftest as S; print(S.check_...())"`
 takes a second. A plant that blinds the planner takes the whole suite from 70 seconds to over ten
 minutes, which is a slow way to learn one boolean.
+
+**A check that asserts *no offenders* must also assert that the pass can still see one.** Blinding
+`access.bare_touches` to answer empty left `EVERY_TEACHING_RULE_IS_MEDIATED` **green**: the mediation
+claim was certifying itself, because *"nothing was reported"* is what a working pass over a clean corpus
+and a broken pass over any corpus both say. The fix is a **positive control** — a deliberately bare body
+in the same graph, reported by the same call. This is the twin of *an assertion built out of the function
+under test degrades as the code does*, one step out: here the instrument is not the code under test, and
+blinding it is still invisible.
 
 **Every check must earn its green.** Several checks in this suite were once vacuous — passing whatever
 the code did — and were fixed by planting a deliberate bug and confirming they went red. Any new check
