@@ -164,6 +164,52 @@ one substrate* — and it is the only place a claim of novelty could survive con
 A system with a TMS **and** a planner **and** a MOP, each excellent, still has three representations and
 no way to ask a question that crosses them.
 
+## Is this "self-awareness"? — scoping the claim before someone else does
+
+The residue list invites a bigger word than it has earned, so: **no, not yet**, and the gap has a precise
+shape. Nothing here is about experience or feeling; the question is the ordinary one about *data*, and
+even on those terms the honest answer is *a precondition, not the thing*.
+
+Maes' distinction (*Computational Reflection*, 1987) does most of the work. **Reflection** is reading
+your own structure; **intercession** is acting on what you read. A **self-model** is a third thing again,
+and it is the one that would justify the word.
+
+| ingredient | here |
+|---|---|
+| **reification** — internal state as first-class values | yes, thoroughly: `activation`, `frame`, `replay`, `search`, `context` |
+| **introspection** — the system reads it, in its own language | yes: `SELF` hands a program its own activation |
+| **intercession** — it acts on what it reads | in places: `REFUSE`, a watcher stopping a live search, mediation enforced at `step` |
+| **self-model** — a representation of itself *as a subject* | **no** |
+| **monitoring** — watching its own performance and adapting | fragments: criteria, expert judgement |
+
+Two places where self-reference genuinely does work rather than merely being available:
+
+* **`dispatch.imagining`** — *am I inside an imagined world right now?* The system asks about its own
+  dynamic extent in order to constrain what it may do. Its history is the instructive part: the same
+  safety property used to be checked by looking at the *argument* (is this node a workbench copy), and
+  that guard silently stopped firing the day rules were bound to real nodes. **The property was always
+  about the system's own state, never about the object** — which is what makes this an instance of
+  self-knowledge rather than a type test wearing its clothes.
+* **`memory.attribute`** — *was it me?* Separating changes the system caused from changes the world made,
+  which is why a slot only it touches scores zero volatility.
+
+**What is missing is the difference between a record of experience and a model of a subject.** The
+residue says what happened, in the same vocabulary the world is described in. A trace of my actions is
+not a model of me. Self-awareness in the sense worth claiming would need something like *"I tend to
+over-plan in worlds of this shape"* or *"I am unreliable about that"* — a representation **about** the
+system, used to decide. Nothing here holds one.
+
+⚠ And there is a tension worth stating against this project's own instinct: **uniformity is in some ways
+the opposite of self-awareness.** Representing the system's own activity exactly as the world is
+represented means no self/other line is drawn anywhere. Awareness of a self requires a *distinction*, not
+merely transparency — which is why it is telling that the one place UGM comes closest is `attribute`,
+whose entire job is to draw that line.
+
+The fair sentence is therefore **self-transparency, with a few working instances of self-reference, and
+no self-model**. That is a real precondition — metacognition cannot be built on a system whose reasoning
+leaves no readable trace — and a precondition is not the thing. The test is the same one this document
+applies everywhere: *availability is not awareness; the representation has to be used in the loop.*
+
 ## The price, and it is not small
 
 Every layer that moves into the surface costs 3–5× against the Python it replaces, and it **compounds**
