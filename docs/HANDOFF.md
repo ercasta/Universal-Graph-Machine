@@ -80,6 +80,20 @@ states. That is not the search getting worse, it is copying moving into the inte
 enough for dense to have been the right answer. It is the honest number and it is where a
 faster interpreter would show up.
 
+⚠ **Where the Python still is.** The arc is not finished, and the shape of what remains is easy to lose:
+
+| | state |
+|---|---|
+| `workbench.step` | written in `rules/step.mf`, checked, **dormant** — Python runs |
+| `workbench.open_workbench` | written in `rules/workbench.mf`, checked, **dormant** |
+| `_copy_set` / `reachable` | written in `rules/reachable.mf`; only `copy_node` is live |
+| `execution.step`, `driver._phase_*` | **not written** |
+| `goal.holds`, `workbench.deviates`, `unmet_expectations` | **not written** — each blocked, see step 4 |
+| the mediation layer (`access` / `resolve` / `version`) | ✅ live |
+
+The dormant three are a **debt, not an achievement**: two implementations of one thing, only one of which
+any check exercises by default. See *What to do next*.
+
 ## What landed since the audit
 
 Detail and reasoning in [audit.md](audit.md) and [mediated-access.md](mediated-access.md); this is the
@@ -218,30 +232,72 @@ anticipatory: a native that ignores the context can finally be *caught*.
 
 ## What to do next
 
-Sparse frames and the identity model are done and are described under *What landed* above; this is what
-remains. [mediated-access.md](mediated-access.md) is the design, it opens with a table of what is built
-and what is not, and it records the wrong turns in detail — all easy to make again.
+**The arc is de-Pythonization, and it is unfinished.** Everything in this section before item 5 is that
+arc; items 5 onward are correctness or capability. It is worth being blunt about the shape of the debt,
+because the last session's work made it easy to mistake for progress:
 
-### 1. Enforce mediation at `step`  ← start here
+> **Three things exist twice, and Python is the one that runs.** `rules/step.mf`, `rules/workbench.mf`
+> and `copy_set` in `rules/reachable.mf` are written, checked against their Python equivalents, and
+> **dormant**. That is not an achievement, it is a drift risk: two implementations of one thing, only one
+> of which any check exercises by default. *Expressible is not the same as rewritten.*
 
-**This is now a correctness hole, not a tidiness one, and it is the thing most likely to bite whoever
-picks this up.** A rule bound to identities that touches the graph bare **writes to the real world while
-planning**. `access.offenders` already answers the question and `check_A_PLANNING_OPERATOR_MAY_NOT_TOUCH_THE_GRAPH_BARE`
-already asks it — over one graph. Two things to decide:
+### 1. Swap `step.mf` live  ← start here
+
+The arc's actual conclusion, and it only became affordable when frames went sparse: **22–42× was a veto,
+3.0× is a decision.** `rules/step.mf` is sparse, establishes its own context in the surface, and agrees
+with the Python on four routes plus chaining and a refusal.
+
+The handoff has always said the deciding question is a measurement rather than an argument, so make the
+measurement cheap to take:
+
+1. Turn `workbench.step` into a thin Python wrapper that builds the bindings node and invokes the surface
+   `step`. Every existing caller keeps working; only the implementation moves — and it is one line back
+   either way.
+2. `python -m ugm.bench` and the suite. Sussman is ~1050 ms and the suite ~60 s today; at 3× that is
+   ~3 s and perhaps three minutes. **If the suite goes to minutes that is a real answer**, and the swap
+   waits on a faster interpreter rather than on an argument.
+
+⚠ The wrapper is the whole trick. Rewriting every caller first would make the measurement expensive to
+take and expensive to undo, which is how a swap turns into a commitment before it is a result.
+
+### 2. `open_workbench`, and `copy_set` with it
+
+Same shape, same wrapper, and it is what stops `rules/workbench.mf` being dead code. `copy_node` is
+already live — the writer calls it — so only `copy_set` and `reachable` are still doubled.
+
+### 3. `execution.step`, then the phase machine
+
+The last big Python island in the plan-act-check loop. `driver._phase_*` is reads, guards, one call,
+attribute writes and unlinks; its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
+
+### 4. The predicates that block the rest
+
+`goal.holds` needs **`VKIND`** (a value's category) and `compare.mf`, which land together — writing
+`compare.mf` earlier would duplicate `types.compare`, which `goal.holds`, `criterion._holds` and every
+schema check share. `workbench.deviates` wants **`types.violations` as a native**. And
+`workbench.unmet_expectations` needs no capability at all: it is blocked upstream because
+`predicted_changes` returns a Python dict and should return a transient node.
+
+### 5. ⚠ Enforce mediation at `step` — a live defect, independent, do whenever
+
+**This one is actively wrong rather than merely unfinished.** A rule bound to identities that touches the
+graph bare **writes to the real world while planning**. `access.offenders` already answers the question
+and `check_A_PLANNING_OPERATOR_MAY_NOT_TOUCH_THE_GRAPH_BARE` already asks it — over one graph. Two
+things to decide:
 
 * run the compliance pass over *every* corpus the self-test builds, not one; and
 * have `step` refuse an unmediated operator outright, which needs `fn.load` per step and therefore wants
   the answer cached on the function node.
 
-The evidence that this matters: roughly a dozen fixtures in `selftest.py` were unmediated, every one of
-them went red, and each was a rule quietly writing to reality from inside an imagination.
+The evidence that it matters: roughly a dozen fixtures in `selftest.py` were unmediated, every one of
+them went red when binding changed, and each was a rule quietly writing to reality from inside an
+imagination.
 
-### 2. The remaining two natives, and `predicted_changes`
+### 6. The two natives that still do not resolve
 
-`types.is_a` and `types.check` resolve now, through `workbench.view_of`. `driver.plan` and
+`types.is_a` and `types.check` find their world through `workbench.view_of`. `driver.plan` and
 `driver.plan_step` do not, and the natives inventory in [mediated-access.md](mediated-access.md) says
-they must. Then `predicted_changes` should return a transient node rather than a Python dict, which is
-what blocks `workbench.unmet_expectations`.
+they must.
 
 ⚠ A gap found on the way and left open deliberately: `types.fails` resolves the *neighbours* it walks
 through `path.adjacent`, but `function.invoke` type-checks its argument through the resolver and then
@@ -249,7 +305,7 @@ walks from there with **no view**, because at that point it holds a context rath
 schemas in the corpus are attribute-shaped so nothing catches it. It wants a world where a parameter
 type's *schema* depends on a neighbour the frame changed.
 
-### 3. Predicate dispatch, slices 3–4
+### 7. Predicate dispatch, slices 3–4 — a capability, not part of the arc
 
 [predicate-dispatch.md](predicate-dispatch.md). **Slice 3** — conditions that speak of the ambient goal,
 reached by walking the chain, which is what makes *go to the bank* work when the world alone cannot
@@ -260,24 +316,14 @@ subgoal rather than a refusal.
 so the union in `driver.establishes` and the specificity ordering are exercised only by their checks. The
 first real multi-body operator is where ranking can quietly degrade; measure the search when it lands.
 
-### 4. `execution.step`, then the phase machine
-
-`driver._phase_*` is reads, guards, one call, attribute writes and unlinks; its `_PHASES[phase]` dispatch
-is what a dynamic `INVOKE` does.
-
-### 5. Swap `step.mf` live
-
-`rules/step.mf` is sparse, establishes its own context, and agrees with the Python on four routes plus
-chaining and a refusal — at **3.0×**, against 22–42× when it had to copy. The remaining question is
-whether the planner can afford it, and the answer is a measurement rather than an argument.
-
-### 6. The three predicates — independent, do whenever
-
-`VKIND` and `compare.mf` land together with `goal.holds` (writing `compare.mf` earlier would duplicate
-`types.compare`, which `goal.holds`, `criterion._holds` and every schema check share); `violations` as a
-native.
-
-**Expressible is not the same as rewritten**, and the difference should not be allowed to blur.
+⚠⚠ **And a question that was raised and not settled:** *do coinductive rules resolve ambiguity?* The
+answer reached was **no** — coinduction is a stance on whether circular support *counts*, and it is the
+permissive one, so it admits more readings rather than choosing between them. Ambiguity needs consistency
+**and** preference, and coinduction speaks only to the first. The split worth keeping: **the recursion in
+a schema is coinductive; the support from the world must be grounded.** `types._target_ok` and
+`types.fails` already do exactly that, by accident of good taste rather than by statement. What is
+genuinely missing is *propagation between rival readings* — today the only way to compare two
+interpretations is to run both. That is a probe, not a build.
 
 ## How to work on this
 
