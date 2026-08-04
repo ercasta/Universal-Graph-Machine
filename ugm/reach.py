@@ -244,6 +244,8 @@ ENTRY_POINTS = (
     ("goal", "open_goal"),          # authoring what is pursued
     ("loop", "schedule"),           # putting it on an agenda
     ("loop", "run"),
+    ("construction", "interpret"),  # the front door: an utterance becoming something runnable
+    ("construction", "utter"),
 )
 
 

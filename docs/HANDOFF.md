@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **262 checks, 0 failing**, in 90–120 seconds depending
+**Verify:** `python -m ugm.selftest` — currently **263 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
 same minutes** — never against a number written down earlier. ⚠ Take the baseline in a **worktree at
@@ -11,7 +11,7 @@ HEAD** (`git worktree add <tmp> HEAD --detach`), *not* `git stash -u`, whenever 
 work you have not committed: a stash/pop cycle around a long measurement is how hours get lost, and this
 project has already recorded one such loss.
 **Measure:** `python -m ugm.bench` — the numbers below, re-runnable. ⚠⚠ **A ratio hides a curve.**
-**Audit:** `python -m ugm.reach` — *what of the engine's own machinery could a rule start?* **87 named
+**Audit:** `python -m ugm.reach` — *what of the engine's own machinery could a rule start?* **98 named
 things cannot**, and the list is derived rather than written down. See P0 below.
 `stepping` and `acting` report one number against a reference and cannot say whether the *shape* is
 right; measure any new surface function at **three world sizes** before believing its ratio.
@@ -169,7 +169,15 @@ true only of *that* path now.
 Detail and reasoning in [audit.md](audit.md) and [mediated-access.md](mediated-access.md); this is the
 index, kept short on purpose so the plan below stays readable.
 
-**The latest session, in one paragraph.** **P0**, and it came out half the size it went in. The
+**The latest session, in one paragraph.** **The skeleton went up** — `ugm/construction.py`: an utterance
+becomes a runnable goal by proposal and selection, the world decides an attachment ambiguity no grammar
+can, and a new way of saying something is authored as data. Read *THE SKELETON IS UP* above. Before that,
+in the same session, both pre-P0 probes ran and went opposite ways — *is `_covers` static?* **killed** the
+precompute it was meant to de-risk (0.6 ms across the whole suite), and the **guard-address probe** turned
+P1 from an optimisation into a requirement (no plan at all at two off-topic constraints, bindings 11 →
+1153). Three checks added, all green under planted bugs; one vacuity found and fixed by planting.
+
+**The session before that, in one paragraph.** **P0**, and it came out half the size it went in. The
 **reachability pass** is built (`ugm/reach.py`, `python -m ugm.reach`): a rule enters Python through
 exactly two doors, so *what can a rule start?* is a closure rather than an opinion, and the answer is
 **87 named things it cannot**. It reproduces the hand audit, adds the replay's bookkeeping and the outer
@@ -178,7 +186,7 @@ which nobody had checked. The other half of P0, the `_covers` precompute, was **
 meant to de-risk it measured it at **0.6 ms across the whole suite** and cancelled it. One new check,
 green with the inventory named and red under four planted bugs. Detail in §P0.
 
-**The session before that, in one paragraph.** `execution.step` — the loop that *acts* — is now
+**Two sessions before that, in one paragraph.** `execution.step` — the loop that *acts* — is now
 `rules/execute.mf` behind a wrapper, and with it `predicted_changes` (`rules/predict.mf`), which was
 never on the list of what blocked it and was one; getting there needed no new capability and four
 representation changes, of which only one looked like prose (item 3). ⚠ It was first written **O(world)**
@@ -191,7 +199,7 @@ different here, and how much is prior art), the horizon's **second axis** and th
 rule in [concepts.md](concepts.md), and the training formulation in
 [harmonization.md](harmonization.md). **Read the P0–P5 table before anything else in that section.**
 
-**The three sessions before that, in one paragraph**, because the entries below are in the order things
+**The sessions before those, in one paragraph**, because the entries below are in the order things
 were built rather than in the order they matter: `step` and `open_workbench` were **swapped live** behind thin
 wrappers, so nothing in the workbench exists twice any more; **mediation is enforced** — `step` refuses
 to imagine an unmediated operator, and the compliance pass runs over every corpus; all three decomposed
@@ -353,6 +361,86 @@ anticipatory: a native that ignores the context can finally be *caught*.
 
 ## What to do next
 
+## ⭐⭐⭐ THE SKELETON IS UP — read this before the phase plan
+
+**Words in, world changed, and it can say why it read them that way.** `ugm/construction.py` and
+`check_AN_UTTERANCE_BECOMES_A_RUNNABLE_GOAL_BY_PROPOSAL_AND_SELECTION`. This was built **ahead of** the
+P0–P5 order below, deliberately: the phases were being built as layers with no consumer, and a thin
+complete path gives every one of them something to be measured against. The plan is still right about
+*what* is missing; it was wrong to finish the layers first.
+
+**What runs today.** An utterance is recorded as **tokens and nothing else** — no parse, no verb, no
+`about`. Constructions **propose** readings; each is a candidate exactly as a proposed action is.
+Knowledge **selects**. The winner's consequent authors a goal through the closed vocabulary, and the
+engine plans it and acts.
+
+⭐⭐⭐ **The load-bearing result is that the world decides the structure.** *"Put the block on the
+table"* — is `on the table` where the block should **go**, or **which block** is meant? One utterance,
+two constructions, two worlds, and the reading flips: with the block on the floor the phrase is a
+destination and the engine moves it; with the block already on the table the phrase can only be
+identifying, and a different goal is built. Nothing about the utterance changed. **That is the thing a
+parser cannot do**, because the information settling the attachment lives in the reasoner and the parser
+has already committed — the second wall in [comparison.md](comparison.md) §Language, which is why the
+third one matters.
+
+⭐⭐ **And it grows by data.** A third construction is authored with **no Python written and no module
+edited**, and a sentence the system has never seen plans and runs. Compare the standing discipline:
+*a new way of saying something is an interpretation rule in the web, never a new verb in `intake.py`.*
+That sentence is now executable rather than aspirational.
+
+**A construction is not a new kind of thing**, and that is most of why this was small. It has the three
+parts a criterion has and **reuses the same nodes**: the address (`wants_sort` / `wants_label`), the
+tests (`criterion.test`), and a consequent (`consequent.call`). So specificity ordering, the condition
+reader and the *why-this-not-that* explanation all arrived already written — `function.guard`'s argument
+(*"the condition language cannot tell a role from a parameter"*) carried one family further: it cannot
+tell a token from a constraint either.
+
+* **Word order is form, not grammar.** A construction reaches its other roles by walking the token chain
+  (`some theme in head by ^next`), which offers every preceding token nearest-first, and ordinary `when`
+  lines say which one is meant. Measured on the six-token sentence: the draws offer **six** candidate
+  bindings and the tests keep one. Proposal and selection, at the level of a phrase.
+* **Specificity is what decides between two valid readings**, not the random stage — a construction
+  demanding everything another demands *and more* wins. Goldberg's ordering falling out of
+  `precedence._covers`, which predates the language work entirely.
+* ⚠ **Grounding is handed in and is not claimed.** That "block" denotes this node is reference
+  resolution; it is the genuinely hard part and it is orthogonal to all of this.
+* ⚠ **Silence is an outcome.** An utterance nothing addresses is *recorded*, not refused — the elsewhere
+  case, per *Silent failure is acceptable; unrecorded failure is not* below.
+
+⚠ **`python -m ugm.reach` went 87 → 98, and that is correct rather than a regression.** The front door is
+Python, so adding it to the entry points honestly grows the inventory. **That is now the sharpest target
+in the repo**: the skeleton's own segments are the next things to make reachable, and unlike the older
+items they have a consumer that will notice.
+
+**What this does not do**: it does not touch coverage (the tail of English was never the interesting
+failure), it does not ground a reference, and it does not remove `intake.py` — the CNL still reads
+criteria, methods and types, and the two front doors coexist until constructions cover what it does.
+
+### Where the skeleton is thin — the next work, in the order it hurts
+
+1. ⭐ **A construction is authored from Python.** `open_construction` / `addresses` / `builds` are
+   helpers, so *"growth is data"* is true of the **representation** and not yet of the **surface**. Two
+   ways out and they are not equivalent: a `construction` family in `intake.py` (cheap, and spends the
+   verb budget the discipline says to keep), or authoring one **from a rule** through the vocabulary,
+   which is what `check_A_RULE_CAN_BUILD_A_RUNNABLE_GOAL` already proves possible for goals. The second
+   is the one that matches the stated position, and it is also the one that makes a construction
+   something the system could *learn*.
+2. ⭐⭐ **Nothing forks.** [comparison.md](comparison.md) argues a reading should be a **frame** on the
+   workbench, so rival readings are branches carrying what each took on faith. Today `readings` returns a
+   ranked list and the loser is kept only as a `rival` edge. The list is enough to choose; it is not
+   enough to *evaluate a reading against evidence and abandon it*, which is what the abduction shape
+   actually wants — and the workbench is the one layer already reachable, so this needs no new machinery.
+3. **`_bindings_for` exists twice.** `criterion`'s addresses unmet goal constraints, `construction`'s
+   addresses tokens, and the two differ by *one line* — what is being addressed. Making the source an
+   argument collapses them. ⚠ Deliberately not done yet: *an island is created by the second caller*, and
+   today there are exactly two. A third family addressing something is the moment.
+4. **The address is a lemma.** `addresses token "on"` is exact string match. Croft's point is that
+   categories are *derived* from the constructions a word occurs in, so the address should be able to
+   name any discriminating attribute — which is what P1 is for, and what `_covers` already does
+   structurally.
+5. **Nothing is learned.** Harmonization's training formulation and *learning a construction is
+   `compile_episode` for utterances* both now have something concrete to be about.
+
 ## ONE PLAN — de-Pythonization and de-parserization are the same arc
 
 There are two open arcs and they were being planned separately. They should not be.
@@ -380,7 +468,7 @@ and **you cannot learn a Python callable**. Hooks must become data. That is no l
 | **P2** | **starting a pursuit** must be reachable — `open_pursuit` / `carry_out` / `loop.schedule`, `open_planning` (reading `max_steps` / `max_depth` / `guided` off the pursuit), `open_execution`. ⭐ **Not** the goal constructors: see below | de-Pythonization's cluster B **and** the language arc's precondition. Smaller than it looked |
 | **P3** | **hooks become data** — `rank` / `allow` / `trace` as named functions and precedence stages; add the missing **`by experience`** comparator (`EXPERIENCE` is only an attributor today; `application.py` holds the record). ⚠⚠⚠ **Write the stratification argument first** — see below | decided by P2's needs rather than open. Unblocks `_phase_planning`, and *is* the learned-order artifact harmonization needs |
 | **P4** | **`driver._phase_*` in the surface** — the seams (`driver.step`'s result dict, `T.attend`'s prose), then the machine | the last of arc one. After it a rule can drive plan-act-check end to end |
-| **P5** | **interpretation as proposal + selection** — hand-seeded, forms fixed, improved by harmonization as **theory revision** | needs P1–P3. The hypothesis machine it runs on is **already reachable** (see §0) |
+| **P5** | **interpretation as proposal + selection** — hand-seeded, forms fixed, improved by harmonization as **theory revision** | ⭐ **the skeleton is up** (see the section above `ONE PLAN`), built ahead of P1–P3 on purpose. What it did *not* need turned out to be most of them; what it now needs is listed under *Where the skeleton is thin* |
 
 ### ⚠⚠⚠ P3 has a regress in it, and the answer is already in the codebase
 
@@ -1082,6 +1170,14 @@ needed `is_a` to answer; `INVOKE` raised where a replay stepper needed `ATTEMPT`
 reliable predictor of where the next island is — and it runs both ways: `ATTEMPT` answered where
 nothing could *raise*, which is what `REFUSE` is. Finding one half of a pair is a reason to look for the
 other.
+
+**A thin end-to-end path is worth more than a finished layer, and it costs less than it looks.** The
+P0–P5 order built infrastructure with no consumer; the skeleton was built out of order and most of what
+the plan said it needed turned out to be unnecessary, because **a construction is a criterion with a
+different address** — same test nodes, same specificity comparator, same explanation shape. The lesson is
+not *skip the plan*; it is that a plan ordered by dependency will always look like it must be walked in
+order, and building the thinnest complete path is how you find out which dependencies were real. Two of
+five phases were.
 
 **Ask what it is for before building it.** An identity for imagined nodes was nearly built as a minted
 placeholder before anyone asked what needed one. The answer turned out not to be the reason assumed

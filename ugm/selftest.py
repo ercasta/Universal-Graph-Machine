@@ -11787,6 +11787,205 @@ def check_a_PROCEDURE_INSTALLS_ITS_OWN_TIMER():
             "and_a_RUNNING_task_can_still_find_its_loop": L.loop_of(g, a) == lp}
 
 
+_GOAL_AUTHORING = (
+    # Two microfunctions that author a goal, in the closed vocabulary alone — `make`, `set_slot`,
+    # `relate`, nothing else. `check_A_RULE_CAN_BUILD_A_RUNNABLE_GOAL` is the proof that this suffices.
+    "fn want_on(subj, obj) -> thing:",
+    '    INVOKE R(gl) make kind="goal"',
+    '    INVOKE R(_) set_slot node=R(gl) key="label" value="read: put it there"',
+    '    INVOKE R(_) set_slot node=R(gl) key="verb" value="goal"',
+    '    INVOKE R(c) make kind="constraint"',
+    '    INVOKE R(_) set_slot node=R(c) key="sort" value="link"',
+    '    INVOKE R(_) set_slot node=R(c) key="label" value="on"',
+    '    INVOKE R(_) relate node=R(c) label="subject" other=F(subj)',
+    '    INVOKE R(_) relate node=R(c) label="object" other=F(obj)',
+    '    INVOKE R(_) relate node=R(gl) label="requires" other=R(c)',
+    "    COPY R(result) R(gl)",
+    "",
+    "fn want_red(subj) -> thing:",
+    '    INVOKE R(gl) make kind="goal"',
+    '    INVOKE R(_) set_slot node=R(gl) key="label" value="read: that one is meant"',
+    '    INVOKE R(_) set_slot node=R(gl) key="verb" value="goal"',
+    '    INVOKE R(c) make kind="constraint"',
+    '    INVOKE R(_) set_slot node=R(c) key="sort" value="attr"',
+    '    INVOKE R(_) set_slot node=R(c) key="key" value="colour"',
+    '    INVOKE R(_) set_slot node=R(c) key="value" value="red"',
+    '    INVOKE R(_) set_slot node=R(c) key="op" value="=="',
+    '    INVOKE R(_) relate node=R(c) label="subject" other=F(subj)',
+    '    INVOKE R(_) relate node=R(gl) label="requires" other=R(c)',
+    "    COPY R(result) R(gl)")
+
+
+def _put_the_block_on_the_table(*, already_there: bool, strict: bool = True):
+    """The world, the utterance and the two rival readings of it — everything but the choosing.
+
+    *"Put the block on the table"* is the canonical attachment ambiguity: **is `on the table` where the
+    block should GO, or which block is MEANT?** No grammar decides it. A parser has to commit before the
+    reasoner is consulted, which is the ordering inversion `docs/comparison.md` names as the second wall
+    and the reason the third one matters.
+
+    `already_there` is the whole experiment: if the block is *not* on the table, the phrase can only be a
+    destination; if it *is*, the phrase is describing it, so it must be identifying which block is meant.
+    Same utterance, same constructions, different world."""
+    from . import asm, construction as CX, thread as T
+    g, w = _blocks()
+    a, b, _c = g.targets(w, "block")
+    asm.load_text(g, _lines(*_GOAL_AUTHORING))
+    if already_there:
+        g.unlink(a, "on", index=0)
+        g.link(a, "on", b)
+        g.put(b, clear=None)
+
+    th = T.open_thread(g)
+    u = CX.utter(g, th, ["put", "the", "block", "on", "the", "table"])
+    tok = CX.tokens(g, u)
+    # ⚠ Grounding is HANDED IN. Deciding that "block" denotes this node is reference resolution; it is
+    # orthogonal to everything here and is not claimed.
+    CX.denote(g, tok[2], a)
+    CX.denote(g, tok[5], b)
+
+    # Reading one: `on` marks the DESTINATION.
+    dest = CX.open_construction(g, "on = destination", because="the phrase says where it should go")
+    CX.addresses(g, dest, CX.TOKEN, "on")
+    CX.draw(g, dest, "theme", "head", "next", back=True)   # word order is FORM, walked in the web
+    CX.draw(g, dest, "site", "head", "next")
+    CX.test(g, dest, sort="exists", left="theme.denotes")
+    CX.test(g, dest, sort="exists", left="site.denotes")
+    if strict:
+        # It cannot be telling me to put it where it already is.
+        CX.test(g, dest, sort="link", left="theme.denotes", label="on", right="site.denotes",
+                negated=True)
+    CX.builds(g, dest, "want_on", {"subj": "theme.denotes", "obj": "site.denotes"})
+
+    # Reading two: `on` MODIFIES — it says which block is meant.
+    mod = CX.open_construction(g, "on = which one", because="the phrase describes it, so it identifies it")
+    CX.addresses(g, mod, CX.TOKEN, "on")
+    CX.draw(g, mod, "theme", "head", "next", back=True)
+    CX.draw(g, mod, "site", "head", "next")
+    CX.test(g, mod, sort="exists", left="theme.denotes")
+    # Deliberately a SUPERSET of what the destination reading demands, so `precedence._covers` can order
+    # the two structurally: a construction that demands everything another does and more is the more
+    # specific reading, which is Goldberg's ordering falling out of machinery that predates it here.
+    CX.test(g, mod, sort="exists", left="site.denotes")
+    CX.test(g, mod, sort="link", left="theme.denotes", label="on", right="site.denotes")
+    CX.builds(g, mod, "want_red", {"subj": "theme.denotes"})
+    return g, w, u, (a, b), (dest, mod)
+
+
+def check_AN_UTTERANCE_BECOMES_A_RUNNABLE_GOAL_BY_PROPOSAL_AND_SELECTION():
+    """The end-to-end, and the front door rebuilt: **words in, world changed, and it can say why it read
+    them that way.** `ugm/construction.py`.
+
+    `intake.py` is a parser — it rewrites an utterance into constituents by a fixed grammar before any
+    knowledge is consulted, which is the one place this project does the thing it forbids everywhere else
+    (`docs/comparison.md` §Language, the third wall). The replacement is Hobbs' shape: a reading is a
+    **candidate**, and choosing between readings is **selection** by authored preference — which is
+    already what `proposals` → `relevance` → `tie_break` is for actions.
+
+    ⭐⭐⭐ **The load-bearing line is `THE_WORLD_DECIDED_NOT_THE_GRAMMAR`.** One utterance, two
+    constructions, two worlds — and the reading flips. That is precisely what no parser can do, because
+    the information that settles the attachment lives in the reasoner and the parser has already
+    committed. Nothing about the utterance changed between the two runs.
+
+    ⭐⭐ **And `A_NEW_WAY_OF_SAYING_IT_IS_DATA`**, which is what makes this a skeleton that can grow
+    rather than a demonstration. A third construction is authored with *no Python written and no module
+    edited* — `intake.py` would have needed a new verb family — and a sentence the system has never seen
+    plans and runs.
+
+    ⚠ Three things this deliberately does not claim. **Grounding** is handed in; deciding that "block"
+    denotes this node is reference resolution and is untouched. **Coverage** is not addressed and is not
+    the point — the interesting failure was never the tail of English. And **not every utterance runs
+    something**: an unaddressed one falls to the elsewhere case and is *recorded*, not refused, because
+    refusing everything unrecognised is what makes a controlled language brittle.
+
+    Vacuity guards throughout: the world must not already satisfy the goal, the rejected reading must
+    really have been available (it is the *same* construction that wins in the other world), and the
+    utterance must carry no parse at all — if `discourse.say` had run, the answer would be `intake`'s and
+    this would prove nothing."""
+    from . import construction as CX, driver as D, goal as G, precedence as PR, thread as T
+
+    # --- the utterance is EVIDENCE, not a parse -------------------------------------------------------
+    g0, w0, u0, (a0, b0), (dest0, _m0) = _put_the_block_on_the_table(already_there=False)
+    unparsed = g0.attr(u0, "verb") is None and g0.target(u0, "about") is None
+
+    # --- world one: the block is not on the table, so the phrase says where to put it ------------------
+    before_on = g0.target(a0, "on")
+    out0 = CX.interpret(g0, u0)
+    # ⚠ Read BEFORE the run. Carrying the plan out puts the block *on* the table, which is exactly the
+    # condition the rival reading was waiting for — so asked afterwards, `why` truthfully reports that
+    # both readings apply, and the check would be interrogating a world the reading was never made in.
+    # `check_EXPERT_JUDGEMENT` records the same trap in its own shape.
+    told = {g0.attr(c, "label"): (read, reasons) for c, read, reasons in CX.why(g0, u0)}
+    ran0 = D.carry_out(g0, out0["built"], T.open_thread(g0), w0, attempts=2) if out0["built"] else {}
+
+    # --- world two: it is already there, so the phrase must be saying WHICH block ----------------------
+    g1, w1, u1, (a1, _b1), (_d1, mod1) = _put_the_block_on_the_table(already_there=True)
+    out1 = CX.interpret(g1, u1)
+    ran1 = D.carry_out(g1, out1["built"], T.open_thread(g1), w1, attempts=2) if out1["built"] else {}
+
+    # --- both readings valid at once: authored preference decides, and names the stage ------------------
+    g2, _w2, u2, _n2, (d2, m2) = _put_the_block_on_the_table(already_there=True, strict=False)
+    PR.declare(g2, (PR.BY_SPECIFICITY, PR.BY_RANDOM), label="which reading")
+    both = CX.readings(g2, u2)
+    decided = PR.deciding_stage(g2, both[0][0], both[1][0]) if len(both) > 1 else None
+
+    # --- GROWTH: a new way of saying it, authored as data alone -----------------------------------------
+    g3, w3, _u3, (a3, b3), _c3 = _put_the_block_on_the_table(already_there=False)
+    onto = CX.open_construction(g3, "stack X on Y")
+    CX.addresses(g3, onto, CX.TOKEN, "onto")
+    CX.draw(g3, onto, "theme", "head", "next", back=True)
+    CX.draw(g3, onto, "site", "head", "next")
+    CX.test(g3, onto, sort="exists", left="theme.denotes")
+    CX.test(g3, onto, sort="exists", left="site.denotes")
+    CX.builds(g3, onto, "want_on", {"subj": "theme.denotes", "obj": "site.denotes"})
+    th3 = T.open_thread(g3)
+    u3b = CX.utter(g3, th3, ["shove", "a", "onto", "b"])     # never seen before, and no Python written
+    t3 = CX.tokens(g3, u3b)
+    CX.denote(g3, t3[1], a3)
+    CX.denote(g3, t3[3], b3)
+    grew = CX.interpret(g3, u3b)
+    ran3 = D.carry_out(g3, grew["built"], T.open_thread(g3), w3, attempts=2) if grew["built"] else {}
+
+    # --- the elsewhere case: nothing addressed it, and that is not an error ------------------------------
+    g4, _w4, _u4, _n4, _c4 = _put_the_block_on_the_table(already_there=False)
+    silent = CX.interpret(g4, CX.utter(g4, T.open_thread(g4), ["it", "is", "raining"]))
+
+    return {
+        # The premise: nothing parsed this.
+        "THE_UTTERANCE_IS_TOKENS_AND_NOTHING_ELSE": unparsed and len(CX.tokens(g0, u0)) == 6,
+        # World one — the phrase is a destination, and the engine really moves the block.
+        "IT_READ_IT_AS_A_DESTINATION": g0.attr(out0["construction"], "label") == "on = destination",
+        "AND_THE_ENGINE_RAN_IT": ran0.get("done") is True,
+        "and_the_REAL_WORLD_agrees": g0.target(a0, "on") == b0,
+        "it_was_NOT_already_true": before_on != b0,
+        # World two — same words, same constructions, and the reading flips.
+        "IT_READ_THE_SAME_WORDS_AS_A_MODIFIER": g1.attr(out1["construction"], "label") == "on = which one",
+        "AND_BUILT_A_DIFFERENT_GOAL": ran1.get("done") is True and g1.attr(a1, "colour") == "red",
+        "THE_WORLD_DECIDED_NOT_THE_GRAMMAR":
+            out0["construction"] != out1["construction"]
+            and g0.attr(u0, "text") == g1.attr(u1, "text"),
+        # It can be asked why, and it names the line that ruled the rival out.
+        "IT_SAYS_WHY_IT_DID_NOT_READ_IT_THE_OTHER_WAY": told["on = which one"][0] is False,
+        "and_names_the_CONDITION_that_failed":
+            any("on" in r for r in told["on = which one"][1]),
+        # Two valid readings at once: preference decides, and says which stage did it.
+        "TWO_VALID_READINGS_COEXIST": len(both) == 2,
+        # ⚠ Vacuity, found by planting: asking `deciding_stage` directly proves the machinery can rank
+        # and proves nothing about whether `readings` *consults* it — a plant that ordered readings
+        # alphabetically stayed green. The winner has to be the more specific construction, by identity.
+        "AND_THE_MORE_SPECIFIC_READING_WON": both[0][0] == m2 and both[1][0] == d2,
+        "and_it_names_the_stage_that_decided": decided is not None and decided[0] in PR.STAGES,
+        "which_stage": decided[0] if decided else None,
+        # Growth — the whole point of a skeleton.
+        "A_NEW_WAY_OF_SAYING_IT_IS_DATA": grew["read"] is True,
+        "AND_A_SENTENCE_NEVER_SEEN_BEFORE_RUNS": ran3.get("done") is True and g3.target(a3, "on") == b3,
+        # Silence is an outcome, not an error.
+        "AN_UNADDRESSED_UTTERANCE_IS_RECORDED_NOT_REFUSED":
+            silent["read"] is False and silent["reading"] in g4.nodes,
+        "rivals_considered": out0["rivals"],
+    }
+
+
 def check_THE_MACHINERY_A_RULE_CANNOT_START_IS_AN_INVENTORY_NOT_AN_ARGUMENT():
     """Which of the engine's own machinery could a rule start? Measured, not listed.
 
