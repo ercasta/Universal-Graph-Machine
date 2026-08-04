@@ -701,9 +701,35 @@ N.register("check", lambda g, act, node, name: check(g, node, name, view=_readin
 N.register("is_a", lambda g, act, node, name: is_a(g, node, name, view=_reading(g, act)))
 
 
+def gather_violations(g: Graph, node, type_name: str, *, view=None) -> str:
+    """`violations` as a **node**, so a program in the surface can read the answer rather than only the
+    verdict. Returns a transient node with ordered `violation` edges; empty means valid.
+
+    The third of the pair `is_a` / `check` completes: `check` insists, `is_a` answers yes-or-no, and this
+    answers *how*. `workbench.deviates` is the caller that needed the difference — a deviation report has
+    to say how reality disagreed, not only that it did — and it was the last thing keeping that function
+    in Python.
+
+    A native rather than a program because a schema check walks the node's neighbours against gathered
+    requirements, which is `fails`, and re-deriving that in the surface would be a second implementation
+    of the type system rather than a use of it. The *shape of the answer* is the only thing new here.
+
+    The scratch node is minted by the native, following `activation.gather_minted`: a native's mints are
+    not recorded on any activation, so building the answer cannot pollute what the answer is about."""
+    out = g.mint("violations")
+    for about, (expected, actual) in violations(g, node, type_name, view=view).items():
+        g.link(out, "violation", g.mint("violation", about=about,
+                                        expected=str(expected), actual=str(actual)))
+    return out
+
+
+N.register("violations",
+           lambda g, act, node, name: gather_violations(g, node, name, view=_reading(g, act)))
+
+
 __all__ = ["TypeViolation", "UNBOUNDED", "Req", "AttrReq", "Rel", "VALUE_OPS", "IDENTITY_OPS", "compare",
            "offenders", "offending_type",
            "declare_type", "require_edge", "require_value", "require_relation",
            "find_type", "schema_of", "attrs_of", "rels_of", "requirements", "fails",
-           "violations", "is_a", "subsumes", "subtypes", "check", "instances",
+           "violations", "gather_violations", "is_a", "subsumes", "subtypes", "check", "instances",
            "type_names", "recognize", "tag", "tagged_as", "describe"]

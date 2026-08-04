@@ -34,6 +34,7 @@ If you are going to change the engine, read **[Execution model](execution-model.
 | [Authoring](authoring.md) | the controlled language a domain writes |
 | [Limits](limits.md) | what the system does not do, what cannot be said, and what is known to be weak |
 | [Audit](audit.md) | what can only be said in Python, and for each case whether that is a decision or an accident |
+| [Advice over sequences](advice-over-sequences.md) | a design thread, not built: advice that constrains the *order* of a plan's actions rather than any one of them |
 | [Reference: modules](reference/modules.md) | module-by-module map with entry points |
 | [Reference: instruction set](reference/isa.md) | opcodes, operands, and the assembly surface |
 | [Reference: glossary](reference/glossary.md) | one sentence per term |

@@ -235,6 +235,21 @@ fn step(wb, frame, function, bindings, assume, assumes) -> thing:
     COPY R(executed) R(chosen)
 .run:
     ATTR R(executed_name) R(executed) "name"
+
+    # **An unmediated operator is refused rather than imagined.** A rule is bound to the identity — the
+    # real node in both worlds — so a body that reaches the graph bare does not land in the frame by
+    # luck any more: it WRITES TO THE REAL WORLD WHILE PLANNING. `access.offenders` can say so of a whole
+    # corpus, but a compliance pass is a thing somebody has to run; this is the same property enforced at
+    # the only place it can do damage.
+    #
+    # The verdict is read off the function node, not computed here. `function.define` decides it once,
+    # when the body arrives, because it cannot change afterwards and asking per step would mean loading
+    # the body back out of the graph on the hot path.
+    ATTR R(ok) R(executed) "mediated"
+    JMPIF R(ok) .mediated
+    ADD R(bare) R(executed_name) " reaches the graph bare, so imagining it would write to the real world"
+    REFUSE "UnmediatedOperator" R(bare)
+.mediated:
     INVOKE R(out) R(executed_name) with R(args) keep
 
     # What that call did — the last of the calls this activation has made.

@@ -19,6 +19,7 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 | what it cannot do | [limits.md](limits.md) — kept deliberately honest |
 | what is only sayable in Python, and why | [audit.md](audit.md) |
 | dispatching on a condition rather than a type | [predicate-dispatch.md](predicate-dispatch.md) — slices 1-2 built |
+| advice about the *order* of a plan's actions | [advice-over-sequences.md](advice-over-sequences.md) — a design thread, nothing built |
 | why a rule never calls `GET` | [mediated-access.md](mediated-access.md) — built; the note is the argument behind it |
 | the instruction set | [reference/isa.md](reference/isa.md) |
 
@@ -104,14 +105,18 @@ Three things came out of doing it, and only the first was expected:
 | | state |
 |---|---|
 | `workbench.step` | ✅ **live** — `rules/step.mf`, behind a wrapper; `_python_step` is the reference |
-| `workbench.open_workbench` | written in `rules/workbench.mf`, checked, **dormant** |
-| `_copy_set` / `reachable` | written in `rules/reachable.mf`; only `copy_node` is live |
-| `execution.step`, `driver._phase_*` | **not written** |
-| `goal.holds`, `workbench.deviates`, `unmet_expectations` | **not written** — each blocked, see step 4 |
+| `workbench.open_workbench` | ✅ **live** — `rules/workbench.mf`, same shape; `_python_open_workbench` is the reference |
+| `copy_set` / `reachable` | ✅ **live** via `open_workbench`; the Python `reachable` stays for `view=` callers |
+| `execution.step`, `driver._phase_*` | **not written** — and blocked by the row below |
+| `workbench.deviates` | ✅ **live** — `rules/deviate.mf` + the `violations` native |
+| `unmet_expectations` | **not written**, but its input is a node now — blocked on prose, see step 4 |
+| `goal.holds` | **not written** — blocked on `VKIND` + `compare.mf`, see step 4 |
 | the mediation layer (`access` / `resolve` / `version`) | ✅ live |
 
-The dormant two are a **debt, not an achievement**: two implementations of one thing, only one of which
-any check exercises by default. See *What to do next*.
+**Both swaps are done, and the doubling is gone.** What is left of each Python original is a *reference*
+implementation — `_python_step`, `_python_open_workbench` — which exists to be compared against in a
+check rather than to run. That is the answer to two implementations of one thing: a check that compares
+them, not a deletion that leaves the surface unmeasured.
 
 ## What landed since the audit
 
@@ -186,9 +191,8 @@ Traps worth not re-learning:
   right.** While `step` handed over the frame's copies, a bare `LINK F(d) …` landed in the frame by
   luck. Bound to the thing itself, the same instruction **writes to the real world while planning**.
   Roughly a dozen test fixtures were unmediated and every one of them turned a check red until it was
-  rewritten to the vocabulary. `access.offenders` is the pass that says so, and it is currently run over
-  one graph rather than over every corpus — the obvious next guard is `step` refusing an unmediated
-  operator outright.
+  rewritten to the vocabulary. `access.offenders` is the pass that says so, it now runs over **every**
+  corpus, and `step` **refuses** an unmediated operator outright — see item 5.
 * ⚠⚠⚠ **`dispatch.service` refused an *imagined target*, and there is no longer such a thing.** The
   safety property — planning cannot reach the world — was implemented by asking whether the target was a
   workbench copy. Under identity binding the target of a dispatch inside a plan is the *real* node, so
@@ -266,65 +270,108 @@ anticipatory: a native that ignores the context can finally be *caught*.
 ## What to do next
 
 **The arc is de-Pythonization, and it is unfinished.** Everything in this section before item 5 is that
-arc; items 5 onward are correctness or capability. It is worth being blunt about the shape of the debt:
+arc; items 5 onward are correctness or capability. Nothing in the workbench exists twice any more — the
+next Python is in the *loop around* it.
 
-> **Two things still exist twice, and Python is the one that runs.** `rules/workbench.mf` and `copy_set`
-> in `rules/reachable.mf` are written, checked against their Python equivalents, and **dormant**. That is
-> not an achievement, it is a drift risk: two implementations of one thing, only one of which any check
-> exercises by default. *Expressible is not the same as rewritten.* `rules/step.mf` was the third and is
-> now live.
+### 1. ✅ `step.mf` is live · 2. ✅ `open_workbench` and `copy_set` with it
 
-### 1. ✅ `step.mf` is live
+Both done, both as thin wrappers. See *The swap landed* above for what `step` cost and what it taught.
+The wrapper was the whole trick — rewriting every caller first would have made the measurement expensive
+to take and expensive to undo, which is how a swap turns into a commitment before it is a result.
 
-Done. `workbench.step` is a wrapper; see *The swap landed* above for what it cost and what it taught. The
-wrapper was the whole trick — rewriting every caller first would have made the measurement expensive to
-take and expensive to undo, which is how a swap turns into a commitment before it is a result. It is
-still one line back either way.
+`open_workbench` cost nothing measurable (suite ~88 s, Sussman ~1520 ms, both unchanged): it runs once
+per workbench where `step` runs once per imagined state. Three things it needed that the dormant version
+did not have, all of which had arrived beneath it since it was written: `label` / `parent` / `explores`
+as parameters, and — the load-bearing one — `SETREF frame identity mapping`, the frame index. Its absence
+does not degrade gently; the next step raises on an unset register.
 
-### 2. `open_workbench`, and `copy_set` with it  ← start here
-
-Same shape, same wrapper, and it is what stops `rules/workbench.mf` being dead code. `copy_node` is
-already live — the writer calls it — so only `copy_set` and `reachable` are still doubled.
-
-Two things the `step` swap says about this one before it starts:
-
-* **Try the removal before writing the replacement.** The failed-step unwinding was written into the
-  wrapper and was dead on arrival, because a microfunction call is journaled and Python is not. Any
-  bookkeeping in `open_workbench` that exists because Python writes are not transactional is a candidate
-  to delete rather than translate.
-* **A baseline taken before the first call now includes a library load.** `step` links `rules/step.mf`
-  into the graph the first time it is called there (`workbench._ensure_step`, the same argument as
-  `access.bootstrap`), so a check that counts nodes before and after must resolve the implementation
-  first. `check_discarding_scraps_everything_and_belief_survives` is the one that went red and shows the
-  shape of the fix.
+⚠ The lesson that generalises to `execution.step` below: **a dormant implementation rots against the
+thing it shadows.** `rules/workbench.mf` was written, checked, and left dormant, and in that time the
+index landed, the mapping loop grew a line, and three parameters appeared. The check that compared them
+kept passing, because it only ever called the one-argument form. *A comparison check is only as strong
+as the routes it takes through both sides.*
 
 ### 3. `execution.step`, then the phase machine
 
 The last big Python island in the plan-act-check loop. `driver._phase_*` is reads, guards, one call,
 attribute writes and unlinks; its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
 
-### 4. The predicates that block the rest
+⚠ **It is blocked by item 4, not merely adjacent to it** — `execution.step` calls `W.deviates` (now
+written) and `W.unmet_expectations` (not), so **finish item 4 first**. That is the one place the ordering
+in this list was wrong.
 
-`goal.holds` needs **`VKIND`** (a value's category) and `compare.mf`, which land together — writing
-`compare.mf` earlier would duplicate `types.compare`, which `goal.holds`, `criterion._holds` and every
-schema check share. `workbench.deviates` wants **`types.violations` as a native**. And
-`workbench.unmet_expectations` needs no capability at all: it is blocked upstream because
-`predicted_changes` returns a Python dict and should return a transient node.
+The two swaps above are the template: **write the wrapper first**, keep the Python beside it as
+`_python_*`, and point the comparison check at the reference rather than deleting it. And take the
+comparison check through *every* route the wrapper offers — that is what `workbench.mf`'s dormant years
+cost.
 
-### 5. ⚠ Enforce mediation at `step` — a live defect, independent, do whenever
+### 4. The predicates that block the rest — one of three done
 
-**This one is actively wrong rather than merely unfinished.** A rule bound to identities that touches the
-graph bare **writes to the real world while planning**. `access.offenders` already answers the question
-and `check_A_PLANNING_OPERATOR_MAY_NOT_TOUCH_THE_GRAPH_BARE` already asks it — over one graph. Two
-things to decide:
+⚠ **Item 3 depends on this one**, which the ordering above did not say: `execution.step` calls
+`W.deviates` and `W.unmet_expectations`, so it cannot be written above them.
 
-* run the compliance pass over *every* corpus the self-test builds, not one; and
-* have `step` refuse an unmediated operator outright, which needs `fn.load` per step and therefore wants
-  the answer cached on the function node.
+* ✅ **`workbench.deviates` is `rules/deviate.mf`.** What kept it in Python was never its control flow —
+  it is one branch and one cast — but that nothing could say *how* a cast failed. `check` insists,
+  `is_a` answers yes-or-no, and the new **`violations` native** (`types.gather_violations`) completes the
+  trio by handing the answer back as a **node**. Enforcing form before answering form, again: finding one
+  half of a pair is the standing reason to look for the other. The wrapper renders the node back to the
+  `{label: (expected, actual)}` dict its callers read, and that translation dies when `execution.step`
+  moves and reads the node directly.
 
-The evidence that it matters: roughly a dozen fixtures in `selftest.py` were unmediated, every one of
-them went red when binding changed, and each was a rule quietly writing to reality from inside an
-imagination.
+  ⚠ It found one thing Python had been hiding: **a null result.** `deviates(tr, None)` is ordinary — a
+  call can return nothing — and Python answered it by accident, because `violations(None, …)` has a case
+  for it. The instruction set *refuses* an operand that holds nothing, on purpose, so the surface had to
+  state the case. The refusal is right and the fix is one branch; the general shape is that moving to the
+  surface turns a permissive Python default into a decision somebody has to write down.
+
+* **`workbench.unmet_expectations` — the recorded blocker is removed, and a different one showed up.**
+  `predicted_changes` now returns a **transient node**: one ordered `expect` edge per expectation, each
+  carrying its own `sort` (`attr` / `link` / `kind`), so a reader is one loop rather than three — and
+  `sort` is exactly the sort of condition a dispatching predicate would select a body on. The caller
+  drops it (`drop_prediction`), like `reachable`'s walk. `unmet_expectations` reads the node today, in
+  Python, and everything it needs is now graph data: bindings already live on the replay
+  (`r -bound-> … -mapping-> … -node->`) and `activation.gather_minted` already hands back a node.
+
+  ⚠ What blocks it *now* is **prose**. It answers with sentences — `f"expected {key}={want!r} but found
+  {got!r}"` — and `repr` is not reproducible in the surface, nor should it be. The fix is the shape
+  `deviates` just used: answer with **structured failure nodes** and render the text at the edge that
+  reports it. That ripples into `execution.report`, `deviation["unmet_expectations"]` and three checks,
+  which is why it was not done in the same pass.
+
+  ⭐ The general lesson, and it is worth carrying into `execution.step`: **a predicate that answers in
+  prose cannot move to the surface.** Prose is a rendering decision, and a rendering decision made
+  inside a predicate is a second thing the predicate is for.
+
+  ⚠ One real change fell out of the node representation. The dict could carry `None` in a tuple slot to
+  mean *expected to be cleared*; an attribute holding `None` is simply absent, so the node cannot say it
+  by value. It says it with `mode` (`exact` / `set`) instead, and that is strictly clearer than the
+  magic `"<set>"` string it replaces.
+* **`goal.holds`** needs **`VKIND`** (a value's category) and `compare.mf`, which land together — writing
+  `compare.mf` earlier would duplicate `types.compare`, which `goal.holds`, `criterion._holds` and every
+  schema check share.
+
+### 5. ✅ Mediation is enforced at `step`
+
+Done, both halves. `step` **refuses to imagine an unmediated operator** — `REFUSE "UnmediatedOperator"`
+— and the compliance pass runs over **every corpus the self-test builds**, enumerated by reflection
+rather than from a list.
+
+The verdict is decided once, in `function.define`, and stored as `mediated` on the function node: it
+cannot change after the body arrives, and asking `access.bare_touches` per step would mean loading the
+body back out of the graph on the hot path. The vocabulary is exempt by name, from `access.VOCABULARY`,
+which is the same set `offenders` reads — so the two exemptions cannot drift.
+
+What the work actually found, in the order it found it:
+
+* **The blast radius was one.** Before building anything, `workbench.step` was instrumented over the
+  whole suite to ask which operators are ever *stepped* while unmediated. The answer was a single
+  `git_status` in one inline fixture — so enforcement could go in without a migration.
+* **The whole-corpus sweep found nine more, in five fixtures**, none of which failed anything, because
+  none of them was ever stepped. All rewritten to the vocabulary.
+* **The danger is demonstrable, not theoretical.** With the refusal disabled, the check's own
+  `leaving_the_REAL_WORLD_untouched` goes red: a step *imagining* `tamper` writes `tampered` onto the
+  real car.
+* Cost: nothing measurable. It is one attribute read per step.
 
 ### 6. The two natives that still do not resolve
 
@@ -338,12 +385,18 @@ walks from there with **no view**, because at that point it holds a context rath
 schemas in the corpus are attribute-shaped so nothing catches it. It wants a world where a parameter
 type's *schema* depends on a neighbour the frame changed.
 
-### 7. Predicate dispatch, slices 3–4 — a capability, not part of the arc
+### 7. Predicate dispatch, slices 3–4 — a capability, not part of the arc, and now the one to want
 
 [predicate-dispatch.md](predicate-dispatch.md). **Slice 3** — conditions that speak of the ambient goal,
 reached by walking the chain, which is what makes *go to the bank* work when the world alone cannot
 decide it. **Slice 4** is the prize: `wants_that_unblock` reads guards, so a failed condition becomes a
 subgoal rather than a refusal.
+
+**These two moved up.** [advice-over-sequences.md](advice-over-sequences.md) — advice that constrains
+the *order* of a plan's actions rather than any one of them — asks for exactly them and for nothing
+else new: *at each step, check I am not violating anything and that I am respecting the advice* is
+slice 3 plus slice 4. That thread is also the strongest argument for finishing items 3 and 4 first,
+since a Python phase machine cannot consult a prescription written in the web.
 
 ⚠ Nothing in the corpus dispatches yet — `stack`'s guard is a *constraint*, not a choice between bodies,
 so the union in `driver.establishes` and the specificity ordering are exercised only by their checks. The

@@ -346,7 +346,14 @@ def step(g: Graph, r: str) -> bool:
     # whether the concrete things the step predicted actually happened — the file nodes materialised,
     # the count came back zero, the edge appeared. Checked AFTER `_settle` because binding what the
     # real call minted is what makes an imagined node addressable at all.
-    missed = W.unmet_expectations(g, W.predicted_changes(g, prev, frame), bindings_of(g, r), minted)
+    #
+    # The prediction is a **node** now, derived from the two frames and scrapped straight after — the
+    # transient shape `reachable`'s walk established. It was a Python dict, and being one was the only
+    # thing keeping `unmet_expectations` out of the surface: a predicate cannot be written there if what
+    # it reads exists only in Python.
+    prediction = W.predicted_changes(g, prev, frame)
+    missed = W.unmet_expectations(g, prediction, bindings_of(g, r), minted)
+    W.drop_prediction(g, prediction)
     if missed:
         _diverge(g, r, step=name, frame=frame, transformation=tr, result=result, minted=minted,
                  expected=g.attr(tr, "expects"), unmet_expectations=missed, assumed=assumed)
@@ -434,8 +441,10 @@ def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None
             scratch = open_replay(g, wb, (), bound=dict(result["bindings"]))
             _carry(g, scratch, parent, sib)
             _settle(g, scratch, tr, sib, deviation["result"], list(deviation["minted"]))
-            missed = W.unmet_expectations(g, W.predicted_changes(g, parent, sib),
-                                          bindings_of(g, scratch), list(deviation["minted"]))
+            prediction = W.predicted_changes(g, parent, sib)
+            missed = W.unmet_expectations(g, prediction, bindings_of(g, scratch),
+                                          list(deviation["minted"]))
+            W.drop_prediction(g, prediction)
             discard_replay(g, scratch)
             if missed:
                 continue

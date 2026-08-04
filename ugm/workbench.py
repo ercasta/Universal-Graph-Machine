@@ -139,10 +139,50 @@ def _copy_set(g: Graph, originals) -> dict:
 
 
 # --- opening ----------------------------------------------------------------------------------------
+def _ensure_workbench(g: Graph) -> None:
+    """Make sure this graph has the surface `open_workbench` and what it stands on. Idempotent.
+
+    Same argument and same shape as `_ensure_step` and `access.bootstrap`: a name is only meaning if
+    something answers it, so resolving it belongs where the call is made."""
+    from pathlib import Path
+    from . import asm
+    here = Path(__file__).parent / "rules"
+    if fn.find(g, "copy_node") is None:
+        asm.load_file(g, here / "reachable.mf")
+    if fn.find(g, "open_workbench") is None:
+        asm.load_file(g, here / "workbench.mf")
+
+
 def open_workbench(g: Graph, subject: str, *, label: str = "workbench",
                    parent: str | None = None, explores: str | None = None) -> str:
+    """Open a workbench on `subject` — **the implementation is `rules/workbench.mf`**.
+
+    A wrapper, in the shape `step` established: it resolves the implementation, invokes it, and returns
+    what every caller already read. `_python_open_workbench` is kept below as the reference the
+    comparison check runs against, and it is also the last caller of `reachable` + `_copy_set` in the
+    copying sense — the live path reaches those through `rules/reachable.mf`.
+
+    `access.bootstrap` still happens here rather than in the surface. A workbench is where framed
+    resolution begins, so the resolver has to exist by the time one is opened; the surface cannot
+    bootstrap the vocabulary it is written in.
+
+    `parent` nests this workbench inside another — subgoal exploration. `explores` attaches the
+    hypothesis whose assumptions it investigates."""
+    access.bootstrap(g)
+    _ensure_workbench(g)
+    return fn.invoke(g, "open_workbench",
+                     {"subject": subject, "label": label, "parent": parent, "explores": explores},
+                     retain=False)[1]["result"]
+
+
+def _python_open_workbench(g: Graph, subject: str, *, label: str = "workbench",
+                           parent: str | None = None, explores: str | None = None) -> str:
     """Copy everything reachable from `subject` into a fresh workbench, and mint frame 0 with one mapping
     per copied node.
+
+    **No longer the live implementation** — `open_workbench` above invokes `rules/workbench.mf`. Kept as
+    the reference that version is checked against, in
+    `check_REFLECTION_makes_open_workbench_an_ORDINARY_PROGRAM`.
 
     `parent` nests this workbench inside another — subgoal exploration. `explores` attaches the hypothesis
     whose assumptions this workbench is investigating; hypotheses are *run* via workbenches rather than
@@ -692,13 +732,39 @@ def discard(g: Graph, wb: str) -> None:
 def deviates(g: Graph, transformation: str, real_result) -> dict:
     """Did reality match what this transformation predicted? Empty dict means it did.
 
-    Deviation is a failed cast, which is why it is cheap: the transformation already records what type
-    it expected, and checking it is `types.is_a` — bounded, and already written. Comparing whole subgraphs
-    would be expensive and noisy, and irrelevant differences would swamp the real ones. The expected type
-    is the honest signal because it is exactly the promise the function made.
+    **The implementation is `rules/deviate.mf`**; this is the wrapper, and it does one thing the surface
+    cannot: it renders the answer back as the `{label: (expected, actual)}` dict every existing caller
+    reads. That translation is the wrapper's whole job and it is temporary — when `execution.step` moves
+    to the surface it will read the node directly and this dies with it.
 
-    Returns the type violations, so a caller reporting a deviation can say *how* it deviated rather than
-    only *that* it did."""
+    Deviation is a failed cast, which is why it is cheap: the transformation already records what type it
+    expected. Comparing whole subgraphs would be expensive and noisy, and irrelevant differences would
+    swamp the real ones. The expected type is the honest signal because it is exactly the promise the
+    function made.
+
+    Returns the violations, so a caller reporting a deviation can say *how* it deviated rather than only
+    *that* it did — which is what the `violations` native was added for."""
+    _ensure_deviates(g)
+    node = fn.invoke(g, "deviates", {"transformation": transformation, "result": real_result},
+                     retain=False)[1]["result"]
+    out = {g.attr(v, "about"): (g.attr(v, "expected"), g.attr(v, "actual"))
+           for v in g.targets(node, "violation")}
+    for v in g.targets(node, "violation"):
+        g.drop(v)
+    g.drop(node)
+    return out
+
+
+def _ensure_deviates(g: Graph) -> None:
+    """Resolve `deviates` in this graph. Idempotent — see `_ensure_step` for the argument."""
+    from pathlib import Path
+    from . import asm
+    if fn.find(g, "deviates") is None:
+        asm.load_file(g, Path(__file__).parent / "rules" / "deviate.mf")
+
+
+def _python_deviates(g: Graph, transformation: str, real_result) -> dict:
+    """The reference `deviates` is checked against. **Not the live one** — see above."""
     from .types import violations
     expected = g.attr(transformation, "expects")
     return {} if expected is None else violations(g, real_result, expected)
@@ -761,9 +827,31 @@ def predicted_changes(g: Graph, prev_frame: str, frame: str) -> dict:
     tr = g.target(frame, "via")
     settled = set(attrs_of(g, g.attr(tr, "expects"))) if tr is not None else set()
 
-    attrs, links, minted = [], [], set()
+    # **The answer is a node**, not a Python dict, and that is what unblocked `unmet_expectations`: a
+    # predicate cannot be written in the surface if what it reads exists only in Python. One ordered
+    # `expect` edge per expectation, each carrying its own `sort`, so a reader is one loop rather than
+    # three — and `sort` is exactly the kind of condition a dispatching predicate selects a body on.
+    #
+    # Transient: the caller drops it, as with `reachable`'s walk node. It is derived from the two frames
+    # every time it is asked for, so keeping one would be storing something the structure already
+    # entails — the labelling error this codebase records at length.
+    out = g.mint("prediction")
+
+    def expect(sort: str, kind: str, mapping=None, target=None, **attrs):
+        node = g.mint(kind, sort=sort, **attrs)
+        if mapping is not None:
+            g.link(node, "mapping", mapping)
+        if target is not None:
+            g.link(node, "target", target)
+        g.link(out, "expect", node)
+
     for m in _newly_minted(g, frame):
-        minted.add(g.kind(image_of(g, m)))          # Which KINDS appeared, not how many
+        # Which KINDS appeared, never how many: a mock that mints two file nodes is giving a witness,
+        # not a promise. Deduped through the graph rather than through a Python set, so the node carries
+        # the same answer the dict did.
+        want = g.kind(image_of(g, m))
+        if not any(g.attr(e, "wanted") == want for e in g.targets(out, "expect")):
+            expect("kind", "kind_expectation", wanted=want)
 
     for m in mappings(g, frame):
         prev_m = _predecessor(g, m, prev_frame)
@@ -777,7 +865,12 @@ def predicted_changes(g: Graph, prev_frame: str, frame: str) -> dict:
                 # illustration, so only the fact that it was written is expected.
                 want = g.attr(now, key)
                 exact = isinstance(want, bool) or want is None
-                attrs.append((m, key, want if exact else "<set>"))
+                # `mode` rather than a magic `"<set>"` value: an attribute holding `None` is absent, so
+                # a node cannot distinguish *expected to be cleared* from *no expectation recorded*
+                # by the value alone. The dict could, by carrying `None` in a tuple slot; the graph
+                # cannot, and saying which of the two it is was the honest fix.
+                expect("attr", "attr_expectation", mapping=m, key=key,
+                       **({"mode": "exact", "want": want} if exact else {"mode": "set"}))
         for label in sorted(set(g.labels(was)) | set(g.labels(now))):
             before, after = g.count(was, label), g.count(now, label)
             if before == after:
@@ -791,39 +884,64 @@ def predicted_changes(g: Graph, prev_frame: str, frame: str) -> dict:
                 real = original_of(g, t)
                 if real is not None:
                     target = real
-            links.append((m, label, "some" if after else "none", target))
-    return {"attrs": tuple(attrs), "links": tuple(links), "minted": frozenset(minted)}
+            expect("link", "link_expectation", mapping=m, target=target,
+                   label=label, presence="some" if after else "none")
+    return out
 
 
-def unmet_expectations(g: Graph, prediction: dict, bound: dict, minted: list) -> tuple:
+def drop_prediction(g: Graph, prediction: str) -> None:
+    """Scrap a prediction and its expectations. The caller's job, as with `reachable`'s walk node.
+
+    An expectation hangs off the prediction, so dropping the set first would orphan them — the shape
+    `rules/step.mf` records finding the hard way when it frees its own argument bindings."""
+    for e in tuple(g.targets(prediction, "expect")):
+        g.drop(e)
+    g.drop(prediction)
+
+
+def expected_attrs(g: Graph, prediction: str) -> dict:
+    """The attribute half of a prediction as `{key: want}` — for a reader that wants the summary.
+
+    `"<set>"` stands for *written, value unspecified*, which is what `mode="set"` says on the node. The
+    node keeps the two apart properly; this flattens them back for a caller that only wants to look."""
+    return {g.attr(e, "key"): (g.attr(e, "want") if g.attr(e, "mode") == "exact" else "<set>")
+            for e in g.targets(prediction, "expect") if g.attr(e, "sort") == "attr"}
+
+
+def unmet_expectations(g: Graph, prediction: str, bound: dict, minted: list) -> tuple:
     """Which of the imagined step's predictions reality did not deliver. Empty means it went as planned.
 
     Each is an existential constraint — *some* file exists, the directory *was* marked — never a count.
-    `bound` maps a mapping to the real node standing for it; `minted` is what the real call created."""
+    `bound` maps a mapping to the real node standing for it; `minted` is what the real call created.
+
+    `prediction` is the **node** `predicted_changes` returns. It used to be a Python dict, and that was
+    the only thing keeping this predicate in Python: it needs no capability the surface lacks, it just
+    had nothing readable to read. This still runs in Python — the remaining step is to write it in the
+    surface, for which `bound` and `minted` need to arrive as nodes too."""
     missed = []
-    for m, key, want in prediction["attrs"]:
-        node = bound.get(m)
-        if node is None:
+    for e in g.targets(prediction, "expect"):
+        sort = g.attr(e, "sort")
+        node = bound.get(g.target(e, "mapping"))
+        if sort == "kind":
+            if g.attr(e, "wanted") not in {g.kind(n) for n in minted}:
+                missed.append(f"expected some new {g.attr(e, 'wanted')} node, found none")
+        elif node is None:
             continue                            # nothing real stands for it; not an expectation failure
-        got = g.attr(node, key)
-        if want == "<set>":
-            if got is None:
-                missed.append(f"expected {key!r} to be set, but it was not")
-        elif got != want:
-            missed.append(f"expected {key}={want!r} but found {got!r}")
-    for m, label, presence, target in prediction["links"]:
-        node = bound.get(m)
-        if node is None:
-            continue
-        if target is not None and target not in g.targets(node, label):
-            missed.append(f"expected a {label!r} edge to {target}")
-        elif target is None and presence == "some" and g.count(node, label) == 0:
-            missed.append(f"expected some {label!r} edge, found none")
-        elif presence == "none" and g.count(node, label):
-            missed.append(f"expected no {label!r} edge, found {g.count(node, label)}")
-    kinds = {g.kind(n) for n in minted}
-    for kind in sorted(prediction["minted"] - kinds):
-        missed.append(f"expected some new {kind} node, found none")
+        elif sort == "attr":
+            key, got = g.attr(e, "key"), g.attr(node, g.attr(e, "key"))
+            if g.attr(e, "mode") == "set":
+                if got is None:
+                    missed.append(f"expected {key!r} to be set, but it was not")
+            elif got != g.attr(e, "want"):
+                missed.append(f"expected {key}={g.attr(e, 'want')!r} but found {got!r}")
+        else:
+            label, target = g.attr(e, "label"), g.target(e, "target")
+            if target is not None and target not in g.targets(node, label):
+                missed.append(f"expected a {label!r} edge to {target}")
+            elif target is None and g.attr(e, "presence") == "some" and g.count(node, label) == 0:
+                missed.append(f"expected some {label!r} edge, found none")
+            elif g.attr(e, "presence") == "none" and g.count(node, label):
+                missed.append(f"expected no {label!r} edge, found {g.count(node, label)}")
     return tuple(missed)
 
 
@@ -843,7 +961,7 @@ def fragile_steps(g: Graph, wb: str) -> tuple:
     return tuple(out)
 
 
-__all__ = ["deviates", "predicted_changes", "unmet_expectations",
+__all__ = ["deviates", "predicted_changes", "unmet_expectations", "expected_attrs", "drop_prediction",
            "assumption_of", "fragile_steps", "reachable", "open_workbench", "root_frame", "mappings", "mapping_for",
            "image_of", "identity_of", "original_of", "View", "visible",
            "resolve", "is_imagined", "frames", "history", "step", "fork", "discard"]

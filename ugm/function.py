@@ -99,6 +99,17 @@ def define(g: Graph, name: str, params: tuple, program: tuple,
         if not isinstance(step, str):
             for operand in step.args:
                 _store_operand(g, i, operand)
+    # **Whether this body reaches the graph bare, decided once, here.** `workbench.step` refuses to
+    # imagine an unmediated operator, and asking `access.bare_touches` per step would mean loading the
+    # body back out of the graph on the hot path to learn something that cannot change after this call.
+    # The verdict belongs where the body arrives.
+    #
+    # The vocabulary is exempt by name because it *is* the bare layer — that exemption lives in
+    # `access.VOCABULARY`, which is also what `offenders` reads, so the two cannot drift apart.
+    from . import access
+    from .isa import TOUCHES_GRAPH
+    g.put(fn, mediated=name in access.VOCABULARY or not any(
+        not isinstance(ins, str) and ins.op in TOUCHES_GRAPH for ins in program))
     return fn
 
 

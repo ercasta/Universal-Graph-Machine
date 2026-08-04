@@ -102,6 +102,27 @@ question about the disk, and answering it means planning a look. So a finder is 
 computable during planning and sometimes a step that must itself be planned, and nothing today
 distinguishes the two.
 
+### Nothing constrains the ORDER of the actions in a plan
+
+A goal is a constraint node **over a state**, and `unmet` drives means-ends toward states. There is no
+form for *the plan must alternate between the two of us*, *lint each file after you edit it, not at the
+end*, *never open the valve before the pump is running* — and nothing in the planner would read one if
+there were.
+
+The gap is not the data. A workbench keeps the whole movie: frames in order, each with a `via`
+transformation naming what was applied to what, so the sequence is fully recorded and `chain(frame)`
+walks it. What is missing is a **place to say it** and a planner that consults it while choosing the
+next step rather than after the plan is finished — a constraint that can only be evaluated on a
+completed plan prunes nothing.
+
+Two things follow, and they are why this is one gap and not three. A sequencing constraint's subject is
+a *path through worlds* rather than a world, which is a different kind of thing from every constraint
+that exists today. And a violated one should become a **want** that can be planned toward rather than a
+refusal, which is predicate dispatch slice 4 — so this gap and that capability are the same work.
+
+The argument, the probes worth running first, and the parts of it that are already expressible are in
+[advice-over-sequences.md](advice-over-sequences.md).
+
 ### No way to describe rather than name
 
 Everything the surface can refer to is either a named individual or one node reached by a fixed path.

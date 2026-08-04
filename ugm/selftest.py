@@ -3137,10 +3137,10 @@ def _bin_world():
     I.read(g, "type tidy_bin:\n    is a bin\n    has no item each a dirty_item\n")
     asm.load_text(g, "\n".join([
         "fn clean_one(i: item) -> item:",
-        '    SET F(i) "clean" true',
+        '    INVOKE R(_) set_slot node=F(i) key="clean" value=true',
         "",
         "fn weigh(i: item) -> item:",
-        '    SET F(i) "weighed" true',
+        '    INVOKE R(_) set_slot node=F(i) key="weighed" value=true',
     ]))
     b = g.mint("bin", kind_of="bin", label="b")
     g.link("root", "has", b)
@@ -3517,7 +3517,7 @@ def _library():
     asm.load_text(g, "\n".join([
         "# Confirm the chunk really is a car.",
         "fn inspect(c: car):",
-        '    SET F(c) "inspected" true',
+        '    INVOKE R(_) set_slot node=F(c) key="inspected" value=true',
         "",
         "# Mark a car as serviced.",
         "fn service(c: car):",
@@ -4031,10 +4031,12 @@ def check_frames_fork_and_a_mapping_history_forks_with_them():
 def check_discarding_scraps_everything_and_belief_survives():
     from . import workbench as W
     g, car = _garage()
-    # The step's own implementation, resolved before the baseline is taken. `step` links `rules/step.mf`
-    # into the graph the first time it is called there — the same linking `asm.load_text` does for the
-    # access vocabulary — and a library is not residue of the workbench that happened to need it. What
-    # this check is about is what a *discard* leaves behind, so the code has to be in before it counts.
+    # The implementations, resolved before the baseline is taken. `step` and `open_workbench` link their
+    # own `.mf` sources into the graph the first time they are called there — the same linking
+    # `asm.load_text` does for the access vocabulary — and a library is not residue of the workbench that
+    # happened to need it. What this check is about is what a *discard* leaves behind, so the code has to
+    # be in before it counts.
+    W._ensure_workbench(g)
     W._ensure_step(g)
     before = len(g.nodes)
     wb = W.open_workbench(g, car)
@@ -4209,7 +4211,16 @@ def check_forking_on_a_different_outcome_gives_a_different_world():
 
 
 def check_deviation_is_a_failed_cast():
-    """Reality is compared against the promise the function made, not against a whole-subgraph diff."""
+    """Reality is compared against the promise the function made, not against a whole-subgraph diff.
+
+    `deviates` is `rules/deviate.mf` now, and what had kept it in Python was not its control flow — it is
+    one branch and one cast — but that nothing could say *how* a cast failed. `check` insists and `is_a`
+    answers yes-or-no; the `violations` native completes the trio by handing the answer back as a node.
+    That is the enforcing-form-before-answering-form shape again, and finding one half of a pair is the
+    standing reason to look for the other.
+
+    So the comparison against `_python_deviates` is the point of the check now, not decoration: two
+    implementations of one predicate, and only a check keeps them from drifting."""
     from . import workbench as W
     g, d = _filesystem()
     wb = W.open_workbench(g, d)
@@ -4218,10 +4229,25 @@ def check_deviation_is_a_failed_cast():
 
     matching = g.mint("dir", kind_of="dir", listed=True, count=0)
     diverging = g.mint("dir", kind_of="dir", listed=True, many=True)
+    # A transformation that promised nothing cannot be disappointed — `expects` is absent whenever the
+    # function declares no return type, which is ordinary rather than exceptional.
+    promised_nothing = g.mint("transformation", function="list_dir")
     return {"expected": g.attr(tr, "expects"),
             "reality_matching_the_assumption_is_no_deviation": W.deviates(g, tr, matching) == {},
             "reality_contradicting_it_deviates": bool(W.deviates(g, tr, diverging)),
-            "and_says_how": "@count" in W.deviates(g, tr, diverging)}
+            "and_says_how": "@count" in W.deviates(g, tr, diverging),
+            "IT_AGREES_WITH_THE_PYTHON_IT_REPLACED":
+                [W.deviates(g, tr, n) for n in (matching, diverging, None)]
+                == [W._python_deviates(g, tr, n) for n in (matching, diverging, None)],
+            # ...including the whole reason it moved: *how*, not only *whether*.
+            "down_to_the_expected_and_actual_it_reports":
+                W.deviates(g, tr, diverging).get("@count")
+                == W._python_deviates(g, tr, diverging).get("@count") is not None,
+            "A_TRANSFORMATION_THAT_PROMISED_NOTHING_DEVIATES_FROM_NOTHING":
+                W.deviates(g, promised_nothing, diverging) == {},
+            # And it leaves nothing behind: the answer node is the wrapper's own scaffolding.
+            "and_the_answer_node_is_SCRATCH":
+                not [n for n in g.nodes if g.kind(n) in ("violations", "violation")]}
 
 
 # --- following a plan for real ----------------------------------------------------------------------
@@ -5285,7 +5311,8 @@ def check_the_CNL_GUIDE_parses():
         # The `policy` example names operators too, and for the same reason: `_policy_line` refuses a
         # norm about a function that does not exist, so a guide naming one would be teaching a line that
         # cannot be written. This is the check's principle reaching a second family.
-        asm.load_text(g, _lines("fn counterfeit(x: thing) -> thing:", '    SET F(x) "fake" true'))
+        asm.load_text(g, _lines("fn counterfeit(x: thing) -> thing:",
+                            '    INVOKE R(_) set_slot node=F(x) key="fake" value=true'))
         asm.load_text(g, _lines("fn refund(x: thing) -> thing:", '    SET F(x) "refunded" true'))
         vault = g.mint("thing", kind_of="thing", label="vault", clear=True, contents=None)
         g.link(w, "thing", vault)
@@ -5658,7 +5685,8 @@ def check_a_PROCEDURE_REFUSES_WHAT_WOULD_NOT_BE_A_PROGRAM():
 def _policy_world():
     from . import asm
     g, w = _blocks()
-    asm.load_text(g, _lines("fn counterfeit(x: thing) -> thing:", '    SET F(x) "fake" true'))
+    asm.load_text(g, _lines("fn counterfeit(x: thing) -> thing:",
+                            '    INVOKE R(_) set_slot node=F(x) key="fake" value=true'))
     vault = g.mint("thing", kind_of="thing", label="vault")
     g.link(w, "thing", vault)
     return g, w, vault
@@ -5825,7 +5853,8 @@ def _attempt_world():
     from . import asm, types as TY
     g = new_graph()
     TY.declare_type(g, "world", attrs={"kind_of": "world"})
-    asm.load_text(g, _lines("fn touch(x: world) -> thing:", '    SET F(x) "touched" true'))
+    asm.load_text(g, _lines("fn touch(x: world) -> thing:",
+                            '    INVOKE R(_) set_slot node=F(x) key="touched" value=true'))
     # Assembles its binding set at run time — parameter NAME included — then attempts the call.
     asm.load_text(g, _lines(
         "fn call_it(fname, pname, target) -> thing:",
@@ -6010,8 +6039,25 @@ def check_REFLECTION_makes_open_workbench_an_ORDINARY_PROGRAM():
 
     g3, w3 = _reflect_world()
     g4, w4 = _reflect_world()
-    py_wb = W.open_workbench(g3, w3)
-    mf_wb = fn.invoke(g4, "open_workbench", {"subject": w4})[1]["result"]
+    py_wb = W._python_open_workbench(g3, w3)
+    mf_wb = W.open_workbench(g4, w4)          # the live one, which is the surface one
+
+    # The three optional arguments, on both implementations. They arrived in the surface with the swap —
+    # `label`, `parent` (which decides `depth` and nests the resolution), `explores` — and only `parent`
+    # has another check, so without this the surface would be carrying two parameters nothing compares.
+    def extras(g, subject, open_it):
+        outer = open_it(g, subject, label="outer")
+        h = H.open_hypothesis(g, "worth a try")
+        inner = open_it(g, W.image_of(g, W.mappings(g, W.root_frame(g, outer))[0]),
+                        label="inner", parent=outer, explores=h)
+        return (g.attr(outer, "label"), g.attr(outer, "depth"), g.target(outer, "parent"),
+                g.attr(inner, "label"), g.attr(inner, "depth"),
+                g.target(inner, "parent") == outer, g.target(inner, "explores") == h)
+
+    g5, w5 = _reflect_world()
+    g6, w6 = _reflect_world()
+    py_extras = extras(g5, w5, W._python_open_workbench)
+    mf_extras = extras(g6, w6, W.open_workbench)
     originals = {W.original_of(g4, W.image_of(g4, m))
                  for m in W.mappings(g4, W.root_frame(g4, mf_wb))}
 
@@ -6034,6 +6080,10 @@ def check_REFLECTION_makes_open_workbench_an_ORDINARY_PROGRAM():
                        for m in W.mappings(g3, W.root_frame(g3, py_wb))
                        for l in g3.labels(W.image_of(g3, m))),
             "THE_SCRATCH_NODE_IS_GONE": not [n for n in g4.nodes if g4.kind(n) == "walk"],
+            "LABEL_PARENT_AND_EXPLORES_AGREE_TOO": py_extras == mf_extras,
+            # Vacuity: two implementations that ignored all three would agree perfectly.
+            "and_the_nesting_really_happened":
+                mf_extras == ("outer", 0, None, "inner", 1, True, True),
             # Membership is a ref on the scratch node, never a mark on the world, so a second walk in the
             # same graph is unaffected by the first. This went red when it was marks-on-the-world: the
             # second walk saw the first one's leftovers and skipped everything.
@@ -6522,7 +6572,50 @@ def check_A_PLANNING_OPERATOR_MAY_NOT_TOUCH_THE_GRAPH_BARE():
     # An untyped helper is unproposable, so it is not a planning operator. A real hole, stated.
     asm.load_text(g, _lines("fn helper(b) -> block:", '    SET F(b) "x" 1'))
 
+    # Over EVERY corpus this file builds, not one. The pass used to run against `_blocks` alone, and a
+    # sweep found five other fixtures with nine unmediated operators between them — none of which failed
+    # anything, because none was ever stepped. Enumerated by reflection rather than from a list: a list
+    # of corpora is the shape this codebase keeps recording as the thing that drifts, and a new fixture
+    # would join it only if somebody remembered. ~1.3 s for 26 worlds.
+    import inspect
+    from .graph import Graph
+    corpora = {}
+    for cname, builder in sorted(globals().items()):
+        if not (cname.startswith("_") and inspect.isfunction(builder)) or cname.startswith("__"):
+            continue
+        if any(p.default is p.empty and p.kind in (p.POSITIONAL_OR_KEYWORD, p.POSITIONAL_ONLY)
+               for p in inspect.signature(builder).parameters.values()):
+            continue
+        try:
+            built = builder()
+        except Exception:                     # not a world builder; the ones that are do not raise
+            continue
+        cg = built[0] if isinstance(built, tuple) and built else built
+        if isinstance(cg, Graph) and AX.offenders(cg):
+            corpora[cname] = AX.offenders(cg)
+
+    # And the enforcement, which is what makes the pass more than a report: `step` refuses to IMAGINE an
+    # unmediated operator. Bound to identities, such a body writes to the real world while planning, so
+    # the refusal is the difference between a property somebody checks and a property that holds.
+    from . import workbench as W
+    from .graph import Refusal
+    e, ew = _garage()
+    asm.load_text(e, _lines("fn tamper(c: car) -> car:", '    SET F(c) "tampered" true'))
+    ewb = W.open_workbench(e, ew)
+    refused = _raises(lambda: W.step(e, ewb, W.root_frame(e, ewb), "tamper",
+                                     {"c": W.mapping_for(e, W.root_frame(e, ewb), ew)}), Refusal)
+    # Vacuity: the same step through a MEDIATED operator must go through, or "refuses" would just mean
+    # "cannot step this fixture at all". `service` is the garage's own, and it is mediated.
+    mediated_goes_through = W.step(e, ewb, W.root_frame(e, ewb), "service",
+                                   {"c": W.mapping_for(e, W.root_frame(e, ewb), ew)})[0] is not None
+    # ...and the real world is untouched by the refused one, which is the property itself.
+    world_untouched = e.attr(ew, "tampered") is None
+
     return {"EVERY_PLANNING_OPERATOR_IS_MEDIATED": clean == {},
+            "IN_EVERY_CORPUS_THIS_FILE_BUILDS": corpora == {},
+            "AND_STEP_REFUSES_TO_IMAGINE_AN_UNMEDIATED_ONE": refused,
+            "leaving_the_REAL_WORLD_untouched": world_untouched,
+            "while_a_mediated_operator_still_steps": mediated_goes_through,
             # Vacuity: the pass can fail, and says where.
             "AND_A_BARE_ONE_IS_CAUGHT": set(caught) == {"sneaks"},
             "at_the_instruction_that_did_it": caught.get("sneaks") == ((1, "SET"),),
@@ -7024,17 +7117,24 @@ def check_WORKBENCH_STEP_IS_AN_ORDINARY_PROGRAM():
     # activation. Driving the counter across the boundary on purpose is what makes this a guard rather
     # than a coincidence, and restoring it afterwards keeps every later check where it was.
     #
-    # Self-calibrating rather than hard-coded: building the world consumes a couple of thousand ids and
-    # that number moves whenever the rule files do, so the counter is placed by *measuring* a throwaway
-    # world and then leaving room for the step's own activations to land either side of 10000. A magic
+    # Self-calibrating rather than hard-coded: the prelude consumes a couple of thousand ids and that
+    # number moves whenever the rule files do, so the counter is placed by *measuring* a throwaway run
+    # and then leaving room for the step's own activations to land either side of 10000. A magic
     # constant here would rot into a check that still passes and no longer guards anything.
+    #
+    # The prelude is world **and workbench**, because `open_workbench` became an interpreted program too
+    # and now consumes ids of its own. Calibrating on the world alone put the whole step past the
+    # boundary and the straddle guard went red — which is the guard doing its job: it says *this check
+    # is no longer forcing the condition it claims to force*, and that is exactly the failure a
+    # hard-coded constant would have hidden.
     from itertools import count
     from . import graph as _graph
     saved_counter = _graph._ids
     try:
         at = lambda: int(str(_graph.new_graph().mint("probe")).rsplit("#", 1)[1])
         before = at()
-        world(False)
+        gp, dp = world(False)
+        W.open_workbench(gp, dp)
         consumed = at() - before
         _graph._ids = count(10_000 - consumed - 110)
 
@@ -8003,14 +8103,25 @@ def check_an_expectation_is_derived_from_the_two_frames():
     wb = W.open_workbench(g, d)
     f0 = W.root_frame(g, wb)
     f1, _tr = W.step(g, wb, f0, "scan_dir", {"d": W.mapping_for(g, f0, d)}, assume="found_two")
+    # A node now, not a dict — one ordered `expect` edge per expectation, each carrying its `sort`.
     pred = W.predicted_changes(g, f0, f1)
-    changed = {key for _m, key, _v in pred["attrs"]}
-    return {"predicts_that_files_APPEAR": pred["minted"] == frozenset({"file"}),
-            "NOT_HOW_MANY": not isinstance(pred["minted"], dict),
+    of_sort = lambda s: [e for e in g.targets(pred, "expect") if g.attr(e, "sort") == s]
+    changed = set(W.expected_attrs(g, pred))
+    return {"predicts_that_files_APPEAR":
+                [g.attr(e, "wanted") for e in of_sort("kind")] == ["file"],
+            # Vacuity, and the correction that matters most here: the mock minted TWO file nodes and the
+            # prediction says *some*, once. A count would diverge on noise — listing a directory produces
+            # a variable number of files, and the number in a mock is a witness, not a promise.
+            "NOT_HOW_MANY": len(of_sort("kind")) == 1,
             "edges_are_presence_not_count":
-                [(lbl, p) for _m, lbl, p, _t in pred["links"]] == [("file", "some")],
+                [(g.attr(e, "label"), g.attr(e, "presence")) for e in of_sort("link")]
+                == [("file", "some")],
             "the_types_own_claim_is_left_to_the_cast": "listed" not in changed,
-            "nothing_it_did_not_touch": "count" not in changed}
+            "nothing_it_did_not_touch": "count" not in changed,
+            # And it is scratch: derived from the two frames whenever it is asked for, never stored.
+            "THE_PREDICTION_IS_TRANSIENT":
+                (W.drop_prediction(g, pred),
+                 [n for n in g.nodes if g.kind(n) == "prediction"])[1] == []}
 
 
 def check_a_prediction_that_does_not_materialise_is_a_divergence():
@@ -8092,15 +8203,15 @@ def _repo():
     asm.load_text(g, "\n".join([
         "# THE ACT: change some files.",
         "fn edit(t: tree) -> tree:",
-        '    NEW R(f) "file"',
-        '    SET R(f) "changed" true',
-        '    LINK F(t) "changed_file" R(f)',
+        '    INVOKE R(f) make kind="file"',
+        '    INVOKE R(_) set_slot node=R(f) key="changed" value=true',
+        '    INVOKE R(_) relate node=F(t) label="changed_file" other=R(f)',
         "",
         "# The same act, REFACTORED to write a different slot. Nothing else changed.",
         "fn edit_renamed(t: tree) -> tree:",
-        '    NEW R(f) "file"',
-        '    SET R(f) "changed" true',
-        '    LINK F(t) "modified_file" R(f)',
+        '    INVOKE R(f) make kind="file"',
+        '    INVOKE R(_) set_slot node=R(f) key="changed" value=true',
+        '    INVOKE R(_) relate node=F(t) label="modified_file" other=R(f)',
         "",
         "# THE LOOK. Everything it learns is on the far side of the DISPATCH.",
         "fn git_status(t: tree) -> report:",
@@ -8122,12 +8233,12 @@ def _repo():
         "# AN UNRELATED LOOK - THE CONTROL. Also a DISPATCH, also modelled, watches something else.",
         "fn disk_free(t: tree) -> report:",
         '    DISPATCH R(out) "df" F(t)',
-        '    SET F(t) "reported" true',
+        '    INVOKE R(_) set_slot node=F(t) key="reported" value=true',
         "",
         "fn guess_disk(t: tree) -> report mocks disk_free:",
-        '    SET F(t) "reported" true',
-        '    ATTR R(b) F(t) "free_bytes"',
-        '    SET F(t) "roomy" true',
+        '    INVOKE R(_) set_slot node=F(t) key="reported" value=true',
+        '    INVOKE R(b) slot_of node=F(t) key="free_bytes"',
+        '    INVOKE R(_) set_slot node=F(t) key="roomy" value=true',
     ]))
     t = g.mint("tree", kind_of="tree")
     g.link("root", "has", t)
@@ -8159,7 +8270,7 @@ def check_a_mock_can_anticipate_instead_of_assume():
         wb = W.open_workbench(g, t)
         f0 = W.root_frame(g, wb)
         f1, tr = W.step(g, wb, f0, "git_status", {"t": W.mapping_for(g, f0, t)}, assume="anticipate")
-        pred = {k: v for _m, k, v in W.predicted_changes(g, f0, f1)["attrs"]}
+        pred = W.expected_attrs(g, W.predicted_changes(g, f0, f1))
         return g, t, wb, f1, tr, pred
 
     _gc, _tc, _wc, _fc, _trc, clean = anticipated(False)
@@ -8212,10 +8323,11 @@ def check_a_mock_maps_a_CONDITION_to_an_expectation():
         g = new_graph()
         declare_type(g, "tree", attrs={"kind_of": "tree"})
         declare_type(g, "report", base="tree", attrs={"reported": True})
-        lines = ["fn edit(t: tree) -> tree:", '    NEW R(f) "file"',
-                 '    LINK F(t) "changed_file" R(f)', "",
+        lines = ["fn edit(t: tree) -> tree:", '    INVOKE R(f) make kind="file"',
+                 '    INVOKE R(_) relate node=F(t) label="changed_file" other=R(f)', "",
                  "fn git_status(t: tree) -> report:",
-                 '    DISPATCH R(out) "git_status" F(t)', '    SET F(t) "reported" true', ""]
+                 '    DISPATCH R(out) "git_status" F(t)',
+                 '    INVOKE R(_) set_slot node=F(t) key="reported" value=true', ""]
         if conditioned:
             declare_type(g, "dirty_tree", {"changed_file": Req(kind="file", lo=1)},
                          attrs={"kind_of": "tree"})
@@ -8252,7 +8364,7 @@ def check_a_mock_maps_a_CONDITION_to_an_expectation():
         wb = W.open_workbench(g, t)
         f0 = W.root_frame(g, wb)
         f1, _tr = W.step(g, wb, f0, "git_status", {"t": W.mapping_for(g, f0, t)})
-        return {k: v for _m, k, v in W.predicted_changes(g, f0, f1)["attrs"]}
+        return W.expected_attrs(g, W.predicted_changes(g, f0, f1))
 
     gd, td = world(conditioned=True, edited=True)
     gc, tc = world(conditioned=True, edited=False)

@@ -23,10 +23,34 @@
 # Edge properties ARE carried now — by `copy_set`, which owns the copying half of this and is shared with
 # `workbench.step`. This used to inline both passes and to drop edge properties on the way, which was a
 # real gap rather than a simplification; `reachable.mf` records what closing it took.
-fn open_workbench(subject) -> thing:
+#
+# `parent` nests this workbench inside another — subgoal exploration, where a mapping's `original` points
+# one level up rather than at the real graph, so resolving to a real node is a walk. `explores` attaches
+# the hypothesis whose assumptions this workbench is investigating: hypotheses are *run* on workbenches
+# rather than being a second mechanism. Both may be nothing.
+#
+# **Every mapping is indexed as it is minted**, and that is not bookkeeping: the frame carries a stored
+# reference from identity to the mapping holding this frame's version, and resolution reads it with one
+# `DEREF`. Locating a version by walking the reverse index instead is O(versions) with an allocation per
+# hop — measured at 30x on the search-heavy checks. Written by whoever mints the mapping, because that is
+# the only place that knows: here, in `step`, and in the writer. Deleting the `SETREF` below does not
+# degrade anything gently; the next step raises on an unset register.
+fn open_workbench(subject, label, parent, explores) -> thing:
     NEW R(wb) "workbench"
-    SET R(wb) "label" "workbench"
-    SET R(wb) "depth" 0
+    SET R(wb) "label" F(label)
+    CONST R(depth) 0
+    JMPNOT F(parent) .no_parent
+    ATTR R(pd) F(parent) "depth"
+    JMPIF R(pd) .have_depth
+    CONST R(pd) 0
+.have_depth:
+    ADD R(depth) R(pd) 1
+    LINK R(wb) "parent" F(parent)
+.no_parent:
+    SET R(wb) "depth" R(depth)
+    JMPNOT F(explores) .no_hypothesis
+    LINK R(wb) "explores" F(explores)
+.no_hypothesis:
     LINK R(wb) "subject" F(subject)
     INVOKE R(walk) reachable start=F(subject)
     INVOKE R(walk) copy_set walk=R(walk)
@@ -47,6 +71,7 @@ fn open_workbench(subject) -> thing:
     LINK R(m) "original" R(o)
     LINK R(m) "image" R(img)
     LINK R(frame) "mapping" R(m)
+    SETREF R(frame) R(o) R(m)
     ADD R(i) R(i) 1
     JMP .map
 
