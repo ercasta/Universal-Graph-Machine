@@ -376,21 +376,106 @@ and **you cannot learn a Python callable**. Hooks must become data. That is no l
 | phase | what | why it is here, and what it unblocks |
 |---|---|---|
 | **P0** | ✅ **done, and half of it was deleted by its own probe.** The **reachability pass** is built (`ugm/reach.py`, `python -m ugm.reach`) and the check is green with the gap named. The `_covers` precompute is **not built**: measured at **0.00% of the suite** | see §P0 below. The probe that was meant to de-risk the precompute cancelled it instead |
-| **P1** | the **addressing half of a guard** — `wants <sort> <label>` on function bodies, which `criterion.py` has and function guards lack | one change buys the **index** (cheap dispatch) *and* the *"which tokens do I look at"* semantics a construction needs. Also the groundwork for predicate dispatch slice 3 |
+| **P1** | the **addressing half of a guard** — `wants <sort> <label>` on function bodies, which `criterion.py` has and function guards lack | ⭐ **probed, and it is a requirement rather than an optimisation**: without an address the search finds a worse plan at one off-topic constraint and **no plan at all** at two, while bindings go 11 → 581. The index is the lesser half; the *"which tokens do I look at"* semantics is the point. Also predicate dispatch slice 3 |
 | **P2** | **starting a pursuit** must be reachable — `open_pursuit` / `carry_out` / `loop.schedule`, `open_planning` (reading `max_steps` / `max_depth` / `guided` off the pursuit), `open_execution`. ⭐ **Not** the goal constructors: see below | de-Pythonization's cluster B **and** the language arc's precondition. Smaller than it looked |
-| **P3** | **hooks become data** — `rank` / `allow` / `trace` as named functions and precedence stages; add the missing **`by experience`** comparator (`EXPERIENCE` is only an attributor today; `application.py` holds the record) | decided by P2's needs rather than open. Unblocks `_phase_planning`, and *is* the learned-order artifact harmonization needs |
+| **P3** | **hooks become data** — `rank` / `allow` / `trace` as named functions and precedence stages; add the missing **`by experience`** comparator (`EXPERIENCE` is only an attributor today; `application.py` holds the record). ⚠⚠⚠ **Write the stratification argument first** — see below | decided by P2's needs rather than open. Unblocks `_phase_planning`, and *is* the learned-order artifact harmonization needs |
 | **P4** | **`driver._phase_*` in the surface** — the seams (`driver.step`'s result dict, `T.attend`'s prose), then the machine | the last of arc one. After it a rule can drive plan-act-check end to end |
 | **P5** | **interpretation as proposal + selection** — hand-seeded, forms fixed, improved by harmonization as **theory revision** | needs P1–P3. The hypothesis machine it runs on is **already reachable** (see §0) |
+
+### ⚠⚠⚠ P3 has a regress in it, and the answer is already in the codebase
+
+**When `rank` becomes a rule, selecting which `rank` applies requires ranking.** That is the
+self-application regress every reflective architecture meets, and it is not hypothetical here — P3 is
+exactly the move that creates it. The field's answers are a *fixed floor*: Soar's architecture decides
+when to go meta and productions do the rest; PRS puts meta-level KAs above a default that always
+decides.
+
+⭐ **This codebase already has that floor and has not noticed.** `precedence.seal_rule` refuses a
+tie-break rule whose last stage is not total — *"the last stage must decide every pair … or two rules
+sit in an order nobody chose"*. Read at P3 that stops being a nicety about ordering and becomes **the
+stratification condition**: a base level that always decides, so the tower terminates. Write the
+argument down before building P3, not after, and check that the hook stages inherit the same refusal —
+a `rank` authored as a function stage may **not** sit last, which `add_stage` already says and which
+will matter for a reason it was not written for.
+
+⚠ And the framing this belongs to, because it changes why the arc matters rather than what is in it:
+**the planning machine should be an algorithmic description of itself that the engine executes.** That
+is *computational reflection* — Maes' intercession rather than introspection, Smith's 3-Lisp, Bowen &
+Kowalski's amalgamation, PRS's meta-KAs — and the **residue** thesis is the strongest argument for it,
+stronger than the inspectability one used above: if the planner is rules, *"why did I plan it this
+way?"* is answered by the machinery that already answers *"why is the block on the table?"*, so there is
+one mechanism rather than two. Note also that the rules doing this are largely **non-verbal** — they
+manipulate references rather than express actions — which is what the **closed class** already is, and
+why it looks nothing like a verb family.
 
 **What this plan deliberately does not contain**: a chart parser, more `intake.py` verb families (the
 budget stands — a new way of saying something is an interpretation rule in the web), and predicate
 dispatch **slice 4**, which advice-over-sequences still wants but which is not on the language critical
 path.
 
-⚠ One thing is still worth doing *before* P1, because it is cheap and could change the plan: the
-**guard-address probe** — blank the addressing half on utterances whose target structure is known; does
-search recover it, and how does the space grow? (The other pre-P0 probe, *is `_covers` static?*, has been
-run; it is what killed the precompute. See below.)
+✅ Both pre-P0 probes have now been run, and they went opposite ways: *is `_covers` static?* **killed**
+the precompute, and the **guard-address probe** turned P1 from an optimisation into a requirement. Both
+are written up below.
+
+### ✅ The guard-address probe — the address is load-bearing, and it is indexed by the GOAL
+
+*Blank the addressing half on utterances whose target structure is known; does search recover it, and
+how does the space grow?* Interpretation-as-selection does not exist yet (P5), so the probe ran on the
+machinery P1 is modelled on: a **criterion**'s `wants <sort> <label>` line, which says which unmet
+constraint the advice is about and from which `subject` and `object` are bound. Three levels, the same
+three criteria (`CRITERIA_TEXT`) and the same goals throughout:
+
+| | addressing | |
+|---|---|---|
+| **L0** | `wants link on` | as authored |
+| **L1** | `wants link` | the **label** blanked — any link constraint |
+| **L2** | `wants` | the whole line blanked — every unmet constraint, whatever its sort |
+
+⚠ **The first run of this probe was vacuous, and the reason generalises.** Sussman's goal is *two `on`
+link constraints and nothing else*, so all three levels address the same two things and blanking is free
+**by construction** — identical plan, identical 3 imagined states, identical 11 bindings, at 5 / 20 /
+60 blocks. That is not a result about addressing; it is *a world that cannot express the defect*, this
+project's standing diagnosis for a plant that stays green. ⭐ **It also settles one thing on its own: an
+address has nothing to do with the size of the world.** Growing the world sixtyfold changed nothing.
+
+The discriminating world adds constraints the criteria are **not** about — a second link label and a
+second sort — and both have to be *achievable* or the probe measures an unsatisfiable goal instead of an
+address (`paint` already sets `colour`; `place_beside` was added, because the block corpus has exactly
+one link label and an address over one label cannot discriminate):
+
+| off-topic pairs | | found | plan | imagined | bindings | ms |
+|---|---|---|---|---|---|---|
+| **1** | L0 | ✅ | 5 steps | 5 | **11** | 2150 |
+| | L1 | ✅ | **6 steps** | 8 | 25 | 2960 |
+| | L2 | ✅ | **6 steps** | 8 | 40 | 3290 |
+| **2** | L0 | ✅ | 7 steps | 7 | **11** | 3810 |
+| | L1 | ❌ **no plan** | — | 150 (budget) | **581** | 80200 |
+| | L2 | ❌ **no plan** | — | 150 (budget) | **1153** | 76900 |
+
+**The answers, in order.**
+
+* ⭐⭐⭐ **Does search recover it? At one off-topic constraint yes, at two no.** With one, the plan is
+  still found and is **worse** — six steps against five, because a criterion addressed at nothing in
+  particular proposes an action it has nothing to say about and the plan carries it. With two, **both**
+  blanked levels exhaust the budget and return no plan at all. So the addressing half is not an
+  optimisation that buys an index; removing it changes what the system can find.
+* ⭐⭐⭐ **How does the space grow? With the GOAL, not the world** — and combinatorially. Addressed, the
+  binding count is **flat at 11** whether the goal has two constraints or six. Blanked, it goes
+  **11 → 25 → 581** with the label alone gone, and **11 → 40 → 1153** with the sort gone too — a
+  hundredfold on a goal of six constraints. The world sweep says the same thing from the other side:
+  sixty blocks cost the addressed and the blanked run alike.
+* ⚠ **The CNL already refuses a bare `wants`** — *"the criterion vocabulary is closed"* — so the address
+  is mandatory in the **language** and optional only in the **mechanism** (`_bindings_for` matches
+  nothing when `wants_sort` is absent, rather than everything). L2 had to strip the attribute off the
+  node after reading. That the surface already insists is a small vote of confidence in P1.
+
+**What this means for P1 and P5.** P1 was on the plan as *one change buys the index and the "which
+tokens do I look at" semantics*; the index is the lesser half. A construction that does not say what it
+addresses does not merely make selection slower — past a couple of constraints it stops finding readings
+within any budget, which is the same wall `relevance` hits in
+`check_EXPERT_JUDGEMENT_can_be_AUTHORED_AS_TEXT`. ⭐ And the good news is the shape: an utterance has
+few constituents, so **the thing the cost scales in is small and bounded**, exactly as a goal's
+constraint count is.
 
 ### ✅ P0 — the pass is built, and the probe deleted the other half
 
@@ -1016,6 +1101,15 @@ successive checks and obvious to a benchmark, because two activations made momen
 sort the way they were made. When a planted bug stays green, the usual cause is not a weak assertion but
 a **world that cannot express the defect** — fix the scenario, not the assertion. `python -m ugm.bench`
 exists so this stops being rebuilt in a scratch file each time.
+
+⭐ **The same failure has a second form, and a probe is far more exposed to it than a check: a
+*homogeneous* fixture cannot measure a *discriminator*.** The guard-address probe blanked the addressing
+half of three criteria on Sussman's anomaly and measured **no difference whatsoever** — same plan, same
+imagined states, same eleven bindings, at 5, 20 *and* 60 blocks. It looked like a clean negative result
+and it was an artefact: Sussman's goal is two constraints of one sort and one label, so there is nothing
+for an address to tell apart. Adding constraints the criteria were *not* about took the same measurement
+from "free" to "no plan at all". **Before believing a probe that reports no difference, ask whether the
+fixture contains two of the thing being discriminated.**
 
 **When a safety property is implemented by looking at the argument, ask what it is really about.**
 *Planning cannot reach the world* was checked by asking whether the dispatch target was a workbench
