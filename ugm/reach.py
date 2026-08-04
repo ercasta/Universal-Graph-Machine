@@ -47,7 +47,7 @@ import types as PY
 #: Modules that are about the engine rather than part of it. A check is not machinery, and a
 #: benchmark is not either — including them would report the harness as unreachable, truly and
 #: uselessly.
-NOT_MACHINERY = ("selftest", "bench", "reach")
+NOT_MACHINERY = ("selftest", "bench", "reach", "horizon")
 
 
 def _modules() -> tuple:

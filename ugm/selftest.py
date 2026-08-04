@@ -11986,6 +11986,77 @@ def check_AN_UTTERANCE_BECOMES_A_RUNNABLE_GOAL_BY_PROPOSAL_AND_SELECTION():
     }
 
 
+def check_THE_CLOSED_CLASS_IS_A_GRADIENT_NOT_A_CATEGORY():
+    """*Innate* and *learnable* are the two ends of one gradient here, and the gradient is measurable.
+
+    The question this answers came up as a design question — if the system learns its own rules for
+    reading utterances, is there a controlled language at all, and are there two kinds of rule, some
+    innate and some learned? `ugm/horizon.py` turns it into a number: for each closed set, **how many
+    places switch on what that set is?** That is what it would cost to change it.
+
+    ⭐⭐⭐ **Nothing is forbidden; things are expensive.** A fifth constraint sort costs seventeen
+    dispatchers. A fifth precedence stage costs one table entry and one comparator. Same word "closed",
+    two orders of magnitude apart — so there are not two categories of rule, there is one substrate and
+    a gradient of revisability whose steepness is set by how many answerers depend on you.
+
+    ⭐⭐ **And the cheap end is where work has already been done, which gives the migration a
+    mechanism.** The sets with **zero** dispatchers are exactly the ones this project already moved above
+    the horizon by making the ranking authored data dispatched through a *table* rather than a switch.
+    Nothing switches on them because the switch is itself data. So: **a closed set becomes revisable when
+    its dispatch becomes a lookup keyed by the member** — which is the engineering form of
+    grammaticalization, and it has happened here twice without being called that.
+
+    ⚠ **The dearest set was the one nobody had declared.** `goal.WORLD_SORTS` did not exist; what stood
+    in for it was `intake._SORTS`, private to the parser, restated as a literal at a second site, and
+    **missing `known`**. *A closed class earns its place by being declared* — and this is that lesson
+    arriving as a measurement rather than as advice, because an undeclared class is precisely what
+    accretes switches. Declaring it is part of this session's change; the check below holds it declared.
+
+    ⚠ The unit is a **dispatcher**, not a mention, and three earlier formulations were wrong for want of
+    that: named constants hid table dispatch, overloaded words inflated counts, and one scan had the
+    wrong corpus. One rule fixed all three — *a function naming two or more members of one set is
+    switching on that set*.
+
+    Vacuity: the spread must be real (a top and a bottom that differ), every set must be declared
+    somewhere a reader can go and look, and the pass must actually find the known dispatchers rather
+    than answering zero to everything."""
+    from pathlib import Path
+    from . import asm, function as fn, goal as G, horizon as H, intake
+
+    g = new_graph()
+    for f in sorted((Path(fn.__file__).parent / "rules").glob("*.mf")):
+        try:
+            asm.load_file(g, f)
+        except Exception:
+            pass
+    rows = H.cost(g)
+    by = {r[0]: r for r in rows}
+    dearest, cheapest = rows[0], rows[-1]
+    py = H.python_dispatchers()
+
+    return {
+        # The finding.
+        "CLOSED_IS_A_RATE_NOT_A_KIND": dearest[5] >= 5 * max(1, cheapest[5]),
+        "the_dearest_set_is_the_CONSTRAINT_SORTS": dearest[0] == "constraint sort",
+        "and_the_cheapest_cost_NOTHING": cheapest[5] == 0,
+        "spread": (dearest[0], dearest[5], cheapest[0], cheapest[5]),
+        # The mechanism: zero means dispatched by table, which is what "above the horizon" looks like.
+        "THE_ZERO_COST_SETS_ARE_THE_ONES_ALREADY_AUTHORED_AS_DATA":
+            set(H.table_dispatched(g)) == {"precedence stage", "strength"},
+        # The set that was never declared now is, and it is the true one rather than the parser's.
+        "THE_DEAREST_SET_IS_NOW_DECLARED": by["constraint sort"][1] == "goal.WORLD_SORTS",
+        "and_it_is_WIDER_than_what_the_parser_accepts": set(intake._SORTS) < G.WORLD_SORTS,
+        "the_parser_cannot_say": sorted(G.WORLD_SORTS - set(intake._SORTS)),
+        # Vacuity: every set names where to go and look, and the pass really finds dispatchers.
+        "EVERY_CLOSED_SET_SAYS_WHERE_IT_IS_DECLARED":
+            all(H.closed_sets()[r[0]][1] for r in rows) and all("." in r[1] for r in rows),
+        "and_the_pass_FINDS_them_rather_than_answering_zero":
+            "goal._python_holds" in dict(py["constraint sort"]),
+        "and_the_ACCESS_vocabulary_is_load_bearing_in_the_SURFACE":
+            by["access vocabulary"][3] == 0 and by["access vocabulary"][4] > 0,
+    }
+
+
 def _teach_dir():
     from pathlib import Path
     from . import function as fn

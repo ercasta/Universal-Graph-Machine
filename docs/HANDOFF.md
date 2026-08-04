@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **264 checks, 0 failing**, in 90–120 seconds depending
+**Verify:** `python -m ugm.selftest` — currently **265 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
 same minutes** — never against a number written down earlier. ⚠ Take the baseline in a **worktree at
@@ -13,6 +13,8 @@ project has already recorded one such loss.
 **Measure:** `python -m ugm.bench` — the numbers below, re-runnable. ⚠⚠ **A ratio hides a curve.**
 **Audit:** `python -m ugm.reach` — *what of the engine's own machinery could a rule start?* **98 named
 things cannot**, and the list is derived rather than written down. See P0 below.
+**Weigh:** `python -m ugm.horizon` — *what would it cost to change a closed set?* **17 dispatchers down
+to 0**: "closed" is a rate, not a kind. See [reflection.md](reflection.md).
 `stepping` and `acting` report one number against a reference and cannot say whether the *shape* is
 right; measure any new surface function at **three world sizes** before believing its ratio.
 
@@ -28,6 +30,7 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 | how it runs | [execution-model.md](execution-model.md) |
 | what it cannot do | [limits.md](limits.md) — kept deliberately honest |
 | how it differs from its neighbours, and what is merely prior art | [comparison.md](comparison.md) — the claim is the **residue**, not the execution |
+| whether the machine can be a description of itself, and what "innate" honestly means | [reflection.md](reflection.md) — one substrate, a floor, and a **measured** gradient |
 | what is only sayable in Python, and why | [audit.md](audit.md) |
 | dispatching on a condition rather than a type | [predicate-dispatch.md](predicate-dispatch.md) — slices 1-2 built |
 | advice about the *order* of a plan's actions | [advice-over-sequences.md](advice-over-sequences.md) — a design thread, nothing built |
@@ -504,7 +507,7 @@ and **you cannot learn a Python callable**. Hooks must become data. That is no l
 | **P4** | **`driver._phase_*` in the surface** — the seams (`driver.step`'s result dict, `T.attend`'s prose), then the machine | the last of arc one. After it a rule can drive plan-act-check end to end |
 | **P5** | **interpretation as proposal + selection** — hand-seeded, forms fixed, improved by harmonization as **theory revision** | ⭐ **the skeleton is up** (see the section above `ONE PLAN`), built ahead of P1–P3 on purpose. What it did *not* need turned out to be most of them; what it now needs is listed under *Where the skeleton is thin* |
 
-### ⚠⚠⚠ P3 has a regress in it, and the answer is already in the codebase
+### ⚠⚠⚠ P3 has a regress in it, and the answer is already in the codebase — see [reflection.md](reflection.md)
 
 **When `rank` becomes a rule, selecting which `rank` applies requires ranking.** That is the
 self-application regress every reflective architecture meets, and it is not hypothetical here — P3 is
@@ -520,7 +523,7 @@ argument down before building P3, not after, and check that the hook stages inhe
 a `rank` authored as a function stage may **not** sit last, which `add_stage` already says and which
 will matter for a reason it was not written for.
 
-⚠ And the framing this belongs to, because it changes why the arc matters rather than what is in it:
+✅ **Both are now written up in [reflection.md](reflection.md)**, together with the measured gradient that turns *innate vs learnable* from a question into a number. ⚠ The framing, in short, because it changes why the arc matters rather than what is in it:
 **the planning machine should be an algorithmic description of itself that the engine executes.** That
 is *computational reflection* — Maes' intercession rather than introspection, Smith's 3-Lisp, Bowen &
 Kowalski's amalgamation, PRS's meta-KAs — and the **residue** thesis is the strongest argument for it,

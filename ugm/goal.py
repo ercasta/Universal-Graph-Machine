@@ -301,6 +301,22 @@ def require_type(g: Graph, goal: str, type_name: str, *, about: str | None = Non
 PLAN_SORTS = frozenset({"never", "eventually", "at_most"})
 SAFETY_SORTS = frozenset({"never", "at_most"})       # prunable: a breach cannot be repaired later
 
+#: What a constraint can say about the **world**, as against the three above, which are about the plan.
+#: These four are the output space of interpretation — the `sort` in *goal → constraint* — so they bound
+#: what any utterance can come to mean, however the utterance is phrased.
+#:
+#: ⚠ **Declared here because it was the one closed set in the system that never was**, which
+#: `ugm/horizon.py` found by measuring: it is also the set with by far the most dispatchers, and the two
+#: facts are the same fact. *A closed class earns its place by being declared* — an undeclared one is
+#: what accretes switches, because there is nothing for a reader to consult and nothing for a check to
+#: hold it to. What stood in for it was `intake._SORTS`, private to the parser and restated as a literal
+#: at a second site.
+#:
+#: ⚠ `intake` accepts a **strict subset** — `link`, `attr`, `type`, and not `known`. That is a property
+#: of the controlled language rather than of the representation, and it is one more reason the parser is
+#: the thing being replaced: a sort a rule can build is a sort the front door cannot say.
+WORLD_SORTS = frozenset({"link", "attr", "type", "known"})
+
 
 def forbid_action(g: Graph, goal: str, *, function: str | None = None,
                   on: str | None = None, reason: str | None = None) -> str:
@@ -774,7 +790,7 @@ def describe(g: Graph, goal: str) -> str:
     return head
 
 
-__all__ = ["PLAN_SORTS", "SAFETY_SORTS", "BY_CONSTRAINTS", "BY_STEPS", "MET_BY",
+__all__ = ["PLAN_SORTS", "SAFETY_SORTS", "WORLD_SORTS", "BY_CONSTRAINTS", "BY_STEPS", "MET_BY",
            "ADVISORY", "MANDATORY", "FORCES", "then", "sequence", "met_by", "force_of",
            "open_goal", "parent_of", "subgoals", "raised_because",
            "ancestry", "within", "depth_of", "decomposed", "subgoals_met",
