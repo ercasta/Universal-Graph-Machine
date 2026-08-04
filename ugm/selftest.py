@@ -1592,7 +1592,7 @@ def check_a_guideline_reorders_and_can_never_exclude():
     rank3 = GL.ranker(g3)
     wb = W.open_workbench(g3, w3)
     f0 = W.root_frame(g3, wb)
-    unmet3 = G.unmet(g3, goal3, view=D.view_in(g3, f0),
+    unmet3 = G.unmet(g3, goal3, ctx=D.context_in(g3, f0),
                      under=W.image_of(g3, W.mapping_for(g3, f0, w3)))
     scored = [(rank3(g3, n, b, unmet3), D.relevance(g3, n, b, unmet3), n)
               for n, b in D.proposals(g3, f0)]
@@ -4882,7 +4882,7 @@ def check_planning_is_driven_by_the_open_constraints():
     goal, (a, b, c) = _tower_goal(g, world)
     wb = W.open_workbench(g, world)
     f0 = W.root_frame(g, wb)
-    open_now = G.unmet(g, goal, view=D.view_in(g, f0), under=W.image_of(g, W.mapping_for(g, f0, world)))
+    open_now = G.unmet(g, goal, ctx=D.context_in(g, f0), under=W.image_of(g, W.mapping_for(g, f0, world)))
     scored = {D.relevance(g, n, bd, open_now) for n, bd in D.proposals(g, f0)}
 
     guided = D.pursue(g, goal, T.open_thread(g), world, max_steps=5000)
@@ -6737,7 +6737,7 @@ def check_AN_EDGE_NAMES_AN_IDENTITY_so_a_SPARSE_frame_reads_TRUE():
 
     wb = W.open_workbench(g, world)
     f0 = W.root_frame(g, wb)
-    before = G.satisfied(g, goal, view=D.view_in(g, f0))
+    before = G.satisfied(g, goal, ctx=D.context_in(g, f0))
 
     f1, _tr = W.step(g, wb, f0, "stack", {"b": W.mapping_for(g, f0, b),
                                           "onto": W.mapping_for(g, f0, c)})
@@ -6751,10 +6751,10 @@ def check_AN_EDGE_NAMES_AN_IDENTITY_so_a_SPARSE_frame_reads_TRUE():
 
     return {"IT_WAS_FALSE_BEFORE_THE_STEP": not before,
             "AND_TRUE_IN_THE_FRAME_THAT_MADE_IT_TRUE":
-                G.satisfied(g, goal, view=D.view_in(g, f1)),
+                G.satisfied(g, goal, ctx=D.context_in(g, f1)),
             # The one that was false. A step later, with `c` on a version the edge never saw.
             "AND_STILL_TRUE_ONE_STEP_LATER":
-                G.satisfied(g, goal, view=D.view_in(g, f2)),
+                G.satisfied(g, goal, ctx=D.context_in(g, f2)),
             # ...and the target really did move on, or "still true" is true of an edge that never went
             # stale and the key above proves nothing.
             "and_C_REALLY_HAS_A_LATER_VERSION": c_in_f2 != c_in_f1,
@@ -6768,7 +6768,7 @@ def check_AN_EDGE_NAMES_AN_IDENTITY_so_a_SPARSE_frame_reads_TRUE():
                 len(W.visible(g, f2)) == len(W.visible(g, f0)) == len(W.mappings(g, f0)),
             # The earlier frame is untouched, which is the property the copying was there to buy and
             # which sharing must not cost.
-            "AND_FRAME_ZERO_STILL_SAYS_WHAT_IT_SAID": not G.satisfied(g, goal, view=D.view_in(g, f0))}
+            "AND_FRAME_ZERO_STILL_SAYS_WHAT_IT_SAID": not G.satisfied(g, goal, ctx=D.context_in(g, f0))}
 
 
 def check_A_FUNCTION_CAN_STATE_A_RELATION_BETWEEN_ITS_OWN_PARAMETERS():
@@ -8007,7 +8007,7 @@ def check_end_to_end_a_goal_to_produce_a_plan():
     closing = entries[-1]
     return {"found_a_plan": result["found"],
             "the_plan_is_two_stacks": D.plan_steps(g, result) == ("stack", "stack"),
-            "every_constraint_met": G.unmet(g, goal, view=D.view_in(g, result["frame"])) == (),
+            "every_constraint_met": G.unmet(g, goal, ctx=D.context_in(g, result["frame"])) == (),
             "REAL_WORLD_UNTOUCHED": real_heights == [1, 1, 1],
             "recorded_as_PLANNED": G.is_planned(g, goal),
             "but_NOT_as_done": not G.is_closed(g, goal),
@@ -8147,7 +8147,7 @@ def check_GOAL_HOLDS_IS_AN_ORDINARY_PROGRAM():
     would be a predicate that quietly ignores the context, and the design note's own warning is that
     such a thing is indistinguishable from one that correctly does not need it."""
     from pathlib import Path
-    from . import access as AX, asm, function as fn, goal as G, workbench as W
+    from . import access as AX, asm, driver as D, function as fn, goal as G, workbench as W
     from .graph import UNKNOWN
     from .types import Req
 
@@ -8183,10 +8183,14 @@ def check_GOAL_HOLDS_IS_AN_ORDINARY_PROGRAM():
     cs["known_false"] = G.require_known(g, goal, a, "colour")
     cs["attr_unknown"] = G.require_attr(g, goal, a, "colour", "red")
 
+    # **Both sides through the routes callers actually take.** `G.holds` IS the surface now — a wrapper
+    # over `rules/holds.mf` — so comparing it against a hand-rolled `fn.invoke` would compare the surface
+    # against itself and pass whatever it did. The reference is `_python_holds`, and the live path is the
+    # wrapper, reached exactly as the planner reaches it.
     def surface(c, under, ctx=None):
-        return fn.invoke(g, "holds", {"c": c, "under": under}, retain=False, under=ctx)[1]["result"]
+        return G.holds(g, c, ctx=ctx, under=under)
 
-    real = {name: (G.holds(g, c, under=w), surface(c, w)) for name, c in cs.items()}
+    real = {name: (G._python_holds(g, c, under=w), surface(c, w)) for name, c in cs.items()}
 
     # ...and again inside a frame, where a step has moved a block, so several answers must FLIP.
     wb = W.open_workbench(g, w)
@@ -8194,9 +8198,15 @@ def check_GOAL_HOLDS_IS_AN_ORDINARY_PROGRAM():
     f1, _tr = W.step(g, wb, f0, "unstack", {"b": W.mapping_for(g, f0, b),
                                             "floor": W.mapping_for(g, f0, ground)})
     view = W.View(g, f1)
-    ctx = AX.open_context(g, resolver="in_frame", writer="version_in_frame", frame=f1)
+    # `driver.context_in`, not a context minted here: the planner's own route, so the check cannot pass
+    # against a context nothing in the system builds. It answers with the one `step` already opened —
+    # which is why *step's* is read off the frame BEFORE asking, rather than the answer being checked for
+    # membership afterwards. Membership was the first spelling and it stayed green with "always mint"
+    # planted, because a freshly minted context links to the frame too and so is a member as well.
+    steps_own = [n for n in g.sources(f1, "frame") if g.kind(n) == "context"]
+    ctx = D.context_in(g, f1)
     under = W.image_of(g, W.mapping_for(g, f1, w)) if W.mapping_for(g, f1, w) else w
-    framed = {name: (G.holds(g, c, view=view, under=under), surface(c, under, ctx))
+    framed = {name: (G._python_holds(g, c, view=view, under=under), surface(c, under, ctx))
               for name, c in cs.items()}
 
     return {"IT_AGREES_WITH_THE_PYTHON_IN_THE_REAL_WORLD":
@@ -8218,7 +8228,18 @@ def check_GOAL_HOLDS_IS_AN_ORDINARY_PROGRAM():
             "KNOWN_IS_ABOUT_HAVING_LOOKED":
                 (real["known_true"][1], real["known_false"][1]) == (True, False),
             "and_an_UNKNOWN_slot_satisfies_no_value_constraint":
-                real["attr_unknown"][1] is False}
+                real["attr_unknown"][1] is False,
+            # The seam itself: the planner says which world it means with a CONTEXT, and it reuses the
+            # one `step` opened for that frame. Two nodes that must agree about a world are two nodes
+            # that can come not to, which is the whole reason the view had to go.
+            "THE_PLANNER_ASKS_WITH_A_CONTEXT_AND_REUSES_STEPS":
+                steps_own == [ctx],
+            "and_asking_twice_mints_nothing":
+                (D.context_in(g, f1), len([n for n in g.sources(f1, "frame")
+                                           if g.kind(n) == "context"]))[1] == 1,
+            # A frame nobody stepped into has none, gets one, and keeps it.
+            "a_frame_step_never_touched_gets_one_and_it_is_STABLE":
+                D.context_in(g, f0) == D.context_in(g, f0)}
 
 
 def check_ONE_COMPARISON_TOTAL_AND_NOW_SAYABLE_IN_THE_SURFACE():
@@ -8915,7 +8936,7 @@ def check_ranking_sees_through_a_navigating_operator():
         G.require_attr(g, goal, lits[0], "value", 1)
         wb = W.open_workbench(g, root)
         f0 = W.root_frame(g, wb)
-        open_now = G.unmet(g, goal, view=D.view_in(g, f0),
+        open_now = G.unmet(g, goal, ctx=D.context_in(g, f0),
                            under=W.image_of(g, W.mapping_for(g, f0, root)))
         real = D.role_node
         if not paths:
@@ -10402,7 +10423,7 @@ def check_an_attribute_effect_carries_the_VALUE_it_writes():
     G.require_attr(g, goal, me, "where", "school")
     wb = W.open_workbench(g, me)
     f0 = W.root_frame(g, wb)
-    open_now = G.unmet(g, goal, view=D.view_in(g, f0),
+    open_now = G.unmet(g, goal, ctx=D.context_in(g, f0),
                        under=W.image_of(g, W.mapping_for(g, f0, me)))
     bands = {n: D.relevance(g, n, b, open_now) for n, b in D.proposals(g, f0)}
 
@@ -10415,7 +10436,7 @@ def check_an_attribute_effect_carries_the_VALUE_it_writes():
     G.require_attr(g2, goal2, me2, "where", "school")
     wb2 = W.open_workbench(g2, me2)
     f2 = W.root_frame(g2, wb2)
-    open2 = G.unmet(g2, goal2, view=D.view_in(g2, f2),
+    open2 = G.unmet(g2, goal2, ctx=D.context_in(g2, f2),
                     under=W.image_of(g2, W.mapping_for(g2, f2, me2)))
     bands2 = {n: D.relevance(g2, n, b, open2) for n, b in D.proposals(g2, f2)}
 
@@ -10481,7 +10502,7 @@ def check_the_search_can_see_a_PREREQUISITE_which_no_band_can_express():
     G.require_attr(g, goal, me, "where", "school")
     wb = W.open_workbench(g, me)
     f0 = W.root_frame(g, wb)
-    open_now = G.unmet(g, goal, view=D.view_in(g, f0),
+    open_now = G.unmet(g, goal, ctx=D.context_in(g, f0),
                        under=W.image_of(g, W.mapping_for(g, f0, me)))
     here, blocked = D.enumerate_frame(g, f0)
     wants = D.wants_that_unblock(g, f0, blocked, open_now)

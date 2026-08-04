@@ -376,18 +376,27 @@ class View:
         return image_of(self.g, m) if m is not None else None
 
 
+def view_at(g: Graph, ctx):
+    """The world a **context** describes, as a `View` — or `None` for the real one.
+
+    This is the one place that knows a planning context points at a frame, which keeps `access.py` free
+    of any idea of what a frame is. Split out of `view_of` because two different questions arrive here:
+    a native holds an *activation* and has to walk to the context, while a Python caller standing at a
+    boundary already holds the context itself. Before the split the second had no way in and passed a
+    `View` alongside — which is the doubling that kept `goal.holds` in Python, since one caller then
+    carried both a view and a context and nothing made them agree."""
+    frame = g.target(ctx, "frame") if ctx is not None else None
+    return View(g, frame) if frame is not None else None
+
+
 def view_of(g: Graph, act):
     """The world an activation is running in, as a `View` — or `None` for the real one.
 
     The bridge a **native** crosses to obey the context. A rule reaches the graph through the closed
     vocabulary and is mediated by construction; a native reads raw structure, so it has to ask. It asks
-    the same way everything else does — dynamic scope over the activation chain — and this is the one
-    place that knows a planning context points at a frame, which keeps `access.py` free of any idea of
-    what a frame is."""
+    the same way everything else does — dynamic scope over the activation chain."""
     from . import access
-    ctx = access.context_of(g, act)
-    frame = g.target(ctx, "frame") if ctx is not None else None
-    return View(g, frame) if frame is not None else None
+    return view_at(g, access.context_of(g, act))
 
 
 def original_of(g: Graph, node):
@@ -1038,5 +1047,5 @@ def fragile_steps(g: Graph, wb: str) -> tuple:
 __all__ = ["deviates", "predicted_changes", "unmet_expectations", "expected_attrs", "drop_prediction",
            "explain_unmet", "drop_unmet", "as_mints",
            "assumption_of", "fragile_steps", "reachable", "open_workbench", "root_frame", "mappings", "mapping_for",
-           "image_of", "identity_of", "original_of", "View", "visible",
+           "image_of", "identity_of", "original_of", "View", "view_at", "view_of", "visible",
            "resolve", "is_imagined", "frames", "history", "step", "fork", "discard"]

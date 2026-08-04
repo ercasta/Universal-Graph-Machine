@@ -111,30 +111,64 @@ Three things came out of doing it, and only the first was expected:
 | `workbench.step` | ✅ **live** — `rules/step.mf`, behind a wrapper; `_python_step` is the reference |
 | `workbench.open_workbench` | ✅ **live** — `rules/workbench.mf`, same shape; `_python_open_workbench` is the reference |
 | `copy_set` / `reachable` | ✅ **live** via `open_workbench`; the Python `reachable` stays for `view=` callers |
-| `execution.step`, `driver._phase_*` | **not written** — and blocked by the row below |
+| `execution.step`, `driver._phase_*` | **not written** — and **no longer blocked**; every prerequisite is in |
 | `workbench.deviates` | ✅ **live** — `rules/deviate.mf` + the `violations` native |
 | `workbench.unmet_expectations` | ✅ **live** — `rules/unmet.mf`; `predicted_changes` returns a node and the prose moved to `explain_unmet` |
-| `goal.holds` | **written** (`rules/holds.mf`) and checked, **not live** — the planner holds a view, not a context; see step 4 |
+| `goal.holds` | ✅ **live** — `rules/holds.mf`, behind a wrapper; `_python_holds` is the reference |
+| `rules/compare.mf` | ✅ **live on the goal path** — `holds.mf` calls it; `types.compare` still serves schema checks |
 | the mediation layer (`access` / `resolve` / `version`) | ✅ live |
 
 **Both swaps are done, and the doubling is gone.** What is left of each Python original is a *reference*
-implementation — `_python_step`, `_python_open_workbench` — which exists to be compared against in a
-check rather than to run. That is the answer to two implementations of one thing: a check that compares
-them, not a deletion that leaves the surface unmeasured.
+implementation — `_python_step`, `_python_open_workbench`, `_python_holds` — which exists to be compared
+against in a check rather than to run. That is the answer to two implementations of one thing: a check
+that compares them, not a deletion that leaves the surface unmeasured.
+
+### The planner establishes a context, and `holds` went live on it
+
+The last seam, and it turned out to be one line of the design rather than a mechanism. A Python caller
+held a **view** — a function from a node to the node standing for it here — while a rule gets its world
+from the ambient **context**. Those are the same information in two shapes, and the second shape is the
+only one both sides can read, so `goal.holds` could be written and checked but never run.
+
+`goal.py`'s predicates now take `ctx=` where they took `view=`, and `driver.context_in(g, frame)` is
+where the planner says which world it means. It **reuses the context `workbench.step` already opened for
+that frame** rather than minting a second one, found through the reverse index — two nodes that must
+agree about a world are two nodes that can come not to. Whatever still wants a view derives one from the
+context in `goal._world`, and that function is the honest statement of what is left: it survives for
+`_python_holds` and for `witnesses` / `undetermined` / `witness`, which have not moved.
+
+**The closure is gone, not replaced**, exactly as predicted: a rule in the closed vocabulary resolves
+through the context, so `slot_of` inside a frame reads that frame's version without `holds.mf`
+containing one word about frames.
+
+⚠ **It cost ~2.3× on the flagship benchmark and was kept anyway.** Sussman goes 1600 ms → ~3740 ms at
+*identical* 50 imagined states — same search, same plan, so the whole difference is interpretation.
+`holds` is 444 calls and **54% of the run**, ~37 ms each, because one predicate evaluation makes a dozen
+nested interpreted vocabulary calls. Two suspects were measured and cleared: the per-call `_ensure_holds`
+lookup is noise, and the calls are not redundant (`_offer` genuinely needs `open_now`). This is the
+`step` precedent rather than the `compare.mf` one — **the cost is a decision, not a veto** — and it is a
+decision that stays reversible, because the wrapper is the thing that makes it flippable either way.
+
+⚠ **`compare.mf` is no longer dormant**, and that is a side effect worth knowing. `holds.mf`'s `attr`
+branch calls it, so every goal-constraint comparison now goes through the surface comparator, while
+`types.compare` still sits under the schema checks. The note below saying it is deliberately not live is
+true only of *that* path now.
 
 ## What landed since the audit
 
 Detail and reasoning in [audit.md](audit.md) and [mediated-access.md](mediated-access.md); this is the
 index, kept short on purpose so the plan below stays readable.
 
-**The last session, in one paragraph**, because the entries below are in the order things were built
+**The last two sessions, in one paragraph**, because the entries below are in the order things were built
 rather than in the order they matter: `step` and `open_workbench` were **swapped live** behind thin
 wrappers, so nothing in the workbench exists twice any more; **mediation is enforced** — `step` refuses
-to imagine an unmediated operator, and the compliance pass runs over every corpus; and all three
-decomposed predicates were written, two of them live. Four lessons came out of it that generalise past
-their occasions, and they are in *How to work on this* at the bottom: **moving to the surface deletes
-Python rather than porting it**, **a predicate that answers in prose cannot move**, **a dormant twin
-rots**, and **measure the blast radius before building the enforcement**.
+to imagine an unmediated operator, and the compliance pass runs over every corpus; all three decomposed
+predicates were written; and **the planner now establishes a context instead of passing a view**, which
+was the last seam and made `goal.holds` live — so all three are live, at a measured and deliberate 2.35×
+on Sussman. Lessons that generalise past their occasions are in *How to work on this* at the bottom:
+**moving to the surface deletes Python rather than porting it**, **a predicate that answers in prose
+cannot move**, **a dormant twin rots**, **measure the blast radius before building the enforcement**,
+and **carrying one fact in two shapes is what blocks a swap**.
 
 * **The three predicates were decomposed**, got three *different* answers, and **all three are now
   written** — which is the last session's work and the reason the plan below starts at item 3.
@@ -142,7 +176,7 @@ rots**, and **measure the blast radius before building the enforcement**.
   replacing at all; `workbench.deviates` needed the **answering** form of `is_a` (the `violations`
   native, which hands the answer back as a node); `workbench.unmet_expectations` needed no capability and
   was blocked twice by *representation* — a Python dict going in and **prose** coming out. Two are live,
-  `holds` is written and checked but waiting on the planner to establish a context. Detail in item 4.
+  All three are now live, `holds` last, once the planner established a context. Detail in item 4.
 * **`copy_set` moved to the surface** carrying edge properties, and `open_workbench` shares it. Cost:
   `NEPROPS`, `EPROP_AT`, `SETEPROP`, `graph.put_edge_props`.
 * **`SELF`** (a program's own activation) and **`REFUSE kind why`** (the surface can decline).
@@ -259,10 +293,14 @@ Run `python -m ugm.bench`. The current numbers, and what each one is for:
 
 | | |
 |---|---|
-| Sussman's anomaly | **~1450 ms**, 50 imagined states — 1020 ms with the Python step, 640 ms before sparse frames |
-| a step, 5 / 60 / 300 blocks | **~105 / ~115 / ~105 ms** — against 53 / 56 / 59 for the Python step, and 47 / 68 / 198 dense |
-| live `step` vs `_python_step` | **1.3–1.6×** — against 3.0× measured before the swap |
+| Sussman's anomaly | **~3700–3760 ms**, 50 imagined states — 1600 ms with the Python `holds`, 1020 ms with the Python step too, 640 ms before sparse frames |
+| a step, 5 / 60 / 300 blocks | **~125 / ~105 / ~135 ms** — against 53 / 56 / 59 for the Python step, and 47 / 68 / 198 dense |
+| live `step` vs `_python_step` | **1.4–1.9×** — against 3.0× measured before the swap; the spread is noise, not a trend |
 | a mediated read vs a bare `GET` | **3.5–4.7×** |
+
+The first row **more than doubled when `goal.holds` went live**, at an unchanged 50 imagined states. That
+is the price of a predicate on the search's hottest path being interpreted, and it was taken deliberately
+— see *The planner establishes a context* above for the measurement that decided it.
 
 The second row is the one the design was for: **cost follows change, not the size of the world** — flat
 across a sixtyfold range, where dense was linear. The whole row moved up when the surface `step` went
@@ -304,19 +342,16 @@ index landed, the mapping loop grew a line, and three parameters appeared. The c
 kept passing, because it only ever called the one-argument form. *A comparison check is only as strong
 as the routes it takes through both sides.*
 
-### 3. `execution.step`, then the phase machine
+### 3. `execution.step`, then the phase machine — **the one to do next, and now unblocked**
 
 The last big Python island in the plan-act-check loop. `driver._phase_*` is reads, guards, one call,
 attribute writes and unlinks; its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
 
-⚠ **It is blocked by item 4, not merely adjacent to it** — `execution.step` calls `W.deviates` and
-`W.unmet_expectations`, both of which are now live. That is the one place the ordering in this list was
-wrong.
-
-⚠⚠ **And item 4 now points back at this one.** `goal.holds` is written and checked but not live, because
-a Python caller holds a **view** while the surface gets its world from the ambient **context**. The
-planner establishing a context is this item's work, and it is what makes `holds.mf` swappable — so the
-two are one piece of work, taken from either end.
+✅ **Both blockers are gone.** `execution.step` calls `W.deviates` and `W.unmet_expectations`, and both
+are live. And the half of item 4 that pointed back at *this* item — the planner holding a view rather
+than establishing a context — is done: `driver.context_in` is that context, `goal.py` speaks `ctx=`, and
+`holds.mf` runs on it. `execution.step` wanted that seam anyway, so it now inherits it rather than
+having to build it.
 
 ⚠ And it reports in **prose** in several places (`_diverge(why=…)`, `_note`). See item 4 on
 `unmet_expectations`: prose is a rendering decision, and a predicate carrying one cannot move to the
@@ -327,10 +362,10 @@ The two swaps above are the template: **write the wrapper first**, keep the Pyth
 comparison check through *every* route the wrapper offers — that is what `workbench.mf`'s dormant years
 cost.
 
-### 4. The predicates that block the rest — two of three done, and the third's prerequisites are in
+### 4. ✅ The predicates that blocked the rest — all three done and live
 
-⚠ **Item 3 depends on this one**, which the ordering above did not say: `execution.step` calls
-`W.deviates` and `W.unmet_expectations`, so it cannot be written above them.
+Nothing is left in this item. It is kept because the *reasons* each of the three was stuck are the most
+transferable thing in this document, and `execution.step` will meet at least two of them again.
 
 * ✅ **`workbench.deviates` is `rules/deviate.mf`.** What kept it in Python was never its control flow —
   it is one branch and one cast — but that nothing could say *how* a cast failed. `check` insists,
@@ -388,7 +423,7 @@ cost.
   context — there is *one* comparison, and two spellings disagreeing about a single pair is exactly what
   a shared comparator exists to prevent.
 
-* **`goal.holds` is written** — `rules/holds.mf`, all four sorts, checked against the Python **twice per
+* **`goal.holds` is live** — `rules/holds.mf`, all four sorts, checked against `_python_holds` **twice per
   constraint**: once in reality and once inside a frame where the answers differ. That second reading is
   the point; agreeing only in the real world is what a predicate that quietly ignores the context looks
   like. Two natives were added, both the *must resolve* kind: **`reaches`** (one-or-more hops with the
@@ -408,12 +443,18 @@ cost.
   ninth vocabulary member: **an island is created by the second caller**, and today there is one. A
   second rule needing *this node, here* is the moment to make it a member.
 
-  ⚠⚠ **It is not swapped live, and the blocker is a seam rather than a cost.** A Python caller holds a
-  **view**; the surface gets its world from the ambient **context**. `driver` calls `unmet(…, view=…)`
-  with no context established, so a wrapper would have to mint a context per call — which is the wrong
-  fix. The right one is for the planner to establish a context, and that is item 3's work. Until then
-  `holds.mf` is checked against the Python rather than running, and the check is what stops it rotting —
-  see what `workbench.mf` cost by sitting dormant with a comparison that only took one route.
+  ✅ **And it is now the live one.** The blocker was a seam rather than a cost, and the fix was to stop
+  carrying the world in two shapes: `goal.py`'s predicates take `ctx=`, `driver.context_in` produces it,
+  and the wrapper passes it `under=`. The tempting wrong fix — minting a context per call inside the
+  wrapper — was avoided; `context_in` reuses the one `step` already opened for that frame.
+
+  ⚠ **The comparison check had to be repointed, or it would have gone vacuous.** It compared `G.holds`
+  against a hand-rolled `fn.invoke` of `holds`. The moment `G.holds` *became* that invoke, both sides
+  were the surface and the check would have passed whatever the surface did — green, and meaningless.
+  It now reads `_python_holds` against the live wrapper, and reaches the frame through
+  `driver.context_in` rather than a context minted in the check, so it cannot pass against a route
+  nothing in the system takes. **A comparison check aimed at a moving target has to be re-aimed on the
+  day the target moves**, and the day it moves is exactly the day nobody is looking at it.
 
 ### 5. ✅ Mediation is enforced at `step`
 
@@ -491,11 +532,30 @@ decision, and a rendering decision inside a predicate is a second thing the pred
 facts on the node, sentences at the edge — and the rest was a transcription. `execution.step` reports in
 prose in several places and will want the same split.
 
+**Carrying one fact in two shapes is what blocks a swap, and the shapes look like different things.**
+`goal.holds` was written, checked and correct for a whole session without being able to run, and the
+obstacle was never a capability: Python held a **view** and a rule needs a **context**, which are the
+same world in the shape each side can read. Nothing named that as a defect, because both shapes were
+doing real work. The tell is a call site holding *both* — and the wrong fix is the convenient one, a
+wrapper minting the missing shape per call, which makes two things that must agree and lets them drift.
+The right one is to keep the shape both sides can read and derive the other where it is still needed
+(`goal._world`), with a stated expiry rather than a permanent bridge. **Expect this to be the shape of
+the next blocker too**: `execution.step` reports in prose, which is the same defect in the answering
+direction.
+
+**A comparison check aimed at a moving target has to be re-aimed the day it moves.** The `holds` check
+compared `G.holds` against an `fn.invoke` of `holds`; when `G.holds` *became* that invoke, both sides
+were the surface. It would have stayed green forever and meant nothing. This is the twin of the dormant-
+twin lesson below and arrives at the opposite moment — not when the surface sits still, but when it goes
+live — so a swap's checklist has to include *what was this check comparing, and does it still compare
+two different things?*
+
 **A dormant twin rots against the thing it shadows.** `rules/workbench.mf` sat written-but-not-live long
 enough to miss the frame index and three parameters, while its comparison check kept passing — because
 the check only ever called the one-argument form. *A comparison check is only as strong as the routes it
-takes through both sides.* Anything left written-and-not-live (today: `holds.mf`, `compare.mf`) is under
-that risk, and the answer is routes, not vigilance.
+takes through both sides.* Nothing is written-and-not-live today — `holds.mf` was the last, and
+`compare.mf` now runs under it on the goal path — so the risk has moved from rot to the one above: a
+check whose two sides quietly became one. The answer to both is routes, not vigilance.
 
 **Measure the blast radius before building an enforcement.** Before `step` was made to refuse unmediated
 operators, `workbench.step` was instrumented over the whole suite to ask how many operators are ever

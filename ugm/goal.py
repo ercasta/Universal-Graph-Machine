@@ -28,11 +28,16 @@ current fact.
 say which constraints are still false lets the driver work on what is actually missing. That
 single method is the difference between means-ends and generate-and-test.
 
-`view` is how one goal is asked of many worlds. The same constraint is checked against reality
-and against imagined states, and rather than teaching this module about workbenches — which would
-invert the layering — the caller passes a view: a function mapping a node to the node that stands
-for it here. Identity for reality, this frame's image for an imagined state. This module imports
-no workbench.
+`ctx` is how one goal is asked of many worlds. The same constraint is checked against reality and
+against imagined states, and the caller says which by passing a **context** — the node that says
+what a read means for the extent of the call. `None` is the trivial context, which is reality.
+
+It used to be a `view`: a function mapping a node to the node that stands for it here. That was the
+same information in the shape a *Python* caller could use, and it was the one thing standing between
+`holds` and the surface, because a rule does not take a view — it resolves through the ambient
+context and so must be *told* one. Two spellings of the same world is exactly the doubling this
+codebase keeps finding to be a defect in waiting, so there is now one, and it is the one both sides
+can read. Whatever still wants a view derives it from the context, in `_world`.
 
 A goal is metadata: it points at the world and is never pointed at by it.
 
@@ -60,6 +65,23 @@ def _viewer(view):
 def _same(node):
     """The default `view`: a node stands for itself. Reality needs no translation."""
     return node
+
+
+def _world(g: Graph, ctx):
+    """The world `ctx` describes, as something traversable — or `_same` for reality.
+
+    The one place this module turns a context into a view, and the honest statement of what is left of
+    the old layering. The claim was that this module *imports no workbench*, and the import below is
+    lazy and inside one function rather than at the top, which is the idiom `path.py` and `types.py`
+    already use for the same crossing — a native holding an activation asks the same question.
+
+    It is residue with a stated expiry: it survives for `_python_holds` (the reference the surface is
+    checked against) and for `witnesses` / `undetermined` / `witness`, which have not moved. When those
+    move, this goes, and the layering claim becomes true again rather than nearly true."""
+    if ctx is None:
+        return _same
+    from .workbench import view_at
+    return view_at(g, ctx) or _same
 
 
 # --- building -----------------------------------------------------------------------------------
@@ -196,7 +218,7 @@ def force_of(g: Graph, goal: str) -> str:
     return g.attr(goal, "force") or ADVISORY
 
 
-def subgoals_met(g: Graph, goal: str, *, view=None, under: str | None = None) -> bool:
+def subgoals_met(g: Graph, goal: str, *, ctx: str | None = None, under: str | None = None) -> bool:
     """Are all the subgoals satisfied? False for an undecomposed goal, per `decomposed`'s trap.
 
     This is a reader, NOT the definition of the parent's satisfaction. `satisfied` remains a question
@@ -205,7 +227,7 @@ def subgoals_met(g: Graph, goal: str, *, view=None, under: str | None = None) ->
     into checks that merely support it — and baking one reading in here would decide that for every future
     method at the moment it is least clear which is wanted."""
     kids = subgoals(g, goal)
-    return bool(kids) and all(satisfied(g, k, view=view, under=under) for k in kids)
+    return bool(kids) and all(satisfied(g, k, ctx=ctx, under=under) for k in kids)
 
 
 def _constrain(g: Graph, goal: str, sort: str, **attrs) -> str:
@@ -388,8 +410,49 @@ def constraints(g: Graph, goal: str) -> tuple:
 
 
 # --- checking -----------------------------------------------------------------------------------
-def holds(g: Graph, c: str, *, view=None, under: str | None = None) -> bool:
-    """Does this one constraint hold in the world `view` describes?"""
+def _ensure_holds(g: Graph) -> None:
+    """Make sure this graph has the surface `holds` and the comparator under it. Idempotent.
+
+    Same argument and same shape as `access.bootstrap` and `workbench._ensure_step`: a name is only
+    meaning if something answers it, so resolving it belongs at the call rather than being a
+    precondition every caller keeps by hand."""
+    from pathlib import Path
+    from . import asm, function as fn
+    here = Path(__file__).parent / "rules"
+    if fn.find(g, "compare") is None:
+        asm.load_file(g, here / "compare.mf")
+    if fn.find(g, "holds") is None:
+        asm.load_file(g, here / "holds.mf")
+
+
+def holds(g: Graph, c: str, *, ctx: str | None = None, under: str | None = None) -> bool:
+    """Does this one constraint hold in the world `ctx` describes? — **the implementation is
+    `rules/holds.mf`**.
+
+    A wrapper and nothing else. There is no argument to describe as a node and no answer to translate,
+    which is what makes this the smallest of the three swaps: the whole difficulty was upstream, in the
+    caller having a view to hand rather than a context.
+
+    **The closure is gone, not replaced.** A rule written in the closed access vocabulary resolves
+    through the ambient context, so `slot_of` inside a frame reads that frame's version without the
+    program containing one word about frames. Every `view=` in `_python_holds` below is machinery for a
+    problem the surface does not have — which is the mediation layer's whole claim, cashed on the
+    predicate that most needed it.
+
+    `_python_holds` is kept immediately below as the reference the surface is checked against, on every
+    sort and in both worlds. That is the answer to two implementations of one thing: a check that
+    compares them, not a deletion that leaves the surface unmeasured."""
+    _ensure_holds(g)
+    from . import function as fn
+    return fn.invoke(g, "holds", {"c": c, "under": under}, retain=False, under=ctx)[1]["result"]
+
+
+def _python_holds(g: Graph, c: str, *, view=None, under: str | None = None) -> bool:
+    """The reference `holds`, kept to be compared against rather than to run.
+
+    Read it beside `rules/holds.mf`: the differences are the argument for the mediation layer. Every
+    `view(...)` here is a question the surface never asks, because the context answers it one level
+    down, inside the vocabulary call."""
     view = view or _same
     sort = g.attr(c, "sort")
     subject = g.target(c, "subject")
@@ -438,7 +501,7 @@ def holds(g: Graph, c: str, *, view=None, under: str | None = None) -> bool:
     return False
 
 
-def witnesses(g: Graph, c: str, *, view=None, under: str | None = None) -> tuple:
+def witnesses(g: Graph, c: str, *, ctx: str | None = None, under: str | None = None) -> tuple:
     """which nodes have to change for this constraint to become true — in the same world `holds`
     looked at, so the two can never disagree about which world they mean.
 
@@ -459,9 +522,9 @@ def witnesses(g: Graph, c: str, *, view=None, under: str | None = None) -> tuple
     Some failures have no witness at all, and saying so is the honest answer. A missing wheel does
     not exist, so there is nothing to point at — see `types.offenders`. Those are the *existential* case
     and `driver.relevance` already serves them from the other side, by scoring an operator that mints."""
-    if holds(g, c, view=view, under=under):
+    if holds(g, c, ctx=ctx, under=under):
         return ()
-    view = view or _same
+    view = _world(g, ctx)
     subject = g.target(c, "subject")
     here = view(subject) if subject is not None else None
     sort = g.attr(c, "sort")
@@ -475,14 +538,14 @@ def witnesses(g: Graph, c: str, *, view=None, under: str | None = None) -> tuple
     return () if here is None else (here,)
 
 
-def unmet(g: Graph, goal: str, *, view=None, under: str | None = None) -> tuple:
+def unmet(g: Graph, goal: str, *, ctx: str | None = None, under: str | None = None) -> tuple:
     """The constraints that are still false — what the driver should be working on.
 
     This is what turns planning from generate-and-test into means–ends: a goal that can only say "no"
     leaves a searcher with nothing to aim at, while a goal that names its unfinished business lets one ask
     *which rules could make this particular thing true*."""
     return tuple(c for c in world_constraints(g, goal)
-                 if not holds(g, c, view=view, under=under))
+                 if not holds(g, c, ctx=ctx, under=under))
 
 
 def require_known(g: Graph, goal: str, subject: str, key: str) -> str:
@@ -555,7 +618,7 @@ def _addressable(g: Graph, subject: str, key: str) -> bool:
     return any(key in attrs_of(g, g.attr(t, "name")) for t in g.of_kind("type"))
 
 
-def undetermined(g: Graph, goal: str, *, view=None, under: str | None = None) -> tuple:
+def undetermined(g: Graph, goal: str, *, ctx: str | None = None, under: str | None = None) -> tuple:
     """The unmet constraints that are unmet because we have not looked, not because they are false.
 
     This is the distinction the driver needs and could not make: `pursue` reported failure identically
@@ -565,9 +628,9 @@ def undetermined(g: Graph, goal: str, *, view=None, under: str | None = None) ->
     sensing action instead of a world-changing one.
 
     Attribute-shaped only, per `graph.UNKNOWN`: an absent edge has no slot to mark."""
-    view = view or _same
+    view = _world(g, ctx)
     out = []
-    for c in unmet(g, goal, view=view, under=under):
+    for c in unmet(g, goal, ctx=ctx, under=under):
         if g.attr(c, "sort") not in ("attr", "known"):
             continue
         subject = g.target(c, "subject")
@@ -577,18 +640,18 @@ def undetermined(g: Graph, goal: str, *, view=None, under: str | None = None) ->
     return tuple(out)
 
 
-def blocked_on_ignorance(g: Graph, goal: str, *, view=None, under: str | None = None) -> bool:
+def blocked_on_ignorance(g: Graph, goal: str, *, ctx: str | None = None, under: str | None = None) -> bool:
     """Is every remaining unmet constraint waiting on something we have not looked at?
 
     The criterion for `SENSE` is that a plan bottoms out in ignorance, not that it touches it. A goal
     with one unknown slot and three genuinely false constraints still has world work to do; sensing on the
     strength of merely *touching* an unknown would make the system look in every box. And the vacuity guard
     is the same one `decomposed` needed: with nothing unmet at all this is not "blocked", it is done."""
-    open_now = unmet(g, goal, view=view, under=under)
-    return bool(open_now) and len(undetermined(g, goal, view=view, under=under)) == len(open_now)
+    open_now = unmet(g, goal, ctx=ctx, under=under)
+    return bool(open_now) and len(undetermined(g, goal, ctx=ctx, under=under)) == len(open_now)
 
 
-def satisfied(g: Graph, goal: str, *, view=None, under: str | None = None) -> bool:
+def satisfied(g: Graph, goal: str, *, ctx: str | None = None, under: str | None = None) -> bool:
     """Whether this goal is met. Says nothing about constraints on the plan — those are asked of a trace
     (`breached`, `outstanding`), because they are properties of the route, not the destination.
 
@@ -604,16 +667,16 @@ def satisfied(g: Graph, goal: str, *, view=None, under: str | None = None) -> bo
     that is an earlier note's *don't trust an open-ended absence without an explicit closure fact*,
     and it was already available to get wrong in two places here."""
     if met_by(g, goal) == BY_STEPS:
-        return subgoals_met(g, goal, view=view, under=under)
+        return subgoals_met(g, goal, ctx=ctx, under=under)
     cs = world_constraints(g, goal)
-    return bool(cs) and not unmet(g, goal, view=view, under=under)
+    return bool(cs) and not unmet(g, goal, ctx=ctx, under=under)
 
 
-def witness(g: Graph, goal: str, *, view=None, under: str | None = None):
+def witness(g: Graph, goal: str, *, ctx: str | None = None, under: str | None = None):
     """A node that shows the goal met, for recording. The named subject if there is one, otherwise the
     instance that satisfied a subject-less type constraint."""
-    view = view or _same
-    if not satisfied(g, goal, view=view, under=under):
+    view = _world(g, ctx)
+    if not satisfied(g, goal, ctx=ctx, under=under):
         return None
     about = g.target(goal, "about")
     if about is not None:

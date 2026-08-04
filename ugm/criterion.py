@@ -378,9 +378,9 @@ def constraint_label(g: Graph, c: str):
 def _bindings_for(g: Graph, c: str, goal: str, frame: str, subject: str) -> tuple:
     """Every way this criterion's `wants` line matches, as `{role: real node}` — in constraint order."""
     from . import driver as D
-    view = D.view_in(g, frame)
+    ctx = D.context_in(g, frame)
     under = W.image_of(g, W.mapping_for(g, frame, subject)) if W.mapping_for(g, frame, subject) else None
-    unmet = G.unmet(g, goal, view=view, under=under)
+    unmet = G.unmet(g, goal, ctx=ctx, under=under)
     sort, label = g.attr(c, "wants_sort"), g.attr(c, "wants_label")
     out = []
     for k in unmet:

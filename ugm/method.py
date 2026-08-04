@@ -283,12 +283,12 @@ def matches(g: Graph, m: str, goal: str, c: str) -> bool:
     return ctx is None or under_method(g, goal, ctx)
 
 
-def applicable(g: Graph, goal: str, *, view=None, under: str | None = None) -> tuple:
+def applicable(g: Graph, goal: str, *, ctx: str | None = None, under: str | None = None) -> tuple:
     """`(method, constraint)` pairs that could decompose this goal, in declaration order.
 
     Asked of the goal's unmet constraints only. A method for something already true would raise
     subgoals for work nobody needs — the same reason `unmet` rather than `constraints` drives planning."""
-    open_now = G.unmet(g, goal, view=view, under=under)
+    open_now = G.unmet(g, goal, ctx=ctx, under=under)
     return tuple((m, c) for m in methods(g) for c in open_now if matches(g, m, goal, c))
 
 

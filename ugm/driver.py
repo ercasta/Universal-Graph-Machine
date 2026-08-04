@@ -243,8 +243,34 @@ def view_in(g: Graph, frame: str):
     A `W.View` rather than a closure, because a traversal inside a frame needs the way back as well:
     an edge names an identity, so following one and then reading it means going down to the version and
     up again to the identity. A closure could only answer half of that, and the half it could not answer
-    was being written out by hand at each of its callers."""
+    was being written out by hand at each of its callers.
+
+    ⚠ **`context_in` is what the planner asks now.** This stays for the readers that traverse rather than
+    ask a goal — `criterion`, and the natives that take a view — but a view is the *Python* shape of a
+    world, and handing one to `goal.py` was what kept `holds` out of the surface."""
     return W.View(g, frame)
+
+
+def context_in(g: Graph, frame: str) -> str:
+    """The context that means *this imagined frame* — how a goal is asked of a world now.
+
+    The planner's half of the swap, and the point where item 3 and item 4 of the handoff turned out to be
+    one job: a Python caller held a **view** while a rule gets its world from the ambient **context**, so
+    `holds.mf` could be written and checked but not run. Establishing a context is the thing that makes
+    it runnable, and it is what `execution.step` needs anyway when it moves.
+
+    **Reused rather than minted per call.** `workbench.step` already opens exactly this context for the
+    frame it creates — same resolver, same writer, same frame — so minting a second one here would put
+    two nodes in the graph that must agree about a world and could come not to. The lookup is the reverse
+    index, which is what it is for. Frames nobody stepped into (a root) have none, and get one, once.
+
+    ⚠ The cache is on the *frame*, so it lives and dies with it: a discarded frame takes its context with
+    it rather than leaving a pointer into a world that is gone."""
+    for ctx in g.sources(frame, "frame"):
+        if g.kind(ctx) == "context":
+            return ctx
+    return access.open_context(g, resolver="in_frame", writer="version_in_frame",
+                               label=f"in {_label(g, frame)}", frame=frame)
 
 
 class _Unreadable:
@@ -972,8 +998,8 @@ def open_planning(g: Graph, goal: str, thread: str, subject: str, *,
         g.link(search, "decided_by", decider)
     S.mark_seen(g, search, S.digest(*_visited_key(g, goal, root, ())), root)
 
-    view, under = _asked_of(g, subject, root)
-    if G.satisfied(g, goal, view=view, under=under) and not G.outstanding(g, goal, ()):
+    ctx, under = _asked_of(g, subject, root)
+    if G.satisfied(g, goal, ctx=ctx, under=under) and not G.outstanding(g, goal, ()):
         g.put(search, already=True)
         return search
 
@@ -999,13 +1025,16 @@ def _shown(g: Graph, bindings: dict) -> dict:
 
 
 def _asked_of(g: Graph, subject: str, frame: str) -> tuple:
-    """`(view, under)` - how a goal is checked inside this imagined frame."""
-    return view_in(g, frame), W.image_of(g, W.mapping_for(g, frame, subject))
+    """`(ctx, under)` - how a goal is checked inside this imagined frame.
+
+    A **context**, not a view: this one function is where the planner says which world it means, so it
+    is also the whole of what `holds.mf` was waiting on. See `context_in`."""
+    return context_in(g, frame), W.image_of(g, W.mapping_for(g, frame, subject))
 
 
 def _still_open(g: Graph, goal: str, subject: str, frame: str) -> tuple:
-    v, u = _asked_of(g, subject, frame)
-    return G.unmet(g, goal, view=v, under=u)
+    c, u = _asked_of(g, subject, frame)
+    return G.unmet(g, goal, ctx=c, under=u)
 
 
 def _visited_key(g: Graph, goal: str, frame: str, trace: tuple) -> tuple:
@@ -1472,15 +1501,15 @@ def step(g: Graph, search: str, *, rank=None, allow=None, trace=None, decide=Non
               {p: stands_for(g, m) for p, m in bindings.items()},
               why=f"depth {depth + 1}, {open_count} constraint(s) open", for_goal=goal)
 
-    nview, nunder = _asked_of(g, subject, nxt)
+    nctx, nunder = _asked_of(g, subject, nxt)
     if watch:
         emit("imagine", action=name, on=_shown(g, bindings), depth=depth + 1,
              open=[G.describe_constraint(g, x)
-                   for x in G.unmet(g, goal, view=nview, under=nunder)])
+                   for x in G.unmet(g, goal, ctx=nctx, under=nunder)])
     # Warn Both halves, and liveness only here: the world must be right and the plan must have done
     # everything it was required to. A plan that reaches the state without its mandated step is not
     # finished - but it was never in violation on the way, which is why this is not a pruning test.
-    if G.satisfied(g, goal, view=nview, under=nunder) and not G.outstanding(g, goal, tr):
+    if G.satisfied(g, goal, ctx=nctx, under=nunder) and not G.outstanding(g, goal, tr):
         done = _done(g, goal, thread, wb, nxt, c["opened"], "found", steps,
                      S.refusals(g, search), search)
         if watch:
@@ -1523,9 +1552,9 @@ def _stopped(g: Graph, search: str, c: dict, verb: str, why: str, watch,
 def _exhausted(g: Graph, search: str, c: dict, watch) -> dict:
     goal, wb = c["goal"], c["workbench"]
     root = W.root_frame(g, wb)
-    view, under = _asked_of(g, c["subject"], root)
+    ctx, under = _asked_of(g, c["subject"], root)
     unmet = ", ".join(G.describe_constraint(g, x)
-                      for x in G.unmet(g, goal, view=view, under=under))
+                      for x in G.unmet(g, goal, ctx=ctx, under=under))
     blocked = list(S.blocked_by(g, search))
     steps = S.steps_taken(g, search)
     g.put(search, done=True, found=False, how="exhausted")
@@ -1581,7 +1610,7 @@ def _done(g: Graph, goal, thread, wb, frame, opened, how, imagined, refused, sea
     """Close the goal, and tie the moment that closed it back to the moment it was taken on."""
     subject = g.target(wb, "subject")
     under = W.image_of(g, W.mapping_for(g, frame, subject))
-    found = G.witness(g, goal, view=view_in(g, frame), under=under)
+    found = G.witness(g, goal, ctx=context_in(g, frame), under=under)
     # Planned, not closed. The goal is met in an imagined frame; the world is untouched. Closing it here
     # would report success for something that has not happened.
     G.record_plan(g, goal, seen_in=frame, witness=found)
@@ -2105,7 +2134,7 @@ N.register("plan_step", lambda g, _act, search: step(g, search) is None)
 
 
 __all__ = ["proposals", "state_of", "establishes", "reads", "reports_on", "confirms",
-           "role_node", "relevance", "view_in",
+           "role_node", "relevance", "view_in", "context_in",
            "open_planning", "step", "Call", "Undecidable",
            "EXPAND", "DECOMPOSE", "COMMIT", "SENSE", "REFUSE", "VERBS", "SENSING",
            "pursue", "carry_out", "plan_steps", "plan_bindings", "describe"]
