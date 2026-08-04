@@ -11787,6 +11787,77 @@ def check_a_PROCEDURE_INSTALLS_ITS_OWN_TIMER():
             "and_a_RUNNING_task_can_still_find_its_loop": L.loop_of(g, a) == lp}
 
 
+def check_THE_MACHINERY_A_RULE_CANNOT_START_IS_AN_INVENTORY_NOT_AN_ARGUMENT():
+    """Which of the engine's own machinery could a rule start? Measured, not listed.
+
+    The de-Pythonization arc has been asking *can the system inspect and change its planning?* There is
+    a second criterion — *can a **rule** reach it?* — and it selects different work, because everything
+    moved to the surface so far is a **stepper**: it runs inside machinery Python has already started.
+    That claim was argued from a hand-written list, and `predicted_changes` is the standing proof that a
+    hand-written list of blockers is a hypothesis rather than an inventory. `ugm/reach.py` is the
+    measurement, in the shape `access.offenders` already has: a rule enters Python through exactly two
+    doors — an opcode and a registered native — so what it can reach is a closure, and the difference
+    from what the engine *does* is derived rather than asserted.
+
+    This check has three jobs, and the third is the one that makes the other two mean anything.
+
+    **The negatives** — the phase machine, and starting a pursuit. These are P2 and P4, and naming them
+    here is what makes closing one a deliberate act rather than an accident: when a pursuit can be
+    started by name, the matching line goes red and should be **deleted**, not fixed. Same instruction
+    `check_A_RULE_CAN_BUILD_A_RUNNABLE_GOAL` carries.
+
+    **The positives**, which are the dangerous half. A wrong *unreachable* costs somebody a look; a
+    wrong *reachable* silently retires work the arc still has to do. So the swapped functions are
+    asserted answerable, and `reach.why` produces the path, because a pass whose positives cannot be
+    inspected is the opaque predicate this project refuses everywhere else.
+
+    ⚠⚠ **And it found the prose wrong twice, which is the whole reason to measure rather than argue.**
+    `docs/HANDOFF.md` §0 listed `loop.schedule` among what a rule cannot reach. It can: `loop._after`
+    is the native behind `NATIVE … "after" …`, and it schedules. `driver.open_planning` is reachable
+    too, through the `plan` native. Both are recorded here as **reachable**, and the real gap in the
+    second is a different one the pass does not claim to answer — `plan` drops the pursuit's
+    `max_steps` / `max_depth` / `guided`, so the name is there and does not carry everything. *Is there
+    a name a rule can call* and *does that name carry the whole capability* are two questions, and
+    conflating them is how a list drifts.
+
+    **Vacuity**: the inventory must be neither empty nor everything, or a pass that answered one way for
+    every function would satisfy every line above.
+
+    ⚠ A **wrapper is not a gap**, and getting that wrong would make the arc's successes read as its
+    failures. `workbench.deviates` is Python no rule calls — but a rule calls `deviates`, the body it
+    fronts. Read as a bare Python call graph the number would *grow* every time something moved to the
+    surface, which is exactly backwards, so `reach.fronted` reads the literal name out of the wrapper's
+    own `fn.invoke`."""
+    from . import driver as D, execution as X, goal as G, loop as L, reach as RE, workbench as W
+
+    gap = set(RE.unreachable())
+    answerable = RE.reachable() | {f for f in RE.machinery() if RE.fronted(f)}
+
+    # P4: the state machine that decides which of plan / act / recover / sense / check happens next.
+    phases = {f"driver._phase_{p}" for p in ("planning", "acting", "recovering", "sensing", "checking")}
+    # P2: starting a pursuit. `open_planning` is deliberately NOT here — see the note above.
+    starting = {"driver.carry_out", "driver.open_pursuit", "driver.pursuit_step",
+                "execution.open_execution", "goal.open_goal"}
+
+    return {"THE_PHASE_MACHINE_IS_UNREACHABLE": phases <= gap,
+            "AND_SO_IS_STARTING_A_PURSUIT": starting <= gap,
+            # The steppers, which is what the arc has actually delivered so far.
+            "but_PLANNING_is_reachable": D.step in answerable and W.step in answerable,
+            "and_so_is_the_predicate_on_its_hottest_path": G.holds in answerable,
+            "and_ACTING_is_answerable_through_the_body_it_fronts": X.step in answerable,
+            "and_a_wrapper_names_the_body_it_fronts": RE.fronted(W.predicted_changes) == ("predicted_changes",),
+            # Measured, and it corrects the prose: both of these were recorded as out of reach.
+            "SCHEDULING_a_follow_up_IS_reachable_contra_the_note": L.schedule in answerable,
+            "and_so_is_OPENING_A_SEARCH": D.open_planning in answerable,
+            "though_the_name_it_offers_DROPS_the_pursuits_own_parameters":
+                all(k not in RE.why(D.open_planning) for k in ("max_steps", "max_depth")),
+            # Vacuity: neither everything nor nothing, or every line above is free.
+            "the_inventory_is_not_EMPTY": len(gap) > 0,
+            "nor_is_it_EVERYTHING": len(gap) < len({RE.name_of(f) for f in RE.machinery()}),
+            "and_a_positive_verdict_can_be_INSPECTED": RE.why(W.step).endswith("<- driver.step"),
+            "unreachable": len(gap)}
+
+
 # The entry point must be the last thing in this file. `_checks()` reads `globals()` at call time,
 # so any check defined below this block is simply not executed - the count stays put and the report looks
 # healthy. That is the same false-green `_checks()` own docstring records, one level up, and it bit again

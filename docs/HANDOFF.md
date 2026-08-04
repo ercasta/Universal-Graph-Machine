@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **261 checks, 0 failing**, in 90–120 seconds depending
+**Verify:** `python -m ugm.selftest` — currently **262 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
 same minutes** — never against a number written down earlier. ⚠ Take the baseline in a **worktree at
@@ -11,6 +11,8 @@ HEAD** (`git worktree add <tmp> HEAD --detach`), *not* `git stash -u`, whenever 
 work you have not committed: a stash/pop cycle around a long measurement is how hours get lost, and this
 project has already recorded one such loss.
 **Measure:** `python -m ugm.bench` — the numbers below, re-runnable. ⚠⚠ **A ratio hides a curve.**
+**Audit:** `python -m ugm.reach` — *what of the engine's own machinery could a rule start?* **87 named
+things cannot**, and the list is derived rather than written down. See P0 below.
 `stepping` and `acting` report one number against a reference and cannot say whether the *shape* is
 right; measure any new surface function at **three world sizes** before believing its ratio.
 
@@ -167,7 +169,16 @@ true only of *that* path now.
 Detail and reasoning in [audit.md](audit.md) and [mediated-access.md](mediated-access.md); this is the
 index, kept short on purpose so the plan below stays readable.
 
-**The latest session, in one paragraph.** `execution.step` — the loop that *acts* — is now
+**The latest session, in one paragraph.** **P0**, and it came out half the size it went in. The
+**reachability pass** is built (`ugm/reach.py`, `python -m ugm.reach`): a rule enters Python through
+exactly two doors, so *what can a rule start?* is a closure rather than an opinion, and the answer is
+**87 named things it cannot**. It reproduces the hand audit, adds the replay's bookkeeping and the outer
+loop to it, and **corrects §0 twice** — `loop.schedule` and `driver.open_planning` are both reachable,
+which nobody had checked. The other half of P0, the `_covers` precompute, was **not built**: the probe
+meant to de-risk it measured it at **0.6 ms across the whole suite** and cancelled it. One new check,
+green with the inventory named and red under four planted bugs. Detail in §P0.
+
+**The session before that, in one paragraph.** `execution.step` — the loop that *acts* — is now
 `rules/execute.mf` behind a wrapper, and with it `predicted_changes` (`rules/predict.mf`), which was
 never on the list of what blocked it and was one; getting there needed no new capability and four
 representation changes, of which only one looked like prose (item 3). ⚠ It was first written **O(world)**
@@ -180,7 +191,7 @@ different here, and how much is prior art), the horizon's **second axis** and th
 rule in [concepts.md](concepts.md), and the training formulation in
 [harmonization.md](harmonization.md). **Read the P0–P5 table before anything else in that section.**
 
-**The two sessions before that, in one paragraph**, because the entries below are in the order things
+**The three sessions before that, in one paragraph**, because the entries below are in the order things
 were built rather than in the order they matter: `step` and `open_workbench` were **swapped live** behind thin
 wrappers, so nothing in the workbench exists twice any more; **mediation is enforced** — `step` refuses
 to imagine an unmediated operator, and the compliance pass runs over every corpus; all three decomposed
@@ -364,7 +375,7 @@ and **you cannot learn a Python callable**. Hooks must become data. That is no l
 
 | phase | what | why it is here, and what it unblocks |
 |---|---|---|
-| **P0** | `_covers` **precompute** at `define` time; the **reachability pass** (an `access.offenders` analogue: *is there a name a rule can call?*) plus one check that goes red | cheap, decisive, and measures rather than argues. Dispatch is quadratic in *applicable* bodies (63 ms at 100) and the order is **static**, so this is recomputation. Everything downstream is dispatch-heavy |
+| **P0** | ✅ **done, and half of it was deleted by its own probe.** The **reachability pass** is built (`ugm/reach.py`, `python -m ugm.reach`) and the check is green with the gap named. The `_covers` precompute is **not built**: measured at **0.00% of the suite** | see §P0 below. The probe that was meant to de-risk the precompute cancelled it instead |
 | **P1** | the **addressing half of a guard** — `wants <sort> <label>` on function bodies, which `criterion.py` has and function guards lack | one change buys the **index** (cheap dispatch) *and* the *"which tokens do I look at"* semantics a construction needs. Also the groundwork for predicate dispatch slice 3 |
 | **P2** | **starting a pursuit** must be reachable — `open_pursuit` / `carry_out` / `loop.schedule`, `open_planning` (reading `max_steps` / `max_depth` / `guided` off the pursuit), `open_execution`. ⭐ **Not** the goal constructors: see below | de-Pythonization's cluster B **and** the language arc's precondition. Smaller than it looked |
 | **P3** | **hooks become data** — `rank` / `allow` / `trace` as named functions and precedence stages; add the missing **`by experience`** comparator (`EXPERIENCE` is only an attributor today; `application.py` holds the record) | decided by P2's needs rather than open. Unblocks `_phase_planning`, and *is* the learned-order artifact harmonization needs |
@@ -376,10 +387,80 @@ budget stands — a new way of saying something is an interpretation rule in the
 dispatch **slice 4**, which advice-over-sequences still wants but which is not on the language critical
 path.
 
-⚠ Two things are worth doing *before* P0 rather than after, because both are cheap and either could
-change the plan: the **guard-address probe** (blank the addressing half on utterances whose target
-structure is known; does search recover it, and how does the space grow?) and confirming that `_covers`
-really is static in practice, not just by signature.
+⚠ One thing is still worth doing *before* P1, because it is cheap and could change the plan: the
+**guard-address probe** — blank the addressing half on utterances whose target structure is known; does
+search recover it, and how does the space grow? (The other pre-P0 probe, *is `_covers` static?*, has been
+run; it is what killed the precompute. See below.)
+
+### ✅ P0 — the pass is built, and the probe deleted the other half
+
+**The `_covers` precompute is not built, and should not be.** It was on the plan because dispatch is
+quadratic in *applicable* bodies and the order looked static. Both halves of that were checked before
+building anything, and the second one is beside the point:
+
+* **Static: yes.** `_covers` was wrapped over the whole self-test — 107 calls, 70 distinct pairs, 37 of
+  them repeats, and **zero disagreements**. So a cache would be sound.
+* **Worth caching: no.** Those 107 calls cost **0.6 ms — 0.00% of a 258-second run.** There is nothing
+  to precompute away.
+
+The reason is the corpus rather than the algorithm: loaded with every rule file, it holds **61 names and
+every single one has exactly one body**, so `select` never reaches the pairwise loop at all. The
+quadratic is real and was re-measured — 0.03 / 0.85 / 14.5 / 57 ms at 1 / 10 / 50 / 100 applicable
+bodies — it simply has no population yet. ⭐ **This is the *measure before optimizing* lesson arriving
+with a named lever again**, and the plan's own text already said so two sections down: *"nothing in the
+corpus dispatches yet"*. **The trigger to revisit is a second body under one name**, which is P1's
+sequel and predicate dispatch slice 3; a cache installed now would be invalidation risk bought against a
+0.6 ms saving.
+
+**The reachability pass is built** — `ugm/reach.py`, and the argument for its shape is in its docstring.
+A rule enters Python through exactly two doors, an **opcode** and a registered **native**, so what a rule
+can reach is a transitive closure over the Python call graph from those doors; what the engine *does* is
+the closure from its own entry points; and the inventory is the difference. Derived, not listed — which
+is the property that keeps it from becoming the hand-written list it replaces.
+
+    machinery: 307   reachable from a rule: 216   fronted by a surface name: 4   UNREACHABLE: 87
+
+⭐ **A wrapper is not a gap, and missing that would have made the arc's successes read as its failures.**
+`workbench.deviates` is Python no rule calls — but a rule calls `deviates`, the body it fronts. Read as a
+bare Python call graph the number would *grow* every time something moved to the surface, which is
+exactly backwards. `reach.fronted` reads the literal name out of the wrapper's own `fn.invoke`, and the
+tell is that it is a **literal**: a wrapper names the body it stands for, while Python calling the
+surface for its own reasons (`precedence._by_function`) passes a name it was given.
+
+⚠⚠ **It found the prose wrong twice, which is the whole reason to measure rather than argue.** §0 below
+listed `loop.schedule` among what a rule cannot reach. **It can** — `loop._after` is the native behind
+`NATIVE … "after" …`, and it schedules. `driver.open_planning` is reachable too, through the `plan`
+native. Both are now recorded as reachable, and the real gap in the second is a **different question the
+pass does not claim to answer**: `plan` drops the pursuit's `max_steps` / `max_depth` / `guided`, so the
+name is there and does not carry everything. ⭐ *Is there a name a rule can call* and *does that name
+carry the whole capability* are two questions, and conflating them is how a list drifts.
+
+⚠ **The check is green with the gap named, not red.** The plan said *"plus one check that goes red"*; a
+standing red would cost the suite the property that makes it worth trusting, so
+`check_THE_MACHINERY_A_RULE_CANNOT_START_IS_AN_INVENTORY_NOT_AN_ARGUMENT` follows
+`check_A_RULE_CAN_BUILD_A_RUNNABLE_GOAL`'s precedent instead: it **asserts the inventory**, so closing an
+item turns a line red and that line should be **deleted**, not fixed. It earns its green — four bugs were
+planted in the pass (every function a door, none a door, fronting blinded, the `_PHASES` table unread)
+and each went red on the lines meant to catch it.
+
+⚠ The pass reads **Python bytecode**, and that is the point rather than a compromise: the boundary being
+audited is Python's, so a pass written in the surface could only report what the surface already reaches,
+which is the question begged. Its one approximation is stated in the module and chosen in
+`precedence._covers`' direction — **a false *unreachable* costs somebody a look; a false *reachable*
+silently retires work the arc still has to do** — so a call through a value computed at run time is
+invisible and will be reported as a gap it may not be.
+
+What the inventory says, grouped — and it reproduces the hand audit in §3 and adds to it:
+
+| | |
+|---|---|
+| `driver._phase_*` (all five), `_attempt`, `_history`, `_record_execution`, `_plan_of`, `_looker_*` | **P4**, exactly as audited |
+| `driver.carry_out` / `follow` / `open_pursuit` / `pursuit_step` | **P2** |
+| `execution.open_execution` / `open_replay` / `bind` / `resume_replay` / `alternatives` / `matching_alternative` | **P2's B2**, and larger than B2 recorded — the replay's whole bookkeeping is Python |
+| `loop.run` / `tick` / `advance` / `agenda` / `due` / `finished` | not previously on any list. Driving the outer loop is unreachable even though *scheduling onto* it is |
+| `goal.open_goal` / `require_type` / `_constrain` / `sequence` / `close_goal` | §0's list. ⭐ Deliberately **not** P2 — a rule can already build a goal from the vocabulary |
+| `workbench.as_violations` / `explain_unmet` / `phrase_unmet` / `drop_*` / `deviates` | the **renderers**, and they are correctly here: they are Python the surface does not have and does not want |
+| `clock.at_of` / `arrived`, `application.applied_to`, `activation.describe`, `dispatch.observes`, `selection.candidates`, `forget.*` | readers nobody had asked about. Low value individually, and the first honest count of them |
 
 ### ⭐⭐⭐ What interpretation must PRODUCE — settled, and smaller than expected
 
@@ -503,8 +584,17 @@ What is and is not reachable today, which is less bad than it sounds:
   which is the second-implementation-that-drifts defect this codebase keeps recording.
 * ✅ reading a goal — `rules/holds.mf` is live.
 * ✅ planning — `NATIVE "plan"` / `"plan_step"`.
-* ❌ **starting a pursuit** (`open_pursuit` / `carry_out` / `loop.schedule`), and `_ensure_*` loading,
-  which is driven by the Python wrappers.
+* ❌ **starting a pursuit** (`open_pursuit` / `carry_out`), and `_ensure_*` loading, which is driven by
+  the Python wrappers.
+
+⚠⚠ **Two claims that used to be in the line above are wrong, and `python -m ugm.reach` is what found
+it.** `loop.schedule` **is** reachable — `loop._after` is the native behind `NATIVE … "after" …` and it
+schedules, so a rule really can put a follow-up on the agenda. `driver.open_planning` is reachable too,
+through the `plan` native. What is true of the second is a *different* claim: `plan` takes only
+`(goal, subject, thread)` and drops `max_steps` / `max_depth` / `guided`, so the name exists and does not
+carry the whole capability (item B1). ⭐ **Those are two questions and this section had been asking them
+as one.** What remains genuinely unreachable is *driving* the loop — `loop.run` / `tick` / `advance` —
+which no list had recorded at all.
 
 ✅ **Half of this is already measured rather than argued.** `check_A_RULE_CAN_BUILD_A_RUNNABLE_GOAL` is
 green: a rule authors a goal through the vocabulary alone, the engine plans it, and the world changes.
@@ -512,8 +602,10 @@ It also asserts the remaining gap explicitly — *starting a pursuit is still Py
 is a deliberate act, and the check tells you to **delete that line** rather than fix it when P2 lands.
 
 **Do this before the rest of item 3**: only the *pursuit* half of cluster B is needed, and it is small.
-The other honest first move is a **pass** rather than a port — the analogue of `access.offenders`, asking
-of each piece of machinery *is there a name a rule can call?*
+✅ The other honest first move was a **pass** rather than a port — the analogue of `access.offenders`,
+asking of each piece of machinery *is there a name a rule can call?* That is `ugm/reach.py`, it is built,
+and it answers **87**. Read §P0 above for what it found, including the two claims in this section it
+corrected.
 
 **The arc is de-Pythonization, and one item of it is left.** Everything in this section before item 5 is
 that arc; items 5 onward are correctness or capability. Nothing in the workbench exists twice any more,
@@ -882,6 +974,22 @@ assume it was primitive. `types.gather_instances` is a native because the traver
 
 **Test the claim before building the fix for it.** Three times during the audit something was
 "missing" and already worked — dynamic function names most sharply. The cheapest guard is to try it.
+A fourth: the `_covers` precompute was on the plan as *cheap and decisive*, and the probe written to
+de-risk it **cancelled it** — 0.6 ms across the whole suite, because the corpus has 61 names and one
+body each. ⭐ A probe that is only allowed to confirm the plan is not a probe.
+
+**A capability with a name is not a gap, even when the Python around it is unreachable.** The
+reachability pass, read as a bare Python call graph, reports every wrapper the arc has *created* as
+something a rule cannot start — so the number would get worse each time something moved to the surface,
+which is exactly backwards. A measurement whose direction of improvement is inverted is worse than none,
+and the tell was that its worst offenders were the functions the last three sessions had just finished
+swapping. Ask what the number does when the work succeeds.
+
+**A reachability question splits into two, and reading them as one is how a list drifts.** *Is there a
+name a rule can call?* and *does that name carry the whole capability?* have different answers for
+`driver.open_planning`: the `plan` native reaches it, and drops three of the pursuit's parameters on the
+way. The first is mechanically checkable and now is checked; the second is a judgement about what the
+name is *for*, and belongs in prose beside the item rather than inside the pass.
 
 **The enforcing form arrives before the answering one.** Wherever the engine can only *enforce*,
 something above it that needs to *decide* will have to be Python. `types.check` raised where a guard
