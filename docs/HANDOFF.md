@@ -3,7 +3,7 @@
 Read this first when picking the project up cold. It says where things are, what state they are in,
 what to do next, and which mistakes have already been made so they need not be made again.
 
-**Verify:** `python -m ugm.selftest` — currently **256 checks, 0 failing**, in about 90 seconds.
+**Verify:** `python -m ugm.selftest` — currently **257 checks, 0 failing**, in about 90 seconds.
 **Measure:** `python -m ugm.bench` — the numbers below, re-runnable.
 
 The engine is `ugm/`. An earlier iteration lived in `microfunctions/` and the package was renamed;
@@ -109,7 +109,7 @@ Three things came out of doing it, and only the first was expected:
 | `copy_set` / `reachable` | ✅ **live** via `open_workbench`; the Python `reachable` stays for `view=` callers |
 | `execution.step`, `driver._phase_*` | **not written** — and blocked by the row below |
 | `workbench.deviates` | ✅ **live** — `rules/deviate.mf` + the `violations` native |
-| `unmet_expectations` | **not written**, but its input is a node now — blocked on prose, see step 4 |
+| `workbench.unmet_expectations` | ✅ **live** — `rules/unmet.mf`; `predicted_changes` returns a node and the prose moved to `explain_unmet` |
 | `goal.holds` | **not written** — blocked on `VKIND` + `compare.mf`, see step 4 |
 | the mediation layer (`access` / `resolve` / `version`) | ✅ live |
 
@@ -296,16 +296,20 @@ as the routes it takes through both sides.*
 The last big Python island in the plan-act-check loop. `driver._phase_*` is reads, guards, one call,
 attribute writes and unlinks; its `_PHASES[phase]` dispatch is what a dynamic `INVOKE` does.
 
-⚠ **It is blocked by item 4, not merely adjacent to it** — `execution.step` calls `W.deviates` (now
-written) and `W.unmet_expectations` (not), so **finish item 4 first**. That is the one place the ordering
-in this list was wrong.
+⚠ **It is blocked by item 4, not merely adjacent to it** — `execution.step` calls `W.deviates` and
+`W.unmet_expectations`, both of which are now written, so what remains of item 4 is `goal.holds`.
+That is the one place the ordering in this list was wrong.
+
+⚠ And it reports in **prose** in several places (`_diverge(why=…)`, `_note`). See item 4 on
+`unmet_expectations`: prose is a rendering decision, and a predicate carrying one cannot move to the
+surface. Expect to split each of them the same way — facts on the node, sentences at the edge.
 
 The two swaps above are the template: **write the wrapper first**, keep the Python beside it as
 `_python_*`, and point the comparison check at the reference rather than deleting it. And take the
 comparison check through *every* route the wrapper offers — that is what `workbench.mf`'s dormant years
 cost.
 
-### 4. The predicates that block the rest — one of three done
+### 4. The predicates that block the rest — two of three done
 
 ⚠ **Item 3 depends on this one**, which the ordering above did not say: `execution.step` calls
 `W.deviates` and `W.unmet_expectations`, so it cannot be written above them.
@@ -324,28 +328,27 @@ cost.
   state the case. The refusal is right and the fix is one branch; the general shape is that moving to the
   surface turns a permissive Python default into a decision somebody has to write down.
 
-* **`workbench.unmet_expectations` — the recorded blocker is removed, and a different one showed up.**
-  `predicted_changes` now returns a **transient node**: one ordered `expect` edge per expectation, each
-  carrying its own `sort` (`attr` / `link` / `kind`), so a reader is one loop rather than three — and
-  `sort` is exactly the sort of condition a dispatching predicate would select a body on. The caller
-  drops it (`drop_prediction`), like `reachable`'s walk. `unmet_expectations` reads the node today, in
-  Python, and everything it needs is now graph data: bindings already live on the replay
-  (`r -bound-> … -mapping-> … -node->`) and `activation.gather_minted` already hands back a node.
+* ✅ **`workbench.unmet_expectations` is `rules/unmet.mf`.** The audit said it needed *no capability at
+  all*, which was true and not the whole story: it was blocked twice, both times by **representation**.
 
-  ⚠ What blocks it *now* is **prose**. It answers with sentences — `f"expected {key}={want!r} but found
-  {got!r}"` — and `repr` is not reproducible in the surface, nor should it be. The fix is the shape
-  `deviates` just used: answer with **structured failure nodes** and render the text at the edge that
-  reports it. That ripples into `execution.report`, `deviation["unmet_expectations"]` and three checks,
-  which is why it was not done in the same pass.
+  Its **input** was a Python dict. `predicted_changes` now returns a **transient node** — one ordered
+  `expect` edge per expectation, each carrying its own `sort` (`attr` / `link` / `kind`), so a reader is
+  one loop rather than three, and `sort` is exactly the kind of condition a dispatching predicate would
+  select a body on. The caller drops it (`drop_prediction`), like `reachable`'s walk.
 
-  ⭐ The general lesson, and it is worth carrying into `execution.step`: **a predicate that answers in
-  prose cannot move to the surface.** Prose is a rendering decision, and a rendering decision made
-  inside a predicate is a second thing the predicate is for.
+  Its **output** was **prose** — `f"expected {key}={want!r} but found {got!r}"` — and that is the half
+  worth remembering, because it looks like a weakness of the surface and is not. ⭐⭐ **A predicate that
+  answers in prose cannot move.** `repr` is a *rendering* decision, and a rendering decision inside a
+  predicate is a second thing the predicate is for. Split — the predicate answers with facts, one table
+  (`_UNMET_PHRASE`) renders them, `explain_unmet` is what `execution.step` calls — the rest was a
+  transcription. **Carry this into `execution.step`**, which reports in prose in several places.
 
-  ⚠ One real change fell out of the node representation. The dict could carry `None` in a tuple slot to
-  mean *expected to be cleared*; an attribute holding `None` is simply absent, so the node cannot say it
-  by value. It says it with `mode` (`exact` / `set`) instead, and that is strictly clearer than the
-  magic `"<set>"` string it replaces.
+  ⚠ Two things the graph made you say out loud that the dict got for free. A tuple slot could hold
+  `None` to mean *expected to be cleared*; an attribute holding `None` is simply **absent**, so the node
+  says it with `mode` (`exact` / `set`) — clearer than the `"<set>"` magic string it replaces. And the
+  Python reference stored the named target of a `missing_edge` as an **attribute** while the surface
+  `LINK`ed it; `explain_unmet` reads it with `g.target`, so only one of those spellings works. The
+  comparison check caught it — the two answers differed by exactly that field.
 * **`goal.holds`** needs **`VKIND`** (a value's category) and `compare.mf`, which land together — writing
   `compare.mf` earlier would duplicate `types.compare`, which `goal.holds`, `criterion._holds` and every
   schema check share.

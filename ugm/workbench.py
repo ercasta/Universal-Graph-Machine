@@ -908,41 +908,115 @@ def expected_attrs(g: Graph, prediction: str) -> dict:
             for e in g.targets(prediction, "expect") if g.attr(e, "sort") == "attr"}
 
 
-def unmet_expectations(g: Graph, prediction: str, bound: dict, minted: list) -> tuple:
-    """Which of the imagined step's predictions reality did not deliver. Empty means it went as planned.
+def _ensure_unmet(g: Graph) -> None:
+    """Resolve `unmet_expectations` in this graph. Idempotent — see `_ensure_step` for the argument."""
+    from pathlib import Path
+    from . import asm
+    if fn.find(g, "unmet_expectations") is None:
+        asm.load_file(g, Path(__file__).parent / "rules" / "unmet.mf")
 
-    Each is an existential constraint — *some* file exists, the directory *was* marked — never a count.
-    `bound` maps a mapping to the real node standing for it; `minted` is what the real call created.
 
-    `prediction` is the **node** `predicted_changes` returns. It used to be a Python dict, and that was
-    the only thing keeping this predicate in Python: it needs no capability the surface lacks, it just
-    had nothing readable to read. This still runs in Python — the remaining step is to write it in the
-    surface, for which `bound` and `minted` need to arrive as nodes too."""
-    missed = []
+def unmet_expectations(g: Graph, prediction: str, replay: str, mints: str) -> str:
+    """Which of the imagined step's predictions reality did not deliver — as a **node**.
+
+    **The implementation is `rules/unmet.mf`**; this resolves it and calls it, and there is nothing to
+    translate on the way back, because the answer is already graph data.
+
+    Each expectation is existential — *some* file exists, the directory *was* marked — never a count.
+    `replay` carries the mapping-to-real bindings (`r -bound-> b -mapping-> … -node->`), and `mints` is
+    what the real call created, as the node `activation.gather_minted` hands back.
+
+    **It answers with facts, not with sentences**, and that is what let it move at all: the previous
+    version returned prose containing `repr(got)`, which is neither reproducible in the surface nor
+    something a predicate should be deciding. Rendering is `explain_unmet`'s business, at the edge that
+    reports. A rendering decision inside a predicate is a second thing the predicate is for.
+
+    Transient: the caller drops it."""
+    _ensure_unmet(g)
+    return fn.invoke(g, "unmet_expectations",
+                     {"prediction": prediction, "replay": replay, "mints": mints},
+                     retain=False)[1]["result"]
+
+
+def _python_unmet_expectations(g: Graph, prediction: str, replay: str, mints: str) -> str:
+    """The reference the surface is checked against. **Not the live one** — see above."""
+    from . import execution as X
+    out = g.mint("unmet")
+
+    def miss(kind: str, expectation: str, to=None, **attrs):
+        node = g.mint(kind, **attrs)
+        g.link(node, "expectation", expectation)
+        if to is not None:
+            # An EDGE, never an attribute. A node named in an answer is pointed at, so a reader follows
+            # it; storing the id as a value would make the answer a string about the graph rather than
+            # part of it — and `explain_unmet` reads it with `g.target`, so the two spellings are not
+            # interchangeable. The surface version says `LINK`, and this is what agreeing with it means.
+            g.link(node, "to", to)
+        g.link(out, "missed", node)
+
+    made = {g.kind(n) for n in g.targets(mints, "found")}
     for e in g.targets(prediction, "expect"):
         sort = g.attr(e, "sort")
-        node = bound.get(g.target(e, "mapping"))
         if sort == "kind":
-            if g.attr(e, "wanted") not in {g.kind(n) for n in minted}:
-                missed.append(f"expected some new {g.attr(e, 'wanted')} node, found none")
-        elif node is None:
+            if g.attr(e, "wanted") not in made:
+                miss("missing_kind", e, wanted=g.attr(e, "wanted"))
+            continue
+        node = X.bound_to(g, replay, g.target(e, "mapping"))
+        if node is None:
             continue                            # nothing real stands for it; not an expectation failure
-        elif sort == "attr":
+        if sort == "attr":
             key, got = g.attr(e, "key"), g.attr(node, g.attr(e, "key"))
             if g.attr(e, "mode") == "set":
                 if got is None:
-                    missed.append(f"expected {key!r} to be set, but it was not")
+                    miss("unset_attr", e, key=key)
             elif got != g.attr(e, "want"):
-                missed.append(f"expected {key}={g.attr(e, 'want')!r} but found {got!r}")
+                miss("wrong_attr", e, key=key, want=g.attr(e, "want"), got=got)
         else:
             label, target = g.attr(e, "label"), g.target(e, "target")
             if target is not None and target not in g.targets(node, label):
-                missed.append(f"expected a {label!r} edge to {target}")
+                miss("missing_edge", e, label=label, to=target)
             elif target is None and g.attr(e, "presence") == "some" and g.count(node, label) == 0:
-                missed.append(f"expected some {label!r} edge, found none")
+                miss("no_edge", e, label=label)
             elif g.attr(e, "presence") == "none" and g.count(node, label):
-                missed.append(f"expected no {label!r} edge, found {g.count(node, label)}")
-    return tuple(missed)
+                miss("extra_edge", e, label=label, found=g.count(node, label))
+    return out
+
+
+#: How each kind of unmet expectation reads. The prose lives here, in one table, rather than inside the
+#: predicate that decides — which is what let the predicate become graph-shaped. `repr` is what a Python
+#: reader expects to see and it stays a Python concern.
+_UNMET_PHRASE = {
+    "missing_kind": lambda g, m: f"expected some new {g.attr(m, 'wanted')} node, found none",
+    "unset_attr":   lambda g, m: f"expected {g.attr(m, 'key')!r} to be set, but it was not",
+    "wrong_attr":   lambda g, m: (f"expected {g.attr(m, 'key')}={g.attr(m, 'want')!r} "
+                                  f"but found {g.attr(m, 'got')!r}"),
+    "missing_edge": lambda g, m: f"expected a {g.attr(m, 'label')!r} edge to {g.target(m, 'to')}",
+    "no_edge":      lambda g, m: f"expected some {g.attr(m, 'label')!r} edge, found none",
+    "extra_edge":   lambda g, m: (f"expected no {g.attr(m, 'label')!r} edge, "
+                                  f"found {g.attr(m, 'found')}"),
+}
+
+
+def explain_unmet(g: Graph, unmet: str) -> tuple:
+    """The sentences a report prints, rendered from the facts. Empty means it went as planned."""
+    return tuple(_UNMET_PHRASE[g.kind(m)](g, m) for m in g.targets(unmet, "missed"))
+
+
+def drop_unmet(g: Graph, unmet: str) -> None:
+    """Scrap the answer and its parts. Dropped before the set, or they would be orphaned."""
+    for m in tuple(g.targets(unmet, "missed")):
+        g.drop(m)
+    g.drop(unmet)
+
+
+def as_mints(g: Graph, nodes) -> str:
+    """A `mints` node over an existing list — the shape `activation.gather_minted` returns.
+
+    Recovery has the nodes already, in a deviation record, and no activation to ask for them again."""
+    out = g.mint("mints")
+    for n in nodes:
+        g.link(out, "found", n)
+    return out
 
 
 def assumption_of(g: Graph, transformation: str):
@@ -962,6 +1036,7 @@ def fragile_steps(g: Graph, wb: str) -> tuple:
 
 
 __all__ = ["deviates", "predicted_changes", "unmet_expectations", "expected_attrs", "drop_prediction",
+           "explain_unmet", "drop_unmet", "as_mints",
            "assumption_of", "fragile_steps", "reachable", "open_workbench", "root_frame", "mappings", "mapping_for",
            "image_of", "identity_of", "original_of", "View", "visible",
            "resolve", "is_imagined", "frames", "history", "step", "fork", "discard"]

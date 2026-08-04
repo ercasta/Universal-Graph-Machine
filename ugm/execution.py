@@ -351,8 +351,14 @@ def step(g: Graph, r: str) -> bool:
     # transient shape `reachable`'s walk established. It was a Python dict, and being one was the only
     # thing keeping `unmet_expectations` out of the surface: a predicate cannot be written there if what
     # it reads exists only in Python.
+    # The predicate answers with facts and the sentences are rendered here, at the edge that reports —
+    # which is what made it graph-shaped. Both scratch nodes go straight after.
     prediction = W.predicted_changes(g, prev, frame)
-    missed = W.unmet_expectations(g, prediction, bindings_of(g, r), minted)
+    mints = W.as_mints(g, minted)
+    unmet = W.unmet_expectations(g, prediction, r, mints)
+    missed = W.explain_unmet(g, unmet)
+    W.drop_unmet(g, unmet)
+    g.drop(mints)
     W.drop_prediction(g, prediction)
     if missed:
         _diverge(g, r, step=name, frame=frame, transformation=tr, result=result, minted=minted,
@@ -442,8 +448,11 @@ def matching_alternative(g: Graph, wb: str, deviation: dict, result: dict | None
             _carry(g, scratch, parent, sib)
             _settle(g, scratch, tr, sib, deviation["result"], list(deviation["minted"]))
             prediction = W.predicted_changes(g, parent, sib)
-            missed = W.unmet_expectations(g, prediction, bindings_of(g, scratch),
-                                          list(deviation["minted"]))
+            mints = W.as_mints(g, deviation["minted"])
+            unmet = W.unmet_expectations(g, prediction, scratch, mints)
+            missed = W.explain_unmet(g, unmet)
+            W.drop_unmet(g, unmet)
+            g.drop(mints)
             W.drop_prediction(g, prediction)
             discard_replay(g, scratch)
             if missed:

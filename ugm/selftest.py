@@ -8124,6 +8124,108 @@ def check_an_expectation_is_derived_from_the_two_frames():
                  [n for n in g.nodes if g.kind(n) == "prediction"])[1] == []}
 
 
+def check_UNMET_EXPECTATIONS_IS_AN_ORDINARY_PROGRAM():
+    """The third predicate the audit decomposed, written in the surface — and what it cost to get there.
+
+    The audit said it needed *no capability at all*, which was true and not the whole story: it was
+    blocked twice over, both times by **representation**. Its input was a Python dict, which
+    `predicted_changes` fixed by returning a `prediction` node. Its output was **prose** — sentences
+    containing `repr(got)` — and that is the one worth remembering, because it looks like a limitation of
+    the surface and is not: `repr` is a rendering decision, and a rendering decision inside a predicate
+    is a second thing the predicate is for. Splitting it (`unmet_expectations` answers with facts,
+    `explain_unmet` renders them) turned the rest into a transcription.
+
+    The prediction here is **built by hand** rather than derived from two frames, and deliberately: it
+    covers all six kinds of miss, where any one fixture produces two or three. A predicate takes a
+    prediction node, so handing it one is using it as designed, and it is the only way to reach *an edge
+    expected to vanish* and *an edge to a named target* in the same check.
+
+    Vacuity guards: a world that satisfies every expectation must answer with nothing, or "agrees" would
+    be satisfied by two implementations that both found everything; and an expectation whose mapping
+    stands for nothing real must be **skipped** rather than failed, which is a different complaint with a
+    different report (`execution.step` calls it an unbound argument)."""
+    from . import execution as X, workbench as W
+    g, w = _blocks()
+    real = g.mint("thing", kind_of="thing", flag=False, note="here")
+    other = g.mint("thing", kind_of="thing")
+    g.link(real, "keeps", other)
+    g.link(real, "spare", other)
+    mapped = g.mint("mapping")
+    g.link(mapped, "original", real)
+    g.link(mapped, "image", real)
+    orphan = g.mint("mapping")                       # nothing real stands for this one
+    g.link(orphan, "original", real)
+
+    prediction = g.mint("prediction")
+
+    def expect(kind, mapping=None, target=None, **attrs):
+        e = g.mint(kind, **attrs)
+        if mapping is not None:
+            g.link(e, "mapping", mapping)
+        if target is not None:
+            g.link(e, "target", target)
+        g.link(prediction, "expect", e)
+
+    expect("kind_expectation", sort="kind", wanted="report")           # nothing of that kind was minted
+    expect("kind_expectation", sort="kind", wanted="file")             # ...but this one was
+    expect("attr_expectation", sort="attr", mapping=mapped, key="note", mode="set")      # set: fine
+    expect("attr_expectation", sort="attr", mapping=mapped, key="absent", mode="set")    # never written
+    expect("attr_expectation", sort="attr", mapping=mapped, key="flag", mode="exact", want=True)
+    # `false` IS set. Tested against null and never by truthiness — the trap this shape invites.
+    expect("attr_expectation", sort="attr", mapping=mapped, key="flag", mode="set")
+    expect("link_expectation", sort="link", mapping=mapped, target=other, label="keeps",
+            presence="some")                                                     # there
+    expect("link_expectation", sort="link", mapping=mapped, target=real, label="keeps",
+            presence="some")                                                     # not there
+    expect("link_expectation", sort="link", mapping=mapped, label="missing", presence="some")
+    expect("link_expectation", sort="link", mapping=mapped, label="spare", presence="none")
+    expect("link_expectation", sort="link", mapping=mapped, label="gone", presence="none")  # already so
+    expect("attr_expectation", sort="attr", mapping=orphan, key="anything", mode="set")     # skipped
+
+    replay = X.open_replay(g, "root", ())
+    X.bind(g, replay, mapped, real)
+    mints = W.as_mints(g, [g.mint("file")])
+
+    def shape(node):
+        """Compared by kind and fields, never by node id — two runs do not share ids."""
+        return [(g.kind(m), tuple(sorted((k, v) for k, v in g.attrs.get(m, {}).items()
+                                         if k != "kind")),
+                 g.target(m, "to") == real or g.target(m, "to") is None)
+                for m in g.targets(node, "missed")]
+
+    mf = W.unmet_expectations(g, prediction, replay, mints)
+    py = W._python_unmet_expectations(g, prediction, replay, mints)
+
+    # ...and nothing at all when reality delivered everything.
+    happy = g.mint("prediction")
+    e = g.mint("attr_expectation", sort="attr", key="note", mode="set")
+    g.link(e, "mapping", mapped)
+    g.link(happy, "expect", e)
+    quiet = W.unmet_expectations(g, happy, replay, mints)
+
+    return {"IT_AGREES_WITH_THE_PYTHON_IT_REPLACED": shape(mf) == shape(py),
+            "and_it_found_EVERY_kind_of_miss":
+                sorted({k for k, _a, _t in shape(mf)})
+                == ["extra_edge", "missing_edge", "missing_kind", "no_edge", "unset_attr",
+                    "wrong_attr"],
+            "one_each_and_no_more": len(shape(mf)) == 6,
+            # Vacuity: a satisfied world says nothing.
+            "A_SATISFIED_EXPECTATION_IS_SILENT": g.targets(quiet, "missed") == (),
+            # `flag=false` is SET. Jumping on the value rather than testing it against null would call
+            # this a failure, which is the trap a graph-shaped rewrite of a Python `is None` invites.
+            "a_FALSE_attribute_counts_as_SET":
+                not [m for m in g.targets(mf, "missed")
+                     if g.kind(m) == "unset_attr" and g.attr(m, "key") == "flag"],
+            # An expectation naming nothing real is SKIPPED, not failed — a different complaint.
+            "AN_UNBOUND_MAPPING_IS_SKIPPED_NOT_FAILED":
+                not [m for m in g.targets(mf, "missed") if g.attr(m, "key") == "anything"],
+            # And the sentences still read as they did, from the facts rather than from the predicate.
+            "THE_PROSE_IS_RENDERED_FROM_THE_FACTS":
+                any("expected some new report node, found none" in s
+                    for s in W.explain_unmet(g, mf)),
+            "and_every_miss_renders": len(W.explain_unmet(g, mf)) == 6}
+
+
 def check_a_prediction_that_does_not_materialise_is_a_divergence():
     """The case the declared type cannot catch. The plan assumed listing the directory would produce
     two file nodes. Reality lists it and produces none — but the result still satisfies `listing`, so the
