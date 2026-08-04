@@ -104,12 +104,60 @@ it is a real precedent. But the MOP is reflective about **evaluation**. This is 
 **planning, acting, and checking against a world**, which is a different object — and the residue that
 falls out is about an agent's engagement with a world rather than about method lookup.
 
+## The outer loop — the same thesis, applied to control
+
+A second candidate, and it turns out to be the residue argument again rather than an independent one.
+There is **one** outer loop, every long-running activity is a node plus a `step`, and nothing is
+uninterruptible: an activation advances by one instruction, a search by one imagined state, a replay by
+one real action, a pursuit by one step of plan-act-check-replan. Adding a kind of work means writing its
+`step`, not touching the loop.
+
+**Interruptibility itself is thoroughly prior art**, and it is worth being blunt about how thoroughly:
+
+| what | where |
+|---|---|
+| resumable procedures | coroutines and generators (Lua, Python, Go), CPS, `call/cc` |
+| preemption a program cannot escape | the BEAM — reduction-counted, fair, and far stronger than this |
+| a reified, inspectable stack | Smalltalk's `thisContext`; reflective towers |
+| durable, resumable long-running procedures | Temporal, Azure Durable Functions, Step Functions |
+| one decision cycle driving everything | **Soar**, **ACT-R** — this architecture, in the 1980s |
+| the agent's own intentions as first-class droppable data | **BDI: PRS, AgentSpeak/Jason** — the closest relative |
+
+AgentSpeak is the one to measure against. It has an interpreter cycle, intentions are first-class, and an
+agent can suspend, drop or resume them. If the claim were *"procedures are interruptible and the
+continuation is data"*, AgentSpeak got there first.
+
+So the claim is again not the mechanism but what the paused state **says**:
+
+* **The continuation is domain-readable at every level, in one representation.** A paused BEAM process
+  says nothing; a paused Temporal workflow says where it is but not what it is *for*. Here a stopped
+  pursuit answers *which goal, which attempt, which phase, how many states imagined, step 2 of 4* —
+  `driver.describe_pursuit` is a read, not an instrumentation channel — and one level down the stopped
+  activation names the function and the instruction, and one level up the agenda says who is next.
+* ⭐ **The system knows which of its own steps are irreversible, and that is a semantic fact rather than
+  a scheduling one.** A tick reports its verb — `imagine`, `look`, `act`, `run`, `forget` — and `ACT` is
+  the one that reaches the world, so a caller can stop *before* the first irreversible step. Temporal
+  knows about retries, not about moral irreversibility; Soar does not classify its operators this way.
+  `loop.py` states the property directly: *"the loop can decline to take the step; it cannot make the
+  step reversible"*. That is the residue thesis applied to control — the *kind* of a step carries
+  meaning, so a policy about what may happen next can be written against it.
+* **The criterion for interrupting can itself be authored.** A watcher written as ordinary text can stop
+  a live search on a judgement about how the search is going, because the search's own progress is data
+  the watcher can read. That is interruption whose *reason* is domain knowledge rather than a timer.
+
+⚠ And the honest weaknesses, which are the mirror image: this is **cooperative, not preemptive** — a
+native or a Python loop beneath the horizon still blocks, and natives are uninterruptible by design;
+there are no fairness guarantees of the kind the BEAM makes; and nothing is persisted, so "durable
+execution" is a property the graph could support and does not currently claim.
+
 ## What is genuinely composite
 
 None of the above is unique on its own. What is unusual is that **all of it is in one graph, and the
 by-products point at each other**: a deviation names a transformation, which names the hypothesis it
 assumed, which sits on a frame, whose mappings say which real node each imagined one stands for, which
-a replay bound while acting, under a context whose resolver is a named function you can read.
+a replay bound while acting, under a context whose resolver is a named function you can read — and the
+whole chain is reachable *from a task the outer loop has paused mid-step*, because the pause is at the
+same level of description as everything else.
 
 That is the composability principle the project already states — *reflexive mechanisms must combine on
 one substrate* — and it is the only place a claim of novelty could survive contact with the list above.
@@ -143,6 +191,9 @@ with no metalanguage and no host code:
   — [harmonization.md](harmonization.md), designed and not built;
 * a question that crosses the residue and cannot be asked of any single neighbour above: *which of my
   standing assumptions did the action I took last Tuesday depend on, and is it still true?*
+* a decision to **stop** taken on the residue rather than on a budget: a watcher that halts a pursuit
+  because of what the pursuit's own record says about it — and, the sharper version, one that declines
+  the next step *because it is an `ACT`* on grounds the system authored itself.
 
 Until one of those runs, the correct description of this project is **"an unusually uniform substrate,
 whose reasoning leaves readable residue"** — which is a real and unusual property, and not yet a proven
