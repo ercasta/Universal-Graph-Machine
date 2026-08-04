@@ -164,6 +164,112 @@ one substrate* — and it is the only place a claim of novelty could survive con
 A system with a TMS **and** a planner **and** a MOP, each excellent, still has three representations and
 no way to ask a question that crosses them.
 
+## Language — where parsing stops, and what could be on the other side
+
+The boldest available claim about this project is that **language processing and reasoning coexist with
+no seam**: utterances compile to expressions the engine runs, ambiguity is resolved by the same authored
+preference machinery that chooses actions, and the engine knows nothing special about *why*, *what* or
+*how* — they are simply different procedures the language compiles to.
+
+**As stated, that claim is false twice over**, and both are worth knowing before it is repeated.
+
+*The prior art is directly on point, not adjacent.* **SHRDLU** (Winograd, 1971) and **procedural
+semantics** are almost verbatim this thesis: English compiled into PLANNER procedures, reasoning and
+acting on a blocks world in one system — and SHRDLU learned *"a steeple is a stack which contains two
+green cubes and a pyramid"* and understood the word afterwards. **DCGs in Prolog**: parsing *is*
+inference, one engine, one representation, ambiguity as ordinary nondeterminism, and a wh-question is a
+query with a variable. Add **Montague**, **Cyc**, **ACE**, **GF**, and **Inform 7**, whose *"does the
+player mean…"* rules resolve ambiguity in the same rulebook machinery as everything else.
+
+*And it is false of this repository today.* `intake.py` has `GOAL_VERBS = ("goal", "ask", "why", "plan")`
+and, further down, `if verb == "why": …`. The machinery knows about *why* by name, in Python. What exists
+is a controlled language with a Python front end.
+
+### The wall, in three layers — only the third is one
+
+1. **Coverage.** Grammars trail the tail of language forever: `0/50` on raw prose, `26%` on the book
+   corpus. Painful, but engineering.
+2. **The ordering.** A parser must commit to a structure *before* the reasoner is consulted, while the
+   information needed to choose the structure lives *in* the reasoner. An architectural inversion; no
+   grammar fixes it.
+3. ⭐⭐⭐ **Parsing is a decomposition operation, and this project's own epistemology forbids it.** A
+   parser rewrites an utterance into constituents by a fixed grammar, before any knowledge is consulted.
+   But meaning is held here to live *above* the horizon — *"kill = cause to die fails as a decomposition
+   because that relation lives above the horizon; it is a network relation, not a definition."* That is
+   Fodor's error, named in [concepts.md](concepts.md) and refused everywhere else in the design.
+   **A parser at the front is the one place the project does the thing it forbids.**
+
+That third one is not passed with a better grammar. It says the operation is wrong.
+
+### What is on the other side, and its name
+
+**Hobbs, *Interpretation as Abduction* (1993)** — syntax, semantics, pragmatics, coreference and
+ambiguity all fall out of finding the lowest-cost abductive proof of an utterance. No separate parser;
+interpretation *is* inference. Which is to say **proposal + selection**, and that is already the shape of
+`proposals` → `relevance` → `tie_break`.
+
+In this system's terms: an utterance is **evidence** rather than a string to rewrite; a reading is a
+**candidate**, exactly like a proposed action; selection is *authored, inspectable* preference where a
+parser's is grammar accident; and the survivor is an **interpretation node**. The payoff is the residue
+thesis reaching language — **an interpretation you can ask *why* of.** Hobbs gives the shape; nothing in
+that tradition keeps the proof afterwards.
+
+The rule form that goes with it is **Construction Grammar**, and here too the tradition is ahead:
+**Radical Construction Grammar** (Croft) denies that parts of speech are primitives at all — categories
+are *derived* from the constructions a word occurs in; **Goldberg** and **Fillmore** give form-meaning
+pairs from specific idioms to schematic argument structures, ordered by specificity; and **Fluid
+Construction Grammar** (Steels) is the computational one, bidirectional, with agents inventing and
+learning constructions at run time.
+
+⭐ **What would be this system's own is narrower and real.** In FCG the constructions are data but the
+unification engine and the learning operators are Lisp. Here, if a rule writes a rule, the **learner is
+itself a rule** — same representation, selected by the same dispatch, revisable, attributable to whoever
+said it, retractable — and *which construction fired and why it beat the others* is residue. Note also
+that **learning a construction is `compile_episode` for utterances**, and harmonization is already
+described as that function's missing sibling: three threads with one shape.
+
+⚠ And the honest costs. Abductive interpretation is a research problem — search over proofs, famously
+expensive, which is why the field went statistical and then neural. At 3–5× per interpreted layer a naive
+version is unaffordable here. Which lands where this project's own note already put it: an LLM is *"one
+possible tool a rule dispatches to at the boundary (construction, ambiguity resolution, prose→CNL)"*.
+**The proposer need not be symbolic; the disposer is the whole point.** Coverage stops being this
+project's problem, and what remains is the part that was always its own: the interpretation is durable,
+chosen by authored knowledge, and records why.
+
+### What it would cost, measured rather than argued
+
+Construction grammar is a *massively* multi-body dispatch, and the note in
+[predicate-dispatch.md](predicate-dispatch.md) predicted where that bites: *"the first real multi-body
+operator is where ranking can quietly degrade."* Measured on `fn.select`, bodies under one name:
+
+| bodies | only one applies | **all applicable** |
+|---|---|---|
+| 10 | 0.28 ms | 0.82 ms |
+| 50 | 1.18 ms | **18 ms** |
+| 100 | — | **63 ms** |
+| 200 | 4.86 ms | — |
+
+Linear when few apply (~24 µs of guard evaluation per body) and **quadratic in the number of *applicable*
+bodies** — and many-applicable is construction grammar's normal case, not its worst one.
+
+Two things follow, and neither is a wall.
+
+* ⭐ **The quadratic is recomputation, not cost.** `precedence._covers(g, a, b)` compares two *guards*:
+  no arguments, no frame, no call data. **The specificity order is static**, and `select` rebuilds it on
+  every call. `function.define` already sets the precedent by deciding `mediated` once when the body
+  arrives, *"because asking per step would mean loading the body back out of the graph on the hot path"*.
+* ⭐ **You can drop parsing; you cannot drop indexing.** A chart was never a commitment to *grammar* — it
+  was a commitment to not evaluating every rule against every span. ⚠ And note what this does **not**
+  require: a part of speech. Filtering on any discriminating attribute works, which is what `_covers`
+  already does — *"is every demand `b` makes also made, at least as tightly, by `a`?"*, subsumption over
+  tests, no category consulted. Discriminating is simply not the same as **cheap**: asking each rule
+  *"does your constraint match?"* is O(rules) whichever kind of constraint it is, so cheapness means
+  going the other way, from the attributes *present* to the rules that want them. The key for that
+  already exists and is used as a pairwise early-out rather than as an index — `_covers` opens with
+  *"keying differs first: two rules that watch different constraints never compete"*.
+
+Both are probes, and both are affordable before any language design is written.
+
 ## Is this "self-awareness"? — scoping the claim before someone else does
 
 The residue list invites a bigger word than it has earned, so: **no, not yet**, and the gap has a precise

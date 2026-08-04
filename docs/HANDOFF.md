@@ -329,6 +329,38 @@ anticipatory: a native that ignores the context can finally be *caught*.
 
 ## What to do next
 
+### ⚠⚠⚠ 0. REACHABILITY — the criterion the arc has not been using, and it changes the order
+
+**Everything moved so far is a *stepper*.** `workbench.step`, `goal.holds`, `deviates`,
+`unmet_expectations`, `predicted_changes`, `execution.step` — all of them run *inside* machinery that
+Python has already started. **Every entry point is still Python.** `goal.py` registers **no natives at
+all**: `open_goal`, `require_link` / `require_attr` / `require_type` / `require_action` / `require_known`,
+`open_pursuit`, `carry_out` are unreachable from a rule, and `driver` exposes only `plan` / `plan_step`,
+which drops the pursuit's own parameters.
+
+> **You can now watch the machine run. You still cannot start it from a rule.**
+
+The arc's criterion has been *"can the system inspect and change its planning?"*. There is a second one —
+*"can a **language rule** reach it?"* — and it selects different work. It matters because it is the
+premise of everything in [comparison.md](comparison.md) about language: no amount of interpretation rules
+can turn a sentence into something that drives the goal machinery if the machinery can only be entered
+from Python. **The arc could complete without fixing this.**
+
+What is and is not reachable today, which is less bad than it sounds:
+
+* ✅ the goal **representation** — goals and constraints are ordinary web nodes, so the vocabulary
+  (`make`, `relate`, `set_slot`) can build them. ⚠ But *only by reimplementing what `require_*` does*,
+  which is the second-implementation-that-drifts defect this codebase keeps recording.
+* ✅ reading a goal — `rules/holds.mf` is live.
+* ✅ planning — `NATIVE "plan"` / `"plan_step"`.
+* ❌ the constructors, the pursuit loop, and `_ensure_*` loading, which is driven by the Python wrappers.
+
+**Do this before the rest of item 3**: cluster B of the audit below (the constructors) is what
+reachability needs, and B1/B2 are small. The honest first move is a **pass** rather than a port — the
+analogue of `access.offenders`, asking of each piece of machinery *is there a name a rule can call?* —
+plus one check that goes red today and says so: *a rule, with no Python between it and the goal, opens a
+goal, constrains it, and drives a pursuit to completion.*
+
 **The arc is de-Pythonization, and one item of it is left.** Everything in this section before item 5 is
 that arc; items 5 onward are correctness or capability. Nothing in the workbench exists twice any more,
 and the loop *around* it now acts in the surface too — what remains is `driver._phase_*`, the state
@@ -730,9 +762,27 @@ as needing two reading opcodes. It needed a third, to write.
 **A closed class earns its place by being declared** — named, reachable as data, with a stated
 position on whether it has an escape into the web. See [concepts.md](concepts.md) on the horizon.
 
-**The CNL cannot grow itself, on purpose.** Adding a block verb is an edit to `intake.py` forever, so
-the family count is a budget — which is why *relate it in the web* is usually the cheaper answer as
-well as the principled one.
+**The CNL does not grow itself — and that is a stance, not a limit.** Adding a block verb is an edit to
+`intake.py`, so the family count is a **budget**, which is why *relate it in the web* is usually the
+cheaper answer as well as the principled one. **Keep the budget; drop the claim that it is a property of
+the design.** The two were being stated as one sentence, and they are not the same:
+
+* *"Adding a verb edits `intake.py`"* — true, and a consequence of intake being **a parser**.
+* *"The CNL cannot grow itself"* — a position, and one the evidence does not support. The
+  homoiconic-grammar spike ran **green**: a grammar declared in CNL generated chart rules with no engine
+  change, and the semantic fold went with it the same day — 68 CNL lines → 206 rules, **no Python escape
+  hatch**. ⚠ That was the *old* engine, whose control regime was *"every enabled rule fires, nothing
+  selects"* — which is exactly what makes a chart work, and exactly what this agenda-driven, selective
+  engine is not. The finding does not transfer for free; it does show the constraint was inherited rather
+  than discovered.
+
+Full reification was then cut on a stated benefit argument — *"the only capability it enables is
+in-engine grammar metareasoning, which the user ruled out"*. ⭐ **That premise has changed**: language
+processing and reasoning sharing one preference machinery is exactly the benefit judged absent then.
+The replacement discipline, stated positively: **a new way of saying something is an interpretation rule
+in the web, never a new verb in `intake.py`.** See [comparison.md](comparison.md) for why *parsing* is
+the thing to drop and what replaces it — the short version is that a parser decomposes an utterance
+before any knowledge is consulted, which is Fodor's error committed at the front door.
 
 ⚠⚠⚠ **An assertion built out of the function under test degrades exactly as the code does.** The check
 guarding chain-walked resolution asserted `mapping_for(f2, x) == mapping_for(f1, x)` — two calls to the
