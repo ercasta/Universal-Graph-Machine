@@ -32,6 +32,10 @@ from .graph import Graph
 #: distinction the floor is drawn on.
 SURFACE = "surface (rule LINK)"
 
+#: Handed back when a read names a node that has none. Shared and never written to, so the read half
+#: allocates nothing per call — it runs 1.8M times in one search.
+_NO_ATTRS: dict = {}
+
 
 class Census:
     """Counts of every (label, src kind, dst kind) written, and the writers responsible."""
@@ -197,6 +201,243 @@ def reads() -> str:
     return "\n".join(out)
 
 
+class _Bulk(dict):
+    """The node → attributes map, counting reads of it made from **outside** `graph.py`.
+
+    A bulk read is `g.attrs.get(n, {})` — the whole attribute dict of a node, taken in one go and then
+    iterated, membership-tested or diffed. It is counted apart from `attr` because the two convert
+    differently: `attr(n, k)` becomes one lookup of one attribute fact, while a bulk read becomes *every
+    attribute fact about this node*, which under a hub is a reverse-index walk and is the shape that
+    hurts. ⚠ `Graph.attr` itself goes through this dict, so the filter is not decoration: without it
+    every ordinary read would be counted as a bulk one and the number would be meaningless."""
+
+    n = 0
+    where = Counter()
+    _external = {}            # code object -> (is it outside graph.py?, writer name)
+
+    def __getitem__(self, k):
+        _Bulk._tally()
+        return dict.__getitem__(self, k)
+
+    def get(self, k, d=None):
+        _Bulk._tally()
+        return dict.get(self, k, d)
+
+    @staticmethod
+    def _tally():
+        code = sys._getframe(2).f_code
+        got = _Bulk._external.get(code)
+        if got is None:
+            path = code.co_filename.replace("\\", "/")
+            mod = path.rsplit("/", 1)[-1][:-3]
+            got = (mod not in ("graph", "labels"), f"{mod}.{code.co_name}")
+            _Bulk._external[code] = got
+        if got[0]:
+            _Bulk.n += 1
+            _Bulk.where[got[1]] += 1
+
+
+class AttrCensus(Census):
+    """Attribute *writes*, by key and by writer. Reuses `Census.writer`, so the floor is drawn on the
+    same evidence for attributes as for edges: a key only Python writes is engine bookkeeping until
+    shown otherwise, a key a rule's `SET` writes is something the authored layer talks about."""
+
+    def __init__(self):
+        super().__init__()
+        self.writes = Counter()
+        self.wwriters = defaultdict(Counter)
+
+    def record_attr(self, key):
+        self.writes[key] += 1
+        self.wwriters[key][self.writer()] += 1
+
+
+def _classify_attr(census: AttrCensus, key: str) -> str:
+    # ⚠ A key that is a NODE ID is an index entry, not a slot. `workbench.index` stores identity →
+    # version as an attribute keyed by the identity, which is *an index above the horizon and the
+    # mechanism below it* doing exactly what it was built to do — and without this line it lands in
+    # SLOT and buries the domain attributes under one key per block in the world.
+    if "#" in key:
+        return "index"
+    w = set(census.wwriters[key])
+    if w == {SURFACE}:
+        return "SLOT"           # only ever written by a rule — a domain attribute
+    if SURFACE in w:
+        return "both"
+    return "kernel?"
+
+
+def attrs() -> str:
+    """The ATTR census — the number the arc has been quoting around.
+
+    ⚠ Attributes are the largest item in the edges-as-nodes conversion and the only one with no figure
+    at all: the read census above counts **edges**, so every percentage published about the conversion
+    excludes `a.height` and `a.clear` entirely. `docs/facts-as-nodes.md` says so and then quotes the
+    numbers anyway, which is exactly how an understated figure becomes a clearance.
+
+    Two halves, matching the two above. Writes over the **selftest**, because that is the widest
+    exercise of the engine; reads over one **Sussman search**, because that is the shape of a real
+    search and where a per-read cost would land. The read half counts edge reads in the *same run*, so
+    the headline — what share of all graph reads is an attribute — is measured rather than assembled
+    from two numbers taken at different times."""
+    census = AttrCensus()
+    put, mint = Graph.put, Graph.mint
+
+    def _put(self, node, **kw):
+        for k in kw:
+            census.record_attr(k)
+        return put(self, node, **kw)
+
+    def _mint(self, kind, **kw):
+        census.record_attr("kind")
+        for k in kw:
+            census.record_attr(k)
+        return mint(self, kind, **kw)
+
+    Graph.put, Graph.mint = _put, _mint
+    try:
+        from . import selftest
+        selftest.report()
+
+        # The controls, in the shape `report` uses and for the reason recorded there: a pass that sees
+        # nothing and a pass that finds nothing print the same table. The probe is compiled under
+        # another filename because this module is skipped by the writer walk on purpose.
+        g = Graph()
+        probe = {}
+        exec(compile("def probe(g):\n    n = g.mint('probe')\n    g.put(n, _attr_control=1)\n",
+                     "_attr_probe.py", "exec"), probe)
+        probe["probe"](g)
+        w_seen = census.writes.get("_attr_control") == 1
+        w_attributed = set(census.wwriters.get("_attr_control", ())) == {"_attr_probe.probe"}
+        w_spread = len({who for k in census.wwriters for who in census.wwriters[k]}) > 20
+    finally:
+        Graph.put, Graph.mint = put, mint
+
+    # --- the read half ---------------------------------------------------------------------------
+    r = Counter()
+    keys = Counter()
+    kinds = Counter()
+    init = Graph.__init__
+    reads_ = {n: getattr(Graph, n) for n in
+              ("attr", "kind", "deref", "targets", "target", "sources", "at", "count")}
+    ATTR_SIDE = ("attr", "kind", "deref")
+
+    def _wrap(name, fn):
+        if name == "attr":
+            def w(self, node, key, default=None):
+                r["attr"] += 1
+                keys[key] += 1
+                # ⚠ The kind of the node READ is the discriminator the writer-based classes cannot be:
+                # `clear` and `height` are written from rules *and* from fixtures, so they land in
+                # `both` beside `name` and `value` and the domain traffic disappears into the plumbing.
+                # What separates them is whose attribute it is — an `activation`'s or a `block`'s.
+                # ⚠ Read through `dict.get` on purpose: `self.attr` would recurse and `self.attrs.get`
+                # would count itself as a bulk read.
+                kinds[dict.get(self.attrs, node, _NO_ATTRS).get("kind")] += 1
+                return fn(self, node, key, default)
+            return w
+
+        def w(self, *a, **kw):
+            r[name] += 1
+            return fn(self, *a, **kw)
+        return w
+
+    def _init(self, *a, **kw):
+        init(self, *a, **kw)
+        self.attrs = _Bulk(self.attrs)
+
+    Graph.__init__ = _init
+    for name, fn in reads_.items():
+        setattr(Graph, name, _wrap(name, fn))
+    _Bulk.n, _Bulk.where = 0, Counter()
+    try:
+        from . import driver as D, selftest as S, thread as T
+        g, world = S._blocks()
+        goal, _abc = S._sussman(g, world)
+        D.pursue(g, goal, T.open_thread(g), world, max_steps=200, max_depth=5)
+        ran = r["attr"] > 0 and r["targets"] > 0
+
+        bulk_before = _Bulk.n
+        bulk = {}
+        exec(compile("def probe(g, n):\n    return dict(g.attrs.get(n, {}))\n",
+                     "_bulk_probe.py", "exec"), bulk)
+        bulk["probe"](g, g.mint("probe"))
+        b_seen = _Bulk.n == bulk_before + 1
+        b_attributed = _Bulk.where.get("_bulk_probe.probe") == 1
+        # ⚠ And the control that says the filter is doing its job rather than counting everything:
+        # a read through `Graph.attr` goes through the same dict and must NOT be counted as bulk.
+        before = _Bulk.n
+        g.attr(world, "kind")
+        b_filtered = _Bulk.n == before
+    finally:
+        Graph.__init__ = init
+        for name, fn in reads_.items():
+            setattr(Graph, name, fn)
+
+    attr_reads = sum(r[n] for n in ATTR_SIDE)
+    edge_reads = sum(r[n] for n in r if n not in ATTR_SIDE)
+    total = attr_reads + edge_reads
+
+    out = [f"WRITES — over the selftest: {sum(census.writes.values())} attribute writes "
+           f"across {len(census.writes)} keys",
+           f"control — sees a write: {'yes' if w_seen else 'BLIND, the table means nothing'}",
+           f"control — attributes it: {'yes' if w_attributed else 'NO, the writer column is worthless'}",
+           f"control — many distinct writers: {'yes' if w_spread else 'NO, the walk lands on one frame'}",
+           ""]
+    groups = defaultdict(list)
+    for key, n in census.writes.most_common():
+        groups[_classify_attr(census, key)].append((key, n))
+    for side in ("SLOT", "both", "index", "kernel?"):
+        rows = groups.get(side, ())
+        out.append(f"--- {side} ({len(rows)} keys, {sum(n for _, n in rows)} writes) ---")
+        for key, n in rows[:20]:
+            who = ", ".join(f"{k}×{v}" for k, v in census.wwriters[key].most_common(3))
+            out.append(f"  {key:<22} {n:>7}  [{who}]")
+        if len(rows) > 20:
+            out.append(f"  … {len(rows) - 20} more")
+        out.append("")
+
+    out += [f"READS — over one Sussman search: {total} graph reads",
+            f"control — the search ran: {'yes' if ran else 'NO, the read table is empty'}",
+            f"control — sees a bulk read: {'yes' if b_seen else 'BLIND to bulk reads'}",
+            f"control — attributes it: {'yes' if b_attributed else 'NO, the call-site column is worthless'}",
+            f"control — an ordinary attr read is NOT counted as bulk: "
+            f"{'yes' if b_filtered else 'NO, the filter is off and the bulk figure is every read'}",
+            "",
+            f"  attributes  {attr_reads:>9}  {100 * attr_reads / max(total, 1):>5.1f}%   "
+            + ", ".join(f"{n}×{r[n]}" for n in ATTR_SIDE),
+            f"  edges       {edge_reads:>9}  {100 * edge_reads / max(total, 1):>5.1f}%",
+            "",
+            f"  of the attribute reads, {_Bulk.n} are BULK — the whole dict of one node, taken at once",
+            ""]
+    for who, n in _Bulk.where.most_common(10):
+        out.append(f"    {who:<34} {n:>8}")
+    # ⭐ The number the conversion actually turns on, and it is not the 84%: how much of the attribute
+    # traffic is a DOMAIN slot. Classified by the write census, since a key's class is a property of who
+    # writes it and does not depend on which run it was read in — ⚠ but a key never written in the
+    # selftest lands in `unseen` rather than being quietly counted as kernel.
+    out += ["", "  attribute reads by the KIND OF NODE read — the cut that separates the domain from",
+            "  the interpreter, which the writer-based classes above cannot:"]
+    shown = kinds.most_common(12)
+    for kind, n in shown:
+        out.append(f"    {str(kind):<22} {n:>9}  {100 * n / max(attr_reads, 1):>5.1f}% of attribute "
+                   f"reads  {100 * n / max(total, 1):>5.1f}% of all reads")
+    rest = sum(kinds.values()) - sum(n for _, n in shown)
+    out.append(f"    {f'({len(kinds) - len(shown)} more kinds)':<22} {rest:>9}  "
+               f"{100 * rest / max(attr_reads, 1):>5.1f}% of attribute reads  "
+               f"{100 * rest / max(total, 1):>5.1f}% of all reads")
+    out.append(f"    of which kind={'block':<16} {kinds.get('block', 0):>9}  "
+               f"{100 * kinds.get('block', 0) / max(attr_reads, 1):>5.2f}% — the world's own nodes, "
+               f"which is what converts")
+
+    out += ["", "  most-read keys:"]
+    for key, n in keys.most_common(15):
+        cls = "unseen" if key not in census.writes else _classify_attr(census, key)
+        out.append(f"    {key:<22} {n:>9}  {100 * n / max(attr_reads, 1):>5.1f}% of attribute reads"
+                   f"   [{cls}]")
+    return "\n".join(out)
+
+
 if __name__ == "__main__":
     import sys
-    print(reads() if "reads" in sys.argv else report())
+    print(attrs() if "attrs" in sys.argv else reads() if "reads" in sys.argv else report())

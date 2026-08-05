@@ -9,7 +9,72 @@ stated, and does each reasoning operation explicitly support each of them?* — 
 to do next*, which re-labels the P0–P5 plan by the cell each phase serves and demotes the two that serve
 none. Everything between here and there is the state of the machine, which is unchanged and still true.
 
-**Verify:** `python -m ugm.selftest` — currently **265 checks, 0 failing**, in 90–120 seconds depending
+## ⭐⭐⭐ THE LIVE ARC — every relation becomes a NODE
+
+**Read [facts-as-nodes.md](facts-as-nodes.md) before touching the representation**, and
+[harmony.md](harmony.md) before *deciding* anything about it — scoring candidates against the four
+criteria in a table is the standing process here, not a flourish, and two decisions in this arc came out
+differently once they were scored.
+
+The driver is **no leak under composition**: a fact must not become timelessly true just because it was
+written, and a relation with no node has nowhere to carry a time, a cause or a retraction. The shape is
+a **node with a type and positional members** — facts, constraints, moments, frames and the identity
+bridge are one construct — and the load-bearing consequence is that **entities have no outgoing edges**,
+which makes path composition unable to fabricate a fact *structurally* rather than by discipline.
+
+Three new instruments, all derived rather than written down:
+
+* `python -m ugm.labels` — the **write census**: 147 labels, 2.6M edges; world relations are **0.3%** of
+  writes and kernel plumbing is 73%. `python -m ugm.labels reads` — the **read census**, at three world
+  sizes. ⚠ It killed the read-path objection that had been raised three times in design.
+* `python -m ugm.labels attrs` — the **ATTR census**, and it **reversed the expectation it was built to
+  confirm**. Attributes are ~4.7× the edge traffic on writes (12.1M) and **84.1% of all reads** — but
+  `register` / `activation` / `arg` / `instr` are ~97% of that, the interpreter reading its own state,
+  and **`block` — the world's own nodes, which is what converts — is 0.06%**. Attributes are the largest
+  *population* and the smallest *traffic*. ⭐ And the read shape that was supposed to hurt (the whole
+  attribute dict of a node at once, a reverse-index walk under a hub) has **exactly two call sites**:
+  `isa._keys` and `driver.state_of`.
+* `python -m ugm.leak` — **harmony for frames**, and the one criterion that is mechanically audited:
+  *every entry in a frame's delta must be attributable to that frame's transformation.* Green, with a
+  planted-leak control and a **slack** figure (2.0×) saying how loose the net is.
+* `ugm/fact.py` — the wrapper. **The first swap has been through it**: participants moved from
+  `subject`/`object` edges to ordered members of one label, and **none of the nine callers changed.**
+  ✅ The five checks that swap left red are green — `fe0d754` (`rules/holds.mf`) closed them, and the
+  suite is **266 checks, 0 FAILED**.
+
+**The encoding is settled, and the flip is recorded rather than quietly rewritten.** It is the **hub** —
+a per-fact node, one edge to the relation concept, positional members from 0, read as `on(a, b)`. The
+deciding property is **nested reification**: a member may itself be a hub, so `claimed(f1, anna)` needs
+no new shape, which is what makes *one construct, not a family* true rather than aspirational. The
+harmony table had scored the per-fact *path* and the hub ✅/✅ on *composable* — the row where that
+property lived, applied but never spent. ⭐ There is now a **notation**: a reading form (`f1 = on(a, b)`)
+for everything, and the storage form only where the argument turns on edges. See
+[harmony.md](harmony.md) §*The decision* and §*Notation*.
+
+⭐⭐ **Attributes take the same shape, and the consequence is bigger than the arc had written down.**
+`attribute(a, clear, 1.0)` — subject, property, value — with **values as nodes**, so qualifiers are
+shared (one `red`, one `fast`) and *what else is red* is a reverse lookup. The per-fact node is what
+keeps sharing from being the canonical (ii) leak. And if attributes are nodes, **the substrate stops
+having attributes at all**: `kind` becomes the type edge, a scalar node *is* its value (identity by
+content — interning becomes structural, and it is where the regress stops), and edge properties go with
+them, since they exist only because an edge could not carry a fact. `require_attr` collapses into
+`requires` over a proposition, except for the non-equality comparisons.
+
+⭐⭐⭐ **And two candidate mechanisms were declined rather than deferred: no settling, no interning** —
+both are caches of a *derived* value, and a cache has to be invalidated, which is a TMS. The line that
+generalises: **an index over what was asserted is storage; a cache of what was derived is a TMS.** What
+replaces them is that **equality is by content, computed where it is needed, never by node identity** —
+which closes the multi-minter hazard instead of deferring it, at the cost of `holds` comparing content
+on the hot path.
+
+⚠ **What is NOT done**: world relations are still labelled edges, and attributes are still attributes
+(shape settled, **cost now measured and small** — see the ATTR census above). Signed frame membership and
+`retract` are not built, and **B requires C** — once `on(a,b)` is a node, `unstack` cannot be `unrelate`,
+because the frame must record an *absence* or an additive delta re-leaks. Next real step: **`reachable`
+inverts** into a reverse closure, since entities with no outgoing edges make forward reachability return
+just the start node — that is the workbench's copy boundary and it changes shape rather than moving.
+
+**Verify:** `python -m ugm.selftest` — currently **266 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
 same minutes** — never against a number written down earlier. ⚠ Take the baseline in a **worktree at

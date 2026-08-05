@@ -57,7 +57,7 @@ Four encodings, in nodes and edges, because predicate notation hides the questio
 | not leaking | ✅ | ❌ | ✅ | ✅ |
 | not lossy | ❌ | ✅ | ✅ | ✅ |
 | readable | ✅ keyed lookup | ✅ | ✅ two hops | ⚠ reverse index + position filter |
-| composable | ❌ | — | ✅ | ✅ |
+| composable | ❌ | — | ⚠ **nests badly** — see below | ✅ **nests, at any depth** |
 
 ⚠⚠⚠ **(ii) is the canonical leak, and it is worth keeping in mind because it looks harmless.** With a
 shared middle node, `a --> on --> b` and `c --> on --> d` put the path `a --> on --> d` in the graph.
@@ -67,12 +67,59 @@ precisely *information the facts did not license*.
 **(i) fails on lossy, not on leaking** — a labelled edge is not a thing, so there is nothing to date,
 nothing to hang a cause on, and nothing to retract in a frame.
 
-### ✅ The decision: (iii), the per-fact 2-hop path
+### ✅ The decision: (iv), the hub
 
-⚠ **With its cost recorded rather than argued away: the participants are versioned.** `a` gains an
-outgoing edge when a relation about it forms, so under sparse frames a change to any relation about `a`
-mints a version of `a`. (iv) avoids that and pays for it on every read instead. The choice was taken
-knowing this.
+**A per-fact node, one edge to the relation concept, and positional edges to the members.** Read as
+`on(a, b)`; see *Notation* below.
+
+⚠⚠⚠ **This table first recorded (iii), and the flip is the clearest instance of the criteria working —
+so the reason is recorded rather than the row quietly rewritten.** The two were scored ✅/✅ on
+*composable*, which was where the deciding property lived and it was never spent: **nested
+reification.** Under (iv) a member may itself be a hub with no new shape —
+
+```
+f1 = on(a, b)
+c1 = claimed(f1, anna)          a fact about a fact, same construct
+```
+
+— so *being pointed at is being a member*, uniformly and at every depth, which is what makes *one
+construct, not a family* true rather than aspirational. Under (iii) the fact node is pointed at both by
+an **entity** (its subject) and by **metadata** about it, so the direction invariant — *a goal points at
+the world and is never pointed at by it* — stops being able to tell world from metadata by direction,
+which is the invariant hypothesis isolation rests on.
+
+⚠ **The cost, recorded rather than argued away: reads become a reverse lookup plus a position filter**
+where (iii) had a keyed forward walk, and pattern matching becomes a join. The lever is a maintained
+index above the horizon (`workbench.index` verbatim), and the evidence that it suffices is measured
+rather than assumed — see [facts-as-nodes.md](facts-as-nodes.md) §*Pattern matching becomes a join*.
+⚠ What (iv) buys back is on the write side: **a relation forming does not touch its participants**, so
+a frame's delta grows by exactly one node per change, where (iii) mints a version of every participant.
+
+## Notation
+
+Two forms, and the second is only for sections that are really about storage.
+
+**Reading form** — a bound name, the relation, positional members. Node ids appear only where identity
+matters.
+
+```
+f1 = on(a, b)
+c1 = claimed(f1, anna)
+     attribute(a, red, 1.0)
+```
+
+**Storage form** —
+
+```
+#7 --is--> on        the relation concept, a shared node
+#7 --at--> a         position 0    ordinal along one label, so position costs nothing
+#7 --at--> b         position 1
+```
+
+⚠ The section above says *predicate notation hides the question*, and it did while four encodings were
+live: `on(a, b)` is equally true of all four. **It is safe now for exactly that reason** — once the
+encoding is settled the reading form hides nothing, and the storage form stays for the arguments that
+turn on edges.
 
 ## What composability buys, concretely
 

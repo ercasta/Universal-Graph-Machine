@@ -12,23 +12,27 @@ meaning lives — so `subject` and `object` in the graph are two more entries in
 already carries one relation under four names and one name over three relations. Position commits to
 nothing and is what a fact is: an ordered tuple.
 
-**Position 0 is the predicate.** A fact is `[predicate, subject, object]`, which is S-P-O with position
-carrying everything — the shape this project settled on long before this module, and the one a
-`constraint` node has been an instance of all along without saying so. Today the predicate lives in the
-`label` attribute rather than as a member, because that is where `holds` and `driver._relevance` read
-it; `predicate` below is the seam that hides it.
+⚠ **The relation is the node's TYPE, not member 0** — settled in
+[facts-as-nodes.md](../docs/facts-as-nodes.md), where `[predicate, subject, object]` was considered and
+dropped: it seats a thing of a different kind at position 0 from the ones at 1 and 2, which is *one
+shape, several membership semantics* reappearing inside a single fact, and it buys nothing, since the
+relation concept is a shared node reachable by reverse lookup under either. **This module has not caught
+up**: the predicate lives in the `label` attribute, because that is where `holds` and `driver._relevance`
+read it, and positions here number from 1 where the design numbers from 0. `predicate` below is the seam
+that hides the first; the second is a rename that has to happen with the callers.
 
 ⚠ **What is NOT here, on purpose.** There is no `retract`. A frame needs to record an *absence* rather
 than delete an edge — an additive delta inherits its parent's connections and re-leaks the very thing
 this arc exists to stop — but nothing consumes that yet, and machinery built for no consumer is the
 trade this codebase declines. It arrives with the frame work, not before it.
 
-⚠ **A constraint is a HUB, and world facts are not.** The chosen encoding for `a on b` is the per-fact
-2-hop path `a --> on#7 --> b` ([harmony.md](../docs/harmony.md)). A constraint does not take that shape,
-and the reason is the direction invariant rather than convenience: a constraint *requires* a relation
-rather than asserting it, and putting it on the path would make `a` point at metadata — while *a goal
-points at the world and is never pointed at by it*. So metadata hangs its participants off itself, and
-only the role names became positions here.
+⚠ **Everything is a hub — a constraint and a world fact alike.** The encoding is `on(a, b)`: a per-fact
+node, one edge to the relation concept, positional edges to the members
+([harmony.md](../docs/harmony.md), which records the flip from the per-fact *path* and why —
+**nested reification**). ⚠ An earlier version of this docstring said world facts were paths and only
+metadata was a hub; that is superseded. The direction invariant still does the work it did there —
+a constraint *requires* a relation rather than asserting it, and *a goal points at the world and is
+never pointed at by it* — but it is now the same shape saying it, which is the point.
 """
 from __future__ import annotations
 

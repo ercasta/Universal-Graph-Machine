@@ -6,12 +6,22 @@ two of the decisions below came out differently once they were scored.
 
 ## The shape
 
-Everything that relates things is a **node with a type and members**:
+Everything that relates things is a **node with a type and members**: a per-fact node, one edge to the
+relation concept, and positional edges to the members, numbered **from 0**.
 
 ```
-on#7      --is--> on          the relation, as a node
-on#7      --at-->  a, b       the participants, by POSITION
+f1 = on(a, b)                 the reading form — see harmony.md §Notation
+
+#7 --is--> on                 the storage form
+#7 --at--> a                  position 0
+#7 --at--> b                  position 1
 ```
+
+⚠ **The relation is the node's TYPE, not its member 0.** `[predicate, subject, object]` was considered
+and dropped: it puts a thing of a different kind at position 0 from the ones at 1 and 2, which is the
+*one shape, several membership semantics* hazard reappearing **inside a single fact**, and it buys
+nothing — the relation concept is a shared node under either, reachable by reverse lookup either way.
+⚠ `ugm/fact.py` still says S-P-O and numbers positions from 1; that is the module, not the design.
 
 One member label. The type on the node, never on the edge. Roles carried by **position**, never by a
 role name — `subject` / `object` / `agent` / `patient` are all rejected, and the reason is not taste:
@@ -25,6 +35,7 @@ transformation and the identity bridge are the same shape at different addresses
 | | type | members |
 |---|---|---|
 | a world fact | `on` | the participants |
+| **an attribute** | `attribute` | **the subject, the property, the value** |
 | a goal's constraint | `link` | what must relate |
 | a moment | `moment` | what it dates |
 | a frame | `frame` | its delta |
@@ -88,6 +99,93 @@ label on every instance. Precedent: a method already declares its drawn roles (`
 records of it can drift. One canonical relation plus `above --converse--> below`, so the converse is
 derived and the derivation can cite why.
 
+## ⭐⭐⭐ Attributes are the same shape, and the substrate stops having attributes
+
+`a.height = 2` and `a.clear = true` are node attributes today — outside everything above, so *when did
+`a` become clear, and who says so* was as unanswerable as under a labelled edge, and `require_attr`
+exists as a separate constraint sort **because** of that split. They take the shape:
+
+```
+attribute(a, clear, 1.0)          subject, property, value
+attribute(a, red, 1.0)
+attribute(a, height, 2)
+```
+
+⭐ **Values are nodes, and the saving is that qualifiers are SHARED.** One `red`, one `fast`, one `1.0`,
+pointed at by every attribute node that says so — so *what else is red* is an ordinary reverse lookup,
+and a qualifier is a thing two KBs can be said to mean the same by.
+
+⚠⚠⚠ **And the per-fact node is what makes sharing safe rather than the leak it looks like.** `a --red-->
+red` and `b --red--> red` is encoding (ii), the canonical shared middle: the path `a → red → b` is in the
+graph and nobody asserted it. With the bridge there is no such path, because **entities have no outgoing
+edges** — `red` is reached only from the attribute nodes, and getting from `a` to `b` requires two
+deliberate reverse lookups that name what they want. **Sharing is licensed by the shape, not tolerated
+by discipline.**
+
+⭐ **Which property vocabulary a domain uses is a KB decision, not an engine one.** `attribute(a, red,
+1.0)` and `attribute(a, color, "red")` may both be available, and choosing is authoring. ⚠ Two KBs
+choosing differently is not a defect in the shape — it is exactly the cross-domain case
+[harmonization.md](harmonization.md) owns, settled by an **authored bridge with a speaker**, which is
+the one form of alignment that leaves a residue.
+
+### ⭐⭐ The consequence: nothing in the substrate carries attributes
+
+If attributes are nodes, the attribute *mechanism* has no remaining job. Three things live in
+`Graph.attrs` today and each has to go somewhere:
+
+| today | after |
+|---|---|
+| `kind`, set at mint, indexed by `of_kind`, refused by `put` | the **type edge** — one of the two floor relations, doing the job it already names |
+| a scalar's payload | **identity by content** — a scalar node does not *carry* `1.0`, it **is** it |
+| edge properties (`eprops`, `NEPROPS` / `EPROP_AT` / `SETEPROP`) | gone with the rest — they exist only because an edge could not carry a fact, which is the problem this arc dissolves |
+
+⭐⭐⭐ **Identity by content is where the regress stops, and it is the same move as the meta-level
+floor.** *Not a logician's blackboard* is true of the domain and false of the substrate (§*Where this
+could be wrong*, item 3); the same shape one level down is **at the bottom, existence is the value.** A
+scalar node is not asserted to be `1.0` by anything — being that node is what `1.0` means here.
+
+⚠ **This is forced rather than chosen**: with no attributes there is nowhere for a scalar to *carry* its
+payload, so its **id is its content**. That dedupes by construction, and it is **not** the interning
+declined in §*No settling, no interning* — there is no index, no write-time lookup and nothing to
+invalidate.
+
+⭐ **`require_attr` disappears.** `attribute(a, red, 1.0)` is a proposition, so *"a must be red"* is
+`requires(goal, that proposition)` — the same collapse `link` gets. ⚠ Only the non-equality comparisons
+(`<`, `>`) still need a constraint node carrying `op`, so this is a shrink rather than a unification,
+which is the honest version of the same note about `link`.
+
+### ✅ MEASURED — `python -m ugm.labels attrs`
+
+This was recorded as *unmeasured, and by far the largest item in the arc*. It is now measured, and
+**the expectation was wrong in a useful direction.**
+
+| | |
+|---|---|
+| attribute **writes**, over the selftest | **12,113,386** across 1,573 keys — against 2.6M edges, so **attributes are ~4.7× the edge traffic** |
+| of which `kind` | 2,246,210 — **18%**, and `kind` is settled to become the type edge |
+| keys only ever written by a **rule** | 36 keys, **141 writes** |
+| **reads**, over one Sussman search | 2,130,088 graph reads: **attributes 84.1%**, edges 15.9% |
+| whose attributes they are | `register` 33.2%, `activation` 29.6%, `arg` 20.0%, `function` 8.2%, `instr` 5.8% — **~97% is the interpreter reading itself** |
+| ⭐⭐⭐ `block` — **the world's own nodes, which is what converts** | **1,038 reads: 0.06%** of attribute reads, 0.05% of all reads |
+| **bulk** reads — the whole attribute dict of a node, at once | **772, from exactly two call sites**: `isa._keys` (521) and `driver.state_of` (250) |
+
+⭐⭐⭐ **So attributes are the largest POPULATION and the smallest TRAFFIC.** The prediction above was
+that the published figures *understate* the conversion; measured, total attribute traffic is five times
+the edge traffic **and the conversion target is 0.06%** — smaller than the world-relation figure
+(0.09–1.72%) it was supposed to dwarf. The 84% is `register`, `activation`, `arg` and `instr`: the
+interpreter reading its own state, which is below the floor and does not convert.
+
+⭐⭐ **And the read shape that was supposed to hurt barely exists.** A bulk read is the one that becomes
+*every attribute fact about this node* — a reverse-index walk under a hub, where `attr(n, k)` is one
+lookup. There are **two call sites in the engine**, and knowing which two is worth more than the
+percentage: `isa._keys` (the `NKEYS` / `KEY_AT` reflection pair) and `driver.state_of`.
+
+⚠ **The caveat is the one the read census already carries**: this is a *Sussman* workload, which is
+planning-shaped and interpreter-heavy. It bounds the cost of converting the world's attributes; it says
+nothing about a workload that mostly reads domain state. ⚠ And it is not a clearance for item 4 —
+performance stays a separate concern, but *measured and small* is now the honest description rather
+than *unmeasured and largest*.
+
 ## ⭐⭐⭐ A proposition is not an assertion
 
 **`a on b` is the representation of a concept.** Whether it holds, who said so, when, and whether they
@@ -127,10 +225,35 @@ derivation means UNKNOWN, the stance is what makes it NO, an absent edge refutes
 world has none of it.
 
 ⚠⚠ **The cost has to be designed, not discovered.** Reading stops being a lookup and becomes a weighing,
-and `holds` is already 54% of Sussman merely by being interpreted. The answer is **settling** — the
-concept exists (`query.settle`, `norm.settle`, and the standing claim that *reasoning that has been done
-stays done*, which is half the benchmark against an LLM) — but what *settled* means, and what un-settles
-it, has to be designed alongside this rather than bolted on. **Unbuilt and load-bearing.**
+and `holds` is already 54% of Sussman merely by being interpreted. **Settling is not the answer** — see
+the next section.
+
+## ⭐⭐⭐ Decided: no settling, no interning
+
+Both were on the table as answers to the cost above — cache the weighed read, dedupe the minted fact —
+and **both are declined, for one reason: a cache of a derived value has to be invalidated, and
+invalidation is a TMS.** This codebase has priced that commitment twice already and put it down both
+times (§*Pattern matching becomes a join*: *a materialised view needs invalidation, and invalidation is
+a TMS, which is a larger commitment than RETE*).
+
+⭐ **The line, and it is the useful form of the decision:**
+
+> **An index over what was ASSERTED is storage. A cache of what was DERIVED is a TMS.**
+
+`workbench.index` is the first kind, and it is already load-bearing — a key-to-node map the substrate
+maintains, knowing nothing about what it means. Settling and write-time dedupe are the second.
+
+⭐⭐ **What replaces them: equality is BY CONTENT, computed where it is needed, never by node identity.**
+That is what disposes of the multi-minter hazard in item 2 rather than deferring it — a goal's
+`on(a, b)` and a rule's `on(a, b)` being different nodes stops mattering the moment nothing compares
+nodes. ⚠ It also means `holds` must compare content, which is a real cost on the hot path and is the
+one this decision accepts in exchange for having nothing to invalidate.
+
+⚠ **What this gives up, said plainly**: *reasoning that has been done stays done* is half the benchmark
+against an LLM, and declining settling declines the read-level version of it. What survives is the
+structural version, which is the stronger one anyway — a frame's delta and the transformation beside it
+**are** work that stays done, persisted without an invalidation obligation because nothing derived is
+stored as though it were asserted.
 
 ⭐ It also makes the **force/deontic** row's discrimination pair trivial to construct — the same
 proposition asserted by two speakers of different authority, and the agent should plan differently. That
@@ -225,6 +348,26 @@ states, and they are the ones this engine already insists on distinguishing:
 Which means `retract` is a first-class operation, not `unrelate`: in a chained frame, deleting an edge
 either removes it from the parent or silently does nothing.
 
+⚠⚠⚠ **`absent` is the frame mechanism and nothing else — it is how you DELETE something that was
+present in a previous frame.** It is not *"a is not on b"*, and the two must not be collapsed even
+though both would be called negation. `unstack` in a child frame records `on(a, b)` **absent**; Anna
+saying the block is not on the table is a **claim about the proposition**, at the epistemic layer, and
+it stays where it is when the frame chain moves. The distinction is the frame-vs-hypothesis one again
+(*a technical frame is not a logical frame*), one level down, and it decides the cost: signing is O(1)
+shadowing on the search's hottest path, while weighing claims is what §*A proposition is not an
+assertion* has to design **settling** for.
+
+⭐ **Which leaves three layers, and naming them is what keeps the earlier sections consistent:**
+
+| | |
+|---|---|
+| **existence** | the proposition node — `on(a, b)` is a concept; minting it asserts nothing |
+| **holding** | signed membership in a frame — present / absent / inherit, per world |
+| **attribution** | claims about the proposition — who said so, when, with what authority |
+
+*Not a logician's blackboard* is the first line; **signed membership is the second**; and the third is
+the one `discourse.py` already has for utterances and the world has none of.
+
 ## What this buys that is not obvious
 
 **The relation's own algebra becomes data.** `then --is--> transitive` is assertable, so a derivation
@@ -270,38 +413,50 @@ design and did not survive measurement.
 | `python -m ugm.labels` | ✅ the write census, and `reads` for the read census |
 | `python -m ugm.leak` | ✅ the harmony invariant for frames, containment form |
 | `ugm/fact.py` | ✅ positional members; `goal`, `conflict`, `criterion`, `driver` and `rules/holds.mf` all on it |
-| constraints stored as members | ⚠ **swapped, 5 checks red, undiagnosed** |
+| constraints stored as members | ✅ **green** — `266 checks, 0 FAILED`. The five reds were real and were closed by `fe0d754` (`rules/holds.mf`) |
+| the ATTR census | ✅ `python -m ugm.labels attrs` — and it **reversed the expectation**: the conversion target is **0.06%** of attribute reads |
 | world relations as hubs | not started |
+| attributes as `attribute(s, p, v)` | not started — shape settled, cost unmeasured |
+| attributes out of the substrate | not started — `kind` → type edge, scalars by content, `eprops` gone |
 | ordered/unordered declared | not started |
 | signed membership + `retract` | not started |
 | `same_as` as a fact node | not started — `mapping` still uses `original` / `image` role labels |
 
-**Resolved** — `before`/`after` are a **convention** with names declared per relation, not role labels;
-a proposition is **not** an assertion; `participant` **stays above the horizon** (it embodies the
-convention *position 1 is index 0*, which must remain an argument — the admissibility rule decides it,
-not the call cost); **derived order is not built** — a consumer wanting chronology sorts by the scalar
-explicitly, so the ordering key is named in the derivation instead of implied by storage.
+**Resolved** — the encoding is **(iv), the hub**, decided on **nested reification** and recorded in
+[harmony.md](harmony.md) along with the flip from (iii); the relation is the node's **type**, not member
+0, and positions number **from 0**; **attributes take the same shape** and the substrate therefore keeps
+**no attributes at all**; **values are nodes** and qualifiers are shared, with the per-fact node the
+thing that keeps sharing from being the (ii) leak; **which property vocabulary a domain uses is a KB
+decision**, and two KBs disagreeing is harmonization's authored bridge rather than a defect in the
+shape; **no settling and no interning** — a cache of a derived value is a TMS, and *an index over what
+was asserted is storage while a cache of what was derived is not*, so **equality is by content,
+computed**, never by node identity; **`absent` is the frame mechanism** (deleting what a previous frame
+held), never a claim that something is false; `before`/`after` are a **convention** with names declared per relation, not role labels; a
+proposition is **not** an assertion; `participant` **stays above the horizon** (it embodies a positional
+convention, which must remain an argument — the admissibility rule decides it, not the call cost);
+**derived order is not built** — a consumer wanting chronology sorts by the scalar explicitly, so the
+ordering key is named in the derivation instead of implied by storage.
 
 ## ⚠⚠⚠ Where this could be wrong
 
 *"Too good to be true"* is the right reflex. Five places it is not yet earned:
 
-1. ✅ **RESOLVED BY DECISION — attributes become propositions too.** `a.height = 2` and `a.clear = true`
-   are node attributes today, outside everything above, so *when did `a` become clear, and who says so*
-   was as unanswerable as under a labelled edge — and `require_attr` exists as a separate constraint
-   sort because of that split. Attributes join the shape. ⚠ They far outnumber relations, so this is by
-   far the largest cost item in the arc, and it is accepted deliberately: **performance is a separate
-   concern**, addressable later with indexes and natives. ⚠ It does mean the census's read numbers
-   understate the conversion by a wide margin, since `ATTR` reads are not in them.
-2. ✅ **MEASURED — interning is a performance choice, not a correctness one.** *"Show me where it
-   happens"*: over the whole suite, **61 of 3,194,178 assertions re-assert an existing `(src, label,
-   dst)` — 0.002%**, of which 59 are `pending`. ⚠ The figure does not transfer, because the new shape
-   *creates* the multi-minter situation: a goal requiring `a on b`, a rule asserting it and a query
-   asking about it are three call sites, and if they mint different nodes then `holds` compares against
-   the wrong one and **the goal is simply never satisfied** — a silent non-termination rather than an
-   incoherent retraction. ⭐ But lookup by **content** rather than by node makes that a non-issue, and
-   content-keyed lookup *is* interning done at read time. **A content index is needed either way; the
-   only question is whether it dedupes on write.** So: not built, key recorded, revisit if it bites.
+1. ✅ **RESOLVED, AND THE SHAPE IS NOW WRITTEN — attributes become propositions too**, as
+   `attribute(subject, property, value)` with values as shared nodes. See §*Attributes are the same
+   shape*, which also carries the consequence that follows from it: the **substrate keeps no attributes
+   at all**. ✅ The cost was recorded here as the largest in the arc and unmeasured; it is now measured
+   (`python -m ugm.labels attrs`) and **the expectation reversed** — attributes are the largest
+   population and the smallest traffic, with the conversion target at **0.06%** of attribute reads.
+2. ✅ **MEASURED, and then settled structurally.** *"Show me where it happens"*: over the whole suite,
+   **61 of 3,194,178 assertions re-assert an existing `(src, label, dst)` — 0.002%**, of which 59 are
+   `pending`. ⚠ The figure does not transfer, because the new shape *creates* the multi-minter
+   situation: a goal requiring `a on b`, a rule asserting it and a query asking about it are three call
+   sites, and if they mint different nodes then `holds` compares against the wrong one and **the goal is
+   simply never satisfied** — a silent non-termination rather than an incoherent retraction. ✅ **Closed
+   by deciding against interning**: comparison is **by content, computed**, never by node identity, so
+   two mints of one proposition are harmless rather than incoherent. See §*No settling, no interning* —
+   the alternative was a write-time dedupe index, which is a cache that has to be invalidated.
+   ⚠ Scalars are content-*identified*, but that is forced by having no attributes and maintains nothing.
 3. ✅ **RESOLVED — all machinery traverses "who said that", uniformly.** No special case, no separate
    path for asserted-versus-derived. ⚠ The regress still needs a stated floor: at the meta level
    existence *is* assertion, because the journal records who wrote what and that record is claimed by
