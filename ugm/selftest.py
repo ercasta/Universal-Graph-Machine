@@ -8,6 +8,7 @@ Re-runnable: `python -m ugm.selftest`.
 """
 from __future__ import annotations
 
+from . import fact as FACT
 from . import hypothesis as H
 from . import isa
 from .focus import Focus
@@ -353,7 +354,7 @@ def check_a_method_step_can_name_a_third_individual():
     m = M.methods(g)[0]
     subs = M.decompose(g, m, goal, M.applicable(g, goal, under="root")[0][1])
     drawn = G.constraints(g, subs[0])[0]
-    about = g.target(drawn, "subject")
+    about = FACT.participant(g, drawn, 1)
 
     # Guard: the subgoal must be about the file, which the goal's constraint never names.
     c0 = M.applicable(g, goal, under="root")
@@ -363,7 +364,7 @@ def check_a_method_step_can_name_a_third_individual():
     g2, repo2, _p2, goal2 = build(*HEAD, "    step subject.shipped = true")
     m2 = M.methods(g2)[0]
     subs2 = M.decompose(g2, m2, goal2, M.applicable(g2, goal2, under="root")[0][1])
-    plain_ok = g2.target(G.constraints(g2, subs2[0])[0], "subject") == repo2
+    plain_ok = FACT.participant(g2, G.constraints(g2, subs2[0])[0], 1) == repo2
 
     undrawn = refusal(lambda: build(*HEAD, "    step z is a linted_file"))
     twice = refusal(lambda: build(*HEAD, "    some f in subject by file",
@@ -385,7 +386,7 @@ def check_a_method_step_can_name_a_third_individual():
     return {"the_method_declares_the_drawn_role": M.roles_of(g, m) == ("subject", "object", "f"),
             "A_STEP_IS_RAISED_ABOUT_A_THIRD_INDIVIDUAL": third,
             "and_the_other_step_still_speaks_of_the_subject":
-                g.target(G.constraints(g, subs[1])[0], "subject") == repo,
+                FACT.participant(g, G.constraints(g, subs[1])[0], 1) == repo,
             "a_method_WITHOUT_a_draw_is_unchanged": plain_ok,
             "an_UNDRAWN_name_is_refused": undrawn is not None,
             "a_name_drawn_TWICE_is_refused": twice is not None,
@@ -1424,7 +1425,7 @@ def check_a_method_selects_itself_and_a_bad_one_cannot_lose_a_solution():
             "it_raised_its_steps_in_order": len(raised1) == 2,
             "roles_bound_to_the_right_blocks":
                 G.world_constraints(g1, raised1[0])[0] and
-                g1.target(G.world_constraints(g1, raised1[0])[0], "subject") == b1,
+                FACT.participant(g1, G.world_constraints(g1, raised1[0])[0], 1) == b1,
             "and_it_carried_the_goal_out": done1["done"] and g1.target(a1, "on") == b1,
             # A method is a route, NOT a redefinition. A goal with its own world constraints keeps
             # being judged by them; only a goal with none becomes BY_STEPS. Stamping BY_STEPS on
@@ -2192,8 +2193,8 @@ def check_A_RULE_CAN_BUILD_A_RUNNABLE_GOAL():
         '    INVOKE R(c) make kind="constraint"',
         '    INVOKE R(_) set_slot node=R(c) key="sort" value="link"',
         '    INVOKE R(_) set_slot node=R(c) key="label" value=F(label)',
-        '    INVOKE R(_) relate node=R(c) label="subject" other=F(subj)',
-        '    INVOKE R(_) relate node=R(c) label="object" other=F(obj)',
+        '    INVOKE R(_) relate node=R(c) label="at" other=F(subj)',
+        '    INVOKE R(_) relate node=R(c) label="at" other=F(obj)',
         '    INVOKE R(_) relate node=R(gl) label="requires" other=R(c)',
         "    COPY R(result) R(gl)"))
     goal = fn.invoke(g, "want_on", {"subj": a, "obj": b, "label": "on"}, retain=False)[1]["result"]
@@ -5042,7 +5043,7 @@ def check_a_goal_is_constraints_and_they_are_graph_data():
     g.unlink(b, "on", index=0)
     g.link(b, "on", c)
     return {"constraints_are_nodes": all(g.kind(x) == "constraint" for x in cs) and len(cs) == 2,
-            "they_point_at_the_individuals": g.target(cs[0], "subject") == a,
+            "they_point_at_the_individuals": FACT.participant(g, cs[0], 1) == a,
             "both_open_initially": len(both_open) == 2,
             "one_closes_at_a_time": len(one_open) == 1,
             "and_names_which_is_left": G.describe_constraint(g, one_open[0]) == "b on c",
@@ -9418,7 +9419,7 @@ def check_intake_turns_a_said_thing_into_a_goal_and_the_loop_runs_it():
     result = D.pursue(g, goal, T.open_thread(g), world, max_steps=400)
     return {"it_read_two_world_constraints": len(world_cs) == 2,
             "pointing_at_the_right_individuals":
-                (g.target(world_cs[0], "subject"), g.target(world_cs[0], "object")) == (a, b),
+                (FACT.participant(g, world_cs[0], 1), FACT.participant(g, world_cs[0], 2)) == (a, b),
             "and_one_constraint_on_the_plan": len(G.plan_constraints(g, goal)) == 1,
             "comments_are_ignored": len(G.constraints(g, goal)) == 3,
             "it_round_trips": "never unstack" in I.describe(g, goal),
@@ -11797,8 +11798,8 @@ _GOAL_AUTHORING = (
     '    INVOKE R(c) make kind="constraint"',
     '    INVOKE R(_) set_slot node=R(c) key="sort" value="link"',
     '    INVOKE R(_) set_slot node=R(c) key="label" value="on"',
-    '    INVOKE R(_) relate node=R(c) label="subject" other=F(subj)',
-    '    INVOKE R(_) relate node=R(c) label="object" other=F(obj)',
+    '    INVOKE R(_) relate node=R(c) label="at" other=F(subj)',
+    '    INVOKE R(_) relate node=R(c) label="at" other=F(obj)',
     '    INVOKE R(_) relate node=R(gl) label="requires" other=R(c)',
     "    COPY R(result) R(gl)",
     "",
@@ -11811,7 +11812,7 @@ _GOAL_AUTHORING = (
     '    INVOKE R(_) set_slot node=R(c) key="key" value="colour"',
     '    INVOKE R(_) set_slot node=R(c) key="value" value="red"',
     '    INVOKE R(_) set_slot node=R(c) key="op" value="=="',
-    '    INVOKE R(_) relate node=R(c) label="subject" other=F(subj)',
+    '    INVOKE R(_) relate node=R(c) label="at" other=F(subj)',
     '    INVOKE R(_) relate node=R(gl) label="requires" other=R(c)',
     "    COPY R(result) R(gl)")
 
@@ -12298,14 +12299,14 @@ def check_THE_SURFACE_AND_PYTHON_AGREE_ABOUT_EVERY_POSITION():
                    for c in (link, attr) for i in range(1, FACT.ARITY + 1))
 
     agree = walk()
-    # The control. Swapping the Python table must make the same walk disagree; if it does not, the walk
-    # is not reading the table and every line above is free.
-    kept = FACT._STORED_AT
-    FACT._STORED_AT = (None, "object", "subject")
+    # The control. Point the Python half at a label the surface does not use, and the same walk must
+    # disagree; if it does not, the walk is not reading the storage and every line above is free.
+    kept = FACT.MEMBERS
+    FACT.MEMBERS = "_not_the_members_"
     try:
         control = not walk()
     finally:
-        FACT._STORED_AT = kept
+        FACT.MEMBERS = kept
 
     return {"EVERY_POSITION_AGREES": agree,
             "and_a_filled_position_is_not_None": FACT.participant(g, link, 2) is not None,
@@ -12316,7 +12317,16 @@ def check_THE_SURFACE_AND_PYTHON_AGREE_ABOUT_EVERY_POSITION():
             # purpose — Python raises so a caller's off-by-one is loud, the surface answers null because
             # a rule has no way to catch — and that asymmetry is asserted rather than normalised away.
             "out_of_range_is_null_on_the_surface": surface(link, 3) is None,
-            "and_RAISES_in_python": _raises(lambda: FACT.participant(g, link, 3), ValueError)}
+            "and_RAISES_in_python": _raises(lambda: FACT.participant(g, link, 3), ValueError),
+            # ⚠ Position 0 is the one that has to be guarded rather than merely bounded. `Graph.at`
+            # takes a negative index the way Python does, so an unguarded `at - 1` would answer with
+            # the LAST participant — a plausible wrong node, which is worse than an exception.
+            "POSITION_ZERO_IS_NOT_THE_LAST_ONE": surface(link, 0) is None,
+            "and_it_is_not_b": surface(link, 0) != FACT.participant(g, link, 2),
+            # A gap is not representable along one ordered label, so filling out of order is refused
+            # rather than padded — an object stored where the subject is read from is a silent swap.
+            "A_GAP_IS_REFUSED": _raises(
+                lambda: FACT.set_participant(g, G.require_type(g, goal, "block"), 2, a), ValueError)}
 
 
 # The entry point must be the last thing in this file. `_checks()` reads `globals()` at call time,

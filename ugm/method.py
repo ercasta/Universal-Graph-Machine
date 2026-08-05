@@ -32,7 +32,7 @@ See `docs/deliberation.md`.
 """
 from __future__ import annotations
 
-from . import consequent as CQ
+from . import consequent as CQ, fact as FACT
 from . import goal as G
 from .graph import Graph
 from .types import is_a
@@ -277,7 +277,7 @@ def matches(g: Graph, m: str, goal: str, c: str) -> bool:
     if want is not None and want not in (g.attr(c, "label"), g.attr(c, "key"), g.attr(c, "type")):
         return False
     when = g.attr(m, "when")
-    if when is not None and not is_a(g, g.target(c, "subject"), when):
+    if when is not None and not is_a(g, FACT.participant(g, c, 1), when):
         return False
     ctx = g.target(m, "within")
     return ctx is None or under_method(g, goal, ctx)
@@ -295,7 +295,7 @@ def applicable(g: Graph, goal: str, *, ctx: str | None = None, under: str | None
 def _role_node(g: Graph, c: str, role: str, bound: dict | None = None):
     if bound and role in bound:
         return bound[role]
-    return g.target(c, SUBJECT) if role == SUBJECT else g.target(c, OBJECT)
+    return FACT.participant(g, c, 1) if role == SUBJECT else FACT.participant(g, c, 2)
 
 
 def _bind_draws(g: Graph, m: str, c: str) -> dict:

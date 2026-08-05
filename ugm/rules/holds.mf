@@ -46,25 +46,27 @@ fn here_now(node) -> thing:
 # A fact's participant at a POSITION, which is the surface half of `ugm/fact.py`.
 #
 # Roles are carried by position here, never by a role name, so a reader asks for position 1 rather than
-# for `subject`. The label this maps onto is storage and not meaning: when a fact's participants become
-# ordered members, this body changes and every caller stays as it is. That is the whole reason the
-# indirection exists, and it is the same trade `_STORED_AT` makes on the Python side.
+# for `subject`. This body used to branch on the position and name an edge for each — two entries of a
+# table whose other copy was in Python, guarded by a check because nothing structural made them agree.
+# Since participants became ordered members of one label there is no table: the position IS the index,
+# and the branching went with it. **The swap made the surface simpler, which is the sign the shape was
+# right rather than merely different.**
 #
-# ⚠ The two tables must agree, and nothing structural makes them — see
-# `check_THE_SURFACE_AND_PYTHON_AGREE_ABOUT_EVERY_POSITION`, which walks both for every position rather
-# than trusting that a two-entry table is too small to drift.
+# ⚠ Both guards below are load-bearing. `Graph.at` takes a negative index the way Python does, so
+# position 0 arrives as -1 and answers with the LAST participant — a wrong node rather than nothing.
 fn participant(f, at) -> thing:
-    EQ R(is_one) F(at) 1
-    JMPIF R(is_one) .one
-    EQ R(is_two) F(at) 2
-    JMPIF R(is_two) .two
+    CONST R(back) -1
+    ADD R(i) F(at) R(back)
+    CONST R(zero) 0
+    LT R(under) R(i) R(zero)
+    JMPIF R(under) .none
+    INVOKE R(n) relations node=F(f) label="at"
+    LT R(within) R(i) R(n)
+    JMPNOT R(within) .none
+    INVOKE R(result) relation_at node=F(f) label="at" index=R(i)
+    JMP .end
+.none:
     CONST R(result) null
-    JMP .end
-.one:
-    INVOKE R(result) related node=F(f) label="subject"
-    JMP .end
-.two:
-    INVOKE R(result) related node=F(f) label="object"
 .end:
     CONST R(done) true
 

@@ -54,7 +54,7 @@ See `docs/planning.md`.
 """
 from __future__ import annotations
 
-from . import access
+from . import access, fact as FACT
 from . import driver as D
 from . import execution as X
 from . import function as fn
@@ -132,7 +132,7 @@ def refutes(g: Graph, c: str, *, view=None) -> bool:
     view = view or (lambda n: n)
     if g.attr(c, "sort") != "attr":
         return False
-    subject = view(g.target(c, "subject"))
+    subject = view(FACT.participant(g, c, 1))
     if subject is None:
         return False
     key = g.attr(c, "key")
@@ -168,7 +168,7 @@ def ask(g: Graph, question: str, thread: str, subject: str, *, assume_complete: 
             T.attend(g, thread, question, why="asked", note="refuted by what is already known")
             # Say what actually holds, not what was wanted. Rendering the constraint here read
             # "refuted: zed.mortal = True" — the wanted value, printed as though it were the finding.
-            subject, key = g.target(c, "subject"), g.attr(c, "key")
+            subject, key = FACT.participant(g, c, 1), g.attr(c, "key")
             return {"verdict": NO, "proof": (), "steps": 0, "workbench": None, "goal": question,
                     "why": "refuted: %s.%s is already %r, not %r" % (
                         g.attr(subject, "label") or subject, key,
@@ -228,7 +228,7 @@ def history_for(g: Graph, thread: str, c: str) -> tuple:
     sort = g.attr(c, "sort")
     want_label = g.attr(c, "label") if sort == "link" else g.attr(c, "key")
     kind = {"link": "link", "attr": "attr"}.get(sort)
-    subject, obj = g.target(c, "subject"), g.target(c, "object")
+    subject, obj = FACT.participant(g, c, 1), FACT.participant(g, c, 2)
     for entry in T.entries(g, thread):
         if g.kind(entry) != "application" or not g.attr(entry, "done"):
             continue

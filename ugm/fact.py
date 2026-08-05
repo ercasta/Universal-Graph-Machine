@@ -1,9 +1,10 @@
 """Facts — a relation as a node, addressed by POSITION.
 
-This is the wrapper the edges-as-nodes arc is built behind, and it is deliberately **behaviour
-preserving**: the API is positional, the storage is still the `subject`/`object` edges that are there
-today. Nothing about the graph changes when a caller moves onto it. What changes is that the caller
-stops naming a role, so the storage can change later in one place instead of in every module.
+This is the wrapper the edges-as-nodes arc is built behind, and **the first swap has been through it**:
+participants were `subject` / `object` edges and are now ordered members of one label. Every caller —
+`goal`, `conflict`, `criterion`, `driver` and `rules/holds.mf` — was written against positions and none
+of them changed when the storage did. That is the whole claim of the wrapper, and it is the evidence
+for it rather than an argument.
 
 **Why positional, and not `subject` / `object`.** Roles are carried by position and direction here, and
 role-*labelled* participation edges are a rejected shape. A label is also a name, and a name is where
@@ -22,26 +23,30 @@ than delete an edge — an additive delta inherits its parent's connections and 
 this arc exists to stop — but nothing consumes that yet, and machinery built for no consumer is the
 trade this codebase declines. It arrives with the frame work, not before it.
 
-⚠ **Coverage is partial by design, and that is the point of the increment.** `goal.py` is on this;
-`conflict`, `criterion`, `driver` and `rules/holds.mf` still read the edges directly. That is safe only
-because storage is unchanged, and it is what `raw_touches` below is for: the number that has to reach
-zero before the storage may move.
+⚠ **A constraint is a HUB, and world facts are not.** The chosen encoding for `a on b` is the per-fact
+2-hop path `a --> on#7 --> b` ([harmony.md](../docs/harmony.md)). A constraint does not take that shape,
+and the reason is the direction invariant rather than convenience: a constraint *requires* a relation
+rather than asserting it, and putting it on the path would make `a` point at metadata — while *a goal
+points at the world and is never pointed at by it*. So metadata hangs its participants off itself, and
+only the role names became positions here.
 """
 from __future__ import annotations
 
 from .graph import Graph
 
-#: Position → the edge label it is stored under today. Position 0 is the predicate and is not an edge:
-#: it is the `label` attribute, which is where every existing reader looks for it.
+#: The one label a fact's participants hang from. Position IS the ordinal along this label, which is
+#: why there is a single name here where there were two role names before: `subject` and `object` were
+#: two more entries in a vocabulary that already carries one relation under four names.
 #:
-#: ⚠ This table is the whole of the transition. When storage moves to members, this module changes and
-#: its callers do not — which is the only reason the wrapper is worth introducing before the change
-#: rather than during it.
-_STORED_AT = (None, "subject", "object")
+#: Ordered adjacency is a substrate primitive here — `(src, label) -> [dst, …]`, ordered and journaled —
+#: so position costs nothing to store and nothing to maintain.
+MEMBERS = "at"
 
 #: How many participants a fact may have. Two, because every relation in the corpus is binary — see the
-#: census. A third participant is a new position, not a new role name, and it costs one entry here.
-ARITY = len(_STORED_AT) - 1
+#: census. This is a *validation* bound rather than a storage one: the members are a list, so raising it
+#: is this line and nothing else. It is kept low on purpose, because an off-by-one that lands inside the
+#: arity is a wrong answer while one that lands outside it is an exception.
+ARITY = 2
 
 
 def predicate(g: Graph, f: str):
@@ -61,7 +66,10 @@ def participant(g: Graph, f: str, at: int):
     with `g.target`."""
     if not 1 <= at <= ARITY:
         raise ValueError(f"position {at} is not one of 1..{ARITY}")
-    return g.target(f, _STORED_AT[at])
+    # ⚠ The bound above is not decoration. `Graph.at` accepts a negative index the way Python does, so
+    # position 0 would arrive as index -1 and answer with the LAST participant — a wrong node rather
+    # than an error, which is the failure mode this codebase least wants.
+    return g.at(f, MEMBERS, at - 1)
 
 
 def participants(g: Graph, f: str) -> tuple:
@@ -77,7 +85,13 @@ def set_participant(g: Graph, f: str, at: int, node: str) -> None:
     """Put a node at this position. Writes once; a position is not a list."""
     if participant(g, f, at) is not None:
         raise ValueError(f"position {at} of {f} is already filled")
-    g.link(f, _STORED_AT[at], node)
+    # Positions are an ordinal along one label, so a gap is not representable: filling 2 while 1 is
+    # empty would store the object where the subject is read from. Refused rather than padded, because
+    # every fact in the corpus fills a prefix — an `attr` constraint has a subject and no object, a
+    # subjectless `type` constraint has neither, and nothing has an object without a subject.
+    if g.count(f, MEMBERS) != at - 1:
+        raise ValueError(f"position {at} of {f} would leave a gap: only {g.count(f, MEMBERS)} filled")
+    g.link(f, MEMBERS, node)
 
 
 def assert_fact(g: Graph, kind: str, pred: str | None, *members, **attrs) -> str:
@@ -88,8 +102,9 @@ def assert_fact(g: Graph, kind: str, pred: str | None, *members, **attrs) -> str
     one shape may be shared, one meaning may not."""
     f = g.mint(kind, **({"label": pred} if pred is not None else {}), **attrs)
     for i, m in enumerate(members, start=1):
-        if m is not None:
-            set_participant(g, f, i, m)
+        if m is None:
+            break              # a prefix, and the rest is absent rather than empty — see above
+        set_participant(g, f, i, m)
     return f
 
 
@@ -100,5 +115,4 @@ def raw_touches(g: Graph) -> int:
     unchanged a raw read is correct, so this cannot go red. It is the denominator for the conversion,
     in the shape `access.offenders` uses for the corpus it governs — and it exists so that *is the
     wrapper actually in the way* is answered by a number rather than by reading the imports."""
-    return sum(len(g.targets(n, lbl))
-               for n in g.nodes for lbl in _STORED_AT[1:])
+    return sum(len(g.targets(n, MEMBERS)) for n in g.nodes)
