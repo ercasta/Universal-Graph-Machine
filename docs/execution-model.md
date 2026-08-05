@@ -13,6 +13,13 @@ The organising principle is one sentence:
 The test that makes this checkable rather than a slogan: **can the executor be stopped between any
 two primitive operations, and can the system say what it was doing?**
 
+⭐⭐⭐ **This page describes what runs; [self-and-processes.md](self-and-processes.md) is the design that
+revises it.** The short version of what changes: the system has **no representation of itself**, so
+nothing it does can be dated, caused or attributed and *"I"* and *"you"* have no referent; a process's
+state is an **attribute**, so *"since when have you been planning?"* is unanswerable; and *what triggers
+what* is a Python state machine, so *"why are you planning?"* has no answer to give. Read that page
+before changing anything here.
+
 ## One agenda, one tick
 
 Every control loop in the engine is a **node plus a `step`**:
