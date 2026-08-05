@@ -33,6 +33,7 @@ anything still pointing at `microfunctions/` or `docs/microfunctions/` is stale.
 |---|---|
 | **what is being built, and what that requires of the representation** | ⭐ [agent-representation.md](agent-representation.md) — **the clean statement; read this first**. Scope, benchmark, and *one concept: executable AND readable* |
 | **what the system is for, and the criterion that orders the work** | [language-semantics-reasoning.md](language-semantics-reasoning.md) — the user's framing that reoriented the arc |
+| ⭐⭐⭐ **the live arc — every relation becomes a node** | [facts-as-nodes.md](facts-as-nodes.md) — the universal shape, why **entities have no outgoing edges**, ordered-vs-unordered as declared data, signed frame membership, and the two things that change shape rather than move |
 | ⭐ **how a representation decision is scored — the standing criteria** | [harmony.md](harmony.md) — **not leaking / not lossy / readable / composable**, the worked `a on b` table, and the one criterion that is mechanically audited (`python -m ugm.leak`) |
 | whether the syntax can *say* a semantics, whether two representations can relate, and why *operations as data* does not settle it | [expressiveness-and-uniformity.md](expressiveness-and-uniformity.md) — *taking turns*, worked; five unrelated successors; the discrimination-pair test |
 | what the representation and the syntax still need, each traced to the example that forces it | [defining-terms.md](defining-terms.md) — six needs, the semantics of **indexing**, and where *taking turns* lives |
