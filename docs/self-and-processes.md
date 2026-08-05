@@ -30,18 +30,35 @@ carries a property bag, the design is wrong at that line.
 
 ### The shape
 
-A thing that **relates** other things is a node with a **type** and **positional members**:
+**`a on b` reifies `on`: a node standing for the relation, pointing at `a` and `b` by ordered edges.**
+That is the whole of it, and it has no exceptions — which is what makes it worth calling universal.
 
 ```
-d1 = doing(self, search_1)             the reading form
-
-#7 --is--> doing                       the storage form: the type, on the node
-#7 --at--> self                        position 0
-#7 --at--> search_1                    position 1
+on(a, b)                  a node reifying `on`, member 0 = a, member 1 = b
+doing(self, search_1)     a node reifying `doing`, member 0 = self, member 1 = search_1
+agent(self)               a node reifying `agent`, member 0 = self — one member, and still the shape
 ```
 
-Two edge labels carry the whole substrate: `is` (the type) and `at` (membership, ordered). That is the
-floor, plus what the frame chain needs. Everything else in the 147-label census is above it.
+⚠ **This document writes the reading form and nothing else, on purpose.** An earlier draft opened with
+the storage form — a node id, an `is` edge and an `at` edge — and that was a mistake worth recording
+rather than deleting: showing `#7 --is--> doing` teaches the reader that the shape is *two labelled
+edges*, when two labelled edges are one possible **storage** for it. Worse, it smuggles in an exception:
+if `is` is a label the shape does not reify, then the shape is not universal and every argument built on
+its universality is weakened. `harmony.md` says the storage form is for sections that are *really about
+storage*; this one is not.
+
+⭐ **Classification is a relation like any other**, which is why `agent(self)` above is written as a fact
+rather than as a type edge. *Who says this is an agent, and since when* is a real question — the
+cross-domain case is exactly two KBs classifying one thing differently, settled by an **authored bridge
+with a speaker** ([harmonization.md](harmonization.md)) — and a label on an edge has nowhere to put the
+speaker.
+
+⚠⚠ **What stops the regress is a separate question, and this document does not answer it.** A reified
+node's pointers to its members cannot themselves be reified or the storage never bottoms out, so
+*something* at the floor is not a hub. Which relation that is — membership alone, or membership and
+classification — is [facts-as-nodes.md](facts-as-nodes.md)'s §*The floor* to settle, and the answer
+changes storage rather than anything argued here. **Nothing below depends on it**, which is the property
+that lets this page proceed without it.
 
 ### ⭐⭐⭐ Attributes do not exist
 
@@ -51,10 +68,10 @@ has no remaining job**, and the substrate keeps none.
 
 | what was an attribute | what it is now |
 |---|---|
-| `kind`, set at mint | the **type edge** — `x --is--> t` |
+| `kind`, set at mint | an ordinary **classification fact** — `block(a)`, `agent(self)` |
 | a scalar's payload (`2`, `1.0`, `"planning"`) | **identity by content** — a scalar node does not *carry* `1.0`, it **is** it |
 | edge properties | gone — they existed only because an edge could not carry a fact |
-| everything else (`phase`, `stop`, `done`, `at`, `ticks`, `label`) | an ordinary **fact**, with all that implies |
+| everything else — `phase`, `stop`, `done`, a replay's step index, `ticks`, `label` | an ordinary **fact**, with all that implies |
 
 ⚠ **"All that implies" is the whole reason this matters here.** `phase("planning")` as an attribute
 cannot be dated, caused, questioned or retracted. As a fact it can. *"Since when have you been
@@ -66,28 +83,30 @@ state is a property bag.
 authored KBs will name one thing differently and the bridge between them is an authored fact with a
 speaker ([harmonization.md](harmonization.md)). A label attribute has nowhere to put the speaker.
 
-### One thing that looks like a violation and is not
+### ⭐ And reifying classification is what makes *entities have no outgoing edges* true without an exception
 
-*Entities have no outgoing edges* is the load-bearing invariant, and `self --is--> agent` is an outgoing
-edge. It is admissible, and the reason is exact rather than an exemption:
+An earlier draft wrote `self --is--> agent` and then argued the type edge was an admissible exception to
+the load-bearing invariant. **There is no exception once classification is a fact**, and the argument was
+a symptom of the wrong shape rather than a subtlety:
 
 ```
-self --is--> agent
-user --is--> agent
+agent(self)          a hub, pointing AT self
+agent(user)          a hub, pointing AT user
 ```
 
-The shared middle only leaks when **both hops are forward**. `is` points from the instance to the type,
-so two agents give `self → agent ← user`, which is a *fork*, not a path. There is no `agent → user` edge
-to compose with, so nothing fabricates `self` being related to `user`. Contrast the canonical leak,
-where `a --> on --> b` and `c --> on --> d` really do put `a --> on --> d` in the graph.
+`self` has no outgoing edges at all. Nothing composes through it, and *what else is an agent* is the
+ordinary reverse lookup it should be. ⚠ Two agents share the `agent` concept node, and that sharing is
+safe for the reason it is always safe here — **the hubs point at it, it points at nothing**, so
+`self → agent → user` is not a path in the graph. Contrast the canonical leak, where `a --> on --> b`
+and `c --> on --> d` really do put `a --> on --> d` in it.
 
 ---
 
 ## 1. The self is an agent among agents
 
 ```
-self --is--> agent
-user --is--> agent
+agent(self)
+agent(user)
 
 named(self, system)
 named(user, anna)
@@ -145,7 +164,7 @@ grounding.
 This is the central distinction and everything downstream depends on it.
 
 ```
-search_1 --is--> search                the PROCESS — a thing, with a step, on an agenda
+search(search_1)                the PROCESS — a thing, with a step, on an agenda
 d1 = doing(self, search_1)             the DOING   — a fact about an agent and a process
 ```
 
@@ -228,7 +247,7 @@ p1 = pursuit()
 pursues(p1, goal_3)
 doing(self, p1)
 
-search_1 --is--> search
+search(search_1)
 serves(search_1, p1)
 doing(self, search_1)
 ```
@@ -242,7 +261,7 @@ doing(self, search_1)
 As structure they differ in **why**:
 
 ```
-r1 --is--> replay        serves(r1, p1)      doing(self, r1)
+replay(r1)        serves(r1, p1)      doing(self, r1)
                                              caused(deviation_1, doing_of_r1)
 ```
 
@@ -297,7 +316,7 @@ order).
 
 ```
 next_turn(search_1, replay_2)          agenda order
-next_turn --is--> ordered              declared, per facts-as-nodes §Ordered and unordered
+ordered(next_turn)                     declared, per facts-as-nodes §Ordered and unordered
 ```
 
 ⚠ **It must not become temporal**, exactly as form order must not: *what runs next* and *what happened
@@ -353,7 +372,7 @@ by a Python renderer — *a predicate that answers in prose cannot move*, and th
 paid for that twice (`unmet_expectations`, blocked by a dict going in and prose coming out).
 
 ```
-a1 --is--> answer
+answer(a1)
 about(a1, u1)                   which utterance it answers
 reports(a1, d1)                 each thing it says is a FACT, pointed at
 reports(a1, d2)
@@ -389,11 +408,11 @@ The system is already planning. Every line below is a fact node; nothing is an a
 ### 7.1 The state before the question
 
 ```
-self --is--> agent            user --is--> agent
+agent(self)            agent(user)
 named(self, system)           named(user, anna)
 
-p1  --is--> pursuit           pursues(p1, goal_3)
-s1  --is--> search            serves(s1, p1)
+pursuit(p1)                   pursues(p1, goal_3)
+search(s1)                    serves(s1, p1)
 
 d1 = doing(self, p1)          began(d1, m2)
 d2 = doing(self, s1)          began(d2, m2)
@@ -407,15 +426,15 @@ caused(trigger_1, d2)         the planning trigger of §4 fired
 Recorded as tokens and nothing else — no parse, no verb, per the skeleton that is already built.
 
 ```
-u1 --is--> utterance
-said(user, u1)   to(u1, self)   at(said_1, m9)
+utterance(u1)
+said(user, u1)   to(u1, self)   when(said_1, m9)
 
 token_at(u1, 0, w_what)      next_form(w_what, w_are)
 token_at(u1, 1, w_are)       next_form(w_are, w_you)
 token_at(u1, 2, w_you)       next_form(w_you, w_doing)
 token_at(u1, 3, w_doing)
 
-next_form --is--> ordered
+ordered(next_form)                     word order is a relation, and it is DECLARED ordered
 ```
 
 ⚠ **`next_form` is form order and must not be `before`.** This is the five-orders discipline showing up
@@ -428,9 +447,9 @@ A construction addressed at `w_doing` proposes: *a question about what its subje
 indexical construction of §2 resolves `w_you` — the utterance is `to` `self`, so `you` is `self`.
 
 ```
-r1 --is--> reading                 about(r1, u1)
+reading(r1)                 about(r1, u1)
 proposes(r1, question_1)
-q1 --is--> question                asks(q1, doing(self, ?))
+question(q1)                asks(q1, doing(self, ?))
 subject_of(q1, self)
 ```
 
@@ -443,7 +462,7 @@ claiming it everywhere would be the kind of overreach this project's docs are wr
 *Asking triggers an answer* — a trigger in the §4 sense, whose consequent spawns:
 
 ```
-ans1 --is--> answering             answers(ans1, u1)
+answering(ans1)             answers(ans1, u1)
 d3 = doing(self, ans1)             began(d3, m10)
 caused(q1, d3)                     WHY it is answering: because that was asked
 next_turn(s1, ans1)                it takes its turn on the same agenda
@@ -481,7 +500,7 @@ chain — the process is a node, and observing it does not mint a new one.
 ### 7.7 The answer is built
 
 ```
-a1 --is--> answer            about(a1, u1)
+answer(a1)            about(a1, u1)
 reports(a1, d2)              I am searching for a plan for goal_3
 reports(a1, d1)              …in service of pursuing goal_3
 reports(a1, d3)              …and answering you
@@ -496,8 +515,8 @@ the same nodes the answer pointed at.
 ```
 DISPATCH answer a1
 
-u2 --is--> utterance
-said(self, u2)    to(u2, user)    at(said_2, m11)
+utterance(u2)
+said(self, u2)    to(u2, user)    when(said_2, m11)
 renders(u2, a1)
 ```
 
