@@ -52,17 +52,22 @@ fn here_now(node) -> thing:
 # and the branching went with it. **The swap made the surface simpler, which is the sign the shape was
 # right rather than merely different.**
 #
-# ⚠ Both guards below are load-bearing. `Graph.at` takes a negative index the way Python does, so
-# position 0 arrives as -1 and answers with the LAST participant — a wrong node rather than nothing.
+# ⚠ The negative guard is load-bearing and the upper one is not, which is worth stating because the
+# symmetry invites adding it back. `Graph.at` already answers `None` past the end — but it takes a
+# NEGATIVE index the way Python does, so position 0 would arrive as -1 and answer with the LAST
+# participant: a wrong node rather than nothing. So the low end is checked here and the high end is
+# left to the read.
+#
+# ⚠ Bounding it with a `relations` call as well cost **592 extra interpreted calls per search** — two
+# per `participant` rather than one — measured by counting invokes, because the wall clock on this
+# machine could not separate it from noise. A defensive check that duplicates one the callee already
+# makes is not free when the callee is interpreted.
 fn participant(f, at) -> thing:
     CONST R(back) -1
     ADD R(i) F(at) R(back)
     CONST R(zero) 0
     LT R(under) R(i) R(zero)
     JMPIF R(under) .none
-    INVOKE R(n) relations node=F(f) label="at"
-    LT R(within) R(i) R(n)
-    JMPNOT R(within) .none
     INVOKE R(result) relation_at node=F(f) label="at" index=R(i)
     JMP .end
 .none:
