@@ -30,35 +30,32 @@ carries a property bag, the design is wrong at that line.
 
 ### The shape
 
-**`a on b` reifies `on`: a node standing for the relation, pointing at `a` and `b` by ordered edges.**
-That is the whole of it, and it has no exceptions — which is what makes it worth calling universal.
+**`a on b` is three nodes: `on`, pointing at `a` and `b`.** Nothing else — no fact node beside the
+relation, no edge to a concept, no property bag. The relation node *is* the fact, and its ordered edges
+*are* its members.
 
 ```
-on(a, b)                  a node reifying `on`, member 0 = a, member 1 = b
-doing(self, search_1)     a node reifying `doing`, member 0 = self, member 1 = search_1
-agent(self)               a node reifying `agent`, member 0 = self — one member, and still the shape
+on(a, b)                  the `on` node points at a, then b
+doing(self, search_1)     the `doing` node points at self, then search_1
+agent(self)               the `agent` node points at self — one member, and still the shape
 ```
 
-⚠ **This document writes the reading form and nothing else, on purpose.** An earlier draft opened with
-the storage form — a node id, an `is` edge and an `at` edge — and that was a mistake worth recording
-rather than deleting: showing `#7 --is--> doing` teaches the reader that the shape is *two labelled
-edges*, when two labelled edges are one possible **storage** for it. Worse, it smuggles in an exception:
-if `is` is a label the shape does not reify, then the shape is not universal and every argument built on
-its universality is weakened. `harmony.md` says the storage form is for sections that are *really about
-storage*; this one is not.
+⚠ **This is written form and storage at once, which is why no second form appears below.** An earlier
+draft of this page showed a separate node for the fact, an edge to a relation concept, and a member
+label — four nodes and two labels where there are three nodes and no choice to make. Recorded rather
+than deleted because the error is instructive: inventing a node to *hold* the relation is the reflex the
+shape exists to remove, and it reintroduces exactly the shared-middle it is designed to prevent.
 
-⭐ **Classification is a relation like any other**, which is why `agent(self)` above is written as a fact
-rather than as a type edge. *Who says this is an agent, and since when* is a real question — the
-cross-domain case is exactly two KBs classifying one thing differently, settled by an **authored bridge
-with a speaker** ([harmonization.md](harmonization.md)) — and a label on an edge has nowhere to put the
-speaker.
+⭐ **Classification is a relation like any other**, which is why `agent(self)` above is a fact rather
+than a type marking. *Who says this is an agent, and since when* is a real question — the cross-domain
+case is two KBs classifying one thing differently, settled by an **authored bridge with a speaker**
+([harmonization.md](harmonization.md)) — and a marking has nowhere to put the speaker.
 
-⚠⚠ **What stops the regress is a separate question, and this document does not answer it.** A reified
-node's pointers to its members cannot themselves be reified or the storage never bottoms out, so
-*something* at the floor is not a hub. Which relation that is — membership alone, or membership and
-classification — is [facts-as-nodes.md](facts-as-nodes.md)'s §*The floor* to settle, and the answer
-changes storage rather than anything argued here. **Nothing below depends on it**, which is the property
-that lets this page proceed without it.
+⚠⚠ **Two things the shape does not settle, and this page does not need them settled.** How an instance
+relates to the relation it instances (`ordered(next_form)` in §4.1 and §7.2 presume that can be said),
+and what at the floor is not itself a node, since a node's edges to its members cannot each be nodes or
+the storage never bottoms out. Both belong to [facts-as-nodes.md](facts-as-nodes.md) §*The floor*.
+**Nothing below depends on either**, which is what lets this page proceed.
 
 ### ⭐⭐⭐ Attributes do not exist
 
@@ -83,22 +80,22 @@ state is a property bag.
 authored KBs will name one thing differently and the bridge between them is an authored fact with a
 speaker ([harmonization.md](harmonization.md)). A label attribute has nowhere to put the speaker.
 
-### ⭐ And reifying classification is what makes *entities have no outgoing edges* true without an exception
+### ⭐ And classification being a fact is what makes *entities have no outgoing edges* true without an exception
 
-An earlier draft wrote `self --is--> agent` and then argued the type edge was an admissible exception to
-the load-bearing invariant. **There is no exception once classification is a fact**, and the argument was
-a symptom of the wrong shape rather than a subtlety:
+An earlier draft marked the type on the node and then argued that this was an admissible exception to
+the load-bearing invariant. **There is no exception once classification is an ordinary fact**, and the
+argument was a symptom of the wrong shape rather than a subtlety:
 
 ```
-agent(self)          a hub, pointing AT self
-agent(user)          a hub, pointing AT user
+agent(self)          the `agent` node points AT self
+agent(user)          a different `agent` node points AT user
 ```
 
-`self` has no outgoing edges at all. Nothing composes through it, and *what else is an agent* is the
-ordinary reverse lookup it should be. ⚠ Two agents share the `agent` concept node, and that sharing is
-safe for the reason it is always safe here — **the hubs point at it, it points at nothing**, so
-`self → agent → user` is not a path in the graph. Contrast the canonical leak, where `a --> on --> b`
-and `c --> on --> d` really do put `a --> on --> d` in it.
+`self` has no outgoing edges at all — the `agent` node points at it, and nothing points out of it. So
+nothing composes through `self`, and *what else is an agent* is the reverse lookup it should be.
+⚠ Contrast the canonical leak, which this rules out structurally: `a --> on --> b` and `c --> on --> d`
+sharing one `on` really do put `a --> on --> d` in the graph. Here each fact is its own node, so there
+is no shared middle to walk through.
 
 ---
 
