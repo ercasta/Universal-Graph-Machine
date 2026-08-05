@@ -31,4 +31,4 @@ ask first, or do the minimal thing and say plainly what was left alone.
 ## Where to start
 
 Read `docs/HANDOFF.md` first, then `docs/comparison.md`. Verify with `python -m ugm.selftest`
-(**261 checks, 0 failing**) and measure with `python -m ugm.bench`.
+(**267 checks, 0 failing**) and measure with `python -m ugm.bench`.

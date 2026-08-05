@@ -79,6 +79,13 @@ lookup, which is deliberate and names what it wants.
 "for convenience" breaks isolation silently. `workbench_copies_are_structurally_unreachable` is the
 standing tripwire.
 
+⚠⚠⚠ **And the guarantee is about a FORWARD walk, which the copy boundary stops being.** Everything in
+this section holds for the eight label-agnostic walkers; it does **not** hold for `reachable`, because
+under hubs that walk has to invert and a reverse closure arrives at the bridge in one hop. Measured, not
+argued — see §*Consequences that are not translations of existing code*, which is where the cost is
+written down. The two sections were consistent while the boundary was forward and are not afterwards,
+and that is the finding rather than a wording problem.
+
 ⭐ The bridge is a **star, not a pairing**: H1's `a` and H2's `a` are not linked to each other, both
 point back to one identity. `n` bridges rather than `n²`, and an imagined node *is its own original* so
 later versions have an identity to share.
@@ -396,6 +403,51 @@ Two pieces change shape rather than move, and both sit directly under planning.
   become a **reverse closure**: the facts mentioning these entities, then the entities those mention,
   transitively. Different termination properties, and it needs an explicit bound where the forward walk
   needed none.
+
+  ### ✅ MEASURED — `python -m ugm.boundary`, and the bound is the smaller half
+
+  The paragraph above was a design note. Measured before the conversion rather than after — for the
+  reason `ugm.leak` states, that a suite going red mid-conversion says a hundred things and none of them
+  says which one this was — the inversion turns out to be **two losses, and the note names one.** Both
+  are things the forward walk was getting for free.
+
+  | | |
+  |---|---|
+  | the premise | forward walk under hubs: **1 node**, just the start. Reverse closure: the world again |
+  | the same world | entities match exactly, at **1.89×** the nodes — the relations now being nodes |
+  | ⚠⚠ finding 1 | **the direction invariant stops protecting the copy boundary** |
+  | ⚠⚠⚠ finding 2 | **the boundary loses its ORDER**, and the order is load-bearing |
+
+  ⚠⚠ **Finding 1 — the invariant is about a FORWARD walk, and the copy boundary is the one walk that
+  cannot stay forward.** §*And isolation between hypotheses falls out of it* above reasons that *"a
+  forward traversal from `a` cannot reach the version in a hypothesis"*, and `workbench.reachable`'s own
+  docstring says *"metadata is not reached, by the direction invariant"*. Both are true, and neither
+  applies here: metadata is exactly what points **at** domain nodes, so a reverse closure from `a`
+  arrives at a `same_as` bridge in one hop and copies the hypothesis. Measured — unbounded, the boundary
+  reaches the imagined version; the forward walk on the same planted bridge does not, which is the
+  control. The kind filter that stops it is **authored**, so this is discipline replacing structure —
+  the trade named as a defect everywhere else in this document, landing on the section that claimed to
+  be free of it.
+
+  ⚠⚠⚠ **Finding 2 — and this one is a substrate change, not a rewrite.** The forward walk's order is a
+  fact about the graph: `g.labels` is sorted and `g.targets` is an insertion-ordered tuple.
+  **`Graph.inc` is a `set`**, so `g.sources` has nothing to preserve and canonicalises by node id — and
+  a node id comes from a process-global counter. That is precisely the defect `workbench.reachable`
+  records at length and that cost a session: copy order decides mint order decides `proposals` order,
+  which is the search's last tie-break, and the identical five-block goal was measured at 12 imagined
+  states, then 306, then budget-exhausted failure, on consecutive runs of one process. ⭐ **So
+  inverting the boundary requires the reverse index to become ordered**, which is not on this arc's
+  list and belongs on it. ⚠ *Sort it by id* is not the fix and this document already says why, one
+  section up: **a deterministic arbitrary order looks like an answer.**
+
+  ⚠⚠⚠ **The probe reported the ordering STABLE twice before it reported anything true**, and both
+  reasons are this project's standing diagnosis — *a homogeneous fixture cannot measure a
+  discriminator.* A **chain** has no order to get wrong, because every node has one unvisited neighbour;
+  and burning a round number of ids does not necessarily **straddle a power of ten**, which is what a
+  string comparison needs to reorder. Hence a fan rather than a chain, and hence the probe asserting its
+  own precondition (`straddled`) rather than trusting the arithmetic that sets it up. The check is
+  `check_THE_COPY_BOUNDARY_INVERTS_AND_LOSES_TWO_THINGS_THE_FORWARD_WALK_HAD`, red under six planted
+  bugs including reverting the fixture to a chain.
 * **`path.adjacent`** — *"the one hop everything traverses through"* — stops being an edge and becomes
   reverse-index → hub → forward, with a predicate filter. It is load-bearing for `reaches`, containment,
   discourse authority and norms.
@@ -412,13 +464,15 @@ design and did not survive measurement.
 |---|---|
 | `python -m ugm.labels` | ✅ the write census, and `reads` for the read census |
 | `python -m ugm.leak` | ✅ the harmony invariant for frames, containment form |
+| `python -m ugm.boundary` | ✅ the copy boundary under hubs — the inversion costs **two** things, and the design note named one |
 | `ugm/fact.py` | ✅ positional members; `goal`, `conflict`, `criterion`, `driver` and `rules/holds.mf` all on it |
-| constraints stored as members | ✅ **green** — `266 checks, 0 FAILED`. The five reds were real and were closed by `fe0d754` (`rules/holds.mf`) |
+| constraints stored as members | ✅ **green** — `267 checks, 0 FAILED`. The five reds were real and were closed by `fe0d754` (`rules/holds.mf`) |
 | the ATTR census | ✅ `python -m ugm.labels attrs` — and it **reversed the expectation**: the conversion target is **0.06%** of attribute reads |
 | world relations as hubs | not started |
 | attributes as `attribute(s, p, v)` | not started — shape settled, cost unmeasured |
 | attributes out of the substrate | not started — `kind` → type edge, scalars by content, `eprops` gone |
 | ordered/unordered declared | not started |
+| **the reverse index becoming ordered** | ⚠ **not started, and newly on the list** — the inverted copy boundary has no order without it |
 | signed membership + `retract` | not started |
 | `same_as` as a fact node | not started — `mapping` still uses `original` / `image` role labels |
 

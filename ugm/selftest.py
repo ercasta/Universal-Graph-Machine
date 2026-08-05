@@ -12329,6 +12329,59 @@ def check_THE_SURFACE_AND_PYTHON_AGREE_ABOUT_EVERY_POSITION():
                 lambda: FACT.set_participant(g, G.require_type(g, goal, "block"), 2, a), ValueError)}
 
 
+def check_THE_COPY_BOUNDARY_INVERTS_AND_LOSES_TWO_THINGS_THE_FORWARD_WALK_HAD():
+    """`reachable` inverts under hubs — and the design note names one of the two costs.
+
+    [facts-as-nodes.md](../docs/facts-as-nodes.md) records the inversion as a shape change with *"an
+    explicit bound where the forward walk needed none"*. Measured (`python -m ugm.boundary`), the bound
+    is the smaller half:
+
+    * ⚠⚠ **The direction invariant stops protecting the copy boundary.** *"Metadata is not reached, by
+      the direction invariant"* and *"a forward traversal from `a` cannot reach the version in a
+      hypothesis"* are both true **of a forward walk**, and the copy boundary is the one walk that
+      cannot stay forward. Unbounded, the inverted boundary walks straight into a `same_as` bridge and
+      copies the hypothesis. The kind filter that stops it is **authored** where the shape used to
+      supply it — discipline replacing structure, which is the trade this codebase names everywhere
+      else.
+    * ⚠⚠⚠ **The boundary loses its ORDER.** The forward walk's order is a fact about the graph
+      (`g.labels` sorted, `g.targets` insertion-ordered). `Graph.inc` is a **`set`**, so `g.sources` has
+      nothing to preserve and sorts by node id — a process-global counter. That is the defect
+      `workbench.reachable` paid a session for: copy order decides mint order decides `proposals` order,
+      which is the search's last tie-break, and the identical goal cost 12 imagined states, then 306,
+      then failure, on consecutive runs of one process. **So the inversion needs the reverse index to
+      become ordered**, which is a substrate change and is not on the arc's list.
+
+    ⚠⚠⚠ **This probe reported the ordering STABLE twice before it reported anything true**, for two
+    different reasons and both of them this project's own standing lesson — *a homogeneous fixture
+    cannot measure a discriminator*. A **chain** has no order to get wrong (every node has one unvisited
+    neighbour), and a burn of a round number of ids does not necessarily **straddle a power of ten**,
+    which is what a string comparison needs. Hence the fan, and hence `straddled` below, which asserts
+    the probe's own precondition rather than trusting the arithmetic that sets it up."""
+    from . import boundary as B
+
+    c, i, o, e = B.collapse(), B.isolation(), B.ordering(), B.equivalence()
+    return {
+        # The premise. A forward walk under hubs answers with the start node and nothing else.
+        "A_FORWARD_WALK_COLLAPSES_UNDER_HUBS": c["forward_on_hubs"] == 1,
+        "where_on_edges_it_finds_the_world": c["forward_on_edges"] == 4,
+        "and_the_REVERSE_walk_finds_it_again": c["reverse_on_hubs"] > c["forward_on_edges"],
+        # Same world, both shapes: the entities must match exactly or the inversion is not the same
+        # boundary wearing a different walk.
+        "THE_INVERTED_BOUNDARY_IS_THE_SAME_WORLD": e["same_world"],
+        "and_it_costs_the_relations_becoming_nodes": e["growth"] > 1,
+        # Finding 1, with the control beside it: the forward walk on the same planted bridge must NOT
+        # reach the version, or this is measuring the fixture rather than the inversion.
+        "the_forward_walk_cannot_reach_a_hypothesis": not i["forward_reaches_the_version"],
+        "BUT_THE_UNBOUNDED_REVERSE_WALK_CAN": i["reverse_unbounded_reaches_it"],
+        "and_only_an_AUTHORED_kind_filter_stops_it": not i["reverse_bounded_reaches_it"],
+        # Finding 2, with its own precondition asserted. ⚠ `straddled` is the vacuity guard: without it
+        # a STABLE reading and a probe that cannot see instability are the same sentence.
+        "the_hubs_really_do_straddle_a_power_of_ten": o["straddled"],
+        "the_forward_boundarys_order_is_a_fact_about_the_GRAPH": o["forward_stable"],
+        "AND_THE_INVERTED_ONE_IS_A_FACT_ABOUT_THE_ID_COUNTER": not o["reverse_stable"],
+        "boundary": f"{e['forward_entities']} entities, {e['reverse_total']} nodes, {e['growth']}x"}
+
+
 # The entry point must be the last thing in this file. `_checks()` reads `globals()` at call time,
 # so any check defined below this block is simply not executed - the count stays put and the report looks
 # healthy. That is the same false-green `_checks()` own docstring records, one level up, and it bit again

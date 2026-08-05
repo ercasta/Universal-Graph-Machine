@@ -34,13 +34,26 @@ Three new instruments, all derived rather than written down:
   *population* and the smallest *traffic*. ⭐ And the read shape that was supposed to hurt (the whole
   attribute dict of a node at once, a reverse-index walk under a hub) has **exactly two call sites**:
   `isa._keys` and `driver.state_of`.
+* `python -m ugm.boundary` — **the copy boundary under hubs**, run before the conversion rather than
+  after. It confirms the premise (a forward walk under hubs returns **1 node**, just the start; the
+  reverse closure finds the same world at **1.89×** the nodes) and then **finds a second cost the design
+  note did not have**. ⚠⚠ The **direction invariant stops protecting the copy boundary** — *"metadata is
+  not reached"* is true of a **forward** walk, and this is the one walk that cannot stay forward, so
+  unbounded it copies the hypotheses; the filter that stops it is *authored* where the shape used to
+  supply it. ⚠⚠⚠ And the boundary **loses its order**: `Graph.inc` is a `set`, so `g.sources` sorts by
+  node id, which is the process-global counter — the exact defect that once made the search cost 12
+  imagined states, then 306, then fail, on consecutive runs of one process. **Inverting `reachable`
+  therefore needs the reverse index to become ordered**, a substrate change that was not on the list.
+  ⚠⚠⚠ The probe reported STABLE twice before reporting anything true (a chain has no order to get wrong;
+  a round burn of ids does not straddle a power of ten) — *a homogeneous fixture cannot measure a
+  discriminator*, twice in one instrument.
 * `python -m ugm.leak` — **harmony for frames**, and the one criterion that is mechanically audited:
   *every entry in a frame's delta must be attributable to that frame's transformation.* Green, with a
   planted-leak control and a **slack** figure (2.0×) saying how loose the net is.
 * `ugm/fact.py` — the wrapper. **The first swap has been through it**: participants moved from
   `subject`/`object` edges to ordered members of one label, and **none of the nine callers changed.**
   ✅ The five checks that swap left red are green — `fe0d754` (`rules/holds.mf`) closed them, and the
-  suite is **266 checks, 0 FAILED**.
+  suite is **267 checks, 0 FAILED**.
 
 **The encoding is settled, and the flip is recorded rather than quietly rewritten.** It is the **hub** —
 a per-fact node, one edge to the relation concept, positional members from 0, read as `on(a, b)`. The
@@ -70,11 +83,13 @@ on the hot path.
 ⚠ **What is NOT done**: world relations are still labelled edges, and attributes are still attributes
 (shape settled, **cost now measured and small** — see the ATTR census above). Signed frame membership and
 `retract` are not built, and **B requires C** — once `on(a,b)` is a node, `unstack` cannot be `unrelate`,
-because the frame must record an *absence* or an additive delta re-leaks. Next real step: **`reachable`
-inverts** into a reverse closure, since entities with no outgoing edges make forward reachability return
-just the start node — that is the workbench's copy boundary and it changes shape rather than moving.
+because the frame must record an *absence* or an additive delta re-leaks. ✅ **The `reachable` inversion
+is now measured rather than assumed** — `python -m ugm.boundary`, above — and it grew a prerequisite:
+**the reverse index has to become ordered first**, because a reverse closure sorted by node id is the
+irreproducible-search defect returning through the copy boundary. Next real step is therefore either
+that, or **signed frame membership + `retract`**, which B already required.
 
-**Verify:** `python -m ugm.selftest` — currently **266 checks, 0 failing**, in 90–120 seconds depending
+**Verify:** `python -m ugm.selftest` — currently **267 checks, 0 failing**, in 90–120 seconds depending
 on the machine. ⚠ The wall-clock numbers below drift with the host: measured twice in one session, the
 same commit gave Sussman 1500 ms and 1920 ms. **Compare a change against the tree you changed, in the
 same minutes** — never against a number written down earlier. ⚠ Take the baseline in a **worktree at
@@ -82,8 +97,10 @@ HEAD** (`git worktree add <tmp> HEAD --detach`), *not* `git stash -u`, whenever 
 work you have not committed: a stash/pop cycle around a long measurement is how hours get lost, and this
 project has already recorded one such loss.
 **Measure:** `python -m ugm.bench` — the numbers below, re-runnable. ⚠⚠ **A ratio hides a curve.**
-**Audit:** `python -m ugm.reach` — *what of the engine's own machinery could a rule start?* **98 named
-things cannot**, and the list is derived rather than written down. See P0 below.
+**Audit:** `python -m ugm.reach` — *what of the engine's own machinery could a rule start?* **99 named
+things cannot** (`machinery: 321  reachable: 217  fronted: 5`), and the list is derived rather than
+written down. See P0 below. ⚠ It was written here as 98 and had drifted by one before anybody re-ran it,
+which is the exact failure the pass exists to replace — **re-read the number, do not quote this line.**
 **Weigh:** `python -m ugm.horizon` — *what would it cost to change a closed set?* **17 dispatchers down
 to 0**: "closed" is a rate, not a kind. See [reflection.md](reflection.md).
 `stepping` and `acting` report one number against a reference and cannot say whether the *shape* is
@@ -249,7 +266,20 @@ true only of *that* path now.
 Detail and reasoning in [audit.md](audit.md) and [mediated-access.md](mediated-access.md); this is the
 index, kept short on purpose so the plan below stays readable.
 
-**The latest session, in one paragraph.** **The skeleton went up, and a rule can grow it** —
+**The latest session, in one paragraph.** **The copy boundary was measured before it was converted**, and
+the measurement grew the arc a prerequisite it did not have. `python -m ugm.boundary` +
+`check_THE_COPY_BOUNDARY_INVERTS_AND_LOSES_TWO_THINGS_THE_FORWARD_WALK_HAD`: the premise holds (a forward
+walk under hubs returns just the start; the reverse closure finds the same world at 1.89× the nodes), and
+the inversion costs **two** things where the design note named one — the **direction invariant** stops
+protecting the boundary, because it was only ever a property of a *forward* walk, and the boundary
+**loses its order**, because `Graph.inc` is a `set` and `g.sources` therefore sorts by a process-global
+counter. That second one is the irreproducible-search defect arriving through a new door, and it makes
+**an ordered reverse index a prerequisite of the conversion**. ⚠⚠⚠ The probe itself reported STABLE twice
+before it reported anything true — a chain has no order to get wrong, and a round burn of ids does not
+straddle a power of ten — so it now asserts its own precondition, and it is red under six planted bugs
+including reverting the fixture to a chain.
+
+**The session before that, in one paragraph.** **The skeleton went up, and a rule can grow it** —
 `ugm/construction.py` and `rules/teach.mf`: an utterance becomes a runnable goal by proposal and
 selection, the world decides an attachment ambiguity no grammar can, and **a rule authors a construction
 after which the system understands a sentence it has never seen**. Read *THE SKELETON IS UP* above. Before that,
@@ -258,7 +288,7 @@ precompute it was meant to de-risk (0.6 ms across the whole suite), and the **gu
 P1 from an optimisation into a requirement (no plan at all at two off-topic constraints, bindings 11 →
 1153). Three checks added, all green under planted bugs; one vacuity found and fixed by planting.
 
-**The session before that, in one paragraph.** **P0**, and it came out half the size it went in. The
+**Two sessions before that, in one paragraph.** **P0**, and it came out half the size it went in. The
 **reachability pass** is built (`ugm/reach.py`, `python -m ugm.reach`): a rule enters Python through
 exactly two doors, so *what can a rule start?* is a closure rather than an opinion, and the answer is
 **87 named things it cannot**. It reproduces the hand audit, adds the replay's bookkeeping and the outer
@@ -267,7 +297,7 @@ which nobody had checked. The other half of P0, the `_covers` precompute, was **
 meant to de-risk it measured it at **0.6 ms across the whole suite** and cancelled it. One new check,
 green with the inventory named and red under four planted bugs. Detail in §P0.
 
-**Two sessions before that, in one paragraph.** `execution.step` — the loop that *acts* — is now
+**Three sessions before that, in one paragraph.** `execution.step` — the loop that *acts* — is now
 `rules/execute.mf` behind a wrapper, and with it `predicted_changes` (`rules/predict.mf`), which was
 never on the list of what blocked it and was one; getting there needed no new capability and four
 representation changes, of which only one looked like prose (item 3). ⚠ It was first written **O(world)**
@@ -381,8 +411,17 @@ Traps worth not re-learning:
   that raises — arithmetic meeting `UNKNOWN` is routine — would then leave a half-written frame wired
   into the history.
 
+* ⚠⚠⚠ **A structural guarantee names a DIRECTION, and inverting a walk forfeits it silently.** *"Metadata
+  is not reached, by the direction invariant"* is a property of a forward traversal, and it reads like a
+  property of the graph. When the copy boundary has to invert, the sentence stays true and stops applying
+  — the walk that most needs the guarantee is the only one that loses it, and what replaces it is an
+  authored filter. Generalising: when a walk changes direction, re-derive every invariant it was relying
+  on rather than carrying them across.
 * ⚠⚠ **`g.sources` returns its answer sorted by node id**, and an id is a string, so the reverse index
-  cannot answer *the most recent*. An activation records its calls forwards as ordered `called` edges
+  cannot answer *the most recent*. ⚠⚠⚠ **`Graph.inc` is a `set`, so there is no order to preserve** —
+  which means any algorithm that moves from forward edges to the reverse index trades a *fact about the
+  graph* for a *fact about the process-global id counter*, silently. It is why inverting `reachable`
+  needs an ordered reverse index and is not a rewrite of one loop. An activation records its calls forwards as ordered `called` edges
   because of this. **A benchmark caught it, not a check**, and three successive guards passed with the
   defect planted — the surviving one drives the id counter across a power of ten on purpose.
 * ⚠ **A recorded gap statement is a hypothesis, not an inventory.** The edge-property gap was documented
@@ -777,7 +816,8 @@ tell a token from a constraint either.
 * ⚠ **Silence is an outcome.** An utterance nothing addresses is *recorded*, not refused — the elsewhere
   case, per *Silent failure is acceptable; unrecorded failure is not* below.
 
-⚠ **`python -m ugm.reach` went 87 → 98, and that is correct rather than a regression.** The front door is
+⚠ **`python -m ugm.reach` went 87 → 98 (99 as re-measured since), and that is correct rather than a
+regression.** The front door is
 Python, so adding it to the entry points honestly grows the inventory. **That is now the sharpest target
 in the repo**: the skeleton's own segments are the next things to make reachable, and unlike the older
 items they have a consumer that will notice.
