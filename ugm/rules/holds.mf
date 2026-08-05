@@ -43,12 +43,38 @@ fn here_now(node) -> thing:
     CONST R(done) true
 
 
+# A fact's participant at a POSITION, which is the surface half of `ugm/fact.py`.
+#
+# Roles are carried by position here, never by a role name, so a reader asks for position 1 rather than
+# for `subject`. The label this maps onto is storage and not meaning: when a fact's participants become
+# ordered members, this body changes and every caller stays as it is. That is the whole reason the
+# indirection exists, and it is the same trade `_STORED_AT` makes on the Python side.
+#
+# ⚠ The two tables must agree, and nothing structural makes them — see
+# `check_THE_SURFACE_AND_PYTHON_AGREE_ABOUT_EVERY_POSITION`, which walks both for every position rather
+# than trusting that a two-entry table is too small to drift.
+fn participant(f, at) -> thing:
+    EQ R(is_one) F(at) 1
+    JMPIF R(is_one) .one
+    EQ R(is_two) F(at) 2
+    JMPIF R(is_two) .two
+    CONST R(result) null
+    JMP .end
+.one:
+    INVOKE R(result) related node=F(f) label="subject"
+    JMP .end
+.two:
+    INVOKE R(result) related node=F(f) label="object"
+.end:
+    CONST R(done) true
+
+
 # The subject as this world sees it, or nothing when the constraint names none.
 #
 # Reading it through `related` rather than off the constraint with `GET` is the whole mediation: in
 # reality this resolves to itself and costs nothing, and inside a frame it is that frame's version.
 fn constraint_subject(c) -> thing:
-    INVOKE R(named) related node=F(c) label="subject"
+    INVOKE R(named) participant f=F(c) at=1
     JMPNOT R(named) .none
     INVOKE R(result) here_now node=R(named)
     JMP .end
@@ -89,7 +115,7 @@ fn holds(c, under) -> thing:
     # true, which is how the identity model was arrived at. `relation_at` resolves what it hands back, so
     # comparing against the resolved object is the one comparison that is right in both worlds.
 .link:
-    INVOKE R(there) related node=F(c) label="object"
+    INVOKE R(there) participant f=F(c) at=2
     JMPNOT R(there) .no
     ATTR R(label) F(c) "label"
     ATTR R(transitive) F(c) "transitive"

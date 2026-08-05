@@ -12265,6 +12265,60 @@ def check_THE_MACHINERY_A_RULE_CANNOT_START_IS_AN_INVENTORY_NOT_AN_ARGUMENT():
             "unreachable": len(gap)}
 
 
+def check_THE_SURFACE_AND_PYTHON_AGREE_ABOUT_EVERY_POSITION():
+    """A fact's participants are addressed by POSITION, and the position→storage table exists twice.
+
+    `fact._STORED_AT` is the Python half and `participant` in `rules/holds.mf` is the surface half, and
+    while storage is still `subject`/`object` edges neither can be derived from the other. That is the
+    shape this codebase keeps recording as a defect in waiting — *carrying one fact in two shapes is what
+    blocks a swap*, and *a dormant twin rots* — so the answer is the one used for `_python_step`: not a
+    deletion, a check that compares them.
+
+    Walked for every position rather than spot-checked, because the table is two entries long today and
+    the reason it exists is that it will not stay two entries long.
+
+    ⚠ Vacuity: the comparison must be able to FAIL. Two tables that agree and a comparison that cannot
+    see a disagreement report the same thing, so the control swaps the Python table and requires the
+    walk to go red — the positive control that `EVERY_TEACHING_RULE_IS_MEDIATED` was missing."""
+    from pathlib import Path
+    from . import asm, fact as FACT, function as fn, goal as G
+
+    g, world = _blocks()
+    asm.load_file(g, Path(__file__).parent / "rules" / "holds.mf")
+    a, b, _c = g.targets(world, "block")
+    goal = G.open_goal(g, label="a on b")
+    link = G.require_link(g, goal, a, "on", b)          # both positions filled
+    attr = G.require_attr(g, goal, a, "clear", True)    # position 2 empty
+
+    def surface(f, at):
+        return fn.invoke(g, "participant", {"f": f, "at": at}, retain=False)[1]["result"]
+
+    def walk():
+        return all(surface(c, i) == FACT.participant(g, c, i)
+                   for c in (link, attr) for i in range(1, FACT.ARITY + 1))
+
+    agree = walk()
+    # The control. Swapping the Python table must make the same walk disagree; if it does not, the walk
+    # is not reading the table and every line above is free.
+    kept = FACT._STORED_AT
+    FACT._STORED_AT = (None, "object", "subject")
+    try:
+        control = not walk()
+    finally:
+        FACT._STORED_AT = kept
+
+    return {"EVERY_POSITION_AGREES": agree,
+            "and_a_filled_position_is_not_None": FACT.participant(g, link, 2) is not None,
+            "while_an_UNFILLED_one_is": FACT.participant(g, attr, 2) is None,
+            "and_that_is_the_same_on_both_sides": surface(attr, 2) is None,
+            "CONTROL_a_swapped_table_is_CAUGHT": control,
+            # A position outside the arity is not a participant. The two sides answer differently on
+            # purpose — Python raises so a caller's off-by-one is loud, the surface answers null because
+            # a rule has no way to catch — and that asymmetry is asserted rather than normalised away.
+            "out_of_range_is_null_on_the_surface": surface(link, 3) is None,
+            "and_RAISES_in_python": _raises(lambda: FACT.participant(g, link, 3), ValueError)}
+
+
 # The entry point must be the last thing in this file. `_checks()` reads `globals()` at call time,
 # so any check defined below this block is simply not executed - the count stays put and the report looks
 # healthy. That is the same false-green `_checks()` own docstring records, one level up, and it bit again
