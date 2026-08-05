@@ -47,7 +47,7 @@ See `docs/deliberation.md`.
 """
 from __future__ import annotations
 
-from . import consequent as CQ
+from . import consequent as CQ, fact as FACT
 from . import goal as G
 from . import path as P
 from . import precedence as PR
@@ -340,7 +340,7 @@ def _holds(g: Graph, t: str, bound: dict, frame: str, under: str) -> bool:
         for c in _open_constraints(g, t, frame, bound):
             if g.attr(c, "sort") == g.attr(t, "want_sort") and \
                     (g.attr(t, "label") is None or g.attr(c, "label") == g.attr(t, "label")) and \
-                    g.target(c, "subject") == left:
+                    FACT.participant(g, c, 1) == left:
                 return True
         return False
     raise ValueError(f"unknown test sort {sort!r}")
@@ -388,10 +388,10 @@ def _bindings_for(g: Graph, c: str, goal: str, frame: str, subject: str) -> tupl
             continue
         if label is not None and constraint_label(g, k) != label:
             continue
-        bound = {SUBJECT: g.target(k, "subject"), "__unmet__": unmet, "__constraint__": k,
+        bound = {SUBJECT: FACT.participant(g, k, 1), "__unmet__": unmet, "__constraint__": k,
                  "__goal__": goal}
-        if g.target(k, "object") is not None:
-            bound[OBJECT] = g.target(k, "object")
+        if FACT.participant(g, k, 2) is not None:
+            bound[OBJECT] = FACT.participant(g, k, 2)
         out.append(bound)
     return _expand(g, tuple(out), draws_of(g, c), frame, "root")
 

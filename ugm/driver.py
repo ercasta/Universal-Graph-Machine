@@ -41,7 +41,7 @@ from __future__ import annotations
 from itertools import product
 from typing import NamedTuple
 
-from . import access
+from . import access, fact as FACT
 from . import dispatch as DP
 from . import execution as X
 from . import function as fn
@@ -648,7 +648,7 @@ def _witness_band(g: Graph, c: str, bound: dict, matching: tuple, bindings: dict
     rank `measure(f)` as highly as `delete(f)` for a tidiness goal. The effect's `(kind, label)` therefore
     has to appear in the requirements of the type the witness must *stop* satisfying. That keeps this a
     ranker's sense: it is still only a guess, and it still never filters."""
-    subject = g.target(c, "subject")
+    subject = FACT.participant(g, c, 1)
     if subject is None:
         return 0                                        # existential: the `mint` branch above serves it
     frame = _frame_of(g, bindings)
@@ -700,13 +700,13 @@ def relevance(g: Graph, name: str, bindings: dict, unmet: tuple) -> int:
         # case, which no parameter or return signature could express, and which is only visible because
         # `establishes` reads the mocks. Purely additive: type constraints stay conservatively matched
         # below, so no proposal can score lower than it did before.
-        if sort == "type" and g.target(c, "subject") is None and \
+        if sort == "type" and FACT.participant(g, c, 1) is None and \
                 any(e[0] == "mint" and e[1] == g.attr(c, "type") for e in effects):
             best = max(best, 4)
         matching = [e for e in effects if kind is None or (e[0] == kind and e[1] == want_label)]
         if not matching and not unknown:
             continue                                        # cannot touch this constraint at all
-        subject, obj = g.target(c, "subject"), g.target(c, "object")
+        subject, obj = FACT.participant(g, c, 1), FACT.participant(g, c, 2)
 
         # The witness BRANCH — what makes a universal constraint rankable at all.
         # `d is a tidied_dir` names `d` as its subject, but the nodes that have to change are the *files*,

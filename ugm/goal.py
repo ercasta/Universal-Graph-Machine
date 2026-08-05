@@ -45,6 +45,7 @@ See `docs/planning.md`.
 """
 from __future__ import annotations
 
+from . import fact as FACT
 from .graph import UNKNOWN, Graph
 from .types import instances, is_a, offenders as _offenders
 
@@ -250,8 +251,8 @@ def require_link(g: Graph, goal: str, subject: str, label: str, obj: str, *,
     to every reader of a constraint (`query.refutes`, `conflict`, `driver.relevance`, `describe`) for no
     difference any of them care about except the one line in `holds`."""
     c = _constrain(g, goal, "link", label=label, transitive=bool(transitive) or None)
-    g.link(c, "subject", subject)
-    g.link(c, "object", obj)
+    FACT.set_participant(g, c, 1, subject)
+    FACT.set_participant(g, c, 2, obj)
     return c
 
 
@@ -270,14 +271,14 @@ def require_attr(g: Graph, goal: str, subject: str, key: str, value, op: str = "
     if op not in VALUE_OPS:
         raise ValueError(f"a comparison is one of {VALUE_OPS}, not {op!r}")
     c = _constrain(g, goal, "attr", key=key, value=value, op=op)
-    g.link(c, "subject", subject)
+    FACT.set_participant(g, c, 1, subject)
     return c
 
 
 def require_type(g: Graph, goal: str, type_name: str, *, about: str | None = None) -> str:
     c = _constrain(g, goal, "type", type=type_name)
     if about is not None:
-        g.link(c, "subject", about)
+        FACT.set_participant(g, c, 1, about)
     return c
 
 
@@ -471,12 +472,12 @@ def _python_holds(g: Graph, c: str, *, view=None, under: str | None = None) -> b
     down, inside the vocabulary call."""
     view = view or _same
     sort = g.attr(c, "sort")
-    subject = g.target(c, "subject")
+    subject = FACT.participant(g, c, 1)
     here = view(subject) if subject is not None else None
     if subject is not None and here is None:
         return False                       # not present in this world at all
     if sort == "link":
-        obj = g.target(c, "object")
+        obj = FACT.participant(g, c, 2)
         there = view(obj)
         if there is None:
             return False
@@ -541,7 +542,7 @@ def witnesses(g: Graph, c: str, *, ctx: str | None = None, under: str | None = N
     if holds(g, c, ctx=ctx, under=under):
         return ()
     view = _world(g, ctx)
-    subject = g.target(c, "subject")
+    subject = FACT.participant(g, c, 1)
     here = view(subject) if subject is not None else None
     sort = g.attr(c, "sort")
     if sort == "type":
@@ -573,7 +574,7 @@ def require_known(g: Graph, goal: str, subject: str, key: str) -> str:
     to report having succeeded.
 
     The subject is an edge, not an attribute. Passing it as a keyword to `_constrain` made it a
-    stored string, so `g.target(c, "subject")` was `None`, `holds` looked at nothing, and the constraint
+    stored string, so the participant read as `None`, `holds` looked at nothing, and the constraint
     read as satisfied before anyone had looked — a knowledge goal that closes itself. Caught by
     `describe` rendering it as "something.colour", which is the round trip earning its keep.
 
@@ -600,7 +601,7 @@ def require_known(g: Graph, goal: str, subject: str, key: str) -> str:
             f"nothing would ever be looked at. A slot is unknown only when something SAYS so "
             f"(`graph.UNKNOWN`), so declare it in a `type` block or have an operator mark it unknown.")
     c = _constrain(g, goal, "known", key=key)
-    g.link(c, "subject", subject)
+    FACT.set_participant(g, c, 1, subject)
     return c
 
 
@@ -649,7 +650,7 @@ def undetermined(g: Graph, goal: str, *, ctx: str | None = None, under: str | No
     for c in unmet(g, goal, ctx=ctx, under=under):
         if g.attr(c, "sort") not in ("attr", "known"):
             continue
-        subject = g.target(c, "subject")
+        subject = FACT.participant(g, c, 1)
         here = view(subject) if subject is not None else None
         if here is not None and g.attr(here, g.attr(c, "key")) is UNKNOWN:
             out.append(c)
@@ -698,7 +699,7 @@ def witness(g: Graph, goal: str, *, ctx: str | None = None, under: str | None = 
     if about is not None:
         return view(about)
     for c in constraints(g, goal):
-        subject = g.target(c, "subject")
+        subject = FACT.participant(g, c, 1)
         if subject is not None:
             return view(subject)
         if g.attr(c, "sort") == "type" and under is not None:
@@ -752,7 +753,7 @@ def wanted(g: Graph, goal: str):
 
 
 def describe_constraint(g: Graph, c: str) -> str:
-    sort, subject = g.attr(c, "sort"), g.target(c, "subject")
+    sort, subject = g.attr(c, "sort"), FACT.participant(g, c, 1)
     who = (g.attr(subject, "label") or subject) if subject else "something"
     if sort in PLAN_SORTS:
         if sort == "at_most":
@@ -762,7 +763,7 @@ def describe_constraint(g: Graph, c: str) -> str:
         where = f" on {g.attr(on, 'label') or on}" if on is not None else ""
         return ("never " if sort == "never" else "must ") + what + where
     if sort == "link":
-        obj = g.target(c, "object")
+        obj = FACT.participant(g, c, 2)
         rel = g.attr(c, "label") + ("+" if g.attr(c, "transitive") else "")
         return f"{who} {rel} {g.attr(obj, 'label') or obj}"
     if sort == "known":

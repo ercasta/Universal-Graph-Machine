@@ -35,7 +35,7 @@ See `docs/deliberation.md`.
 """
 from __future__ import annotations
 
-from . import application as ap
+from . import application as ap, fact as FACT
 from . import function as fn
 from . import goal as G
 from . import thread as T
@@ -208,7 +208,7 @@ def unsatisfiable(g: Graph, goal: str) -> tuple:
     for c in G.world_constraints(g, goal):
         if g.attr(c, "sort") != "attr":
             continue
-        slot = (g.target(c, "subject"), g.attr(c, "key"))
+        slot = (FACT.participant(g, c, 1), g.attr(c, "key"))
         op, value = g.attr(c, "op") or "==", g.attr(c, "value")
         # Two constraints on one slot no longer contradict merely by wanting different values.
         # `size > 10` and `size > 20` are jointly satisfiable; so are `size >= 10` and `size != 40`. Only
