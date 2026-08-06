@@ -31,6 +31,35 @@ each entry**, plus one entry that turned out to be mechanically auditable.
 they are why the logician's version is not enough here: a representation can be perfectly harmonious
 and still be unreachable from a rule, which in this engine is the same as not existing.
 
+## ⭐⭐⭐ Expressiveness is PRIOR to the table, not a fifth row
+
+All four criteria are **internal**: given that you said it, does the machinery behave? None of them asks
+whether you can say it at all. That is requirement 1 of
+[expressiveness-and-uniformity.md](expressiveness-and-uniformity.md), and its test is different in kind —
+not *is there a mechanism* but **write the sentence**.
+
+> **A representation can be perfectly harmonious about nothing.**
+
+A graph language with no ordering is lossless, leak-free, readable and composable — about everything it
+can say. So expressiveness is not a fifth criterion; **you cannot score harmony on a sentence you cannot
+write**, and the two passes are separate:
+
+| | test | when |
+|---|---|---|
+| **expressiveness** | *write the sentence* | first, per category. Fails locally, needs no machinery |
+| **harmony** | the four criteria above | on what survived |
+
+⚠ **Do not merge them into one notion of "completeness."** Two live cases show the criteria doing
+different work: `not(p)` as a hub and `or(p, q)` as a hub both become **sayable** the moment relations
+are nodes, and both still fail — `not` on *composable* (it does not compose with the frame chain; see
+[facts-as-nodes.md](facts-as-nodes.md) §*Frames*) and disjunction on *composable* too, since nothing can
+consume it. Merged, both would read as solved by the conversion, and neither is.
+
+⭐ Known-negative controls are free and should be used, because a pass that finds no gaps and a pass that
+cannot see gaps report the same thing: **can a rule get from a plan step's position to a moment?** —
+today, no. And `step[i+1]`, unsayable because `path.Hop.index` is a literal. Any expressiveness
+instrument that reports those green is broken rather than encouraging.
+
 ⭐ Across two independently authored KBs, *not leaking* has a name of its own — **conservative
 extension**: `A ∪ B` proves nothing new in `A`'s vocabulary. Local soundness and conservativity are the
 same idea at two scales, and the second is the cross-domain composition feature.
