@@ -2,17 +2,27 @@
 
 A Kb contains statements that must hold in our system.
 
+syntax:
+?x unbounded node - it references a node in the graph
+<x> reference to a node in the expression
+
 KB:
 ```
 is_a(car, ?x) made_of(?x, wheel, wheel, wheel, wheel) # a car is made of four wheel
 
-is_a(party, dancing(people))
+<a>=dancing(people), is_a(party, likely(<a>))  # <a> is a reference in CNL (not reference in subgraph)
+<t> = implies(?a, ?b) | EVAL (<t>, ?a) | (?a, ?b, because(?a, <t>))   # the "behaviour" of the system. () is subgraph -> this makes the system "learn" a reusable pass for implies, always valid no matter what we are talking about.
+
+causes(see(is_a(?x, dog),(is_a(?y,cat))), chase(?x,?y))  # this is a pure fact in the KB. 
+
+
 is_rule(?x), is_rule(?y), by(?x, boss), by(?y, vice), overrides(?x, ?y) # rules by boss override rules by vice
 is_rule(?x), is_rule(?y), overrides(?x, ?y)
 SYNONIM override, overrides   # the two terms are treated as equal by the engine
 
 answer(why(crossed(chicken,road)), because(get(chicken,other side)))
-answer((imagine(on(?a,?b), on(?b,?c)), question_is(above(?a,?c))), yes )
+
+answer((imagine(on(?a,?b), on(?b,?c)), question_is(above(?a,?c))), yes ) # () is subgraph
 
 transitive(?x), ?x(?a, ?b), ?x(?b,?c), ?x(?a, ?c)
 
