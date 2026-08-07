@@ -10,9 +10,10 @@ The short version:
 > A rule is a **fact relating two moments**. Direction is a *query* over it, never a field in it.
 > Time and possibility are **members**, never connectives. A hub is a **proposition** and an **entry**
 > is the assertion, so modality and recognition are stored on the entry — dated and superseded —
-> never on the node, where they would need invalidating. The engine's floor is **four primitives** —
-> recall, match, write, arbitrate — of which **only the last is complete**; everything else,
-> including what the connectives mean, is rules.
+> never on the node, where they would need invalidating. **Rules speak of propositions and never of
+> entries**; the machinery supplies what only the application knows. The engine's floor is **four
+> primitives** — recall, match, write, arbitrate — of which **only the last is complete**; everything
+> else, including what the connectives mean, is rules.
 
 ## 1. Why not a rule-shaped construct
 
@@ -197,6 +198,92 @@ enumerated** — any two moments form one, so the population is quadratic; the s
 `instances` scanning. And nothing checks that `M7` is an ancestor of `M12`: a span over two unrelated
 moments is constructible and meaningless, so it wants a check **at the minting site**, where it is
 cheap and where it is still detectable.
+
+### 2.4 ⭐⭐⭐ Rules speak of propositions; the machinery speaks of entries
+
+If everything is asserted through entries, are business rules **augmented** to mention them, or does
+the **machinery** apply them to entries? The machinery — and this is not a new decision. The
+mediated-access arc faced it one level down and answered it: a rule names the identity, the ambient
+context resolves it, and `slot_of` inside a frame reads that frame's version **without `holds.mf`
+containing one word about frames**. Nothing has changed that would owe a different answer here.
+
+#### Augmentation is a category error, not a costly option
+
+Try to write it and it stops on its own:
+
+```
++on(a, b)      ⟶      entry( <the moment I am in> , on(a, b), + )
+                             ^^^^^^^^^^^^^^^^^^^^
+```
+
+**The locus is an indexical.** A rule is **generic** (§2.1: variables, no predecessor); an entry is
+**anchored**. A rule that named a locus would be about that occasion and could not be reused — the
+same reason a method step may only speak of roles and a type schema may not name a target. So
+augmentation cannot produce a whole entry, only one with holes; and **a hole the machinery fills at
+run time is the machinery doing it.** It buys nothing, and costs four things:
+
+1. **It is a translation, and translations must commute.** *A translation is an island with a bridge
+   that appears in every explanation crossing it* — every `why` would show the rewrite rather than
+   the rule the author wrote. The residue is the claim, so this is the expensive loss.
+2. **One fact in two shapes.** Authored and augmented need syncing, and `why` must un-augment to
+   answer. That is the recorded blocker on every swap this project has done.
+3. ⭐ **It freezes the resolution policy into every rule.** The property being bought is *the
+   machinery can change what a read means without editing a single rule*; augment, and a policy change
+   means re-augmenting the corpus.
+4. **B3** — *which rules are about time?* gets harder when every rule is three times its size in
+   plumbing.
+
+#### The split
+
+| the rule says | `match` / `write` supply |
+|---|---|
+| `+on(?x, ?y)` in `<A>` | walk the chain for entries naming that proposition; return those signed `+` |
+| `+boiling(?w)` in `<B>` | mint the entry in the successor moment; stamp locus, licence and grade from the application |
+
+> **The rule's members are what the author knows. The entry's members are what the application
+> knows.**
+
+Locus, licence, speaker and grade-at-this-application do not exist until the rule runs. That is the
+whole split, and it is why `entry` is a member of the closed class rather than vocabulary an author
+writes.
+
+| | (A) augment the rules | (B) authors write entry-talk natively | (C) machinery absorbs it |
+|---|---|---|---|
+| not leaking | ❌ explanations show the rewrite, not the rule | ⚠ an author can name a locus, so provenance is forgeable | ✅ every entry is stamped by the write that made it |
+| not lossy | ❌ two shapes; `why` must un-augment | ✅ | ✅ |
+| readable | ❌ 3× plumbing per rule | ❌ every rule is plumbing | ✅ `causes({+on(a,b)}, …)` reads as written |
+| composable | ❌ policy frozen at augmentation time | ⚠ | ✅ resolution changes without touching a rule |
+
+(A) additionally **cannot be written**, per the indexical above.
+
+#### ⚠⚠ The asymmetry that must be enforced
+
+`entry` is both a mechanism and a node a rule can point at, and that is safe **in one direction
+only**:
+
+> **Rules may READ entries. Only the machinery may WRITE them.**
+
+Reading is how *"a claim Anna made outranks one Bo made"* gets written at all — an ordinary rule
+*about* entries. Writing is how a rule would forge provenance: an entry licensed by nothing, or one
+backdated into an earlier locus.
+
+⭐ This matters more than it looks, because §5.1 makes the residue **load-bearing for soundness** — a
+missing support link inflates the weakest-link grade. If a rule can mint entries directly, attribution
+stops being fragile and becomes **forgeable**, and confidence can be raised by writing one unlicensed
+entry. So `write` is the only minter, and it **stamps** the licence from the current application
+rather than accepting one as an argument.
+
+#### Costs
+
+* ⚠ **A bug in `write` is systemic** — every fact in the system gets the same wrong provenance.
+  Mitigated by it being one place, which makes it one check: `ugm.leak`'s invariant, promoted from
+  hygiene to the guard on soundness.
+* ⚠ **`match` is a chain walk, not a lookup**, and it now sits on the rule-matching path rather than
+  only on reads. The sparse-frame cost, moved somewhere hotter.
+* ⭐ **`match` must record which entries it matched** — otherwise *"because `on(a,b)` held, on Anna's
+  word"* has no answer. Not overhead: it is half the residue, and it is what makes a misbehaving rule
+  distinguishable from a misresolving chain. The mediated-access arc hit exactly this — *binding a
+  rule to an identity makes an unmediated rule loudly wrong instead of accidentally right.*
 
 ## 3. The keyword budget
 
@@ -468,8 +555,11 @@ rules, the tower never grounds. **The closed class cannot be empty.** What it ca
 connectives*:
 
 1. **recall** — which rules come to mind here. **Never complete**; see §9
-2. **match** — a pattern against a moment's signed membership, over what recall offered
-3. **write** — signed entries into a moment
+2. **match** — unify a **generic** moment against an **anchored** one (§2.1), over what recall
+   offered. ⭐ It **records which entries it matched**, per §2.4 — that is half the residue, not
+   bookkeeping
+3. **write** — mint signed entries into a moment. ⚠ **The only minter of entries**, and it *stamps*
+   the licence from the current application rather than accepting one (§2.4)
 4. **arbitrate** — among the rules that matched, pick one; **total**, table-driven, always answers
 
 ⭐⭐⭐ The fourth is the one that is easy to get wrong. A meta-rule deciding which rule to apply must
@@ -698,6 +788,10 @@ two readings: under (B) it is untestable by construction, and under (A) it is un
   permitted and undetected. Correct, since consistency is a question rather than an invariant, but it
   is currently nobody's job.
 * **Span normalisation**, per §2.3 — content-equality must order by the chain, not by member order.
+* **Enforcing the entry write-monopoly**, per §2.4 — *rules may read entries, only the machinery may
+  write them* is stated but has no mechanism. It is the same shape as `access.offenders`, which
+  already measures corpus compliance with the mediated vocabulary, so the instrument exists and is
+  pointed at the wrong thing. ⚠ Until it is enforced, §5.1's soundness claim rests on convention.
 * **Evidence accumulation**, per §5 — counting over episodes, with no arithmetic on grades.
 * **Familiarity**, per §9 — the escalation trigger needs *have I seen moments like this?*, which is a
   measure over the episode record and is not the same as *did recall return anything*.
