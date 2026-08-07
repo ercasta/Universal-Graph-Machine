@@ -38,8 +38,9 @@ is the premise of the other, and the disagreement is undetectable. See §7.
 ## 2. The form
 
 A rule is a fact whose two members are **moments**, in the sense of
-[facts-as-nodes.md](facts-as-nodes.md) §*Frames* — signed membership, three states:
-**present / absent / no entry**.
+[facts-as-nodes.md](facts-as-nodes.md) §*Frames* — signed membership. ⚠ **Four states, and their
+meaning depends on whether the moment is anchored or generic** — see §2.5, which corrects an earlier
+draft of this line that said three.
 
 ```
 <R> = causes( <A>, <B> )
@@ -284,6 +285,34 @@ rather than accepting one as an argument.
   word"* has no answer. Not overhead: it is half the residue, and it is what makes a misbehaving rule
   distinguishable from a misresolving chain. The mediated-access arc hit exactly this — *binding a
   rule to an identity makes an unmediated rule loudly wrong instead of accidentally right.*
+
+### 2.5 ⚠⚠⚠ The signs — "no entry" means INHERIT, not UNKNOWN
+
+Found by writing [rules-worked.md](rules-worked.md), which is what that document is for. An earlier
+draft of §2 said *three states: present / absent / no entry*, and treated no-entry as UNKNOWN
+throughout. **In a chain that is false.** The walk continues past a moment with no entry and finds an
+older one, so absence means *inherit*.
+
+| sign | in an **anchored** moment | in a **generic** moment (a rule's member — no predecessor) |
+|---|---|---|
+| `+` | holds here | must hold |
+| `−` | does not hold here | must not hold |
+| `?` | **held before, does not now, and I cannot say what does** | — |
+| *no entry* | **unchanged — inherit from the predecessor** | don't care / unknown |
+
+⭐ The split is not a wart: it falls straight out of §2.1's anchored/generic distinction, since a
+generic moment has no predecessor to inherit *from*. But it has to be **said**, because "three
+states" reads as one uniform rule and it is two.
+
+⚠⚠⚠ **And the hole it was hiding.** §4's `?attribute(?w, volume)` — *the volume changes, I cannot say
+to what* — was to be written by writing nothing. Writing nothing in an anchored moment means
+**inherit**, so the chain walk returns the *old* volume: **the one thing the operator was trying to
+say is the one thing that could not be said.** Hence `?` as a fourth sign, which invalidates without
+replacing.
+
+⚠ The generic `?` (don't care) and the anchored `?` (invalidated, unknown) are different and must not
+share a symbol silently. They are written the same here because the anchored/generic split already
+disambiguates them structurally — but a reader is owed the sentence.
 
 ## 3. The keyword budget
 
@@ -701,16 +730,22 @@ opacity, not speed, but that **the agent's own state is not in the world it reas
 expectation held in a local variable is unmatched not because the rule is weak but because there is
 nothing there to match. Three obligations follow:
 
-1. **Forward application deposits expectations, not just facts.** Applying `causes(A, B)` at `t`
-   writes `expected(+boiling(w), by t+7)` into the world. §4's timing member is what makes that
-   entry *writable*; without the deposit there is nothing to be surprised against.
+1. **Forward application deposits a PREDICTED MOMENT, not a special fact.** Applying `causes(A, B)`
+   at `M3` mints `P1 = moment(M3, <predicted: R applied>)` carrying `B`'s entries, plus `due(P1, …)`
+   from §4's timing member. Without the deposit there is nothing to be surprised against.
+   ⚠⚠ **An earlier draft wrote `expected(+boiling(w), by t+7)`, which is not writable in this
+   vocabulary** — it puts a **sign inside a proposition**, and a sign is a member of an entry
+   ([rules-worked.md](rules-worked.md), finding 2). The repair is strictly better than the bespoke
+   relation: surprise becomes a **comparison of two moments**, which `deviates` already is, so the
+   mechanism §10 wanted already exists and the draft had invented a shape to reach it.
 2. **The continuation is a moment.** *What I am doing, where I am in it, what I am waiting for* —
    signed entries, not a stack frame.
 3. **Surprise is an ordinary rule that wins on precedence:**
 
 ```
-<S> = causes( { +expected(?f, by ?t), +now(?t'), after(?t', ?t), -?f },
-              { +goal(explain_failure(?f)), -committed(?proc) } )
+<S> = causes( { +predicted(?p, from ?m), +due(?p, by ?t), +now(?t'), after(?t', ?t),
+                +deviates(?p, ?actual) },
+              { +goal(explain_failure(?p)), −committed(?proc) } )
 ```
 
 **There is no interrupt mechanism.** Preemption is `<S>` outranking the rule that would have
@@ -788,6 +823,16 @@ two readings: under (B) it is untestable by construction, and under (A) it is un
   permitted and undetected. Correct, since consistency is a question rather than an invariant, but it
   is currently nobody's job.
 * **Span normalisation**, per §2.3 — content-equality must order by the chain, not by member order.
+* **Two times, and §4 knows only one.** *Anna said it might rain this afternoon* has its **locus** at
+  the moment of saying and its **event time** as a member of the proposition — speech time vs event
+  time. Both are needed and both are right, but §4 speaks only of timing between a rule's two moments
+  and never says a proposition may carry temporal members of its own. ⚠ The hazard is the recorded
+  one: locus-time and event-time must share the moment vocabulary, or they become the sixth and
+  seventh unrelated orders. ([rules-worked.md](rules-worked.md), finding 3.)
+* **Negation vs a false value**, per [rules-worked.md](rules-worked.md) M0 — `entry(M, lit(stove), −)`
+  and `entry(M, attribute(stove, lit, false), +)` are both expressible and mean different things (*a
+  claim about the moment* vs *a claim about the stove*). Nothing guides the choice, and nothing
+  detects the two being used interchangeably in one corpus.
 * **Enforcing the entry write-monopoly**, per §2.4 — *rules may read entries, only the machinery may
   write them* is stated but has no mechanism. It is the same shape as `access.offenders`, which
   already measures corpus compliance with the mediated vocabulary, so the instrument exists and is
