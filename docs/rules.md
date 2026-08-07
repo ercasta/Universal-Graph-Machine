@@ -8,9 +8,11 @@ execution can read it forwards* — and the review findings there are its starti
 The short version:
 
 > A rule is a **fact relating two moments**. Direction is a *query* over it, never a field in it.
-> Time and possibility are **members**, never connectives. The engine's floor is **four
-> primitives** — recall, match, write, arbitrate — of which **only the last is complete**;
-> everything else, including what the connectives mean, is rules.
+> Time and possibility are **members**, never connectives. A hub is a **proposition** and an **entry**
+> is the assertion, so modality and recognition are stored on the entry — dated and superseded —
+> never on the node, where they would need invalidating. The engine's floor is **four primitives** —
+> recall, match, write, arbitrate — of which **only the last is complete**; everything else,
+> including what the connectives mean, is rules.
 
 ## 1. Why not a rule-shaped construct
 
@@ -69,6 +71,132 @@ there; it must be a Tuesday, and you may not make it one.* Each antecedent membe
 
 Without the distinction a backward reader will plan to make it Tuesday, and a forward reader will
 not notice the difference at all.
+
+### 2.1 ⭐⭐⭐ What a moment is — and there is no such thing as a "frame"
+
+*Frame*, *moment*, *hypothesis*, *imagined state* are **one construct** under four names, which is the
+*one relation under four names* failure this project keeps catching. Three parts, nothing else:
+
+```
+<M> = a signed delta        +  a predecessor      +  what licensed the difference
+      (entries — see 2.2)      (an edge to another M)  (an edge to a node)
+```
+
+Only the third edge varies:
+
+| reading | predecessor | the licence says |
+|---|---|---|
+| a moment in **time** | the previous moment | *an event happened* |
+| an **imagined state** | the previous imagined state | *I applied this rule in supposition* |
+| an **assumption** | where I was standing | *I decided to suppose this* |
+| a rule's `<A>` / `<B>` | **none** | — |
+
+⭐⭐⭐ **The distinction that matters is ANCHORED vs GENERIC, not frame vs moment.** A rule's two
+members have **variables and no predecessor**; everything else has **individuals and a predecessor**.
+That is structural, so it is checkable rather than maintained by discipline — and it makes §8's first
+primitive precise:
+
+> **`match` is: unify a generic moment against an anchored one.**
+
+Everything previously called a frame is an anchored moment. **Nested assumptions are a path in the
+predecessor tree**, which is what sparse frames already are — no nesting mechanism is owed.
+
+⭐⭐⭐ **And this gives two of the five orders a shared core.** `next` (frames — derivation) and
+`before` (moments — time) are recorded in [HANDOFF.md](HANDOFF.md) as two of the unrelated orders,
+and the matrix says cause–effect and time are *exactly the pair with nothing between them*. Under one
+construct they are **one relation with two licences**: succession is the shared core, time adds a
+clock stamp above it, derivation adds a licensing rule above it.
+
+⚠ This is the **sanctioned** relaxation, not the forbidden collapse. The standing warning is *do not
+collapse five orders into one label*; the prescription is *"they must share a core that is literally
+the same nodes, and may each add modality, a scalar or a derivation above it."* This is that, for two
+of them, arriving from the modality question rather than from the order work.
+⚠⚠ And the thing that must survive: **supposing takes no time.** A derivation step is succession
+without duration. A shared core carrying a clock would be the collapse.
+
+### 2.2 ⭐⭐⭐ An entry — a hub is a proposition, an entry is an assertion
+
+An entry is an ordinary hub whose relation happens to be `entry`. No new construct:
+
+```
+<e> = entry(<M7>, <f>, +)      members: locus, proposition, sign
+licensed_by(<e>, <application>)     grade(<e>, likely)     said_by(<e>, anna)
+```
+
+> *"A fact is a node"* was half a sentence. A node is the **proposition** `on(a, b)`; it claims
+> nothing. **The entry is the claim** — this proposition, here, with this sign.
+
+⭐ It is forced rather than chosen: to say *`on(a,b)` is false in M12* you must be able to point at
+`on(a, b)`, so the proposition must exist in order to be denied. The hub therefore cannot be the
+assertion, or minting a negation would assert its positive. **Two levels are what negation costs**,
+and in exchange nothing has to remember that a bare hub means nothing.
+
+**Where the regress stops.** An entry is a fact, so does it need its own entry? No — **an entry names
+its locus, so it is located by being one.** A proposition needs an entry to be placed; an entry places
+itself. ⚠ The cost, stated rather than smuggled: `entry` is a member of the **closed class** — one of
+the very few relations the engine dispatches on, because *resolve a read* means *walk the chain for
+entries naming this proposition*. That is the one mechanism §2.1 already counts, not a new one, and it
+should be declared the way `precedence.STAGES` declares itself.
+
+⚠ **Three members, fixed: locus, proposition, sign.** Grade, licence, speaker, clock stamp are facts
+*about* the entry, never a fourth member — the same discipline that keeps `causes` binary with
+`timing` as an adjunct. Without it the entry becomes a 3-ary node with a bag of optional slots, which
+is *one shape, several membership semantics* by another route.
+
+⭐ **What falls out free: the world changing and my having been wrong become different operations.**
+
+| | what happened | how it is written |
+|---|---|---|
+| they stopped being on each other | the world moved | a **new entry**, opposite sign, later locus |
+| I was mistaken that they ever were | my record was wrong | a **fact about the old entry** — same locus, unchanged |
+
+Under a value on the node those are indistinguishable — both are *change it* — which is how a system
+quietly rewrites its own history.
+
+⚠ Two entries in one locus with opposite signs is a contradiction the shape permits and does not
+detect. That is correct — consistency is a **question you ask**, not a substrate invariant — but it
+means *is this moment consistent?* is somebody's job, and today it is nobody's.
+
+### 2.3 Spans — the locus of a trajectory claim
+
+`taking_turns(anna, bo)` is not true *of a moment*. Its subject is a **stretch of the chain**, which
+is [limits.md](limits.md)'s *"a sequencing constraint's subject is a path through worlds rather than a
+world."* A span is a node with **exactly two members**:
+
+```
+<s> = span(<M7>, <M12>)                  position 0 = start, position 1 = end
+<e> = entry(<s>, taking_turns(anna, bo), +)   licensed by the recogniser, over the trajectory
+```
+
+⭐ **Membership is not stored, and the reason is structural: predecessor is single-valued.** A moment
+has one parent; forking yields several *successors*, never several parents. So the walk back from
+`M12` is **unique**, and if `M7` is on it the contents are fully determined. Enumerating the moments
+between would store what the chain already answers.
+
+| | (A) endpoints | (B) enumerate the moments | (C) a description |
+|---|---|---|---|
+| not leaking | ✅ contents derived from the chain, so they cannot disagree with it | ❌ two answers to *what is in this span* | ✅ |
+| not lossy | ✅ | ⚠ records extent, not *why those* | ✅ |
+| readable | ✅ 2-ary, fixed | ❌ **`made_of(?x, wheel, wheel, wheel, wheel)` again** — an extent claim in positional clothes | ⚠ |
+| composable | ✅ Allen relations over two pairs of endpoints | ⚠ comparing spans means comparing lists | ❌ not expressible — the *describe rather than name* gap |
+
+**Two things stay out of the span.** The **participants** — `anna` and `bo` are members of the
+proposition, never of the span, which is what lets one span host several recognitions (*they took
+turns* **and** *it rained throughout*). And **disjunction** — *"on Monday and on Wednesday"* is two
+spans plus a fact relating them, never one span with a hole, or disjunction is smuggled into the
+substrate where nothing can consume it.
+
+⭐ **Recognition and prescription are one predicate read two ways**, as
+[advice-over-sequences.md](advice-over-sequences.md) §3 argues: a **generic** span with variables is a
+rule you are planning to satisfy; an **anchored** span is a recognition that it held. Same
+anchored/generic split as §2.1, one level up.
+
+⚠ **Costs.** The span is **directional**, so content-equality must normalise by chain order, not by
+member order, or two equal spans fail to be equal. Spans are **minted by recognisers, never
+enumerated** — any two moments form one, so the population is quadratic; the same rule that stops
+`instances` scanning. And nothing checks that `M7` is an ancestor of `M12`: a span over two unrelated
+moments is constructible and meaningless, so it wants a check **at the minting site**, where it is
+cheap and where it is still detectable.
 
 ## 3. The keyword budget
 
@@ -162,6 +290,114 @@ episodes**, not arithmetic over grades. Recorded rather than papered over.
 
 ⚠ Grade is orthogonal to `?`. `?volume` is *changes, magnitude unknown*; `+rain @possible` is *might
 become true*. Different ignorance, different slot.
+
+### 5.1 ⭐⭐⭐ Where `@likely` actually lives — on the entry, never on the node
+
+*Do I tag every node?* **No — and not because it is expensive.**
+
+> A grade stored on a **fact node** is a cache of a derived value. `rain @likely` holds only given the
+> support that produced it, so when the support changes the tag must be invalidated — and invalidation
+> over a dependency web is a **TMS**, deleted twice here and declined again under *no settling, no
+> interning*. The standing line applies verbatim: **an index over what was asserted is storage; a
+> cache of what was derived is a TMS.**
+
+A second, independent reason: **a tag is ignorable.** Reading a fact and reading its grade are two
+reads, so a consumer that forgets produces a conclusion with no grade at all. That is the leak
+criterion failing by *discipline* where the whole edges-as-nodes arc bought **structure**.
+
+**Every fact already has a provenance node — the entry of §2.2. Put the grade there.**
+
+| the fact came from | the node that already exists | carries |
+|---|---|---|
+| a rule applying | the application / transformation | the rule's per-entry grade |
+| someone saying so | the utterance (speaker, authority) | how firmly they said it |
+| observing | the sighting | sensor confidence |
+| an assumption | the moment's licence | the grade of what was supposed |
+
+⭐ The entry had to exist anyway — the **sign** has nowhere else to live, since edges carry no facts.
+So the grade slot costs nothing; it is a member of a node the design was already forced to mint. That
+is the sign of a shape being right rather than convenient.
+
+#### Superseded, not invalidated — which is why storing it is *not* a TMS
+
+The obvious objection: if a stored grade is a cache, is a stored derived *fact* not also one?
+
+> **A dated derived fact needs no invalidation.** At M7 you recognised taking-turns; at M12 something
+> writes `−taking_turns(a, b)`. The M7 entry stays true **of M7**. Nothing is retracted, nothing
+> propagates, and *are they taking turns?* resolves through the chain to the most recent entry.
+
+That is exactly what the arc was for — *a fact must not become timelessly true just because it was
+written*. So the rule is one line and it covers modality and recognition together:
+
+> **Store on the entry — dated, signed, attributed, superseded.
+> Never on the node — timeless, and therefore requiring invalidation.**
+
+#### Frames and grades are two different problems
+
+The word *likely* covers two things, which is why *tag or guard* felt like a forced choice:
+
+| | *"I am supposing this — what follows?"* | *"this generally holds, weakly"* |
+|---|---|---|
+| shape | a **moment** you enter and leave (§2.1) | a **grade on the rule**, recorded on the entry at application |
+| count | few, deliberate, **nested** | many, independent |
+| nesting | free — a path in the predecessor tree | does not nest; composes by weakest link |
+| crossing | ✅ **already mandatory** — a read cannot reach into a moment except through the chain | not a crossing at all |
+
+⚠ Keep them apart or you get the ATMS this project deleted: twenty independently-uncertain facts is
+2²⁰ moments. **Use moments where you *choose* to suppose; use grades where the world is merely weakly
+connected.**
+
+#### Guard nodes — scored, and what they were right about
+
+| | (A) grade on the fact node | (B) a guard node per modalised fact | (C) moments + graded entries, weakest link computed |
+|---|---|---|---|
+| not leaking | ❌ ignorable by default; a consumer that skips it invents certainty | ✅ crossing is forced… | ✅ a conclusion derived in a moment **is** in it; the grade is recomputed from support |
+| not lossy | ❌ a number with no premise | ⚠ says *that* it is uncertain, not *on whose word* | ✅ speaker, rule and sighting all survive |
+| readable | ⚠ readable and stale | ⚠ | ✅ *which conclusions rest on something merely possible* is a walk |
+| composable | ❌ two tagged facts combine to *what?* | ❌ **every consumer must handle both shapes** — guarded and bare | ✅ weakest link over the support chain |
+
+⚠⚠ (B)'s failure is worth naming because it has no middle setting: **optional guards mean consumers
+handle two shapes and forgetting returns; mandatory guards mean a node and a hop for every certain
+fact in the system.**
+
+⭐ **But the guard instinct was right about one thing** — *forcing handling*. A computed grade compels
+nothing, and *don't act on a merely-possible fact without acknowledging it* is a real requirement. It
+belongs at **the one place effects leave**, exactly as prohibitions do in §9: check the grade of what
+licenses an **action** at the dispatch door, where the set is small and known, rather than making a
+million reads cross a guard to catch the one that matters.
+
+#### ⚠⚠ What (C) costs
+
+* *How likely* becomes a **walk, not a read** — the same shape as `holds`, already a measured and
+  accepted 2.35×. The `step` precedent: a cost that is a decision, not a veto.
+* ⚠⚠ **The residue becomes load-bearing for correctness, not only for explanation.** A write that
+  loses its attribution does not merely become unexplainable — it becomes **falsely confident**,
+  because a missing support link removes a weak link from the `min`. That promotes `ugm.leak`'s
+  invariant from hygiene to soundness.
+* Cycles in the support chain need the same termination care as any derivation walk.
+
+### 5.2 Do we run out of dimensions?
+
+The fear behind *"another dimension"* deserves a test rather than reassurance. The dimensions actually
+spent, in the whole system:
+
+| | why it cannot be structure |
+|---|---|
+| **identity** | *this node is that node* is not a relation between two things; it is the precondition for there being things |
+| **connection** | an edge |
+| **order among connections** | *the 2nd member* — position is not a thing in the world, so it cannot be a node |
+| *(a mechanism, not a dimension)* | **how a read resolves** — the predecessor chain of §2.1, named and reachable |
+
+Everything else added since — type, sign, licence, grade, time, force, authority, span — is a
+**member of a node**. None cost a dimension.
+
+> ⭐⭐⭐ **You run out of dimensions only if you try to say something that is not about anything.**
+
+Every distinction so far has been a relation between two things, and a relation is a node: modality
+relates a claim to its support, a sign relates a proposition to a locus, time relates a moment to its
+predecessor. If a candidate can be phrased as *X stands in relation R to Y* it is structure. **Order
+is the one that genuinely could not** — which is why the substrate has ordered targets, and why
+`step[i+1]` is still the hard one.
 
 ## 6. Worked
 
@@ -454,7 +690,14 @@ two readings: under (B) it is untestable by construction, and under (A) it is un
 * **Cardinality.** `made_of(?x, wheel×4)` is a count claim in positional clothing; backward matching
   needs cardinality declared per relation position, beside arity, ordered/unordered and converse.
 * **Constrained-not-bound values.** *The level rises by an unknown amount* wants a value member
-  constrained rather than bound — the same unbuilt capability as the order core.
+  constrained rather than bound — the same unbuilt capability as the order core. ⭐ Note the boundary
+  §2.3 draws: **recognising an ongoing pattern does not need this** (`span(M7, M12)` superseded by
+  `span(M7, M13)` is ordinary versioning); only **predicting that it continues** wants an unbound end
+  member. Those two were merged in an earlier draft and are not the same claim.
+* **Consistency within a moment**, per §2.2 — two entries with opposite signs in one locus is
+  permitted and undetected. Correct, since consistency is a question rather than an invariant, but it
+  is currently nobody's job.
+* **Span normalisation**, per §2.3 — content-equality must order by the chain, not by member order.
 * **Evidence accumulation**, per §5 — counting over episodes, with no arithmetic on grades.
 * **Familiarity**, per §9 — the escalation trigger needs *have I seen moments like this?*, which is a
   measure over the episode record and is not the same as *did recall return anything*.
