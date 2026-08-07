@@ -152,6 +152,10 @@ The representation decision this page takes is *what is a pass*:
 | readable | ⚠ data, but **B3**: operations-as-data is *write-only* | ⚠ same | ✅ a rule can ask *which passes are about time* |
 | composable | ⚠ the pass-web indexes by shared term; nothing relates a pass to the category it serves | ⚠ same | ✅ |
 
+⭐ A later session took this question fresh and went further — see [rules.md](rules.md), which drops
+the pass as a knowledge object entirely: a rule is `connective(moment, moment)`, direction is a query
+rather than a field, and a pass is a *compilation* (derived, cacheable, never authored).
+
 **Write passes as (C), keep (B) as the execution mechanism, drop (A).** (C) costs nothing new — it is the
 hub shape applied to operations — and it is the same move that promotes **B3** out of the seams.
 
