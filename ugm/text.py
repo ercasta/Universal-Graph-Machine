@@ -373,7 +373,13 @@ class Loader:
         assert s.member is not None
         scope: Dict[str, NodeId] = {}
         prop = self.build(s.member.term, scope)
-        if self.m.g.has_var(prop):
+        # A fact that NAMES a rule is mentioning it, and a rule node contains the
+        # variables of its own patterns. `overrides(<why>, <boil>)` is a ground
+        # claim about two rules, not a generic claim -- R3 depends on being able
+        # to write it. The `<...>` marker is what makes the distinction visible
+        # here, where structurally the two are identical (§13).
+        mentions = _mentions_a_rule(s.member.term)
+        if not mentions and self.m.g.has_var(prop):
             raise ParseError(
                 f"line {s.line}: a fact may not contain a variable -- only a rule's members "
                 f"are generic (§4)."
@@ -385,6 +391,7 @@ class Loader:
             grade=s.member.grade,
             licence=self.m.g.rel(self.LOADED, prop),
             source=self.m.KB,
+            mention=mentions,
         )
         self._maybe_precedence(s, prop)
 
@@ -412,6 +419,10 @@ class Loader:
         if self.m.g.has_var(prop):
             raise ParseError(f"line {s.line}: an arrival may not contain a variable")
         self.m.channels.deliver(self.channels[s.channel], prop, s.member.sign, s.member.grade)
+
+
+def _mentions_a_rule(t: Term) -> bool:
+    return t.is_rule or any(_mentions_a_rule(a) for a in t.args)
 
 
 def _vars_in(g, node: NodeId) -> set:

@@ -275,7 +275,7 @@ def trusting_a_channel() -> None:
     user = m.channels.open("user")
     raining = g.rel(g.atom("raining"), g.atom("here"))
 
-    said = g.rel(m.SAYS, user, raining)
+    said = g.rel(m.SAYS, user, raining, m.rules.SIGN["+"])
     trust = m.rules.rule(
         IMPLIES, [Member(PLUS, said)], [Member(PLUS, raining, "likely")], "trust-user"
     )
@@ -589,6 +589,95 @@ def backward_reading() -> None:
     )
 
 
+def plan_bindings() -> None:
+    """A conjunctive goal must be satisfied on bindings that AGREE. Checked
+    independently, `tap(sink)` and `under(kettle, drain)` both look achieved and
+    the plan is wrong -- silently, which is the worst kind."""
+    from .text import load
+
+    def world(facts):
+        m = Machine()
+        kb = load(m, chr(10).join([
+            "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+            "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
+        ] + facts + ["fact +goal(boiling(kettle))", ""]))
+        m.run(limit=60)
+        return m, kb
+
+    def props(m, rel):
+        return [m.g.show(e.proposition) for mm in m.chain.moments for e in mm.delta
+                if m.g.relation_of(e.proposition) is rel and e.sign == PLUS]
+
+    m, kb = world(["fact +tap(sink)", "fact +under(kettle, sink)"])
+    check("§14", "bindings agree, so both siblings are achieved",
+          "achieved(tap(?t))" in props(m, m.ACHIEVED) and "achieved(under(kettle, ?t))" in props(m, m.ACHIEVED))
+    check("R7", "and the binding is a fact on the graph, not an interpreter variable",
+          any("?t, sink" in x for x in props(m, m.BINDS)))
+
+    m2, kb2 = world(["fact +tap(sink)", "fact +under(kettle, drain)"])
+    check("§14", "bindings disagree, so the sibling is blocked, not achieved",
+          "blocked(under(kettle, ?t))" in props(m2, m2.BLOCKED))
+    check("§14", "and the false achievement does not appear",
+          "achieved(under(kettle, ?t))" not in props(m2, m2.ACHIEVED))
+
+
+def the_loop_closes() -> None:
+    """Plan, act, be wrong, notice. §11 acting, §16 surprise."""
+    from .text import load
+
+    src = chr(10).join([
+        "rule <boil>   = causes(  { +heat(?a, ?w), +water(?w) },   { +boiling(?w) } )",
+        "rule <do>     = implies( { +blocked(heat(?a, ?w)) },      { +doing(heat(anna, ?w)) } )",
+        "rule <trustT> = implies( { +says(gauge, ?p, plus) },      { +?p } )",
+        "rule <trustF> = implies( { +says(gauge, ?p, minus) },     { -?p } )",
+        "rule <why>    = implies( { +deviates(?p) },               { +goal(explain(?p)) } )",
+        "fact overrides(<why>, <boil>)",
+        "fact +water(kettle)",
+        "fact +goal(boiling(kettle))",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, src)
+    check("R3", "a fact may NAME a rule, though a rule node contains variables", len(m.rules.overrides) == 1)
+
+    gauge = kb.term("gauge")
+    m.channels.use(gauge)
+    steps = m.run(limit=60)
+
+    check("§11", "planning reached an act and emitted it", [m.g.show(x) for x in m.emitted] == ["heat(anna, kettle)"])
+    check("§11", "acting makes the event-fact true", m.holds(kb.term("heat(anna, kettle)")) == PLUS)
+    check("§16", "and forward application deposits what it predicts",
+          m.holds(kb.term("expects(boiling(kettle), plus)")) == PLUS)
+    check("§16", "without which there would be nothing to be surprised against",
+          m.holds(kb.term("boiling(kettle)")) == PLUS)
+
+    m.channels.deliver(gauge, kb.term("boiling(kettle)"), sign="-")
+    after = m.run(limit=60)
+
+    check("§13", "a channel reports a SIGNED content, and the saying itself is positive",
+          m.holds(kb.term("says(gauge, boiling(kettle), minus)")) == PLUS)
+    check("§16", "surprise is a match: expected and observed disagree",
+          m.holds(kb.term("deviates(boiling(kettle))")) == PLUS)
+    check("§16", "and the response is an ordinary rule, so it can be overridden",
+          m.holds(kb.term("goal(explain(boiling(kettle)))")) == PLUS)
+    check("§16", "precedence stops the contradicted rule re-asserting forever",
+          after[-1].state == "quiescent")
+    check("R5", "the deviation carries its whole trail back to the channel",
+          len(m.why(kb.term("deviates(boiling(kettle))"))) >= 4)
+
+    # A consequent that is a bare variable is exact forwards and vacuous
+    # backwards: it proposes itself for every goal, without end.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "rule <trust> = implies( { +says(x, ?p, plus) }, { +?p } )",
+        "fact +goal(anything(here))",
+        "",
+    ]))
+    m2.run(limit=30)
+    check("R1", "the backward reader declines a consequent it cannot use",
+          m2.holds(kb2.term("blocked(anything(here))")) == PLUS)
+
+
 def main() -> int:
     import sys
 
@@ -607,6 +696,8 @@ def main() -> int:
     supposing()
     rule_driven_supposition()
     backward_reading()
+    plan_bindings()
+    the_loop_closes()
     connectives_differ()
     quiescence()
     trusting_a_channel()

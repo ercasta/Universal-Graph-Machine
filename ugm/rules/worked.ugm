@@ -23,7 +23,7 @@ rule <weather> = implies(
 # min(authored, support), so a weak utterance cannot be laundered into a strong
 # claim by a confident rule.
 rule <trust_user> = implies(
-    { +says(user, ?p) },
+    { +says(user, ?p, plus) },
     { +?p @likely } )
 
 # Standing knowledge, stamped as having come from the knowledge base.

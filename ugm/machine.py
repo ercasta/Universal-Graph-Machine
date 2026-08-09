@@ -74,6 +74,14 @@ class Machine:
         self.WANTED = self.g.atom("wanted")
         self.ACHIEVED = self.g.atom("achieved")
         self.BLOCKED = self.g.atom("blocked")
+        self.PLAN = self.g.atom("plan")
+        self.SUBGOAL = self.g.atom("subgoal")
+        self.BINDS = self.g.atom("binds")
+        self.EXPANDS = self.g.atom("expands")
+        self.DOING = self.g.atom("doing")
+        self.DID = self.g.atom("did")
+        self.EXPECTS = self.g.atom("expects")
+        self.DEVIATES = self.g.atom("deviates")
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -95,6 +103,10 @@ class Machine:
             "rule": self.RULE, "conn": self.CONN, "ant": self.ANT, "con": self.CON,
             "suppose": self.SUPPOSE, "goal": self.GOAL,
             "achieved": self.ACHIEVED, "blocked": self.BLOCKED,
+            "plan": self.PLAN, "subgoal": self.SUBGOAL,
+            "binds": self.BINDS, "expands": self.EXPANDS,
+            "doing": self.DOING, "did": self.DID,
+            "expects": self.EXPECTS, "deviates": self.DEVIATES,
             "causes": self.rules.CAUSES, "implies": self.rules.IMPLIES,
             "plus": self.rules.SIGN["+"], "minus": self.rules.SIGN["-"],
         }
@@ -109,10 +121,16 @@ class Machine:
         self.expansions = 0
         self.expansion_budget = 64
         self._expanded: set = set()
+        self._acted: set = set()
+        self._actuators: List[NodeId] = []
+        self._deviations: set = set()
+        self.emitted: List[NodeId] = []
         # Machinery vocabulary: requests, not claims. Nothing carries these out of
         # a frame. This is the closed set of §10 growing by one, and it is a real
         # cost -- worth listing rather than letting it accumulate (§5).
-        self._bookkeeping = {self.SUPPOSE, self.GOAL, self.ACHIEVED, self.BLOCKED}
+        self._bookkeeping = {self.SUPPOSE, self.GOAL, self.ACHIEVED, self.BLOCKED,
+                             self.PLAN, self.SUBGOAL, self.BINDS, self.EXPANDS,
+                             self.EXPECTS, self.DOING, self.DID, self.DEVIATES}
 
     # -- rules as data ----------------------------------------------------
 
@@ -205,6 +223,91 @@ class Machine:
             return True
         return False
 
+    # -- acting, and being wrong about it ---------------------------------
+
+    def actuator(self, name: str) -> NodeId:
+        """A channel that carries intents OUT. Channels already carry the world
+        in (§13); acting is the same relation read the other way, and needs no
+        new construct for the same reason an action needs none (§11)."""
+        node = self.channels.open(name)
+        self._actuators.append(node)
+        return node
+
+    def _act(self) -> bool:
+        """Emit what the agent has decided to do.
+
+        §11: an action is an event, an event is a moment, and *to execute* means
+        make this event-fact true. So nothing here is an action construct -- a
+        rule concludes `+doing(p)` like any other fact, and this carries it past
+        the boundary. What comes back comes back as an ordinary arrival, on an
+        ordinary channel, and may disagree.
+        """
+        for e in current_state(self.chain, self.focus.topic, self.focus.seat):
+            if e.sign != "+" or e.node in self._acted:
+                continue
+            if self.g.relation_of(e.proposition) is not self.DOING:
+                continue
+            if self.g.has_var(e.proposition):
+                continue  # cannot act on a description; §8's achievability, met
+            self._acted.add(e.node)
+            (what,) = self.g.members(e.proposition)
+            self.emitted.append(what)
+            did = self.g.rel(self.DID, what)
+            self.gate.write(
+                self.focus, did, "+", licence=did, source=self.KB, consumed=(e,),
+            )
+            # §11: *to execute* means make this event-fact true. The agent knows
+            # it acted -- that is not a claim about the world's response, which
+            # arrives on a channel and may disagree. Asserting the act is what
+            # gives the rules something to fire on, and gives the expectation
+            # something to be disappointed by.
+            self.gate.write(
+                self.focus, what, "+", licence=did, source=self.KB, consumed=(e,),
+            )
+            return True
+        return False
+
+    def _expect(self, frame: Frame, proposition: NodeId, sign: str, licence: NodeId) -> None:
+        """Forward application deposits what it predicts (§16).
+
+        Without the deposit there is nothing to be surprised against -- an
+        expectation that lives in an interpreter variable is unmatched not
+        because the rule was weak but because there is nothing there to match.
+        """
+        self.gate.write(
+            frame, self.g.rel(self.EXPECTS, proposition, self.rules.SIGN[sign]), "+",
+            licence=licence, source=self.KB, mention=True,
+        )
+
+    def _notice_deviation(self) -> int:
+        """Surprise is a match: an expected entry and an observed entry that
+        disagree (§16). The machinery only *notices*; what to do about it is a
+        rule, so it can be overridden like any other strategy."""
+        found = 0
+        state = current_state(self.chain, self.focus.topic, self.focus.seat)
+        expectations = [
+            s for s in state
+            if s.sign == "+" and self.g.relation_of(s.proposition) is self.EXPECTS
+        ]
+        for exp in expectations:
+            prop, sign_node = self.g.members(exp.proposition)
+            if (exp.node, prop) in self._deviations:
+                continue
+            observed = self.chain.resolve(prop, self.focus.topic, self.focus.seat)
+            if observed is None:
+                continue
+            expected_sign = "+" if sign_node == self.rules.SIGN["+"] else "-"
+            if observed.sign == expected_sign:
+                continue
+            self._deviations.add((exp.node, prop))
+            self.gate.write(
+                self.focus, self.g.rel(self.DEVIATES, prop), "+",
+                licence=self.g.rel(self.DEVIATES, prop), source=self.KB,
+                consumed=(exp, observed),
+            )
+            found += 1
+        return found
+
     # -- backward reading -------------------------------------------------
 
     def _expand_goal(self) -> bool:
@@ -240,19 +343,32 @@ class Machine:
             # *Is this goal already satisfied?* is a MATCH, not a lookup. A
             # subgoal is often generic -- `tap(?t)`, because the rule that
             # proposed it left `?t` unbound -- and `resolve` compares proposition
-            # identity, so it would call a satisfied goal blocked. What is
-            # missing after this fix is the binding: satisfying `tap(?t)` with
-            # `tap(sink)` should bind `?t` for the sibling goal `under(k, ?t)`,
-            # and that needs an environment per plan, which slice one has not.
-            held = next(
-                (
-                    s
-                    for s in state
-                    if s.sign == "+" and unify(self.g, wanted, s.proposition, {}) is not None
-                ),
-                None,
-            )
+            # identity, so it would report a satisfied goal as blocked.
+            #
+            # And the match must run inside the PLAN's bindings. Satisfying
+            # `tap(?t)` with `tap(sink)` binds `?t` for the sibling goal
+            # `under(kettle, ?t)`. Checked independently, `tap(sink)` and
+            # `under(kettle, drain)` would both report achieved and the plan
+            # would be wrong -- silently, which is the worst kind.
+            plan = self._plan_of(wanted, state)
+            env = self._bindings_of(plan, state) if plan is not None else {}
+            held, extended = None, None
+            for s in state:
+                if s.sign != "+":
+                    continue
+                b = unify(self.g, wanted, s.proposition, dict(env))
+                if b is not None:
+                    held, extended = s, b
+                    break
             if held is not None:
+                if plan is not None:
+                    for var, val in extended.items():
+                        if var not in env:
+                            self.gate.write(
+                                self.focus, self.g.rel(self.BINDS, plan, var, val), "+",
+                                licence=self.g.rel(self.ACHIEVED, wanted), source=self.KB,
+                                consumed=(held,), mention=True,
+                            )
                 self._note(self.ACHIEVED, wanted, e)
                 return True
 
@@ -260,6 +376,18 @@ class Machine:
             for r in self.rules.rules:
                 for m in r.consequent:
                     if m.sign != "+":
+                        continue
+                    if self.g.is_var(m.pattern):
+                        # A consequent that is a bare variable says *this rule can
+                        # conclude anything*. Forwards that is exact and useful --
+                        # it is how `+says(user, ?p)` becomes `+?p`. Backwards it
+                        # is vacuous: it proposes itself for every goal, and its
+                        # subgoal is another goal of the same shape, without end.
+                        #
+                        # So the two readings of one statement are not equally
+                        # informative, which R1 never promised. Recall is where
+                        # this belongs once it is learned (§15); until then the
+                        # backward reader declines what it cannot use.
                         continue
                     b = unify(self.g, m.pattern, wanted, {})
                     if b is not None:
@@ -274,14 +402,51 @@ class Machine:
             self.expansions += 1
             rule, binding = candidates[0]
             licence = self.g.rel(self.WANTED, rule.node, wanted)
+            # One plan per expansion, and it is the thing bindings belong to.
+            # Not interned: expanding the same goal twice by different rules is
+            # two plans, which is what having alternatives means.
+            plan = self.g.instance(self.PLAN, rule.node, wanted)
+            self.gate.write(
+                self.focus, self.g.rel(self.EXPANDS, plan, wanted, rule.node), "+",
+                licence=licence, source=self.KB, consumed=(e,), mention=True,
+            )
+            for var, val in binding.items():
+                self.gate.write(
+                    self.focus, self.g.rel(self.BINDS, plan, var, val), "+",
+                    licence=licence, source=self.KB, mention=True,
+                )
             for m in rule.antecedent:
                 sub = substitute(self.g, m.pattern, binding)
                 self.gate.write(
                     self.focus, self.g.rel(self.GOAL, sub), "+",
                     licence=licence, source=self.KB, consumed=(e,), mention=True,
                 )
+                self.gate.write(
+                    self.focus, self.g.rel(self.SUBGOAL, plan, sub), "+",
+                    licence=licence, source=self.KB, mention=True,
+                )
             return True
         return False
+
+    def _plan_of(self, wanted: NodeId, state: List[Entry]) -> Optional[NodeId]:
+        """Which plan proposed this goal. A goal with no plan is a root want."""
+        for s in state:
+            if s.sign == "+" and self.g.relation_of(s.proposition) is self.SUBGOAL:
+                plan, sub = self.g.members(s.proposition)
+                if sub == wanted:
+                    return plan
+        return None
+
+    def _bindings_of(self, plan: NodeId, state: List[Entry]) -> dict:
+        """A plan's environment, read back out of the graph -- which is R7: the
+        agent's own working state is a fact, not an interpreter variable."""
+        env = {}
+        for s in state:
+            if s.sign == "+" and self.g.relation_of(s.proposition) is self.BINDS:
+                p, var, val = self.g.members(s.proposition)
+                if p == plan:
+                    env[var] = val
+        return env
 
     def _note(self, relation: NodeId, wanted: NodeId, because: Entry) -> None:
         self.gate.write(
@@ -342,6 +507,15 @@ class Machine:
         if self._enact_supposition():
             return Step(arrivals, 0, 0, None, (), "supposed")
 
+        if self._act():
+            return Step(arrivals, 0, 0, None, (), "acted")
+
+        # Not gated on arrivals: a deviation usually appears a tick or two AFTER
+        # the report lands, once a trust rule has turned what a channel said into
+        # a belief. Checking only on the arriving tick misses every one of them.
+        if self._notice_deviation():
+            return Step(arrivals, 0, 0, None, (), "surprised")
+
         if self._expand_goal():
             return Step(arrivals, 0, 0, None, (), "expanded")
 
@@ -379,7 +553,7 @@ class Machine:
         for _ in range(limit):
             s = self.tick()
             out.append(s)
-            if s.state not in ("applied", "supposed", "expanded"):
+            if s.state not in ("applied", "supposed", "expanded", "acted", "surprised"):
                 break
         return out
 
@@ -400,14 +574,20 @@ class Machine:
         arrivals = self.channels.drain()
         for a in arrivals:
             utterance = self.g.rel(self.ARRIVED, a.channel, a.proposition)
-            said = self.g.rel(self.SAYS, a.channel, a.proposition)
+            # `says` carries the reported SIGN as a third member, and the entry
+            # is always positive: the channel did speak. Writing `-says(c, p)`
+            # would claim the channel stayed silent, which is a different fact
+            # and not the one observed.
+            #
+            # This is the restriction §16 names -- a sign has nowhere to live
+            # inside a proposition, because a sign is a member of an entry. The
+            # sign node here is the same compromise reification already makes in
+            # `ant(<R>, p, plus)`. §16's better answer is that an arrival should
+            # be a MOMENT, so a report is a signed delta and trust is a rule over
+            # two moments. That needs the skeleton of §8, which this slice lacks.
+            said = self.g.rel(self.SAYS, a.channel, a.proposition, self.rules.SIGN[a.sign])
             self.gate.write(
-                self.focus,
-                said,
-                a.sign,
-                grade=a.grade,
-                licence=utterance,
-                source=a.channel,
+                self.focus, said, "+", grade=a.grade, licence=utterance, source=a.channel,
             )
         return len(arrivals)
 
@@ -428,6 +608,8 @@ class Machine:
         wrote: List[Entry] = []
         for m in app.rule.consequent:
             grounded = substitute(self.g, m.pattern, app.bindings)
+            if app.rule.connective == "causes":
+                self._expect(frame, grounded, m.sign, licence)
             wrote.append(
                 self.gate.write(
                     frame,
