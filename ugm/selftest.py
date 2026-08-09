@@ -487,6 +487,41 @@ def supposing() -> None:
     )
 
 
+def rule_driven_supposition() -> None:
+    """The whole of it, with no Python driving: a rule PROPOSES crossing the
+    guard, the machinery enacts it, and the conclusions come back wrapped."""
+    from .text import load
+
+    src = chr(10).join([
+        "rule <sympt> = implies( { +reading(?p, low) },        { +symptom(?p, restricted) } )",
+        "rule <cause> = implies( { +symptom(?p, restricted) }, { +diag(?p, blocked) } )",
+        "rule <act>   = implies( { +diag(?p, blocked) },       { +action(replace, ?p) } )",
+        "rule <cross> = implies( { +likely(?p) },              { +suppose(?p, likely) } )",
+        "rule <hedge> = implies( { +likely(diag(?p, blocked)) }, { +goal(corroborate(?p)) } )",
+        "fact +likely(reading(pump7, low))",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, src)
+    steps = m.run(limit=200)
+
+    check("§14", "the loop settles rather than exhausting its budget", steps[-1].state == "quiescent")
+    check("§9", "and no bound was hit silently", m.exhausted == 0)
+    check("§13", "a rule proposed the supposition", any(s.state == "supposed" for s in steps))
+    check("§12", "modality crossed the whole pipeline", m.holds(kb.term("likely(diag(pump7, blocked))")) == PLUS)
+    check("§12", "and the hedge fired on the wrapped conclusion", m.holds(kb.term("goal(corroborate(pump7))")) == PLUS)
+    check(
+        "§17",
+        "the guard held: nothing acted on the unwrapped conclusion",
+        m.holds(kb.term("action(replace, pump7)")) is None,
+    )
+    check(
+        "§13",
+        "a suppose request is bookkeeping and never carries out of a frame",
+        m.holds(kb.term("likely(suppose(reading(pump7, low), likely))")) is None,
+    )
+
+
 def main() -> int:
     import sys
 
@@ -503,6 +538,7 @@ def main() -> int:
     a_rule_is_a_node()
     rules_as_data()
     supposing()
+    rule_driven_supposition()
     connectives_differ()
     quiescence()
     trusting_a_channel()

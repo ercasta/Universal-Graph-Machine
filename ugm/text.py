@@ -296,6 +296,7 @@ class Loader:
             ("ant", self.m.ANT), ("con", self.m.CON),
             ("causes", self.m.rules.CAUSES), ("implies", self.m.rules.IMPLIES),
             ("plus", self.m.rules.SIGN["+"]), ("minus", self.m.rules.SIGN["-"]),
+            ("suppose", self.m.SUPPOSE),
         ):
             self.atoms[name] = node
         self.OVERRIDES = self.atom("overrides")

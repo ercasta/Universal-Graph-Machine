@@ -27,6 +27,7 @@ from .rules import (
     defeat,
     effective_grade,
     match,
+    current_state,
     substitute,
 )
 
@@ -67,6 +68,7 @@ class Machine:
         self.REIFIED = self.g.atom("reified")
         self.SUPPOSING = self.g.atom("supposing")
         self.CONCLUDED = self.g.atom("concluded")
+        self.SUPPOSE = self.g.atom("suppose")
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -80,6 +82,15 @@ class Machine:
 
         self.selections = 0
         self.useful_writes = 0
+        self.exhausted = 0
+        self.max_depth = 8
+        self._enacted: set = set()
+        self._supposed: set = set()
+        self.supposition_budget = 32
+        # Machinery vocabulary: requests, not claims. Nothing carries these out of
+        # a frame. This is the closed set of §10 growing by one, and it is a real
+        # cost -- worth listing rather than letting it accumulate (§5).
+        self._bookkeeping = {self.SUPPOSE}
 
     # -- rules as data ----------------------------------------------------
 
@@ -134,6 +145,44 @@ class Machine:
         self.gate.write(child, assumption, "+", grade=grade, licence=licence, source=self.KB)
         return child
 
+    def _enact_supposition(self) -> bool:
+        """Rules propose a supposition; the machinery enacts it.
+
+        A rule concludes `+suppose(p, likely)` -- an ordinary entry, matched and
+        deposited like any other. The loop then does what a rule cannot: open the
+        frame, reason inside, and carry the conclusions out wrapped. That is the
+        same division as the gate (§13) -- the rule says *what*, the machinery
+        supplies the *where*, because a frame is anchored and a rule is generic.
+
+        It recurses by construction: a conclusion drawn inside the frame that is
+        itself wrapped proposes another supposition, one level down. The depth
+        bound is a budget, and like every bound here it must report that it was
+        hit rather than silently stopping (§9).
+        """
+        if len(self.focus.ancestry()) > self.max_depth:
+            self.exhausted += 1
+            return False
+        if len(self._supposed) >= self.supposition_budget:
+            self.exhausted += 1
+            return False
+        for e in current_state(self.chain, self.focus.topic, self.focus.seat):
+            if e.sign != "+" or e.node in self._enacted:
+                continue
+            if self.g.relation_of(e.proposition) != self.SUPPOSE:
+                continue
+            assumption, wrap = self.g.members(e.proposition)
+            self._enacted.add(e.node)
+            # Supposing the same thing twice derives nothing new: everything
+            # downstream of it was already drawn the first time. Without this the
+            # loop crosses guards it created a moment ago, forever.
+            if assumption in self._supposed:
+                return True
+            self._supposed.add(assumption)
+            frame = self.suppose(assumption, grade=e.grade)
+            self.discharge(frame, wrap)
+            return True
+        return False
+
     def discharge(self, frame: Frame, wrap: NodeId, limit: int = 100) -> List[Entry]:
         """Run to quiescence inside, then carry conclusions out **wrapped**.
 
@@ -157,6 +206,13 @@ class Machine:
             for e in moment.delta:
                 if e.licence == assumption_licence:
                     continue  # the assumption itself is not a conclusion
+                if self.g.relation_of(e.proposition) in self._bookkeeping:
+                    # A request to suppose is not a claim about the world, so
+                    # there is nothing for the wrapper to qualify. Carrying it
+                    # out produces `likely(suppose(...))`, which the rule that
+                    # crosses guards then crosses -- the machinery supposing its
+                    # own bookkeeping, forever.
+                    continue
                 out.append(
                     self.gate.write(
                         parent,
@@ -175,6 +231,9 @@ class Machine:
 
     def tick(self) -> Step:
         arrivals = self._intake()
+
+        if self._enact_supposition():
+            return Step(arrivals, 0, 0, None, (), "supposed")
 
         proposed = self._recall()
         applications: List[Application] = []
@@ -210,7 +269,7 @@ class Machine:
         for _ in range(limit):
             s = self.tick()
             out.append(s)
-            if s.state != "applied":
+            if s.state not in ("applied", "supposed"):
                 break
         return out
 
