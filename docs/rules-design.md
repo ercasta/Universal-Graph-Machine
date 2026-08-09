@@ -471,6 +471,25 @@ the consequent's members.
 | **backward** | unify a wanted fact against `<B>`'s `+`/`−` entries; `<A>`'s unsatisfied members become subgoals, as far as the agent can discharge them |
 | **`?` entries, backward** | *this rule disturbs that and cannot say how* — a **want**, not a failure, and not a false *it stays as it was* |
 
+### Two readings, not two equally useful ones
+
+R1 asks that both readings come from one statement. It does not promise that both are informative, and
+one shape makes the difference sharp: a consequent that is a **bare variable**.
+
+```
+<trust> = implies( { +says(?c, ?p, +) }, { +?p } )
+```
+
+Forwards this is exact and is the whole of §13's *trust is a rule* — whatever the channel said,
+believe it. Backwards it says *this rule can conclude anything*, so it proposes itself for every goal,
+and its subgoal is another goal of the same shape, without end. It is not wrong; it is vacuous.
+
+The backward reader therefore declines what it cannot use, and that is a placeholder rather than an
+answer. **The real home for this is recall** (§15): which rules come to mind when reading backwards is
+learned, and a rule that has never once helped a search is exactly what recall should stop offering.
+Declining bare-variable consequents is a fixed rule standing in for a learned one, and it should be
+retired when recall is.
+
 Direction is a **query over the rule**, never a field in it. This is R1: one statement, two readings.
 R2 is met because each reading cites `<R>`, and the licence recorded on the resulting entry says which
 reading produced it — so a hypothesis formed by reading backwards is distinguishable, permanently,
@@ -747,14 +766,24 @@ The reserved vocabulary of the whole design:
 | timing | one relation over the two moments' endpoints | 1 |
 | locus resolution | `entry` — the relation the engine dispatches on (§5) | 1 |
 | the frame register | *which node the machinery is currently reasoning in* (§13) | 1 |
-| machinery requests | `suppose`, `goal` — and what a goal's expansion writes, `achieved` and `blocked` | 4 |
+| machinery requests | `suppose`, `goal`, `doing` — what a rule asks the machinery to enact | 3 |
+| machinery reports | `achieved`, `blocked`, `did`, `expects`, `deviates` — what it writes back | 5 |
+| plan structure | `plan`, `subgoal`, `binds`, `expands` — a backward search's working state, as facts (R7) | 4 |
 
-The last row is a cost incurred by building, and it is listed rather than absorbed. These are requests
-and reports, not claims about the world: a rule concludes `+suppose(p, likely)` or `+goal(p)`, and the
-machinery does what a rule cannot — open a frame, or read a rule backwards — because both need an
-anchored locus that a generic rule cannot name. §5 asks that this set be declared in one place rather
-than accumulating, and this is that place. The rule for admitting a member is §14's: it earns a row
-only if the machinery must **enact** it, never merely read it.
+Those last three rows are a cost incurred by building, and they are listed rather than absorbed —
+twelve names where the design began with one. §5 asks that this set be declared in one place rather
+than accumulating, and this is that place.
+
+They are requests and reports, not claims about the world. A rule concludes `+suppose(p, likely)`,
+`+goal(p)` or `+doing(p)`, and the machinery does what a rule cannot: open a frame, read a rule
+backwards, or carry an intent past the agent's boundary. Each needs something anchored — a locus, a
+match, a channel — that a generic rule cannot name. The rule for admitting a member is §14's:
+
+> **A name earns a row only if the machinery must ENACT it, never merely read it.**
+
+The plan-structure row is the one that could have been avoided and should not be. A backward search's
+bindings could have lived in the interpreter; putting them on a `plan` node is R7 applied to the
+machinery's own working state, and it is what makes *why did you think that goal was met* answerable.
 
 One consequence is easy to miss and was found by running: **nothing in this row may carry out of a
 frame**. A request to suppose is not a claim about the world, so there is nothing for the wrapper to
@@ -903,6 +932,38 @@ This is what makes reported speech expressible, which the timing member alone co
 
 `<e2>` is deposited now, is about the afternoon, and is believed on Anna's word — three different
 times and one authority, none of which needs a construct that does not already exist.
+
+### Acting is a channel read the other way
+
+Channels carry the world in (§13). Acting carries an intent out, and needs no new construct for the
+same reason an action needs none: a rule concludes `+doing(p)` like any other fact, and the machinery
+carries it past the boundary because a boundary is anchored and a rule is generic.
+
+Two things about the write that follows, both found by building it:
+
+**The agent asserts the act.** *To execute means make this event-fact true*, so having acted, the
+agent writes `+heat(anna, kettle)` — licensed by the doing, not by any report. That is not a claim
+about the world's response. It is what gives the rules something to fire on, and it is what gives the
+expectation of §16 something to be disappointed by. Without it the agent emits an intent into silence
+and nothing downstream ever happens.
+
+**A description cannot be acted on.** `+doing(heat(?a, ?w))` is refused: an intent with an unbound
+member names no particular act. This is §8's achievability arriving where it belongs — not as a mark
+on a rule's member, but as a condition at the one place effects leave the agent.
+
+### What a channel reports is signed
+
+An arrival needs a sign, and a proposition has none — only an entry does (§5). So *the gauge says it
+is not boiling* has nowhere to put the negation. Writing `−says(gauge, p)` says the gauge stayed
+silent, which is a different fact and not the one observed.
+
+The shape in use is `says(channel, proposition, sign)`, with the entry always positive: the channel
+did speak. That puts a sign inside a proposition, which §16 warns against, and it is the same
+compromise reification makes in `ant(<R>, p, +)`.
+
+**§16's answer is better and is not yet built.** An arrival should be a **moment** — a report is a
+signed delta, and trust is then a rule relating two moments rather than a rule per sign. That needs
+§8's skeleton, and until it exists a corpus needs one trust rule for `plus` and one for `minus`.
 
 ---
 
@@ -1582,6 +1643,34 @@ the distinction is the whole of §16.
 what the agent was doing — which is possible only because *continue what you were doing* was itself a
 selectable rule. That is exactly what a stack frame is not.
 
+### The precedence claim is load-bearing, not decorative
+
+Built without it, the loop does not merely respond slowly — it never responds at all, and the failure
+is worth recording because it is not the one you would predict.
+
+An agent heats water and expects it to boil. The gauge reports it is not boiling. Now two rules apply
+forever: the causal rule re-concludes `+boiling` because its antecedent still holds, and the trust
+rule re-concludes `−boiling` because the gauge still said so. They alternate. The surprise rule is
+never selected, because arbitration prefers the rule authored first, and **the oscillation starves
+it**. Nothing is wrong with any of the three rules; the deviation is even noticed and recorded. It
+simply never gets acted on.
+
+One authored fact fixes it:
+
+```
+overrides(<why>, <boil>)
+```
+
+That is this section's claim, exactly: preemption is a precedence relation over ordinary rules, and it
+works because the rule that would have continued is selectable and therefore defeatable. §12 supplies
+the other half — being overridden must mean **not applying at all** (defeat), never merely applying
+second, or the loser simply re-asserts on the following tick and the winner is quietly undone.
+
+The general shape, since it will recur: **a contradicted expectation does not stop being re-derived.**
+Nothing in the design retracts the rule that produced it, so something must outrank it. That something
+is authored, which is the point — a strategy defeated by a statement in the knowledge base rather than
+by an interpreter.
+
 ### Procedures as data
 
 A procedure is a committed order, and a committed order is precisely the thing that cannot be
@@ -1719,9 +1808,18 @@ Three more follow from §13, and they are the ones a first implementation is mos
   facts it just produced, and only terminates when the wrapped terms happen to run out of applicable
   rules. Eager crossing has no criterion; the criterion is **demand**, which is backward reading, and
   the two are not yet connected.
-* **Bindings across sibling subgoals** (§14). Satisfying `tap(?t)` with `tap(sink)` should bind `?t`
-  for the sibling goal `under(kettle, ?t)`. That needs an environment per plan, and without one a
-  conjunctive goal can be reported satisfied on bindings that do not agree.
+* **Backtracking** (§14). Bindings now live on a `plan` node, so sibling subgoals are satisfied on
+  bindings that agree — but the first match commits. If `tap(sink)` is chosen and the sibling then
+  fails, nothing reconsiders `tap(?t)` against another tap. A plan is a node, so an alternative is
+  expressible; what is missing is who decides to take one, which is arbitration over plans.
+* **Retracting a contradicted expectation** (§16). Precedence stops a defeated rule applying, but
+  nothing retracts what it already concluded, and its antecedent still holds. The agent goes on
+  believing both the expectation and its refutation, distinguished only by which rule outranks which.
+  Whether that is right — §5 does say consistency is a question rather than an invariant — or whether
+  a deviation should discharge the expectation, is not settled.
+* **An arrival should be a moment** (§11, §16). A channel reports a *signed* state of affairs, and a
+  proposition carries no sign, so the sign currently rides as a member of `says`. §16 already argues
+  the moment form is better rather than a workaround. It needs §8's skeleton.
 * **When a revision is warranted** (§4). The two indices make *I now think otherwise about `M7`*
   sayable, and say nothing about when an agent should write one. Left alone, a system that revises the
   past freely can rewrite its way out of any surprise, which is §16's mechanism defeated by §4's
@@ -1786,6 +1884,9 @@ Each was scored in the section named; this table is the index.
 | modality (§12) | wrapping written per rule — a `likely` twin of every rule | the wrapped and bare corpora share nothing, since `likely(p)` and `p` are different propositions; measured at 2x |
 | modality (§12) | a lifting rule over reified rules | binds against a rule's *pattern*, so it fires only where that pattern is ground — and real corpora are mostly generic rules |
 | backward reading (§14) | `<B>` as a rule over reified rules | a goal is ground and a stored consequent is generic; one variable cannot bind to both, and deciding they correspond is `match` |
+| planning (§14) | subgoals checked independently | `tap(sink)` and `under(kettle, drain)` both report achieved and the plan is silently wrong; bindings belong to a plan |
+| surprise (§16) | precedence as ranking rather than defeat | the defeated rule re-asserts on the next tick and undoes the winner; and without any precedence the two oscillate and starve the surprise rule entirely |
+| acting (§11) | emitting an intent without asserting the act | the agent emits into silence: no rule fires, no expectation forms, and nothing can be surprised |
 | modality (§12) | probabilities instead of ordinal grades | independence assumptions cannot be stated in the graph, so the product looks like a measurement and is an artefact |
 | entries (§13) | augment rules to speak of entries | cannot be written: the locus is an indexical, and a rule is generic |
 | entries (§13) | authors write entries natively | every rule becomes plumbing, and provenance becomes forgeable |
