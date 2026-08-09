@@ -1,0 +1,9 @@
+# Mark a car as serviced, once we are sure it really is a car.
+fn service_car(car):
+    # refuse anything that is not a well-formed car
+    NATIVE "check" F(car) "car"
+    SET F(car) "serviced" true
+
+# Record that a chunk has been inspected, without judging it.
+fn note_inspected(thing):
+    SET F(thing) "inspected" true

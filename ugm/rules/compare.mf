@@ -1,0 +1,132 @@
+# One comparison, total. As an ordinary program.
+#
+# This is `types.compare`, which `goal.holds`, `criterion._holds` and every schema check share — so `>=`
+# cannot come to mean different things in a `type` block and in a goal. That sharing is the reason this
+# file exists at all: the moment a predicate written in the surface needs to compare two values, either
+# it calls this or it grows a second comparator, and a second comparator is the drift this codebase keeps
+# finding.
+#
+# **Totality is the whole difficulty.** `LT` is Python's `<`, so comparing a string to a number raises,
+# and a schema is checked against whatever the world happens to hold — the world being under no
+# obligation to cooperate. Python catches the `TypeError`; a program here cannot catch anything, so it
+# has to **ask first**, and asking is what `VKIND` was added for.
+#
+# ⚠ It deliberately reproduces one of Python's rules rather than improving on it: a truth compares with a
+# number, because `True < 2` is True there and `types.compare` is the comparator this has to agree with.
+# Being stricter here would be defensible in isolation and wrong in context — there is one comparison,
+# and two spellings of it that disagree about a single pair is exactly the failure the shared comparator
+# exists to prevent.
+#
+# NOT live for Python callers, and that is a decision rather than an omission: `types.compare` sits under
+# every schema check, which is the hottest path in the system, and swapping an interpreted call in there
+# would be paid on every `is_a` in every search. The two are checked against each other instead, and this
+# one is what the surface calls.
+
+# Can these two values be ORDERED at all? Equality never needs this — `==` never raises in Python — so
+# only `<`, `<=`, `>`, `>=` and `between` ask.
+#
+# Two texts order, and two numbers order. `nothing`, `unknown` and anything else do not order even
+# against themselves: `None < None` raises exactly as `None < 1` does, and answering `false` for it is
+# the totality this is here to provide.
+#
+# ⚠ That is stricter than Python in exactly one place, and it is worth stating rather than discovering:
+# Python orders two tuples, and a value of no named category answers `false` here. Measured over every
+# operator against every pair drawn from numbers, truths, texts, `nothing`, `UNKNOWN` and a tuple — the
+# only two disagreements in about a thousand are `() <= ()` and `() >= ()`. Nothing authors a
+# tuple-valued constraint: the CNL cannot write one and no schema declares one. The alternative is
+# ordering arbitrary objects on the strength of Python's rules for them, which is a much larger promise
+# for a much smaller return.
+fn value_orderable(a, b) -> thing:
+    VKIND R(ka) F(a)
+    VKIND R(kb) F(b)
+    EQ R(a_text) R(ka) "text"
+    EQ R(b_text) R(kb) "text"
+    JMPNOT R(a_text) .numeric
+    COPY R(result) R(b_text)
+    JMP .end
+.numeric:
+    INVOKE R(a_num) value_numeric k=R(ka)
+    JMPNOT R(a_num) .no
+    INVOKE R(b_num) value_numeric k=R(kb)
+    COPY R(result) R(b_num)
+    JMP .end
+.no:
+    CONST R(result) false
+.end:
+    CONST R(done) true
+
+
+# Is this value category one that orders as a number? A truth is one, because Python's `bool` is an
+# `int` and the comparator this agrees with inherits that.
+fn value_numeric(k) -> thing:
+    EQ R(is_num) F(k) "number"
+    JMPIF R(is_num) .yes
+    EQ R(is_truth) F(k) "truth"
+    JMPIF R(is_truth) .yes
+    CONST R(result) false
+    JMP .end
+.yes:
+    CONST R(result) true
+.end:
+    CONST R(done) true
+
+
+# `got op want`, with `hi` as the upper bound of `between`. Answers false — never raises — for values
+# that cannot be compared, and for an operator nothing declared: refuse, never assume.
+fn compare(op, got, want, hi) -> thing:
+    EQ R(is_eq) F(op) "=="
+    JMPNOT R(is_eq) .try_ne
+    EQ R(result) F(got) F(want)
+    JMP .end
+.try_ne:
+    EQ R(is_ne) F(op) "!="
+    JMPNOT R(is_ne) .try_between
+    EQ R(same) F(got) F(want)
+    NOT R(result) R(same)
+    JMP .end
+
+    # `want <= got <= hi`, and both halves need their own guard: the bound and the value are two
+    # different pairs, and a world holding a string where a range was declared fails the first.
+.try_between:
+    EQ R(is_between) F(op) "between"
+    JMPNOT R(is_between) .ordering
+    INVOKE R(ok_lo) value_orderable a=F(want) b=F(got)
+    JMPNOT R(ok_lo) .no
+    INVOKE R(ok_hi) value_orderable a=F(got) b=F(hi)
+    JMPNOT R(ok_hi) .no
+    LT R(below) F(got) F(want)
+    JMPIF R(below) .no
+    LT R(above) F(hi) F(got)
+    JMPIF R(above) .no
+    CONST R(result) true
+    JMP .end
+
+.ordering:
+    INVOKE R(ok) value_orderable a=F(got) b=F(want)
+    JMPNOT R(ok) .no
+    EQ R(is_lt) F(op) "<"
+    JMPNOT R(is_lt) .try_le
+    LT R(result) F(got) F(want)
+    JMP .end
+.try_le:
+    EQ R(is_le) F(op) "<="
+    JMPNOT R(is_le) .try_gt
+    LT R(greater) F(want) F(got)
+    NOT R(result) R(greater)
+    JMP .end
+.try_gt:
+    EQ R(is_gt) F(op) ">"
+    JMPNOT R(is_gt) .try_ge
+    LT R(result) F(want) F(got)
+    JMP .end
+.try_ge:
+    EQ R(is_ge) F(op) ">="
+    JMPNOT R(is_ge) .no
+    LT R(less) F(got) F(want)
+    NOT R(result) R(less)
+    JMP .end
+
+.no:
+    CONST R(result) false
+.end:
+    CONST R(done) true

@@ -1,0 +1,117 @@
+# The closed vocabulary: the eight names a business rule reaches the graph through.
+#
+# Every one of them has the same shape, and the shape is the design:
+#
+#     COPY   R(n) F(node)           ← the node as given
+#     NATIVE R(r) "resolver"        ← what does a read mean here? (dynamic scope, from the activation)
+#                                     ...and `"writer"` in the three that write, because writing asks a
+#                                     different question: not *which version is in force* but *which
+#                                     version may I change*. See `rules/version.mf`.
+#     JMPNOT R(r) .go               ← nothing established: the trivial context, resolution is identity
+#     INVOKE R(n) R(r) node=F(node) ← a NAMED CALL, linked at run time, never an opcode
+#     .go: <the one opcode, on R(n)>
+#
+# The four-line preamble is repeated rather than shared, which is the duplication this codebase usually
+# refuses. It buys back the trivial context's cost: a shared `resolved` procedure would put every read in
+# the real world two calls deep instead of none. The trade is only acceptable because the repetition
+# cannot drift silently — `access.resolves_before_touching` checks that every member asks for the
+# resolver, and that none touches the graph before it has.
+#
+# These bodies are the one place bare opcodes are correct above the substrate. They ARE the mediation, so
+# mediating them would be circular; `access.offenders` exempts them by name for that reason, and no other.
+
+# What is at this node's `key` slot, in whatever world we are reading.
+fn slot_of(node, key) -> thing:
+    COPY R(n) F(node)
+    NATIVE R(r) "resolver"
+    JMPNOT R(r) .read
+    INVOKE R(n) R(r) node=F(node)
+.read:
+    ATTR R(result) R(n) F(key)
+
+# Write a slot. The write lands on the resolved node, which is what makes a rule's write land in the
+# frame it is imagining in rather than on the real world's copy of the same thing.
+fn set_slot(node, key, value) -> thing:
+    COPY R(n) F(node)
+    NATIVE R(r) "writer"
+    JMPNOT R(r) .write
+    INVOKE R(n) R(r) node=F(node)
+.write:
+    SET R(n) F(key) F(value)
+    COPY R(result) R(n)
+
+# What this node is related to by `label` — the single-valued case, which is most of them.
+fn related(node, label) -> thing:
+    COPY R(n) F(node)
+    NATIVE R(r) "resolver"
+    JMPNOT R(r) .read
+    INVOKE R(n) R(r) node=F(node)
+.read:
+    GET R(result) R(n) F(label)
+
+# How many. Count-plus-index is the ISA's convention for every collection, and it is the vocabulary's
+# too: a register holds one scalar, and iteration is the loop the instruction set already writes.
+fn relations(node, label) -> thing:
+    COPY R(n) F(node)
+    NATIVE R(r) "resolver"
+    JMPNOT R(r) .read
+    INVOKE R(n) R(r) node=F(node)
+.read:
+    COUNT R(result) R(n) F(label)
+
+# ...and the index half of the same pair.
+fn relation_at(node, label, index) -> thing:
+    COPY R(n) F(node)
+    NATIVE R(r) "resolver"
+    JMPNOT R(r) .read
+    INVOKE R(n) R(r) node=F(node)
+.read:
+    GET_AT R(result) R(n) F(label) F(index)
+
+# Relate two nodes. The subject is being *changed*, so it resolves through the writer and gets a version
+# belonging to this frame. The target is only being *pointed at*, which changes nothing about it.
+#
+# It used to resolve both ends, on the reasoning that an edge from this frame's version of `node` to the
+# real world's `other` would be a link between two worlds. That reasoning was wrong, and expensively so.
+#
+# **The subject resolves; the target does not.** An edge names an identity and resolution happens on the
+# target when it is read — so writing this frame's version of `other` would be storing a version, which
+# is the one thing the model rules out: every later frame that changed `other` would be invisible through
+# this edge, and `b on c` would read as false one step after it became true. It also costs a call fewer.
+#
+# Nothing is lost by not resolving, and that is what makes it safe rather than merely cheap: `in_frame`
+# normalises an image back to what it is a version *of* before it walks, so even a caller that hands over
+# a version writes an edge that reads correctly.
+fn relate(node, label, other) -> thing:
+    COPY R(n) F(node)
+    NATIVE R(w) "writer"
+    JMPNOT R(w) .write
+    INVOKE R(n) R(w) node=F(node)
+.write:
+    LINK R(n) F(label) F(other)
+    COPY R(result) R(n)
+
+# Remove one relation, by index — `UNLINK`'s addressing, not a second one.
+fn unrelate(node, label, index) -> thing:
+    COPY R(n) F(node)
+    NATIVE R(r) "writer"
+    JMPNOT R(r) .write
+    INVOKE R(n) R(r) node=F(node)
+.write:
+    UNLINK R(n) F(label) F(index)
+    COPY R(result) R(n)
+
+# Bring something into existence.
+#
+# Nothing is resolved here, and it is the member worth arguing about. A mint has no earlier version to
+# resolve to — it is a first version, which is exactly how an imagined node acquires an identity: minted
+# in frame N, inherited by every later frame by the same walk that resolves anything else. So `make`
+# needs no context, and is in the closed set anyway, because a rule that mints bare has skipped the layer
+# in the same way as one that reads bare, and the audit is only worth anything if it is total.
+#
+# What ties an imagined node to a real one later is not a pointer but the transformation that produced
+# it. `workbench.step` reads the mints off the activation and gives each one a mapping pointing
+# `original` at itself, which says *this does not exist yet and must be created when the plan runs for
+# real* — an absence turned into a positive fact, so that a later version of it has an identity to share.
+fn make(kind) -> thing:
+    NEW R(result) F(kind)

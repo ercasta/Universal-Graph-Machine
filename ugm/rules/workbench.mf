@@ -1,0 +1,80 @@
+# Opening a workbench, as an ordinary program.
+#
+# This was `workbench.open_workbench`, and it was on a list of natives to add — which was the mistake.
+# A native is for a primitive the kernel cannot express; this is three loops and a copy. What actually
+# blocked it was that the instruction set could not ask a node what shape it was, and once `NLABELS` /
+# `LABEL_AT` / `NKEYS` / `KEY_AT` / `KIND` exist it needs nothing else. Four of the six "natives" first
+# proposed for the goal machinery turned out to be plain edge reads, and this was one of the two that
+# were composites.
+#
+# The original -> image map is `SETREF` / `DEREF` on the scratch node, keyed by node id. A stored
+# reference takes a string key and a node id is a string, so this is an O(1) map built out of opcodes
+# that were already there — no new mechanism, and `DEREF` answering `None` for an absent key is exactly
+# the "was this node copied?" test the second pass needs.
+
+# Copy everything reachable from `subject` into a fresh workbench, and mint frame 0 with one mapping per
+# copied node.
+#
+# Three passes, in the order the Python did them, because the order decides the node ids and a copy that
+# allocated them differently would be a different graph for no reason: mint every image, then relink the
+# edges among them, then mint the mappings. The second pass cannot run early — a copy cannot link to an
+# image that does not exist yet.
+#
+# Edge properties ARE carried now — by `copy_set`, which owns the copying half of this and is shared with
+# `workbench.step`. This used to inline both passes and to drop edge properties on the way, which was a
+# real gap rather than a simplification; `reachable.mf` records what closing it took.
+#
+# `parent` nests this workbench inside another — subgoal exploration, where a mapping's `original` points
+# one level up rather than at the real graph, so resolving to a real node is a walk. `explores` attaches
+# the hypothesis whose assumptions this workbench is investigating: hypotheses are *run* on workbenches
+# rather than being a second mechanism. Both may be nothing.
+#
+# **Every mapping is indexed as it is minted**, and that is not bookkeeping: the frame carries a stored
+# reference from identity to the mapping holding this frame's version, and resolution reads it with one
+# `DEREF`. Locating a version by walking the reverse index instead is O(versions) with an allocation per
+# hop — measured at 30x on the search-heavy checks. Written by whoever mints the mapping, because that is
+# the only place that knows: here, in `step`, and in the writer. Deleting the `SETREF` below does not
+# degrade anything gently; the next step raises on an unset register.
+fn open_workbench(subject, label, parent, explores) -> thing:
+    NEW R(wb) "workbench"
+    SET R(wb) "label" F(label)
+    CONST R(depth) 0
+    JMPNOT F(parent) .no_parent
+    ATTR R(pd) F(parent) "depth"
+    JMPIF R(pd) .have_depth
+    CONST R(pd) 0
+.have_depth:
+    ADD R(depth) R(pd) 1
+    LINK R(wb) "parent" F(parent)
+.no_parent:
+    SET R(wb) "depth" R(depth)
+    JMPNOT F(explores) .no_hypothesis
+    LINK R(wb) "explores" F(explores)
+.no_hypothesis:
+    LINK R(wb) "subject" F(subject)
+    INVOKE R(walk) reachable start=F(subject)
+    INVOKE R(walk) copy_set walk=R(walk)
+    COUNT R(n) R(walk) "found"
+
+.frame:
+    NEW R(frame) "frame"
+    SET R(frame) "index" 0
+    LINK R(wb) "root_frame" R(frame)
+    LINK R(wb) "frame" R(frame)
+    CONST R(i) 0
+.map:
+    LT R(more_m) R(i) R(n)
+    JMPNOT R(more_m) .done
+    GET_AT R(o) R(walk) "found" R(i)
+    DEREF R(img) R(walk) R(o)
+    NEW R(m) "mapping"
+    LINK R(m) "original" R(o)
+    LINK R(m) "image" R(img)
+    LINK R(frame) "mapping" R(m)
+    SETREF R(frame) R(o) R(m)
+    ADD R(i) R(i) 1
+    JMP .map
+
+.done:
+    DROP R(walk)
+    COPY R(result) R(wb)

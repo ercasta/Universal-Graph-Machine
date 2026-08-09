@@ -1,0 +1,176 @@
+# Reachability and subgraph copying, as ordinary programs.
+#
+# These were Python — `workbench.reachable` and `workbench._copy_set` — and they looked like primitives.
+# They were not. Both are loops over structure the instruction set could not see, because every graph
+# read took a slot you had already named: `GET dest subj "label"` asks what is at this label, and nothing
+# asked WHICH labels are there. With `NLABELS` / `LABEL_AT` / `NKEYS` / `KEY_AT` / `KIND` they are
+# ordinary programs, and a whole family of would-be natives stops being needed.
+#
+# The scratch node carries the answer as ordered `found` edges, and the caller drops it when done.
+#
+# Membership is a REF ON THE SCRATCH NODE keyed by node id, never a mark on the world. The first version
+# linked `walk -seen-> n` and tested with `SOURCES n "seen"`, which worked and was a trap: an undropped
+# walk from an earlier call left its marks on the world, so the NEXT walk skipped everything the first
+# had seen. Measured — two walks in one graph disagreed. A ref keyed by node id is the same O(1) test,
+# touches nothing outside the scratch node, and makes dropping a matter of tidiness rather than of
+# correctness. A contract that has to be honoured to avoid silent wrong answers is a defect, not a
+# contract.
+
+# Everything reachable from `start` by outgoing edges, in a deterministic order.
+#
+# The order is the whole reason this is careful rather than obvious. `g.labels` is sorted and `g.targets`
+# is insertion-ordered, so the walk is a fact about the graph — and the Python version records what it
+# cost to learn that: returning a `set` substituted the iteration order of node-id strings, and the
+# identical five-block search cost 12 imagined states, then 306, then failed, on consecutive runs of one
+# process. Nothing was ever lost, only made arbitrary, which is why every check still passed.
+#
+# Metadata is not reached, and that falls out rather than being filtered: mappings, applications,
+# hypotheses and plans all point AT domain nodes and are never pointed at by them, so an outgoing-edge
+# walk cannot arrive at one.
+# A STACK, not a queue, and the difference is visible in the answer. The Python this replaces pops the
+# end of a list, so the walk is depth-first, and it marks a node seen when it is POPPED rather than when
+# it is pushed — which means a node can sit on the stack twice and is skipped the second time. Both
+# details change the order, and the order is the thing this function is careful about, so they are
+# reproduced rather than improved on. A better traversal is a different function, not a quieter one.
+fn reachable(start) -> thing:
+    NEW R(walk) "walk"
+    LINK R(walk) "pending" F(start)
+.take:
+    COUNT R(np) R(walk) "pending"
+    JMPNOT R(np) .done
+    ADD R(last) R(np) -1
+    GET_AT R(n) R(walk) "pending" R(last)
+    UNLINK R(walk) "pending" R(last)
+    DEREF R(already) R(walk) R(n)
+    JMPIF R(already) .take
+    SETREF R(walk) R(n) R(n)
+    LINK R(walk) "found" R(n)
+    NLABELS R(nl) R(n)
+    CONST R(i) 0
+.labels:
+    LT R(more) R(i) R(nl)
+    JMPNOT R(more) .take
+    LABEL_AT R(lbl) R(n) R(i)
+    COUNT R(nt) R(n) R(lbl)
+    CONST R(j) 0
+.targets:
+    LT R(more_t) R(j) R(nt)
+    JMPNOT R(more_t) .next_label
+    GET_AT R(t) R(n) R(lbl) R(j)
+    DEREF R(marked) R(walk) R(t)
+    JMPIF R(marked) .skip
+    LINK R(walk) "pending" R(t)
+.skip:
+    ADD R(j) R(j) 1
+    JMP .targets
+.next_label:
+    ADD R(i) R(i) 1
+    JMP .labels
+.done:
+    COPY R(result) R(walk)
+
+# Copy one node: same kind, same attributes, no edges. Edges are a second pass, because a copy cannot
+# link to an image that does not exist yet.
+#
+# `kind` is read with `KIND` and set by minting, never replayed as an attribute. It lives in the same
+# storage as the attributes and is not one of them — it is positional and cannot change after minting, so
+# `NKEYS`/`KEY_AT` exclude it. Replaying it here would make `g.put` refuse a changed kind, and an honest
+# bug would surface as a confusing one.
+fn copy_node(original) -> thing:
+    KIND R(k) F(original)
+    NEW R(image) R(k)
+    NKEYS R(nk) F(original)
+    CONST R(i) 0
+.keys:
+    LT R(more) R(i) R(nk)
+    JMPNOT R(more) .done
+    KEY_AT R(key) F(original) R(i)
+    ATTR R(val) F(original) R(key)
+    SET R(image) R(key) R(val)
+    ADD R(i) R(i) 1
+    JMP .keys
+.done:
+    COPY R(result) R(image)
+
+
+# Copy a SET of nodes and the edges among them, given a scratch node carrying them as ordered `found`
+# edges — i.e. what `reachable` returns, though any such node will do. The scratch node comes back
+# doubling as the original -> image map, keyed by node id, so `DEREF walk o` is "what was this copied to,
+# if it was". The caller drops it.
+#
+# This was `workbench._copy_set`, and it was the second half of what `open_workbench` inlined. Factored
+# out because `workbench.step` copies a set too — the set of images carried forward from the previous
+# frame rather than everything reachable — and the two differ only in where the set comes from.
+#
+# **The edges are not rewritten.** A copy's edges point where the original's did, because an edge names
+# an identity and resolution happens on the target when it is read. There is no parallel world to rewrite
+# into, and the set therefore no longer has to be closed under outgoing edges — a target outside it is
+# not skipped, it is simply named, which is what it was all along.
+#
+# Two passes, and the second cannot run early: a copy cannot link to an image that does not exist yet.
+#
+# EDGE PROPERTIES ARE CARRIED, and that is what this could not do until `NEPROPS` / `EPROP_AT` /
+# `SETEPROP` existed. The gap was real rather than cosmetic, and its history is the argument for
+# closing it: the Python version dropped edge properties silently for a while, and nothing failed,
+# because no check copied an edge that had any. The docs named the gap as needing the two *reading*
+# opcodes. That was half of it — `EPROP` reads a property whose name you know, `NEPROPS`/`EPROP_AT` say
+# which names there are, and neither writes. Python never noticed the third was missing because it
+# builds the whole property dict before creating the edge, which the surface cannot do.
+#
+# The new edge is addressed as the LAST one at that label, which holds because `LINK` appends and this
+# is the only thing linking the image while the loop runs.
+fn copy_set(walk) -> thing:
+    COUNT R(n) F(walk) "found"
+    CONST R(i) 0
+.mint:
+    LT R(more) R(i) R(n)
+    JMPNOT R(more) .relink
+    GET_AT R(o) F(walk) "found" R(i)
+    INVOKE R(img) copy_node original=R(o)
+    SETREF F(walk) R(o) R(img)
+    ADD R(i) R(i) 1
+    JMP .mint
+
+.relink:
+    CONST R(i) 0
+.each_source:
+    LT R(more_s) R(i) R(n)
+    JMPNOT R(more_s) .done
+    GET_AT R(o) F(walk) "found" R(i)
+    DEREF R(src) F(walk) R(o)
+    NLABELS R(nl) R(o)
+    CONST R(li) 0
+.each_label:
+    LT R(more_l) R(li) R(nl)
+    JMPNOT R(more_l) .next_source
+    LABEL_AT R(lbl) R(o) R(li)
+    COUNT R(nt) R(o) R(lbl)
+    CONST R(ti) 0
+.each_target:
+    LT R(more_t) R(ti) R(nt)
+    JMPNOT R(more_t) .next_label
+    GET_AT R(t) R(o) R(lbl) R(ti)
+    LINK R(src) R(lbl) R(t)
+    COUNT R(made) R(src) R(lbl)
+    ADD R(at) R(made) -1
+    NEPROPS R(np) R(o) R(lbl) R(ti)
+    CONST R(pi) 0
+.each_prop:
+    LT R(more_p) R(pi) R(np)
+    JMPNOT R(more_p) .next_target
+    EPROP_AT R(pk) R(o) R(lbl) R(ti) R(pi)
+    EPROP R(pv) R(o) R(lbl) R(ti) R(pk)
+    SETEPROP R(src) R(lbl) R(at) R(pk) R(pv)
+    ADD R(pi) R(pi) 1
+    JMP .each_prop
+.next_target:
+    ADD R(ti) R(ti) 1
+    JMP .each_target
+.next_label:
+    ADD R(li) R(li) 1
+    JMP .each_label
+.next_source:
+    ADD R(i) R(i) 1
+    JMP .each_source
+.done:
+    COPY R(result) F(walk)
