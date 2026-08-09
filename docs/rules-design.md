@@ -76,15 +76,26 @@ have a strategy overridden by a statement in its knowledge base.
 Every representation decision below is scored against four criteria, in a table, before the decision
 is taken. The cost is written down even when the choice is obvious.
 
+REVIEW NOTE: "Not Leaking" means the SHAPE does not leak, if a reader ignores part of the shape, it's a reader's problem
+
+
 | criterion | the question |
 |---|---|
-| **not leaking** | Can this shape state something the author did not intend? Does a consumer that ignores part of it silently get a stronger claim than was made? |
+| **not leaking** | Can this shape state something the author did not intend? |
 | **not lossy** | Is everything the author knew recoverable from what was stored — including what they *didn't* know? |
 | **readable** | Can the obvious questions about this be asked as ordinary queries, without a special mechanism? |
 | **composable** | Do two independently authored instances of this combine without either being rewritten? |
 
 The most common leak has an innocent shape: a two-hop path through a shared node, which no one
 authored and which nothing forbids reading as a claim.
+
+**Leaking is a property of the shape alone.** A reader that drops part of a shape and concludes too
+much is not a leak; the unauthored claim is in the reader, not in the graph. That failure is real, but
+it is a question about the machinery — *why did the machinery return part of a structure?* — and the
+machinery has exactly two places where it can be asked: **match**, which is what returns entries, and
+**write**, which is what deposits them. A criterion that charged shapes for reader behaviour would
+score the same shape differently depending on who read it, which is not a property of a
+representation.
 
 ---
 
@@ -158,15 +169,50 @@ The one-link case is the common one, and reads as the older, narrower rule: unif
 against an anchored one.
 
 **Nesting needs no mechanism.** A supposition inside a supposition is a path in the predecessor tree.
-There is no depth limit, no stack and no scope object.
+There is no depth limit and no scope object. *Scope* nesting is ancestry, and ancestry is derived —
+there is nothing to push. This says nothing about **control**, which is a separate structure and §13's
+subject: which reasoning invoked which, and where an answer is owed. Control is not scope, and the
+absence of a scope stack does not mean the absence of the other.
+
+### A moment is a belief state
+
+A moment's delta is entries, and an entry names the moment it is **about** (§5). Those need not be the
+same moment. An entry deposited in `M12` may have `M7` as its locus — *I now think it was raining
+then* — and that is the ordinary form of learning something about the past.
+
+So a moment carries two things at once, and the design needs no separate construct for the second:
+
+| | |
+|---|---|
+| the world at a point | the entries in the delta whose locus is the moment itself |
+| **what the agent believes here, about any time** | the delta entire |
+
+**There is no belief-set object.** A moment already is one. What would be *the current beliefs* is the
+chain read at the moment you are standing in, and belief revision is ordinary succession — the same
+relation, with a licence saying *I came to think otherwise*. Introducing a second membership structure
+for beliefs would create a second ordering beside succession, which is precisely what the next
+subsection refuses.
 
 ### Reading through the chain
 
 Because a moment stores only what changed, a moment does not contain its state; **the state is what
-the chain answers.** To find out whether `on(a, b)` holds at `M12`, walk back from `M12` through
-predecessors until an entry naming that proposition is found. Reading is a walk, not a lookup. This
-is the single most consequential cost in the design, and it is accepted deliberately: it is what makes
-supposition free, history immutable, and every claim dated.
+the chain answers.** Reading is a walk, not a lookup. This is the single most consequential cost in
+the design, and it is accepted deliberately: it is what makes supposition free, history immutable, and
+every claim dated.
+
+Because an entry has both a locus and a deposit moment, the walk uses **two indices, and they do
+different jobs**:
+
+> **Locus filters. Chain position orders.**
+
+To ask *does `on(a, b)` hold at `M7`, as far as I now know?*, walk back from where you are standing,
+keep the entries whose locus is `M7`, and take the one deposited latest. To ask *what did I think at
+`M7`?*, walk back from `M7` instead. Both questions are answerable, they are different questions, and
+in the common case — an entry deposited at its own locus — they coincide, which is why the
+distinction can be missed.
+
+This is what makes the two temporal readings of §12 available without a second mechanism, and it is
+what settles the collision §5 would otherwise leave open when two entries share a locus.
 
 ### Time and derivation share a core
 
@@ -197,6 +243,12 @@ An entry has exactly three members:
 * **proposition** — what is claimed;
 * **sign** — how it is claimed (§6).
 
+**When the claim was made is not a fourth member.** An entry is in some moment's delta, and that is
+its deposit moment — *believed since here*. It is already structure, so it costs nothing and cannot be
+omitted. The locus says **what the claim is about**; the delta membership says **when it was made**.
+Keeping them apart is what lets the agent revise its view of the past without rewriting it, and
+conflating them is what would force every claim to be about the moment it occurred to someone.
+
 Everything else is an ordinary fact *about* the entry:
 
 ```
@@ -216,6 +268,20 @@ mistaken for a claim, because it has no locus and no sign.
 An entry is itself a fact. Does it need an entry of its own? No: **an entry names its locus, so it is
 located by being one.** A proposition needs an entry to be placed in a moment; an entry places itself.
 The recursion terminates at depth one, structurally.
+
+The claim is narrow, and the narrowness is what makes it survive. An entry needs no entry **to be
+located**. It may freely be the **subject** of another entry's proposition, and it has to be, or the
+design loses three things it depends on:
+
+```
+mistaken(<e>)                     §5's correction — my record was wrong
+outranks(<e1>, <e2>)              §13's arbitration — a claim Anna made beats one Bo made
+supposed(<e>, <S>)                a belief held about a belief
+```
+
+Those are ordinary entries with ordinary propositions that happen to point at entry nodes, and each
+locates itself. **Locus and member are different relations to an entry, and only the first would
+regress.**
 
 ### Exactly three members
 
@@ -247,9 +313,15 @@ If truth were a value stored on the proposition node, these would be indistingui
 ### The cost, stated
 
 **Resolving a read is a privileged operation.** *Does `on(a, b)` hold here?* means *walk the chain for
-entries naming this proposition and take the most recent*. The engine must know what `entry` means;
-it cannot be ordinary vocabulary. This is one of the very few relations the engine dispatches on, and
-that set should be declared in one place rather than accumulating.
+entries naming this proposition at the locus asked about, and take the one deposited latest*. The
+engine must know what `entry` means; it cannot be ordinary vocabulary. This is one of the very few
+relations the engine dispatches on, and that set should be declared in one place rather than
+accumulating.
+
+*Deposited latest*, not *nearest along the walk* — §4's two indices. Two entries may share a locus,
+and when they do the later deposit is the agent's current view; the earlier one is what it used to
+think, still readable and still true of when it was thought. Resolving by proximity instead would make
+the answer depend on where the reader happened to start.
 
 **Contradiction is permitted and undetected.** Two entries in one locus with opposite signs is a
 shape the substrate allows. This is correct: consistency is a **question you ask**, not an invariant
@@ -412,6 +484,18 @@ the antecedent that match settles by unifying structure, rather than by walking 
 
 Distinctness belongs in the skeleton for the same reason. `?a ≠ ?b` is a condition on the binding, not
 a dated claim that two individuals differ.
+
+### A consequent may name its locus, when the locus is bound
+
+An antecedent binds variable loci; a consequent may use them. §9's shape rules already depend on this —
+`then +taking_turns(?a, ?b) @ ?s`, where `?s` came from the skeleton — and without it a recognition
+about a stretch could only ever be deposited as a claim about the instant it was noticed.
+
+This does not weaken §13's argument that a rule cannot name a locus, because the two say different
+things. A rule may not name **a particular** locus; that is what makes it generic. It may name a
+**variable** one that match bound, because a variable is exactly what does not commit the rule to an
+occasion. Where a consequent names no locus at all, the frame supplies it (§13), and that is the
+common case.
 
 ### Achievability is not a mark
 
@@ -649,9 +733,35 @@ The reserved vocabulary of the whole design:
 | grade | `certain > likely > possible > unlikely > unknown` | ordinal, ~5 |
 | timing | one relation over the two moments' endpoints | 1 |
 | locus resolution | `entry` — the relation the engine dispatches on (§5) | 1 |
+| the frame register | *which node the machinery is currently reasoning in* (§13) | 1 |
 
 Everything else — `heat`, `cloudy`, `boss`, `overrides`, `by`, `about`, `unless`, `shape`, `repeats`,
 `taking_turns` — is open-class vocabulary and reserves nothing. Authors may coin freely.
+
+### The machine is made of open class, and must be
+
+§13 introduces processes, frames, seats, topics and channels. None of them appear in the table above,
+and that is not an oversight to be corrected by adding five rows. **It is what R7 requires.** If the
+machinery's own state were reserved vocabulary, *the agent's own state is in the world it reasons
+about* would be false in the one place it matters most, and no rule could override a strategy, notice
+a stalled process or prefer one channel to another.
+
+What keeps this from being an unbounded reserved set is a distinction §5 asks for and does not draw:
+
+| | |
+|---|---|
+| what the engine **dispatches on** | must be declared, and is the table above |
+| what is written in **open-class vocabulary and merely read by rules** | unbounded, and includes almost all of the machine |
+
+A frame is `frame(seat, topic)` — a node with two ordered members, structurally identical to §7's
+`span(start, end)`. Ordered members are already reserved by §3, so the engine learns no new relation
+name. What it needs is **one register**: which node is the current frame. That is the row above, and
+it is a pointer rather than a vocabulary item.
+
+`process`, `channel`, `committed`, `waiting_for` and the rest are then ordinary open-class relations,
+authored and overridable, which is the property §16 depends on when it makes a strategy defeasible.
+
+> **The machinery is written in the language it interprets. Only the register is privileged.**
 
 The skeleton row costs nothing new. Succession and membership position are §3's and §4's provisions,
 which the substrate has always reserved; listing them makes an existing cost visible rather than adding
@@ -734,6 +844,40 @@ true gets planned for. *It must be a Tuesday* is achievable at a price of up to 
 price is a timing constraint — sayable, absent when unknown, and compared against the deadline. That
 is what §8 leans on when it refuses to mark a member unachievable.
 
+### Three times, and only one ordering
+
+Time shows up in three places, and it is worth being explicit that this is not three time systems.
+
+| | what it is | where it lives |
+|---|---|---|
+| **about-when** | the stretch a claim concerns | the entry's **locus** |
+| **believed-since** | when the agent came to think so | the entry's **deposit moment** (§5) |
+| **event description** | *afternoon*, *Tuesday*, *morning* | **members of a proposition** |
+
+The first two are §4's two indices. The third is the one that needs discipline, because it is already
+in use — `+cloudy(?day, morning)` in `<R2>`, and `+tuesday(?d)` in §8 — and left unexamined it would
+be a second ordering competing with succession.
+
+It is not one, and the rule is:
+
+> **Calendar terms denote. The chain orders.**
+
+*Afternoon* is a **name for a stretch of the chain**, resolved against the clock stamp §4 puts above
+succession. It is not an ordering relation and nothing may compare two calendar terms directly; to ask
+which came first is to resolve both to spans and compare endpoints, which §7 already provides. A
+vocabulary that ordered calendar terms among themselves would be §4's warning realised — two orderings
+that agree by convention and drift without detection.
+
+This is what makes reported speech expressible, which the timing member alone could not do:
+
+```
+<e1> = entry( <M9>,      says(anna, <p>),   + )      Anna spoke, at the moment of speaking
+<e2> = entry( <afternoon>, rain,            + )      graded @possible, licensed by <e1>
+```
+
+`<e2>` is deposited now, is about the afternoon, and is believed on Anna's word — three different
+times and one authority, none of which needs a construct that does not already exist.
+
 ---
 
 ## 12. Modality
@@ -743,7 +887,7 @@ Four different things get called *possibility*, and they must not share a slot.
 | | what it is | where it goes |
 |---|---|---|
 | **strength** | how often the effect actually follows | a grade on the **entry** |
-| **confidence** | how sure the agent is of the rule itself | a grade on the **rule**; moves with evidence |
+| **confidence** | how far the agent trusts where this came from | a grade on the **source** (§13); moves with evidence |
 | **defeasibility** | what would cancel it | **not a number** — a relation to other rules: `unless`, `overrides` |
 | **achievability** | whether *this* agent can bring it about, now, within budget | **nowhere** — derived at read time from capabilities, budget and the rule set (§8) |
 
@@ -759,15 +903,37 @@ that makes the boss's rule beat the vice's.
 the water (certain) and scorches the pan (unlikely). A rule-level grade cannot express that; it is at
 best shorthand for *all entries the same*.
 
+**Confidence is a property of the source, not of the rule.** *How sure am I of this rule* and *how
+sure am I of this sensor* and *how far do I trust this speaker* are one question asked of three
+sources, and §13 makes every entry name the source it arrived through. Rule-confidence is then the
+case where the source is the knowledge base. One mechanism covers all three; a grade slot on rules
+would cover only the first and would have to be reinvented for the other two.
+
 **Grades are ordinal, not probabilistic.** Real probabilities require independence assumptions that
 cannot be stated in the graph, so multiplying them leaks silently — the product looks like a
 measurement and is an artefact. Ordinal grades compose by **weakest link**. A numeric member may sit
 *beside* the grade where its own provenance is a member — *from 300 observations* — but never in
 place of it.
 
-The honest cost: two independent *likely*s ought to amount to more than *likely*, and taking the
-minimum says they do not. Ordinal grades do not accumulate evidence. The right place to fix that is
-**counting over episodes**, not arithmetic over grades; §18 records it as unsettled.
+**Weakest link is sound down a chain and silent across a convergence**, and the two cases must not be
+confused:
+
+| | shape | what min does |
+|---|---|---|
+| **chain** — a source I half-trust, reporting a rule that only usually holds | sequential attenuation | correct, and correct as an *upper bound*: no conclusion is surer than the weakest step that produced it |
+| **convergence** — two sources independently reporting the same thing | corroboration | **wrong**: belief should rise, and min holds it flat |
+
+The honest cost is the second row. Two independent *likely*s ought to amount to more than *likely*.
+Ordinal grades do not accumulate evidence, and the right place to fix that is **counting over
+episodes**, not arithmetic over grades; §18 records it as unsettled. What the design must not do
+meanwhile is let the chain case silently stand in for both.
+
+**The grade a rule authors is a contribution, not a verdict.** §8's consequents carry per-entry grades
+— `+boiling(?w) @certain` — and those are one link in the chain, never the answer. The grade of the
+deposited entry is `min(authored, support)`. Without that, a rule that says `@certain` on the strength
+of a source graded *possible* launders a weak input into a strong output, and the weak link vanishes
+from exactly the walk §12 relies on. **A rule states how strongly it would conclude, given its
+premises. What its premises were worth is not its to say.**
 
 Grade is orthogonal to the `?` sign. `?volume` is *this changed and I cannot say to what*;
 `+rain @possible` is *this might become true*. Different ignorance, different slot.
@@ -782,10 +948,19 @@ Not on the proposition node — and not for reasons of cost.
 > own consistency problem, running underneath the first. **An index over what was asserted is
 > storage; a cache of what was derived is a truth-maintenance system.**
 
-A second, independent reason: **a tag is ignorable.** Reading a fact and reading its grade are two
-reads, so a consumer that performs the first and forgets the second produces a conclusion with no
-grade at all — and unmarked conclusions read as certain. That is the leak criterion failing by
-discipline, where the whole point of putting relations in nodes was to get structure instead.
+A second, independent reason: **a tag is a separate read.** Reading a fact and reading its grade are
+two operations, so the grade can be obtained without the fact or the fact without the grade — and an
+ungraded conclusion reads as certain.
+
+This is **not** a leak. Nothing unauthored is in the graph: the fact was asserted and the grade is
+attached, and the extra content — *certainly* — is manufactured by a reader's convention. §2 says why
+that is the machinery's question rather than the shape's. But it is still the machinery's question,
+and it has an answer here: **the grade must ride the node that match already has to return.** An entry
+cannot be matched without its sign, because the sign is a member; put the grade there and it cannot be
+matched without its grade either. One read, or none.
+
+That is the difference between a discipline and a structure, and it is available only because the
+entry exists anyway.
 
 **Every fact already has a node that records where it came from — the entry of §5. The grade goes
 there.**
@@ -811,6 +986,20 @@ the reason the whole design is dated.
 > retracted, nothing propagates, and *are they taking turns?* resolves through the chain to the most
 > recent entry.
 
+The demanding case is not the world changing but the agent changing its mind about a time that has
+already passed — *at `M12` I conclude they were not taking turns at `M7` after all*. That is a second
+entry with the **same locus** `M7` and a **later deposit**, and the property still holds:
+
+| the question | the walk | the answer |
+|---|---|---|
+| what do I now think about `M7`? | from `M12`, locus `M7`, latest deposit | the revision |
+| what did I think at `M7`? | from `M7` | the original |
+
+Nothing was invalidated, nothing propagated, and both answers survive — which is what makes *why did
+you change your mind?* a query rather than an archaeology. **The property is a consequence of the two
+indices, not of writes always landing at now.** A design with a single index would have to choose
+which of those two questions to keep.
+
 One line covers modality and recognition together:
 
 > **Store it on the entry — dated, signed, attributed, superseded.
@@ -835,10 +1024,16 @@ would be a million moments if uncertainty were modelled as supposition. **Use mo
 
 | | (A) grade on the proposition node | (B) a guard node per uncertain fact | (C) moments + graded entries, weakest link computed |
 |---|---|---|---|
-| not leaking | ❌ ignorable by default; a consumer that skips it invents certainty | ✅ crossing the guard is forced… | ✅ a conclusion drawn in a moment **is** in it; the grade is recomputed from support |
+| not leaking | ❌ a grade on a timeless node is *likely* said of no occasion and every occasion at once; the author meant *likely given this support* | ⚠ the guard says uncertain-in-general, so it leaks the same way, more loudly | ✅ a conclusion drawn in a moment **is** in it; the grade is recomputed from support |
 | not lossy | ❌ a number with no premise | ⚠ says *that* it is uncertain, not on whose word | ✅ speaker, rule and sighting all survive |
 | readable | ⚠ readable and stale | ⚠ | ✅ *which conclusions rest on something merely possible* is a walk |
 | composable | ❌ two tagged facts combine to *what?* | ❌ every consumer must handle both shapes, guarded and bare | ✅ weakest link over the support chain |
+
+Separately from the scoring — because it is not a property of these shapes but of the machinery that
+reads them — (A) and (B) differ in whether the grade **can be obtained without the fact**. Under (A)
+it can, and an ungraded read is the default one. Under (C) it cannot, because the grade is a member of
+the node match already returns. That is the argument above about tags and structures, and it is why
+(C) wins by more than the table shows.
 
 (B)'s failure has no middle setting, which is why it is worth naming: **optional guards mean consumers
 handle two shapes and forgetting returns; mandatory guards mean an extra node and an extra hop for
@@ -857,7 +1052,7 @@ guard in order to catch the one that matters.
 * **The support trail becomes load-bearing for correctness, not only for explanation.** A write that
   loses its attribution does not merely become unexplainable — it becomes **falsely confident**,
   because a missing support link removes a weak link from the minimum. This is what promotes R5 from
-  a nicety to a soundness condition, and it is why §13's write monopoly exists.
+  a nicety to a soundness condition, and it is why §13's gate exists.
 * Cycles in the support chain need the same termination care as any walk over derived structure.
 
 ### Does the design run out of dimensions?
@@ -918,47 +1113,158 @@ It buys nothing, and costs four things:
 | the rule says | the machinery supplies |
 |---|---|
 | `+on(?x, ?y)` in the antecedent | walk the chain for entries naming that proposition; return those signed `+` |
-| `+boiling(?w)` in the consequent | mint the entry in the successor moment; stamp locus, licence and grade from this application |
+| `+boiling(?w)` in the consequent | mint the entry; stamp locus, licence, source and grade from the frame and this application |
 
 > **The rule's members are what the author knows. The entry's members are what the application knows.**
 
-Locus, licence, speaker and grade-at-this-application do not exist until the rule runs. That is the
+Locus, licence, source and grade-at-this-application do not exist until the rule runs. That is the
 whole split, and it is why `entry` is engine vocabulary rather than something an author writes.
 
 | | (A) augment the rules | (B) authors write entries natively | (C) the machinery absorbs it |
 |---|---|---|---|
-| not leaking | ❌ explanations show the rewrite, not the rule | ⚠ an author can name a locus, so provenance is forgeable | ✅ every entry is stamped by the write that made it |
+| not leaking | ❌ explanations show the rewrite, not the rule | ❌ an author supplying a deposit stamp can date a claim to when it was not held | ✅ every entry is stamped by the write that made it |
 | not lossy | ❌ two shapes; *why* must un-augment | ✅ | ✅ |
 | readable | ❌ three times the plumbing per rule | ❌ every rule is plumbing | ✅ the rule reads as written |
 | composable | ❌ resolution policy frozen at augmentation time | ⚠ | ✅ resolution can change without touching a rule |
 
 (A) additionally cannot be written at all, per the indexical above.
 
-### The asymmetry that must be enforced
+### The gate
 
-An entry is both a mechanism and a node a rule can point at. That is safe in **one direction only**:
+An entry is both a mechanism and a node a rule can point at. Reading is how *a claim Anna made
+outranks one Bo made* gets stated at all. Writing is where soundness lives, because §12 makes the
+support trail load-bearing: a write that loses its attribution does not merely become unexplainable,
+it becomes **falsely confident**, since a missing support link removes a weak link from the minimum.
 
-> **Rules may READ entries. Only the machinery may WRITE them.**
+The requirement that follows is narrower than it first appears:
 
-Reading is how *a claim Anna made outranks one Bo made* gets stated at all — an ordinary rule about
-entries. Writing is how a rule would forge provenance: an entry licensed by nothing, or one backdated
-into an earlier locus.
+> **No write bypasses the stamp.**
 
-This matters more than it looks, because §12 makes the support trail load-bearing for soundness. If a
-rule could mint entries directly, attribution would stop being merely fragile and become
-**forgeable**, and the agent's confidence could be raised by writing one unlicensed entry. So the
-write primitive is the only minter of entries, and it **stamps** the licence from the current
-application rather than accepting one as an argument.
+*Only the machinery may write entries* is one way to achieve that, and it is stronger than necessary.
+What must be impossible is an entry whose provenance is **absent or false**. What need not be
+impossible is an entry a rule caused to exist — every such entry arrives through the gate and leaves
+it stamped with the rule that caused it, which is not forgery but the ordinary record.
+
+Two things this distinction rescues, which the stronger prohibition forbids by accident:
+
+**Backdating is not the same as claiming about the past.** Backdating is lying about when a claim was
+made — a false stamp. Writing now, honestly, about an earlier time is a **past locus with a present
+deposit**, and the record reads *at `M12`, by this rule, I came to think it rained at `M7`*. §4's two
+indices make the second sayable and the first still impossible, because the deposit is structure and
+not an argument.
+
+**Trust is a rule, not a hard-wired intake.** *The user says it is raining* becomes *it is raining* by
+an ordinary rule that the agent can be asked about, argue with and override. An intake path that wrote
+the second directly would be the genuinely unsafe design, and it is what a blanket rules-may-not-write
+encourages.
+
+### Channel is not authority
+
+Every entry names where it arrived from, and that has two layers which must not be fused:
+
+| | what it is | can it be wrong |
+|---|---|---|
+| **channel** | the intake path — this socket, this sensor, the knowledge base | no: mechanically observed, like a sensor that cannot misreport its own reading |
+| **authority** | who is taken to have spoken, and what their word is worth | **yes** — an ordinary claim, gradeable and defeasible |
+
+The knowledge base is a channel like any other. Reading it faithfully is guaranteed; what it **says**
+is as contestable as ever, which is what §8's `by(R, boss)` and `overrides(R1, R2)` depend on. Fusing
+the two would make authority unforgeable by fiat, so that anyone reaching the right socket would
+thereby be the boss.
+
+### Frames
+
+A rule cannot name a locus, and the machinery must supply one. **The frame is what it supplies it
+from.** A frame is the reasoning in progress — a process node, and therefore a fact on the graph,
+which is R7 discharged for the machinery itself.
+
+A frame carries two things:
+
+| | |
+|---|---|
+| **seat** | the moment its writes are deposited in — *where I am standing* |
+| **topic** | the locus its writes are stamped with — *what I am reasoning about* |
+
+Normally they coincide, and that is the case §5 describes. They come apart exactly twice: reasoning
+about the past, where the topic is an earlier moment and the seat is now; and reasoning under a
+supposition, where the seat is inside the supposition.
+
+That gives the whole of what the gate does:
+
+> **Proposition and sign come from the rule. Locus, licence, source and deposit come from the frame
+> and the clock. A rule may not name the second four.**
+
+| stamped | taken from |
+|---|---|
+| **locus** | the consequent's bound locus if it has one (§8), otherwise the frame's topic |
+| **deposit** | the frame's seat |
+| **licence** | this application: the rule, and the entries match consumed |
+| **source** | the channel this arrived through |
+
+Two properties fall out rather than being enforced. **Hypothetical containment is structural** — a
+conclusion drawn inside a supposition cannot land outside it, because the locus was never the rule's to
+give. And **forgery stops being a category**: nothing is prohibited, everything is stamped.
+
+### Entering and inspecting
+
+Two operations look like they need primitives and neither does.
+
+**Inspecting is matching.** §14's match unifies a generic chain against an anchored one, and nothing
+requires the anchored chain to be the one you are standing in. Reading another frame's conclusions is
+match with an explicit anchor, and it changes nothing.
+
+**Entering is writing.** Moving the seat is writing a fact about a process node, stamped and dated
+like any other write, so the trail reads *this reasoning moved to `M7` and then concluded*. A rule can
+therefore relocate its own seat — which is not a hole but the mechanism by which deliberate reasoning
+about the past happens at all, and it is auditable precisely because the move is itself an entry.
+
+One requirement is load-bearing:
+
+> **Reading never moves the seat. Inspecting a frame is not entering it.**
+
+Otherwise weighing two hypotheses would adopt both.
+
+### Frames form a forest, and nothing leaves one
+
+Frames are not a stack. A stack assumes one live frame and a return to the caller, and the case that
+breaks it is the ordinary one: **two hypotheses under comparison are siblings, both alive, neither the
+caller of the other.** Frames form a forest; what looks like a stack is the ancestor path of whichever
+frame is in focus, and ancestry is derived, so there is nothing to maintain. This is §4's *nesting
+needs no mechanism*, one level up.
+
+A frame ends when its goal is discharged, its budget is spent, or arbitration moves on — and it ends
+the way every bounded thing in this design ends, with **a result and a state**: discharged, exhausted
+or abandoned. That is §6's `−` against no-entry, §9's bound, and §15's two silences, arriving a fourth
+time.
+
+What does a conclusion look like on the way out? It does not come out.
+
+> **Conclusions stay at their locus. What crosses is a claim *about* the frame, made outside it.**
+
+Copying a conclusion out and re-qualifying it is the alternative, and it fails on this design's own
+terms: it makes one fact exist in two shapes, which is the objection to augmentation above, and it
+needs invalidation the moment the supposition is discharged differently, which is what §12's dating
+exists to avoid. So a caller that has learned something from a scenario writes a **new** entry at its
+own seat whose proposition is about the scenario — `yields(S1, +boiling(w))`, or `preferable(S1, S2)`.
+
+Comparing two hypotheses is then inspecting both and writing a preference; neither is adopted.
+**Adopting** one is a separate, deliberate, licensed write — the same shape as deciding to trust a
+channel, which is the point at which *the user says it is raining* became *it is raining*.
 
 ### Costs
 
-* **A bug in the write primitive is systemic** — every fact in the system gets the same wrong
-  provenance. Mitigated by it being one place, which makes it one check.
+* **A bug in the gate is systemic** — every fact in the system gets the same wrong provenance.
+  Mitigated by it being one place, which makes it one check.
 * **Matching becomes a chain walk rather than a lookup**, and that walk now sits on the rule-matching
   path, not only on reads.
 * **Matching must record which entries it matched.** Otherwise *because a was on b, on Anna's word*
   has no answer. This is not overhead: it is half the trail, and it is what makes a misbehaving rule
   distinguishable from a misresolving chain.
+* **Every seat move is a write**, so deliberate reasoning about the past leaves a trail proportional to
+  how often the agent shifts its attention, not to what it concludes.
+* **Nothing stops a frame being seated somewhere useless.** A seat that is not an ancestor of its topic
+  is as meaningless as §7's inverted span, and takes the same remedy: check it where the frame is
+  minted, while the mistake is still attributable.
 
 ---
 
@@ -974,8 +1280,8 @@ Four primitives:
 2. **match** — unify a **generic** chain against an **anchored** one, over what recall offered. It
    settles the antecedent's skeleton by unifying structure and its entries by walking the chain, and it
    records which entries it matched (§13).
-3. **write** — mint signed entries into a moment. **The only minter of entries**; it stamps the
-   licence from the current application.
+3. **write** — mint signed entries. **The gate**: it stamps locus, deposit, licence and source from
+   the frame and the clock (§13), and no write bypasses it.
 4. **arbitrate** — among the rules that matched, choose one. **Total**: table-driven, always answers.
 
 > **Recall proposes. Match filters. Arbitrate commits. Only the last is total.**
@@ -983,6 +1289,11 @@ Four primitives:
 Backward reading is not a fifth primitive. It is rules over these four, expanded on demand under a
 budget, and per §9 it returns a result **and a state** — because a search that stopped is not a search
 that found nothing.
+
+Neither is anything §13 added. **Inspecting** another frame is match with an explicit anchor.
+**Entering** one is a write against a process node. **Scheduling** — which process runs next — is
+arbitration, and it must be arbitration rather than a mechanism beside it, or the design acquires a
+second selection step lacking the stratification condition below.
 
 Arbitration is the one that is easy to get wrong. A meta-rule that decides which rule to apply must
 itself be selected, and that regress happens *at run time*, not at design time. Therefore:
@@ -1156,6 +1467,11 @@ surprise a **comparison of two moments**, which is an operation the design alrea
 **2. The continuation is a moment.** What the agent is doing, where it is in it, and what it is
 waiting for are signed entries — not a stack frame.
 
+*Stack frame* here means the interpreter's: opaque, owned by the runtime, and unreachable by a rule.
+§13's frames are the opposite of that in every respect — process nodes, readable, writable, and
+selectable — which is why they can be preempted and an interpreter's cannot. The word is unfortunate;
+the distinction is the whole of §16.
+
 **3. Surprise is an ordinary rule that wins on precedence:**
 
 ```
@@ -1240,12 +1556,22 @@ depth. That is a weaker gate, and it is the price of being able to state the sha
 Secondary gates, each following from a requirement:
 
 * **R2** — for any conclusion, the agent can say whether it was reached forwards or backwards.
-* **R5** — every entry in the graph has a licence, and no entry has a licence the write primitive did
-  not stamp.
+* **R5** — every entry in the graph has a licence and a source, and no entry has a stamp the gate did
+  not set.
 * **R6** — *the level rises by an unknown amount* is expressible, and reading the level afterwards
   reports ignorance rather than the old value.
 * **R7** — a procedure in progress can be preempted by a surprise without any interrupt mechanism,
   and afterwards the agent can say why it stopped.
+
+Three more follow from §13, and they are the ones a first implementation is most likely to get wrong:
+
+* **Two indices.** After revising a belief about an earlier moment, *what do I now think about `M7`?*
+  and *what did I think at `M7`?* both answer, and answer differently.
+* **Containment.** Nothing concluded inside a supposition is readable as current belief. The only way
+  a scenario's content reaches the agent's own seat is an explicit write whose proposition is about
+  the scenario.
+* **No laundering.** For every derived entry, its grade is no stronger than the weakest grade among
+  the entries match consumed — checkable directly over the trail, without running anything.
 
 ---
 
@@ -1262,8 +1588,8 @@ Secondary gates, each following from a requirement:
   stops an author writing a claim where a skeleton constraint belongs, or the reverse. The distinction
   is stated and unenforced.
 * **Distribution** (§9). *Each file was copied* against *the files together filled the disk* is a fact
-  about the entry, but which entries need it, and what a consumer that ignores it may conclude, is not
-  specified.
+  about the entry, but which entries need it, and what a read that does not ask for it should return,
+  is not specified.
 * **Constrained-not-bound values.** *The level rises by an unknown amount* wants a value member that
   is constrained rather than bound. Note the boundary §7 draws: **recognising** an ongoing pattern
   does not need this — a span superseded by a longer span is ordinary versioning — only **predicting
@@ -1273,18 +1599,24 @@ Secondary gates, each following from a requirement:
   the design does not say who asks it or when.
 * **Span normalisation** (§7). Equality of span content must be normalised by chain order rather than
   member order; the normalisation is not specified.
-* **Speech time versus event time.** *Anna said it might rain this afternoon* has its **locus** at the
-  moment of saying, and its **event time** as a member of the proposition. Both are needed and both
-  are right, but §11 speaks only of timing between a rule's two moments and never says that a
-  proposition may carry temporal members of its own. These two must share the moment vocabulary, or
-  they become two more unrelated orderings.
+* **Resolving calendar terms.** §11 settles that calendar terms denote and the chain orders, so
+  *afternoon* names a stretch resolved against the clock. What is unsettled is the resolution itself —
+  who computes it, against whose clock, and what happens when a term denotes a stretch the chain does
+  not reach, as *next Tuesday* does.
 * **Negation versus a false value.** *The stove is not lit* and *the stove has the attribute lit,
   false* are both expressible and mean different things — a claim about the moment versus a claim
   about the stove. Nothing guides the choice, and nothing detects the two being used interchangeably
   within one corpus.
-* **Enforcing the write monopoly** (§13). *Rules may read entries; only the machinery may write them*
-  is stated but has no enforcement mechanism. Until it has one, §12's soundness argument rests on
-  convention.
+* **Enforcing the gate** (§13). *No write bypasses the stamp* is a property of one place rather than a
+  prohibition on rules, which makes it checkable — but the check is not written, and until it is,
+  §12's soundness argument rests on the gate having no second door.
+* **Seat discipline across processes** (§13). Frames form a forest and any of them may be in focus.
+  Nothing says whether two processes may hold seats in the same moment at once, what it means if they
+  do, or whether one process may move another's seat.
+* **When a revision is warranted** (§4). The two indices make *I now think otherwise about `M7`*
+  sayable, and say nothing about when an agent should write one. Left alone, a system that revises the
+  past freely can rewrite its way out of any surprise, which is §16's mechanism defeated by §4's
+  permission.
 * **Evidence accumulation** (§12). Counting over episodes, with no arithmetic on grades. The counting
   scheme is unspecified.
 * **Familiarity** (§15). The escalation trigger needs *have I seen moments like this?*, which is a
@@ -1300,8 +1632,12 @@ Secondary gates, each following from a requirement:
 |---|---|
 | **anchored** | of a moment: has individuals and a predecessor in the history. The opposite of *generic*. |
 | **arbitrate** | choose one rule among those that matched. Total, table-driven, always answers. |
+| **channel** | the intake path an entry arrived through. Mechanically observed, so it cannot be wrong. Distinct from *authority*, which can. |
 | **connective** | `implies` or `causes`; the relation between a rule's two moments. |
+| **deposit** | the moment whose delta an entry sits in — when the claim was made. Distinct from *locus*, which is what it is about. |
 | **entry** | a node with three members — locus, proposition, sign. The unit of assertion. |
+| **frame** | a reasoning in progress, as a process node. Carries a *seat* and a *topic*. Frames form a forest, not a stack. |
+| **gate** | the write primitive, considered as the one place a stamp is applied. No write bypasses it. |
 | **generic** | of a moment: has variables and no *anchored* predecessor. May have a generic one, so a pattern is a chain. A rule's two members are generic. |
 | **grade** | an ordinal modality on an entry: certain, likely, possible, unlikely, unknown. |
 | **group** | a node standing for a plurality. Its membership is not stored; its size is a fact about it. |
@@ -1312,11 +1648,13 @@ Secondary gates, each following from a requirement:
 | **proposition** | a relation instance. Claims nothing until an entry places it. |
 | **recall** | propose which rules come to mind. Learned; never complete. |
 | **rule** | a fact whose two members are generic, related by a connective. |
+| **seat** | a frame's first part: the moment its writes are deposited in. Where the reasoning is standing. |
 | **shape** | a pattern of indefinite extent, defined by recursive rules over spans. A node, so bounds and provenance attach to it. |
 | **sign** | `+`, `−`, `?`, or the absence of an entry. See §6. |
 | **skeleton** | the part of an antecedent that relates its variable loci — succession, span endpoints, distinctness. Carries no sign, and claims nothing. |
 | **span** | a node with two members, a start and an end moment. A locus for trajectory claims. |
-| **write** | mint signed entries into a moment. The only minter; stamps the licence. |
+| **topic** | a frame's second part: the locus its writes are stamped with. Equals the seat except when reasoning about another time. |
+| **write** | mint signed entries. The gate; stamps locus, deposit, licence and source. |
 
 ## Appendix B. Alternatives considered
 
@@ -1329,7 +1667,12 @@ Each was scored in the section named; this table is the index.
 | assertion (§5) | truth as a value on the proposition node | minting a node in order to deny it asserts it; correction overwrites the record it corrects |
 | timing (§11) | a third member of the connective | the connective's arity varies, an absent delay silently defaults, and two sources cannot disagree |
 | timing, modality (§10, §12) | fused connectives such as `likely_causes` | fuses strength with defeasibility and records neither; the name set grows multiplicatively |
-| modality (§12) | grade on the proposition node | ignorable by default, and a cache of a derived value — which is a truth-maintenance system |
+| modality (§12) | grade on the proposition node | *likely* said of no occasion and every occasion at once, and a cache of a derived value — which is a truth-maintenance system |
+| modality (§12) | confidence as a grade on the rule | the same question is asked of sensors and speakers, so it belongs on the source; a rule slot covers one case and is reinvented for the rest |
+| belief (§4) | a belief-set node beside the moment chain | a moment already is one; a second membership structure for beliefs is a second ordering beside succession |
+| entries (§13) | only the machinery may write entries | stronger than the requirement, which is that no write bypasses the stamp; it forbids honest past-directed claims and pushes trust into hard-wired intake |
+| frames (§13) | a stack of frames | two hypotheses under comparison are siblings, both alive, neither the caller of the other |
+| frames (§13) | copy conclusions out of a frame, re-qualified | one fact in two shapes, and it needs invalidation the moment the supposition is discharged differently |
 | modality (§12) | a guard node per uncertain fact | optional guards mean two shapes for every consumer; mandatory guards mean a node and a hop per certain fact |
 | modality (§12) | probabilities instead of ordinal grades | independence assumptions cannot be stated in the graph, so the product looks like a measurement and is an artefact |
 | entries (§13) | augment rules to speak of entries | cannot be written: the locus is an indexical, and a rule is generic |

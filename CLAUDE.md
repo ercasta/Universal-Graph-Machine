@@ -30,5 +30,14 @@ ask first, or do the minimal thing and say plainly what was left alone.
 
 ## Where to start
 
-Read `docs/HANDOFF.md` first, then `docs/comparison.md`. Verify with `python -m ugm.selftest`
-(**267 checks, 0 failing**) and measure with `python -m ugm.bench`.
+Read `docs/rules-design.md`. It is the whole design and the only doc — self-contained, argued from
+seven requirements, with every representation decision scored in a table before it is taken.
+
+The previous implementation (`ugm/`, ~30k lines, 46 modules) and all other docs were **deleted
+deliberately**, not lost. They implemented a different floor — an ISA with opcodes and registers —
+which the design in `rules-design.md` rejects: its floor is four primitives, and its test is that
+adding a connective adds *rows, not branches*. Everything is in git history if a finding needs
+recovering; nothing should be ported without re-deriving it from the design.
+
+Verification is `python -m ugm.selftest`: one runner that prints every check's named observations and
+counts any `False` as a failure. Not pytest.
