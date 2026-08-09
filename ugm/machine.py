@@ -24,6 +24,7 @@ from .rules import (
     Rule,
     RuleSet,
     arbitrate,
+    defeat,
     effective_grade,
     match,
     substitute,
@@ -58,6 +59,12 @@ class Machine:
         self.SAYS = self.g.atom("says")
         self.APPLIED = self.g.atom("applied")
         self.ARRIVED = self.g.atom("arrived")
+        # §14: the vocabulary a rule uses to speak about a rule.
+        self.RULE = self.g.atom("rule")
+        self.CONN = self.g.atom("conn")
+        self.ANT = self.g.atom("ant")
+        self.CON = self.g.atom("con")
+        self.REIFIED = self.g.atom("reified")
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -72,6 +79,35 @@ class Machine:
         self.selections = 0
         self.useful_writes = 0
 
+    # -- rules as data ----------------------------------------------------
+
+    def reify(self, rule: Rule) -> None:
+        """Deposit what a rule IS, so rules can be matched by rules.
+
+        This is §14's worked example made real -- `+rule(?r)`, `+conn(?r, causes)`
+        and the members of each side. Without it a rule is a node nobody asserted,
+        so `match` (which walks entries) cannot see it, and R4's questions are
+        answerable only by the engine.
+
+        The patterns are **mentioned**, not used: `+ant(<R>, heat(?a, ?w))` claims
+        something about a rule and binds nothing.
+        """
+        f = self.focus
+        w = lambda p: self.gate.write(
+            f, p, "+", licence=self.g.rel(self.REIFIED, rule.node), source=self.KB, mention=True
+        )
+        w(self.g.rel(self.RULE, rule.node))
+        conn = self.rules.CAUSES if rule.connective == "causes" else self.rules.IMPLIES
+        w(self.g.rel(self.CONN, rule.node, conn))
+        for m in rule.antecedent:
+            w(self.g.rel(self.ANT, rule.node, m.pattern, self.rules.SIGN[m.sign]))
+        for m in rule.consequent:
+            w(self.g.rel(self.CON, rule.node, m.pattern, self.rules.SIGN[m.sign]))
+
+    def reify_all(self) -> None:
+        for r in self.rules.rules:
+            self.reify(r)
+
     # -- the loop ---------------------------------------------------------
 
     def tick(self) -> Step:
@@ -83,6 +119,9 @@ class Machine:
             applications.extend(
                 match(self.g, self.chain, r, self.focus.topic, self.focus.seat)
             )
+        # Defeat before quiescence -- see `rules.defeat` for why the order is not
+        # interchangeable.
+        applications = defeat(self.rules, applications)
         applications = [a for a in applications if self._would_change(a)]
 
         chosen = arbitrate(self.rules, applications)

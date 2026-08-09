@@ -112,10 +112,22 @@ class Gate:
         source: Optional[NodeId] = None,
         consumed: Tuple[Entry, ...] = (),
         locus: Optional[Moment] = None,
+        mention: bool = False,
     ) -> Entry:
         """Mint one entry. `locus` is the consequent's bound locus when it has
-        one (§8); otherwise the frame's topic supplies it."""
-        if self.g.has_var(proposition):
+        one (§8); otherwise the frame's topic supplies it.
+
+        `mention` is the use/mention distinction, and it is needed the moment
+        rules become data. `+ant(<R>, heat(?a, ?w))` is a **ground** claim about a
+        rule, which happens to name a node that contains variables. It is not a
+        generic claim, and refusing it would make rules unspeakable-about -- but
+        structurally the two are the same shape, so nothing can tell them apart.
+        What tells them apart is *who is writing*: the machinery reifying a rule
+        is mentioning, a rule's consequent is using. That is §13's split again,
+        and it is why this is a parameter the gate takes rather than a property
+        of the proposition.
+        """
+        if not mention and self.g.has_var(proposition):
             raise ValueError(
                 f"cannot deposit a generic proposition: {self.g.show(proposition)}"
             )

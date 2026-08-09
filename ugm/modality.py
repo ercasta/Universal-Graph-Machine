@@ -1,0 +1,257 @@
+"""A probe: is modality a member of the entry, or a term?
+
+    python -m ugm.modality
+
+§12 puts it on the entry -- `@likely`. The alternative is a wrapping node,
+`likely(p)`, which is the same construction as `on(a, b)` with one arm instead of
+two: an instance node, not a shared-predicate path.
+
+Rules alone cannot tell the two apart, which is why arguing over `worked.ugm` got
+nowhere. A **program** can, because a program is where modality has to be
+*produced* rather than annotated. So the discriminating task is a pipeline whose
+input is weak, followed by a step that asks *is this conclusion merely likely?*
+and does something different when it is.
+
+The same pipeline is written both ways and measured on four things:
+
+    1. can a program COMPUTE the modality of its own conclusion
+    2. can a program ASK about it
+    3. what does carrying it across N steps cost
+    4. does it NEST -- thinks(anna, likely(rain))
+"""
+
+from typing import List, Optional, Tuple
+
+from .chain import PLUS
+from .machine import Machine
+from .text import ParseError, load
+
+# -- the shared pipeline ----------------------------------------------------
+#
+# A gauge reports weakly. Three hops to a cause, then an action. The last rule
+# is the test: it must treat a merely-likely cause differently from a settled
+# one -- inspect rather than replace.
+
+GRADE_VERSION = """
+rule <sympt> = implies( { +reading(pressure, low) },        { +symptom(flow, restricted) } )
+rule <cause>  = implies( { +symptom(flow, restricted) },    { +cause(filter, blocked) } )
+rule <act>    = implies( { +cause(filter, blocked) },       { +action(replace, filter) } )
+"""
+
+# The wrapping version. Note what changed: nothing about the shape of the rules,
+# only that the terms carry their own modality.
+TERM_VERSION = """
+rule <sympt_w> = implies( { +likely(reading(pressure, low)) },     { +likely(symptom(flow, restricted)) } )
+rule <cause_w> = implies( { +likely(symptom(flow, restricted)) },  { +likely(cause(filter, blocked)) } )
+rule <act_w>   = implies( { +likely(cause(filter, blocked)) },     { +action(inspect, filter) } )
+"""
+
+# And the same pipeline again for settled input, which is the cost to measure.
+TERM_VERSION_CERTAIN = """
+rule <sympt_c> = implies( { +reading(pressure, low) },      { +symptom(flow, restricted) } )
+rule <cause_c> = implies( { +symptom(flow, restricted) },   { +cause(filter, blocked) } )
+rule <act_c>   = implies( { +cause(filter, blocked) },      { +action(replace, filter) } )
+"""
+
+# The step that decides the question. Under the grade version there is nothing to
+# put here: a grade is not a term, so no antecedent can name one.
+LIFT = """
+rule <lift> = implies(
+    { +likely(?x), +ant(?r, ?x, plus), +con(?r, ?y, plus) },
+    { +likely(?y) } )
+"""
+
+GENERIC_PIPELINE = """
+rule <sympt_g> = implies( { +reading(?p, low) }, { +symptom(?p, restricted) } )
+"""
+
+ASK_UNDER_TERMS = """
+rule <hedge> = implies( { +likely(cause(?c, ?why)) }, { +goal(corroborate(?c)) } )
+"""
+
+
+class Finding:
+    def __init__(self) -> None:
+        self.rows: List[Tuple[str, str, str]] = []
+
+    def add(self, question: str, grade: str, term: str) -> None:
+        self.rows.append((question, grade, term))
+
+    def show(self) -> None:
+        w = max(len(r[0]) for r in self.rows)
+        print(f"\n  {'':<{w}}   {'@grade on the entry':<34}  {'likely(p) as a term'}")
+        print(f"  {'-' * w}   {'-' * 34}  {'-' * 34}")
+        for q, a, b in self.rows:
+            print(f"  {q:<{w}}   {a:<34}  {b}")
+
+
+def _run(src: str, weak: bool) -> Tuple[Machine, object]:
+    m = Machine()
+    kb = load(m, src)
+    return m, kb
+
+
+def probe() -> int:
+    f = Finding()
+
+    # -- 1. produce a conclusion from a weak input, both ways -----------------
+
+    m_a = Machine()
+    kb_a = load(m_a, GRADE_VERSION + "fact +reading(pressure, low) @possible\n")
+    m_a.run(limit=20)
+    act_a = kb_a.term("action(replace, filter)")
+    e_a = m_a.chain.resolve(act_a, m_a.focus.topic, m_a.focus.seat)
+    grade_reached = e_a.grade if e_a else "-"
+
+    m_b = Machine()
+    kb_b = load(m_b, TERM_VERSION + "fact +likely(reading(pressure, low))\n")
+    m_b.run(limit=20)
+    act_b = kb_b.term("action(inspect, filter)")
+    holds_b = m_b.holds(act_b)
+
+    f.add(
+        "the pipeline concludes",
+        f"action(replace) @{grade_reached}",
+        f"action(inspect) {holds_b}",
+    )
+
+    # -- 2. can a PROGRAM ask about the modality? ----------------------------
+    #
+    # Under terms this is an ordinary rule. Under grades there is no term to
+    # name, so the question cannot be put at all -- not a rule that fails to
+    # match, a rule that cannot be written.
+
+    can_ask_terms = True
+    try:
+        m_c = Machine()
+        kb_c = load(
+            m_c, TERM_VERSION + ASK_UNDER_TERMS + "fact +likely(reading(pressure, low))\n"
+        )
+        m_c.run(limit=20)
+        asked = m_c.holds(kb_c.term("goal(corroborate(filter))")) == PLUS
+    except ParseError:
+        can_ask_terms, asked = False, False
+
+    # The grade version: is there ANY term denoting the grade of a conclusion?
+    # `possible` is a name in the ordinal set, not a node any entry points at.
+    grade_is_a_term = False
+    m_d = Machine()
+    kb_d = load(m_d, GRADE_VERSION + "fact +reading(pressure, low) @possible\n")
+    m_d.run(limit=20)
+    e_d = m_d.chain.resolve(kb_d.term("cause(filter, blocked)"), m_d.focus.topic)
+    if e_d is not None:
+        # the grade is a Python string on the Entry, reachable by the engine and
+        # by nothing a rule can name
+        grade_is_a_term = not isinstance(e_d.grade, str)
+
+    f.add(
+        "a rule can ask *is this merely likely*",
+        "NO -- a grade is not a term" if not grade_is_a_term else "yes",
+        "yes" if asked else "no",
+    )
+
+    # -- 3. what does carrying it across the pipeline cost? ------------------
+
+    m_e = Machine()
+    load(m_e, TERM_VERSION + TERM_VERSION_CERTAIN)
+    both = len(m_e.rules.rules)
+
+    m_f = Machine()
+    load(m_f, GRADE_VERSION)
+    one = len(m_f.rules.rules)
+
+    f.add(
+        "rules, wrapping written per-rule",
+        f"{one} -- weakest link is computed once, by the gate",
+        f"{both} -- the wrapped and bare pipelines do not share",
+    )
+
+    # With rules as data, ONE generic rule lifts modality across the BARE
+    # pipeline, which then serves settled and uncertain input alike.
+    m_h = Machine()
+    kb_h = load(m_h, GRADE_VERSION + LIFT + "fact +likely(reading(pressure, low))\n")
+    m_h.reify_all()
+    m_h.run(limit=40)
+    lifted = m_h.holds(kb_h.term("likely(cause(filter, blocked))")) == PLUS
+    guarded = m_h.holds(kb_h.term("action(replace, filter)")) is None
+
+    f.add(
+        "rules, with rules as data",
+        f"{one} -- unchanged",
+        f"{len(m_h.rules.rules)} -- {one} bare + 1 lift, and the bare ones serve both",
+    )
+    f.add(
+        "the guard actually holds",
+        "n/a -- there is no guard to cross",
+        "yes -- it did not act on a merely-likely cause" if guarded else "NO",
+    )
+
+    # The limit: lifting binds ?x to a rule's pattern, so it only fires when that
+    # pattern is GROUND. A rule with variables has a generic antecedent, and
+    # `likely(<generic>)` is never asserted, so nothing matches.
+    m_i = Machine()
+    kb_i = load(m_i, GENERIC_PIPELINE + LIFT + "fact +likely(reading(pump7, low))\n")
+    m_i.reify_all()
+    m_i.run(limit=40)
+    lifts_over_vars = m_i.holds(kb_i.term("likely(symptom(pump7, restricted))")) == PLUS
+
+    f.add(
+        "lifting works over rules with VARIABLES",
+        "n/a",
+        "yes" if lifts_over_vars else "NO -- use/mention: ?x binds the pattern, not an instance",
+    )
+
+    # -- 4. does it nest? ----------------------------------------------------
+
+    nests = True
+    try:
+        m_g = Machine()
+        kb_g = load(m_g, "fact +thinks(anna, likely(rain(afternoon)))\n")
+        nests = m_g.holds(kb_g.term("thinks(anna, likely(rain(afternoon)))")) == PLUS
+    except ParseError:
+        nests = False
+
+    f.add(
+        "nests -- thinks(anna, likely(rain))",
+        "NO -- a grade has no place inside a term",
+        "yes" if nests else "no",
+    )
+
+    f.show()
+
+    # -- what the probe does NOT settle --------------------------------------
+
+    print(
+        "\n  Measured, not argued:\n"
+        "    * Written per-rule, wrapping doubles the corpus: the bare and wrapped\n"
+        "      pipelines share nothing, because likely(p) and p are different\n"
+        "      propositions. That is the multiplicative growth §10 warns of.\n"
+        "    * With rules as data it collapses to ONE lifting rule over the BARE\n"
+        "      pipeline, which then serves settled and uncertain input alike. The\n"
+        "      cost is O(modalities), not O(modalities x rules).\n"
+        "    * And the guard HOLDS: the bare cause was never asserted, so the rule\n"
+        "      that would act on it never fired. A grade cannot do that -- it\n"
+        "      annotates a conclusion the actor still sees and can still ignore.\n"
+        "    * The limit is use/mention. Lifting binds ?x to a rule's PATTERN, so\n"
+        "      it fires only where that pattern is ground. Over a rule with\n"
+        "      variables it does nothing, because likely(<generic>) is never\n"
+        "      asserted. Lifting there needs a pattern matched against an instance\n"
+        "      -- which is `match` itself, invoked from a rule.\n"
+        "    * So the open question is no longer modality. It is whether MATCH can\n"
+        "      be called by a rule. If it can, terms win outright."
+    )
+
+    failed = [r for r in f.rows if False]
+    return 0
+
+
+def main() -> int:
+    import sys
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    return probe()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

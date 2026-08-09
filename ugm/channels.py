@@ -44,6 +44,19 @@ class Channels:
         self._known.append(c)
         return c
 
+    def use(self, node: NodeId) -> NodeId:
+        """Treat an existing node as a channel.
+
+        A channel is an ordinary node, so a surface that has already coined
+        `user` while writing `says(user, ...)` must end up with the *same* node
+        when it opens the channel -- otherwise the rule that reads utterances and
+        the intake that writes them would be talking about two different sockets
+        with one name.
+        """
+        if node not in self._known:
+            self._known.append(node)
+        return node
+
     def deliver(
         self, channel: NodeId, proposition: NodeId, sign: str = "+", grade: str = "certain"
     ) -> None:

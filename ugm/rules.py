@@ -61,6 +61,9 @@ class RuleSet:
         self.g = g
         self.CAUSES = g.atom(CAUSES)
         self.IMPLIES = g.atom(IMPLIES)
+        self.ENTRY = g.atom("entry")
+        self.MOMENT = g.atom("moment")
+        self.SIGN = {s: g.atom(s) for s in ("+", "-", "?")}
         self.rules: List[Rule] = []
         # Authored precedence (§14): the bottom-most arbitrator is a lookup that
         # always returns and never searches.
@@ -73,13 +76,38 @@ class RuleSet:
         consequent: Sequence[Member],
         name: str = "",
     ) -> Rule:
+        """A rule is a fact relating **two** moments (§8) -- never a flat list of
+        its patterns.
+
+        Two things go wrong if the patterns are flattened onto the connective.
+        The arity varies with how many members the rule happens to have, which is
+        exactly the shape §5 refuses: a node whose members mean different things
+        depending on how many there are. And the *signs* end up nowhere, so
+        `{+p} => {+q}` and `{+p} => {-q}` are the same node -- one rule, silently,
+        and `overrides(cold, hot)` then names a rule as overriding itself.
+
+        Nothing here interns. A rule is an authored statement, not an idea: two
+        rules that happen to say the same thing are still two rules, with
+        different authors, precedence and provenance.
+        """
         rel = self.CAUSES if connective == CAUSES else self.IMPLIES
-        # The rule's two members are generic moments; here they are represented
-        # by the patterns themselves, since slice one has no skeleton to relate.
-        node = self.g.rel(rel, *[m.pattern for m in antecedent + list(consequent)])
+        node = self.g.instance(
+            rel, self._moment(antecedent), self._moment(consequent)
+        )
         r = Rule(node, connective, antecedent, consequent, name)
         self.rules.append(r)
         return r
+
+    def _moment(self, members: Sequence[Member]) -> NodeId:
+        """A generic moment: signed members, and no anchored predecessor (§4).
+
+        The sign is in the graph rather than beside it, so *which rules disturb
+        position* stays a query over the consequent's members -- which is R4.
+        """
+        entries = [
+            self.g.instance(self.ENTRY, m.pattern, self.SIGN[m.sign]) for m in members
+        ]
+        return self.g.instance(self.MOMENT, *entries)
 
     def overrides_rule(self, higher: Rule, lower: Rule) -> None:
         self.overrides.append((higher, lower))
@@ -185,24 +213,48 @@ def match(
 def arbitrate(rs: RuleSet, applications: Sequence[Application]) -> Optional[Application]:
     """Among the rules that matched, choose one. Total: it always answers.
 
-    Authored precedence first, then the order rules were given in. The second is
-    the table §14 requires -- a lookup that never searches, so no decision hangs.
+    Two steps, and they are not the same step.
+
+    **Defeat first.** `overrides` is defeasibility (§12), not a ranking: a rule
+    that is overridden by another rule *that also matched here* does not apply at
+    all. Merely ordering them would let the loser apply on the following tick and
+    overwrite the winner, so the boss's rule would be obeyed and then quietly
+    undone by the vice's.
+
+    **Then choose**, by the order rules were authored in -- the table §14
+    requires, a lookup that never searches, so no decision hangs.
     """
     if not applications:
         return None
     best = applications[0]
     for cand in applications[1:]:
-        if _beats(rs, cand.rule, best.rule):
+        if rs.rules.index(cand.rule) < rs.rules.index(best.rule):
             best = cand
     return best
 
 
-def _beats(rs: RuleSet, a: "Rule", b: "Rule") -> bool:
-    if (a, b) in rs.overrides:
-        return True
-    if (b, a) in rs.overrides:
-        return False
-    return rs.rules.index(a) < rs.rules.index(b)
+def defeat(rs: RuleSet, applications: Sequence[Application]) -> List[Application]:
+    """Drop the applications whose rule is overridden by another that matched.
+
+    This runs on everything that **matched**, before any quiescence filter --
+    and the order is load-bearing. Defeat is about whose antecedent holds, not
+    about who still has work to do. Filter first and the winner disappears as
+    soon as its conclusion is already written, whereupon the loser is
+    unopposed and quietly overwrites it: the boss's rule obeyed once, then
+    undone by the vice's on the following tick.
+    """
+    matched = [a.rule for a in applications]
+    surviving = [a for a in applications if not _defeated(rs, a.rule, matched)]
+    # A cycle in `overrides` would defeat everything. Arbitration must stay
+    # total (§14), so fall back rather than answer nothing.
+    return surviving or list(applications)
+
+
+def _defeated(rs: RuleSet, rule: "Rule", matched: Sequence["Rule"]) -> bool:
+    """Overridden by something that matched here. A rule overridden by a rule
+    whose antecedent does not hold is not defeated -- that is what makes
+    defeasibility about the situation rather than about the rule set."""
+    return any(higher in matched and lower is rule for higher, lower in rs.overrides)
 
 
 def effective_grade(authored: str, consumed: Sequence[Entry]) -> str:

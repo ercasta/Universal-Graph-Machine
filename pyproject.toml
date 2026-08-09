@@ -17,3 +17,6 @@ dependencies = []
 
 [tool.setuptools]
 packages = ["ugm"]
+
+[tool.setuptools.package-data]
+ugm = ["rules/*.ugm"]

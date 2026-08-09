@@ -198,6 +198,33 @@ def arbitration_is_total() -> None:
     step2 = m2.tick()
     check("§14", "authored precedence beats authored order", step2.applied.rule is a2)
 
+    # Defeat, not ranking: ordering alone would let the loser apply next tick and
+    # overwrite the winner, so the boss's rule is obeyed and quietly undone.
+    m2.run(limit=6)
+    check("§12", "an overridden rule does not apply at all", m2.holds(g2.rel(lit2, q2)) == MINUS)
+    check("§12", "and the defeated rule never wrote", all(e.sign == MINUS for m_ in m2.chain.moments for e in m_.delta if e.proposition == g2.rel(lit2, q2)))
+
+
+def a_rule_is_a_node() -> None:
+    """§8: a rule is a fact relating *two* moments -- never a flat list of its
+    patterns, which loses the signs and varies its arity with its size."""
+    m = Machine()
+    g = m.g
+    p, q = g.rel(g.atom("f"), g.atom("a")), g.rel(g.atom("g"), g.atom("a"))
+    hot = m.rules.rule(IMPLIES, [Member(PLUS, p)], [Member(PLUS, q)], "hot")
+    cold = m.rules.rule(IMPLIES, [Member(PLUS, p)], [Member(MINUS, q)], "cold")
+    check("§8", "two rules differing only in a sign are two nodes", hot.node != cold.node)
+    check("§8", "a rule has exactly two members, whatever its size", len(g.members(hot.node)) == 2)
+    big = m.rules.rule(IMPLIES, [Member(PLUS, p), Member(PLUS, q)], [Member(PLUS, p)], "big")
+    check("§5", "so arity does not vary with how much it says", len(g.members(big.node)) == 2)
+    check("§8", "the antecedent moment carries its signed members", len(g.members(g.member(hot.node, 0))) == 1)
+    check(
+        "R4",
+        "and the sign is in the graph, so *which rules disturb this* is a query",
+        g.members(g.member(g.member(cold.node, 1), 0))[1] == m.rules.SIGN[MINUS],
+    )
+    check("§8", "two rules that say the same thing are still two rules", m.rules.rule(IMPLIES, [Member(PLUS, p)], [Member(PLUS, q)], "twin").node != hot.node)
+
 
 def connectives_differ() -> None:
     """§10: retract the antecedent and does the consequent go with it? The
@@ -287,6 +314,130 @@ def trusting_a_channel() -> None:
     check("§16", "the machine counted its selections", m.selections == len([s for s in steps if s.state == "applied"]))
 
 
+# -- the surface ------------------------------------------------------------
+
+
+def _loads(src: str):
+    from .text import load
+
+    m = Machine()
+    return m, load(m, src)
+
+
+def _refuses(src: str) -> bool:
+    from .text import ParseError
+
+    try:
+        _loads(src)
+        return False
+    except ParseError:
+        return True
+
+
+def surface() -> None:
+    """One grammar for rules, facts and facts about rules -- because a rule is a
+    relation instance like any other, which is R3 and R4 in the surface."""
+    from .text import ParseError, Parser, tokenise
+
+    m, kb = _loads("fact +on(a, b)\nfact -in(b, c)   # a comment\n")
+    check("§3", "the surface writes a fact", m.holds(kb.term("on(a, b)")) == PLUS)
+    check("§6", "and a signed one", m.holds(kb.term("in(b, c)")) == MINUS)
+    check("§13", "a loaded fact is stamped as having come from the KB", m.chain.resolve(kb.term("on(a, b)"), m.focus.topic).source == m.KB)
+
+    check("§4", "a fact may not contain a variable", _refuses("fact +on(?x, b)"))
+    check(
+        "§13",
+        "a consequent naming a variable the antecedent never binds is refused",
+        _refuses("rule <r> = implies( { +p(?x) }, { +q(?y) } )"),
+    )
+    check("§10", "a third connective is refused", _refuses("rule <r> = enables( { +p(a) }, { +q(a) } )"))
+    check("§10", "a grade outside the ordinal set is refused", _refuses("rule <r> = implies( { +p(a) }, { +q(a) @0.7 } )"))
+    check(
+        "§8",
+        "a locus member says slice one carries the one-locus case only",
+        _refuses("rule <r> = implies( { +p(a) @ ?m }, { +q(a) } )"),
+    )
+
+    toks = tokenise("rule <TT-base> = implies( { +acts(?a) }, { +done(?a) } )")
+    check("§3", "a hyphenated name is one token", any(t.text == "TT-base" for t in toks))
+
+    m2, kb2 = _loads(
+        "rule <hot> = implies( { +p(a) }, { +q(a) } )\n"
+        "rule <cold> = implies( { +p(a) }, { -q(a) } )\n"
+        "fact overrides(<cold>, <hot>)\n"
+        "fact +p(a)\n"
+    )
+    check("R3", "a rule is a thing a fact can be about", kb2.term("<cold>") == m2.rules.rules[1].node)
+    check("§14", "and `overrides` in the surface seeds the precedence table", len(m2.rules.overrides) == 1)
+    m2.run(limit=5)
+    check("§14", "so the overriding rule is the one that applied", m2.holds(kb2.term("q(a)")) == MINUS)
+
+
+def worked_examples() -> None:
+    """§8's rules, as printed in the design, actually run."""
+    import os
+
+    from .text import load_file
+
+    path = os.path.join(os.path.dirname(__file__), "rules", "worked.ugm")
+    m = Machine()
+    kb = load_file(m, path)
+    check("§8", "the document's worked rules parse", len(m.rules.rules) == 3)
+
+    steps = m.run(limit=30)
+    check("§15", "and run to quiescence", steps[-1].state == "quiescent")
+
+    check("§8", "<R1> concluded", m.holds(kb.term("boiling(kettle)")) == PLUS)
+    check("§6", "including its negative member", m.holds(kb.term("liquid(kettle)")) == MINUS)
+    check("§8", "<R2> concluded", m.holds(kb.term("rain(monday, afternoon)")) == PLUS)
+    check(
+        "§12",
+        "<R2>'s conclusion carries the grade it authored",
+        m.chain.resolve(kb.term("rain(monday, afternoon)"), m.focus.topic).grade == "likely",
+    )
+
+    # The trust rule's consequent is a bare variable: whatever the channel says.
+    raining = kb.term("raining(here)")
+    check("§13", "a rule whose consequent is a variable believes what a channel said", m.holds(raining) == PLUS)
+    e = m.chain.resolve(raining, m.focus.topic)
+    check("§12", "and it is no stronger than the rule allowed", e.grade == "likely")
+    check("§13", "the channel in the rule is the channel delivered on", any(t.source == kb.term("user") for t in m.chain.trail(e)))
+    check("R5", "the trail reaches the utterance", len(m.why(raining)) > 1)
+
+
+def rules_as_data() -> None:
+    """§14: a rule is a node, so a rule can be matched by a rule -- once what a
+    rule IS has been deposited as entries."""
+    from .text import load
+
+    src = chr(10).join([
+        "rule <a> = implies( { +p(x) }, { +q(x) } )",
+        "rule <b> = implies( { +q(x) }, { +r(x) } )",
+        "rule <lift> = implies( { +likely(?u), +ant(?rl, ?u, plus), +con(?rl, ?v, plus) },",
+        "                      { +likely(?v) } )",
+        "fact +likely(p(x))",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, src)
+    check("§14", "before reification a rule is a node nobody asserted", m.holds(kb.term("rule(<a>)")) is None)
+    m.reify_all()
+    check("§14", "reified, a rule is an ordinary fact", m.holds(kb.term("rule(<a>)")) == PLUS)
+    check("§14", "and its connective is askable", m.holds(kb.term("conn(<a>, implies)")) == PLUS)
+    check("§13", "its patterns are MENTIONED, not used", m.holds(kb.term("ant(<a>, p(x), plus)")) == PLUS)
+
+    m.run(limit=30)
+    check("§14", "one generic rule lifts modality across the bare pipeline", m.holds(kb.term("likely(r(x))")) == PLUS)
+    check("§12", "and the guard holds: the bare conclusion was never asserted", m.holds(kb.term("r(x)")) is None)
+
+    ok = False
+    try:
+        m.gate.write(m.focus, m.g.rel(m.g.atom("f"), m.g.var("?z")), PLUS)
+    except ValueError:
+        ok = True
+    check("§13", "mention is a gate parameter, not a hole in the gate", ok)
+
+
 def main() -> int:
     import sys
 
@@ -300,9 +451,13 @@ def main() -> int:
     grades()
     matching()
     arbitration_is_total()
+    a_rule_is_a_node()
+    rules_as_data()
     connectives_differ()
     quiescence()
     trusting_a_channel()
+    surface()
+    worked_examples()
 
     failed = 0
     group = None
