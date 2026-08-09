@@ -747,6 +747,19 @@ The reserved vocabulary of the whole design:
 | timing | one relation over the two moments' endpoints | 1 |
 | locus resolution | `entry` — the relation the engine dispatches on (§5) | 1 |
 | the frame register | *which node the machinery is currently reasoning in* (§13) | 1 |
+| machinery requests | `suppose`, `goal` — and what a goal's expansion writes, `achieved` and `blocked` | 4 |
+
+The last row is a cost incurred by building, and it is listed rather than absorbed. These are requests
+and reports, not claims about the world: a rule concludes `+suppose(p, likely)` or `+goal(p)`, and the
+machinery does what a rule cannot — open a frame, or read a rule backwards — because both need an
+anchored locus that a generic rule cannot name. §5 asks that this set be declared in one place rather
+than accumulating, and this is that place. The rule for admitting a member is §14's: it earns a row
+only if the machinery must **enact** it, never merely read it.
+
+One consequence is easy to miss and was found by running: **nothing in this row may carry out of a
+frame**. A request to suppose is not a claim about the world, so there is nothing for the wrapper to
+qualify — and carrying one out produces `likely(suppose(...))`, which the rule that crosses guards
+then crosses, so the machinery supposes its own bookkeeping without end.
 
 Everything else — `heat`, `cloudy`, `boss`, `overrides`, `by`, `about`, `unless`, `shape`, `repeats`,
 `taking_turns` — is open-class vocabulary and reserves nothing. Authors may coin freely.
@@ -1029,9 +1042,44 @@ The word *likely* covers two things, which is why *tag it or guard it* feels lik
 | nesting | free — a path in the predecessor tree | does not nest; composes by weakest link |
 | isolation | already enforced — a read cannot reach into a moment except through the chain | not an isolation problem at all |
 
-Keeping these apart is what prevents combinatorial explosion: twenty independently uncertain facts
-would be a million moments if uncertainty were modelled as supposition. **Use moments where the agent
-*chooses* to suppose; use grades where the world is merely weakly connected.**
+Keeping these apart is what prevents combinatorial explosion — **if** the unit is a *subset*. Twenty
+independently uncertain facts would be a million moments only if every combination were a moment.
+
+### Supposing is how modality composes — measured
+
+That objection does not survive the distinction between a frame per **subset** and a frame per
+**derivation**, and `python -m ugm.modality` measures the difference. Modality can be a **term** —
+`likely(p)`, a wrapping node, the same construction as `on(a, b)` with one arm rather than two — and
+then a hedged fact is crossed by *entering* it:
+
+> **Unwrap on the way in. Re-wrap on the way out.** Inside the frame the assumption is an ordinary
+> fact and the ordinary rules apply to it by ordinary matching. What crosses back is `likely(q)`, a
+> claim about what was concluded under the supposition — never `q`.
+
+Three things this buys that a grade cannot, none of them arguments:
+
+| | grade on the entry | term, supposed |
+|---|---|---|
+| a **rule** can ask *is this merely likely* | no — a grade is not a term, so no antecedent can name one | yes |
+| the guard **holds** — nothing acts on the unwrapped conclusion | no; a grade annotates a conclusion the actor still sees | yes, structurally |
+| it **nests** — `thinks(anna, likely(rain))` | no; a grade has no place inside a term | yes |
+
+The cost is a frame per derivation, which is linear. The alternative — a *lifting* rule that rewrites
+`likely(X)` into `likely(Y)` over reified rules — costs one rule instead of a frame, and fails: it
+binds against a rule's **pattern**, so it fires only where that pattern is ground, and real corpora
+are mostly generic rules. Supposing has no such limit because nothing is ever mentioned.
+
+**Containment is free rather than enforced.** The frame's seat is a *successor* of the caller's, so
+the caller's walk cannot reach it. That is §17's containment gate, and it is the ancestry of §4 doing
+the work — which is why `at_or_after` must be a real ancestry test and not a depth comparison, since
+supposing forks by construction.
+
+**What is still true of grades.** Weakest link is computed once, by the gate, over the entries match
+consumed, and no author can forget it. That is worth keeping for the ordinary attenuation of a chain.
+The two are not rivals: the grade is what the gate computes, the term is what a rule can reason about.
+
+**Use moments where the agent *chooses* to suppose, and where a hedge must be reasoned about; use
+grades where the world is merely weakly connected and nobody needs to ask.**
 
 ### Scoring
 
@@ -1332,6 +1380,43 @@ Given the four primitives, the connectives themselves are data:
 
 Matching is primitive; everything above it is rules.
 
+### `<B>` does not work, and the reason is the shape of the floor
+
+Reifying rules is cheap — `+rule(?r)`, `+conn(?r, implies)` and a member relation per side — and once
+done, `<F>` is an ordinary rule. `<B>` is not, and running it is how the difference shows:
+
+```
+con(<boil>, boiling(?w), +)     what reification stores: the rule's PATTERN, generic
++goal(boiling(kettle))          what a goal is: ground
+```
+
+`+want(?f)` binds `?f` to the ground goal; `+member(+?f, con(?r))` needs it to be the generic pattern.
+One variable cannot be both, so the rule never fires. Deciding that the two *correspond* is exactly
+**match**, and match is a primitive that no rule can call.
+
+> **A rule can name a rule. A rule cannot match one.**
+
+That is one wall reached from three sides. Lifting a modality across a rule needs it. Backward reading
+needs it. Asking whether a generic subgoal is already satisfied needs it — `tap(?t)` against
+`tap(sink)` is a match, and resolving by proposition identity reports a satisfied goal as blocked.
+
+So backward reading sits in the machinery, and the honest statement of §14 is narrower than *rules
+over the four primitives*: it is rules over the four **plus** a way to invoke the second one. Whether
+that is a fifth primitive, or `match` reified so a rule can request it, is not settled here — §18
+records it. What is settled is that the four as printed are not enough, and that `<B>` above should
+be read as an intention rather than as a rule that runs.
+
+### Use and mention
+
+Reification also forces a distinction the design had not needed. `+ant(<R>, heat(?a, ?w), +)` is a
+**ground** claim about a rule that happens to name a node containing variables. It is not a generic
+claim, and refusing it would make rules unspeakable-about — but structurally the two are identical, so
+nothing in the shape can tell them apart.
+
+What tells them apart is **who is writing**: the machinery reifying a rule is mentioning, a rule's
+consequent is using. That is §13's split once more, and it is why mention is a parameter of the gate
+rather than a property of a proposition.
+
 > **The test that the floor is in the right place: adding a connective adds rows, not branches.**
 
 If a new connective requires editing the engine, then the connective set is not data and §10's budget
@@ -1626,6 +1711,17 @@ Three more follow from §13, and they are the ones a first implementation is mos
 * **Seat discipline across processes** (§13). Frames form a forest and any of them may be in focus.
   Nothing says whether two processes may hold seats in the same moment at once, what it means if they
   do, or whether one process may move another's seat.
+* **Match, callable from a rule** (§14). Lifting a modality, reading a rule backwards and testing a
+  generic subgoal all need a rule to ask *does this pattern match that instance*, and none can. Open:
+  whether this is a fifth primitive, or `match` reified so a rule requests it and the machinery
+  answers — the second keeps the floor at four and matches how `suppose` and `goal` already work.
+* **When to cross a guard** (§12). A rule that crosses every hedged fact it sees crosses the hedged
+  facts it just produced, and only terminates when the wrapped terms happen to run out of applicable
+  rules. Eager crossing has no criterion; the criterion is **demand**, which is backward reading, and
+  the two are not yet connected.
+* **Bindings across sibling subgoals** (§14). Satisfying `tap(?t)` with `tap(sink)` should bind `?t`
+  for the sibling goal `under(kettle, ?t)`. That needs an environment per plan, and without one a
+  conjunctive goal can be reported satisfied on bindings that do not agree.
 * **When a revision is warranted** (§4). The two indices make *I now think otherwise about `M7`*
   sayable, and say nothing about when an agent should write one. Left alone, a system that revises the
   past freely can rewrite its way out of any surprise, which is §16's mechanism defeated by §4's
@@ -1687,6 +1783,9 @@ Each was scored in the section named; this table is the index.
 | frames (§13) | a stack of frames | two hypotheses under comparison are siblings, both alive, neither the caller of the other |
 | frames (§13) | copy conclusions out of a frame, re-qualified | one fact in two shapes, and it needs invalidation the moment the supposition is discharged differently |
 | modality (§12) | a guard node per uncertain fact | optional guards mean two shapes for every consumer; mandatory guards mean a node and a hop per certain fact |
+| modality (§12) | wrapping written per rule — a `likely` twin of every rule | the wrapped and bare corpora share nothing, since `likely(p)` and `p` are different propositions; measured at 2x |
+| modality (§12) | a lifting rule over reified rules | binds against a rule's *pattern*, so it fires only where that pattern is ground — and real corpora are mostly generic rules |
+| backward reading (§14) | `<B>` as a rule over reified rules | a goal is ground and a stored consequent is generic; one variable cannot bind to both, and deciding they correspond is `match` |
 | modality (§12) | probabilities instead of ordinal grades | independence assumptions cannot be stated in the graph, so the product looks like a measurement and is an artefact |
 | entries (§13) | augment rules to speak of entries | cannot be written: the locus is an indexical, and a rule is generic |
 | entries (§13) | authors write entries natively | every rule becomes plumbing, and provenance becomes forgeable |
