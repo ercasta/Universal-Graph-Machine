@@ -289,16 +289,7 @@ class Loader:
         # surface resolves against. A relation minted beside the table is a
         # second node with one name -- which is how `says` and `overrides` each
         # silently stopped matching what the surface wrote.
-        self.atoms["says"] = self.m.SAYS
-        self.atoms["kb"] = self.m.KB
-        for name, node in (
-            ("rule", self.m.RULE), ("conn", self.m.CONN),
-            ("ant", self.m.ANT), ("con", self.m.CON),
-            ("causes", self.m.rules.CAUSES), ("implies", self.m.rules.IMPLIES),
-            ("plus", self.m.rules.SIGN["+"]), ("minus", self.m.rules.SIGN["-"]),
-            ("suppose", self.m.SUPPOSE),
-        ):
-            self.atoms[name] = node
+        self.atoms.update(self.m.reserved)
         self.OVERRIDES = self.atom("overrides")
 
     def rule_ref(self, name: str) -> NodeId:

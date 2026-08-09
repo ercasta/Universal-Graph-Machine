@@ -522,6 +522,73 @@ def rule_driven_supposition() -> None:
     )
 
 
+def backward_reading() -> None:
+    """R1: one statement, two readings. R2: the reading is recoverable, because
+    a subgoal is licensed `wanted` and a conclusion `applied`."""
+    from .text import load
+
+    src = chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
+        "fact +tap(sink)",
+        "fact +under(kettle, sink)",
+        "fact +goal(boiling(kettle))",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, src)
+    m.run(limit=60)
+
+    def props(rel):
+        return [m.g.show(e.proposition) for mm in m.chain.moments for e in mm.delta
+                if m.g.relation_of(e.proposition) is rel and e.sign == PLUS]
+
+    goals, blocked, achieved = props(m.GOAL), props(m.BLOCKED), props(m.ACHIEVED)
+
+    check("R1", "the same rule read backwards proposes subgoals", "goal(water(kettle))" in goals)
+    check("R1", "and recurses through a second rule", "goal(under(kettle, ?t))" in goals)
+    check(
+        "R2",
+        "a subgoal is licensed `wanted`, never `applied`",
+        all(
+            m.g.relation_of(e.licence) is m.WANTED
+            for mm in m.chain.moments for e in mm.delta
+            if m.g.relation_of(e.proposition) is m.GOAL and e.licence is not None
+            and m.g.relation_of(e.licence) is not None
+            and m.g.show(e.proposition) != "goal(boiling(kettle))"
+        ),
+    )
+    check(
+        "§15",
+        "a goal nothing concludes is BLOCKED -- an action, not a failure",
+        "blocked(heat(?a, kettle))" in blocked,
+    )
+    check(
+        "§14",
+        "*is this goal already met* is a match, not a lookup",
+        "achieved(tap(?t))" in achieved and "achieved(under(kettle, ?t))" in achieved,
+    )
+    check("§9", "expansion is budgeted and reported", m.exhausted == 0 and m.expansions == 2)
+
+    # §14's printed backward reader cannot work: `con(?r, ?f, plus)` stores the
+    # rule's generic PATTERN, and a goal is ground, so one variable cannot bind
+    # to both. Deciding they correspond is `match`, which no rule can call.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "rule <boil2> = implies( { +heat(?a, ?w) }, { +boiling(?w) } )",
+        "rule <back>  = implies( { +goal(?f), +con(?r, ?f, plus) }, { +candidate(?r, ?f) } )",
+        "fact +goal(boiling(kettle))",
+        "",
+    ]))
+    m2.reify_all()
+    m2.run(limit=20)
+    check(
+        "§14",
+        "the document's backward reader as rules does NOT fire -- it needs match",
+        m2.holds(kb2.term("candidate(<boil2>, boiling(kettle))")) is None,
+    )
+
+
 def main() -> int:
     import sys
 
@@ -539,6 +606,7 @@ def main() -> int:
     rules_as_data()
     supposing()
     rule_driven_supposition()
+    backward_reading()
     connectives_differ()
     quiescence()
     trusting_a_channel()

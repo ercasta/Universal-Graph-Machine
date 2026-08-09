@@ -27,6 +27,7 @@ from .rules import (
     defeat,
     effective_grade,
     match,
+    unify,
     current_state,
     substitute,
 )
@@ -69,6 +70,10 @@ class Machine:
         self.SUPPOSING = self.g.atom("supposing")
         self.CONCLUDED = self.g.atom("concluded")
         self.SUPPOSE = self.g.atom("suppose")
+        self.GOAL = self.g.atom("goal")
+        self.WANTED = self.g.atom("wanted")
+        self.ACHIEVED = self.g.atom("achieved")
+        self.BLOCKED = self.g.atom("blocked")
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -80,6 +85,20 @@ class Machine:
         # privileged.
         self.focus: Frame = self.gate.frame(self.chain.root)
 
+        # Every name the machinery coins, in one place. The surface seeds its
+        # table from this, so a name written in a rule is the SAME node the
+        # machinery writes. Four separate bugs came from minting a reserved atom
+        # beside this table -- `says`, `overrides`, `suppose`, `goal` -- each
+        # silent, each looking like a rule that simply did not fire.
+        self.reserved = {
+            "says": self.SAYS, "kb": self.KB,
+            "rule": self.RULE, "conn": self.CONN, "ant": self.ANT, "con": self.CON,
+            "suppose": self.SUPPOSE, "goal": self.GOAL,
+            "achieved": self.ACHIEVED, "blocked": self.BLOCKED,
+            "causes": self.rules.CAUSES, "implies": self.rules.IMPLIES,
+            "plus": self.rules.SIGN["+"], "minus": self.rules.SIGN["-"],
+        }
+
         self.selections = 0
         self.useful_writes = 0
         self.exhausted = 0
@@ -87,10 +106,13 @@ class Machine:
         self._enacted: set = set()
         self._supposed: set = set()
         self.supposition_budget = 32
+        self.expansions = 0
+        self.expansion_budget = 64
+        self._expanded: set = set()
         # Machinery vocabulary: requests, not claims. Nothing carries these out of
         # a frame. This is the closed set of §10 growing by one, and it is a real
         # cost -- worth listing rather than letting it accumulate (§5).
-        self._bookkeeping = {self.SUPPOSE}
+        self._bookkeeping = {self.SUPPOSE, self.GOAL, self.ACHIEVED, self.BLOCKED}
 
     # -- rules as data ----------------------------------------------------
 
@@ -183,6 +205,91 @@ class Machine:
             return True
         return False
 
+    # -- backward reading -------------------------------------------------
+
+    def _expand_goal(self) -> bool:
+        """Read a rule backwards: what would make this goal true?
+
+        §14 says backward reading is not a fifth primitive but rules over the
+        four, and prints a rule to do it -- `+want(?f), +member(+?f, con(?r))`.
+        That rule cannot work, and the reason is worth stating: `con(?r, ...)`
+        stores the rule's PATTERN, which is generic, while a goal is ground. One
+        variable cannot bind to both. Deciding they correspond is `match`, and
+        `match` is a primitive no rule can call.
+
+        So this sits in the machinery until a rule can invoke matching -- the
+        same wall the lifting rule hit, arrived at from the other side.
+
+        R2 is the other obligation: reading a rule backwards is reading its
+        converse, which is a hypothesis and not an entailment. Every subgoal is
+        licensed as `wanted`, never `applied`, so a conclusion drawn forwards is
+        permanently distinguishable from a goal proposed backwards.
+        """
+        if self.expansions >= self.expansion_budget:
+            self.exhausted += 1
+            return False
+        state = current_state(self.chain, self.focus.topic, self.focus.seat)
+        for e in state:
+            if e.sign != "+" or self.g.relation_of(e.proposition) != self.GOAL:
+                continue
+            if e.node in self._expanded:
+                continue
+            (wanted,) = self.g.members(e.proposition)
+            self._expanded.add(e.node)
+
+            # *Is this goal already satisfied?* is a MATCH, not a lookup. A
+            # subgoal is often generic -- `tap(?t)`, because the rule that
+            # proposed it left `?t` unbound -- and `resolve` compares proposition
+            # identity, so it would call a satisfied goal blocked. What is
+            # missing after this fix is the binding: satisfying `tap(?t)` with
+            # `tap(sink)` should bind `?t` for the sibling goal `under(k, ?t)`,
+            # and that needs an environment per plan, which slice one has not.
+            held = next(
+                (
+                    s
+                    for s in state
+                    if s.sign == "+" and unify(self.g, wanted, s.proposition, {}) is not None
+                ),
+                None,
+            )
+            if held is not None:
+                self._note(self.ACHIEVED, wanted, e)
+                return True
+
+            candidates = []
+            for r in self.rules.rules:
+                for m in r.consequent:
+                    if m.sign != "+":
+                        continue
+                    b = unify(self.g, m.pattern, wanted, {})
+                    if b is not None:
+                        candidates.append((r, b))
+                        break
+            if not candidates:
+                # *I found no way* is not *there is no way* (§9, §15). This says
+                # only the first, and says it explicitly rather than by silence.
+                self._note(self.BLOCKED, wanted, e)
+                return True
+
+            self.expansions += 1
+            rule, binding = candidates[0]
+            licence = self.g.rel(self.WANTED, rule.node, wanted)
+            for m in rule.antecedent:
+                sub = substitute(self.g, m.pattern, binding)
+                self.gate.write(
+                    self.focus, self.g.rel(self.GOAL, sub), "+",
+                    licence=licence, source=self.KB, consumed=(e,), mention=True,
+                )
+            return True
+        return False
+
+    def _note(self, relation: NodeId, wanted: NodeId, because: Entry) -> None:
+        self.gate.write(
+            self.focus, self.g.rel(relation, wanted), "+",
+            licence=self.g.rel(relation, wanted), source=self.KB,
+            consumed=(because,), mention=True,
+        )
+
     def discharge(self, frame: Frame, wrap: NodeId, limit: int = 100) -> List[Entry]:
         """Run to quiescence inside, then carry conclusions out **wrapped**.
 
@@ -235,6 +342,9 @@ class Machine:
         if self._enact_supposition():
             return Step(arrivals, 0, 0, None, (), "supposed")
 
+        if self._expand_goal():
+            return Step(arrivals, 0, 0, None, (), "expanded")
+
         proposed = self._recall()
         applications: List[Application] = []
         for r in proposed:
@@ -269,7 +379,7 @@ class Machine:
         for _ in range(limit):
             s = self.tick()
             out.append(s)
-            if s.state not in ("applied", "supposed"):
+            if s.state not in ("applied", "supposed", "expanded"):
                 break
         return out
 
