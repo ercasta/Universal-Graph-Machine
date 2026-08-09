@@ -77,7 +77,20 @@ class Moment:
         return out
 
     def at_or_after(self, other: "Moment") -> bool:
-        return self.depth >= other.depth
+        """Is `other` this moment or one of its ancestors?
+
+        A depth comparison is not enough once anything forks -- and supposing
+        forks by construction. Two moments on different branches can share a
+        depth while neither is on the other's walk, and a depth test would let a
+        claim made inside one supposition answer a question asked inside its
+        sibling. That is the containment property, so it has to be ancestry.
+        """
+        m: Optional["Moment"] = self
+        while m is not None:
+            if m is other:
+                return True
+            m = m.predecessor
+        return False
 
     def __repr__(self) -> str:
         return f"M{self.depth}"

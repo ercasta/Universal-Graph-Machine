@@ -65,6 +65,12 @@ GENERIC_PIPELINE = """
 rule <sympt_g> = implies( { +reading(?p, low) }, { +symptom(?p, restricted) } )
 """
 
+GENERIC_PIPELINE_FULL = """
+rule <sympt_v> = implies( { +reading(?p, low) },        { +symptom(?p, restricted) } )
+rule <cause_v> = implies( { +symptom(?p, restricted) }, { +diag(?p, blocked) } )
+rule <act_v>   = implies( { +diag(?p, blocked) },       { +action(replace, ?p) } )
+"""
+
 ASK_UNDER_TERMS = """
 rule <hedge> = implies( { +likely(cause(?c, ?why)) }, { +goal(corroborate(?c)) } )
 """
@@ -74,15 +80,16 @@ class Finding:
     def __init__(self) -> None:
         self.rows: List[Tuple[str, str, str]] = []
 
-    def add(self, question: str, grade: str, term: str) -> None:
-        self.rows.append((question, grade, term))
+    def add(self, question: str, grade: str, term: str, frame: str = "-") -> None:
+        self.rows.append((question, grade, term, frame))
 
     def show(self) -> None:
         w = max(len(r[0]) for r in self.rows)
-        print(f"\n  {'':<{w}}   {'@grade on the entry':<34}  {'likely(p) as a term'}")
-        print(f"  {'-' * w}   {'-' * 34}  {'-' * 34}")
-        for q, a, b in self.rows:
-            print(f"  {q:<{w}}   {a:<34}  {b}")
+        c = 31
+        print(f"\n  {'':<{w}}   {'@grade':<{c}}  {'likely(p), lifted':<{c}}  likely(p), supposed")
+        print(f"  {'-' * w}   {'-' * c}  {'-' * c}  {'-' * c}")
+        for q, a, b, d in self.rows:
+            print(f"  {q:<{w}}   {a[:c]:<{c}}  {b[:c]:<{c}}  {d}")
 
 
 def _run(src: str, weak: bool) -> Tuple[Machine, object]:
@@ -217,6 +224,40 @@ def probe() -> int:
         "yes" if nests else "no",
     )
 
+    # -- 5. the same job, done by supposing instead of lifting ---------------
+
+    m_s = Machine()
+    kb_s = load(m_s, GENERIC_PIPELINE_FULL)
+    fr = m_s.suppose(kb_s.term("reading(pump7, low)"))
+    carried = m_s.discharge(fr, kb_s.term("likely"))
+    sup_lifts_vars = m_s.holds(kb_s.term("likely(symptom(pump7, restricted))")) == PLUS
+    sup_contains = m_s.holds(kb_s.term("action(replace, pump7)")) is None
+
+    m_n = Machine()
+    kb_n = load(m_n, "rule <r1> = implies( { +a(?x) }, { +b(?x) } )")
+    o = m_n.suppose(kb_n.term("seen(x)"))
+    i = m_n.suppose(kb_n.term("a(x)"))
+    m_n.discharge(i, kb_n.term("possible"))
+    nested = m_n.discharge(o, kb_n.term("likely"))
+    sup_nests = any(m_n.g.show(e.proposition) == "likely(possible(b(x)))" for e in nested)
+
+    for i2, row in enumerate(f.rows):
+        q = row[0]
+        if q.startswith("a rule can ask"):
+            f.rows[i2] = row[:3] + ("yes -- likely(p) is a term",)
+        elif q.startswith("rules, with rules as data"):
+            f.rows[i2] = row[:3] + (f"{len(m_s.rules.rules)} -- bare only, no lift",)
+        elif q.startswith("the guard"):
+            f.rows[i2] = row[:3] + ("yes" if sup_contains else "NO",)
+        elif q.startswith("lifting works over rules with VAR"):
+            f.rows[i2] = row[:3] + ("YES -- nothing is mentioned",)
+        elif q.startswith("nests"):
+            f.rows[i2] = row[:3] + ("yes" if sup_nests else "NO",)
+        elif q.startswith("the pipeline concludes"):
+            f.rows[i2] = row[:3] + (f"{len(carried)} conclusions, wrapped",)
+        else:
+            f.rows[i2] = row[:3] + ("-",)
+
     f.show()
 
     # -- what the probe does NOT settle --------------------------------------
@@ -226,19 +267,28 @@ def probe() -> int:
         "    * Written per-rule, wrapping doubles the corpus: the bare and wrapped\n"
         "      pipelines share nothing, because likely(p) and p are different\n"
         "      propositions. That is the multiplicative growth §10 warns of.\n"
-        "    * With rules as data it collapses to ONE lifting rule over the BARE\n"
-        "      pipeline, which then serves settled and uncertain input alike. The\n"
-        "      cost is O(modalities), not O(modalities x rules).\n"
-        "    * And the guard HOLDS: the bare cause was never asserted, so the rule\n"
-        "      that would act on it never fired. A grade cannot do that -- it\n"
-        "      annotates a conclusion the actor still sees and can still ignore.\n"
-        "    * The limit is use/mention. Lifting binds ?x to a rule's PATTERN, so\n"
-        "      it fires only where that pattern is ground. Over a rule with\n"
-        "      variables it does nothing, because likely(<generic>) is never\n"
-        "      asserted. Lifting there needs a pattern matched against an instance\n"
-        "      -- which is `match` itself, invoked from a rule.\n"
-        "    * So the open question is no longer modality. It is whether MATCH can\n"
-        "      be called by a rule. If it can, terms win outright."
+        "    * LIFTING collapses it to one rule over the bare pipeline -- but only\n"
+        "      where the rule's patterns are GROUND. Lifting binds ?x to a\n"
+        "      pattern, and over a rule with variables likely(<generic>) is never\n"
+        "      asserted, so nothing fires. That is use/mention, and it is fatal:\n"
+        "      real corpora are mostly generic rules.\n"
+        "    * SUPPOSING has no such limit, because nothing is ever mentioned.\n"
+        "      Inside the frame the assumption is an ordinary fact and the\n"
+        "      ordinary rules apply by ordinary matching. No lifting rule, no\n"
+        "      reification, and the bare corpus is the whole corpus.\n"
+        "    * Containment is structural, not promised: the frame's seat is a\n"
+        "      SUCCESSOR of the caller's, so the caller's walk cannot reach it.\n"
+        "      The bare conclusion is unreadable outside, which is why the actor\n"
+        "      did not fire. A grade can never do that -- it annotates a\n"
+        "      conclusion the actor still sees and can still ignore.\n"
+        "    * Nesting needs no mechanism: likely(possible(b(x))) is two frames\n"
+        "      and a path in the forest.\n"
+        "\n"
+        "  §12 forbids this in one line -- `twenty independently uncertain facts\n"
+        "  would be a million moments if uncertainty were modelled as supposition`.\n"
+        "  That assumes a frame per SUBSET. What is measured here is a frame per\n"
+        "  DERIVATION, which is linear. The objection does not survive the\n"
+        "  distinction, and the line should go."
     )
 
     failed = [r for r in f.rows if False]

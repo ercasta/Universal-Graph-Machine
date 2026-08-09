@@ -65,6 +65,8 @@ class Machine:
         self.ANT = self.g.atom("ant")
         self.CON = self.g.atom("con")
         self.REIFIED = self.g.atom("reified")
+        self.SUPPOSING = self.g.atom("supposing")
+        self.CONCLUDED = self.g.atom("concluded")
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -107,6 +109,67 @@ class Machine:
     def reify_all(self) -> None:
         for r in self.rules.rules:
             self.reify(r)
+
+    # -- supposing --------------------------------------------------------
+
+    def suppose(self, assumption: NodeId, grade: str = "certain") -> Frame:
+        """Enter a supposition: assume `assumption` bare, and reason inside.
+
+        This is the alternative to lifting. Where a lifting rule rewrites
+        `likely(X)` into `likely(Y)` and therefore has to name the pattern of
+        every rule it crosses, supposing **unwraps** -- inside the frame the
+        assumption is an ordinary fact, and the ordinary rules apply to it by
+        ordinary matching. Nothing is mentioned, so nothing hits use/mention, and
+        rules carrying variables work unchanged.
+
+        Containment is structural rather than promised: the frame's seat is a
+        *successor* of the caller's, so the caller's walk never reaches it. What
+        was concluded under the supposition is unreadable from outside until
+        something deliberately carries a claim out.
+        """
+        licence = self.g.rel(self.SUPPOSING, assumption)
+        seat = self.chain.succeed(self.focus.seat, licence)
+        child = self.gate.frame(seat, parent=self.focus, purpose=licence)
+        self.focus = child
+        self.gate.write(child, assumption, "+", grade=grade, licence=licence, source=self.KB)
+        return child
+
+    def discharge(self, frame: Frame, wrap: NodeId, limit: int = 100) -> List[Entry]:
+        """Run to quiescence inside, then carry conclusions out **wrapped**.
+
+        Nothing leaves a frame (§13). What crosses is a claim *about* what was
+        concluded under the supposition -- `likely(q)` at the caller's seat, never
+        `q`. The caller knows it was working under a guard; the rules inside never
+        had to.
+        """
+        self.run(limit=limit)
+        inside = []
+        m: Optional[Moment] = self.focus.seat
+        while m is not None and m is not frame.seat.predecessor:
+            inside.append(m)
+            m = m.predecessor
+        assumption_licence = frame.purpose
+
+        out: List[Entry] = []
+        parent = frame.parent or frame
+        self.focus = parent
+        for moment in reversed(inside):
+            for e in moment.delta:
+                if e.licence == assumption_licence:
+                    continue  # the assumption itself is not a conclusion
+                out.append(
+                    self.gate.write(
+                        parent,
+                        self.g.rel(wrap, e.proposition),
+                        e.sign,
+                        grade=e.grade,
+                        licence=self.g.rel(self.CONCLUDED, frame.node),
+                        source=self.KB,
+                        consumed=(e,),
+                    )
+                )
+        frame.state = "discharged"
+        return out
 
     # -- the loop ---------------------------------------------------------
 

@@ -438,6 +438,55 @@ def rules_as_data() -> None:
     check("§13", "mention is a gate parameter, not a hole in the gate", ok)
 
 
+def supposing() -> None:
+    """§13's frames, used for modality: enter the guard, reason bare, wrap on
+    the way out. The alternative to a lifting rule, and it does what lifting
+    cannot -- work over rules that carry variables."""
+    from .text import load
+
+    src = chr(10).join([
+        "rule <sympt> = implies( { +reading(?p, low) },        { +symptom(?p, restricted) } )",
+        "rule <cause> = implies( { +symptom(?p, restricted) }, { +diag(?p, blocked) } )",
+        "rule <act>   = implies( { +diag(?p, blocked) },       { +action(replace, ?p) } )",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, src)
+    f = m.suppose(kb.term("reading(pump7, low)"))
+    check("§13", "supposing seats the frame in a successor", f.seat.predecessor is f.parent.seat)
+    check("§13", "and the frame is a child of the caller", f.parent is not None)
+
+    out = m.discharge(f, kb.term("likely"))
+    check("§13", "conclusions come out wrapped", len(out) == 3)
+    check(
+        "§12",
+        "supposing lifts modality over rules with VARIABLES, which lifting cannot",
+        m.holds(kb.term("likely(symptom(pump7, restricted))")) == PLUS,
+    )
+    check("§12", "across the whole chain", m.holds(kb.term("likely(action(replace, pump7))")) == PLUS)
+    check(
+        "§17",
+        "containment: nothing concluded inside is readable as current belief",
+        m.holds(kb.term("symptom(pump7, restricted)")) is None
+        and m.holds(kb.term("action(replace, pump7)")) is None,
+    )
+    check("§13", "the caller is back in its own frame", m.focus.seat is f.parent.seat)
+    check("§13", "and the frame reports how it ended", f.state == "discharged")
+
+    # Nesting needs no mechanism: it is a path in the frame forest.
+    m2 = Machine()
+    kb2 = load(m2, "rule <r1> = implies( { +a(?x) }, { +b(?x) } )")
+    outer = m2.suppose(kb2.term("seen(x)"))
+    inner = m2.suppose(kb2.term("a(x)"))
+    m2.discharge(inner, kb2.term("possible"))
+    nested = m2.discharge(outer, kb2.term("likely"))
+    check(
+        "§4",
+        "nested suppositions wrap in order -- likely(possible(b(x)))",
+        any(m2.g.show(e.proposition) == "likely(possible(b(x)))" for e in nested),
+    )
+
+
 def main() -> int:
     import sys
 
@@ -453,6 +502,7 @@ def main() -> int:
     arbitration_is_total()
     a_rule_is_a_node()
     rules_as_data()
+    supposing()
     connectives_differ()
     quiescence()
     trusting_a_channel()
