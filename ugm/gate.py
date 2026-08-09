@@ -1,0 +1,132 @@
+"""Frames and the gate (§13).
+
+A rule cannot name a locus -- it is generic, and a locus is anchored. The frame
+is what the machinery supplies one from:
+
+    seat    the moment its writes are deposited in     -- where I am standing
+    topic   the locus its writes are stamped with      -- what I am about
+
+Normally they coincide. They come apart exactly twice: reasoning about the past,
+where the topic is earlier than the seat, and reasoning under a supposition,
+where the seat is inside it.
+
+The requirement is narrower than a prohibition on rules writing:
+
+    No write bypasses the stamp.
+
+What must be impossible is an entry whose provenance is absent or false. An entry
+a rule caused to exist is not forgery -- it arrives through the gate and leaves it
+stamped with the rule that caused it, which is the ordinary record. That is what
+lets `the user says it is raining` become `it is raining` by a rule the agent can
+be asked about, rather than by a hard-wired intake nobody can argue with.
+"""
+
+from typing import List, Optional, Tuple
+
+from .chain import Chain, Entry, Moment
+from .graph import Graph, NodeId
+
+
+class Frame:
+    """A reasoning in progress, as a node -- which is R7 discharged for the
+    machinery itself. Frames form a forest, not a stack: two hypotheses under
+    comparison are siblings, both alive, neither the caller of the other. What
+    looks like a stack is the ancestor path of whichever frame is in focus.
+    """
+
+    def __init__(
+        self,
+        node: NodeId,
+        seat: Moment,
+        topic: Moment,
+        parent: Optional["Frame"] = None,
+        purpose: Optional[NodeId] = None,
+    ) -> None:
+        self.node = node
+        self.seat = seat
+        self.topic = topic
+        self.parent = parent
+        self.purpose = purpose
+        self.children: List["Frame"] = []
+        self.state: Optional[str] = None  # discharged | exhausted | abandoned
+        if parent is not None:
+            parent.children.append(self)
+
+    def ancestry(self) -> List["Frame"]:
+        """Derived, not maintained -- there is nothing to push (§4)."""
+        out, f = [], self
+        while f is not None:
+            out.append(f)
+            f = f.parent
+        return out
+
+    def __repr__(self) -> str:
+        return f"Frame(seat={self.seat}, topic={self.topic})"
+
+
+class Gate:
+    """The one place a stamp is applied.
+
+        Proposition and sign come from the rule.
+        Locus, deposit, licence and source come from the frame and the channel.
+        A rule may not name the second four.
+
+    Two properties fall out rather than being enforced. Hypothetical containment
+    is structural, because the locus was never the rule's to give. And forgery
+    stops being a category: nothing is prohibited, everything is stamped.
+    """
+
+    def __init__(self, g: Graph, chain: Chain) -> None:
+        self.g = g
+        self.chain = chain
+        self.FRAME = g.atom("frame")
+        self.PROCESS = g.atom("process")
+        self.writes = 0
+
+    def frame(
+        self,
+        seat: Moment,
+        topic: Optional[Moment] = None,
+        parent: Optional[Frame] = None,
+        purpose: Optional[NodeId] = None,
+    ) -> Frame:
+        """A frame is `frame(seat, topic)` -- two ordered members, structurally
+        identical to a span. The engine learns no new relation name from it; what
+        it needs is one register, which is the machine's `focus`."""
+        topic = seat if topic is None else topic
+        if not seat.at_or_after(topic):
+            # A seat that is not at or after its topic is as meaningless as an
+            # inverted span, so the check belongs here, where the mistake is
+            # still attributable.
+            raise ValueError(f"frame seat {seat} precedes its topic {topic}")
+        node = self.g.rel(self.FRAME, seat.node, topic.node)
+        return Frame(node, seat, topic, parent, purpose)
+
+    def write(
+        self,
+        frame: Frame,
+        proposition: NodeId,
+        sign: str,
+        grade: str = "certain",
+        licence: Optional[NodeId] = None,
+        source: Optional[NodeId] = None,
+        consumed: Tuple[Entry, ...] = (),
+        locus: Optional[Moment] = None,
+    ) -> Entry:
+        """Mint one entry. `locus` is the consequent's bound locus when it has
+        one (§8); otherwise the frame's topic supplies it."""
+        if self.g.has_var(proposition):
+            raise ValueError(
+                f"cannot deposit a generic proposition: {self.g.show(proposition)}"
+            )
+        self.writes += 1
+        return self.chain.deposit(
+            seat=frame.seat,
+            locus=frame.topic if locus is None else locus,
+            proposition=proposition,
+            sign=sign,
+            grade=grade,
+            licence=licence,
+            source=source,
+            consumed=tuple(e.node for e in consumed),
+        )

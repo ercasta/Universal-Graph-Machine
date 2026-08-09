@@ -200,16 +200,25 @@ the chain answers.** Reading is a walk, not a lookup. This is the single most co
 the design, and it is accepted deliberately: it is what makes supposition free, history immutable, and
 every claim dated.
 
-Because an entry has both a locus and a deposit moment, the walk uses **two indices, and they do
-different jobs**:
+Because an entry has both a locus and a deposit moment, the walk is ordered by **two keys, in this
+order**:
 
-> **Locus filters. Chain position orders.**
+> **Latest locus, then latest deposit.**
 
-To ask *does `on(a, b)` hold at `M7`, as far as I now know?*, walk back from where you are standing,
-keep the entries whose locus is `M7`, and take the one deposited latest. To ask *what did I think at
-`M7`?*, walk back from `M7` instead. Both questions are answerable, they are different questions, and
-in the common case — an entry deposited at its own locus — they coincide, which is why the
-distinction can be missed.
+An entry is a candidate if its locus is at or before the moment asked about — that is inheritance, and
+it is why the locus cannot simply be matched for equality: `on(a, b)` asserted at `M3` is what makes it
+hold at `M7`, where no entry mentions it at all. Among the candidates, the **latest locus** wins,
+because the most recent claim about the world is the one that governs. Only when two claims share a
+locus does the **latest deposit** decide, and that is exactly the revision case.
+
+Both keys are needed, and neither alone will do. Locus alone cannot tell a revision from the claim it
+revises. Deposit alone would let a newly formed belief about an early moment overrule a long-standing
+one about a later moment — the agent would forget that the world had moved on.
+
+To ask *what do I now think about `M7`?*, walk back from where you are standing. To ask *what did I
+think at `M7`?*, walk back from `M7` instead: the entries deposited later are simply not on that walk.
+In the common case — an entry deposited at its own locus — the two questions coincide, which is why
+the distinction can be missed.
 
 This is what makes the two temporal readings of §12 available without a second mechanism, and it is
 what settles the collision §5 would otherwise leave open when two entries share a locus.
@@ -318,10 +327,14 @@ engine must know what `entry` means; it cannot be ordinary vocabulary. This is o
 relations the engine dispatches on, and that set should be declared in one place rather than
 accumulating.
 
-*Deposited latest*, not *nearest along the walk* — §4's two indices. Two entries may share a locus,
-and when they do the later deposit is the agent's current view; the earlier one is what it used to
-think, still readable and still true of when it was thought. Resolving by proximity instead would make
-the answer depend on where the reader happened to start.
+Two entries may share a locus, and when they do the later deposit is the agent's current view; the
+earlier one is what it used to think, still readable and still true of when it was thought. But the
+deposit is the **second** key, not the first — §4 states the order, and getting it the other way round
+loses the world's own changes to the agent's most recent opinion.
+
+Propositions have one identity however often they are built; **entries do not**. An entry is an act of
+claiming, so two claims about the same proposition at the same locus are two nodes — otherwise
+`mistaken(<e>)` would land on both the mistake and its correction.
 
 **Contradiction is permitted and undetected.** Two entries in one locus with opposite signs is a
 shape the substrate allows. This is correct: consistency is a **question you ask**, not an invariant
