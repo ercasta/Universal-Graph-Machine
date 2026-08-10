@@ -183,9 +183,38 @@ on(a, b)        a node whose members are, in order, a and b
 This is why the rest of the design can attach facts to anything: rules, claims, moments and time
 spans are all nodes, so all of them can be spoken about without introducing a new kind of thing.
 
-**Ordering is the one thing that is not itself structure.** *The second member* is not a relation
-between two things in the world; it is a fact about how a node is built. That is why the substrate
-provides ordered targets natively, and why it is the only such provision.
+### Ordering is reducible, and provided anyway
+
+Earlier drafts claimed *ordering is the one thing that is not itself structure*. That is too strong,
+and correcting it matters because it is the claim that made the floor look inevitable rather than
+chosen.
+
+Ordered members can be encoded with unordered edges alone, using the same V-shape the rest of the
+design uses to keep a path from being followed without a rule:
+
+```
+n  → s1, s2, r          the relation instance
+s1 → pos_1, a           a slot: which position, and what sits in it
+s2 → pos_2, b
+r  → rel_marker, on
+```
+
+*Member at position 1 of `n`* becomes: find `x` with `n → x` and `x → pos_1`, and take `x`'s other
+target. One node and three edges become three nodes and seven, and the reader must know `pos_1` is a
+position marker — so the closed class does not disappear, it relocates.
+
+This works. It is what RDF does. What it costs falls on the one thing that genuinely cannot be
+replaced:
+
+> **With ordered members, matching a pattern is linear in the pattern. With unordered edges, matching
+> is subgraph isomorphism.**
+
+Ordering *fixes the correspondence* between the parts of a pattern and the parts of a target. Remove
+it and unification must search over which edge answers to which — the same problem, and NP-complete in
+general. So the substrate provides ordering not because it could not be otherwise, but because its
+absence makes §4's irreducible primitive combinatorially harder on every match, forever.
+
+§4 states the three different grounds on which something reaches the floor, of which this is one.
 
 ---
 
@@ -235,6 +264,21 @@ The register is floor. **That it points at a moment is convention.** Nothing in 
 kind of node it holds; §17 is what decides to put a frame there, and §7 is what decides that a frame's
 seat is a moment.
 
+**One register, many suspended positions.** A process that is not running still has a place it was
+standing, and resuming it restores that place. Those saved positions are *not* registers — they are
+ordinary members of ordinary frame nodes (§17), readable, writable and attributable like anything
+else. Resuming is a write to the register, sourced from a frame; suspending is the same write in the
+other direction, and both leave a trail.
+
+The distinction is exactly §17's *entering is writing*. If saved positions were registers, the design
+would have an unbounded set of privileged slots and R7 would fail for the machinery's own control
+state — the agent could not be asked where a suspended process was standing, or move it. What must be
+privileged is only **which one is current**, because that is the question no read can answer: finding
+the answer in the graph would require a read, and a read needs somewhere to stand.
+
+That circularity is not incidental. It is the same one §6 addresses for the read itself, and it is why
+the register is floor by irreducibility rather than by economy.
+
 ### 4. A stamp on every mint
 
 Every node the engine creates records what produced it: which rule, under which substitution, with the
@@ -257,14 +301,64 @@ Totality is floor. **The table it consults is convention** — an authored prece
 rules, which §18 and §19 depend on being ordinary data. The floor requires only that a bottom-most
 selector exists, is a lookup rather than a search, and always returns.
 
+### Three grounds, not one
+
+The five items do not reach the floor for the same reason, and flattening them into one list flatters
+the floor by making all of it look inevitable. Only two are irreducible in the strong sense.
+
+| item | ground | the argument |
+|---|---|---|
+| **variables + substitution** | **irreducible** | defining matching requires matching |
+| **one total step** | **irreducible** | selecting the selector requires selection |
+| **the register** | **irreducible** | finding where to write requires a read, and a read requires somewhere to stand |
+| **the stamp** | **by guarantee** | fully reducible — a rule could write its own provenance. But reducible provenance is forgeable provenance, and §16's soundness argument dies. |
+| **ordering** | **by economy** | fully reducible (§3), and its reduction turns linear matching into subgraph isomorphism |
+
+The three irreducible items share a shape: each is the thing that would be needed *in order to do the
+thing itself*. That is worth naming, because it is also the shape of §6's bootstrap and of §18's
+arbitration regress, and all of them take the same escape — **a function, not a search.**
+
+The two others are choices, and should be defended as choices. The stamp could be given up, at the
+price of soundness. Ordering could be given up, at the price of complexity. Nothing else on this list
+could be given up at any price.
+
+### Descent is grammaticalization, and should be measured
+
+Ordering reaching the floor by economy is the linguistic process exactly: an open-class item, used
+constantly, bleached of content, becomes closed-class structure. Ordering has every diagnostic —
+**semantic bleaching** (*the second member* means nothing in particular), **frequency** (every relation
+instance), **obligatoriness** (you cannot write `on(a, b)` without committing to which is which),
+**reduction** (seven nodes to one index), and a **closed paradigm** (positions are not freely coinable).
+
+The framing is not decorative. Closed-class elements *structure* the content that open-class elements
+*provide*, and that is Part I against Parts II–III, restated in someone else's vocabulary.
+
+Where the analogy bites is the disanalogy. In language, grammaticalization is **diachronic** — it
+happens through use and nobody decides it. In earlier drafts of this document it happened in one
+sitting, which is how moments, entries, signs, connectives and goals all ended up on the floor with no
+evidence behind them. So:
+
+> **A convention descends to the floor only by measured use: high frequency, on the path of an
+> irreducible primitive, and bleached of domain content.**
+
+All three are checkable. Frequency is countable, and this design has counted before — a census of
+what the corpus actually writes has previously overturned the expectation it was run to confirm. The
+prediction here is that **none** of Appendix C's nineteen conventions qualifies, because none of them
+sits on the matching path the way ordering does.
+
+The reason for the bar being high is that grammaticalization is **irreversible in practice**. Once
+something is closed class it is no longer freely coinable, and every use of it must route through
+machinery that knows its name — which is the island of §2, arrived at by drift rather than by
+decision.
+
 ### That is the whole floor
 
 ```
-structure + ordering        §3
-variables + substitution    the only item that is provably irreducible
-a register                  where writes land
-a stamp on every mint       provenance is not optional
-one total step              selection terminates
+structure + ordering        §3 — by economy
+variables + substitution    irreducible
+a register                  irreducible
+a stamp on every mint       by guarantee
+one total step              irreducible
 ```
 
 Earlier drafts named **four primitives** — recall, match, write, arbitrate. Against this list they
@@ -287,13 +381,86 @@ The reason moments, entries and signs feel like floor is that they sit on the ho
 so an implementation puts them in native code. That is an optimisation and not a status, and the
 difference is checkable rather than rhetorical:
 
-> **For every bundled convention, the rule-level definition must exist and must agree with the native
-> one.** Delete the native path and the answers are identical, only slower.
+> **For every bundled convention, the rule-level definition must exist, and the compiled path must
+> agree with it on answers *and on behaviour*.**
 
-This is §20's strongest gate. It converts *is this floor?* from an argument into a test, and it gives
-the conventions their proper home: a bundled knowledge base that ships with the engine, is inspectable
-by ordinary queries, and can be replaced. An agent with a better internal representation of reality is
-only possible if the representation is something you can hand it.
+The second clause is not decoration, and an earlier wording that said *identical answers, only
+slower* was wrong in a way this design cannot afford. **A convention compiled into the host language
+is not interruptible.** §18 spends its length arguing that a procedure written as control flow owns
+the agent until it returns, and that this — not speed — is the reason procedures must be data. The
+same argument applies one level down, to the bundle, and earlier drafts did not apply it there.
+
+An automatic thought is fast, unexamined, and effective right up to the point where it is wrong; what
+makes it changeable is being able to slow it down and look at it. That is the property being
+protected, and it names three states rather than two:
+
+| | fast | inspectable | interruptible |
+|---|---|---|---|
+| **floor** | — | n/a | n/a |
+| **convention, interpreted** | no | yes | yes |
+| **convention, compiled** | yes | no | **only at rule boundaries** |
+
+> **Nothing may exist only in the third state.**
+
+### Compile rules, not control flow
+
+The third column is what decides how compilation may be done. Compile a whole chain walk into one
+host-language function and preemption is gone — nothing can surprise the agent mid-read. Compile each
+**rule's matching** into a fast closure and leave the selection loop interpreted, and every preemption
+point survives while nearly all the speed is captured, because the cost is in matching and not in the
+loop.
+
+> **Compile rules, not control flow.**
+
+This is §18's *procedures are data that bias selection, never control flow that owns the loop*, one
+level down. It also convicts the current implementation from a second direction: Appendix C's five
+interpreter phases **are** compiled control flow. The phases are the uninterruptible part; native
+matching would have been fine. Nineteen conventions with engine branches, and a bundle that cannot be
+interrupted, are one defect seen from two sides.
+
+§21 sketches the further step this suggests — deriving the compiled path from the rules rather than
+writing it by hand, and letting frequency and surprise decide what is compiled — and marks it as
+unbuilt.
+
+### Two optimisations, and the second is the larger one
+
+Compilation is not the only way a chain of reasoning becomes fast, and it is not the more powerful
+way. The other is **composition**: collapsing a derivation into a single rule. Having derived `e` from
+`a` by way of `b`, `c` and `d`, mint the rule `a → e` and use it directly next time.
+
+The two are easily conflated and behave oppositely:
+
+| | **compilation** | **composition** |
+|---|---|---|
+| what it produces | a host-language artifact | **a rule — an ordinary node** |
+| what it reduces | the cost of one step | **the number of steps** |
+| the gain | a constant factor | algorithmic; a search that was exponential in depth can become a lookup |
+| inspectable | no | yes |
+| interruptible | at rule boundaries | it *is* a rule boundary |
+| defeasible | no | yes — `overrides` and `unless` apply |
+| where it lives | outside the graph | in the graph |
+
+> **Compilation makes a step cheaper. Composition makes the step unnecessary.**
+
+The decisive difference is the second row from the bottom. **A composed rule violates nothing in Part
+I**: it is data, askable under R4 (*rules are askable*), attributable under R3 (*rules are subjects*),
+defeasible like any other rule, and it carries a licence naming the rules it collapses — so R5's trail
+is recoverable one hop deeper rather than lost. Compilation needs the three-states rule above to keep
+it honest. Composition needs no such protection, because the artifact never leaves the language.
+
+This is Soar's chunking and explanation-based learning; what this design adds is that the chunk is a
+first-class node, so everything already true of rules is true of it.
+
+What composition costs is not structural but epistemic, and §21 states it: intermediate conclusions
+stop being deposited, so nothing can be surprised inside a shortcut; guard conditions must be
+inherited or the shortcut fires where the reasoning would not; and the composed grade is a cache of a
+derived value, which is §16's own objection arriving one level up.
+
+### Why the bundle ships at all
+
+This gives the conventions their proper home: a bundled knowledge base that ships with the engine, is
+inspectable by ordinary queries, and can be replaced. An agent with a better internal representation
+of reality is only possible if the representation is something you can hand it.
 
 The bundle is not optional in practice. An engine that shipped with the floor alone would be correct
 and useless — every corpus would have to re-derive belief, time and evidence, and no two would agree.
@@ -347,10 +514,16 @@ A rule that tried to relate these needs one variable to be both the generic patt
 goal. Deciding that the two *correspond* is exactly match — and match is floor, so no rule can call
 it.
 
-Three separate ambitions hit this same wall: lifting a modality across a rule (§16), reading a rule
-backwards (§12), and asking whether a generic subgoal is already satisfied (§18). Whether the repair
-is a sixth floor item or **match reified**, so that a rule can request it and the machinery answers,
-is open (§21). The second keeps the floor at five and matches how §18's requests already work.
+**Four** separate ambitions hit this same wall: lifting a modality across a rule (§16), reading a rule
+backwards (§12), asking whether a generic subgoal is already satisfied (§18), and **composing two
+rules** (§19) — which needs one rule's consequent unified against another's antecedent, both of them
+stored patterns.
+
+Four independent capabilities blocked by one missing operation is the strongest argument in this
+document for resolving it. Whether the repair is a sixth floor item or **match reified**, so that a
+rule can request it and the machinery answers, is open (§21) — though composition tilts the answer,
+since composing is plainly something the agent should do deliberately, on demand and under a budget,
+which is what a request is and what a primitive is not.
 
 ### Adding a connective adds rows, not branches
 
@@ -373,36 +546,129 @@ it is built correctly.
 
 ## 6. The bootstrap
 
-This is the one genuinely unsolved problem in Part I, and it was hidden by drawing the floor in the
-wrong place. Naming it is progress; solving it is not attempted here.
+If rules are facts, and facts are entries read by walking a chain, and the walk is made of rules, then
+reading a rule requires applying rules and nothing ever starts. This section states the circle
+precisely — it is narrower than it first appears — and closes it.
 
-The circularity:
+### Only one of four steps is circular
 
-* Rules are facts (R3 — rules are subjects).
-* Facts are entries in moments (§8) — a convention.
-* Reading an entry means walking a chain (§10) — a program made of rules.
-* So reading a rule requires applying rules.
+Applying a rule takes four steps, and the temptation is to say that all of them need a read:
 
-Something must break it. Two candidate shapes, neither adopted:
-
-| | **a distinguished region** | **stratification** |
+| step | what it needs | circular? |
 |---|---|---|
-| how | rules live somewhere the engine reads *structurally*, without the chain | a bottom layer is read directly; each layer above is read by the one below |
-| cost | a second way of storing facts, which is one fact in two shapes — the objection §17 raises against augmentation | the layer boundary is a design-time decision, and R7 wants it to be data |
-| what it preserves | reads stay uniform above the region | everything is a fact, all the way down |
+| 1. propose candidate rules | **recall** — a function from situation to node ids | no |
+| 2. read the rule's structure | §4 item 1: members and positions | no |
+| 3. check that its antecedent's entries hold | **the chain walk** | **yes** |
+| 4. commit | §4 items 3, 4, 5 | no |
 
-The distinguished region is what implementations do by accident when the chain walk is native: the
-rule set is held in a Python structure and read without the convention. That works, and it silently
-violates §4's agreement gate unless the rule-level definition is also available and checked.
+Step 2 is where earlier drafts went wrong. Reading a rule's *structure* is not reading the chain: an
+antecedent is a node with members, and getting at them needs ordering and nothing else. What needs the
+walk is deciding whether the antecedent's entries *hold*, which is step 3 alone.
 
-A third possibility is that the bootstrap is a **fixed point** rather than a layer — the chain-reading
-rules are the ones the engine can apply without reading a chain, because their antecedents mention
-only structure. Whether that set is expressible is not known here.
+### Stratum 0: antecedents that mention only structure
 
-What can be said now: **the bootstrap problem is not moment, entry or sign.** Those are conventions,
-and the circularity would exist for any convention rich enough to describe belief. Locating the
-problem correctly is what stops the next draft from re-promoting the representation of reality to the
-floor in order to escape it.
+Look at what a chain-walking rule actually asks for:
+
+```
+given  ?m' = predecessor(?m)
+       ?e ∈ delta(?m)
+       ?e = entry(?l, ?p, ?s)
+then   candidate(?e, ?p)
+```
+
+Every member is **structural** — membership, position, node identity, predecessor. Not one of them is
+*does X hold at Y*. So step 3 for these rules is answered by §4's item 2 by itself, and they bottom
+out. That is the fixed point, and it gives a criterion that is decided by inspecting an antecedent
+rather than by a designer assigning layers:
+
+> **Stratum 0 — every antecedent member is structural. Applied without a read.**
+> **Stratum 1 and above — some antecedent member is an entry. Applied by the read stratum 0
+> implements.**
+
+The check is a scan. An implementation can run it over its own bundle and report which rules claim
+stratum 0 and are not entitled to it.
+
+### Two stratifications, and only one of them boots
+
+There is a second, obvious way to stratify: **metarules about how to think, independent of the
+business domain.** That cut is real and useful — it is what makes the bundle *shippable*, since one
+knowledge base of thinking-rules can serve every corpus.
+
+It is not the cut that breaks the circle. Trust rules, surprise rules and goal expansion are all
+domain-independent thinking-rules, and every one of them talks about entries and beliefs, so all of
+them are stratum 1 or above. Domain-independence makes the bundle shippable; structural antecedents
+make it **bootable**. Keeping the two apart matters, because the first is much easier to satisfy and
+looks like it should be enough.
+
+### Three regresses, one escape
+
+The bootstrap is not a special problem. It is the third instance of a shape the design already meets
+twice:
+
+| regress | escape | what the escape is |
+|---|---|---|
+| reading needs reading | stratum 0 | a set of rules that need no read |
+| selecting needs selecting | the total precedence lookup (§18) | a table |
+| proposing needs proposing | **recall** (§19) | a function |
+
+All three bottom out in **a function, not a search**, which is also the shape of §4's three
+irreducible items. That recurrence is the strongest evidence available that the floor is drawn in the
+right place.
+
+Recall is the one worth dwelling on, because it is the only component that can be consulted **before
+any rule has been applied at all**. A function has no antecedent to read. Whether it is an index, a
+table with defaults, or a trained network is an implementation choice among function approximators —
+§19 already specifies it as incomplete by design, learned from outcomes, and recoverable when wrong,
+which is the specification of an approximator written before anyone said the word.
+
+### Stratum 0 runs under the same interpreter
+
+The rules of stratum 0 must themselves be selected and applied, and it would defeat the purpose if
+that took a second interpreter. It does not:
+
+* **recall** for stratum 0 is *all of them, every time* — the set is small and fixed, so the policy is
+  a different table, not a different mechanism;
+* **match** is floor;
+* **arbitrate** is the same total lookup, over a precedence relation that happens to be authored once.
+
+That is one more row, not one more branch, which is §5's own test applied to the escape rather than to
+the conventions.
+
+**Termination** is a proof obligation rather than a difficulty: the walk is transitive closure over
+the predecessor relation, which is finite and acyclic, and forking preserves both.
+
+### The price, stated
+
+**Stratum 0 must produce structure, not entries.** If the walk deposited its intermediate results as
+claims, it would be reading entries and the circle would return. So the read's own working state is
+undated, unattributed and unexplained.
+
+The consequence is worth writing down rather than discovering:
+
+> **You cannot ask *why did you read it that way* through the same mechanism you ask *why do you
+> believe that*.**
+
+R5 (*every conclusion carries its support*) covers conclusions, not the resolution that fed them.
+Promoting the read into stratum 1 to fix this reinstates the circle, so the gap is structural rather
+than an oversight.
+
+A second price, from the other escape: **recall is opaque, and must remain the only opaque thing.**
+*Why did you consider that rule?* has no answer, so R5 in practice reads *every conclusion carries its
+support, among what surfaced*. §19's carve-out — prohibitions come off the recall path entirely and
+are checked at the write — now reads as the general principle rather than a special case: **the opaque
+component may not be load-bearing for safety.**
+
+### What this buys
+
+Stratum 0 rules are ordinary data. Creating one is a write, and a write needs only the register and
+the stamp, both floor. Therefore:
+
+> **The read is replaceable at run time.**
+
+That is the whole claim of this document's preamble — that an agent with a better internal
+representation of reality reasons better, and that the representation is something you can hand it —
+turned from an aspiration into a mechanism. The bundle is not merely shipped rather than compiled in;
+it is editable by the agent that runs it.
 
 ---
 
@@ -1973,8 +2239,8 @@ itself be selected, and that regress happens *at run time*, not at design time. 
 > never searches.**
 
 Reflection may be arbitrarily deep; the final tiebreak may not be reflective. That is the
-stratification condition for *selection*, and it is worth noting that it is the same shape as §6's
-unsolved bootstrap for *reading* — the one has an answer and the other does not.
+stratification condition for *selection*, and it is the same shape as §6's stratum 0 for *reading* and
+§19's recall for *proposing*: each regress ends in a function rather than a search.
 
 ### Scoring, and the price
 
@@ -2083,6 +2349,34 @@ recall would never have produced, so it must fire on novelty or on a schedule �
 Otherwise the agent calcifies precisely in the domains where it is performing well, and nothing
 reports it.
 
+### Experience has a second home: composition
+
+Recall is where experience lives, and it is not the only place. **Composition** — collapsing a
+derivation into a single rule (§4) — is learned from the same signal, deposited by the same
+machinery, and attacks the same cost from the other side:
+
+| | **recall** | **composition** |
+|---|---|---|
+| what it learns | which rules come to mind | **which rules exist** |
+| what it changes | the search, over a fixed rule set | the rule set, so less search is needed |
+| the gain | fewer candidates per step | fewer steps |
+| its output is | a ranked set, opaque | **a node**, inspectable and defeasible |
+| trained by | which rules were applied and survived | the trail itself — a successful derivation *is* a candidate composition |
+
+The last row is the reason they belong in one section. §17 already requires every entry to name the
+rule and the entries that produced it, because R5 demands it for explanation. That trail is exactly
+the training data for both: recall reads it for *which rules mattered*, composition reads it for
+*which sequences recurred*. Neither needs an instrument the design does not already run for other
+reasons — which is the same observation §13 makes about counting.
+
+They are complementary rather than alternatives, and composition is the larger lever, because a
+constant-factor improvement in proposal cannot match removing steps from a search that is exponential
+in its depth.
+
+**Composition is not recall**, and fusing them would repeat the mistake §19 exists to avoid. Recall
+may be wrong at no cost beyond a worse plan; a composed rule is a *claim*, it can be wrong the way any
+rule can be wrong, and §21 lists the three ways it silently is.
+
 ### The carve-out
 
 > **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**
@@ -2118,17 +2412,24 @@ summarise, and nothing detects it.
 
 ### The floor gate
 
-New in this draft, and the one that keeps Part I honest:
+New in this draft, and the one that keeps Part I honest. It has two clauses and the second is the one
+that will be forgotten:
 
-> **For every bundled convention, the rule-level definition exists, and the answers it produces are
-> identical to the native path's.**
+> **For every bundled convention, the rule-level definition exists; the compiled path produces
+> identical answers; and the compiled path is interruptible at the same points.**
 
 Run it first on §10's read, since that is the convention an implementation is most certain to have
 compiled into itself. A convention with no rule-level definition is a convention that has escaped onto
-the floor, whatever the document says.
+the floor, whatever the document says — and one that cannot be stopped mid-way has escaped even if its
+answers agree.
 
-A companion counter, cheap and blunt: **the number of phases in the interpreter's step**. Every phase
-is a convention the engine knows about by name. The target is zero.
+Two companion counters, cheap and blunt:
+
+* **the number of phases in the interpreter's step.** Every phase is a convention the engine knows by
+  name, and — per §4 — every phase is compiled control flow. Target: zero.
+* **the stratum-0 scan.** Every rule the implementation applies without a read must have an antecedent
+  whose members are all structural (§6). Any that does not is a circularity waiting to be discovered
+  by a corpus rather than by a check.
 
 ### The commutation gate
 
@@ -2177,9 +2478,58 @@ The three a first implementation is most likely to get wrong:
 
 ### On the floor and the bundle
 
-* **The bootstrap** (§6). Reading a rule requires applying rules. Whether the break is a distinguished
-  region, a stratification, or a fixed point of chain-reading rules whose antecedents mention only
-  structure, is unknown. This is the largest open problem in the document.
+* **Deriving the compiled path** (§4). *Compile rules, not control flow* says how compilation must be
+  shaped; it does not say who does it. Today an implementation hand-writes the fast path beside a
+  rule-level definition that may not exist, so the two can silently disagree and the agreement gate is
+  a test rather than a guarantee. A **transpiler from rules to the host language** would make the fast
+  path an artifact derived from the source, at which point agreement holds by construction and
+  *slowing down* means running the source instead of the artifact — no decompilation required.
+
+  Two constraints on such a thing, both following from §4 rather than from taste. The target language
+  must not be named in the design: what ships is the **compilation contract** — derived from rules,
+  rule boundaries preserved as yield points, artifact discardable — and a transpiler is one
+  implementation of it. And the unit stays the rule, because the unit of compilation is the unit of
+  preemption.
+
+  What is genuinely open is the **trigger**. The natural answer is the one §4's grammaticalization
+  argument already gives and §18 already implements: *compile what has run often and never surprised;
+  decompile what surprises.* Frequency is countable and surprise is an existing mechanism, so neither
+  half needs new machinery. What that would buy is a bundle whose fast paths are a record of the
+  agent's own history rather than of the author's guesses — and *why is this one fast?* becomes
+  answerable. It is unbuilt, and it is a larger commitment than it looks.
+* **Composition** (§4, §19). Collapsing a derivation into one rule is the design's largest available
+  speedup — algorithmic rather than a constant factor — and the artifact is an ordinary node, so
+  nothing in Part I resists it. What is unsettled is the three ways it goes wrong silently:
+
+  **Guard inheritance.** A composed rule must carry the union of its constituents' `unless`
+  conditions, or it fires where the reasoning it replaces would have been blocked. This is checkable
+  at composition time and is not specified. It is also the failure the analogy predicts: the
+  pathological shortcut is not the fast one, it is **the one that has outlived its guard conditions**
+  — the context changed and nothing re-derived it.
+
+  **The composed grade is a cache.** §16 computes an entry's grade as the minimum over the support
+  match consumed. Compose the chain and that minimum is computed once, from constituent grades that
+  are themselves defeasible — learn that a sensor is unreliable and every composed rule that crossed
+  it is stale, with nothing to invalidate it. This is §16's own objection to grades on proposition
+  nodes, one level up. The proposed repair is the design's standing answer: **a composed rule is
+  dated and superseded, not corrected** — it stays true of the support it was composed from, and a
+  later composition supersedes it. Unverified.
+
+  **Nothing can be surprised inside a shortcut.** The intermediate conclusions are never deposited, so
+  §18's mechanism is blind to them by construction. This is the cost that makes decomposition
+  necessary rather than optional, and it is what makes the trigger tractable: *compose what has run
+  often and never surprised; on surprise, re-derive through the constituents.* The licence names them,
+  so the agent knows exactly which sub-steps to re-run and the suppressed intermediates become visible
+  again — which is more than the compilation loop can offer, since that can only say *run the slow
+  path* and not *look here*.
+
+  Two further constraints. Composing a recursive shape (§13) is unrolling, and unrolling is unbounded,
+  so composition takes the same budget-and-state discipline as expansion. And composition needs a rule
+  to unify one rule's consequent against another's antecedent, which is §5's wall — it is blocked until
+  that is resolved.
+* **Explaining a read** (§6). Stratum 0 produces structure rather than entries, so the resolution that
+  fed a conclusion is undated and unattributed. R5 covers the conclusion and not the read. Whether
+  anything cheap recovers this without reinstating the circle is unknown.
 * **Match, callable from a rule** (§5). Lifting a modality, reading a rule backwards and testing a
   generic subgoal all need a rule to ask *does this pattern match that instance*, and none can. Open:
   whether this is a sixth floor item, or `match` reified so a rule requests it and the machinery
@@ -2287,7 +2637,9 @@ conventional representation of reality that ships with the engine and can be rep
 | **moment** | bundle | a signed delta, a predecessor and a licence. The bundle's only state construct. |
 | **proposition** | bundle | a relation instance. Claims nothing until an entry places it. |
 | **recall** | bundle | propose which rules come to mind. Learned; never complete. A policy, not a primitive. |
-| **register** | floor | the one pointer: which node writes land in. That it holds a frame is convention. |
+| **register** | floor | the one pointer: which node writes land in. That it holds a frame is convention; suspended positions are ordinary members of frame nodes, not further registers. |
+| **composition** | bundle | collapsing a derivation into one rule. Learned, like recall; unlike recall, its output is a node and can be wrong. |
+| **stratum 0** | bundle | the rules whose antecedent members are all structural, so they are applied without a read. What breaks §6's bootstrap. |
 | **rule** | bundle | a fact whose two members are generic, related by a connective. |
 | **seat** | bundle | a frame's first part: the moment its writes are deposited in. Where the reasoning is standing. |
 | **shape** | bundle | a pattern of indefinite extent, defined by recursive rules over spans. A node, so bounds and provenance attach to it. |
@@ -2306,6 +2658,11 @@ Each was scored in the section named; this table is the index.
 |---|---|---|
 | the floor (§4) | moment, entry and sign as engine-level | they are a *representation of reality* — teachable, replaceable, and the thing an agent reasons better by having. The read that uses them is a program, not a primitive. |
 | the floor (§4) | four primitives, recall among them | recall is a learned proposer, which is the opposite of a primitive; and *arbitrate* splits into floor totality plus an authored table |
+| the substrate (§3) | ordering as irreducible | it is encodable with unordered edges and slot nodes. It is on the floor **by economy** — its absence turns linear matching into subgraph isomorphism |
+| the floor (§4) | suspended positions as further registers | an unbounded set of privileged slots, and R7 fails for the machinery's own control state; saved positions are ordinary members of frame nodes |
+| the agreement gate (§4) | *identical answers, only slower* | a compiled convention is also uninterruptible, which is precisely §18's objection to control flow, one level down |
+| the bootstrap (§6) | a distinguished region the engine reads without the convention | one fact in two shapes — §17's objection to augmentation; and it violates the agreement gate silently |
+| the bootstrap (§6) | stratifying by *how to think* versus *the business domain* | a real and useful cut, but trust, surprise and goal expansion are all domain-independent **and** talk about entries, so it does not bottom out |
 | state (§7) | a mutable world state | overwriting makes *it changed* and *I was wrong* one operation |
 | belief (§7) | a belief-set node beside the moment chain | a moment already is one; a second membership structure for beliefs is a second ordering beside succession |
 | assertion (§8) | truth as a value on the proposition node | minting a node in order to deny it asserts it; correction overwrites the record it corrects |
