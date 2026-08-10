@@ -572,12 +572,14 @@ def supposing() -> None:
     ])
     m = Machine()
     kb = load(m, src)
-    f = m.suppose(kb.term("reading(pump7, low)"))
+    f = m.suppose(kb.term("reading(pump7, low)"), wrap=kb.term("likely"))
     check("§13", "supposing seats the frame in a successor", f.seat.predecessor is f.parent.seat)
     check("§13", "and the frame is a child of the caller", f.parent is not None)
 
-    out = m.discharge(f, kb.term("likely"))
-    check("§13", "conclusions come out wrapped", len(out) == 3)
+    # No nested run: reasoning inside a supposition is ordinary ticks of the
+    # ordinary loop, and the frame is left when the loop runs out of work there.
+    m.run(limit=30)
+    check("§13", "conclusions come out wrapped", len(f.carried) == 3)
     check(
         "§12",
         "supposing lifts modality over rules with VARIABLES, which lifting cannot",
@@ -596,14 +598,40 @@ def supposing() -> None:
     # Nesting needs no mechanism: it is a path in the frame forest.
     m2 = Machine()
     kb2 = load(m2, "rule <r1> = implies( { +a(?x) }, { +b(?x) } )")
-    outer = m2.suppose(kb2.term("seen(x)"))
-    inner = m2.suppose(kb2.term("a(x)"))
-    m2.discharge(inner, kb2.term("possible"))
-    nested = m2.discharge(outer, kb2.term("likely"))
+    outer = m2.suppose(kb2.term("seen(x)"), wrap=kb2.term("likely"))
+    inner = m2.suppose(kb2.term("a(x)"), wrap=kb2.term("possible"))
+    m2.run(limit=30)
     check(
         "§4",
         "nested suppositions wrap in order -- likely(possible(b(x)))",
-        any(m2.g.show(e.proposition) == "likely(possible(b(x)))" for e in nested),
+        any(m2.g.show(e.proposition) == "likely(possible(b(x)))" for e in outer.carried),
+    )
+    check(
+        "§18",
+        "each frame was left because the loop ran out of work there, not by a return",
+        inner.state == "discharged" and outer.state == "discharged",
+    )
+
+    # Nothing owns the loop (§18). Supposing used to call `run()` inside itself,
+    # so the caller regained control only once the whole hypothesis was
+    # exhausted. Now every step inside a supposition is an ordinary top-level
+    # tick: the caller can stop between any two of them, and the reasoning done
+    # under the hypothesis appears in the caller's own trace.
+    m3 = Machine()
+    kb3 = load(m3, chr(10).join([
+        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "",
+    ]))
+    f3 = m3.suppose(kb3.term("p(x)"), wrap=kb3.term("likely"))
+    one = m3.tick()
+    check("§18", "one tick inside a supposition applies exactly one rule", one.state == "applied")
+    check("§18", "and the caller has control back between ticks", m3.focus is f3)
+    rest = m3.run(limit=20)
+    check(
+        "R7",
+        "the reasoning done under a hypothesis is in the caller's own trace",
+        sum(1 for s in rest if s.state == "applied") >= 1,
     )
 
 

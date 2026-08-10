@@ -41,14 +41,21 @@ class Frame:
         topic: Moment,
         parent: Optional["Frame"] = None,
         purpose: Optional[NodeId] = None,
+        wrap: Optional[NodeId] = None,
     ) -> None:
         self.node = node
         self.seat = seat
         self.topic = topic
         self.parent = parent
         self.purpose = purpose
+        # What a conclusion is re-wrapped in on the way out (§16). Held on the
+        # frame rather than in a call stack, because there is no call: reasoning
+        # inside a supposition is ordinary ticks of the ordinary loop, and the
+        # frame has to survive between them.
+        self.wrap = wrap
         self.children: List["Frame"] = []
         self.state: Optional[str] = None  # discharged | exhausted | abandoned
+        self.carried: List["Entry"] = []  # what crossed out, wrapped (§17)
         if parent is not None:
             parent.children.append(self)
 
@@ -99,6 +106,7 @@ class Gate:
         topic: Optional[Moment] = None,
         parent: Optional[Frame] = None,
         purpose: Optional[NodeId] = None,
+        wrap: Optional[NodeId] = None,
     ) -> Frame:
         """A frame is `frame(seat, topic)` -- two ordered members, structurally
         identical to a span. The engine learns no new relation name from it; what
@@ -113,7 +121,7 @@ class Gate:
         # the same topic are two frames, and §17 needs each to be a node other
         # facts can be about -- a purpose, a parent, a state.
         node = self.g.instance(self.FRAME, seat.node, topic.node)
-        return Frame(node, seat, topic, parent, purpose)
+        return Frame(node, seat, topic, parent, purpose, wrap)
 
     def write(
         self,

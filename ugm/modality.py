@@ -228,17 +228,21 @@ def probe() -> int:
 
     m_s = Machine()
     kb_s = load(m_s, GENERIC_PIPELINE_FULL)
-    fr = m_s.suppose(kb_s.term("reading(pump7, low)"))
-    carried = m_s.discharge(fr, kb_s.term("likely"))
+    # Entering is a write and leaving is quiescence: the loop runs, and a frame
+    # is left when there is nothing more to do inside it. There is no nested run,
+    # so a supposition never owns the agent (§18).
+    fr = m_s.suppose(kb_s.term("reading(pump7, low)"), wrap=kb_s.term("likely"))
+    m_s.run(limit=30)
+    carried = fr.carried
     sup_lifts_vars = m_s.holds(kb_s.term("likely(symptom(pump7, restricted))")) == PLUS
     sup_contains = m_s.holds(kb_s.term("action(replace, pump7)")) is None
 
     m_n = Machine()
     kb_n = load(m_n, "rule <r1> = implies( { +a(?x) }, { +b(?x) } )")
-    o = m_n.suppose(kb_n.term("seen(x)"))
-    i = m_n.suppose(kb_n.term("a(x)"))
-    m_n.discharge(i, kb_n.term("possible"))
-    nested = m_n.discharge(o, kb_n.term("likely"))
+    o = m_n.suppose(kb_n.term("seen(x)"), wrap=kb_n.term("likely"))
+    i = m_n.suppose(kb_n.term("a(x)"), wrap=kb_n.term("possible"))
+    m_n.run(limit=30)
+    nested = o.carried
     sup_nests = any(m_n.g.show(e.proposition) == "likely(possible(b(x)))" for e in nested)
 
     for i2, row in enumerate(f.rows):

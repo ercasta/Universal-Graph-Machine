@@ -2547,6 +2547,12 @@ The three a first implementation is most likely to get wrong:
   so composition takes the same budget-and-state discipline as expansion. And composition needs a rule
   to unify one rule's consequent against another's antecedent, which is §5's wall — it is blocked until
   that is resolved.
+* **Arrivals during a supposition land inside it** (§17). Delivery writes to whatever the register
+  points at, so a report that arrives while the agent is reasoning under a hypothesis is deposited at
+  the hypothesis's seat — and then leaves it wrapped, as though the world's own testimony were
+  something merely supposed. The channel record should land at the agent's own seat regardless of
+  where its reasoning currently stands, which suggests delivery has a seat of its own rather than
+  borrowing the register. Unsettled, and it predates the loop change rather than being caused by it.
 * **Write-time hooks are not rules** (§4, Appendix C). Moving action dispatch to the write was right —
   §16 had already named the write as the one place effects leave the agent — but it is implemented as
   a Python callable the gate invokes, which is a branch wearing a different shape. What is open is
@@ -2736,7 +2742,6 @@ current `ugm/` build; it is expected to shrink, and the count is the measure of 
 | names | what they are for | section |
 |---|---|---|
 | `causes`, `implies` | which moment a consequent lands in | §14 |
-| `suppose` | opening a supposition frame | §16 |
 | `goal`, `achieved`, `blocked`, `plan`, `subgoal`, `binds`, `expands` | backward search's working state | §18 |
 | `expects` | deposited by forward application, which is not a phase | §18 |
 
@@ -2746,16 +2751,20 @@ current `ugm/` build; it is expected to shrink, and the count is the measure of 
 |---|---|---|
 | `arrived`, `utterance` | in | a channel is **anchored** and a rule is generic, so no rule can name the socket a report came in on |
 | `doing`, `emitted` | out | the same, read the other way: no rule can name the agent's own edge |
+| `suppose` | inward | entering a frame **moves the register**, which is §4 item 3 and irreducible for the same reason as the bootstrap. Everything else about supposing is convention. |
 | `kb` | — | the channel a derived entry is sourced to |
 
-**The boundary has exactly two names, one per direction.** That symmetry is not decoration — it is
-§15's *acting is a channel read the other way* turning out to be true of the implementation and not
-only of the prose. These rows are the only ones in this appendix that are not debt.
+**The outward boundary has exactly two names, one per direction, and the inward one is the register.**
+The first symmetry is §15's *acting is a channel read the other way* turning out to be true of the
+implementation and not only of the prose. The second is §17's *entering is writing*: what a rule cannot
+do is not *change the world* but *say where it is standing*. These rows are the only ones in this
+appendix that are not debt.
 
-Fourteen conventions with branches, four shipped as **seven** rules, **two** interpreter phases
-remaining — supposition and goal expansion. §20's counter target is zero.
+Thirteen conventions with branches, four shipped as **seven** rules, **one** interpreter phase
+remaining — goal expansion. §20's counter target is zero, and the last one is the hard one: reading a
+rule backwards is precisely a rule matching a rule, which is §5's wall.
 
-### What moving three taught
+### What moving four taught
 
 **Splitting a phase shrinks it rather than relocating it.** `_intake` became the smallest unarguable
 record of a boundary event — `arrived(channel, proposition, sign)`, sourced to the channel — and *what
@@ -2794,3 +2803,30 @@ dead branch — a rule that never applies costs nothing, breaks nothing, and loo
 that works. The phase had never tested those cases either; writing them as rules is what made the gap
 visible. `python -m ugm.bundle` now deletes each bundled rule and re-runs the suite, so a rule nothing
 can kill is reported rather than accumulated.
+
+**The worst offender was the machinery's own control flow, not its vocabulary.** Supposition looked
+like the hardest phase to move, because entering a frame genuinely needs the register. That part was
+three lines. The rest of the phase was a **nested `run()`** — the loop, called inside itself, to
+quiescence, before returning.
+
+That is a subroutine call, and it is the exact thing §18 spends its length refusing:
+
+> *if `to find an answer, look for causes` is control flow, step three owns the agent until it
+> returns.*
+
+The design had that sentence aimed at corpora, and the machinery was doing it. A supposition owned the
+agent from the moment it opened until it was exhausted, so nothing could preempt reasoning carried out
+under a hypothesis — the one place an agent most needs to be interruptible, since a hypothesis is by
+construction something it is not sure about.
+
+The repair needed no new mechanism, only the removal of one. **Entering is a write** (the request is
+an ordinary entry, and the register moves at the write, like §16's action dispatch). **Leaving is
+quiescence** — when the loop finds nothing more to do *here*, and *here* is inside a supposition, that
+is not the end of the run but the end of the supposition. Reasoning inside a hypothesis became
+ordinary ticks of the ordinary loop, and three things followed at once: the caller keeps control
+between every step, the supposition's own reasoning appears in the caller's trace (R7, for the
+machinery's hypotheses), and the depth budget stopped being a second, nested budget.
+
+The lesson generalises past this one phase. **A convention hidden in vocabulary is easy to see and
+cheap to move; a convention hidden in control flow is invisible and expensive.** The census counts
+names, and names were the easy half.

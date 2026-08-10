@@ -138,6 +138,7 @@ class Machine:
         self.bundle: List[Rule] = []
         self._install_bundle()
         self.gate.on_write.append(self._dispatch)
+        self.gate.on_write.append(self._enter)
 
     # -- the bundle -------------------------------------------------------
 
@@ -258,7 +259,9 @@ class Machine:
 
     # -- supposing --------------------------------------------------------
 
-    def suppose(self, assumption: NodeId, grade: str = "certain") -> Frame:
+    def suppose(
+        self, assumption: NodeId, grade: str = "certain", wrap: Optional[NodeId] = None
+    ) -> Frame:
         """Enter a supposition: assume `assumption` bare, and reason inside.
 
         This is the alternative to lifting. Where a lifting rule rewrites
@@ -275,48 +278,73 @@ class Machine:
         """
         licence = self.g.rel(self.SUPPOSING, assumption)
         seat = self.chain.succeed(self.focus.seat, licence)
-        child = self.gate.frame(seat, parent=self.focus, purpose=licence)
+        child = self.gate.frame(seat, parent=self.focus, purpose=licence, wrap=wrap)
+        # Moving the register. This is the irreducible part, and it is the ONLY
+        # irreducible part -- §4 item 3: finding where to write requires a read,
+        # and a read requires somewhere to stand. Everything else about supposing
+        # is convention.
         self.focus = child
-        self.gate.write(child, assumption, "+", grade=grade, licence=licence, source=self.KB)
+        self.gate.write(child, assumption, PLUS, grade=grade, licence=licence, source=self.KB)
         return child
 
-    def _enact_supposition(self) -> bool:
-        """Rules propose a supposition; the machinery enacts it.
+    def _enter(self, frame: Frame, e: Entry) -> None:
+        """Open a supposition when one is requested -- at the write, not in a
+        phase, and *without* running the reasoning inside it.
 
-        A rule concludes `+suppose(p, likely)` -- an ordinary entry, matched and
-        deposited like any other. The loop then does what a rule cannot: open the
-        frame, reason inside, and carry the conclusions out wrapped. That is the
-        same division as the gate (§13) -- the rule says *what*, the machinery
-        supplies the *where*, because a frame is anchored and a rule is generic.
+        A rule concludes `+suppose(p, likely)` like any other fact. What the
+        machinery does that a rule cannot is move the register, because a frame
+        is anchored and a rule is generic. It does nothing else.
 
-        It recurses by construction: a conclusion drawn inside the frame that is
-        itself wrapped proposes another supposition, one level down. The depth
-        bound is a budget, and like every bound here it must report that it was
-        hit rather than silently stopping (§9).
+        The old phase did much more: it opened the frame and then called `run()`
+        inside it, to quiescence, before returning. That is a subroutine call,
+        and §18 spends its length arguing that nothing may own the loop --
+        `if to find an answer, look for causes is control flow, step three owns
+        the agent until it returns`. Supposition was exactly that, in the
+        machinery rather than in a corpus, and it meant a surprise could not
+        preempt reasoning carried out under a hypothesis.
+
+        Reasoning inside a supposition is now ordinary ticks of the ordinary
+        loop, with the register pointing inside. The frame is left when the loop
+        finds nothing more to do there (`_leave`).
         """
+        if self.g.relation_of(e.proposition) is not self.SUPPOSE or e.sign != PLUS:
+            return
+        if e.node in self._enacted or self.g.has_var(e.proposition):
+            return
+        # Bounds, and each reports that it was hit rather than stopping silently
+        # (§13). Depth recurses by construction: a wrapped conclusion carried out
+        # of one frame proposes the next.
         if len(self.focus.ancestry()) > self.max_depth:
             self.exhausted += 1
-            return False
+            return
         if len(self._supposed) >= self.supposition_budget:
             self.exhausted += 1
+            return
+        assumption, wrap = self.g.members(e.proposition)
+        self._enacted.add(e.node)
+        # Supposing the same thing twice derives nothing new: everything
+        # downstream of it was already drawn the first time. Without this the
+        # loop crosses guards it created a moment ago, forever.
+        if assumption in self._supposed:
+            return
+        self._supposed.add(assumption)
+        self.suppose(assumption, grade=e.grade, wrap=wrap)
+
+    def _leave(self) -> bool:
+        """The loop has nothing more to do inside the current supposition, so
+        carry its conclusions out and restore the register.
+
+        This is not a phase over a convention -- it is the register's own
+        discipline. Something entered; something must restore. What it does while
+        restoring *is* convention (§16's re-wrap), and it cannot be a rule for
+        §17's reason: reading another frame's conclusions is match with an
+        explicit anchor, and an anchor is exactly what a generic rule cannot name.
+        """
+        frame = self.focus
+        if frame.parent is None or frame.wrap is None:
             return False
-        for e in current_state(self.chain, self.focus.topic, self.focus.seat):
-            if e.sign != "+" or e.node in self._enacted:
-                continue
-            if self.g.relation_of(e.proposition) != self.SUPPOSE:
-                continue
-            assumption, wrap = self.g.members(e.proposition)
-            self._enacted.add(e.node)
-            # Supposing the same thing twice derives nothing new: everything
-            # downstream of it was already drawn the first time. Without this the
-            # loop crosses guards it created a moment ago, forever.
-            if assumption in self._supposed:
-                return True
-            self._supposed.add(assumption)
-            frame = self.suppose(assumption, grade=e.grade)
-            self.discharge(frame, wrap)
-            return True
-        return False
+        self.discharge(frame, frame.wrap)
+        return True
 
     # -- acting, and being wrong about it ---------------------------------
 
@@ -532,8 +560,12 @@ class Machine:
         concluded under the supposition -- `likely(q)` at the caller's seat, never
         `q`. The caller knows it was working under a guard; the rules inside never
         had to.
+
+        This used to begin with `self.run(limit)` -- a nested loop that owned the
+        agent until the supposition was exhausted. It does not any more: the
+        caller is `_leave`, which runs when the ordinary loop has already found
+        nothing more to do inside.
         """
-        self.run(limit=limit)
         inside = []
         m: Optional[Moment] = self.focus.seat
         while m is not None and m is not frame.seat.predecessor:
@@ -567,15 +599,13 @@ class Machine:
                     )
                 )
         frame.state = "discharged"
+        frame.carried = out
         return out
 
     # -- the loop ---------------------------------------------------------
 
     def tick(self) -> Step:
         arrivals = self._deliver()
-
-        if self._enact_supposition():
-            return Step(arrivals, 0, 0, None, (), "supposed")
 
         if self._expand_goal():
             return Step(arrivals, 0, 0, None, (), "expanded")
@@ -593,6 +623,13 @@ class Machine:
 
         chosen = arbitrate(self.rules, applications)
         if chosen is None:
+            # Nothing more to do *here*. If `here` is inside a supposition, that
+            # is not the end of the run -- it is the end of the supposition, so
+            # carry its conclusions out and restore the register. The frame is
+            # left because the loop ran out of work in it, never because a
+            # subroutine returned.
+            if self._leave():
+                return Step(arrivals, len(proposed), 0, None, (), "supposed")
             return Step(
                 arrivals,
                 len(proposed),
