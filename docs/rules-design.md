@@ -567,10 +567,43 @@ Neither was writable before the use/mention repair above: the first concludes ab
 contains variables. And asking *every* rule is what recall exists to narrow (§19) — doing it
 exhaustively is the deliberate-reasoning setting, not a shortcut.
 
-**What this does not yet do.** The measured equivalence covers subgoal generation. Whether a goal is
-*already satisfied* is a second match, run inside a plan's bindings so that sibling subgoals agree
-(§18), and it is still machinery — as are the plan, `binds` and `subgoal` records themselves. The
-phase is not gone; its core is no longer the reason it cannot go.
+**Satisfaction is a second request, not the same one pointed elsewhere.** *Is this goal already met*
+must be computed **inside the plan's bindings**, or `tap(?t)` is met by `sink`, `under(kettle, ?t)` by
+`drain`, and the plan is wrong with nothing saying so (§18). So there are two services —
+
+```
++fit(<R>, goal)        could this rule produce it?          → fits / need / unfit
++check(<plan>, goal)   does the world already answer it?    → achieved + binds / unmet
+```
+
+— and with them, **five rules** reproduce the phase entire: ask-fit, plan, expand, ask-check, and
+nothing else. Plans need no minting: `plan(?r, ?w)` is built by substitution into a consequent, and
+substitution interns, so the same rule expanding the same goal names the same plan — which is what a
+plan is.
+
+### Two things the last phase taught
+
+**`blocked` is not a fact, and no rule can conclude it.** The natural rule —
+`implies({+goal(?w), +unfit(?r, ?w)}, {+blocked(?w)})` — fires when **some** rule does not fit, and
+what `blocked` claims is that **no** rule does. That is an aggregate over a *finished* search.
+Positive rules cannot say it, and §9's `−` does not help: *an entry says this does not hold* and *no
+entry* are neither of them *for no `?r`*.
+
+This is §13's and §19's discipline arriving at the last phase rather than a missing feature:
+
+> **Bounded expansion returns a result and a state. `blocked` is the state.**
+
+A state is what a searcher reports about *itself* when it stops, and nothing that stopped is a fact
+about the world. So this one verdict stays with whatever runs the search.
+
+**The phase starves forward reasoning, and that is a precedence claim frozen in control flow.** It
+runs before recall/match/arbitrate and returns early, so while any goal is unexpanded no ordinary rule
+can apply. Measured: a goal that *is* satisfiable — `water(kettle)`, derivable forwards from the same
+corpus — reads as unsatisfied, because the phase never let anything derive it. The rule-level reader
+interleaves, being ordinary rules, and finds it.
+
+That is intake's finding and supposition's finding at once: **a phase does not merely hold a
+convention, it asserts a precedence, and it asserts it where nothing can argue.**
 
 ### Use and mention, and where the refusal actually happens
 
@@ -2677,11 +2710,14 @@ The three a first implementation is most likely to get wrong:
   pattern* rather than against a ground term. The service as built matches generic against ground,
   which is §7's definition of matching at all. Whether pattern-against-pattern is the same operation
   or a different one is not known.
-* **Satisfaction is a second match, under a plan's bindings** (§18). *Is this goal already met* must
-  run inside the bindings that satisfied its siblings, or `tap(?t)` and `under(kettle, ?t)` are
-  satisfied by different taps and the plan is silently wrong. The `fit` request answers about rules,
-  not about the current state, and nothing yet answers this one. It is what keeps goal expansion a
-  phase.
+* **Removing the last phase changes behaviour for the better, so it is not a swap** (§5, §18). Five
+  rules over two requests reproduce goal expansion, and produce *more* — because the phase starves
+  forward reasoning. That means retiring it is a behavioural change to be argued for, not a
+  refactor to be measured into equivalence, and the `<blocked>` verdict has to find a home first.
+* **`blocked` needs a home** (§5). It is a state, not a fact, so no rule concludes it. Either the
+  searcher keeps reporting it, or there is a request answered once a search settles — which needs a
+  notion of *settled* that the design does not have. Related: nothing yet says who decides a plan is
+  exhausted, which is also §21's backtracking item.
 * **Backward dispatch over reified rules** (§14). The forward direction of connective dispatch is
   writable as rules; the backward direction needs the operation above.
 * **How much of the bundle is actually rule-expressible** (§4). The agreement gate is stated and not

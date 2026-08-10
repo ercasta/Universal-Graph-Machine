@@ -94,6 +94,12 @@ class Machine:
         self.FITS = self.g.atom("fits")  # it could, and here is the instantiation
         self.UNFIT = self.g.atom("unfit")  # it could not
         self.NEED = self.g.atom("need")  # one instantiated antecedent member
+        # The second match a backward reader needs, and the one §18 warns about:
+        # *is this goal already satisfied* must run inside the bindings that
+        # satisfied its siblings, or `tap(?t)` and `under(kettle, ?t)` are met by
+        # different taps and the plan is wrong -- silently.
+        self.CHECK = self.g.atom("check")  # the request
+        self.UNMET = self.g.atom("unmet")  # nothing in the state answers it
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -143,13 +149,14 @@ class Machine:
                              self.PLAN, self.SUBGOAL, self.BINDS, self.EXPANDS,
                              self.EXPECTS, self.DOING, self.DID, self.DEVIATES,
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
-                             self.NEED}
+                             self.NEED, self.CHECK, self.UNMET}
 
         self.bundle: List[Rule] = []
         self._install_bundle()
         self.gate.on_write.append(self._dispatch)
         self.gate.on_write.append(self._enter)
         self.gate.on_write.append(self._fit)
+        self.gate.on_write.append(self._settle)
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
         self.channels.sink = self._deliver
@@ -393,6 +400,16 @@ class Machine:
                 frame, self.g.rel(self.FITS, rule_node, goal), PLUS,
                 licence=licence, source=self.KB, consumed=(e,), mention=True,
             )
+            # The bindings, as facts about the plan. A rule cannot hold a binding
+            # (that is why `need` arrives instantiated), but it can hold a NODE
+            # that other requests read -- which is how the sibling-agreement
+            # problem is solved without a rule ever touching a substitution.
+            plan = self.g.rel(self.PLAN, rule_node, goal)
+            for var, val in b.items():
+                self.gate.write(
+                    frame, self.g.rel(self.BINDS, plan, var, val), PLUS,
+                    licence=licence, source=self.KB, consumed=(e,), mention=True,
+                )
             for want in rule.antecedent:
                 self.gate.write(
                     frame,
@@ -403,6 +420,55 @@ class Machine:
             return
         self.gate.write(
             frame, self.g.rel(self.UNFIT, rule_node, goal), PLUS,
+            licence=licence, source=self.KB, consumed=(e,), mention=True,
+        )
+
+    def _settle(self, frame: Frame, e: Entry) -> None:
+        """Answer *is this goal already satisfied?* -- the second match.
+
+        `+check(<plan>, goal)` asks it, and the answer must be computed **inside
+        the plan's bindings**, which is what makes it a different service from
+        `fit` rather than the same one pointed elsewhere. §18 states the failure
+        it prevents: satisfy `tap(?t)` with `tap(sink)` and the sibling goal
+        `under(kettle, ?t)` must be about *that* tap. Checked independently,
+        `tap(sink)` and `under(kettle, drain)` both report achieved and the plan
+        is wrong without anything saying so.
+
+        A goal may be generic, which is why this cannot be a chain lookup: the
+        rule that proposed `tap(?t)` left `?t` unbound, and resolving by
+        proposition identity would report a satisfiable goal as blocked.
+        """
+        if self.g.relation_of(e.proposition) is not self.CHECK or e.sign != PLUS:
+            return
+        plan, goal = self.g.members(e.proposition)
+        state = current_state(self.chain, self.focus.topic, self.focus.seat)
+        env = {
+            self.g.member(s.proposition, 1): self.g.member(s.proposition, 2)
+            for s in state
+            if s.sign == PLUS
+            and self.g.relation_of(s.proposition) is self.BINDS
+            and self.g.member(s.proposition, 0) == plan
+        }
+        licence = self.g.rel(self.ACHIEVED, goal)
+        for s in state:
+            if s.sign != PLUS or self.g.relation_of(s.proposition) in self._bookkeeping:
+                continue
+            b = unify(self.g, goal, s.proposition, dict(env))
+            if b is None:
+                continue
+            self.gate.write(
+                frame, self.g.rel(self.ACHIEVED, goal), PLUS,
+                licence=licence, source=self.KB, consumed=(e, s), mention=True,
+            )
+            for var, val in b.items():
+                if var not in env:
+                    self.gate.write(
+                        frame, self.g.rel(self.BINDS, plan, var, val), PLUS,
+                        licence=licence, source=self.KB, consumed=(e, s), mention=True,
+                    )
+            return
+        self.gate.write(
+            frame, self.g.rel(self.UNMET, plan, goal), PLUS,
             licence=licence, source=self.KB, consumed=(e,), mention=True,
         )
 
