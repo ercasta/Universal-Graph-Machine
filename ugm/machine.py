@@ -14,11 +14,12 @@ seam is here and the learning is not.
 
 from typing import List, NamedTuple, Optional, Tuple
 
-from .chain import Chain, Entry, Moment
+from .chain import PLUS, Chain, Entry, Moment
 from .channels import Arrival, Channels
 from .gate import Frame, Gate
 from .graph import Graph, NodeId
 from .rules import (
+    IMPLIES,
     Application,
     Member,
     Rule,
@@ -61,6 +62,7 @@ class Machine:
         self.SAYS = self.g.atom("says")
         self.APPLIED = self.g.atom("applied")
         self.ARRIVED = self.g.atom("arrived")
+        self.UTTERANCE = self.g.atom("utterance")
         # §14: the vocabulary a rule uses to speak about a rule.
         self.RULE = self.g.atom("rule")
         self.CONN = self.g.atom("conn")
@@ -131,6 +133,40 @@ class Machine:
         self._bookkeeping = {self.SUPPOSE, self.GOAL, self.ACHIEVED, self.BLOCKED,
                              self.PLAN, self.SUBGOAL, self.BINDS, self.EXPANDS,
                              self.EXPECTS, self.DOING, self.DID, self.DEVIATES}
+
+        self.bundle: List[Rule] = []
+        self._install_bundle()
+
+    # -- the bundle -------------------------------------------------------
+
+    def _install_bundle(self) -> None:
+        """The conventions that ship as rules rather than as branches (§4).
+
+        Each one here is a name that used to be in Appendix C's census with an
+        interpreter phase behind it, and is now data: readable by R4's queries,
+        defeasible by `overrides`, and preemptable because it is selected like
+        anything else.
+
+        They are installed first, so the authored-order tiebreak of §18 prefers
+        them -- which reproduces the old behaviour, where the phase ran before
+        any rule was considered. That is a precedence claim, and being a claim
+        rather than a control-flow fact is the whole point: a corpus can now
+        override it.
+        """
+        g = self.g
+        c, p, s = g.var("?channel"), g.var("?said"), g.var("?sign")
+
+        # What a report MEANS. Crossing the boundary stays machinery, because a
+        # channel is anchored and a rule is generic; deciding that an arrival is
+        # a saying does not, and never did.
+        self.bundle.append(
+            self.rules.rule(
+                IMPLIES,
+                [Member(PLUS, g.rel(self.ARRIVED, c, p, s))],
+                [Member(PLUS, g.rel(self.SAYS, c, p, s))],
+                "intake",
+            )
+        )
 
     # -- rules as data ----------------------------------------------------
 
@@ -502,7 +538,7 @@ class Machine:
     # -- the loop ---------------------------------------------------------
 
     def tick(self) -> Step:
-        arrivals = self._intake()
+        arrivals = self._deliver()
 
         if self._enact_supposition():
             return Step(arrivals, 0, 0, None, (), "supposed")
@@ -564,30 +600,42 @@ class Machine:
         deliberate-reasoning setting: recall with the budget removed."""
         return list(self.rules.rules)
 
-    def _intake(self) -> int:
-        """Drain the channels and stamp what arrived.
+    def _deliver(self) -> int:
+        """Cross the boundary, and nothing else.
 
-        What is written is that the channel said so -- never the content as a
-        claim about the world. Believing it is a rule's job, and that rule can be
-        argued with.
+        This is what stays machinery under §5's test, and the reason is §18's:
+        a channel is **anchored** and a rule is generic, so no rule can name the
+        socket a report came in on. What the machinery deposits is therefore the
+        smallest unarguable record of a boundary event --
+
+            arrived(channel, proposition, sign)      sourced to the channel
+
+        -- and *what that means* is a rule (`<intake>` below). Previously this
+        method wrote `says(...)` directly, which made `says` a name the engine
+        knew: Appendix C's census, one line of it.
+
+        Two things improve by the split rather than merely moving. The arrival's
+        grade now reaches the `says` claim through §16's weakest link instead of
+        through a keyword argument, so nothing special-cases it. And provenance
+        lands where §17 says it should: the raw arrival is the **channel** record,
+        unforgeable and sourced to the socket; the `says` claim above it is
+        derived, licensed by a rule, and therefore arguable.
+
+        `says` still carries the reported sign as a member, and the entry is
+        always positive -- the channel did speak. Writing `-says(c, p)` would
+        claim the channel stayed silent, which is a different fact and not the
+        one observed. §21 records the better answer: an arrival should be a
+        moment, so a report is a signed delta.
         """
         arrivals = self.channels.drain()
         for a in arrivals:
-            utterance = self.g.rel(self.ARRIVED, a.channel, a.proposition)
-            # `says` carries the reported SIGN as a third member, and the entry
-            # is always positive: the channel did speak. Writing `-says(c, p)`
-            # would claim the channel stayed silent, which is a different fact
-            # and not the one observed.
-            #
-            # This is the restriction §16 names -- a sign has nowhere to live
-            # inside a proposition, because a sign is a member of an entry. The
-            # sign node here is the same compromise reification already makes in
-            # `ant(<R>, p, plus)`. §16's better answer is that an arrival should
-            # be a MOMENT, so a report is a signed delta and trust is a rule over
-            # two moments. That needs the skeleton of §8, which this slice lacks.
-            said = self.g.rel(self.SAYS, a.channel, a.proposition, self.rules.SIGN[a.sign])
+            utterance = self.g.instance(self.UTTERANCE, a.channel, a.proposition)
+            report = self.g.rel(
+                self.ARRIVED, a.channel, a.proposition, self.rules.SIGN[a.sign]
+            )
             self.gate.write(
-                self.focus, said, "+", grade=a.grade, licence=utterance, source=a.channel,
+                self.focus, report, "+",
+                grade=a.grade, licence=utterance, source=a.channel,
             )
         return len(arrivals)
 

@@ -2431,6 +2431,26 @@ Two companion counters, cheap and blunt:
   whose members are all structural (§6). Any that does not is a circularity waiting to be discovered
   by a corpus rather than by a check.
 
+### An agreement gate that agrees is worth nothing until it could have disagreed
+
+Running the first one produced three false passes in a row, and the pattern is general enough to state
+as a requirement rather than a war story.
+
+The read agreed on every case — with the entire **deposit index** deleted, because the fixture's
+"revision" was written at a different locus, so the locus key decided everything. Fixed, and it
+agreed again with the tiebreak deleted, because the rule-level read was returning the *first*
+unbeaten candidate and happened to enumerate in the same order as the native walk. Fixed by making
+the read refuse ambiguity, and a third rule stayed unkillable until the fixture put an **unrelated**
+entry between two competing ones, since transitivity only matters when the entry in between does not
+compete.
+
+> **Every gate must delete each rule of the thing it checks, one at a time, and report any rule the
+> fixture cannot kill. A rule no fixture can kill is a rule the fixture is not testing.**
+
+This is §13's *bounded expansion returns a result and a state* and §19's two silences, arriving for
+the fifth time and now aimed at the checks themselves: **passing** and **unable to fail** are
+different outcomes, and only one of them is evidence.
+
 ### The commutation gate
 
 Behavioural, not representational. Not *can the system reproduce this text*, but:
@@ -2697,16 +2717,37 @@ current `ugm/` build; it is expected to shrink, and the count is the measure of 
 | the sign values | floor *only if* §9 resolves toward sign-as-member; under wrapping, one reserved relation takes their place |
 | the register | §4 item 3 — a pointer, not a vocabulary item |
 
-**Convention — fails the test, and currently has an interpreter branch**
+**Convention — shipped as a rule in the bundle**
+
+| name | the rule | section |
+|---|---|---|
+| `says` | `<intake>` — `implies({+arrived(?c, ?p, ?s)}, {+says(?c, ?p, ?s)})` | §17 |
+
+**Convention — fails the test, and still has an interpreter branch**
 
 | names | what they are for | section |
 |---|---|---|
-| `says`, `kb` | intake and channels | §17 |
 | `causes`, `implies` | which moment a consequent lands in | §14 |
 | `suppose` | opening a supposition frame | §16 |
 | `goal`, `achieved`, `blocked`, `plan`, `subgoal`, `binds`, `expands` | backward search's working state | §18 |
 | `doing`, `did`, `expects`, `deviates` | acting and surprise | §15, §18 |
 
-Nineteen conventions, five interpreter phases — intake, supposition, acting, deviation, goal
-expansion. §20's counter target is zero phases, and the route is that each of these becomes a rule
-that match, write and the total step apply.
+**Boundary — machinery, and legitimately so**
+
+| names | why it cannot be a rule |
+|---|---|
+| `arrived`, `utterance`, `kb` | a channel is **anchored** and a rule is generic, so no rule can name the socket a report came in on. §18's *the machinery does what a rule cannot*, and the one row of this table that is not debt. |
+
+Eighteen conventions with branches, one shipped as a rule, four interpreter phases remaining —
+supposition, acting, deviation, goal expansion. §20's counter target is zero.
+
+**What moving one taught.** Splitting `_intake` did not merely relocate a branch. The boundary
+crossing shrank to the smallest unarguable record — `arrived(channel, proposition, sign)`, sourced to
+the channel — and *what a report means* became a rule. Two things improved rather than moved: the
+arrival's grade now reaches the `says` claim through §16's weakest link instead of through a keyword
+argument, so nothing special-cases it; and provenance landed where §17 says it should, with the raw
+arrival unforgeable and the saying above it derived, licensed and arguable.
+
+It also made a precedence claim visible that had been hidden in control flow. The phase ran before any
+rule was considered; the rule is merely installed first, so §18's authored-order tiebreak prefers it.
+That is now something a corpus can override, which is the difference the whole section is about.

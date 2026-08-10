@@ -367,10 +367,58 @@ def surface() -> None:
         "fact overrides(<cold>, <hot>)\n"
         "fact +p(a)\n"
     )
-    check("R3", "a rule is a thing a fact can be about", kb2.term("<cold>") == m2.rules.rules[1].node)
+    # By name, not by position: the machine installs its bundled rules first
+    # (§4), so any index into the rule list counts the bundle as well.
+    cold = next(r for r in m2.rules.rules if r.name == "cold")
+    check("R3", "a rule is a thing a fact can be about", kb2.term("<cold>") == cold.node)
     check("§14", "and `overrides` in the surface seeds the precedence table", len(m2.rules.overrides) == 1)
     m2.run(limit=5)
     check("§14", "so the overriding rule is the one that applied", m2.holds(kb2.term("q(a)")) == MINUS)
+
+
+def the_bundle() -> None:
+    """A convention that used to be an interpreter phase, now shipped as a rule.
+
+    `says` was written by `_intake` and was therefore a name the engine knew --
+    one line of Appendix C's census. What stays machinery is crossing the
+    boundary, because a channel is anchored and a rule is generic; what an
+    arrival *means* is a rule, and this checks that the rule is load-bearing
+    rather than decorative.
+    """
+    m = Machine()
+    g = m.g
+    user = m.channels.open("user")
+    raining = g.rel(g.atom("raining"), g.atom("here"))
+    m.channels.deliver(user, raining)
+    m.run(limit=6)
+
+    said = g.rel(m.SAYS, user, raining, m.rules.SIGN[PLUS])
+    e = m.chain.resolve(said, m.focus.topic, m.focus.seat)
+    check("§5", "a report becomes a saying", e is not None)
+    check("§5", "and a rule application licensed it", e is not None and e.licence is not None)
+
+    trail = m.chain.trail(e)
+    check(
+        "§17",
+        "the raw arrival is underneath it, sourced to the channel",
+        any(g.relation_of(t.proposition) == m.ARRIVED and t.source == user for t in trail),
+    )
+
+    # Delete the rule and the conclusion goes with it. Without this the check
+    # above passes whether or not the phase was ever really removed -- which is
+    # the vacuity `ugm.agreement` ran into three times in one afternoon.
+    m2 = Machine()
+    m2.rules.rules = [r for r in m2.rules.rules if r.name != "intake"]
+    u2 = m2.channels.open("user")
+    r2 = m2.g.rel(m2.g.atom("raining"), m2.g.atom("here"))
+    m2.channels.deliver(u2, r2)
+    m2.run(limit=6)
+    s2 = m2.g.rel(m2.SAYS, u2, r2, m2.rules.SIGN[PLUS])
+    check(
+        "§5",
+        "and nothing else writes it -- delete the rule and there is no saying",
+        m2.chain.resolve(s2, m2.focus.topic, m2.focus.seat) is None,
+    )
 
 
 def worked_examples() -> None:
@@ -382,7 +430,8 @@ def worked_examples() -> None:
     path = os.path.join(os.path.dirname(__file__), "rules", "worked.ugm")
     m = Machine()
     kb = load_file(m, path)
-    check("§8", "the document's worked rules parse", len(m.rules.rules) == 3)
+    authored = [r for r in m.rules.rules if r not in m.bundle]
+    check("§8", "the document's worked rules parse", len(authored) == 3)
 
     steps = m.run(limit=30)
     check("§15", "and run to quiescence", steps[-1].state == "quiescent")
@@ -701,6 +750,7 @@ def main() -> int:
     connectives_differ()
     quiescence()
     trusting_a_channel()
+    the_bundle()
     surface()
     worked_examples()
 
