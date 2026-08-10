@@ -15,6 +15,7 @@ python -m ugm.selftest     161 checks, 0 failing        the runner; any False is
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle         8/8 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 missing, 0 blind         backward reading as rules vs as a phase
+python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 ```
 
@@ -42,6 +43,7 @@ gone. Ten commits:
 | `check` | the second request; backward reading entire, in five rules |
 | `handoff` | this file |
 | `denial` | §9 settled by measurement: sign **and** `not`, translating one way |
+| `compose` | pattern-against-pattern is **unification, not match**; composition built and measured |
 
 ### 1. The spine changed
 
@@ -99,8 +101,8 @@ because a rule cannot apply one. *Match and substitute travel together.*
 
 ## The state of the code
 
-14 modules, ~4.4k lines. `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine;
-`selftest` `agreement` `bundle` `backward` `modality` are instruments; `stratum0` is the rule-level
+15 modules, ~4.7k lines. `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine;
+`selftest` `agreement` `bundle` `backward` `compose` `modality` are instruments; `stratum0` is the rule-level
 read.
 
 **One phase remains**: `Machine._expand_goal`. Everything else in `tick()` is recall → match →
@@ -124,10 +126,12 @@ not a refactor. Two things block a clean swap:
   over a finished search. It needs a home.
 * nothing says when a plan is *settled*, which is also §21's backtracking item.
 
-**2. Pattern against pattern.** `fit` matches generic against ground. Lifting a modality and
-**composing two rules** both need pattern-against-pattern, and whether that is the same operation is
-unknown. Composition is the larger prize — §4 argues it is algorithmic where compilation is a
-constant factor.
+**2. The composition trigger.** Composition is built and measured (n steps -> 1, defeat inherited).
+What is missing is *when*: §4's answer is `compose what has run often and never surprised; decompose
+what surprises`, and neither half is wired. `RuleSet.composed_from` already records what each shortcut
+collapses, so decomposition knows where to look.
+
+**3. Lifting a modality across a rule** — the last of the four callers of §5's wall with no service.
 
 **Smaller, well-specified:** a seat move is not yet an entry (§17 says every seat move is a write);
 write-time hooks are not rules; what a `?` conclusion becomes on the way out of a supposition (§9);

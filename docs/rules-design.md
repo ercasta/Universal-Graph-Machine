@@ -460,6 +460,44 @@ stop being deposited, so nothing can be surprised inside a shortcut; guard condi
 inherited or the shortcut fires where the reasoning would not; and the composed grade is a cache of a
 derived value, which is §16's own objection arriving one level up.
 
+**Measured** — `python -m ugm.compose`, over a chain of length *n*:
+
+| n | uncomposed | composed |
+|---|---|---|
+| 2 | 2 | **1** |
+| 4 | 4 | **1** |
+| 8 | 8 | **1** |
+| 16 | 16 | **1** |
+
+*n* steps become one, for any *n*, with the same conclusion. That is the difference between
+algorithmic and constant-factor stated as a number rather than as an argument.
+
+### Pattern against pattern is a different operation from match
+
+§21 asked whether the two are the same. They are not, and composition is what needed the answer:
+collapsing `heat(?w) → boiling(?w)` with `boiling(?x), leaf(?l) → tea(?x, ?l)` means unifying
+`boiling(?w)` against `boiling(?x)`, where **both sides are generic**.
+
+| | match (§7) | unification |
+|---|---|---|
+| sides | generic against **anchored** | generic against generic |
+| a variable binds to | a thing | a thing **or another variable** |
+| binding chains | never | yes — a variable's value may itself be bound |
+| `?x = f(?x)` | unconstructible | constructible, so an occurs check is required |
+| two rules both saying `?w` | cannot arise | must be standardised apart first |
+
+So the floor's item 2 does **not** cover it. What follows is not a sixth floor item, for the reason
+`fit` already gave: a rule cannot hold the resulting substitution, let alone apply it. Composition is
+therefore a **service** whose answer is a finished rule — the same shape as `fit`, reached from a
+different direction, and for the same underlying reason.
+
+**Defeat is inherited, and it is checkable.** Anything that overrides a constituent overrides the
+composition; without it, a shortcut escapes a defeat that bound its parts on the very first tick,
+rather than after some later context change. `unless` is a different matter: §12 describes it and no
+engine here implements it, so only the precedence half of guard inheritance exists. §21 records the
+rest, and a composed rule is presently as defeasible as its parts **only with respect to
+precedence**.
+
 ### Why the bundle ships at all
 
 This gives the conventions their proper home: a bundled knowledge base that ships with the engine, is
@@ -2707,10 +2745,12 @@ The three a first implementation is most likely to get wrong:
   again — which is more than the compilation loop can offer, since that can only say *run the slow
   path* and not *look here*.
 
-  Two further constraints. Composing a recursive shape (§13) is unrolling, and unrolling is unbounded,
-  so composition takes the same budget-and-state discipline as expansion. And composition needs a rule
-  to unify one rule's consequent against another's antecedent, which is §5's wall — it is blocked until
-  that is resolved.
+  **Built and measured** (`python -m ugm.compose`): *n* steps become one for any *n*, defeat is
+  inherited, and pattern-against-pattern turned out to be **unification, not match** (§4). What is
+  still unsettled is the trigger — when to compose, and when to decompose — plus the three failures
+  above. Two further constraints: composing a recursive shape (§13) is unrolling, and unrolling is
+  unbounded, so composition takes the same budget-and-state discipline as expansion; and `unless` is
+  described in §12 and implemented nowhere, so half of guard inheritance cannot be carried at all.
 * **A seat move is not yet an entry** (§17). *Every seat move is a write*, and the re-seating that
   keeps the agent's own frame current while it hypothesises is not recorded as one. Until it is, the
   trail cannot answer *when did the agent's own position advance, and why*.
@@ -2722,13 +2762,15 @@ The three a first implementation is most likely to get wrong:
 * **Explaining a read** (§6). Stratum 0 produces structure rather than entries, so the resolution that
   fed a conclusion is undated and unattributed. R5 covers the conclusion and not the read. Whether
   anything cheap recovers this without reinstating the circle is unknown.
-* **Match, callable from a rule** (§5) — **settled in shape, unfinished in reach.** It is a request,
-  not a sixth floor item, and the request must answer with instantiated results rather than a binding
-  (§5, measured by `python -m ugm.backward`). What remains open is the other two callers: lifting a
-  modality across a rule, and composing two rules, both need to match a pattern against *another
-  pattern* rather than against a ground term. The service as built matches generic against ground,
-  which is §7's definition of matching at all. Whether pattern-against-pattern is the same operation
-  or a different one is not known.
+* **Match, callable from a rule** (§5) — **settled.** It is a request, not a sixth floor item, and it
+  must answer with instantiated results rather than a binding (`ugm.backward`). Pattern against
+  pattern turned out to be a *different* operation — unification, needing binding chains, an occurs
+  check and standardising apart — and it too is a service rather than a floor item, for the same
+  reason (`ugm.compose`). What is still open is **lifting a modality across a rule**, the one caller
+  of the four that has no service yet.
+* **`unless` is described and not implemented** (§12). Precedence exists; the other half of
+  defeasibility does not. Composition can therefore inherit only the defeats, and §12's *unless at
+  altitude* is unwritable in any corpus this engine loads.
 * **Removing the last phase changes behaviour for the better, so it is not a swap** (§5, §18). Five
   rules over two requests reproduce goal expansion, and produce *more* — because the phase starves
   forward reasoning. That means retiring it is a behavioural change to be argued for, not a

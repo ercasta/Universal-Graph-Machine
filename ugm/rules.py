@@ -73,6 +73,9 @@ class RuleSet:
         # Authored precedence (§14): the bottom-most arbitrator is a lookup that
         # always returns and never searches.
         self.overrides: List[Tuple[Rule, Rule]] = []
+        # What each composed rule collapses. The trail of a shortcut, so
+        # `decompose on surprise` knows which sub-steps to re-run (§21).
+        self.composed_from: Dict[NodeId, Tuple["Rule", "Rule"]] = {}
 
     def rule(
         self,
@@ -117,6 +120,77 @@ class RuleSet:
     def overrides_rule(self, higher: Rule, lower: Rule) -> None:
         self.overrides.append((higher, lower))
 
+    def compose(self, first: Rule, second: Rule, name: str = "") -> Optional[Rule]:
+        """Collapse `first` then `second` into one rule (§4).
+
+        This is the design's largest available speedup, because it removes steps
+        rather than making them cheaper, and the artifact is an ordinary node --
+        askable, attributable, defeasible.
+
+        Three things §21 requires, and each is a line here rather than a promise:
+
+        **Standardise apart.** Both rules may say `?w` and mean different things.
+
+        **Unify pattern against pattern.** Not match: `boiling(?w)` against
+        `boiling(?x)` binds a variable to a variable, which matching never does.
+
+        **Inherit the defeats.** Anything that overrides either constituent must
+        override the composition, or the shortcut fires where the reasoning it
+        replaces would have been defeated -- §21's *a shortcut that has outlived
+        its guards*, arriving immediately rather than after a context change.
+
+        Two things are NOT done, and saying so is the point of writing it down.
+
+        `unless` **is not implemented anywhere in this engine**, so the half of
+        guard inheritance that §12 describes cannot be carried. Only `overrides`
+        can, and it is. A composed rule is therefore as defeasible as its parts
+        only with respect to precedence.
+
+        The **grade** is not composed. §21 records why: it would be a minimum
+        computed once, from constituents that are themselves defeasible, which is
+        a cache of a derived value -- §16's own objection one level up. Until
+        that is settled, composition is refused for anything but `certain`.
+        """
+        fa = {}
+        f_ant = [Member(m.sign, rename(self.g, m.pattern, fa), m.grade) for m in first.antecedent]
+        f_con = [Member(m.sign, rename(self.g, m.pattern, fa), m.grade) for m in first.consequent]
+        sa: Dict[NodeId, NodeId] = {}
+        s_ant = [Member(m.sign, rename(self.g, m.pattern, sa), m.grade) for m in second.antecedent]
+        s_con = [Member(m.sign, rename(self.g, m.pattern, sa), m.grade) for m in second.consequent]
+
+        if any(m.grade != "certain" for m in f_con + s_con):
+            return None
+
+        for i, want in enumerate(s_ant):
+            for made in f_con:
+                if made.sign != want.sign:
+                    continue
+                b = unify_patterns(self.g, made.pattern, want.pattern)
+                if b is None:
+                    continue
+                antecedent = [
+                    Member(m.sign, ground(self.g, m.pattern, b), m.grade) for m in f_ant
+                ] + [
+                    Member(m.sign, ground(self.g, m.pattern, b), m.grade)
+                    for j, m in enumerate(s_ant)
+                    if j != i
+                ]
+                consequent = [
+                    Member(m.sign, ground(self.g, m.pattern, b), m.grade) for m in s_con
+                ]
+                composed = self.rule(
+                    second.connective if first.connective == second.connective else CAUSES,
+                    antecedent,
+                    consequent,
+                    name or f"{first.name}+{second.name}",
+                )
+                self.composed_from[composed.node] = (first, second)
+                for higher, lower in list(self.overrides):
+                    if lower is first or lower is second:
+                        self.overrides.append((higher, composed))
+                return composed
+        return None
+
 
 # -- unification ------------------------------------------------------------
 
@@ -146,6 +220,114 @@ def unify(
         if cur is None:
             return None
     return cur
+
+
+def walk(g: Graph, n: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
+    """Follow a chain of variable-to-variable bindings to its end.
+
+    Matching never needs this: it binds a generic side to an anchored one, so a
+    variable's value is a thing and never another variable. Two-sided
+    unification does, and that is the first sign it is a different operation.
+    """
+    seen = set()
+    while g.is_var(n) and n in bindings and n not in seen:
+        seen.add(n)
+        n = bindings[n]
+    return n
+
+
+def occurs(g: Graph, var: NodeId, n: NodeId, bindings: Dict[NodeId, NodeId]) -> bool:
+    """Does `var` appear inside `n`? Binding `?x` to `f(?x)` builds a structure
+    that contains itself, and every later walk over it runs forever. Matching
+    cannot produce the situation; unification can, so it has to be checked."""
+    n = walk(g, n, bindings)
+    if n == var:
+        return True
+    if g.is_var(n):
+        return False
+    r = g.relation_of(n)
+    if r is not None and occurs(g, var, r, bindings):
+        return True
+    return any(occurs(g, var, m, bindings) for m in g.members(n))
+
+
+def unify_patterns(
+    g: Graph, a: NodeId, b: NodeId, bindings: Optional[Dict[NodeId, NodeId]] = None
+) -> Optional[Dict[NodeId, NodeId]]:
+    """Unify two structures that may **both** be generic.
+
+    §21 asked whether pattern-against-pattern is the same operation as match. It
+    is not, and the differences are not incidental:
+
+    | | match (§7) | this |
+    |---|---|---|
+    | sides | generic against **anchored** | generic against generic |
+    | a variable binds to | a thing | a thing **or another variable** |
+    | needs `walk` | no | yes -- bindings chain |
+    | needs `occurs` | no | yes -- `?x = f(?x)` is constructible |
+    | needs standardising apart | no | yes -- two rules may reuse `?w` |
+
+    So the floor's item 2 does not cover it. What follows is that composition
+    (§4) cannot be built out of `fit`, and needs its own service -- which is the
+    same conclusion `fit` reached for a different reason, and for the same
+    underlying one: the caller cannot hold the answer, so the machinery must
+    finish the job.
+    """
+    bindings = {} if bindings is None else bindings
+    a, b = walk(g, a, bindings), walk(g, b, bindings)
+    if a == b:
+        return bindings
+    if g.is_var(a):
+        if occurs(g, a, b, bindings):
+            return None
+        out = dict(bindings)
+        out[a] = b
+        return out
+    if g.is_var(b):
+        if occurs(g, b, a, bindings):
+            return None
+        out = dict(bindings)
+        out[b] = a
+        return out
+    ar, br = g.relation_of(a), g.relation_of(b)
+    if ar is None or br is None or ar != br:
+        return None
+    am, bm = g.members(a), g.members(b)
+    if len(am) != len(bm):
+        return None
+    cur: Optional[Dict[NodeId, NodeId]] = bindings
+    for x, y in zip(am, bm):
+        cur = unify_patterns(g, x, y, cur)
+        if cur is None:
+            return None
+    return cur
+
+
+def rename(g: Graph, pattern: NodeId, fresh: Dict[NodeId, NodeId]) -> NodeId:
+    """Standardise apart: give a rule's variables identities nobody else uses.
+
+    Two rules written independently both say `?w`, and they mean different
+    things. Matching never notices because only one side has variables.
+    """
+    if g.is_var(pattern):
+        if pattern not in fresh:
+            fresh[pattern] = g.var(f"{g.show(pattern)}'")
+        return fresh[pattern]
+    if not g.members(pattern):
+        return pattern
+    r = g.relation_of(pattern)
+    assert r is not None
+    return g.rel(r, *[rename(g, m, fresh) for m in g.members(pattern)])
+
+
+def ground(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
+    """Apply a two-sided substitution, following variable chains."""
+    p = walk(g, pattern, bindings)
+    if g.is_var(p) or not g.members(p):
+        return p
+    r = g.relation_of(p)
+    assert r is not None
+    return g.rel(r, *[ground(g, m, bindings) for m in g.members(p)])
 
 
 def substitute(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
