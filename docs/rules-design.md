@@ -524,10 +524,53 @@ rules** (§19) — which needs one rule's consequent unified against another's a
 stored patterns.
 
 Four independent capabilities blocked by one missing operation is the strongest argument in this
-document for resolving it. Whether the repair is a sixth floor item or **match reified**, so that a
-rule can request it and the machinery answers, is open (§21) — though composition tilts the answer,
-since composing is plainly something the agent should do deliberately, on demand and under a budget,
-which is what a request is and what a primitive is not.
+document for resolving it.
+
+### The repair is a request, and measuring it says what the request must return
+
+`python -m ugm.backward` runs backward reading twice over one corpus — once as the interpreter phase,
+once as two ordinary rules over a match **request** — and they reach the same seven goals.
+
+The design of the request is the finding, and it is not the obvious one. The natural shape is *ask
+whether this pattern matches, and be given the binding*. That cannot work, and the reason is not an
+implementation detail:
+
+> **A binding is a map from variables to nodes, and a rule cannot hold one — let alone apply one,
+> because applying is substitution, and substitution is floor (§4 item 2).**
+
+So the answer has to arrive **already instantiated**:
+
+```
++fit(<R>, goal)                  the request: could this rule produce this?
++fits(<R>, goal)                 it could
++need(<R>, goal, <subgoal>)      one per antecedent member, substituted
++unfit(<R>, goal)                it could not
+```
+
+which gives the general statement:
+
+> **Match and substitute travel together, because the caller cannot do the second half.**
+
+That settles the fifth-primitive question against itself. A primitive a rule invokes would hand back a
+binding the rule cannot use, so it would not help; and the moment the answer is instantiated, the
+service is doing the substitution too, which is a request and not a primitive. **The floor stays at
+five.**
+
+Two rules then carry the whole of backward reading's core step:
+
+```
+<ask-fit>  implies( {+goal(?w), +rule(?r)},              {+fit(?r, ?w)} )
+<expand>   implies( {+fits(?r, ?w), +need(?r, ?w, ?s)},  {+goal(?s)} )
+```
+
+Neither was writable before the use/mention repair above: the first concludes about a rule node, which
+contains variables. And asking *every* rule is what recall exists to narrow (§19) — doing it
+exhaustively is the deliberate-reasoning setting, not a shortcut.
+
+**What this does not yet do.** The measured equivalence covers subgoal generation. Whether a goal is
+*already satisfied* is a second match, run inside a plan's bindings so that sibling subgoals agree
+(§18), and it is still machinery — as are the plan, `binds` and `subgoal` records themselves. The
+phase is not gone; its core is no longer the reason it cannot go.
 
 ### Use and mention, and where the refusal actually happens
 
@@ -2627,10 +2670,18 @@ The three a first implementation is most likely to get wrong:
 * **Explaining a read** (§6). Stratum 0 produces structure rather than entries, so the resolution that
   fed a conclusion is undated and unattributed. R5 covers the conclusion and not the read. Whether
   anything cheap recovers this without reinstating the circle is unknown.
-* **Match, callable from a rule** (§5). Lifting a modality, reading a rule backwards and testing a
-  generic subgoal all need a rule to ask *does this pattern match that instance*, and none can. Open:
-  whether this is a sixth floor item, or `match` reified so a rule requests it and the machinery
-  answers — the second keeps the floor at five and matches how §18's requests already work.
+* **Match, callable from a rule** (§5) — **settled in shape, unfinished in reach.** It is a request,
+  not a sixth floor item, and the request must answer with instantiated results rather than a binding
+  (§5, measured by `python -m ugm.backward`). What remains open is the other two callers: lifting a
+  modality across a rule, and composing two rules, both need to match a pattern against *another
+  pattern* rather than against a ground term. The service as built matches generic against ground,
+  which is §7's definition of matching at all. Whether pattern-against-pattern is the same operation
+  or a different one is not known.
+* **Satisfaction is a second match, under a plan's bindings** (§18). *Is this goal already met* must
+  run inside the bindings that satisfied its siblings, or `tap(?t)` and `under(kettle, ?t)` are
+  satisfied by different taps and the plan is silently wrong. The `fit` request answers about rules,
+  not about the current state, and nothing yet answers this one. It is what keeps goal expansion a
+  phase.
 * **Backward dispatch over reified rules** (§14). The forward direction of connective dispatch is
   writable as rules; the backward direction needs the operation above.
 * **How much of the bundle is actually rule-expressible** (§4). The agreement gate is stated and not

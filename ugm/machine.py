@@ -85,6 +85,15 @@ class Machine:
         self.DID = self.g.atom("did")
         self.EXPECTS = self.g.atom("expects")
         self.DEVIATES = self.g.atom("deviates")
+        # Match, as a request (§21). A rule can HOLD a pattern -- `+con(?r, ?pat,
+        # +)` binds one -- and cannot APPLY one, because applying is substitution
+        # and substitution is floor. So the missing thing is a service, not a
+        # capability: ask whether a rule could produce a goal, and be told what
+        # its antecedent becomes if so.
+        self.FIT = self.g.atom("fit")  # the request
+        self.FITS = self.g.atom("fits")  # it could, and here is the instantiation
+        self.UNFIT = self.g.atom("unfit")  # it could not
+        self.NEED = self.g.atom("need")  # one instantiated antecedent member
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -133,12 +142,14 @@ class Machine:
         self._bookkeeping = {self.SUPPOSE, self.GOAL, self.ACHIEVED, self.BLOCKED,
                              self.PLAN, self.SUBGOAL, self.BINDS, self.EXPANDS,
                              self.EXPECTS, self.DOING, self.DID, self.DEVIATES,
-                             self.EMITTED}
+                             self.EMITTED, self.FIT, self.FITS, self.UNFIT,
+                             self.NEED}
 
         self.bundle: List[Rule] = []
         self._install_bundle()
         self.gate.on_write.append(self._dispatch)
         self.gate.on_write.append(self._enter)
+        self.gate.on_write.append(self._fit)
 
     # -- the bundle -------------------------------------------------------
 
@@ -329,6 +340,66 @@ class Machine:
             return
         self._supposed.add(assumption)
         self.suppose(assumption, grade=e.grade, wrap=wrap)
+
+    def _fit(self, frame: Frame, e: Entry) -> None:
+        """Answer a match request (§5's wall, from the side that can be crossed).
+
+        A rule concludes `+fit(<R>, goal)` -- *could this rule produce this?* --
+        and the machinery answers, because deciding that a ground goal
+        corresponds to a stored generic pattern is `match`, and match is floor.
+
+        What comes back is not a yes and a binding. A binding is a map from
+        variables to nodes, and a rule cannot hold one, let alone apply it. So
+        the answer is already **instantiated**:
+
+            +fits(<R>, goal)                one, if the rule could
+            +need(<R>, goal, <subgoal>)     one per antecedent member, substituted
+            +unfit(<R>, goal)               otherwise
+
+        That is the whole service, and its shape is the finding: the missing
+        piece was never *match* on its own. Match and substitute travel together,
+        because the caller cannot do the second half.
+
+        Everything else stays a rule -- whether to ask, which rule to prefer,
+        whether to check satisfaction first, what to write when nothing fits.
+        Those are the conventions §18 froze into a phase.
+        """
+        if self.g.relation_of(e.proposition) is not self.FIT or e.sign != PLUS:
+            return
+        rule_node, goal = self.g.members(e.proposition)
+        if self.g.has_var(goal):
+            return  # a description is not a goal; §15's condition, again
+        rule = next((r for r in self.rules.rules if r.node == rule_node), None)
+        if rule is None:
+            return
+        licence = self.g.rel(self.WANTED, rule_node, goal)
+
+        for m in rule.consequent:
+            if m.sign != PLUS or self.g.is_var(m.pattern):
+                # A bare-variable consequent claims it can conclude anything, so
+                # backwards it proposes itself for every goal without end. §12
+                # calls it vacuous rather than wrong, and parks the real answer
+                # in recall.
+                continue
+            b = unify(self.g, m.pattern, goal, {})
+            if b is None:
+                continue
+            self.gate.write(
+                frame, self.g.rel(self.FITS, rule_node, goal), PLUS,
+                licence=licence, source=self.KB, consumed=(e,), mention=True,
+            )
+            for want in rule.antecedent:
+                self.gate.write(
+                    frame,
+                    self.g.rel(self.NEED, rule_node, goal, substitute(self.g, want.pattern, b)),
+                    PLUS,
+                    licence=licence, source=self.KB, consumed=(e,), mention=True,
+                )
+            return
+        self.gate.write(
+            frame, self.g.rel(self.UNFIT, rule_node, goal), PLUS,
+            licence=licence, source=self.KB, consumed=(e,), mention=True,
+        )
 
     def _own_frame(self) -> Frame:
         """Where the agent itself is standing, as opposed to where its reasoning
