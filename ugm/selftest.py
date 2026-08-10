@@ -634,6 +634,31 @@ def supposing() -> None:
         sum(1 for s in rest if s.state == "applied") >= 1,
     )
 
+    # The world does not stop talking while the agent hypothesises, and what it
+    # says belongs to the agent rather than to the hypothesis. Delivering into
+    # the register turned the channel record -- which §17 calls unforgeable --
+    # into `likely(says(...))`: the world's own testimony, hedged, and the plain
+    # record unreadable.
+    m4 = Machine()
+    kb4 = load(m4, "rule <a> = implies( { +p(x) }, { +q(x) } )")
+    user = m4.channels.open("user")
+    rain = m4.g.rel(m4.g.atom("raining"), m4.g.atom("here"))
+    m4.suppose(kb4.term("p(x)"), wrap=kb4.term("likely"))
+    m4.channels.deliver(user, rain)
+    m4.run(limit=20)
+    said = m4.g.rel(m4.SAYS, user, rain, m4.rules.SIGN[PLUS])
+    check("§17", "a report arriving mid-supposition lands at the agent's own seat", m4.holds(said) == PLUS)
+    check(
+        "§17",
+        "and is not hedged by a hypothesis it had nothing to do with",
+        m4.holds(m4.g.rel(kb4.term("likely"), said)) is None,
+    )
+    check(
+        "§16",
+        "while the supposition itself still concludes, on its own branch",
+        m4.holds(m4.g.rel(kb4.term("likely"), kb4.term("q(x)"))) == PLUS,
+    )
+
 
 def rule_driven_supposition() -> None:
     """The whole of it, with no Python driving: a rule PROPOSES crossing the

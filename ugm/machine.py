@@ -330,6 +330,28 @@ class Machine:
         self._supposed.add(assumption)
         self.suppose(assumption, grade=e.grade, wrap=wrap)
 
+    def _own_frame(self) -> Frame:
+        """Where the agent itself is standing, as opposed to where its reasoning
+        currently is.
+
+        Climb out of every supposition in the register's ancestry. What is left
+        is the outermost frame that is not a hypothesis -- the agent's own seat,
+        and the only place a report from the world may land.
+
+        This is derived, not a second register. §4 allows exactly one privileged
+        pointer, and a second one for *the agent's own position* would have been
+        the easy wrong answer: the position is recoverable from the forest, so it
+        does not need to be held.
+        """
+        f = self.focus
+        while (
+            f.parent is not None
+            and f.purpose is not None
+            and self.g.relation_of(f.purpose) is self.SUPPOSING
+        ):
+            f = f.parent
+        return f
+
     def _leave(self) -> bool:
         """The loop has nothing more to do inside the current supposition, so
         carry its conclusions out and restore the register.
@@ -690,13 +712,28 @@ class Machine:
         moment, so a report is a signed delta.
         """
         arrivals = self.channels.drain()
+        own = self._own_frame()
+        if arrivals and own is not self.focus:
+            # The register is inside a hypothesis and the world has spoken. The
+            # report belongs to the AGENT, not to what the agent happens to be
+            # supposing -- so it lands on a successor of the agent's own seat,
+            # which forks the chain away from the supposition's branch.
+            #
+            # Both halves matter. Without the re-seating the entry would be
+            # appended to a moment that already has descendants, and deposit
+            # order is position along the walk, so a report arriving now would
+            # read as older than everything concluded since. Without the fork it
+            # would land inside the supposition and leave it wrapped, which is
+            # what it did: the agent's only record of what a channel said became
+            # `likely(says(...))` -- the world's own testimony, hedged.
+            self.gate.reseat(own, self.chain.succeed(own.seat, self.KB))
         for a in arrivals:
             utterance = self.g.instance(self.UTTERANCE, a.channel, a.proposition)
             report = self.g.rel(
                 self.ARRIVED, a.channel, a.proposition, self.rules.SIGN[a.sign]
             )
             self.gate.write(
-                self.focus, report, "+",
+                own, report, PLUS,
                 grade=a.grade, licence=utterance, source=a.channel,
             )
         return len(arrivals)

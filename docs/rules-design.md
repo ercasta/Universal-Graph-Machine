@@ -2011,6 +2011,35 @@ Normally they coincide, and that is the case §8 describes. They come apart exac
 about the past, where the topic is an earlier moment and the seat is now; and reasoning under a
 supposition, where the seat is inside the supposition.
 
+### Where the agent is standing is not where its reasoning is
+
+The register says where the machinery is working. It does **not** say where the agent is, and
+conflating them is a mistake with a specific, ugly consequence.
+
+The world does not stop talking while the agent hypothesises. If a report is deposited wherever the
+register happens to point, then a report arriving during a supposition lands inside it — and leaves
+it re-wrapped, so the agent's record of what a channel said becomes `likely(says(...))`. The channel
+record, which this section calls **unforgeable**, has been turned into a hedge by a hypothesis it had
+nothing to do with, and the plain record is unreadable at the agent's own seat. That was true of the
+implementation until it was measured.
+
+> **A channel delivers to the agent, not to the agent's current hypothesis.**
+
+Two things follow, and the second is the one worth stating as a rule.
+
+**The agent's own seat is derived, not held.** It is the outermost frame in the register's ancestry
+that is not a supposition. §4 allows exactly one privileged pointer, and a second register for *where
+the agent is* would have been the easy wrong answer — the position is recoverable from the forest, so
+it does not need to be stored, exactly as ancestry and scope are not stored.
+
+**Delivering forks the chain.** The report lands on a **successor** of the agent's own seat, which is a
+sibling of the supposition's branch rather than an ancestor. Appending it to the seat the supposition
+already descends from would be the tempting shortcut and is wrong twice over: deposit order is
+position along the walk (§10), so a report arriving now would read as *older* than everything
+concluded since; and the hypothesis would silently acquire evidence it was not entered with. A
+hypothesis is entered from a state of the world, and it keeps that state. What the world said
+afterwards is on the other branch, waiting at the seat the agent returns to.
+
 That gives the whole of what the gate does:
 
 > **Proposition and sign come from the rule. Locus, licence, source and deposit come from the frame
@@ -2547,12 +2576,9 @@ The three a first implementation is most likely to get wrong:
   so composition takes the same budget-and-state discipline as expansion. And composition needs a rule
   to unify one rule's consequent against another's antecedent, which is §5's wall — it is blocked until
   that is resolved.
-* **Arrivals during a supposition land inside it** (§17). Delivery writes to whatever the register
-  points at, so a report that arrives while the agent is reasoning under a hypothesis is deposited at
-  the hypothesis's seat — and then leaves it wrapped, as though the world's own testimony were
-  something merely supposed. The channel record should land at the agent's own seat regardless of
-  where its reasoning currently stands, which suggests delivery has a seat of its own rather than
-  borrowing the register. Unsettled, and it predates the loop change rather than being caused by it.
+* **A seat move is not yet an entry** (§17). *Every seat move is a write*, and the re-seating that
+  keeps the agent's own frame current while it hypothesises is not recorded as one. Until it is, the
+  trail cannot answer *when did the agent's own position advance, and why*.
 * **Write-time hooks are not rules** (§4, Appendix C). Moving action dispatch to the write was right —
   §16 had already named the write as the one place effects leave the agent — but it is implemented as
   a Python callable the gate invokes, which is a branch wearing a different shape. What is open is

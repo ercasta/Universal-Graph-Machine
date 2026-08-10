@@ -123,6 +123,24 @@ class Gate:
         node = self.g.instance(self.FRAME, seat.node, topic.node)
         return Frame(node, seat, topic, parent, purpose, wrap)
 
+    def reseat(self, frame: Frame, seat: Moment) -> None:
+        """Move a frame to a later seat.
+
+        §17 says every seat move is a write, and this one is not yet recorded as
+        an entry -- noted in §21 rather than hidden. What it is for: the agent's
+        own frame must be able to advance while the register is pointing
+        somewhere else, because the world does not stop talking while the agent
+        is reasoning under a hypothesis.
+
+        The frame node is re-minted, so `frame(seat, topic)` keeps saying where
+        the frame is rather than where it began.
+        """
+        follow_topic = frame.topic is frame.seat
+        frame.seat = seat
+        if follow_topic:
+            frame.topic = seat
+        frame.node = self.g.instance(self.FRAME, frame.seat.node, frame.topic.node)
+
     def write(
         self,
         frame: Frame,
