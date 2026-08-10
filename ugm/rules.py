@@ -57,13 +57,18 @@ class Application(NamedTuple):
 
 
 class RuleSet:
-    def __init__(self, g: Graph) -> None:
+    def __init__(self, g: Graph, chain: Optional[Chain] = None) -> None:
         self.g = g
         self.CAUSES = g.atom(CAUSES)
         self.IMPLIES = g.atom(IMPLIES)
-        self.ENTRY = g.atom("entry")
-        self.MOMENT = g.atom("moment")
-        self.SIGN = {s: g.atom(s) for s in ("+", "-", "?")}
+        # Shared with the chain, never minted beside it. `Graph.atom` does not
+        # intern, so two `g.atom("entry")` calls are two nodes and a rule written
+        # against one can never match an entry built from the other.
+        self.ENTRY = chain.ENTRY if chain is not None else g.atom("entry")
+        self.MOMENT = chain.MOMENT if chain is not None else g.atom("moment")
+        self.SIGN = dict(chain.SIGN) if chain is not None else {
+            s: g.atom(s) for s in ("+", "-", "?")
+        }
         self.rules: List[Rule] = []
         # Authored precedence (§14): the bottom-most arbitrator is a lookup that
         # always returns and never searches.

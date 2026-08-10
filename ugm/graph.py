@@ -32,6 +32,10 @@ class Graph:
         # (§12): relation instances keyed by (rel, members) so the same
         # proposition is one node however often it is spoken of.
         self._interned: Dict[Tuple[Optional[NodeId], Tuple[NodeId, ...]], NodeId] = {}
+        # A second index over what was asserted, not over what was derived (§16):
+        # instances by relation. A rule whose antecedent names a relation has to
+        # start somewhere, and scanning every node is the alternative.
+        self._by_rel: Dict[NodeId, List[NodeId]] = {}
 
     # -- minting ----------------------------------------------------------
 
@@ -79,6 +83,8 @@ class Graph:
         self._is_var[n] = False
         if name is not None:
             self._name[n] = name
+        if relation is not None:
+            self._by_rel.setdefault(relation, []).append(n)
         return n
 
     # -- reading ----------------------------------------------------------
@@ -103,6 +109,11 @@ class Graph:
         if r is not None and self.has_var(r):
             return True
         return any(self.has_var(m) for m in self._members[n])
+
+    def instances_of(self, relation: NodeId) -> List[NodeId]:
+        """Every instance of a relation, in mint order. Insertion-ordered, so a
+        derivation that ends in a tie breaks it the same way on every run."""
+        return list(self._by_rel.get(relation, ()))
 
     def count(self) -> int:
         return self._next

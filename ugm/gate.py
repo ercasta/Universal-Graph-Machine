@@ -99,7 +99,10 @@ class Gate:
             # inverted span, so the check belongs here, where the mistake is
             # still attributable.
             raise ValueError(f"frame seat {seat} precedes its topic {topic}")
-        node = self.g.rel(self.FRAME, seat.node, topic.node)
+        # `instance`, not `rel`: two processes reasoning at the same seat about
+        # the same topic are two frames, and §17 needs each to be a node other
+        # facts can be about -- a purpose, a parent, a state.
+        node = self.g.instance(self.FRAME, seat.node, topic.node)
         return Frame(node, seat, topic, parent, purpose)
 
     def write(

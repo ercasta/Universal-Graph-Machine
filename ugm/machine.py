@@ -55,7 +55,7 @@ class Machine:
         self.g = Graph()
         self.chain = Chain(self.g)
         self.gate = Gate(self.g, self.chain)
-        self.rules = RuleSet(self.g)
+        self.rules = RuleSet(self.g, self.chain)
         self.channels = Channels(self.g)
 
         self.SAYS = self.g.atom("says")

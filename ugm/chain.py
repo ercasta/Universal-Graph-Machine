@@ -103,13 +103,38 @@ class Chain:
         self.g = g
         self.ENTRY = g.atom("entry")
         self.MOMENT = g.atom("moment")
-        self.root = Moment(g.rel(self.MOMENT), None, None)
+        # The structural mirror (§6). `pred` and `in_delta` are plain relation
+        # instances, not entries: nobody asserted them, they cannot be denied,
+        # dated or attributed. That is exactly §12's skeleton, and it is what
+        # makes them matchable by a stratum-0 rule.
+        self.PRED = g.atom("pred")
+        self.IN_DELTA = g.atom("in_delta")
+        self.IS_MOMENT = g.atom("moment_of")
+        # Position within a delta. A moment's entries are ordered -- two claims
+        # about the same locus are told apart by which was deposited later -- and
+        # that order lived in a Python list, where no rule could reach it.
+        self.DELTA_NEXT = g.atom("delta_next")
+        # Sign atoms live here rather than in the rule set, because an entry's
+        # third member is a sign and the chain is what mints entries. Everything
+        # else takes them from here: `atom` does not intern, so a second
+        # `g.atom("+")` would be a different node that no rule could match --
+        # the name-identity trap, which has cost this design four silent bugs.
+        self.SIGN = {s: g.atom(s) for s in (PLUS, MINUS, UNSURE)}
+        self.root = Moment(g.instance(self.MOMENT), None, None)
+        g.rel(self.IS_MOMENT, self.root.node)
         self.moments: List[Moment] = [self.root]
 
     def succeed(self, predecessor: Moment, licence: Optional[NodeId]) -> Moment:
         """Succession: the shared core of time and derivation (§4). Which of the
         two this is, is said by the licence and by nothing else."""
-        m = Moment(self.g.rel(self.MOMENT), predecessor, licence)
+        # `instance`, not `rel`. A moment has no members, so interning would make
+        # every moment in the history one node -- which it did, silently, until a
+        # stratum-0 rule was written that needed to tell two of them apart. The
+        # design says a moment is a node so that facts can be about it; that is
+        # false the moment they are all the same node.
+        m = Moment(self.g.instance(self.MOMENT), predecessor, licence)
+        self.g.rel(self.IS_MOMENT, m.node)
+        self.g.rel(self.PRED, m.node, predecessor.node)
         self.moments.append(m)
         return m
 
@@ -130,7 +155,14 @@ class Chain:
         wraps, and the gate is the only thing that knows where the stamps come
         from.
         """
-        node = self.g.instance(self.ENTRY, locus.node, proposition)
+        # Three members, and never a fourth (§8): locus, proposition, sign. The
+        # sign was previously kept beside the node in Python, which made the
+        # implementation disagree with the design in the one place a rule would
+        # have had to look.
+        node = self.g.instance(self.ENTRY, locus.node, proposition, self.SIGN[sign])
+        self.g.rel(self.IN_DELTA, seat.node, node)
+        if seat.delta:
+            self.g.rel(self.DELTA_NEXT, node, seat.delta[-1].node)
         e = Entry(node, locus, proposition, sign, grade, licence, source, consumed)
         seat.delta.append(e)
         return e
