@@ -16,7 +16,7 @@ other: reading it faithfully is guaranteed, and what it *says* stays contestable
 which is what `by(R, boss)` and `overrides(R1, R2)` depend on.
 """
 
-from typing import List, NamedTuple, Optional
+from typing import Callable, List, NamedTuple, Optional
 
 from .graph import Graph, NodeId
 
@@ -29,15 +29,28 @@ class Arrival(NamedTuple):
 
 
 class Channels:
-    """Intake is part of the loop: each tick drains what has arrived, stamps it,
-    then reasons. That makes arrival ordering explicit, and gives surprise a
-    single place where the world enters."""
+    """The world enters here, and it does not wait for a tick.
+
+    Intake used to be the first line of the loop: each tick drained a queue and
+    stamped what had arrived. Nothing needed it to be a phase. An arrival is an
+    external event, and an external event is not something the agent *does* --
+    so delivery writes immediately, through the gate, and the loop has one fewer
+    branch.
+
+    The queue survives only for arrivals delivered before anything is listening,
+    which is the ordinary case in a constructor.
+    """
 
     def __init__(self, g: Graph) -> None:
         self.g = g
         self.CHANNEL = g.atom("channel")
         self._pending: List[Arrival] = []
         self._known: List[NodeId] = []
+        # Set by the machine. Not a second register and not a phase: it is the
+        # same shape as the gate's write hooks -- the boundary calling in, rather
+        # than the loop reaching out.
+        self.sink: Optional[Callable[[Arrival], None]] = None
+        self.arrived = 0  # since the last tick, so a silence can still be named
 
     def open(self, name: str) -> NodeId:
         c = self.g.atom(name)
@@ -60,15 +73,25 @@ class Channels:
     def deliver(
         self, channel: NodeId, proposition: NodeId, sign: str = "+", grade: str = "certain"
     ) -> None:
-        """Queue an arrival. Nothing is believed yet: what arrives is that the
+        """Deliver an arrival. Nothing is believed yet: what arrives is that the
         channel said so, and turning that into a claim about the world is a rule
         the agent can be asked about."""
-        self._pending.append(Arrival(channel, proposition, sign, grade))
+        a = Arrival(channel, proposition, sign, grade)
+        self.arrived += 1
+        if self.sink is None:
+            self._pending.append(a)
+            return
+        self.sink(a)
 
     def drain(self) -> List[Arrival]:
+        """Whatever was delivered before anyone was listening."""
         out = list(self._pending)
         self._pending.clear()
         return out
+
+    def since_last_tick(self) -> int:
+        n, self.arrived = self.arrived, 0
+        return n
 
     def pending(self) -> int:
         return len(self._pending)

@@ -150,6 +150,11 @@ class Machine:
         self.gate.on_write.append(self._dispatch)
         self.gate.on_write.append(self._enter)
         self.gate.on_write.append(self._fit)
+        # The boundary calls in. Anything delivered before now was queued because
+        # nobody was listening yet, so it is drained once, here.
+        self.channels.sink = self._deliver
+        for pending in self.channels.drain():
+            self._deliver(pending)
 
     # -- the bundle -------------------------------------------------------
 
@@ -698,7 +703,10 @@ class Machine:
     # -- the loop ---------------------------------------------------------
 
     def tick(self) -> Step:
-        arrivals = self._deliver()
+        # Not a phase. Delivery happened when the world spoke; this only asks how
+        # much of it happened since the last step, so that *nothing applied* and
+        # *nothing arrived and nothing applied* stay different silences (§19).
+        arrivals = self.channels.since_last_tick()
 
         if self._expand_goal():
             return Step(arrivals, 0, 0, None, (), "expanded")
@@ -755,8 +763,18 @@ class Machine:
         deliberate-reasoning setting: recall with the budget removed."""
         return list(self.rules.rules)
 
-    def _deliver(self) -> int:
-        """Cross the boundary, and nothing else.
+    def _deliver(self, a: Arrival) -> None:
+        """Cross the boundary, and nothing else — when the world speaks, not when
+        the loop next gets round to asking.
+
+        This is what stays machinery under §5's test, and the reason is §18's:
+        a channel is **anchored** and a rule is generic, so no rule can name the
+        socket a report came in on. But *being machinery* never made it a phase.
+        An arrival is an external event, and an external event is not something
+        the agent does; nothing about it belongs in the agent's step.
+
+        So delivery is now the boundary calling in, the same shape as the gate's
+        write hooks, and the tick lost its first line.
 
         This is what stays machinery under §5's test, and the reason is §18's:
         a channel is **anchored** and a rule is generic, so no rule can name the
@@ -782,9 +800,8 @@ class Machine:
         one observed. §21 records the better answer: an arrival should be a
         moment, so a report is a signed delta.
         """
-        arrivals = self.channels.drain()
         own = self._own_frame()
-        if arrivals and own is not self.focus:
+        if own is not self.focus:
             # The register is inside a hypothesis and the world has spoken. The
             # report belongs to the AGENT, not to what the agent happens to be
             # supposing -- so it lands on a successor of the agent's own seat,
@@ -798,16 +815,14 @@ class Machine:
             # what it did: the agent's only record of what a channel said became
             # `likely(says(...))` -- the world's own testimony, hedged.
             self.gate.reseat(own, self.chain.succeed(own.seat, self.KB))
-        for a in arrivals:
-            utterance = self.g.instance(self.UTTERANCE, a.channel, a.proposition)
-            report = self.g.rel(
-                self.ARRIVED, a.channel, a.proposition, self.rules.SIGN[a.sign]
-            )
-            self.gate.write(
-                own, report, PLUS,
-                grade=a.grade, licence=utterance, source=a.channel,
-            )
-        return len(arrivals)
+        utterance = self.g.instance(self.UTTERANCE, a.channel, a.proposition)
+        report = self.g.rel(
+            self.ARRIVED, a.channel, a.proposition, self.rules.SIGN[a.sign]
+        )
+        self.gate.write(
+            own, report, PLUS,
+            grade=a.grade, licence=utterance, source=a.channel,
+        )
 
     def _apply(self, app: Application) -> Tuple[Entry, ...]:
         """Forward reading: apply the consequent's signs into the right moment.

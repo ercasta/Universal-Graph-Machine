@@ -2866,7 +2866,7 @@ current `ugm/` build; it is expected to shrink, and the count is the measure of 
 
 | names | direction | why it cannot be a rule |
 |---|---|---|
-| `arrived`, `utterance` | in | a channel is **anchored** and a rule is generic, so no rule can name the socket a report came in on |
+| `arrived`, `utterance` | in | a channel is **anchored** and a rule is generic, so no rule can name the socket a report came in on. Delivery is not a step of the loop: the boundary **calls in**, at the moment the world speaks. |
 | `doing`, `emitted` | out | the same, read the other way: no rule can name the agent's own edge |
 | `suppose` | inward | entering a frame **moves the register**, which is §4 item 3 and irreducible for the same reason as the bootstrap. Everything else about supposing is convention. |
 | `kb` | — | the channel a derived entry is sourced to |
@@ -2892,6 +2892,20 @@ link instead of through a keyword argument, so nothing special-cases it, and pro
 **A phase can hide a precedence claim.** Intake ran *before any rule was considered*. The rule is
 merely installed first, so §18's authored-order tiebreak prefers it — and a corpus can now say
 otherwise, which is the difference §18 spends its length arguing for.
+
+**Being machinery never made it a phase.** Even after `says` became a rule, *draining the channels*
+stayed the first line of the loop — and nothing required that. Crossing the boundary is irreducible;
+crossing it **on the agent's schedule** is a claim, and a false one.
+
+> **An arrival is an external event, and an external event is not something the agent does.**
+
+So delivery is the boundary calling in, the same shape as the write hooks, and the tick lost its first
+line. What remains in the step is a *counter* — how much arrived since the last one — because §19 still
+needs *nothing applied* and *nothing arrived and nothing applied* to be different silences.
+
+The behavioural difference is visible without running anything: a report is on the graph the moment
+the world speaks, and *what it means* still waits for a rule to be selected. Those were the same
+instant while intake was a phase, and they are two different things.
 
 **Acting was in the wrong place, and this section said so already.** §16 puts action dispatch at *the
 one place effects leave the agent* — the write — and §19 puts the prohibition check there for the same

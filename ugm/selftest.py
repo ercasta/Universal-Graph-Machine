@@ -420,6 +420,31 @@ def the_bundle() -> None:
         m2.chain.resolve(s2, m2.focus.topic, m2.focus.seat) is None,
     )
 
+    # The inbound crossing does not wait for a tick. Intake used to be the first
+    # line of the loop -- drain a queue, stamp what arrived -- and nothing
+    # required that. An arrival is an external event, and an external event is
+    # not something the agent does, so it has no place in the agent's step.
+    m5 = Machine()
+    g5 = m5.g
+    chan = m5.channels.open("gauge")
+    hot = g5.rel(g5.atom("boiling"), g5.atom("kettle"))
+    report = g5.rel(m5.ARRIVED, chan, hot, m5.rules.SIGN[PLUS])
+    check("§17", "nothing has arrived yet", m5.holds(report) is None)
+    m5.channels.deliver(chan, hot)
+    check("§17", "delivery writes when the world speaks, not at the next tick", m5.holds(report) == PLUS)
+    check(
+        "§5",
+        "but what it MEANS still waits for a rule to be selected",
+        m5.holds(g5.rel(m5.SAYS, chan, hot, m5.rules.SIGN[PLUS])) is None,
+    )
+    step = m5.tick()
+    check("§19", "and the tick can still name which silence it was", step.arrivals == 1)
+    check(
+        "§5",
+        "one selection later, the report has a meaning",
+        m5.holds(g5.rel(m5.SAYS, chan, hot, m5.rules.SIGN[PLUS])) == PLUS,
+    )
+
     # The outbound half. Acting used to be a phase; now only the crossing is.
     m3 = Machine()
     g3 = m3.g
