@@ -62,6 +62,7 @@ class Machine:
         self.SAYS = self.g.atom("says")
         self.APPLIED = self.g.atom("applied")
         self.ARRIVED = self.g.atom("arrived")
+        self.EMITTED = self.g.atom("emitted")
         self.UTTERANCE = self.g.atom("utterance")
         # §14: the vocabulary a rule uses to speak about a rule.
         self.RULE = self.g.atom("rule")
@@ -132,10 +133,12 @@ class Machine:
         # cost -- worth listing rather than letting it accumulate (§5).
         self._bookkeeping = {self.SUPPOSE, self.GOAL, self.ACHIEVED, self.BLOCKED,
                              self.PLAN, self.SUBGOAL, self.BINDS, self.EXPANDS,
-                             self.EXPECTS, self.DOING, self.DID, self.DEVIATES}
+                             self.EXPECTS, self.DOING, self.DID, self.DEVIATES,
+                             self.EMITTED}
 
         self.bundle: List[Rule] = []
         self._install_bundle()
+        self.gate.on_write.append(self._dispatch)
 
     # -- the bundle -------------------------------------------------------
 
@@ -165,6 +168,31 @@ class Machine:
                 [Member(PLUS, g.rel(self.ARRIVED, c, p, s))],
                 [Member(PLUS, g.rel(self.SAYS, c, p, s))],
                 "intake",
+            )
+        )
+
+        # What an emission MEANS: the agent acted.
+        w = g.var("?what")
+        self.bundle.append(
+            self.rules.rule(
+                IMPLIES,
+                [Member(PLUS, g.rel(self.EMITTED, w))],
+                [Member(PLUS, g.rel(self.DID, w))],
+                "did",
+            )
+        )
+        # And §15's *the agent asserts the act*, which was an unarguable line of
+        # the interpreter and is now a defeasible claim. The consequent is a bare
+        # variable, which §12 calls vacuous BACKWARDS and exact forwards -- the
+        # same shape as a trust rule, and for the same reason: it says *believe
+        # what this channel reported*, where the channel is the agent's own
+        # hands.
+        self.bundle.append(
+            self.rules.rule(
+                IMPLIES,
+                [Member(PLUS, g.rel(self.DID, w))],
+                [Member(PLUS, w)],
+                "assert-act",
             )
         )
 
@@ -269,39 +297,38 @@ class Machine:
         self._actuators.append(node)
         return node
 
-    def _act(self) -> bool:
-        """Emit what the agent has decided to do.
+    def _dispatch(self, frame: Frame, e: Entry) -> None:
+        """The outbound boundary, at the write rather than in the loop.
 
-        §11: an action is an event, an event is a moment, and *to execute* means
-        make this event-fact true. So nothing here is an action construct -- a
-        rule concludes `+doing(p)` like any other fact, and this carries it past
-        the boundary. What comes back comes back as an ordinary arrival, on an
-        ordinary channel, and may disagree.
+        A rule concludes `+doing(p)` like any other fact; this carries it past
+        the agent's edge, because a boundary is anchored and a rule is generic.
+        It is the mirror of `_deliver`, and between them the boundary has exactly
+        two names -- one per direction.
+
+        Everything the old `_act` phase did *besides* crossing is now a rule:
+        `<did>` records that the agent acted, and `<assert-act>` asserts the act
+        itself. The second is the interesting one. §15 argues that the agent must
+        assert what it did -- otherwise it emits an intent into silence and
+        nothing downstream ever happens -- and as a phase that argument was
+        unarguable. As a rule it is a claim, and an agent that should *not*
+        assume its acts succeed is now expressible by overriding it.
         """
-        for e in current_state(self.chain, self.focus.topic, self.focus.seat):
-            if e.sign != "+" or e.node in self._acted:
-                continue
-            if self.g.relation_of(e.proposition) is not self.DOING:
-                continue
-            if self.g.has_var(e.proposition):
-                continue  # cannot act on a description; §8's achievability, met
-            self._acted.add(e.node)
-            (what,) = self.g.members(e.proposition)
-            self.emitted.append(what)
-            did = self.g.rel(self.DID, what)
-            self.gate.write(
-                self.focus, did, "+", licence=did, source=self.KB, consumed=(e,),
-            )
-            # §11: *to execute* means make this event-fact true. The agent knows
-            # it acted -- that is not a claim about the world's response, which
-            # arrives on a channel and may disagree. Asserting the act is what
-            # gives the rules something to fire on, and gives the expectation
-            # something to be disappointed by.
-            self.gate.write(
-                self.focus, what, "+", licence=did, source=self.KB, consumed=(e,),
-            )
-            return True
-        return False
+        if e.sign != PLUS or self.g.relation_of(e.proposition) is not self.DOING:
+            return
+        if self.g.has_var(e.proposition):
+            return  # a description cannot be acted on; §15's condition, at the edge
+        if e.node in self._acted:
+            return
+        self._acted.add(e.node)
+        (what,) = self.g.members(e.proposition)
+        self.emitted.append(what)
+        # The smallest unarguable record that something left the agent. What it
+        # MEANS is `<did>`, and what follows from it is `<assert-act>`.
+        self.gate.write(
+            frame, self.g.rel(self.EMITTED, what), "+",
+            licence=self.g.instance(self.UTTERANCE, self.KB, what),
+            source=self.KB, consumed=(e,),
+        )
 
     def _expect(self, frame: Frame, proposition: NodeId, sign: str, licence: NodeId) -> None:
         """Forward application deposits what it predicts (§16).
@@ -542,9 +569,6 @@ class Machine:
 
         if self._enact_supposition():
             return Step(arrivals, 0, 0, None, (), "supposed")
-
-        if self._act():
-            return Step(arrivals, 0, 0, None, (), "acted")
 
         # Not gated on arrivals: a deviation usually appears a tick or two AFTER
         # the report lands, once a trust rule has turned what a channel said into

@@ -420,6 +420,35 @@ def the_bundle() -> None:
         m2.chain.resolve(s2, m2.focus.topic, m2.focus.seat) is None,
     )
 
+    # The outbound half. Acting used to be a phase; now only the crossing is.
+    m3 = Machine()
+    g3 = m3.g
+    heat = g3.rel(g3.atom("heat"), g3.atom("anna"), g3.atom("kettle"))
+    m3.actuator("hands")
+    m3.gate.write(m3.focus, g3.rel(m3.DOING, heat), PLUS)
+    m3.run(limit=8)
+    check("§15", "an intent crosses the boundary at the write", m3.emitted == [heat])
+    check("§15", "a rule turns the crossing into *I acted*", m3.holds(g3.rel(m3.DID, heat)) == PLUS)
+    check("§15", "and a rule asserts the act itself", m3.holds(heat) == PLUS)
+
+    # §18's whole argument, made concrete: a strategy written as code cannot be
+    # overridden by a statement in the knowledge base. `the agent asserts the
+    # act` was such a strategy. As a rule, an agent that does not assume its acts
+    # succeed is expressible -- and it still acts, and still knows it acted.
+    m4 = Machine()
+    g4 = m4.g
+    m4.rules.rules = [r for r in m4.rules.rules if r.name != "assert-act"]
+    h4 = g4.rel(g4.atom("heat"), g4.atom("anna"), g4.atom("kettle"))
+    m4.gate.write(m4.focus, g4.rel(m4.DOING, h4), PLUS)
+    m4.run(limit=8)
+    check("§18", "drop that rule and the agent still acts", m4.emitted == [h4])
+    check("§18", "and still knows it acted", m4.holds(g4.rel(m4.DID, h4)) == PLUS)
+    check(
+        "§18",
+        "but no longer assumes the act succeeded -- a strategy defeated by data",
+        m4.holds(h4) is None,
+    )
+
 
 def worked_examples() -> None:
     """§8's rules, as printed in the design, actually run."""

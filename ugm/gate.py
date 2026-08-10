@@ -21,7 +21,7 @@ lets `the user says it is raining` become `it is raining` by a rule the agent ca
 be asked about, rather than by a hard-wired intake nobody can argue with.
 """
 
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from .chain import Chain, Entry, Moment
 from .graph import Graph, NodeId
@@ -82,6 +82,16 @@ class Gate:
         self.FRAME = g.atom("frame")
         self.PROCESS = g.atom("process")
         self.writes = 0
+        # Effects leave the agent HERE, not in a phase of the loop. §16 already
+        # places action dispatch at the write -- *the one place effects leave the
+        # agent, where the set is small and known* -- and §19 puts the
+        # prohibition check in the same place for the same reason. An
+        # implementation that polls for intents once a tick has moved that
+        # decision into control flow, where nothing can override it.
+        #
+        # These are Python callables, which is honest debt: §21 records that the
+        # bundle should be rules, and a hook is not one.
+        self.on_write: List[Callable[["Frame", Entry], None]] = []
 
     def frame(
         self,
@@ -135,7 +145,7 @@ class Gate:
                 f"cannot deposit a generic proposition: {self.g.show(proposition)}"
             )
         self.writes += 1
-        return self.chain.deposit(
+        e = self.chain.deposit(
             seat=frame.seat,
             locus=frame.topic if locus is None else locus,
             proposition=proposition,
@@ -145,3 +155,6 @@ class Gate:
             source=source,
             consumed=tuple(e.node for e in consumed),
         )
+        for hook in self.on_write:
+            hook(frame, e)
+        return e

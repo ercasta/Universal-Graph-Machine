@@ -2547,6 +2547,11 @@ The three a first implementation is most likely to get wrong:
   so composition takes the same budget-and-state discipline as expansion. And composition needs a rule
   to unify one rule's consequent against another's antecedent, which is §5's wall — it is blocked until
   that is resolved.
+* **Write-time hooks are not rules** (§4, Appendix C). Moving action dispatch to the write was right —
+  §16 had already named the write as the one place effects leave the agent — but it is implemented as
+  a Python callable the gate invokes, which is a branch wearing a different shape. What is open is
+  whether *fire this when an entry matching P is written* can be a rule; it looks like a demand-driven
+  match against the entry about to be deposited, which is §5's wall again from a fifth side.
 * **Explaining a read** (§6). Stratum 0 produces structure rather than entries, so the resolution that
   fed a conclusion is undated and unattributed. R5 covers the conclusion and not the read. Whether
   anything cheap recovers this without reinstating the circle is unknown.
@@ -2722,6 +2727,8 @@ current `ugm/` build; it is expected to shrink, and the count is the measure of 
 | name | the rule | section |
 |---|---|---|
 | `says` | `<intake>` — `implies({+arrived(?c, ?p, ?s)}, {+says(?c, ?p, ?s)})` | §17 |
+| `did` | `<did>` — `implies({+emitted(?w)}, {+did(?w)})` | §15 |
+| — | `<assert-act>` — `implies({+did(?w)}, {+?w})`, §15's *the agent asserts the act* | §15 |
 
 **Convention — fails the test, and still has an interpreter branch**
 
@@ -2730,24 +2737,46 @@ current `ugm/` build; it is expected to shrink, and the count is the measure of 
 | `causes`, `implies` | which moment a consequent lands in | §14 |
 | `suppose` | opening a supposition frame | §16 |
 | `goal`, `achieved`, `blocked`, `plan`, `subgoal`, `binds`, `expands` | backward search's working state | §18 |
-| `doing`, `did`, `expects`, `deviates` | acting and surprise | §15, §18 |
+| `expects`, `deviates` | surprise | §18 |
 
 **Boundary — machinery, and legitimately so**
 
-| names | why it cannot be a rule |
-|---|---|
-| `arrived`, `utterance`, `kb` | a channel is **anchored** and a rule is generic, so no rule can name the socket a report came in on. §18's *the machinery does what a rule cannot*, and the one row of this table that is not debt. |
+| names | direction | why it cannot be a rule |
+|---|---|---|
+| `arrived`, `utterance` | in | a channel is **anchored** and a rule is generic, so no rule can name the socket a report came in on |
+| `doing`, `emitted` | out | the same, read the other way: no rule can name the agent's own edge |
+| `kb` | — | the channel a derived entry is sourced to |
 
-Eighteen conventions with branches, one shipped as a rule, four interpreter phases remaining —
-supposition, acting, deviation, goal expansion. §20's counter target is zero.
+**The boundary has exactly two names, one per direction.** That symmetry is not decoration — it is
+§15's *acting is a channel read the other way* turning out to be true of the implementation and not
+only of the prose. These rows are the only ones in this appendix that are not debt.
 
-**What moving one taught.** Splitting `_intake` did not merely relocate a branch. The boundary
-crossing shrank to the smallest unarguable record — `arrived(channel, proposition, sign)`, sourced to
-the channel — and *what a report means* became a rule. Two things improved rather than moved: the
-arrival's grade now reaches the `says` claim through §16's weakest link instead of through a keyword
-argument, so nothing special-cases it; and provenance landed where §17 says it should, with the raw
-arrival unforgeable and the saying above it derived, licensed and arguable.
+Fifteen conventions with branches, three shipped as rules, **three** interpreter phases remaining —
+supposition, deviation, goal expansion. §20's counter target is zero.
 
-It also made a precedence claim visible that had been hidden in control flow. The phase ran before any
-rule was considered; the rule is merely installed first, so §18's authored-order tiebreak prefers it.
-That is now something a corpus can override, which is the difference the whole section is about.
+### What moving two taught
+
+**Splitting a phase shrinks it rather than relocating it.** `_intake` became the smallest unarguable
+record of a boundary event — `arrived(channel, proposition, sign)`, sourced to the channel — and *what
+a report means* became a rule. The arrival's grade now reaches the `says` claim through §16's weakest
+link instead of through a keyword argument, so nothing special-cases it, and provenance landed where
+§17 says it should: the raw arrival unforgeable, the saying above it derived and arguable.
+
+**A phase can hide a precedence claim.** Intake ran *before any rule was considered*. The rule is
+merely installed first, so §18's authored-order tiebreak prefers it — and a corpus can now say
+otherwise, which is the difference §18 spends its length arguing for.
+
+**Acting was in the wrong place, and this section said so already.** §16 puts action dispatch at *the
+one place effects leave the agent* — the write — and §19 puts the prohibition check there for the same
+reason. The implementation polled for intents once a tick, which had quietly moved that decision into
+control flow. Moving it to the write removed the phase without inventing anything: the loop lost a
+branch because the design had already named a better home for it.
+
+**And it made §18's central claim concrete.** *The agent asserts the act* was a line of the
+interpreter, and therefore unarguable. As `<assert-act>` it is a claim, so an agent that does **not**
+assume its acts succeed is now expressible by dropping one rule — and it still acts, and still knows
+it acted. A strategy written as code cannot be overridden by a statement in the knowledge base; this
+is the first place in the implementation where one can.
+
+The debt this incurred is named rather than hidden: the write-time hook is a Python callable, and §21
+records that the bundle should be rules. A hook is not one.
