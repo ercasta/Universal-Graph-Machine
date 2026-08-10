@@ -1,6 +1,6 @@
 # Handoff — 2026-08-10
 
-Branch `restart`, at `ed08523 check`, pushed and clean. `main` still holds the old 46-module engine
+Branch `restart`, at `77cf130 denial`, pushed and clean. `main` still holds the old 46-module engine
 on purpose.
 
 `docs/rules-design.md` is still the design and still the only doc that argues anything. **This file
@@ -11,9 +11,9 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     156 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     161 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
-python -m ugm.bundle         7/7 bundled rules exercised  is every shipped rule load-bearing?
+python -m ugm.bundle         8/8 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 missing, 0 blind         backward reading as rules vs as a phase
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 ```
@@ -40,6 +40,8 @@ gone. Ten commits:
 | `fit` | match as a request; `ugm.backward` |
 | `delivery` | the boundary calls in; the tick loses its first line |
 | `check` | the second request; backward reading entire, in five rules |
+| `handoff` | this file |
+| `denial` | §9 settled by measurement: sign **and** `not`, translating one way |
 
 ### 1. The spine changed
 
@@ -104,8 +106,8 @@ read.
 **One phase remains**: `Machine._expand_goal`. Everything else in `tick()` is recall → match →
 defeat → quiescence → arbitrate → apply, plus a `_leave()` when a supposition runs out of work.
 
-**Seven bundled rules** ship as data (`Machine._install_bundle`): `intake`, `did`, `assert-act`, and
-four `deviation-*`.
+**Eight bundled rules** ship as data (`Machine._install_bundle`): `intake`, `did`, `assert-act`, and
+four `deviation-*`, and `denial`.
 
 **Four write-time hooks**: `_dispatch` (acting), `_enter` (supposition), `_fit`, `_settle`. These are
 Python callables, which is honest debt — §21 records it.
@@ -122,19 +124,15 @@ not a refactor. Two things block a clean swap:
   over a finished search. It needs a home.
 * nothing says when a plan is *settled*, which is also §21's backtracking item.
 
-**2. The sign question** (§9, §21). Should negation be a member or a wrapper — `not(p)`? It would
-collapse `says(c, p, sign)` to two members and compose with modality, which sign cannot; against it,
-wrappers nest into meaninglessness and `?` resists wrapping. **Settle by writing one corpus both
-ways**, as modality was settled. Cheaper now than before, because there is one place that knows what
-a sign is.
-
-**3. Pattern against pattern.** `fit` matches generic against ground. Lifting a modality and
+**2. Pattern against pattern.** `fit` matches generic against ground. Lifting a modality and
 **composing two rules** both need pattern-against-pattern, and whether that is the same operation is
 unknown. Composition is the larger prize — §4 argues it is algorithmic where compilation is a
 constant factor.
 
 **Smaller, well-specified:** a seat move is not yet an entry (§17 says every seat move is a write);
-write-time hooks are not rules; the transpiler sketch in §21.
+write-time hooks are not rules; what a `?` conclusion becomes on the way out of a supposition (§9);
+whether a channel reporting a denial should write `says(c, p, -)` or `says(c, not(p))`, and whether
+permitting both splits a corpus into dialects; the transpiler sketch in §21.
 
 ---
 
