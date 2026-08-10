@@ -136,10 +136,14 @@ authored and which nothing forbids reading as a claim.
 **Leaking is a property of the shape alone.** A reader that drops part of a shape and concludes too
 much is not a leak; the unauthored claim is in the reader, not in the graph. That failure is real, but
 it is a question about the machinery — *why did the machinery return part of a structure?* — and the
-machinery has exactly two places where it can be asked: **match**, which is what returns entries, and
-**write**, which is what deposits them. A criterion that charged shapes for reader behaviour would
-score the same shape differently depending on who read it, which is not a property of a
-representation.
+machinery has a small number of places where it can be asked: **match**, which is what returns
+entries; **write**, which is what deposits them; and **quiescence**, which decides that an application
+would change nothing (§5). A criterion that charged shapes for reader behaviour would score the same
+shape differently depending on who read it, which is not a property of a representation.
+
+The third was found by building rather than by argument, and it is the one to watch: match returning
+nothing and write refusing are both observable, while *this would change nothing* is silent by
+construction.
 
 ### The criteria score a pair, not a shape
 
@@ -524,6 +528,42 @@ document for resolving it. Whether the repair is a sixth floor item or **match r
 rule can request it and the machinery answers, is open (§21) — though composition tilts the answer,
 since composing is plainly something the agent should do deliberately, on demand and under a budget,
 which is what a request is and what a primitive is not.
+
+### Use and mention, and where the refusal actually happens
+
+Reification forces a distinction the design would otherwise not need. `+con(<R>, boiling(?w), +)` is a
+**ground** claim about a rule that happens to name a node containing variables. It is not a generic
+claim, and refusing it would make rules unspeakable-about — but structurally the two are identical, so
+nothing in the shape can tell them apart.
+
+Earlier drafts settled it by **who is writing**: the machinery reifying a rule mentions, a rule's
+consequent uses. That is too strong, and building it is how the gap showed. A rule whose antecedent
+matches `+con(?r, ?pat, +)` binds `?pat` to a stored pattern, so anything it concludes about `?pat` is
+a rule's consequent *mentioning*. Under the authorship rule that write is refused, and rules cannot
+reason about rules at all — which R3 requires them to.
+
+What tells them apart is inheritance rather than authorship:
+
+> **Mention propagates through bindings. A conclusion drawn from a mentioned entry is itself a
+> mention.**
+
+This is checkable rather than declared, because the entries match consumed are already recorded — R5
+needs them for the trail. It is the trail turning out to be load-bearing for something other than
+explanation, which §16 argues is the pattern to expect.
+
+**The refusal was not where the design says refusals happen.** Such a rule was never rejected by the
+gate. It was dropped by the **quiescence filter**, which treated a conclusion still containing
+variables as *nothing left to do* — so a rule reasoning about rules looked exactly like a rule with no
+work: no error, no trace, nothing to distinguish it from correct behaviour.
+
+§2 says the machinery has exactly two places where it can be asked why it returned part of a
+structure: `match` and `write`. That is one short.
+
+> **Quiescence is a third place the machinery can decline, and it declines silently.**
+
+Match returning nothing and write refusing are both observable. *This application would change
+nothing* is indistinguishable from *there was nothing to apply*, which is §9's `−` against no-entry
+and §19's two silences arriving in the one place the design had not looked.
 
 ### Adding a connective adds rows, not branches
 

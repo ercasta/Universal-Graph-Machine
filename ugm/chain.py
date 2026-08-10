@@ -46,6 +46,10 @@ class Entry(NamedTuple):
     licence: Optional[NodeId]  # what produced it: an application, an utterance
     source: Optional[NodeId]  # the channel it arrived through (§13)
     consumed: Tuple[NodeId, ...]  # the entries match consumed -- half the trail
+    # Use or mention (§14). A ground claim ABOUT a rule names a node containing
+    # variables, and is not a generic claim; structurally the two are identical,
+    # so the difference has to be recorded rather than inferred.
+    mention: bool = False
 
 
 class Moment:
@@ -148,6 +152,7 @@ class Chain:
         licence: Optional[NodeId] = None,
         source: Optional[NodeId] = None,
         consumed: Tuple[NodeId, ...] = (),
+        mention: bool = False,
     ) -> Entry:
         """Place an entry in `seat`'s delta, about `locus`.
 
@@ -163,7 +168,7 @@ class Chain:
         self.g.rel(self.IN_DELTA, seat.node, node)
         if seat.delta:
             self.g.rel(self.DELTA_NEXT, node, seat.delta[-1].node)
-        e = Entry(node, locus, proposition, sign, grade, licence, source, consumed)
+        e = Entry(node, locus, proposition, sign, grade, licence, source, consumed, mention)
         seat.delta.append(e)
         return e
 

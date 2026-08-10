@@ -751,6 +751,7 @@ class Machine:
             seat = self.chain.succeed(self.focus.seat, licence)
             self.focus = self.gate.frame(seat, purpose=self.focus.purpose)
         frame = self.focus
+        mention = self._is_mention(app)
 
         wrote: List[Entry] = []
         for m in app.rule.consequent:
@@ -766,6 +767,7 @@ class Machine:
                     licence=licence,
                     source=self.KB,  # the rule is the licence; the KB is the channel
                     consumed=app.consumed,
+                    mention=mention,
                 )
             )
         return tuple(wrote)
@@ -778,12 +780,40 @@ class Machine:
         *nothing left to do* would be unsayable."""
         for m in app.rule.consequent:
             grounded = substitute(self.g, m.pattern, app.bindings)
-            if self.g.has_var(grounded):
+            if self.g.has_var(grounded) and not self._is_mention(app):
+                # Genuinely generic: the rule's consequent names something its
+                # antecedent never bound, and there is nothing to deposit. A
+                # conclusion that contains variables because it is ABOUT a rule
+                # is a different case entirely, and dropping it here is how a
+                # rule reasoning about rules used to look exactly like a rule
+                # with nothing to do -- silently, and only at this line.
                 return False
             cur = self.chain.resolve(grounded, self.focus.topic, self.focus.seat)
             if cur is None or cur.sign != m.sign:
                 return True
         return False
+
+    def _is_mention(self, app: Application) -> bool:
+        """Is this application talking ABOUT rules rather than in them?
+
+        §14 says the use/mention distinction is settled by *who is writing* --
+        the machinery reifying a rule mentions, a rule's consequent uses. That is
+        too strong, and running it is how the gap showed: a rule whose antecedent
+        matched `con(?r, ?pat, +)` binds `?pat` to a stored pattern, and anything
+        it concludes about `?pat` is a **ground claim that happens to contain
+        variables**. A rule's consequent can mention.
+
+        What tells them apart is inheritance rather than authorship:
+
+        > **Mention propagates through bindings. A conclusion drawn from a
+        > mentioned entry is itself a mention.**
+
+        That is checkable rather than declared -- the entries match consumed are
+        already recorded, because R5 needs them for the trail. This is the trail
+        being load-bearing for something other than explanation, which §16 argues
+        is the pattern to expect.
+        """
+        return any(e.mention for e in app.consumed)
 
     # -- asking -----------------------------------------------------------
 

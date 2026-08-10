@@ -450,6 +450,57 @@ def the_bundle() -> None:
     )
 
 
+def mention_propagates() -> None:
+    """A rule's consequent can MENTION, and §14 said it could not.
+
+    `+con(?r, ?pat, +)` binds `?pat` to a stored pattern, so anything concluded
+    about `?pat` is a ground claim that happens to contain variables. §14 settles
+    use against mention by *who is writing* -- machinery mentions, a rule uses --
+    and that turned out to be too strong.
+
+    What tells them apart is inheritance: mention propagates through bindings,
+    which is checkable because the entries match consumed are already recorded
+    for the trail.
+
+    Until this, such a rule was not refused -- it was silently filtered by
+    quiescence, because a conclusion still containing variables looked exactly
+    like a rule with nothing left to do.
+    """
+    from .text import load
+
+    m = Machine()
+    load(m, "rule <boil> = implies( { +heat(?w) }, { +boiling(?w) } )")
+    m.reify_all()
+    g = m.g
+    concludes = g.atom("concludes")
+    r, pat = g.var("?r"), g.var("?pat")
+    m.rules.rule(
+        IMPLIES,
+        [Member(PLUS, g.rel(m.CON, r, pat, m.rules.SIGN[PLUS]))],
+        [Member(PLUS, g.rel(concludes, r, pat))],
+        "what-does-it-conclude",
+    )
+    m.run(limit=30)
+
+    derived = [
+        e
+        for mo in m.chain.moments
+        for e in mo.delta
+        if g.relation_of(e.proposition) is concludes
+    ]
+    check("R3", "a rule can derive facts about rules", len(derived) >= 1)
+    check(
+        "§14",
+        "and the derived claim is recorded as a mention, not as a generic claim",
+        all(e.mention for e in derived),
+    )
+    check(
+        "§14",
+        "including about the bundle -- the machinery's own rules are askable",
+        any("did(?what)" in g.show(e.proposition) for e in derived),
+    )
+
+
 def surprise_is_four_rows() -> None:
     """Every way an observation can disappoint an expectation.
 
@@ -875,6 +926,7 @@ def main() -> int:
     quiescence()
     trusting_a_channel()
     the_bundle()
+    mention_propagates()
     surprise_is_four_rows()
     surface()
     worked_examples()

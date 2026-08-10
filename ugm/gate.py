@@ -180,6 +180,7 @@ class Gate:
             licence=licence,
             source=source,
             consumed=tuple(e.node for e in consumed),
+            mention=mention,
         )
         for hook in self.on_write:
             hook(frame, e)
