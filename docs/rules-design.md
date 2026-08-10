@@ -5,38 +5,80 @@ graph substrate, and what the engine that runs them must provide. It is self-con
 uses is defined here, and every decision is argued from the requirements stated in §1 rather than
 from precedent.
 
+**It is organised around one claim.** Almost nothing in this design is part of the engine. Moments,
+entries, signs, spans, rules, grades, channels, frames, goals and plans are a **representation of
+reality that the agent uses**, not machinery the engine is built out of. They are open class. An agent
+that has them reasons better than one that treats every proposition as a bare fact — it can say what it
+used to believe, what it is merely supposing, and on whose word — and that superiority is a matter of
+what it was *taught*, not of what it is *made of*. One could teach a person to think this way without
+changing the chemistry of their brain.
+
+So the document has four parts:
+
+* **Part I — the floor.** What genuinely cannot be a convention, and the test that decides.
+* **Part II — the internal representation of reality.** The bundle: moments, entries, signs, and the
+  read. This is the part you would teach first.
+* **Part III — what the representation allows.** Everything else, grouped by what it is *for*, each
+  scored as a joint property of substrate and convention.
+* **Part IV — gates and open questions.**
+
+Earlier drafts placed most of Part II and all of Part III inside the engine. That was a mistake with a
+recognisable shape: treating an open-class concept as closed creates an island that no rule can reach,
+and the design already caught one instance of it (§12's *achievability is not a mark*) without
+generalising. This draft generalises it.
+
 ## Contents
+
+**Part I — The floor**
 
 - [1. Requirements](#1-requirements)
 - [2. Evaluation criteria](#2-evaluation-criteria)
 - [3. The substrate](#3-the-substrate)
-- [4. Moments](#4-moments)
-- [5. Propositions and entries](#5-propositions-and-entries)
-- [6. Signs](#6-signs)
-- [7. Spans](#7-spans)
-- [8. Rules](#8-rules)
-- [9. Shapes](#9-shapes)
-- [10. Connectives](#10-connectives)
-- [11. Time](#11-time)
-- [12. Modality](#12-modality)
-- [13. The division of labour](#13-the-division-of-labour)
-- [14. The engine floor](#14-the-engine-floor)
-- [15. Recall](#15-recall)
-- [16. Surprise, commitment and reflection](#16-surprise-commitment-and-reflection)
-- [17. Acceptance](#17-acceptance)
-- [18. What this design does not settle](#18-what-this-design-does-not-settle)
+- [4. The floor](#4-the-floor)
+- [5. The test](#5-the-test)
+- [6. The bootstrap](#6-the-bootstrap)
+
+**Part II — The internal representation of reality**
+
+- [7. Moments](#7-moments)
+- [8. Propositions and entries](#8-propositions-and-entries)
+- [9. Signs](#9-signs)
+- [10. The read](#10-the-read)
+
+**Part III — What the representation allows**
+
+- [11. Spans](#11-spans)
+- [12. Rules](#12-rules)
+- [13. Shapes](#13-shapes)
+- [14. Connectives](#14-connectives)
+- [15. Time](#15-time)
+- [16. Modality](#16-modality)
+- [17. Provenance — channels, frames and the gate](#17-provenance--channels-frames-and-the-gate)
+- [18. The machinery's own state](#18-the-machinerys-own-state)
+- [19. Recall](#19-recall)
+
+**Part IV — Gates and open questions**
+
+- [20. Acceptance](#20-acceptance)
+- [21. What this design does not settle](#21-what-this-design-does-not-settle)
 - [Appendix A. Glossary](#appendix-a-glossary)
 - [Appendix B. Alternatives considered](#appendix-b-alternatives-considered)
+- [Appendix C. The name census](#appendix-c-the-name-census)
 
 Concepts are introduced in dependency order: no section relies on a construct defined below it,
-except that §4 forward-references *entries*, whose definition is §5.
+except that §7 forward-references *entries*, whose definition is §8.
+
+---
+
+# Part I — The floor
 
 ---
 
 ## 1. Requirements
 
 The system is an agent that plans, acts, observes and explains itself. Rules are how it knows what
-follows from what. Seven requirements shape everything below.
+follows from what. Seven requirements shape everything below. They are cited by number throughout,
+and glossed at each citation, because a bare `R4` is unreadable at a distance.
 
 **R1 — Two readings of one statement.** Planning reads a rule **backwards** (*what would make this
 goal true?*); execution reads it **forwards** (*what follows from this state?*). Both readings must
@@ -57,7 +99,7 @@ Which come from the boss?* must be ordinary queries. A rule whose content is a p
 can run but cannot ask about, so those questions become impossible.
 
 **R5 — Every conclusion carries its support.** The agent must be able to answer *why do you believe
-that, and on whose word?* The trace a piece of reasoning leaves behind is not a debugging aid; §12
+that, and on whose word?* The trace a piece of reasoning leaves behind is not a debugging aid; §16
 makes it load-bearing for correctness.
 
 **R6 — Partial knowledge must be sayable.** *Pouring raises the level, by an unknown amount* must be
@@ -69,6 +111,11 @@ in-progress procedures must be facts on the graph, not variables in an interpret
 agent cannot notice that an expectation failed, cannot be asked why it abandoned a plan, and cannot
 have a strategy overridden by a statement in its knowledge base.
 
+R7 is the one that does the most work in this draft. Taken seriously it does not stop at expectations
+and commitments: it reaches the representation of belief itself. If *what I believe*, *when I came to
+believe it* and *how strongly* were engine-level, the agent's own epistemic state would be the one
+thing it could not reason about.
+
 ---
 
 ## 2. Evaluation criteria
@@ -76,12 +123,9 @@ have a strategy overridden by a statement in its knowledge base.
 Every representation decision below is scored against four criteria, in a table, before the decision
 is taken. The cost is written down even when the choice is obvious.
 
-REVIEW NOTE: "Not Leaking" means the SHAPE does not leak, if a reader ignores part of the shape, it's a reader's problem
-
-
 | criterion | the question |
 |---|---|
-| **not leaking** | Can this shape state something the author did not intend? |
+| **not leaking** | Can this shape state something the author did not intend? *Scoped to the shape alone — see below.* |
 | **not lossy** | Is everything the author knew recoverable from what was stored — including what they *didn't* know? |
 | **readable** | Can the obvious questions about this be asked as ordinary queries, without a special mechanism? |
 | **composable** | Do two independently authored instances of this combine without either being rewritten? |
@@ -96,6 +140,27 @@ machinery has exactly two places where it can be asked: **match**, which is what
 **write**, which is what deposits them. A criterion that charged shapes for reader behaviour would
 score the same shape differently depending on who read it, which is not a property of a
 representation.
+
+### The criteria score a pair, not a shape
+
+This is the correction that reorganises the document. A shape does not leak or fail to leak on its
+own; it does so **given the conventions in force**. `moment(delta, predecessor, licence)` is leakless
+because there is a convention about what a delta is and a discipline about who writes one. Change the
+convention and the same three-member node scores differently.
+
+> **Leaklessness, losslessness, readability and composability are joint properties of the substrate
+> and the convention layered on it.**
+
+Two consequences run through the rest of the document.
+
+**Every scoring table in Part III scores a convention**, not the substrate. They are therefore
+arguments, open to a better convention, rather than axioms. Part I's tables are the only ones scoring
+something that cannot be replaced.
+
+**When the design hits a wall, the first question is which of the two is at fault.** The default
+answer must be *the convention*, because a convention is cheap to replace and a substrate provision is
+permanent. Reaching for a new engine feature to rescue a convention is how islands are made: the
+feature can manipulate the convention and nothing else can, so the convention stops being data.
 
 ---
 
@@ -124,9 +189,236 @@ provides ordered targets natively, and why it is the only such provision.
 
 ---
 
-## 4. Moments
+## 4. The floor
 
-A **moment** is the design's only construct for a state of affairs. A state in time, a hypothetical, a
+The floor is what remains when everything teachable has been removed. It is short, and — this is the
+test of whether it has been drawn correctly — **nothing on it mentions reality**. No item below says
+anything about time, belief, evidence, causation or the world. They are about how structure is built,
+matched and committed.
+
+### 1. Structure and ordering
+
+§3, in full. Nodes, ordered members, nothing else. This is the medium, and no convention can supply
+it because every convention is written in it.
+
+### 2. Variables and substitution
+
+A node may be **generic**: it contains variables. Given a generic node and an anchored one, there is
+an operation that finds a substitution making the first identical to the second, or reports that none
+exists. Applying a substitution to a generic node yields a node.
+
+This is the one item that provably cannot be a convention, and the reason is self-reference:
+
+> **You cannot define matching-with-variables using rules that themselves require
+> matching-with-variables.**
+
+Everything else that felt like floor in earlier drafts was floor by association with this. A rule is a
+rule *because* it is generic; a pattern is a pattern *because* something substitutes into it. Remove
+this and there is no rule layer to write conventions in.
+
+**What match means, stated once.** Two nodes match under a substitution σ when applying σ to the
+generic one yields the anchored one, position by position, relation included. That is *structural*
+unification and nothing more. It has no opinion about entries, loci, signs or chains — those enter
+only because the **program** that reads a chain (§10) is written in terms of them, and that program is
+a convention.
+
+The distinction matters because §2 charges leaks to `match`. What match returns is a substitution over
+structure. Whether it returned *part of* a claim is a question about the program that called it, and
+the program is data.
+
+### 3. A register
+
+Writes land somewhere, and something must point at where. One pointer: the node the machinery is
+currently working in.
+
+The register is floor. **That it points at a moment is convention.** Nothing in the engine knows what
+kind of node it holds; §17 is what decides to put a frame there, and §7 is what decides that a frame's
+seat is a moment.
+
+### 4. A stamp on every mint
+
+Every node the engine creates records what produced it: which rule, under which substitution, with the
+register in which state.
+
+This is a property of the write operation, not a vocabulary item — it introduces no name and says
+nothing about channels, authority or evidence. It is on the floor because the alternative is
+voluntary provenance, and voluntary provenance is forgeable. §16 makes the support trail load-bearing
+for *correctness* rather than for explanation, and that argument fails outright if a write can decline
+to be stamped.
+
+> **Nothing is prohibited; everything is stamped.**
+
+### 5. One total step
+
+Something must always answer. Selection cannot be allowed to search forever or to return nothing,
+because the interpreter has no outside to fall back to.
+
+Totality is floor. **The table it consults is convention** — an authored precedence relation over
+rules, which §18 and §19 depend on being ordinary data. The floor requires only that a bottom-most
+selector exists, is a lookup rather than a search, and always returns.
+
+### That is the whole floor
+
+```
+structure + ordering        §3
+variables + substitution    the only item that is provably irreducible
+a register                  where writes land
+a stamp on every mint       provenance is not optional
+one total step              selection terminates
+```
+
+Earlier drafts named **four primitives** — recall, match, write, arbitrate. Against this list they
+decompose unevenly, and the unevenness is informative:
+
+| earlier primitive | verdict |
+|---|---|
+| **match** | floor — item 2 |
+| **write** | floor — items 3 and 4 (a register to write into, a stamp on the result) |
+| **arbitrate** | *totality* is floor — item 5. *Precedence* is authored data, and therefore convention. |
+| **recall** | **entirely convention.** Which rules come to mind is an index plus a policy; §19 argues it should be learned, and a learned proposer is the opposite of a primitive. |
+
+So one of the four was never a primitive at all. It survives as §19, which is where it belongs: it is
+the most consequential *policy* in the design, and calling it a primitive obscured that it is a
+choice.
+
+### Primitive is not native
+
+The reason moments, entries and signs feel like floor is that they sit on the hot path of every read,
+so an implementation puts them in native code. That is an optimisation and not a status, and the
+difference is checkable rather than rhetorical:
+
+> **For every bundled convention, the rule-level definition must exist and must agree with the native
+> one.** Delete the native path and the answers are identical, only slower.
+
+This is §20's strongest gate. It converts *is this floor?* from an argument into a test, and it gives
+the conventions their proper home: a bundled knowledge base that ships with the engine, is inspectable
+by ordinary queries, and can be replaced. An agent with a better internal representation of reality is
+only possible if the representation is something you can hand it.
+
+The bundle is not optional in practice. An engine that shipped with the floor alone would be correct
+and useless — every corpus would have to re-derive belief, time and evidence, and no two would agree.
+Bundling is how the design ships an opinion without freezing it.
+
+---
+
+## 5. The test
+
+> **A name is engine-level only if match and write cannot be defined without it. Everything else is a
+> convention, and the machinery that uses it must be expressible as rules.**
+
+Applied to the vocabulary an implementation actually reserves, the test convicts nearly all of it.
+Appendix C is the census; the summary is that of twenty-two reserved names, three survive, and the
+nineteen failures each have an interpreter branch behind them.
+
+That gives the test a falsifiable consequence, which is the point of stating it:
+
+> **The interpreter's step should have no phases.** Match, commit, write — and intake, supposition,
+> acting, deviation and goal expansion become rules that those apply.
+
+An interpreter with one phase per convention has, in effect, compiled the bundle into itself. The
+count of phases is therefore a direct measure of how much of the bundle has escaped onto the floor,
+and it is a number an implementation can print.
+
+### What the test does not license
+
+The test is about **naming**, not about speed. Native implementations of bundled conventions are
+expected and encouraged; the requirement is §4's agreement gate, not abolition.
+
+Nor does it license removing conventions the agent needs. *Convention* is not *optional*. Signs,
+loci and grades are as necessary to good reasoning as they ever were. What changes is their status:
+they are claims about how to represent reality well, defended in Part II and Part III, and defeasible
+in the way any claim is.
+
+### A rule can name a rule; a rule cannot match one
+
+One consequence of item 2 being floor deserves stating early, because it is a wall reached from three
+directions and it constrains everything in Part III.
+
+Rules can be **reified** — written as ordinary facts, with a relation naming the connective and
+members naming the two sides. Once reified, a rule can be spoken about freely. What a rule cannot do
+is *apply* match to another rule's pattern:
+
+```
+con(<boil>, boiling(?w), +)     what reification stores: the rule's PATTERN, generic
++goal(boiling(kettle))          what a goal is: ground
+```
+
+A rule that tried to relate these needs one variable to be both the generic pattern and the ground
+goal. Deciding that the two *correspond* is exactly match — and match is floor, so no rule can call
+it.
+
+Three separate ambitions hit this same wall: lifting a modality across a rule (§16), reading a rule
+backwards (§12), and asking whether a generic subgoal is already satisfied (§18). Whether the repair
+is a sixth floor item or **match reified**, so that a rule can request it and the machinery answers,
+is open (§21). The second keeps the floor at five and matches how §18's requests already work.
+
+### Adding a connective adds rows, not branches
+
+The older statement of this test survives unchanged, and is now a corollary rather than an axiom:
+
+> **If a new connective requires editing the engine, the connective set is not data.**
+
+The same holds one level up for everything in Part III. If a new *convention* — a new way of
+representing evidence, or plans, or time — requires editing the engine, then the bundle is not data
+either, and §4's agreement gate is what detects it.
+
+### One interpreter
+
+Meta-rules buy nothing if the interpreter special-cases them. The interpreter's step is *select, then
+apply*, and object-rules and meta-rules must be indistinguishable to it — a flat tower, not a stacked
+one. If, standing inside the interpreter, you cannot answer *which level am I on?*, that is the sign
+it is built correctly.
+
+---
+
+## 6. The bootstrap
+
+This is the one genuinely unsolved problem in Part I, and it was hidden by drawing the floor in the
+wrong place. Naming it is progress; solving it is not attempted here.
+
+The circularity:
+
+* Rules are facts (R3 — rules are subjects).
+* Facts are entries in moments (§8) — a convention.
+* Reading an entry means walking a chain (§10) — a program made of rules.
+* So reading a rule requires applying rules.
+
+Something must break it. Two candidate shapes, neither adopted:
+
+| | **a distinguished region** | **stratification** |
+|---|---|---|
+| how | rules live somewhere the engine reads *structurally*, without the chain | a bottom layer is read directly; each layer above is read by the one below |
+| cost | a second way of storing facts, which is one fact in two shapes — the objection §17 raises against augmentation | the layer boundary is a design-time decision, and R7 wants it to be data |
+| what it preserves | reads stay uniform above the region | everything is a fact, all the way down |
+
+The distinguished region is what implementations do by accident when the chain walk is native: the
+rule set is held in a Python structure and read without the convention. That works, and it silently
+violates §4's agreement gate unless the rule-level definition is also available and checked.
+
+A third possibility is that the bootstrap is a **fixed point** rather than a layer — the chain-reading
+rules are the ones the engine can apply without reading a chain, because their antecedents mention
+only structure. Whether that set is expressible is not known here.
+
+What can be said now: **the bootstrap problem is not moment, entry or sign.** Those are conventions,
+and the circularity would exist for any convention rich enough to describe belief. Locating the
+problem correctly is what stops the next draft from re-promoting the representation of reality to the
+floor in order to escape it.
+
+---
+
+# Part II — The internal representation of reality
+
+Everything from here on is convention. It is the bundle: what the agent is taught about how reality is
+shaped, so that it can reason about what was, what is believed, and what is merely supposed.
+
+Part II is the core of the bundle — the part every other convention is written against. It is
+presented in the order you would teach it.
+
+---
+
+## 7. Moments
+
+A **moment** is the bundle's only construct for a state of affairs. A state in time, a hypothetical, a
 supposition and a rule's antecedent are all moments; there is no separate "frame", "world" or
 "context" object.
 
@@ -134,7 +426,7 @@ A moment has three parts and nothing else:
 
 ```
 <M> = a signed delta      +  a predecessor          +  a licence
-      (entries, §5)          (an edge to a moment)     (an edge to a node)
+      (entries, §8)          (an edge to a moment)     (an edge to a node)
 ```
 
 The delta is what changed. The predecessor says what it changed *from*. The licence says what
@@ -160,27 +452,33 @@ What a generic moment may not do is point into the history, because a pattern th
 past would be about that one occasion.
 
 A rule's two members are generic. Everything else is anchored. Because this distinction is
-structural, it is checkable rather than maintained by convention, and it gives the engine's central
-operation a one-line definition:
+structural, it is checkable rather than maintained by convention — the one place in Part II where that
+is true, and it is true because *generic* is §4's floor item 2 showing through.
 
-> **To match is to unify a generic chain against an anchored one.**
+The bundle's central operation is then one line:
+
+> **To match a moment is to unify a generic chain against an anchored one.**
+
+*Unify* is §4's item 2: find a substitution making the generic side identical to the anchored side.
+The chain part is what makes this a **program** rather than a primitive — §10 is that program, and it
+is data.
 
 The one-link case is the common one, and reads as the older, narrower rule: unify a generic moment
 against an anchored one.
 
 **Nesting needs no mechanism.** A supposition inside a supposition is a path in the predecessor tree.
 There is no depth limit and no scope object. *Scope* nesting is ancestry, and ancestry is derived —
-there is nothing to push. This says nothing about **control**, which is a separate structure and §13's
+there is nothing to push. This says nothing about **control**, which is a separate structure and §17's
 subject: which reasoning invoked which, and where an answer is owed. Control is not scope, and the
 absence of a scope stack does not mean the absence of the other.
 
 ### A moment is a belief state
 
-A moment's delta is entries, and an entry names the moment it is **about** (§5). Those need not be the
+A moment's delta is entries, and an entry names the moment it is **about** (§8). Those need not be the
 same moment. An entry deposited in `M12` may have `M7` as its locus — *I now think it was raining
 then* — and that is the ordinary form of learning something about the past.
 
-So a moment carries two things at once, and the design needs no separate construct for the second:
+So a moment carries two things at once, and the bundle needs no separate construct for the second:
 
 | | |
 |---|---|
@@ -190,38 +488,8 @@ So a moment carries two things at once, and the design needs no separate constru
 **There is no belief-set object.** A moment already is one. What would be *the current beliefs* is the
 chain read at the moment you are standing in, and belief revision is ordinary succession — the same
 relation, with a licence saying *I came to think otherwise*. Introducing a second membership structure
-for beliefs would create a second ordering beside succession, which is precisely what the next
-subsection refuses.
-
-### Reading through the chain
-
-Because a moment stores only what changed, a moment does not contain its state; **the state is what
-the chain answers.** Reading is a walk, not a lookup. This is the single most consequential cost in
-the design, and it is accepted deliberately: it is what makes supposition free, history immutable, and
-every claim dated.
-
-Because an entry has both a locus and a deposit moment, the walk is ordered by **two keys, in this
-order**:
-
-> **Latest locus, then latest deposit.**
-
-An entry is a candidate if its locus is at or before the moment asked about — that is inheritance, and
-it is why the locus cannot simply be matched for equality: `on(a, b)` asserted at `M3` is what makes it
-hold at `M7`, where no entry mentions it at all. Among the candidates, the **latest locus** wins,
-because the most recent claim about the world is the one that governs. Only when two claims share a
-locus does the **latest deposit** decide, and that is exactly the revision case.
-
-Both keys are needed, and neither alone will do. Locus alone cannot tell a revision from the claim it
-revises. Deposit alone would let a newly formed belief about an early moment overrule a long-standing
-one about a later moment — the agent would forget that the world had moved on.
-
-To ask *what do I now think about `M7`?*, walk back from where you are standing. To ask *what did I
-think at `M7`?*, walk back from `M7` instead: the entries deposited later are simply not on that walk.
-In the common case — an entry deposited at its own locus — the two questions coincide, which is why
-the distinction can be missed.
-
-This is what makes the two temporal readings of §12 available without a second mechanism, and it is
-what settles the collision §5 would otherwise leave open when two entries share a locus.
+for beliefs would create a second ordering beside succession, and two orderings that agree by
+convention drift without detection.
 
 ### Time and derivation share a core
 
@@ -233,9 +501,21 @@ The invariant that must survive this sharing: **supposing takes no time.** A der
 succession without duration. If the shared core carried a clock, the two would have been collapsed
 rather than related, and every hypothetical would falsely advance the world.
 
+### Scoring the convention
+
+| | (A) a mutable world state | (B) a set of currently-believed facts | (C) moment = delta + predecessor + licence |
+|---|---|---|---|
+| not leaking | ❌ overwriting loses the claim it replaced, so *it changed* and *I was wrong* are one operation | ⚠ a set says what is believed and nothing about when or why | ✅ every difference is licensed and dated |
+| not lossy | ❌ history is gone | ❌ the previous set is gone unless separately kept | ✅ nothing is overwritten |
+| readable | ✅ a lookup | ✅ a lookup | ❌ **a read is a walk** — the design's largest single cost, accepted in §10 |
+| composable | ❌ two writers contend for one cell | ⚠ union of sets is not merge of beliefs | ✅ forks are free; two successors of one moment need no coordination |
+
+The ❌ in the readable column is the price of the whole design and it is paid on every read. It buys
+supposition at no cost, immutable history, and a date on every claim.
+
 ---
 
-## 5. Propositions and entries
+## 8. Propositions and entries
 
 A relation instance is a **proposition**. It claims nothing. `on(a, b)` is the *idea* that a is on b,
 not the assertion that it is.
@@ -243,26 +523,53 @@ not the assertion that it is.
 The claim is a separate node, the **entry**:
 
 ```
-<e> = entry(<M7>, <f>, +)          three members: locus, proposition, sign
+<e> = entry(<M7>, on(a, b), +)          three members: locus, proposition, sign
 ```
 
 An entry has exactly three members:
 
-* **locus** — the moment (§4) or span (§7) the claim is about;
+* **locus** — the moment (§7) or span (§11) the claim is about;
 * **proposition** — what is claimed;
-* **sign** — how it is claimed (§6).
+* **sign** — how it is claimed (§9).
 
-**When the claim was made is not a fourth member.** An entry is in some moment's delta, and that is
-its deposit moment — *believed since here*. It is already structure, so it costs nothing and cannot be
-omitted. The locus says **what the claim is about**; the delta membership says **when it was made**.
-Keeping them apart is what lets the agent revise its view of the past without rewriting it, and
-conflating them is what would force every claim to be about the moment it occurred to someone.
+### An entry is in a moment's delta
 
-Everything else is an ordinary fact *about* the entry:
+The delta of §7 is where entries live, and the relation is ordinary membership: a moment's delta is
+its entries, and an entry is deposited by being placed in one.
 
 ```
-licensed_by(<e>, <application>)    grade(<e>, likely)    said_by(<e>, anna)    at(<e>, 09:14)
+<M12> = moment( delta:       <e1>, <e2>, <e3>
+                predecessor: <M11>
+                licence:     <application-of-R1> )
 ```
+
+**When the claim was made is not a fourth member of the entry.** An entry is in some moment's delta,
+and that is its **deposit moment** — *believed since here*. It is already structure, so it costs
+nothing and cannot be omitted. The locus says **what the claim is about**; the delta membership says
+**when it was made**. Keeping them apart is what lets the agent revise its view of the past without
+rewriting it, and conflating them is what would force every claim to be about the moment it occurred
+to someone.
+
+An entry therefore has two temporal coordinates and stores exactly one of them as a member. The other
+is where it sits. §10 is the read that uses both.
+
+### Everything else about an entry is an ordinary fact about it
+
+```
+grade(<e>, likely)     licensed_by(<e>, <application>)     said_by(<e>, anna)     at(<e>, 09:14)
+```
+
+This is how the source channel is recorded, and it answers the obvious objection that provenance
+appears in two places. It does not. §4's stamp is a floor-level record on the *mint* — what produced
+this node — and is not a vocabulary item; nobody queries it directly. The **channel**, the
+**authority** and the **licence** are ordinary facts about the entry, written by the gate (§17)
+because the gate is what knows them. The stamp is the guarantee that these facts were not chosen by
+the rule; the facts are what the agent reasons with.
+
+| | what it is | who writes it | can a rule read it |
+|---|---|---|---|
+| the mint stamp | floor-level provenance on the node | the write operation, always | not as vocabulary — it is the guarantee, not the record |
+| `licensed_by`, `said_by`, `grade` | ordinary propositions about the entry | the gate (§17), from the frame | yes, by ordinary matching |
 
 ### Why two levels are forced
 
@@ -280,12 +587,13 @@ The recursion terminates at depth one, structurally.
 
 The claim is narrow, and the narrowness is what makes it survive. An entry needs no entry **to be
 located**. It may freely be the **subject** of another entry's proposition, and it has to be, or the
-design loses three things it depends on:
+bundle loses three things it depends on:
 
 ```
-mistaken(<e>)                     §5's correction — my record was wrong
-outranks(<e1>, <e2>)              §13's arbitration — a claim Anna made beats one Bo made
-supposed(<e>, <S>)                a belief held about a belief
+mistaken(<e>)                     correction — my record was wrong
+outranks(<e1>, <e2>)              §17's arbitration — a claim Anna made beats one Bo made
+supposed(<e>, <S>)                a belief held about a belief, where <S> is the supposition
+                                  moment (§7) it was held under
 ```
 
 Those are ordinary entries with ordinary propositions that happen to point at entry nodes, and each
@@ -297,7 +605,7 @@ regress.**
 Grade, licence, speaker and clock stamp are facts about the entry, never a fourth member. The
 discipline matters: with optional slots, an entry becomes a node of variable arity whose members mean
 different things depending on how many there are, which is the same shape carrying several membership
-semantics — unreadable and uncomposable. The same discipline keeps the connective in §8 binary, with
+semantics — unreadable and uncomposable. The same discipline keeps the connective in §12 binary, with
 timing as an adjunct fact.
 
 ### What the two levels buy
@@ -321,16 +629,12 @@ If truth were a value stored on the proposition node, these would be indistingui
 
 ### The cost, stated
 
-**Resolving a read is a privileged operation.** *Does `on(a, b)` hold here?* means *walk the chain for
-entries naming this proposition at the locus asked about, and take the one deposited latest*. The
-engine must know what `entry` means; it cannot be ordinary vocabulary. This is one of the very few
-relations the engine dispatches on, and that set should be declared in one place rather than
-accumulating.
+**Resolving a read is the bundle's central program.** *Does `on(a, b)` hold here?* means *walk the
+chain for entries naming this proposition at the locus asked about, and order them by §10's two keys*.
 
-Two entries may share a locus, and when they do the later deposit is the agent's current view; the
-earlier one is what it used to think, still readable and still true of when it was thought. But the
-deposit is the **second** key, not the first — §4 states the order, and getting it the other way round
-loses the world's own changes to the agent's most recent opinion.
+Earlier drafts said the engine must know what `entry` means. It must not, and §5 is why. What must
+know is the **read program**, which is bundled data. The implementation may run it natively for
+speed, subject to §4's agreement gate.
 
 Propositions have one identity however often they are built; **entries do not**. An entry is an act of
 claiming, so two claims about the same proposition at the same locus are two nodes — otherwise
@@ -343,7 +647,7 @@ means *is this moment consistent?* is a query somebody must run, and the design 
 
 ---
 
-## 6. Signs
+## 9. Signs
 
 An entry's sign says how the proposition is claimed at its locus. There are three signs plus the
 absence of an entry, and their meaning differs between anchored and generic moments — because a
@@ -358,22 +662,121 @@ generic moment has no predecessor to inherit from.
 
 ### No entry means inherit, not unknown
 
-This follows from §4: the chain walk continues past a moment with no entry and finds an older one. In
+This follows from §10: the chain walk continues past a moment with no entry and finds an older one. In
 an anchored moment, silence is therefore a positive claim — *this is as it was*.
 
-That is why `?` must exist as a distinct sign. Requirement R6's example — *pouring raises the level by
-an unknown amount* — cannot be written by writing nothing, because writing nothing means the chain
-returns the **old** level. Without `?`, the one thing the author was trying to say is the one thing
-that could not be said. `?` **invalidates without replacing**: it stops the walk and reports ignorance.
+That is why `?` must exist as a distinct sign. R6 (*partial knowledge must be sayable*) has as its
+example *pouring raises the level by an unknown amount*, and it cannot be written by writing nothing,
+because writing nothing means the chain returns the **old** level. Without `?`, the one thing the
+author was trying to say is the one thing that could not be said. `?` **invalidates without
+replacing**: it stops the walk and reports ignorance.
 
 The generic `?` (*I don't constrain this*) and the anchored `?` (*this was invalidated and I cannot
 say what replaced it*) are different claims. They share a symbol because the anchored/generic split
 already distinguishes them structurally, but they are not the same thing and a reader is owed the
 distinction.
 
+### Whether sign should be a member at all — open
+
+Now that sign is admitted to be convention rather than floor, the alternative is live and is not
+settled here. Negation could be a **wrapping proposition** — `not(p)`, the same construction as
+`likely(p)` in §16 — leaving the entry with two members.
+
+The case for it is not weak:
+
+* **It would collapse the three-member `says`** of §15. That third member exists only because a sign
+  had nowhere else to live. Under a wrapper it is `says(chan, not(p))` — and the sign becomes
+  something a rule can point at.
+* **It composes with modality, which sign cannot.** `likely(not(p))` and `not(likely(p))` are
+  different claims and sign has no way to say which was meant. §16 already settles that modality is a
+  term; negation being a member while modality is a term is two answers to one question.
+
+The case against:
+
+* **A wrapper nests and a three-valued member does not.** `not(not(p))` becomes constructible and
+  means nothing — a shape stating something no author intended, which is §2's own criterion.
+* **The read changes character.** Today the walk finds entries naming *this* proposition and reads
+  their signs. Under wrappers, `not(p)` is a different proposition the walk for `p` never encounters,
+  so the read program must know that `not` is about its member. That is not a saving — it relocates a
+  privileged name from a member position to a reserved relation.
+* **`?` resists wrapping.** `?` is a statement about *reading* — stop the walk, report ignorance — and
+  wrapping it as `unknown(p)` makes it look like a claim about the world.
+
+This is the shape of question this design settles by measurement rather than argument, as it did for
+modality. §21 records it, and the probe is the same shape as the modality probe: write the same corpus
+both ways and count what each can express.
+
 ---
 
-## 7. Spans
+## 10. The read
+
+This section is the bundle's central program. Everything in Part II exists so that this walk can
+answer well, and everything in Part III is written against its answers.
+
+Because a moment stores only what changed, a moment does not contain its state; **the state is what
+the chain answers.** Reading is a walk, not a lookup.
+
+### The two indices
+
+Because an entry has both a locus and a deposit moment (§8), the walk is ordered by **two keys, in
+this order**:
+
+> **Latest locus, then latest deposit.**
+
+An entry is a candidate if its locus is at or before the moment asked about — that is inheritance, and
+it is why the locus cannot simply be matched for equality: `on(a, b)` asserted at `M3` is what makes it
+hold at `M7`, where no entry mentions it at all. Among the candidates, the **latest locus** wins,
+because the most recent claim about the world is the one that governs. Only when two claims share a
+locus does the **latest deposit** decide, and that is exactly the revision case.
+
+Both keys are needed, and neither alone will do. Locus alone cannot tell a revision from the claim it
+revises. Deposit alone would let a newly formed belief about an early moment overrule a long-standing
+one about a later moment — the agent would forget that the world had moved on.
+
+### Two questions, one structure
+
+To ask *what do I now think about `M7`?*, walk back from where you are standing. To ask *what did I
+think at `M7`?*, walk back from `M7` instead: the entries deposited later are simply not on that walk.
+In the common case — an entry deposited at its own locus — the two questions coincide, which is why
+the distinction can be missed.
+
+A design with a single index would have to choose which of those two questions to keep.
+
+### At-or-before is ancestry, not depth
+
+The candidacy test walks the predecessor relation. It cannot be a comparison of depths, because
+supposing forks the chain by construction (§16) and two moments at the same depth on different
+branches are not comparable at all. This is the cheapest place in the design to introduce a bug that
+only appears once hypotheticals are used.
+
+### What this costs, and what it is worth
+
+The walk is the largest recurring cost in the design. It is also, per §4, **a program made of rules**:
+transitive closure over the predecessor relation, a filter on locus, an ordering by two keys. Nothing
+in it requires engine support beyond structural matching.
+
+That is the claim §4's agreement gate exists to check, and it is the one most worth checking, because
+this is precisely the program an implementation will write natively first.
+
+| | (A) locus only | (B) deposit only | (C) two keys, locus first |
+|---|---|---|---|
+| not leaking | ⚠ a revision and the claim it revises are indistinguishable, so one silently wins | ❌ a new belief about the distant past overrules a settled belief about the recent past | ✅ each key answers the question it is for |
+| not lossy | ✅ | ✅ | ✅ both the original and the revision remain readable |
+| readable | ✅ one walk | ✅ one walk | ⚠ one walk, two comparisons |
+| composable | ⚠ two authors revising the same locus collide | ❌ | ✅ later deposit settles it, and both survive |
+
+---
+
+# Part III — What the representation allows
+
+Everything here is built on Part II and adds no engine capability. Each section states what it is
+*for*, and its scoring table scores the convention.
+
+---
+
+## 11. Spans
+
+*Saying when, over a stretch.*
 
 Some claims are not about a moment at all. *They are taking turns* is not true of any instant; its
 subject is a **stretch of the chain**. So is *it rained throughout*, and so is any constraint on the
@@ -386,7 +789,8 @@ A **span** is a node with exactly two members: a start moment and an end moment.
 <e> = entry(<s>, taking_turns(anna, bo), +)    the locus of this entry is the span
 ```
 
-Spans are loci. Nothing else about the entry changes.
+Spans are loci. Nothing else about the entry changes — which is the point: §8 said the locus is a
+moment *or a span*, and nothing in the read (§10) had to grow to accommodate the second.
 
 ### Membership is not stored
 
@@ -411,22 +815,21 @@ one span host several unrelated recognitions — *they took turns* and *it raine
 same stretch.
 
 **Disjunction.** *On Monday and on Wednesday* is two spans plus a fact relating them, never one span
-with a hole in it. A span with holes would smuggle disjunction into the substrate, where nothing can
-consume it.
+with a hole in it. A span with holes would smuggle disjunction into a shape nothing can consume.
 
 ### Recognition and prescription are one predicate read twice
 
 A **generic** span, with variables for its endpoints, is a constraint to be satisfied — *do these in
 this order*. An **anchored** span is a recognition that a pattern held. Same predicate, same shape;
-the anchored/generic split of §4, one level up.
+the anchored/generic split of §7, one level up.
 
 ### A generic span's interior must be described
 
 A generic span has no chain, so nothing determines what lies between its endpoints. Endpoints alone
 say only *start before end*; enumerating an interior would invent a length nobody claimed. **For a
 generic span, option (C) is not a rejected alternative but the only one available** — the interior is
-given by a *description*, and §9 is what descriptions are made of. The ❌ in (C)'s composability
-column is the bill that comes with it, and §9 states what it costs.
+given by a *description*, and §13 is what descriptions are made of. The ❌ in (C)'s composability
+column is the bill that comes with it, and §13 states what it costs.
 
 ### Costs
 
@@ -440,7 +843,9 @@ column is the bill that comes with it, and §9 states what it costs.
 
 ---
 
-## 8. Rules
+## 12. Rules
+
+*Saying what follows.*
 
 A rule is a **fact relating two moments**.
 
@@ -448,22 +853,60 @@ A rule is a **fact relating two moments**.
 <R> = causes( <A>, <B> )
 ```
 
-`<A>` and `<B>` are generic (§4): variables, no anchored predecessor. `<A>` is the antecedent. `<B>` is
+`<A>` and `<B>` are generic (§7): variables, no anchored predecessor. `<A>` is the antecedent. `<B>` is
 the consequent, and because a moment is a signed delta, `<B>` is a delta **relative to** `<A>` without
 being a second kind of object.
 
-Because `<R>` is a node, everything else about it is an ordinary fact — which is requirement R3:
+Because `<R>` is a node, everything else about it is an ordinary fact — which is R3 (*rules are
+subjects*):
 
 ```
-by(R, boss)                 overrides(R, R2)              about(R, assembly)
-timing(R, end→start, [4min, 7min])                        unless(R, +altitude(?w, high))
+by(<R>, boss)          overrides(<R>, <R2>)          about(<R>, assembly)
+unless(<R>, +altitude(?w, high))
 ```
 
-And because the rule's content is data rather than a program, R4's questions are ordinary queries:
-*which rules are about time* is a query over `about`; *which rules disturb position* is a query over
-the consequent's members.
+And because the rule's content is data rather than a program, R4's questions (*rules are askable*) are
+ordinary queries: *which rules are about time* is a query over `about`; *which rules disturb position*
+is a query over the consequent's members.
+
+### Notation
+
+This document previously used punctuation — `@` for a locus, `→` for a pair of endpoints, `[...]` for
+an interval — which made a handful of open-class concepts look like engine syntax. They were
+abbreviations, and this draft writes them out. Punctuation that suggests a privileged mechanism is
+exactly the island §2 warns about, at the level of the page rather than the graph.
+
+**Loci are ordinary members, and entries may be named.** An antecedent member is written as the entry
+it is:
+
+```
+?e1 = entry(?m, on(?x, ?y), +)          named, because something below refers to it
+      entry(?n, acts(?a), +)            unnamed
+```
+
+The short form `+on(?x, ?y)` remains legal and means *an entry with this proposition and this sign,
+whose locus is the one the frame supplies* (§17). It is an abbreviation, not a different construct,
+and it stops being available the moment the rule needs to name the locus or the entry.
+
+**Facts about a consequent's entry are written about the named entry:**
+
+```
+then  ?e = entry(?m', boiling(?w), +)
+      grade(?e, certain)
+```
+
+**Endpoints and intervals are nodes.** §15's timing member relates two named endpoints and carries a
+bound:
+
+```
+<t> = timing(<R1>, end(<A>), start(<B>))     which endpoints this is about
+      bound(<t>, 4min, 7min)                 how far apart; absent means unknown
+```
 
 ### The three readings
+
+*Unify* is §4's substitution. *Want* is the backward reader's goal — a proposition it is trying to make
+true. *Disturb* is what a `?` entry does: it says the rule changes something and cannot say to what.
 
 | reading | what it does |
 |---|---|
@@ -473,63 +916,66 @@ the consequent's members.
 
 ### Two readings, not two equally useful ones
 
-R1 asks that both readings come from one statement. It does not promise that both are informative, and
-one shape makes the difference sharp: a consequent that is a **bare variable**.
+R1 (*two readings of one statement*) asks that both readings come from one statement. It does not
+promise that both are informative, and one shape makes the difference sharp: a consequent that is a
+**bare variable**.
 
 ```
-<trust> = implies( { +says(?c, ?p, +) }, { +?p } )
+<trust> = implies( { entry(?m, says(?c, ?p, +), +) }, { entry(?m, ?p, +) } )
 ```
 
-Forwards this is exact and is the whole of §13's *trust is a rule* — whatever the channel said,
+Forwards this is exact and is the whole of §17's *trust is a rule* — whatever the channel said,
 believe it. Backwards it says *this rule can conclude anything*, so it proposes itself for every goal,
 and its subgoal is another goal of the same shape, without end. It is not wrong; it is vacuous.
 
 The backward reader therefore declines what it cannot use, and that is a placeholder rather than an
-answer. **The real home for this is recall** (§15): which rules come to mind when reading backwards is
+answer. **The real home for this is recall** (§19): which rules come to mind when reading backwards is
 learned, and a rule that has never once helped a search is exactly what recall should stop offering.
 Declining bare-variable consequents is a fixed rule standing in for a learned one, and it should be
 retired when recall is.
 
 Direction is a **query over the rule**, never a field in it. This is R1: one statement, two readings.
-R2 is met because each reading cites `<R>`, and the licence recorded on the resulting entry says which
-reading produced it — so a hypothesis formed by reading backwards is distinguishable, permanently,
-from a conclusion drawn forwards.
+R2 (*the reading must be recoverable*) is met because each reading cites `<R>`, and the licence
+recorded on the resulting entry says which reading produced it — so a hypothesis formed by reading
+backwards is distinguishable, permanently, from a conclusion drawn forwards.
 
 ### An antecedent has two kinds of member
 
-An entry names its own locus (§5). So an antecedent is not *entries at one moment*; it is **signed
+An entry names its own locus (§8). So an antecedent is not *entries at one moment*; it is **signed
 entries whose loci are variables**, together with the **skeleton** that relates those variable loci:
 
 ```
-where    ?n = succ(?m),   ?s = span(?m, ?e)       skeleton — how the loci connect
-given    +on(?x, ?y) @ ?m,  +acts(?a) @ ?n        entries — what is claimed, and where
+where    ?n = succ(?m),   ?s = span(?m, ?e)              skeleton — how the loci connect
+given    entry(?m, on(?x, ?y), +),  entry(?n, acts(?a), +)     what is claimed, and where
 ```
 
 The one-locus case, where every entry sits at the same moment and the skeleton is empty, is the common
-one and is written without either keyword.
+one and is written without either keyword, using the short form above.
 
 The two kinds do not merge, because a skeleton member is **not a claim**. `?n = succ(?m)` has no sign,
 no locus and no licence; nobody asserted it, and it cannot be denied, dated or attributed. §3 says why:
 ordering is a fact about how a node is built, not a relation in the world. The skeleton is the part of
-the antecedent that match settles by unifying structure, rather than by walking a chain for entries —
-§13's split, applied to the antecedent itself.
+the antecedent that match settles by unifying structure, rather than by walking a chain for entries.
 
 Distinctness belongs in the skeleton for the same reason. `?a ≠ ?b` is a condition on the binding, not
 a dated claim that two individuals differ.
 
 ### A consequent may name its locus, when the locus is bound
 
-An antecedent binds variable loci; a consequent may use them. §9's shape rules already depend on this —
-`then +taking_turns(?a, ?b) @ ?s`, where `?s` came from the skeleton — and without it a recognition
+An antecedent binds variable loci; a consequent may use them. §13's shape rules already depend on this
+— concluding `taking_turns(?a, ?b)` at the span `?s` the skeleton bound — and without it a recognition
 about a stretch could only ever be deposited as a claim about the instant it was noticed.
 
-This does not weaken §13's argument that a rule cannot name a locus, because the two say different
+This does not weaken §17's argument that a rule cannot name a locus, because the two say different
 things. A rule may not name **a particular** locus; that is what makes it generic. It may name a
 **variable** one that match bound, because a variable is exactly what does not commit the rule to an
-occasion. Where a consequent names no locus at all, the frame supplies it (§13), and that is the
+occasion. Where a consequent names no locus at all, the frame supplies it (§17), and that is the
 common case.
 
 ### Achievability is not a mark
+
+This is the design's earliest instance of the error Part I generalises, and it is worth keeping in
+full for that reason: the temptation was to close an open concept by giving the engine a mark to read.
 
 Read backwards, an antecedent member becomes a subgoal — but not every member should. *To unbolt it,
 it must be on the bench, and you may put it there; it must be a Tuesday.*
@@ -547,65 +993,70 @@ is relative to four things the rule's author does not know:
 A mark authored once, at rule-writing time, is relative to none of them — and it is the wrong shape
 besides. Achievability is *derived* from capabilities, budget and the rule set; stored on the rule it
 is a cache of a derived value, invalidated by learning a rule or gaining an authority, which is the
-defect §12 names when it refuses to store a grade on a proposition.
+defect §16 names when it refuses to store a grade on a proposition.
 
 What the mark would have been doing is three things, each with a home already:
 
 | the work | where it belongs |
 |---|---|
-| *don't expand this, you will thrash* | **recall** (§15) — learned, incomplete, and the one step where being wrong is recoverable |
-| *achievable, but only by waiting, or only for the boss* | a **claim**, attributed and defeasible, with its cost as §11 timing |
-| *you could, and you must not* — seeding clouds to make it rain | a **prohibition** (§15), gated at the write primitive |
+| *don't expand this, you will thrash* | **recall** (§19) — learned, incomplete, and the one step where being wrong is recoverable |
+| *achievable, but only by waiting, or only for the boss* | a **claim**, attributed and defeasible, with its cost as §15 timing |
+| *you could, and you must not* — seeding clouds to make it rain | a **prohibition** (§19), gated at the write |
 
 The third is the reason to insist. A mark lets a norm masquerade as a physical impossibility, and
 those must not share a slot.
 
 So every antecedent member is simply a required entry, and *is this one worth planning for* is asked
 of the agent, not read off the rule. **Waiting is an action**, so a precondition that takes time is
-achievable at a price — which §11's timing already states in a form that may be absent, attributed and
+achievable at a price — which §15's timing already states in a form that may be absent, attributed and
 compared against a deadline:
 
 ```
-+tuesday(?d)                              an ordinary requirement
-timing(WAIT, start→end, [0, 7days])       what discharging it costs
++tuesday(?d)                                   an ordinary requirement
+<t> = timing(<WAIT>, start(<A>), end(<B>))     what discharging it costs
+      bound(<t>, 0, 7days)
 ```
 
 The bill is that backward search loses a static bound: *make it Tuesday* is now a subgoal a planner may
-genuinely expand. §9 states the discipline that replaces it — bounded expansion returns a result **and a
-state**, so *I found no way* stays distinguishable from *there is no way*.
+genuinely expand. §13 states the discipline that replaces it — bounded expansion returns a result **and
+a state**, so *I found no way* stays distinguishable from *there is no way*.
 
 ### Worked
 
 ```
 <R1> = causes(
-    { +heat(?a, ?w),  +water(?w),  +open(?vessel) },
-    { +boiling(?w) @certain,  −liquid(?w) @certain,  ?volume(?w) } )
+    given  +heat(?a, ?w),  +water(?w),  +open(?vessel)
+    then   ?e1 = entry(?m', boiling(?w), +)     grade(?e1, certain)
+           ?e2 = entry(?m', liquid(?w), −)      grade(?e2, certain)
+           entry(?m', volume(?w), ?) )
 
-timing(R1, end→start, [4min, 7min])
-unless(R1, +altitude(?w, high))
+<t> = timing(<R1>, end(<A>), start(<B>))     bound(<t>, 4min, 7min)
+unless(<R1>, +altitude(?w, high))
 ```
 
 ```
 <R2> = implies(
-    { +cloudy(?day, morning) },
-    { +rain(?day, afternoon) @likely } )
+    given  +cloudy(?day, morning)
+    then   ?e = entry(?m, rain(?day, afternoon), +)     grade(?e, likely) )
 ```
 
 ### Scoring the form
 
 | | (A) guard → program body | (B) one rule per direction | (C) `connective(moment, moment)` |
 |---|---|---|---|
-| not leaking | ❌ the backward read is hypothesis wearing entailment's clothes, with nowhere to record it | ❌ two statements drift; neither is the other's premise | ✅ one statement; each reading cites `R`, whose licence says what the citation is worth |
+| not leaking | ❌ the backward read is hypothesis wearing entailment's clothes, with nowhere to record it | ❌ two statements drift; neither is the other's premise | ✅ one statement; each reading cites `<R>`, whose licence says what the citation is worth |
 | not lossy | ❌ what it makes true is recoverable only by running it | ⚠ the pair coheres only by convention | ✅ `<B>` **is** the postcondition; `?` preserves a gap instead of erasing it |
 | readable | ❌ runnable, not askable — fails R4 | ⚠ readable, doubled | ✅ every question about a rule is a query over its members and adjuncts |
 | composable | ❌ two bodies cannot be joined | ❌ n directions means 2ⁿ statements | ✅ join on signed membership; no-entry survives composition as no-entry, so two partial rule sets merge without lying |
 
-(A) fails an additional test outright: `overrides(R1, R2)` has no subject when a rule is a program.
+(A) fails an additional test outright: `overrides(<R1>, <R2>)` has no subject when a rule is a program.
 Nothing can be said *about* it, so R3 is unreachable.
 
 ---
 
-## 9. Shapes
+## 13. Shapes
+
+*Saying what follows, over an indefinite extent.*
 
 Some things are known by their **shape** rather than by their extent. *Anna and Bo are taking turns*
 can be said having watched a sequence, and it can be said having watched nothing — *imagine they are
@@ -620,48 +1071,48 @@ Two kinds of indefiniteness need this, and they are not one construct:
 | composes by | succession — ordered, and the elements are moments | membership — unordered, and the elements are individuals |
 | leak if materialised | invents a number of turns | invents a number of files |
 
-They share one principle, which §7 already applies to spans and which this section generalises:
+They share one principle, which §11 already applies to spans and which this section generalises:
 
 > **Describe the extent. Never enumerate it.**
 
 ### A shape is a definition, not a term
 
-Given §8's antecedent, a shape needs no new construct: it is a **recursive definition over spans**,
+Given §12's antecedent, a shape needs no new construct: it is a **recursive definition over spans**,
 written as ordinary rules in open-class vocabulary. *Taking turns* needs at least two turns, so that
 is the base case, and the step case consumes one turn and defers the rest:
 
 ```
 <TT-base> = implies(
     where    ?n = succ(?m),  ?p = succ(?n),  ?s = span(?m, ?p),  ?a ≠ ?b
-    given    +acts(?a) @ ?n,   +acts(?b) @ ?p
-    then     +taking_turns(?a, ?b) @ ?s )
+    given    entry(?n, acts(?a), +),   entry(?p, acts(?b), +)
+    then     entry(?s, taking_turns(?a, ?b), +) )
 
 <TT-step> = implies(
     where    ?n = succ(?m),  ?s = span(?m, ?e),  ?s' = span(?n, ?e)
-    given    +acts(?a) @ ?n,   +taking_turns(?b, ?a) @ ?s'
-    then     +taking_turns(?a, ?b) @ ?s )
+    given    entry(?n, acts(?a), +),   entry(?s', taking_turns(?b, ?a), +)
+    then     entry(?s, taking_turns(?a, ?b), +) )
 ```
 
-`acts` is an entry rather than anything special, because §11 already settles that an action is an
+`acts` is an entry rather than anything special, because §15 already settles that an action is an
 ordinary fact holding over an interval.
 
 **The alternation is the argument swap** — `?a, ?b` in the head, `?b, ?a` in the recursive member.
 Remove it and the definition says *someone acts repeatedly*. That swap is a back-reference, and it is
-the reason a shape is a definition rather than a pattern term: see below.
+the reason a shape is a definition rather than a pattern term.
 
-The two readings of §8 are what make one definition serve both cases. **Forwards** it recognises an
+The two readings of §12 are what make one definition serve both cases. **Forwards** it recognises an
 observed stretch. **Backwards** it generates a hypothetical one, expanded only as far as a goal
-demands, each step an imagined moment with its own licence (§4). So *they took turns* and *imagine they
+demands, each step an imagined moment with its own licence (§7). So *they took turns* and *imagine they
 are taking turns* are R1 one level up: one statement, two readings.
 
 ### These definitions are already a grammar
 
 `<TT-step>` threads a start, a middle and an end through its members. That is a difference list, and a
 rule consuming a chain between two endpoints is a grammar production over the moment chain. Spans are
-the difference lists; §7 built them. So the question is never *grammar or not* — it is whether the
-grammar is reserved or open-class, which is §10's membership test one level up.
+the difference lists; §11 built them. So the question is never *grammar or not* — it is whether the
+grammar is reserved or open-class, which is §5's test one level up.
 
-Reserved would buy exactly one thing: **decidable equivalence**, the ❌ in §7's (C) column. It does not
+Reserved would buy exactly one thing: **decidable equivalence**, the ❌ in §11's (C) column. It does not
 survive contact with what shapes are actually for:
 
 * *the same actor does not go twice running* — a back-reference;
@@ -680,18 +1131,18 @@ the base rule or the step rule alone. That subject is one open-class relation:
 
 ```
 <TT> = shape( taking_turns(?a, ?b) )
-repeats(TT, [0, 5])                       absent means unbounded
-by(TT, boss)     about(TT, protocol)      unless(TT, +interrupted(?s))
+repeats(<TT>, 0, 5)                       absent means unbounded
+by(<TT>, boss)     about(<TT>, protocol)     unless(<TT>, +interrupted(?s))
 ```
 
-This is §11's timing member, exactly: a constraint on an extent, sayable as an interval, absent meaning
+This is §15's timing member, exactly: a constraint on an extent, sayable as an interval, absent meaning
 unknown, and permitted to disagree with another source. It reads in both directions the same way —
-**forwards**, exceeding the bound is a deviation, so §16's surprise rule applies unchanged;
+**forwards**, exceeding the bound is a deviation, so §18's surprise rule applies unchanged;
 **backwards**, the bound is a filter, and therefore the termination discipline for expansion.
 
-Counting costs nothing structurally. Every entry carries a licence naming its application (§13), so
+Counting costs nothing structurally. Every entry carries a licence naming its application (§17), so
 *how many times did this shape step here* is a walk over the trail — derived, dated, never stored,
-which is the discipline §12 states for grades. §12's refusal of numbers does not transfer: it was
+which is the discipline §16 states for grades. §16's refusal of numbers does not transfer: it was
 specifically that probabilities need independence assumptions unstatable in the graph, and a count of
 applications is an exact observation of the trail, where comparison is not composition.
 
@@ -700,12 +1151,12 @@ applications is an exact observation of the trail, where comparison is not compo
 | | *they take at most five turns* | *expand this at most five times* |
 |---|---|---|
 | what it is | a **claim about the world** | a **budget on the agent's effort** |
-| where it lives | `repeats`, on the shape — attributed, gradeable, defeasible | §15's budget |
+| where it lives | `repeats`, on the shape — attributed, gradeable, defeasible | §19's budget |
 | can it be wrong | yes; a sixth turn is a **surprise** | no — it is not about anything |
 | exhausting it yields | *no* | ***I don't know*** |
 
 Fuse them and *the shape ended at five* becomes indistinguishable from *I stopped at five*. That is
-§6's `−` against *no entry*, and §15's *nothing applies* against *nothing came to mind*, arriving a
+§9's `−` against *no entry*, and §19's *nothing applies* against *nothing came to mind*, arriving a
 third time, so it takes the same answer:
 
 > **Bounded expansion returns a result and a state, never a result.**
@@ -718,16 +1169,16 @@ fact about that node:
 
 ```
 <fs> = files                 a group; members not stored
-atleast(fs, 2)               absent means unknown
-+copied(fs) @ ?m
+atleast(<fs>, 2)             absent means unknown
++copied(<fs>)
 ```
 
-This is §7's move — *membership is not stored* — over membership instead of over a chain. It also
+This is §11's move — *membership is not stored* — over membership instead of over a chain. It also
 disposes of counting-in-positional-clothing: *made of four wheels* is a claim about a group's size, not
 a four-place relation, and it is then attributable and defeasible like any other claim.
 
 Whether the claim distributes — *each file was copied* against *the files together filled the disk* —
-is a fact about the **entry**, not a new construct. Same slot discipline as the grade in §12.
+is a fact about the **entry**, not a new construct. Same slot discipline as the grade in §16.
 
 ### Scoring
 
@@ -740,87 +1191,25 @@ is a fact about the **entry**, not a new construct. Same slot discipline as the 
 
 ### Costs
 
-* **Shape equivalence is undecidable.** §7 named this as (C)'s price and this is where it is paid: with
+* **Shape equivalence is undecidable.** §11 named this as (C)'s price and this is where it is paid: with
   recursion you can say *taking turns*, and you can no longer decide in general whether two definitions
   describe the same shape.
-* **§17's commutation gate runs per instance, to a depth**, rather than as a property over the whole
+* **§20's commutation gate runs per instance, to a depth**, rather than as a property over the whole
   rule set.
-* **Backward expansion can mint unboundedly.** §7's discipline — spans are minted by recognisers, never
+* **Backward expansion can mint unboundedly.** §11's discipline — spans are minted by recognisers, never
   enumerated — becomes the stronger requirement that expansion is demand-driven and budgeted, with the
-  cycle care §12 asks of any walk over derived structure.
-* **A shape is two rules where an author expects one.** Recall is keyed by shared terms (§15), so
+  cycle care §16 asks of any walk over derived structure.
+* **A shape is two rules where an author expects one.** Recall is keyed by shared terms (§19), so
   nothing guarantees that a base case and its step case surface together.
 
 ---
 
-## 10. Connectives
+## 14. Connectives
 
-The reserved vocabulary of the whole design:
+*Saying which kind of following.*
 
-| layer | closed set | size |
-|---|---|---|
-| connective | `implies`, `causes` | **2** |
-| entry sign | `+`, `−`, `?`, no entry | 4 |
-| skeleton | succession, and membership position | 2 |
-| grade | `certain > likely > possible > unlikely > unknown` | ordinal, ~5 |
-| timing | one relation over the two moments' endpoints | 1 |
-| locus resolution | `entry` — the relation the engine dispatches on (§5) | 1 |
-| the frame register | *which node the machinery is currently reasoning in* (§13) | 1 |
-| machinery requests | `suppose`, `goal`, `doing` — what a rule asks the machinery to enact | 3 |
-| machinery reports | `achieved`, `blocked`, `did`, `expects`, `deviates` — what it writes back | 5 |
-| plan structure | `plan`, `subgoal`, `binds`, `expands` — a backward search's working state, as facts (R7) | 4 |
-
-Those last three rows are a cost incurred by building, and they are listed rather than absorbed —
-twelve names where the design began with one. §5 asks that this set be declared in one place rather
-than accumulating, and this is that place.
-
-They are requests and reports, not claims about the world. A rule concludes `+suppose(p, likely)`,
-`+goal(p)` or `+doing(p)`, and the machinery does what a rule cannot: open a frame, read a rule
-backwards, or carry an intent past the agent's boundary. Each needs something anchored — a locus, a
-match, a channel — that a generic rule cannot name. The rule for admitting a member is §14's:
-
-> **A name earns a row only if the machinery must ENACT it, never merely read it.**
-
-The plan-structure row is the one that could have been avoided and should not be. A backward search's
-bindings could have lived in the interpreter; putting them on a `plan` node is R7 applied to the
-machinery's own working state, and it is what makes *why did you think that goal was met* answerable.
-
-One consequence is easy to miss and was found by running: **nothing in this row may carry out of a
-frame**. A request to suppose is not a claim about the world, so there is nothing for the wrapper to
-qualify — and carrying one out produces `likely(suppose(...))`, which the rule that crosses guards
-then crosses, so the machinery supposes its own bookkeeping without end.
-
-Everything else — `heat`, `cloudy`, `boss`, `overrides`, `by`, `about`, `unless`, `shape`, `repeats`,
-`taking_turns` — is open-class vocabulary and reserves nothing. Authors may coin freely.
-
-### The machine is made of open class, and must be
-
-§13 introduces processes, frames, seats, topics and channels. None of them appear in the table above,
-and that is not an oversight to be corrected by adding five rows. **It is what R7 requires.** If the
-machinery's own state were reserved vocabulary, *the agent's own state is in the world it reasons
-about* would be false in the one place it matters most, and no rule could override a strategy, notice
-a stalled process or prefer one channel to another.
-
-What keeps this from being an unbounded reserved set is a distinction §5 asks for and does not draw:
-
-| | |
-|---|---|
-| what the engine **dispatches on** | must be declared, and is the table above |
-| what is written in **open-class vocabulary and merely read by rules** | unbounded, and includes almost all of the machine |
-
-A frame is `frame(seat, topic)` — a node with two ordered members, structurally identical to §7's
-`span(start, end)`. Ordered members are already reserved by §3, so the engine learns no new relation
-name. What it needs is **one register**: which node is the current frame. That is the row above, and
-it is a pointer rather than a vocabulary item.
-
-`process`, `channel`, `committed`, `waiting_for` and the rest are then ordinary open-class relations,
-authored and overridable, which is the property §16 depends on when it makes a strategy defeasible.
-
-> **The machinery is written in the language it interprets. Only the register is privileged.**
-
-The skeleton row costs nothing new. Succession and membership position are §3's and §4's provisions,
-which the substrate has always reserved; listing them makes an existing cost visible rather than adding
-one. What an antecedent may not carry is a *third* kind of member.
+Two connectives, and the question this section answers is why exactly two — not why the engine knows
+about them, because per §5 it must not.
 
 ### The membership test
 
@@ -830,7 +1219,7 @@ If two candidates read the same way in both directions, they are one connective,
 between them belongs in a member. Applying the test eliminates the obvious candidates:
 
 * `prevents(A, B)` is `causes(A, {−B})`. Consequents are signed, so prevention is already sayable.
-* `enables(A, B)` is `causes(A, {+B @possible})`. Read backwards, the two are told apart by the
+* `enables(A, B)` is `causes(A, {+B, grade possible})`. Read backwards, the two are told apart by the
   grade: `certain` means doing `A` achieves `B`; `possible` means `A` is a precondition and something
   else must still happen.
 
@@ -845,21 +1234,51 @@ The distinction is not *logical versus worldly*. It is mechanical:
 Water you have stopped heating stays boiled. That is inertia, and it is why a zero-delay cause is
 still not an implication: the two cannot be merged by setting the delay to zero.
 
-`<R2>` above is the argument for keeping both. *Cloudy morning likely implies rainy afternoon* passes
+`<R2>` in §12 is the argument for keeping both. *Cloudy morning likely implies rainy afternoon* passes
 the persistence test as `implies` — learn it was not cloudy and the rain claim goes with it — but the
 surface wording reads just as easily as causal, and clouds do not cause the afternoon's rain; a front
 causes both. Written as `causes`, the backward reader produces **a plan to make it rain by making it
 cloudy**. The two-connective split is precisely what makes that plan unwritable.
 
+### Neither connective needs engine support
+
+This is what §5's test demands and it is worth showing rather than asserting. The two connectives
+differ in exactly one respect: **which moment the consequent's entries are deposited in.** Same moment
+for `implies`; a successor for `causes`.
+
+The write operation is told where to deposit — that is the register, §4's item 3. It is not told which
+connective was involved and has no way to ask. So the connective is consumed by the *rule that applies
+rules*, which is bundled data:
+
+```
+<F-implies> = causes(
+    given  +rule(?r),  +conn(?r, implies),  +matched(?app, ?r, ?m)
+    then   +deposit_into(?app, ?m) )
+
+<F-causes> = causes(
+    given  +rule(?r),  +conn(?r, causes),  +matched(?app, ?r, ?m),  ?m' = succ(?m)
+    then   +deposit_into(?app, ?m') )
+```
+
+A third connective is a third rule of the same shape. That is §5's *rows, not branches*, and it is
+also the whole content of the older claim that a connective is a table entry.
+
+The honest caveat is §5's wall: these rules read a *reified* rule, and reification stores generic
+patterns. Matching a goal against a stored pattern is the operation no rule can perform. The forward
+direction above is safe because it never matches a pattern — it dispatches on `conn` and hands the
+moment along. The backward direction is not, and §21 records it.
+
 ### What is not a connective
 
 Interval relations — *before*, *during*, *overlaps* — are ordinary facts about moments and spans,
-which are already nodes. Adding them to the closed set would buy nothing and would start the
-multiplicative growth §11 and §12 are designed to avoid.
+which are already nodes. Adding them to a closed set would buy nothing and would start the
+multiplicative growth §15 and §16 are designed to avoid.
 
 ---
 
-## 11. Time
+## 15. Time
+
+*Saying when, in the world's terms.*
 
 **An action is not a new kind of thing.** An action is an event; an event is a moment; and
 `heat(?a, ?w)` is a fact that holds over an interval. An action therefore enters a rule's antecedent
@@ -870,12 +1289,12 @@ Expressing *…and it boils five minutes later* takes three decisions.
 
 **1. Say which endpoints.** *The heating takes five minutes*, *boiling starts five minutes after
 heating starts* and *boiling starts five minutes after heating stops* are three different rules that
-plan differently. The timing member therefore relates **named endpoints** — `end(A) → start(B)` —
-never a bare scalar.
+plan differently. The timing member therefore relates **named endpoints** — the end of `<A>` and the
+start of `<B>` — never a bare scalar.
 
-**2. It is a constraint, not a number.** `[4min, 7min]`, `≥5min`, *eventually* and *unknown* must all
-be sayable, or R6's problem returns one level up as precision-by-silence. Absent timing means unknown
-timing, and that is both legal and readable.
+**2. It is a constraint, not a number.** A closed interval, a lower bound alone, *eventually* and
+*unknown* must all be sayable, or R6's problem returns one level up as precision-by-silence. Absent
+timing means unknown timing, and that is both legal and readable.
 
 **3. It is a fact about the rule, not a third member of the connective.** This keeps the connective
 binary; lets the delay be genuinely absent rather than defaulted; and lets two timing claims coexist
@@ -891,13 +1310,13 @@ the delay is a slot.
 
 Timing is read in both directions, which is the payoff. **Forward**, it says when to expect the
 effect, and therefore when its absence is a **deviation** rather than merely patience — this is what
-§16 matches against. **Backward**, it is a **filter**: needing boiling water within two minutes rules
+§18 matches against. **Backward**, it is a **filter**: needing boiling water within two minutes rules
 this rule out of the plan. A rule with no timing expresses neither.
 
 Because waiting is an action like any other, this is also how a precondition the agent cannot *make*
 true gets planned for. *It must be a Tuesday* is achievable at a price of up to seven days, and the
 price is a timing constraint — sayable, absent when unknown, and compared against the deadline. That
-is what §8 leans on when it refuses to mark a member unachievable.
+is what §12 leans on when it refuses to mark a member unachievable.
 
 ### Three times, and only one ordering
 
@@ -906,28 +1325,29 @@ Time shows up in three places, and it is worth being explicit that this is not t
 | | what it is | where it lives |
 |---|---|---|
 | **about-when** | the stretch a claim concerns | the entry's **locus** |
-| **believed-since** | when the agent came to think so | the entry's **deposit moment** (§5) |
+| **believed-since** | when the agent came to think so | the entry's **deposit moment** (§8) |
 | **event description** | *afternoon*, *Tuesday*, *morning* | **members of a proposition** |
 
-The first two are §4's two indices. The third is the one that needs discipline, because it is already
-in use — `+cloudy(?day, morning)` in `<R2>`, and `+tuesday(?d)` in §8 — and left unexamined it would
+The first two are §10's two indices. The third is the one that needs discipline, because it is already
+in use — `cloudy(?day, morning)` in `<R2>`, and `tuesday(?d)` in §12 — and left unexamined it would
 be a second ordering competing with succession.
 
 It is not one, and the rule is:
 
 > **Calendar terms denote. The chain orders.**
 
-*Afternoon* is a **name for a stretch of the chain**, resolved against the clock stamp §4 puts above
+*Afternoon* is a **name for a stretch of the chain**, resolved against the clock stamp §7 puts above
 succession. It is not an ordering relation and nothing may compare two calendar terms directly; to ask
-which came first is to resolve both to spans and compare endpoints, which §7 already provides. A
-vocabulary that ordered calendar terms among themselves would be §4's warning realised — two orderings
+which came first is to resolve both to spans and compare endpoints, which §11 already provides. A
+vocabulary that ordered calendar terms among themselves would be §7's warning realised — two orderings
 that agree by convention and drift without detection.
 
 This is what makes reported speech expressible, which the timing member alone could not do:
 
 ```
-<e1> = entry( <M9>,      says(anna, <p>),   + )      Anna spoke, at the moment of speaking
-<e2> = entry( <afternoon>, rain,            + )      graded @possible, licensed by <e1>
+<e1> = entry( <M9>,        says(anna, <p>),  + )      Anna spoke, at the moment of speaking
+<e2> = entry( <afternoon>, rain,             + )      grade(<e2>, possible)
+                                                      licensed_by(<e2>, <e1>)
 ```
 
 `<e2>` is deposited now, is about the afternoon, and is believed on Anna's word — three different
@@ -935,7 +1355,7 @@ times and one authority, none of which needs a construct that does not already e
 
 ### Acting is a channel read the other way
 
-Channels carry the world in (§13). Acting carries an intent out, and needs no new construct for the
+Channels carry the world in (§17). Acting carries an intent out, and needs no new construct for the
 same reason an action needs none: a rule concludes `+doing(p)` like any other fact, and the machinery
 carries it past the boundary because a boundary is anchored and a rule is generic.
 
@@ -943,40 +1363,44 @@ Two things about the write that follows, both found by building it:
 
 **The agent asserts the act.** *To execute means make this event-fact true*, so having acted, the
 agent writes `+heat(anna, kettle)` — licensed by the doing, not by any report. That is not a claim
-about the world's response. It is what gives the rules something to fire on, and it is what gives the
-expectation of §16 something to be disappointed by. Without it the agent emits an intent into silence
+about the world's response. It is what gives the rules something to apply to, and it is what gives the
+expectation of §18 something to be disappointed by. Without it the agent emits an intent into silence
 and nothing downstream ever happens.
 
 **A description cannot be acted on.** `+doing(heat(?a, ?w))` is refused: an intent with an unbound
-member names no particular act. This is §8's achievability arriving where it belongs — not as a mark
+member names no particular act. This is §12's achievability arriving where it belongs — not as a mark
 on a rule's member, but as a condition at the one place effects leave the agent.
 
 ### What a channel reports is signed
 
-An arrival needs a sign, and a proposition has none — only an entry does (§5). So *the gauge says it
+An arrival needs a sign, and a proposition has none — only an entry does (§8). So *the gauge says it
 is not boiling* has nowhere to put the negation. Writing `−says(gauge, p)` says the gauge stayed
 silent, which is a different fact and not the one observed.
 
 The shape in use is `says(channel, proposition, sign)`, with the entry always positive: the channel
-did speak. That puts a sign inside a proposition, which §16 warns against, and it is the same
-compromise reification makes in `ant(<R>, p, +)`.
+did speak. That puts a sign inside a proposition, which §18 warns against, and it is the same
+compromise reification makes when it stores a rule's signed members.
 
-**§16's answer is better and is not yet built.** An arrival should be a **moment** — a report is a
-signed delta, and trust is then a rule relating two moments rather than a rule per sign. That needs
-§8's skeleton, and until it exists a corpus needs one trust rule for `plus` and one for `minus`.
+**Two better answers exist and neither is built.** An arrival should be a **moment** — a report is a
+signed delta, and trust is then a rule relating two moments rather than a rule per sign; that needs
+§12's skeleton. Alternatively §9's open question settles the other way and negation becomes a
+wrapping proposition, at which point the third member disappears on its own. Until one of the two
+lands, a corpus needs one trust rule per sign.
 
 ---
 
-## 12. Modality
+## 16. Modality
+
+*Saying how strongly.*
 
 Four different things get called *possibility*, and they must not share a slot.
 
 | | what it is | where it goes |
 |---|---|---|
 | **strength** | how often the effect actually follows | a grade on the **entry** |
-| **confidence** | how far the agent trusts where this came from | a grade on the **source** (§13); moves with evidence |
+| **confidence** | how far the agent trusts where this came from | a grade on the **source** (§17); moves with evidence |
 | **defeasibility** | what would cancel it | **not a number** — a relation to other rules: `unless`, `overrides` |
-| **achievability** | whether *this* agent can bring it about, now, within budget | **nowhere** — derived at read time from capabilities, budget and the rule set (§8) |
+| **achievability** | whether *this* agent can bring it about, now, within budget | **nowhere** — derived at read time from capabilities, budget and the rule set (§12) |
 
 The fourth is the one with no storage at all, and that is the point: it is relative to the reader, so
 any place to put it is a cache of a derived value.
@@ -992,7 +1416,7 @@ best shorthand for *all entries the same*.
 
 **Confidence is a property of the source, not of the rule.** *How sure am I of this rule* and *how
 sure am I of this sensor* and *how far do I trust this speaker* are one question asked of three
-sources, and §13 makes every entry name the source it arrived through. Rule-confidence is then the
+sources, and §17 makes every entry name the source it arrived through. Rule-confidence is then the
 case where the source is the knowledge base. One mechanism covers all three; a grade slot on rules
 would cover only the first and would have to be reinvented for the other two.
 
@@ -1012,18 +1436,18 @@ confused:
 
 The honest cost is the second row. Two independent *likely*s ought to amount to more than *likely*.
 Ordinal grades do not accumulate evidence, and the right place to fix that is **counting over
-episodes**, not arithmetic over grades; §18 records it as unsettled. What the design must not do
+episodes**, not arithmetic over grades; §21 records it as unsettled. What the design must not do
 meanwhile is let the chain case silently stand in for both.
 
-**The grade a rule authors is a contribution, not a verdict.** §8's consequents carry per-entry grades
-— `+boiling(?w) @certain` — and those are one link in the chain, never the answer. The grade of the
-deposited entry is `min(authored, support)`. Without that, a rule that says `@certain` on the strength
-of a source graded *possible* launders a weak input into a strong output, and the weak link vanishes
-from exactly the walk §12 relies on. **A rule states how strongly it would conclude, given its
-premises. What its premises were worth is not its to say.**
+**The grade a rule authors is a contribution, not a verdict.** §12's consequents carry per-entry
+grades, and those are one link in the chain, never the answer. The grade of the deposited entry is
+`min(authored, support)`. Without that, a rule that says `certain` on the strength of a source graded
+*possible* launders a weak input into a strong output, and the weak link vanishes from exactly the walk
+this section relies on. **A rule states how strongly it would conclude, given its premises. What its
+premises were worth is not its to say.**
 
-Grade is orthogonal to the `?` sign. `?volume` is *this changed and I cannot say to what*;
-`+rain @possible` is *this might become true*. Different ignorance, different slot.
+Grade is orthogonal to the `?` sign. A `?` entry says *this changed and I cannot say to what*; a
+`possible` grade says *this might become true*. Different ignorance, different slot.
 
 ### Where the grade lives
 
@@ -1049,7 +1473,7 @@ matched without its grade either. One read, or none.
 That is the difference between a discipline and a structure, and it is available only because the
 entry exists anyway.
 
-**Every fact already has a node that records where it came from — the entry of §5. The grade goes
+**Every fact already has a node that records where it came from — the entry of §8. The grade goes
 there.**
 
 | the fact came from | the node that already exists | it carries |
@@ -1062,6 +1486,9 @@ there.**
 The entry had to exist anyway, because the **sign** has nowhere else to live — edges carry no facts.
 So the grade slot costs nothing structurally. A shape that absorbs a new requirement without growing
 is a shape that was right rather than convenient.
+
+*If §9's open question resolves toward wrapping, this argument needs re-running: an entry with two
+members still exists, and the grade still rides it, but the "sign is already a member" step is gone.*
 
 ### Superseded, not invalidated
 
@@ -1083,9 +1510,8 @@ entry with the **same locus** `M7` and a **later deposit**, and the property sti
 | what did I think at `M7`? | from `M7` | the original |
 
 Nothing was invalidated, nothing propagated, and both answers survive — which is what makes *why did
-you change your mind?* a query rather than an archaeology. **The property is a consequence of the two
-indices, not of writes always landing at now.** A design with a single index would have to choose
-which of those two questions to keep.
+you change your mind?* a query rather than an archaeology. **The property is a consequence of §10's
+two indices, not of writes always landing at now.**
 
 One line covers modality and recognition together:
 
@@ -1098,7 +1524,7 @@ The word *likely* covers two things, which is why *tag it or guard it* feels lik
 
 | | *I am supposing this — what follows?* | *this generally holds, weakly* |
 |---|---|---|
-| shape | a **moment** you enter and leave (§4) | a **grade**, recorded on the entry when the rule applies |
+| shape | a **moment** you enter and leave (§7) | a **grade**, recorded on the entry when the rule applies |
 | how many | few, deliberate | many, independent |
 | nesting | free — a path in the predecessor tree | does not nest; composes by weakest link |
 | isolation | already enforced — a read cannot reach into a moment except through the chain | not an isolation problem at all |
@@ -1128,11 +1554,12 @@ Three things this buys that a grade cannot, none of them arguments:
 The cost is a frame per derivation, which is linear. The alternative — a *lifting* rule that rewrites
 `likely(X)` into `likely(Y)` over reified rules — costs one rule instead of a frame, and fails: it
 binds against a rule's **pattern**, so it fires only where that pattern is ground, and real corpora
-are mostly generic rules. Supposing has no such limit because nothing is ever mentioned.
+are mostly generic rules. That is §5's wall again. Supposing has no such limit because nothing is ever
+mentioned.
 
 **Containment is free rather than enforced.** The frame's seat is a *successor* of the caller's, so
-the caller's walk cannot reach it. That is §17's containment gate, and it is the ancestry of §4 doing
-the work — which is why `at_or_after` must be a real ancestry test and not a depth comparison, since
+the caller's walk cannot reach it. That is §20's containment gate, and it is §10's ancestry doing the
+work — which is why at-or-before must be a real ancestry test and not a depth comparison, since
 supposing forks by construction.
 
 **What is still true of grades.** Weakest link is computed once, by the gate, over the entries match
@@ -1170,11 +1597,11 @@ guard in order to catch the one that matters.
 ### What (C) costs
 
 * *How likely is this?* becomes a **walk, not a read** — the same shape and the same cost as reading
-  a fact at all (§4). Accepted as a consequence of dating everything, not paid separately.
+  a fact at all (§10). Accepted as a consequence of dating everything, not paid separately.
 * **The support trail becomes load-bearing for correctness, not only for explanation.** A write that
   loses its attribution does not merely become unexplainable — it becomes **falsely confident**,
   because a missing support link removes a weak link from the minimum. This is what promotes R5 from
-  a nicety to a soundness condition, and it is why §13's gate exists.
+  a nicety to a soundness condition, and it is why §4 puts the stamp on the floor.
 * Cycles in the support chain need the same termination care as any walk over derived structure.
 
 ### Does the design run out of dimensions?
@@ -1199,9 +1626,11 @@ provides it and nothing else.
 
 ---
 
-## 13. The division of labour
+## 17. Provenance — channels, frames and the gate
 
-Every claim is made through an entry (§5). So: are rules **augmented** to speak about entries, or does
+*Saying who says.*
+
+Every claim is made through an entry (§8). So: are rules **augmented** to speak about entries, or does
 the **machinery** apply rules to entries? The machinery — and the alternative is not merely costly, it
 cannot be written.
 
@@ -1213,10 +1642,9 @@ cannot be written.
 ```
 
 **The locus is an indexical.** A rule is generic: variables, and no anchored predecessor. An entry is
-anchored. A rule that named a locus would be about that one occasion and could not be
-reused. So augmentation
-cannot produce a whole entry — only one with a hole in it. And **a hole that the machinery fills at
-run time is the machinery doing the work anyway.**
+anchored. A rule that named a locus would be about that one occasion and could not be reused. So
+augmentation cannot produce a whole entry — only one with a hole in it. And **a hole that the
+machinery fills at run time is the machinery doing the work anyway.**
 
 It buys nothing, and costs four things:
 
@@ -1240,7 +1668,7 @@ It buys nothing, and costs four things:
 > **The rule's members are what the author knows. The entry's members are what the application knows.**
 
 Locus, licence, source and grade-at-this-application do not exist until the rule runs. That is the
-whole split, and it is why `entry` is engine vocabulary rather than something an author writes.
+whole split.
 
 | | (A) augment the rules | (B) authors write entries natively | (C) the machinery absorbs it |
 |---|---|---|---|
@@ -1254,7 +1682,7 @@ whole split, and it is why `entry` is engine vocabulary rather than something an
 ### The gate
 
 An entry is both a mechanism and a node a rule can point at. Reading is how *a claim Anna made
-outranks one Bo made* gets stated at all. Writing is where soundness lives, because §12 makes the
+outranks one Bo made* gets stated at all. Writing is where soundness lives, because §16 makes the
 support trail load-bearing: a write that loses its attribution does not merely become unexplainable,
 it becomes **falsely confident**, since a missing support link removes a weak link from the minimum.
 
@@ -1267,18 +1695,24 @@ What must be impossible is an entry whose provenance is **absent or false**. Wha
 impossible is an entry a rule caused to exist — every such entry arrives through the gate and leaves
 it stamped with the rule that caused it, which is not forgery but the ordinary record.
 
+Note the division against §4. The **stamp on the mint** is floor: unconditional, nameless, and not
+something a rule reads. The **gate** is the bundled convention that turns that stamp into vocabulary —
+locus, licence, source, grade — so that the agent can reason about its own provenance. Remove the
+convention and the guarantee remains but the agent goes blind to it; remove the floor item and the
+convention is forgeable.
+
 Two things this distinction rescues, which the stronger prohibition forbids by accident:
 
 **Backdating is not the same as claiming about the past.** Backdating is lying about when a claim was
 made — a false stamp. Writing now, honestly, about an earlier time is a **past locus with a present
-deposit**, and the record reads *at `M12`, by this rule, I came to think it rained at `M7`*. §4's two
+deposit**, and the record reads *at `M12`, by this rule, I came to think it rained at `M7`*. §10's two
 indices make the second sayable and the first still impossible, because the deposit is structure and
 not an argument.
 
 **Trust is a rule, not a hard-wired intake.** *The user says it is raining* becomes *it is raining* by
 an ordinary rule that the agent can be asked about, argue with and override. An intake path that wrote
-the second directly would be the genuinely unsafe design, and it is what a blanket rules-may-not-write
-encourages.
+the second directly would be the genuinely unsafe design, and it is what a blanket
+rules-may-not-write encourages.
 
 ### Channel is not authority
 
@@ -1290,9 +1724,9 @@ Every entry names where it arrived from, and that has two layers which must not 
 | **authority** | who is taken to have spoken, and what their word is worth | **yes** — an ordinary claim, gradeable and defeasible |
 
 The knowledge base is a channel like any other. Reading it faithfully is guaranteed; what it **says**
-is as contestable as ever, which is what §8's `by(R, boss)` and `overrides(R1, R2)` depend on. Fusing
-the two would make authority unforgeable by fiat, so that anyone reaching the right socket would
-thereby be the boss.
+is as contestable as ever, which is what §12's `by(<R>, boss)` and `overrides(<R1>, <R2>)` depend on.
+Fusing the two would make authority unforgeable by fiat, so that anyone reaching the right socket
+would thereby be the boss.
 
 ### Frames
 
@@ -1307,7 +1741,7 @@ A frame carries two things:
 | **seat** | the moment its writes are deposited in — *where I am standing* |
 | **topic** | the locus its writes are stamped with — *what I am reasoning about* |
 
-Normally they coincide, and that is the case §5 describes. They come apart exactly twice: reasoning
+Normally they coincide, and that is the case §8 describes. They come apart exactly twice: reasoning
 about the past, where the topic is an earlier moment and the seat is now; and reasoning under a
 supposition, where the seat is inside the supposition.
 
@@ -1318,10 +1752,17 @@ That gives the whole of what the gate does:
 
 | stamped | taken from |
 |---|---|
-| **locus** | the consequent's bound locus if it has one (§8), otherwise the frame's topic |
+| **locus** | the consequent's bound locus if it has one (§12), otherwise the frame's topic |
 | **deposit** | the frame's seat |
 | **licence** | this application: the rule, and the entries match consumed |
 | **source** | the channel this arrived through |
+
+A frame is `frame(seat, topic)` — a node with two ordered members, structurally identical to §11's
+`span(start, end)`. It reserves no engine name. What the engine holds is §4's **register**: which node
+is the current frame. That is a pointer, not a vocabulary item, and it is the only privileged thing
+here.
+
+> **The machinery is written in the language it interprets. Only the register is privileged.**
 
 Two properties fall out rather than being enforced. **Hypothetical containment is structural** — a
 conclusion drawn inside a supposition cannot land outside it, because the locus was never the rule's to
@@ -1331,7 +1772,7 @@ give. And **forgery stops being a category**: nothing is prohibited, everything 
 
 Two operations look like they need primitives and neither does.
 
-**Inspecting is matching.** §14's match unifies a generic chain against an anchored one, and nothing
+**Inspecting is matching.** Match unifies a generic chain against an anchored one, and nothing
 requires the anchored chain to be the one you are standing in. Reading another frame's conclusions is
 match with an explicit anchor, and it changes nothing.
 
@@ -1351,12 +1792,12 @@ Otherwise weighing two hypotheses would adopt both.
 Frames are not a stack. A stack assumes one live frame and a return to the caller, and the case that
 breaks it is the ordinary one: **two hypotheses under comparison are siblings, both alive, neither the
 caller of the other.** Frames form a forest; what looks like a stack is the ancestor path of whichever
-frame is in focus, and ancestry is derived, so there is nothing to maintain. This is §4's *nesting
+frame is in focus, and ancestry is derived, so there is nothing to maintain. This is §7's *nesting
 needs no mechanism*, one level up.
 
 A frame ends when its goal is discharged, its budget is spent, or arbitration moves on — and it ends
 the way every bounded thing in this design ends, with **a result and a state**: discharged, exhausted
-or abandoned. That is §6's `−` against no-entry, §9's bound, and §15's two silences, arriving a fourth
+or abandoned. That is §9's `−` against no-entry, §13's bound, and §19's two silences, arriving a fourth
 time.
 
 What does a conclusion look like on the way out? It does not come out.
@@ -1365,9 +1806,10 @@ What does a conclusion look like on the way out? It does not come out.
 
 Copying a conclusion out and re-qualifying it is the alternative, and it fails on this design's own
 terms: it makes one fact exist in two shapes, which is the objection to augmentation above, and it
-needs invalidation the moment the supposition is discharged differently, which is what §12's dating
+needs invalidation the moment the supposition is discharged differently, which is what §16's dating
 exists to avoid. So a caller that has learned something from a scenario writes a **new** entry at its
-own seat whose proposition is about the scenario — `yields(S1, +boiling(w))`, or `preferable(S1, S2)`.
+own seat whose proposition is about the scenario — `yields(<S1>, +boiling(w))`, or
+`preferable(<S1>, <S2>)`.
 
 Comparing two hypotheses is then inspecting both and writing a preference; neither is adopted.
 **Adopting** one is a separate, deliberate, licensed write — the same shape as deciding to trust a
@@ -1385,237 +1827,30 @@ channel, which is the point at which *the user says it is raining* became *it is
 * **Every seat move is a write**, so deliberate reasoning about the past leaves a trail proportional to
   how often the agent shifts its attention, not to what it concludes.
 * **Nothing stops a frame being seated somewhere useless.** A seat that is not an ancestor of its topic
-  is as meaningless as §7's inverted span, and takes the same remedy: check it where the frame is
+  is as meaningless as §11's inverted span, and takes the same remedy: check it where the frame is
   minted, while the mistake is still attributable.
 
 ---
 
-## 14. The engine floor
+## 18. The machinery's own state
 
-If the meaning of `causes` is given by rules, and those rules use connectives whose meaning is given
-by rules, the tower never reaches ground. **The reserved set cannot be empty.** What it can be is *not
-the connectives*.
+*Saying what I am doing.*
 
-Four primitives:
+This section is R7 applied to the agent itself, and it is the largest single group of conventions in
+the design: goals, plans, commitments, expectations, surprise. Under §5's test every name here is a
+convention, and each currently has an interpreter branch behind it. That is the debt Part I names.
 
-1. **recall** — which rules come to mind here. **Never complete**, by design (§15).
-2. **match** — unify a **generic** chain against an **anchored** one, over what recall offered. It
-   settles the antecedent's skeleton by unifying structure and its entries by walking the chain, and it
-   records which entries it matched (§13).
-3. **write** — mint signed entries. **The gate**: it stamps locus, deposit, licence and source from
-   the frame and the clock (§13), and no write bypasses it.
-4. **arbitrate** — among the rules that matched, choose one. **Total**: table-driven, always answers.
-
-> **Recall proposes. Match filters. Arbitrate commits. Only the last is total.**
-
-Backward reading is not a fifth primitive. It is rules over these four, expanded on demand under a
-budget, and per §9 it returns a result **and a state** — because a search that stopped is not a search
-that found nothing.
-
-Neither is anything §13 added. **Inspecting** another frame is match with an explicit anchor.
-**Entering** one is a write against a process node. **Scheduling** — which process runs next — is
-arbitration, and it must be arbitration rather than a mechanism beside it, or the design acquires a
-second selection step lacking the stratification condition below.
-
-Arbitration is the one that is easy to get wrong. A meta-rule that decides which rule to apply must
-itself be selected, and that regress happens *at run time*, not at design time. Therefore:
-
-> **The bottom-most arbitrator is a lookup over an authored precedence table that always returns and
-> never searches.**
-
-Reflection may be arbitrarily deep; the final tiebreak may not be reflective. That is the
-stratification condition, and it is what keeps the tower finite in practice rather than merely in
-principle.
-
-### A connective is a table entry, not a branch
-
-Given the four primitives, the connectives themselves are data:
-
-```
-<F> = causes( { +rule(?r), +conn(?r, causes), +matches(?s, ant(?r)) },
-              { +succ(?s, ?s'), +applied(?r, ?s, ?s') } )
-
-<B> = causes( { +want(?f), +conn(?r, causes), +member(+?f, con(?r)) },
-              { +candidate(?r, ?f) } )
-```
-
-Matching is primitive; everything above it is rules.
-
-### `<B>` does not work, and the reason is the shape of the floor
-
-Reifying rules is cheap — `+rule(?r)`, `+conn(?r, implies)` and a member relation per side — and once
-done, `<F>` is an ordinary rule. `<B>` is not, and running it is how the difference shows:
-
-```
-con(<boil>, boiling(?w), +)     what reification stores: the rule's PATTERN, generic
-+goal(boiling(kettle))          what a goal is: ground
-```
-
-`+want(?f)` binds `?f` to the ground goal; `+member(+?f, con(?r))` needs it to be the generic pattern.
-One variable cannot be both, so the rule never fires. Deciding that the two *correspond* is exactly
-**match**, and match is a primitive that no rule can call.
-
-> **A rule can name a rule. A rule cannot match one.**
-
-That is one wall reached from three sides. Lifting a modality across a rule needs it. Backward reading
-needs it. Asking whether a generic subgoal is already satisfied needs it — `tap(?t)` against
-`tap(sink)` is a match, and resolving by proposition identity reports a satisfied goal as blocked.
-
-So backward reading sits in the machinery, and the honest statement of §14 is narrower than *rules
-over the four primitives*: it is rules over the four **plus** a way to invoke the second one. Whether
-that is a fifth primitive, or `match` reified so a rule can request it, is not settled here — §18
-records it. What is settled is that the four as printed are not enough, and that `<B>` above should
-be read as an intention rather than as a rule that runs.
-
-### Use and mention
-
-Reification also forces a distinction the design had not needed. `+ant(<R>, heat(?a, ?w), +)` is a
-**ground** claim about a rule that happens to name a node containing variables. It is not a generic
-claim, and refusing it would make rules unspeakable-about — but structurally the two are identical, so
-nothing in the shape can tell them apart.
-
-What tells them apart is **who is writing**: the machinery reifying a rule is mentioning, a rule's
-consequent is using. That is §13's split once more, and it is why mention is a parameter of the gate
-rather than a property of a proposition.
-
-> **The test that the floor is in the right place: adding a connective adds rows, not branches.**
-
-If a new connective requires editing the engine, then the connective set is not data and §10's budget
-is fiction.
-
-### One interpreter
-
-Meta-rules buy nothing if the interpreter special-cases them. The interpreter's step is *select a
-rule, apply it*, and object-rules and meta-rules must be indistinguishable to it — a flat tower, not a
-stacked one. If, standing inside the interpreter, you cannot answer *which level am I on?*, that is
-the sign it is built correctly.
-
----
-
-## 15. Recall
-
-Recall is not an optimisation of an exhaustive search. It is a distinct primitive with distinct
-properties, and it is where the agent's experience lives: the right rules coming to mind at the right
-moment is what expertise consists of.
-
-The three selection steps have **opposite requirements**, which is why they are three:
-
-| | **recall** | **match** | **arbitrate** |
-|---|---|---|---|
-| job | which rules come to mind | do they actually fit | which one, now |
-| complete? | **never**, by design | over what recall offered | over what matched |
-| total? | — | — | **must always answer** |
-| authored or learned? | **learned** | mechanical | **authored** — precedence |
-| failure mode | a rule you needed never surfaced | — | dithering, or a hang |
-| cost of being wrong | recoverable: a worse plan, or a surprise later | — | a wrong action |
-
-Judgements of what is worth attempting live here too. *Don't plan to make it Tuesday* is not a fact
-about the rule (§8) and not a prohibition (below); it is a learned bias about which subgoals are worth
-expanding — which is to say, about which rules come to mind when reading backwards. It belongs in the
-step where being wrong costs a worse plan rather than a wrong action.
-
-### Why experience belongs in recall specifically
-
-Two structural reasons, neither of which is an appeal to cognitive plausibility:
-
-1. **It is the only step where being wrong is recoverable.** A missed rule costs a worse plan or a
-   later surprise — both of which the machinery already handles. A wrong arbitration costs a wrong
-   *action*. Put learning where errors are survivable.
-2. **It is the only step with no authored ground truth.** *Which rules should have come to mind?* has
-   no answer other than *the ones that turned out to matter*, so it can only be learned. Arbitration
-   has the opposite property: `by(R, boss)` and `overrides(R1, R2)` **are** the ground truth, and
-   learning them instead of reading them would be wrong.
-
-### What incompleteness costs immediately
-
-Once recall may miss, **"no rule applies" is ambiguous**: either nothing applies, or nothing came to
-mind. That is §6's distinction between *absent* and *no entry*, one level up, landing on the machinery
-that reads it.
-
-> **Recall returns a set plus a state, never a set.**
-
-The state is cheap to compute from the wrong thing (*did I find anything?*) and expensive from the
-right thing (*is this situation familiar?*). Unfamiliar-and-empty is a different event from
-familiar-and-empty, and only the first should escalate.
-
-### What recall is keyed by
-
-Not the situation alone, but **the situation and the active goal**. The same world brings different
-rules to mind depending on what is being attempted; recall keyed only on world features surfaces the
-same set forever regardless of intent.
-
-The mechanism is an index over shared terms: rules are linked to other rules by the members they have
-in common, and recall is spreading activation over that web, seeded from both the current moment and
-the current goal.
-
-### Deliberate reasoning is not a second mechanism
-
-Slow, exhaustive reasoning is **recall with the budget removed** — same match, same arbitrate, an
-exhaustive proposal step. The fast/slow distinction therefore needs no architectural fork: a budget
-parameter, and an escalation rule that is itself *a rule*:
-
-```
-<E> = causes( { +decision_point(?d), +recalled(?d, ∅), ~familiar(?s) },
-              { +goal(exhaustive_recall(?d)) } )
-```
-
-The escalation triggers are exactly the impasses: nothing came to mind; what came to mind conflicts
-irreducibly; or what came to mind was **surprising**, which is §16 feeding this rule.
-
-### What trains it, and the trap
-
-The training signal is already deposited by the machinery: which rule was applied where, and whatever
-explanation a surprise produced. Recall learns from its own outputs that survived.
-
-That has one failure mode which must be designed against rather than discovered:
-
-> **Training recall on its own accepted outputs narrows it monotonically.** A rule that never
-> surfaces is never applied, never reinforced, and becomes permanently invisible.
-
-The exhaustive pass is therefore **not a fallback**. It is the only thing that injects candidates
-recall would never have produced, so it must fire on novelty or on a schedule — not only on impasse.
-Otherwise the agent calcifies precisely in the domains where it is performing well, and nothing
-reports it.
-
-### The carve-out
-
-> **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**
-
-A prohibition that fails to come to mind is a forbidden act that nothing notices. The repair is not to
-make recall complete for norms — that reintroduces the exhaustive search this primitive exists to
-avoid. It is to take prohibitions **off the recall path entirely**: check them at the write primitive,
-indexed by the entries about to be written. That set is small and known, so the check is cheap and
-exhaustive.
-
-> **A prohibition is a gate on application, not a competitor in recall.**
-
-### Scoring and price
-
-| | one undifferentiated `select` | **recall + match + arbitrate** |
-|---|---|---|
-| not leaking | ❌ an incomplete step reports as authoritative; *nothing applies* asserts more than was checked | ✅ the two silences are distinguishable, and only one escalates |
-| not lossy | ❌ *did you consider R?* is unanswerable | ✅ recalled, matched and rejected are three separate records |
-| readable | ⚠ | ✅ *which rules does this situation bring to mind?* is a query, askable without applying anything |
-| composable | ❌ learning and authority contend for one slot | ✅ learned proposal, authored arbitration, no contest |
-
-The price is three records per decision instead of one, and an index that must be maintained as
-episodes accumulate. The second is the real cost, and it is a **rebuild from the episode record, never
-a patch of the previous index** — an index patched incrementally drifts from the history it claims to
-summarise, and nothing detects it.
-
----
-
-## 16. Surprise, commitment and reflection
+### Surprise is a match
 
 > **Surprise is a match.** It is an *expected* entry and an *observed* entry that disagree.
 
-That is the entire mechanism, and it is the sharpest illustration of requirement R7. If the agent's
-expectations live in interpreter variables, an expectation is unmatched not because the rule is weak
-but because there is nothing there to match. Three obligations follow.
+That is the entire mechanism, and it is the sharpest illustration of R7. If the agent's expectations
+live in interpreter variables, an expectation is unmatched not because the rule is weak but because
+there is nothing there to match. Three obligations follow.
 
 **1. Forward application deposits a predicted moment.** Applying `causes(A, B)` at `M3` mints a moment
 whose predecessor is `M3` and whose licence is *R applied, predicted*, carrying `B`'s entries, plus a
-due-time derived from §11's timing member. Without the deposit there is nothing to be surprised
+due-time derived from §15's timing member. Without the deposit there is nothing to be surprised
 against.
 
 Note what this avoids: a bespoke relation like `expected(+boiling(w), by t+7)` is not writable in this
@@ -1627,16 +1862,17 @@ surprise a **comparison of two moments**, which is an operation the design alrea
 waiting for are signed entries — not a stack frame.
 
 *Stack frame* here means the interpreter's: opaque, owned by the runtime, and unreachable by a rule.
-§13's frames are the opposite of that in every respect — process nodes, readable, writable, and
+§17's frames are the opposite of that in every respect — process nodes, readable, writable, and
 selectable — which is why they can be preempted and an interpreter's cannot. The word is unfortunate;
-the distinction is the whole of §16.
+the distinction is the whole of this section.
 
 **3. Surprise is an ordinary rule that wins on precedence:**
 
 ```
-<S> = causes( { +predicted(?p, from ?m), +due(?p, by ?t), +now(?t'), after(?t', ?t),
-                +deviates(?p, ?actual) },
-              { +goal(explain_failure(?p)), −committed(?proc) } )
+<S> = causes(
+    where  ?t' = now
+    given  +predicted(?p, ?m),  +due(?p, ?t),  after(?t', ?t),  +deviates(?p, ?actual)
+    then   +goal(explain_failure(?p)),  −committed(?proc) )
 ```
 
 **There is no interrupt mechanism.** Preemption is `<S>` outranking the rule that would have continued
@@ -1662,9 +1898,13 @@ overrides(<why>, <boil>)
 ```
 
 That is this section's claim, exactly: preemption is a precedence relation over ordinary rules, and it
-works because the rule that would have continued is selectable and therefore defeatable. §12 supplies
-the other half — being overridden must mean **not applying at all** (defeat), never merely applying
+works because the rule that would have continued is selectable and therefore defeatable. The other
+half is that being overridden must mean **not applying at all** (defeat), never merely applying
 second, or the loser simply re-asserts on the following tick and the winner is quietly undone.
+
+**Defeat is about whose antecedent holds, not about who still has work to do.** Filtering out rules
+whose conclusions are already written must therefore happen *after* defeat, not before — otherwise the
+winner disappears the moment its conclusion is present, and the loser is left unopposed.
 
 The general shape, since it will recur: **a contradicted expectation does not stop being re-derived.**
 Nothing in the design retracts the rule that produced it, so something must outrank it. That something
@@ -1684,6 +1924,28 @@ It does not remove the alternatives. So commitment is real — the agent does no
 preemptable, and *dropping* it is a **write**, which means the agent can be asked why it abandoned
 something.
 
+### Plans carry their bindings
+
+A backward search's working state is facts, not interpreter variables. This is the row that could have
+been avoided and should not be: putting bindings on a `plan` node is R7 applied to the machinery's own
+working state, and it is what makes *why did you think that goal was met* answerable.
+
+It was also found by building. Two sibling subgoals — `tap(?t)` and `under(kettle, ?t)` — will each
+report satisfied against *different* taps unless the bindings that satisfied one are visible to the
+other. A plan node carrying its bindings is what makes them one plan rather than two coincidences.
+
+### Requests do not leave a frame
+
+The machinery's vocabulary is **requests and reports, not claims about the world**. A rule concludes
+`+suppose(p)`, `+goal(p)` or `+doing(p)`, and the machinery does what a rule cannot: open a frame,
+read a rule backwards, or carry an intent past the agent's boundary. Each needs something anchored — a
+locus, a match, a channel — that a generic rule cannot name.
+
+One consequence is easy to miss and was found by running: **nothing in this vocabulary may carry out
+of a frame**. A request to suppose is not a claim about the world, so there is nothing for §16's
+wrapper to qualify — and carrying one out produces `likely(suppose(...))`, which the rule that crosses
+guards then crosses, so the machinery supposes its own bookkeeping without end.
+
 ### Strategies are defeasible
 
 ```
@@ -1691,27 +1953,37 @@ something.
               { +goal(find(?r)), +constraint(?r, causes(_, {+?f})) } )
 ```
 
-Because that is a rule, `overrides(M, M2)` and `unless(M, +domain(?f, social))` are sayable, and **a
-strategy becomes defeasible like any other claim**. A strategy written as code cannot be overridden
-by a statement in the knowledge base, and that asymmetry — not interruptibility — is the larger cost
-of putting machinery outside the world the agent reasons about.
+Because that is a rule, `overrides(<M>, <M2>)` and `unless(<M>, +domain(?f, social))` are sayable, and
+**a strategy becomes defeasible like any other claim**. A strategy written as code cannot be
+overridden by a statement in the knowledge base, and that asymmetry — not interruptibility — is the
+larger cost of putting machinery outside the world the agent reasons about.
 
 ### Reflection is demanded, not continuous
 
 Meta-rules are consulted only at **named decision points the interpreter already reaches**: which rule
 to apply, what to do on failure, what to do on surprise. Never between arbitrary steps. Each decision
-point either receives a meta-answer or falls through to the total table (§14), so no decision hangs.
-Without this discipline, meta-cost is paid on every step and the tower never bottoms out in practice
-even though it does in principle.
+point either receives a meta-answer or falls through to §4's total step, so no decision hangs. Without
+this discipline, meta-cost is paid on every step and the tower never bottoms out in practice even
+though it does in principle.
+
+Arbitration is the one that is easy to get wrong. A meta-rule that decides which rule to apply must
+itself be selected, and that regress happens *at run time*, not at design time. Therefore:
+
+> **The bottom-most arbitrator is a lookup over an authored precedence table that always returns and
+> never searches.**
+
+Reflection may be arbitrarily deep; the final tiebreak may not be reflective. That is the
+stratification condition for *selection*, and it is worth noting that it is the same shape as §6's
+unsolved bootstrap for *reading* — the one has an answer and the other does not.
 
 ### Scoring, and the price
 
-| | (A) connectives and strategy in the engine | (B) all rules, no floor | (C) rules + four primitives + total arbitrator |
+| | (A) strategy and continuation in the engine | (B) all rules, no floor | (C) rules + §4's floor + a total step |
 |---|---|---|---|
-| not leaking | ❌ engine decisions have no premise and appear in no explanation | ❌ regress; never grounds | ✅ every step cites its rule; the floor is four named things |
+| not leaking | ❌ engine decisions have no premise and appear in no explanation | ❌ regress; never grounds | ✅ every step cites its rule; the floor is five named things, none about reality |
 | not lossy | ❌ *why did you stop?* has no answer | ⚠ | ✅ deposits, commitments and abandonments are all entries |
 | readable | ❌ strategy invisible to a query, undefeatable by data | ✅ | ✅ *which strategies are about explanation?* is a query |
-| composable | ❌ two authors cannot add a connective | ⚠ meta-rules cannot be ordered | ✅ new connective means new rows; ordering means precedence |
+| composable | ❌ two authors cannot add a strategy | ⚠ meta-rules cannot be ordered | ✅ new strategy means new rules; ordering means precedence |
 
 **(C)'s price, named:** every step costs a selection, and a badly authored precedence table produces
 dithering that reads as a bug in the rules rather than in the table. Both are measurable —
@@ -1720,10 +1992,147 @@ belong in the interpreter from the first version, not added after the symptom ap
 
 ---
 
-## 17. Acceptance
+## 19. Recall
 
-The gate is behavioural, not representational. It is not *can the system reproduce this text*; it is
-**commutation**:
+*Which rules come to mind.*
+
+Recall is where the agent's experience lives: the right rules coming to mind at the right moment is
+what expertise consists of.
+
+Earlier drafts called it a primitive. It is not, and §4 says why — a learned proposer is the opposite
+of a primitive. It is the design's most consequential **policy**, and naming it correctly makes its
+properties choices to defend rather than facts to accept.
+
+The three selection steps have **opposite requirements**, which is why they are three:
+
+| | **recall** | **match** | **arbitrate** |
+|---|---|---|---|
+| job | which rules come to mind | do they actually fit | which one, now |
+| status | **convention** — a bundled policy | **floor** (§4 item 2) | totality is floor; the table is convention |
+| complete? | **never**, by design | over what recall offered | over what matched |
+| total? | — | — | **must always answer** |
+| authored or learned? | **learned** | mechanical | **authored** — precedence |
+| failure mode | a rule you needed never surfaced | — | dithering, or a hang |
+| cost of being wrong | recoverable: a worse plan, or a surprise later | — | a wrong action |
+
+Judgements of what is worth attempting live here too. *Don't plan to make it Tuesday* is not a fact
+about the rule (§12) and not a prohibition (below); it is a learned bias about which subgoals are worth
+expanding — which is to say, about which rules come to mind when reading backwards. It belongs in the
+step where being wrong costs a worse plan rather than a wrong action.
+
+### Why experience belongs in recall specifically
+
+Two structural reasons, neither of which is an appeal to cognitive plausibility:
+
+1. **It is the only step where being wrong is recoverable.** A missed rule costs a worse plan or a
+   later surprise — both of which the machinery already handles. A wrong arbitration costs a wrong
+   *action*. Put learning where errors are survivable.
+2. **It is the only step with no authored ground truth.** *Which rules should have come to mind?* has
+   no answer other than *the ones that turned out to matter*, so it can only be learned. Arbitration
+   has the opposite property: `by(<R>, boss)` and `overrides(<R1>, <R2>)` **are** the ground truth, and
+   learning them instead of reading them would be wrong.
+
+### What incompleteness costs immediately
+
+Once recall may miss, **"no rule applies" is ambiguous**: either nothing applies, or nothing came to
+mind. That is §9's distinction between *absent* and *no entry*, one level up, landing on the machinery
+that reads it.
+
+> **Recall returns a set plus a state, never a set.**
+
+The state is cheap to compute from the wrong thing (*did I find anything?*) and expensive from the
+right thing (*is this situation familiar?*). Unfamiliar-and-empty is a different event from
+familiar-and-empty, and only the first should escalate.
+
+### What recall is keyed by
+
+Not the situation alone, but **the situation and the active goal**. The same world brings different
+rules to mind depending on what is being attempted; recall keyed only on world features surfaces the
+same set forever regardless of intent.
+
+The mechanism is an index over shared terms: rules are linked to other rules by the members they have
+in common, and recall is spreading activation over that web, seeded from both the current moment and
+the current goal.
+
+### Deliberate reasoning is not a second mechanism
+
+Slow, exhaustive reasoning is **recall with the budget removed** — same match, same arbitrate, an
+exhaustive proposal step. The fast/slow distinction therefore needs no architectural fork: a budget
+parameter, and an escalation rule that is itself *a rule*:
+
+```
+<E> = causes( { +decision_point(?d), +recalled(?d, ∅), −familiar(?s) },
+              { +goal(exhaustive_recall(?d)) } )
+```
+
+The escalation triggers are exactly the impasses: nothing came to mind; what came to mind conflicts
+irreducibly; or what came to mind was **surprising**, which is §18 feeding this rule.
+
+### What trains it, and the trap
+
+The training signal is already deposited by the machinery: which rule was applied where, and whatever
+explanation a surprise produced. Recall learns from its own outputs that survived.
+
+That has one failure mode which must be designed against rather than discovered:
+
+> **Training recall on its own accepted outputs narrows it monotonically.** A rule that never
+> surfaces is never applied, never reinforced, and becomes permanently invisible.
+
+The exhaustive pass is therefore **not a fallback**. It is the only thing that injects candidates
+recall would never have produced, so it must fire on novelty or on a schedule — not only on impasse.
+Otherwise the agent calcifies precisely in the domains where it is performing well, and nothing
+reports it.
+
+### The carve-out
+
+> **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**
+
+A prohibition that fails to come to mind is a forbidden act that nothing notices. The repair is not to
+make recall complete for norms — that reintroduces the exhaustive search this policy exists to avoid.
+It is to take prohibitions **off the recall path entirely**: check them at the write, indexed by the
+entries about to be written. That set is small and known, so the check is cheap and exhaustive.
+
+> **A prohibition is a gate on application, not a competitor in recall.**
+
+### Scoring and price
+
+| | one undifferentiated `select` | **recall + match + arbitrate** |
+|---|---|---|
+| not leaking | ❌ an incomplete step reports as authoritative; *nothing applies* asserts more than was checked | ✅ the two silences are distinguishable, and only one escalates |
+| not lossy | ❌ *did you consider R?* is unanswerable | ✅ recalled, matched and rejected are three separate records |
+| readable | ⚠ | ✅ *which rules does this situation bring to mind?* is a query, askable without applying anything |
+| composable | ❌ learning and authority contend for one slot | ✅ learned proposal, authored arbitration, no contest |
+
+The price is three records per decision instead of one, and an index that must be maintained as
+episodes accumulate. The second is the real cost, and it is a **rebuild from the episode record, never
+a patch of the previous index** — an index patched incrementally drifts from the history it claims to
+summarise, and nothing detects it.
+
+---
+
+# Part IV — Gates and open questions
+
+---
+
+## 20. Acceptance
+
+### The floor gate
+
+New in this draft, and the one that keeps Part I honest:
+
+> **For every bundled convention, the rule-level definition exists, and the answers it produces are
+> identical to the native path's.**
+
+Run it first on §10's read, since that is the convention an implementation is most certain to have
+compiled into itself. A convention with no rule-level definition is a convention that has escaped onto
+the floor, whatever the document says.
+
+A companion counter, cheap and blunt: **the number of phases in the interpreter's step**. Every phase
+is a convention the engine knows about by name. The target is zero.
+
+### The commutation gate
+
+Behavioural, not representational. Not *can the system reproduce this text*, but:
 
 > For every rule `R` and every moment `s`:
 > reading backwards from a goal proposes `R` at `s`
@@ -1737,10 +2146,10 @@ The check is available **only because** there is one statement with two readings
 direction it is untestable by construction — the two rules are simply different statements. With
 program bodies it is undefined, because there is no backward reading to compare against.
 
-Over a recursive shape (§9) the property cannot be run to exhaustion, so it is run per instance to a
+Over a recursive shape (§13) the property cannot be run to exhaustion, so it is run per instance to a
 depth. That is a weaker gate, and it is the price of being able to state the shape at all.
 
-Secondary gates, each following from a requirement:
+### Gates from the requirements
 
 * **R2** — for any conclusion, the agent can say whether it was reached forwards or backwards.
 * **R5** — every entry in the graph has a licence and a source, and no entry has a stamp the gate did
@@ -1750,7 +2159,9 @@ Secondary gates, each following from a requirement:
 * **R7** — a procedure in progress can be preempted by a surprise without any interrupt mechanism,
   and afterwards the agent can say why it stopped.
 
-Three more follow from §13, and they are the ones a first implementation is most likely to get wrong:
+### Gates from provenance
+
+The three a first implementation is most likely to get wrong:
 
 * **Two indices.** After revising a belief about an earlier moment, *what do I now think about `M7`?*
   and *what did I think at `M7`?* both answer, and answer differently.
@@ -1762,106 +2173,130 @@ Three more follow from §13, and they are the ones a first implementation is mos
 
 ---
 
-## 18. What this design does not settle
+## 21. What this design does not settle
 
-* **Cardinality in backward matching.** §9 says where a count lives — a fact about a group node, not a
-  relation position. What is unsettled is how a backward reader *uses* one: unifying a wanted fact
-  against a group of unknown size needs cardinality declared per relation position, alongside arity and
-  whether the position is ordered.
-* **Shape equivalence** (§9). Undecidable in general, so *are these two definitions the same shape* has
-  no answer and duplicate shapes will accumulate undetected. What is open is whether a decidable
-  fragment is worth carving out for the shapes that fall inside it.
-* **Structure against claims** (§8). An antecedent carries two kinds of member and nothing structurally
-  stops an author writing a claim where a skeleton constraint belongs, or the reverse. The distinction
-  is stated and unenforced.
-* **Distribution** (§9). *Each file was copied* against *the files together filled the disk* is a fact
-  about the entry, but which entries need it, and what a read that does not ask for it should return,
-  is not specified.
-* **Constrained-not-bound values.** *The level rises by an unknown amount* wants a value member that
-  is constrained rather than bound. Note the boundary §7 draws: **recognising** an ongoing pattern
-  does not need this — a span superseded by a longer span is ordinary versioning — only **predicting
-  that it continues** wants an unbound endpoint.
-* **Consistency within a moment** (§5). Two entries with opposite signs in one locus is permitted and
+### On the floor and the bundle
+
+* **The bootstrap** (§6). Reading a rule requires applying rules. Whether the break is a distinguished
+  region, a stratification, or a fixed point of chain-reading rules whose antecedents mention only
+  structure, is unknown. This is the largest open problem in the document.
+* **Match, callable from a rule** (§5). Lifting a modality, reading a rule backwards and testing a
+  generic subgoal all need a rule to ask *does this pattern match that instance*, and none can. Open:
+  whether this is a sixth floor item, or `match` reified so a rule requests it and the machinery
+  answers — the second keeps the floor at five and matches how §18's requests already work.
+* **Backward dispatch over reified rules** (§14). The forward direction of connective dispatch is
+  writable as rules; the backward direction needs the operation above.
+* **How much of the bundle is actually rule-expressible** (§4). The agreement gate is stated and not
+  run. Until it is, *these are conventions* is a claim about intent rather than a measured property,
+  and the honest status of Part II is *asserted to be convention*.
+
+### On the representation of reality
+
+* **Is sign a member or a wrapper?** (§9). `not(p)` would collapse §15's three-member `says` and would
+  compose with modality, which sign cannot. Against: wrappers nest into meaninglessness, the read must
+  then privilege `not`, and `?` resists wrapping because it is a statement about reading. To be
+  settled by writing one corpus both ways, as modality was.
+* **Consistency within a moment** (§8). Two entries with opposite signs in one locus is permitted and
   undetected. That is the right default, since consistency is a question rather than an invariant, but
   the design does not say who asks it or when.
-* **Span normalisation** (§7). Equality of span content must be normalised by chain order rather than
-  member order; the normalisation is not specified.
-* **Resolving calendar terms.** §11 settles that calendar terms denote and the chain orders, so
-  *afternoon* names a stretch resolved against the clock. What is unsettled is the resolution itself —
-  who computes it, against whose clock, and what happens when a term denotes a stretch the chain does
-  not reach, as *next Tuesday* does.
+* **When a revision is warranted** (§10). The two indices make *I now think otherwise about `M7`*
+  sayable, and say nothing about when an agent should write one. Left alone, a system that revises the
+  past freely can rewrite its way out of any surprise, which is §18's mechanism defeated by §10's
+  permission.
 * **Negation versus a false value.** *The stove is not lit* and *the stove has the attribute lit,
   false* are both expressible and mean different things — a claim about the moment versus a claim
   about the stove. Nothing guides the choice, and nothing detects the two being used interchangeably
   within one corpus.
-* **Enforcing the gate** (§13). *No write bypasses the stamp* is a property of one place rather than a
-  prohibition on rules, which makes it checkable — but the check is not written, and until it is,
-  §12's soundness argument rests on the gate having no second door.
-* **Seat discipline across processes** (§13). Frames form a forest and any of them may be in focus.
-  Nothing says whether two processes may hold seats in the same moment at once, what it means if they
-  do, or whether one process may move another's seat.
-* **Match, callable from a rule** (§14). Lifting a modality, reading a rule backwards and testing a
-  generic subgoal all need a rule to ask *does this pattern match that instance*, and none can. Open:
-  whether this is a fifth primitive, or `match` reified so a rule requests it and the machinery
-  answers — the second keeps the floor at four and matches how `suppose` and `goal` already work.
-* **When to cross a guard** (§12). A rule that crosses every hedged fact it sees crosses the hedged
+
+### On what the representation allows
+
+* **Cardinality in backward matching** (§13). Where a count lives is settled — a fact about a group
+  node. What is unsettled is how a backward reader *uses* one: unifying a wanted fact against a group
+  of unknown size needs cardinality declared per relation position, alongside arity and ordering.
+* **Shape equivalence** (§13). Undecidable in general, so *are these two definitions the same shape*
+  has no answer and duplicate shapes will accumulate undetected. Open: whether a decidable fragment is
+  worth carving out.
+* **Structure against claims** (§12). An antecedent carries two kinds of member and nothing
+  structurally stops an author writing a claim where a skeleton constraint belongs, or the reverse.
+  Stated and unenforced.
+* **Distribution** (§13). *Each file was copied* against *the files together filled the disk* is a fact
+  about the entry, but which entries need it, and what a read that does not ask for it should return,
+  is not specified.
+* **Constrained-not-bound values.** *The level rises by an unknown amount* wants a value member that
+  is constrained rather than bound. Note the boundary §11 draws: **recognising** an ongoing pattern
+  does not need this — a span superseded by a longer span is ordinary versioning — only **predicting
+  that it continues** wants an unbound endpoint.
+* **Span normalisation** (§11). Equality of span content must be normalised by chain order rather than
+  member order; the normalisation is not specified.
+* **Resolving calendar terms** (§15). Calendar terms denote and the chain orders. What is unsettled is
+  the resolution itself — who computes it, against whose clock, and what happens when a term denotes a
+  stretch the chain does not reach, as *next Tuesday* does.
+* **An arrival should be a moment** (§15, §18). A channel reports a *signed* state of affairs, and a
+  proposition carries no sign, so the sign currently rides as a member of `says`. Needs §12's skeleton
+  — or is dissolved by the §9 question resolving toward wrapping.
+* **Evidence accumulation** (§16). Two independent *likely*s should amount to more than *likely*.
+  Counting over episodes, with no arithmetic on grades; the counting scheme is unspecified.
+* **When to cross a guard** (§16). A rule that crosses every hedged fact it sees crosses the hedged
   facts it just produced, and only terminates when the wrapped terms happen to run out of applicable
   rules. Eager crossing has no criterion; the criterion is **demand**, which is backward reading, and
   the two are not yet connected.
-* **Backtracking** (§14). Bindings now live on a `plan` node, so sibling subgoals are satisfied on
+* **Enforcing the gate** (§17). *No write bypasses the stamp* is a property of one place rather than a
+  prohibition on rules, which makes it checkable — but the check is not written, and until it is,
+  §16's soundness argument rests on the gate having no second door.
+* **Seat discipline across processes** (§17). Frames form a forest and any of them may be in focus.
+  Nothing says whether two processes may hold seats in the same moment at once, what it means if they
+  do, or whether one process may move another's seat.
+* **Backtracking** (§18). Bindings live on a `plan` node, so sibling subgoals are satisfied on
   bindings that agree — but the first match commits. If `tap(sink)` is chosen and the sibling then
   fails, nothing reconsiders `tap(?t)` against another tap. A plan is a node, so an alternative is
   expressible; what is missing is who decides to take one, which is arbitration over plans.
-* **Retracting a contradicted expectation** (§16). Precedence stops a defeated rule applying, but
+* **Retracting a contradicted expectation** (§18). Precedence stops a defeated rule applying, but
   nothing retracts what it already concluded, and its antecedent still holds. The agent goes on
   believing both the expectation and its refutation, distinguished only by which rule outranks which.
-  Whether that is right — §5 does say consistency is a question rather than an invariant — or whether
+  Whether that is right — §8 does say consistency is a question rather than an invariant — or whether
   a deviation should discharge the expectation, is not settled.
-* **An arrival should be a moment** (§11, §16). A channel reports a *signed* state of affairs, and a
-  proposition carries no sign, so the sign currently rides as a member of `says`. §16 already argues
-  the moment form is better rather than a workaround. It needs §8's skeleton.
-* **When a revision is warranted** (§4). The two indices make *I now think otherwise about `M7`*
-  sayable, and say nothing about when an agent should write one. Left alone, a system that revises the
-  past freely can rewrite its way out of any surprise, which is §16's mechanism defeated by §4's
-  permission.
-* **Evidence accumulation** (§12). Counting over episodes, with no arithmetic on grades. The counting
-  scheme is unspecified.
-* **Familiarity** (§15). The escalation trigger needs *have I seen moments like this?*, which is a
+* **Familiarity** (§19). The escalation trigger needs *have I seen moments like this?*, which is a
   measure over the episode record and is not the same as *did recall return anything*.
-* **The exploration schedule** (§15). When the exhaustive pass fires in the absence of an impasse.
+* **The exploration schedule** (§19). When the exhaustive pass fires in the absence of an impasse.
   What is open is the *rate*, not the requirement; without one, recall calcifies silently.
 
 ---
 
 ## Appendix A. Glossary
 
-| term | definition |
-|---|---|
-| **anchored** | of a moment: has individuals and a predecessor in the history. The opposite of *generic*. |
-| **arbitrate** | choose one rule among those that matched. Total, table-driven, always answers. |
-| **channel** | the intake path an entry arrived through. Mechanically observed, so it cannot be wrong. Distinct from *authority*, which can. |
-| **connective** | `implies` or `causes`; the relation between a rule's two moments. |
-| **deposit** | the moment whose delta an entry sits in — when the claim was made. Distinct from *locus*, which is what it is about. |
-| **entry** | a node with three members — locus, proposition, sign. The unit of assertion. |
-| **frame** | a reasoning in progress, as a process node. Carries a *seat* and a *topic*. Frames form a forest, not a stack. |
-| **gate** | the write primitive, considered as the one place a stamp is applied. No write bypasses it. |
-| **generic** | of a moment: has variables and no *anchored* predecessor. May have a generic one, so a pattern is a chain. A rule's two members are generic. |
-| **grade** | an ordinal modality on an entry: certain, likely, possible, unlikely, unknown. |
-| **group** | a node standing for a plurality. Its membership is not stored; its size is a fact about it. |
-| **licence** | the node that says what authorised a moment's delta, or what produced an entry. |
-| **locus** | an entry's first member: the moment or span the claim is about. |
-| **match** | unify a generic chain against an anchored one, recording which entries matched. |
-| **moment** | a signed delta, a predecessor and a licence. The only state construct. |
-| **proposition** | a relation instance. Claims nothing until an entry places it. |
-| **recall** | propose which rules come to mind. Learned; never complete. |
-| **rule** | a fact whose two members are generic, related by a connective. |
-| **seat** | a frame's first part: the moment its writes are deposited in. Where the reasoning is standing. |
-| **shape** | a pattern of indefinite extent, defined by recursive rules over spans. A node, so bounds and provenance attach to it. |
-| **sign** | `+`, `−`, `?`, or the absence of an entry. See §6. |
-| **skeleton** | the part of an antecedent that relates its variable loci — succession, span endpoints, distinctness. Carries no sign, and claims nothing. |
-| **span** | a node with two members, a start and an end moment. A locus for trajectory claims. |
-| **topic** | a frame's second part: the locus its writes are stamped with. Equals the seat except when reasoning about another time. |
-| **write** | mint signed entries. The gate; stamps locus, deposit, licence and source. |
+Each entry says whether the term names something on the **floor** (§4) or in the **bundle** — the
+conventional representation of reality that ships with the engine and can be replaced.
+
+| term | floor / bundle | definition |
+|---|---|---|
+| **anchored** | bundle | of a moment: has individuals and a predecessor in the history. The opposite of *generic*. |
+| **arbitrate** | mixed | choose one rule among those that matched. *Totality* is floor; the precedence table is authored data. |
+| **bundle** | — | the conventional representation of reality shipped with the engine: Parts II and III. Inspectable, and replaceable. |
+| **channel** | bundle | the intake path an entry arrived through. Mechanically observed, so it cannot be wrong. Distinct from *authority*, which can. |
+| **connective** | bundle | `implies` or `causes`; the relation between a rule's two moments. Consumed by rules, not by the engine. |
+| **deposit** | bundle | the moment whose delta an entry sits in — when the claim was made. Distinct from *locus*, which is what it is about. |
+| **entry** | bundle | a node with three members — locus, proposition, sign. The unit of assertion. |
+| **frame** | bundle | a reasoning in progress, as a process node. Carries a *seat* and a *topic*. Frames form a forest, not a stack. |
+| **gate** | bundle | the write path, considered as the one place provenance becomes vocabulary. Distinct from the floor's *stamp*. |
+| **generic** | floor | contains variables. A rule's two members are generic. |
+| **grade** | bundle | an ordinal modality on an entry: certain, likely, possible, unlikely, unknown. |
+| **group** | bundle | a node standing for a plurality. Its membership is not stored; its size is a fact about it. |
+| **licence** | bundle | the node that says what authorised a moment's delta, or what produced an entry. |
+| **locus** | bundle | an entry's first member: the moment or span the claim is about. |
+| **match** | floor | find a substitution making a generic node identical to an anchored one. Structural, and with no opinion about entries. |
+| **moment** | bundle | a signed delta, a predecessor and a licence. The bundle's only state construct. |
+| **proposition** | bundle | a relation instance. Claims nothing until an entry places it. |
+| **recall** | bundle | propose which rules come to mind. Learned; never complete. A policy, not a primitive. |
+| **register** | floor | the one pointer: which node writes land in. That it holds a frame is convention. |
+| **rule** | bundle | a fact whose two members are generic, related by a connective. |
+| **seat** | bundle | a frame's first part: the moment its writes are deposited in. Where the reasoning is standing. |
+| **shape** | bundle | a pattern of indefinite extent, defined by recursive rules over spans. A node, so bounds and provenance attach to it. |
+| **sign** | bundle | `+`, `−`, `?`, or the absence of an entry. See §9, including whether it should be a member at all. |
+| **skeleton** | bundle | the part of an antecedent that relates its variable loci — succession, span endpoints, distinctness. Carries no sign, and claims nothing. |
+| **span** | bundle | a node with two members, a start and an end moment. A locus for trajectory claims. |
+| **stamp** | floor | the unconditional record, on every minted node, of what produced it. Not vocabulary. |
+| **topic** | bundle | a frame's second part: the locus its writes are stamped with. Equals the seat except when reasoning about another time. |
+| **write** | mixed | mint signed entries. The floor supplies a register and a stamp; the gate supplies locus, licence, source and grade. |
 
 ## Appendix B. Alternatives considered
 
@@ -1869,33 +2304,52 @@ Each was scored in the section named; this table is the index.
 
 | decision | rejected alternative | why |
 |---|---|---|
-| rule form (§8) | guard plus a program body | the backward reading is a hypothesis wearing entailment's clothes with nowhere to record it; and a program has no subject, so nothing can be said about the rule |
-| rule form (§8) | one rule per direction | two statements drift, neither is the other's premise, and the disagreement is undetectable |
-| assertion (§5) | truth as a value on the proposition node | minting a node in order to deny it asserts it; correction overwrites the record it corrects |
-| timing (§11) | a third member of the connective | the connective's arity varies, an absent delay silently defaults, and two sources cannot disagree |
-| timing, modality (§10, §12) | fused connectives such as `likely_causes` | fuses strength with defeasibility and records neither; the name set grows multiplicatively |
-| modality (§12) | grade on the proposition node | *likely* said of no occasion and every occasion at once, and a cache of a derived value — which is a truth-maintenance system |
-| modality (§12) | confidence as a grade on the rule | the same question is asked of sensors and speakers, so it belongs on the source; a rule slot covers one case and is reinvented for the rest |
-| belief (§4) | a belief-set node beside the moment chain | a moment already is one; a second membership structure for beliefs is a second ordering beside succession |
-| entries (§13) | only the machinery may write entries | stronger than the requirement, which is that no write bypasses the stamp; it forbids honest past-directed claims and pushes trust into hard-wired intake |
-| frames (§13) | a stack of frames | two hypotheses under comparison are siblings, both alive, neither the caller of the other |
-| frames (§13) | copy conclusions out of a frame, re-qualified | one fact in two shapes, and it needs invalidation the moment the supposition is discharged differently |
-| modality (§12) | a guard node per uncertain fact | optional guards mean two shapes for every consumer; mandatory guards mean a node and a hop per certain fact |
-| modality (§12) | wrapping written per rule — a `likely` twin of every rule | the wrapped and bare corpora share nothing, since `likely(p)` and `p` are different propositions; measured at 2x |
-| modality (§12) | a lifting rule over reified rules | binds against a rule's *pattern*, so it fires only where that pattern is ground — and real corpora are mostly generic rules |
-| backward reading (§14) | `<B>` as a rule over reified rules | a goal is ground and a stored consequent is generic; one variable cannot bind to both, and deciding they correspond is `match` |
-| planning (§14) | subgoals checked independently | `tap(sink)` and `under(kettle, drain)` both report achieved and the plan is silently wrong; bindings belong to a plan |
-| surprise (§16) | precedence as ranking rather than defeat | the defeated rule re-asserts on the next tick and undoes the winner; and without any precedence the two oscillate and starve the surprise rule entirely |
-| acting (§11) | emitting an intent without asserting the act | the agent emits into silence: no rule fires, no expectation forms, and nothing can be surprised |
-| modality (§12) | probabilities instead of ordinal grades | independence assumptions cannot be stated in the graph, so the product looks like a measurement and is an artefact |
-| entries (§13) | augment rules to speak of entries | cannot be written: the locus is an indexical, and a rule is generic |
-| entries (§13) | authors write entries natively | every rule becomes plumbing, and provenance becomes forgeable |
-| the floor (§14) | connectives implemented in the engine | engine decisions have no premise and appear in no explanation; a new connective means editing the engine |
-| the floor (§14) | no floor at all — rules all the way down | infinite regress; the tower never grounds |
-| selection (§15) | one undifferentiated `select` step | an incomplete step reports as authoritative, and learning contends with authority for one slot |
-| antecedent (§8) | a per-member achievable/given mark | achievability is relative to the planner, the deadline, the situation and the rule set, none of which the author knows; and it lets a prohibition masquerade as an impossibility |
-| shapes (§9) | a reserved grammar with counters | it buys decidable equivalence and then spends it on back-references, cross-element constraints and `unless`; and a production has no subject, so it cannot be overridden |
-| shapes (§9) | a counter as a member of the recursion | a count in positional clothing; an absent counter defaults to something nobody stated, and bounded and unbounded become different predicates |
-| shapes (§9) | materialise a witness sequence | states a length nobody claimed |
-| span (§7) | enumerate a span's moments | two answers to what the span contains; arity varies with duration |
-| surprise (§16) | an interrupt mechanism in the interpreter | what is interrupted must be a selectable rule, or preemption cannot be represented, explained or overridden |
+| the floor (§4) | moment, entry and sign as engine-level | they are a *representation of reality* — teachable, replaceable, and the thing an agent reasons better by having. The read that uses them is a program, not a primitive. |
+| the floor (§4) | four primitives, recall among them | recall is a learned proposer, which is the opposite of a primitive; and *arbitrate* splits into floor totality plus an authored table |
+| state (§7) | a mutable world state | overwriting makes *it changed* and *I was wrong* one operation |
+| belief (§7) | a belief-set node beside the moment chain | a moment already is one; a second membership structure for beliefs is a second ordering beside succession |
+| assertion (§8) | truth as a value on the proposition node | minting a node in order to deny it asserts it; correction overwrites the record it corrects |
+| the read (§10) | locus alone, or deposit alone | locus alone cannot tell a revision from what it revises; deposit alone lets a new belief about the past overrule a settled belief about the present |
+| rule form (§12) | guard plus a program body | the backward reading is a hypothesis wearing entailment's clothes with nowhere to record it; and a program has no subject, so nothing can be said about the rule |
+| rule form (§12) | one rule per direction | two statements drift, neither is the other's premise, and the disagreement is undetectable |
+| antecedent (§12) | a per-member achievable/given mark | achievability is relative to the planner, the deadline, the situation and the rule set, none of which the author knows; and it lets a prohibition masquerade as an impossibility. **The design's first instance of closing an open concept.** |
+| notation (§12) | `@` for a locus, `→` and `[…]` for timing | punctuation that suggests a privileged mechanism is an island on the page; loci are ordinary members and bounds are ordinary facts |
+| shapes (§13) | materialise a witness sequence | states a length nobody claimed |
+| shapes (§13) | a reserved grammar with counters | a production cannot carry `unless` or `overrides`; decidability is bought and then spent on the first three extensions |
+| timing (§15) | a third member of the connective | the connective's arity varies, an absent delay silently defaults, and two sources cannot disagree |
+| timing, modality (§14, §16) | fused connectives such as `likely_causes` | fuses strength with defeasibility and records neither; the name set grows multiplicatively |
+| modality (§16) | grade on the proposition node | *likely* said of no occasion and every occasion at once, and a cache of a derived value — which is a truth-maintenance system |
+| modality (§16) | confidence as a grade on the rule | the same question is asked of sensors and speakers, so it belongs on the source |
+| modality (§16) | a guard node per uncertain fact | optional guards mean two shapes for every consumer; mandatory guards mean a node and a hop per certain fact |
+| modality (§16) | wrapping written per rule — a `likely` twin of every rule | the wrapped and bare corpora share nothing, since `likely(p)` and `p` are different propositions; measured at 2x |
+| modality (§16) | a lifting rule over reified rules | binds against a rule's *pattern*, so it fires only where that pattern is ground — and real corpora are mostly generic rules |
+| entries (§17) | only the machinery may write entries | stronger than the requirement, which is that no write bypasses the stamp; it forbids honest past-directed claims and pushes trust into hard-wired intake |
+| frames (§17) | a stack of frames | two hypotheses under comparison are siblings, both alive, neither the caller of the other |
+| frames (§17) | copy conclusions out of a frame, re-qualified | one fact in two shapes, and it needs invalidation the moment the supposition is discharged differently |
+
+## Appendix C. The name census
+
+§5's test applied to the vocabulary an implementation actually reserves. This is the census as of the
+current `ugm/` build; it is expected to shrink, and the count is the measure of progress.
+
+**Survives — match or write cannot be defined without it**
+
+| name | why |
+|---|---|
+| the rule form | something must know that a rule's members are its two sides, or nothing can hand match a pattern |
+| the sign values | floor *only if* §9 resolves toward sign-as-member; under wrapping, one reserved relation takes their place |
+| the register | §4 item 3 — a pointer, not a vocabulary item |
+
+**Convention — fails the test, and currently has an interpreter branch**
+
+| names | what they are for | section |
+|---|---|---|
+| `says`, `kb` | intake and channels | §17 |
+| `causes`, `implies` | which moment a consequent lands in | §14 |
+| `suppose` | opening a supposition frame | §16 |
+| `goal`, `achieved`, `blocked`, `plan`, `subgoal`, `binds`, `expands` | backward search's working state | §18 |
+| `doing`, `did`, `expects`, `deviates` | acting and surprise | §15, §18 |
+
+Nineteen conventions, five interpreter phases — intake, supposition, acting, deviation, goal
+expansion. §20's counter target is zero phases, and the route is that each of these becomes a rule
+that match, write and the total step apply.
