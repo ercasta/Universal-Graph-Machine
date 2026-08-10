@@ -1058,35 +1058,54 @@ say what replaced it*) are different claims. They share a symbol because the anc
 already distinguishes them structurally, but they are not the same thing and a reader is owed the
 distinction.
 
-### Whether sign should be a member at all — open
+### Sign and `not` are not rivals — measured
 
-Now that sign is admitted to be convention rather than floor, the alternative is live and is not
-settled here. Negation could be a **wrapping proposition** — `not(p)`, the same construction as
-`likely(p)` in §16 — leaving the entry with two members.
+The question this section carried was *should negation be a member or a wrapping term?* The answer is
+**both, and for the same reason §16 keeps both a grade and a modal term**. Two things settled it, and
+neither was an argument.
 
-The case for it is not weak:
+**A sign can already be reasoned about.** The case for wrappers included *a rule cannot ask about a
+denial*. It can: an antecedent member carrying `−` with a bare-variable pattern binds the denied
+proposition, which is exactly how §18's deviation rules read an observation. That half of the case
+was wrong.
 
-* **It would collapse the three-member `says`** of §15. That third member exists only because a sign
-  had nowhere else to live. Under a wrapper it is `says(chan, not(p))` — and the sign becomes
-  something a rule can point at.
-* **It composes with modality, which sign cannot.** `likely(not(p))` and `not(likely(p))` are
-  different claims and sign has no way to say which was meant. §16 already settles that modality is a
-  term; negation being a member while modality is a term is two answers to one question.
+**A sign cannot nest, and the design nests by construction.** §16 re-wraps a conclusion on the way out
+of a supposition. Conclude `−b` under a `likely` supposition and the claim is *likely, not-b*. With
+only a sign to carry it, what crosses out is `−likely(b)` — *it is not likely that b*. A different
+claim, and a stronger one. That was live in the implementation, not hypothetical.
 
-The case against:
+So the sign stays, and a **term** is added beside it:
 
-* **A wrapper nests and a three-valued member does not.** `not(not(p))` becomes constructible and
-  means nothing — a shape stating something no author intended, which is §2's own criterion.
-* **The read changes character.** Today the walk finds entries naming *this* proposition and reads
-  their signs. Under wrappers, `not(p)` is a different proposition the walk for `p` never encounters,
-  so the read program must know that `not` is about its member. That is not a saving — it relocates a
-  privileged name from a member position to a reserved relation.
-* **`?` resists wrapping.** `?` is a statement about *reading* — stop the walk, report ignorance — and
-  wrapping it as `unknown(p)` makes it look like a claim about the world.
+| | what it is | what it is for |
+|---|---|---|
+| the `−` **sign** | a member of the entry | the ordinary case; matched, and never forgotten, because match cannot return an entry without it |
+| `not(p)` | a **proposition** | the nested case, where only a term can sit inside another term |
 
-This is the shape of question this design settles by measurement rather than argument, as it did for
-modality. §21 records it, and the probe is the same shape as the modality probe: write the same corpus
-both ways and count what each can express.
+> **The member is what the machinery computes with. The term is what survives nesting.**
+
+That is §16's sentence about grades and `likely`, word for word, one level down — which is some
+evidence the pairing is the right shape rather than a patch.
+
+**The translation runs one way, and the asymmetry is the design.** `+not(p)` becomes `−p`, so a corpus
+written against signs reads a term the machinery manufactured while re-wrapping. The reverse — minting
+`+not(p)` for every denial — is declined: it would double every negative fact and would build
+`not(not(p))` on meeting its own output. That is the cost this section warned wrappers carry, and
+declining the reverse direction is where it is not paid.
+
+`?` is untouched and stays a sign alone. It is a statement about *reading* — stop the walk, report
+ignorance — and wrapping it as a term would make it look like a claim about the world. What a `?`
+conclusion should become on the way out of a supposition is not settled (§21).
+
+### What this leaves open
+
+**`says` keeps its third member.** §15 carries the sign of a report as `says(channel, proposition,
+sign)`, and the collapse to `says(chan, not(p))` is now *available* rather than required — a report
+that something is not so could be written either way. Which one a channel should use is unsettled, and
+so is whether allowing both is a corpus splitting into two dialects.
+
+**A `?` conclusion crossing out of a supposition** has no defined form. `+` and `−` both become terms
+under the wrapper; `?` is a statement about reading and cannot. What *likely, and I cannot say* should
+look like outside the frame is not specified.
 
 ---
 
@@ -2726,10 +2745,11 @@ The three a first implementation is most likely to get wrong:
 
 ### On the representation of reality
 
-* **Is sign a member or a wrapper?** (§9). `not(p)` would collapse §15's three-member `says` and would
-  compose with modality, which sign cannot. Against: wrappers nest into meaninglessness, the read must
-  then privilege `not`, and `?` resists wrapping because it is a statement about reading. To be
-  settled by writing one corpus both ways, as modality was.
+* **Is sign a member or a wrapper?** (§9) — **settled: both, and one-way translation.** The member is
+  what the machinery computes with; the term is what survives nesting. What remains open is smaller:
+  whether a channel reporting a denial should write `says(c, p, −)` or `says(c, not(p))`, and whether
+  permitting both splits a corpus into dialects; and what a `?` conclusion becomes on the way out of a
+  supposition, since `?` is about reading and cannot be a term.
 * **Consistency within a moment** (§8). Two entries with opposite signs in one locus is permitted and
   undetected. That is the right default, since consistency is a question rather than an invariant, but
   the design does not say who asks it or when.

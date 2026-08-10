@@ -475,6 +475,61 @@ def the_bundle() -> None:
     )
 
 
+def denial_nests() -> None:
+    """§9's open question, settled by running it.
+
+    A sign is a member of an entry, so it cannot sit inside another term — and
+    §16 nests terms by construction. Concluding `-b` under a `likely` supposition
+    means *likely, not-b*; with only a sign to carry it, what crossed out was
+    `-likely(b)`, which says *not likely that b*. A different claim, and the
+    wrong one. That was live, not hypothetical.
+
+    The answer is not *replace the sign with a wrapper*. It is the same pairing
+    §16 reaches for modality: the member is what the machinery computes with, the
+    term is what survives nesting.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, "rule <r> = implies( { +a(x) }, { -b(x) } )")
+    f = m.suppose(kb.term("a(x)"), wrap=kb.term("likely"))
+    m.run(limit=20)
+
+    likely = kb.term("likely")
+    b = kb.term("b(x)")
+    check(
+        "§9",
+        "a denial concluded under a supposition crosses out INSIDE the wrapper",
+        [(e.sign, m.g.show(e.proposition)) for e in f.carried]
+        == [(PLUS, "likely(not(b(x)))")],
+    )
+    check(
+        "§16",
+        "so *probably not-b* and *not probably-b* stay different claims",
+        m.holds(m.g.rel(likely, m.g.rel(m.NOT, b))) == PLUS
+        and m.holds(m.g.rel(likely, b)) is None,
+    )
+
+    # And the two forms are one claim, so a corpus need not know which it is
+    # looking at. Crossing back into a supposition unwraps to the term; the rules
+    # inside are written against the sign.
+    m2 = Machine()
+    kb2 = load(m2, "rule <s> = implies( { -b(x) }, { +noticed(x) } )")
+    m2.gate.write(m2.focus, m2.g.rel(m2.NOT, kb2.term("b(x)")), PLUS)
+    m2.run(limit=10)
+    check("§9", "a term denial reads as a sign denial", m2.holds(kb2.term("b(x)")) == MINUS)
+    check(
+        "§9",
+        "so a rule written against `-b` sees it",
+        m2.holds(kb2.term("noticed(x)")) == PLUS,
+    )
+    check(
+        "§9",
+        "and the translation runs one way, so nothing builds not(not(p))",
+        all(s.state != "applied" for s in m2.run(limit=20)),
+    )
+
+
 def mention_propagates() -> None:
     """A rule's consequent can MENTION, and §14 said it could not.
 
@@ -951,6 +1006,7 @@ def main() -> int:
     quiescence()
     trusting_a_channel()
     the_bundle()
+    denial_nests()
     mention_propagates()
     surprise_is_four_rows()
     surface()

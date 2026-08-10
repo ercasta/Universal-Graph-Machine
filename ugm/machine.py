@@ -100,6 +100,13 @@ class Machine:
         # different taps and the plan is wrong -- silently.
         self.CHECK = self.g.atom("check")  # the request
         self.UNMET = self.g.atom("unmet")  # nothing in the state answers it
+        # Denial as a TERM, beside the sign rather than instead of it (§9).
+        # A sign is a member of an entry, so it cannot sit inside another term --
+        # and §16 nests terms by construction. Concluding `-b` under a `likely`
+        # supposition means *likely, not-b*; with only a sign to carry it, what
+        # crosses out is `-likely(b)`, which says *not likely that b*. Different
+        # claim, and the wrong one.
+        self.NOT = self.g.atom("not")
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -216,6 +223,27 @@ class Machine:
                 [Member(PLUS, g.rel(self.DID, w))],
                 [Member(PLUS, w)],
                 "assert-act",
+            )
+        )
+
+        # Denial as a term and denial as a sign are the same claim, so a corpus
+        # must not have to know which one it is looking at. Crossing back into a
+        # supposition unwraps `likely(not(b))` to `not(b)`, and the rules inside
+        # are written against `-b`.
+        #
+        # One direction only, and the asymmetry is the point. `+not(?p)` is a
+        # claim the machinery may have manufactured while re-wrapping, so it is
+        # translated back. The reverse -- minting `+not(p)` for every denial in
+        # the graph -- would double every negative fact, and would build
+        # `not(not(p))` the moment it met its own output. §9 names that as the
+        # cost of wrappers; this is where the cost is declined.
+        q = g.var("?denied")
+        self.bundle.append(
+            self.rules.rule(
+                IMPLIES,
+                [Member(PLUS, g.rel(self.NOT, q))],
+                [Member(MINUS, q)],
+                "denial",
             )
         )
 
@@ -751,11 +779,18 @@ class Machine:
                     # crosses guards then crosses -- the machinery supposing its
                     # own bookkeeping, forever.
                     continue
+                # The sign has to go INSIDE the wrapper, and only a term can be
+                # inside a wrapper. `-b` concluded here means *likely, not-b* --
+                # so it crosses as `+likely(not(b))`, never as `-likely(b)`.
+                inner = e.proposition
+                sign = e.sign
+                if sign == MINUS:
+                    inner, sign = self.g.rel(self.NOT, e.proposition), PLUS
                 out.append(
                     self.gate.write(
                         parent,
-                        self.g.rel(wrap, e.proposition),
-                        e.sign,
+                        self.g.rel(wrap, inner),
+                        sign,
                         grade=e.grade,
                         licence=self.g.rel(self.CONCLUDED, frame.node),
                         source=self.KB,
