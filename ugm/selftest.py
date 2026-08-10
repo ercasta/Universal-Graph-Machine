@@ -450,6 +450,48 @@ def the_bundle() -> None:
     )
 
 
+def surprise_is_four_rows() -> None:
+    """Every way an observation can disappoint an expectation.
+
+    As a phase this was one comparison — *observed sign is not the expected one*
+    — and three of its four cases were never tested. Written as rules the cases
+    became four nodes, and a rule nothing can kill is a rule nothing is checking,
+    so they are checked here. This is `adding a connective adds rows, not
+    branches` (§5) turning into `and each row needs its own evidence`.
+    """
+    for expected, observed in (
+        (PLUS, MINUS), (PLUS, UNSURE), (MINUS, PLUS), (MINUS, UNSURE),
+    ):
+        m = Machine()
+        g = m.g
+        p = g.rel(g.atom("boiling"), g.atom("kettle"))
+        # An expectation, then an observation that disappoints it.
+        m.gate.write(
+            m.focus, g.rel(m.EXPECTS, p, m.rules.SIGN[expected]), PLUS, mention=True
+        )
+        m.gate.write(m.focus, p, observed)
+        m.run(limit=8)
+        check(
+            "§18",
+            f"expected {expected}, observed {observed} -- a deviation",
+            m.holds(g.rel(m.DEVIATES, p)) == PLUS,
+        )
+
+    # And the case that must NOT be a deviation, or the rules would fire on
+    # every expectation the world met.
+    m = Machine()
+    g = m.g
+    p = g.rel(g.atom("boiling"), g.atom("kettle"))
+    m.gate.write(m.focus, g.rel(m.EXPECTS, p, m.rules.SIGN[PLUS]), PLUS, mention=True)
+    m.gate.write(m.focus, p, PLUS)
+    m.run(limit=8)
+    check(
+        "§18",
+        "an expectation the world met is not a deviation",
+        m.holds(g.rel(m.DEVIATES, p)) is None,
+    )
+
+
 def worked_examples() -> None:
     """§8's rules, as printed in the design, actually run."""
     import os
@@ -780,6 +822,7 @@ def main() -> int:
     quiescence()
     trusting_a_channel()
     the_bundle()
+    surprise_is_four_rows()
     surface()
     worked_examples()
 

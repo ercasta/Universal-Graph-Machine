@@ -14,7 +14,7 @@ seam is here and the learning is not.
 
 from typing import List, NamedTuple, Optional, Tuple
 
-from .chain import PLUS, Chain, Entry, Moment
+from .chain import MINUS, PLUS, UNSURE, Chain, Entry, Moment
 from .channels import Arrival, Channels
 from .gate import Frame, Gate
 from .graph import Graph, NodeId
@@ -126,7 +126,6 @@ class Machine:
         self._expanded: set = set()
         self._acted: set = set()
         self._actuators: List[NodeId] = []
-        self._deviations: set = set()
         self.emitted: List[NodeId] = []
         # Machinery vocabulary: requests, not claims. Nothing carries these out of
         # a frame. This is the closed set of §10 growing by one, and it is a real
@@ -195,6 +194,38 @@ class Machine:
                 "assert-act",
             )
         )
+
+        # Surprise. §18 says it in one line -- *an expected entry and an observed
+        # entry that disagree* -- and as a phase that line was false of the
+        # implementation: the comparison was Python, so no rule could see it,
+        # reorder it, or refuse it.
+        #
+        # Four rows, not four branches. Two expected signs times the two ways an
+        # observation can contradict one: the opposite sign, and `?`. The last is
+        # the case a phase gets right by accident and a rule has to state --
+        # §9's `?` invalidates without replacing, so *I can no longer say* is a
+        # disappointed expectation exactly as much as *the opposite happened*.
+        q = g.var("?p")
+        for expected, observed, why in (
+            (PLUS, MINUS, "contradicted"),
+            (PLUS, UNSURE, "invalidated"),
+            (MINUS, PLUS, "contradicted"),
+            (MINUS, UNSURE, "invalidated"),
+        ):
+            self.bundle.append(
+                self.rules.rule(
+                    IMPLIES,
+                    [
+                        Member(PLUS, g.rel(self.EXPECTS, q, self.rules.SIGN[expected])),
+                        # A bare variable, already bound by the member above, so
+                        # this matches the observation of that very proposition
+                        # under the sign that disappoints it.
+                        Member(observed, q),
+                    ],
+                    [Member(PLUS, g.rel(self.DEVIATES, q))],
+                    f"deviation-{expected}-{why}",
+                )
+            )
 
     # -- rules as data ----------------------------------------------------
 
@@ -342,34 +373,10 @@ class Machine:
             licence=licence, source=self.KB, mention=True,
         )
 
-    def _notice_deviation(self) -> int:
-        """Surprise is a match: an expected entry and an observed entry that
-        disagree (§16). The machinery only *notices*; what to do about it is a
-        rule, so it can be overridden like any other strategy."""
-        found = 0
-        state = current_state(self.chain, self.focus.topic, self.focus.seat)
-        expectations = [
-            s for s in state
-            if s.sign == "+" and self.g.relation_of(s.proposition) is self.EXPECTS
-        ]
-        for exp in expectations:
-            prop, sign_node = self.g.members(exp.proposition)
-            if (exp.node, prop) in self._deviations:
-                continue
-            observed = self.chain.resolve(prop, self.focus.topic, self.focus.seat)
-            if observed is None:
-                continue
-            expected_sign = "+" if sign_node == self.rules.SIGN["+"] else "-"
-            if observed.sign == expected_sign:
-                continue
-            self._deviations.add((exp.node, prop))
-            self.gate.write(
-                self.focus, self.g.rel(self.DEVIATES, prop), "+",
-                licence=self.g.rel(self.DEVIATES, prop), source=self.KB,
-                consumed=(exp, observed),
-            )
-            found += 1
-        return found
+    # Noticing a deviation used to be a phase here. It is now four bundled rules
+    # (`_install_bundle`), and it had no boundary component at all -- §18 already
+    # said *surprise is a match*, and the phase was that sentence being false of
+    # the implementation.
 
     # -- backward reading -------------------------------------------------
 
@@ -570,12 +577,6 @@ class Machine:
         if self._enact_supposition():
             return Step(arrivals, 0, 0, None, (), "supposed")
 
-        # Not gated on arrivals: a deviation usually appears a tick or two AFTER
-        # the report lands, once a trust rule has turned what a channel said into
-        # a belief. Checking only on the arriving tick misses every one of them.
-        if self._notice_deviation():
-            return Step(arrivals, 0, 0, None, (), "surprised")
-
         if self._expand_goal():
             return Step(arrivals, 0, 0, None, (), "expanded")
 
@@ -613,7 +614,7 @@ class Machine:
         for _ in range(limit):
             s = self.tick()
             out.append(s)
-            if s.state not in ("applied", "supposed", "expanded", "acted", "surprised"):
+            if s.state not in ("applied", "supposed", "expanded"):
                 break
         return out
 

@@ -2729,6 +2729,7 @@ current `ugm/` build; it is expected to shrink, and the count is the measure of 
 | `says` | `<intake>` — `implies({+arrived(?c, ?p, ?s)}, {+says(?c, ?p, ?s)})` | §17 |
 | `did` | `<did>` — `implies({+emitted(?w)}, {+did(?w)})` | §15 |
 | — | `<assert-act>` — `implies({+did(?w)}, {+?w})`, §15's *the agent asserts the act* | §15 |
+| `deviates` | four rules — `implies({+expects(?p, σ), σ'(?p)}, {+deviates(?p)})` for each way an observation disappoints an expectation | §18 |
 
 **Convention — fails the test, and still has an interpreter branch**
 
@@ -2737,7 +2738,7 @@ current `ugm/` build; it is expected to shrink, and the count is the measure of 
 | `causes`, `implies` | which moment a consequent lands in | §14 |
 | `suppose` | opening a supposition frame | §16 |
 | `goal`, `achieved`, `blocked`, `plan`, `subgoal`, `binds`, `expands` | backward search's working state | §18 |
-| `expects`, `deviates` | surprise | §18 |
+| `expects` | deposited by forward application, which is not a phase | §18 |
 
 **Boundary — machinery, and legitimately so**
 
@@ -2751,10 +2752,10 @@ current `ugm/` build; it is expected to shrink, and the count is the measure of 
 §15's *acting is a channel read the other way* turning out to be true of the implementation and not
 only of the prose. These rows are the only ones in this appendix that are not debt.
 
-Fifteen conventions with branches, three shipped as rules, **three** interpreter phases remaining —
-supposition, deviation, goal expansion. §20's counter target is zero.
+Fourteen conventions with branches, four shipped as **seven** rules, **two** interpreter phases
+remaining — supposition and goal expansion. §20's counter target is zero.
 
-### What moving two taught
+### What moving three taught
 
 **Splitting a phase shrinks it rather than relocating it.** `_intake` became the smallest unarguable
 record of a boundary event — `arrived(channel, proposition, sign)`, sourced to the channel — and *what
@@ -2780,3 +2781,16 @@ is the first place in the implementation where one can.
 
 The debt this incurred is named rather than hidden: the write-time hook is a Python callable, and §21
 records that the bundle should be rules. A hook is not one.
+
+**A branch can hide how many claims it was making.** Noticing a deviation was one comparison — *the
+observed sign is not the expected one* — and became **four** rules: two expected signs against the two
+ways an observation contradicts one, the opposite sign and `?`. The count is the finding. A single
+comparison had been quietly asserting that §9's *invalidated, and I cannot say what replaced it*
+disappoints an expectation exactly as much as the opposite outcome does. That is a real claim, it may
+be wrong, and as a branch there was nowhere to argue with it.
+
+**Data rots in a way a branch does not.** Three of those four rules were unexercised, and — unlike a
+dead branch — a rule that never applies costs nothing, breaks nothing, and looks exactly like a rule
+that works. The phase had never tested those cases either; writing them as rules is what made the gap
+visible. `python -m ugm.bundle` now deletes each bundled rule and re-runs the suite, so a rule nothing
+can kill is reported rather than accumulated.
