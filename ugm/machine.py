@@ -176,6 +176,12 @@ class Machine:
         # never proposed, never arbitrated, and it cannot be forgotten by a
         # corpus that did not think of it.
         self.OPEN = self.g.atom("open")
+        # What a finished episode has to say about the rules that ran in it:
+        # `helped(<R>, <key>)`, deposited by the offline review. The smallest
+        # unarguable record again -- *this rule was on the support of something
+        # achieved* is a fact about the trail, where *so prefer it next time* is a
+        # claim, and stays a rule.
+        self.HELPED = self.g.atom("helped")
         # A callback: a pointer to a rule, hung on a node. `+resume(h, <R>)` says
         # *when h returns, R's turn has come* -- and `turn` is the strongest thing
         # it can say, because §5's wall stands: no rule may apply a rule.
@@ -300,6 +306,7 @@ class Machine:
             "taken": self.TAKEN, "emitted": self.EMITTED,
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
             "enough": self.ENOUGH, "stopped": self.STOPPED, "open": self.OPEN,
+            "helped": self.HELPED,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
@@ -358,7 +365,7 @@ class Machine:
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
-                             self.ENOUGH, self.STOPPED, self.OPEN,
+                             self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
@@ -1723,7 +1730,17 @@ class Machine:
         # nothing about being useful. A live goal does.
         for s in current_state(self.chain, self.focus.topic, self.focus.seat):
             if s.sign == PLUS and self.g.relation_of(s.proposition) is self.GOAL:
-                out.add(self.g.member(s.proposition, 0))
+                wanted = self.g.member(s.proposition, 0)
+                out.add(wanted)
+                # ...and its RELATION, which is the half that transfers. A key
+                # that is the goal itself is true of one episode: what an agent
+                # learned about `boiling(kettle)` says nothing when it is next
+                # asked for `boiling(pot)`, and a table that cannot generalise is
+                # a cache. The relation is the coarsest thing two episodes can
+                # share, so it is where experience can accumulate at all.
+                rel = self.g.relation_of(wanted)
+                if rel is not None:
+                    out.add(rel)
         return out
 
     def _rank(self, rule: Rule, keys: set) -> Tuple[int, int]:
@@ -1936,6 +1953,102 @@ class Machine:
     def holds(self, proposition: NodeId, locus: Optional[Moment] = None) -> Optional[str]:
         locus = self.focus.topic if locus is None else locus
         return self.chain.holds(proposition, locus, self.focus.seat)
+
+    # -- experience -------------------------------------------------------
+
+    def review(self) -> List[Tuple[Rule, NodeId]]:
+        """*Which rules earned the outcome?* -- asked of a finished episode.
+
+        **Offline, and that is a position rather than an implementation detail.**
+        Credit needs the outcome and the outcome is not known until the episode
+        ends, so nothing here runs in the loop and nothing about the loop changes.
+        It is also why this is a method and not a request answered at `quiet`: a
+        run that ends satisfied ends at `stopped`, which is terminal, and the
+        episodes most worth learning from are exactly the ones that went well.
+
+        **It needs no new bookkeeping**, which is the finding that made it
+        buildable. R5 already licenses every derived entry with `applied(<R>)`
+        because the trail is load-bearing for §12's weakest link -- so walking
+        back from what was achieved reaches the rules that produced it, and only
+        those. Measured on a corpus with two ways to get water: the walk returns
+        the rule that was used and not the rule that was available.
+
+        What it deposits is `helped(<R>, <key>)` and no interpretation, the same
+        split as every other occasion (§17). Turning that into a preference is a
+        rule, because *how much a rule having helped once should count* is a
+        claim and §4 puts claims in data.
+
+        The key is the goal's **relation**, not the goal. That is the only choice
+        here that could have gone otherwise, and it is forced by wanting anything
+        to transfer: a row keyed on `boiling(kettle)` is true of one episode.
+        """
+        rule_at = {r.node: r for r in self.rules.rules}
+        earned: List[Tuple[Rule, NodeId]] = []
+        seen_pairs = set()
+        for s in current_state(self.chain, self.focus.topic, self.focus.seat):
+            if s.sign != PLUS or self.g.relation_of(s.proposition) is not self.GOAL:
+                continue
+            wanted = self.g.member(s.proposition, 0)
+            key = self.g.relation_of(wanted)
+            if key is None:
+                continue
+            got = self.chain.resolve(wanted, self.focus.topic, self.focus.seat)
+            if got is None or got.sign != PLUS:
+                # Nothing was achieved, so there is nothing to credit. Note what
+                # this does NOT do: blame. A rule that was applied on a failed
+                # episode was not thereby wrong -- the episode may have been
+                # impossible -- and §19's whole argument against training recall
+                # on its own outputs applies twice as hard to training it on its
+                # own failures.
+                continue
+            for node in self._support(wanted):
+                e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+                if e is None or e.licence is None:
+                    continue
+                if self.g.relation_of(e.licence) is not self.APPLIED:
+                    continue
+                rule = rule_at.get(self.g.member(e.licence, 0))
+                if rule is None or (rule.node, key) in seen_pairs:
+                    continue
+                seen_pairs.add((rule.node, key))
+                earned.append((rule, key))
+                self.gate.write(
+                    self.focus, self.g.rel(self.HELPED, rule.node, key), PLUS,
+                    licence=self.g.rel(self.ACHIEVED, wanted), source=self.KB,
+                    mention=True,
+                )
+        return earned
+
+    def _support(self, proposition: NodeId) -> set:
+        """Everything that held this up, transitively. The trail, walked."""
+        seen, frontier = set(), [proposition]
+        while frontier:
+            p = frontier.pop()
+            if p in seen:
+                continue
+            seen.add(p)
+            e = self.chain.resolve(p, self.focus.topic, self.focus.seat)
+            if e is None:
+                continue
+            for s in self.chain.trail(e):
+                frontier.append(s.proposition)
+        return seen
+
+    def learned(self, score: int = 3) -> List[str]:
+        """What this episode has to say to the next one, as surface text.
+
+        Offline learning crossing an episode boundary is a corpus being written,
+        and a corpus is text -- so what an agent learned is **readable, editable
+        and arguable** rather than a weight somewhere. That is not decoration:
+        §19 puts experience in recall precisely because being wrong there is
+        recoverable, and it is only recoverable if it can be found and denied.
+        """
+        rows = []
+        for rule, key in self.review():
+            if rule.name is None:
+                continue
+            rows.append(f"fact prefer(<{rule.name}>, {self.g.show(key)}, {score})")
+        return rows
 
     def why(self, proposition: NodeId, locus: Optional[Moment] = None) -> List[str]:
         """*Why do you believe that, and on whose word?* -- R5.

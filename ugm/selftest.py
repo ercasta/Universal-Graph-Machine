@@ -1788,6 +1788,101 @@ def no_goal_is_dropped_silently() -> None:
           m2.holds(kb2.term("boiling(kettle)")) == PLUS and len(s3) < 10)
 
 
+def experience_is_offline() -> None:
+    """*Which rules earned the outcome?* -- asked of a finished episode (§19).
+
+    Learning is offline because credit needs the outcome and the outcome is not
+    known until the episode ends. It needs **no new bookkeeping**: R5 already
+    licenses every derived entry with `applied(<R>)`, because the trail is
+    load-bearing for §12's weakest link, so walking back from what was achieved
+    reaches the rules that produced it and only those.
+    """
+    from .text import load
+
+    # Two ways to get water, and the agent only needs one of them.
+    kettle = chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) }, { +water(?w) } )",
+        "rule <fill> = implies( { +jug(?j), +near(?w, ?j) }, { +water(?w) } )",
+        # ...and one that runs, concludes, and contributes nothing. Without it
+        # this fixture cannot tell a credit pass from a list of what applied --
+        # `<fill>` never wins arbitration, so ANY scheme excludes it, and the
+        # check below read as discrimination while testing something else.
+        "rule <idle> = implies( { +jug(?j) }, { +rinsed(?j) } )",
+        "fact +tap(sink)", "fact +under(kettle, sink)",
+        "fact +jug(jug1)", "fact +near(kettle, jug1)",
+        "fact +heat(anna, kettle)",
+        "fact +goal(boiling(kettle))",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, kettle)
+    m.run(limit=2000)
+    earned = {r.name for r, _ in m.review()}
+
+    check("§19", "the trail can say which rules earned the outcome, with no bookkeeping "
+          "R5 was not already keeping for the weakest link",
+          {"boil", "pour"} <= earned)
+    # The discriminating half, and it needs a rule that RAN: a pass that credited
+    # everything applied would look identical without one.
+    check("§19", "and it credits what was on the support of the outcome, not what "
+          "merely ran -- `<idle>` applied, concluded, and earned nothing",
+          m.holds(kb.term("rinsed(jug1)")) == PLUS and "idle" not in earned)
+    check("§19", "nor what was merely available: `<fill>` would have served too",
+          "fill" not in earned)
+    check("§19", "an episode that achieved nothing credits nothing -- and does not "
+          "blame either, since a failed episode may have been an impossible one",
+          not Machine().review())
+
+    # What is deposited is a fact about the trail; what it is worth is a claim,
+    # so the row an agent takes forward is ordinary readable corpus text.
+    rows = m.learned()
+    check("§19", "what it learned is a corpus, not a weight: readable, editable, and "
+          "deniable, which is the only way being wrong in recall stays recoverable",
+          any(r.startswith("fact prefer(<boil>, boiling,") for r in rows))
+
+    # The key is the goal's RELATION, and that is the whole of what transfers.
+    m2 = Machine()
+    kb2 = load(m2, kettle + chr(10).join(rows) + chr(10))
+    m2.recall_budget = 3
+    m2.run(limit=2000)
+    check("§19", "a second episode reads it back and reaches the same conclusion",
+          m2.holds(kb2.term("boiling(kettle)")) == PLUS)
+    # The key is the whole of what transfers, so it is checked as a property of
+    # the row rather than inferred from a run that would have succeeded anyway.
+    check("§19", "and the key GENERALISES: every row is keyed on a relation, so what "
+          "the agent learned about `boiling(kettle)` is available for `boiling(pot)`",
+          rows and all("(<" in r and ", " in r for r in rows)
+          and not any("(" in r.split(", ")[1] for r in rows))
+
+    # ...and the honest half. §13's blocker is measured, not assumed: it is why
+    # an exact table buys nothing, and why this cannot yet be shown to pay.
+    import ugm.machine as MM
+    from .workload import corpus, stopping
+
+    tally = {"arb": 0, "apparatus": 0}
+    orig = MM.arbitrate
+
+    def spy(rules, applications, rank):
+        if applications:
+            tally["arb"] += 1
+            if min(rank(a.rule) for a in applications)[0] == 0:
+                tally["apparatus"] += 1
+        return orig(rules, applications, rank)
+
+    MM.arbitrate = spy
+    try:
+        m3 = Machine()
+        load(m3, corpus(4, 4, 0, True) + stopping(4))
+        m3.recall_budget = 4
+        m3.run(limit=9999)
+    finally:
+        MM.arbitrate = orig
+    check("§19", "and what stops it paying is measured: the apparatus wins most of the "
+          "agent's choices, so a table about domain rules has almost nothing to decide",
+          tally["apparatus"] * 4 > tally["arb"] * 3)
+
+
 def doubt_is_a_tie() -> None:
     """A preference is a **score**, and doubt is what a score makes sayable.
 
@@ -2347,6 +2442,7 @@ def main() -> int:
     an_action_is_substituted_by_its_outcome()
     an_agent_that_can_stop()
     no_goal_is_dropped_silently()
+    experience_is_offline()
     doubt_is_a_tie()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()

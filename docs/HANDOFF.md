@@ -111,7 +111,60 @@ disposed of*. An agent that reacts by doing nothing stops on the next attempt wi
 open, recorded but still dropped. The stronger property wants a notion of a goal being **discharged**,
 which is the same missing notion as *when is a request re-askable*.
 
-**Where I would pick up now:** the old item 1's other two questions, which are a different shape from
+## ...and the third: **experience, and the arena it has nothing to decide in**
+
+The user's read: *we are now observing situations where deciding the best thing to do is not
+straightforward — these are the cases where experience and heuristics should guide.* Commit
+`experience`. Right, and measuring where those situations actually are produced the session's most
+uncomfortable number.
+
+⭐⭐⭐ **Credit assignment needs NO new bookkeeping.** R5 already licenses every derived entry with
+`applied(<R>)` because the trail is load-bearing for §12's weakest link — so walking back from what
+was achieved reaches the rules that produced it, and only those. Built as `review()` / `helped(<R>,
+<key>)` / `learned()`. Measured with a rule that ran and contributed nothing (`<idle>`) and a rule
+that would have served and never ran (`<fill>`): both correctly earn nothing.
+
+* **Offline**, and that is the user's own standing position — credit needs the outcome. It is also
+  forced: a satisfied run ends at `stopped`, which is terminal, and those are the episodes most worth
+  learning from. So it is a pass over a finished episode, and the loop does not change.
+* ⭐ **The key is the goal's RELATION, not the goal** — a row keyed on `boiling(kettle)` is true of one
+  episode, and a table that cannot generalise is a cache. (`_in_play` already keyed on goals; it keyed
+  on the *term*.)
+* ⭐ **What it takes forward is corpus TEXT** — readable, editable, deniable. §19 puts experience in
+  recall because being wrong there is recoverable, and a weight is not recoverable.
+* **Failure credits nothing and blames nothing** — a failed episode may have been an impossible one.
+
+⚠⚠⚠ **And an exact learned table bought NOTHING, which is the real finding.** Same ticks as no table
+and as the hand-authored ceiling. Where the choices actually are, over one episode:
+
+| arbitrations | 30 |
+|---|---|
+| won by the **apparatus** | **26** |
+| won by a domain rule | 4 — and preference already decided all four |
+| won by **authored order**, no reason at all | **19** |
+
+> **Experience has almost nothing to decide, because the apparatus wins most of the agent's choices —
+> and the apparatus is deliberately unrankable.** `standing` flattens every bundled rule to one rank,
+> so their mutual precedence is *install order*.
+
+⚠⚠ So §13's claim *the apparatus's order is authored on purpose* is true of the pairs anyone thought
+about and **incidental for most of them**. Two thirds of every choice is settled by typing order, and
+neither mechanism built to notice that can see it: `close` excludes `standing` ties by design, and
+`review` credits rules on the support of a *conclusion*, which the apparatus's bookkeeping never joins.
+
+⚠⚠ **Two of my own checks were blind and the kill-probe caught both** — `<fill>` never applied, so any
+scheme excluded it and the "credits what was used" check tested nothing; and the generalisation check
+asserted a run that would have succeeded anyway. Fixed with `<idle>` (applies, concludes, earns
+nothing) and by checking the *row format* directly.
+
+**Where I would pick up now: the blocker, not more learning.** ⭐ **Outranking domain rules is a
+different claim from being unrankable among themselves** — the same distinction that had to be drawn
+for recall, where inclusion and ordering came apart. Letting preference order *within* the standing
+tier preserves the apparatus's protection and gives experience something to say. It needs the other
+half first: a credit signal that reaches bookkeeping, since nothing today can tell an agent that
+asking a question early is what made the answer cheap.
+
+**After that:** the old item 1's other two questions, which are a different shape from
 the two now answered — *when may a request be re-asked* and *when may a binding be reconsidered*.
 `enough` needed the loop to do **less** and one fact sufficed; these need it to do something **again**.
 Then old item 2 (acting on doubt), which was blocked on stopping and may now be unblocked.
@@ -132,7 +185,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     255 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     263 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase

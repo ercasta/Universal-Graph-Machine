@@ -2782,6 +2782,65 @@ arranged that, and no rule in the corpus named it.
 > have been a phase; the occasion plus a standing rule is the same guarantee, argued in §18, and it is
 > what lets *the agent asks and waits* be ordinary reasoning instead of a mode.
 
+### Experience, and the arena it has nothing to decide in
+
+Two things came out of asking *where is the choice actually hard?*, and only the second was expected.
+
+**Credit assignment needs no new bookkeeping.** R5 already licenses every derived entry with
+`applied(<R>)`, because the trail is load-bearing for §12's weakest link. So walking back from what was
+achieved reaches the rules that produced it — and only those. Measured on a corpus with two ways to
+get water and a third rule that ran and contributed nothing: the walk returns the rules that were
+**used**, not the rule that was merely available, and not the rule that merely applied.
+
+    review()               which rules were on the support of something achieved
+    helped(<R>, <key>)     the smallest unarguable record of it
+    learned()              ...as ordinary corpus text, for the next episode
+
+**Offline, and that is a position rather than an implementation detail.** Credit needs the outcome and
+the outcome is not known until the episode ends, so nothing here runs in the loop and nothing about
+the loop changes. It is also why it is a pass rather than a request answered at `quiet`: a run that
+ends satisfied ends at `stopped`, which is terminal, and the episodes most worth learning from are
+exactly the ones that went well.
+
+Two choices worth naming. **The key is the goal's relation, not the goal**, because a row keyed on
+`boiling(kettle)` is true of one episode and a table that cannot generalise is a cache. And **what it
+takes forward is text**: §19 puts experience in recall precisely because being wrong there is
+recoverable, and it is only recoverable if it can be read, argued with and denied. A weight cannot be.
+
+**Failure credits nothing and blames nothing.** A rule applied on an episode that achieved nothing was
+not thereby wrong — the episode may have been impossible — and §19's argument against training recall
+on its own accepted outputs applies at least as hard to training it on its own failures.
+
+⚠ **And then it bought nothing, for a reason that is the real finding.** An exact learned table — the
+four rules of the goal's domain, keyed on the goals they served, none of the other twelve — reached
+the goal in the same number of ticks as no table at all, and so did the hand-authored ceiling. Where
+each choice is actually decided, measured over one episode:
+
+| | |
+|---|---|
+| arbitrations | 30 |
+| won by the **apparatus** | **26** |
+| won by a domain rule | 4 — and preference already decided all four |
+| won by **authored order**, no reason at all | **19** |
+
+> **Experience has almost nothing to decide, because the apparatus wins most of the agent's choices —
+> and the apparatus is deliberately unrankable.** `standing` flattens every bundled rule to one rank,
+> so their mutual precedence is install order.
+
+That is the blocker recorded above, and the measurement sharpens the claim it came with. *The
+apparatus's order is authored on purpose* is true of the pairs anyone thought about — read before
+acting, notice before continuing — and **incidental for most of them**. Two thirds of every choice this
+agent makes is settled by the order somebody typed the rules in, and neither mechanism built to notice
+that can see it: `close` excludes `standing` ties by design, and `review` credits rules on the support
+of a *conclusion*, which the apparatus's bookkeeping never joins.
+
+The repair is not obviously more learning. **Outranking domain rules is a different claim from being
+unrankable among themselves** — the same distinction that had to be drawn for recall, where inclusion
+and ordering came apart. Letting preference order *within* the standing tier would preserve the
+apparatus's protection exactly and give experience something to say. It is unbuilt, and it needs the
+other half first: a credit signal that reaches bookkeeping, since nothing today can tell an agent that
+asking a question early is what made the answer cheap.
+
 ### Recall may not be incomplete about whether to go on
 
 Building the above forced the carve-out of §19 to widen, and the measurement is what forced it.
@@ -3654,6 +3713,7 @@ conventional representation of reality that ships with the engine and can be rep
 | **locus** | bundle | an entry's first member: the moment or span the claim is about. |
 | **match** | floor | find a substitution making a generic node identical to an anchored one. Structural, and with no opinion about entries. |
 | **moment** | bundle | a signed delta, a predecessor and a licence. The bundle's only state construct. |
+| **helped** | bundle | of a rule, in a finished episode: it was on the support of something achieved. A fact about the trail; *so prefer it next time* stays a claim, hence a rule. |
 | **open** | bundle | a goal that was still outstanding when the agent tried to stop. Deposited by a veto, not concluded by a rule, so no corpus can forget to notice. |
 | **proposition** | bundle | a relation instance. Claims nothing until an entry places it. |
 | **recall** | bundle | propose which rules come to mind. Learned; never complete. A policy, not a primitive. |
