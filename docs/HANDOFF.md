@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     225 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     231 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        16/16 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -605,9 +605,34 @@ Two findings from building it, and they are the same shape twice:
   stopped it, because a discharged conclusion is itself `likely(...)`. §9 records the same trap for
   `<denial>`. The corpus stops it; that it must is a property of self-applying rules.
 
-Still open, and now sharper: nothing **compares** the siblings. Both cases land at the parent, each
-wrapped in what it was supposed under, and no rule weighs one against the other. That is where the
-`close`/`tolerance` machinery of §15–16 should meet the forest, and it does not yet.
+### 18. Supposing something must not bring it about — and then nothing needs comparing
+
+I said the gap was that nothing **compares** the siblings. The user: *why should they be compared? I
+would evaluate whether one hypothesis leads to an unacceptable scenario, otherwise go on.* Right —
+that is a veto, not a ranking, and it is a smaller mechanism.
+
+But it has a precondition, and checking it found a serious bug.
+
+⚠⚠ **An act concluded inside a hypothesis was actually emitted.** Supposing a premise whose rule
+concludes `+doing(fire(missile))` **fired the missile.** Not a leak in the chain — the conclusion
+stayed inside and crossed out wrapped, exactly as §13 promises. The *boundary* was ignoring the
+register: dispatch is at the write (§16) and the write never asked where it was standing.
+
+> **§13's *nothing leaves a frame* was a claim about the chain. Effects are not in the chain.**
+
+Fixed as a condition, not a phase: the boundary asks whether any frame on the path to the root was
+entered by supposing, which the forest already records as each frame's purpose.
+
+Also: **`doing` came out of the bookkeeping set.** Every other request stays (nothing carries a
+`suppose` or a `fit` out of a frame), but *what I would do under this hypothesis* is the one thing such
+a hypothesis is for — as bookkeeping, an agent that supposed a premise and found it would fire a
+missile came back knowing nothing at all. What crosses is `likely(doing(...))`, which no dispatch
+matches, because the boundary keys on `doing` and a wrapped intent is a claim.
+
+**And then comparison is not needed.** A branch answers *does this lead somewhere unacceptable*, and
+§19's veto already answers it: the hypothesis reaches the prohibition, the write is refused inside the
+frame, the refusal crosses out as an ordinary record, and the branch has disqualified itself. Nothing
+ranked, nothing weighed. Checked.
 
 ---
 

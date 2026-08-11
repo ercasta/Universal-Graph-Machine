@@ -1355,6 +1355,87 @@ def crossing_opens_hypotheses() -> None:
     check("§14", "and the gated version settles", steps2[-1].state == "quiescent")
 
 
+def a_hypothesis_does_not_happen() -> None:
+    """Supposing something must not bring it about -- and the reason to insist is
+    not tidiness.
+
+    The point of opening a hypothesis about a course of action is to find out
+    whether it leads anywhere unacceptable. An agent that finds that out **by
+    doing it** has not considered anything. So containment has to cover effects
+    before a hypothesis is any use for the question, and it did not: dispatch is
+    at the write (§16), and the write never asked where it was standing.
+
+    Measured before the fix: supposing a premise whose rule concludes
+    `+doing(fire(missile))` fired the missile. Not a leak in the chain -- the
+    conclusion stayed inside and crossed out wrapped, exactly as designed. The
+    boundary was ignoring the register, which no amount of correct wrapping fixes
+    afterwards, because the act has already happened.
+
+    What this makes possible is the veto §19 already built for norms, used
+    forward in time: **explore the branch, and see whether it is refused.**
+    Nothing has to be compared -- a hypothesis that reaches a prohibition has
+    answered the question by itself.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, "rule <act> = implies( { +p(x) }, { +doing(fire(missile)) } )")
+    m.suppose(kb.term("p(x)"), wrap=kb.term("likely"))
+    m.run(limit=100)
+    check(
+        "§17",
+        "an act concluded inside a hypothesis does NOT leave the agent",
+        m.emitted == [],
+    )
+    check(
+        "§16",
+        "and what it concluded still crosses out wrapped, so the agent knows it would have",
+        m.holds(kb.term("likely(doing(fire(missile)))")) == PLUS,
+    )
+    check(
+        "§11",
+        "so nothing was done, and nothing claims it was",
+        m.holds(kb.term("did(fire(missile))")) is None,
+    )
+
+    # The same thing, acted on for real when it is not a hypothesis -- otherwise
+    # the check above would pass on an agent that simply never acts.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "rule <act> = implies( { +p(x) }, { +doing(fire(missile)) } )",
+        "fact +p(x)",
+        "",
+    ]))
+    m2.run(limit=100)
+    check(
+        "§11",
+        "...while the same rule outside a hypothesis still acts",
+        [m2.g.show(x) for x in m2.emitted] == ["fire(missile)"],
+    )
+
+    # And the use it was for: ask whether a course of action is acceptable by
+    # supposing it, and let the norm answer. No comparison, no ranking -- the
+    # branch that reaches a prohibition has disqualified itself.
+    m3 = Machine()
+    kb3 = load(m3, chr(10).join([
+        "rule <act>    = implies( { +route(cliff) }, { +doing(drive(cliff)) } )",
+        "fact <no-harm> = forbidden(doing(drive(cliff)))",
+        "",
+    ]))
+    f = m3.suppose(kb3.term("route(cliff)"), wrap=kb3.term("likely"))
+    m3.run(limit=100)
+    check(
+        "§19",
+        "a hypothesis that reaches a prohibition refuses it, and says so on the record",
+        m3.gate.refusals == 1 and m3.emitted == [],
+    )
+    check(
+        "§13",
+        "so the branch answers *is this acceptable* without anything being compared",
+        f.state == "discharged",
+    )
+
+
 def doubt_is_a_tie() -> None:
     """A preference is a **score**, and doubt is what a score makes sayable.
 
@@ -1910,6 +1991,7 @@ def main() -> int:
     recall_is_narrowable()
     the_better_move_wins()
     crossing_opens_hypotheses()
+    a_hypothesis_does_not_happen()
     doubt_is_a_tie()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()

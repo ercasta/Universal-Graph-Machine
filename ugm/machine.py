@@ -294,11 +294,20 @@ class Machine:
         self._actuators: List[NodeId] = []
         self.emitted: List[NodeId] = []
         # Machinery vocabulary: requests, not claims. Nothing carries these out of
-        # a frame. This is the closed set of §10 growing by one, and it is a real
+        # a frame.
+        #
+        # `doing` is deliberately NOT here. It is a request, but it is a request
+        # about the world rather than about the machinery, and *what I would do
+        # under this hypothesis* is the one thing a hypothesis about a course of
+        # action is FOR. Kept as bookkeeping, an agent that supposed a premise
+        # and found it would fire a missile came back knowing nothing at all.
+        # What crosses is `likely(doing(...))`, which no dispatch matches --
+        # the boundary keys on `doing`, and a wrapped intent is a claim, not an
+        # intent. This is the closed set of §10 growing by one, and it is a real
         # cost -- worth listing rather than letting it accumulate (§5).
         self._bookkeeping = {self.SUPPOSE, self.GOAL, self.ACHIEVED, self.BLOCKED,
                              self.PLAN, self.SUBGOAL, self.BINDS, self.EXPANDS,
-                             self.EXPECTS, self.DOING, self.DID, self.DEVIATES,
+                             self.EXPECTS, self.DID, self.DEVIATES,
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
@@ -1150,6 +1159,24 @@ class Machine:
             return  # a description cannot be acted on; §15's condition, at the edge
         if e.node in self._acted:
             return
+        if self._hypothetical(frame):
+            # **Supposing something must not bring it about.** §13 says nothing
+            # leaves a frame and §17 makes containment structural -- but effects
+            # were leaving immediately, because dispatch is at the write and the
+            # write did not ask where it was standing. Measured: supposing a
+            # premise whose rule concludes `+doing(fire(missile))` fired the
+            # missile.
+            #
+            # That is not a leak in the chain -- the conclusion stayed inside and
+            # crossed out wrapped, exactly as designed. It is the boundary
+            # ignoring the register, which no amount of correct wrapping can fix
+            # afterwards, because the act has already happened.
+            #
+            # It also has to hold before a hypothesis can be used to ASK whether
+            # a course of action is acceptable, which is the whole reason to open
+            # one about an act. An agent that finds out by doing it has not
+            # considered anything.
+            return
         self._acted.add(e.node)
         (what,) = self.g.members(e.proposition)
         self.emitted.append(what)
@@ -1160,6 +1187,20 @@ class Machine:
             licence=self.g.instance(self.UTTERANCE, self.KB, what),
             source=self.KB, consumed=(e,),
         )
+
+    def _hypothetical(self, frame: Frame) -> bool:
+        """Is this frame inside a supposition? Derived from the forest, not held.
+
+        §4 allows one privileged pointer and this is not a second one: the
+        purpose of every frame on the path to the root already says whether it
+        was entered by supposing.
+        """
+        f: Optional[Frame] = frame
+        while f is not None:
+            if f.purpose is not None and self.g.relation_of(f.purpose) is self.SUPPOSING:
+                return True
+            f = f.parent
+        return False
 
     def _expect(self, frame: Frame, proposition: NodeId, sign: str, licence: NodeId) -> None:
         """Forward application deposits what it predicts (§16).

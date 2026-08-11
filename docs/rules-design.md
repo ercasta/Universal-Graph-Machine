@@ -2839,6 +2839,42 @@ needs it.
 translating both ways builds `not(not(p))` the moment it meets its own output. The corpus stops it,
 and that it must is a property of self-applying rules rather than of this one.
 
+### Supposing something must not bring it about
+
+The reason to open a hypothesis about a course of action is to find out whether it leads anywhere
+unacceptable. An agent that finds that out **by doing it** has not considered anything. So containment
+has to cover effects before a hypothesis is any use for the question — and it did not.
+
+Measured: supposing a premise whose rule concludes `+doing(fire(missile))` **fired the missile.** Not
+a leak in the chain — the conclusion stayed inside the frame and crossed out wrapped, exactly as §13
+promises. The **boundary** was ignoring the register. Dispatch is at the write (§16), and the write
+never asked where it was standing; no amount of correct wrapping repairs that afterwards, because the
+act has already happened.
+
+> **§13's *nothing leaves a frame* was a claim about the chain. Effects are not in the chain.**
+
+The repair is a condition and not a phase: the boundary asks whether any frame on the path to the root
+was entered by supposing, which the forest already records as each frame's purpose, so nothing new is
+held.
+
+What crosses instead is `likely(doing(...))` — and `doing` is deliberately **not** machinery
+bookkeeping, though every other request is. *What I would do under this hypothesis* is the one thing
+such a hypothesis is for; treated as bookkeeping, an agent that supposed a premise and found it would
+fire a missile came back knowing nothing at all. A wrapped intent is a claim, not an intent, and no
+dispatch matches it: the boundary keys on `doing`.
+
+#### And then no comparison is needed
+
+Once exploring is safe, the question a branch answers is not *which of these is better* but **does
+this one lead somewhere unacceptable** — and §19's veto already answers it, used forward in time.
+A hypothesis that reaches a prohibition is refused inside the frame, the refusal crosses out as an
+ordinary record, and the branch has disqualified itself. Nothing is ranked, nothing is weighed, and
+the agent goes on with the likely case unless something disqualifying turned up.
+
+That is a smaller mechanism than comparison and a better fit for what branching is actually for. It
+also means the expensive part stays rare by construction: you open the second branch to look for a
+disqualifier, not to score alternatives.
+
 ### The carve-out
 
 > **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**
