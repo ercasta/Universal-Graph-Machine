@@ -15,7 +15,7 @@ the learning is not.
 
 from typing import List, NamedTuple, Optional, Tuple
 
-from .chain import MINUS, PLUS, UNSURE, Chain, Entry, Moment
+from .chain import GRADES, MINUS, PLUS, UNSURE, Chain, Entry, Moment
 from .channels import Arrival, Channels
 from .gate import Frame, Gate
 from .graph import Graph, NodeId
@@ -179,6 +179,16 @@ class Machine:
         # it has about every goal it holds, before doing anything.
         #
         # So *what comes to mind about this?* becomes a question a rule can ask.
+        # Two moves the agent cannot tell apart. Ordinal scoring makes this
+        # exact and constant-free: they are *close* when they tie, and the top
+        # score being unique is what confidence would mean.
+        #
+        # Deposited rather than acted on, because what to DO when unsure is a
+        # claim and not machinery -- think longer, ask, suppose one and look,
+        # take the reversible one. §14 keeps arbitration total, so a choice is
+        # still made this tick; the record is what lets the agent know it was
+        # not a confident one.
+        self.CLOSE = self.g.atom("close")
         self.RECALL = self.g.atom("recall")
         self.RECALLED = self.g.atom("recalled")
         self.FORBIDDEN = self.g.atom("forbidden")
@@ -213,6 +223,7 @@ class Machine:
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
+            "close": self.CLOSE,
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
@@ -255,7 +266,7 @@ class Machine:
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
-                             self.RECALL, self.RECALLED}
+                             self.RECALL, self.RECALLED, self.CLOSE}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -504,7 +515,11 @@ class Machine:
         self.bundle.append(self.rules.rule(
             IMPLIES,
             [Member(PLUS, g.rel(self.FITS, r, w))],
-            [Member(PLUS, g.rel(self.PREFER, r, w))],
+            # `@possible`, not `@certain`. *This rule could produce what you
+            # want* is candidacy, which is the weakest evidence of usefulness
+            # there is -- so an authored or learned preference outranks it, and
+            # two mere candidates tie, which is what doubt is.
+            [Member(PLUS, g.rel(self.PREFER, r, w), "possible")],
             "relevant",
         ))
 
@@ -951,6 +966,38 @@ class Machine:
         )
         return True
 
+    def _note_doubt(self, applications, chosen, rank) -> None:
+        """Say when the choice was not forced.
+
+        A tie at the top means two rules the agent has no reason to separate,
+        and it was previously resolved in silence by whichever was authored
+        first. The choice still happens -- arbitration is total (§14) -- but it
+        is now on the record that it was arbitrary, which is the difference
+        between an agent that is confident and one that merely proceeds.
+
+        Pairwise, so the arity is fixed. §5 refuses a node whose members mean
+        different things depending on how many there are, and *the candidates I
+        could not separate* is exactly the shape that tempts one.
+        """
+        best = rank(chosen.rule)
+        if best[0] == 0:
+            # A tie among `standing` rules is not doubt. The apparatus's order
+            # is authored on purpose -- reading before acting, noticing before
+            # continuing -- and a deliberate precedence is an answer, not an
+            # absence of one. Recording it would bury the real cases in noise,
+            # which is what it did.
+            return
+        rivals = [
+            a.rule for a in applications
+            if a.rule is not chosen.rule and rank(a.rule) == best
+        ]
+        for rival in rivals:
+            self.gate.write(
+                self.focus, self.g.rel(self.CLOSE, chosen.rule.node, rival.node), PLUS,
+                licence=self.g.rel(self.APPLIED, chosen.rule.node),
+                source=self.KB, mention=True,
+            )
+
     def _widen(self) -> bool:
         """A shortlist that ran dry is not a search that finished (§15, §19).
 
@@ -1173,7 +1220,10 @@ class Machine:
 
         # What the situation recommends, computed once for this tick.
         keys = self._in_play()
-        chosen = arbitrate(self.rules, applications, lambda r: self._rank(r, keys))
+        rank = lambda r: self._rank(r, keys)
+        chosen = arbitrate(self.rules, applications, rank)
+        if chosen is not None:
+            self._note_doubt(applications, chosen, rank)
         if chosen is None:
             # Nothing came to mind that had anything to do -- which is not the
             # same as nothing being left to do, and §15 says only the second
@@ -1322,9 +1372,36 @@ class Machine:
         return (1, -self._priority(rule, keys))
 
     def _priority(self, rule: Rule, keys: set) -> int:
-        """How much this situation recommends this rule. Authored today; §19 says
-        it is learned from the trail, and the trail is already deposited."""
-        return sum(1 for k in keys if self._claims(self.g.rel(self.PREFER, rule.node, k)))
+        """**How strongly** this situation recommends this rule -- a score, not a
+        flag, because two rules recommended for different reasons are not
+        equally recommended and an order alone cannot say so.
+
+        The scale is §10's, reused rather than invented: a `prefer` claim is an
+        entry, an entry carries a **grade**, and grades are the ordinal set this
+        design already commits to. So `+prefer(<R>, k) @likely` outranks the same
+        claim `@possible`, and §12's weakest link applies for free -- a
+        preference derived from a shaky premise is itself shaky, with no second
+        mechanism to keep in step.
+
+        Ordinal and not numeric, deliberately. A cardinal score would be the
+        first such quantity in the design, it would need a threshold constant to
+        say when two scores are *close*, and §12 is explicit that ordinals do not
+        add. What ordinals give instead is **doubt for free**: two rules are
+        close exactly when they tie, and a tie needs no constant to detect.
+
+        The count survives as the tie-break below the grade, so *recommended for
+        three reasons* still beats *recommended for one* at the same strength.
+        """
+        best, votes = -1, 0
+        for k in keys:
+            e = self.chain.resolve(
+                self.g.rel(self.PREFER, rule.node, k), self.focus.topic, self.focus.seat
+            )
+            if e is None or e.sign != PLUS:
+                continue
+            votes += 1
+            best = max(best, GRADES.index(e.grade))
+        return (best + 1) * 1000 + votes
 
     def _claims(self, proposition: NodeId) -> bool:
         e = self.chain.resolve(proposition, self.focus.topic, self.focus.seat)

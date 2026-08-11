@@ -2746,6 +2746,38 @@ What is *not* addressed, and is now the whole of the remaining gap: the agent ha
 second case and no way to spend a hypothesis on it. That, and knowing when to stop trying, is what is
 left for experience once enumeration is gone.
 
+### A preference is a score, and doubt is a tie
+
+An order over rules cannot distinguish *one clear best* from *two I cannot separate*, and those call
+for opposite behaviour — take the move, or think harder before taking it. So a preference carries a
+strength.
+
+The scale is the one already committed to. A `prefer` claim is an entry and an entry carries a
+**grade**, so `+prefer(<R>, k) @likely` outranks the same claim `@possible` and §12's weakest link
+governs derived preferences with no second mechanism to keep in step. Candidacy — *this rule could
+produce what you want* — is recorded `@possible`, which is what it is worth.
+
+**Ordinal rather than numeric, and the reason is not conservatism.** A cardinal score would be the
+first such quantity in this design; §12 states that ordinals do not add; and *close* would then need
+a threshold constant with nothing to derive it from. Ordinals answer the question without one:
+
+> **Two rules are close exactly when they tie.** Confidence is the top score being unique.
+
+So doubt is deposited — `close(<R1>, <R2>)`, pairwise so the arity is fixed — and nothing more. What
+to do when unsure (think longer, ask, suppose one and look, prefer the reversible move) is a claim
+about how to reason, which makes it rules, and putting any of it here would be §18's mistake again.
+
+Two things this does not settle, and both are worth stating rather than discovering.
+
+**A tie among the apparatus is not doubt.** `standing` rules have an authored precedence which *is*
+the answer — read before acting, notice before continuing — and recording those ties buried the real
+cases in nineteen spurious pairs.
+
+**Arbitration is total, so the move is already made when the doubt is recorded.** Acting on doubt
+*before* committing would require a step that can be deferred, and every mechanism this design has
+for deferring — supposing, backtracking, re-asking — is the same unbuilt thing: nothing says when a
+line of reasoning is finished enough to act on.
+
 ### The carve-out
 
 > **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**

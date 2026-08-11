@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     211 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     215 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        16/16 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -55,6 +55,7 @@ gone. Ten commits:
 | `workload` | a workload recall can be measured on — and **recall cannot pay until the agent can stop** |
 | `better` | preference **orders** rather than excludes; relevance is derived, not authored |
 | `lookup` | *what could produce this?* becomes an **index, not a scan** — 13× fewer ticks to the goal |
+| `doubt` | preference is a **score on the grade scale**; doubt is a tie, and a tie needs no threshold |
 
 ### 1. The spine changed
 
@@ -489,6 +490,37 @@ The gap that is left is honest and small: 57 ticks against an ideal-table 8, all
 reasoning in domains the goal has nothing to do with. That is now the whole of what learning has to
 win, and it is the same 7× the workload's gate measures.
 
+### 15. A preference is a score, and doubt is a tie
+
+The user's refinement: *doubt is two or more rules scoring very close, so the table should be a
+scoring and not only an order.* Right, and an order genuinely cannot say it — *one clear best* and
+*two I cannot separate* look identical to a sort, and they call for opposite behaviour.
+
+**The scale is §10's, reused rather than invented.** A `prefer` claim is an entry, an entry carries a
+**grade**, and grades are the ordinal set this design already commits to. So `+prefer(<R>, k) @likely`
+outranks the same claim `@possible`, and §12's weakest link applies for free — a preference derived
+from a shaky premise is itself shaky, with no second mechanism to keep in step. `<relevant>` now
+concludes `@possible`, because *this rule could produce what you want* is candidacy, the weakest
+evidence of usefulness there is.
+
+**Ordinal, not numeric, and that is the interesting part.** A cardinal score would be the first such
+quantity in the design; §12 says ordinals do not add; and *close* would need a threshold constant
+nobody could justify. Ordinals give doubt for free instead:
+
+> **Two rules are close exactly when they tie**, and a tie needs no constant to detect.
+
+`close(<R1>, <R2>)` is deposited when the top score is not unique — pairwise, so the arity is fixed
+(§5 refuses a node whose members mean different things depending on how many there are, and *the
+candidates I could not separate* is exactly the shape that tempts one).
+
+⚠ **A tie among `standing` rules is not doubt**, and recording it buried the real cases in noise —
+19 spurious pairs before the exclusion. The apparatus's order is authored on purpose (read before
+acting, notice before continuing); a deliberate precedence is an answer, not the absence of one.
+
+What is deposited and not acted on: arbitration stays total, so the choice is still made. The record
+is the difference between an agent that is confident and one that merely proceeds — and what to *do*
+when unsure is a claim, so it is rules, and none are written yet.
+
 ---
 
 ## The state of the code
@@ -526,9 +558,12 @@ The remaining gap on the workload is 57 ticks against an ideal 8, and all of it 
 irrelevant domains. `prefer` is derived from `fits` or authored — never from experience — and the
 exhaustive pass fires only on a dry shortlist, never on novelty or a schedule.
 
-**3. Doubt.** *If in doubt, choose among the 2–3 best, with extra considerations* — the agent has no
-notion of confidence, so it cannot tell a clear best from a near tie, and has no second gear when it
-is unsure. This is where suppositions belong and they are not wired to it.
+**3. What to DO when in doubt.** §15 built the noticing — `close(<R1>, <R2>)` is deposited when the
+choice was not forced — and deliberately not the response. Think longer, ask a channel, suppose one
+and look, prefer the reversible one: all of those are claims, so all of them are rules, and none is
+written. Suppositions are the obvious machinery for *suppose one and look* and are not wired to it.
+Note the ordering trap: arbitration is total, so the move is already made when the doubt is recorded.
+Acting on doubt **before** committing needs something this design does not have.
 
 **Definite reference — which one.** Binding refers; nothing selects. A rule cannot say *the latest*,
 and `_settle` never reconsiders a binding it took. That is one question wearing three hats: §21's

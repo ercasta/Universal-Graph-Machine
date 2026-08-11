@@ -1261,6 +1261,73 @@ def the_better_move_wins() -> None:
     )
 
 
+def doubt_is_a_tie() -> None:
+    """A preference is a **score**, and doubt is what a score makes sayable.
+
+    An order alone cannot distinguish *one clear best* from *two I cannot
+    separate*, and those call for different behaviour: take the move, or think
+    harder about it. So `prefer` is scored on §10's ordinal grade scale -- the
+    entry's own grade, reused rather than invented -- and
+
+    > **two rules are close exactly when they tie.**
+
+    Ordinal, so this needs no threshold constant, which a numeric score would.
+    §12 also says ordinals do not add, which is the other reason not to invent
+    a cardinal one here.
+    """
+    from .text import load
+
+    # Two candidates, nothing to separate them: both merely FIT the goal, which
+    # `<relevant>` records `@possible`.
+    tie = chr(10).join([
+        "rule <byA> = implies( { +a(?x) }, { +at(?x) } )",
+        "rule <byB> = implies( { +b(?x) }, { +at(?x) } )",
+        "fact +a(p)",
+        "fact +b(p)",
+        "fact +goal(at(p))",
+        "",
+    ])
+    def first_corpus_move(src):
+        machine = Machine()
+        load(machine, src)
+        bundled = {r.name for r in machine.bundle}
+        first = None
+        for s in machine.run(limit=600):
+            if first is None and s.applied and s.applied.rule.name not in bundled:
+                first = s.applied.rule.name
+        return first, machine
+
+    _, m = first_corpus_move(tie)
+    closes = [
+        e for mm in m.chain.moments for e in mm.delta
+        if m.g.relation_of(e.proposition) is m.CLOSE and e.sign == PLUS
+    ]
+    check("§19", "two equally-recommended rules are recorded as close", bool(closes))
+    check(
+        "§14",
+        "and the choice was still made -- arbitration stays total, it is just no longer silent",
+        first_corpus_move(tie)[0] == "byA",
+    )
+
+    # A stronger claim breaks the tie, because a preference is a score and not a
+    # flag. `@certain` beats the `@possible` that mere candidacy earns.
+    stronger = tie + "fact +prefer(<byB>, at(p)) @certain" + chr(10)
+    move, m2 = first_corpus_move(stronger)
+    check(
+        "§12",
+        "a stronger preference outranks a weaker one -- the scale is the grade scale",
+        move == "byB",
+    )
+    check(
+        "§19",
+        "and once one is clearly better, there is no doubt left to record",
+        not any(
+            m2.g.relation_of(e.proposition) is m2.CLOSE and e.sign == PLUS
+            for mm in m2.chain.moments for e in mm.delta
+        ),
+    )
+
+
 def prohibitions_are_not_recalled() -> None:
     """§19's carve-out, which is the one place the design refuses to be
     incomplete.
@@ -1706,6 +1773,7 @@ def main() -> int:
     callbacks_on_a_hypothesis()
     recall_is_narrowable()
     the_better_move_wins()
+    doubt_is_a_tie()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()
     a_cause_moves_the_register()
