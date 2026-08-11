@@ -1700,6 +1700,94 @@ def an_agent_that_can_stop() -> None:
           m4.holds(kb4.term("likely(far(a))")) == PLUS)
 
 
+def no_goal_is_dropped_silently() -> None:
+    """An agent that can stop can stop on something it was asked for, and the
+    first version of `enough` did exactly that -- silently (§19).
+
+    Measured: with a stop rule and two goals, the run ended with the second
+    neither achieved nor blocked nor pursued, and nothing anywhere recording that
+    it had been open. The stop was on the record; the abandonment was not.
+
+    The repair is a **veto**, and the argument is §19's own, transferred:
+
+    > Recall may be incomplete about what to do. It may not be incomplete about
+    > what you must not do -- or about a goal it is dropping.
+
+    A convention every corpus must remember is the kind this design keeps finding
+    it has lost, so this is not the rule a well-written corpus would have written.
+    It is machinery at one decision, the third of exactly three that all make the
+    same move -- **escalate before believing a decline**: `_widen` at a dry
+    shortlist, `_forbid` at a write, this at a stop.
+    """
+    from .text import load
+
+    world = [
+        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +s(?x) } )",
+        "rule <done> = implies( { +q(?x) }, { +enough(q(?x)) } )",
+        "fact standing(<done>)",
+        "fact +p(a)",
+        "fact +goal(q(a))",
+    ]
+
+    def go(lines, **kw):
+        m = Machine()
+        for name in kw.pop("actuators", ()):
+            m.actuator(name)
+        kb = load(m, chr(10).join(lines) + chr(10))
+        return m, kb, m.run(limit=400)
+
+    m0, kb0, s0 = go(world)
+    check("§19", "with every goal achieved the veto costs nothing -- the agent stops, "
+          "which is what keeps the saving in the case the saving was measured on",
+          s0[-1].state == "stopped" and m0.holds(kb0.term("open(q(a))")) is None)
+
+    # ...and with one still outstanding it does not stop, and says which.
+    m1, kb1, s1 = go(world + ["fact +goal(s(a))"])
+    check("§19", "a stop with a goal still open is not a stop: the veto refuses it and "
+          "deposits which goal, so nothing is dropped in silence",
+          m1.holds(kb1.term("open(s(a))")) == PLUS and s1[-1].state != "stopped")
+    check("§19", "and the goal is then actually reached -- an outstanding goal OUTRANKS "
+          "an `enough`, so the agent finishes the only way that was ever a claim",
+          m1.holds(kb1.term("s(a)")) == PLUS and s1[-1].state == "quiescent")
+
+    # The veto hands the loop back rather than costing it a tick. Reacting to an
+    # open goal is ordinary reasoning of whatever length it takes, and an `enough`
+    # consulted again next tick would cut it off after one -- which is what the
+    # first version did, and why the diagnosis below never used to appear.
+    blocked = [
+        "rule <boil> = implies( { +heat(?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <ask> = implies( { +open(?w), +blocked(?w) }, { +doing(ask(?w)) } )",
+        "fact standing(<ask>)",
+        "rule <trust> = implies( { +says(?c, ?p, plus) }, { +?p } )",
+        "fact +water(kettle)",  # ...and nothing anywhere concludes a `heat`
+        "fact +goal(boiling(kettle))",
+    ]
+    m2, kb2, _ = go(world + blocked, actuators=("voice",))
+    check("§19", "an open goal is DIAGNOSED and not merely noted -- and by `<give-up>`, "
+          "which was already there, because outranking an `enough` means quiescence "
+          "still happens and `quiet` is still the occasion",
+          m2.holds(kb2.term("blocked(heat(kettle))")) == PLUS)
+
+    # What the diagnosis is for. Where a question goes is a fact about a
+    # deployment, so the reaction is a corpus rule and not bundled -- but it has
+    # to be *possible*, and the boundary is what makes it so. Note which node it
+    # asked about: not the goal it was given, but the precise subgoal backward
+    # reading found it was missing. Nothing arranged that.
+    check("§19", "so the agent can ask -- and it asks for exactly what it lacked, which "
+          "backward reading worked out and no rule here named",
+          [m2.g.show(n) for n in m2.emitted] == ["ask(heat(kettle))"])
+
+    # And the run ends, because a question is not work. The user answers on an
+    # ordinary channel, and resumption needs nothing: `<intake>` was always there.
+    user = m2.channels.open("user")
+    m2.channels.deliver(user, kb2.term("heat(kettle)"))
+    s3 = m2.run(limit=400)
+    check("§19", "the loop can end on a question and a later utterance resumes it -- "
+          "an arrival is an ordinary write, so nothing was waiting and nothing polled",
+          m2.holds(kb2.term("boiling(kettle)")) == PLUS and len(s3) < 10)
+
+
 def doubt_is_a_tie() -> None:
     """A preference is a **score**, and doubt is what a score makes sayable.
 
@@ -2258,6 +2346,7 @@ def main() -> int:
     a_hypothesis_does_not_happen()
     an_action_is_substituted_by_its_outcome()
     an_agent_that_can_stop()
+    no_goal_is_dropped_silently()
     doubt_is_a_tie()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()

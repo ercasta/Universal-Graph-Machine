@@ -2706,9 +2706,81 @@ place the machinery declines in silence, and *why did you stop?* would have no a
 not-lossy criterion, which is the one this whole section keeps being judged against.
 
 **And it is terminal, where `quiet` is not.** `quiet` continues the loop so a watchdog can key on it,
-because *the search finished* leaves work worth doing. *Nothing more is worth doing* does not. A
-corpus wanting a wind-down concludes it before it concludes `enough`; §21 records where that is not
-enough.
+because *the search finished* leaves work worth doing. *Nothing more is worth doing* does not.
+
+### A stop with a goal still open is not a stop
+
+The first version of the above shipped without this and was wrong in the way that matters. Measured:
+a corpus with two goals, a stop rule on the first, and the run ended with the second **neither
+achieved nor blocked nor pursued, and nothing anywhere recording that it had been open.** The stop was
+on the record; the abandonment was not. That is §2's not-lossy criterion failing at the one place this
+section had just finished claiming to have closed.
+
+The obvious repair is a rule — *if I still have a question to ask, there is more worth doing* is true,
+and a corpus that states it needs nothing else. It is the wrong repair, for §19's own reason arriving
+a fourth time:
+
+> Recall may be incomplete about what to do. It may not be incomplete about what you must not do, or
+> about whether to go on, or about **a goal it is dropping**.
+
+A corpus may be wrong about what is worth doing next. It may not silently abandon what it was asked
+for, and a convention every corpus has to remember is exactly the kind this design keeps finding it
+has lost. So it is a **veto**: consulted before the stop is made, never proposed, never arbitrated,
+and unforgettable.
+
+    open(<w>)              this goal was still outstanding when the agent tried to be done
+
+That makes three, and they are one move rather than three mechanisms — **escalate before believing a
+decline**:
+
+| `_widen` | a shortlist that ran dry is not a search that finished |
+| `_forbid` | a write a norm covers never happens |
+| the above | a stop with a goal still open is not a stop |
+
+None of them is a phase. Each runs at one machinery decision and answers one question, which is the
+distinction §18 draws: a phase asserts a policy in control flow, a guard refuses to believe a
+decline the machinery was about to make on its own.
+
+**The refusal writes**, for §19's reason and for a second one. A veto depositing nothing would be a
+silent decline, which is the failure being designed against; and it is what makes this terminate,
+exactly as a norm's refusal is what stops a forbidden rule re-applying. Each goal vetoes **once**, so
+what is guaranteed is that nothing is dropped without the agent being given the occasion to react —
+not that it always finds an answer, which no mechanism can promise.
+
+**An outstanding goal outranks an `enough`; it does not delay one.** The first attempt had the veto
+cost a tick and then let the stop stand, and the diagnosis below never appeared, because reacting to
+an open goal is ordinary reasoning of whatever length it takes and an `enough` consulted again on the
+next tick cuts it off after one. So once the veto has been exercised at a seat, `enough` is not
+consulted there again and the agent finishes the ordinary way, at quiescence — *nothing is left* being
+the only claim to that effect that was ever true. What this costs, and where: **nothing** when the
+goals are achieved or genuinely unreachable, because a blocked goal yields no new work and the loop
+quiesces at once; and the whole of the saving when one is reachable, which is precisely the case where
+saying *enough* was a mistake.
+
+Two things fell out of that rather than being arranged.
+
+**The diagnosis needed no new rule.** A bundled `+open(?w) ⟹ +verdict(?w)` was written to sit beside
+`<give-up>`, looked exactly parallel, and was **deleted**: because an open goal outranks the stop, a
+run with one always finishes at quiescence, so `quiet` is written and `<give-up>` already asks the
+verdict for every goal. `ugm.bundle` reported the new rule blind before a check for it existed. The
+occasion is not redundant — it records *which* goal was nearly dropped, and nothing else does — but a
+second way to ask about it was.
+
+**And the reaction is a corpus rule, deliberately.** What to do about a goal you are about to walk
+away from is a claim, so it is rules, and *where a question goes* is a fact about a deployment rather
+than about reasoning. One line suffices, and the round trip needs nothing further from the design:
+
+    rule <ask> = implies( { +open(?w), +blocked(?w) }, { +doing(ask(?w)) } )
+
+`doing` crosses the boundary at the write (§16), the run ends because a question is not work, and a
+later utterance resumes it through `<intake>` — an arrival being an ordinary write means nothing waits
+and nothing polls. Checked end to end. Worth noting what the agent asked about: not the goal it was
+given, but `heat(kettle)`, the precise subgoal backward reading had worked out it was missing. Nothing
+arranged that, and no rule in the corpus named it.
+
+> **The loop may end. It may not end quietly on something it was asked for.** An always-on check would
+> have been a phase; the occasion plus a standing rule is the same guarantee, argued in §18, and it is
+> what lets *the agent asks and waits* be ordinary reasoning instead of a mode.
 
 ### Recall may not be incomplete about whether to go on
 
@@ -3456,14 +3528,20 @@ The three a first implementation is most likely to get wrong:
   `quiet` is the fact that says a search has finished. What that left open was *settled*, and §19 now
   has it: `enough` is satisfaction, `quiet` is exhaustion, and they are deliberately different facts
   because an aggregate over a satisfied search would be a lie.
-* **A wind-down after stopping** (§19). Stopping is terminal: `stopped` is written and the loop is
-  over, so nothing can key on it the way a watchdog keys on `quiet`. That is right for the case it was
-  built for — *nothing more is worth doing* leaves nothing worth doing — and wrong for the obvious
-  next one, an agent that must put something down before it walks away. A corpus can conclude the
-  wind-down *before* `enough`, which works and is fragile, because it makes the ordering the author's
-  problem. What would settle it is knowing whether the wind-down is work (in which case `enough` was
-  premature and the stop rule is wrong) or an obligation (in which case it is a norm, and §19's veto
-  already runs unconditionally). Unanswered.
+* **A wind-down after stopping** (§19) — **half settled.** The case that mattered is covered: an
+  outstanding goal vetoes the stop and hands the loop back, so reacting to it is ordinary reasoning of
+  any length, and the agent can diagnose, ask and wait. What is still open is a wind-down that is not
+  about a goal — putting something down, closing something, saying goodbye — since `stopped` remains
+  terminal for every other purpose and nothing can key on it. The question the veto answers by
+  analogy is whether such a wind-down is an *obligation*, in which case it is a norm and §19's other
+  veto already runs unconditionally, or merely work, in which case `enough` was premature.
+* **A goal that vetoes once may be dropped on the second pass** (§19). The veto fires once per goal
+  per seat, which is what makes it terminate, and it means the guarantee is *the agent was given the
+  occasion to react* rather than *the goal was disposed of*. An agent that reacts by doing nothing
+  stops on the next attempt with the goal still open — recorded, this time, but still dropped. The
+  stronger property wants a notion of a goal being **discharged** (achieved, refused, handed over, or
+  explicitly abandoned) that the design does not have, and it is the same missing notion as *when is a
+  request re-askable*.
 * **Re-asking and reconsidering** (§10, §18, §19). Two of the four questions that came in with *a
   reason to stop* are answered — a plan is settled and a woken rule is done when `enough` is concluded
   about them, through `_leave`. The other two are not, and they are the same shape as each other and
@@ -3565,7 +3643,7 @@ conventional representation of reality that ships with the engine and can be rep
 | **channel** | bundle | the intake path an entry arrived through. Mechanically observed, so it cannot be wrong. Distinct from *authority*, which can. |
 | **connective** | bundle | `implies` or `causes`; the relation between a rule's two moments. Consumed by rules, not by the engine. |
 | **deposit** | bundle | the moment whose delta an entry sits in — when the claim was made. Distinct from *locus*, which is what it is about. |
-| **enough** | bundle | a claim that there is nothing more worth doing about something. The agent's second way to be over — *satisfaction*, against quiescence's *exhaustion*. A rule concludes it; the loop only reads it. |
+| **enough** | bundle | a claim that there is nothing more worth doing about something. The agent's second way to be over — *satisfaction*, against quiescence's *exhaustion*. A rule concludes it; the loop only reads it, and an open goal outranks it. |
 | **entry** | bundle | a node with three members — locus, proposition, sign. The unit of assertion. |
 | **frame** | bundle | a reasoning in progress, as a process node. Carries a *seat* and a *topic*. Frames form a forest, not a stack. |
 | **gate** | bundle | the write path, considered as the one place provenance becomes vocabulary. Distinct from the floor's *stamp*. |
@@ -3576,6 +3654,7 @@ conventional representation of reality that ships with the engine and can be rep
 | **locus** | bundle | an entry's first member: the moment or span the claim is about. |
 | **match** | floor | find a substitution making a generic node identical to an anchored one. Structural, and with no opinion about entries. |
 | **moment** | bundle | a signed delta, a predecessor and a licence. The bundle's only state construct. |
+| **open** | bundle | a goal that was still outstanding when the agent tried to stop. Deposited by a veto, not concluded by a rule, so no corpus can forget to notice. |
 | **proposition** | bundle | a relation instance. Claims nothing until an entry places it. |
 | **recall** | bundle | propose which rules come to mind. Learned; never complete. A policy, not a primitive. |
 | **register** | floor | the one pointer: which node writes land in. That it holds a frame is convention; suspended positions are ordinary members of frame nodes, not further registers. |

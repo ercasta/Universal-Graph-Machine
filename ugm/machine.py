@@ -163,6 +163,19 @@ class Machine:
         # finished, and reporting the goals it never reached as blocked is the
         # same unsoundness `_widen` exists to prevent, arriving from a second side.
         self.STOPPED = self.g.atom("stopped")
+        # ...and what the machinery says instead, when it will not let a stop
+        # stand. `open(<w>)` is a goal that was still outstanding at the moment
+        # the agent tried to be done with everything.
+        #
+        # This is §19's carve-out for the third time, and the argument transfers
+        # verbatim. Recall may be incomplete about what to do; it may not be
+        # incomplete about what you must not do -- or about whether to go on --
+        # or about a goal it is dropping. A corpus can be wrong about what is
+        # worth doing next; it may not silently abandon what it was asked for.
+        # So this is a VETO and not a rule: consulted before the stop is made,
+        # never proposed, never arbitrated, and it cannot be forgotten by a
+        # corpus that did not think of it.
+        self.OPEN = self.g.atom("open")
         # A callback: a pointer to a rule, hung on a node. `+resume(h, <R>)` says
         # *when h returns, R's turn has come* -- and `turn` is the strongest thing
         # it can say, because §5's wall stands: no rule may apply a rule.
@@ -286,7 +299,7 @@ class Machine:
             "expects": self.EXPECTS, "deviates": self.DEVIATES,
             "taken": self.TAKEN, "emitted": self.EMITTED,
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
-            "enough": self.ENOUGH, "stopped": self.STOPPED,
+            "enough": self.ENOUGH, "stopped": self.STOPPED, "open": self.OPEN,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
@@ -316,6 +329,8 @@ class Machine:
         self._acted: set = set()
         self._quieted: set = set()
         self._stopped: set = set()
+        self._noticed: set = set()
+        self._vetoed: set = set()
         self._reified: set = set()
         # §19. `None` is the deliberate-reasoning setting -- recall with the
         # budget removed -- and it is the default, because narrowing is a claim
@@ -343,7 +358,7 @@ class Machine:
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
-                             self.ENOUGH, self.STOPPED,
+                             self.ENOUGH, self.STOPPED, self.OPEN,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
@@ -627,6 +642,21 @@ class Machine:
             [Member(PLUS, g.rel(self.VERDICT, w))],
             "give-up",
         ))
+
+        # ...and no sibling for the veto's occasion, which is worth a note because
+        # one was written and deleted. `+open(?w) => +verdict(?w)` looked exactly
+        # parallel and `ugm.bundle` reported it blind; deleting it broke no check,
+        # and the reason is the veto's own shape. Because an outstanding goal
+        # *outranks* an `enough` rather than delaying it, a run with an open goal
+        # always finishes at quiescence -- so `quiet` is always written, and
+        # `<give-up>` above already asks the verdict for every goal. The occasion
+        # is not redundant (it says *which goal was nearly dropped*, which nothing
+        # else records); a second way to ask about it was.
+        #
+        # What is deliberately not bundled either is the REACTION.
+        # `+open(?w), +blocked(?w) => +doing(ask(?w))` is one line and a corpus
+        # writes it, because where a question goes is a fact about a deployment
+        # and not about reasoning. What ships is the occasion; §19 argues the split.
 
     # -- rules as data ----------------------------------------------------
 
@@ -1152,13 +1182,85 @@ class Machine:
         no relation matches it, so a satisfied branch cannot stop its parent by
         accident.
         """
+        reason = None
         for node in self.g.instances_of(self.ENOUGH):
             if self.g.has_var(node):
                 continue  # a description is not a claim; §15's condition again
             e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
             if e is not None and e.sign == PLUS:
-                return node
-        return None
+                reason = node
+                break
+        if reason is None:
+            return None
+        if self.focus.seat.node in self._vetoed:
+            # The veto has already been exercised here, and it did not merely
+            # cost a tick: it handed the loop back. Reacting to an open goal --
+            # diagnosing it, asking about it, going after it -- is ordinary
+            # reasoning that takes as many steps as it takes, and an `enough`
+            # consulted again on the next tick would cut it off after one.
+            #
+            # So an outstanding goal does not delay a stop, it OUTRANKS one, and
+            # the agent finishes the ordinary way: at quiescence, which is the
+            # only claim that nothing is left that was ever true. Note what that
+            # costs and where: nothing, when the goals are achieved or genuinely
+            # unreachable (a blocked goal yields no new work, so the loop quiesces
+            # at once) -- and the whole of the saving when one is reachable, which
+            # is the case where saying *enough* was wrong.
+            return None
+        if self._notice_open():
+            self._vetoed.add(self.focus.seat.node)
+            return None
+        return reason
+
+    def _notice_open(self) -> bool:
+        """The veto: a stop with a goal still outstanding is not a stop.
+
+        Why this is machinery and not the rule a well-written corpus would have.
+        *If I still have a question to ask, there is more worth doing* is true,
+        and a corpus that states it needs nothing here. But the guarantee wanted
+        is that an agent cannot walk away from what it was asked for **because
+        nobody thought of the case**, and a convention every corpus must remember
+        is exactly the kind this design keeps finding it has lost. §19 already
+        made this argument once, about norms, and the shape is the same one:
+        unconditionally consulted, entirely contestable.
+
+        What it is not: a phase. It runs at one machinery decision, the way
+        `_forbid` runs at the write and `_widen` runs at quiescence, and all three
+        are the same move -- **escalate before believing a decline.**
+
+        | `_widen`  | a shortlist that ran dry is not a search that finished |
+        | `_forbid` | a write a norm covers never happens |
+        | this      | a stop with a goal still open is not a stop |
+
+        **And the refusal writes**, for the reason §19 gives and for a second one.
+        A veto depositing nothing would be a silent decline, which is the failure
+        being designed against; and it is what makes this terminate, exactly as a
+        norm's refusal is what stops a forbidden rule re-applying. Each goal
+        vetoes **once**, so what is guaranteed is that nothing is dropped without
+        the agent being given the occasion to react -- not that it always finds an
+        answer, which no mechanism can promise.
+        """
+        seat = self.focus.seat.node
+        stopped = False
+        for node in self.g.instances_of(self.GOAL):
+            if self.g.has_var(node):
+                continue
+            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            if e is None or e.sign != PLUS:
+                continue
+            (wanted,) = self.g.members(node)
+            if (seat, wanted) in self._noticed:
+                continue
+            got = self.chain.resolve(wanted, self.focus.topic, self.focus.seat)
+            if got is not None and got.sign == PLUS:
+                continue
+            self._noticed.add((seat, wanted))
+            self.gate.write(
+                self.focus, self.g.rel(self.OPEN, wanted), PLUS,
+                licence=self.g.rel(self.GOAL, wanted), source=self.KB, mention=True,
+            )
+            stopped = True
+        return stopped
 
     def _halt(self, reason: NodeId) -> bool:
         """Record that the loop stopped because it was satisfied, not because it

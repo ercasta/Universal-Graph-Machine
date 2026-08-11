@@ -66,6 +66,51 @@ both already §21 items (§6's *a root goal is never checked* is the same gap fr
   recall and arbitration of the rule that says stop**: an unmarked stop rule takes one more step
   first, because it is one competitor among many.
 
+## ...and the follow-up: **no goal is dropped silently**
+
+The user's read of the above: *there should be an outer loop, always on, that checks whether any goal
+is still open* — and, asked what to do when it finds one, *ask the user; ideally the goal is open
+because no solution was found.* Commit `openloop`.
+
+⚠⚠⚠ **The first version of `enough` walked away from a goal in silence.** Measured: two goals, a stop
+rule on the first, and the run ended with the second neither achieved nor blocked nor pursued, and
+nothing recording it had been open. The stop was on the record; the abandonment was not. §2's
+not-lossy criterion failing at the place §19 had just claimed to close.
+
+**It is a veto, not an outer loop and not a rule.** An always-on check at a fixed point in the loop is
+structurally a phase, and *if I still have a question, there is more worth doing* as a corpus rule is
+a convention every author must remember — the kind this design keeps finding it has lost. So: §19's
+carve-out a fourth time, `open(<w>)` deposited before the stop is made. **That makes three guards that
+are one move — escalate before believing a decline**: `_widen` at a dry shortlist, `_forbid` at a
+write, this at a stop. None is a phase; each answers one question at one machinery decision.
+
+⚠⚠⚠ **An outstanding goal OUTRANKS an `enough`; it does not delay one.** The first attempt had the
+veto cost a tick and let the stop stand — and the diagnosis never appeared, because reacting to an
+open goal is ordinary reasoning of whatever length it takes. So once vetoed at a seat, `enough` is not
+consulted there again; the agent finishes at quiescence. ⭐ **Costs nothing where the saving was
+measured** (achieved or genuinely unreachable goals yield no new work — workload still 59 ticks vs
+124), and costs the whole saving exactly where saying *enough* was a mistake.
+
+⚠⚠ **A bundled rule I added was dead, and `ugm.bundle` said so before a check existed.**
+`+open(?w) ⟹ +verdict(?w)` looked exactly parallel to `<give-up>` and was deleted: because an open
+goal outranks the stop, a run with one always finishes at quiescence, so `quiet` is written and
+`<give-up>` already asks the verdict. The *occasion* is load-bearing (it records which goal was nearly
+dropped); a second way to ask about it was not.
+
+**The reaction is a corpus rule, and the round trip needs nothing new.** One line —
+`{+open(?w), +blocked(?w)} ⟹ {+doing(ask(?w))}` — and `doing` crosses at the write, the run ends
+because a question is not work, and a later utterance resumes it through `<intake>`. Checked end to
+end. ⭐ Note what it asked about: not the goal it was given, but `heat(kettle)`, the precise subgoal
+backward reading found it was missing. Nothing arranged that.
+
+> **The loop may end. It may not end quietly on something it was asked for.**
+
+⚠ Left open, and recorded in §21: the veto fires **once per goal per seat**, which is what makes it
+terminate — so the guarantee is *the agent was given the occasion to react*, not *the goal was
+disposed of*. An agent that reacts by doing nothing stops on the next attempt with the goal still
+open, recorded but still dropped. The stronger property wants a notion of a goal being **discharged**,
+which is the same missing notion as *when is a request re-askable*.
+
 **Where I would pick up now:** the old item 1's other two questions, which are a different shape from
 the two now answered — *when may a request be re-asked* and *when may a binding be reconsidered*.
 `enough` needed the loop to do **less** and one fact sufficed; these need it to do something **again**.
@@ -87,7 +132,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     249 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     255 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
