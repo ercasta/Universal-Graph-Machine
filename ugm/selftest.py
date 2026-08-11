@@ -1175,8 +1175,22 @@ def recall_is_narrowable() -> None:
         and m3.holds(kb3.term("pursued(water(kettle))")) == PLUS,
     )
 
-    # Could that have failed? Take the widening away and the same run gives up on
-    # a goal it could reach -- which is the whole reason the line is there.
+    # Could that have failed? Not on THIS fixture, any more, and the reason is
+    # worth more than the check was.
+    #
+    # It used to: with a budget of 3 the shortlist filled with bundled rules by
+    # authored order, `<ask-fit>` was never proposed, and the verdict reported a
+    # goal blocked that the corpus could reach. Two later changes each remove that
+    # independently -- §14 moved *what could produce this* off the shortlist and
+    # into `by_conclusion`, so backward reading no longer goes through `_recall`
+    # at all; and §19's third carve-out keeps `standing` rules out of the cap, so
+    # the apparatus cannot be narrowed away in the first place.
+    #
+    # So the negative control is reported rather than quietly dropped: the
+    # VERDICT half of the widening argument is now guarded twice over, and this
+    # fixture can no longer kill the line. What still can is below -- widening is
+    # load-bearing for reaching a conclusion, which is the other half and the one
+    # §15 states.
     m4 = Machine()
     kb4 = load(m4, goal)
     m4.recall_budget = 3
@@ -1184,8 +1198,22 @@ def recall_is_narrowable() -> None:
     m4.run(limit=200)
     check(
         "§19",
-        "and without widening it gives up on a reachable goal -- the check can fail",
-        m4.holds(kb4.term("pursued(water(kettle))")) is None,
+        "the verdict half is now guarded twice over -- an unwidened shortlist no "
+        "longer invents `blocked` here, so this fixture cannot kill the line",
+        m4.holds(kb4.term("pursued(water(kettle))")) == PLUS,
+    )
+
+    # ...and the line is still load-bearing, on the fixture that can kill it.
+    m5 = Machine()
+    kb5 = load(m5, chain)
+    m5.recall_budget = 3
+    m5._widen = lambda: False  # type: ignore[assignment]
+    m5.run(limit=2000)
+    check(
+        "§15",
+        "without widening the same corpus never reaches a conclusion it could -- "
+        "the check can fail",
+        m5.holds(kb5.term("s(a)")) is None,
     )
 
 
@@ -1562,6 +1590,114 @@ def an_action_is_substituted_by_its_outcome() -> None:
         "...and the undeclared act in the same step keeps its fallback -- which `overrides` could not",
         m5.holds(kb5.term("likely(greet(bo))")) == PLUS,
     )
+
+
+def an_agent_that_can_stop() -> None:
+    """The design had one way to be over -- running out of work -- and that is
+    **exhaustion**, not satisfaction (§19).
+
+    It is why recall could be measured and could not pay. An ideal table reached
+    a goal in 8 ticks instead of 734 and saved nothing at all, because the loop
+    went to quiescence and did every domain anyway. Narrowing changes the ORDER
+    in which everything is done, not how much is done.
+
+    So: `enough(x)` -- *there is nothing more worth doing about x*. A claim, so a
+    rule's to make, because *worth* is a judgement and §4 puts judgements in data.
+    The loop's whole part is to read it and stop, and to deposit the smallest
+    unarguable record of having done so (`stopped(<seat>, x)`), which is §17's
+    treatment for `arrived`, `emitted`, `left` and `quiet` arriving a fifth time.
+    """
+    from .text import load
+
+    chain = chr(10).join([
+        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "rule <far> = implies( { +q(?x) }, { +far(?x) } )",
+        "rule <far2> = implies( { +far(?x) }, { +far2(?x) } )",
+        "fact +p(a)",
+        "",
+    ])
+    stop = chr(10).join([
+        "rule <done> = implies( { +r(?x) }, { +enough(r(?x)) } )",
+        "fact standing(<done>)",
+        "",
+    ])
+
+    def go(src):
+        m = Machine()
+        kb = load(m, src)
+        steps = m.run(limit=200)
+        return m, kb, steps
+
+    m0, kb0, s0 = go(chain)
+    check("§19", "with nothing claiming enough, the loop still runs to quiescence -- "
+          "the default is unchanged, which is what makes stopping a claim",
+          s0[-1].state == "quiescent" and m0.holds(kb0.term("far2(a)")) == PLUS)
+
+    m1, kb1, s1 = go(chain + stop)
+    check("§19", "a rule can say when there is nothing more worth doing, and the loop stops",
+          s1[-1].state == "stopped")
+    check("§19", "and it stopped SHORT -- work the corpus could have done was not done",
+          m1.holds(kb1.term("r(a)")) == PLUS and m1.holds(kb1.term("far2(a)")) is None
+          and len(s1) < len(s0))
+
+    # *Why did you stop?* has to have an answer, or stopping is the fourth silent
+    # decline (§5) -- which is the criterion §2 calls not-lossy.
+    seat = m1.focus.seat.node
+    check("§19", "the stop is on the record, and it names what made here over",
+          m1.holds(kb1.term("stopped")) is None
+          and any(m1.g.show(n).startswith("stopped(") and "r(a)" in m1.g.show(n)
+                  for n in m1.g.instances_of(m1.STOPPED)))
+
+    # It is NOT `quiet`, and this is the finding rather than a tidiness point.
+    # `<give-up>` asks its verdict at `quiet`, and `blocked` claims that no rule
+    # fits -- an aggregate over a FINISHED search. A search that stopped because
+    # it was satisfied has not finished, so reporting the goals it never reached
+    # as blocked would be exactly the unsoundness `_widen` exists to prevent,
+    # arriving from a second side.
+    check("§19", "a satisfied search is not a finished one: stopping writes no `quiet`, "
+          "so nothing downstream reads it as *no rule fits*",
+          m1.widenings == 0 and not any(
+              m1.holds(n) == PLUS for n in m1.g.instances_of(m1.QUIET)))
+
+    # Inside a hypothesis, `enough` ends the BRANCH and not the run -- through the
+    # door that already existed. This is *when is a plan settled* and *when is a
+    # woken rule done* getting their local answer for free, because a frame is
+    # already the unit that can be over.
+    branch = chr(10).join([
+        "rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
+        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +far(?x) } )",
+        "fact +likely(p(a))",
+        "",
+    ])
+    says_done = "rule <done> = implies( { +q(?x) }, { +enough(q(?x)) } )" + chr(10)
+    m2, kb2, s2 = go(branch)
+    m3, kb3, s3 = go(branch + says_done + "fact standing(<done>)" + chr(10))
+    check("§19", "enough inside a hypothesis ends the BRANCH: work the branch had left "
+          "is not done, and what it did conclude still crosses out wrapped",
+          m2.holds(kb2.term("likely(far(a))")) == PLUS
+          and m3.holds(kb3.term("likely(far(a))")) is None
+          and m3.holds(kb3.term("likely(q(a))")) == PLUS)
+    check("§19", "...and not the run: the frame is left and the loop goes on to quiesce, "
+          "so *is this plan settled* gets its answer at the door that already existed",
+          any(s.state == "supposed" for s in s3) and s3[-1].state == "quiescent"
+          and any(m3.holds(n) == PLUS for n in m3.g.instances_of(m3.LEFT)))
+
+    # §16's ordering trap, arriving a third time and deciding a design again.
+    # Reading `enough` at the top of the tick is necessary and not sufficient:
+    # the rule that CONCLUDES it competes like any other, so an ordinary rule
+    # authored earlier takes one more step first. Being careful has to come
+    # before the move it is about, and `standing` is what says so.
+    #
+    # > **Stopping is only as prompt as the recall and arbitration of the rule
+    # > that says stop.** That is why the third carve-out below is not a tidiness
+    # > point: a cap that can drop the rule is a cap that can defer stopping
+    # > indefinitely.
+    m4, kb4, _ = go(branch + says_done)
+    check("§19", "and an unmarked stop rule stops LATE -- it is one competitor among "
+          "many, so the branch takes another step before it ends",
+          m4.holds(kb4.term("likely(far(a))")) == PLUS)
 
 
 def doubt_is_a_tie() -> None:
@@ -2121,6 +2257,7 @@ def main() -> int:
     crossing_opens_hypotheses()
     a_hypothesis_does_not_happen()
     an_action_is_substituted_by_its_outcome()
+    an_agent_that_can_stop()
     doubt_is_a_tie()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()

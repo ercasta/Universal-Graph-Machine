@@ -1,3 +1,80 @@
+# Handoff — 2026-08-11 (second session)
+
+## Since the last handoff: **an agent that can stop**
+
+Pickup item 1, taken because the measurement said it was in front of everything else. One commit,
+`stopping`, and it settles two of the item's four questions, corrects a headline number, and opens
+one new §21 item.
+
+**`enough(x)` — *there is nothing more worth doing about x*.** A claim, so a rule's to make; the
+loop's whole part is to read it before the tick's work and stop. The record is `stopped(<seat>, x)`,
+§17's treatment for `arrived`/`emitted`/`left`/`quiet` arriving a fifth time. Nothing ships concluding
+it, exactly as the recall budget defaults to off.
+
+| D=8, R=8 | →goal | →end | how | writes |
+|---|---|---|---|---|
+| exhaustive | 57 | 124 | quiescent | 706 |
+| exhaustive + stop | 57 | **59** | stopped | **470** |
+
+**Four things that were forced, not chosen:**
+
+* **read before the tick's work.** Arbitration is total, so a check made after one has run is a check
+  made after the move. §16's ordering trap deciding a design for the third time.
+* **it routes to `_leave` first.** `enough` inside a hypothesis ends the *branch*, because a frame is
+  already the unit of work that can be over. That is *when is a plan settled* and *when is a woken
+  rule done* answered at a door that already existed — no new mechanism. What crosses out is
+  `likely(enough(g))`, which no relation matches, so a satisfied branch cannot stop its parent.
+* ⚠⚠⚠ **it must not write `quiet`.** `<give-up>` asks its verdict at `quiet`, and `blocked` is an
+  aggregate over a **finished** search. A search that stopped because it was satisfied has not
+  finished, so writing `quiet` would report every goal it never reached as blocked — the exact
+  unsoundness `_widen` exists to prevent, arriving from a second side.
+* **it is terminal, where `quiet` is not.** `quiet` continues the loop so a watchdog can key on it;
+  *nothing more is worth doing* leaves nothing worth doing. The wind-down case is a new §21 item.
+
+**⚠⚠⚠ Recall may not be incomplete about whether to go on.** Once stopping is a rule, *being late to
+recall it is being late to stop* — and under a budget the ideal table pushed the rules that read,
+notice and stop down the shortlist. Worse: with the apparatus capped out, an *ideal* table reached
+quiescence **slower** than exhaustive recall (182 ticks vs 124). So `standing` is now carved out of
+the cap alongside `due`. ⚠ Note what did **not** change: §16 keeps `standing` out of recall's
+*ordering*. **Inclusion is a different claim from ordering**, and only the first was taken.
+
+**⚠⚠⚠ That corrected the *8 ticks instead of 734* headline, and the correction is the finding.** It
+was measured with a budget that also switched the apparatus off — the R-tick run was an agent with its
+machinery turned off. Carve the apparatus back in, which stopping requires, and the table's steering
+vanishes behind the apparatus's **authored precedence**. That is §13's unresolved blocker (`<ask-fit>`
+monopolising arbitration) shown to hide recall's *prize* as well as its cost. **`ugm.workload` cannot
+measure recall again until that is fixed** — its gate is now on *stopping* buying something, which it
+does, and which can fail.
+
+**⚠⚠ `goal` does not distinguish a root goal from a subgoal**, so the general stop rule is not
+writable. `{+goal(?w), +?w} ⟹ {+enough(?w)}` reads right and is unsound: `<expand>` writes
+`+goal(sub)`, so the agent stops at the first satisfied *subgoal* — measured, tick 51 of a run whose
+goal arrived at 57. A root goal is a `goal(?w)` with no `subgoal(?p, ?w)`: a negative existential,
+which §12 says a `−` member cannot express. Needs a request, or the licence readable in the graph —
+both already §21 items (§6's *a root goal is never checked* is the same gap from the other side).
+
+**⚠⚠ Two checks the habit caught.**
+
+* `ugm.selftest`'s widening negative control **could no longer fail**, and the reason mattered more
+  than the check: §14's `by_conclusion` index had already moved backward reading off the shortlist,
+  and the carve-out removed the other path. So the *verdict* half of the widening argument is now
+  guarded twice over — reported as such, with a fixture that still can kill the line substituted for
+  the one that cannot.
+* My own new check for `enough`-inside-a-hypothesis was **blind** — it asserted `holds("resumed")`,
+  an atom that never appears, so it passed under every mutation. Found by deleting `_enough` and
+  counting. Replaced by a contrast pair; ⚠ and that turned up **stopping is only as prompt as the
+  recall and arbitration of the rule that says stop**: an unmarked stop rule takes one more step
+  first, because it is one competitor among many.
+
+**Where I would pick up now:** the old item 1's other two questions, which are a different shape from
+the two now answered — *when may a request be re-asked* and *when may a binding be reconsidered*.
+`enough` needed the loop to do **less** and one fact sufficed; these need it to do something **again**.
+Then old item 2 (acting on doubt), which was blocked on stopping and may now be unblocked.
+
+Everything below this line is the previous handoff, still accurate except where the above corrects it.
+
+---
+
 # Handoff — 2026-08-11
 
 Branch `restart`. `main` still holds the old 46-module engine on purpose.
@@ -10,7 +87,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     240 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     249 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase

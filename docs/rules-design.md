@@ -2653,11 +2653,100 @@ domain anyway. That is the finding, and it is about the machine rather than abou
 > **Recall cannot save work in a machine that runs to quiescence.** Narrowing changes the *order* in
 > which everything is done, not how much is done. Only an agent that can **stop** collects the prize.
 
-This design has no account of stopping. §15 bounds reasoning with a *limit*, which is a budget running
-out rather than a reason; nothing says a plan is finished, a woken rule is done, or a question has
-been answered well enough. So the order of work is settled: an agent that can stop, then recall worth
-narrowing, then experience worth learning. Doing them the other way round produces a mechanism whose
-effect nothing can detect.
+That fixed the order of work — an agent that can stop, then recall worth narrowing, then experience
+worth learning — and the account of stopping follows.
+
+### The second way to be over
+
+The design had one, and it is **exhaustion**: the loop runs until nothing it knows has anything left
+to do. §15 bounds it with a *limit*, but a limit is a budget running out rather than a reason. So
+nothing could say that a plan was finished, a woken rule was done, or a question had been answered
+well enough — and the consequence is the measurement above. **A machine that can only be exhausted
+does an amount of work its corpus fixes.** Nothing it learns can make it cheaper, because knowing more
+only reorders.
+
+The second way is **satisfaction**, and it has to be a claim:
+
+    enough(x)              there is nothing more worth doing about x
+
+*Worth* is a judgement, and §4 puts judgements in data. So `enough` is concluded by an ordinary rule —
+proposed by recall, defeasible, arbitrated, on the trail — and the loop's entire part is to read it
+and stop. A satisficing agent's whole policy is then one row:
+
+    rule <done> = implies( { +goal-of-mine }, { +enough(goal-of-mine) } )
+
+**Nothing ships concluding it**, exactly as the recall budget defaults to off: stopping is a policy,
+and a bundled policy would change what every corpus means. Measured (`ugm.workload`, D=8, R=8): the
+goal arrives at tick 57, and the run ends at 59 instead of 124, with 470 writes instead of 706.
+
+Four decisions, each forced rather than chosen.
+
+**It is read before the tick's work, not after.** Arbitration is total, so by the time an application
+has been chosen the move is made. This is §16's ordering trap — *being careful has to come before the
+move it is about* — deciding a design for the third time.
+
+**It routes to `_leave` first, so a frame is where it lands.** `enough` concluded inside a hypothesis
+ends the *branch*, not the run, because a frame is already the unit of work that can be over and
+`left` is already the fact that says so. That is *when is a plan settled* and *when is a woken rule
+done* answered at a door that already existed, and it needed no mechanism: what crosses out is
+`likely(enough(g))`, a claim about the branch, which no relation matches — so a satisfied branch
+cannot stop its parent by accident.
+
+**It does not write `quiet`, and this is the sharp one.** `<give-up>` asks its verdict at `quiet`, and
+`blocked` claims that *no* rule fits — an aggregate over a **finished** search. A search that stopped
+because it was satisfied has not finished, and reporting the goals it never reached as blocked is
+precisely the unsoundness the exhaustive escalation exists to prevent, arriving from a second side.
+So the record is its own fact:
+
+    stopped(<seat>, x)     written by the register, after `enough` was read
+
+Same treatment as `arrived`, `emitted`, `left` and `quiet` (§17): the machinery deposits the smallest
+unarguable thing and says nothing about what it means. Without it, stopping would be the *fourth*
+place the machinery declines in silence, and *why did you stop?* would have no answer — §2's
+not-lossy criterion, which is the one this whole section keeps being judged against.
+
+**And it is terminal, where `quiet` is not.** `quiet` continues the loop so a watchdog can key on it,
+because *the search finished* leaves work worth doing. *Nothing more is worth doing* does not. A
+corpus wanting a wind-down concludes it before it concludes `enough`; §21 records where that is not
+enough.
+
+### Recall may not be incomplete about whether to go on
+
+Building the above forced the carve-out of §19 to widen, and the measurement is what forced it.
+
+**Once stopping is a rule, being late to recall it is being late to stop.** Under a budget the ideal
+table pushed the rules that read, notice and stop down the shortlist — so the better the table was at
+the task, the worse the agent was at noticing the task was over. Worse: with the apparatus capped out,
+a run with an *ideal* table reached quiescence **slower** than exhaustive recall (182 ticks against
+124), because a shortlist that has lost its machinery does more ticks doing less in each.
+
+> Recall may be incomplete about what to do. It may not be incomplete about what you must not do — or
+> about **whether to go on**.
+
+So a `standing` rule is never starved by a cap, alongside a `due` one. Note carefully what changed and
+what did not: §16 keeps `standing` out of recall's **ordering**, because a claim about precedence
+once a rule has matched is not a claim about coming to mind, and letting it sort filled every
+shortlist with apparatus. **Inclusion is a different claim from ordering**, and only the first is
+taken here. The cost is stated rather than hidden: a corpus that marks fifty rules `standing` has no
+budget left, and that is its own claim about what must always come to mind.
+
+⚠ **This corrected a headline, and the correction is the finding.** The *8 ticks instead of 734* above
+was measured with a budget that also switched the apparatus off. Carve the apparatus back in — which
+stopping requires — and the table's steering disappears behind the apparatus's **authored
+precedence**, which decides the early ticks regardless of what recall proposed. That is not a new
+problem: it is the unresolved blocker recorded earlier in this section, `<ask-fit>` monopolising
+arbitration as the deleted phase's precedence claim surviving in authored order. It was known to hide
+recall's *cost*. It also hides recall's *prize*, and until it is fixed this workload cannot measure
+recall again. The prize that survives the correction is stopping, which is the one the order of work
+put first anyway.
+
+⚠ **`goal` does not distinguish a root goal from a subgoal**, so the general stop rule is not writable.
+`{ +goal(?w), +?w } ⟹ { +enough(?w) }` reads as *what I wanted holds, so I am done* and is unsound:
+`<expand>` writes `+goal(sub)` for every subgoal it derives, so the agent stops at the first subgoal
+that happens to hold — measured, at tick 51 of a run whose goal arrived at 57. A root goal is a
+`goal(?w)` with no `subgoal(?p, ?w)`, a negative existential over `?p`, which §12 says a `−` member
+cannot express and which is the same shape as `blocked`. It needs a request, or it needs the licence
+to be readable in the graph — both already §21 items, and this is the third caller for each.
 
 Two smaller results fall out of building the measurement, and both are about instruments rather than
 about the engine.
@@ -3119,6 +3208,11 @@ and it costs two facts:
     left(<frame>, <assumption>)      this hypothesis, assuming this, is over
     quiet(<m>)                       the loop found nothing to do at this seat
 
+§19 later adds a third to the same family — `stopped(<seat>, x)`, the loop ending because a rule said
+it was **satisfied** rather than because it was exhausted. It is listed here rather than folded into
+`quiet` for a reason that section argues: an aggregate over a finished search is legitimate at `quiet`
+and a lie at `stopped`.
+
 `quiet` closes §5's third silence. §5 named two places the machinery declines — match and write — and
 quiescence is a third that declined by saying nothing at all. It is also, and this is the part worth
 having, the moment at which an **aggregate over a finished search** becomes legitimate: *no rule
@@ -3358,10 +3452,27 @@ The three a first implementation is most likely to get wrong:
   rules over two requests reproduce goal expansion, and produce *more* — because the phase starves
   forward reasoning. That means retiring it is a behavioural change to be argued for, not a
   refactor to be measured into equivalence, and the `<blocked>` verdict has to find a home first.
-* **`blocked` needs a home** (§5). It is a state, not a fact, so no rule concludes it. Either the
-  searcher keeps reporting it, or there is a request answered once a search settles — which needs a
-  notion of *settled* that the design does not have. Related: nothing yet says who decides a plan is
-  exhausted, which is also §21's backtracking item.
+* **`blocked` needs a home** (§5) — **settled.** It is a request (`verdict`) answered at `quiet`, and
+  `quiet` is the fact that says a search has finished. What that left open was *settled*, and §19 now
+  has it: `enough` is satisfaction, `quiet` is exhaustion, and they are deliberately different facts
+  because an aggregate over a satisfied search would be a lie.
+* **A wind-down after stopping** (§19). Stopping is terminal: `stopped` is written and the loop is
+  over, so nothing can key on it the way a watchdog keys on `quiet`. That is right for the case it was
+  built for — *nothing more is worth doing* leaves nothing worth doing — and wrong for the obvious
+  next one, an agent that must put something down before it walks away. A corpus can conclude the
+  wind-down *before* `enough`, which works and is fragile, because it makes the ordering the author's
+  problem. What would settle it is knowing whether the wind-down is work (in which case `enough` was
+  premature and the stop rule is wrong) or an obligation (in which case it is a norm, and §19's veto
+  already runs unconditionally). Unanswered.
+* **Re-asking and reconsidering** (§10, §18, §19). Two of the four questions that came in with *a
+  reason to stop* are answered — a plan is settled and a woken rule is done when `enough` is concluded
+  about them, through `_leave`. The other two are not, and they are the same shape as each other and
+  a different shape from the first two: **when may a request be re-asked**, and **when may a binding
+  be reconsidered**. Both are blocked on the same thing, which is that an entry once written is
+  permanent, so restating it changes nothing and quiescence drops it. §10's two indices already make
+  *the same claim, later* expressible, so the machinery exists; what is missing is the occasion that
+  warrants a fresh node. Note the asymmetry that makes this harder than stopping: `enough` needed the
+  loop to do **less**, and one fact sufficed; these need it to do something **again**.
 * **Backward dispatch over reified rules** (§14). The forward direction of connective dispatch is
   writable as rules; the backward direction needs the operation above.
 * **How much of the bundle is actually rule-expressible** (§4). The agreement gate is stated and not
@@ -3454,6 +3565,7 @@ conventional representation of reality that ships with the engine and can be rep
 | **channel** | bundle | the intake path an entry arrived through. Mechanically observed, so it cannot be wrong. Distinct from *authority*, which can. |
 | **connective** | bundle | `implies` or `causes`; the relation between a rule's two moments. Consumed by rules, not by the engine. |
 | **deposit** | bundle | the moment whose delta an entry sits in — when the claim was made. Distinct from *locus*, which is what it is about. |
+| **enough** | bundle | a claim that there is nothing more worth doing about something. The agent's second way to be over — *satisfaction*, against quiescence's *exhaustion*. A rule concludes it; the loop only reads it. |
 | **entry** | bundle | a node with three members — locus, proposition, sign. The unit of assertion. |
 | **frame** | bundle | a reasoning in progress, as a process node. Carries a *seat* and a *topic*. Frames form a forest, not a stack. |
 | **gate** | bundle | the write path, considered as the one place provenance becomes vocabulary. Distinct from the floor's *stamp*. |
@@ -3476,6 +3588,8 @@ conventional representation of reality that ships with the engine and can be rep
 | **skeleton** | bundle | the part of an antecedent that relates its variable loci — succession, span endpoints, distinctness. Carries no sign, and claims nothing. |
 | **span** | bundle | a node with two members, a start and an end moment. A locus for trajectory claims. |
 | **stamp** | floor | the unconditional record, on every minted node, of what produced it. Not vocabulary. |
+| **standing** | bundle | of a rule: its precedence is authored on purpose, so it outranks preference in arbitration and is never capped out of recall. What keeps the apparatus from competing with the reasoning it serves. |
+| **stopped** | bundle | the register's record that the loop ended because something claimed `enough`. Deliberately not `quiet`, because an aggregate over a *finished* search is a lie about a *satisfied* one. |
 | **topic** | bundle | a frame's second part: the locus its writes are stamped with. Equals the seat except when reasoning about another time. |
 | **write** | mixed | mint signed entries. The floor supplies a register and a stamp; the gate supplies locus, licence, source and grade. |
 

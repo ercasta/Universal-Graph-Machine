@@ -139,6 +139,30 @@ class Machine:
         # aggregate it wants to compute -- *is anything still open?* -- becomes
         # legitimate, because the search it is an aggregate over has finished.
         self.QUIET = self.g.atom("quiet")
+        # The other way to be over, and the design had only one (§19). Running out
+        # of work is EXHAUSTION; this is SATISFACTION -- *there is nothing more
+        # worth doing about x*. It has to be a claim rather than a condition in the
+        # loop, because *worth* is a judgement and §4 puts judgements in data; and
+        # it has to exist at all because an agent that stops only when exhausted
+        # does an amount of work its corpus fixes, so nothing it learns can make it
+        # cheaper. Measured: an ideal recall table reached a goal in 8 ticks
+        # instead of 734 and saved nothing, because the loop went to quiescence
+        # anyway.
+        #
+        # The argument is *what makes here over* -- a goal, a plan, a woken rule.
+        # The loop never reads it; it is there so that *why did you stop?* has an
+        # answer, which is the criterion §2 calls not-lossy.
+        self.ENOUGH = self.g.atom("enough")
+        # ...and the record that it happened. Same treatment as `left`, `quiet`,
+        # `arrived` and `emitted` (§17): the machinery deposits the smallest
+        # unarguable thing and says nothing about what it means.
+        #
+        # It is deliberately NOT `quiet`. `quiet` is what `<give-up>` asks its
+        # verdict at, and `blocked` claims that no rule fits -- an aggregate over a
+        # FINISHED search. A search that stopped because it was satisfied has not
+        # finished, and reporting the goals it never reached as blocked is the
+        # same unsoundness `_widen` exists to prevent, arriving from a second side.
+        self.STOPPED = self.g.atom("stopped")
         # A callback: a pointer to a rule, hung on a node. `+resume(h, <R>)` says
         # *when h returns, R's turn has come* -- and `turn` is the strongest thing
         # it can say, because §5's wall stands: no rule may apply a rule.
@@ -262,6 +286,7 @@ class Machine:
             "expects": self.EXPECTS, "deviates": self.DEVIATES,
             "taken": self.TAKEN, "emitted": self.EMITTED,
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
+            "enough": self.ENOUGH, "stopped": self.STOPPED,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
@@ -290,6 +315,7 @@ class Machine:
         self.expansions = 0
         self._acted: set = set()
         self._quieted: set = set()
+        self._stopped: set = set()
         self._reified: set = set()
         # §19. `None` is the deliberate-reasoning setting -- recall with the
         # budget removed -- and it is the default, because narrowing is a claim
@@ -317,6 +343,7 @@ class Machine:
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
+                             self.ENOUGH, self.STOPPED,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
@@ -1110,6 +1137,54 @@ class Machine:
         self.widenings += 1
         return True
 
+    def _enough(self) -> Optional[NodeId]:
+        """Is anything claiming that here is over?
+
+        The whole of the loop's part in stopping, and it is a read rather than a
+        decision: what counts as enough is a rule's to say, and this only asks
+        whether one has said it. Returns what was named, because the record has
+        to be able to answer *why did you stop?*.
+
+        Resolved at the current focus, which is what makes it work inside a
+        hypothesis for free: an `enough` concluded under a supposition is in force
+        there and nowhere else, so the branch ends and the run does not. And what
+        crosses out is `likely(enough(g))`, which is a claim about the branch --
+        no relation matches it, so a satisfied branch cannot stop its parent by
+        accident.
+        """
+        for node in self.g.instances_of(self.ENOUGH):
+            if self.g.has_var(node):
+                continue  # a description is not a claim; §15's condition again
+            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            if e is not None and e.sign == PLUS:
+                return node
+        return None
+
+    def _halt(self, reason: NodeId) -> bool:
+        """Record that the loop stopped because it was satisfied, not because it
+        was exhausted. Once per seat, for the same reason `quiet` is.
+
+        Why this is the register's discipline and not a rule: no rule can stop
+        the loop -- nothing owns it (§18) -- and a rule that concluded *stop* and
+        then went on being one of many applicable rules would have concluded a
+        wish. The claim is the corpus's, the stopping is the register's, and the
+        split is the same one `left` and `quiet` already make.
+
+        Why it is checked BEFORE the tick's work rather than after: arbitration is
+        total, so by the time an application has been chosen the move is made.
+        This is §16's ordering trap -- being careful has to come before the step
+        it is about -- and it is the second time it has decided a design.
+        """
+        seat = self.focus.seat
+        if seat.node in self._stopped:
+            return False
+        self._stopped.add(seat.node)
+        self.gate.write(
+            self.focus, self.g.rel(self.STOPPED, seat.node, reason), PLUS,
+            licence=self.g.rel(self.ENOUGH, reason), source=self.KB,
+        )
+        return True
+
     def _wake(self) -> bool:
         """The loop found nothing to do. Say so, in the graph, once per seat.
 
@@ -1335,6 +1410,28 @@ class Machine:
         # *nothing arrived and nothing applied* stay different silences (§19).
         arrivals = self.channels.since_last_tick()
 
+        # The second way to be over (§19). Asked here, ahead of everything, for
+        # the reason §16 found the hard way: arbitration is total, so a check made
+        # after one has run is a check made after the move.
+        #
+        # What it routes to is the `chosen is None` path below, minus the
+        # widening -- because widening exists to turn *my shortlist ran dry* into
+        # *the search finished*, and satisfaction is not a claim about the search
+        # at all. Inside a hypothesis it is `_leave`: enough HERE ends the branch,
+        # which is how *is this plan settled* and *is this woken rule done* get
+        # their local answer through the door that already existed.
+        reason = self._enough()
+        if reason is not None:
+            if self._leave():
+                return Step(arrivals, 0, 0, None, (), "supposed")
+            # Terminal, and that is the point rather than an omission: `quiet`
+            # continues the loop so a watchdog can key on it, because *the search
+            # finished* leaves work worth doing. *Nothing more is worth doing*
+            # does not. A corpus wanting a wind-down concludes it before it
+            # concludes `enough`; §21 records the case where that is not enough.
+            self._halt(reason)
+            return Step(arrivals, 0, 0, None, (), "stopped")
+
         # There is no second line. Every phase is gone: recall, match, defeat,
         # quiescence, arbitrate, apply -- and the two things a register owes,
         # `_leave` when a hypothesis runs out of work and `_wake` when the loop
@@ -1473,8 +1570,33 @@ class Machine:
             key=lambda pair: (-self._priority(pair[1], keys), pair[0]),
         )
         out = [r for _, r in ranked[: self.recall_budget]]
-        for r in live:  # a woken callback is never starved by a cap
-            if r not in out and self._claims(self.g.rel(self.DUE, r.node)):
+        for r in live:
+            # Two things a cap may not starve, and they are §19's carve-out
+            # arriving for the third and fourth time.
+            #
+            # A woken callback, because a pointer that recall can drop is not a
+            # pointer.
+            #
+            # And the **apparatus**. §16 kept `standing` out of this step's
+            # ORDERING -- it is a claim about precedence once a rule has matched,
+            # and letting it sort filled every shortlist with machinery. Inclusion
+            # is a different claim, and the measurement forced it: with an ideal
+            # table and a budget the run to quiescence got *slower* (239 ticks
+            # against 124 exhaustive), because the better the table was at the
+            # task the further down it pushed the rules that read, notice and
+            # stop. Once stopping is a rule, being late to recall it is being
+            # late to stop.
+            #
+            # > Recall may be incomplete about what to do. It may not be
+            # > incomplete about what you must not do -- or about whether to go on.
+            #
+            # The cost is stated rather than hidden: a corpus that marks fifty
+            # rules `standing` has no budget left, and that is its own claim about
+            # what must always come to mind.
+            if r not in out and (
+                self._claims(self.g.rel(self.DUE, r.node))
+                or self._claims(self.g.rel(self.STANDING, r.node))
+            ):
                 out.append(r)
         return out
 

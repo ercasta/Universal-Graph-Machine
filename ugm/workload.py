@@ -64,30 +64,62 @@ def corpus(domains: int, depth: int, target: int = 0, table: bool = False) -> st
     return chr(10).join(lines) + chr(10)
 
 
+# The other half of the ceiling, and the one the earlier version of this file
+# said was missing. A satisficing agent's whole policy, in one rule: *what I
+# wanted holds, so I am done.*
+#
+# Authored and ground, for a reason worth stating rather than hiding. The
+# general form -- `{ +goal(?w), +?w } => { +enough(?w) }` -- is unsound here, and
+# running it is how that was found: `<expand>` writes `+goal(sub)` for every
+# subgoal it derives, so `goal` does not distinguish what the agent wants from
+# what backward reading wants on its behalf, and the agent stops at the first
+# subgoal that happens to hold. Measured: it stopped at tick 51 of a run whose
+# goal arrived at 57.
+#
+# A root goal is a `goal(?w)` with no `subgoal(?p, ?w)`, which is a negative
+# existential over `?p` -- exactly what §12 says a `-` member cannot say, and the
+# same shape as `blocked`. So it needs a request, or it needs the licence to be
+# readable in the graph. Both are §21 items already.
+def stopping(depth: int) -> str:
+    return (
+        f"rule <done> = implies( {{ +w0_s{depth}(item) }},"
+        f" {{ +enough(w0_s{depth}(item)) }} )" + chr(10)
+        # Not decoration. An unmarked stop rule is one competitor among many and
+        # can be capped out of recall entirely -- §16's ordering trap, which is
+        # why `standing` is carved out of the budget.
+        + "fact standing(<done>)" + chr(10)
+    )
+
+
 class Result(NamedTuple):
     to_goal: Optional[int]  # ticks until the goal held -- what recall changes
-    to_quiet: int  # ticks until nothing was left -- what recall does not
+    to_end: int  # ticks until the loop was over, however it was over
+    end: str  # `quiescent` (exhausted) or `stopped` (satisfied)
     writes_at_goal: int
     writes: int
     seconds: float
 
 
 def run(
-    domains: int, depth: int, table: bool = False, budget: Optional[int] = None
+    domains: int, depth: int, table: bool = False, budget: Optional[int] = None,
+    stop: bool = False,
 ) -> Result:
     m = Machine()
-    kb = load(m, corpus(domains, depth, 0, table))
+    src = corpus(domains, depth, 0, table) + (stopping(depth) if stop else "")
+    kb = load(m, src)
     m.recall_budget = budget
     want = kb.term(f"w0_s{depth}(item)")
     to_goal, writes_at_goal, ticks = None, 0, 0
     t = time.perf_counter()
+    s = None
     for ticks in range(1, 200001):
         s = m.tick()
         if to_goal is None and m.holds(want) == "+":
             to_goal, writes_at_goal = ticks, m.gate.writes
         if s.state not in ("applied", "supposed", "widened", "quiet"):
             break
-    return Result(to_goal, ticks, writes_at_goal, m.gate.writes, time.perf_counter() - t)
+    return Result(to_goal, ticks, s.state if s else "?", writes_at_goal,
+                  m.gate.writes, time.perf_counter() - t)
 
 
 def main() -> int:
@@ -97,46 +129,67 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     print("a workload recall can be measured on -- D domains x depth R, one goal in one")
     print()
-    print(f"  {'D':>3} {'R':>3}   {'recall':<24} {'->goal':>7} {'->quiet':>8} "
-          f"{'w@goal':>7} {'writes':>7}")
+    print(f"  {'D':>3} {'R':>3}   {'configuration':<26} {'->goal':>7} {'->end':>6} "
+          f"{'how':>10} {'w@goal':>7} {'writes':>7}")
 
     failures = 0
     for domains, depth in ((4, 4), (8, 4), (8, 8)):
         rows = [
             ("exhaustive", run(domains, depth)),
-            (f"budget {depth}, no table", run(domains, depth, False, depth)),
+            ("exhaustive + stop", run(domains, depth, stop=True)),
             (f"budget {depth}, ideal table", run(domains, depth, True, depth)),
+            (f"budget {depth}, table + stop", run(domains, depth, True, depth, True)),
         ]
         for name, r in rows:
             print(
-                f"  {domains:>3} {depth:>3}   {name:<24} {str(r.to_goal):>7} {r.to_quiet:>8} "
-                f"{r.writes_at_goal:>7} {r.writes:>7}"
+                f"  {domains:>3} {depth:>3}   {name:<26} {str(r.to_goal):>7} {r.to_end:>6} "
+                f"{r.end:>10} {r.writes_at_goal:>7} {r.writes:>7}"
             )
             if r.to_goal is None:
                 print("        <-- MISSED THE GOAL")
                 failures += 1
-        # The gate: on this workload the table must buy something, or the
-        # workload is the n-rule chain again with more rules.
-        base, ideal = rows[0][1], rows[2][1]
-        if ideal.to_goal is None or base.to_goal is None or ideal.to_goal > base.to_goal / 4:
-            print("        <-- the table bought nothing: this workload cannot measure recall")
+        # The gate, and it is a different one from the gate this file shipped
+        # with, because measurement falsified that one's premise. See below.
+        #
+        # What must buy something is STOPPING: the whole claim is that an agent
+        # which can be satisfied does less work than one which can only be
+        # exhausted, and if that is ever untrue there is nothing here worth
+        # having.
+        base, stopped = rows[0][1], rows[1][1]
+        if stopped.to_end >= base.to_end or stopped.writes >= base.writes:
+            print("        <-- stopping bought nothing: the claim in front of learning is false")
             failures += 1
         print()
 
-    print("  ** The table reaches the goal in exactly R ticks -- it is perfect, and it")
-    print("     was INVISIBLE in the ->quiet column, which is the same for all three.")
+    print("  ** STOPPING IS THE PRIZE, AND IT IS COLLECTED. `enough` is one authored")
+    print("  rule -- *what I wanted holds, so I am done* -- and the run ends within two")
+    print("  ticks of the goal instead of grinding through every other domain.")
     print()
-    print("  > **Recall cannot save work in a machine that runs to quiescence.**")
-    print("  > Narrowing changes the ORDER in which everything is done, not how much")
-    print("  > is done. The prize is real and only an agent that can STOP collects it.")
+    print("  > A machine that can only be EXHAUSTED does an amount of work its corpus")
+    print("  > fixes. Nothing it knows can make it cheaper, because knowing more only")
+    print("  > reorders. Satisfaction is the second way to be over, and it is a CLAIM.")
     print()
-    print("  So the thing in front of learning is not a bigger corpus. It is a reason")
-    print("  to stop -- the same open question as *when is a plan settled*, *when is a")
-    print("  `due` rule done*, *when may a request be re-asked*.")
+    print("  ** AND THE OLD HEADLINE WAS PARTLY AN ARTEFACT -- this is the correction.")
+    print("  This file used to report an ideal table reaching the goal in R ticks")
+    print("  against 734, gated on the table buying something. It no longer does, and")
+    print("  the reason is not that recall got worse:")
     print()
-    print("  ** THE TABLE IS A CEILING, NOT AN ALGORITHM. It is authored, it names the")
-    print("  answer, and nothing here learns. What it establishes is the size of the")
-    print("  prize and a gate that can fail.")
+    print("  A budget small enough to steer was also small enough to cap the APPARATUS")
+    print("  out of recall -- backward reading, surprise, and now stopping. The R-tick")
+    print("  run was an agent with its machinery switched off. Stopping cannot be built")
+    print("  on that (a stop rule recall may drop is not a stop rule), so `standing` is")
+    print("  now carved out of the budget -- and with the apparatus always in mind, its")
+    print("  AUTHORED PRECEDENCE decides the early ticks and the table's steering is")
+    print("  invisible behind it.")
+    print()
+    print("  That is not a new problem. It is §13's unresolved blocker -- `<ask-fit>`")
+    print("  monopolising arbitration, the deleted phase's precedence claim surviving")
+    print("  as authored order -- now shown to hide recall's prize as well as cost.")
+    print("  Recall cannot be measured again on this workload until it is fixed.")
+    print()
+    print("  ** THE TABLE IS STILL A CEILING, NOT AN ALGORITHM, and so is `<done>`.")
+    print("  Both are authored and name the answer. What is established is the size of")
+    print("  the prize, and a gate that can fail.")
     return failures
 
 
