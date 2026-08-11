@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     178 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     185 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        14/14 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -45,6 +45,7 @@ gone. Ten commits:
 | `compose` | pattern-against-pattern is **unification, not match**; composition built and measured |
 | `occasions` | leaving a hypothesis and running out of work become **facts**; callbacks and watchdogs |
 | `nophases` | the last phase deleted. `tick()` has no line a rule could have written |
+| `recall` | §19's first slice: `prefer(<R>, k)` as facts, a budget, and widening |
 
 ### 1. The spine changed
 
@@ -174,6 +175,30 @@ exactly what §19 exists to narrow — the phase hid that cost by hard-coding th
   (`achieved(water(kettle))`) is no longer produced — recorded there as a claim about the phase, not
   as a current output. A re-ask needs a fresh request node; §21.
 
+### 7. Recall stops proposing everything
+
+§19's seam is open. `prefer(<R>, k)` is a table of **ordinary facts** — *when `k` is in play, bring
+`R` to mind* — authored for now, learnable later from the trail R5 already deposits. `recall_budget`
+is `None` by default, so behaviour is unchanged until a corpus claims something.
+
+**The key is not the register.** Attention *is* the register (`Machine.focus`, a `Frame(seat, topic)`
+— §4's one privileged pointer), and that is why it cannot be the key: a seat is a fresh moment every
+tick, so a table keyed on it never sees the same key twice. The key is **a relation in play**
+(`_in_play` = the relations in the current moment's delta — *what just changed*). That is one method
+wide, deliberately; a better key replaces it without touching the loop, the table, or any rule.
+
+**A shortlist that ran dry is not a search that finished** — and this is a *soundness* condition, not
+a quality one. `<give-up>` asks its verdict at `quiet`, and `blocked` is an aggregate over a finished
+search. So quiescence under a budget escalates to the exhaustive pass first (`_widen`, step state
+`widened`), and only its silence writes `quiet`. Take the line away and the same corpus gives up on a
+goal it can reach — checked, and the check is shown able to fail.
+
+**Randomness was considered and not taken.** §3 forbids reading a derived result out of a set, and an
+unseeded top-K draw is that bug wearing a hat: two runs diverge and the trail records neither the
+choice nor the reason. The tie-break is authored order, the same one arbitration uses. If exploration
+is what randomness was for, §19 already has the better answer — the exhaustive pass on novelty or a
+schedule, which injects what a draw *from the shortlist* structurally cannot.
+
 ---
 
 ## The state of the code
@@ -196,14 +221,12 @@ read.
 
 ## Where I would pick up
 
-**1. Recall.** It is now the only step still hard-coded, and the cost of retiring the phase landed
-squarely on it: `<ask-fit>` asks every reified rule about every goal. §19 already says what belongs
-here — a **priority table**, keyed by something about where the register is standing, learned later
-from the trail the machinery already deposits. The open questions are *what the key is* (the seat? the
-topic? the goal in focus?) and **what stops a top-K-with-randomness from making a run
-irreproducible** — this project has a standing rule that no derived result is read out of a set, and
-an unseeded tie-break is the same bug wearing a hat. §19's carve-out also stands: prohibitions come
-off the recall path entirely.
+**1. Recall, continued.** The seam is open and the first slice is in (§7 below). What is *not* done:
+the table is authored, never learned; `_in_play` is the cheapest key that recurs and deserves a
+measured comparison against alternatives; §19's carve-out is unimplemented — **prohibitions must come
+off the recall path entirely**, checked at the write, and nothing does that yet; and the exhaustive
+pass fires only on a dry shortlist, never on novelty or a schedule, which §19 says is what stops
+recall calcifying where it is performing well.
 
 Also still open, and the same question three ways: nothing says when a plan is *settled*, when a `due`
 rule is *done*, or when a request may be *re-asked*.

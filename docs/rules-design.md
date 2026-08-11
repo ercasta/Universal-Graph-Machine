@@ -2579,6 +2579,38 @@ in its depth.
 may be wrong at no cost beyond a worse plan; a composed rule is a *claim*, it can be wrong the way any
 rule can be wrong, and §21 lists the three ways it silently is.
 
+### The table, and what the key cannot be
+
+The first slice is authored rather than learned, and it is data: `prefer(<R>, k)` says *when `k` is
+in play, bring `R` to mind*. An ordinary claim, so *why did that rule come to mind?* is a query and
+the table is as contestable as anything else the agent believes — which a weight in an interpreter
+would not have been.
+
+**The key is not the register.** Attention is the register — §4's one privileged pointer, the frame
+that says where the agent is standing and what it is about — and that is exactly why it cannot be the
+key: a seat is a fresh moment every tick, so a table keyed on it would never see the same key twice
+and would learn nothing. What recurs across situations is what the situation is *about*, so the key
+is a relation in play. That choice is one method wide; a better answer replaces it without touching
+the loop, the table, or any rule.
+
+**Ranking must not end in a set.** §3 requires that no derived result be read out of one, and a
+ranking is a derived result. Top-K with an unseeded random tie-break is the same bug wearing a hat:
+two runs of one corpus diverge and the trail records neither the choice nor the reason. If randomness
+is wanted for exploration, the seed is a fact and the draw is an entry — otherwise the tie-break is
+authored order, the same one arbitration uses. Note also that exploration already has a better answer
+above: the exhaustive pass, fired on novelty or on a schedule, injects candidates a random draw from
+the *shortlist* cannot, because the shortlist is what needs escaping.
+
+**A shortlist that ran dry is not a search that finished.** This turns out to be a soundness
+condition and not only a quality one, and it only became visible once goal expansion was rules:
+`blocked` is an aggregate over a finished search, asked at `quiet`. If a narrowed recall could reach
+`quiet`, the agent would report *no rule fits* about rules nobody asked, and the trail would show a
+completed search that never ran. So quiescence under a budget escalates to the exhaustive pass first,
+and only its silence counts.
+
+> **Nothing came to mind is not nothing is left to do.** §15 says only the second should escalate;
+> the first escalates too, but inward — to recalling harder.
+
 ### The carve-out
 
 > **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**

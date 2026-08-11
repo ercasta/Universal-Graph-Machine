@@ -1091,6 +1091,104 @@ def callbacks_on_a_hypothesis() -> None:
     )
 
 
+def recall_is_narrowable() -> None:
+    """§19's first slice: recall stops proposing everything, and what narrows it
+    is a table of ordinary facts.
+
+    `prefer(<R>, k)` says *when k is in play, bring R to mind*. Authored here;
+    §19 says it is learned from the trail, and the trail is already deposited for
+    R5, so nothing new has to be measured for that to happen.
+
+    The key is not the register. Attention is the register (§4's one privileged
+    pointer, `Machine.focus` -- seat and topic), but a seat is a fresh moment
+    every tick, so a table keyed on it would never see the same key twice. What
+    recurs is what the situation is about, so the key is a relation in play.
+    """
+    from .text import load
+
+    chain = chr(10).join([
+        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "rule <c> = implies( { +r(?x) }, { +s(?x) } )",
+        "rule <d> = implies( { +u(?x) }, { +v(?x) } )",
+        "rule <e> = implies( { +m(?x) }, { +n(?x) } )",
+        "fact +p(a)",
+        "",
+    ])
+    table = chr(10).join([
+        "fact prefer(<a>, p)",
+        "fact prefer(<b>, q)",
+        "fact prefer(<c>, r)",
+        "",
+    ])
+
+    def run(src, budget):
+        m = Machine()
+        kb = load(m, src)
+        m.recall_budget = budget
+        steps = m.run(limit=200)
+        return m, kb, steps
+
+    m0, kb0, _ = run(chain, None)
+    check("§19", "the default is still exhaustive -- a fresh agent has learned nothing",
+          m0.holds(kb0.term("s(a)")) == PLUS and m0.widenings == 0)
+
+    m1, kb1, _ = run(chain + table, 3)
+    check("§19", "a narrowed recall reaches the same conclusion",
+          m1.holds(kb1.term("s(a)")) == PLUS)
+    check("§19", "and the table steered it: the rules it needed came to mind",
+          m1.widenings == 1)
+
+    m2, kb2, _ = run(chain, 3)
+    check(
+        "§15",
+        "without a table it still gets there, by recalling harder -- *nothing came "
+        "to mind* is not *nothing is left to do*",
+        m2.holds(kb2.term("s(a)")) == PLUS and m2.widenings > m1.widenings,
+    )
+
+    # A ranking that ended in a set would make two runs of one corpus differ with
+    # nothing recording why. This project has hit that bug; the tie-break is
+    # authored order, the same one arbitration uses.
+    a, _, sa = run(chain + table, 3)
+    b, _, sb = run(chain + table, 3)
+    check("§14", "and the same corpus recalls the same rules in the same order twice",
+          [s.state for s in sa] == [s.state for s in sb] and a.widenings == b.widenings)
+
+    # The soundness condition, and it only appeared once the phase had gone.
+    # `<give-up>` asks its verdict at `quiet`, and `blocked` claims that NO rule
+    # fits -- an aggregate over a finished search. A shortlist that ran dry has
+    # finished a shortlist.
+    goal = chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
+        "fact +tap(sink)",
+        "fact +under(kettle, sink)",
+        "fact +goal(boiling(kettle))",
+        "",
+    ])
+    m3, kb3, _ = run(goal, 3)
+    check(
+        "§19",
+        "a narrowed recall does not invent a verdict: nothing reads blocked that is not",
+        m3.holds(kb3.term("blocked(water(kettle))")) is None
+        and m3.holds(kb3.term("pursued(water(kettle))")) == PLUS,
+    )
+
+    # Could that have failed? Take the widening away and the same run gives up on
+    # a goal it could reach -- which is the whole reason the line is there.
+    m4 = Machine()
+    kb4 = load(m4, goal)
+    m4.recall_budget = 3
+    m4._widen = lambda: False  # type: ignore[assignment]
+    m4.run(limit=200)
+    check(
+        "§19",
+        "and without widening it gives up on a reachable goal -- the check can fail",
+        m4.holds(kb4.term("pursued(water(kettle))")) is None,
+    )
+
+
 def quiescence_is_an_occasion() -> None:
     """§5 named two places the machinery declines. The third is the loop running
     out of work, and it was the one that declined in silence.
@@ -1176,6 +1274,7 @@ def main() -> int:
     mention_propagates()
     surprise_is_four_rows()
     callbacks_on_a_hypothesis()
+    recall_is_narrowable()
     quiescence_is_an_occasion()
     surface()
     worked_examples()

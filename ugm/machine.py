@@ -3,13 +3,14 @@
     Recall proposes. Match filters. Arbitrate commits. Only the last is total.
 
 The step is *select a rule, apply it*, and object-rules and meta-rules must be
-indistinguishable to it -- a flat tower, not a stacked one. Slice one has no
-meta-rules yet, but the loop is written so that adding them adds rules rather
-than branches.
+indistinguishable to it -- a flat tower, not a stacked one. There are no phases:
+every convention the loop used to enact is a bundled rule or a request answered
+at the write, so adding one adds rows rather than branches.
 
-Recall is not yet learned: it proposes everything. §15 is emphatic that this is
-the step where experience belongs and where being wrong is recoverable, so the
-seam is here and the learning is not.
+Recall is narrowable but not yet learned. `prefer(<R>, k)` is a table of ordinary
+facts, and §15 is emphatic that this is the step where experience belongs and
+where being wrong is recoverable -- so the seam is here, the table is data, and
+the learning is not.
 """
 
 from typing import List, NamedTuple, Optional, Tuple
@@ -48,7 +49,7 @@ class Step(NamedTuple):
     matched: int
     applied: Optional[Application]
     wrote: Tuple[Entry, ...]
-    state: str  # applied | supposed | expanded | quiet | quiescent | nothing-matched
+    state: str  # applied | supposed | widened | quiet | quiescent | nothing-matched
 
 
 class Machine:
@@ -144,6 +145,16 @@ class Machine:
         # a proposed rule still has to match, can still be defeated, and still
         # competes in arbitration. Nothing owns the loop (§18).
         self.DUE = self.g.atom("due")
+        # §19's table, as facts. `prefer(<R>, k)` says *when k is in play, bring
+        # R to mind* -- authored now, learnable later from the trail the
+        # machinery already deposits, and readable either way because it is an
+        # ordinary claim rather than a weight in an interpreter.
+        #
+        # The key is NOT the register. The register is where attention is, and it
+        # is a fresh moment every tick, so a table keyed on it would never see the
+        # same key twice. What recurs is what the situation is ABOUT, so the key
+        # is a relation in play.
+        self.PREFER = self.g.atom("prefer")
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -170,7 +181,7 @@ class Machine:
             "doing": self.DOING, "did": self.DID,
             "expects": self.EXPECTS, "deviates": self.DEVIATES,
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
-            "dormant": self.DORMANT, "due": self.DUE,
+            "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
@@ -194,6 +205,12 @@ class Machine:
         self._acted: set = set()
         self._quieted: set = set()
         self._reified: set = set()
+        # §19. `None` is the deliberate-reasoning setting -- recall with the
+        # budget removed -- and it is the default, because narrowing is a claim
+        # about what an agent has learned and a fresh agent has learned nothing.
+        self.recall_budget: Optional[int] = None
+        self._widened = False
+        self.widenings = 0
         self._actuators: List[NodeId] = []
         self.emitted: List[NodeId] = []
         # Machinery vocabulary: requests, not claims. Nothing carries these out of
@@ -205,7 +222,7 @@ class Machine:
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
-                             self.DUE, self.VERDICT, self.PURSUED}
+                             self.DUE, self.VERDICT, self.PURSUED, self.PREFER}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -767,6 +784,24 @@ class Machine:
         )
         return True
 
+    def _widen(self) -> bool:
+        """A shortlist that ran dry is not a search that finished (§15, §19).
+
+        The exhaustive pass is **not a fallback** -- §19 is explicit that it is
+        the only thing injecting candidates a narrowed recall would never produce,
+        and that training recall on its own accepted outputs narrows it
+        monotonically otherwise. Here it is also a soundness condition, which is
+        the part that was not obvious until the phase went: `quiet` is what
+        `<give-up>` asks its verdict at, and `blocked` is an aggregate over a
+        finished search. Reaching `quiet` on a shortlist would report *no rule
+        fits* about rules nobody asked.
+        """
+        if self.recall_budget is None or self._widened:
+            return False
+        self._widened = True
+        self.widenings += 1
+        return True
+
     def _wake(self) -> bool:
         """The loop found nothing to do. Say so, in the graph, once per seat.
 
@@ -959,6 +994,18 @@ class Machine:
 
         chosen = arbitrate(self.rules, applications)
         if chosen is None:
+            # Nothing came to mind that had anything to do -- which is not the
+            # same as nothing being left to do, and §15 says only the second
+            # should be believed. So the first escalation is to recall harder.
+            #
+            # This is not politeness. `quiet` is what `<give-up>` asks a verdict
+            # at, and `blocked` claims that NO rule fits: an aggregate over a
+            # finished search. A narrowed recall that stopped has not finished a
+            # search, it has finished a shortlist. Without this line, turning the
+            # budget on would make the agent give up on goals it could have
+            # reached, and the trail would show a completed search that never ran.
+            if self._widen():
+                return Step(arrivals, len(proposed), 0, None, (), "widened")
             # Nothing more to do *here*. If `here` is inside a supposition, that
             # is not the end of the run -- it is the end of the supposition, so
             # carry its conclusions out and restore the register. The frame is
@@ -982,6 +1029,9 @@ class Machine:
             )
 
         self.selections += 1
+        # Something applied, so the shortlist is trusted again. Widening is a
+        # state the agent is in, not a mode it is switched into.
+        self._widened = False
         wrote = self._apply(chosen)
         self.useful_writes += len(wrote)
         return Step(arrivals, len(proposed), len(applications), chosen, wrote, "applied")
@@ -993,7 +1043,7 @@ class Machine:
         for _ in range(limit):
             s = self.tick()
             out.append(s)
-            if s.state not in ("applied", "supposed", "expanded", "quiet"):
+            if s.state not in ("applied", "supposed", "expanded", "quiet", "widened"):
                 break
         return out
 
@@ -1020,14 +1070,57 @@ class Machine:
         Cheap now because the rule set is small and `resolve` is a walk; the
         moment it is not, this is an index over two relations, not a redesign.
         """
-        out: List[Rule] = []
+        live: List[Rule] = []
         for r in self.rules.rules:
             if self._claims(self.g.rel(self.DORMANT, r.node)) and not self._claims(
                 self.g.rel(self.DUE, r.node)
             ):
                 continue
-            out.append(r)
+            live.append(r)
+        if self.recall_budget is None or self._widened or len(live) <= self.recall_budget:
+            return live
+
+        # Rank, then take. Ranking is over `prefer` claims, which are ordinary
+        # facts -- so *why did that rule come to mind?* is a query, and the table
+        # is as contestable as anything else the agent believes.
+        keys = self._in_play()
+        ranked = sorted(
+            enumerate(live),
+            # Authored order is the tie-break, and it is the SAME tie-break
+            # arbitration uses (§14). A ranking that ended in a set would make
+            # two runs of the same corpus differ with nothing recording why --
+            # this project has hit that exact bug before.
+            key=lambda pair: (-self._priority(pair[1], keys), pair[0]),
+        )
+        out = [r for _, r in ranked[: self.recall_budget]]
+        # A callback that was woken must not then be starved by the budget: `due`
+        # is a claim that this rule's turn has come, and a turn that never arrives
+        # is not a turn. Nothing else jumps the queue.
+        for r in live:
+            if r not in out and self._claims(self.g.rel(self.DUE, r.node)):
+                out.append(r)
         return out
+
+    def _in_play(self) -> set:
+        """What the situation is about, as a set of relation nodes.
+
+        The current moment's delta -- *what just changed* -- rather than the whole
+        state, because a key that matches everything ranks nothing. This is the
+        cheapest thing that recurs across situations, and the point of putting it
+        here is that it is one method: a better answer replaces it without
+        touching the loop, the table, or any rule.
+        """
+        out = set()
+        for e in self.focus.seat.delta:
+            rel = self.g.relation_of(e.proposition)
+            if rel is not None:
+                out.add(rel)
+        return out
+
+    def _priority(self, rule: Rule, keys: set) -> int:
+        """How much this situation recommends this rule. Authored today; §19 says
+        it is learned from the trail, and the trail is already deposited."""
+        return sum(1 for k in keys if self._claims(self.g.rel(self.PREFER, rule.node, k)))
 
     def _claims(self, proposition: NodeId) -> bool:
         e = self.chain.resolve(proposition, self.focus.topic, self.focus.seat)
