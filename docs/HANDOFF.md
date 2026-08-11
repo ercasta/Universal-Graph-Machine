@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     233 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     238 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -641,6 +641,23 @@ So the boundary deposits the same record under a different name — `emitted(x)`
 `did(x)`, from which §15's `<assert-act>` supplies the assumption that it worked. A three-step plan
 now runs to its end inside a hypothesis with nothing done at all. Note which half stays defeasible:
 that the act was *decided on* is unarguable; that it *succeeded* is still `<assert-act>`, overridable.
+
+**Substituting the action with its outcome needs no plan machinery.** One rule and one fact per
+action — `{+did(?a), +achieves(?a, ?y)} ⟹ {+?y}` — and a two-step plan runs to its end inside a
+hypothesis with nothing emitted, carried by the actions' effects rather than the actions.
+
+⚠⚠ Making the *other* half sayable (`overrides(<outcome>, <assert-act>)`, so the call is replaced
+rather than also asserted) turned up something the design had assumed without providing: **a corpus
+could not name a bundled rule.** Every place the docs say *a corpus can override this* depended on it
+and none of it was true — the loader knew only names a corpus declared itself, so the bundle shipped
+as data and was reachable only from Python. Fixed: the loader seeds its statement table from
+`machine.bundle`, one namespace, so a corpus rule may not reuse a bundled name.
+
+⚠⚠ And a limit that only showed once precedence was pointed at something real: **defeat is rule-level
+and per-tick, not per-binding.** `<outcome>` matching for one action defeats `<assert-act>` for every
+action in that step, so an undeclared act loses its fallback. *Substitute where an outcome is declared,
+otherwise assume* is not sayable with precedence. §12's *defeat is about the situation* holds only at
+the coarseness of a step.
 
 **And then comparison is not needed.** A branch answers *does this lead somewhere unacceptable*, and
 §19's veto already answers it: the hypothesis reaches the prohibition, the write is refused inside the

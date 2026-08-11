@@ -325,6 +325,18 @@ class Loader:
         # silently stopped matching what the surface wrote.
         self.atoms.update(self.m.reserved)
         self.OVERRIDES = self.atom("overrides")
+        # The bundle, by name. Every section of the design that says *a corpus
+        # can override this* depended on it and none of it was true: the loader
+        # knew only the names a corpus had declared itself, so `<assert-act>`,
+        # `<give-up>` and the rest were unnameable and therefore unarguable --
+        # shipped as data and reachable only from Python.
+        #
+        # One table, so a corpus rule may not reuse a bundled name. That is the
+        # marker doing its job: two statements with one name is what `<...>`
+        # exists to prevent.
+        for r in self.m.bundle:
+            self.rule_nodes[r.name] = r.node
+            self.rules_by_name[r.name] = r
 
     def rule_ref(self, name: str) -> NodeId:
         """What `<n>` denotes: a rule node, or a named fact's proposition.

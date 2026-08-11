@@ -1462,6 +1462,85 @@ def a_hypothesis_does_not_happen() -> None:
     )
 
 
+def an_action_is_substituted_by_its_outcome() -> None:
+    """Planning should take a rule that suggests an action and **substitute the
+    call with the expected outcome** -- operator semantics, and it needs no plan
+    machinery at all.
+
+        rule <outcome> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )
+        fact achieves(travel(work), at(work))
+
+    One rule and a fact per action. The bare-variable consequent is the same
+    shape `<assert-act>` uses and legal for the same reason: `?y` is bound by the
+    antecedent. Measured: a two-step plan runs to its end inside a hypothesis
+    with nothing emitted, and the actions' effects rather than the actions carry
+    it.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        "rule <go>      = implies( { +at(home) }, { +doing(travel(work)) } )",
+        "rule <enter>   = implies( { +at(work) }, { +doing(open(door)) } )",
+        "rule <outcome> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
+        "fact achieves(travel(work), at(work))",
+        "fact achieves(open(door), inside(work))",
+        "",
+    ])
+
+    def plan(extra=""):
+        m = Machine()
+        kb = load(m, src + extra)
+        m.suppose(kb.term("at(home)"), wrap=kb.term("likely"))
+        m.run(limit=600)
+        return m, kb
+
+    m, kb = plan()
+    check(
+        "§15",
+        "an action's declared outcome carries the plan forward -- no plan machinery",
+        m.holds(kb.term("likely(inside(work))")) == PLUS and m.emitted == [],
+    )
+
+    # A corpus can NAME a bundled rule. Every section that says *a corpus can
+    # override this* depended on it, and none of it was true: the loader knew
+    # only the names a corpus declared itself, so the bundle shipped as data and
+    # was reachable only from Python.
+    m2, kb2 = plan("fact overrides(<outcome>, <assert-act>)" + chr(10))
+    check(
+        "R3",
+        "a corpus can name a bundled rule, so the bundle is finally arguable",
+        len(m2.rules.overrides) == 1,
+    )
+    check(
+        "§15",
+        "...and overriding `<assert-act>` substitutes the call: only the outcome is asserted",
+        m2.holds(kb2.term("likely(inside(work))")) == PLUS
+        and m2.holds(kb2.term("likely(travel(work))")) is None,
+    )
+
+    # ⚠ And what that cannot express. §12's defeat is about the RULE and the
+    # TICK, not about the binding: `<outcome>` matching for one action defeats
+    # `<assert-act>` for every action in that step. So an act with no declared
+    # outcome loses the fallback too, and *substitute where an outcome is
+    # declared, otherwise assume* is not sayable with precedence.
+    m3, kb3 = plan(chr(10).join([
+        "fact overrides(<outcome>, <assert-act>)",
+        "rule <wave> = implies( { +at(work) }, { +doing(greet(bo)) } )",
+        "",
+    ]))
+    check(
+        "§12",
+        "defeat is rule-level and per-tick, so an undeclared act loses its fallback too",
+        m3.holds(kb3.term("likely(greet(bo))")) is None,
+    )
+    m4, kb4 = plan("rule <wave> = implies( { +at(work) }, { +doing(greet(bo)) } )" + chr(10))
+    check(
+        "§15",
+        "...which it keeps when nothing overrides -- so the check is about defeat, not the act",
+        m4.holds(kb4.term("likely(greet(bo))")) == PLUS,
+    )
+
+
 def doubt_is_a_tie() -> None:
     """A preference is a **score**, and doubt is what a score makes sayable.
 
@@ -2018,6 +2097,7 @@ def main() -> int:
     the_better_move_wins()
     crossing_opens_hypotheses()
     a_hypothesis_does_not_happen()
+    an_action_is_substituted_by_its_outcome()
     doubt_is_a_tie()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()

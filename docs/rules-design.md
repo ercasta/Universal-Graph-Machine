@@ -2883,6 +2883,34 @@ That it *succeeded* is `<assert-act>`, an ordinary rule, and §15's argument for
 agent that should not assume its acts succeed overrides it, and then a plan built on this machinery
 has to say what it expects instead.
 
+#### Substituting the action with its outcome
+
+The step after *assume it worked* is to say **what** worked. Planning should take a rule that suggests
+an action and substitute the call with the expected outcome — operator semantics — and that needs no
+plan machinery whatever:
+
+    rule <outcome> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )
+    fact achieves(travel(work), at(work))
+
+One rule, one fact per action. The bare-variable consequent is the shape `<assert-act>` already uses
+and legal for the same reason: `?y` is bound by the antecedent. Measured, a two-step plan runs to its
+end inside a hypothesis with nothing emitted, carried by the actions' effects rather than by the
+actions.
+
+Whether the action *itself* is also asserted is then a precedence claim — `overrides(<outcome>,
+<assert-act>)` — and making that writable turned up something the design had been assuming without
+providing: **a corpus could not name a bundled rule.** Every place this document says *a corpus can
+override this* depended on it and none of it was true; the loader knew only the names a corpus had
+declared itself, so the bundle shipped as data and was reachable only from Python. One table now, so a
+corpus rule may not reuse a bundled name — which is the `<...>` marker doing its job.
+
+⚠ And a limit that only showed once precedence was pointed at something real. **Defeat is about the
+rule and the tick, not about the binding.** `<outcome>` matching for one action defeats `<assert-act>`
+for *every* action in that step, so an act with no declared outcome loses its fallback too. *Substitute
+where an outcome is declared, otherwise assume* is not sayable with precedence, and §12's claim that
+defeat is *about the situation rather than about the rule set* is true only at the coarseness of a
+step.
+
 #### And then no comparison is needed
 
 Once exploring is safe, the question a branch answers is not *which of these is better* but **does
