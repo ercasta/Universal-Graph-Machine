@@ -2834,12 +2834,55 @@ agent makes is settled by the order somebody typed the rules in, and neither mec
 that can see it: `close` excludes `standing` ties by design, and `review` credits rules on the support
 of a *conclusion*, which the apparatus's bookkeeping never joins.
 
-The repair is not obviously more learning. **Outranking domain rules is a different claim from being
-unrankable among themselves** — the same distinction that had to be drawn for recall, where inclusion
-and ordering came apart. Letting preference order *within* the standing tier would preserve the
-apparatus's protection exactly and give experience something to say. It is unbuilt, and it needs the
-other half first: a credit signal that reaches bookkeeping, since nothing today can tell an agent that
-asking a question early is what made the answer cheap.
+The first repair proposed for this was to let preference order *within* the standing tier — inclusion
+and ordering coming apart again — fed by a credit signal that reached bookkeeping. Both halves were
+prototyped and **neither pays**, and chasing down why produced something the design had not noticed.
+
+Ordering within the tier was measured and changed the sequence of applications without changing the
+count of them, the ticks, or the writes. The reason generalises: the apparatus is a dependency chain,
+so permuting it cannot shorten it, and *narrowing changes the order and not the amount* is as true of
+arbitration as it was of recall. Ordering pays only where some of the work is **avoidable**.
+
+Then the sharper challenge: is that an artefact of fixtures that are too small and too safe, where a
+wrong choice costs a tick and real ones cost more? It is not, and the reason is worse.
+
+### Arbitration is scheduling, not decision
+
+§14 describes arbitration as choosing one rule among those that matched. What it does is choose one to
+run **first**. The rules that lose are *deferred*, not rejected — and a loop that runs to quiescence
+applies every one of them eventually.
+
+Measured, with two ways to get water for a kettle, one of which breaks a jug that another goal needs:
+
+    emitted: ['fill(kettle)', 'smash(jug1)']
+
+**The agent did both.** It filled the kettle and smashed the jug, and these are *acts* — dispatched at
+the write, gone from the agent, not derivations that could be revised. Three consequences, and they
+are one fact seen from three sides:
+
+* **There is nothing for experience to be experienced about.** *Choose the better rule* has had no
+  measurable content because the agent takes the better rule and the worse one. Preference can move
+  which happens first; nothing makes one happen instead of the other.
+* **It is a safety property before it is a learning one.** An agent with two ways to do something does
+  the destructive one too, and the only mechanism that can stop an act is §19's norm veto, which
+  requires knowing in advance which acts are bad. That is exactly the knowledge experience was
+  supposed to supply.
+* **Credit reinforces the mistake.** `review` credited the smashing and not the filling, because the
+  smashing was on the support of the water that was achieved. An outcome-based signal over an agent
+  that cannot forgo will learn to prefer whatever was on the winning path, including what it should
+  have declined.
+
+> **A choice that cannot be forgone is not a choice.** The design has a way to stop (§19's `enough`)
+> and no way to *forgo* — and in an agent that acts, choosing is forgoing.
+
+That is where this section's whole line of enquiry actually terminates, and it is upstream of recall,
+of preference, of doubt and of learning. All four were built on the assumption that arbitration
+decides something. What it schedules, quiescence eventually undoes.
+
+Two smaller things the same run demonstrated, both already §21 items and neither previously shown:
+nothing retracts a conclusion whose support was withdrawn (the agent finishes believing it has juice
+*and* that the jug it needed is broken), and whether the damage mattered at all was settled by which
+of two rules was typed first.
 
 ### Recall may not be incomplete about whether to go on
 
@@ -3677,6 +3720,17 @@ The three a first implementation is most likely to get wrong:
   bindings that agree — but the first match commits. If `tap(sink)` is chosen and the sibling then
   fails, nothing reconsiders `tap(?t)` against another tap. A plan is a node, so an alternative is
   expressible; what is missing is who decides to take one, which is arbitration over plans.
+* **Forgoing** (§14, §18, §19) — **the largest thing this design does not have.** Arbitration defers
+  the rules it does not pick; quiescence then applies them. So an agent with two ways to do something
+  does both, including the destructive one, and *choosing the better move* has no content. Measured
+  (`ugm.selftest`, recorded as a gap rather than a guarantee). What is open is not how to implement it
+  but what it *is*: a rule can be defeated (`overrides`, `supersedes`), forbidden (§19's veto), or
+  simply never proposed (recall) — three existing mechanisms, none of which says *this was a live
+  alternative and I am taking the other one*. Note what the shape has to satisfy: it cannot be a
+  filter in the loop (§18), the decision must be on the trail (§2's not-lossy, and credit needs it),
+  and it must survive being wrong, since the whole point is that the alternative was reasonable.
+  Related: an outcome-based credit signal over an agent that cannot forgo learns to prefer whatever
+  was on the winning path, including what it should have declined.
 * **Retracting a contradicted expectation** (§18). Precedence stops a defeated rule applying, but
   nothing retracts what it already concluded, and its antecedent still holds. The agent goes on
   believing both the expectation and its refutation, distinguished only by which rule outranks which.

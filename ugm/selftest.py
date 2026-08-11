@@ -1883,6 +1883,70 @@ def experience_is_offline() -> None:
           tally["apparatus"] * 4 > tally["arb"] * 3)
 
 
+def arbitration_is_scheduling_not_decision() -> None:
+    """⚠ This records a GAP, not a guarantee. It passes on today's behaviour, so
+    the day that behaviour changes it fails and sends someone here.
+
+    The question that produced it: is the reason experience has nothing to learn
+    that the fixtures are too small and too safe? No -- it is deeper, and the
+    measurement is the argument.
+
+    Arbitration is described as choosing one rule among those that matched. What
+    it actually does is choose one to run **first**: the rules that lose are
+    deferred, not rejected, and a loop that runs to quiescence applies every one
+    of them eventually. So there is no point at which this agent forgoes
+    anything, and a choice that cannot be forgone is not a choice.
+
+    > **Arbitration is scheduling, not decision.**
+
+    That is why ordering can only permute a fixed amount of work, why an exact
+    recall table buys nothing, and why *choose the better rule* has had no
+    measurable content: the agent takes the better rule AND the worse one.
+
+    It is a safety property before it is a learning one. Two ways to get water,
+    one of which breaks something needed elsewhere, and the agent does both.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        "rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
+        " { +doing(fill(?w)) } )",
+        "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
+        " { +doing(smash(?j)) } )",
+        "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
+        "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
+        "rule <squeeze> = implies( { +fruit(?f), +jug(?j), +intact(?j) }, { +juice(?j) } )",
+        "fact +achieves(fill(kettle), water(kettle))",
+        "fact +achieves(smash(jug1), water(kettle))",
+        "fact +tap(sink)", "fact +under(kettle, sink)",
+        "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
+        "fact +fruit(orange)",
+        "fact +goal(water(kettle))",
+        "fact +goal(juice(jug1))",
+        "",
+    ])
+    m = Machine()
+    m.actuator("hands")
+    kb = load(m, src)
+    m.run(limit=4000)
+    emitted = [m.g.show(n) for n in m.emitted]
+
+    check("§18", "⚠ GAP: a rule that loses arbitration is DEFERRED, not rejected -- "
+          "both ways of getting water were acted on, so nothing was chosen",
+          "fill(kettle)" in emitted and "smash(jug1)" in emitted)
+    check("§18", "⚠ GAP: so an alternative that costs something gets paid for anyway",
+          m.holds(kb.term("intact(jug1)")) == "-")
+    # The learning consequence, which is why this sits next to `review`.
+    check("§19", "⚠ GAP: and credit reinforces it -- the destructive act is on the "
+          "support of what was achieved, so experience would learn to prefer it",
+          "use-jug" in {r.name for r, _ in m.review()})
+    # §21's truth-maintenance item, demonstrated rather than predicted.
+    check("§21", "⚠ GAP: nothing retracts a conclusion whose support was withdrawn -- "
+          "the agent believes it has juice and that the jug is broken",
+          m.holds(kb.term("juice(jug1)")) == PLUS
+          and m.holds(kb.term("intact(jug1)")) == "-")
+
+
 def doubt_is_a_tie() -> None:
     """A preference is a **score**, and doubt is what a score makes sayable.
 
@@ -2443,6 +2507,7 @@ def main() -> int:
     an_agent_that_can_stop()
     no_goal_is_dropped_silently()
     experience_is_offline()
+    arbitration_is_scheduling_not_decision()
     doubt_is_a_tie()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()

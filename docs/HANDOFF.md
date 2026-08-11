@@ -157,12 +157,49 @@ scheme excluded it and the "credits what was used" check tested nothing; and the
 asserted a run that would have succeeded anyway. Fixed with `<idle>` (applies, concludes, earns
 nothing) and by checking the *row format* directly.
 
-**Where I would pick up now: the blocker, not more learning.** ⭐ **Outranking domain rules is a
-different claim from being unrankable among themselves** — the same distinction that had to be drawn
-for recall, where inclusion and ordering came apart. Letting preference order *within* the standing
-tier preserves the apparatus's protection and gives experience something to say. It needs the other
-half first: a credit signal that reaches bookkeeping, since nothing today can tell an agent that
-asking a question early is what made the answer cheap.
+## ⭐⭐⭐ ...and then the floor gave way: **ARBITRATION IS SCHEDULING, NOT DECISION**
+
+⚠ **The recommendation in the paragraph this replaces was wrong, and measuring it is how.** I proposed
+ordering *within* the standing tier, fed by a credit signal reaching bookkeeping. Both halves were
+prototyped. **Neither pays** — tier ordering changed the sequence of applications and left ticks,
+writes and time-to-goal identical, because the apparatus is a dependency chain and permuting a chain
+cannot shorten it. *Narrowing changes the order, not the amount* is as true of arbitration as of
+recall; ordering pays only where work is **avoidable**.
+
+Then the user's challenge: *is that because the fixtures are too few/too simple, and random actions do
+not compromise the situation, where in real life they often do?* Right to ask, and the answer is worse
+than fixture size. Built a world where a wrong choice loses a goal — two ways to get water, one breaks
+a jug another goal needs:
+
+    emitted: ['fill(kettle)', 'smash(jug1)']
+
+> **The agent did BOTH.** A rule that loses arbitration is **deferred, not rejected**, and a loop that
+> runs to quiescence applies every one eventually. **A choice that cannot be forgone is not a choice.**
+
+These are *acts* — dispatched at the write, gone. Three consequences, one fact from three sides:
+
+* ⭐⭐⭐ **Nothing for experience to be experienced about.** *Choose the better rule* has had no
+  measurable content because the agent takes the better rule **and** the worse one. This is upstream of
+  recall, preference, doubt and learning — all four assumed arbitration decides something.
+* ⚠⚠⚠ **It is a safety property first.** The only thing that can stop an act is §19's norm veto, which
+  needs to know in advance which acts are bad — exactly what experience was meant to supply.
+* ⚠⚠⚠ **Credit reinforces the mistake.** `review` credited the **smashing**, not the filling, because
+  smashing was on the support of the water achieved. Outcome credit over an agent that cannot forgo
+  learns to prefer whatever was on the winning path, including what it should have declined.
+
+Two more, both existing §21 items now *demonstrated*: nothing retracts a conclusion whose support was
+withdrawn (the agent ends believing it has juice **and** that the jug is broken), and whether the
+damage mattered was settled by which rule was typed first.
+
+Recorded in `ugm.selftest` as `arbitration_is_scheduling_not_decision` — ⚠ four checks that pass on
+**today's wrong behaviour**, so the day it changes they fail and send someone to the argument.
+
+**Where I would pick up now: FORGOING.** New §21 item, and the largest thing the design lacks. The
+open question is not how to implement it but what it *is* — a rule can be defeated (`overrides`,
+`supersedes`), forbidden (the veto), or never proposed (recall), and none of those says *this was a
+live alternative and I am taking the other one*. Constraints the shape must satisfy: not a filter in
+the loop (§18); the decision on the trail (§2's not-lossy, and credit needs it); and it must survive
+being wrong, since the point is that the alternative was reasonable.
 
 **After that:** the old item 1's other two questions, which are a different shape from
 the two now answered — *when may a request be re-asked* and *when may a binding be reconsidered*.
@@ -185,7 +222,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     263 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     267 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
