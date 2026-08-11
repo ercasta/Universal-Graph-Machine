@@ -1883,6 +1883,88 @@ def experience_is_offline() -> None:
           tally["apparatus"] * 4 > tally["arb"] * 3)
 
 
+def subgoals_make_blame_sayable() -> None:
+    """Splitting a task into subgoals is what makes FAILURE attributable (§19).
+
+    `review` credits and deliberately refuses to blame, because an episode that
+    achieved nothing may have been an impossible one -- many rules ran, one
+    outcome was bad, and nothing points at an author.
+
+    A lost **subgoal** is different, and the difference is §9's, doing real work
+    somewhere new:
+
+    | no entry at all   | it was never reached. Many causes, no author.        |
+    | an entry says `-` | something MADE it false, and that entry has a licence |
+
+    So blame is the credit walk run over a denial instead of an assertion. What
+    makes it land is that the decomposition names the damage without anyone
+    anticipating it: backward reading expanded `juice(jug1)` into subgoals
+    including `intact(jug1)`, so the thing the other branch broke was already a
+    goal, and its loss is on the record with a licence attached.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        "rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
+        " { +doing(fill(?w)) } )",
+        "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
+        " { +doing(smash(?j)) } )",
+        "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
+        "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
+        "rule <squeeze> = implies( { +fruit(?f), +jug(?j), +intact(?j) }, { +juice(?j) } )",
+        "fact +achieves(fill(kettle), water(kettle))",
+        "fact +achieves(smash(jug1), water(kettle))",
+        "fact +tap(sink)", "fact +under(kettle, sink)",
+        "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
+        "fact +fruit(orange)",
+        "fact +goal(water(kettle))",
+        "fact +goal(juice(jug1))",
+        "",
+    ])
+    m = Machine()
+    m.actuator("hands")
+    kb = load(m, src)
+    m.run(limit=4000)
+    blamed = {r.name for r, _ in m.blame()}
+
+    check("§19", "a lost subgoal names its own author -- the walk reaches the DECISION "
+          "and not only the physics that carried it out",
+          "use-jug" in blamed and "cost" in blamed)
+    check("§19", "and the subgoal that was lost is one nobody wrote down: backward "
+          "reading produced `intact(jug1)`, so the damage was already a goal",
+          m.holds(kb.term("intact(jug1)")) == "-"
+          and any("intact" in m.g.show(n) for n in m.g.instances_of(m.HARMED)))
+    # The discriminating half: an episode where nothing was broken must blame
+    # nothing, or "blame" is just a second name for "ran".
+    m2 = Machine()
+    m2.actuator("hands")
+    load(m2, src.replace(
+        "fact +achieves(smash(jug1), water(kettle))",
+        "fact +unused(smash(jug1))").replace(
+        "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
+        " { +doing(smash(?j)) } )", ""))
+    m2.run(limit=4000)
+    check("§19", "an episode that broke nothing blames nobody, so blame is not a second "
+          "name for *applied*",
+          not m2.blame())
+
+    # ⚠ The trap, and it is why blame needs `-` rather than absence. Most
+    # unachieved subgoals in a run are GENERIC (`heat(?a, kettle)`) and were never
+    # meant to hold as stated. Counting those as failures blames every rule for
+    # every search it ever ran.
+    m3 = Machine()
+    kb3 = load(m3, chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) }, { +water(?w) } )",
+        "fact +tap(sink)", "fact +under(kettle, sink)", "fact +heat(anna, kettle)",
+        "fact +goal(boiling(kettle))", "",
+    ]))
+    m3.run(limit=4000)
+    check("§19", "⚠ and a search that left generic subgoals unmet blames nobody -- "
+          "`heat(?a, kettle)` was never meant to hold as stated",
+          m3.holds(kb3.term("boiling(kettle)")) == PLUS and not m3.blame())
+
+
 def arbitration_is_scheduling_not_decision() -> None:
     """⚠ This records a GAP, not a guarantee. It passes on today's behaviour, so
     the day that behaviour changes it fails and sends someone here.
@@ -1936,10 +2018,16 @@ def arbitration_is_scheduling_not_decision() -> None:
           "fill(kettle)" in emitted and "smash(jug1)" in emitted)
     check("§18", "⚠ GAP: so an alternative that costs something gets paid for anyway",
           m.holds(kb.term("intact(jug1)")) == "-")
-    # The learning consequence, which is why this sits next to `review`.
-    check("§19", "⚠ GAP: and credit reinforces it -- the destructive act is on the "
-          "support of what was achieved, so experience would learn to prefer it",
+    # The learning consequence, which is why this sits next to `review`. Credit
+    # ALONE reinforces the mistake -- the destructive act is on the support of
+    # what was achieved. What stops it is blame, and blame is only sayable
+    # because the task was split (see `subgoals_make_blame_sayable`).
+    check("§19", "credit alone reinforces it: the destructive act is on the support of "
+          "what was achieved, so an outcome signal recommends it",
           "use-jug" in {r.name for r, _ in m.review()})
+    check("§19", "...and what the agent takes forward does NOT, because the same episode "
+          "shows it cost a subgoal",
+          not any("use-jug" in row for row in m.learned()))
     # §21's truth-maintenance item, demonstrated rather than predicted.
     check("§21", "⚠ GAP: nothing retracts a conclusion whose support was withdrawn -- "
           "the agent believes it has juice and that the jug is broken",
@@ -2507,6 +2595,7 @@ def main() -> int:
     an_agent_that_can_stop()
     no_goal_is_dropped_silently()
     experience_is_offline()
+    subgoals_make_blame_sayable()
     arbitration_is_scheduling_not_decision()
     doubt_is_a_tie()
     prohibitions_are_not_recalled()

@@ -182,6 +182,15 @@ class Machine:
         # achieved* is a fact about the trail, where *so prefer it next time* is a
         # claim, and stays a rule.
         self.HELPED = self.g.atom("helped")
+        # ...and its opposite, which only becomes sayable once a task is split.
+        # `harmed(<R>, <key>)`: something the agent wanted was made FALSE, and
+        # this rule is on the support of the entry that made it so.
+        #
+        # Episode-level failure has no author -- many rules, one bad outcome, and
+        # nothing to attribute it to. A lost SUBGOAL has one: the negating entry
+        # carries a licence, so the walk that finds credit finds blame by running
+        # over a `-` instead of a `+`.
+        self.HARMED = self.g.atom("harmed")
         # A callback: a pointer to a rule, hung on a node. `+resume(h, <R>)` says
         # *when h returns, R's turn has come* -- and `turn` is the strongest thing
         # it can say, because §5's wall stands: no rule may apply a rule.
@@ -306,7 +315,7 @@ class Machine:
             "taken": self.TAKEN, "emitted": self.EMITTED,
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
             "enough": self.ENOUGH, "stopped": self.STOPPED, "open": self.OPEN,
-            "helped": self.HELPED,
+            "helped": self.HELPED, "harmed": self.HARMED,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
@@ -365,7 +374,7 @@ class Machine:
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
-                             self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED,
+                             self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED, self.HARMED,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
@@ -2019,6 +2028,60 @@ class Machine:
                 )
         return earned
 
+    def blame(self) -> List[Tuple[Rule, NodeId]]:
+        """*Which rules cost the agent something it wanted?* -- the other half,
+        and the one that only exists because a task is split into subgoals.
+
+        **Failure at episode level has no author.** Many rules ran, one outcome
+        was bad, and nothing attributes it -- which is why `review` deliberately
+        refuses to blame: a failed episode may have been an impossible one.
+
+        A lost *subgoal* is different, and the difference is §9's. Two ways a goal
+        can fail to hold, and only one of them is somebody's doing:
+
+        | no entry at all | it was never reached. Many causes, no author. |
+        | an entry says `-` | something MADE it false, and that entry has a licence. |
+
+        So blame runs the same walk as credit over a denial instead of an
+        assertion, and it reaches the decision rather than the physics: measured,
+        from a lost `intact(jug1)` back through the rule that broke it, the act
+        that was taken, and the rule that chose the act.
+
+        Ground goals only. Backward reading expands into generic subgoals like
+        `heat(?a, kettle)` which were never meant to hold as stated, and counting
+        those as failures would blame every rule for every search.
+        """
+        rule_at = {r.node: r for r in self.rules.rules}
+        out: List[Tuple[Rule, NodeId]] = []
+        seen = set()
+        for s in current_state(self.chain, self.focus.topic, self.focus.seat):
+            if s.sign != PLUS or self.g.relation_of(s.proposition) is not self.GOAL:
+                continue
+            wanted = self.g.member(s.proposition, 0)
+            if self.g.has_var(wanted):
+                continue
+            key = self.g.relation_of(wanted)
+            got = self.chain.resolve(wanted, self.focus.topic, self.focus.seat)
+            if key is None or got is None or got.sign != MINUS:
+                continue
+            for node in self._support(wanted) | {wanted}:
+                e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+                if e is None or e.licence is None:
+                    continue
+                if self.g.relation_of(e.licence) is not self.APPLIED:
+                    continue
+                rule = rule_at.get(self.g.member(e.licence, 0))
+                if rule is None or (rule.node, key) in seen:
+                    continue
+                seen.add((rule.node, key))
+                out.append((rule, key))
+                self.gate.write(
+                    self.focus, self.g.rel(self.HARMED, rule.node, key), PLUS,
+                    licence=self.g.rel(self.GOAL, wanted), source=self.KB,
+                    mention=True,
+                )
+        return out
+
     def _support(self, proposition: NodeId) -> set:
         """Everything that held this up, transitively. The trail, walked."""
         seen, frontier = set(), [proposition]
@@ -2043,9 +2106,20 @@ class Machine:
         §19 puts experience in recall precisely because being wrong there is
         recoverable, and it is only recoverable if it can be found and denied.
         """
+        # The one policy in this method, stated rather than buried: a rule that
+        # cost the agent something is not recommended, however well it served the
+        # goal it was serving. Without this the signal actively misleads --
+        # measured, before subgoals were used: the rule that smashed a jug to get
+        # water was ON the support of the water, so credit recommended it.
+        #
+        # Suppression rather than a negative score, because the table's numerals
+        # are non-negative (a numeral is an atom whose name reads as a number, and
+        # `-3` does not). §21 records that; *how badly* is not sayable yet, only
+        # *at all*.
+        harmed = {rule.node for rule, _ in self.blame()}
         rows = []
         for rule, key in self.review():
-            if rule.name is None:
+            if rule.name is None or rule.node in harmed:
                 continue
             rows.append(f"fact prefer(<{rule.name}>, {self.g.show(key)}, {score})")
         return rows

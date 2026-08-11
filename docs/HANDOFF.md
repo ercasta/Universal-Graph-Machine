@@ -194,7 +194,53 @@ damage mattered was settled by which rule was typed first.
 Recorded in `ugm.selftest` as `arbitration_is_scheduling_not_decision` — ⚠ four checks that pass on
 **today's wrong behaviour**, so the day it changes they fail and send someone to the argument.
 
-**Where I would pick up now: FORGOING.** New §21 item, and the largest thing the design lacks. The
+## ...and two user proposals, both measured, both right
+
+**1. *Once you apply a rule you mint new nodes, the focus should shift, and that should make the
+not-chosen rule not useful any more.*** Tested at its simplest — the winner **consumes** the goal
+instead of sitting beside it (`-goal(water(?w)), +pursuing(water(?w), fill(?w))`). It works, with **no
+engine change** and no new primitive: only `fill(kettle)` is emitted, the jug survives, both goals are
+achieved. Forgoing falls out of the shift, because what the alternative was matching is gone.
+
+⚠ Two interactions found and **not yet resolved**, so this is not built into the bundle:
+* it **breaks credit** — the achieved goal is no longer a goal, so `review` cannot find it (credit
+  dropped to `['squeeze']`);
+* it **commits before knowing** — retiring a goal on *intending* means a failed act loses the goal
+  silently, and the `openloop` veto keys on `goal(?w)` so a retired goal cannot veto.
+The `pursuing(w, act)` node is the trace both repairs would follow. The underlying question it raises:
+**a goal is a commitment, not a belief.** Beliefs accumulate; commitments are taken up and discharged.
+Treating them alike is why the agent pursues a goal forever and several ways at once.
+
+**2. *Maybe splitting a task in subgoals could help learning.*** Right, and specifically for the half
+that was broken. Commit `subgoals`.
+
+⭐⭐⭐ **Splitting is what makes BLAME sayable.** `review` refuses to blame because a failed episode may
+have been impossible — many rules, one outcome, no author. A lost **subgoal** has one, and the
+difference is §9's:
+
+| no entry at all | it was never reached. Many causes, no author. |
+|---|---|
+| an entry says `−` | something **made** it false, and that entry carries a **licence**. |
+
+So `blame()` is the credit walk run over a denial. Measured: from a lost `intact(jug1)` it reaches
+`['cost', 'did', 'use-jug']` — **the decision, not just the physics**.
+
+⭐⭐ **The decomposition named the damage without anyone anticipating it.** Backward reading had already
+expanded `juice(jug1)` into subgoals including `intact(jug1)` — so the thing the *other* branch broke
+was already a goal. Nobody wrote it down; §19's own machinery produced it. That is what splitting buys.
+
+⭐ **It repairs the demonstrated bug.** `learned()` now suppresses rules that harmed, so the jug-smasher
+is credited by the raw walk and **not** recommended. Suppression rather than a negative score: the
+table's numerals are non-negative, so *how badly* is not sayable yet, only *at all*.
+
+⚠⚠ **Blame needs a denial, not an absence.** Most unachieved subgoals in a real run are **generic**
+(`heat(?a, kettle)`), produced by expansion and never meant to hold as stated. Counting them as
+failures blames every rule for every search — the *shortlist that ran dry* error again, mistaking
+*not reached* for *shown false*. Killed three ways in the probe, including "blame everything applied".
+
+**Where I would pick up now: FORGOING.** New §21 item, and the largest thing the design lacks.
+Proposal 1 above is the strongest lead — it needs the credit and commit-before-knowing interactions
+answered, and probably needs *goal as commitment* stated outright. The
 open question is not how to implement it but what it *is* — a rule can be defeated (`overrides`,
 `supersedes`), forbidden (the veto), or never proposed (recall), and none of those says *this was a
 live alternative and I am taking the other one*. Constraints the shape must satisfy: not a filter in
@@ -222,7 +268,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     267 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     272 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase

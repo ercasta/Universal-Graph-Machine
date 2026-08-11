@@ -2807,9 +2807,41 @@ Two choices worth naming. **The key is the goal's relation, not the goal**, beca
 takes forward is text**: §19 puts experience in recall precisely because being wrong there is
 recoverable, and it is only recoverable if it can be read, argued with and denied. A weight cannot be.
 
-**Failure credits nothing and blames nothing.** A rule applied on an episode that achieved nothing was
-not thereby wrong — the episode may have been impossible — and §19's argument against training recall
-on its own accepted outputs applies at least as hard to training it on its own failures.
+**Failure at episode level credits nothing and blames nothing.** A rule applied on an episode that
+achieved nothing was not thereby wrong — the episode may have been impossible — and §19's argument
+against training recall on its own accepted outputs applies at least as hard to training it on its own
+failures.
+
+### Splitting a task into subgoals is what makes blame sayable
+
+That refusal is right about episodes and wrong about **subgoals**, and the difference is §9's sign
+distinction doing real work somewhere new. Two ways a goal can fail to hold:
+
+| no entry at all | it was never reached. Many causes, no author. |
+|---|---|
+| an entry says `−` | something **made** it false, and that entry carries a licence. |
+
+So blame is the credit walk run over a denial instead of an assertion, and it reaches the *decision*
+rather than the physics: measured, from a lost `intact(jug1)` back through the rule that broke it, the
+act that was taken, and the rule that chose the act.
+
+    harmed(<R>, <key>)     this rule is on the support of something wanted being made false
+
+**What makes it land is that the decomposition names the damage without anyone anticipating it.**
+Backward reading expanded `juice(jug1)` into subgoals, one of which was `intact(jug1)` — so the thing
+the *other* branch broke was already a goal, and its loss is on the record. Nobody wrote that subgoal
+down; §19's own machinery produced it, and that is what a task being split buys.
+
+This is the repair for the failure above, where credit recommended the rule that smashed a jug to get
+water because smashing was on the support of the water. Both halves are still true — it did serve that
+goal, and it did cost another — and what an agent takes forward is now the difference. Suppression
+rather than a negative score, because the table's numerals are non-negative: *how badly* is not
+sayable yet, only *at all*.
+
+⚠ **Blame needs a denial, not an absence, and that is not fastidiousness.** Most unachieved subgoals in
+a real run are *generic* — `heat(?a, kettle)`, produced by expansion and never meant to hold as
+stated. Counting those as failures would blame every rule for every search it ever ran, which is the
+same shape as the *shortlist that ran dry* error: mistaking *not reached* for *shown false*.
 
 ⚠ **And then it bought nothing, for a reason that is the real finding.** An exact learned table — the
 four rules of the goal's domain, keyed on the goals they served, none of the other twelve — reached
@@ -3767,6 +3799,7 @@ conventional representation of reality that ships with the engine and can be rep
 | **locus** | bundle | an entry's first member: the moment or span the claim is about. |
 | **match** | floor | find a substitution making a generic node identical to an anchored one. Structural, and with no opinion about entries. |
 | **moment** | bundle | a signed delta, a predecessor and a licence. The bundle's only state construct. |
+| **harmed** | bundle | of a rule, in a finished episode: it was on the support of something wanted being made **false**. Sayable only per subgoal, because a `−` entry has a licence and an absence does not. |
 | **helped** | bundle | of a rule, in a finished episode: it was on the support of something achieved. A fact about the trail; *so prefer it next time* stays a claim, hence a rule. |
 | **open** | bundle | a goal that was still outstanding when the agent tried to stop. Deposited by a veto, not concluded by a rule, so no corpus can forget to notice. |
 | **proposition** | bundle | a relation instance. Claims nothing until an entry places it. |
