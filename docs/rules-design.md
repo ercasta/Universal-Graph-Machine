@@ -2907,9 +2907,59 @@ are one fact seen from three sides:
 > **A choice that cannot be forgone is not a choice.** The design has a way to stop (§19's `enough`)
 > and no way to *forgo* — and in an agent that acts, choosing is forgoing.
 
-That is where this section's whole line of enquiry actually terminates, and it is upstream of recall,
-of preference, of doubt and of learning. All four were built on the assumption that arbitration
-decides something. What it schedules, quiescence eventually undoes.
+That is where this section's whole line of enquiry terminates, and it is upstream of recall, of
+preference, of doubt and of learning. All four were built on the assumption that arbitration decides
+something. What it schedules, quiescence eventually undoes.
+
+### Taking one way of getting something passes up the others
+
+    forgone(<R>, <w>)      R was a live way of getting w, and I took another one
+
+A **fourth** way for a rule not to run, and the first that is a decision:
+
+| defeated | `overrides`, `supersedes` — a rival answer is better |
+|---|---|
+| forbidden | §19's veto — it may never happen |
+| not recalled | it did not come to mind |
+| **forgone** | it was reasonable, and I chose otherwise |
+
+**What makes two rules alternatives is that they answer the same want**, read off the evidence: an
+application that consumed `goal(w)` is a response to wanting `w`, and that is the comparison
+`supersedes` already makes, over a trail the machinery already keeps. Note it is *not* `fits`, which
+asks whether a rule's consequent could **be** the goal — backward reading's question and the wrong one
+here. `<use-tap>` concludes `doing(fill(kettle))` and fits nothing, yet it is plainly a way of getting
+water.
+
+**It is a deposit about the alternative, not a retraction of the goal.** The first thing tried was the
+obvious one — have the winner consume the want — and it works, with no engine change at all. It was
+rejected on two measured interactions: retract the goal and credit cannot find what it achieved, and a
+failed act loses the want with nothing left to notice it (§19's veto keys on `goal(?w)`, so a retired
+goal cannot veto). Depositing instead keeps the goal, keeps credit, and keeps the guarantee.
+
+**Passing up is the default, and complementary work is the exception a corpus declares.** This is the
+one judgement, and it is made on which error is recoverable rather than on which is more often right:
+
+| forgo by default | an agent that should have done both **under**-does. The goal stays open, the veto deposits `open(w)`, and a rule hands the alternative back. Recoverable. |
+|---|---|
+| defer by default | an agent that should have done one does **both**. The jug is smashed. Not recoverable. |
+
+So the deposit is deniable, and retrying is one ordinary corpus rule:
+
+    rule <retry> = implies( { +open(?w), +forgone(?r, ?w) }, { -forgone(?r, ?w) } )
+
+*What I wanted is still outstanding, so reconsider what I passed up.* That is §21's backtracking item
+arriving as a **consequence rather than as machinery**, and it needs three things to meet that were
+each built for something else: `enough` makes the agent try to stop, the veto refuses the stop and
+deposits `open`, and this reads it. Checked, including that the alternative is genuinely taken up and
+the goal then reached.
+
+⚠ **The apparatus is exempt on both sides**, §13's carve-out for the fifth time. Nearly every bundled
+rule consumes `goal(?w)`, so without the exemption, applying any rule would forgo backward reading
+entire — measured, by removing it.
+
+What this closes, and it is the whole of the section above: the agent now emits one act rather than
+two, the cost of the alternative is not paid, credit names the choice that was made rather than the
+one that was passed up, and *what did you not do, and why* has an answer on the trail.
 
 Two smaller things the same run demonstrated, both already §21 items and neither previously shown:
 nothing retracts a conclusion whose support was withdrawn (the agent finishes believing it has juice
@@ -3752,17 +3802,18 @@ The three a first implementation is most likely to get wrong:
   bindings that agree — but the first match commits. If `tap(sink)` is chosen and the sibling then
   fails, nothing reconsiders `tap(?t)` against another tap. A plan is a node, so an alternative is
   expressible; what is missing is who decides to take one, which is arbitration over plans.
-* **Forgoing** (§14, §18, §19) — **the largest thing this design does not have.** Arbitration defers
-  the rules it does not pick; quiescence then applies them. So an agent with two ways to do something
-  does both, including the destructive one, and *choosing the better move* has no content. Measured
-  (`ugm.selftest`, recorded as a gap rather than a guarantee). What is open is not how to implement it
-  but what it *is*: a rule can be defeated (`overrides`, `supersedes`), forbidden (§19's veto), or
-  simply never proposed (recall) — three existing mechanisms, none of which says *this was a live
-  alternative and I am taking the other one*. Note what the shape has to satisfy: it cannot be a
-  filter in the loop (§18), the decision must be on the trail (§2's not-lossy, and credit needs it),
-  and it must survive being wrong, since the whole point is that the alternative was reasonable.
-  Related: an outcome-based credit signal over an agent that cannot forgo learns to prefer whatever
-  was on the winning path, including what it should have declined.
+* **Forgoing** (§14, §18, §19) — **built.** `forgone(<R>, <w>)`, a fourth way for a rule not to run and
+  the first that is a decision. What remains open is narrower and worth stating. Rivals are noticed
+  **at the tick the choice is made**, so an alternative that only becomes applicable later is not
+  passed up; whether that matters depends on how often a want is answerable in ways that arrive at
+  different times, which is unmeasured. And *complementary* work — two rules that should both run for
+  one want — is now the case a corpus must declare, and there is no way to declare it yet beyond
+  denying the deposit; the default was chosen because under-doing is recoverable and over-doing is
+  not, which is an argument about safety rather than about frequency.
+* **How badly a rule cost something** (§19). `harmed` is two-valued and `learned` suppresses on it,
+  because the preference table's numerals are non-negative — a numeral is an atom whose name reads as
+  a number, and `-3` does not. So *this rule is slightly worse* is unsayable, and an agent cannot
+  weigh a small cost against a large benefit.
 * **Retracting a contradicted expectation** (§18). Precedence stops a defeated rule applying, but
   nothing retracts what it already concluded, and its antecedent still holds. The agent goes on
   believing both the expectation and its refutation, distinguished only by which rule outranks which.
@@ -3799,6 +3850,7 @@ conventional representation of reality that ships with the engine and can be rep
 | **locus** | bundle | an entry's first member: the moment or span the claim is about. |
 | **match** | floor | find a substitution making a generic node identical to an anchored one. Structural, and with no opinion about entries. |
 | **moment** | bundle | a signed delta, a predecessor and a licence. The bundle's only state construct. |
+| **forgone** | bundle | of a rule, for a want: it was a live way of getting that want and another was taken. The fourth way a rule does not run, and the only one that is a decision. Deniable, which is what makes passing up recoverable. |
 | **harmed** | bundle | of a rule, in a finished episode: it was on the support of something wanted being made **false**. Sayable only per subgoal, because a `−` entry has a licence and an absence does not. |
 | **helped** | bundle | of a rule, in a finished episode: it was on the support of something achieved. A fact about the trail; *so prefer it next time* stays a claim, hence a rule. |
 | **open** | bundle | a goal that was still outstanding when the agent tried to stop. Deposited by a veto, not concluded by a rule, so no corpus can forget to notice. |

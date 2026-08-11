@@ -191,6 +191,23 @@ class Machine:
         # carries a licence, so the walk that finds credit finds blame by running
         # over a `-` instead of a `+`.
         self.HARMED = self.g.atom("harmed")
+        # Forgoing: the thing arbitration was assumed to do and never did.
+        # `forgone(<R>, <w>)` says *R was a live way of getting w and I took
+        # another one*, and it is a fourth way for a rule not to run, distinct
+        # from all three that existed:
+        #
+        #   defeated   (`overrides`, `supersedes`)  a rival answer is better
+        #   forbidden  (the gate's veto)            it may never happen
+        #   not recalled                            it did not come to mind
+        #   FORGONE                                 it was reasonable and I chose otherwise
+        #
+        # Only the last is a decision, and only the last needs to be **deniable**:
+        # the alternative was good, so passing it up has to be revisable when the
+        # goal it served turns out still open. That is why this is a deposit ABOUT
+        # the alternative rather than a retraction of the goal -- retract the goal
+        # and credit cannot find what it achieved, and a failed act loses the want
+        # with nothing left to notice.
+        self.FORGONE = self.g.atom("forgone")
         # A callback: a pointer to a rule, hung on a node. `+resume(h, <R>)` says
         # *when h returns, R's turn has come* -- and `turn` is the strongest thing
         # it can say, because §5's wall stands: no rule may apply a rule.
@@ -316,6 +333,7 @@ class Machine:
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
             "enough": self.ENOUGH, "stopped": self.STOPPED, "open": self.OPEN,
             "helped": self.HELPED, "harmed": self.HARMED,
+            "forgone": self.FORGONE,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
@@ -375,6 +393,7 @@ class Machine:
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
                              self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED, self.HARMED,
+                             self.FORGONE,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
@@ -1104,6 +1123,81 @@ class Machine:
         )
         return True
 
+    def _wants(self, app) -> set:
+        """Which goals this application is a way of serving.
+
+        Read off the evidence, which is where the answer already is: an
+        application that consumed `goal(w)` is a response to wanting `w`. That is
+        the same comparison `supersedes` makes, and for the same reason -- the
+        trail records what each application matched, so nothing new is measured.
+
+        Note what this does NOT use. `fits` says *this rule's consequent could BE
+        the goal*, which is backward reading's question and the wrong one here:
+        `<use-tap>` concludes `doing(fill(kettle))` and fits nothing, yet it is
+        plainly a way of getting water. What makes two rules alternatives is that
+        they answer the same want, not that they conclude the same thing.
+        """
+        out = set()
+        for e in app.consumed:
+            if self.g.relation_of(e.proposition) is self.GOAL:
+                out.add(self.g.member(e.proposition, 0))
+        return out
+
+    def _forgo(self, applications, chosen) -> None:
+        """Taking one way of getting something is passing up the others.
+
+        This is what arbitration was assumed to do and did not: a rule that lost
+        was **deferred**, so quiescence ran it anyway and an agent with two ways
+        to do something did both -- including the destructive one. Measured, with
+        acts: `emitted: ['fill(kettle)', 'smash(jug1)']`.
+
+        **Passing up is the default, and complementary work is the exception a
+        corpus declares.** That is the one judgement here, and it is made on which
+        way the error is recoverable rather than on which is more often right:
+
+        | forgo by default | an agent that should have done both under-does. The
+        |                  | goal stays open, the veto deposits `open(w)`, and the
+        |                  | rule below hands the alternative back. Recoverable.
+        | defer by default | an agent that should have done one does both. The jug
+        |                  | is smashed. **Not** recoverable.
+
+        So the deposit is deniable, and retrying is one ordinary corpus rule:
+
+            {+open(?w), +forgone(?r, ?w)} => {-forgone(?r, ?w)}
+
+        *When what I wanted is still outstanding, reconsider what I passed up.*
+        That is §21's backtracking item, arriving as a consequence rather than as
+        machinery, and it is why this had to be a fact about the alternative
+        rather than a retraction of the goal.
+
+        ⚠ The apparatus is exempt on both sides -- §13's carve-out again. Nearly
+        every bundled rule consumes `goal(?w)`, so without this, applying one
+        would forgo backward reading entire.
+        """
+        wants = self._wants(chosen)
+        if not wants or self._claims(self.g.rel(self.STANDING, chosen.rule.node)):
+            return
+        for a in applications:
+            if a.rule is chosen.rule:
+                continue
+            if self._claims(self.g.rel(self.STANDING, a.rule.node)):
+                continue
+            for w in wants & self._wants(a):
+                self.gate.write(
+                    self.focus, self.g.rel(self.FORGONE, a.rule.node, w), PLUS,
+                    licence=self.g.rel(self.APPLIED, chosen.rule.node),
+                    source=self.KB, mention=True,
+                )
+
+    def _passed_up(self, app) -> bool:
+        """Has this way of getting what it serves already been passed up?"""
+        if self._claims(self.g.rel(self.STANDING, app.rule.node)):
+            return False
+        return any(
+            self._claims(self.g.rel(self.FORGONE, app.rule.node, w))
+            for w in self._wants(app)
+        )
+
     def _note_doubt(self, applications, chosen, rank) -> None:
         """Say when the choice was not forced.
 
@@ -1569,6 +1663,12 @@ class Machine:
         # Defeat before quiescence -- see `rules.defeat` for why the order is not
         # interchangeable.
         applications = defeat(self.rules, applications)
+        # ...and the fourth way not to run, which is the only one that is a
+        # decision: this was a live way of getting what I wanted and I took
+        # another. Checked here rather than in `defeat` because it is not a claim
+        # that the rule is worse -- it is a claim that the question it answered
+        # has been answered.
+        applications = [a for a in applications if not self._passed_up(a)]
         applications = [a for a in applications if self._would_change(a)]
 
         # What the situation recommends, computed once for this tick.
@@ -1577,6 +1677,9 @@ class Machine:
         chosen = arbitrate(self.rules, applications, rank)
         if chosen is not None:
             self._note_doubt(applications, chosen, rank)
+            # Before applying, not after: the rivals are visible now, and this is
+            # §16's ordering trap for the fourth time.
+            self._forgo(applications, chosen)
         if chosen is None:
             # Nothing came to mind that had anything to do -- which is not the
             # same as nothing being left to do, and §15 says only the second

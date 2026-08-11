@@ -1904,17 +1904,18 @@ def subgoals_make_blame_sayable() -> None:
     """
     from .text import load
 
+    # No tap, so smashing is the ONLY way to the water. That matters: now that
+    # the agent forgoes, a world with a safe alternative no longer produces the
+    # harm, and this fixture would have measured the forgoing rather than the
+    # blame. Sometimes the only way costs something, and that is the case blame
+    # is for.
     src = chr(10).join([
-        "rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
-        " { +doing(fill(?w)) } )",
         "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
         " { +doing(smash(?j)) } )",
         "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
         "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
         "rule <squeeze> = implies( { +fruit(?f), +jug(?j), +intact(?j) }, { +juice(?j) } )",
-        "fact +achieves(fill(kettle), water(kettle))",
         "fact +achieves(smash(jug1), water(kettle))",
-        "fact +tap(sink)", "fact +under(kettle, sink)",
         "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
         "fact +fruit(orange)",
         "fact +goal(water(kettle))",
@@ -1965,28 +1966,30 @@ def subgoals_make_blame_sayable() -> None:
           m3.holds(kb3.term("boiling(kettle)")) == PLUS and not m3.blame())
 
 
-def arbitration_is_scheduling_not_decision() -> None:
-    """⚠ This records a GAP, not a guarantee. It passes on today's behaviour, so
-    the day that behaviour changes it fails and sends someone here.
-
-    The question that produced it: is the reason experience has nothing to learn
-    that the fixtures are too small and too safe? No -- it is deeper, and the
-    measurement is the argument.
+def taking_one_way_passes_up_the_others() -> None:
+    """Forgoing: the thing arbitration was assumed to do and did not (§14, §18).
 
     Arbitration is described as choosing one rule among those that matched. What
-    it actually does is choose one to run **first**: the rules that lose are
-    deferred, not rejected, and a loop that runs to quiescence applies every one
-    of them eventually. So there is no point at which this agent forgoes
-    anything, and a choice that cannot be forgone is not a choice.
+    it did was choose one to run **first** -- the losers were deferred, and a
+    loop that runs to quiescence applied every one of them eventually. Measured
+    before this existed, with acts: `emitted: ['fill(kettle)', 'smash(jug1)']`.
+    The agent filled the kettle AND smashed the jug.
 
-    > **Arbitration is scheduling, not decision.**
+    > **A choice that cannot be forgone is not a choice.** That is why ordering
+    > could only permute a fixed amount of work, why an exact recall table bought
+    > nothing, and why *choose the better rule* had no measurable content: the
+    > agent took the better rule and the worse one.
 
-    That is why ordering can only permute a fixed amount of work, why an exact
-    recall table buys nothing, and why *choose the better rule* has had no
-    measurable content: the agent takes the better rule AND the worse one.
+    So `forgone(<R>, <w>)` -- *R was a live way of getting w and I took another*.
+    A fourth way for a rule not to run, and the only one that is a **decision**:
+    defeat says a rival is better, the veto says never, recall says it did not
+    come to mind. This says it was reasonable and was passed up.
 
-    It is a safety property before it is a learning one. Two ways to get water,
-    one of which breaks something needed elsewhere, and the agent does both.
+    Two things it is deliberately not. It is not a retraction of the goal, which
+    was the first thing tried: retract it and credit cannot find what it achieved,
+    and a failed act loses the want with nothing left to notice it. And it is not
+    silent -- the deposit is licensed by the winner, so *what did you not do, and
+    why* is answerable, which is what makes passing up recoverable.
     """
     from .text import load
 
@@ -2013,26 +2016,52 @@ def arbitration_is_scheduling_not_decision() -> None:
     m.run(limit=4000)
     emitted = [m.g.show(n) for n in m.emitted]
 
-    check("§18", "⚠ GAP: a rule that loses arbitration is DEFERRED, not rejected -- "
-          "both ways of getting water were acted on, so nothing was chosen",
-          "fill(kettle)" in emitted and "smash(jug1)" in emitted)
-    check("§18", "⚠ GAP: so an alternative that costs something gets paid for anyway",
-          m.holds(kb.term("intact(jug1)")) == "-")
-    # The learning consequence, which is why this sits next to `review`. Credit
-    # ALONE reinforces the mistake -- the destructive act is on the support of
-    # what was achieved. What stops it is blame, and blame is only sayable
-    # because the task was split (see `subgoals_make_blame_sayable`).
-    check("§19", "credit alone reinforces it: the destructive act is on the support of "
-          "what was achieved, so an outcome signal recommends it",
-          "use-jug" in {r.name for r, _ in m.review()})
-    check("§19", "...and what the agent takes forward does NOT, because the same episode "
-          "shows it cost a subgoal",
-          not any("use-jug" in row for row in m.learned()))
-    # §21's truth-maintenance item, demonstrated rather than predicted.
-    check("§21", "⚠ GAP: nothing retracts a conclusion whose support was withdrawn -- "
-          "the agent believes it has juice and that the jug is broken",
-          m.holds(kb.term("juice(jug1)")) == PLUS
-          and m.holds(kb.term("intact(jug1)")) == "-")
+    check("§18", "taking one way of getting something passes up the others: one act "
+          "left the agent, not both",
+          emitted == ["fill(kettle)"])
+    check("§18", "so the alternative's cost is not paid -- and this is a safety property "
+          "before it is a learning one, because an act cannot be taken back",
+          m.holds(kb.term("intact(jug1)")) == PLUS
+          and m.holds(kb.term("juice(jug1)")) == PLUS)
+    passed_up = next(r for r in m.rules.rules if r.name == "use-jug")
+    taken = next(r for r in m.rules.rules if r.name == "use-tap")
+    check("§18", "and *what did you not do, and why* is answerable: the deposit names "
+          "the rule passed up, licensed by the one that was taken",
+          m.holds(m.g.rel(m.FORGONE, passed_up.node, kb.term("water(kettle)"))) == PLUS
+          and m.holds(m.g.rel(m.FORGONE, taken.node, kb.term("water(kettle)"))) is None)
+    # The learning consequence, which is why this sits beside `review`. Before
+    # forgoing, credit recommended the jug-smasher because smashing was on the
+    # support of the water it got.
+    check("§19", "credit now names the choice that was made and not the one that was "
+          "passed up",
+          "use-tap" in {r.name for r, _ in m.review()}
+          and "use-jug" not in {r.name for r, _ in m.review()})
+
+    # ⚠ The judgement, stated as a check because it is the one place this could
+    # be wrong: forgoing is the DEFAULT, so an agent that should have done both
+    # under-does. That is chosen on which error is recoverable -- and this is the
+    # recovery, as one ordinary corpus rule rather than machinery.
+    # Note which three mechanisms have to meet for this to work, none of them
+    # built for it: `enough` makes the agent try to stop, the veto refuses the
+    # stop and deposits `open`, and the retry rule reads that. *What I wanted is
+    # still outstanding, so reconsider what I passed up* -- §21's backtracking
+    # item arriving as a consequence rather than as machinery.
+    retry = chr(10).join([
+        "rule <retry> = implies( { +open(?w), +forgone(?r, ?w) }, { -forgone(?r, ?w) } )",
+        "fact standing(<retry>)",
+        "rule <done> = implies( { +juice(?j) }, { +enough(juice(?j)) } )",
+        "fact standing(<done>)",
+        "",
+    ])
+    m2 = Machine()
+    m2.actuator("hands")
+    kb2 = load(m2, src.replace(
+        "fact +achieves(fill(kettle), water(kettle))", "") + retry)
+    m2.run(limit=4000)
+    check("§18", "⚠ and passing up is REVISABLE: the chosen way did not deliver, so the "
+          "goal stayed open and one corpus rule handed the alternative back",
+          [m2.g.show(n) for n in m2.emitted] == ["fill(kettle)", "smash(jug1)"]
+          and m2.holds(kb2.term("water(kettle)")) == PLUS)
 
 
 def doubt_is_a_tie() -> None:
@@ -2596,7 +2625,7 @@ def main() -> int:
     no_goal_is_dropped_silently()
     experience_is_offline()
     subgoals_make_blame_sayable()
-    arbitration_is_scheduling_not_decision()
+    taking_one_way_passes_up_the_others()
     doubt_is_a_tie()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()

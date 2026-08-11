@@ -238,9 +238,57 @@ table's numerals are non-negative, so *how badly* is not sayable yet, only *at a
 failures blames every rule for every search — the *shortlist that ran dry* error again, mistaking
 *not reached* for *shown false*. Killed three ways in the probe, including "blame everything applied".
 
-**Where I would pick up now: FORGOING.** New §21 item, and the largest thing the design lacks.
-Proposal 1 above is the strongest lead — it needs the credit and commit-before-knowing interactions
-answered, and probably needs *goal as commitment* stated outright. The
+## ⭐⭐⭐ FORGOING — built. Commit `forgoing2`.
+
+    forgone(<R>, <w>)      R was a live way of getting w, and I took another one
+
+A **fourth** way for a rule not to run, and the first that is a **decision**: defeat says a rival is
+better, the veto says never, recall says it did not come to mind. This says *it was reasonable and I
+chose otherwise.*
+
+⭐⭐ **Alternatives are read off the EVIDENCE, not off `fits`.** An application that consumed `goal(w)`
+is a response to wanting `w` — the same comparison `supersedes` makes, over a trail already kept.
+`fits` asks whether a consequent could *be* the goal, which is backward reading's question and the
+wrong one: `<use-tap>` concludes `doing(fill(kettle))`, fits nothing, and is plainly a way to get water.
+
+⭐⭐⭐ **A deposit ABOUT THE ALTERNATIVE, not a retraction of the goal.** The user's version (consume the
+want) works with no engine change, and was rejected on the two measured interactions: credit cannot
+find what it achieved, and a failed act loses the want with nothing left to notice (the veto keys on
+`goal(?w)`). Depositing keeps the goal, keeps credit, keeps the guarantee.
+
+⭐⭐ **Passing up is the DEFAULT; complementary work is the exception.** The one judgement, made on
+which error is **recoverable**: forgo-by-default under-does and the goal stays open (veto → `open(w)`
+→ hand it back); defer-by-default smashes the jug, and that cannot be taken back.
+
+⭐⭐ **Retry is a corpus rule, not machinery** — §21's backtracking arriving as a *consequence*:
+
+    rule <retry> = implies( { +open(?w), +forgone(?r, ?w) }, { -forgone(?r, ?w) } )
+
+Needs three things to meet that were each built for something else: `enough` makes the agent try to
+stop, the veto refuses and deposits `open`, this reads it. Checked end to end — the alternative is
+taken up and the goal reached.
+
+⚠⚠⚠ **The apparatus is exempt on both sides** (§13's carve-out, fifth time). Nearly every bundled rule
+consumes `goal(?w)`, so without it, applying any rule forgoes backward reading entire. Measured by
+removing it: 5 checks fail.
+
+**Result:** one act emitted not two, the alternative's cost not paid, credit names `use-tap` (the
+choice made) rather than `use-jug` (the one passed up), and *what did you not do, and why* is on the
+trail.
+
+⚠⚠ **Six checks failed when this landed — all six were the GAP checks written to record the old
+behaviour.** That is them working: they were labelled *passes on today's wrong behaviour, so the day
+it changes they fail and send someone here*. Rewritten as guarantees
+(`taking_one_way_passes_up_the_others`). ⚠ And `subgoals_make_blame_sayable` needed a **new fixture** —
+with forgoing, a world with a safe alternative no longer produces harm, so it would have measured the
+forgoing rather than the blame. It now has no tap: sometimes the only way costs something, and that is
+the case blame is for.
+
+**Where I would pick up now.** Two narrow things forgoing left open (§21): rivals are noticed **at the
+tick the choice is made**, so an alternative arriving later is not passed up; and *complementary* work
+is now a case a corpus must declare, with no way to declare it beyond denying the deposit. Then the
+older thread: **how badly** a rule cost something is unsayable, because the table's numerals are
+non-negative — so a small cost cannot be weighed against a large benefit. The
 open question is not how to implement it but what it *is* — a rule can be defeated (`overrides`,
 `supersedes`), forbidden (the veto), or never proposed (recall), and none of those says *this was a
 live alternative and I am taking the other one*. Constraints the shape must satisfy: not a filter in
