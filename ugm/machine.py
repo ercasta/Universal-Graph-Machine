@@ -100,6 +100,15 @@ class Machine:
         # different taps and the plan is wrong -- silently.
         self.CHECK = self.g.atom("check")  # the request
         self.UNMET = self.g.atom("unmet")  # nothing in the state answers it
+        # The third request, and the one that retires the last phase. `blocked`
+        # claims that NO rule fits -- an aggregate over a finished search, which
+        # no positive rule can say and `-` cannot say either (§9's `-` is *an
+        # entry denies this*, not *for no ?r*). So a rule asks, at a moment it
+        # chooses, and the machinery answers by counting what the corpus already
+        # produced. It runs no search of its own: `fits` entries are the rules'
+        # own work, and this only reads them.
+        self.VERDICT = self.g.atom("verdict")  # the request
+        self.PURSUED = self.g.atom("pursued")  # something fits it
         # Denial as a TERM, beside the sign rather than instead of it (§9).
         # A sign is a member of an entry, so it cannot sit inside another term --
         # and §16 nests terms by construction. Concluding `-b` under a `likely`
@@ -163,6 +172,9 @@ class Machine:
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
             "dormant": self.DORMANT, "due": self.DUE,
             "check": self.CHECK, "unmet": self.UNMET,
+            "verdict": self.VERDICT, "pursued": self.PURSUED,
+            "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
+            "need": self.NEED,
             "causes": self.rules.CAUSES, "implies": self.rules.IMPLIES,
             "plus": self.rules.SIGN["+"], "minus": self.rules.SIGN["-"],
         }
@@ -174,11 +186,14 @@ class Machine:
         self._enacted: set = set()
         self._supposed: set = set()
         self.supposition_budget = 32
+        # Backward reading is rules now, so its budget is the ordinary one: the
+        # loop's `limit`, and `_would_change` for termination. The phase carried
+        # its own counter because it ran outside arbitration and nothing else
+        # could stop it.
         self.expansions = 0
-        self.expansion_budget = 64
-        self._expanded: set = set()
         self._acted: set = set()
         self._quieted: set = set()
+        self._reified: set = set()
         self._actuators: List[NodeId] = []
         self.emitted: List[NodeId] = []
         # Machinery vocabulary: requests, not claims. Nothing carries these out of
@@ -190,7 +205,13 @@ class Machine:
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
-                             self.DUE}
+                             self.DUE, self.VERDICT, self.PURSUED}
+
+        # A rule becomes data when it is authored, not when someone remembers to
+        # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
+        # so a rule loaded after a call to `reify_all` would have been invisible
+        # to the reader, with nothing anywhere saying so.
+        self.rules.on_rule.append(self.reify)
 
         self.bundle: List[Rule] = []
         self._install_bundle()
@@ -198,6 +219,7 @@ class Machine:
         self.gate.on_write.append(self._enter)
         self.gate.on_write.append(self._fit)
         self.gate.on_write.append(self._settle)
+        self.gate.on_write.append(self._verdict)
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
         self.channels.sink = self._deliver
@@ -341,6 +363,71 @@ class Machine:
                 )
             )
 
+        # Backward reading, entire -- the last phase, as six rules over three
+        # requests (`ugm.backward` measured these against it before it went).
+        #
+        # §14 prints a rule for this and it cannot work: `con(?r, ?pat, +)` binds
+        # the rule's stored PATTERN, which is generic, and a goal is ground, so
+        # one variable cannot bind to both. Deciding they correspond is `match`,
+        # and match is floor. The repair was not to make backward reading a
+        # primitive but to give the wall a door: `fit` answers *could this rule
+        # produce this goal*, already instantiated, because a rule cannot hold a
+        # binding.
+        #
+        # What the phase was doing that these are not: ordering itself ahead of
+        # every rule and returning early. That was never backward reading -- it
+        # was a precedence claim in control flow, and it starved forward
+        # reasoning badly enough that goals the corpus could satisfy read as
+        # blocked.
+        r, w, sub = g.var("?r"), g.var("?wanted"), g.var("?sub")
+        plan = g.rel(self.PLAN, r, w)
+        # Ask every rule whether it could produce this goal. Exhaustive here, and
+        # that is §19's business, not this rule's.
+        self.bundle.append(self.rules.rule(
+            IMPLIES,
+            [Member(PLUS, g.rel(self.GOAL, w)), Member(PLUS, g.rel(self.RULE, r))],
+            [Member(PLUS, g.rel(self.FIT, r, w))],
+            "ask-fit",
+        ))
+        # A rule that fits is a plan. R7 for the search's own working state: the
+        # plan node is built by substitution, and substitution interns, so the
+        # same rule expanding the same goal names the same plan -- which is what
+        # a plan is. Minting a fresh node would be wrong, not merely wasteful.
+        self.bundle.append(self.rules.rule(
+            IMPLIES,
+            [Member(PLUS, g.rel(self.FITS, r, w))],
+            [Member(PLUS, g.rel(self.EXPANDS, plan, w, r))],
+            "plan",
+        ))
+        # What it needs becomes a subgoal of that plan. `?sub` arrives already
+        # instantiated, which is the whole reason `fit` answers with `need`.
+        self.bundle.append(self.rules.rule(
+            IMPLIES,
+            [Member(PLUS, g.rel(self.FITS, r, w)), Member(PLUS, g.rel(self.NEED, r, w, sub))],
+            [Member(PLUS, g.rel(self.SUBGOAL, plan, sub)), Member(PLUS, g.rel(self.GOAL, sub))],
+            "expand",
+        ))
+        # Is it already satisfied? Asked inside the PLAN's bindings, so siblings
+        # agree about which tap (§18).
+        self.bundle.append(self.rules.rule(
+            IMPLIES,
+            [Member(PLUS, g.rel(self.SUBGOAL, plan, sub))],
+            [Member(PLUS, g.rel(self.CHECK, plan, sub))],
+            "ask-check",
+        ))
+        # And the verdict -- asked when the loop has stopped, which is the only
+        # moment at which *nothing fits this* is a claim about a finished search
+        # rather than about how far one has got. This is the policy the phase
+        # asserted in control flow; here it is one rule, and a corpus that wants
+        # to give up earlier or later overrides it.
+        mo = g.var("?m")
+        self.bundle.append(self.rules.rule(
+            IMPLIES,
+            [Member(PLUS, g.rel(self.QUIET, mo)), Member(PLUS, g.rel(self.GOAL, w))],
+            [Member(PLUS, g.rel(self.VERDICT, w))],
+            "give-up",
+        ))
+
     # -- rules as data ----------------------------------------------------
 
     def reify(self, rule: Rule) -> None:
@@ -354,6 +441,9 @@ class Machine:
         The patterns are **mentioned**, not used: `+ant(<R>, heat(?a, ?w))` claims
         something about a rule and binds nothing.
         """
+        if rule.node in self._reified:
+            return
+        self._reified.add(rule.node)
         f = self.focus
         w = lambda p: self.gate.write(
             f, p, "+", licence=self.g.rel(self.REIFIED, rule.node), source=self.KB, mention=True
@@ -367,6 +457,8 @@ class Machine:
             w(self.g.rel(self.CON, rule.node, m.pattern, self.rules.SIGN[m.sign]))
 
     def reify_all(self) -> None:
+        """Kept because instruments call it; it should now find nothing to do.
+        Rules are reified when they are authored (`RuleSet.on_rule`)."""
         for r in self.rules.rules:
             self.reify(r)
 
@@ -562,6 +654,70 @@ class Machine:
             licence=licence, source=self.KB, consumed=(e,), mention=True,
         )
 
+    def _verdict(self, frame: Frame, e: Entry) -> None:
+        """Answer *did anything fit this goal?* -- the aggregate, and the last
+        thing the goal phase was doing that no rule could do.
+
+        `blocked` is a claim that **no** rule fits. §12's argument that it cannot
+        be a rule stands: a positive rule fires when *some* rule does not fit,
+        which is a different claim, and a `-` member says *an entry denies this*,
+        never *for no `?r`*. It is an aggregate over a finished search.
+
+        Three things make answering it here different from running it in a phase,
+        and together they are the reason the phase could go.
+
+        **It runs no search.** Every `fits` entry it counts was produced by the
+        rules, through `fit`. This reads the state and nothing else -- so *which
+        rules were considered* stays the corpus's business, and recall can still
+        narrow it (§19). A phase that searched for itself made recall unreachable.
+
+        **It is asked, not assumed.** A rule decides when a goal is settled --
+        `+quiet(?m), +goal(?w) => +verdict(?w)` is the shipped policy, and it is
+        overridable like any other. The phase asserted the same policy in control
+        flow, where §18 says a convention is invisible and expensive.
+
+        **It is timed by the corpus, not by the loop.** The phase ran ahead of
+        recall and returned early, so while any goal was unexpanded no ordinary
+        rule could apply -- backward search monopolised the loop and reported a
+        goal as blocked that forward reasoning would have satisfied. `ugm.backward`
+        measured exactly that. Asking at quiescence cannot starve anything,
+        because there is nothing left to starve.
+
+        Two-valued, because a request that answers only when the news is bad is a
+        third silent decline (§5).
+        """
+        if self.g.relation_of(e.proposition) is not self.VERDICT or e.sign != PLUS:
+            return
+        (wanted,) = self.g.members(e.proposition)
+        state = current_state(self.chain, self.focus.topic, self.focus.seat)
+        # Two ways a goal is answered, and the vocabulary for both was already
+        # settled by the other two requests: `fits` (a rule could produce it) and
+        # `achieved` (the world already does). Counting both is what keeps
+        # `blocked` meaning what it meant when a phase computed it -- *nothing
+        # answers this* -- rather than the narrower *no rule derives this*, which
+        # would report a goal satisfied by a plain fact as blocked.
+        answered = False
+        for s in state:
+            if s.sign != PLUS:
+                continue
+            rel = self.g.relation_of(s.proposition)
+            if rel is self.FITS and self.g.member(s.proposition, 1) == wanted:
+                answered = True
+                break
+            if rel is self.ACHIEVED and self.g.member(s.proposition, 0) == wanted:
+                answered = True
+                break
+        fits = answered
+        self.gate.write(
+            frame,
+            self.g.rel(self.PURSUED if fits else self.BLOCKED, wanted),
+            PLUS,
+            licence=self.g.rel(self.VERDICT, wanted),
+            source=self.KB,
+            consumed=(e,),
+            mention=True,
+        )
+
     def _own_frame(self) -> Frame:
         """Where the agent itself is standing, as opposed to where its reasoning
         currently is.
@@ -707,151 +863,20 @@ class Machine:
     # the implementation.
 
     # -- backward reading -------------------------------------------------
-
-    def _expand_goal(self) -> bool:
-        """Read a rule backwards: what would make this goal true?
-
-        §14 says backward reading is not a fifth primitive but rules over the
-        four, and prints a rule to do it -- `+want(?f), +member(+?f, con(?r))`.
-        That rule cannot work, and the reason is worth stating: `con(?r, ...)`
-        stores the rule's PATTERN, which is generic, while a goal is ground. One
-        variable cannot bind to both. Deciding they correspond is `match`, and
-        `match` is a primitive no rule can call.
-
-        So this sits in the machinery until a rule can invoke matching -- the
-        same wall the lifting rule hit, arrived at from the other side.
-
-        R2 is the other obligation: reading a rule backwards is reading its
-        converse, which is a hypothesis and not an entailment. Every subgoal is
-        licensed as `wanted`, never `applied`, so a conclusion drawn forwards is
-        permanently distinguishable from a goal proposed backwards.
-        """
-        if self.expansions >= self.expansion_budget:
-            self.exhausted += 1
-            return False
-        state = current_state(self.chain, self.focus.topic, self.focus.seat)
-        for e in state:
-            if e.sign != "+" or self.g.relation_of(e.proposition) != self.GOAL:
-                continue
-            if e.node in self._expanded:
-                continue
-            (wanted,) = self.g.members(e.proposition)
-            self._expanded.add(e.node)
-
-            # *Is this goal already satisfied?* is a MATCH, not a lookup. A
-            # subgoal is often generic -- `tap(?t)`, because the rule that
-            # proposed it left `?t` unbound -- and `resolve` compares proposition
-            # identity, so it would report a satisfied goal as blocked.
-            #
-            # And the match must run inside the PLAN's bindings. Satisfying
-            # `tap(?t)` with `tap(sink)` binds `?t` for the sibling goal
-            # `under(kettle, ?t)`. Checked independently, `tap(sink)` and
-            # `under(kettle, drain)` would both report achieved and the plan
-            # would be wrong -- silently, which is the worst kind.
-            plan = self._plan_of(wanted, state)
-            env = self._bindings_of(plan, state) if plan is not None else {}
-            held, extended = None, None
-            for s in state:
-                if s.sign != "+":
-                    continue
-                b = unify(self.g, wanted, s.proposition, dict(env))
-                if b is not None:
-                    held, extended = s, b
-                    break
-            if held is not None:
-                if plan is not None:
-                    for var, val in extended.items():
-                        if var not in env:
-                            self.gate.write(
-                                self.focus, self.g.rel(self.BINDS, plan, var, val), "+",
-                                licence=self.g.rel(self.ACHIEVED, wanted), source=self.KB,
-                                consumed=(held,), mention=True,
-                            )
-                self._note(self.ACHIEVED, wanted, e)
-                return True
-
-            candidates = []
-            for r in self.rules.rules:
-                for m in r.consequent:
-                    if m.sign != "+":
-                        continue
-                    if self.g.is_var(m.pattern):
-                        # A consequent that is a bare variable says *this rule can
-                        # conclude anything*. Forwards that is exact and useful --
-                        # it is how `+says(user, ?p)` becomes `+?p`. Backwards it
-                        # is vacuous: it proposes itself for every goal, and its
-                        # subgoal is another goal of the same shape, without end.
-                        #
-                        # So the two readings of one statement are not equally
-                        # informative, which R1 never promised. Recall is where
-                        # this belongs once it is learned (§15); until then the
-                        # backward reader declines what it cannot use.
-                        continue
-                    b = unify(self.g, m.pattern, wanted, {})
-                    if b is not None:
-                        candidates.append((r, b))
-                        break
-            if not candidates:
-                # *I found no way* is not *there is no way* (§9, §15). This says
-                # only the first, and says it explicitly rather than by silence.
-                self._note(self.BLOCKED, wanted, e)
-                return True
-
-            self.expansions += 1
-            rule, binding = candidates[0]
-            licence = self.g.rel(self.WANTED, rule.node, wanted)
-            # One plan per expansion, and it is the thing bindings belong to.
-            # Not interned: expanding the same goal twice by different rules is
-            # two plans, which is what having alternatives means.
-            plan = self.g.instance(self.PLAN, rule.node, wanted)
-            self.gate.write(
-                self.focus, self.g.rel(self.EXPANDS, plan, wanted, rule.node), "+",
-                licence=licence, source=self.KB, consumed=(e,), mention=True,
-            )
-            for var, val in binding.items():
-                self.gate.write(
-                    self.focus, self.g.rel(self.BINDS, plan, var, val), "+",
-                    licence=licence, source=self.KB, mention=True,
-                )
-            for m in rule.antecedent:
-                sub = substitute(self.g, m.pattern, binding)
-                self.gate.write(
-                    self.focus, self.g.rel(self.GOAL, sub), "+",
-                    licence=licence, source=self.KB, consumed=(e,), mention=True,
-                )
-                self.gate.write(
-                    self.focus, self.g.rel(self.SUBGOAL, plan, sub), "+",
-                    licence=licence, source=self.KB, mention=True,
-                )
-            return True
-        return False
-
-    def _plan_of(self, wanted: NodeId, state: List[Entry]) -> Optional[NodeId]:
-        """Which plan proposed this goal. A goal with no plan is a root want."""
-        for s in state:
-            if s.sign == "+" and self.g.relation_of(s.proposition) is self.SUBGOAL:
-                plan, sub = self.g.members(s.proposition)
-                if sub == wanted:
-                    return plan
-        return None
-
-    def _bindings_of(self, plan: NodeId, state: List[Entry]) -> dict:
-        """A plan's environment, read back out of the graph -- which is R7: the
-        agent's own working state is a fact, not an interpreter variable."""
-        env = {}
-        for s in state:
-            if s.sign == "+" and self.g.relation_of(s.proposition) is self.BINDS:
-                p, var, val = self.g.members(s.proposition)
-                if p == plan:
-                    env[var] = val
-        return env
-
-    def _note(self, relation: NodeId, wanted: NodeId, because: Entry) -> None:
-        self.gate.write(
-            self.focus, self.g.rel(relation, wanted), "+",
-            licence=self.g.rel(relation, wanted), source=self.KB,
-            consumed=(because,), mention=True,
-        )
+    #
+    # It used to be here: `_expand_goal`, the last interpreter phase, deleted in
+    # `nophases`. It is now six bundled rules over three requests -- `<ask-fit>`,
+    # `<plan>`, `<expand>`, `<ask-check>`, `<give-up>` -- and `ugm.backward`
+    # measured them against it, one rule deleted at a time, before it went.
+    #
+    # What it was NOT doing is the finding. §14's wall (a rule cannot decide that
+    # a ground goal corresponds to a stored generic pattern) was real, and the
+    # phase was never the answer to it -- `fit` is. What the phase added on top
+    # was a precedence claim written in control flow: it ran ahead of recall and
+    # returned early, so while any goal was unexpanded no ordinary rule could
+    # apply. That starved forward reasoning badly enough that a goal the corpus
+    # could satisfy reported as blocked, which `ugm.backward` found by comparing
+    # the two readers rather than by anybody suspecting it.
 
     def discharge(self, frame: Frame, wrap: NodeId, limit: int = 100) -> List[Entry]:
         """Run to quiescence inside, then carry conclusions out **wrapped**.
@@ -917,9 +942,10 @@ class Machine:
         # *nothing arrived and nothing applied* stay different silences (§19).
         arrivals = self.channels.since_last_tick()
 
-        if self._expand_goal():
-            return Step(arrivals, 0, 0, None, (), "expanded")
-
+        # There is no second line. Every phase is gone: recall, match, defeat,
+        # quiescence, arbitrate, apply -- and the two things a register owes,
+        # `_leave` when a hypothesis runs out of work and `_wake` when the loop
+        # does. Nothing here decides anything a rule could have decided.
         proposed = self._recall()
         applications: List[Application] = []
         for r in proposed:

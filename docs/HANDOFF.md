@@ -10,10 +10,10 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     175 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     178 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
-python -m ugm.bundle         9/9 bundled rules exercised  is every shipped rule load-bearing?
-python -m ugm.backward       0 missing, 0 blind         backward reading as rules vs as a phase
+python -m ugm.bundle        14/14 bundled rules exercised  is every shipped rule load-bearing?
+python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 ```
@@ -44,6 +44,7 @@ gone. Ten commits:
 | `denial` | §9 settled by measurement: sign **and** `not`, translating one way |
 | `compose` | pattern-against-pattern is **unification, not match**; composition built and measured |
 | `occasions` | leaving a hypothesis and running out of work become **facts**; callbacks and watchdogs |
+| `nophases` | the last phase deleted. `tick()` has no line a rule could have written |
 
 ### 1. The spine changed
 
@@ -136,6 +137,43 @@ Three things this cost, and two of them were bugs that had been invisible:
   onward, not fired once. One whose conclusion re-arms it runs to its budget. Likewise `due` is not
   consumed — a woken rule stays awake, which is fine only while recall is exhaustive.
 
+### 6. The last phase went, and the count is zero
+
+`_expand_goal` is deleted. `tick()` is now recall → match → defeat → quiescence → arbitrate → apply,
+plus the two things a register owes: `_leave` when a hypothesis runs out of work, `_wake` when the
+loop does. **There is no line in it a rule could have written.**
+
+Backward reading ships as five bundled rules over three requests — `<ask-fit>`, `<plan>`, `<expand>`,
+`<ask-check>`, `<give-up>`. What made the last one possible is the `verdict` request: `blocked` claims
+that **no** rule fits, an aggregate over a finished search, and `quiet` is the fact that says a search
+has finished. The machinery answers it by counting `fits` and `achieved` entries **the rules
+produced** — it runs no search, so *which rules were considered* stays recall's business.
+
+Two supporting changes:
+
+* **rules are data when authored** (`RuleSet.on_rule` → `Machine.reify`). Backward reading enumerates
+  `+rule(?r)`, so a rule loaded after someone called `reify_all()` was invisible to it with nothing
+  reporting so. `reify_all()` is kept and idempotent.
+* **R2 moved from the licence to the trail.** The phase stamped subgoals `wanted`; now `<expand>`
+  writes them, so the licence is `applied(<expand>)` and the reading is recovered one hop back —
+  `<expand>` consumed a `need` entry, and `_fit` licences everything it answers `wanted(<R>, goal)`.
+  Checked by walking the trail rather than by trusting a stamp.
+
+**What it cost, measured.** 98 steps where the phase took ~10 on the same corpus; `ugm.backward`'s
+fixture is 194 steps / 411 writes. `ask-fit` asks every reified rule about every goal, which is
+exactly what §19 exists to narrow — the phase hid that cost by hard-coding the narrowing.
+
+**Two gaps this made visible, neither of them new:**
+
+* **a root goal is never checked** for satisfaction. `<ask-check>` keys on `subgoal(plan, ?w)`, and
+  *a goal with no plan* is not expressible. Checking every goal binding-free would reintroduce §18's
+  sibling failure, so this needs a real answer, not a rule.
+* **a request can only be made once.** `<ask-check>` asks when the subgoal appears; if forward
+  reasoning satisfies it three ticks later, nothing asks again, because re-concluding `+check(p, w)`
+  changes nothing and quiescence drops it. This is why `ugm.backward`'s historical 29th fact
+  (`achieved(water(kettle))`) is no longer produced — recorded there as a claim about the phase, not
+  as a current output. A re-ask needs a fresh request node; §21.
+
 ---
 
 ## The state of the code
@@ -144,30 +182,31 @@ Three things this cost, and two of them were bugs that had been invisible:
 `selftest` `agreement` `bundle` `backward` `compose` `modality` are instruments; `stratum0` is the rule-level
 read.
 
-**One phase remains**: `Machine._expand_goal`. Everything else in `tick()` is recall → match →
-defeat → quiescence → arbitrate → apply, plus a `_leave()` when a supposition runs out of work and a
-`_wake()` when the loop does.
+**No phases remain.** `tick()` is recall → match → defeat → quiescence → arbitrate → apply, plus
+`_leave()` when a supposition runs out of work and `_wake()` when the loop does.
 
-**Nine bundled rules** ship as data (`Machine._install_bundle`): `intake`, `did`, `assert-act`,
-`denial`, `resuming`, and four `deviation-*`.
+**Fourteen bundled rules** ship as data (`Machine._install_bundle`): `intake`, `did`, `assert-act`,
+`denial`, four `deviation-*`, `resuming`, and backward reading's `ask-fit`, `plan`, `expand`,
+`ask-check`, `give-up`.
 
-**Four write-time hooks**: `_dispatch` (acting), `_enter` (supposition), `_fit`, `_settle`. These are
-Python callables, which is honest debt — §21 records it.
+**Five write-time hooks**: `_dispatch` (acting), `_enter` (supposition), `_fit`, `_settle`,
+`_verdict`. These are Python callables, which is honest debt — §21 records it.
 
 ---
 
 ## Where I would pick up
 
-**1. Decide about the last phase.** `ugm.backward` shows five rules reproduce it *and produce more*,
-because the phase starves forward reasoning. So retiring it is a **behavioural change to argue for**,
-not a refactor. Two things block a clean swap:
+**1. Recall.** It is now the only step still hard-coded, and the cost of retiring the phase landed
+squarely on it: `<ask-fit>` asks every reified rule about every goal. §19 already says what belongs
+here — a **priority table**, keyed by something about where the register is standing, learned later
+from the trail the machinery already deposits. The open questions are *what the key is* (the seat? the
+topic? the goal in focus?) and **what stops a top-K-with-randomness from making a run
+irreproducible** — this project has a standing rule that no derived result is read out of a set, and
+an unseeded tie-break is the same bug wearing a hat. §19's carve-out also stands: prohibitions come
+off the recall path entirely.
 
-* `blocked` is a **state, not a fact** — no rule can conclude *no rule fits*, which is an aggregate
-  over a finished search. **`quiet` is now the home**: an aggregate over a finished search is
-  legitimate exactly when the search is over, and a fact now says one is. Nothing has been moved onto
-  it yet.
-* nothing says when a plan is *settled*, which is also §21's backtracking item, and the same question
-  as *when is a `due` rule done*.
+Also still open, and the same question three ways: nothing says when a plan is *settled*, when a `due`
+rule is *done*, or when a request may be *re-asked*.
 
 **2. The composition trigger.** Composition is built and measured (n steps -> 1, defeat inherited).
 What is missing is *when*: §4's answer is `compose what has run often and never surprised; decompose

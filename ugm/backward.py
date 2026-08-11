@@ -1,20 +1,49 @@
-"""Backward reading, as rules -- and how far that gets (§5, §18, §21).
+"""Backward reading, as rules -- and what deleting the phase changed (§5, §18).
 
-Goal expansion is the last interpreter phase, and it is the one §5's wall runs
-through: reading a rule backwards means deciding that a ground goal corresponds
-to a rule's stored generic pattern, and that is `match`, which is floor.
-
-This runs the experiment rather than arguing it. `Machine._fit` answers a match
-**request**, and the rules below use it to expand a goal. What is measured is
-whether they reach the same subgoals as the phase does.
+Goal expansion was the last interpreter phase. It is gone (`nophases`), and what
+replaced it ships in the bundle: `<ask-fit>`, `<plan>`, `<expand>`, `<ask-check>`,
+`<give-up>`, over three requests the machinery answers at the write.
 
     python -m ugm.backward
 
-What the request has to return is the finding. The obvious design -- answer with
-a yes and a binding -- does not work, and not for an implementation reason: a
-binding is a map from variables to nodes, and a rule cannot hold one, let alone
-apply it. Applying is substitution, which is floor. So the answer has to arrive
-already instantiated:
+This file used to *compare the two readers*, and that comparison is the reason
+the phase could go, so the result is kept here rather than deleted with it:
+
+    by the phase    28 facts
+    by rules        29 facts
+
+    RULES ONLY      achieved(water(kettle))
+
+**The phase starved forward reasoning.** It ran ahead of recall and returned
+early, so while any goal was unexpanded no ordinary rule could apply.
+`water(kettle)` is derivable forwards from this corpus, and the phase judged it
+unsatisfied because it had not let anything derive it yet. That is not a
+disagreement about backward reading -- it is a precedence claim that had been
+written in control flow, where §18 says nothing can see it or override it.
+
+**That extra fact is not reproduced by this run, and the reason is a second
+finding.** Backward reading now ships in the bundle, so it is authored *before*
+the corpus rather than after, and `<ask-check>` reaches `water(kettle)` earlier --
+before anything has derived it. It answers `unmet`, and nothing ever asks again:
+a request is a fact, so **a request can only be made once**. Quiescence stops the
+re-ask (`+check` is already written, so re-concluding it changes nothing).
+
+So the phase's starvation was real and its repair is not automatic. What the
+rules gain is that the timing is now a corpus's to fix -- a rule may re-ask under
+a fresh request node -- where under the phase it was not expressible at all.
+`ugm.backward`'s original 29th fact is therefore recorded here as a *claim about
+the phase*, not as a current output. §21 carries the re-ask.
+
+What the run measures now is the replacement, on its own: does it reach the plan,
+and is every one of the five rules load-bearing? The second half is not optional.
+Three checks in this project reported success while unable to fail, and the one
+that caught them each time was **delete each rule of the thing you are checking,
+one at a time, and report any rule the fixture cannot kill.**
+
+What the request has to return was the finding that made any of it possible. The
+obvious design -- answer with a yes and a binding -- does not work, and not for
+an implementation reason: a binding is a map from variables to nodes, and a rule
+cannot hold one, let alone apply it. So the answer arrives already instantiated:
 
     +fits(<R>, goal)             it could
     +need(<R>, goal, <subgoal>)  one per antecedent member, already substituted
@@ -22,17 +51,22 @@ already instantiated:
 > **Match and substitute travel together, because the caller cannot do the
 > second half.**
 
-That is the argument for `match` reified as a request rather than as a sixth
-floor item. A primitive a rule invokes would still hand back a binding it cannot
-use.
+And the last verdict cannot be a rule at all. The natural sixth rule is
+
+    implies( {+goal(?w), +unfit(?r, ?w)}, {+blocked(?w)} )
+
+and it is wrong: it fires when **some** rule does not fit, while `blocked` claims
+that **no** rule does -- an aggregate over a *finished* search. A `-` member
+cannot say it either (§9's `-` is *an entry denies this*, never *for no `?r`*).
+So `blocked` is answered by the machinery, to a `+verdict(?w)` request that
+`<give-up>` makes at `quiet` -- when the search that the aggregate is over has
+actually finished.
 """
 
 from typing import List, Set, Tuple
 
 from .chain import PLUS
-from .graph import NodeId
 from .machine import Machine
-from .rules import IMPLIES, Member
 from .text import load
 
 CORPUS = chr(10).join([
@@ -51,102 +85,25 @@ CORPUS = chr(10).join([
 ])
 GOAL = "tea(kettle, green)"
 
-# The vocabulary both readers write. `fit`, `fits`, `need`, `check` and `unfit`
-# are the request traffic and exist only on the rule side, so they are not
-# compared -- what must agree is the plan the two arrive at.
-#
-# `blocked` is deliberately NOT here, and that is a finding rather than a
-# convenience; see `_blocked_is_not_a_fact` below.
-SHARED = ("GOAL", "EXPANDS", "SUBGOAL", "BINDS", "ACHIEVED")
+# What the plan is made of. The request traffic (`fit`, `fits`, `need`, `check`,
+# `unfit`) is not read: what matters is the plan the reader arrives at.
+SHARED = ("GOAL", "EXPANDS", "SUBGOAL", "BINDS", "ACHIEVED", "BLOCKED")
 
-
-def _rule_level(m: Machine) -> None:
-    """Backward reading, entire, as five rules over two requests.
-
-    None of them could be written before this session: each concludes about a
-    rule node, which contains variables, and three read answers that exist only
-    because the machinery was asked to match.
-
-    Note what a rule turns out to be able to build. `plan(?r, ?w)` is constructed
-    by **substitution into a consequent**, and substitution interns -- so the same
-    rule expanding the same goal names the same plan, which is what a plan is.
-    Minting fresh nodes is not needed and would be wrong.
-    """
-    g = m.g
-    r, w, sub = g.var("?r"), g.var("?wanted"), g.var("?sub")
-    plan = g.rel(m.PLAN, r, w)
-
-    # Ask every rule whether it could produce this goal. Asking everything is
-    # what recall exists to narrow (§19); doing it exhaustively here is the
-    # deliberate-reasoning setting, not a shortcut.
-    m.rules.rule(
-        IMPLIES,
-        [Member(PLUS, g.rel(m.GOAL, w)), Member(PLUS, g.rel(m.RULE, r))],
-        [Member(PLUS, g.rel(m.FIT, r, w))],
-        "ask-fit",
-    )
-    # A rule that fits is a plan. R7 for the search's own working state.
-    m.rules.rule(
-        IMPLIES,
-        [Member(PLUS, g.rel(m.FITS, r, w))],
-        [Member(PLUS, g.rel(m.EXPANDS, plan, w, r))],
-        "plan",
-    )
-    # What it needs becomes a subgoal of that plan. `?sub` arrives instantiated,
-    # which is the whole reason the request answers with `need` rather than with
-    # a binding.
-    m.rules.rule(
-        IMPLIES,
-        [Member(PLUS, g.rel(m.FITS, r, w)), Member(PLUS, g.rel(m.NEED, r, w, sub))],
-        [Member(PLUS, g.rel(m.SUBGOAL, plan, sub)), Member(PLUS, g.rel(m.GOAL, sub))],
-        "expand",
-    )
-    # Before expanding a subgoal, ask whether the world already answers it --
-    # under this plan's bindings, so that siblings agree (§18).
-    m.rules.rule(
-        IMPLIES,
-        [Member(PLUS, g.rel(m.SUBGOAL, plan, sub))],
-        [Member(PLUS, g.rel(m.CHECK, plan, sub))],
-        "ask-check",
-    )
-    # There is no sixth rule, and the missing one is the finding. See
-    # `_blocked_is_not_a_fact`.
-
-
-def _blocked_is_not_a_fact() -> str:
-    """Why backward reading's last verdict cannot be a rule.
-
-    The natural sixth rule is
-
-        implies( {+goal(?w), +unfit(?r, ?w)}, {+blocked(?w)} )
-
-    and it is wrong, because it fires when **some** rule does not fit. What
-    `blocked` claims is that **no** rule does -- a statement about the absence of
-    any fitting rule, which is an aggregate over a *finished* search.
-
-    Positive rules cannot say it. Nor can a `-` antecedent member: §9's `-` means
-    *an entry says this does not hold*, and *no entry* means inherit. Neither is
-    *for no `?r`*.
-
-    That is not a missing feature. It is §13 and §19 arriving at the last phase:
-
-    > **Bounded expansion returns a result AND a state.** `blocked` is the state.
-
-    A state is what the searcher reports about itself when it stops, and nothing
-    that stopped is a fact about the world. So `blocked` stays with whatever runs
-    the search -- or becomes a request answered once the search settles, which is
-    the same thing said politely.
-    """
-    return "blocked is a state, not a fact"
+# The plan the phase produced, recorded before it was deleted, over the same
+# vocabulary minus `blocked` (which the phase wrote, but as a state it reached
+# rather than a verdict it asked for). Anything the rules no longer reach is a
+# regression.
+BY_PHASE = 28
+PLAN_ONLY = ("GOAL", "EXPANDS", "SUBGOAL", "BINDS", "ACHIEVED")
 
 
 def _facts(m: Machine) -> Set[str]:
-    """Every machinery fact both readers are supposed to produce.
+    """Every fact the plan is made of.
 
     An earlier version compared only the goals reached, and three of the five
     rules were unkillable as a result -- the plan, the satisfaction check and the
-    blocking rule all write facts the comparison never looked at. A gate is only
-    as strong as what it reads.
+    verdict all write facts the comparison never looked at. A gate is only as
+    strong as what it reads.
     """
     wanted = {getattr(m, name) for name in SHARED}
     out: Set[str] = set()
@@ -157,76 +114,68 @@ def _facts(m: Machine) -> Set[str]:
     return out
 
 
-def _phase() -> Set[str]:
+def _read(drop: Tuple[str, ...] = ()) -> Tuple[Set[str], int, int]:
     m = Machine()
     kb = load(m, CORPUS)
-    m.gate.write(m.focus, m.g.rel(m.GOAL, kb.term(GOAL)), PLUS, mention=True)
-    m.run(limit=400)
-    return _facts(m)
-
-
-def _rules(drop: Tuple[str, ...] = ()) -> Tuple[Set[str], int]:
-    m = Machine()
-    kb = load(m, CORPUS)
-    m.reify_all()
-    _rule_level(m)
     if drop:
         m.rules.rules = [r for r in m.rules.rules if r.name not in drop]
-    # The phase would expand the same goals in parallel and the two would agree
-    # by construction rather than by measurement, so it is turned off.
-    m.expansion_budget = 0
     m.gate.write(m.focus, m.g.rel(m.GOAL, kb.term(GOAL)), PLUS, mention=True)
-    m.run(limit=400)
-    return _facts(m), m.gate.writes
+    steps = m.run(limit=2000)
+    return _facts(m), m.gate.writes, len(steps)
 
 
 def run() -> int:
-    by_phase = _phase()
-    by_rules, writes = _rules()
+    facts, writes, steps = _read()
 
-    print("backward reading -- the phase against rules over a match request")
+    print("backward reading -- the rules that replaced the last phase")
     print(f"  goal            {GOAL}")
-    print(f"  by the phase    {len(by_phase)} facts")
-    print(f"  by rules        {len(by_rules)} facts, {writes} writes")
+    print(f"  by rules        {len(facts)} facts, {steps} steps, {writes} writes")
+    print(f"  by the phase    {BY_PHASE} facts, before it was deleted")
+    print()
+    for x in sorted(facts):
+        print(f"    {x[:88]}")
     print()
 
-    missing = sorted(by_phase - by_rules)
-    extra = sorted(by_rules - by_phase)
-    print(f"    agreed      {len(by_phase & by_rules)}")
-    for x in missing:
-        print(f"    PHASE ONLY  {x[:88]}")
-    for x in extra:
-        print(f"    RULES ONLY  {x[:88]}")
+    # The plan itself, and the sibling-agreement case §18 warns about: `tap(?t)`
+    # must be satisfied by the tap that `under(kettle, ?t)` agrees with.
+    wanted = [
+        ("the goal is expanded by a rule that fits it", "expands(plan(", "tea(kettle, green)"),
+        ("its antecedent becomes subgoals, instantiated", "goal(boiling(kettle))", ""),
+        ("recursion reaches the second rule", "goal(over(kettle, ?s))", ""),
+        ("satisfaction is checked inside the plan's bindings", "binds(plan(", "water(kettle)"),
+        # §18's silent failure, made reachable: `tap(?t)` is satisfiable by
+        # `sink`, `under(kettle, ?t)` only by `drain`. Checked independently both
+        # report achieved and the plan is wrong with nothing saying so.
+        ("and siblings must agree, so the second is blocked", "blocked(under(kettle, ?t))", ""),
+        ("nothing fits it, and the verdict says so after the loop stopped", "blocked(on(?s))", ""),
+    ]
+    failures = 0
+    for name, needle, also in wanted:
+        ok = any(needle in f and also in f for f in facts)
+        print(f"  {'ok  ' if ok else 'FAIL'}  {name}")
+        failures += 0 if ok else 1
 
-    print()
-    if not missing and not extra:
-        print("  ok    the rules produce exactly what the phase does")
-    elif not missing:
-        # The rules reaching MORE is not a disagreement about backward reading.
-        # The phase runs before recall/match/arbitrate and returns early, so
-        # while any goal is unexpanded no ordinary rule can apply: backward
-        # search monopolises the loop. `water(kettle)` is derivable forwards
-        # from the corpus, and the phase judges it unsatisfied because it has
-        # not let anything derive it yet.
-        print("  ok    the rules produce everything the phase does, and more:")
-        print("        the phase orders itself ahead of forward reasoning and")
-        print("        starves it, so a goal that IS satisfiable reads as not.")
+    plan_facts = {f for f in facts if not f.startswith("blocked(")}
+    if len(plan_facts) < BY_PHASE:
+        print(f"  FAIL  the rules reach fewer plan facts than the phase did "
+              f"({len(plan_facts)} < {BY_PHASE})")
+        failures += 1
 
-    # Could it have disagreed? Three checks that reported success in this project
-    # turned out to be unable to fail, so agreement is not reported without it.
+    # Could this have failed? Three checks in this project reported success while
+    # unable to, so agreement is never reported without asking.
     print()
-    print("  can this comparison fail? -- one rule deleted at a time")
+    print("  can this gate fail? -- one rule deleted at a time")
     blind: List[str] = []
-    for name in ("ask-fit", "plan", "expand", "ask-check"):
-        got, _ = _rules((name,))
-        diff = len(by_phase ^ got)
+    for name in ("ask-fit", "plan", "expand", "ask-check", "give-up"):
+        got, _, _ = _read((name,))
+        diff = len(facts ^ got)
         print(f"    {name:10} {diff:>3} facts differ" + ("" if diff else "   <-- BLIND"))
         if not diff:
             blind.append(name)
 
     print()
-    print(f"{len(missing)} missing, {len(extra)} extra, {len(blind)} blind")
-    return len(missing) + len(blind)
+    print(f"{failures} failing, {len(blind)} blind")
+    return failures + len(blind)
 
 
 if __name__ == "__main__":

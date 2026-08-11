@@ -2604,6 +2604,51 @@ episodes accumulate. The second is the real cost, and it is a **rebuild from the
 a patch of the previous index** — an index patched incrementally drifts from the history it claims to
 summarise, and nothing detects it.
 
+### The last phase, and what `blocked` turned out to need
+
+Backward reading was the last thing the interpreter did that a rule could not. §14 prints a rule for
+it and that rule cannot work: `con(?r, ?pat, +)` binds the rule's stored **pattern**, which is
+generic, while a goal is ground, and one variable cannot bind to both. Deciding they correspond is
+`match`. So the wall was real — but the phase was never the answer to it. `fit` is, and once `fit`
+existed the phase was doing exactly one further thing:
+
+> **running ahead of recall and returning early.** While any goal was unexpanded, no ordinary rule
+> could apply.
+
+That is a precedence claim, and it was written in control flow where nothing can see it. Measured, it
+cost correctness and not merely order: a goal the corpus could satisfy *forwards* reported as blocked,
+because the phase never let anything derive it.
+
+What blocked the swap was the last verdict. `blocked` claims that **no** rule fits. The natural rule
+
+    implies( {+goal(?w), +unfit(?r, ?w)}, {+blocked(?w)} )
+
+fires when *some* rule does not fit, which is a different claim; and a `-` member cannot say it either,
+because §9's `-` is *an entry denies this*, never *for no `?r`*. It is an aggregate over a **finished**
+search, and until quiescence became a fact there was nowhere in the graph where such a thing was true.
+
+So `blocked` is answered by the machinery, to a `+verdict(?w)` request that a rule makes at `quiet`.
+Three properties make that different in kind from the phase, and all three are why the phase could go:
+
+* **it runs no search.** Every `fits` entry it counts was produced by the rules, through `fit`. So
+  *which rules were considered* stays recall's business — the phase's hard-coded exhaustive scan was
+  the reason recall could never narrow backward reading.
+* **it is asked, not assumed.** *A goal with nothing left to try has been given up on* is a policy, and
+  it is now one rule (`<give-up>`), overridable like any other.
+* **it is timed by the corpus.** Asked at quiescence, it cannot starve anything, because there is
+  nothing left to starve.
+
+Two costs, both real and both now visible instead of hidden:
+
+**The narrowing was load-bearing.** `<ask-fit>` asks every reified rule about every goal, and the
+same corpus that took the phase ten steps takes the rules ninety-eight. The phase was not cheaper; it
+was *pre-narrowed*, by an author, in Python. That work is now §19's, where it can be learned.
+
+**A request can only be made once.** `<ask-check>` asks whether a subgoal is already satisfied at the
+moment the subgoal appears. If forward reasoning satisfies it later, nothing asks again — re-concluding
+`+check(p, w)` changes nothing and quiescence drops it. Requests are facts, and a fact is not an event.
+Anything that needs re-asking needs a fresh request node, and nothing yet says when.
+
 ### Occasions, and the first thing a corpus can say to recall
 
 Two questions arrive together and turn out to be one mechanism.

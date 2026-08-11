@@ -8,7 +8,7 @@ Slice one carries the one-locus case only. An antecedent whose members all sit a
 the same moment needs no skeleton, and the skeleton is what §8 adds for chains.
 """
 
-from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .chain import Chain, Entry, Moment, weaker
 from .graph import Graph, NodeId
@@ -85,6 +85,12 @@ class RuleSet:
         # What each composed rule collapses. The trail of a shortcut, so
         # `decompose on surprise` knows which sub-steps to re-run (§21).
         self.composed_from: Dict[NodeId, Tuple["Rule", "Rule"]] = {}
+        # Authoring a rule is an event, the way a write is. The machine
+        # subscribes so that a rule becomes DATA the moment it exists rather than
+        # when somebody remembers to ask -- which matters once rules read rules:
+        # a reader that enumerates `+rule(?r)` sees whatever was reified, and a
+        # rule authored afterwards was invisible to it with nothing reporting so.
+        self.on_rule: List[Callable[["Rule"], None]] = []
 
     def rule(
         self,
@@ -113,6 +119,8 @@ class RuleSet:
         )
         r = Rule(node, connective, antecedent, consequent, name)
         self.rules.append(r)
+        for hook in self.on_rule:
+            hook(r)
         return r
 
     def _moment(self, members: Sequence[Member]) -> NodeId:

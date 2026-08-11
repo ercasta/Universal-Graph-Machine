@@ -671,9 +671,13 @@ def rules_as_data() -> None:
     ])
     m = Machine()
     kb = load(m, src)
-    check("§14", "before reification a rule is a node nobody asserted", m.holds(kb.term("rule(<a>)")) is None)
+    # Reification used to be something a caller remembered to do. It is now a
+    # subscription on rule authoring, because backward reading is rules and it
+    # enumerates `+rule(?r)` -- a rule loaded after a `reify_all()` would have
+    # been invisible to the reader with nothing reporting so.
+    check("§14", "a rule is data the moment it is authored", m.holds(kb.term("rule(<a>)")) == PLUS)
     m.reify_all()
-    check("§14", "reified, a rule is an ordinary fact", m.holds(kb.term("rule(<a>)")) == PLUS)
+    check("§14", "and reifying again is idempotent", m.holds(kb.term("rule(<a>)")) == PLUS)
     check("§14", "and its connective is askable", m.holds(kb.term("conn(<a>, implies)")) == PLUS)
     check("§13", "its patterns are MENTIONED, not used", m.holds(kb.term("ant(<a>, p(x), plus)")) == PLUS)
 
@@ -841,7 +845,7 @@ def backward_reading() -> None:
     ])
     m = Machine()
     kb = load(m, src)
-    m.run(limit=60)
+    m.run(limit=400)
 
     def props(rel):
         return [m.g.show(e.proposition) for mm in m.chain.moments for e in mm.delta
@@ -851,15 +855,25 @@ def backward_reading() -> None:
 
     check("R1", "the same rule read backwards proposes subgoals", "goal(water(kettle))" in goals)
     check("R1", "and recurses through a second rule", "goal(under(kettle, ?t))" in goals)
+    # R2 -- the reading stays recoverable -- but it moved from the licence to the
+    # trail when the phase went, and that is worth stating rather than noticing.
+    # The phase wrote a subgoal itself and stamped it `wanted`. Now `<expand>`
+    # writes it, so its licence is `applied(<expand>)` like any rule's. What
+    # carries the reading is one hop further back: `<expand>` consumed a `need`
+    # entry, and `_fit` licences everything it answers `wanted(<R>, goal)`. So
+    # the guarantee is the ordinary trail rather than a special stamp, which is
+    # §17's own argument -- and it is now checked by walking it.
+    subgoals = [
+        e for mm in m.chain.moments for e in mm.delta
+        if m.g.relation_of(e.proposition) is m.GOAL
+        and m.g.show(e.proposition) != "goal(boiling(kettle))"
+    ]
     check(
         "R2",
-        "a subgoal is licensed `wanted`, never `applied`",
-        all(
-            m.g.relation_of(e.licence) is m.WANTED
-            for mm in m.chain.moments for e in mm.delta
-            if m.g.relation_of(e.proposition) is m.GOAL and e.licence is not None
-            and m.g.relation_of(e.licence) is not None
-            and m.g.show(e.proposition) != "goal(boiling(kettle))"
+        "a subgoal's trail reaches an entry licensed `wanted`, never `applied` alone",
+        bool(subgoals) and all(
+            any(m.g.relation_of(s.licence) is m.WANTED for s in m.chain.trail(e) if s.licence)
+            for e in subgoals
         ),
     )
     check(
@@ -872,7 +886,39 @@ def backward_reading() -> None:
         "*is this goal already met* is a match, not a lookup",
         "achieved(tap(?t))" in achieved and "achieved(under(kettle, ?t))" in achieved,
     )
-    check("§9", "expansion is budgeted and reported", m.exhausted == 0 and m.expansions == 2)
+    # The phase carried its own expansion counter because it ran outside
+    # arbitration and nothing else could stop it. Backward reading is rules now,
+    # so the budget is the loop's and termination is quiescence's.
+    plans = {m.g.show(e.proposition) for mm in m.chain.moments for e in mm.delta
+             if m.g.relation_of(e.proposition) is m.EXPANDS and e.sign == PLUS}
+    check("§9", "two rules were read backwards, and no bound was hit silently",
+          m.exhausted == 0 and len(plans) == 2)
+
+    # The count that the whole arc was for. `tick` selects a rule and applies it;
+    # everything a phase used to decide is now a rule or a request.
+    check("§18", "no phase remains in the loop", not hasattr(m, "_expand_goal"))
+    check(
+        "§18",
+        "and backward reading is data -- five rules a corpus can override",
+        all(any(r.name == n for r in m.bundle)
+            for n in ("ask-fit", "plan", "expand", "ask-check", "give-up")),
+    )
+
+    # What the phase cost, and the reason retiring it was a behavioural change
+    # rather than a refactor: it ran ahead of recall and returned early, so while
+    # any goal was unexpanded no ordinary rule could apply. A goal the corpus can
+    # satisfy forwards read as blocked.
+    # And what it did NOT fix. `<ask-check>` asks once, when the subgoal appears;
+    # `water(kettle)` is derived forwards a few ticks later and nothing asks
+    # again, because a request is a fact and quiescence refuses to re-conclude
+    # one. The phase had the same blind spot for a different reason and could not
+    # be fixed from a corpus; this one can. §21 carries the re-ask.
+    check(
+        "§21",
+        "a request can only be made once, so a goal satisfied later is not re-checked",
+        m.holds(kb.term("water(kettle)")) == PLUS
+        and "achieved(water(kettle))" not in achieved,
+    )
 
     # §14's printed backward reader cannot work: `con(?r, ?f, plus)` stores the
     # rule's generic PATTERN, and a goal is ground, so one variable cannot bind
@@ -905,7 +951,7 @@ def plan_bindings() -> None:
             "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
             "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
         ] + facts + ["fact +goal(boiling(kettle))", ""]))
-        m.run(limit=60)
+        m.run(limit=400)
         return m, kb
 
     def props(m, rel):
@@ -946,7 +992,7 @@ def the_loop_closes() -> None:
 
     gauge = kb.term("gauge")
     m.channels.use(gauge)
-    steps = m.run(limit=60)
+    steps = m.run(limit=400)
 
     check("§11", "planning reached an act and emitted it", [m.g.show(x) for x in m.emitted] == ["heat(anna, kettle)"])
     check("§11", "acting makes the event-fact true", m.holds(kb.term("heat(anna, kettle)")) == PLUS)
@@ -956,7 +1002,7 @@ def the_loop_closes() -> None:
           m.holds(kb.term("boiling(kettle)")) == PLUS)
 
     m.channels.deliver(gauge, kb.term("boiling(kettle)"), sign="-")
-    after = m.run(limit=60)
+    after = m.run(limit=400)
 
     check("§13", "a channel reports a SIGNED content, and the saying itself is positive",
           m.holds(kb.term("says(gauge, boiling(kettle), minus)")) == PLUS)
@@ -1070,7 +1116,7 @@ def quiescence_is_an_occasion() -> None:
     ])
     m = Machine()
     kb = load(m, src)
-    steps = m.run(limit=60)
+    steps = m.run(limit=400)
 
     check(
         "§5",
