@@ -2763,15 +2763,23 @@ a threshold constant with nothing to derive it from. Ordinals answer the questio
 
 > **Two rules are close exactly when they tie.** Confidence is the top score being unique.
 
-**What counts as close is a knob, so it is a fact.** `indistinct(likely, possible)` says *do not rely
-on the difference between these two*; nothing is declared by default, so exact ties remain the only
-doubt and no behaviour depends on a constant nobody chose. Still grades rather than numbers — ordinals
-do not add, so *within 0.1* would have nothing to mean.
+**What counts as close is a knob, so it is a fact.** `tolerance(2)` says a gap of two or less is not
+a difference the agent will rely on; zero unless claimed, so the default is an exact tie and no
+behaviour depends on a constant nobody chose.
+
+⚠ **The score is this design's first cardinal quantity, and that is a departure this section owes an
+account of.** Each applicable `prefer` claim contributes its grade's weight and the contributions are
+summed — but §12 states the grade scale is ordinal, and that ordinals do not add. The exchange is
+explicit: a summed score supports a tolerance that says *within 2*, where an ordinal one can only
+enumerate which pairs of grades count as indistinguishable. What it gives up is what the ordinal scale
+was protecting — **enough weak preferences now outweigh a strong one**, and nothing records that the
+winner was weakly supported many times over rather than strongly supported once. Nothing else in the
+design became cardinal: an ordinary entry's grade still composes by weakest link.
 
 The reason a knob must be data here is not tidiness. **A rule can turn it**, so an agent can be harder
 to convince when the next step cannot be taken back:
 
-    rule <care> = implies( { +goal(doing(?p)) }, { +indistinct(certain, possible) } )
+    rule <care> = implies( { +goal(doing(?p)) }, { +tolerance(4) } )
     fact standing(<care>)
 
 *How careful am I being* becomes a claim with a trail rather than a threshold chosen once — and the

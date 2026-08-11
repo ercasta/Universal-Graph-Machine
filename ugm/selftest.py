@@ -1330,15 +1330,19 @@ def doubt_is_a_tie() -> None:
         not doubted(m2),
     )
 
-    # *Close* is a knob, so it is a fact -- and the reason that matters is that a
-    # RULE can turn it. Nothing is indistinct by default, so nothing depends on a
-    # constant nobody chose; a corpus that does not want to rely on the
-    # difference between two grades says so.
-    _, m3 = first_corpus_move(stronger + "fact indistinct(certain, possible)" + chr(10))
+    # *How close is close* is a knob, so it is a fact. Zero by default, so the
+    # default is an exact tie and nothing depends on a constant nobody chose.
+    _, m3 = first_corpus_move(stronger + "fact +tolerance(4)" + chr(10))
     check(
         "§19",
-        "declaring two grades indistinct makes a clear winner doubtful again",
+        "raising the tolerance makes a clear winner doubtful again",
         doubted(m3),
+    )
+    _, m3b = first_corpus_move(stronger + "fact +tolerance(1)" + chr(10))
+    check(
+        "§19",
+        "...and a tolerance too small to span the gap leaves it decided",
+        not doubted(m3b),
     )
 
     # The payoff: an agent that is harder to convince when the next step cannot
@@ -1347,7 +1351,7 @@ def doubt_is_a_tie() -> None:
     careful = chr(10).join([
         "rule <byA> = implies( { +a(?x) }, { +doing(at(?x)) } )",
         "rule <byB> = implies( { +b(?x) }, { +doing(at(?x)) } )",
-        "rule <care> = implies( { +goal(doing(?p)) }, { +indistinct(certain, possible) } )",
+        "rule <care> = implies( { +goal(doing(?p)) }, { +tolerance(4) } )",
         # ...and being careful must come BEFORE the move it is about, which is
         # what `standing` says: apparatus ahead of opinions. Without it the
         # agent commits and then decides to be careful, which is no use.

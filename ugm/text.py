@@ -98,6 +98,18 @@ def tokenise(src: str) -> List[Tok]:
             toks.append(Tok("var", src[i:j], line))
             i = j
             continue
+        if ch.isdigit():
+            # Numerals. The design had no cardinal quantity until preference
+            # strength became one, and a tolerance has to be writable in a
+            # corpus. A numeral is an ordinary atom whose NAME reads as a
+            # number, so nothing in the graph learns about arithmetic -- only
+            # the one reader that wants it does.
+            j = i
+            while j < n and src[j].isdigit():
+                j += 1
+            toks.append(Tok("name", src[i:j], line))
+            i = j
+            continue
         if ch.isalpha() or ch == "_":
             j = i
             while j < n and (src[j].isalnum() or src[j] == "_"):

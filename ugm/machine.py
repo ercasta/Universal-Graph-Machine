@@ -189,28 +189,23 @@ class Machine:
         # still made this tick; the record is what lets the agent know it was
         # not a confident one.
         self.CLOSE = self.g.atom("close")
-        # ...and WHAT COUNTS AS CLOSE is a knob, so it is a fact.
+        # ...and HOW CLOSE IS CLOSE is a knob, so it is a fact: `tolerance(2)`.
         #
-        # `indistinct(likely, possible)` says *do not rely on the difference
-        # between these two*. The default is nothing, so only exact ties are
-        # doubt and no behaviour depends on an unstated constant. A corpus
-        # widens it by claiming a pair.
+        # This is the design's first **cardinal** quantity, and it is a departure
+        # rather than an oversight. §12 says the grade scale is ordinal and that
+        # ordinals do not add; a preference score adds them. What that buys is a
+        # knob that can say *within 2* instead of enumerating which pairs of
+        # grades count as indistinguishable. What it costs is stated in §12's own
+        # terms: two weak preferences can now outweigh one strong one, which an
+        # ordinal scale existed to prevent. §21 carries it.
         #
-        # Data rather than a number for the usual reason and one better one: a
-        # rule can conclude it. An agent that should be harder to convince when
-        # the next step cannot be taken back declares more grades indistinct
-        # while `doing(...)` is in play -- which makes *how careful am I being*
-        # a claim with a trail, rather than a threshold somebody chose once.
-        #
-        # Grades, not numbers: §12 says the scale is ordinal and ordinals do not
-        # add, so *within 0.1* has nothing to mean here. Naming the pairs says
-        # exactly as much and no more.
-        self.INDISTINCT = self.g.atom("indistinct")
-        # The grade names as nodes, minted ONCE and shared with the surface
-        # through `reserved`. `g.atom` does not intern, so minting `likely` here
-        # and again in a corpus would be two nodes with one name -- the trap
-        # this design has paid for four times.
-        self.GRADE_ATOM = {name: self.g.atom(name) for name in GRADES}
+        # Zero by default, so the default is an exact tie and no behaviour
+        # depends on a constant nobody chose. A rule can raise it -- which is the
+        # reason it is a fact and not a field: an agent harder to convince when
+        # the next step cannot be taken back writes `+tolerance(3)` while
+        # `doing(...)` is in play, and *how careful am I being* becomes a claim
+        # with a trail.
+        self.TOLERANCE = self.g.atom("tolerance")
         self.RECALL = self.g.atom("recall")
         self.RECALLED = self.g.atom("recalled")
         self.FORBIDDEN = self.g.atom("forbidden")
@@ -245,8 +240,7 @@ class Machine:
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
-            "close": self.CLOSE, "indistinct": self.INDISTINCT,
-            **self.GRADE_ATOM,
+            "close": self.CLOSE, "tolerance": self.TOLERANCE,
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
@@ -290,7 +284,7 @@ class Machine:
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
-                             self.INDISTINCT}
+                             self.TOLERANCE}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -1022,26 +1016,34 @@ class Machine:
                 source=self.KB, mention=True,
             )
 
-    def _close(self, a: Tuple[int, int, int], b: Tuple[int, int, int]) -> bool:
-        """Are these two scores close enough to be doubt? The knob, read as data.
+    def _close(self, a: Tuple[int, int], b: Tuple[int, int]) -> bool:
+        """Are these two scores close enough to be doubt?
 
-        Equal always counts. Beyond that it is whatever the agent claims: a pair
-        of grades declared `indistinct` are not to be relied on as different, so
-        candidates scoring at either are close. Nothing is declared by default,
-        which is why nothing here depends on a constant.
+        The knob, read as data: `tolerance(2)` says a gap of two or less is not
+        a difference the agent will rely on. Zero by default, so doubt is an
+        exact tie until something claims otherwise -- and `standing` never ties
+        with an ordinary rule, because a deliberate precedence is an answer.
         """
-        if a[0] != b[0]:
-            return False
-        if a[1] == b[1]:
-            return True
-        if not a[1] or not b[1]:
-            return False  # one of them is recommended by nothing at all
-        ga, gb = GRADES[-a[1] - 1], GRADES[-b[1] - 1]
-        return self._claims(
-            self.g.rel(self.INDISTINCT, self.GRADE_ATOM[ga], self.GRADE_ATOM[gb])
-        ) or self._claims(
-            self.g.rel(self.INDISTINCT, self.GRADE_ATOM[gb], self.GRADE_ATOM[ga])
-        )
+        return a[0] == b[0] and abs(a[1] - b[1]) <= self._tolerance()
+
+    def _tolerance(self) -> int:
+        """How far apart two scores may be and still count as close -- read from
+        the graph, so the agent can raise it and can be asked why.
+
+        Zero unless something says otherwise, which is what keeps the default
+        free of a constant nobody chose. A numeral is an ordinary atom whose
+        *name* reads as a number: nothing in the graph learns arithmetic, and
+        this is the only reader that wants any.
+        """
+        best = 0
+        for node in self.g.instances_of(self.TOLERANCE):
+            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            if e is None or e.sign != PLUS:
+                continue
+            name = self.g.show(self.g.member(node, 0))
+            if name.isdigit():
+                best = max(best, int(name))
+        return best
 
     def _widen(self) -> bool:
         """A shortlist that ran dry is not a search that finished (§15, §19).
@@ -1377,7 +1379,7 @@ class Machine:
         # and letting it order this step filled every shortlist with apparatus.
         ranked = sorted(
             enumerate(live),
-            key=lambda pair: (tuple(-x for x in self._priority(pair[1], keys)), pair[0]),
+            key=lambda pair: (-self._priority(pair[1], keys), pair[0]),
         )
         out = [r for _, r in ranked[: self.recall_budget]]
         for r in live:  # a woken callback is never starved by a cap
@@ -1409,7 +1411,7 @@ class Machine:
                 out.add(self.g.member(s.proposition, 0))
         return out
 
-    def _rank(self, rule: Rule, keys: set) -> Tuple[int, int, int]:
+    def _rank(self, rule: Rule, keys: set) -> Tuple[int, int]:
         """The sort key arbitration uses after defeat. Lower is better.
 
         `standing` first, so the reading apparatus keeps the authored precedence
@@ -1417,41 +1419,39 @@ class Machine:
         the better one, never about whether to keep reading. Then preference,
         then (in `arbitrate`) authored order."""
         if self._claims(self.g.rel(self.STANDING, rule.node)):
-            return (0, 0, 0)
-        grade, votes = self._priority(rule, keys)
-        return (1, -grade, -votes)
+            return (0, 0)
+        return (1, -self._priority(rule, keys))
 
-    def _priority(self, rule: Rule, keys: set) -> Tuple[int, int]:
-        """**How strongly** this situation recommends this rule -- a score, not a
-        flag, because two rules recommended for different reasons are not
-        equally recommended and an order alone cannot say so.
+    def _priority(self, rule: Rule, keys: set) -> int:
+        """**How strongly** this situation recommends this rule -- a number,
+        because an order alone cannot distinguish *one clear best* from *two I
+        cannot separate*, and only a magnitude can say how far apart they are.
 
-        The scale is §10's, reused rather than invented: a `prefer` claim is an
-        entry, an entry carries a **grade**, and grades are the ordinal set this
-        design already commits to. So `+prefer(<R>, k) @likely` outranks the same
-        claim `@possible`, and §12's weakest link applies for free -- a
-        preference derived from a shaky premise is itself shaky, with no second
-        mechanism to keep in step.
+        Each applicable `prefer` claim contributes its **grade**, weighted by
+        that grade's position on §10's scale, and the contributions are summed.
+        So two `@possible` recommendations outweigh one, and one `@certain`
+        outweighs two `@possible`.
 
-        Ordinal and not numeric, deliberately. A cardinal score would be the
-        first such quantity in the design, it would need a threshold constant to
-        say when two scores are *close*, and §12 is explicit that ordinals do not
-        add. What ordinals give instead is **doubt for free**: two rules are
-        close exactly when they tie, and a tie needs no constant to detect.
+        ⚠ **This is the design's first cardinal quantity, and it is a real
+        departure.** §12 states that the grade scale is ordinal and that ordinals
+        do not add; this adds them. What it buys is a tolerance that can say
+        *within 2* rather than enumerating which pairs of grades count as
+        indistinguishable. What it costs is the thing an ordinal scale existed to
+        prevent: enough weak preferences now outweigh a strong one, with nothing
+        recording that the winner was weakly supported many times over rather
+        than strongly supported once. §21 carries it.
 
-        The count survives as the tie-break below the grade, so *recommended for
-        three reasons* still beats *recommended for one* at the same strength.
+        Note what is NOT cardinal: a grade on an ordinary entry still composes by
+        §12's weakest link. Only preference strength adds, and only here.
         """
-        best, votes = -1, 0
+        score = 0
         for k in keys:
             e = self.chain.resolve(
                 self.g.rel(self.PREFER, rule.node, k), self.focus.topic, self.focus.seat
             )
-            if e is None or e.sign != PLUS:
-                continue
-            votes += 1
-            best = max(best, GRADES.index(e.grade))
-        return (best + 1, votes)
+            if e is not None and e.sign == PLUS:
+                score += GRADES.index(e.grade)
+        return score
 
     def _claims(self, proposition: NodeId) -> bool:
         e = self.chain.resolve(proposition, self.focus.topic, self.focus.seat)
