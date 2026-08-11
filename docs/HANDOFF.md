@@ -56,7 +56,7 @@ gone. Ten commits:
 | `better` | preference **orders** rather than excludes; relevance is derived, not authored |
 | `lookup` | *what could produce this?* becomes an **index, not a scan** — 13× fewer ticks to the goal |
 | `doubt` | preference is a **score on the grade scale**; doubt is a tie, and a tie needs no threshold |
-| `knob` | *close* is a knob, so it is a **fact**: `tolerance(2)`. The design's **first cardinal quantity** |
+| `knob` | *close* is a knob, so it is a **fact**: `tolerance(2)`, over a table that carries a **score** |
 
 ### 1. The spine changed
 
@@ -532,21 +532,22 @@ enumerated pairs instead of saying *within N*; it was a knob on the scale rather
 comparison; and **it ignored half the score** — a rule scoring `(certain, 2 votes)` strictly beat one
 scoring `(certain, 1)`, so the choice *was* forced, and doubt was recorded anyway.
 
-What replaced it, on the user's call:
+What replaced it:
 
+    prefer(<R>, key, 3)         the table's row: keyed on a node, matched when that key is in play,
+                                carrying a SCORE
     fact +tolerance(2)          a gap of two or less is not a difference I will rely on
 
-Each applicable `prefer` claim contributes its grade's weight; the contributions are **summed**; two
-scores are close when they differ by no more than the tolerance. Zero unless claimed, so the default
-is an exact tie and nothing depends on a constant nobody chose.
+Applicable rows sum; two rules are close when their scores differ by no more than the tolerance. Zero
+unless claimed, so the default is an exact tie and nothing depends on a constant nobody chose.
 
-⚠ **This is the design's first cardinal quantity and it is a real departure**, made deliberately.
-§12 states the grade scale is ordinal and that ordinals do not add; preference scores add them. It
-buys a knob that says *within 2*. It costs the thing an ordinal scale existed to prevent: **enough
-weak preferences now outweigh a strong one**, with nothing recording that a winner was weakly
-supported many times rather than strongly supported once. §21 carries it. Note what did *not* change:
-a grade on an ordinary entry still composes by weakest link — only preference strength adds, and only
-in `_priority`.
+⚠ **My first version of this made ordinals add, and the user caught it.** I had the score *be* the
+entry's grade, summed — which is precisely what §12 forbids, and I wrote a long apology for the
+departure instead of noticing it was avoidable. The score is the **table's own cardinal**, and §10's
+grades are a different scale for a different thing, untouched: an entry's grade still composes by
+weakest link and no grade is ever added to another. Keeping them apart is what lets
+`+prefer(<R>, k, 3) @possible` mean *a strong recommendation the agent is not sure of* — a sentence
+one conflated scale would have made unsayable.
 
 Numerals are new in the surface, and cheaply: a numeral is an ordinary atom whose **name** reads as a
 number, so nothing in the graph learns arithmetic and exactly one reader wants any.

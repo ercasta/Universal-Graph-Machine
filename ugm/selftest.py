@@ -1116,9 +1116,9 @@ def recall_is_narrowable() -> None:
         "",
     ])
     table = chr(10).join([
-        "fact prefer(<a>, p)",
-        "fact prefer(<b>, q)",
-        "fact prefer(<c>, r)",
+        "fact prefer(<a>, p, 5)",
+        "fact prefer(<b>, q, 5)",
+        "fact prefer(<c>, r, 5)",
         "",
     ])
 
@@ -1239,8 +1239,8 @@ def the_better_move_wins() -> None:
     check(
         "§19",
         "the agent works out for itself which rule serves its goal",
-        m.holds(kb.term("prefer(<toward>, nearer(a))")) == PLUS
-        and m.holds(kb.term("prefer(<wander>, nearer(a))")) is None,
+        m.holds(kb.term("prefer(<toward>, nearer(a), 1)")) == PLUS
+        and m.holds(kb.term("prefer(<wander>, nearer(a), 1)")) is None,
     )
     check(
         "§14",
@@ -1311,11 +1311,11 @@ def doubt_is_a_tie() -> None:
 
     # A stronger claim breaks the tie, because a preference is a score and not a
     # flag. `@certain` beats the `@possible` that mere candidacy earns.
-    stronger = tie + "fact +prefer(<byB>, at(p)) @certain" + chr(10)
+    stronger = tie + "fact +prefer(<byB>, at(p), 5)" + chr(10)
     move, m2 = first_corpus_move(stronger)
     check(
         "§12",
-        "a stronger preference outranks a weaker one -- the scale is the grade scale",
+        "a higher score outranks a lower one -- the table is compared as cardinals",
         move == "byB",
     )
     def doubted(machine):
@@ -1332,7 +1332,7 @@ def doubt_is_a_tie() -> None:
 
     # *How close is close* is a knob, so it is a fact. Zero by default, so the
     # default is an exact tie and nothing depends on a constant nobody chose.
-    _, m3 = first_corpus_move(stronger + "fact +tolerance(4)" + chr(10))
+    _, m3 = first_corpus_move(stronger + "fact +tolerance(9)" + chr(10))
     check(
         "§19",
         "raising the tolerance makes a clear winner doubtful again",
@@ -1351,14 +1351,14 @@ def doubt_is_a_tie() -> None:
     careful = chr(10).join([
         "rule <byA> = implies( { +a(?x) }, { +doing(at(?x)) } )",
         "rule <byB> = implies( { +b(?x) }, { +doing(at(?x)) } )",
-        "rule <care> = implies( { +goal(doing(?p)) }, { +tolerance(4) } )",
+        "rule <care> = implies( { +goal(doing(?p)) }, { +tolerance(9) } )",
         # ...and being careful must come BEFORE the move it is about, which is
         # what `standing` says: apparatus ahead of opinions. Without it the
         # agent commits and then decides to be careful, which is no use.
         "fact standing(<care>)",
         "fact +a(p)",
         "fact +b(p)",
-        "fact +prefer(<byB>, doing(at(p))) @certain",
+        "fact +prefer(<byB>, doing(at(p)), 5)",
         "fact +goal(doing(at(p)))",
         "",
     ])

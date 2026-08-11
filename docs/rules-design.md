@@ -2752,29 +2752,30 @@ An order over rules cannot distinguish *one clear best* from *two I cannot separ
 for opposite behaviour — take the move, or think harder before taking it. So a preference carries a
 strength.
 
-The scale is the one already committed to. A `prefer` claim is an entry and an entry carries a
-**grade**, so `+prefer(<R>, k) @likely` outranks the same claim `@possible` and §12's weakest link
-governs derived preferences with no second mechanism to keep in step. Candidacy — *this rule could
-produce what you want* — is recorded `@possible`, which is what it is worth.
+The strength is the table's own, and cardinal: a row scores how much this situation recommends this
+rule, and the scores of applicable rows are summed. Candidacy — *this rule could produce what you
+want* — scores 1, the least anything can be worth, so whatever experience has actually learned
+outranks it and two mere candidates tie.
 
-**Ordinal rather than numeric, and the reason is not conservatism.** A cardinal score would be the
-first such quantity in this design; §12 states that ordinals do not add; and *close* would then need
-a threshold constant with nothing to derive it from. Ordinals answer the question without one:
-
-> **Two rules are close exactly when they tie.** Confidence is the top score being unique.
+> **Two rules are close when their scores differ by no more than the tolerance.** Confidence is a gap
+> wide enough to rely on.
 
 **What counts as close is a knob, so it is a fact.** `tolerance(2)` says a gap of two or less is not
 a difference the agent will rely on; zero unless claimed, so the default is an exact tie and no
 behaviour depends on a constant nobody chose.
 
-⚠ **The score is this design's first cardinal quantity, and that is a departure this section owes an
-account of.** Each applicable `prefer` claim contributes its grade's weight and the contributions are
-summed — but §12 states the grade scale is ordinal, and that ordinals do not add. The exchange is
-explicit: a summed score supports a tolerance that says *within 2*, where an ordinal one can only
-enumerate which pairs of grades count as indistinguishable. What it gives up is what the ordinal scale
-was protecting — **enough weak preferences now outweigh a strong one**, and nothing records that the
-winner was weakly supported many times over rather than strongly supported once. Nothing else in the
-design became cardinal: an ordinary entry's grade still composes by weakest link.
+**And nothing ordinal was added to make that work**, which is the distinction to hold onto. The
+experience table's row is
+
+    prefer(<R>, key, 3)     keyed on a node, matched when that key is in play, carrying a SCORE
+
+and the score is the table's own quantity: a magnitude, summed over the rows that apply, compared as
+a cardinal. §10's grades are a different scale for a different thing and are untouched — an entry's
+grade still composes by §12's weakest link, and no grade is ever added to another.
+
+Keeping them apart is what lets each go on meaning something. `+prefer(<R>, k, 3) @possible` is a
+**strong recommendation the agent is not sure of** — a sentence neither quantity could express alone,
+and one that a single conflated scale would have made unsayable.
 
 The reason a knob must be data here is not tidiness. **A rule can turn it**, so an agent can be harder
 to convince when the next step cannot be taken back:

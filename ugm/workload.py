@@ -60,7 +60,7 @@ def corpus(domains: int, depth: int, target: int = 0, table: bool = False) -> st
         # relation each of them waits for -- which is in play whenever that rule
         # is the one to apply.
         for i in range(depth):
-            lines.append(f"fact prefer(<d{target}s{i}>, w{target}_s{i})")
+            lines.append(f"fact prefer(<d{target}s{i}>, w{target}_s{i}, 5)")
     return chr(10).join(lines) + chr(10)
 
 

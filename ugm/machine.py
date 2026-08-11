@@ -155,7 +155,27 @@ class Machine:
         # is a fresh moment every tick, so a table keyed on it would never see the
         # same key twice. What recurs is what the situation is ABOUT, so the key
         # is a relation in play.
+        # §19's table, as facts: `prefer(<R>, key, 3)`.
+        #
+        #     key      what the recommendation is keyed on -- a node
+        #     score    HOW MUCH it recommends, and this is a CARDINAL
+        #
+        # The score is the table's own quantity and has nothing to do with §10's
+        # grades. Grades are ordinal and stay ordinal -- an entry's grade still
+        # composes by §12's weakest link, and nothing here adds one. What adds is
+        # the score, which was always a magnitude: *how much experience
+        # recommends this*, summed over the recommendations that apply.
+        #
+        # Keeping them apart is what lets the entry's grade go on meaning
+        # something separate: `+prefer(<R>, k, 3) @possible` is a strong
+        # recommendation the agent is not sure of.
         self.PREFER = self.g.atom("prefer")
+        # Numerals as shared nodes for the small ones, so a score written in a
+        # corpus and a score written by a rule are the same node. Everything
+        # that READS a numeral reads its name, so an unshared one still works --
+        # but two nodes with one name is the trap this design has paid for four
+        # times, and there is no reason to invite it.
+        self.NUMERAL = {i: self.g.atom(str(i)) for i in range(10)}
         # The second carve-out, and it is the mirror of §19's first. Norms may
         # not be forgotten because forgetting one is a forbidden act nobody
         # notices; the BUNDLE may not be forgotten because it is how the agent
@@ -241,6 +261,7 @@ class Machine:
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
             "close": self.CLOSE, "tolerance": self.TOLERANCE,
+            **{str(i): n for i, n in self.NUMERAL.items()},
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
@@ -533,11 +554,10 @@ class Machine:
         self.bundle.append(self.rules.rule(
             IMPLIES,
             [Member(PLUS, g.rel(self.FITS, r, w))],
-            # `@possible`, not `@certain`. *This rule could produce what you
-            # want* is candidacy, which is the weakest evidence of usefulness
-            # there is -- so an authored or learned preference outranks it, and
-            # two mere candidates tie, which is what doubt is.
-            [Member(PLUS, g.rel(self.PREFER, r, w), "possible")],
+            # Score 1: candidacy is the weakest evidence of usefulness there
+            # is, so anything experience has actually learned outranks it, and
+            # two mere candidates tie -- which is what doubt is.
+            [Member(PLUS, g.rel(self.PREFER, r, w, self.NUMERAL[1]))],
             "relevant",
         ))
 
@@ -1423,34 +1443,29 @@ class Machine:
         return (1, -self._priority(rule, keys))
 
     def _priority(self, rule: Rule, keys: set) -> int:
-        """**How strongly** this situation recommends this rule -- a number,
-        because an order alone cannot distinguish *one clear best* from *two I
-        cannot separate*, and only a magnitude can say how far apart they are.
+        """**How much** this situation recommends this rule: the sum of the
+        scores of the `prefer` claims whose key is in play.
 
-        Each applicable `prefer` claim contributes its **grade**, weighted by
-        that grade's position on §10's scale, and the contributions are summed.
-        So two `@possible` recommendations outweigh one, and one `@certain`
-        outweighs two `@possible`.
+        An order alone cannot distinguish *one clear best* from *two I cannot
+        separate*, and only a magnitude can say how far apart two candidates are.
+        So the table carries a score, and scores are compared as **cardinals**.
 
-        ⚠ **This is the design's first cardinal quantity, and it is a real
-        departure.** §12 states that the grade scale is ordinal and that ordinals
-        do not add; this adds them. What it buys is a tolerance that can say
-        *within 2* rather than enumerating which pairs of grades count as
-        indistinguishable. What it costs is the thing an ordinal scale existed to
-        prevent: enough weak preferences now outweigh a strong one, with nothing
-        recording that the winner was weakly supported many times over rather
-        than strongly supported once. §21 carries it.
-
-        Note what is NOT cardinal: a grade on an ordinary entry still composes by
-        §12's weakest link. Only preference strength adds, and only here.
+        This adds nothing ordinal. §10's grades are a different quantity on a
+        different scale and keep their own composition rule (§12's weakest link);
+        an entry's grade here says how confident the agent is *in the
+        recommendation*, which is not how strong the recommendation is.
         """
         score = 0
-        for k in keys:
-            e = self.chain.resolve(
-                self.g.rel(self.PREFER, rule.node, k), self.focus.topic, self.focus.seat
-            )
-            if e is not None and e.sign == PLUS:
-                score += GRADES.index(e.grade)
+        for node in self.g.instances_of(self.PREFER):
+            members = self.g.members(node)
+            if len(members) != 3 or members[0] != rule.node or members[1] not in keys:
+                continue
+            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            if e is None or e.sign != PLUS:
+                continue
+            name = self.g.show(members[2])
+            if name.isdigit():
+                score += int(name)
         return score
 
     def _claims(self, proposition: NodeId) -> bool:
