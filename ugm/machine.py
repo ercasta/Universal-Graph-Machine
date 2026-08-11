@@ -189,6 +189,28 @@ class Machine:
         # still made this tick; the record is what lets the agent know it was
         # not a confident one.
         self.CLOSE = self.g.atom("close")
+        # ...and WHAT COUNTS AS CLOSE is a knob, so it is a fact.
+        #
+        # `indistinct(likely, possible)` says *do not rely on the difference
+        # between these two*. The default is nothing, so only exact ties are
+        # doubt and no behaviour depends on an unstated constant. A corpus
+        # widens it by claiming a pair.
+        #
+        # Data rather than a number for the usual reason and one better one: a
+        # rule can conclude it. An agent that should be harder to convince when
+        # the next step cannot be taken back declares more grades indistinct
+        # while `doing(...)` is in play -- which makes *how careful am I being*
+        # a claim with a trail, rather than a threshold somebody chose once.
+        #
+        # Grades, not numbers: §12 says the scale is ordinal and ordinals do not
+        # add, so *within 0.1* has nothing to mean here. Naming the pairs says
+        # exactly as much and no more.
+        self.INDISTINCT = self.g.atom("indistinct")
+        # The grade names as nodes, minted ONCE and shared with the surface
+        # through `reserved`. `g.atom` does not intern, so minting `likely` here
+        # and again in a corpus would be two nodes with one name -- the trap
+        # this design has paid for four times.
+        self.GRADE_ATOM = {name: self.g.atom(name) for name in GRADES}
         self.RECALL = self.g.atom("recall")
         self.RECALLED = self.g.atom("recalled")
         self.FORBIDDEN = self.g.atom("forbidden")
@@ -223,7 +245,8 @@ class Machine:
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
-            "close": self.CLOSE,
+            "close": self.CLOSE, "indistinct": self.INDISTINCT,
+            **self.GRADE_ATOM,
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
@@ -266,7 +289,8 @@ class Machine:
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
-                             self.RECALL, self.RECALLED, self.CLOSE}
+                             self.RECALL, self.RECALLED, self.CLOSE,
+                             self.INDISTINCT}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -989,7 +1013,7 @@ class Machine:
             return
         rivals = [
             a.rule for a in applications
-            if a.rule is not chosen.rule and rank(a.rule) == best
+            if a.rule is not chosen.rule and self._close(rank(a.rule), best)
         ]
         for rival in rivals:
             self.gate.write(
@@ -997,6 +1021,27 @@ class Machine:
                 licence=self.g.rel(self.APPLIED, chosen.rule.node),
                 source=self.KB, mention=True,
             )
+
+    def _close(self, a: Tuple[int, int, int], b: Tuple[int, int, int]) -> bool:
+        """Are these two scores close enough to be doubt? The knob, read as data.
+
+        Equal always counts. Beyond that it is whatever the agent claims: a pair
+        of grades declared `indistinct` are not to be relied on as different, so
+        candidates scoring at either are close. Nothing is declared by default,
+        which is why nothing here depends on a constant.
+        """
+        if a[0] != b[0]:
+            return False
+        if a[1] == b[1]:
+            return True
+        if not a[1] or not b[1]:
+            return False  # one of them is recommended by nothing at all
+        ga, gb = GRADES[-a[1] - 1], GRADES[-b[1] - 1]
+        return self._claims(
+            self.g.rel(self.INDISTINCT, self.GRADE_ATOM[ga], self.GRADE_ATOM[gb])
+        ) or self._claims(
+            self.g.rel(self.INDISTINCT, self.GRADE_ATOM[gb], self.GRADE_ATOM[ga])
+        )
 
     def _widen(self) -> bool:
         """A shortlist that ran dry is not a search that finished (§15, §19).
@@ -1327,8 +1372,12 @@ class Machine:
         if self.recall_budget is None:
             return live
         keys = self._in_play()
+        # By preference alone, not by `_rank`: `standing` is a claim about
+        # PRECEDENCE once a rule has matched, not about being brought to mind,
+        # and letting it order this step filled every shortlist with apparatus.
         ranked = sorted(
-            enumerate(live), key=lambda pair: (-self._priority(pair[1], keys), pair[0])
+            enumerate(live),
+            key=lambda pair: (tuple(-x for x in self._priority(pair[1], keys)), pair[0]),
         )
         out = [r for _, r in ranked[: self.recall_budget]]
         for r in live:  # a woken callback is never starved by a cap
@@ -1360,7 +1409,7 @@ class Machine:
                 out.add(self.g.member(s.proposition, 0))
         return out
 
-    def _rank(self, rule: Rule, keys: set) -> Tuple[int, int]:
+    def _rank(self, rule: Rule, keys: set) -> Tuple[int, int, int]:
         """The sort key arbitration uses after defeat. Lower is better.
 
         `standing` first, so the reading apparatus keeps the authored precedence
@@ -1368,10 +1417,11 @@ class Machine:
         the better one, never about whether to keep reading. Then preference,
         then (in `arbitrate`) authored order."""
         if self._claims(self.g.rel(self.STANDING, rule.node)):
-            return (0, 0)
-        return (1, -self._priority(rule, keys))
+            return (0, 0, 0)
+        grade, votes = self._priority(rule, keys)
+        return (1, -grade, -votes)
 
-    def _priority(self, rule: Rule, keys: set) -> int:
+    def _priority(self, rule: Rule, keys: set) -> Tuple[int, int]:
         """**How strongly** this situation recommends this rule -- a score, not a
         flag, because two rules recommended for different reasons are not
         equally recommended and an order alone cannot say so.
@@ -1401,7 +1451,7 @@ class Machine:
                 continue
             votes += 1
             best = max(best, GRADES.index(e.grade))
-        return (best + 1) * 1000 + votes
+        return (best + 1, votes)
 
     def _claims(self, proposition: NodeId) -> bool:
         e = self.chain.resolve(proposition, self.focus.topic, self.focus.seat)

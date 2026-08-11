@@ -2763,6 +2763,22 @@ a threshold constant with nothing to derive it from. Ordinals answer the questio
 
 > **Two rules are close exactly when they tie.** Confidence is the top score being unique.
 
+**What counts as close is a knob, so it is a fact.** `indistinct(likely, possible)` says *do not rely
+on the difference between these two*; nothing is declared by default, so exact ties remain the only
+doubt and no behaviour depends on a constant nobody chose. Still grades rather than numbers — ordinals
+do not add, so *within 0.1* would have nothing to mean.
+
+The reason a knob must be data here is not tidiness. **A rule can turn it**, so an agent can be harder
+to convince when the next step cannot be taken back:
+
+    rule <care> = implies( { +goal(doing(?p)) }, { +indistinct(certain, possible) } )
+    fact standing(<care>)
+
+*How careful am I being* becomes a claim with a trail rather than a threshold chosen once — and the
+`standing` on the second line is load-bearing, because being careful has to happen before the move it
+is about, and nothing orders it that way otherwise. A corpus wants `standing` as much as the bundle
+does; it was never a kernel/business distinction.
+
 So doubt is deposited — `close(<R1>, <R2>)`, pairwise so the arity is fixed — and nothing more. What
 to do when unsure (think longer, ask, suppose one and look, prefer the reversible move) is a claim
 about how to reason, which makes it rules, and putting any of it here would be §18's mistake again.

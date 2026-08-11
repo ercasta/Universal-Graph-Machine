@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     215 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     217 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        16/16 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -56,6 +56,7 @@ gone. Ten commits:
 | `better` | preference **orders** rather than excludes; relevance is derived, not authored |
 | `lookup` | *what could produce this?* becomes an **index, not a scan** — 13× fewer ticks to the goal |
 | `doubt` | preference is a **score on the grade scale**; doubt is a tie, and a tie needs no threshold |
+| `knob` | *close* is a knob, so it is a **fact** — and a rule can widen doubt before an irreversible step |
 
 ### 1. The spine changed
 
@@ -520,6 +521,40 @@ acting, notice before continuing); a deliberate precedence is an answer, not the
 What is deposited and not acted on: arbitration stays total, so the choice is still made. The record
 is the difference between an agent that is confident and one that merely proceeds — and what to *do*
 when unsure is a claim, so it is rules, and none are written yet.
+
+### 16. *Close* is a knob, so it is a fact
+
+The user's correction to §15: **closeness is a system knob.** Right — and a knob in this design is
+data, not a constant, for the usual reason and one better one.
+
+`indistinct(likely, possible)` says *do not rely on the difference between these two*. Nothing is
+declared by default, so exact ties remain the only doubt and no behaviour depends on a number nobody
+chose. A corpus widens it by claiming a pair.
+
+Grades rather than numbers, still: §12 says the scale is ordinal and ordinals do not add, so *within
+0.1* has nothing to mean here. Naming the pairs says exactly as much and no more.
+
+**The better reason it is data: a rule can turn it.**
+
+    rule <care> = implies( { +goal(doing(?p)) }, { +indistinct(certain, possible) } )
+    fact standing(<care>)
+
+An agent that is harder to convince when the next step cannot be taken back — *how careful am I
+being* becomes a claim with a trail, rather than a threshold somebody chose once. Checked.
+
+⚠ **Being careful has to come before the move it is about**, and nothing orders it that way for free:
+the first version of that check failed because `<care>` was an ordinary rule, so the agent committed
+and *then* decided to be careful. `standing` is what says otherwise, and it turns out a corpus wants
+it as much as the bundle does — it is not a kernel/business distinction.
+
+⚠ Two bugs on the way, both old friends. `_priority` became a tuple and one caller still negated it as
+a scalar. And grade names were being minted with `g.atom` at the point of use — a second node with one
+name, which is the trap the codebase has paid for four times; they are now minted once and shared with
+the surface through `reserved`.
+
+Also fixed while here: recall's ordering used `_rank`, which put `standing` first and filled every
+shortlist with apparatus. **`standing` is a claim about precedence once a rule has matched, not about
+coming to mind**; recall orders by preference alone.
 
 ---
 

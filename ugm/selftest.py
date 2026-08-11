@@ -1318,13 +1318,51 @@ def doubt_is_a_tie() -> None:
         "a stronger preference outranks a weaker one -- the scale is the grade scale",
         move == "byB",
     )
+    def doubted(machine):
+        return any(
+            machine.g.relation_of(e.proposition) is machine.CLOSE and e.sign == PLUS
+            for mm in machine.chain.moments for e in mm.delta
+        )
+
     check(
         "§19",
         "and once one is clearly better, there is no doubt left to record",
-        not any(
-            m2.g.relation_of(e.proposition) is m2.CLOSE and e.sign == PLUS
-            for mm in m2.chain.moments for e in mm.delta
-        ),
+        not doubted(m2),
+    )
+
+    # *Close* is a knob, so it is a fact -- and the reason that matters is that a
+    # RULE can turn it. Nothing is indistinct by default, so nothing depends on a
+    # constant nobody chose; a corpus that does not want to rely on the
+    # difference between two grades says so.
+    _, m3 = first_corpus_move(stronger + "fact indistinct(certain, possible)" + chr(10))
+    check(
+        "§19",
+        "declaring two grades indistinct makes a clear winner doubtful again",
+        doubted(m3),
+    )
+
+    # The payoff: an agent that is harder to convince when the next step cannot
+    # be taken back. *How careful am I being* becomes a claim with a trail,
+    # rather than a threshold somebody chose once.
+    careful = chr(10).join([
+        "rule <byA> = implies( { +a(?x) }, { +doing(at(?x)) } )",
+        "rule <byB> = implies( { +b(?x) }, { +doing(at(?x)) } )",
+        "rule <care> = implies( { +goal(doing(?p)) }, { +indistinct(certain, possible) } )",
+        # ...and being careful must come BEFORE the move it is about, which is
+        # what `standing` says: apparatus ahead of opinions. Without it the
+        # agent commits and then decides to be careful, which is no use.
+        "fact standing(<care>)",
+        "fact +a(p)",
+        "fact +b(p)",
+        "fact +prefer(<byB>, doing(at(p))) @certain",
+        "fact +goal(doing(at(p)))",
+        "",
+    ])
+    _, m4 = first_corpus_move(careful)
+    check(
+        "R4",
+        "a rule can widen doubt when the step is irreversible -- the knob is arguable",
+        doubted(m4),
     )
 
 
