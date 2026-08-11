@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     196 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     201 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        14/14 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -48,6 +48,7 @@ gone. Ten commits:
 | `recall` | §19's first slice: `prefer(<R>, k)` as facts, a budget, and widening |
 | `norms` | §19's carve-out: a prohibition is a **veto at the gate**, never a competitor in recall |
 | `naming` | a **fact may carry a name**; a named norm is a node rules can retire |
+| `reference` | reference is **binding**; the walk is one order; the naming claim corrected |
 
 ### 1. The spine changed
 
@@ -242,18 +243,58 @@ The repair was already in the surface. A fact may carry a name:
 A rule and a norm sharing a name would be two things with one name, which is what the marker exists
 to prevent.
 
-The consequence is bigger than retiring a norm:
+A separate consequence, about the carve-out rather than about naming:
 
 > **§19 keeps norms out of recall. It never said they were beyond argument.**
 
-A named norm is a node, so a rule can conclude about it. `{+says(fire, evacuate, +)} ⟹ {-<no-harm>}`
-retires a prohibition on evidence, trail intact, with the refusals it made beforehand still on the
-record. **Unconditionally consulted** and **entirely contestable** turn out to be different
-properties; naming is what separated them.
+A rule can retire a norm on evidence — `{+says(fire, evacuate, +)} ⟹ {-<no-harm>}` — trail intact,
+with the refusals it made beforehand still on the record. **Unconditionally consulted** and **entirely
+contestable** are different properties.
+
+⚠ **Naming is not what separated them.** Measured afterwards: a rule could always do this *without*
+the name, by describing the norm's shape — matching a generic antecedent against a stored description
+treats the description's variables as ordinary nodes, so `?y` binds to the stored `?x` and
+substitution rebuilds exactly the node written. Naming buys **authoring** (a second surface statement
+about one description) and a handle for facts that are not about its shape. It never bought
+reference.
 
 Forced, not chosen: a rule may conclude about a named fact and a named fact may be about a rule, so
 the loader does three passes — name what is self-contained, then rules, then everything else. A name
 needs only its node, and a statement referring to no other statement can be built without one.
+
+### 10. Reference is binding, and the walk was two orders
+
+The question was *what else wants a name — a supposition, a plan?* Answer, measured: **mostly nothing
+does.** A plan, a hypothesis, a rule and a norm are all referable already, because anything deposited
+as an entry can be bound by an antecedent, and **binding is reference**. Language works the same way —
+it says *the plan we made before*, not a name. Names are for the exceptions.
+
+What binding does not supply is **which one**, and that turned up a live bug. Several entries match
+one description; the walk decides which is tried first, and the walk disagreed with itself:
+
+* `Moment.ancestors()` — newest moment first
+* a moment's `delta` — oldest entry first
+
+So two candidates deposited by `implies` (same moment) came out in the *opposite* order to two
+deposited by `causes` (different moments) — and which connective a rule used has nothing to do with
+reference. One `reversed()` in `current_state` makes it one order throughout, and *a description
+resolves to the most recent* is now a claim with a check behind it instead of an accident.
+
+⚠ **It changed a result, and the change is the finding.** `ugm.backward`'s sibling-agreement fixture
+flipped: with the taps authored one way the plan now succeeds, the other way it still blocks. Same
+world. Because:
+
+> **Reference resolves to the most recent, and nothing reconsiders.** `_settle` takes the first entry
+> that satisfies a subgoal and never returns to it. Checking siblings inside the plan's bindings stops
+> a wrong plan being reported as a good one; it does not *find* the right one.
+
+`ugm.backward` now runs both orders and prints both outcomes — §21's backtracking item measured rather
+than asserted. And the old fixture was, it turns out, measuring the walk order rather than the
+guarantee.
+
+**One bug fixed on the way**: `discharge` dropped `mention` when carrying a conclusion out of a frame,
+so a conclusion *about a rule* drawn under a hypothesis was refused by the gate — §14's propagation
+with a hole in it at the one place conclusions change hands.
 
 ---
 
@@ -286,9 +327,9 @@ recurs and deserves a measured comparison against alternatives; and the exhausti
 a dry shortlist, never on novelty or a schedule, which §19 says is what stops recall calcifying
 exactly where it is performing well.
 
-**Naming, now that it exists.** A named statement is a node other statements can be about, and only
-norms use it so far. Worth asking what else wants one — a supposition, a plan, a composed rule's
-provenance — before the answer is invented separately three times.
+**Definite reference — which one.** Binding refers; nothing selects. A rule cannot say *the latest*,
+and `_settle` never reconsiders a binding it took. That is one question wearing three hats: §21's
+backtracking, *when is a plan settled*, and *when may a request be re-asked*.
 
 Also still open, and the same question three ways: nothing says when a plan is *settled*, when a `due`
 rule is *done*, or when a request may be *re-asked*.

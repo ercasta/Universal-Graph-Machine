@@ -1029,6 +1029,12 @@ class Machine:
                         licence=self.g.rel(self.CONCLUDED, frame.node),
                         source=self.KB,
                         consumed=(e,),
+                        # A mention carried out of a frame is still a mention.
+                        # Dropping it here made the gate refuse a conclusion
+                        # ABOUT a rule the moment one was drawn under a
+                        # hypothesis -- §14's propagation, with a hole in it at
+                        # the one place conclusions change hands.
+                        mention=e.mention,
                     )
                 )
         frame.state = "discharged"

@@ -399,8 +399,8 @@ def current_state(chain: Chain, locus: Moment, seat: Moment) -> List[Entry]:
     and it is the design's single most consequential cost."""
     props: List[NodeId] = []
     seen = set()
-    for m in seat.ancestors():
-        for e in m.delta:
+    for m in seat.ancestors():  # newest moment first
+        for e in reversed(m.delta):  # ...and newest within a moment
             if e.proposition not in seen:
                 seen.add(e.proposition)
                 props.append(e.proposition)

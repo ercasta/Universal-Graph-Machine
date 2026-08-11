@@ -1273,9 +1273,8 @@ def prohibitions_are_not_recalled() -> None:
         m3.holds(kb3.term("doing(harm(pump))")) == PLUS and m3.gate.refusals == 0,
     )
 
-    # The payoff, and the reason naming beat a `norm` keyword: a norm is now a
-    # thing rules can reason about. §19 keeps norms out of RECALL; it never said
-    # they were beyond argument.
+    # §19 keeps norms out of RECALL. It never said they were beyond argument, and
+    # a rule can retire one.
     m4 = Machine()
     kb4 = load(m4, named + chr(10).join([
         "rule <emergency> = implies( { +says(fire, evacuate, plus) }, { -<no-harm> } )",
@@ -1283,15 +1282,38 @@ def prohibitions_are_not_recalled() -> None:
         "",
     ]))
     m4.run(limit=300)
-    check(
-        "R3",
-        "a rule can retire a norm, because a named norm is a node a rule can name",
-        m4.holds(kb4.term("doing(harm(pump))")) == PLUS,
-    )
+    check("R3", "a rule can retire a norm by naming it", m4.holds(kb4.term("doing(harm(pump))")) == PLUS)
     check(
         "§19",
         "and until it did, the norm held: the refusal is still on the record",
         m4.gate.refusals >= 1,
+    )
+
+    # ...and it never needed the name, which is worth pinning because the
+    # opposite is easy to assume. Matching a rule's generic antecedent against a
+    # stored DESCRIPTION treats the description's variables as ordinary nodes, so
+    # `?y` binds to the stored `?x` and substitution rebuilds exactly the node
+    # that was written. A rule refers to a norm the way it refers to a plan or a
+    # frame: by BINDING it, not by naming it.
+    #
+    # So naming buys authoring -- a second surface statement about a description
+    # -- and a handle to hang ordinary facts on. It never bought reference.
+    m5 = Machine()
+    kb5 = load(m5, chr(10).join([
+        "rule <fix>   = implies( { +broken(?x) }, { +doing(repair(?x)) } )",
+        "rule <burn>  = implies( { +broken(?x) }, { +doing(harm(?x)) } )",
+        "rule <lift>  = implies( { +says(fire, evacuate, plus), +forbidden(doing(harm(?y))) },",
+        "                       { -forbidden(doing(harm(?y))) } )",
+        "fact forbidden(doing(harm(?x)))",
+        "fact +broken(pump)",
+        "say fire: +evacuate",
+        "",
+    ]))
+    m5.run(limit=400)
+    check(
+        "R3",
+        "and it did not need the name -- a rule can describe a norm's shape and retire it",
+        m5.holds(kb5.term("doing(harm(pump))")) == PLUS and m5.gate.refusals == 1,
     )
 
     # One namespace, so the marker keeps doing its job.
@@ -1304,20 +1326,92 @@ def prohibitions_are_not_recalled() -> None:
 
     # The carve-out, measured. Narrow recall to one rule and the agent cannot
     # reliably bring anything to mind -- but a norm was never in the running.
-    m3 = Machine()
-    kb3 = load(m3, src)
-    m3.recall_budget = 1
-    m3.run(limit=400)
+    m6 = Machine()
+    kb6 = load(m6, src)
+    m6.recall_budget = 1
+    m6.run(limit=400)
     check(
         "§19",
         "under a recall budget the forbidden act is STILL refused -- a norm is not a competitor",
-        m3.holds(kb3.term("doing(harm(pump))")) is None and m3.gate.refusals >= 1,
+        m6.holds(kb6.term("doing(harm(pump))")) is None and m6.gate.refusals >= 1,
     )
     check(
         "§19",
         "while what to DO stayed incomplete-able: the same budget still let the agent act",
-        m3.holds(kb3.term("doing(repair(pump))")) == PLUS,
+        m6.holds(kb6.term("doing(repair(pump))")) == PLUS,
     )
+
+
+def reference_is_binding() -> None:
+    """What a rule can refer to, and how -- measured rather than assumed.
+
+    The question that prompted it: does a supposition need a name? a plan? Mostly
+    not. Language rarely names things either; it says *the plan we made before*.
+    The engine's version of that is **binding**: anything deposited as an entry
+    can be bound by an antecedent, and that is reference.
+
+    What that leaves is the harder half -- *which* one. Several plans match *a
+    plan*, and nothing in a rule can say *the latest*.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <boil> = implies( { +heat(?w) }, { +boiling(?w) } )",
+        "rule <p>    = implies( { +expands(?plan, ?w, ?r) }, { +noted(?plan) } )",
+        "fact +goal(boiling(kettle))",
+        "",
+    ]))
+    m.run(limit=300)
+    check(
+        "R3",
+        "a plan is referable without a name -- the rule that made it binds it",
+        m.holds(kb.term("noted(plan(<boil>, boiling(kettle)))")) == PLUS,
+    )
+
+    m1 = Machine()
+    kb1 = load(m1, chr(10).join([
+        "rule <in> = implies( { +h(?x) },            { +q(?x) } )",
+        "rule <f>  = implies( { +left(?frame, ?a) }, { +noted(?a) } )",
+        "fact +suppose(h(a), hyp)",
+        "",
+    ]))
+    m1.run(limit=300)
+    check(
+        "R3",
+        "and so is a hypothesis, from the occasion of leaving it",
+        m1.holds(kb1.term("noted(h(a))")) == PLUS,
+    )
+
+    # Which one, though. Two candidates match one description, and the order they
+    # are tried in was undeclared until this check: `ancestors()` is newest-first,
+    # but a moment's delta was oldest-first, so two facts written by `implies`
+    # came out in the opposite order to two written by `causes` -- and which
+    # connective a rule used has nothing to do with reference.
+    def order(conn):
+        mm = Machine()
+        load(mm, chr(10).join([
+            f"rule <one> = {conn}( {{ +trigger(a) }},    {{ +plan(first, x) }} )",
+            f"rule <two> = {conn}( {{ +plan(first, x) }}, {{ +plan(second, x) }} )",
+            "rule <ref> = implies( { +plan(?p, x) },      { +chose(?p) } )",
+            "fact +trigger(a)",
+            "",
+        ]))
+        steps = mm.run(limit=60)
+        return [mm.g.show(e.proposition) for s in steps if s.applied
+                for e in s.wrote if mm.g.show(e.proposition).startswith("chose")]
+
+    check(
+        "§3",
+        "a description with two candidates resolves to the most recent",
+        order("implies")[0] == "chose(second)",
+    )
+    check(
+        "§3",
+        "and the same, whichever connective deposited them -- the walk is one order",
+        order("implies") == order("causes"),
+    )
+
 
 
 def quiescence_is_an_occasion() -> None:
@@ -1407,6 +1501,7 @@ def main() -> int:
     callbacks_on_a_hypothesis()
     recall_is_narrowable()
     prohibitions_are_not_recalled()
+    reference_is_binding()
     quiescence_is_an_occasion()
     surface()
     worked_examples()

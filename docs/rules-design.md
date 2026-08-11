@@ -2665,14 +2665,48 @@ A fact may carry a name, in the same angle brackets a rule's goes in, because **
 namespace of statements** and a rule is a statement. One table, not two — a rule and a norm sharing a
 name and meaning different things by position is exactly what the marker exists to prevent.
 
-The consequence is larger than retiring a norm, and it is worth separating from the carve-out:
+A separate consequence, and it is about the carve-out rather than about naming:
 
 > **§19 keeps norms out of recall. It never said they were beyond argument.**
 
-A named norm is a node, so a rule can conclude about it — `{+says(fire, evacuate, +)} ⟹ {-<no-harm>}`
-retires a prohibition on evidence, with the whole trail intact and the refusals it made before still
-on the record. A norm is unconditionally *consulted* and entirely *contestable*, and those turn out to
-be different properties. Naming is what separated them.
+A rule can retire a norm — `{+says(fire, evacuate, +)} ⟹ {-<no-harm>}` — on evidence, with the trail
+intact and the refusals it made beforehand still on the record. So a norm is unconditionally
+*consulted* and entirely *contestable*, and those turn out to be different properties.
+
+**Naming is not what separated them, and assuming it did was the error.** Measured afterwards: a rule
+could always do this, *without* the name —
+
+    rule <lift> = implies( { +says(fire, evacuate, +), +forbidden(doing(harm(?y))) },
+                          { -forbidden(doing(harm(?y))) } )
+
+— because matching a rule's generic antecedent against a stored **description** treats the
+description's variables as ordinary nodes. `?y` binds to the stored `?x`, and substitution rebuilds
+exactly the node that was written. Naming buys **authoring** — a second *surface statement* about the
+same description — and a stable handle for facts that are not about its shape. It never bought
+reference.
+
+#### Reference is binding
+
+Which is the general answer, and it is smaller than it looks. A plan, a hypothesis, a rule and a norm
+are all referable already, by the ordinary mechanism: **anything deposited as an entry can be bound by
+an antecedent, and binding is reference.** Language behaves the same way — it rarely names things
+either, it says *the plan we made before*. Names are for the exceptions.
+
+What binding does not supply is *which one*. Several entries match one description, and no rule can
+say *the latest*. What happens instead is that the walk decides, and until it was measured the walk
+disagreed with itself: `Moment.ancestors()` is newest-first, but a moment's `delta` was oldest-first,
+so two candidates deposited by `implies` came out in the opposite order to two deposited by `causes` —
+and which connective a rule used has nothing to do with reference. One `reversed()` makes the walk one
+order throughout, and *a description resolves to the most recent* becomes a claim with a check behind
+it rather than an accident.
+
+That is worth stating as the limit it is:
+
+> **Reference resolves to the most recent, and nothing reconsiders.** `_settle` takes the first entry
+> that satisfies a subgoal and never returns to it, so checking siblings inside the plan's bindings
+> stops a wrong plan being reported as a good one — it does not *find* the right one. `ugm.backward`
+> now runs the same world authored two ways and reports both outcomes, which is §21's backtracking
+> item measured instead of asserted.
 
 One consequence for the loader, and it is forced rather than chosen: a rule may conclude about a named
 fact and a named fact may be about a rule, so neither can simply be resolved first. What breaks the

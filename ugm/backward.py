@@ -69,20 +69,28 @@ from .chain import PLUS
 from .machine import Machine
 from .text import load
 
-CORPUS = chr(10).join([
-    "rule <boil>  = implies( { +heat(?w), +water(?w) },  { +boiling(?w) } )",
-    "rule <heat>  = implies( { +on(?s), +over(?w, ?s) }, { +heat(?w) } )",
-    "rule <tea>   = implies( { +boiling(?w), +leaf(?l) }, { +tea(?w, ?l) } )",
-    # Two subgoals sharing a variable, and a world where checking them
-    # independently gets it wrong: `tap(?t)` is satisfied by `sink`, and
-    # `under(kettle, ?t)` by `drain`. §18's failure, made reachable.
-    "rule <fill>  = implies( { +tap(?t), +under(kettle, ?t) }, { +water(kettle) } )",
-    "fact +tap(sink)",
-    "fact +tap(drain)",
-    "fact +under(kettle, drain)",
-    "fact +leaf(green)",
-    "",
-])
+def _corpus(taps: Tuple[str, ...]) -> str:
+    return chr(10).join([
+        "rule <boil>  = implies( { +heat(?w), +water(?w) },  { +boiling(?w) } )",
+        "rule <heat>  = implies( { +on(?s), +over(?w, ?s) }, { +heat(?w) } )",
+        "rule <tea>   = implies( { +boiling(?w), +leaf(?l) }, { +tea(?w, ?l) } )",
+        # Two subgoals sharing a variable, and a world where checking them
+        # independently gets it wrong: `tap(?t)` is satisfiable by either tap,
+        # and `under(kettle, ?t)` only by `drain`. §18's failure, made reachable.
+        "rule <fill>  = implies( { +tap(?t), +under(kettle, ?t) }, { +water(kettle) } )",
+    ] + [f"fact +tap({t})" for t in taps] + [
+        "fact +under(kettle, drain)",
+        "fact +leaf(green)",
+        "",
+    ])
+
+
+# The SAME world, authored in two orders. `current_state` walks newest-first, so
+# which tap `_settle` tries first is the one written last -- and nothing
+# backtracks over a binding once it is taken.
+AGREES = _corpus(("sink", "drain"))     # newest tap is `drain`; the siblings agree
+DISAGREES = _corpus(("drain", "sink"))  # newest tap is `sink`; they do not
+CORPUS = DISAGREES
 GOAL = "tea(kettle, green)"
 
 # What the plan is made of. The request traffic (`fit`, `fits`, `need`, `check`,
@@ -114,9 +122,9 @@ def _facts(m: Machine) -> Set[str]:
     return out
 
 
-def _read(drop: Tuple[str, ...] = ()) -> Tuple[Set[str], int, int]:
+def _read(drop: Tuple[str, ...] = (), corpus: str = CORPUS) -> Tuple[Set[str], int, int]:
     m = Machine()
-    kb = load(m, CORPUS)
+    kb = load(m, corpus)
     if drop:
         m.rules.rules = [r for r in m.rules.rules if r.name not in drop]
     m.gate.write(m.focus, m.g.rel(m.GOAL, kb.term(GOAL)), PLUS, mention=True)
@@ -154,6 +162,24 @@ def run() -> int:
         ok = any(needle in f and also in f for f in facts)
         print(f"  {'ok  ' if ok else 'FAIL'}  {name}")
         failures += 0 if ok else 1
+
+    # The same world, authored the other way round. This is not a second fixture
+    # -- it is the measurement of what the sibling check does and does not buy.
+    other, _, _ = _read(corpus=AGREES)
+    agreed_ok = (
+        "achieved(under(kettle, ?t))" in other and "blocked(under(kettle, ?t))" not in other
+    )
+    print(f"  {'ok  ' if agreed_ok else 'FAIL'}  "
+          f"...and with the taps authored the other way round, the SAME world plans")
+    failures += 0 if agreed_ok else 1
+    print()
+    print("        Checking siblings inside the plan's bindings stops a wrong plan")
+    print("        being reported as a good one. It does not FIND the right one:")
+    print("        `_settle` takes the first entry that satisfies a subgoal and")
+    print("        nothing reconsiders it, so which tap gets tried is decided by")
+    print("        the walk -- newest first -- and therefore by authoring order.")
+    print("        That is §21's backtracking item, measured rather than asserted.")
+    print()
 
     plan_facts = {f for f in facts if not f.startswith("blocked(")}
     if len(plan_facts) < BY_PHASE:
