@@ -699,43 +699,47 @@ which is the whole of its guarantee.
 
 ## Where I would pick up
 
-**1. A reason to stop.** §12 measured it: an *ideal* recall table reaches the goal in **8 ticks instead
-of 734**, and it makes no difference at all to a run that goes to quiescence. Everything downstream —
-learning, the composition trigger, any claim that an agent is efficient — is waiting on this and not on
-a bigger corpus. It is the same question as *when is a plan settled*, *when is a `due` rule done*,
-*when may a request be re-asked*, and §21's backtracking. Four hats, one head.
+**1. A reason to stop.** The measurement that makes this first: an *ideal* recall table reaches the
+goal in **8 ticks instead of 734**, and makes no difference at all to a run that goes to quiescence
+(§12). Recall's prize is real and uncollectable. Learning, the composition trigger, and any claim that
+an agent is efficient are all waiting on this — not on a bigger corpus.
 
-**2. Experience, now that enumeration is gone.** §14 removed the scan; what is left is genuinely
-recall's job and nothing does it: **which of the candidates to try first, and when to stop trying.**
-The remaining gap on the workload is 57 ticks against an ideal 8, and all of it is forward rules from
-irrelevant domains. `prefer` is derived from `fits` or authored — never from experience — and the
-exhaustive pass fires only on a dry shortlist, never on novelty or a schedule.
+It is one question wearing four hats, and they should be answered together or not at all:
 
-**3. What to DO when in doubt.** §15 built the noticing — `close(<R1>, <R2>)` is deposited when the
-choice was not forced — and deliberately not the response. Think longer, ask a channel, suppose one
-and look, prefer the reversible one: all of those are claims, so all of them are rules, and none is
-written. Suppositions are the obvious machinery for *suppose one and look* and are not wired to it.
-Note the ordering trap: arbitration is total, so the move is already made when the doubt is recorded.
-Acting on doubt **before** committing needs something this design does not have.
+* when is a plan **settled**?
+* when is a `due` rule **done**?
+* when may a request be **re-asked**? (§10 — a request is a fact, so it can only be made once)
+* when may a binding be **reconsidered**? (§21's backtracking; `_settle` never returns to one)
 
-**Definite reference — which one.** Binding refers; nothing selects. A rule cannot say *the latest*,
-and `_settle` never reconsiders a binding it took. That is one question wearing three hats: §21's
-backtracking, *when is a plan settled*, and *when may a request be re-asked*.
+**2. Acting on doubt before committing.** §15–16 built the noticing — `close(<R1>, <R2>)` when the
+choice was not forced, `tolerance(n)` as the knob a rule can turn — and deliberately not the response.
+Think longer, ask a channel, suppose one and look, prefer the reversible move: all claims, so all
+rules, and none written. ⚠ The ordering trap: arbitration is total, so **the move is already made when
+the doubt is recorded**. Deferring it needs the same missing thing as item 1.
 
-Also still open, and the same question three ways: nothing says when a plan is *settled*, when a `due`
-rule is *done*, or when a request may be *re-asked*.
+**3. Experience.** §14 removed the enumeration; what is left is genuinely recall's job and nothing
+does it — *which candidate to try first, and when to stop trying*. `prefer` is derived from `fits` or
+authored, never learned. The user's standing view: **learning is offline, not online** — credit needs
+the outcome, and the outcome is not known until the episode ends. `quiet` is this engine's *episode
+over*, and it is the same occasion that makes `blocked` legitimate. ⚠ Before building it, check what
+the trail can actually support: `achieved` is written for very few goals in a workload run, so
+outcome-based credit has thin evidence today.
 
-**2. The composition trigger.** Composition is built and measured (n steps -> 1, defeat inherited).
-What is missing is *when*: §4's answer is `compose what has run often and never surprised; decompose
-what surprises`, and neither half is wired. `RuleSet.composed_from` already records what each shortcut
-collapses, so decomposition knows where to look.
+**4. The composition trigger.** Composition is built and measured (n steps → 1, defeat inherited).
+Missing is *when*: §4's `compose what has run often and never surprised; decompose what surprises`,
+neither half wired. `RuleSet.composed_from` records what each shortcut collapses, so decomposition
+knows where to look. Trained by the same signal as item 3.
 
-**3. Lifting a modality across a rule** — the last of the four callers of §5's wall with no service.
+**5. Grades are not in the graph.** `chain.py` says grade, licence and source are *"ordinary facts
+about the entry (§5)"*. They are not — they are Python fields on the `Entry` tuple, so **no rule can
+read a grade**, which is why `ugm.modality` reports *a rule cannot ask whether something is merely
+likely*. One deposited fact per entry would close it.
 
-**Smaller, well-specified:** a seat move is not yet an entry (§17 says every seat move is a write);
-write-time hooks are not rules; what a `?` conclusion becomes on the way out of a supposition (§9);
-whether a channel reporting a denial should write `says(c, p, -)` or `says(c, not(p))`, and whether
-permitting both splits a corpus into dialects; the transpiler sketch in §21.
+**Smaller, well-specified:** lifting a modality across a rule (the last caller of §5's wall with no
+service); a seat move is not yet an entry (§17 says every seat move is a write); write-time hooks are
+not rules; what a `?` conclusion becomes on the way out of a supposition (§9); whether a channel
+reporting a denial should write `says(c, p, -)` or `says(c, not(p))`, and whether permitting both
+splits a corpus into dialects; the transpiler sketch in §21.
 
 ---
 
