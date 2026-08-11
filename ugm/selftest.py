@@ -1189,6 +1189,105 @@ def recall_is_narrowable() -> None:
     )
 
 
+def prohibitions_are_not_recalled() -> None:
+    """§19's carve-out, which is the one place the design refuses to be
+    incomplete.
+
+    > Recall may be incomplete about what to do. It may not be incomplete about
+    > what you must not do.
+
+    So a norm is not a rule. It is a veto at the gate, consulted on every write,
+    indexed by what is about to be written -- never proposed, never matched,
+    never arbitrated. The check that earns it is the last one here: narrow recall
+    until the agent cannot even bring its own norms to mind, and the forbidden
+    act still does not happen.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        "rule <fix>  = implies( { +broken(?x) }, { +doing(repair(?x)) } )",
+        "rule <burn> = implies( { +broken(?x) }, { +doing(harm(?x)) } )",
+        "fact forbidden(doing(harm(?x)))",
+        "fact +broken(pump)",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, src)
+    steps = m.run(limit=200)
+
+    check("§19", "the permitted act happens", m.holds(kb.term("doing(repair(pump))")) == PLUS)
+    check(
+        "§19",
+        "and the forbidden one does not -- the entry never exists, so nothing dispatched it",
+        m.holds(kb.term("doing(harm(pump))")) is None
+        and [m.g.show(x) for x in m.emitted] == ["repair(pump)"],
+    )
+    check(
+        "§19",
+        "refusing is not being silent: the refusal is an entry, with the norm as its licence",
+        m.gate.refusals == 1
+        and any(m.g.relation_of(e.proposition) is m.REFUSED
+                for mm in m.chain.moments for e in mm.delta),
+    )
+    check(
+        "§14",
+        "a rule whose conclusion is always refused applies once, not forever",
+        steps[-1].state == "quiescent",
+    )
+
+    # A norm is a belief, and it is consulted as one -- resolved at the writer's
+    # own position, so a hypothesis can carry one. But it CANNOT yet be revised
+    # from the surface, and the reason is worth pinning rather than discovering:
+    # a norm's argument is a description, a description is an authored statement,
+    # and §8 scopes a statement's variables to it. So `-forbidden(doing(harm(?x)))`
+    # written a second time is a different node saying a similar thing, and the
+    # denial lands on nothing.
+    #
+    # That is the project's own *never identify by name alone* arriving somewhere
+    # new. Revising a norm needs a way to NAME one, the way `<...>` names a rule.
+    # §21 carries it.
+    m2 = Machine()
+    kb2 = load(m2, src + chr(10) + "fact -forbidden(doing(harm(?x)))" + chr(10))
+    m2.run(limit=200)
+    check(
+        "§21",
+        "a norm cannot be denied by restating it -- two descriptions are two nodes",
+        m2.holds(kb2.term("doing(harm(pump))")) is None and m2.gate.refusals == 1,
+    )
+    # And the same claim, made where the identity IS the same node: consulted as
+    # an ordinary belief, so denying it stops it forbidding.
+    m2b = Machine()
+    kb2b = load(m2b, src)
+    norm = next(
+        e.proposition for mm in m2b.chain.moments for e in mm.delta
+        if m2b.g.relation_of(e.proposition) is m2b.FORBIDDEN
+    )
+    m2b.gate.write(m2b.focus, norm, MINUS, mention=True)
+    m2b.run(limit=200)
+    check(
+        "§12",
+        "denied at its own node, a norm stops forbidding -- it was a belief all along",
+        m2b.holds(kb2b.term("doing(harm(pump))")) == PLUS,
+    )
+
+    # The carve-out, measured. Narrow recall to one rule and the agent cannot
+    # reliably bring anything to mind -- but a norm was never in the running.
+    m3 = Machine()
+    kb3 = load(m3, src)
+    m3.recall_budget = 1
+    m3.run(limit=400)
+    check(
+        "§19",
+        "under a recall budget the forbidden act is STILL refused -- a norm is not a competitor",
+        m3.holds(kb3.term("doing(harm(pump))")) is None and m3.gate.refusals >= 1,
+    )
+    check(
+        "§19",
+        "while what to DO stayed incomplete-able: the same budget still let the agent act",
+        m3.holds(kb3.term("doing(repair(pump))")) == PLUS,
+    )
+
+
 def quiescence_is_an_occasion() -> None:
     """§5 named two places the machinery declines. The third is the loop running
     out of work, and it was the one that declined in silence.
@@ -1275,6 +1374,7 @@ def main() -> int:
     surprise_is_four_rows()
     callbacks_on_a_hypothesis()
     recall_is_narrowable()
+    prohibitions_are_not_recalled()
     quiescence_is_an_occasion()
     surface()
     worked_examples()

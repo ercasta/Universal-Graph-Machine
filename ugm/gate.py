@@ -100,6 +100,26 @@ class Gate:
         # bundle should be rules, and a hook is not one.
         self.on_write: List[Callable[["Frame", Entry], None]] = []
 
+        # §19's carve-out, and the shape of it is the argument:
+        #
+        #     Recall may be incomplete about what to do.
+        #     It may not be incomplete about what you must not do.
+        #
+        # A prohibition that fails to come to mind is a forbidden act that
+        # nothing notices, so a norm may not be a rule competing for attention.
+        # It is a veto here, consulted on **every** write, indexed by what is
+        # about to be written -- a set that is small and known, which is what
+        # makes an exhaustive check affordable at the one place effects leave.
+        #
+        # A vetoer returns the node that forbids the write, or None.
+        self.veto: List[Callable[["Frame", NodeId, str], Optional[NodeId]]] = []
+        # What a refusal IS, and the reason it is gate vocabulary rather than a
+        # machine's: it is the record of a gate decision, in the same family as
+        # the stamp. A refusal that wrote nothing would be a fourth silent
+        # decline -- the agent would not act, and would not know it had not.
+        self.REFUSED = g.atom("refused")
+        self.refusals = 0
+
     def frame(
         self,
         seat: Moment,
@@ -170,6 +190,29 @@ class Gate:
             raise ValueError(
                 f"cannot deposit a generic proposition: {self.g.show(proposition)}"
             )
+        # The veto runs before the deposit, so a forbidden entry never exists --
+        # not even briefly, and not for `on_write` to see. That matters because
+        # `_dispatch` is an `on_write` hook: refusing here is what keeps the act
+        # inside the agent, rather than emitting it and regretting it.
+        for vetoer in self.veto:
+            forbidding = vetoer(frame, proposition, sign)
+            if forbidding is None:
+                continue
+            self.refusals += 1
+            return self.chain.deposit(
+                seat=frame.seat,
+                locus=frame.topic if locus is None else locus,
+                proposition=self.g.rel(
+                    self.REFUSED, proposition, self.chain.SIGN[sign], forbidding
+                ),
+                sign="+",
+                grade=grade,
+                licence=forbidding,
+                source=source,
+                consumed=tuple(x.node for x in consumed),
+                mention=True,
+            )
+
         self.writes += 1
         e = self.chain.deposit(
             seat=frame.seat,

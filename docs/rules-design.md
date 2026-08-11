@@ -2622,6 +2622,38 @@ entries about to be written. That set is small and known, so the check is cheap 
 
 > **A prohibition is a gate on application, not a competitor in recall.**
 
+Built, and the shape it took is the argument. `forbidden(<pattern>)` is a norm, and its argument is a
+**description** — `forbidden(doing(harm(?x)))` names a class of acts, exactly as `ant(<R>, heat(?a,
+?w))` names a class of premises. It is never proposed, never matched, never arbitrated; the gate
+consults it on every write, before the deposit, so a forbidden entry never exists — not even briefly,
+and not for an `on_write` hook to see. Since dispatch is an `on_write` hook (§16), that is what keeps
+the act inside the agent rather than emitting it and regretting it.
+
+**Cheap because it is indexed by what is about to be written**, which is what §3's second index is
+for: only norms whose pattern shares the proposition's relation are looked at, and only those are
+resolved. A hundred norms about acting cost nothing on a write about the weather.
+
+**A refusal writes.** `refused(p, sign, <norm>)` is an entry, licensed by the norm that caused it. A
+veto that deposited nothing would be a fourth place the machinery declines in silence, and the whole
+carve-out exists because silence about norms is the failure being designed against.
+
+Three consequences fall out rather than being arranged:
+
+* **quiescence still terminates.** A forbidden conclusion never lands, so the chain never says it and
+  the rule would match forever. What settles it is the refusal: once *that* is recorded, applying
+  again changes nothing. The rule applies once, the record exists, the loop goes quiet — which is the
+  difference between a norm and a livelock.
+* **asserting only.** `forbidden(p)` forbids bringing `p` about, and bringing about is `+`. Denying
+  you are doing harm is not the forbidden act.
+* **a norm is still a belief** — resolved at the writer's own position, so it can be denied, dated, or
+  held only under a hypothesis. What it cannot do is fail to be consulted.
+
+One gap, and it is pinned by a check rather than left to be found. A norm cannot be revised **from
+the surface**: its argument is a description, a description is an authored statement, and §8 scopes a
+statement's variables to it — so a second `-forbidden(doing(harm(?x)))` denies a different node that
+says a similar thing, and the denial lands on nothing. Revising a norm needs a way to *name* one, as
+`<...>` names a rule. Until then, the only identity a norm has is the node the corpus first built.
+
 ### Scoring and price
 
 | | one undifferentiated `select` | **recall + match + arbitrate** |

@@ -155,6 +155,12 @@ class Machine:
         # same key twice. What recurs is what the situation is ABOUT, so the key
         # is a relation in play.
         self.PREFER = self.g.atom("prefer")
+        # §19's carve-out. `forbidden(<pattern>)` is a norm, and its argument is a
+        # DESCRIPTION rather than a proposition -- `forbidden(doing(harm(?x)))`
+        # names a class of acts, the way `ant(<R>, heat(?a, ?w))` names a class of
+        # premises. It is never matched by the loop; it is consulted at the gate.
+        self.FORBIDDEN = self.g.atom("forbidden")
+        self.REFUSED = self.gate.REFUSED
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -182,6 +188,7 @@ class Machine:
             "expects": self.EXPECTS, "deviates": self.DEVIATES,
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
+            "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
@@ -222,7 +229,8 @@ class Machine:
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
-                             self.DUE, self.VERDICT, self.PURSUED, self.PREFER}
+                             self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
+                             self.FORBIDDEN}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -237,6 +245,7 @@ class Machine:
         self.gate.on_write.append(self._fit)
         self.gate.on_write.append(self._settle)
         self.gate.on_write.append(self._verdict)
+        self.gate.veto.append(self._forbid)
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
         self.channels.sink = self._deliver
@@ -734,6 +743,63 @@ class Machine:
             consumed=(e,),
             mention=True,
         )
+
+    # -- norms ------------------------------------------------------------
+
+    def _forbid(self, frame: Frame, proposition: NodeId, sign: str) -> Optional[NodeId]:
+        """§19's carve-out, and the whole of it.
+
+        > **Recall may be incomplete about what to do. It may not be incomplete
+        > about what you must not do.**
+
+        A norm expressed as a rule is a competitor in recall, and a prohibition
+        that fails to come to mind is a forbidden act that nothing notices. The
+        repair is not to make recall complete for norms -- that reintroduces the
+        exhaustive search §19 exists to avoid. It is to take them off the recall
+        path entirely, which is what this is: not proposed, not matched, not
+        arbitrated, not defeasible by precedence. Consulted on every write.
+
+        **Cheap because it is indexed by what is about to be written.** §3's
+        second index is instances-by-relation, so only prohibitions whose pattern
+        has the same relation as this proposition are looked at, and only those
+        are resolved. A corpus with a hundred norms about acting costs nothing on
+        a write about the weather.
+
+        **Asserting only.** `forbidden(p)` forbids bringing `p` about, and
+        bringing about is `+`. Denying you are doing harm is not the forbidden
+        act. Extending this to signs is rows rather than branches, and there is
+        no case for it yet.
+
+        **A norm is still a belief.** It is resolved at the writer's own position
+        like anything else, so it can be denied, dated, or held only under a
+        supposition. What it cannot do is fail to be consulted.
+
+        One gap, pinned by a check rather than left to be discovered: a norm
+        cannot be revised **from the surface**, because its argument is a
+        description, a description is an authored statement, and §8 scopes a
+        statement's variables to it -- so writing `-forbidden(doing(harm(?x)))` a
+        second time denies a *different node* that says a similar thing. Revising
+        one needs a way to name it, as `<...>` names a rule. §21.
+
+        The one thing not checked is a refusal itself: forbidding the *record* of
+        a refusal would make the veto silent, which is the failure mode the whole
+        carve-out is against.
+        """
+        if sign != PLUS:
+            return None
+        rel = self.g.relation_of(proposition)
+        if rel is None or rel is self.REFUSED:
+            return None
+        for node in self.g.instances_of(self.FORBIDDEN):
+            (pattern,) = self.g.members(node)
+            if self.g.relation_of(pattern) != rel:
+                continue
+            if unify(self.g, pattern, proposition, {}) is None:
+                continue
+            e = self.chain.resolve(node, frame.topic, frame.seat)
+            if e is not None and e.sign == PLUS:
+                return node
+        return None
 
     def _own_frame(self) -> Frame:
         """Where the agent itself is standing, as opposed to where its reasoning
@@ -1237,6 +1303,20 @@ class Machine:
                 # rule reasoning about rules used to look exactly like a rule
                 # with nothing to do -- silently, and only at this line.
                 return False
+            forbidding = self._forbid(self.focus, grounded, m.sign)
+            if forbidding is not None:
+                # A forbidden conclusion never lands, so the chain never says it
+                # and the rule would match again on every tick, forever. What
+                # settles it is the refusal: once THAT is recorded, applying
+                # again would change nothing. So the rule applies exactly once,
+                # the record exists, and the loop can go quiet -- which is the
+                # difference between a norm and a livelock.
+                record = self.g.rel(
+                    self.REFUSED, grounded, self.rules.SIGN[m.sign], forbidding
+                )
+                if self.chain.resolve(record, self.focus.topic, self.focus.seat) is None:
+                    return True
+                continue
             cur = self.chain.resolve(grounded, self.focus.topic, self.focus.seat)
             if cur is None or cur.sign != m.sign:
                 return True

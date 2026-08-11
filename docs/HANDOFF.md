@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     185 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     193 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        14/14 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -46,6 +46,7 @@ gone. Ten commits:
 | `occasions` | leaving a hypothesis and running out of work become **facts**; callbacks and watchdogs |
 | `nophases` | the last phase deleted. `tick()` has no line a rule could have written |
 | `recall` | §19's first slice: `prefer(<R>, k)` as facts, a budget, and widening |
+| `norms` | §19's carve-out: a prohibition is a **veto at the gate**, never a competitor in recall |
 
 ### 1. The spine changed
 
@@ -199,6 +200,36 @@ choice nor the reason. The tie-break is authored order, the same one arbitration
 is what randomness was for, §19 already has the better answer — the exhaustive pass on novelty or a
 schedule, which injects what a draw *from the shortlist* structurally cannot.
 
+### 8. Norms come off the recall path
+
+§19's carve-out, and it is the one place the design refuses to be incomplete:
+
+> Recall may be incomplete about what to do. It may not be incomplete about what you must not do.
+
+`forbidden(<pattern>)` is a norm. Its argument is a **description** — `forbidden(doing(harm(?x)))`
+names a class of acts the way `ant(<R>, heat(?a, ?w))` names a class of premises. It is never
+proposed, matched or arbitrated: `Gate.veto` consults it on every write, **before the deposit**, so a
+forbidden entry never exists — not even briefly, and not for an `on_write` hook to see. Dispatch *is*
+an `on_write` hook, so that is what keeps the act inside the agent instead of emitting it and
+regretting it.
+
+Cheap because it is indexed by what is about to be written (§3's instances-by-relation): only norms
+whose pattern shares the proposition's relation are resolved.
+
+**A refusal writes.** `refused(p, sign, <norm>)`, licensed by the norm. A veto that deposited nothing
+would be a fourth silent decline, and silence about norms is the exact failure being designed against.
+
+Three things fell out rather than being arranged: quiescence still terminates (the *refusal* is what
+stops the rule re-applying — otherwise a norm is a livelock); a norm forbids `+` only, because
+bringing about is asserting; and a norm is still an ordinary belief, resolved at the writer's own
+position.
+
+⚠ **One gap, pinned by a check.** A norm cannot be revised *from the surface*: its argument is a
+description, a description is an authored statement, and §8 scopes a statement's variables to it — so
+a second `-forbidden(doing(harm(?x)))` denies a **different node** that says a similar thing, and the
+denial lands on nothing. Denied at its own node it works, which is checked too. Revising a norm needs
+a way to name one, as `<...>` names a rule.
+
 ---
 
 ## The state of the code
@@ -217,16 +248,22 @@ read.
 **Five write-time hooks**: `_dispatch` (acting), `_enter` (supposition), `_fit`, `_settle`,
 `_verdict`. These are Python callables, which is honest debt — §21 records it.
 
+**One veto**: `_forbid`, §19's carve-out. Not a hook and not a rule — it runs *before* the deposit,
+which is the whole of its guarantee.
+
 ---
 
 ## Where I would pick up
 
-**1. Recall, continued.** The seam is open and the first slice is in (§7 below). What is *not* done:
-the table is authored, never learned; `_in_play` is the cheapest key that recurs and deserves a
-measured comparison against alternatives; §19's carve-out is unimplemented — **prohibitions must come
-off the recall path entirely**, checked at the write, and nothing does that yet; and the exhaustive
-pass fires only on a dry shortlist, never on novelty or a schedule, which §19 says is what stops
-recall calcifying where it is performing well.
+**1. Recall, continued.** The seam is open, the first slice is in and the carve-out is done (§7, §8
+below). What is *not*: the table is authored, never learned; `_in_play` is the cheapest key that
+recurs and deserves a measured comparison against alternatives; and the exhaustive pass fires only on
+a dry shortlist, never on novelty or a schedule, which §19 says is what stops recall calcifying
+exactly where it is performing well.
+
+**Naming a norm.** A norm cannot be revised from the surface, because two descriptions written
+independently are two nodes. It needs the treatment `<...>` gives a rule. Small, well-specified, and
+it is the only thing between norms and being ordinary beliefs.
 
 Also still open, and the same question three ways: nothing says when a plan is *settled*, when a `due`
 rule is *done*, or when a request may be *re-asked*.

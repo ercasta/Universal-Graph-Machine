@@ -402,7 +402,16 @@ class Loader:
         # claim about two rules, not a generic claim -- R3 depends on being able
         # to write it. The `<...>` marker is what makes the distinction visible
         # here, where structurally the two are identical (§13).
-        mentions = _mentions_a_rule(s.member.term)
+        # A norm's argument is a DESCRIPTION, not a proposition:
+        # `forbidden(doing(harm(?x)))` names a class of acts, exactly as
+        # `ant(<R>, heat(?a, ?w))` names a class of premises. Both are ground
+        # claims that happen to contain variables, and §13 says what tells them
+        # apart is who is writing -- here, an author who wrote `forbidden`.
+        #
+        # This is one name in Appendix C's census, and it is the honest price of
+        # letting a corpus state a norm at all: a norm about one act would be
+        # useless, and a norm expressed as a rule is a competitor in recall.
+        mentions = _mentions_a_rule(s.member.term) or s.member.term.head == "forbidden"
         if not mentions and self.m.g.has_var(prop):
             raise ParseError(
                 f"line {s.line}: a fact may not contain a variable -- only a rule's members "
