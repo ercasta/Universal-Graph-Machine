@@ -10,9 +10,9 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     208 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     211 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
-python -m ugm.bundle        14/14 bundled rules exercised  is every shipped rule load-bearing?
+python -m ugm.bundle        15/15 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
@@ -53,6 +53,7 @@ gone. Ten commits:
 | `reference` | reference is **binding**; the walk is one order; the naming claim corrected |
 | `theread` | the read indexed — **67× on the goal fixture**; and `causes` was orphaning the register |
 | `workload` | a workload recall can be measured on — and **recall cannot pay until the agent can stop** |
+| `better` | preference **orders** rather than excludes; relevance is derived, not authored |
 
 ### 1. The spine changed
 
@@ -405,6 +406,48 @@ doing so, the workload has become the n-rule chain again with more rules in it.
 workload every domain is always in play. The key that would work here is what the agent is *trying to
 do*. The hand-authored table sidesteps it by naming each rule's own antecedent relation.
 
+### 13. Choosing the better move — where it belongs, and what it isn't
+
+The framing that started it: *recall should lead the agent to choose better rules instead of doing
+dumb things — given many applicable rules, choose the best.* Cost was the wrong lens; a bad choice on
+an irreversible step is a mistake, not a slowdown.
+
+**Relevance was already computed and thrown away.** `_fit` writes `fits(<R>, w)` — *this rule could
+produce what you want* — and nothing used it. `<relevant>` turns it into a preference in one bundled
+rule, so **means-ends analysis is data**, and an agent that should not prefer the rules serving its
+current goal deletes it.
+
+Two negative results, each found by breaking something, and both are the same shape:
+
+* ⚠ **Preference must order, not exclude.** Filtering recall by goal-relevance starved
+  `{+blocked(heat(?a, ?w))} ⟹ {+doing(heat(anna, ?w))}` — the most useful rule in that corpus, which
+  does not fit the goal at all. *Relevance to a goal is silent about everything it is not about.*
+* ⚠ **The apparatus is not a competitor.** Let loose over everything, preference outranked the rules
+  that notice a **surprise**, so the agent pursued its goal while a channel was saying the world had
+  moved. `standing` — a fact, deposited for each bundled rule — keeps the apparatus in its authored
+  place. This is §19's carve-out for norms arriving a second time: *being overridable and being
+  forgettable are different properties.*
+
+So arbitration now sorts on **authority (defeat) → apparatus → helpfulness → authored order**, and
+what preference replaces is worth naming: the tie among applicable, undefeated rules used to be broken
+by *the order they happened to be written in*. Still total, still a lookup that never searches; with
+no preferences it is exactly the authored order it always was.
+
+⚠ **No end-to-end win yet, and the blocker is measured.** On the workload the goal still arrives at
+tick 751, because:
+
+```
+  applications: bundled = 752   corpus = 64        (ask-fit alone: 711)
+```
+
+`<ask-fit>`'s antecedent is over `rule(?r)` — *every* rule — so it matches |rules|×|goals| ways and,
+being standing, monopolises arbitration until backward reading is exhausted. **The phase's precedence
+claim survived its deletion, as authored order**: `ugm.backward` measured "the phase starves forward
+reasoning" as the phase's sin, and it moved rather than went. Fixing it is pickup item 2.
+
+⚠ `ugm.bundle` caught `<relevant>` shipping **blind** — 15 rules, 14 exercised — before a check
+existed for it. The habit earned its keep again.
+
 ---
 
 ## The state of the code
@@ -436,10 +479,16 @@ learning, the composition trigger, any claim that an agent is efficient — is w
 a bigger corpus. It is the same question as *when is a plan settled*, *when is a `due` rule done*,
 *when may a request be re-asked*, and §21's backtracking. Four hats, one head.
 
-**2. Recall, continued** — but read §11 and §12 first. Recall was not where the cost was, narrowing it
-made a goal fixture *slower*, and its real prize is invisible until an agent can stop. What is still
-undone: the table is authored, never learned; `_in_play` is the wrong key for goal-directed work (§12);
-the exhaustive pass fires only on a dry shortlist, never on novelty or a schedule.
+**2. `<ask-fit>` must range over what came to mind.** §13 measured the blocker exactly: 752 bundled
+applications to 64 corpus ones, and `<ask-fit>` alone is 711 of them, because its antecedent is over
+`rule(?r)` — *every* rule — not over what recall proposed. This is the stashed `recall`-as-a-request
+work (`stash@{0}`), which made things slower when nothing narrowed; something narrows now. It is the
+one change with a measured number waiting for it.
+
+**3. Recall, continued** — read §11–§13 first. Recall was not where the cost was, narrowing it made a
+goal fixture *slower*, and its prize is invisible until an agent can stop. Still undone: nothing is
+learned — `prefer` is derived from `fits` or authored, never from experience; and the exhaustive pass
+fires only on a dry shortlist, never on novelty or a schedule.
 
 **Definite reference — which one.** Binding refers; nothing selects. A rule cannot say *the latest*,
 and `_settle` never reconsiders a binding it took. That is one question wearing three hats: §21's

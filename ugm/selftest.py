@@ -1126,7 +1126,7 @@ def recall_is_narrowable() -> None:
         m = Machine()
         kb = load(m, src)
         m.recall_budget = budget
-        steps = m.run(limit=200)
+        steps = m.run(limit=2000)
         return m, kb, steps
 
     m0, kb0, _ = run(chain, None)
@@ -1186,6 +1186,78 @@ def recall_is_narrowable() -> None:
         "§19",
         "and without widening it gives up on a reachable goal -- the check can fail",
         m4.holds(kb4.term("pursued(water(kettle))")) is None,
+    )
+
+
+def the_better_move_wins() -> None:
+    """Given several applicable rules, choose the best one -- and *best* has to
+    mean something the agent can point at.
+
+    Before this, the tie among applicable, undefeated rules was broken by **the
+    order they happened to be written in**. That is an accident of authoring
+    deciding which move an agent makes, including the moves it cannot take back.
+
+    What it is replaced by was already being computed and thrown away.
+    `fits(<R>, w)` is `_fit`'s answer to *could this rule produce what you want*,
+    so `<relevant>` turns it into a preference in one line -- and means-ends
+    analysis is a bundled rule rather than a policy in the loop.
+
+    Two limits, both found by breaking something:
+
+    **Preference orders; it must not exclude.** Used to filter recall it starved
+    `{+blocked(heat(?a, ?w))} => {+doing(heat(anna, ?w))}` -- the most useful rule
+    in that corpus, which does not fit the goal at all. Relevance to a goal is
+    silent about everything it is not about.
+
+    **The apparatus is not a competitor.** Let loose over everything, preference
+    outranked the rules that notice a surprise, so the agent pursued a goal while
+    a channel was saying the world had moved. `standing` rules keep their
+    authored place.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        # Authored first, so authored order alone would pick it -- and it does
+        # nothing for the goal.
+        "rule <wander> = implies( { +at(?x) }, { +wandered(?x) } )",
+        "rule <toward> = implies( { +at(?x) }, { +nearer(?x) } )",
+        "fact +at(a)",
+        "fact +goal(nearer(a))",
+        "",
+    ])
+
+    def first_corpus_move(machine):
+        bundled = {r.name for r in machine.bundle}
+        for s in machine.run(limit=400):
+            if s.applied and s.applied.rule.name not in bundled:
+                return s.applied.rule.name
+        return None
+
+    m = Machine()
+    kb = load(m, src)
+    move = first_corpus_move(m)
+    check(
+        "§19",
+        "the agent works out for itself which rule serves its goal",
+        m.holds(kb.term("prefer(<toward>, nearer(a))")) == PLUS
+        and m.holds(kb.term("prefer(<wander>, nearer(a))")) is None,
+    )
+    check(
+        "§14",
+        "given two applicable rules, the one that serves the goal is chosen",
+        move == "toward",
+    )
+
+    # Could that have failed? Delete the rule that derives the preference and the
+    # accident of authoring decides again.
+    m2 = Machine()
+    load(m2, src)
+    m2.rules.rules = [r for r in m2.rules.rules if r.name != "relevant"]
+    m2.bundle = [r for r in m2.bundle if r.name != "relevant"]
+    check(
+        "§14",
+        "and without `<relevant>` the authored order picks the useless one",
+        first_corpus_move(m2) == "wander",
     )
 
 
@@ -1633,6 +1705,7 @@ def main() -> int:
     surprise_is_four_rows()
     callbacks_on_a_hypothesis()
     recall_is_narrowable()
+    the_better_move_wins()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()
     a_cause_moves_the_register()

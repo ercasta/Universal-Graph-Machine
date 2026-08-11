@@ -2671,6 +2671,46 @@ cannot fail is worse than none, because it reads as evidence.
 relations in play was the cheapest thing that recurs, and on a goal-directed workload it discriminates
 nothing: every domain is always in play. What separates the useful rules there is the *goal*.
 
+### Choosing the better move
+
+Recall is asked to make an agent *cheaper*. The sharper demand is that it make an agent **less stupid**:
+given several applicable rules, take the better one. Those are not the same request, and only the
+second matters on an irreversible step, where a bad choice is a mistake rather than a delay.
+
+The engine was already computing what it needed. `fits(<R>, w)` is `_fit`'s answer to *could this rule
+produce what you want*, deposited for the backward reader and used by nothing else. One bundled rule
+turns it into a preference, which makes **means-ends analysis data** rather than policy in the loop —
+and an agent that should not favour the rules serving its current goal (one exploring, or one whose
+goal is a guess) deletes that rule and has its old behaviour back.
+
+Where the preference is consulted was decided by two failures.
+
+**A preference must order, not exclude.** Used to filter recall, goal-relevance starved
+`{+blocked(heat(?a, ?w))} ⟹ {+doing(heat(anna, ?w))}` — the most useful rule in that corpus, and one
+that does not fit the goal at all.
+
+> **Relevance to a goal is one signal, and as a filter it is silent about everything it is not about.**
+
+**The apparatus is not a competitor.** Let loose over every rule, preference outranked the ones that
+notice a surprise, and the agent went on pursuing a goal while a channel was telling it the world had
+moved. This is §19's carve-out arriving a second time and for the same reason: being overridable and
+being **forgettable** are different properties, and only the first was ever claimed for the bundle.
+
+So the order in arbitration is:
+
+| | |
+|---|---|
+| **authority** | `overrides`, applied first as defeat — the boss's rule beating the vice's is a claim about who decides, and no amount of *this usually works* may outrank it |
+| **apparatus** | a `standing` rule keeps its authored place |
+| **helpfulness** | what the situation recommends |
+| **authoring** | the order they were written in |
+
+The last row is what helpfulness displaces, and it is worth stating plainly: the tie among applicable,
+undefeated rules was being broken by **an accident of authoring**, deciding which move an agent made.
+A derived preference is not obviously right, but it is not an accident, it is recorded in the trail,
+and a corpus can argue with it. Arbitration stays total and stays a lookup: with no preferences it is
+exactly the authored order it always was.
+
 ### The carve-out
 
 > **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**

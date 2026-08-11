@@ -485,7 +485,11 @@ def match(
 # -- arbitrate --------------------------------------------------------------
 
 
-def arbitrate(rs: RuleSet, applications: Sequence[Application]) -> Optional[Application]:
+def arbitrate(
+    rs: RuleSet,
+    applications: Sequence[Application],
+    priority: Optional[Callable[["Rule"], Tuple]] = None,
+) -> Optional[Application]:
     """Among the rules that matched, choose one. Total: it always answers.
 
     Two steps, and they are not the same step.
@@ -496,15 +500,45 @@ def arbitrate(rs: RuleSet, applications: Sequence[Application]) -> Optional[Appl
     overwrite the winner, so the boss's rule would be obeyed and then quietly
     undone by the vice's.
 
-    **Then choose**, by the order rules were authored in -- the table §14
-    requires, a lookup that never searches, so no decision hangs.
+    **Then choose.** Three keys, in this order, and the order is the argument.
+
+        authority     `overrides` -- already applied, above, as defeat
+        apparatus     a `standing` rule keeps its authored place
+        helpfulness   what the situation recommends (`prefer`)
+        authoring     the order they were written in
+
+    Authority first is not negotiable: the boss's rule beating the vice's is a
+    claim about who decides, and no amount of *this one usually works* may
+    outrank it. That is why defeat runs first and is not folded in here as
+    another score.
+
+    The apparatus next, and this one was found by breaking it. Preference is
+    derived from *what serves the current goal*, and let loose over everything it
+    outranked the rules that notice a **surprise** -- so the agent carried on
+    pursuing a goal while a channel was telling it the world had moved. Being
+    helpful towards a goal is not a reason to outrank the machinery that decides
+    whether the goal still makes sense. `standing` rules therefore keep the
+    authored order they already had, and preference orders what is left.
+
+    Helpfulness third is the change, and what it replaces is worth naming. The
+    tie among applicable, undefeated rules used to be broken by **the order they
+    happened to be written in** -- an accident of authoring, deciding which of
+    several possible moves an agent makes, including the irreversible ones. A
+    derived preference is not obviously right, but it is not an accident, and it
+    is a claim the trail records and a corpus can argue with.
+
+    Still a lookup that never searches (§14), so it stays total: with no
+    preferences it is exactly the authored order it always was.
     """
     if not applications:
         return None
+    score = priority or (lambda r: ())
     best = applications[0]
+    best_key = (score(best.rule), rs.rules.index(best.rule))
     for cand in applications[1:]:
-        if rs.rules.index(cand.rule) < rs.rules.index(best.rule):
-            best = cand
+        key = (score(cand.rule), rs.rules.index(cand.rule))
+        if key < best_key:
+            best, best_key = cand, key
     return best
 
 

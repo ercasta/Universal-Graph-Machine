@@ -156,6 +156,17 @@ class Machine:
         # same key twice. What recurs is what the situation is ABOUT, so the key
         # is a relation in play.
         self.PREFER = self.g.atom("prefer")
+        # The second carve-out, and it is the mirror of §19's first. Norms may
+        # not be forgotten because forgetting one is a forbidden act nobody
+        # notices; the BUNDLE may not be forgotten because it is how the agent
+        # reads at all. `intake` not coming to mind is not a worse plan -- it is
+        # a report that never became a belief. Being overridable and being
+        # forgettable are different properties, and only the first was ever
+        # claimed for the bundle.
+        #
+        # A fact, not a Python flag, so a corpus can make its own rules standing
+        # and can retire one of ours.
+        self.STANDING = self.g.atom("standing")
         # §19's carve-out. `forbidden(<pattern>)` is a norm, and its argument is a
         # DESCRIPTION rather than a proposition -- `forbidden(doing(harm(?x)))`
         # names a class of acts, the way `ant(<R>, heat(?a, ?w))` names a class of
@@ -190,6 +201,7 @@ class Machine:
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
+            "standing": self.STANDING,
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
@@ -231,7 +243,7 @@ class Machine:
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
-                             self.FORBIDDEN}
+                             self.FORBIDDEN, self.STANDING}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -241,6 +253,14 @@ class Machine:
 
         self.bundle: List[Rule] = []
         self._install_bundle()
+        # Every bundled rule is standing, deposited rather than assumed -- so
+        # *which rules always come to mind?* is a query, and a corpus can add to
+        # the list or take something off it.
+        for r in self.bundle:
+            self.gate.write(
+                self.focus, self.g.rel(self.STANDING, r.node), PLUS,
+                licence=self.g.rel(self.REIFIED, r.node), source=self.KB, mention=True,
+            )
         self.gate.on_write.append(self._dispatch)
         self.gate.on_write.append(self._enter)
         self.gate.on_write.append(self._fit)
@@ -442,6 +462,30 @@ class Machine:
             [Member(PLUS, g.rel(self.CHECK, plan, sub))],
             "ask-check",
         ))
+        # Relevance, which the engine was already computing and throwing away.
+        #
+        # `fits(<R>, w)` says *this rule could produce what you want* -- it is
+        # the answer to a match request the backward reader made, and it is
+        # exactly the claim a preference wants. So the table §19 hoped would be
+        # learned is, for goal-directed work, **derived**: one rule, over facts
+        # already deposited.
+        #
+        # That is means-ends analysis, and putting it here rather than in the
+        # loop is what makes it arguable. An agent that should NOT prefer the
+        # rules serving its current goal -- one exploring, or one whose goal is
+        # a guess -- deletes this rule and gets its old behaviour back.
+        #
+        # It is a preference and not a defeat (§12): the rules it does not
+        # prefer are still applicable, still reachable when recall widens, and
+        # still there if this one is wrong. Being wrong in recall is recoverable,
+        # which is §19's whole reason for putting learning here.
+        self.bundle.append(self.rules.rule(
+            IMPLIES,
+            [Member(PLUS, g.rel(self.FITS, r, w))],
+            [Member(PLUS, g.rel(self.PREFER, r, w))],
+            "relevant",
+        ))
+
         # And the verdict -- asked when the loop has stopped, which is the only
         # moment at which *nothing fits this* is a claim about a finished search
         # rather than about how far one has got. This is the policy the phase
@@ -1071,7 +1115,9 @@ class Machine:
         applications = defeat(self.rules, applications)
         applications = [a for a in applications if self._would_change(a)]
 
-        chosen = arbitrate(self.rules, applications)
+        # What the situation recommends, computed once for this tick.
+        keys = self._in_play()
+        chosen = arbitrate(self.rules, applications, lambda r: self._rank(r, keys))
         if chosen is None:
             # Nothing came to mind that had anything to do -- which is not the
             # same as nothing being left to do, and §15 says only the second
@@ -1156,26 +1202,30 @@ class Machine:
             ):
                 continue
             live.append(r)
-        if self.recall_budget is None or self._widened or len(live) <= self.recall_budget:
+        if self._widened:
             return live
 
-        # Rank, then take. Ranking is over `prefer` claims, which are ordinary
-        # facts -- so *why did that rule come to mind?* is a query, and the table
-        # is as contestable as anything else the agent believes.
+        # Preference does NOT narrow this step, and finding out why was the
+        # session's clearest negative result. Filtering recall by *what fits the
+        # current goal* starved a rule that reacted to a **blocked** goal --
+        # `{+blocked(heat(?a, ?w))} => {+doing(heat(anna, ?w))}` is the most
+        # useful rule in that corpus and it does not fit the goal at all.
+        #
+        # > **Relevance to a goal is one signal, and as a filter it is silent
+        # > about everything it is not about.**
+        #
+        # So preference orders (`arbitrate`) rather than excludes, where being
+        # wrong costs a worse choice this tick instead of a plan that stalls.
+        # What narrows here stays what a corpus *claimed*: `dormant` unless
+        # `due`. An optional cap is kept for measuring, and defaults to off.
+        if self.recall_budget is None:
+            return live
         keys = self._in_play()
         ranked = sorted(
-            enumerate(live),
-            # Authored order is the tie-break, and it is the SAME tie-break
-            # arbitration uses (§14). A ranking that ended in a set would make
-            # two runs of the same corpus differ with nothing recording why --
-            # this project has hit that exact bug before.
-            key=lambda pair: (-self._priority(pair[1], keys), pair[0]),
+            enumerate(live), key=lambda pair: (-self._priority(pair[1], keys), pair[0])
         )
         out = [r for _, r in ranked[: self.recall_budget]]
-        # A callback that was woken must not then be starved by the budget: `due`
-        # is a claim that this rule's turn has come, and a turn that never arrives
-        # is not a turn. Nothing else jumps the queue.
-        for r in live:
+        for r in live:  # a woken callback is never starved by a cap
             if r not in out and self._claims(self.g.rel(self.DUE, r.node)):
                 out.append(r)
         return out
@@ -1194,7 +1244,26 @@ class Machine:
             rel = self.g.relation_of(e.proposition)
             if rel is not None:
                 out.add(rel)
+        # ...and what the agent is TRYING TO DO, which is not the same question
+        # and turned out to be the one that matters. Keyed only on what changed,
+        # a table cannot discriminate on goal-directed work: every domain the
+        # agent knows about is in play all the time, and being in play says
+        # nothing about being useful. A live goal does.
+        for s in current_state(self.chain, self.focus.topic, self.focus.seat):
+            if s.sign == PLUS and self.g.relation_of(s.proposition) is self.GOAL:
+                out.add(self.g.member(s.proposition, 0))
         return out
+
+    def _rank(self, rule: Rule, keys: set) -> Tuple[int, int]:
+        """The sort key arbitration uses after defeat. Lower is better.
+
+        `standing` first, so the reading apparatus keeps the authored precedence
+        it already had -- preference is about which of the agent's OWN moves is
+        the better one, never about whether to keep reading. Then preference,
+        then (in `arbitrate`) authored order."""
+        if self._claims(self.g.rel(self.STANDING, rule.node)):
+            return (0, 0)
+        return (1, -self._priority(rule, keys))
 
     def _priority(self, rule: Rule, keys: set) -> int:
         """How much this situation recommends this rule. Authored today; §19 says
